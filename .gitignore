@@ -9,3 +9,4 @@ __pycache__/
 .secret_key
 scripts/.agent-secret
 scripts/.cursor-api-key
+nul 
