@@ -38,6 +38,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 
 ## Conventions
 - `APP_VERSION` dans app.py (actuellement "25.0") — incrementer a chaque release
+- Workflow git: après chaque demande avec modifications, committer et pousser les changements directement sur `main`.
 - Cache busters automatiques : app.py calcule les hash MD5 des fichiers statiques au demarrage et remplace `?v=XXXX` dans le HTML
 - Pas de bundler/build system — fichiers servis directement par Flask
 - Scripts avec `defer` sur toutes les pages (sauf Chart.js CDN dans stats.html)
