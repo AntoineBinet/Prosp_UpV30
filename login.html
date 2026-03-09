@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<title>ProspUp — Connexion</title>
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/favicon.ico">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f172a;--card:#1e293b;--border:#334155;--accent:#6366f1;--accent-hover:#818cf8;--text:#e2e8f0;--muted:#94a3b8;--danger:#ef4444;--success:#22c55e}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);padding:20px}
+.login-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px 36px;width:100%;max-width:400px;box-shadow:0 25px 60px rgba(0,0,0,.5)}
+.logo{text-align:center;margin-bottom:32px}
+.logo img{height:40px;width:auto;max-width:180px;display:block;margin:0 auto 8px}
+.logo h1{font-size:22px;font-weight:700;color:var(--text)}
+.logo p{color:var(--muted);font-size:13px;margin-top:4px}
+.field{margin-bottom:20px}
+.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:500}
+.field input{width:100%;padding:12px 14px;background:#0f172a;border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;outline:none;transition:border .2s}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.field input::placeholder{color:#475569}
+.btn-login{width:100%;padding:13px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:4px}
+.btn-login:hover{background:var(--accent-hover);transform:translateY(-1px)}
+.btn-login:active{transform:scale(.98)}
+.btn-login:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.error-msg{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#fca5a5;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none;text-align:center}
+.error-msg.show{display:block}
+.pw-field{position:relative}
+.pw-field input{padding-right:44px}
+.pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:17px;padding:4px;line-height:1}
+.pw-toggle:hover{color:var(--text)}
+@media(max-width:480px){.login-card{padding:32px 24px;border-radius:12px}.logo h1{font-size:24px}}
+.loading .btn-login::after{content:'';display:inline-block;width:16px;height:16px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;margin-left:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="login-card">
+    <div class="logo">
+        <img src="/static/logo-up-technologies.png" alt="Up Technologies">
+        <h1>ProspUp</h1>
+        <p>CRM Prospection — Up Technologies</p>
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+    <form id="loginForm" onsubmit="return doLogin(event)">
+        <div class="field">
+            <label for="username">Identifiant</label>
+            <input type="text" id="username" name="username" placeholder="Votre identifiant" autocomplete="username" required autofocus>
+        </div>
+        <div class="field pw-field">
+            <label for="password">Mot de passe</label>
+            <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+            <button type="button" class="pw-toggle" id="pwToggle" title="Afficher / masquer" onclick="togglePw()">👁️</button>
+        </div>
+        <button type="submit" class="btn-login" id="btnLogin">Se connecter</button>
+    </form>
+</div>
+<script>
+function togglePw() {
+    const inp = document.getElementById('password');
+    const btn = document.getElementById('pwToggle');
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    btn.textContent = show ? '🙈' : '👁️';
+}
+
+async function doLogin(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnLogin');
+    const err = document.getElementById('errorMsg');
+    err.classList.remove('show');
+    btn.disabled = true;
+    document.body.classList.add('loading');
+
+    try {
+        const resp = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                username: document.getElementById('username').value.trim(),
+                password: document.getElementById('password').value
+            })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            window.location.href = data.must_change_password ? '/parametres?change_password=1' : '/dashboard';
+        } else {
+            err.textContent = '⚠️ ' + (data.error || 'Erreur de connexion');
+            err.classList.add('show');
+        }
+    } catch(ex) {
+        err.textContent = '⚠️ Erreur réseau';
+        err.classList.add('show');
+    } finally {
+        btn.disabled = false;
+        document.body.classList.remove('loading');
+    }
+}
+</script>
+</body>
+</html>

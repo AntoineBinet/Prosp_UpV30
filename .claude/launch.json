@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "prospup",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["app.py"],
+      "port": 8000,
+      "autoPort": false,
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  ]
+}

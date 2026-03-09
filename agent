@@ -1,0 +1,43 @@
+/* Correction overflow paramètres gamification — mobile réglages */
+
+/* 
+  Ce patch CSS force les panels/inputs de gestion gamification à wrap et à ne pas dépasser sur mobile.
+  A ajouter dans page réglages (users.html/settings.html), ou si utilisé dans plusieurs pages, placer
+  dans le fichier CSS principal. Ici, règle en JS pour forcer rapidement le style si le code HTML
+  n'est pas modifiable directement.
+*/
+
+(function() {
+  // Appliquer à tous les panels de gamification si présents sur la page réglages
+  // On cible les blocs ayant une classe ou un id en rapport avec gamification params
+  const panels = document.querySelectorAll(
+    '[class*="gamification"], [id*="gamification"], [data-section*="gamification"]'
+  );
+  panels.forEach(panel => {
+    // Sur mobile (max 700px), applique le correctif
+    if (window.innerWidth <= 700) {
+      panel.style.overflowX = 'auto';
+      panel.style.maxWidth = '100vw';
+      panel.style.boxSizing = 'border-box';
+      // Si le panel contient des tables ou flex-box, on corrige le wrap
+      panel.querySelectorAll('table, .flex, .settings-row').forEach(el => {
+        el.style.display = 'block';
+        el.style.width = '100%';
+        el.style.overflowX = 'auto';
+        el.style.boxSizing = 'border-box';
+      });
+      // Correction des input longs/groupes horizontaux (class input-row, ou input-group)
+      panel.querySelectorAll('.input-row, .input-group').forEach(row => {
+        row.style.flexWrap = 'wrap';
+        row.style.display = 'flex';
+        row.style.gap = '8px';
+      });
+      // Empêche les labels/inputs de forcer le débordement
+      panel.querySelectorAll('label, input, select, button').forEach(el => {
+        el.style.maxWidth = '100%';
+        el.style.boxSizing = 'border-box';
+        el.style.wordBreak = 'break-word';
+      });
+    }
+  });
+})();

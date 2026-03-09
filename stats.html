@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="ProspUp — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/favicon.ico">
+  <title>ProspUp — Stats</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2103">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script>
+    // Fallback: try alternate CDN if Chart.js failed to load
+    if (typeof Chart === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.7/chart.umd.min.js"><\/script>');
+    }
+  </script>
+  <script>
+    if (typeof Chart === 'undefined') {
+      document.write('<script src="https://unpkg.com/chart.js@4.4.7/dist/chart.umd.min.js"><\/script>');
+    }
+  </script>
+</head>
+<body data-page="stats">
+  <div class="container">
+    <header>
+      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> ProspUp — Stats</h1>
+      <p class="header-subtitle">Tableau de bord — Pilotez votre prospection en un coup d'œil.</p>
+    </header>
+
+    <div class="main-layout">
+                        <aside class="sidebar"></aside>
+
+      <main class="content">
+        <div class="content-header">
+          <div class="content-title">Vue d'ensemble</div>
+          <div class="controls">
+            <select id="statsRangeMode">
+              <option value="7">7 jours</option>
+              <option value="30" selected>30 jours</option>
+              <option value="90">90 jours</option>
+              <option value="all">All time</option>
+              <option value="week">Semaine…</option>
+              <option value="month">Mois…</option>
+            </select>
+            <input id="statsWeek" type="week" style="display:none;" />
+            <input id="statsMonth" type="month" style="display:none;" />
+            <div class="stats-btn-group" style="display:flex; gap:8px; flex:0 0 auto;">
+              <button class="btn btn-secondary" id="btnStatsReload" style="flex:0 0 auto; width:auto !important;">🔄 Actualiser</button>
+              <button class="btn btn-primary" id="btnExportWeekly" style="flex:0 0 auto; width:auto !important;" title="Télécharger le suivi activité de la semaine">📥 Export semaine</button>
+            </div>
+            <div class="muted" id="statsRangeLabel" style="flex:999 1 auto; min-width: 240px;"></div>
+          </div>
+        </div>
+
+        <!-- Alerte export jeudi -->
+        <div id="weeklyExportAlert" class="card" style="display:none; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.4); margin-bottom:14px; padding:12px 16px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:20px;">⚠️</span>
+            <div style="flex:1;">
+              <strong>Rappel :</strong> Vous n'avez pas encore exporté votre suivi activité cette semaine.
+              <button class="btn btn-primary btn-sm" id="btnExportFromAlert" style="margin-left:10px;">📥 Exporter maintenant</button>
+            </div>
+            <button class="mini-action" id="btnDismissExportAlert" title="Masquer">✕</button>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="statsCards"></div>
+
+        <div class="content-header" style="margin-top: 18px;">
+          <div class="content-title">Entreprises "chaudes"</div>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Entreprise</th>
+                <th>Score</th>
+                <th>Prospects</th>
+                <th>RDV</th>
+                <th>Relances en retard</th>
+                <th style="text-align:right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="hotCompaniesBody"></tbody>
+          </table>
+        </div>
+
+        <div class="stats-charts-row" id="chartsArea">
+          <div class="chart-card">
+            <h3>📊 Répartition par statut</h3>
+            <canvas id="chartStatus"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>⭐ Distribution pertinence</h3>
+            <canvas id="chartPertinence"></canvas>
+          </div>
+          <div class="chart-card full">
+            <h3>📤 Push envoyés par semaine (12 dernières)</h3>
+            <canvas id="chartPush"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>🤝 RDV obtenus par mois</h3>
+            <canvas id="chartRdv"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>🏢 Top entreprises</h3>
+            <canvas id="chartCompanies"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>📞 Taux de conversion par étape</h3>
+            <canvas id="chartFunnel"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>📈 Évolution du portefeuille (12 semaines)</h3>
+            <canvas id="chartPortfolio"></canvas>
+          </div>
+          <div class="chart-card full">
+            <h3>🏷️ Top compétences demandées</h3>
+            <canvas id="chartTags"></canvas>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+  <script defer src="/static/js/sidebar.js?v=2000"></script>
+
+  <script defer src="/static/js/v8-features.js?v=2100"></script>
+  <script defer src="/static/js/help-shortcut.js?v=2000"></script>
+  <script defer src="/static/js/app.js?v=2103"></script>
+  <script defer src="/static/js/page-stats.js?v=2101"></script>
+
+</body>
+</html>

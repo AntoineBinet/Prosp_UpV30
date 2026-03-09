@@ -1,0 +1,5 @@
+# Optionnel : pour envoi automatique de Ctrl+K + collage du prompt + Entrée
+# pip install -r scripts/requirements-agent.txt
+pyautogui>=0.9.50
+pygetwindow>=0.0.9
+pyperclip>=1.8

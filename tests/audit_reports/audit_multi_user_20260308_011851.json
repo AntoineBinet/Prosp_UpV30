@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-03-08T01:18:51.458993",
+  "steps_ok": 0,
+  "errors_count": 1,
+  "errors": [
+    {
+      "step": "init",
+      "message": "init_db or migrate failed",
+      "exception": "'charmap' codec can't encode character '\\u2705' in position 0: character maps to <undefined>"
+    }
+  ],
+  "temp_dir": "C:\\Users\\binet\\AppData\\Local\\Temp\\prospup_audit_rjilq6nk"
+}

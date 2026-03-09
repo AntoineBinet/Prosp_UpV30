@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="ProspUp — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/favicon.ico">
+  <title>ProspUp — Snapshots</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2103">
+</head>
+<body data-page="snapshots">
+  <div class="container">
+    <header>
+      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> ProspUp — Snapshots</h1>
+      <p class="header-subtitle">Sauvegardes / restauration de la base SQLite (local).</p>
+    </header>
+
+    <div class="main-layout">
+                        <aside class="sidebar"></aside>
+
+      <main class="content">
+        <div class="content-header">
+          <div class="content-title">Sauvegardes</div>
+          <div class="controls">
+            <input id="snapshotLabel" type="text" placeholder="Label (ex: avant_import_fev)" />
+            <button class="btn btn-primary" id="btnCreateSnapshot">➕ Créer</button>
+            <button class="btn btn-secondary" id="btnReloadSnapshots">🔄 Actualiser</button>
+            <div class="muted" id="snapshotsSummary" style="flex:999 1 auto; min-width: 260px;"></div>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Fichier</th>
+                <th>Taille</th>
+                <th>Dernière modif</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="snapshotsBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top: 14px;">
+          <div class="muted">
+            Une sauvegarde <strong>before_restore</strong> est créée automatiquement avant chaque restauration.
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+  <script defer src="/static/js/sidebar.js?v=2000"></script>
+
+  <script defer src="/static/js/v8-features.js?v=2100"></script>
+  <script defer src="/static/js/help-shortcut.js?v=2000"></script>
+  <script defer src="/static/js/app.js?v=2103"></script>
+  <script defer src="/static/js/page-snapshots.js?v=2000"></script>
+
+</body>
+</html>

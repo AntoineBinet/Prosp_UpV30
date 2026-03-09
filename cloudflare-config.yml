@@ -1,0 +1,7 @@
+tunnel: prospup
+credentials-file: C:\Users\AntoineBINET\.cloudflared\585f2818-8073-48ac-b44f-b9c757ef6971.json
+
+ingress:
+  - hostname: prospup.work
+    service: http://127.0.0.1:8000
+  - service: http_status:404

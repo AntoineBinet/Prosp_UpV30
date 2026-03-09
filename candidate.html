@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="ProspUp — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/favicon.ico">
+  <title>ProspUp — Fiche candidat</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2103" />
+</head>
+<body data-page="candidate">
+  <div class="container">
+    <header>
+      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> ProspUp — Fiche candidat</h1>
+      <p class="header-subtitle">Liens (LinkedIn / OneNote / VSA) · Compétences · Entreprises associées</p>
+    </header>
+
+    <div class="main-layout">
+                        <aside class="sidebar"></aside>
+
+      <main class="content">
+        <div class="content-header" style="align-items:flex-start; gap:12px;">
+          <div style="flex: 1 1 auto; min-width: 260px;">
+            <div class="content-title" id="candTitle">Candidat</div>
+            <div class="muted" id="candMeta">—</div>
+          </div>
+
+          <div class="controls" style="justify-content:flex-end;">
+            <button class="btn btn-secondary" onclick="copyCandidateForTeams()" title="Copier le profil formaté pour Teams">📋 Teams</button>
+            <a id="btnOpenLinkedIn" class="btn btn-secondary" target="_blank" rel="noopener" href="#">🔗 LinkedIn</a>
+            <a id="btnOpenOneNote" class="btn btn-secondary" target="_blank" rel="noopener" href="#">📝 OneNote</a>
+            <a id="btnOpenVSA" class="btn btn-secondary" target="_blank" rel="noopener" href="#" style="display:none;">🧭 VSA</a>
+            <span id="btnVSAEmpty" class="btn btn-secondary" style="opacity:0.4;cursor:default;display:none;" title="Aucun lien VSA renseigné">🧭 VSA</span>
+            <a class="btn btn-secondary" href="/sourcing" style="text-decoration:none;">⬅️ Retour</a>
+          </div>
+        </div>
+
+        <!-- ═══ VIEW MODE (lecture) ═══ -->
+        <section class="card" id="viewSection">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div style="font-weight:800; font-size:17px;">📋 Informations</div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-secondary" id="btnArchiveView" onclick="archiveCandidate()" style="font-size:13px;">📦 Archiver</button>
+              <button class="btn btn-primary" id="btnEditMode" onclick="switchToEditMode()">✏️ Modifier</button>
+            </div>
+          </div>
+
+          <div class="cand-view-grid" id="viewGrid">
+          </div>
+
+          <div style="margin-top:18px;">
+            <div style="font-weight:700; margin-bottom:8px;">🏷️ Compétences</div>
+            <div id="viewSkills" class="chips"></div>
+          </div>
+
+          <div style="margin-top:18px;">
+            <div style="font-weight:700; margin-bottom:8px;">🏢 Entreprises associées</div>
+            <div id="viewCompanies" class="chips"></div>
+          </div>
+
+          <div style="margin-top:18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <div style="font-weight:700;">📤 Proposer ce candidat</div>
+            </div>
+            <div id="candidatePushSection" class="card" style="padding:14px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:10px;">
+              <p class="muted" style="font-size:12px; margin-bottom:10px;">Sélectionnez un prospect ou une entreprise pour pousser ce profil.</p>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+                <div style="flex:1 1 280px;">
+                  <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Rechercher un prospect</label>
+                  <input id="candidatePushSearch" type="text" placeholder="Nom du prospect ou entreprise..." style="width:100%;" oninput="filterCandidatePushTargets()">
+                </div>
+                <button class="btn btn-primary" onclick="executeCandidatePush()" style="white-space:nowrap;">📤 Proposer</button>
+              </div>
+              <div id="candidatePushResults" style="margin-top:10px; max-height:200px; overflow-y:auto;"></div>
+              <div id="candidatePushHistory" style="margin-top:12px;"></div>
+            </div>
+          </div>
+
+          <div style="margin-top:18px;" id="viewNotesSection">
+            <div style="font-weight:700; margin-bottom:8px;">📝 Notes</div>
+            <div id="viewNotes" class="card" style="padding:12px; white-space:pre-wrap; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:10px; min-height:40px;"></div>
+          </div>
+        </section>
+
+        <!-- ═══ EDIT MODE ═══ -->
+        <section class="card" id="editSection" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div style="font-weight:800; font-size:17px;">✏️ Modifier candidat</div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span id="autoSaveStatus" class="muted" style="font-size:12px;">—</span>
+              <button class="btn btn-secondary" type="button" onclick="switchToViewMode()">👁️ Vue lecture</button>
+            </div>
+          </div>
+          <form id="candidateForm">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Nom *</label>
+                <input id="fName" required class="autosave-field" />
+              </div>
+              <div class="form-group">
+                <label>Statut</label>
+                <select id="fStatus" class="autosave-field">
+                  <option value="a_sourcer">🧲 À sourcer</option>
+                  <option value="a_contacter">📨 À contacter</option>
+                  <option value="en_cours">⏳ En cours</option>
+                  <option value="ec1">📞 EC1</option>
+                  <option value="ec2">📞📞 EC2</option>
+                  <option value="ed">📋 ED</option>
+                  <option value="interesse">✅ Intéressé</option>
+                  <option value="mission">🚀 Mission</option>
+                  <option value="refuse">❌ Refusé</option>
+                  <option value="embauche">🎉 Embauché</option>
+                  <option value="archive">📦 Archivé</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Rôle</label>
+                <input id="fRole" placeholder="Embedded Software Engineer…" class="autosave-field" />
+              </div>
+              <div class="form-group">
+                <label>Localisation</label>
+                <input id="fLocation" placeholder="Lyon / Remote…" class="autosave-field" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Années d'expérience</label>
+                <input id="fYearsExperience" type="number" min="0" max="50" placeholder="Ex: 5" class="autosave-field" />
+              </div>
+              <div class="form-group">
+                <label>Source</label>
+                <input id="fSource" placeholder="LinkedIn Recruiter, cooptation…" class="autosave-field" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Téléphone</label>
+                <input id="fPhone" type="tel" placeholder="06 xx xx xx xx" class="autosave-field" />
+              </div>
+              <div class="form-group">
+                <label>Email</label>
+                <input id="fEmail" type="email" placeholder="prenom.nom@mail.com" class="autosave-field" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Secteur d'activité</label>
+                <input id="fSector" placeholder="automobile, aéronautique, défense…" class="autosave-field" />
+              </div>
+              <div class="form-group">
+                <label>Seniorité (texte libre)</label>
+                <input id="fSeniority" placeholder="Senior / Expert…" class="autosave-field" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>LinkedIn</label>
+                <input id="fLinkedIn" placeholder="https://…" class="autosave-field" />
+              </div>
+              <div class="form-group">
+                <label>OneNote</label>
+                <input id="fOneNote" placeholder="https://…" class="autosave-field" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>VSA</label>
+                <input id="fVSA" placeholder="https://…" class="autosave-field" />
+              </div>
+              <div class="form-group">
+                <label>Tech (texte libre)</label>
+                <input id="fTech" placeholder="C/C++, RTOS, Linux…" class="autosave-field" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Compétences (tags)</label>
+              <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <input id="skillInput" type="text" placeholder="Ajouter une compétence (ex: AUTOSAR)" style="flex:1 1 280px;" />
+                <button class="btn btn-secondary" type="button" id="btnAddSkill">➕ Ajouter</button>
+              </div>
+              <div id="skillsChips" class="chips" style="margin-top:10px;"></div>
+              <div class="muted" style="margin-top:8px;">Astuce : utilisez Enter ou une virgule pour valider rapidement.</div>
+            </div>
+
+            <div class="form-group">
+              <label>Entreprises associées</label>
+              <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+                <div style="flex: 1 1 340px;">
+                  <input id="companySearch" type="text" placeholder="🔍 Filtrer la liste d'entreprises" />
+                  <select id="companySelect" multiple size="9" style="width:100%; min-height: 220px; margin-top:10px;"></select>
+                  <div class="muted" style="margin-top:8px;">Ctrl/Cmd + clic pour sélectionner plusieurs.</div>
+                </div>
+                <div style="flex: 1 1 320px;">
+                  <div class="muted" style="margin-bottom:6px;">Sélection actuelle</div>
+                  <div id="linkedCompanies" class="chips"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Notes</label>
+              <textarea id="fNotes" rows="6" placeholder="Contexte, échanges, prochaines étapes…" class="autosave-field"></textarea>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; align-items:center;">
+              <button id="btnIA_candidate_0" class="btn btn-secondary" type="button" onclick="handleCandidateIAButton()" style="font-size:13px;">🤖 Scrapping IA</button>
+              <button class="btn btn-secondary" type="button" id="btnReload">🔄 Recharger</button>
+              <button class="btn btn-primary" type="submit">💾 Enregistrer</button>
+            </div>
+            <div class="muted" style="margin-top:6px; font-size:11px; text-align:right;">1er clic = copier le prompt · 2e clic = coller le retour IA pour pré-remplir</div>
+          </form>
+        </section>
+
+<!-- ═══ EC1 – Qualification checklist ═══ -->
+<section class="card" id="ec1Section" style="margin-top:14px; display:none;">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
+    <div style="font-weight:800; font-size:16px;">📞 EC1 — entretien de qualification</div>
+    <span id="ec1SaveStatus" class="muted" style="font-size:12px;">—</span>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group" style="flex: 1 1 320px;">
+      <label>📅 Date & heure de l'entretien (remonte dans le Calendrier)</label>
+      <input id="ec1InterviewAt" type="datetime-local" />
+    </div>
+  </div>
+
+  <div id="ec1Checklist" class="ec1-checklist"></div>
+
+  <div class="form-group" style="margin-top:12px;">
+    <label>📝 Note (EC1)</label>
+    <textarea id="ec1Note" rows="4" placeholder="Résumé, points forts, points de vigilance…"></textarea>
+  </div>
+
+  <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+    <button class="btn btn-secondary" type="button" onclick="resetEC1Checklist()">↩️ Réinitialiser</button>
+    <button class="btn btn-primary" type="button" onclick="saveEC1Checklist(true)">💾 Sauver</button>
+  </div>
+</section>
+
+        <div class="card" style="margin-top:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div style="font-weight:800;font-size:15px;">📂 Dossier candidat</div>
+            <button class="btn btn-secondary" id="btnOpenFolder" onclick="openCandidateFolder()" style="font-size:12px;">📁 Ouvrir le dossier</button>
+          </div>
+          <div id="candidateFolderPath" class="muted" style="font-size:12px;margin-bottom:10px;"></div>
+          <div id="candidateFilesList" style="min-height:30px;">
+            <div class="muted">Chargement…</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="muted">
+            Cette fiche est pensée pour relier vos candidats à vos entreprises prospects (et gagner du temps sur le matching / sourcing).
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script defer src="/static/js/sidebar.js?v=2000"></script>
+
+  <script defer src="/static/js/v8-features.js?v=2100"></script>
+  <script defer src="/static/js/help-shortcut.js?v=2000"></script>
+  <script defer src="/static/js/notifications.js?v=2000"></script>
+  <script defer src="/static/js/app.js?v=2103"></script>
+  <script defer src="/static/js/page-candidate.js?v=2000"></script>
+
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>ProspUp — Page introuvable</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .error-card { text-align: center; max-width: 400px; }
+    .error-code { font-size: 72px; font-weight: 700; opacity: .3; margin-bottom: 8px; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+    p { font-size: 14px; color: #94a3b8; margin-bottom: 24px; line-height: 1.5; }
+    .btn-home {
+      display: inline-block;
+      padding: 12px 32px;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity .2s;
+    }
+    .btn-home:hover { opacity: .85; }
+  </style>
+</head>
+<body>
+  <div class="error-card">
+    <div class="error-code">404</div>
+    <h1>Page introuvable</h1>
+    <p>La page que vous cherchez n'existe pas ou a été déplacée.</p>
+    <a href="/dashboard" class="btn-home">Retour au Dashboard</a>
+  </div>
+</body>
+</html>

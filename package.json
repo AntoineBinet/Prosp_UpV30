@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "scripts": {
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "test:ui": "npx playwright test --ui",
+    "test:checklist-ui": "npx playwright test tests/e2e/checklist-ui-mars2025.spec.js --reporter=list"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
+  }
+}

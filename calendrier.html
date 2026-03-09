@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="ProspUp — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/favicon.ico">
+  <title>ProspUp — Calendrier</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2103">
+</head>
+<body data-page="calendar">
+  <div class="container">
+    <header>
+      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> ProspUp — Calendrier</h1>
+      <p class="header-subtitle">Vos relances et rendez-vous planifiés</p>
+    </header>
+    <div class="main-layout">
+                        <aside class="sidebar"></aside>
+      <main class="content">
+        <div class="content-header">
+          <div class="content-title" id="calTitle">—</div>
+          <div class="controls">
+            <button class="btn btn-secondary" id="calPrev">◀ Précédent</button>
+            <button class="btn btn-secondary" id="calToday">Aujourd'hui</button>
+            <button class="btn btn-secondary" id="calNext">Suivant ▶</button>
+            <select id="calView">
+              <option value="month" selected>Mois</option>
+              <option value="week">Semaine</option>
+            </select>
+            <button class="btn btn-primary" id="calSyncBtn" onclick="document.getElementById('icsFileInput').click()" title="Importer un fichier calendrier .ics">📅 Sync Calendar</button>
+            <input type="file" id="icsFileInput" accept=".ics,.ical" style="display:none" onchange="importICSFile(this.files[0])">
+          </div>
+        </div>
+        <div class="cal-external-url" style="margin-bottom:12px;">
+          <label for="calExternalIcsUrl" style="font-size:12px;color:var(--color-text-secondary);">URL calendrier externe (.ics — Outlook / Google) :</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px;">
+            <input type="url" id="calExternalIcsUrl" placeholder="https://..." style="flex:1;min-width:200px;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);">
+            <button type="button" class="btn btn-secondary btn-sm" id="calSaveExternalUrl" title="Enregistrer et recharger">Enregistrer</button>
+          </div>
+        </div>
+        <div class="cal-legend">
+          <span class="cal-legend-item"><span class="cal-legend-dot rdv"></span> RDV</span>
+          <span class="cal-legend-item"><span class="cal-legend-dot relance"></span> Relance</span>
+          <span class="cal-legend-item"><span class="cal-legend-dot overdue"></span> En retard</span>
+          <span class="cal-legend-item"><span class="cal-legend-dot external"></span> Externe</span>
+        </div>
+        <div id="calGrid" class="cal-grid"></div>
+      </main>
+    </div>
+  </div>
+  <!-- Modale détail du jour (événements agrandissables) -->
+  <div id="calDayDetailModal" class="cal-day-detail-modal" role="dialog" aria-modal="true" aria-labelledby="calDayDetailTitle" style="display:none;">
+    <div class="cal-day-detail-content">
+      <div class="cal-day-detail-header">
+        <h2 id="calDayDetailTitle" class="cal-day-detail-title">Détails</h2>
+        <button type="button" class="modal-close cal-day-detail-close" onclick="typeof _closeCalDayDetail === 'function' && _closeCalDayDetail()" aria-label="Fermer">×</button>
+      </div>
+      <div id="calDayDetailList" class="cal-day-detail-list"></div>
+    </div>
+  </div>
+  <script defer src="/static/js/sidebar.js?v=2000"></script>
+  <script defer src="/static/js/v8-features.js?v=2100"></script>
+  <script defer src="/static/js/help-shortcut.js?v=2000"></script>
+  <script defer src="/static/js/app.js?v=2103"></script>
+  <script defer src="/static/js/page-calendar.js?v=2000"></script>
+
+</body>
+</html>

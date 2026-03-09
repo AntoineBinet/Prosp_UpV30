@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-03-08T01:35:40.783610",
+  "steps_ok": 34,
+  "errors_count": 1,
+  "errors": [
+    {
+      "step": "orphan_cleanup",
+      "message": "orphan user dirs still present: ['user_2'] (known on Windows if DB open)"
+    }
+  ],
+  "temp_dir": "C:\\Users\\binet\\AppData\\Local\\Temp\\prospup_audit_b1ymw_cn"
+}

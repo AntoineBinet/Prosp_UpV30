@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-03-08T01:21:37.937847",
+  "steps_ok": 32,
+  "errors_count": 3,
+  "errors": [
+    {
+      "step": "save_user_b_after_delete",
+      "message": "status 500",
+      "status_code": 500,
+      "body": "{\"error\":\"FOREIGN KEY constraint failed\",\"ok\":false}\n"
+    },
+    {
+      "step": "get_data_user_b_after",
+      "message": "expected 4 companies and 3 prospects, got 6 and 6"
+    },
+    {
+      "step": "orphan_cleanup",
+      "message": "orphan user dirs still present: ['user_2'] (known on Windows if DB open)"
+    }
+  ],
+  "temp_dir": "C:\\Users\\binet\\AppData\\Local\\Temp\\prospup_audit_103wdsh8"
+}

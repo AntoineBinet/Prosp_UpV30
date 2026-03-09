@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "ProspUp",
+    "slug": "prospup-mobile",
+    "version": "1.0.0",
+    "scheme": "prospup",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
+    "ios": {
+      "bundleIdentifier": "work.prospup.mobile",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "work.prospup.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0f172a"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-haptics"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

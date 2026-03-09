@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-03-08T01:23:18.573069",
+  "steps_ok": 32,
+  "errors_count": 3,
+  "errors": [
+    {
+      "step": "save_user_b_after_delete",
+      "message": "status 500",
+      "status_code": 500,
+      "body": "{\"error\":\"FOREIGN KEY constraint failed\\nTraceback (most recent call last):\\n  File \\\"C:\\\\Users\\\\binet\\\\Desktop\\\\Prosp_UpV25\\\\app.py\\\", line 6255, in api_save\\n    upsert_all(data)\\n    ~~~~~~~~~~^^^^^^\\n  File \\\"C:\\\\Users\\\\binet\\\\Desktop\\\\Prosp_UpV25\\\\app.py\\\", line 2156, in upsert_all\\n    cur.execute(\\\"COMMIT;\\\")\\n    ~~~~~~~~~~~^^^^^^^^^^^\\nsqlite3.IntegrityError: FOREIGN KEY constraint failed\\n\",\"ok\":false}\n"
+    },
+    {
+      "step": "get_data_user_b_after",
+      "message": "expected 6 companies and 3 prospects, got 6 and 6"
+    },
+    {
+      "step": "orphan_cleanup",
+      "message": "orphan user dirs still present: ['user_2'] (known on Windows if DB open)"
+    }
+  ],
+  "temp_dir": "C:\\Users\\binet\\AppData\\Local\\Temp\\prospup_audit_xqiyl34f"
+}
