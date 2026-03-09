@@ -71,6 +71,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 ```bash
 python app.py                    # Dev server (port 8000, debug=True)
 python app.py --prod             # Prod avec Waitress
+python scripts/supervise_prospup.py   # Superviseur: auto-pull + redemarrage auto
 npx playwright test              # Lancer les 38 tests E2E
 npx playwright test --headed     # Tests avec navigateur visible
 python minify.py                 # Minifier CSS/JS
