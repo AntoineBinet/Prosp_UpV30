@@ -296,7 +296,7 @@ def _require_auth():
     if request.method == "OPTIONS":
         return
 
-    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/')
+    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version')
     if any(request.path.startswith(p) for p in allowed):
         return
 
