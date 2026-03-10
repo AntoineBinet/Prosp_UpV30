@@ -6652,6 +6652,29 @@ def api_deploy_pull():
         if local_hash == remote_hash:
             return jsonify(ok=True, message="Déjà à jour", local_hash=local_hash, remote_hash=remote_hash, updated=False)
         
+        # Vérifier s'il y a des modifications locales non commitées
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        has_local_changes = status.returncode == 0 and status.stdout.strip()
+        
+        # Si des modifications locales existent, les stasher avant le pull
+        if has_local_changes:
+            logger.warning("Deploy pull: modifications locales détectées, stash avant pull")
+            stash = subprocess.run(
+                ["git", "stash", "push", "-m", f"Auto-stash avant pull {remote_hash}"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if stash.returncode != 0:
+                return jsonify(ok=False, error=f"Impossible de stasher les modifications locales: {stash.stderr}", local_hash=local_hash, remote_hash=remote_hash), 500
+        
         # Pull fast-forward only
         pull = subprocess.run(
             ["git", "pull", "--ff-only", "origin", "main"],
