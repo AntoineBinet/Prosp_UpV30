@@ -6688,9 +6688,10 @@ def api_deploy_pull():
         
         # Redémarrer le serveur (code 42)
         logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
-        _schedule_restart(delay=3.0)
+        # Délai augmenté à 10s pour laisser le temps à Cloudflare et aux clients de recevoir la réponse
+        _schedule_restart(delay=10.0)
         
-        return jsonify(ok=True, message="Mise à jour appliquée, redémarrage en cours", local_hash=local_hash, remote_hash=remote_hash, updated=True, restarting=True)
+        return jsonify(ok=True, message="Mise à jour appliquée, redémarrage en cours", local_hash=local_hash, remote_hash=remote_hash, updated=True, restarting=True, restart_delay_s=10)
     except subprocess.TimeoutExpired:
         return jsonify(ok=False, error="Timeout lors du pull"), 500
     except Exception as e:
@@ -8176,18 +8177,26 @@ def _schedule_restart(delay: float = 10.0):
 
     - If launched via PROSPUP.bat (or _run_serveur.bat), it will restart on exit code 42.
     - If launched directly (python app.py), it spawns a new process then exits.
+    
+    Le délai permet aux clients (Cloudflare, navigateurs) de recevoir la réponse HTTP
+    avant que le serveur ne redémarre, évitant les erreurs 502.
     """
     def _do():
         time.sleep(float(delay))
         launcher = (os.environ.get("PROSPUP_LAUNCHER") or "").strip().upper()
         if launcher == "BAT":
+            logger.info("Restart: exit code 42 pour le superviseur")
             os._exit(42)
         try:
             import subprocess, sys
             args = [sys.executable] + sys.argv
-            subprocess.Popen(args, cwd=str(APP_DIR))
-        except Exception:
-            pass
+            logger.info(f"Restart: lancement nouveau processus: {' '.join(args)}")
+            proc = subprocess.Popen(args, cwd=str(APP_DIR))
+            # Attendre un peu que le nouveau processus démarre avant de tuer l'ancien
+            time.sleep(2.0)
+            logger.info("Restart: nouveau processus lancé, arrêt de l'ancien serveur")
+        except Exception as e:
+            logger.error(f"Restart: erreur lors du lancement du nouveau processus: {e}")
         os._exit(0)
 
     threading.Thread(target=_do, daemon=True).start()

@@ -564,7 +564,7 @@ async function triggerDeployPull() {
     if (!btn || !resultsEl) return;
     
     // Confirmation avant de lancer
-    if (!confirm('⚠️ Êtes-vous sûr de vouloir mettre à jour le serveur ?\n\nCette action va :\n1. Récupérer les dernières modifications depuis Git (origin/main)\n2. Redémarrer automatiquement le serveur\n\nLe site sera temporairement indisponible pendant quelques secondes.')) {
+    if (!confirm('⚠️ Êtes-vous sûr de vouloir mettre à jour le serveur ?\n\nCette action va :\n1. Récupérer les dernières modifications depuis Git (origin/main)\n2. Redémarrer automatiquement le serveur\n\nLe site sera temporairement indisponible pendant environ 10-15 secondes pendant le redémarrage.')) {
         return;
     }
     
@@ -608,7 +608,8 @@ async function triggerDeployPull() {
             }
             html += '</div>';
             if (data.restarting) {
-                html += '<div style="margin-top:8px;padding:8px;background:rgba(59,130,246,.1);border-radius:6px;font-size:12px;color:#3b82f6;">🔄 Redémarrage du serveur en cours... Le site sera disponible dans quelques secondes.</div>';
+                const delay = data.restart_delay_s || 10;
+                html += `<div style="margin-top:8px;padding:8px;background:rgba(59,130,246,.1);border-radius:6px;font-size:12px;color:#3b82f6;">🔄 Redémarrage du serveur en cours... Le site sera disponible dans ${delay} secondes environ.</div>`;
             }
             html += '</div>';
             
@@ -619,14 +620,16 @@ async function triggerDeployPull() {
                 showToast('✅ Mise à jour appliquée, redémarrage en cours', 'success');
             }
             
-            // Si redémarrage en cours, afficher un message et recharger après quelques secondes
+            // Si redémarrage en cours, afficher un message et recharger après le délai de redémarrage + marge
             if (data.restarting) {
+                const delay = (data.restart_delay_s || 10) * 1000;
+                // Attendre le délai de redémarrage + 3 secondes de marge avant de recharger
                 setTimeout(() => {
                     resultsEl.innerHTML += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);font-size:12px;color:#3b82f6;">💡 Rechargement de la page dans 5 secondes...</div>';
                     setTimeout(() => {
                         window.location.reload();
                     }, 5000);
-                }, 2000);
+                }, delay + 3000);
             }
         } else {
             html += '<div style="padding:12px;border-radius:8px;background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.3);">';
