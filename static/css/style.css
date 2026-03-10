@@ -6779,10 +6779,54 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 .bulk-ia-results-table .found { color: var(--color-success); }
 .bulk-ia-results-table .not-found { color: var(--color-text-secondary); opacity: 0.5; }
 
+/* Bulk IA tabs */
+.bulk-ia-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--color-text-secondary);
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.bulk-ia-tab:hover {
+    color: var(--color-text);
+    background: var(--color-surface-2);
+}
+.bulk-ia-tab.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+    font-weight: 600;
+}
+#bulkIAPasteTextarea {
+    width: 100%;
+    min-height: 200px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    padding: 12px;
+    resize: vertical;
+}
+.bulk-ia-csv-map-select {
+    width: 100%;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text);
+    font-size: 12px;
+    padding: 6px 10px;
+}
+
 @media (max-width: 600px) {
     #modalBulkIA .modal-content { padding: 18px 14px; }
     .bulk-ia-prompt-box { font-size: 10px; max-height: 150px; }
     #bulkIAResultTextarea { min-height: 120px; font-size: 11px; }
+    #bulkIAPasteTextarea { min-height: 150px; font-size: 11px; }
+    .bulk-ia-tab { padding: 6px 12px; font-size: 12px; }
 }
 
 /* ═══ Dashboard welcome card (nouveau collaborateur) ═══ */
