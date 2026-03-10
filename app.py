@@ -267,10 +267,19 @@ def role_required(min_role):
     return decorator
 
 # Origines autorisées quand l'app est derrière le tunnel (request.host = localhost, Origin = prospup.work)
-_ALLOWED_ORIGINS = frozenset({
+# Variable d'environnement PROSPUP_ALLOWED_ORIGINS = URLs séparées par des virgules (ex. https://mon-domaine.fr)
+_origins_list = [
     "https://prospup.work", "https://www.prospup.work", "https://crm.prospup.work",
     "http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8000/", "http://127.0.0.1:8000/",
-})
+]
+_env_origins = os.environ.get("PROSPUP_ALLOWED_ORIGINS", "").strip()
+if _env_origins:
+    for o in _env_origins.split(","):
+        o = o.strip().rstrip("/")
+        if o:
+            _origins_list.append(o)
+            _origins_list.append(o + "/")
+_ALLOWED_ORIGINS = frozenset(_origins_list)
 
 def _require_same_origin():
     """Anti-CSRF léger : si l'en-tête Origin est présent, exiger une origine autorisée."""
