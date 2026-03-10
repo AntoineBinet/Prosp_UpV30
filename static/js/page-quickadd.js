@@ -71,7 +71,8 @@
         if (overlay) {
             overlay.style.display = 'flex';
         }
-        const opts = multiple ? { timeoutMs: 300000 } : { timeoutMs: 180000 };
+        // Plusieurs : timeout long + mode non-streaming pour éviter 405 (proxy/tunnel peut mal gérer le streaming)
+        const opts = multiple ? { timeoutMs: 300000, stream: false } : { timeoutMs: 180000 };
         window.callOllama(prompt, opts).then(function (text) {
             if (overlay) overlay.style.display = 'none';
             const result = _tryParseQARaw(text || '', _qaType);
