@@ -292,6 +292,13 @@ Belle journée,"></textarea>
           <div class="about-section">
             <h4>ProspUp</h4>
             <p>Outil local de prospection & sourcing.</p>
+            
+            <!-- Badge version / commit (indicateur mise à jour) -->
+            <div id="appVersionBadge" style="margin-top: 12px; margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; background: var(--color-surface-2); border: 1px solid var(--color-border); display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
+              <span id="versionBadgeDot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #64748b; animation: pulse 2s infinite;"></span>
+              <span id="versionBadgeText">Chargement…</span>
+            </div>
+            
             <p style="margin-top: 15px; font-size: 13px;">💾 Stockage : base SQLite locale (sur votre PC)</p>
             <p style="font-size: 13px;">🔒 Aucune donnée ne quitte votre ordinateur</p>
             <p style="font-size: 13px;">🧷 Sauvegardes : snapshots automatiques + manuels</p>
@@ -307,6 +314,90 @@ Belle journée,"></textarea>
   <script defer src="/static/js/app.js?v=2103"></script>
   <script defer src="/static/js/notifications.js?v=2000"></script>
   <script defer src="/static/js/page-settings.js?v=2000"></script>
+  <script>
+    // ════════════════════════════════════════════════════════════════
+    // Badge version / commit (indicateur mise à jour prospup.work)
+    // ════════════════════════════════════════════════════════════════
+    (function() {
+      let lastCommitHash = localStorage.getItem('prospup_last_commit_hash') || '';
+      let checkInterval = null;
+      
+      async function updateVersionBadge() {
+        try {
+          const res = await fetch('/api/app-version');
+          if (!res.ok) return;
+          const data = await res.json();
+          if (!data.ok) return;
+          
+          const badgeDot = document.getElementById('versionBadgeDot');
+          const badgeText = document.getElementById('versionBadgeText');
+          if (!badgeDot || !badgeText) return;
+          
+          const version = data.version || '?';
+          const commitHash = data.commit_hash || 'unknown';
+          const commitDate = data.commit_date || '';
+          const badgeColor = data.badge_color || '#64748b';
+          
+          // Mettre à jour la couleur du badge
+          badgeDot.style.background = badgeColor;
+          
+          // Formater la date si disponible
+          let dateStr = '';
+          if (commitDate) {
+            try {
+              const dt = new Date(commitDate);
+              dateStr = dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + 
+                       ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+              dateStr = commitDate.substring(0, 16).replace('T', ' ');
+            }
+          }
+          
+          // Texte du badge
+          let text = `v${version}`;
+          if (commitHash !== 'unknown') {
+            text += ` • ${commitHash}`;
+          }
+          if (dateStr) {
+            text += ` • ${dateStr}`;
+          }
+          badgeText.textContent = text;
+          
+          // Détecter si c'est une nouvelle version (hash différent)
+          if (lastCommitHash && lastCommitHash !== commitHash && commitHash !== 'unknown') {
+            // Nouvelle version détectée !
+            badgeDot.style.animation = 'none';
+            setTimeout(() => {
+              badgeDot.style.animation = 'pulse 1s ease-in-out 3';
+            }, 10);
+            if (typeof showToast === 'function') {
+              showToast('✅ Nouvelle version détectée !', 'success');
+            }
+          }
+          
+          // Sauvegarder le hash actuel
+          if (commitHash !== 'unknown') {
+            localStorage.setItem('prospup_last_commit_hash', commitHash);
+            lastCommitHash = commitHash;
+          }
+        } catch (e) {
+          console.warn('Version badge update error:', e);
+        }
+      }
+      
+      // Charger immédiatement
+      document.addEventListener('DOMContentLoaded', function() {
+        updateVersionBadge();
+        // Vérifier toutes les 30 secondes pour détecter les nouvelles versions
+        checkInterval = setInterval(updateVersionBadge, 30000);
+      });
+      
+      // Nettoyer l'intervalle si la page est fermée
+      window.addEventListener('beforeunload', function() {
+        if (checkInterval) clearInterval(checkInterval);
+      });
+    })();
+  </script>
   <script>
     // v16.5: Hide admin-only sections for non-admin users
     document.addEventListener('DOMContentLoaded', function() {

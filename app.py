@@ -26,7 +26,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "25.1"
+APP_VERSION = "25.2"
 import os
 import subprocess
 import traceback
@@ -6403,6 +6403,50 @@ def api_ollama_generate():
     except Exception as e:
         logger.exception("Ollama generate failed")
         return jsonify(ok=False, error=str(e)), 503
+
+
+@app.get("/api/app-version")
+def api_app_version():
+    """Retourne la version de l'app, le hash du commit et la date du dernier commit pour affichage badge."""
+    try:
+        # Hash du commit actuel
+        cp = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        commit_hash = (cp.stdout or "").strip()[:7] if cp.returncode == 0 else "unknown"
+        
+        # Date du dernier commit
+        cp2 = subprocess.run(
+            ["git", "log", "-1", "--format=%ci", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        commit_date = (cp2.stdout or "").strip() if cp2.returncode == 0 else ""
+        
+        # Générer une couleur basée sur le hash (pour changement visuel)
+        if commit_hash != "unknown":
+            # Utiliser les 6 premiers caractères du hash pour générer une couleur
+            hash_int = int(commit_hash[:6], 16) if len(commit_hash) >= 6 else 0
+            # Palette de couleurs vives mais lisibles
+            colors = [
+                "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6",
+                "#ec4899", "#14b8a6", "#6366f1", "#f97316", "#06b6d4"
+            ]
+            color_index = hash_int % len(colors)
+            badge_color = colors[color_index]
+        else:
+            badge_color = "#64748b"
+        
+        return jsonify(ok=True, version=APP_VERSION, commit_hash=commit_hash, commit_date=commit_date, badge_color=badge_color)
+    except Exception as e:
+        logger.warning("App version fetch error: %s", e)
+        return jsonify(ok=True, version=APP_VERSION, commit_hash="unknown", commit_date="", badge_color="#64748b")
 
 
 @app.get("/api/health")

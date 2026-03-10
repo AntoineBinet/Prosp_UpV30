@@ -4295,6 +4295,14 @@ body:not([data-page="prospects"]) .table-wrapper td:nth-child(13) {
 }
 .dash-kpi-alert {
   animation: kpi-pulse 2s ease-in-out infinite;
+
+/* ════════════════════════════════════════════════════════════════
+   Badge version (indicateur mise à jour)
+   ════════════════════════════════════════════════════════════════ */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
 }
 @keyframes kpi-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }

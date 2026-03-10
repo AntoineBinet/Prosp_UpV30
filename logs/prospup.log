@@ -3548,3 +3548,17 @@ AttributeError: 'sqlite3.Row' object has no attribute 'get'
 [2026-03-10 10:31:32] INFO werkzeug: 127.0.0.1 - - [10/Mar/2026 10:31:32] "GET /api/push-categories HTTP/1.1" 200 -
 [2026-03-10 10:31:32] INFO werkzeug: 127.0.0.1 - - [10/Mar/2026 10:31:32] "GET /api/settings HTTP/1.1" 200 -
 [2026-03-10 10:31:32] INFO werkzeug: 127.0.0.1 - - [10/Mar/2026 10:31:32] "GET /api/calendar_events HTTP/1.1" 200 -
+[2026-03-10 10:42:49] INFO prospup: ProspUp v25.1 starting (mode=dev, host=0.0.0.0, port=8000)
+[2026-03-10 10:42:49] INFO prospup: Dev server started (debug=True) — not for 24/7 use
+[2026-03-10 10:42:49] WARNING werkzeug:  * Debugger is active!
+[2026-03-10 10:42:49] INFO werkzeug:  * Debugger PIN: 114-130-224
+[2026-03-10 10:45:21] INFO werkzeug:  * Detected change in '/workspace/app.py', reloading
+[2026-03-10 10:45:21] INFO prospup: ProspUp v25.2 starting (mode=dev, host=0.0.0.0, port=8000)
+[2026-03-10 10:45:21] INFO prospup: Dev server started (debug=True) — not for 24/7 use
+[2026-03-10 10:45:21] WARNING werkzeug:  * Debugger is active!
+[2026-03-10 10:45:21] INFO werkzeug:  * Debugger PIN: 114-130-224
+[2026-03-10 10:45:42] INFO werkzeug:  * Detected change in '/workspace/app.py', reloading
+[2026-03-10 10:45:42] INFO prospup: ProspUp v25.2 starting (mode=dev, host=0.0.0.0, port=8000)
+[2026-03-10 10:45:42] INFO prospup: Dev server started (debug=True) — not for 24/7 use
+[2026-03-10 10:45:42] WARNING werkzeug:  * Debugger is active!
+[2026-03-10 10:45:42] INFO werkzeug:  * Debugger PIN: 114-130-224
