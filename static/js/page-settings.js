@@ -394,3 +394,162 @@ function escapeHtml(text) {
 }
 
 window.runSystemVerify = runSystemVerify;
+
+// ════════════════════════════════════════════════════════════════
+// Afficher les logs serveur
+// ════════════════════════════════════════════════════════════════
+async function showSystemLogs() {
+    const btn = document.getElementById('btnSystemLogs');
+    const resultsEl = document.getElementById('systemVerifyResults');
+    if (!btn || !resultsEl) return;
+    
+    btn.disabled = true;
+    btn.textContent = '⏳ Chargement...';
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--color-text-secondary);">⏳ Chargement des logs...</div>';
+    
+    try {
+        const lines = 100; // Nombre de lignes à afficher
+        const res = await fetch(`/api/system/logs?lines=${lines}`, {
+            method: 'GET',
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur: ${data.error || 'Erreur inconnue'}</div>`;
+            btn.disabled = false;
+            btn.textContent = '📋 Voir les logs serveur';
+            return;
+        }
+        
+        let html = '<div style="display:grid;gap:12px;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+        html += '<h4 style="margin:0;font-size:15px;font-weight:600;">📋 Logs serveur (dernières ' + data.lines.length + ' lignes)</h4>';
+        html += '<div style="font-size:12px;color:var(--color-text-secondary);">Total: ' + data.total_lines + ' lignes • Taille: ' + Math.round(data.file_size / 1024) + ' KB</div>';
+        html += '</div>';
+        html += '<div style="max-height:500px;overflow-y:auto;padding:12px;background:#1e293b;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.5;">';
+        
+        // Afficher les lignes (les plus récentes en bas)
+        data.lines.forEach(line => {
+            const trimmed = (line || '').trim();
+            if (!trimmed) return;
+            
+            let color = '#cbd5e1'; // Couleur par défaut
+            if (trimmed.includes('ERROR') || trimmed.includes('CRITICAL')) {
+                color = '#ef4444';
+            } else if (trimmed.includes('WARNING') || trimmed.includes('WARN')) {
+                color = '#f59e0b';
+            } else if (trimmed.includes('INFO')) {
+                color = '#3b82f6';
+            }
+            
+            html += `<div style="color:${color};margin-bottom:2px;">${escapeHtml(trimmed)}</div>`;
+        });
+        
+        html += '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px;">💡 Les logs sont mis à jour en temps réel. Rechargez pour voir les dernières entrées.</div>';
+        html += '</div>';
+        
+        resultsEl.innerHTML = html;
+        
+        if (typeof showToast === 'function') {
+            showToast('✅ Logs chargés', 'success');
+        }
+    } catch (e) {
+        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur réseau: ${e.message}</div>`;
+        if (typeof showToast === 'function') {
+            showToast('Erreur lors du chargement des logs', 'error');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📋 Voir les logs serveur';
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+// Vérifier le déploiement
+// ════════════════════════════════════════════════════════════════
+async function checkDeployment() {
+    const btn = document.getElementById('btnCheckDeployment');
+    const resultsEl = document.getElementById('systemVerifyResults');
+    if (!btn || !resultsEl) return;
+    
+    btn.disabled = true;
+    btn.textContent = '⏳ Vérification...';
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--color-text-secondary);">⏳ Vérification du déploiement...</div>';
+    
+    try {
+        const res = await fetch('/api/system/check-deployment', {
+            method: 'GET',
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur: ${data.error || 'Erreur inconnue'}</div>`;
+            btn.disabled = false;
+            btn.textContent = '🔎 Vérifier le déploiement';
+            return;
+        }
+        
+        let html = '<div style="display:grid;gap:12px;">';
+        html += '<h4 style="margin:0 0 12px 0;font-size:15px;font-weight:600;">🔎 État du déploiement</h4>';
+        
+        const checks = [
+            { key: 'verify_script_exists', label: 'Script de vérification (verify_all.py)', icon: '🐍' },
+            { key: 'html_section_exists', label: 'Section HTML (parametres.html)', icon: '📄' },
+            { key: 'js_function_exists', label: 'Fonction JavaScript (page-settings.js)', icon: '⚙️' },
+        ];
+        
+        let allOk = true;
+        for (const check of checks) {
+            const ok = data[check.key] || false;
+            allOk = allOk && ok;
+            const icon = ok ? '✅' : '❌';
+            const color = ok ? '#22c55e' : '#ef4444';
+            
+            html += `<div style="display:flex;align-items:start;gap:10px;padding:10px;border-radius:8px;background:var(--color-surface);border:1px solid ${ok ? 'rgba(34,197,94,.2)' : 'rgba(239,68,68,.2)'};">`;
+            html += `<span style="font-size:18px;">${icon}</span>`;
+            html += `<div style="flex:1;">`;
+            html += `<div style="font-weight:600;margin-bottom:4px;color:${color};">${check.icon} ${check.label}</div>`;
+            html += `<div style="font-size:12px;color:var(--color-text-secondary);">${ok ? 'Présent' : 'Manquant'}</div>`;
+            html += `</div></div>`;
+        }
+        
+        // Dernier commit
+        if (data.last_commit && data.last_commit !== 'unknown') {
+            html += '<div style="padding:10px;border-radius:8px;background:var(--color-surface);border:1px solid var(--color-border);">';
+            html += '<div style="font-weight:600;margin-bottom:4px;">📝 Dernier commit Git</div>';
+            html += `<div style="font-size:12px;color:var(--color-text-secondary);font-family:monospace;">${escapeHtml(data.last_commit)}</div>`;
+            html += '</div>';
+        }
+        
+        // Résumé
+        html += '<div style="margin-top:12px;padding:12px;border-radius:8px;background:' + (allOk && data.all_deployed ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)') + ';border:1px solid ' + (allOk && data.all_deployed ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)') + ';">';
+        html += '<div style="font-weight:600;color:' + (allOk && data.all_deployed ? '#22c55e' : '#ef4444') + ';">';
+        html += (allOk && data.all_deployed) ? '✅ Code déployé correctement' : '❌ Code non déployé ou incomplet';
+        html += '</div>';
+        if (!allOk || !data.all_deployed) {
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;">Le serveur doit faire un <code>git pull</code> et redémarrer l\'application.</div>';
+        }
+        html += '</div>';
+        
+        html += '</div>';
+        resultsEl.innerHTML = html;
+        
+        if (typeof showToast === 'function') {
+            showToast((allOk && data.all_deployed) ? '✅ Code déployé' : '⚠️ Code non déployé', (allOk && data.all_deployed) ? 'success' : 'warning');
+        }
+    } catch (e) {
+        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur réseau: ${e.message}</div>`;
+        if (typeof showToast === 'function') {
+            showToast('Erreur lors de la vérification', 'error');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔎 Vérifier le déploiement';
+    }
+}
+
+window.showSystemLogs = showSystemLogs;
+window.checkDeployment = checkDeployment;

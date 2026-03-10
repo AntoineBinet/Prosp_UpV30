@@ -305,7 +305,7 @@ def _require_auth():
     if request.method == "OPTIONS":
         return
 
-    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment')
+    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment', '/api/system/logs')
     if any(request.path.startswith(p) for p in allowed):
         return
 
@@ -6574,6 +6574,10 @@ def api_deploy_pull():
 @app.route("/api/system/check-deployment", methods=["GET"])
 def api_system_check_deployment():
     """Vérifie si le code de vérification système est déployé."""
+    user = _get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Admin requis"), 403
+    
     verify_script = APP_DIR / "scripts" / "verify_all.py"
     verify_script_exists = verify_script.exists()
     
@@ -6597,13 +6601,60 @@ def api_system_check_deployment():
         except Exception:
             pass
     
+    # Vérifier le dernier commit Git
+    last_commit = "unknown"
+    try:
+        cp = subprocess.run(
+            ["git", "log", "-1", "--oneline", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp.returncode == 0:
+            last_commit = (cp.stdout or "").strip()[:50]
+    except Exception:
+        pass
+    
     return jsonify(
         ok=True,
         verify_script_exists=verify_script_exists,
         html_section_exists=has_section,
         js_function_exists=has_js_function,
         all_deployed=verify_script_exists and has_section and has_js_function,
+        last_commit=last_commit,
     )
+
+
+@app.route("/api/system/logs", methods=["GET"])
+def api_system_logs():
+    """Retourne les dernières lignes du log serveur. Admin uniquement."""
+    user = _get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Admin requis"), 403
+    
+    log_file = APP_DIR / "logs" / "prospup.log"
+    lines = request.args.get("lines", 50, type=int)
+    lines = min(max(10, lines), 500)  # Entre 10 et 500 lignes
+    
+    if not log_file.exists():
+        return jsonify(ok=False, error="Fichier de log introuvable"), 404
+    
+    try:
+        # Lire les dernières lignes du fichier
+        with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+            all_lines = f.readlines()
+            last_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        
+        return jsonify(
+            ok=True,
+            lines=last_lines,
+            total_lines=len(all_lines),
+            file_size=log_file.stat().st_size,
+        )
+    except Exception as e:
+        logger.exception("Failed to read logs")
+        return jsonify(ok=False, error=str(e)), 500
 
 
 @app.post("/api/system/verify")

@@ -291,8 +291,10 @@ Belle journée,"></textarea>
           <h3>🔍 Vérification système</h3>
           <div class="about-section">
             <p class="muted" style="margin-bottom:10px;">Vérifie que tous les composants nécessaires au travail à distance avec Cursor fonctionnent correctement (Git, Ollama, Flask, API, scripts).</p>
-            <div class="settings-group" style="margin-top:12px;">
+            <div class="settings-group" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
               <button class="btn btn-primary" id="btnSystemVerify" onclick="runSystemVerify()">🔍 Lancer la vérification</button>
+              <button class="btn btn-secondary" id="btnSystemLogs" onclick="showSystemLogs()">📋 Voir les logs serveur</button>
+              <button class="btn btn-secondary" id="btnCheckDeployment" onclick="checkDeployment()">🔎 Vérifier le déploiement</button>
             </div>
             <div id="systemVerifyResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);"></div>
           </div>
