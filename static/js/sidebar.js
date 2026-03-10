@@ -48,7 +48,7 @@
     };
 
     // Sub-pages that belong to Paramètres
-    var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'kpi', 'metiers', 'help'];
+    var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'metiers', 'help'];
 
     // ── State ─────────────────────────────────────────────────────
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();
