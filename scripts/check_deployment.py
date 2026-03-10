@@ -179,7 +179,7 @@ def main() -> int:
                 return 1
         else:
             print("\n   Actions possibles:")
-            print("   1. Attendre que le superviseur fasse le pull automatique (max 90s)")
+            print("   1. Utiliser le bouton 'Mettre à jour et redémarrer' dans les paramètres de l'application")
             print("   2. Sur le PC qui héberge prospup.work, faire: git pull origin main")
             print("   3. Utiliser --force-pull avec --user et --pass pour forcer à distance")
         return 1

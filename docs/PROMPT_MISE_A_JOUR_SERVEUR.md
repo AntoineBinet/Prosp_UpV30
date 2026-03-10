@@ -1,9 +1,9 @@
 # Prompt pour mettre à jour prospup.work en production
 
 ## Contexte
-- Les corrections pour l'erreur 405 sur `/api/app-version` et la CSP ont été poussées sur `main` il y a quelques minutes
-- Le serveur en production (prospup.work) n'a pas encore récupéré les changements
-- Le superviseur (`supervise_prospup.py`) devrait normalement faire le pull automatiquement toutes les 90 secondes, mais ça ne semble pas avoir fonctionné
+- Les corrections ont été poussées sur `main`
+- Le serveur en production (prospup.work) doit être mis à jour
+- **IMPORTANT** : Le pull automatique a été désactivé. Les mises à jour se font maintenant via le bouton "Mettre à jour et redémarrer" dans les paramètres de l'application (section admin)
 
 ## Tâche à exécuter
 
@@ -14,21 +14,29 @@
    - Vérifier si le superviseur tourne (processus `supervise_prospup.py` ou `python app.py --prod`)
    - Vérifier l'état du dépôt git (`git status`)
 
-2. **Mettre à jour le code :**
+2. **Mettre à jour le code (méthode recommandée) :**
+   - Se connecter à l'application (prospup.work)
+   - Aller dans les Paramètres (section admin)
+   - Cliquer sur le bouton "Mettre à jour et redémarrer"
+   - Le serveur va automatiquement faire un `git pull` et redémarrer si nécessaire
+
+   **Alternative (méthode manuelle) :**
    - S'assurer qu'on est sur `main` (`git checkout main` si nécessaire)
    - Faire un pull depuis origin/main (`git pull origin main`)
-   - Vérifier que les changements sont bien arrivés (le commit devrait être `070220a` ou plus récent)
-
-3. **Vérifier/Redémarrer le serveur :**
-   - Si le superviseur tourne, il devrait redémarrer automatiquement après le pull
-   - Si le superviseur ne tourne pas, le redémarrer avec : `python scripts/supervise_prospup.py`
-   - Vérifier que le serveur répond correctement après redémarrage
+   - Le superviseur redémarrera automatiquement si des changements sont détectés
 
 4. **Vérifier que ça fonctionne :**
    - Tester que `/api/app-version` répond correctement (plus d'erreur 405)
    - Vérifier dans le navigateur que la pastille de version dans "À propos" s'affiche correctement
 
-## Commandes à exécuter (dans l'ordre)
+## Méthode recommandée (via l'interface web)
+
+1. Se connecter à prospup.work
+2. Aller dans Paramètres (section admin)
+3. Cliquer sur "Mettre à jour et redémarrer"
+4. Attendre la confirmation de mise à jour
+
+## Méthode alternative (ligne de commande)
 
 ```bash
 # 1. Vérifier l'état
@@ -43,10 +51,7 @@ git pull origin main
 # 3. Vérifier que les changements sont arrivés
 git log --oneline -3
 
-# 4. Vérifier/Redémarrer le superviseur
-# Si le superviseur tourne déjà, il devrait redémarrer automatiquement
-# Sinon, le lancer avec :
-python scripts/supervise_prospup.py
+# 4. Le superviseur redémarrera automatiquement si des changements sont détectés
 ```
 
 ## Fichiers modifiés à vérifier

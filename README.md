@@ -32,11 +32,9 @@ Ouvrir http://127.0.0.1:8000 dans le navigateur.
 
 ### Windows
 
-Double-cliquer sur `PROSPUP.bat` — installe les dependances, lance le serveur et active l'auto-deploiement (pull `main` + redemarrage auto en cas de nouvelle version).
+Double-cliquer sur `PROSPUP.bat` — installe les dependances et lance le serveur.
 
-Variables utiles (optionnelles) :
-- `PROSPUP_DEPLOY_BRANCH` (defaut `main`)
-- `PROSPUP_AUTO_DEPLOY_INTERVAL` en secondes (defaut `90`)
+Les mises à jour se font manuellement via le bouton "Mettre à jour et redémarrer" dans les paramètres de l'application (section admin).
 
 Compte initial : `admin / admin` (a changer immediatement).
 

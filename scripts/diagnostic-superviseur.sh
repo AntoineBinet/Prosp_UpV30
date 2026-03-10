@@ -57,9 +57,8 @@ echo ""
 
 # 5. Vérifier les variables d'environnement
 echo "5. Variables d'environnement du superviseur :"
-echo "   PROSPUP_DEPLOY_BRANCH: ${PROSPUP_DEPLOY_BRANCH:-main (défaut)}"
-echo "   PROSPUP_AUTO_DEPLOY: ${PROSPUP_AUTO_DEPLOY:-1 (défaut, activé)}"
-echo "   PROSPUP_AUTO_DEPLOY_INTERVAL: ${PROSPUP_AUTO_DEPLOY_INTERVAL:-90 (défaut, secondes)}"
+echo "   PROSPUP_APP_CMD: ${PROSPUP_APP_CMD:-python app.py --production (défaut)}"
+echo "   Note: Le pull automatique a été désactivé. Utilisez le bouton dans les paramètres."
 echo ""
 
 echo "✅ Diagnostic terminé"

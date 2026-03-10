@@ -7,7 +7,7 @@ echo.
 echo  ============================================
 echo    ProspUp - Serveur + Tunnel (prospup.work)
 echo  ============================================
-echo  Auto-deploy actif : pull Git automatique toutes les 90s sur main.
+echo  Mise à jour manuelle : utilisez le bouton dans les paramètres de l'application.
 echo.
 
 :: Python
