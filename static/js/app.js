@@ -25,21 +25,11 @@ const AppAuth = {
     },
     _injectBadge() {
         if (!this.user) return;
-        const sidebar = document.querySelector('.sidebar, aside.sidebar');
-        if (!sidebar) return;
-        // Users link now in sidebar.js nav structure (v23)
-        // Badge at bottom
-        let footer = sidebar.querySelector('.sidebar-footer');
-        if (!footer) {
-            footer = document.createElement('div');
-            footer.className = 'sidebar-footer';
-            sidebar.appendChild(footer);
-        }
         const u = this.user;
         const label = this.ROLE_LABELS[u.role] || u.role;
         const name = (typeof escapeHtml === 'function' ? escapeHtml(u.display_name || u.username) : String(u.display_name || u.username || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c)));
         const initial = (u.display_name || u.username || '').charAt(0).toUpperCase();
-        footer.innerHTML = `
+        const badgeHtml = `
             <div class="user-session-badge">
                 <div class="user-session-avatar">${initial}</div>
                 <div class="user-session-info">
@@ -48,6 +38,20 @@ const AppAuth = {
                 </div>
                 <button onclick="AppAuth.logout()" title="Déconnexion" class="user-session-logout">⏻</button>
             </div>`;
+        const headerCenter = document.querySelector('.header-center');
+        if (headerCenter) {
+            headerCenter.insertAdjacentHTML('beforeend', badgeHtml);
+            return;
+        }
+        const sidebar = document.querySelector('.sidebar, aside.sidebar');
+        if (!sidebar) return;
+        let footer = sidebar.querySelector('.sidebar-footer');
+        if (!footer) {
+            footer = document.createElement('div');
+            footer.className = 'sidebar-footer';
+            sidebar.appendChild(footer);
+        }
+        footer.innerHTML = badgeHtml;
     },
     _applyReadOnly() {
         if (!this.user || this.user.role !== 'reader') return;

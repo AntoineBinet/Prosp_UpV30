@@ -98,6 +98,75 @@ header {
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     position: relative;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+/* Header zones (injected by JS): left = title, center = search + user badge */
+.header-left {
+    flex: 1;
+    min-width: 0;
+}
+.header-center {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+/* Loupe (recherche) dans le header — pas de position fixed */
+.header-search-btn,
+.header-center .floating-search-btn {
+    position: static;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .28s ease, box-shadow .2s, border-color .2s;
+}
+.header-search-btn:hover,
+.header-center .floating-search-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 4px 16px rgba(var(--color-primary-rgb),.25);
+    border-color: var(--color-primary);
+}
+
+/* Badge utilisateur dans le header — transition pour animation scroll */
+.header-center .user-session-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(99,102,241,.06);
+    border-radius: 10px;
+    transition: opacity .28s ease, transform .28s ease, width .28s ease, min-width .28s ease, padding .28s ease, margin .28s ease;
+    min-width: 140px;
+    overflow: hidden;
+}
+
+/* Au scroll : badge masqué, loupe glisse à droite */
+body.header-scrolled .header-center .user-session-badge {
+    opacity: 0;
+    transform: translateX(-12px);
+    width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    pointer-events: none;
+}
+body.header-scrolled .header-center .header-search-btn,
+body.header-scrolled .header-center .floating-search-btn {
+    transform: translateX(calc(140px + 10px));
 }
 
 
