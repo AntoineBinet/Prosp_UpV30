@@ -98,7 +98,6 @@ header {
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     position: relative;
     overflow: hidden;
-<<<<<<< HEAD
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -203,6 +202,12 @@ body.header-scrolled #deployUpdateSection {
 #btnDeployPull,
 #deployUpdateSection {
     transition: opacity .28s ease, transform .28s ease, max-height .28s ease, margin .28s ease, padding .28s ease;
+}
+
+@media (max-width: 900px) {
+    .header-center .user-session-badge {
+        display: none !important;
+    }
 }
 
 

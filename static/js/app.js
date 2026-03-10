@@ -29,6 +29,7 @@ const AppAuth = {
         const label = this.ROLE_LABELS[u.role] || u.role;
         const name = (typeof escapeHtml === 'function' ? escapeHtml(u.display_name || u.username) : String(u.display_name || u.username || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c)));
         const initial = (u.display_name || u.username || '').charAt(0).toUpperCase();
+        const isMobile = window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
         const badgeHtml = `
             <div class="user-session-badge">
                 <div class="user-session-avatar">${initial}</div>
@@ -38,8 +39,28 @@ const AppAuth = {
                 </div>
                 <button onclick="AppAuth.logout()" title="Déconnexion" class="user-session-logout">⏻</button>
             </div>`;
-        const headerCenter = document.querySelector('.header-center'); /* v25: badge dans header */
-        if (headerCenter) {
+        let headerCenter = document.querySelector('.header-center'); /* v25: badge dans header */
+        if (!isMobile && !headerCenter) {
+            const header = document.querySelector('header');
+            const h1 = header ? header.querySelector('h1') : null;
+            if (header && h1) {
+                let left = header.querySelector('.header-left');
+                if (!left) {
+                    left = document.createElement('div');
+                    left.className = 'header-left';
+                    left.appendChild(h1);
+                    const subtitle = header.querySelector('.header-subtitle');
+                    if (subtitle) left.appendChild(subtitle);
+                    header.prepend(left);
+                }
+                headerCenter = document.createElement('div');
+                headerCenter.className = 'header-center';
+                header.appendChild(headerCenter);
+            }
+        }
+        const existingHeaderBadge = headerCenter ? headerCenter.querySelector('.user-session-badge') : null;
+        if (existingHeaderBadge) existingHeaderBadge.remove();
+        if (!isMobile && headerCenter) {
             headerCenter.insertAdjacentHTML('beforeend', badgeHtml);
             return;
         }
@@ -78,6 +99,16 @@ const AppAuth = {
 // Ré-injecter le badge utilisateur après chaque reconstruction de la sidebar (sidebar.js écrase le contenu)
 document.addEventListener('sidebar-ready', function () {
     if (window.AppAuth && typeof AppAuth._injectBadge === 'function') AppAuth._injectBadge();
+});
+
+let _badgeResizeRaf = null;
+window.addEventListener('resize', function () {
+    if (!window.AppAuth || !AppAuth.user || typeof AppAuth._injectBadge !== 'function') return;
+    if (_badgeResizeRaf) cancelAnimationFrame(_badgeResizeRaf);
+    _badgeResizeRaf = requestAnimationFrame(function () {
+        AppAuth._injectBadge();
+        _badgeResizeRaf = null;
+    });
 });
 
 // ═══════════════════════════════════════════════════════════════════
