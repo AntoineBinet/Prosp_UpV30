@@ -287,3 +287,110 @@ function resetLinkedinTemplate() {
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(loadLinkedinTemplate, 500);
 });
+
+// ════════════════════════════════════════════════════════════════
+// Vérification système
+// ════════════════════════════════════════════════════════════════
+async function runSystemVerify() {
+    const btn = document.getElementById('btnSystemVerify');
+    const resultsEl = document.getElementById('systemVerifyResults');
+    if (!btn || !resultsEl) return;
+    
+    // Désactiver le bouton pendant la vérification
+    btn.disabled = true;
+    btn.textContent = '⏳ Vérification en cours...';
+    resultsEl.style.display = 'none';
+    
+    try {
+        const res = await fetch('/api/system/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur: ${data.error || 'Erreur inconnue'}</div>`;
+            resultsEl.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = '🔍 Lancer la vérification';
+            return;
+        }
+        
+        // Afficher les résultats
+        const checks = data.checks || {};
+        const checkLabels = {
+            git: 'Git (repo, branche, pull)',
+            ollama: 'Ollama (répond + génération)',
+            flask: 'Flask (serveur web)',
+            api_ollama: 'API Ollama via Flask',
+            scripts: 'Scripts Python',
+            env: 'Variables d\'environnement',
+        };
+        
+        let html = '<div style="display:grid;gap:12px;">';
+        html += '<h4 style="margin:0 0 12px 0;font-size:15px;font-weight:600;">Résultats de la vérification</h4>';
+        
+        let allOk = true;
+        for (const [key, label] of Object.entries(checkLabels)) {
+            const check = checks[key] || { ok: false, message: 'Non vérifié' };
+            const icon = check.ok ? '✅' : '❌';
+            const color = check.ok ? '#22c55e' : '#ef4444';
+            allOk = allOk && check.ok;
+            
+            html += `<div style="display:flex;align-items:start;gap:10px;padding:10px;border-radius:8px;background:var(--color-surface);border:1px solid ${check.ok ? 'rgba(34,197,94,.2)' : 'rgba(239,68,68,.2)'};">`;
+            html += `<span style="font-size:18px;">${icon}</span>`;
+            html += `<div style="flex:1;">`;
+            html += `<div style="font-weight:600;margin-bottom:4px;color:${color};">${label}</div>`;
+            html += `<div style="font-size:12px;color:var(--color-text-secondary);">${check.message || 'OK'}</div>`;
+            html += `</div></div>`;
+        }
+        
+        // Résumé global
+        html += '<div style="margin-top:12px;padding:12px;border-radius:8px;background:' + (allOk ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)') + ';border:1px solid ' + (allOk ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)') + ';">';
+        html += '<div style="font-weight:600;color:' + (allOk ? '#22c55e' : '#ef4444') + ';">';
+        html += allOk ? '✅ Tous les systèmes fonctionnent correctement' : '❌ Certains systèmes nécessitent une attention';
+        html += '</div>';
+        if (data.exit_code !== undefined) {
+            html += `<div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px;">Code de sortie: ${data.exit_code}</div>`;
+        }
+        html += '</div>';
+        
+        // Afficher stdout/stderr si disponible et non vide
+        if (data.stdout && data.stdout.trim()) {
+            html += '<details style="margin-top:12px;"><summary style="cursor:pointer;font-size:12px;color:var(--color-text-secondary);">📋 Sortie standard</summary>';
+            html += `<pre style="margin-top:8px;padding:8px;background:var(--color-surface);border-radius:6px;font-size:11px;overflow-x:auto;max-height:200px;overflow-y:auto;">${escapeHtml(data.stdout)}</pre>`;
+            html += '</details>';
+        }
+        if (data.stderr && data.stderr.trim()) {
+            html += '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:var(--color-text-secondary);">⚠️ Erreurs</summary>';
+            html += `<pre style="margin-top:8px;padding:8px;background:rgba(239,68,68,.1);border-radius:6px;font-size:11px;overflow-x:auto;max-height:200px;overflow-y:auto;color:#ef4444;">${escapeHtml(data.stderr)}</pre>`;
+            html += '</details>';
+        }
+        
+        html += '</div>';
+        resultsEl.innerHTML = html;
+        resultsEl.style.display = 'block';
+        
+        // Toast de confirmation
+        if (typeof showToast === 'function') {
+            showToast(allOk ? '✅ Vérification terminée — tout fonctionne' : '⚠️ Vérification terminée — voir les détails', allOk ? 'success' : 'warning');
+        }
+    } catch (e) {
+        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur réseau: ${e.message}</div>`;
+        resultsEl.style.display = 'block';
+        if (typeof showToast === 'function') {
+            showToast('Erreur lors de la vérification', 'error');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Lancer la vérification';
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+window.runSystemVerify = runSystemVerify;

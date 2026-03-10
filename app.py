@@ -305,7 +305,7 @@ def _require_auth():
     if request.method == "OPTIONS":
         return
 
-    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version')
+    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/verify')
     if any(request.path.startswith(p) for p in allowed):
         return
 
@@ -6568,6 +6568,73 @@ def api_deploy_pull():
         return jsonify(ok=False, error="Timeout lors du pull"), 500
     except Exception as e:
         logger.exception("Deploy pull error")
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.post("/api/system/verify")
+def api_system_verify():
+    """Exécute le script de vérification système et retourne les résultats détaillés."""
+    user = _get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Admin requis"), 403
+    
+    verify_script = APP_DIR / "scripts" / "verify_all.py"
+    if not verify_script.exists():
+        return jsonify(ok=False, error="Script de vérification introuvable"), 404
+    
+    try:
+        # Exécuter le script avec capture de la sortie
+        proc = subprocess.run(
+            [sys.executable, str(verify_script)],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        
+        # Parser les résultats (le script utilise des exit codes)
+        checks = {
+            "git": {"ok": True, "message": "OK"},
+            "ollama": {"ok": True, "message": "OK"},
+            "flask": {"ok": True, "message": "OK"},
+            "api_ollama": {"ok": True, "message": "OK"},
+            "scripts": {"ok": True, "message": "OK"},
+            "env": {"ok": True, "message": "OK"},
+        }
+        
+        # Déterminer quel check a échoué selon l'exit code
+        if proc.returncode == 1:
+            checks["git"]["ok"] = False
+            checks["git"]["message"] = proc.stderr or "Erreur Git (repo, branche ou pull)"
+        elif proc.returncode == 2:
+            checks["ollama"]["ok"] = False
+            checks["ollama"]["message"] = proc.stderr or "Ollama inaccessible ou modèle introuvable"
+        elif proc.returncode == 3:
+            checks["flask"]["ok"] = False
+            checks["flask"]["message"] = proc.stderr or "Flask ne répond pas"
+        elif proc.returncode == 4:
+            checks["api_ollama"]["ok"] = False
+            checks["api_ollama"]["message"] = proc.stderr or "API Ollama via Flask en erreur (possible erreur 405)"
+        elif proc.returncode == 5:
+            checks["scripts"]["ok"] = False
+            checks["scripts"]["message"] = proc.stderr or "Erreur dans les scripts Python"
+        elif proc.returncode == 6:
+            checks["env"]["ok"] = False
+            checks["env"]["message"] = proc.stderr or "Variables d'environnement invalides"
+        
+        all_ok = proc.returncode == 0
+        
+        return jsonify(
+            ok=all_ok,
+            exit_code=proc.returncode,
+            checks=checks,
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+        )
+    except subprocess.TimeoutExpired:
+        return jsonify(ok=False, error="Timeout lors de l'exécution du script"), 504
+    except Exception as e:
+        logger.exception("System verify failed")
         return jsonify(ok=False, error=str(e)), 500
 
 
