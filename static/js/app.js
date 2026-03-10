@@ -1,10 +1,10 @@
 // v24.2 — Global error safety net
 window.addEventListener('unhandledrejection', function(e) {
-    console.error('[Prosp'Up] Unhandled promise:', e.reason);
+    console.error("[Prosp'Up] Unhandled promise:", e.reason);
     if (window.showToast) window.showToast('Erreur inattendue', 'error');
 });
 window.onerror = function(msg, src, line) {
-    console.error('[Prosp'Up] Error:', msg, 'at', src + ':' + line);
+    console.error("[Prosp'Up] Error:", msg, "at", src + ":" + line);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -71,6 +71,11 @@ const AppAuth = {
     }
 };
 
+// Ré-injecter le badge utilisateur après chaque reconstruction de la sidebar (sidebar.js écrase le contenu)
+document.addEventListener('sidebar-ready', function () {
+    if (window.AppAuth && typeof AppAuth._injectBadge === 'function') AppAuth._injectBadge();
+});
+
 // ═══════════════════════════════════════════════════════════════════
 // Mobile tel: link helper (v15)
 // ═══════════════════════════════════════════════════════════════════
@@ -97,6 +102,10 @@ let _globalMaxCompanyId = null;
 async function loadFromServer() {
     try {
         const res = await fetch('/api/data');
+        if (res.status === 401) {
+            window.location.href = '/login';
+            return false;
+        }
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const parsed = await res.json();
         if (!parsed || !Array.isArray(parsed.companies) || !Array.isArray(parsed.prospects)) return false;
@@ -7430,8 +7439,8 @@ async function bootstrap(page) {
     await AppAuth.init();
 
     await loadFromServer();
-    try { await loadTemplatesFromServer(); } catch(e) { console.warn('[Prosp'Up] Templates load failed:', e); }
-    try { await loadPushCategories(); } catch(e) { console.warn('[Prosp'Up] Push categories load failed:', e); }
+    try { await loadTemplatesFromServer(); } catch(e) { console.warn("[Prosp'Up] Templates load failed:", e); }
+    try { await loadPushCategories(); } catch(e) { console.warn("[Prosp'Up] Push categories load failed:", e); }
     normalizeData();
     filteredProspects = [...data.prospects];
 

@@ -80,8 +80,6 @@ DATA_DIR = APP_DIR / "data"
 INITIAL_JSON = APP_DIR / "initial_data.json"
 TEMPLATE_PATH = APP_DIR / "excel_template.xlsx"
 SNAPSHOT_DIR = APP_DIR / "snapshots"
-UPDATE_STAGING_DIR = APP_DIR / "updates_staging"
-UPDATE_BACKUP_DIR = APP_DIR / "updates_backup"
 
 # Ollama (IA locale) — proxy backend vers 127.0.0.1:11434
 OLLAMA_URL = (os.environ.get("OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("/")
@@ -872,10 +870,14 @@ def _auth_conn() -> sqlite3.Connection:
 
 
 def _user_db_path(user_id: int) -> Path:
-    """Chemin de la DB d'un utilisateur. Retourne la per-user DB si elle existe, sinon DB_PATH."""
+    """Chemin de la DB d'un utilisateur. Retourne la per-user DB si elle existe et n'est pas vide, sinon DB_PATH."""
     user_db = DATA_DIR / f"user_{user_id}" / "prospects.db"
     if user_db.exists():
-        return user_db
+        try:
+            if user_db.stat().st_size > 0:
+                return user_db
+        except OSError:
+            pass
     return DB_PATH
 
 
@@ -6578,7 +6580,8 @@ def api_ollama_generate_stream():
                             continue
         except urllib.error.URLError as e:
             logger.warning("Ollama unreachable (stream): %s", e)
-            yield f"data: {json.dumps({'type': 'error', 'message': 'Ollama indisponible (vérifiez qu\\'il tourne sur ce PC)'}, ensure_ascii=False)}\n\n"
+            err_msg = "Ollama indisponible (vérifiez qu'il tourne sur ce PC)"
+            yield f"data: {json.dumps({'type': 'error', 'message': err_msg}, ensure_ascii=False)}\n\n"
         except urllib.error.HTTPError as e:
             try:
                 err_body = e.read().decode("utf-8")
@@ -6598,105 +6601,156 @@ def api_ollama_generate_stream():
     })
 
 
+def _schedule_restart(delay: float = 10.0):
+    """Restart after responding.
+
+    - If launched via PROSPUP.bat (or _run_serveur.bat), it will restart on exit code 42.
+    - If launched directly (python app.py), it spawns a new process then exits.
+
+    Le délai permet aux clients (Cloudflare, navigateurs) de recevoir la réponse HTTP
+    avant que le serveur ne redémarre, évitant les erreurs 502.
+    """
+    def _do():
+        time.sleep(float(delay))
+        launcher = (os.environ.get("PROSPUP_LAUNCHER") or "").strip().upper()
+        if launcher == "BAT":
+            logger.info("Restart: exit code 42 pour le superviseur")
+            os._exit(42)
+        try:
+            import sys as _sys
+            args = [_sys.executable] + _sys.argv
+            logger.info("Restart: lancement nouveau processus: %s", " ".join(args))
+            proc = subprocess.Popen(args, cwd=str(APP_DIR))
+            time.sleep(2.0)
+            logger.info("Restart: nouveau processus lancé, arrêt de l'ancien serveur")
+        except Exception as e:
+            logger.error("Restart: erreur lors du lancement du nouveau processus: %s", e)
+        os._exit(0)
+
+    threading.Thread(target=_do, daemon=True).start()
+
+
 @app.post("/api/deploy/pull")
 @login_required
 @role_required('admin')
 def api_deploy_pull():
-    """Force un git pull depuis origin/main et redémarre le serveur (admin uniquement)."""
+    """Streaming git pull depuis origin/main puis redémarrage (admin uniquement). Réponse SSE."""
     chk = _require_same_origin()
     if chk:
         return chk
-    
-    try:
-        # Vérifier que c'est un dépôt git
-        cp = subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            cwd=str(APP_DIR),
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-        if cp.returncode != 0:
-            return jsonify(ok=False, error="Pas un dépôt git"), 400
-        
-        # Fetch + pull
-        fetch = subprocess.run(
-            ["git", "fetch", "--prune", "origin", "main"],
-            cwd=str(APP_DIR),
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if fetch.returncode != 0:
-            return jsonify(ok=False, error=f"git fetch échoué: {fetch.stderr}"), 500
-        
-        # Vérifier s'il y a des changements
-        cp2 = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=str(APP_DIR),
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-        local_hash = (cp2.stdout or "").strip()[:7] if cp2.returncode == 0 else "unknown"
-        
-        cp3 = subprocess.run(
-            ["git", "rev-parse", "origin/main"],
-            cwd=str(APP_DIR),
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-        remote_hash = (cp3.stdout or "").strip()[:7] if cp3.returncode == 0 else "unknown"
-        
-        if local_hash == remote_hash:
-            return jsonify(ok=True, message="Déjà à jour", local_hash=local_hash, remote_hash=remote_hash, updated=False)
-        
-        # Vérifier s'il y a des modifications locales non commitées
-        status = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=str(APP_DIR),
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        has_local_changes = status.returncode == 0 and status.stdout.strip()
-        
-        # Si des modifications locales existent, les stasher avant le pull
-        if has_local_changes:
-            logger.warning("Deploy pull: modifications locales détectées, stash avant pull")
-            stash = subprocess.run(
-                ["git", "stash", "push", "-m", f"Auto-stash avant pull {remote_hash}"],
+
+    def generate():
+        try:
+            cp = subprocess.run(
+                ["git", "rev-parse", "--git-dir"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if cp.returncode != 0:
+                yield f"data: {json.dumps({'step': 'error', 'error': 'Pas un dépôt git'}, ensure_ascii=False)}\n\n"
+                return
+
+            yield f"data: {json.dumps({'step': 'fetch', 'message': 'git fetch --prune origin main...'}, ensure_ascii=False)}\n\n"
+            fetch = subprocess.run(
+                ["git", "fetch", "--prune", "origin", "main"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if fetch.returncode != 0:
+                err = (fetch.stderr or fetch.stdout or "Erreur inconnue").strip()
+                yield f"data: {json.dumps({'step': 'error', 'error': f'git fetch échoué: {err}'}, ensure_ascii=False)}\n\n"
+                return
+            if fetch.stdout:
+                for line in fetch.stdout.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+            if fetch.stderr:
+                for line in fetch.stderr.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+
+            cp2 = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            local_hash = (cp2.stdout or "").strip()[:7] if cp2.returncode == 0 else "unknown"
+            cp3 = subprocess.run(
+                ["git", "rev-parse", "origin/main"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            remote_hash = (cp3.stdout or "").strip()[:7] if cp3.returncode == 0 else "unknown"
+
+            if local_hash == remote_hash:
+                yield f"data: {json.dumps({'step': 'done', 'updated': False, 'restarting': False, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Déjà à jour'}, ensure_ascii=False)}\n\n"
+                return
+
+            status = subprocess.run(
+                ["git", "status", "--porcelain"],
                 cwd=str(APP_DIR),
                 capture_output=True,
                 text=True,
                 timeout=5,
             )
-            if stash.returncode != 0:
-                return jsonify(ok=False, error=f"Impossible de stasher les modifications locales: {stash.stderr}", local_hash=local_hash, remote_hash=remote_hash), 500
-        
-        # Pull fast-forward only
-        pull = subprocess.run(
-            ["git", "pull", "--ff-only", "origin", "main"],
-            cwd=str(APP_DIR),
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if pull.returncode != 0:
-            return jsonify(ok=False, error=f"git pull échoué: {pull.stderr}", local_hash=local_hash, remote_hash=remote_hash), 500
-        
-        # Redémarrer le serveur (code 42)
-        logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
-        # Délai augmenté à 10s pour laisser le temps à Cloudflare et aux clients de recevoir la réponse
-        _schedule_restart(delay=10.0)
-        
-        return jsonify(ok=True, message="Mise à jour appliquée, redémarrage en cours", local_hash=local_hash, remote_hash=remote_hash, updated=True, restarting=True, restart_delay_s=10)
-    except subprocess.TimeoutExpired:
-        return jsonify(ok=False, error="Timeout lors du pull"), 500
-    except Exception as e:
-        logger.exception("Deploy pull error")
-        return jsonify(ok=False, error=str(e)), 500
+            has_local_changes = status.returncode == 0 and bool(status.stdout.strip())
+            if has_local_changes:
+                yield f"data: {json.dumps({'step': 'log', 'line': 'Modifications locales détectées, stash...'}, ensure_ascii=False)}\n\n"
+                stash = subprocess.run(
+                    ["git", "stash", "push", "-m", f"Auto-stash avant pull {remote_hash}"],
+                    cwd=str(APP_DIR),
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if stash.returncode != 0:
+                    err = (stash.stderr or stash.stdout or "Erreur stash").strip()
+                    yield f"data: {json.dumps({'step': 'error', 'error': f'Impossible de stasher: {err}'}, ensure_ascii=False)}\n\n"
+                    return
+
+            yield f"data: {json.dumps({'step': 'pull', 'message': 'git pull --ff-only origin main...'}, ensure_ascii=False)}\n\n"
+            pull = subprocess.run(
+                ["git", "pull", "--ff-only", "origin", "main"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if pull.stdout:
+                for line in pull.stdout.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+            if pull.stderr:
+                for line in pull.stderr.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+            if pull.returncode != 0:
+                err = (pull.stderr or pull.stdout or "Erreur pull").strip()
+                yield f"data: {json.dumps({'step': 'error', 'error': f'git pull échoué: {err}'}, ensure_ascii=False)}\n\n"
+                return
+
+            logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
+            _schedule_restart(delay=10.0)
+            yield f"data: {json.dumps({'step': 'done', 'updated': True, 'restarting': True, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Mise à jour appliquée, redémarrage dans 10 s', 'restart_delay_s': 10}, ensure_ascii=False)}\n\n"
+        except subprocess.TimeoutExpired:
+            yield f"data: {json.dumps({'step': 'error', 'error': 'Timeout lors du pull'}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("Deploy pull error")
+            yield f"data: {json.dumps({'step': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.route("/api/system/check-deployment", methods=["GET"])
@@ -6729,8 +6783,10 @@ def api_system_check_deployment():
         except Exception:
             pass
     
-    # Vérifier le dernier commit Git
+    # Dernier commit et branche (pour affichage "version en ligne")
     last_commit = "unknown"
+    commit_hash = "unknown"
+    branch = "main"
     try:
         cp = subprocess.run(
             ["git", "log", "-1", "--oneline", "HEAD"],
@@ -6741,6 +6797,24 @@ def api_system_check_deployment():
         )
         if cp.returncode == 0:
             last_commit = (cp.stdout or "").strip()[:50]
+        cp2 = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp2.returncode == 0:
+            commit_hash = (cp2.stdout or "").strip()[:7]
+        cp3 = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp3.returncode == 0 and (cp3.stdout or "").strip():
+            branch = (cp3.stdout or "").strip()
     except Exception:
         pass
     
@@ -6751,6 +6825,9 @@ def api_system_check_deployment():
         js_function_exists=has_js_function,
         all_deployed=verify_script_exists and has_section and has_js_function,
         last_commit=last_commit,
+        version=APP_VERSION,
+        commit_hash=commit_hash,
+        branch=branch,
     )
 
 
@@ -6876,6 +6953,16 @@ def api_app_version():
         )
         commit_date = (cp2.stdout or "").strip() if cp2.returncode == 0 else ""
         
+        # Branche actuelle (ex. main)
+        cp3 = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        branch = (cp3.stdout or "").strip() or "main"
+        
         # Générer une couleur basée sur le hash (pour changement visuel)
         if commit_hash != "unknown":
             # Utiliser les 6 premiers caractères du hash pour générer une couleur
@@ -6890,10 +6977,10 @@ def api_app_version():
         else:
             badge_color = "#64748b"
         
-        return jsonify(ok=True, version=APP_VERSION, commit_hash=commit_hash, commit_date=commit_date, badge_color=badge_color)
+        return jsonify(ok=True, version=APP_VERSION, commit_hash=commit_hash, commit_date=commit_date, branch=branch, badge_color=badge_color)
     except Exception as e:
         logger.warning("App version fetch error: %s", e)
-        return jsonify(ok=True, version=APP_VERSION, commit_hash="unknown", commit_date="", badge_color="#64748b")
+        return jsonify(ok=True, version=APP_VERSION, commit_hash="unknown", commit_date="", branch="main", badge_color="#64748b")
 
 
 @app.get("/api/health")
@@ -8122,514 +8209,6 @@ def ec1_checklist_save():
         )
 
     return jsonify(ok=True, updatedAt=now)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# UPDATE SYSTEM — Upload, stage, apply & rollback
-# ═══════════════════════════════════════════════════════════════════
-
-# Directories excluded from backup / scan
-_UPDATE_EXCLUDE_DIRS = {
-    "snapshots", "updates_staging", "updates_backup",
-    "__pycache__", ".git", "node_modules", "static/photos",
-}
-_UPDATE_EXCLUDE_EXTS = {".db", ".pyc", ".bak"}
-
-
-def _ensure_update_dirs():
-    UPDATE_STAGING_DIR.mkdir(parents=True, exist_ok=True)
-    UPDATE_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _safe_relpath(rel: str) -> str:
-    """Normalize a relative path (POSIX style) and block traversal."""
-    rel = (rel or "").replace("\\", "/").lstrip("/").strip()
-    if not rel:
-        return ""
-    # Strip common leading folder in patch zips
-    _m = re.match(r"Prosp'Up_v[\d.]+/", rel)
-    if _m:
-        rel = rel[_m.end():]
-    if not rel:
-        return ""
-    parts = [p for p in rel.split("/") if p not in ("", ".")]
-    if not parts or any(p == ".." for p in parts):
-        return ""
-    # Block hidden files by default
-    if any(p.startswith(".") for p in parts):
-        return ""
-    return "/".join(parts)
-
-
-def _staging_target(rel: str) -> Path:
-    safe = _safe_relpath(rel)
-    if not safe:
-        raise ValueError("Nom de fichier invalide")
-    root = UPDATE_STAGING_DIR.resolve()
-    target = (UPDATE_STAGING_DIR / safe).resolve()
-    if root != target and root not in target.parents:
-        raise ValueError("Chemin invalide")
-    return target
-
-
-def _schedule_restart(delay: float = 10.0):
-    """Restart after responding.
-
-    - If launched via PROSPUP.bat (or _run_serveur.bat), it will restart on exit code 42.
-    - If launched directly (python app.py), it spawns a new process then exits.
-    
-    Le délai permet aux clients (Cloudflare, navigateurs) de recevoir la réponse HTTP
-    avant que le serveur ne redémarre, évitant les erreurs 502.
-    """
-    def _do():
-        time.sleep(float(delay))
-        launcher = (os.environ.get("PROSPUP_LAUNCHER") or "").strip().upper()
-        if launcher == "BAT":
-            logger.info("Restart: exit code 42 pour le superviseur")
-            os._exit(42)
-        try:
-            import subprocess, sys
-            args = [sys.executable] + sys.argv
-            logger.info(f"Restart: lancement nouveau processus: {' '.join(args)}")
-            proc = subprocess.Popen(args, cwd=str(APP_DIR))
-            # Attendre un peu que le nouveau processus démarre avant de tuer l'ancien
-            time.sleep(2.0)
-            logger.info("Restart: nouveau processus lancé, arrêt de l'ancien serveur")
-        except Exception as e:
-            logger.error(f"Restart: erreur lors du lancement du nouveau processus: {e}")
-        os._exit(0)
-
-    threading.Thread(target=_do, daemon=True).start()
-
-
-def _scan_project_files() -> Dict[str, Path]:
-    """Build a map of filename -> relative path for all project files."""
-    result: Dict[str, Path] = {}
-    for p in APP_DIR.rglob("*"):
-        if not p.is_file():
-            continue
-        rel = p.relative_to(APP_DIR)
-        # Skip excluded dirs
-        parts = rel.parts
-        if any(ex in parts for ex in _UPDATE_EXCLUDE_DIRS):
-            continue
-        if p.suffix in _UPDATE_EXCLUDE_EXTS:
-            continue
-        fname = p.name
-        # First match wins (prefer shorter/more direct path)
-        if fname not in result:
-            result[fname] = rel
-    return result
-
-
-def _detect_destination(staged_rel: str, project_map: Dict[str, Path]) -> Dict[str, Any]:
-    """Detect where a staged file should go in the project.
-
-    If the staged file includes a relative path (e.g. static/js/app.js),
-    we trust that path as destination. Otherwise, we fall back to a filename map.
-    """
-    staged_rel = _safe_relpath(staged_rel)
-    if not staged_rel:
-        return {
-            "destination": "",
-            "exists": False,
-            "action": "skip",
-        }
-
-    if "/" in staged_rel:
-        dest = staged_rel
-        exists = (APP_DIR / dest).exists()
-        return {
-            "destination": dest,
-            "exists": bool(exists),
-            "action": "replace" if exists else "add",
-        }
-
-    filename = Path(staged_rel).name
-    if filename in project_map:
-        return {
-            "destination": str(project_map[filename]).replace("\\", "/"),
-            "exists": True,
-            "action": "replace",
-        }
-
-    # New file: place at root by default, or in static/ if css/js
-    ext = Path(filename).suffix.lower()
-    if ext == ".css":
-        dest = f"static/css/{filename}"
-    elif ext == ".js":
-        dest = f"static/js/{filename}"
-    else:
-        dest = filename
-    return {
-        "destination": dest,
-        "exists": False,
-        "action": "add",
-    }
-
-
-@app.post("/api/update/upload")
-@login_required
-@role_required('admin')
-def api_update_upload():
-    """Upload files to the staging area.
-
-    Supports:
-    - direct files (app.py, *.js, *.css, *.html, etc.)
-    - .zip patches containing a folder structure (static/js/app.js, etc.)
-    """
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    _ensure_update_dirs()
-    files = request.files.getlist("files")
-    if not files:
-        return jsonify(ok=False, error="Aucun fichier reçu"), 400
-
-    uploaded = []
-    extracted = []
-    skipped = []
-    errors = []
-
-    for f in files:
-        if not f or not getattr(f, "filename", ""):
-            continue
-        raw_name = str(f.filename or "")
-        base_name = Path(raw_name).name
-        if not base_name:
-            continue
-
-        # ZIP patch: expand into staging
-        if base_name.lower().endswith(".zip"):
-            try:
-                import io
-                data_bytes = f.read()
-                zf = zipfile.ZipFile(io.BytesIO(data_bytes))
-                for info in zf.infolist():
-                    if info.is_dir():
-                        continue
-                    rel = _safe_relpath(info.filename)
-                    if not rel:
-                        continue
-                    # Skip extremely large files (safety)
-                    if info.file_size and info.file_size > 50 * 1024 * 1024:
-                        skipped.append(rel)
-                        continue
-                    try:
-                        target = _staging_target(rel)
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        with zf.open(info, "r") as src, open(target, "wb") as dst:
-                            shutil.copyfileobj(src, dst)
-                        extracted.append(rel)
-                    except Exception as e:
-                        errors.append({"file": rel, "error": str(e)})
-                zf.close()
-                uploaded.append(base_name)
-            except Exception as e:
-                errors.append({"file": base_name, "error": f"ZIP invalide: {e}"})
-            continue
-
-        # Single file
-        try:
-            rel = _safe_relpath(base_name)
-            if not rel:
-                skipped.append(base_name)
-                continue
-            target = _staging_target(rel)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            f.save(target)
-            uploaded.append(rel)
-        except Exception as e:
-            errors.append({"file": base_name, "error": str(e)})
-
-    if not (uploaded or extracted):
-        return jsonify(ok=False, error="Aucun fichier valide", errors=errors, skipped=skipped), 400
-
-    return jsonify(
-        ok=True,
-        uploaded=uploaded,
-        extracted=extracted,
-        count=len(uploaded) + len(extracted),
-        skipped=skipped,
-        errors=errors,
-    )
-
-@app.get("/api/update/staging")
-@login_required
-@role_required('admin')
-def api_update_staging():
-    """List files in the staging area (recursive) with detected destinations."""
-    _ensure_update_dirs()
-    project_map = _scan_project_files()
-    staged = []
-    for p in sorted(UPDATE_STAGING_DIR.rglob("*")):
-        if not p.is_file() or p.name.startswith("."):
-            continue
-        rel = p.relative_to(UPDATE_STAGING_DIR).as_posix()
-        info = _detect_destination(rel, project_map)
-        info["filename"] = rel
-        info["size"] = p.stat().st_size
-        staged.append(info)
-    return jsonify(ok=True, files=staged)
-
-@app.delete("/api/update/staging/<path:filename>")
-@login_required
-@role_required('admin')
-def api_update_staging_delete(filename: str):
-    """Remove a specific staged file (supports nested paths)."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    try:
-        target = _staging_target(filename)
-    except Exception:
-        return jsonify(ok=False, error="Nom de fichier invalide"), 400
-
-    if target.exists() and target.is_file():
-        target.unlink()
-        # prune empty dirs
-        cur = target.parent
-        root = UPDATE_STAGING_DIR.resolve()
-        while cur.resolve() != root and cur.exists():
-            try:
-                next_dir = cur.parent
-                if any(cur.iterdir()):
-                    break
-                cur.rmdir()
-                cur = next_dir
-            except Exception:
-                break
-        return jsonify(ok=True)
-    return jsonify(ok=False, error="Fichier non trouvé"), 404
-
-
-@app.post("/api/update/staging/delete")
-@login_required
-@role_required('admin')
-def api_update_staging_delete_json():
-    """Remove a specific staged file using JSON body: {filename} (safe for nested paths)."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    body = request.get_json(force=True, silent=True) or {}
-    filename = body.get("filename", "")
-    if not filename:
-        return jsonify(ok=False, error="filename requis"), 400
-    try:
-        target = _staging_target(filename)
-    except Exception:
-        return jsonify(ok=False, error="Nom de fichier invalide"), 400
-
-    if target.exists() and target.is_file():
-        target.unlink()
-        # prune empty dirs
-        cur = target.parent
-        root = UPDATE_STAGING_DIR.resolve()
-        while cur.resolve() != root and cur.exists():
-            try:
-                next_dir = cur.parent
-                if any(cur.iterdir()):
-                    break
-                cur.rmdir()
-                cur = next_dir
-            except Exception:
-                break
-        return jsonify(ok=True)
-    return jsonify(ok=False, error="Fichier non trouvé"), 404
-
-@app.post("/api/update/staging/clear")
-@login_required
-@role_required('admin')
-def api_update_staging_clear():
-    """Clear all staged files (recursive)."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    count = 0
-    for p in list(UPDATE_STAGING_DIR.rglob("*")):
-        if p.is_file():
-            try:
-                p.unlink()
-                count += 1
-            except Exception:
-                pass
-    # remove empty folders
-    for d in sorted([p for p in UPDATE_STAGING_DIR.rglob("*") if p.is_dir()], reverse=True):
-        try:
-            if not any(d.iterdir()):
-                d.rmdir()
-        except Exception:
-            pass
-    return jsonify(ok=True, cleared=count)
-
-@app.post("/api/update/apply")
-@login_required
-@role_required('admin')
-def api_update_apply():
-    """Apply staged files: backup → copy → schedule restart."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-
-    # Check there are staged files (recursive)
-    staged_files = [p for p in UPDATE_STAGING_DIR.rglob("*") if p.is_file()]
-    if not staged_files:
-        return jsonify(ok=False, error="Aucun fichier en attente"), 400
-
-    # 1) Create full backup
-    try:
-        backup_name = _create_full_backup()
-    except Exception as e:
-        return jsonify(ok=False, error=f"Erreur backup: {e}"), 500
-
-    # 2) DB snapshot (best-effort)
-    try:
-        create_snapshot(label="pre_update", is_auto=False)
-    except Exception:
-        pass
-
-    # 3) Copy staged files to their destinations
-    project_map = _scan_project_files()
-    applied = []
-    errors = []
-
-    for sf in staged_files:
-        staged_rel = sf.relative_to(UPDATE_STAGING_DIR).as_posix()
-        info = _detect_destination(staged_rel, project_map)
-        dest_rel = info.get("destination") or ""
-        if not dest_rel:
-            errors.append({"filename": staged_rel, "error": "Destination invalide"})
-            continue
-
-        dest_path = APP_DIR / dest_rel
-        try:
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(sf, dest_path)
-            applied.append({
-                "filename": staged_rel,
-                "destination": dest_rel,
-                "action": info.get("action", "replace"),
-            })
-            # Remove staged file
-            sf.unlink()
-        except Exception as e:
-            errors.append({"filename": staged_rel, "error": str(e)})
-
-    # Cleanup empty staging directories
-    for d in sorted([p for p in UPDATE_STAGING_DIR.rglob("*") if p.is_dir()], reverse=True):
-        try:
-            if not any(d.iterdir()):
-                d.rmdir()
-        except Exception:
-            pass
-
-    if errors and not applied:
-        return jsonify(ok=False, error="Aucun fichier appliqué", errors=errors), 500
-
-    # 4) Schedule restart with enough delay for remote clients (Cloudflare/iOS)
-    _schedule_restart(delay=10.0)
-
-    return jsonify(
-        ok=True,
-        backup=backup_name,
-        applied=applied,
-        errors=errors,
-        restarting=True,
-        restart_delay_s=10,
-    )
-
-@app.get("/api/update/backups")
-@login_required
-@role_required('admin')
-def api_update_backups():
-    """List available update backups."""
-    _ensure_update_dirs()
-    backups = []
-    for p in sorted(UPDATE_BACKUP_DIR.glob("*.zip"), key=lambda x: x.stat().st_mtime, reverse=True):
-        st = p.stat()
-        backups.append({
-            "filename": p.name,
-            "size": st.st_size,
-            "date": datetime.datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
-        })
-    return jsonify(ok=True, backups=backups)
-
-
-@app.post("/api/update/rollback")
-@login_required
-@role_required('admin')
-def api_update_rollback():
-    """Restore project files from a backup zip."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    body = request.get_json(force=True, silent=True) or {}
-    filename = body.get("filename", "")
-
-    if not filename or ".." in filename or "/" in filename or "\\" in filename:
-        return jsonify(ok=False, error="Nom de fichier invalide"), 400
-
-    backup_path = UPDATE_BACKUP_DIR / filename
-    if not backup_path.exists():
-        return jsonify(ok=False, error="Backup non trouvé"), 404
-
-    restored = []
-    try:
-        with zipfile.ZipFile(backup_path, "r") as zf:
-            for entry in zf.namelist():
-                rel = _safe_relpath(entry)
-                if not rel:
-                    continue
-                dest = (APP_DIR / rel).resolve()
-                root = APP_DIR.resolve()
-                if root != dest and root not in dest.parents:
-                    continue
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                with zf.open(entry) as src, open(dest, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
-                restored.append(rel)
-    except Exception as e:
-        return jsonify(ok=False, error=f"Erreur restauration: {e}"), 500
-
-    _schedule_restart(delay=10.0)
-    return jsonify(ok=True, restored=len(restored), restarting=True, restart_delay_s=10)
-
-@app.get("/api/update/download-backup/<filename>")
-@login_required
-@role_required('admin')
-def api_update_download_backup(filename: str):
-    """Download a backup zip file."""
-    _ensure_update_dirs()
-    safe = Path(filename).name
-    if ".." in safe or "/" in safe:
-        return jsonify(ok=False, error="Nom invalide"), 400
-    backup_path = UPDATE_BACKUP_DIR / safe
-    if not backup_path.exists():
-        return jsonify(ok=False, error="Backup non trouvé"), 404
-    return send_file(backup_path, as_attachment=True, download_name=safe)
-
-
-@app.delete("/api/update/backups/<filename>")
-@login_required
-@role_required('admin')
-def api_update_backup_delete(filename: str):
-    """Delete a specific backup."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    safe = Path(filename).name
-    target = UPDATE_BACKUP_DIR / safe
-    if target.exists():
-        target.unlink()
-        return jsonify(ok=True)
-    return jsonify(ok=False, error="Backup non trouvé"), 404
-
 
 # ═══════════════════════════════════════════════════════
 # App Settings API (v11)

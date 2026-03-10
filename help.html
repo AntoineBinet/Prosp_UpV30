@@ -546,14 +546,13 @@
 
         <!-- 22. Mises à jour -->
         <div class="card help-section" id="mises-a-jour">
-          <h3>22) Système de mises à jour</h3>
-          <p>Mettez à jour l'application directement depuis la page Paramètres :</p>
+          <h3>22) Mise à jour du serveur</h3>
+          <p>Pour mettre à jour prospup.work après un commit/push sur Git :</p>
           <ul>
-            <li><strong>Glisser-déposer</strong> : déposez vos fichiers de mise à jour (.py, .html, .js, .css…) dans la zone prévue. Le système <strong>détecte automatiquement</strong> l'emplacement de chaque fichier dans le projet.</li>
-            <li><strong>Zone de staging</strong> : vérifiez les fichiers détectés et leur destination avant d'appliquer.</li>
-            <li><strong>Backup automatique</strong> : une sauvegarde complète du projet est créée automatiquement avant chaque mise à jour.</li>
-            <li><strong>Application</strong> : un clic sur "Appliquer" remplace les fichiers. Relancez ensuite l'application pour que les changements prennent effet.</li>
-            <li><strong>Rollback</strong> : si une mise à jour pose problème, restaurez une version précédente en un clic depuis la liste des sauvegardes.</li>
+            <li><strong>Sur le PC qui héberge</strong> : ouvrez Paramètres (section admin), puis cliquez sur <strong>« Mettre à jour et redémarrer »</strong>.</li>
+            <li>L’application effectue un <code>git fetch</code> puis <code>git pull</code> sur <code>origin/main</code>, affiche la sortie en direct, puis redémarre le serveur.</li>
+            <li>La page se recharge automatiquement après le redémarrage pour reprendre sur la nouvelle version.</li>
+            <li>Le badge « À propos » (version · branche · commit) permet de vérifier que la mise à jour a bien été appliquée.</li>
           </ul>
         </div>
 

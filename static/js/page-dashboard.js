@@ -257,7 +257,7 @@ async function exportDayRecap() {
         const blob = new Blob([JSON.stringify(recap, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'Prosp'Up_ma_journee_' + dateStr + '.json';
+        a.download = "Prosp'Up_ma_journee_" + dateStr + ".json";
         a.click();
         URL.revokeObjectURL(a.href);
         if (typeof showToast === 'function') showToast('📥 Récap du jour téléchargé', 'success');

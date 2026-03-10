@@ -180,7 +180,7 @@
   }
 
   function initNotificationsSettings() {
-    var api = window.Prosp'UpNotifications;
+    var api = window.ProspUpNotifications;
     if (!api) return;
     var enabledEl = document.getElementById('notifEnabled');
     var hourEl = document.getElementById('notifHour');
@@ -516,11 +516,20 @@ async function checkDeployment() {
             html += `</div></div>`;
         }
         
-        // Dernier commit
-        if (data.last_commit && data.last_commit !== 'unknown') {
+        // Version en ligne et dernier commit (pour confirmer la mise à jour appliquée)
+        if (data.version || data.commit_hash || data.branch) {
             html += '<div style="padding:10px;border-radius:8px;background:var(--color-surface);border:1px solid var(--color-border);">';
-            html += '<div style="font-weight:600;margin-bottom:4px;">📝 Dernier commit Git</div>';
-            html += `<div style="font-size:12px;color:var(--color-text-secondary);font-family:monospace;">${escapeHtml(data.last_commit)}</div>`;
+            html += '<div style="font-weight:600;margin-bottom:4px;">Version en ligne</div>';
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);">';
+            html += 'v' + (data.version || '?') + ' · ' + (data.branch || 'main') + ' · ' + (data.commit_hash !== 'unknown' ? data.commit_hash : '?');
+            if (data.last_commit && data.last_commit !== 'unknown') {
+                html += '<br><span style="font-family:monospace;">' + escapeHtml(data.last_commit) + '</span>';
+            }
+            html += '</div></div>';
+        } else if (data.last_commit && data.last_commit !== 'unknown') {
+            html += '<div style="padding:10px;border-radius:8px;background:var(--color-surface);border:1px solid var(--color-border);">';
+            html += '<div style="font-weight:600;margin-bottom:4px;">Dernier commit Git</div>';
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);font-family:monospace;">' + escapeHtml(data.last_commit) + '</div>';
             html += '</div>';
         }
         
@@ -555,119 +564,135 @@ window.showSystemLogs = showSystemLogs;
 window.checkDeployment = checkDeployment;
 
 // ════════════════════════════════════════════════════════════════
-// Déclencher le pull et redémarrage
+// Déclencher le pull et redémarrage (flux SSE en direct)
 // ════════════════════════════════════════════════════════════════
 async function triggerDeployPull() {
     const btn = document.getElementById('btnDeployPull');
     const statusEl = document.getElementById('deployPullStatus');
     const resultsEl = document.getElementById('deployPullResults');
+    const logEl = document.getElementById('deployPullLog');
+    const summaryEl = document.getElementById('deployPullSummary');
     if (!btn || !resultsEl) return;
+    const hasLogPre = !!logEl;
     
-    // Confirmation avant de lancer
-    if (!confirm('⚠️ Êtes-vous sûr de vouloir mettre à jour le serveur ?\n\nCette action va :\n1. Récupérer les dernières modifications depuis Git (origin/main)\n2. Redémarrer automatiquement le serveur\n\nLe site sera temporairement indisponible pendant environ 10-15 secondes pendant le redémarrage.')) {
+    if (!confirm('Êtes-vous sûr de vouloir mettre à jour le serveur ?\n\n1. Récupération des modifications depuis Git (origin/main)\n2. Redémarrage automatique du serveur\n\nLe site sera indisponible environ 10-15 secondes.')) {
         return;
     }
     
     btn.disabled = true;
-    btn.textContent = '⏳ Mise à jour en cours...';
-    statusEl.textContent = '';
+    btn.textContent = 'Mise à jour en cours...';
+    if (statusEl) statusEl.textContent = '';
     resultsEl.style.display = 'block';
-    resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--color-text-secondary);">⏳ Récupération des modifications depuis Git...</div>';
+    if (hasLogPre && logEl) {
+        logEl.textContent = '';
+        logEl.style.display = 'block';
+    }
+    if (summaryEl) summaryEl.innerHTML = '';
+    if (!hasLogPre) {
+        resultsEl.innerHTML = '<pre id="deployPullLog" style="margin:0;font-size:12px;font-family:monospace;white-space:pre-wrap;word-break:break-all;"></pre><div id="deployPullSummary" style="margin-top:10px;"></div>';
+    }
+    const logPre = document.getElementById('deployPullLog');
+    const summaryDiv = document.getElementById('deployPullSummary');
     
-    let data = null;
+    function appendLog(line) {
+        if (logPre) {
+            logPre.textContent += line + '\n';
+            logPre.scrollTop = logPre.scrollHeight;
+        }
+    }
+    
+    let finalData = null;
     try {
-        const res = await fetch('/api/deploy/pull', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        });
-        data = await res.json();
-        
-        if (!res.ok) {
-            let errorMsg = data.error || 'Erreur inconnue';
-            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;padding:12px;border-radius:8px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);">❌ Erreur: ${escapeHtml(errorMsg)}</div>`;
-            btn.disabled = false;
-            btn.textContent = '🔄 Mettre à jour et redémarrer';
-            statusEl.textContent = '❌ Échec';
-            if (typeof showToast === 'function') {
-                showToast('❌ Erreur lors de la mise à jour', 'error');
+        const res = await fetch('/api/deploy/pull', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        if (!res.ok || !res.body) {
+            const errText = await res.text();
+            let errObj = {};
+            try { errObj = JSON.parse(errText); } catch (_) {}
+            finalData = { step: 'error', error: errObj.error || errText || 'Erreur ' + res.status };
+            appendLog('Erreur HTTP ' + res.status + ': ' + (finalData.error || ''));
+        } else {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const parts = buffer.split('\n\n');
+                buffer = parts.pop() || '';
+                for (const part of parts) {
+                    const line = part.trim();
+                    if (!line.startsWith('data: ')) continue;
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        if (data.step === 'log' && data.line) {
+                            appendLog(data.line);
+                        } else if (data.step === 'fetch' && data.message) {
+                            appendLog(data.message);
+                        } else if (data.step === 'pull' && data.message) {
+                            appendLog(data.message);
+                        } else if (data.step === 'error') {
+                            appendLog('Erreur: ' + (data.error || ''));
+                            finalData = data;
+                            break;
+                        } else if (data.step === 'done') {
+                            finalData = data;
+                        }
+                    } catch (_) {}
+                }
+                if (finalData && (finalData.step === 'error' || finalData.step === 'done')) break;
             }
+            if (buffer.trim()) {
+                const line = buffer.trim();
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        if (data.step === 'done') finalData = data;
+                        if (data.step === 'error') finalData = data;
+                    } catch (_) {}
+                }
+            }
+        }
+        
+        if (finalData && finalData.step === 'error') {
+            if (summaryDiv) summaryDiv.innerHTML = '<div style="color:#ef4444;font-weight:600;">Erreur: ' + (typeof escapeHtml === 'function' ? escapeHtml(finalData.error) : finalData.error) + '</div>';
+            if (statusEl) { statusEl.textContent = 'Échec'; statusEl.style.color = '#ef4444'; }
+            btn.disabled = false;
+            btn.textContent = 'Mettre à jour et redémarrer';
+            if (typeof showToast === 'function') showToast('Erreur lors de la mise à jour', 'error');
             return;
         }
         
-        // Afficher les résultats
-        let html = '<div style="display:grid;gap:12px;">';
-        html += '<h4 style="margin:0 0 12px 0;font-size:15px;font-weight:600;">🔄 Résultat de la mise à jour</h4>';
-        
-        if (data.updated) {
-            html += '<div style="padding:12px;border-radius:8px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);">';
-            html += '<div style="font-weight:600;color:#22c55e;margin-bottom:8px;">✅ Mise à jour appliquée avec succès</div>';
-            html += '<div style="font-size:12px;color:var(--color-text-secondary);">';
-            if (data.local_hash && data.remote_hash) {
-                html += `Hash local: <code style="font-family:monospace;background:var(--color-surface);padding:2px 6px;border-radius:4px;">${escapeHtml(data.local_hash)}</code><br>`;
-                html += `Hash distant: <code style="font-family:monospace;background:var(--color-surface);padding:2px 6px;border-radius:4px;">${escapeHtml(data.remote_hash)}</code><br>`;
-            }
-            html += '</div>';
-            if (data.restarting) {
-                const delay = data.restart_delay_s || 10;
-                html += `<div style="margin-top:8px;padding:8px;background:rgba(59,130,246,.1);border-radius:6px;font-size:12px;color:#3b82f6;">🔄 Redémarrage du serveur en cours... Le site sera disponible dans ${delay} secondes environ.</div>`;
-            }
-            html += '</div>';
-            
-            statusEl.textContent = '✅ Mise à jour réussie';
-            statusEl.style.color = '#22c55e';
-            
-            if (typeof showToast === 'function') {
-                showToast('✅ Mise à jour appliquée, redémarrage en cours', 'success');
-            }
-            
-            // Si redémarrage en cours, afficher un message et recharger après le délai de redémarrage + marge
-            if (data.restarting) {
-                const delay = (data.restart_delay_s || 10) * 1000;
-                // Attendre le délai de redémarrage + 3 secondes de marge avant de recharger
-                setTimeout(() => {
-                    resultsEl.innerHTML += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);font-size:12px;color:#3b82f6;">💡 Rechargement de la page dans 5 secondes...</div>';
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 5000);
-                }, delay + 3000);
+        if (finalData && finalData.step === 'done') {
+            if (finalData.updated && finalData.restarting) {
+                if (summaryDiv) summaryDiv.innerHTML = '<div style="padding:10px;border-radius:8px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#22c55e;font-weight:600;">Mise à jour appliquée. Redémarrage dans ' + (finalData.restart_delay_s || 10) + ' s… Rechargement automatique de la page.</div>';
+                if (statusEl) { statusEl.textContent = 'Redémarrage…'; statusEl.style.color = '#22c55e'; }
+                if (typeof showToast === 'function') showToast('Mise à jour appliquée, redémarrage en cours', 'success');
+                setTimeout(function() { window.location.reload(); }, 12000);
+            } else if (finalData.updated) {
+                if (summaryDiv) summaryDiv.innerHTML = '<div style="color:#22c55e;font-weight:600;">Mise à jour appliquée.</div>';
+                if (statusEl) { statusEl.textContent = 'OK'; statusEl.style.color = '#22c55e'; }
+                btn.disabled = false;
+                btn.textContent = 'Mettre à jour et redémarrer';
+            } else {
+                if (summaryDiv) summaryDiv.innerHTML = '<div style="color:#64748b;">Déjà à jour. ' + (finalData.local_hash ? 'Commit: ' + finalData.local_hash : '') + '</div>';
+                if (statusEl) { statusEl.textContent = 'Déjà à jour'; statusEl.style.color = '#64748b'; }
+                btn.disabled = false;
+                btn.textContent = 'Mettre à jour et redémarrer';
+                if (typeof showToast === 'function') showToast('Serveur déjà à jour', 'info');
             }
         } else {
-            html += '<div style="padding:12px;border-radius:8px;background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.3);">';
-            html += '<div style="font-weight:600;color:#64748b;margin-bottom:8px;">ℹ️ Déjà à jour</div>';
-            html += '<div style="font-size:12px;color:var(--color-text-secondary);">';
-            if (data.local_hash && data.remote_hash) {
-                html += `Hash local: <code style="font-family:monospace;background:var(--color-surface);padding:2px 6px;border-radius:4px;">${escapeHtml(data.local_hash)}</code><br>`;
-                html += `Hash distant: <code style="font-family:monospace;background:var(--color-surface);padding:2px 6px;border-radius:4px;">${escapeHtml(data.remote_hash)}</code><br>`;
-            }
-            html += 'Aucune nouvelle modification disponible.</div>';
-            html += '</div>';
-            
-            statusEl.textContent = 'ℹ️ Déjà à jour';
-            statusEl.style.color = '#64748b';
-            
-            if (typeof showToast === 'function') {
-                showToast('ℹ️ Le serveur est déjà à jour', 'info');
-            }
-        }
-        
-        html += '</div>';
-        resultsEl.innerHTML = html;
-        
-    } catch (e) {
-        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;padding:12px;border-radius:8px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);">❌ Erreur réseau: ${escapeHtml(e.message)}</div>`;
-        btn.disabled = false;
-        btn.textContent = '🔄 Mettre à jour et redémarrer';
-        statusEl.textContent = '❌ Erreur réseau';
-        statusEl.style.color = '#ef4444';
-        if (typeof showToast === 'function') {
-            showToast('Erreur réseau lors de la mise à jour', 'error');
-        }
-    } finally {
-        // Ne pas réactiver le bouton si redémarrage en cours
-        if (!data || !data.restarting) {
+            if (summaryDiv) summaryDiv.innerHTML = '<div style="color:#ef4444;">Réponse inattendue.</div>';
             btn.disabled = false;
-            btn.textContent = '🔄 Mettre à jour et redémarrer';
+            btn.textContent = 'Mettre à jour et redémarrer';
         }
+    } catch (e) {
+        appendLog('Erreur réseau: ' + e.message);
+        if (summaryDiv) summaryDiv.innerHTML = '<div style="color:#ef4444;font-weight:600;">Erreur réseau: ' + (typeof escapeHtml === 'function' ? escapeHtml(e.message) : e.message) + '</div>';
+        btn.disabled = false;
+        btn.textContent = 'Mettre à jour et redémarrer';
+        if (statusEl) { statusEl.textContent = 'Erreur'; statusEl.style.color = '#ef4444'; }
+        if (typeof showToast === 'function') showToast('Erreur réseau', 'error');
     }
 }
 

@@ -51,6 +51,7 @@
     var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'metiers', 'help'];
 
     // ── State ─────────────────────────────────────────────────────
+    var _currentUser = null;  // user from /api/auth/me (for badge)
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();
     var effectivePage = PAGE_PARENT_MAP[currentPage] || currentPage;
     var currentPath = window.location.pathname;
@@ -155,6 +156,28 @@
                 }
             });
         });
+
+        // Badge utilisateur en bas de la sidebar (évite race avec app.js)
+        if (_currentUser) {
+            var footer = document.createElement('div');
+            footer.className = 'sidebar-footer';
+            var u = _currentUser;
+            var roleLabels = { admin: '\uD83D\uDD11 Admin', editor: '\u270F\uFE0F \u00C9diteur', reader: '\uD83D\uDC41\uFE0F Lecteur' };
+            var label = roleLabels[u.role] || u.role;
+            var name = (u.display_name || u.username || '').replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c;
+            });
+            var initial = (u.display_name || u.username || '').charAt(0).toUpperCase();
+            footer.innerHTML = '<div class="user-session-badge">' +
+                '<div class="user-session-avatar">' + initial + '</div>' +
+                '<div class="user-session-info">' +
+                '<div class="user-session-name">' + name + '</div>' +
+                '<div class="user-session-role">' + label + '</div>' +
+                '</div>' +
+                '<button onclick="AppAuth.logout()" title="D\u00E9connexion" class="user-session-logout">\u23FB</button>' +
+                '</div>';
+            sidebar.appendChild(footer);
+        }
     }
 
     // ── Build mobile bottom nav ───────────────────────────────────
@@ -195,7 +218,8 @@
         fetch('/api/auth/me', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : { ok: false }; })
             .then(function (d) {
-                var isAdmin = d.ok && d.user && d.user.role === 'admin';
+                _currentUser = (d.ok && d.user) ? d.user : null;
+                var isAdmin = _currentUser && _currentUser.role === 'admin';
                 if (!isAdmin) {
                     // Remove admin-only items from NAV before building
                     NAV.forEach(function (group) {

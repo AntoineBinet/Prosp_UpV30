@@ -308,7 +308,7 @@ Belle journée,"></textarea>
               <button class="btn btn-primary" id="btnDeployPull" onclick="triggerDeployPull()">🔄 Mettre à jour et redémarrer</button>
               <span id="deployPullStatus" style="font-size:13px;color:var(--color-text-secondary);"></span>
             </div>
-            <div id="deployPullResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);"></div>
+            <div id="deployPullResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);max-height:320px;overflow-y:auto;"><pre id="deployPullLog" style="margin:0;font-size:12px;font-family:monospace;white-space:pre-wrap;word-break:break-all;"></pre><div id="deployPullSummary" style="margin-top:10px;"></div></div>
           </div>
         </div>
 
@@ -375,6 +375,7 @@ Belle journée,"></textarea>
           
           const version = data.version || '?';
           const commitHash = data.commit_hash || 'unknown';
+          const branch = data.branch || 'main';
           const commitDate = data.commit_date || '';
           const badgeColor = data.badge_color || '#64748b';
           
@@ -396,13 +397,10 @@ Belle journée,"></textarea>
             }
           }
           
-          // Texte du badge
-          let text = `v${version}`;
-          if (commitHash !== 'unknown') {
-            text += ` • ${commitHash.substring(0, 7)}`;
-          }
+          // Texte du badge : version · branche · commit (date optionnelle)
+          let text = `v${version} · ${branch} · ${commitHash !== 'unknown' ? commitHash.substring(0, 7) : '?'}`;
           if (dateStr) {
-            text += ` • ${dateStr}`;
+            text += ` · ${dateStr}`;
           }
           badgeText.textContent = text;
           
