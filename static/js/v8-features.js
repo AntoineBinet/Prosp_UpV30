@@ -417,7 +417,7 @@
 
     window.toggleSidebar = _toggleSidebar;
 
-    // ────────────── 3b. HEADER LAYOUT (left + center for search + badge) ──────────────
+    // ────────────── 3b. HEADER LAYOUT (left + center for search + badge, v25) ──────────────
     function _initHeaderLayout() {
         if (window.location.pathname === '/login') return;
         const header = document.querySelector('header');

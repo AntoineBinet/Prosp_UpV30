@@ -104,7 +104,7 @@ header {
     gap: 16px;
 }
 
-/* Header zones (injected by JS): left = title, center = search + user badge */
+/* Header zones (injected by JS): left = title, center = search + user badge (v25) */
 .header-left {
     flex: 1;
     min-width: 0;

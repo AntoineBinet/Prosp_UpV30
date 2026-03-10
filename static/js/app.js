@@ -38,7 +38,7 @@ const AppAuth = {
                 </div>
                 <button onclick="AppAuth.logout()" title="Déconnexion" class="user-session-logout">⏻</button>
             </div>`;
-        const headerCenter = document.querySelector('.header-center');
+        const headerCenter = document.querySelector('.header-center'); /* v25: badge dans header */
         if (headerCenter) {
             headerCenter.insertAdjacentHTML('beforeend', badgeHtml);
             return;
