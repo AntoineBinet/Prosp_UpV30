@@ -79,9 +79,9 @@
             <div class="help-toc-group">
               <span class="help-toc-group-label">Analyse & outils</span>
               <a href="#recherche">Recherche (Ctrl+K)</a>
-              <a href="#stats">Statistiques</a>
-              <a href="#rapport">Rapport hebdo</a>
-              <a href="#kpi">KPI & Excel</a>
+              <a href="#stats">Statistiques & Rapport</a>
+              <a href="#rapport">Rapport hebdo Excel</a>
+              <a href="#kpi">Checklist KPI</a>
               <a href="#metiers">Métiers</a>
               <a href="#doublons">Doublons</a>
               <a href="#snapshots">Snapshots</a>
@@ -285,13 +285,19 @@
         <!-- 9. Calendrier -->
         <div class="card help-section" id="calendrier">
           <h3>9) Calendrier</h3>
-          <p>Vue calendrier mensuelle de vos <strong>RDV planifiés</strong> et <strong>relances</strong> :</p>
+          <p>Vue calendrier mensuelle de vos <strong>RDV planifiés</strong>, <strong>relances</strong> et <strong>entretiens candidats</strong> :</p>
           <ul>
-            <li>Les RDV (prospects avec statut "Rendez-vous" et date RDV) sont affichés sur le calendrier.</li>
-            <li>Les relances planifiées (<em>nextFollowUp</em>) sont également visibles.</li>
-            <li>Cliquez sur un événement pour accéder directement à la fiche prospect.</li>
-            <li>Navigation mois par mois.</li>
+            <li>Les <strong>RDV</strong> (prospects avec statut "Rendez-vous" et date RDV) sont affichés sur le calendrier avec l'icône 🤝.</li>
+            <li>Les <strong>relances planifiées</strong> (<em>nextFollowUp</em>) sont également visibles avec l'icône 🔄 (⚠️ si en retard).</li>
+            <li><strong>Entretiens candidats EC1</strong> : les entretiens de qualification (EC1) planifiés apparaissent avec l'icône 📞. La date provient de la checklist EC1 du candidat.</li>
+            <li><strong>Entretiens candidats EC2</strong> : les entretiens techniques (EC2) apparaissent avec l'icône 📞📞. La date est déterminée automatiquement depuis le passage du candidat au statut EC2.</li>
+            <li>Cliquez sur un événement pour accéder directement à la fiche prospect ou candidat (les EC1 ouvrent directement la section EC1 de la fiche candidat).</li>
+            <li>Navigation mois par mois ou vue semaine.</li>
+            <li><strong>Modale détail du jour</strong> : cliquez sur un jour avec plusieurs événements pour voir la liste complète.</li>
           </ul>
+          <div class="help-callout help-callout-tip">
+            <strong>Astuce</strong> — Les EC1/EC2 sont automatiquement ajoutés au calendrier dès que vous planifiez un entretien dans la fiche candidat ou que vous changez le statut à EC2.
+          </div>
           <a href="/calendrier" class="help-try-btn">Ouvrir le Calendrier →</a>
         </div>
 
@@ -385,6 +391,9 @@
         <!-- 15. Stats -->
         <div class="card help-section" id="stats">
           <h3>15) Statistiques</h3>
+          <p>La page <strong>Stats</strong> propose deux vues via des onglets :</p>
+          
+          <h4 style="margin-top:16px;margin-bottom:8px;">📊 Onglet Statistiques</h4>
           <p>Analyse visuelle de votre activité de prospection :</p>
           <ul>
             <li><strong>KPIs</strong> : push envoyés, notes d'appel, relances en retard, taux de conversion, sur période configurable (semaine, mois, trimestre…).</li>
@@ -393,31 +402,96 @@
             <li><strong>Activité push</strong> : courbe d'évolution des push envoyés par semaine/mois.</li>
             <li><strong>Top entreprises</strong> : classement des entreprises les plus actives (basé sur nombre de push, RDV, et interactions).</li>
             <li><strong>Filtrage temporel</strong> : choisissez la plage (semaine, mois, trimestre, année) et naviguez entre les périodes.</li>
+            <li><strong>Entreprises "chaudes"</strong> : tableau des entreprises prioritaires avec score calculé automatiquement.</li>
           </ul>
+
+          <h4 style="margin-top:16px;margin-bottom:8px;">📄 Onglet Rapport & KPI</h4>
+          <p>Génération de rapports Excel hebdomadaires et checklist KPI :</p>
+          <ul>
+            <li><strong>Export suivi d'activité</strong> : générez un Excel de suivi hebdomadaire avec :
+              <ul>
+                <li>Sélection de la semaine (format ISO : 2026-W10)</li>
+                <li>Option <strong>"Enrichir avec l'IA (Ollama)"</strong> : normalise les métiers, extrait les besoins depuis les notes, génère les codes notes (B OKS, A OKS, etc.)</li>
+                <li>Le rapport inclut : candidats vus en EC1/EC2, prospections (RDV pris), clients vus (RDV effectué), pushs par consultant, objectifs gamification</li>
+                <li>Format Excel avec 17 colonnes, fusion des cellules "Semaine", séparateur visuel</li>
+              </ul>
+            </li>
+            <li><strong>Checklist KPI</strong> : outil de validation rapide avec :
+              <ul>
+                <li>Date et titre personnalisables</li>
+                <li>Checklist par catégories (Prospection, RDV, Client, Push, Candidats)</li>
+                <li>Commentaires optionnels par item</li>
+                <li>Modèles rapides : "Tout cocher", "Tout décocher", "Modèle semaine"</li>
+                <li>Export Excel de la checklist</li>
+              </ul>
+            </li>
+          </ul>
+          <div class="help-callout help-callout-info">
+            <strong>Rappel export</strong> — Une alerte vous rappelle chaque jeudi matin si vous n'avez pas encore exporté votre suivi d'activité de la semaine.
+          </div>
+          <a href="/stats" class="help-try-btn">Ouvrir la page Stats →</a>
         </div>
 
-        <!-- 16. Rapport hebdomadaire -->
+        <!-- 16. Rapport hebdomadaire Excel -->
         <div class="card help-section" id="rapport">
-          <h3>16) Rapport hebdomadaire</h3>
-          <p>Générez un <strong>rapport de synthèse</strong> pour chaque semaine :</p>
+          <h3>16) Rapport hebdomadaire Excel</h3>
+          <p>Générez un <strong>rapport Excel de suivi d'activité</strong> pour chaque semaine depuis l'onglet <strong>"📄 Rapport & KPI"</strong> de la page Stats :</p>
+          <ol>
+            <li><strong>Sélectionnez la semaine</strong> : utilisez le sélecteur de semaine (format ISO : 2026-W10, ex: "2026-W10" pour la semaine 10). Par défaut, la semaine courante est pré-sélectionnée.</li>
+            <li><strong>Optionnel : activez l'enrichissement IA</strong> : cochez "Enrichir avec l'IA (Ollama)" pour :
+              <ul>
+                <li>Normaliser les métiers des candidats (si ambigu ou vide)</li>
+                <li>Extraire les besoins depuis les notes des prospects (clients vus)</li>
+                <li>Générer les codes notes (B OKS, A OKS, etc.) depuis les données EC1</li>
+              </ul>
+              <em>Note : si Ollama n'est pas disponible, le rapport est généré sans enrichissement (fallback automatique).</em>
+            </li>
+            <li><strong>Générez le rapport</strong> : cliquez sur "📥 Générer le rapport Excel". Le fichier se télécharge automatiquement.</li>
+          </ol>
+          
+          <h4 style="margin-top:16px;margin-bottom:8px;">Contenu du rapport Excel</h4>
+          <p>Le fichier Excel contient <strong>17 colonnes</strong> avec :</p>
           <ul>
-            <li><strong>KPIs hebdo</strong> : push envoyés, notes d'appel, nouveaux prospects, RDV, relances traitées.</li>
-            <li><strong>Détail par entreprise</strong> : activité détaillée par client avec tags, push, et interactions de la semaine.</li>
-            <li><strong>Barre de statuts</strong> : répartition visuelle de votre pipeline.</li>
-            <li><strong>Export Markdown</strong> : générez le rapport au format Markdown, prêt à copier-coller dans OneNote, Slack, Teams, ou un email.</li>
-            <li><strong>Impression</strong> : mode impression optimisé (CSS print).</li>
-            <li><strong>Navigation semaine</strong> : sélecteur de semaine pour consulter les rapports passés.</li>
+            <li><strong>Colonnes A-G (Candidats)</strong> : Semaine (fusionné), Entretiens (nom), Métier, Exp (années), Dispo, Notes (codes), Commenta (commentaires détaillés)</li>
+            <li><strong>Colonnes H-J (Prospection)</strong> : Prospections (RDV pris), Clients vus (RDV effectué), Besoins (extraits depuis notes)</li>
+            <li><strong>Colonnes K-L</strong> : RT, Suivi Mission (réservés, vides)</li>
+            <li><strong>Colonnes M-N (Pushs)</strong> : Pushs consultant (nom), Nb pushs (nombre)</li>
+            <li><strong>Colonnes O-Q (Objectifs)</strong> : Attendus Prosp, Attendus Entretiens, Attendus Pushs (depuis la section Gamification)</li>
           </ul>
+          <p><strong>Données collectées automatiquement</strong> :</p>
+          <ul>
+            <li><strong>Candidats EC1/EC2</strong> : tous les candidats vus en entretien (EC1 ou EC2) dans la semaine sélectionnée</li>
+            <li><strong>Prospections</strong> : tous les RDV pris avec des prospects (événements <code>rdv_taken</code> ou prospects avec <code>statut='Rendez-vous'</code> et <code>rdvDate</code> dans la semaine)</li>
+            <li><strong>Clients vus</strong> : tous les prospects avec <code>statut='Rendez-vous'</code> et <code>lastContact</code> dans la semaine (RDV effectué)</li>
+            <li><strong>Pushs</strong> : tous les pushs envoyés dans la semaine, groupés par consultant</li>
+            <li><strong>Objectifs</strong> : valeurs depuis la section Gamification (Paramètres → Objectifs & Gamification)</li>
+          </ul>
+          <div class="help-callout help-callout-tip">
+            <strong>Format Excel</strong> — Les cellules "Semaine" sont fusionnées pour toutes les lignes de la même semaine. La colonne G (Commenta) a une bordure épaisse pour servir de séparateur visuel entre les candidats et la prospection.
+          </div>
         </div>
 
-        <!-- 17. KPI Export -->
+        <!-- 17. KPI Checklist -->
         <div class="card help-section" id="kpi">
-          <h3>17) KPI & export Excel de validation</h3>
-          <p>Outil de <strong>checklist rapide</strong> pour générer un fichier Excel de validation :</p>
-          <ul>
-            <li>Sélectionnez une <strong>date</strong> et un <strong>titre</strong> (ex: "Semaine 06").</li>
-            <li>Cliquez sur <strong>"Générer Excel"</strong> pour obtenir un .xlsx formaté avec vos KPIs du jour, prêt à envoyer à votre manager ou à archiver.</li>
-          </ul>
+          <h3>17) Checklist KPI</h3>
+          <p>Outil de <strong>checklist rapide</strong> pour générer un fichier Excel de validation, accessible depuis l'onglet <strong>"📄 Rapport & KPI"</strong> de la page Stats :</p>
+          <ol>
+            <li><strong>Sélectionnez une date</strong> : choisissez la date du jour ou de la semaine à valider.</li>
+            <li><strong>Ajoutez un titre</strong> (optionnel) : ex: "Semaine 06", "Validation jour X", etc.</li>
+            <li><strong>Cochez les items</strong> : parcourez la checklist par catégories (Prospection, RDV, Client, Push, Candidats) et cochez les actions réalisées.</li>
+            <li><strong>Ajoutez des commentaires</strong> (optionnel) : pour chaque item, vous pouvez ajouter un commentaire (ex: nom client, contexte, etc.).</li>
+            <li><strong>Utilisez les modèles rapides</strong> :
+              <ul>
+                <li><strong>"Tout cocher"</strong> : coche tous les items</li>
+                <li><strong>"Tout décocher"</strong> : décoche tous les items</li>
+                <li><strong>"Modèle semaine"</strong> : coche automatiquement les items typiques d'une semaine (contact, relance, validation, RDV, push, candidat)</li>
+              </ul>
+            </li>
+            <li><strong>Générez l'Excel</strong> : cliquez sur "📄 Générer Excel KPI" pour télécharger le fichier .xlsx formaté avec vos validations.</li>
+          </ol>
+          <div class="help-callout help-callout-info">
+            <strong>Note</strong> — La checklist KPI est maintenant intégrée dans la page Stats (onglet Rapport & KPI) pour centraliser tous vos outils de reporting.
+          </div>
         </div>
 
         <!-- 18. Référentiel métiers -->
@@ -510,7 +584,8 @@
             <li>Utilisez les <strong>vues sauvegardées</strong> pour vos scénarios de filtrage récurrents.</li>
             <li>Consultez le <strong>Dashboard</strong> chaque matin pour prioriser votre journée.</li>
             <li>Utilisez la <strong>Recherche <kbd>Ctrl+K</kbd></strong> plutôt que naviguer dans les listes.</li>
-            <li>Exportez un <strong>Rapport hebdo</strong> en fin de semaine pour votre suivi d'activité.</li>
+            <li>Générez un <strong>Rapport hebdomadaire Excel</strong> en fin de semaine depuis l'onglet Rapport de Stats pour votre suivi d'activité (candidats EC1/EC2, prospections, clients vus, pushs, objectifs).</li>
+            <li>Utilisez la <strong>Checklist KPI</strong> pour valider rapidement vos actions de la semaine.</li>
             <li>Tenez à jour les <strong>Opportunités</strong> sur les fiches entreprise pour suivre votre pipeline commercial.</li>
           </ul>
         </div>
