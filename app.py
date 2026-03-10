@@ -6694,6 +6694,30 @@ def api_deploy_pull():
                 yield f"data: {json.dumps({'step': 'done', 'updated': False, 'restarting': False, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Déjà à jour'}, ensure_ascii=False)}\n\n"
                 return
 
+            # Fichiers sous logs/ souvent verrouillés par l'app : on les ignore pour le pull
+            log_paths = []
+            ls_logs = subprocess.run(
+                ["git", "ls-files", "logs/"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if ls_logs.returncode == 0 and ls_logs.stdout.strip():
+                for p in ls_logs.stdout.strip().splitlines():
+                    p = p.strip()
+                    if p:
+                        log_paths.append(p)
+                for p in log_paths:
+                    subprocess.run(
+                        ["git", "update-index", "--assume-unchanged", p],
+                        cwd=str(APP_DIR),
+                        capture_output=True,
+                        timeout=5,
+                    )
+                if log_paths:
+                    yield f"data: {json.dumps({'step': 'log', 'line': 'Fichiers logs/ ignorés pour le pull (évite fichiers verrouillés)'}, ensure_ascii=False)}\n\n"
+
             status = subprocess.run(
                 ["git", "status", "--porcelain"],
                 cwd=str(APP_DIR),
@@ -6714,6 +6738,14 @@ def api_deploy_pull():
                 if stash.returncode != 0:
                     err = (stash.stderr or stash.stdout or "Erreur stash").strip()
                     yield f"data: {json.dumps({'step': 'error', 'error': f'Impossible de stasher: {err}'}, ensure_ascii=False)}\n\n"
+                    # Restaurer assume-unchanged avant de quitter
+                    for p in log_paths:
+                        subprocess.run(
+                            ["git", "update-index", "--no-assume-unchanged", p],
+                            cwd=str(APP_DIR),
+                            capture_output=True,
+                            timeout=5,
+                        )
                     return
 
             yield f"data: {json.dumps({'step': 'pull', 'message': 'git pull --ff-only origin main...'}, ensure_ascii=False)}\n\n"
@@ -6735,7 +6767,22 @@ def api_deploy_pull():
             if pull.returncode != 0:
                 err = (pull.stderr or pull.stdout or "Erreur pull").strip()
                 yield f"data: {json.dumps({'step': 'error', 'error': f'git pull échoué: {err}'}, ensure_ascii=False)}\n\n"
+                for p in log_paths:
+                    subprocess.run(
+                        ["git", "update-index", "--no-assume-unchanged", p],
+                        cwd=str(APP_DIR),
+                        capture_output=True,
+                        timeout=5,
+                    )
                 return
+
+            for p in log_paths:
+                subprocess.run(
+                    ["git", "update-index", "--no-assume-unchanged", p],
+                    cwd=str(APP_DIR),
+                    capture_output=True,
+                    timeout=5,
+                )
 
             logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
             _schedule_restart(delay=10.0)
