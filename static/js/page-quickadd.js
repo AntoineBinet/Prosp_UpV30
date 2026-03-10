@@ -71,8 +71,8 @@
         if (overlay) {
             overlay.style.display = 'flex';
         }
-        // Plusieurs : timeout long + mode non-streaming pour éviter 405 (proxy/tunnel peut mal gérer le streaming)
-        const opts = multiple ? { timeoutMs: 300000, stream: false } : { timeoutMs: 180000 };
+        // Désactiver le streaming pour tous les appels (proxy/tunnel peut mal gérer le streaming SSE → erreur 405)
+        const opts = multiple ? { timeoutMs: 300000, stream: false } : { timeoutMs: 180000, stream: false };
         window.callOllama(prompt, opts).then(function (text) {
             if (overlay) overlay.style.display = 'none';
             const result = _tryParseQARaw(text || '', _qaType);
