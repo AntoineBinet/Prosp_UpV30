@@ -6571,7 +6571,7 @@ def api_deploy_pull():
         return jsonify(ok=False, error=str(e)), 500
 
 
-@app.get("/api/system/check-deployment")
+@app.route("/api/system/check-deployment", methods=["GET"])
 def api_system_check_deployment():
     """Vérifie si le code de vérification système est déployé."""
     verify_script = APP_DIR / "scripts" / "verify_all.py"
