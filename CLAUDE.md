@@ -38,6 +38,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 
 ## Conventions
 - `APP_VERSION` dans app.py (actuellement "25.0") — incrementer a chaque release
+- **Workflow git (IMPORTANT)** : TOUJOURS travailler directement sur `main`. Ne JAMAIS créer de branches. Après chaque demande avec modifications, vérifier qu'on est sur `main` (`git checkout main` si nécessaire), puis committer et pousser directement sur `main` (`git add`, `git commit`, `git push origin main`). Pour mettre à jour le serveur, utiliser le bouton "Mettre à jour et redémarrer" dans les paramètres de l'application (section admin).
 - Cache busters automatiques : app.py calcule les hash MD5 des fichiers statiques au demarrage et remplace `?v=XXXX` dans le HTML
 - Pas de bundler/build system — fichiers servis directement par Flask
 - Scripts avec `defer` sur toutes les pages (sauf Chart.js CDN dans stats.html)
@@ -71,6 +72,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 ```bash
 python app.py                    # Dev server (port 8000, debug=True)
 python app.py --prod             # Prod avec Waitress
+python scripts/supervise_prospup.py   # Superviseur: lance le serveur et le relance en cas de crash (pull manuel via bouton dans les paramètres)
 npx playwright test              # Lancer les 38 tests E2E
 npx playwright test --headed     # Tests avec navigateur visible
 python minify.py                 # Minifier CSS/JS

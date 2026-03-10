@@ -71,7 +71,8 @@
         if (overlay) {
             overlay.style.display = 'flex';
         }
-        const opts = multiple ? { timeoutMs: 300000 } : { timeoutMs: 180000 };
+        // Désactiver le streaming pour tous les appels (proxy/tunnel peut mal gérer le streaming SSE → erreur 405)
+        const opts = multiple ? { timeoutMs: 300000, stream: false } : { timeoutMs: 180000, stream: false };
         window.callOllama(prompt, opts).then(function (text) {
             if (overlay) overlay.style.display = 'none';
             const result = _tryParseQARaw(text || '', _qaType);
@@ -119,6 +120,71 @@
         return out;
     }
 
+    function _fixMarkdownAfterString(s) {
+        // Corriger les cas où du texte markdown apparaît après la fermeture d'une chaîne JSON
+        // Exemple: "notes": "texte" [linkedin](url) -> "notes": "texte [linkedin](url)"
+        // Version améliorée qui détecte les guillemets non échappés et gère plusieurs occurrences
+        
+        let result = s;
+        let changed = true;
+        let iterations = 0;
+        const maxIterations = 10; // Éviter les boucles infinies
+        
+        // Pattern pour détecter les liens markdown: [text](url)
+        const markdownLinkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+        
+        while (changed && iterations < maxIterations) {
+            changed = false;
+            iterations++;
+            let newResult = result;
+            
+            // Chercher directement le pattern: guillemet, espaces, lien markdown
+            // Pattern: " ... " [text](url) suivi de virgule, accolade, crochet, retour à la ligne ou fin
+            const fullPattern = /"(\s+)(\[[^\]]+\]\([^)]+\))(\s*[,}\]]|\s*\r?\n|\s*$)/g;
+            const matches = [];
+            let match;
+            fullPattern.lastIndex = 0; // Reset regex
+            while ((match = fullPattern.exec(result)) !== null) {
+                matches.push({
+                    fullMatch: match[0],
+                    quotePos: match.index,
+                    spaces: match[1],
+                    markdown: match[2],
+                    after: match[3],
+                    start: match.index,
+                    end: match.index + match[0].length
+                });
+            }
+            
+            // Traiter les matches en ordre inverse pour préserver les positions
+            for (let i = matches.length - 1; i >= 0; i--) {
+                const mdMatch = matches[i];
+                const quotePos = mdMatch.quotePos;
+                
+                // Vérifier que ce n'est pas un guillemet échappé
+                let escapeCount = 0;
+                for (let j = quotePos - 1; j >= 0 && result[j] === '\\'; j--) {
+                    escapeCount++;
+                }
+                
+                // Si le guillemet n'est pas échappé (nombre pair de backslashes)
+                if (escapeCount % 2 === 0) {
+                    // Correction : déplacer le markdown avant le guillemet
+                    const beforeQuote = result.substring(0, quotePos);
+                    const afterMarkdownText = result.substring(mdMatch.end);
+                    
+                    newResult = beforeQuote + ' ' + mdMatch.markdown + '"' + mdMatch.after + afterMarkdownText;
+                    changed = true;
+                    break; // Traiter une correction à la fois pour éviter les conflits
+                }
+            }
+            
+            result = newResult;
+        }
+        
+        return result;
+    }
+
     function _tryParseQARaw(raw, type) {
         if (!raw || !raw.trim()) return { ok: false };
         let rawStr = raw.trim()
@@ -127,12 +193,19 @@
             .replace(/[\u200B-\u200D\uFEFF]/g, '');
         let parsed = null;
 
-        // 1) Essai direct : brut, virgules finales, newlines dans chaînes
+        // 0) Correction automatique : texte markdown après fermeture de chaîne
+        const fixedMarkdown = _fixMarkdownAfterString(rawStr);
+
+        // 1) Essai direct : brut, virgules finales, newlines dans chaînes, markdown corrigé
         const candidates = [
             rawStr,
+            fixedMarkdown,
             rawStr.replace(/,\s*([}\]])/g, '$1'),
+            fixedMarkdown.replace(/,\s*([}\]])/g, '$1'),
             _fixJsonString(rawStr),
-            _fixJsonString(rawStr).replace(/,\s*([}\]])/g, '$1')
+            _fixJsonString(fixedMarkdown),
+            _fixJsonString(rawStr).replace(/,\s*([}\]])/g, '$1'),
+            _fixJsonString(fixedMarkdown).replace(/,\s*([}\]])/g, '$1')
         ];
         for (const candidate of candidates) {
             try {
@@ -148,6 +221,7 @@
         if (!parsed) {
             const codeBlock = rawStr.match(/```(?:json)?\s*([\s\S]*?)```/);
             let jsonStr = codeBlock ? codeBlock[1].trim() : rawStr;
+            jsonStr = _fixMarkdownAfterString(jsonStr); // Correction markdown avant autres corrections
             jsonStr = _fixJsonString(jsonStr);
             for (const toTry of [jsonStr, jsonStr.replace(/,\s*([}\]])/g, '$1')]) {
                 try {
@@ -196,6 +270,7 @@
                 }
                 if (end > start) jsonStr = jsonStr.slice(start, end + 1);
             }
+            jsonStr = _fixMarkdownAfterString(jsonStr); // Correction markdown avant autres corrections
             jsonStr = _fixJsonString(jsonStr)
                 .replace(/,\s*([}\]])/g, '$1')
                 .replace(/\/\/[^\n]*/g, '')

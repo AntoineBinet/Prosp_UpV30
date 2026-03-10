@@ -270,6 +270,10 @@ function renderViewMode() {
     if (__cand.linkedin) fields.push({ label: 'LinkedIn', value: `<a href="${escapeHtml(__cand.linkedin)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.linkedin)}</a>` });
     if (__cand.onenote_url) fields.push({ label: 'OneNote', value: `<a href="${escapeHtml(__cand.onenote_url)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.onenote_url)}</a>` });
     if (__cand.vsa_url) fields.push({ label: 'VSA', value: `<a href="${escapeHtml(__cand.vsa_url)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.vsa_url)}</a>` });
+    if (__cand.dossier_competence_pdf) {
+        const pdfUrl = `/api/candidates/${__cand.id}/dossier-competence`;
+        fields.push({ label: 'Dossier de compétence', value: `<a href="${pdfUrl}" target="_blank" style="word-break:break-all;">📄 ${escapeHtml(__cand.dossier_competence_pdf)}</a>` });
+    }
 
     if (grid) {
         grid.innerHTML = fields.map(f =>
@@ -541,6 +545,7 @@ function buildPayload() {
         phone: (document.getElementById('fPhone')?.value || '').trim(),
         email: (document.getElementById('fEmail')?.value || '').trim(),
         sector: (document.getElementById('fSector')?.value || '').trim(),
+        dossier_competence_pdf: (document.getElementById('fDossierCompetence')?.value || '').trim(),
     };
 }
 
@@ -640,6 +645,9 @@ async function loadCandidate() {
   document.getElementById('fOneNote').value = safeStr(__cand.onenote_url);
   document.getElementById('fVSA').value = safeStr(__cand.vsa_url);
   document.getElementById('fTech').value = safeStr(__cand.tech);
+  if (document.getElementById('fDossierCompetence')) {
+      document.getElementById('fDossierCompetence').value = safeStr(__cand.dossier_competence_pdf || '');
+  }
   document.getElementById('fNotes').value = safeStr(__cand.notes);
 
   __skills = Array.isArray(__cand.skills) ? uniqCaseInsensitive(__cand.skills) : [];

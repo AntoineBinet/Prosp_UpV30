@@ -28,7 +28,6 @@
               children: [
                   { href: '/duplicates', icon: '\uD83D\uDD00', label: 'Doublons',  page: 'duplicates', helpSection: 'doublons' },
                   { href: '/snapshots',  icon: '\uD83D\uDCBE', label: 'Snapshots', page: 'snapshots',  helpSection: 'snapshots' },
-                  { href: '/kpi',        icon: '\uD83D\uDCC8', label: 'KPI',       page: 'kpi',        helpSection: 'kpi' },
                   { href: '/metiers',    icon: '\uD83C\uDFD7\uFE0F', label: 'M\u00e9tiers',  page: 'metiers',  helpSection: 'metiers' },
                   { href: '/help',       icon: '\u2753',       label: 'Aide',      page: 'help',       helpSection: 'raccourcis' }
               ]
@@ -49,7 +48,7 @@
     };
 
     // Sub-pages that belong to Paramètres
-    var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'kpi', 'metiers', 'help'];
+    var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'metiers', 'help'];
 
     // ── State ─────────────────────────────────────────────────────
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();

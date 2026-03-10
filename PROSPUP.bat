@@ -7,7 +7,7 @@ echo.
 echo  ============================================
 echo    ProspUp - Serveur + Tunnel (prospup.work)
 echo  ============================================
-echo  Astuce : faites un PULL ^(ou PULL.bat^) pour avoir la derniere version.
+echo  Auto-deploy actif : pull Git automatique toutes les 90s sur main.
 echo.
 
 :: Python
