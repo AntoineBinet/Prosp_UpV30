@@ -305,7 +305,7 @@ def _require_auth():
     if request.method == "OPTIONS":
         return
 
-    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/verify')
+    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment')
     if any(request.path.startswith(p) for p in allowed):
         return
 
@@ -6569,6 +6569,41 @@ def api_deploy_pull():
     except Exception as e:
         logger.exception("Deploy pull error")
         return jsonify(ok=False, error=str(e)), 500
+
+
+@app.get("/api/system/check-deployment")
+def api_system_check_deployment():
+    """Vérifie si le code de vérification système est déployé."""
+    verify_script = APP_DIR / "scripts" / "verify_all.py"
+    verify_script_exists = verify_script.exists()
+    
+    # Vérifier si la section est dans parametres.html
+    parametres_file = APP_DIR / "parametres.html"
+    has_section = False
+    if parametres_file.exists():
+        try:
+            content = parametres_file.read_text(encoding="utf-8")
+            has_section = "systemVerifySection" in content and "Vérification système" in content
+        except Exception:
+            pass
+    
+    # Vérifier si la fonction JS existe
+    page_settings_file = APP_DIR / "static" / "js" / "page-settings.js"
+    has_js_function = False
+    if page_settings_file.exists():
+        try:
+            content = page_settings_file.read_text(encoding="utf-8")
+            has_js_function = "runSystemVerify" in content
+        except Exception:
+            pass
+    
+    return jsonify(
+        ok=True,
+        verify_script_exists=verify_script_exists,
+        html_section_exists=has_section,
+        js_function_exists=has_js_function,
+        all_deployed=verify_script_exists and has_section and has_js_function,
+    )
 
 
 @app.post("/api/system/verify")
