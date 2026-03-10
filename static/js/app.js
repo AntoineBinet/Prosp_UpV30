@@ -4252,6 +4252,35 @@ async function confirmPushSend() {
         }
     }
 
+    // Télécharger automatiquement les dossiers de compétences des candidats sélectionnés (email only)
+    if (channel === 'email' && (candidateId1 || candidateId2)) {
+        const candidateIds = [candidateId1, candidateId2].filter(Boolean);
+        for (const candId of candidateIds) {
+            try {
+                // Récupérer les infos du candidat pour vérifier s'il a un dossier de compétence
+                const candRes = await fetch(`/api/candidates/${candId}`);
+                if (candRes.ok) {
+                    const candData = await candRes.json();
+                    if (candData.ok && candData.candidate && candData.candidate.dossier_competence_pdf) {
+                        // Télécharger le PDF
+                        const pdfUrl = `/api/candidates/${candId}/dossier-competence`;
+                        const link = document.createElement('a');
+                        link.href = pdfUrl;
+                        link.download = candData.candidate.dossier_competence_pdf;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        // Petit délai entre les téléchargements pour éviter les problèmes
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    }
+                }
+            } catch (e) {
+                console.warn(`Error downloading PDF for candidate ${candId}:`, e);
+            }
+        }
+    }
+
     // Mark push as sent
     const sentAt = todayISO();
     if (channel === 'email') {

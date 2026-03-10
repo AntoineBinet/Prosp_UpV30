@@ -910,6 +910,8 @@ def _conn() -> sqlite3.Connection:
 
 def init_db() -> None:
     SNAPSHOT_DIR.mkdir(exist_ok=True)
+    # Créer le dossier pour les dossiers de compétences
+    (APP_DIR / "dossiers_competence").mkdir(exist_ok=True)
 
     with _conn() as conn:
         conn.executescript(
@@ -1236,6 +1238,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
             _add_col("candidates", "phone", "TEXT")
         if "email" not in cand_cols:
             _add_col("candidates", "email", "TEXT")
+        if "dossier_competence_pdf" not in cand_cols:
+            _add_col("candidates", "dossier_competence_pdf", "TEXT")
         if "owner_id" not in cand_cols:
             _add_col("candidates", "owner_id", "INTEGER")
 
@@ -1426,7 +1430,8 @@ Cordialement,"""
 
 
 def _migrate_user_db_schema(db_path: Path) -> None:
-    """Ajoute deleted_at aux tables companies, prospects, candidates si absent (v23.5)."""
+    """Ajoute deleted_at aux tables companies, prospects, candidates si absent (v23.5).
+    Ajoute aussi dossier_competence_pdf à la table candidates si absent."""
     if not db_path.exists():
         return
     conn = sqlite3.connect(db_path)
@@ -1440,6 +1445,14 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             if "deleted_at" not in cols:
                 conn.execute(f"ALTER TABLE {tbl} ADD COLUMN deleted_at TEXT;")
                 conn.commit()
+        # Migration: ajouter dossier_competence_pdf à candidates
+        try:
+            cand_cols = [r["name"] for r in conn.execute("PRAGMA table_info(candidates);").fetchall()]
+            if "dossier_competence_pdf" not in cand_cols:
+                conn.execute("ALTER TABLE candidates ADD COLUMN dossier_competence_pdf TEXT;")
+                conn.commit()
+        except Exception:
+            pass
     finally:
         conn.close()
 
@@ -1558,6 +1571,7 @@ def _init_user_db(user_id: int) -> Path:
                 sector    TEXT,
                 phone     TEXT,
                 email     TEXT,
+                dossier_competence_pdf TEXT,
                 owner_id  INTEGER,
                 deleted_at TEXT
             );
@@ -2954,6 +2968,42 @@ def api_candidate_get(candidate_id: int):
     return jsonify({"ok": True, "candidate": cand, "companies": companies})
 
 
+@app.get("/api/candidates/<int:candidate_id>/dossier-competence")
+def api_candidate_dossier_competence(candidate_id: int):
+    """Serve the competence dossier PDF for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    with _conn() as conn:
+        row = conn.execute("SELECT dossier_competence_pdf FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        
+        pdf_path = row["dossier_competence_pdf"]
+        if not pdf_path or not pdf_path.strip():
+            return jsonify({"ok": False, "error": "Aucun dossier de compétence renseigné"}), 404
+        
+        # Chemin du PDF (peut être relatif ou absolu)
+        pdf_file = Path(pdf_path)
+        if not pdf_file.is_absolute():
+            # Si relatif, chercher dans le dossier dossiers_competence à la racine
+            pdf_file = APP_DIR / "dossiers_competence" / pdf_file
+        
+        if not pdf_file.exists() or not pdf_file.is_file():
+            return jsonify({"ok": False, "error": "Fichier PDF introuvable"}), 404
+        
+        # Vérifier que c'est bien un PDF
+        if pdf_file.suffix.lower() != ".pdf":
+            return jsonify({"ok": False, "error": "Le fichier n'est pas un PDF"}), 400
+        
+        try:
+            return send_file(str(pdf_file), mimetype="application/pdf", as_attachment=True, download_name=pdf_file.name)
+        except Exception as e:
+            logger.error(f"Error serving PDF: {e}")
+            return jsonify({"ok": False, "error": f"Erreur lors du chargement du PDF: {str(e)}"}), 500
+
+
 @app.post("/api/candidates/save")
 def api_candidates_save():
     uid = _uid()
@@ -3011,7 +3061,7 @@ def api_candidates_save():
                 UPDATE candidates
                 SET name=?, role=?, location=?, seniority=?, tech=?, linkedin=?, source=?, status=?, notes=?,
                     onenote_url=?, vsa_url=?, skills=?, company_ids=?, is_archived=?,
-                    years_experience=?, sector=?, phone=?, email=?,
+                    years_experience=?, sector=?, phone=?, email=?, dossier_competence_pdf=?,
                     updatedAt=?
                 WHERE id=? AND owner_id=?;
                 ''',
@@ -3034,6 +3084,7 @@ def api_candidates_save():
                     _t("sector"),
                     _t("phone"),
                     _t("email"),
+                    _t("dossier_competence_pdf"),
                     now,
                     int(cid),
                     uid,
@@ -3047,10 +3098,10 @@ def api_candidates_save():
                 INSERT INTO candidates (
                     name, role, location, seniority, tech, linkedin, source, status, notes,
                     onenote_url, vsa_url, skills, company_ids, is_archived,
-                    years_experience, sector, phone, email,
+                    years_experience, sector, phone, email, dossier_competence_pdf,
                     createdAt, updatedAt, owner_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 ''',
                 (
                     name,
@@ -3071,6 +3122,7 @@ def api_candidates_save():
                     _t("sector"),
                     _t("phone"),
                     _t("email"),
+                    _t("dossier_competence_pdf"),
                     now,
                     now,
                     uid,
