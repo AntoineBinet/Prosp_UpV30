@@ -122,12 +122,66 @@
     function _fixMarkdownAfterString(s) {
         // Corriger les cas où du texte markdown apparaît après la fermeture d'une chaîne JSON
         // Exemple: "notes": "texte" [linkedin](url) -> "notes": "texte [linkedin](url)"
-        // Pattern simple: guillemet, espace(s), lien markdown [text](url), puis virgule/accolade/fin
-        // On cherche: " ... " [markdown](url) et on remplace par " ... [markdown](url)"
-        // Limitation: ne gère pas les guillemets échappés complexes, mais couvre le cas courant
-        return s.replace(/"\s+(\[[^\]]+\]\([^)]+\))(\s*[,}\]]|\s*\n)/g, function(match, markdown, after) {
-            return ' ' + markdown + '"' + after;
-        });
+        // Version améliorée qui détecte les guillemets non échappés et gère plusieurs occurrences
+        
+        let result = s;
+        let changed = true;
+        let iterations = 0;
+        const maxIterations = 10; // Éviter les boucles infinies
+        
+        // Pattern pour détecter les liens markdown: [text](url)
+        const markdownLinkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+        
+        while (changed && iterations < maxIterations) {
+            changed = false;
+            iterations++;
+            let newResult = result;
+            
+            // Chercher directement le pattern: guillemet, espaces, lien markdown
+            // Pattern: " ... " [text](url) suivi de virgule, accolade, crochet, retour à la ligne ou fin
+            const fullPattern = /"(\s+)(\[[^\]]+\]\([^)]+\))(\s*[,}\]]|\s*\r?\n|\s*$)/g;
+            const matches = [];
+            let match;
+            fullPattern.lastIndex = 0; // Reset regex
+            while ((match = fullPattern.exec(result)) !== null) {
+                matches.push({
+                    fullMatch: match[0],
+                    quotePos: match.index,
+                    spaces: match[1],
+                    markdown: match[2],
+                    after: match[3],
+                    start: match.index,
+                    end: match.index + match[0].length
+                });
+            }
+            
+            // Traiter les matches en ordre inverse pour préserver les positions
+            for (let i = matches.length - 1; i >= 0; i--) {
+                const mdMatch = matches[i];
+                const quotePos = mdMatch.quotePos;
+                
+                // Vérifier que ce n'est pas un guillemet échappé
+                let escapeCount = 0;
+                for (let j = quotePos - 1; j >= 0 && result[j] === '\\'; j--) {
+                    escapeCount++;
+                }
+                
+                // Si le guillemet n'est pas échappé (nombre pair de backslashes)
+                if (escapeCount % 2 === 0) {
+                    // Correction : déplacer le markdown avant le guillemet
+                    const beforeQuote = result.substring(0, quotePos);
+                    const afterMarkdownText = result.substring(mdMatch.end);
+                    
+                    newResult = beforeQuote + ' ' + mdMatch.markdown + '"' + mdMatch.after + afterMarkdownText;
+                    changed = true;
+                    break; // Traiter une correction à la fois pour éviter les conflits
+                }
+            }
+            
+            result = newResult;
+        }
+        
+        return result;
     }
 
     function _tryParseQARaw(raw, type) {
@@ -166,6 +220,7 @@
         if (!parsed) {
             const codeBlock = rawStr.match(/```(?:json)?\s*([\s\S]*?)```/);
             let jsonStr = codeBlock ? codeBlock[1].trim() : rawStr;
+            jsonStr = _fixMarkdownAfterString(jsonStr); // Correction markdown avant autres corrections
             jsonStr = _fixJsonString(jsonStr);
             for (const toTry of [jsonStr, jsonStr.replace(/,\s*([}\]])/g, '$1')]) {
                 try {
@@ -214,6 +269,7 @@
                 }
                 if (end > start) jsonStr = jsonStr.slice(start, end + 1);
             }
+            jsonStr = _fixMarkdownAfterString(jsonStr); // Correction markdown avant autres corrections
             jsonStr = _fixJsonString(jsonStr)
                 .replace(/,\s*([}\]])/g, '$1')
                 .replace(/\/\/[^\n]*/g, '')
