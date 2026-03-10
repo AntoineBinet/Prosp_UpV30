@@ -39,6 +39,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 ## Conventions
 - `APP_VERSION` dans app.py (actuellement "25.0") — incrementer a chaque release
 - **Workflow git (IMPORTANT)** : TOUJOURS travailler directement sur `main`. Ne JAMAIS créer de branches. Après chaque demande avec modifications, vérifier qu'on est sur `main` (`git checkout main` si nécessaire), puis committer et pousser directement sur `main` (`git add`, `git commit`, `git push origin main`). Pour mettre à jour le serveur sur le PC hébergeur : utiliser le bouton « Mettre à jour et redémarrer » dans Paramètres (section admin). Le flux affiche la sortie git en direct puis recharge la page après redémarrage.
+- **Rappel fin de session** : À chaque fin de réponse où du code a été modifié, committer et pousser sur `main` pour que la session cloud et le pull (bouton Mettre à jour) soient à jour. Sinon les modifications ne seront pas sur Git donc pas dans le pull sur l'hébergeur.
 - Cache busters automatiques : app.py calcule les hash MD5 des fichiers statiques au demarrage et remplace `?v=XXXX` dans le HTML
 - Pas de bundler/build system — fichiers servis directement par Flask
 - Scripts avec `defer` sur toutes les pages (sauf Chart.js CDN dans stats.html)
