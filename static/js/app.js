@@ -5352,8 +5352,15 @@ function _ensureBulkIAModal() {
                 <button class="btn btn-secondary" onclick="closeBulkIAModal()" style="font-size:14px;padding:4px 10px;">✕</button>
             </div>
 
-            <!-- Step 1: Prompt -->
-            <div id="bulkIAStep1" style="margin-top:14px;">
+            <!-- Tabs (only for tel mode) -->
+            <div id="bulkIATabs" style="display:none;margin-top:12px;border-bottom:1px solid var(--border-color);">
+                <button class="bulk-ia-tab active" data-tab="ollama" onclick="switchBulkIATab('ollama')">🤖 Ollama</button>
+                <button class="bulk-ia-tab" data-tab="paste" onclick="switchBulkIATab('paste')">📋 Coller</button>
+                <button class="bulk-ia-tab" data-tab="csv" onclick="switchBulkIATab('csv')">📄 CSV</button>
+            </div>
+
+            <!-- Step 1: Ollama (existing) -->
+            <div id="bulkIAStep1Ollama" class="bulk-ia-step" style="margin-top:14px;">
                 <p class="muted" style="font-size:12px;margin-bottom:8px;">
                     <strong>Étape 1 :</strong> Générez avec Ollama (local) ou copiez le prompt pour une autre IA.
                 </p>
@@ -5369,6 +5376,45 @@ function _ensureBulkIAModal() {
                 <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
                     <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
                     <button class="btn btn-primary" onclick="parseBulkIAResult()">🔍 Analyser</button>
+                </div>
+            </div>
+
+            <!-- Step 1: Paste manual -->
+            <div id="bulkIAStep1Paste" class="bulk-ia-step" style="margin-top:14px;display:none;">
+                <p class="muted" style="font-size:12px;margin-bottom:8px;">
+                    <strong>Collez vos numéros :</strong> Format : une ligne par prospect avec "Nom / Numéro" ou "Nom / Numéro1 / Numéro2" pour plusieurs numéros.
+                </p>
+                <textarea id="bulkIAPasteTextarea" placeholder="Exemple :&#10;Nicolas Mugnier / +33 4 37 59 09 80&#10;Herve Pays / +33 4 37 59 09 80 / +33 6 15 23 65 89&#10;Sebastien Chapacou / +33 6 12 34 56 78" style="min-height:200px;font-family:monospace;font-size:12px;"></textarea>
+                <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+                    <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
+                    <button class="btn btn-primary" onclick="parseBulkIAPaste()">🔍 Analyser</button>
+                </div>
+            </div>
+
+            <!-- Step 1: CSV import -->
+            <div id="bulkIAStep1Csv" class="bulk-ia-step" style="margin-top:14px;display:none;">
+                <p class="muted" style="font-size:12px;margin-bottom:8px;">
+                    <strong>Importez un fichier CSV :</strong> Le format peut varier. Vous pourrez vérifier le mapping avec Ollama si nécessaire.
+                </p>
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:12px;display:block;margin-bottom:4px;">Séparateur :</label>
+                    <select id="bulkIACsvSeparator" style="font-size:13px;padding:6px 10px;border-radius:6px;margin-right:12px;">
+                        <option value="auto">Auto</option>
+                        <option value=";">Point-virgule (;)</option>
+                        <option value=",">Virgule (,)</option>
+                        <option value="\t">Tabulation</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="suggestBulkIACsvMappingWithOllama()" id="bulkIACsvSuggestOllamaBtn" style="font-size:12px;padding:6px 12px;">🤖 Vérifier format avec Ollama</button>
+                </div>
+                <input type="file" id="bulkIACsvFile" accept=".csv,.txt" style="display:none;">
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('bulkIACsvFile').click()">Choisir un fichier CSV</button>
+                <div id="bulkIACsvMapping" style="display:none;margin-top:16px;">
+                    <p class="muted" style="font-size:12px;margin-bottom:8px;"><strong>Mapping des colonnes :</strong></p>
+                    <div id="bulkIACsvMappingGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
+                        <button class="btn btn-primary" onclick="parseBulkIACsv()">🔍 Analyser</button>
+                    </div>
                 </div>
             </div>
 
@@ -5402,7 +5448,16 @@ function _ensureBulkIAModal() {
         </div>
     </div>`;
     document.body.appendChild(div.firstElementChild);
+    
+    // CSV file handler
+    document.getElementById('bulkIACsvFile').addEventListener('change', function(e) {
+        const f = e.target.files[0];
+        if (f) parseBulkIACsvFile(f);
+    });
 }
+
+let _bulkIACurrentTab = 'ollama';
+let _bulkIACsvData = null; // {headers, rows}
 
 function openBulkIAModal(mode) {
     if (selectedProspects.size === 0) {
@@ -5440,14 +5495,42 @@ function openBulkIAModal(mode) {
     document.getElementById('bulkIATitle').textContent = `${icon} Trouver les ${fieldLabel}s — ${_bulkIAProspects.length} prospect(s)`;
     document.getElementById('bulkIAResultHeader').textContent = fieldLabel;
 
+    // Show tabs only for tel mode
+    const tabsEl = document.getElementById('bulkIATabs');
+    if (tabsEl) tabsEl.style.display = mode === 'tel' ? '' : 'none';
+
+    // Reset tabs and show ollama by default
+    _bulkIACurrentTab = 'ollama';
+    switchBulkIATab('ollama');
+
     // Generate prompt
     const prompt = _generateBulkIAPrompt(mode);
     document.getElementById('bulkIAPromptText').textContent = prompt;
     document.getElementById('bulkIAResultTextarea').value = '';
-    document.getElementById('bulkIAStep1').style.display = '';
+    document.getElementById('bulkIAPasteTextarea').value = '';
     document.getElementById('bulkIAStep2').style.display = 'none';
+    _bulkIACsvData = null;
+    document.getElementById('bulkIACsvMapping').style.display = 'none';
+    document.getElementById('bulkIACsvFile').value = '';
 
     document.getElementById('modalBulkIA').classList.add('active');
+}
+
+function switchBulkIATab(tab) {
+    _bulkIACurrentTab = tab;
+    document.querySelectorAll('.bulk-ia-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    document.querySelectorAll('.bulk-ia-step').forEach(step => {
+        step.style.display = 'none';
+    });
+    if (tab === 'ollama') {
+        document.getElementById('bulkIAStep1Ollama').style.display = '';
+    } else if (tab === 'paste') {
+        document.getElementById('bulkIAStep1Paste').style.display = '';
+    } else if (tab === 'csv') {
+        document.getElementById('bulkIAStep1Csv').style.display = '';
+    }
 }
 
 function closeBulkIAModal() {
@@ -5455,7 +5538,13 @@ function closeBulkIAModal() {
 }
 
 function bulkIABackToStep1() {
-    document.getElementById('bulkIAStep1').style.display = '';
+    if (_bulkIACurrentTab === 'ollama') {
+        document.getElementById('bulkIAStep1Ollama').style.display = '';
+    } else if (_bulkIACurrentTab === 'paste') {
+        document.getElementById('bulkIAStep1Paste').style.display = '';
+    } else if (_bulkIACurrentTab === 'csv') {
+        document.getElementById('bulkIAStep1Csv').style.display = '';
+    }
     document.getElementById('bulkIAStep2').style.display = 'none';
 }
 
@@ -5559,7 +5648,195 @@ function parseBulkIAResult() {
         }
     }
 
-    // Build preview table
+    _displayBulkIAResults(results);
+}
+
+// Parse pasted manual data (format: "Nom / Numéro" or "Nom / Numéro1 / Numéro2")
+function parseBulkIAPaste() {
+    const text = document.getElementById('bulkIAPasteTextarea').value.trim();
+    if (!text) { showToast('⚠️ Collez les numéros d\'abord.', 'warning'); return; }
+
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const results = [];
+
+    // Build a map of name -> phone numbers
+    const nameToPhones = {};
+    lines.forEach(line => {
+        const parts = line.split('/').map(p => p.trim()).filter(p => p);
+        if (parts.length < 2) return; // Need at least name + one phone
+        const name = parts[0];
+        const phones = parts.slice(1).filter(p => p);
+        if (phones.length > 0) {
+            nameToPhones[name] = phones.join(' / ');
+        }
+    });
+
+    // Match prospects by name (fuzzy matching)
+    _bulkIAProspects.forEach((p, i) => {
+        let found = '';
+        // Exact match first
+        if (nameToPhones[p.name]) {
+            found = nameToPhones[p.name];
+        } else {
+            // Try fuzzy match (case insensitive, partial)
+            const pNameLower = p.name.toLowerCase();
+            for (const [name, phones] of Object.entries(nameToPhones)) {
+                if (name.toLowerCase() === pNameLower || 
+                    name.toLowerCase().includes(pNameLower) || 
+                    pNameLower.includes(name.toLowerCase())) {
+                    found = phones;
+                    break;
+                }
+            }
+        }
+        results[i] = found;
+    });
+
+    _displayBulkIAResults(results);
+}
+
+// Parse CSV file
+function parseBulkIACsvFile(file) {
+    const sepEl = document.getElementById('bulkIACsvSeparator');
+    let sep = (sepEl && sepEl.value && sepEl.value !== 'auto') ? sepEl.value : null;
+    if (sep === '\\t') sep = '\t';
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const raw = _parseCsvText(e.target.result, sep ? { separator: sep } : {});
+            if (!raw || !raw.rows.length) { 
+                showToast('CSV vide ou invalide.', 'warning'); 
+                return; 
+            }
+            _bulkIACsvData = raw;
+            _showBulkIACsvMapping();
+        } catch (err) {
+            showToast('Erreur lecture CSV: ' + (err.message || err), 'error');
+        }
+    };
+    reader.onerror = function() { 
+        showToast('Erreur de lecture du fichier.', 'error'); 
+    };
+    reader.readAsText(file, 'utf-8');
+}
+
+function _showBulkIACsvMapping() {
+    if (!_bulkIACsvData) return;
+    const grid = document.getElementById('bulkIACsvMappingGrid');
+    const mapping = {};
+    
+    grid.innerHTML = _bulkIACsvData.headers.map((h, i) => {
+        const guessed = _guessMapping(h);
+        const isName = /nom|name|contact/i.test(h) && !/entreprise|company|société/i.test(h);
+        const isTel = /tél|tel|telephone|phone|mobile|portable/i.test(h);
+        let opts = '<option value="">— Ignorer —</option>';
+        if (isName) opts += '<option value="name" selected>Nom du prospect</option>';
+        if (isTel) opts += '<option value="telephone" selected>Téléphone</option>';
+        if (!isName && !isTel) {
+            opts += '<option value="name">Nom du prospect</option>';
+            opts += '<option value="telephone">Téléphone</option>';
+        }
+        return `<div class="import-list-mapping-row"><label style="font-size:11px;">${escapeHtml(h) || 'Colonne ' + (i+1)}</label><select class="bulk-ia-csv-map-select" data-col="${i}" style="font-size:12px;padding:4px 8px;">${opts}</select></div>`;
+    }).join('');
+    
+    document.getElementById('bulkIACsvMapping').style.display = '';
+}
+
+async function suggestBulkIACsvMappingWithOllama() {
+    if (!_bulkIACsvData || !_bulkIACsvData.headers.length) return;
+    const headers = _bulkIACsvData.headers;
+    const prompt = `Tu es un assistant. Voici les en-têtes de colonnes d'un fichier CSV pour ajouter des numéros de téléphone à des prospects : ${JSON.stringify(headers)}. Retourne un objet JSON unique dont les clés sont exactement ces en-têtes (une par colonne) et les valeurs sont soit "name" (pour la colonne contenant le nom du prospect), soit "telephone" (pour la colonne contenant le numéro de téléphone), soit "" (chaîne vide pour ignorer). Exemple : {"NOM":"name","TEL":"telephone","PORTABLE":"telephone","AUTRE":"","DATE":""}. Réponds uniquement avec ce JSON, sans texte avant ou après, sans markdown.`;
+    const btn = document.getElementById('bulkIACsvSuggestOllamaBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
+    try {
+        const text = await callOllama(prompt);
+        let jsonStr = (text || '').trim();
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonStr = jsonMatch[0];
+        const mapping = JSON.parse(jsonStr);
+        const headerToIndex = {};
+        headers.forEach((h, i) => { headerToIndex[h] = i; });
+        Object.keys(mapping).forEach(header => {
+            const field = mapping[header];
+            const idx = headerToIndex[header];
+            if (idx === undefined || !field) return;
+            const select = document.querySelector(`.bulk-ia-csv-map-select[data-col="${idx}"]`);
+            if (select && (field === 'name' || field === 'telephone')) select.value = field;
+        });
+        showToast('Mapping suggéré appliqué. Vérifiez puis cliquez Analyser.', 'success', 4000);
+    } catch (e) {
+        showToast('Ollama indisponible ou réponse invalide. Vérifiez le mapping manuellement.', 'warning', 5000);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 Vérifier format avec Ollama'; }
+    }
+}
+
+function parseBulkIACsv() {
+    if (!_bulkIACsvData) { showToast('⚠️ Importez un fichier CSV d\'abord.', 'warning'); return; }
+    
+    const selects = document.querySelectorAll('.bulk-ia-csv-map-select');
+    const nameCols = [];
+    const telCols = [];
+    
+    selects.forEach(s => {
+        const col = parseInt(s.dataset.col, 10);
+        const field = s.value;
+        if (field === 'name') nameCols.push(col);
+        else if (field === 'telephone') telCols.push(col);
+    });
+    
+    if (nameCols.length === 0) {
+        showToast('⚠️ Mappez au moins une colonne "Nom du prospect".', 'warning');
+        return;
+    }
+    
+    if (telCols.length === 0) {
+        showToast('⚠️ Mappez au moins une colonne "Téléphone".', 'warning');
+        return;
+    }
+    
+    // Build map: name -> phones (multiple phones joined with /)
+    const nameToPhones = {};
+    _bulkIACsvData.rows.forEach(row => {
+        const nameParts = nameCols.map(c => (row[c] != null ? String(row[c]).trim() : '')).filter(Boolean);
+        const name = nameParts.join(' ').trim();
+        if (!name) return;
+        
+        const phoneParts = telCols.map(c => (row[c] != null ? String(row[c]).trim() : '')).filter(Boolean);
+        if (phoneParts.length > 0) {
+            // If multiple phone columns, join them with /
+            nameToPhones[name] = phoneParts.join(' / ');
+        }
+    });
+    
+    // Match prospects by name
+    const results = [];
+    _bulkIAProspects.forEach((p, i) => {
+        let found = '';
+        // Exact match first
+        if (nameToPhones[p.name]) {
+            found = nameToPhones[p.name];
+        } else {
+            // Try fuzzy match
+            const pNameLower = p.name.toLowerCase();
+            for (const [name, phones] of Object.entries(nameToPhones)) {
+                if (name.toLowerCase() === pNameLower || 
+                    name.toLowerCase().includes(pNameLower) || 
+                    pNameLower.includes(name.toLowerCase())) {
+                    found = phones;
+                    break;
+                }
+            }
+        }
+        results[i] = found;
+    });
+    
+    _displayBulkIAResults(results);
+}
+
+// Common function to display results (used by all parsing methods)
+function _displayBulkIAResults(results) {
     const tbody = document.getElementById('bulkIAResultsBody');
     let html = '';
     let foundCount = 0;
@@ -5585,7 +5862,13 @@ function parseBulkIAResult() {
     tbody.innerHTML = html;
     document.getElementById('bulkIAFoundCount').textContent = `${foundCount}/${_bulkIAProspects.length} trouvé(s)`;
 
-    document.getElementById('bulkIAStep1').style.display = 'none';
+    if (_bulkIACurrentTab === 'ollama') {
+        document.getElementById('bulkIAStep1Ollama').style.display = 'none';
+    } else if (_bulkIACurrentTab === 'paste') {
+        document.getElementById('bulkIAStep1Paste').style.display = 'none';
+    } else if (_bulkIACurrentTab === 'csv') {
+        document.getElementById('bulkIAStep1Csv').style.display = 'none';
+    }
     document.getElementById('bulkIAStep2').style.display = '';
 }
 
