@@ -1,4 +1,4 @@
-# ProspUp v21
+# Prosp'Up v21
 
 **Application de gestion de prospects et prospection B2B** — Up Technologies (Embedded Systems, Électronique & Robotique).
 

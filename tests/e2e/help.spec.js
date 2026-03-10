@@ -4,7 +4,7 @@ const { test, expect } = require('@playwright/test');
 test.describe('Page Aide', () => {
   test('charge la page aide avec hero et sommaire', async ({ page }) => {
     await page.goto('/help');
-    await expect(page).toHaveTitle(/ProspUp.*Aide/i);
+    await expect(page).toHaveTitle(/Prosp'Up.*Aide/i);
     await expect(page.locator('.help-hero')).toBeVisible();
     await expect(page.locator('.help-hero-title')).toContainText('Bienvenue');
     await expect(page.locator('.help-toc-block')).toBeVisible();

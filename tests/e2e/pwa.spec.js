@@ -26,7 +26,7 @@ test.describe('PWA', () => {
     });
 
     expect(manifest).toBeTruthy();
-    expect(manifest.name).toContain('ProspUp');
+    expect(manifest.name).toContain('Prosp'Up');
     expect(manifest.start_url).toBe('/dashboard');
     expect(manifest.display).toBe('standalone');
     expect(manifest.shortcuts).toBeDefined();

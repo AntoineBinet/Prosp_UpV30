@@ -180,7 +180,7 @@
   }
 
   function initNotificationsSettings() {
-    var api = window.ProspUpNotifications;
+    var api = window.Prosp'UpNotifications;
     if (!api) return;
     var enabledEl = document.getElementById('notifEnabled');
     var hourEl = document.getElementById('notifHour');

@@ -1,10 +1,10 @@
 // v24.2 — Global error safety net
 window.addEventListener('unhandledrejection', function(e) {
-    console.error('[ProspUp] Unhandled promise:', e.reason);
+    console.error('[Prosp'Up] Unhandled promise:', e.reason);
     if (window.showToast) window.showToast('Erreur inattendue', 'error');
 });
 window.onerror = function(msg, src, line) {
-    console.error('[ProspUp] Error:', msg, 'at', src + ':' + line);
+    console.error('[Prosp'Up] Error:', msg, 'at', src + ':' + line);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -6777,7 +6777,7 @@ function ensureBuildIndicator() {
 
         const env = /prospup\.work$/i.test(window.location.hostname) ? 'web' : 'local';
         badge.textContent = `build ${APP_BUILD} · ${env}`;
-        badge.title = `ProspUp build ${APP_BUILD} (${window.location.hostname})`;
+        badge.title = `Prosp'Up build ${APP_BUILD} (${window.location.hostname})`;
     } catch (e) {}
 }
 
@@ -6789,8 +6789,8 @@ async function bootstrap(page) {
     await AppAuth.init();
 
     await loadFromServer();
-    try { await loadTemplatesFromServer(); } catch(e) { console.warn('[ProspUp] Templates load failed:', e); }
-    try { await loadPushCategories(); } catch(e) { console.warn('[ProspUp] Push categories load failed:', e); }
+    try { await loadTemplatesFromServer(); } catch(e) { console.warn('[Prosp'Up] Templates load failed:', e); }
+    try { await loadPushCategories(); } catch(e) { console.warn('[Prosp'Up] Push categories load failed:', e); }
     normalizeData();
     filteredProspects = [...data.prospects];
 

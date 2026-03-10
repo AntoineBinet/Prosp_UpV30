@@ -1,8 +1,8 @@
-# 🌐 Guide : Accéder à ProspUp depuis Internet
+# 🌐 Guide : Accéder à Prosp'Up depuis Internet
 
 ## Résumé
 
-Ce guide vous permet d'accéder à votre CRM ProspUp **depuis n'importe où** (iPhone, PC externe, etc.) via une **adresse HTTPS fixe** comme `https://crm.prospup.work`.
+Ce guide vous permet d'accéder à votre CRM Prosp'Up **depuis n'importe où** (iPhone, PC externe, etc.) via une **adresse HTTPS fixe** comme `https://crm.prospup.work`.
 
 **Technologie** : Cloudflare Tunnel (gratuit, sécurisé, aucun port à ouvrir)  
 **Coût** : ~10€/an pour le nom de domaine  
@@ -16,7 +16,7 @@ Ce guide vous permet d'accéder à votre CRM ProspUp **depuis n'importe où** (i
 |---------|--------|
 | **Windows** | 10 ou 11 |
 | **Python** | 3.10+ ([python.org](https://www.python.org/downloads/)) |
-| **ProspUp** | Doit fonctionner en local (`http://localhost:8000`) |
+| **Prosp'Up** | Doit fonctionner en local (`http://localhost:8000`) |
 | **Compte Cloudflare** | Gratuit sur [dash.cloudflare.com](https://dash.cloudflare.com/sign-up) |
 | **Nom de domaine** | ~10€/an (achetable directement sur Cloudflare) |
 
@@ -39,7 +39,7 @@ Ce guide vous permet d'accéder à votre CRM ProspUp **depuis n'importe où** (i
 
 ### Option A : Script automatique (recommandé)
 
-1. **Double-cliquez sur `SETUP_TUNNEL.bat`** dans le dossier ProspUp
+1. **Double-cliquez sur `SETUP_TUNNEL.bat`** dans le dossier Prosp'Up
 2. Le script va :
    - ✅ Installer `cloudflared` automatiquement
    - ✅ Ouvrir votre navigateur pour vous connecter à Cloudflare
@@ -95,7 +95,7 @@ ingress:
 **Double-cliquez `PROSPUP.bat`** — c'est tout !
 
 Le script lance automatiquement :
-- Le serveur ProspUp (Waitress, production) dans une fenêtre
+- Le serveur Prosp'Up (Waitress, production) dans une fenêtre
 - Le tunnel Cloudflare dans une seconde fenêtre (s'il est configuré)
 
 Votre CRM est accessible sur `https://crm.prospup.work` 🎉
@@ -106,7 +106,7 @@ Votre CRM est accessible sur `https://crm.prospup.work` 🎉
 
 ## Étape 4 — Démarrage automatique (optionnel)
 
-Pour que ProspUp se lance **au démarrage de Windows** :
+Pour que Prosp'Up se lance **au démarrage de Windows** :
 
 ### Méthode simple (dossier Démarrage)
 
@@ -122,9 +122,9 @@ Pour un lancement silencieux en arrière-plan :
 
 1. Ouvrez le **Planificateur de tâches** (recherchez "Planificateur" dans le menu Démarrer)
 2. **Tâche 1 — Serveur** :
-   - Nom : `ProspUp`
+   - Nom : `Prosp'Up`
    - Déclencheur : Au démarrage, retarder 15 secondes
-   - Action : Programme `C:\ProspUp\PROSPUP.bat`, Démarrer dans : `C:\ProspUp`
+   - Action : Programme `C:\Prosp'Up\PROSPUP.bat`, Démarrer dans : `C:\Prosp'Up`
 
 ---
 
@@ -149,9 +149,9 @@ Le tunnel démarrera automatiquement avec Windows, sans fenêtre visible, et red
 2. Allez sur `https://crm.prospup.work`
 3. Connectez-vous (admin / votre mot de passe)
 4. Appuyez sur **Partager** (icône ⬆️) → **"Sur l'écran d'accueil"**
-5. Nommez l'app **"ProspUp"** et appuyez **Ajouter**
+5. Nommez l'app **"Prosp'Up"** et appuyez **Ajouter**
 
-→ ProspUp apparaît comme une **vraie app** sur votre écran d'accueil ! 📱
+→ Prosp'Up apparaît comme une **vraie app** sur votre écran d'accueil ! 📱
 
 ---
 
@@ -162,7 +162,7 @@ Le tunnel démarrera automatiquement avec Windows, sans fenêtre visible, et red
 | **HTTPS** | Certificat SSL automatique géré par Cloudflare |
 | **Chiffrement** | Trafic chiffré de bout en bout |
 | **Pas de port ouvert** | Votre box Internet reste fermée |
-| **Authentification** | Session ProspUp (login/mot de passe) |
+| **Authentification** | Session Prosp'Up (login/mot de passe) |
 | **DDoS** | Protection DDoS incluse par Cloudflare |
 
 ### Recommandations
@@ -191,7 +191,7 @@ Le tunnel démarrera automatiquement avec Windows, sans fenêtre visible, et red
 3. Si ça persiste : **relancez `SETUP_TUNNEL.bat`** une fois (il met à jour la config avec 127.0.0.1 et les bons hostnames), puis relancez `PROSPUP.bat`.
 
 ### "Le site affiche 502 Bad Gateway"
-→ Le serveur ProspUp n'est pas lancé. Lancez `PROSPUP.bat`.
+→ Le serveur Prosp'Up n'est pas lancé. Lancez `PROSPUP.bat`.
 
 ### "Le domaine ne fonctionne pas"
 → Le DNS peut prendre jusqu'à 5 minutes pour se propager.  
@@ -208,7 +208,7 @@ iPhone/PC externe
        ↓ Tunnel chiffré
    cloudflared (sur votre PC)
        ↓ HTTP local
-   ProspUp (localhost:8000)
+   Prosp'Up (localhost:8000)
        ↓
    SQLite (prospects.db)
 ```
@@ -217,4 +217,4 @@ Aucun port n'est ouvert sur votre box. Le tunnel est **sortant uniquement** — 
 
 ---
 
-*ProspUp v21 — Up Technologies*
+*Prosp'Up v21 — Up Technologies*

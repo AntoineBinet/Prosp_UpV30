@@ -3191,7 +3191,7 @@ def api_candidate_push_add():
         card = _build_adaptive_card(
             "📤 Push candidat",
             [("Candidat", candidate_name), ("Prospect", prospect_name), ("Entreprise", company_name), ("Consultant", prefix), ("Date", event_date)],
-            [{"title": "Voir dans ProspUp", "url": f"https://prospup.work/candidate?id={cid_i}"}]
+            [{"title": "Voir dans Prosp'Up", "url": f"https://prospup.work/candidate?id={cid_i}"}]
         )
         _send_teams_webhook(card, "candidate_push")
     except Exception:
@@ -6965,7 +6965,7 @@ def api_calendar_events_external():
     if not url or not url.startswith(("http://", "https://")):
         return jsonify(ok=False, error="URL invalide"), 400
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "ProspUp/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Prosp'Up/1.0"})
         with urllib.request.urlopen(req, timeout=15) as resp:
             ics_text = resp.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
@@ -7456,7 +7456,7 @@ def _safe_relpath(rel: str) -> str:
     if not rel:
         return ""
     # Strip common leading folder in patch zips
-    _m = re.match(r"ProspUp_v[\d.]+/", rel)
+    _m = re.match(r"Prosp'Up_v[\d.]+/", rel)
     if _m:
         rel = rel[_m.end():]
     if not rel:
@@ -8255,23 +8255,23 @@ if __name__ == "__main__":
     host = "0.0.0.0"  # Bind all interfaces for tunnel access
     port = int(os.environ.get("PORT", 8000))
 
-    logger.info("ProspUp v%s starting (mode=%s, host=%s, port=%d)",
+    logger.info("Prosp'Up v%s starting (mode=%s, host=%s, port=%d)",
                 APP_VERSION, "production" if use_waitress else "dev", host, port)
 
     if use_waitress:
         try:
             from waitress import serve
-            print(f"🚀 ProspUp v{APP_VERSION} en production (waitress) sur http://{host}:{port}")
+            print(f"🚀 Prosp'Up v{APP_VERSION} en production (waitress) sur http://{host}:{port}")
             logger.info("Waitress server started with 4 threads")
             serve(app, host=host, port=port, threads=4)
         except ImportError:
             print("⚠️ waitress non installé, fallback sur Flask dev server")
             logger.warning("waitress not installed, falling back to Flask dev server")
-            print(f"🚀 ProspUp démarré sur http://{host}:{port}")
+            print(f"🚀 Prosp'Up démarré sur http://{host}:{port}")
             app.run(host=host, port=port, debug=False)
     else:
         print(f"⚠️  Mode développement — NE PAS utiliser en production 24/7")
         print(f"    Lancer avec: python app.py --prod")
-        print(f"🚀 ProspUp v{APP_VERSION} en dev sur http://127.0.0.1:{port}")
+        print(f"🚀 Prosp'Up v{APP_VERSION} en dev sur http://127.0.0.1:{port}")
         logger.info("Dev server started (debug=True) — not for 24/7 use")
         app.run(host="127.0.0.1", port=port, debug=True)

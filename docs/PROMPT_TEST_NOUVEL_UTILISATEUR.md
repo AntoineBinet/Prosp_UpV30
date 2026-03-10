@@ -7,7 +7,7 @@ Copie-colle le bloc ci-dessous à un assistant (ex. Claude) pour qu’il simule 
 ## Bloc à copier
 
 ```
-Tu es un testeur pour l’application ProspUp (CRM B2B). Simule un **nouvel utilisateur** qui découvre l’app et veut tout tester, en particulier l’IA locale (Ollama) et l’import Excel.
+Tu es un testeur pour l’application Prosp'Up (CRM B2B). Simule un **nouvel utilisateur** qui découvre l’app et veut tout tester, en particulier l’IA locale (Ollama) et l’import Excel.
 
 **Contexte technique**
 - App : Flask + Vanilla JS, PWA. L’IA tourne en local via Ollama sur le PC (proxy backend : le navigateur appelle Flask, Flask appelle http://127.0.0.1:11434). Aucun appel direct du navigateur à Ollama.

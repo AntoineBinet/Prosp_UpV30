@@ -58,7 +58,7 @@
                 var body = (overdue > 0 ? overdue + ' relance(s) en retard' : '') +
                     (overdue > 0 && dueToday > 0 ? ' · ' : '') +
                     (dueToday > 0 ? dueToday + ' à faire aujourd\'hui' : '');
-                var n = new Notification('ProspUp — Relances', {
+                var n = new Notification('Prosp'Up — Relances', {
                     body: body,
                     icon: '/static/icon-192.png',
                     tag: 'prospup-daily'
@@ -99,7 +99,7 @@
         });
     }
 
-    window.ProspUpNotifications = {
+    window.Prosp'UpNotifications = {
         getPrefs: getPrefs,
         setPrefs: function (prefs) {
             setPrefs(prefs);

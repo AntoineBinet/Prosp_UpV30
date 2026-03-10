@@ -1,4 +1,4 @@
-// ProspUp Service Worker v23.4 — enhanced caching + offline fallback + security hardening
+// Prosp'Up Service Worker v23.4 — enhanced caching + offline fallback + security hardening
 const CACHE = 'prospup-v23.4';
 const API_CACHE = 'prospup-api-v23.4';
 const API_TTL = 5 * 60 * 1000; // 5 minutes

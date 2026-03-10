@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    style.css — Unified stylesheet
-   Up Technologies — ProspUp v23.4
+   Up Technologies — Prosp'Up v23.4
    ═══════════════════════════════════════════════════════════════ */
 
 /* ──────────────────── BASE RESET & VARIABLES ──────────────────── */
@@ -6105,7 +6105,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 }
 .sidebar-collapsed .sidebar .nav-submenu { display: none !important; }
 
-/* ── Floating Search Button (aligné avec le titre ProspUp du header) ── */
+/* ── Floating Search Button (aligné avec le titre Prosp'Up du header) ── */
 .floating-search-btn {
   position: fixed;
   top: 26px;

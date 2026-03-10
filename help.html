@@ -6,17 +6,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f172a">
-<meta name="description" content="ProspUp — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
+<meta name="description" content="Prosp'Up — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
 <link rel="icon" href="/static/favicon.ico">
-  <title>ProspUp — Aide</title>
+  <title>Prosp'Up — Aide</title>
 <link rel="stylesheet" href="/static/css/style.css?v=2103">
 </head>
 <body data-page="help">
   <div class="container">
     <header>
-      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> ProspUp — Aide</h1>
+      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> Prosp'Up — Aide</h1>
       <p class="header-subtitle">Guide d'utilisation — simple, clair, actionnable.</p>
     </header>
 
@@ -25,12 +25,12 @@
 
       <main class="content">
         <div class="content-header">
-          <div class="content-title">Guide utilisateur ProspUp</div>
+          <div class="content-title">Guide utilisateur Prosp'Up</div>
         </div>
 
         <!-- Hero bienvenue -->
         <section class="help-hero card">
-          <h2 class="help-hero-title">Bienvenue dans ProspUp</h2>
+          <h2 class="help-hero-title">Bienvenue dans Prosp'Up</h2>
           <p class="help-hero-desc">CRM de prospection B2B pour l’embarqué et la robotique. Ce guide présente toutes les fonctionnalités et des tutoriels rapides pour les tester.</p>
           <div class="help-hero-features">
             <span class="help-hero-pill">Prospects & entreprises</span>
@@ -117,12 +117,12 @@
         <!-- 1b. Utilisation à distance (prospup.work) -->
         <div class="card help-section" id="acces-distance">
           <h3>1b) Utilisation à distance (prospup.work)</h3>
-          <p>Vous pouvez utiliser ProspUp en vous connectant à <strong>prospup.work</strong> depuis n'importe quel appareil (bureau, domicile, autre PC). Voici ce qu'il faut savoir :</p>
+          <p>Vous pouvez utiliser Prosp'Up en vous connectant à <strong>prospup.work</strong> depuis n'importe quel appareil (bureau, domicile, autre PC). Voici ce qu'il faut savoir :</p>
           <ul>
-            <li><strong>Où tourne l'application ?</strong> ProspUp et vos données tournent sur <strong>un seul PC</strong> (celui sur lequel vous avez lancé <code>app.py</code> et éventuellement un tunnel Cloudflare). C'est ce PC qui « héberge » l'accès prospup.work.</li>
+            <li><strong>Où tourne l'application ?</strong> Prosp'Up et vos données tournent sur <strong>un seul PC</strong> (celui sur lequel vous avez lancé <code>app.py</code> et éventuellement un tunnel Cloudflare). C'est ce PC qui « héberge » l'accès prospup.work.</li>
             <li><strong>Vos données</strong> (prospects, entreprises, candidats) sont stockées sur ce PC. En vous connectant à prospup.work, vous travaillez sur les mêmes données que si vous étiez devant ce PC.</li>
-            <li><strong>Fonctions IA (Ollama)</strong> : pour que les boutons « Scrapping IA », « Ajout IA », « Générer avec Ollama », etc. fonctionnent, <strong>Ollama doit être installé et lancé sur le même PC qui héberge ProspUp</strong>. Si vous utilisez ProspUp depuis un autre ordinateur via prospup.work, l'IA s'exécute donc sur le PC serveur, pas sur votre machine. Si Ollama n'est pas démarré sur ce PC, les boutons IA afficheront une erreur ou une modale vide ; vous pouvez alors utiliser l'option « Copier » pour utiliser une autre IA (ex. ChatGPT) et coller le retour dans l'app.</li>
-            <li><strong>En résumé</strong> : pour un utilisateur lambda qui se connecte à prospup.work à distance, tout fonctionne comme en local, à condition que sur le PC qui héberge ProspUp, Ollama soit lancé si vous voulez utiliser les fonctions IA.</li>
+            <li><strong>Fonctions IA (Ollama)</strong> : pour que les boutons « Scrapping IA », « Ajout IA », « Générer avec Ollama », etc. fonctionnent, <strong>Ollama doit être installé et lancé sur le même PC qui héberge Prosp'Up</strong>. Si vous utilisez Prosp'Up depuis un autre ordinateur via prospup.work, l'IA s'exécute donc sur le PC serveur, pas sur votre machine. Si Ollama n'est pas démarré sur ce PC, les boutons IA afficheront une erreur ou une modale vide ; vous pouvez alors utiliser l'option « Copier » pour utiliser une autre IA (ex. ChatGPT) et coller le retour dans l'app.</li>
+            <li><strong>En résumé</strong> : pour un utilisateur lambda qui se connecte à prospup.work à distance, tout fonctionne comme en local, à condition que sur le PC qui héberge Prosp'Up, Ollama soit lancé si vous voulez utiliser les fonctions IA.</li>
           </ul>
         </div>
 
@@ -198,7 +198,7 @@
             <li>Une modale s'ouvre avec le <strong>résultat pré-rempli</strong>. Le système analyse le texte, détecte les champs (fonction, téléphone, email, LinkedIn, tags, notes…) et affiche une prévisualisation.</li>
           </ol>
           <div class="help-callout help-callout-warn">
-            <strong>Prérequis</strong> — <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> doit être installé et lancé sur le même PC que ProspUp. Modèle par défaut : <code>llama3.2</code> (variables <code>OLLAMA_MODEL</code>, <code>OLLAMA_URL</code>). Si Ollama est indisponible, la modale s’ouvre vide : vous pouvez coller le retour d’une autre IA (ChatGPT, Claude).
+            <strong>Prérequis</strong> — <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> doit être installé et lancé sur le même PC que Prosp'Up. Modèle par défaut : <code>llama3.2</code> (variables <code>OLLAMA_MODEL</code>, <code>OLLAMA_URL</code>). Si Ollama est indisponible, la modale s’ouvre vide : vous pouvez coller le retour d’une autre IA (ChatGPT, Claude).
           </div>
           <p>Vous pouvez <strong>accepter ou ignorer chaque champ</strong> individuellement avant d'appliquer. L'enrichissement est tracé dans la timeline.</p>
           <ul>
@@ -225,13 +225,13 @@
             <li><strong>Type + Contexte</strong> : choisissez ce que vous voulez ajouter (Prospect, Entreprise ou Candidat). Renseignez le champ <strong>Contexte</strong> (recommandé) : un lien LinkedIn, un nom et une entreprise, ou un court texte. Sans contexte, l’IA génèrera un exemple que vous pourrez modifier à l’étape suivante.</li>
             <li><strong>Générer ou coller</strong> :
               <ul>
-                <li><strong>Générer avec Ollama (un seul / plusieurs)</strong> : envoie un prompt à Ollama sur le PC qui héberge ProspUp. Le résultat s’affiche dans la zone de texte. Vous pouvez modifier le JSON (nom, LinkedIn, téléphone, etc.) avant de cliquer <strong>Analyser</strong>.</li>
+                <li><strong>Générer avec Ollama (un seul / plusieurs)</strong> : envoie un prompt à Ollama sur le PC qui héberge Prosp'Up. Le résultat s’affiche dans la zone de texte. Vous pouvez modifier le JSON (nom, LinkedIn, téléphone, etc.) avant de cliquer <strong>Analyser</strong>.</li>
                 <li><strong>Copier (un seul / plusieurs)</strong> : copie le prompt dans le presse-papier. Collez-le dans Ollama (ou une autre IA) sur votre machine, ajoutez votre lien ou contexte si besoin, puis collez le retour de l’IA dans la zone ci-dessous et cliquez <strong>Analyser</strong>.</li>
               </ul>
             </li>
             <li><strong>Aperçu et création</strong> : après analyse, les fiches détectées s’affichent. Décochez celles à ne pas créer, puis cliquez <strong>Créer</strong>.</li>
           </ol>
-          <p><strong>À distance (prospup.work)</strong> : si vous êtes connecté via prospup.work depuis un autre PC, « Générer avec Ollama » utilise Ollama installé sur le PC qui héberge ProspUp. Si Ollama n’y est pas lancé, utilisez « Copier » et une IA locale ou en ligne, puis collez le retour dans l’app.</p>
+          <p><strong>À distance (prospup.work)</strong> : si vous êtes connecté via prospup.work depuis un autre PC, « Générer avec Ollama » utilise Ollama installé sur le PC qui héberge Prosp'Up. Si Ollama n’y est pas lancé, utilisez « Copier » et une IA locale ou en ligne, puis collez le retour dans l’app.</p>
           <div class="help-tutorial">
             <span class="help-tutorial-label">Tutoriel interactif</span>
             <p class="help-tutorial-note">Le lien ci-dessous ouvre la page Prospects et affiche la modale « Ajout IA ». Choisissez un type, remplissez le contexte puis « Générer avec Ollama » ou « Copier ».</p>
