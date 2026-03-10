@@ -287,7 +287,7 @@ Belle journée,"></textarea>
           </div>
         </div>
 
-        <div class="settings-section" id="systemVerifySection">
+        <div class="settings-section admin-only-section" id="systemVerifySection">
           <h3>🔍 Vérification système</h3>
           <div class="about-section">
             <p class="muted" style="margin-bottom:10px;">Vérifie que tous les composants nécessaires au travail à distance avec Cursor fonctionnent correctement (Git, Ollama, Flask, API, scripts).</p>
@@ -422,6 +422,11 @@ Belle journée,"></textarea>
           document.querySelectorAll('.admin-only-section').forEach(function(el) {
             el.style.display = 'none';
           });
+        }
+        // Debug: vérifier si la section vérification système existe
+        const verifySection = document.getElementById('systemVerifySection');
+        if (!verifySection && window.AppAuth && AppAuth.user && AppAuth.user.role === 'admin') {
+          console.warn('Section vérification système non trouvée — le code n\'est peut-être pas à jour sur le serveur');
         }
       }, 300);
     });
