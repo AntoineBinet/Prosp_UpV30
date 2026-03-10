@@ -1055,10 +1055,18 @@ function _renderCompaniesInternal(tbody, q) {
             </td>
             <td class="center company-actions-cell">
                 <div class="company-actions-group">
-                    <button class="btn btn-icon" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');">🏢</button>
-                    <button class="btn btn-icon" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});">👥</button>
-                    <button class="btn btn-icon btn-primary" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});">✏️</button>
-                    <button class="btn btn-icon btn-danger" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}>🗑️</button>
+                    <button class="btn-action btn-action-view" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');">
+                        <span class="btn-action-icon">🏢</span>
+                    </button>
+                    <button class="btn-action btn-action-prospects" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});">
+                        <span class="btn-action-icon">👥</span>
+                    </button>
+                    <button class="btn-action btn-action-edit" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});">
+                        <span class="btn-action-icon">✏️</span>
+                    </button>
+                    <button class="btn-action btn-action-delete" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}>
+                        <span class="btn-action-icon">🗑️</span>
+                    </button>
                 </div>
             </td>
         `;

@@ -138,6 +138,7 @@ header {
     align-items: center;
     justify-content: center;
     transition: transform .2s ease, box-shadow .2s, border-color .2s, scale .2s;
+    order: 1; /* Bouton recherche avant le badge */
 }
 
 .header-search-btn:hover,
@@ -154,7 +155,14 @@ header {
     transform: scale(0.95);
 }
 
-/* Badge utilisateur dans le header — transition pour animation scroll */
+/* Badge utilisateur dans le header — positionné à droite, disparaît au scroll */
+.header-center {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
 .header-center .user-session-badge {
     display: flex;
     align-items: center;
@@ -165,20 +173,37 @@ header {
     transition: opacity .28s ease, transform .28s ease, width .28s ease, min-width .28s ease, padding .28s ease, margin .28s ease;
     min-width: 140px;
     overflow: hidden;
+    order: 2; /* Badge à droite */
 }
 
 /* Au scroll : badge masqué, bouton recherche reste fixé en haut à droite */
 body.header-scrolled .header-center .user-session-badge {
     opacity: 0;
-    transform: translateX(-12px);
+    transform: translateX(12px);
     width: 0 !important;
     min-width: 0 !important;
     padding: 0 !important;
     margin: 0 !important;
     pointer-events: none;
 }
-/* Le bouton recherche reste fixé, pas besoin de translate */
->>>>>>> local
+
+/* Bouton "Mettre à jour et redémarrer" disparaît au scroll */
+body.header-scrolled #btnDeployPull,
+body.header-scrolled #deployUpdateSection {
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    transition: opacity .28s ease, transform .28s ease;
+    max-height: 0;
+    overflow: hidden;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+#btnDeployPull,
+#deployUpdateSection {
+    transition: opacity .28s ease, transform .28s ease, max-height .28s ease, margin .28s ease, padding .28s ease;
+}
 
 
 /* ────────────── Up Technologies branding ────────────── */
@@ -1191,36 +1216,112 @@ table th, table td {
 }
 
 .company-actions-cell {
-    padding: 8px !important;
+    padding: 12px 8px !important;
+    min-width: 180px;
 }
 
 .company-actions-group {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    max-width: 120px;
+    margin: 0 auto;
+}
+
+.btn-action {
+    width: 100%;
+    aspect-ratio: 1;
+    min-width: 50px;
+    min-height: 50px;
     display: flex;
-    gap: 6px;
     align-items: center;
     justify-content: center;
-    flex-wrap: wrap;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    padding: 0;
 }
 
-.btn-icon {
-    padding: 8px 10px !important;
-    min-width: 36px;
-    height: 36px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    transition: all 0.15s ease;
-    font-size: 16px;
+.btn-action::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
 }
 
-.btn-icon:hover {
-    transform: scale(1.05);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+.btn-action:hover::before {
+    opacity: 1;
 }
 
-.btn-icon:active {
+.btn-action-icon {
+    font-size: 20px;
+    line-height: 1;
+    transition: transform 0.2s ease;
+    z-index: 1;
+    position: relative;
+}
+
+.btn-action:hover .btn-action-icon {
+    transform: scale(1.15);
+}
+
+.btn-action:active {
     transform: scale(0.95);
+}
+
+.btn-action-view {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.btn-action-view:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.15) 100%);
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.btn-action-prospects {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.05) 100%);
+    border-color: rgba(168, 85, 247, 0.3);
+}
+
+.btn-action-prospects:hover {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.15) 100%);
+    border-color: rgba(168, 85, 247, 0.5);
+    box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+}
+
+.btn-action-edit {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(249, 115, 22, 0.05) 100%);
+    border-color: rgba(249, 115, 22, 0.3);
+}
+
+.btn-action-edit:hover {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.25) 0%, rgba(249, 115, 22, 0.15) 100%);
+    border-color: rgba(249, 115, 22, 0.5);
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
+}
+
+.btn-action-delete {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-action-delete:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.15) 100%);
+    border-color: rgba(239, 68, 68, 0.5);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.btn-action:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 
