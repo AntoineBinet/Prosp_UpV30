@@ -3993,49 +3993,235 @@ function clearFixedMetier(prospectId) {
 }
 
 
-async function openEmailForProspect(prospectId) {
+// v25.3: Modale pour sélectionner candidats et consultants avant push
+let _pushModalProspectId = null;
+let _pushModalChannel = 'email';
+let _pushModalCandidates = [];
+let _pushModalUsers = [];
+
+function _ensurePushModal() {
+    if (document.getElementById('pushSelectModal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'pushSelectModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:700px;">
+            <button class="modal-close" onclick="closePushSelectModal()">×</button>
+            <h2 style="margin-top:0;">📤 Envoyer un push</h2>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Catégorie push (optionnel)</label>
+                <select id="pushModalCategory" class="input" style="width:100%;">
+                    <option value="">Aucune catégorie</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Candidat 1 (optionnel)</label>
+                <select id="pushModalCandidate1" class="input" style="width:100%;">
+                    <option value="">Aucun candidat</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Candidat 2 (optionnel)</label>
+                <select id="pushModalCandidate2" class="input" style="width:100%;">
+                    <option value="">Aucun candidat</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Consultant 1 (optionnel)</label>
+                <select id="pushModalConsultant1" class="input" style="width:100%;">
+                    <option value="">Aucun consultant</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Consultant 2 (optionnel)</label>
+                <select id="pushModalConsultant2" class="input" style="width:100%;">
+                    <option value="">Aucun consultant</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closePushSelectModal()">Annuler</button>
+                <button class="btn btn-primary" onclick="confirmPushSend()">📤 Envoyer</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function openPushSelectModal(prospectId, channel = 'email') {
+    _ensurePushModal();
+    _pushModalProspectId = prospectId;
+    _pushModalChannel = channel;
     const p = data.prospects.find(x => x.id === prospectId);
-    if (!p || !p.email) {
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'warning');
+        return;
+    }
+    if (channel === 'email' && !p.email) {
         showToast("⚠️ Aucun email renseigné pour ce prospect.", 'warning');
         return;
     }
-    const company = data.companies.find(c => c.id === p.company_id);
-    const companyName = company?.groupe || '';
-
-    // ALWAYS copy the email address to clipboard
-    try { await navigator.clipboard.writeText(p.email); } catch(e) {
-        const ta = document.createElement('textarea');
-        ta.value = p.email;
-        ta.style.position = 'fixed'; ta.style.left = '-9999px';
-        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-        document.body.removeChild(ta);
+    if (channel === 'linkedin' && !p.linkedin) {
+        showToast("⚠️ Aucun LinkedIn renseigné pour ce prospect.", 'warning');
+        return;
     }
 
-    // If no push category selected, auto-propose one
-    let catId = p.push_category_id;
-    if (!catId) {
-        const cats = Array.isArray(pushCategories) ? pushCategories : [];
-        if (cats.length > 0) {
-            const options = cats.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
-            const choice = prompt(`Aucune catégorie push sélectionnée.\nChoisissez un numéro :\n\n${options}\n\n(Laissez vide pour envoyer sans template)`);
-            if (choice !== null) {
-                const idx = parseInt(choice, 10) - 1;
-                if (idx >= 0 && idx < cats.length) {
-                    catId = cats[idx].id;
-                    p.push_category_id = catId;
-                    try { await saveToServerAsync(); } catch (e) {}
-                    // update dropdown if visible
-                    const sel = document.getElementById('detailCategorySelect');
-                    if (sel) sel.value = String(catId);
+    // Charger les catégories push
+    const catSelect = document.getElementById('pushModalCategory');
+    if (catSelect) {
+        try {
+            const res = await fetch('/api/push-categories');
+            if (res.ok) {
+                const cats = await res.json();
+                catSelect.innerHTML = '<option value="">Aucune catégorie</option>' +
+                    (Array.isArray(cats) ? cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') : '');
+                if (p.push_category_id) {
+                    catSelect.value = String(p.push_category_id);
                 }
             }
+        } catch (e) {
+            console.warn('Error loading push categories', e);
         }
     }
 
-    // Try to open .msg template if push category is set
+    // Charger les candidats
+    _pushModalCandidates = [];
+    const cand1Select = document.getElementById('pushModalCandidate1');
+    const cand2Select = document.getElementById('pushModalCandidate2');
+    if (cand1Select && cand2Select) {
+        try {
+            const qs = p.push_category_id ? `?push_category_id=${encodeURIComponent(p.push_category_id)}` : '';
+            const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
+            if (res.ok) {
+                const j = await res.json();
+                if (j.ok && j.candidates) {
+                    _pushModalCandidates = j.candidates;
+                    const options = '<option value="">Aucun candidat</option>' +
+                        _pushModalCandidates.map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' - ' + escapeHtml(c.role) : ''}</option>`).join('');
+                    cand1Select.innerHTML = options;
+                    cand2Select.innerHTML = options;
+                }
+            }
+        } catch (e) {
+            console.warn('Error loading candidates', e);
+        }
+    }
+
+    // Charger les utilisateurs (consultants)
+    _pushModalUsers = [];
+    const cons1Select = document.getElementById('pushModalConsultant1');
+    const cons2Select = document.getElementById('pushModalConsultant2');
+    if (cons1Select && cons2Select) {
+        try {
+            const res = await fetch('/api/users');
+            if (res.ok) {
+                const users = await res.json();
+                if (Array.isArray(users)) {
+                    _pushModalUsers = users;
+                    const options = '<option value="">Aucun consultant</option>' +
+                        users.map(u => `<option value="${u.id}">${escapeHtml(u.display_name || u.username || 'Utilisateur ' + u.id)}</option>`).join('');
+                    cons1Select.innerHTML = options;
+                    cons2Select.innerHTML = options;
+                }
+            }
+        } catch (e) {
+            console.warn('Error loading users', e);
+        }
+    }
+
+    document.getElementById('pushSelectModal').classList.add('active');
+}
+
+function closePushSelectModal() {
+    const modal = document.getElementById('pushSelectModal');
+    if (modal) modal.classList.remove('active');
+    _pushModalProspectId = null;
+    _pushModalChannel = 'email';
+}
+
+async function confirmPushSend() {
+    if (!_pushModalProspectId) return;
+    const p = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'error');
+        return;
+    }
+    const channel = _pushModalChannel || 'email';
+    if (channel === 'email' && !p.email) {
+        showToast("⚠️ Aucun email renseigné.", 'error');
+        return;
+    }
+    if (channel === 'linkedin' && !p.linkedin) {
+        showToast("⚠️ Aucun LinkedIn renseigné.", 'error');
+        return;
+    }
+
+    const catId = document.getElementById('pushModalCategory')?.value || null;
+    const candidateId1 = document.getElementById('pushModalCandidate1')?.value || null;
+    const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
+    const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
+    const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+
+    const company = data.companies.find(c => c.id === p.company_id);
+    const companyName = company?.groupe || '';
+
+    let text = '';
     let templateOpened = false;
     let templateName = '';
-    if (catId) {
+
+    if (channel === 'email') {
+        // ALWAYS copy the email address to clipboard
+        try { await navigator.clipboard.writeText(p.email); } catch(e) {
+            const ta = document.createElement('textarea');
+            ta.value = p.email;
+            ta.style.position = 'fixed'; ta.style.left = '-9999px';
+            document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+    } else if (channel === 'linkedin') {
+        // Template choisi -> sinon défaut
+        let templateId = p.template_id;
+        const tpl = (templateId ? getTemplateById(templateId) : null) || getDefaultTemplate();
+        const vars = buildTemplateVars(p, company);
+
+        // Check for custom InMail template in settings
+        try {
+            const settingsRes = await fetch('/api/settings');
+            const settings = await settingsRes.json();
+            if (settings && settings.linkedin_inmail_template && settings.linkedin_inmail_template.trim()) {
+                text = renderTemplateString(settings.linkedin_inmail_template, vars).trim();
+            }
+        } catch(e) {}
+
+        if (!text) {
+            text = `Bonjour ${vars.civilite ? (vars.civilite + ' ') : ''}${vars.nom || vars.nom_complet || ''},\n\nJe me permets de vous contacter concernant ${vars.entreprise || 'votre entreprise'}.\n\nBelle journée,`;
+            if (tpl) {
+                const b = renderTemplateString((tpl.linkedin_body || tpl.linkedinBody || tpl.body || ''), vars).trim();
+                if (b) text = b;
+            }
+        }
+
+        // Copy to clipboard
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (e) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus(); ta.select();
+            try { document.execCommand('copy'); } catch (e2) {}
+            document.body.removeChild(ta);
+        }
+
+        // Open LinkedIn profile in new tab
+        if (p.linkedin) {
+            window.open(p.linkedin, '_blank');
+        }
+    }
+
+    // Try to open .msg template if push category is set (email only)
+    if (channel === 'email' && catId) {
         try {
             const res = await fetch(`/api/push-categories/${catId}/files`);
             if (res.ok) {
@@ -4068,36 +4254,61 @@ async function openEmailForProspect(prospectId) {
 
     // Mark push as sent
     const sentAt = todayISO();
-    p.pushEmailSentAt = sentAt;
-    try {
-        const el = document.getElementById('detailPushSent');
-        if (el) el.textContent = '✅ ' + sentAt;
-    } catch (e) {}
+    if (channel === 'email') {
+        p.pushEmailSentAt = sentAt;
+        try {
+            const el = document.getElementById('detailPushSent');
+            if (el) el.textContent = '✅ ' + sentAt;
+        } catch (e) {}
+    } else if (channel === 'linkedin') {
+        p.pushLinkedInSentAt = sentAt;
+        try {
+            const el = document.getElementById('detailPushLinkedInSent');
+            if (el) el.textContent = '✅ ' + sentAt;
+        } catch (e) {}
+    }
 
     try { await saveToServerAsync(); } catch (e) {}
 
-    // Log push
+    // Log push avec candidats et consultants
     try {
         await fetch('/api/push-logs/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                prospect_id: p.id, sentAt, channel: 'email',
-                to_email: p.email,
-                subject: templateOpened ? `Push ${companyName}` : 'Push manuel',
-                body: templateOpened ? `Template: ${templateName}` : '',
+                prospect_id: p.id, sentAt, channel: channel,
+                to_email: channel === 'email' ? p.email : null,
+                subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : 'Push manuel') : null,
+                body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : '') : text,
                 template_id: null,
-                template_name: templateName || null
+                template_name: templateName || null,
+                candidate_id1: candidateId1 ? parseInt(candidateId1, 10) : null,
+                candidate_id2: candidateId2 ? parseInt(candidateId2, 10) : null,
+                consultant1_id: consultantId1 ? parseInt(consultantId1, 10) : null,
+                consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null
             })
         });
-    } catch (e) {}
+    } catch (e) {
+        console.warn('Error logging push', e);
+    }
+
+    closePushSelectModal();
 
     // Feedback
-    if (templateOpened) {
-        showToast(`✅ Email ${p.email} copié ! Template Outlook ouvert. Collez l'email dans "À:".`, 'success', 6000);
-    } else {
-        showToast(`📋 Email ${p.email} copié dans le presse-papier.`, 'info', 4000);
+    if (channel === 'email') {
+        if (templateOpened) {
+            showToast(`✅ Email ${p.email} copié ! Template Outlook ouvert. Collez l'email dans "À:".`, 'success', 6000);
+        } else {
+            showToast(`📋 Email ${p.email} copié dans le presse-papier.`, 'info', 4000);
+        }
+    } else if (channel === 'linkedin') {
+        showToast(`📋 Message LinkedIn copié ! Profil ouvert dans un nouvel onglet.`, 'success', 4000);
     }
+}
+
+async function openEmailForProspect(prospectId) {
+    // v25.3: Ouvrir la modale de sélection candidats/consultants
+    await openPushSelectModal(prospectId);
 }
 
 
@@ -5447,10 +5658,15 @@ function copyEmailToClipboard(email) {
 
 
 async function copyLinkedInForProspect(prospectId) {
+    // v25.3: Ouvrir la modale de sélection candidats/consultants pour LinkedIn aussi
+    await openPushSelectModal(prospectId, 'linkedin');
+    return;
+    
+    // Code legacy (ne devrait plus être atteint)
     const p = data.prospects.find(x => x.id === prospectId);
     if (!p || !p.linkedin) {
-alert("⚠️ Aucun LinkedIn renseigné.");
-return;
+        alert("⚠️ Aucun LinkedIn renseigné.");
+        return;
     }
     const company = data.companies.find(c => c.id === p.company_id);
 

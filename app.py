@@ -26,7 +26,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "25.2"
+APP_VERSION = "25.3"
 import os
 import subprocess
 import traceback
@@ -1203,6 +1203,15 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
             _add_col("push_logs", "template_id", "INTEGER")
         if "template_name" not in lcols:
             _add_col("push_logs", "template_name", "TEXT")
+        # v25.3: Traçabilité candidats et consultants dans push_logs
+        if "candidate_id1" not in lcols:
+            _add_col("push_logs", "candidate_id1", "INTEGER")
+        if "candidate_id2" not in lcols:
+            _add_col("push_logs", "candidate_id2", "INTEGER")
+        if "consultant1_id" not in lcols:
+            _add_col("push_logs", "consultant1_id", "INTEGER")
+        if "consultant2_id" not in lcols:
+            _add_col("push_logs", "consultant2_id", "INTEGER")
 
         cand_cols = [r["name"] for r in conn.execute("PRAGMA table_info(candidates);").fetchall()]
         # Links & matching (v5.1+)
@@ -4412,53 +4421,72 @@ def api_stats_export_weekly_xlsx():
         ).fetchall()
         ec2_list = [dict(r) for r in ec2_rows]
 
-        # ── 3) Prospections (RDV pris) : prospect_events rdv_taken OU prospects avec statut='Rendez-vous' et rdvDate dans la semaine ──
+        # ── 3) Prospections (RDV pris) : prospects avec statut changé vers 'Rendez-vous' dans la semaine ──
+        # Détecte via prospect_events rdv_taken OU via changement de statut (lastContact dans la semaine + statut='Rendez-vous')
         prosp_rdv_rows = conn.execute(
             """SELECT DISTINCT p.id, p.name AS prospect_name, COALESCE(c.groupe, '') AS company_name,
-                      COALESCE(e.date, substr(p.rdvDate, 1, 10)) AS rdv_date
+                      COALESCE(e.date, substr(p.lastContact, 1, 10)) AS rdv_date
                FROM prospects p
                LEFT JOIN companies c ON c.id = p.company_id
                LEFT JOIN prospect_events e ON e.prospect_id = p.id AND e.type = 'rdv_taken' AND e.date >= ? AND e.date <= ?
-               WHERE p.owner_id = ? AND (
+               WHERE p.owner_id = ? AND p.statut = 'Rendez-vous' AND (
                    (e.date IS NOT NULL) OR
-                   (p.statut = 'Rendez-vous' AND p.rdvDate IS NOT NULL AND substr(p.rdvDate, 1, 10) >= ? AND substr(p.rdvDate, 1, 10) <= ?)
+                   (p.lastContact >= ? AND p.lastContact <= ?)
                )
-               ORDER BY COALESCE(e.date, p.rdvDate);""",
+               ORDER BY COALESCE(e.date, p.lastContact);""",
             (start, end, uid, start, end),
         ).fetchall()
         prosp_rdv_list = [dict(r) for r in prosp_rdv_rows]
 
-        # ── 4) Clients vus (RDV effectué) : prospects avec statut='Rendez-vous' et lastContact dans la semaine ──
+        # ── 4) Clients vus (RDV effectué) : prospects avec réunion dans la semaine ──
+        # Détecte via prospect_events type 'meeting' ou 'reunion', ou via lastContact avec statut='Rendez-vous'
         clients_vus_rows = conn.execute(
             """SELECT DISTINCT p.id, p.name AS prospect_name, COALESCE(c.groupe, '') AS company_name,
-                      p.notes, p.callNotes, p.lastContact
+                      p.notes, p.callNotes, p.lastContact,
+                      COALESCE(e.date, substr(p.lastContact, 1, 10)) AS meeting_date
                FROM prospects p
                LEFT JOIN companies c ON c.id = p.company_id
-               WHERE p.owner_id = ? AND p.statut = 'Rendez-vous'
-               AND p.lastContact >= ? AND p.lastContact <= ?
-               ORDER BY p.lastContact;""",
-            (uid, start, end),
+               LEFT JOIN prospect_events e ON e.prospect_id = p.id 
+                   AND e.type IN ('meeting', 'reunion', 'rdv_done') 
+                   AND e.date >= ? AND e.date <= ?
+               WHERE p.owner_id = ? AND p.statut = 'Rendez-vous' AND (
+                   (e.date IS NOT NULL) OR
+                   (p.lastContact >= ? AND p.lastContact <= ?)
+               )
+               ORDER BY COALESCE(e.date, p.lastContact);""",
+            (start, end, uid, start, end),
         ).fetchall()
         clients_vus_list = [dict(r) for r in clients_vus_rows]
 
-        # ── 5) Pushs (groupés par consultant) ──
+        # ── 5) Pushs (groupés par candidat) : candidats envoyés et nombre de fois ──
         push_rows = conn.execute(
-            """SELECT l.sentAt, p.owner_id,
-                      COALESCE(u.display_name, u.username, 'Consultant ' || p.owner_id) AS consultant_name
+            """SELECT l.candidate_id1, l.candidate_id2, ca1.name AS candidate1_name, ca2.name AS candidate2_name,
+                      l.sentAt
                FROM push_logs l
                JOIN prospects p ON p.id = l.prospect_id AND p.owner_id = ?
-               LEFT JOIN users u ON u.id = p.owner_id
+               LEFT JOIN candidates ca1 ON ca1.id = l.candidate_id1 AND ca1.owner_id = ?
+               LEFT JOIN candidates ca2 ON ca2.id = l.candidate_id2 AND ca2.owner_id = ?
                WHERE substr(l.sentAt, 1, 10) >= ? AND substr(l.sentAt, 1, 10) <= ?
                ORDER BY l.sentAt;""",
-            (uid, start, end),
+            (uid, uid, uid, start, end),
         ).fetchall()
         push_list = [dict(r) for r in push_rows]
-        # Grouper par consultant
-        push_by_consultant = {}
+        # Grouper par candidat (compter les pushs pour chaque candidat)
+        push_by_candidate = {}
         for pl in push_list:
-            consultant = pl.get("consultant_name") or f"Consultant {pl.get('owner_id')}"
-            push_by_consultant[consultant] = push_by_consultant.get(consultant, 0) + 1
-        push_consultants = [{"name": k, "count": v} for k, v in push_by_consultant.items()]
+            # Candidat 1
+            if pl.get("candidate_id1"):
+                cid = pl["candidate_id1"]
+                cname = pl.get("candidate1_name") or f"Candidat {cid}"
+                push_by_candidate[cid] = push_by_candidate.get(cid, {"name": cname, "count": 0})
+                push_by_candidate[cid]["count"] += 1
+            # Candidat 2
+            if pl.get("candidate_id2"):
+                cid = pl["candidate_id2"]
+                cname = pl.get("candidate2_name") or f"Candidat {cid}"
+                push_by_candidate[cid] = push_by_candidate.get(cid, {"name": cname, "count": 0})
+                push_by_candidate[cid]["count"] += 1
+        push_consultants = [{"name": v["name"], "count": v["count"]} for v in push_by_candidate.values()]
 
         # ── 6) Objectifs (Gamification) ──
         goals_cfg = _get_goals_config(conn)
@@ -4668,13 +4696,15 @@ def api_stats_export_weekly_xlsx():
         ws.cell(row=current_row, column=7).border = thick_border
         current_row += 1
 
-    # ── Lignes pushs (par consultant) ──
-    for push_consultant in push_consultants:
+    # ── Lignes pushs (par candidat) ──
+    for push_candidate in push_consultants:
         ws.cell(row=current_row, column=1, value=week_label)  # A: Semaine
-        # M: Pushs consultant (nom consultant)
-        ws.cell(row=current_row, column=13, value=push_consultant.get("name", ""))
+        # M: Pushs consultant (nom candidat + nombre de fois)
+        candidate_name = push_candidate.get("name", "")
+        candidate_count = push_candidate.get("count", 0)
+        ws.cell(row=current_row, column=13, value=f"{candidate_name} ({candidate_count}x)")
         # N: Nb pushs (nombre)
-        ws.cell(row=current_row, column=14, value=push_consultant.get("count", 0))
+        ws.cell(row=current_row, column=14, value=candidate_count)
         # Bordures
         for col in range(1, 18):
             ws.cell(row=current_row, column=col).border = thin_border
@@ -5552,6 +5582,28 @@ def api_push_logs_add():
     except Exception:
         template_id = None
 
+    # v25.3: Candidats et consultants pour traçabilité
+    candidate_id1 = payload.get("candidate_id1")
+    candidate_id2 = payload.get("candidate_id2")
+    consultant1_id = payload.get("consultant1_id")
+    consultant2_id = payload.get("consultant2_id")
+    try:
+        candidate_id1 = int(candidate_id1) if candidate_id1 not in (None, "", "null") else None
+    except Exception:
+        candidate_id1 = None
+    try:
+        candidate_id2 = int(candidate_id2) if candidate_id2 not in (None, "", "null") else None
+    except Exception:
+        candidate_id2 = None
+    try:
+        consultant1_id = int(consultant1_id) if consultant1_id not in (None, "", "null") else None
+    except Exception:
+        consultant1_id = None
+    try:
+        consultant2_id = int(consultant2_id) if consultant2_id not in (None, "", "null") else None
+    except Exception:
+        consultant2_id = None
+
     now = datetime.datetime.now().isoformat(timespec="seconds")
 
     with _conn() as conn:
@@ -5563,10 +5615,10 @@ def api_push_logs_add():
         cur = conn.cursor()
         cur.execute(
             '''
-            INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, subject, body, template_id, template_name, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, createdAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             ''',
-            (int(prospect_id), sent_at, channel, to_email, subject, body, template_id, template_name, now),
+            (int(prospect_id), sent_at, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, now),
         )
 
         # Update denormalized fields on prospect for quick UI
