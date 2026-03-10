@@ -553,3 +553,119 @@ async function checkDeployment() {
 
 window.showSystemLogs = showSystemLogs;
 window.checkDeployment = checkDeployment;
+
+// ════════════════════════════════════════════════════════════════
+// Déclencher le pull et redémarrage
+// ════════════════════════════════════════════════════════════════
+async function triggerDeployPull() {
+    const btn = document.getElementById('btnDeployPull');
+    const statusEl = document.getElementById('deployPullStatus');
+    const resultsEl = document.getElementById('deployPullResults');
+    if (!btn || !resultsEl) return;
+    
+    // Confirmation avant de lancer
+    if (!confirm('⚠️ Êtes-vous sûr de vouloir mettre à jour le serveur ?\n\nCette action va :\n1. Récupérer les dernières modifications depuis Git (origin/main)\n2. Redémarrer automatiquement le serveur\n\nLe site sera temporairement indisponible pendant quelques secondes.')) {
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = '⏳ Mise à jour en cours...';
+    statusEl.textContent = '';
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--color-text-secondary);">⏳ Récupération des modifications depuis Git...</div>';
+    
+    let data = null;
+    try {
+        const res = await fetch('/api/deploy/pull', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        data = await res.json();
+        
+        if (!res.ok) {
+            let errorMsg = data.error || 'Erreur inconnue';
+            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;padding:12px;border-radius:8px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);">❌ Erreur: ${escapeHtml(errorMsg)}</div>`;
+            btn.disabled = false;
+            btn.textContent = '🔄 Mettre à jour et redémarrer';
+            statusEl.textContent = '❌ Échec';
+            if (typeof showToast === 'function') {
+                showToast('❌ Erreur lors de la mise à jour', 'error');
+            }
+            return;
+        }
+        
+        // Afficher les résultats
+        let html = '<div style="display:grid;gap:12px;">';
+        html += '<h4 style="margin:0 0 12px 0;font-size:15px;font-weight:600;">🔄 Résultat de la mise à jour</h4>';
+        
+        if (data.updated) {
+            html += '<div style="padding:12px;border-radius:8px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);">';
+            html += '<div style="font-weight:600;color:#22c55e;margin-bottom:8px;">✅ Mise à jour appliquée avec succès</div>';
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);">';
+            if (data.local_hash && data.remote_hash) {
+                html += `Hash local: <code style="font-family:monospace;background:var(--color-surface);padding:2px 6px;border-radius:4px;">${escapeHtml(data.local_hash)}</code><br>`;
+                html += `Hash distant: <code style="font-family:monospace;background:var(--color-surface);padding:2px 6px;border-radius:4px;">${escapeHtml(data.remote_hash)}</code><br>`;
+            }
+            html += '</div>';
+            if (data.restarting) {
+                html += '<div style="margin-top:8px;padding:8px;background:rgba(59,130,246,.1);border-radius:6px;font-size:12px;color:#3b82f6;">🔄 Redémarrage du serveur en cours... Le site sera disponible dans quelques secondes.</div>';
+            }
+            html += '</div>';
+            
+            statusEl.textContent = '✅ Mise à jour réussie';
+            statusEl.style.color = '#22c55e';
+            
+            if (typeof showToast === 'function') {
+                showToast('✅ Mise à jour appliquée, redémarrage en cours', 'success');
+            }
+            
+            // Si redémarrage en cours, afficher un message et recharger après quelques secondes
+            if (data.restarting) {
+                setTimeout(() => {
+                    resultsEl.innerHTML += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);font-size:12px;color:#3b82f6;">💡 Rechargement de la page dans 5 secondes...</div>';
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
+                }, 2000);
+            }
+        } else {
+            html += '<div style="padding:12px;border-radius:8px;background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.3);">';
+            html += '<div style="font-weight:600;color:#64748b;margin-bottom:8px;">ℹ️ Déjà à jour</div>';
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);">';
+            if (data.local_hash && data.remote_hash) {
+                html += `Hash local: <code style="font-family:monospace;background:var(--color-surface);padding:2px 6px;border-radius:4px;">${escapeHtml(data.local_hash)}</code><br>`;
+                html += `Hash distant: <code style="font-family:monospace;background:var(--color-surface);padding:2px 6px;border-radius:4px;">${escapeHtml(data.remote_hash)}</code><br>`;
+            }
+            html += 'Aucune nouvelle modification disponible.</div>';
+            html += '</div>';
+            
+            statusEl.textContent = 'ℹ️ Déjà à jour';
+            statusEl.style.color = '#64748b';
+            
+            if (typeof showToast === 'function') {
+                showToast('ℹ️ Le serveur est déjà à jour', 'info');
+            }
+        }
+        
+        html += '</div>';
+        resultsEl.innerHTML = html;
+        
+    } catch (e) {
+        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;padding:12px;border-radius:8px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);">❌ Erreur réseau: ${escapeHtml(e.message)}</div>`;
+        btn.disabled = false;
+        btn.textContent = '🔄 Mettre à jour et redémarrer';
+        statusEl.textContent = '❌ Erreur réseau';
+        statusEl.style.color = '#ef4444';
+        if (typeof showToast === 'function') {
+            showToast('Erreur réseau lors de la mise à jour', 'error');
+        }
+    } finally {
+        // Ne pas réactiver le bouton si redémarrage en cours
+        if (!data || !data.restarting) {
+            btn.disabled = false;
+            btn.textContent = '🔄 Mettre à jour et redémarrer';
+        }
+    }
+}
+
+window.triggerDeployPull = triggerDeployPull;

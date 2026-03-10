@@ -2,15 +2,13 @@
 """
 Superviseur ProspUp:
 - lance le serveur Flask/Waitress,
-- surveille les nouvelles versions Git,
-- applique un pull fast-forward sur la branche de déploiement,
-- redémarre automatiquement le serveur si une mise à jour est détectée.
+- surveille le processus et le relance automatiquement en cas de crash,
+- redémarre le serveur si l'application demande un redémarrage (code 42).
+
+Note: Le pull automatique a été désactivé. Utilisez le bouton "Mettre à jour et redémarrer"
+dans les paramètres de l'application (section admin) pour déclencher manuellement un pull.
 
 Variables d'environnement (optionnel):
-  PROSPUP_DEPLOY_BRANCH          Branche à suivre (défaut: main)
-  PROSPUP_DEPLOY_REMOTE          Remote Git (défaut: origin)
-  PROSPUP_AUTO_DEPLOY_INTERVAL   Intervalle de vérification (sec, défaut: 90)
-  PROSPUP_AUTO_DEPLOY            1/true/on pour activer (défaut: 1)
   PROSPUP_APP_CMD                Commande serveur (défaut: python app.py --production)
 """
 from __future__ import annotations
@@ -149,29 +147,12 @@ def _as_bool(raw: str | None, default: bool = True) -> bool:
 
 
 def main() -> int:
-    branch = (os.environ.get("PROSPUP_DEPLOY_BRANCH") or "main").strip() or "main"
-    remote = (os.environ.get("PROSPUP_DEPLOY_REMOTE") or "origin").strip() or "origin"
     app_cmd = (os.environ.get("PROSPUP_APP_CMD") or "python app.py --production").strip()
-    interval_s = max(15, int(os.environ.get("PROSPUP_AUTO_DEPLOY_INTERVAL", "90")))
-    auto_enabled = _as_bool(os.environ.get("PROSPUP_AUTO_DEPLOY"), default=True)
-
-    if not _is_git_repo():
-        _log("[AUTO-DEPLOY] Dépôt git introuvable, supervision sans pull auto.")
-        auto_enabled = False
-
-    if auto_enabled:
-        auto_enabled = _ensure_deploy_branch(branch)
-    if auto_enabled:
-        _log(f"[AUTO-DEPLOY] Activé: remote={remote} branche={branch} intervalle={interval_s}s")
-    else:
-        _log("[AUTO-DEPLOY] Désactivé.")
-
-    # Sync au démarrage pour lancer directement la dernière version disponible.
-    if auto_enabled:
-        _auto_pull(remote, branch)
+    
+    _log("[SUPERVISEUR] Démarrage du superviseur (pull automatique désactivé)")
+    _log("[SUPERVISEUR] Pour mettre à jour, utilisez le bouton dans les paramètres de l'application")
 
     server = _start_server(app_cmd)
-    next_check = time.time() + interval_s
 
     try:
         while True:
@@ -182,20 +163,8 @@ def main() -> int:
                 else:
                     _log(f"[SERVER] Processus arrêté (code={code}). Relance automatique dans 2s.")
                     time.sleep(2)
-                if auto_enabled:
-                    _auto_pull(remote, branch)
                 server = _start_server(app_cmd)
-                next_check = time.time() + interval_s
                 continue
-
-            now = time.time()
-            if auto_enabled and now >= next_check:
-                updated = _auto_pull(remote, branch)
-                next_check = now + interval_s
-                if updated:
-                    _stop_server(server)
-                    server = _start_server(app_cmd)
-                    next_check = time.time() + interval_s
 
             time.sleep(2)
     except KeyboardInterrupt:

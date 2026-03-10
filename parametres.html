@@ -300,6 +300,18 @@ Belle journée,"></textarea>
           </div>
         </div>
 
+        <div class="settings-section admin-only-section" id="deployUpdateSection">
+          <h3>🔄 Mise à jour du serveur</h3>
+          <div class="about-section">
+            <p class="muted" style="margin-bottom:10px;">Récupère les dernières modifications depuis Git (origin/main) et redémarre automatiquement le serveur. Cette action est irréversible.</p>
+            <div class="settings-group" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <button class="btn btn-primary" id="btnDeployPull" onclick="triggerDeployPull()">🔄 Mettre à jour et redémarrer</button>
+              <span id="deployPullStatus" style="font-size:13px;color:var(--color-text-secondary);"></span>
+            </div>
+            <div id="deployPullResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);"></div>
+          </div>
+        </div>
+
         <div class="settings-section">
           <h3>ℹ️ À propos</h3>
           <div class="about-section">
