@@ -69,6 +69,8 @@ function renderMonth() {
         const dayEvents = _calEvents.filter(e => e.date === iso);
         const rdvEvents = dayEvents.filter(e => e.type === 'rdv');
         const relanceEvents = dayEvents.filter(e => e.type === 'relance');
+        const ec1Events = dayEvents.filter(e => e.type === 'ec1');
+        const ec2Events = dayEvents.filter(e => e.type === 'ec2');
         const overdueRelances = relanceEvents.filter(e => isPast);
 
         let cellClass = 'cal-cell';
@@ -79,12 +81,28 @@ function renderMonth() {
         html += `<div class="cal-day-num${isToday ? ' today' : ''}">${day}</div>`;
 
         // Show up to 3 events, then "+N more" (cliquable pour ouvrir détail jour)
-        const allEvents = [...rdvEvents, ...relanceEvents].slice(0, 3);
+        const allEvents = [...rdvEvents, ...relanceEvents, ...ec1Events, ...ec2Events].slice(0, 3);
         allEvents.forEach(ev => {
             const isOverdue = ev.type === 'relance' && isPast;
             const isExternal = ev.type === 'external';
-            let cls = ev.type === 'rdv' ? 'cal-ev-rdv' : (isExternal ? 'cal-ev-external' : (isOverdue ? 'cal-ev-overdue' : 'cal-ev-relance'));
-            const icon = ev.type === 'rdv' ? '🤝' : (isExternal ? '📅' : (isOverdue ? '⚠️' : '🔄'));
+            let cls = 'cal-ev-rdv';
+            let icon = '🤝';
+            if (ev.type === 'ec1') {
+                cls = 'cal-ev-ec1';
+                icon = '📞';
+            } else if (ev.type === 'ec2') {
+                cls = 'cal-ev-ec2';
+                icon = '📞📞';
+            } else if (isExternal) {
+                cls = 'cal-ev-external';
+                icon = '📅';
+            } else if (isOverdue) {
+                cls = 'cal-ev-overdue';
+                icon = '⚠️';
+            } else if (ev.type === 'relance') {
+                cls = 'cal-ev-relance';
+                icon = '🔄';
+            }
             const time = ev.time ? `<span class="cal-ev-time">${ev.time}</span>` : '';
             const href = ev.url ? ev.url : `/?open=${ev.id}`;
             html += `<a href="${escapeHtml(href)}" class="cal-event ${cls}" title="${ev.name} — ${ev.company}">${icon} ${time}${escapeHtml(ev.name.split(' ')[0])}</a>`;
@@ -125,11 +143,25 @@ function _openCalDayDetail(iso) {
         listEl.innerHTML = events.map(ev => {
             const isPast = iso < _isoDate(new Date());
             const isOverdue = ev.type === 'relance' && isPast;
-            const typeLabel = ev.type === 'rdv' ? 'RDV' : (isOverdue ? 'Relance (en retard)' : 'Relance');
+            let typeLabel = 'RDV';
+            let icon = '🤝';
+            if (ev.type === 'ec1') {
+                typeLabel = 'EC1';
+                icon = '📞';
+            } else if (ev.type === 'ec2') {
+                typeLabel = 'EC2';
+                icon = '📞📞';
+            } else if (isOverdue) {
+                typeLabel = 'Relance (en retard)';
+                icon = '⚠️';
+            } else if (ev.type === 'relance') {
+                typeLabel = 'Relance';
+                icon = '🔄';
+            }
             const href = ev.url || (ev.id ? `/?open=${ev.id}` : '#');
             const time = ev.time ? ev.time + ' — ' : '';
             return `<div class="cal-day-detail-item">
-                <a href="${escapeHtml(href)}" class="cal-day-detail-link">${ev.type === 'rdv' ? '🤝' : (isOverdue ? '⚠️' : '🔄')} ${time}<strong>${escapeHtml(ev.name)}</strong> — ${escapeHtml(ev.company || '')}</a>
+                <a href="${escapeHtml(href)}" class="cal-day-detail-link">${icon} ${time}<strong>${escapeHtml(ev.name)}</strong> — ${escapeHtml(ev.company || '')}</a>
                 <span class="cal-day-detail-type">${typeLabel}</span>
             </div>`;
         }).join('');
@@ -206,8 +238,21 @@ function renderWeek() {
         } else {
             dayEvents.forEach(ev => {
                 const isOverdue = ev.type === 'relance' && isPast;
-                const cls = ev.type === 'rdv' ? 'cal-ev-rdv' : (isOverdue ? 'cal-ev-overdue' : 'cal-ev-relance');
-                const icon = ev.type === 'rdv' ? '🤝' : (isOverdue ? '⚠️' : '🔄');
+                let cls = 'cal-ev-rdv';
+                let icon = '🤝';
+                if (ev.type === 'ec1') {
+                    cls = 'cal-ev-ec1';
+                    icon = '📞';
+                } else if (ev.type === 'ec2') {
+                    cls = 'cal-ev-ec2';
+                    icon = '📞📞';
+                } else if (isOverdue) {
+                    cls = 'cal-ev-overdue';
+                    icon = '⚠️';
+                } else if (ev.type === 'relance') {
+                    cls = 'cal-ev-relance';
+                    icon = '🔄';
+                }
                 const time = ev.time ? `<span class="cal-ev-time">${ev.time}</span>` : '';
                 const href = ev.url ? ev.url : `/?open=${ev.id}`;
                 html += `<a href="${escapeHtml(href)}" class="cal-event ${cls}" style="display:block;margin-bottom:4px;" title="${ev.name} — ${ev.company}">

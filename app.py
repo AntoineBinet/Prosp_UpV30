@@ -2629,10 +2629,6 @@ def page_snapshots():
     return send_from_directory(APP_DIR, "snapshots.html")
 
 
-@app.get("/kpi")
-def page_kpi():
-    return send_from_directory(APP_DIR, "kpi.html")
-
 @app.get("/help")
 def page_help():
     return send_from_directory(APP_DIR, "help.html")
@@ -4323,16 +4319,18 @@ def api_stats_charts():
 
 @app.get("/api/stats/export_weekly_xlsx")
 def api_stats_export_weekly_xlsx():
-    """Generate an XLSX file following the 'Suivi activité' template for a given ISO week.
+    """Generate an XLSX file following the exact 'Suivi activité' template for a given ISO week.
     Query params:
       - week: ISO week like 2026-W10  (defaults to current week)
-    Sheets:
-      - Liste: one block per week with entretiens, pushs, prospections
-      - KPI:   summary row for the week
+      - ollama: 1 to enable Ollama enrichment (normalize métiers, extract besoins, generate codes notes)
+    Format: 17 columns (A-Q) with merged cells for week, thick border on column G, goals in first row.
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.utils import get_column_letter
     import io
+    import urllib.request
+    import urllib.error
 
     uid = _uid()
     if not uid:
@@ -4340,6 +4338,7 @@ def api_stats_export_weekly_xlsx():
 
     # ── Parse week param ──
     week_param = request.args.get("week", "").strip()
+    use_ollama = request.args.get("ollama", "").strip() == "1"
     today = datetime.date.today()
 
     if week_param:
@@ -4360,26 +4359,29 @@ def api_stats_export_weekly_xlsx():
     week_num = monday.isocalendar()[1]
     week_label = f"S{week_num}"
 
-    with _conn() as conn:
-        # ── 1) Pushs of the week ──
-        push_rows = conn.execute(
-            """SELECT l.sentAt, l.channel, l.subject,
-                      p.name AS prospect_name,
-                      COALESCE(c.groupe, '') AS company_groupe,
-                      COALESCE(c.site, '') AS company_site
-               FROM push_logs l
-               JOIN prospects p ON p.id = l.prospect_id AND p.owner_id = ?
-               LEFT JOIN companies c ON c.id = p.company_id
-               WHERE substr(l.sentAt, 1, 10) >= ? AND substr(l.sentAt, 1, 10) <= ?
-               ORDER BY l.sentAt;""",
-            (uid, start, end),
-        ).fetchall()
-        push_list = [dict(r) for r in push_rows]
+    # ── Helper: Call Ollama if enabled ──
+    def _call_ollama(prompt: str) -> str:
+        if not use_ollama:
+            return ""
+        try:
+            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/generate",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            return data.get("response", "").strip()
+        except Exception:
+            return ""
 
-        # ── 2) EC1 Entretiens candidats of the week (sourcing) ──
+    with _conn() as conn:
+        # ── 1) Candidats EC1 (entretiens de la semaine) ──
         ec1_rows = conn.execute(
-            """SELECT ca.name, ca.role, ca.seniority, ca.status,
-                      e.interviewAt
+            """SELECT ca.id, ca.name, ca.role, ca.sector, ca.seniority, ca.years_experience, ca.status,
+                      e.interviewAt, e.data AS ec1_data
                FROM candidate_ec1_checklists e
                JOIN candidates ca ON ca.id = e.candidate_id AND ca.owner_id = ?
                WHERE substr(e.interviewAt, 1, 10) >= ? AND substr(e.interviewAt, 1, 10) <= ?
@@ -4388,43 +4390,160 @@ def api_stats_export_weekly_xlsx():
         ).fetchall()
         ec1_list = [dict(r) for r in ec1_rows]
 
-        # ── 3) Prospections (RDV pris cette semaine — prospects passés en Rendez-vous) ──
-        #    We look at call notes dated this week where prospect has statut=Rendez-vous
-        prosp_rdv = conn.execute(
-            """SELECT COUNT(*) AS n FROM prospects
-               WHERE owner_id = ? AND statut = 'Rendez-vous'
-               AND lastContact >= ? AND lastContact <= ?;""",
-            (uid, start, end),
-        ).fetchone()["n"]
+        # ── 2) Candidats EC2 (passage à EC2 dans la semaine) ──
+        ec2_rows = conn.execute(
+            """SELECT DISTINCT ca.id, ca.name, ca.role, ca.sector, ca.seniority, ca.years_experience, ca.status, ca.notes,
+                      COALESCE(e.date, substr(ca.updatedAt, 1, 10)) AS ec2_date
+               FROM candidates ca
+               LEFT JOIN candidate_events e ON e.candidate_id = ca.id AND e.type = 'ec2' AND e.date >= ? AND e.date <= ?
+               WHERE ca.owner_id = ? AND ca.status = 'ec2'
+               AND (e.date IS NOT NULL OR (substr(ca.updatedAt, 1, 10) >= ? AND substr(ca.updatedAt, 1, 10) <= ?))
+               ORDER BY COALESCE(e.date, ca.updatedAt);""",
+            (start, end, uid, start, end),
+        ).fetchall()
+        ec2_list = [dict(r) for r in ec2_rows]
 
-        # ── 4) Clients vus (status changed / contact this week) ──
-        clients_vus = conn.execute(
-            """SELECT COUNT(DISTINCT p.company_id) AS n FROM prospects p
+        # ── 3) Prospections (RDV pris) : prospect_events rdv_taken OU prospects avec statut='Rendez-vous' et rdvDate dans la semaine ──
+        prosp_rdv_rows = conn.execute(
+            """SELECT DISTINCT p.id, p.name AS prospect_name, COALESCE(c.groupe, '') AS company_name,
+                      COALESCE(e.date, substr(p.rdvDate, 1, 10)) AS rdv_date
+               FROM prospects p
+               LEFT JOIN companies c ON c.id = p.company_id
+               LEFT JOIN prospect_events e ON e.prospect_id = p.id AND e.type = 'rdv_taken' AND e.date >= ? AND e.date <= ?
+               WHERE p.owner_id = ? AND (
+                   (e.date IS NOT NULL) OR
+                   (p.statut = 'Rendez-vous' AND p.rdvDate IS NOT NULL AND substr(p.rdvDate, 1, 10) >= ? AND substr(p.rdvDate, 1, 10) <= ?)
+               )
+               ORDER BY COALESCE(e.date, p.rdvDate);""",
+            (start, end, uid, start, end),
+        ).fetchall()
+        prosp_rdv_list = [dict(r) for r in prosp_rdv_rows]
+
+        # ── 4) Clients vus (RDV effectué) : prospects avec statut='Rendez-vous' et lastContact dans la semaine ──
+        clients_vus_rows = conn.execute(
+            """SELECT DISTINCT p.id, p.name AS prospect_name, COALESCE(c.groupe, '') AS company_name,
+                      p.notes, p.callNotes, p.lastContact
+               FROM prospects p
+               LEFT JOIN companies c ON c.id = p.company_id
                WHERE p.owner_id = ? AND p.statut = 'Rendez-vous'
-               AND p.lastContact >= ? AND p.lastContact <= ?;""",
+               AND p.lastContact >= ? AND p.lastContact <= ?
+               ORDER BY p.lastContact;""",
             (uid, start, end),
-        ).fetchone()["n"]
+        ).fetchall()
+        clients_vus_list = [dict(r) for r in clients_vus_rows]
+
+        # ── 5) Pushs (groupés par consultant) ──
+        push_rows = conn.execute(
+            """SELECT l.sentAt, p.owner_id,
+                      COALESCE(u.display_name, u.username, 'Consultant ' || p.owner_id) AS consultant_name
+               FROM push_logs l
+               JOIN prospects p ON p.id = l.prospect_id AND p.owner_id = ?
+               LEFT JOIN users u ON u.id = p.owner_id
+               WHERE substr(l.sentAt, 1, 10) >= ? AND substr(l.sentAt, 1, 10) <= ?
+               ORDER BY l.sentAt;""",
+            (uid, start, end),
+        ).fetchall()
+        push_list = [dict(r) for r in push_rows]
+        # Grouper par consultant
+        push_by_consultant = {}
+        for pl in push_list:
+            consultant = pl.get("consultant_name") or f"Consultant {pl.get('owner_id')}"
+            push_by_consultant[consultant] = push_by_consultant.get(consultant, 0) + 1
+        push_consultants = [{"name": k, "count": v} for k, v in push_by_consultant.items()]
+
+        # ── 6) Objectifs (Gamification) ──
+        goals_cfg = _get_goals_config(conn)
+        weekly_goals = goals_cfg.get("weekly", {})
+        attendus_prosp = weekly_goals.get("rdv", {}).get("target", 5)
+        attendus_entretiens = weekly_goals.get("sourcing_solid", {}).get("target", 3)
+        attendus_pushs = weekly_goals.get("push", {}).get("target", 15)
+
+    # ── Enrichissement Ollama (optionnel) ──
+    if use_ollama:
+        # Normaliser les métiers pour EC1/EC2
+        for item in ec1_list + ec2_list:
+            metier = item.get("role") or item.get("sector") or ""
+            if not metier or len(metier) < 3:
+                prompt = f"Normalise ce métier en un nom court et standard (ex: 'Développeur Python', 'Chef de projet IT'): '{metier}'. Réponds uniquement avec le métier normalisé, sans explication."
+                normalized = _call_ollama(prompt)
+                if normalized:
+                    item["_normalized_metier"] = normalized[:50]
+                else:
+                    item["_normalized_metier"] = metier
+            else:
+                item["_normalized_metier"] = metier
+
+        # Extraire les besoins depuis les notes des clients vus
+        for client in clients_vus_list:
+            notes = (client.get("notes") or "") + " " + (client.get("callNotes") or "")
+            if notes.strip():
+                prompt = f"Extrais les besoins exprimés par ce client depuis ces notes (une ligne par besoin, format court):\n{notes[:500]}\n\nRéponds uniquement avec les besoins, un par ligne, sans explication."
+                besoins = _call_ollama(prompt)
+                client["_besoins"] = besoins[:200] if besoins else ""
+            else:
+                client["_besoins"] = ""
+
+        # Générer les codes notes pour EC1
+        for ec1 in ec1_list:
+            ec1_data_str = ec1.get("ec1_data") or "{}"
+            try:
+                ec1_data = json.loads(ec1_data_str) if ec1_data_str else {}
+            except Exception:
+                ec1_data = {}
+            # Construire un prompt basé sur les données EC1
+            prompt_parts = []
+            if ec1.get("role"):
+                prompt_parts.append(f"Métier: {ec1['role']}")
+            if ec1.get("years_experience"):
+                prompt_parts.append(f"Expérience: {ec1['years_experience']} ans")
+            if ec1_data:
+                prompt_parts.append(f"Données EC1: {json.dumps(ec1_data, ensure_ascii=False)[:200]}")
+            if prompt_parts:
+                prompt = f"Génère un code note court (ex: 'B OKS', 'A OKS', 'C OKS') pour ce candidat:\n" + "\n".join(prompt_parts) + "\n\nRéponds uniquement avec le code (ex: 'B OKS'), sans explication."
+                code = _call_ollama(prompt)
+                ec1["_code_note"] = code[:20] if code else ""
+            else:
+                ec1["_code_note"] = ""
 
     # ══════════════════════════════════════════════════════
     # Build the XLSX workbook
     # ══════════════════════════════════════════════════════
     wb = Workbook()
-
-    # ── Sheet "Liste" ──
     ws = wb.active
     ws.title = "Liste"
 
-    header_font = Font(bold=True, size=11)
+    # Styles
     header_fill = PatternFill(start_color="2B3A4E", end_color="2B3A4E", fill_type="solid")
     header_font_white = Font(bold=True, size=11, color="FFFFFF")
     thin_border = Border(
         left=Side(style="thin"), right=Side(style="thin"),
         top=Side(style="thin"), bottom=Side(style="thin"),
     )
+    thick_border = Border(
+        left=Side(style="thick", color="000000"), right=Side(style="thick", color="000000"),
+        top=Side(style="thick", color="000000"), bottom=Side(style="thick", color="000000"),
+    )
 
-    headers = ["Semaine", "Entretiens", "Métier", "Exp", "Dispo", "Notes", "",
-               "Prospections RDV pris", "Clients vus", "Besoins",
-               "Pushs consultant", "Nb pushs", "Attendus Prosp", "Attendus Entretiens"]
+    # ── Headers (17 colonnes A-Q) ──
+    headers = [
+        "Semaine",           # A
+        "Entretiens",        # B
+        "Métier",            # C
+        "Exp",               # D
+        "Dispo",             # E
+        "Notes",             # F
+        "Commenta",          # G (séparateur visuel avec bordure épaisse)
+        "Prospections",      # H
+        "Clients vus",       # I
+        "Besoins",           # J
+        "RT",                # K (vide, réservé)
+        "Suivi Mission",     # L (vide, réservé)
+        "Pushs consultant",  # M
+        "Nb pushs",          # N
+        "Attendus Prosp",    # O
+        "Attendus Entretiens", # P
+        "Attendus Pushs",    # Q
+    ]
     for col_idx, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_idx, value=h)
         cell.font = header_font_white
@@ -4432,88 +4551,139 @@ def api_stats_export_weekly_xlsx():
         cell.border = thin_border
         cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
-    # Column widths
-    col_widths = [8, 12, 40, 6, 8, 20, 2, 22, 12, 10, 35, 10, 14, 16]
-    for i, w in enumerate(col_widths, 1):
-        ws.column_dimensions[chr(64 + i) if i <= 26 else 'N'].width = w
-    from openpyxl.utils import get_column_letter
+    # Largeurs de colonnes
+    col_widths = [10, 20, 30, 6, 10, 15, 15, 25, 20, 30, 8, 15, 25, 10, 15, 18, 15]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
-    # ── Entretiens EC1 rows ──
-    row_num = 2
-    nb_entretiens = len(ec1_list)
+    # ── Calculer le nombre total de lignes ──
+    total_candidates = len(ec1_list) + len(ec2_list)
+    total_prospections = len(prosp_rdv_list)
+    total_clients_vus = len(clients_vus_list)
+    total_pushs = len(push_consultants)
+    # Une ligne par type + une ligne d'objectifs en première ligne de la semaine
+    total_rows = max(1, total_candidates + total_prospections + total_clients_vus + total_pushs) + 1
 
-    # Build push detail string: "Prospect → Entreprise"
-    push_detail_lines = []
-    for pl in push_list:
-        company = pl["company_groupe"]
-        if pl["company_site"]:
-            company = f"{pl['company_groupe']} ({pl['company_site']})" if pl["company_groupe"] else pl["company_site"]
-        push_detail_lines.append(f"{pl['prospect_name']} -> {company}")
-    push_detail_str = "\n".join(push_detail_lines) if push_detail_lines else ""
-
-    # Number of rows = max(entretiens, 1) to always have at least one row
-    data_rows = max(nb_entretiens, 1)
-
-    for i in range(data_rows):
-        r = row_num + i
-        ws.cell(row=r, column=1, value=week_label)
-
-        if i < nb_entretiens:
-            ec = ec1_list[i]
-            ws.cell(row=r, column=2, value=i + 1)  # Entretien number
-            ws.cell(row=r, column=3, value=ec.get("name") or ec.get("role") or "")  # Métier / name
-            seniority = ec.get("seniority") or ""
-            # Try to extract numeric years
-            try:
-                ws.cell(row=r, column=4, value=int(seniority))
-            except (ValueError, TypeError):
-                ws.cell(row=r, column=4, value=seniority)
-            ws.cell(row=r, column=5, value="asap")
-
-        # First row gets the aggregated data
-        if i == 0:
-            ws.cell(row=r, column=8, value=prosp_rdv)  # Prospections RDV pris
-            ws.cell(row=r, column=9, value=clients_vus)  # Clients vus
-            ws.cell(row=r, column=10, value=0)  # Besoins (manual)
-            ws.cell(row=r, column=11, value=push_detail_str)  # Push detail
-            ws.cell(row=r, column=12, value=len(push_list))  # Nb pushs
-
-        # Apply borders
-        for col in range(1, 15):
-            cell = ws.cell(row=r, column=col)
-            cell.border = thin_border
-
-    # Wrap text for push detail column
-    for r in range(2, row_num + data_rows):
-        ws.cell(row=r, column=11).alignment = Alignment(wrap_text=True, vertical="top")
-        ws.cell(row=r, column=3).alignment = Alignment(wrap_text=True, vertical="top")
-
-    # ── Sheet "KPI" (summary) ──
-    ws_kpi = wb.create_sheet("KPI")
-    kpi_headers = ["Semaine", "Nombre de Entretiens", "Attendus Entretiens",
-                   "Nombre de Prospections", "Attendus Prosp",
-                   "Nombre de Clients vus", "Nombre de Besoins",
-                   "Somme de Nb pushs", "Attendus Pushs"]
-    for col_idx, h in enumerate(kpi_headers, 1):
-        cell = ws_kpi.cell(row=1, column=col_idx, value=h)
-        cell.font = header_font_white
-        cell.fill = header_fill
+    # ── Ligne d'objectifs (première ligne de données, row 2) ──
+    row = 2
+    week_start_row = row  # Pour fusionner la colonne A (inclut la ligne d'objectifs)
+    ws.cell(row=row, column=1, value=week_label)  # A: Semaine
+    ws.cell(row=row, column=15, value=attendus_prosp)  # O: Attendus Prosp
+    ws.cell(row=row, column=16, value=attendus_entretiens)  # P: Attendus Entretiens
+    ws.cell(row=row, column=17, value=attendus_pushs)  # Q: Attendus Pushs
+    # Bordures pour la ligne d'objectifs
+    for col in range(1, 18):
+        cell = ws.cell(row=row, column=col)
         cell.border = thin_border
-    ws_kpi.cell(row=2, column=1, value=week_label)
-    ws_kpi.cell(row=2, column=2, value=nb_entretiens)
-    ws_kpi.cell(row=2, column=3, value="")  # Attendus Entretiens (manual)
-    ws_kpi.cell(row=2, column=4, value=prosp_rdv)
-    ws_kpi.cell(row=2, column=5, value="")  # Attendus Prosp (manual)
-    ws_kpi.cell(row=2, column=6, value=clients_vus)
-    ws_kpi.cell(row=2, column=7, value=0)
-    ws_kpi.cell(row=2, column=8, value=len(push_list))
-    ws_kpi.cell(row=2, column=9, value="")  # Attendus Pushs (manual)
+    # Bordure épaisse colonne G
+    ws.cell(row=row, column=7).border = thick_border
 
-    for col_idx in range(1, 10):
-        ws_kpi.cell(row=2, column=col_idx).border = thin_border
-        ws_kpi.column_dimensions[get_column_letter(col_idx)].width = 20
+    # ── Lignes candidats EC1/EC2 ──
+    current_row = row + 1
+
+    for ec in ec1_list + ec2_list:
+        ws.cell(row=current_row, column=1, value=week_label)  # A: Semaine (sera fusionné)
+        ws.cell(row=current_row, column=2, value=ec.get("name") or "")  # B: Entretiens (nom candidat)
+        # C: Métier
+        metier = ec.get("_normalized_metier") if use_ollama else (ec.get("role") or ec.get("sector") or "")
+        ws.cell(row=current_row, column=3, value=metier)
+        # D: Exp (années d'expérience)
+        exp = ec.get("years_experience") or ec.get("seniority") or ""
+        try:
+            if isinstance(exp, str) and exp.strip():
+                # Essayer d'extraire un nombre
+                exp_num = re.search(r'\d+', exp)
+                if exp_num:
+                    exp = int(exp_num.group())
+                else:
+                    exp = ""
+        except Exception:
+            pass
+        ws.cell(row=current_row, column=4, value=exp)
+        # E: Dispo (disponibilité - par défaut "asap" ou depuis les données)
+        dispo = "asap"  # Par défaut, peut être enrichi depuis les données EC1
+        ws.cell(row=current_row, column=5, value=dispo)
+        # F: Notes (codes courts)
+        code_note = ec.get("_code_note") if use_ollama else ""
+        ws.cell(row=current_row, column=6, value=code_note)
+        # G: Commenta (commentaires détaillés) + bordure épaisse
+        # Pour EC1, utiliser les données de la checklist ; pour EC2, utiliser les notes du candidat
+        if "ec1_data" in ec:
+            ec1_data_str = ec.get("ec1_data") or "{}"
+            try:
+                ec1_data = json.loads(ec1_data_str) if ec1_data_str else {}
+                commenta = json.dumps(ec1_data, ensure_ascii=False)[:500] if ec1_data else ""
+            except Exception:
+                commenta = ""
+        else:
+            # EC2 : utiliser les notes du candidat
+            commenta = ec.get("notes", "")[:500] if ec.get("notes") else ""
+        ws.cell(row=current_row, column=7, value=commenta)
+        cell_g = ws.cell(row=current_row, column=7)
+        cell_g.border = thick_border  # Bordure épaisse pour séparateur visuel
+        # Bordures pour les autres colonnes
+        for col in [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]:
+            ws.cell(row=current_row, column=col).border = thin_border
+        current_row += 1
+
+    # ── Lignes prospections (RDV pris) ──
+    for prosp in prosp_rdv_list:
+        ws.cell(row=current_row, column=1, value=week_label)  # A: Semaine
+        # H: Prospections (nom prospect - RDV pris)
+        prosp_text = f"{prosp.get('prospect_name', '')} - {prosp.get('company_name', '')}"
+        ws.cell(row=current_row, column=8, value=prosp_text)
+        # Bordures
+        for col in range(1, 18):
+            ws.cell(row=current_row, column=col).border = thin_border
+        # Bordure épaisse colonne G
+        ws.cell(row=current_row, column=7).border = thick_border
+        current_row += 1
+
+    # ── Lignes clients vus (RDV effectué) ──
+    for client in clients_vus_list:
+        ws.cell(row=current_row, column=1, value=week_label)  # A: Semaine
+        # I: Clients vus (nom prospect - RDV effectué)
+        client_text = f"{client.get('prospect_name', '')} - {client.get('company_name', '')}"
+        ws.cell(row=current_row, column=9, value=client_text)
+        # J: Besoins (extraits depuis notes)
+        besoins = client.get("_besoins") if use_ollama else ""
+        if not besoins:
+            # Fallback: extraire manuellement depuis notes
+            notes = (client.get("notes") or "") + " " + (client.get("callNotes") or "")
+            besoins = notes[:200] if notes.strip() else ""
+        ws.cell(row=current_row, column=10, value=besoins)
+        # Bordures
+        for col in range(1, 18):
+            ws.cell(row=current_row, column=col).border = thin_border
+        # Bordure épaisse colonne G
+        ws.cell(row=current_row, column=7).border = thick_border
+        current_row += 1
+
+    # ── Lignes pushs (par consultant) ──
+    for push_consultant in push_consultants:
+        ws.cell(row=current_row, column=1, value=week_label)  # A: Semaine
+        # M: Pushs consultant (nom consultant)
+        ws.cell(row=current_row, column=13, value=push_consultant.get("name", ""))
+        # N: Nb pushs (nombre)
+        ws.cell(row=current_row, column=14, value=push_consultant.get("count", 0))
+        # Bordures
+        for col in range(1, 18):
+            ws.cell(row=current_row, column=col).border = thin_border
+        # Bordure épaisse colonne G
+        ws.cell(row=current_row, column=7).border = thick_border
+        current_row += 1
+
+    # ── Fusionner les cellules "Semaine" (colonne A) pour chaque groupe de lignes de la même semaine ──
+    week_end_row = current_row - 1
+    if week_end_row > week_start_row:
+        ws.merge_cells(f'A{week_start_row}:A{week_end_row}')
+
+    # ── Alignement et wrap text ──
+    for r in range(2, current_row):
+        ws.cell(row=r, column=3).alignment = Alignment(wrap_text=True, vertical="top")  # Métier
+        ws.cell(row=r, column=7).alignment = Alignment(wrap_text=True, vertical="top")  # Commenta
+        ws.cell(row=r, column=10).alignment = Alignment(wrap_text=True, vertical="top")  # Besoins
+        ws.cell(row=r, column=13).alignment = Alignment(wrap_text=True, vertical="top")  # Pushs consultant
 
     # ── Stream the file ──
     buf = io.BytesIO()
@@ -6891,6 +7061,19 @@ def api_calendar_events():
             (uid,),
         ).fetchall()
 
+        # Candidate EC2 (v25.1) — candidats avec status='ec2'
+        cand_ec2 = conn.execute(
+            """SELECT c.id, c.name, c.role, c.updatedAt,
+                      COALESCE(ce.date, c.updatedAt) AS event_date
+               FROM candidates c
+               LEFT JOIN candidate_events ce ON ce.candidate_id = c.id 
+                 AND ce.type = 'candidate_solid'
+               WHERE c.owner_id = ?
+                 AND c.status = 'ec2'
+                 AND (ce.date IS NOT NULL OR c.updatedAt IS NOT NULL)""",
+            (uid,),
+        ).fetchall()
+
     events = []
     # Prospects
     for p in prospects:
@@ -6911,7 +7094,7 @@ def api_calendar_events():
                 "type": "rdv", "statut": d.get("statut", ""),
             })
 
-    # Candidates
+    # Candidates EC1
     for r in cand_ec1:
         d = dict(r)
         ia = (d.get("interviewAt") or "").strip()
@@ -6923,9 +7106,26 @@ def api_calendar_events():
             "company": d.get("role") or "EC1",
             "date": ia[:10],
             "time": ia[11:16] if len(ia) > 10 else "",
-            "type": "rdv",
+            "type": "ec1",
             "statut": "EC1",
             "url": f"/candidat?id={d['id']}&section=ec1",
+        })
+
+    # Candidates EC2
+    for r in cand_ec2:
+        d = dict(r)
+        event_date = (d.get("event_date") or "").strip()
+        if not event_date:
+            continue
+        events.append({
+            "id": d["id"],
+            "name": d.get("name") or "Candidat",
+            "company": d.get("role") or "EC2",
+            "date": event_date[:10],
+            "time": event_date[11:16] if len(event_date) > 10 else "",
+            "type": "ec2",
+            "statut": "EC2",
+            "url": f"/candidat?id={d['id']}",
         })
 
     return jsonify(ok=True, events=events)

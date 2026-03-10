@@ -4609,6 +4609,8 @@ body:not([data-page="prospects"]) .table-wrapper td:nth-child(13) {
 .cal-ev-relance { background:rgba(59,130,246,.12);color:#3b82f6;border-left:2px solid #3b82f6; }
 .cal-ev-external { background:rgba(139,92,246,.15);color:#8b5cf6;border-left:2px solid #8b5cf6; }
 .cal-ev-overdue { background:rgba(239,68,68,.12);color:#ef4444;border-left:2px solid #ef4444; }
+.cal-ev-ec1 { background:rgba(168,85,247,.15);color:#a855f7;border-left:2px solid #a855f7; }
+.cal-ev-ec2 { background:rgba(236,72,153,.15);color:#ec4899;border-left:2px solid #ec4899; }
 .cal-ev-time { font-weight:700;margin-right:3px; }
 .cal-ev-more { font-size:10px;color:var(--color-text-secondary);padding:1px 4px; }
 .cal-cell-clickable { cursor: pointer; }
