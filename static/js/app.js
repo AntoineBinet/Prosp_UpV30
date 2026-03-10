@@ -4102,39 +4102,152 @@ async function openEmailForProspect(prospectId) {
 
 
 // ═══ OLLAMA — Appel IA locale (proxy backend) ═══
-/** Envoie le prompt à Ollama via le backend, retourne le texte généré. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
+/** Affiche/masque l'indicateur visuel de progression Ollama */
+function _showOllamaProgress(show, message, tokenCount) {
+    let overlay = document.getElementById('ollama-progress-overlay');
+    if (show) {
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'ollama-progress-overlay';
+            overlay.innerHTML = `
+                <div class="ollama-progress-container">
+                    <div class="ollama-progress-spinner"></div>
+                    <div class="ollama-progress-message" id="ollama-progress-message">${message || 'Connexion à Ollama…'}</div>
+                    <div class="ollama-progress-stats" id="ollama-progress-stats"></div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+        const msgEl = document.getElementById('ollama-progress-message');
+        const statsEl = document.getElementById('ollama-progress-stats');
+        if (msgEl) msgEl.textContent = message || 'Connexion à Ollama…';
+        if (statsEl && tokenCount !== undefined) {
+            statsEl.textContent = tokenCount > 0 ? `${tokenCount} caractères reçus` : '';
+        }
+        overlay.style.display = 'flex';
+    } else {
+        if (overlay) overlay.style.display = 'none';
+    }
+}
+
+/** Envoie le prompt à Ollama via le backend avec streaming, retourne le texte généré. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
 async function callOllama(prompt, options) {
     options = options || {};
     const timeoutMs = options.timeoutMs != null ? Math.max(10000, Math.min(600000, options.timeoutMs)) : 180000;
-    const toastId = 'ollama-loading';
-    if (typeof showToast === 'function') showToast('Génération en cours (Ollama)…', 'info', Math.min(60000, timeoutMs));
+    const useStream = options.stream !== false; // Streaming par défaut, peut être désactivé
+    
+    // Afficher l'indicateur visuel
+    _showOllamaProgress(true, 'Connexion à Ollama…', 0);
+    
     const controller = new AbortController();
-    const timeoutId = setTimeout(function () { controller.abort(); }, timeoutMs);
+    const timeoutId = setTimeout(function () { 
+        controller.abort(); 
+        _showOllamaProgress(false);
+    }, timeoutMs);
+    
     try {
         const body = { prompt };
         if (options.model) body.model = options.model;
         body.timeout = Math.min(600, Math.ceil(timeoutMs / 1000));
-        const res = await fetch('/api/ollama/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-            const msg = data.error || ('Erreur ' + res.status);
-            if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
-            throw new Error(msg);
+        
+        let fullText = '';
+        let tokenCount = 0;
+        
+        if (useStream) {
+            // Mode streaming avec SSE
+            const res = await fetch('/api/ollama/generate-stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+            
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                const msg = data.error || ('Erreur ' + res.status);
+                _showOllamaProgress(false);
+                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                throw new Error(msg);
+            }
+            
+            // Lire le stream SSE
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                // SSE utilise des blocs séparés par \n\n
+                let parts = buffer.split('\n\n');
+                buffer = parts.pop() || ''; // Garder le dernier bloc incomplet
+                
+                for (const part of parts) {
+                    const lines = part.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                if (data.type === 'start') {
+                                    _showOllamaProgress(true, data.message || 'Génération en cours…', 0);
+                                } else if (data.type === 'token') {
+                                    fullText += data.text || '';
+                                    tokenCount = fullText.length;
+                                    _showOllamaProgress(true, 'Génération en cours…', tokenCount);
+                                    if (data.done) {
+                                        // Dernier token
+                                        _showOllamaProgress(true, 'Finalisation…', tokenCount);
+                                    }
+                                } else if (data.type === 'end') {
+                                    _showOllamaProgress(true, data.message || 'Terminé', tokenCount);
+                                } else if (data.type === 'error') {
+                                    _showOllamaProgress(false);
+                                    if (typeof showToast === 'function') showToast('Ollama : ' + data.message, 'error', 5000);
+                                    throw new Error(data.message);
+                                }
+                            } catch (e) {
+                                // Ignorer les erreurs de parsing des lignes SSE invalides
+                                if (e.name !== 'SyntaxError') {
+                                    console.warn('Erreur parsing SSE:', e);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            clearTimeout(timeoutId);
+            _showOllamaProgress(false);
+            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            return fullText;
+        } else {
+            // Mode non-streaming (fallback)
+            const res = await fetch('/api/ollama/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            _showOllamaProgress(false);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const msg = data.error || ('Erreur ' + res.status);
+                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                throw new Error(msg);
+            }
+            if (!data.ok || data.text === undefined) {
+                if (typeof showToast === 'function') showToast('Réponse Ollama invalide', 'error', 4000);
+                throw new Error('Réponse invalide');
+            }
+            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            return data.text;
         }
-        if (!data.ok || data.text === undefined) {
-            if (typeof showToast === 'function') showToast('Réponse Ollama invalide', 'error', 4000);
-            throw new Error('Réponse invalide');
-        }
-        if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
-        return data.text;
     } catch (e) {
         clearTimeout(timeoutId);
+        _showOllamaProgress(false);
         if (e.name === 'AbortError') {
             if (typeof showToast === 'function') showToast('Génération trop longue. Utilisez « Copier » puis collez le retour manuellement, ou réduisez le nombre d\'entrées.', 'error', 8000);
             throw new Error('Timeout');

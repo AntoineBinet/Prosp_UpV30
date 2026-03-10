@@ -17,7 +17,7 @@ import difflib
 from pathlib import Path
 from typing import Any, Dict, List
 
-from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g
+from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import secrets
@@ -6403,6 +6403,86 @@ def api_ollama_generate():
     except Exception as e:
         logger.exception("Ollama generate failed")
         return jsonify(ok=False, error=str(e)), 503
+
+
+@app.post("/api/ollama/generate-stream")
+def api_ollama_generate_stream():
+    """Proxy vers Ollama local avec streaming SSE : envoie les tokens au fur et à mesure pour éviter les timeouts Cloudflare."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    prompt = payload.get("prompt")
+    model = payload.get("model") or OLLAMA_MODEL
+    req_timeout = payload.get("timeout")
+    if req_timeout is not None:
+        try:
+            req_timeout = min(600, max(30, int(req_timeout)))
+        except (TypeError, ValueError):
+            req_timeout = OLLAMA_TIMEOUT
+    else:
+        req_timeout = OLLAMA_TIMEOUT
+    if not prompt:
+        return jsonify(ok=False, error="prompt requis"), 400
+    
+    def generate():
+        try:
+            body = json.dumps({"model": model, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/generate",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=req_timeout) as resp:
+                # Envoyer un événement de démarrage
+                yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
+                
+                buffer = b""
+                for chunk in resp:
+                    buffer += chunk
+                    # Ollama envoie des lignes JSON séparées par \n
+                    while b"\n" in buffer:
+                        line_bytes, buffer = buffer.split(b"\n", 1)
+                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
+                        if not line_json:
+                            continue
+                        try:
+                            data = json.loads(line_json)
+                            if data.get("done", False):
+                                # Dernier chunk avec le texte complet
+                                full_text = data.get("response", "")
+                                if full_text:
+                                    yield f"data: {json.dumps({'type': 'token', 'text': full_text, 'done': True}, ensure_ascii=False)}\n\n"
+                                yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
+                                break
+                            else:
+                                # Token partiel
+                                token = data.get("response", "")
+                                if token:
+                                    yield f"data: {json.dumps({'type': 'token', 'text': token, 'done': False}, ensure_ascii=False)}\n\n"
+                        except json.JSONDecodeError:
+                            continue
+        except urllib.error.URLError as e:
+            logger.warning("Ollama unreachable (stream): %s", e)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Ollama indisponible (vérifiez qu\\'il tourne sur ce PC)'}, ensure_ascii=False)}\n\n"
+        except urllib.error.HTTPError as e:
+            try:
+                err_body = e.read().decode("utf-8")
+                err_data = json.loads(err_body) if err_body else {}
+                msg = err_data.get("error", err_body) or str(e)
+            except Exception:
+                msg = str(e)
+            logger.warning("Ollama HTTP error %s (stream): %s", e.code, msg)
+            yield f"data: {json.dumps({'type': 'error', 'message': msg}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("Ollama generate stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+    
+    return Response(generate(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no"  # Désactive le buffering nginx
+    })
 
 
 @app.post("/api/deploy/pull")
