@@ -1,0 +1,15 @@
+Mettre à jour prospup.work en production : les corrections pour l'erreur 405 sur /api/app-version ont été poussées sur main il y a quelques minutes, mais le serveur en production n'a pas encore récupéré les changements. Le superviseur devrait normalement faire le pull automatiquement, mais ça n'a pas fonctionné.
+
+Sur le PC qui héberge prospup.work, dans le dossier du projet :
+
+1. Vérifier l'état : git branch --show-current, git status
+2. Mettre à jour : git checkout main puis git pull origin main
+3. Vérifier que les changements sont arrivés : git log --oneline -3 (le commit devrait être 3e3a9ed ou plus récent)
+4. Vérifier/Redémarrer le superviseur : si le superviseur (supervise_prospup.py) tourne déjà, il devrait redémarrer automatiquement après le pull. Sinon, le lancer avec python scripts/supervise_prospup.py
+5. Vérifier que ça fonctionne : tester que /api/app-version répond correctement (plus d'erreur 405) et que la pastille de version dans "À propos" s'affiche correctement dans le navigateur
+
+Les corrections sont dans app.py :
+- Ligne ~6485 : La route /api/app-version doit être @app.route("/api/app-version", methods=["GET"]) (pas @app.get())
+- Ligne ~138-146 : La CSP doit inclure https://cdnjs.cloudflare.com dans script-src
+
+Exécute ces étapes dans l'ordre et vérifie que tout fonctionne correctement.
