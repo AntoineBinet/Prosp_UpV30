@@ -73,10 +73,42 @@ def get_remote_commit(url: str) -> dict | None:
     return None
 
 
+def force_pull_remote(url: str, username: str, password: str) -> dict | None:
+    """Force un git pull à distance via l'API (nécessite authentification admin)."""
+    try:
+        # D'abord se connecter pour obtenir la session
+        login_url = f"{url.rstrip('/')}/api/auth/login"
+        login_data = json.dumps({"username": username, "password": password}).encode("utf-8")
+        req_login = urllib.request.Request(login_url, data=login_data, headers={"Content-Type": "application/json"})
+        
+        import http.cookiejar
+        cookie_jar = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
+        
+        try:
+            resp_login = opener.open(req_login, timeout=10)
+            if resp_login.getcode() != 200:
+                return None
+        except Exception:
+            return None
+        
+        # Appeler l'API deploy/pull
+        pull_url = f"{url.rstrip('/')}/api/deploy/pull"
+        req_pull = urllib.request.Request(pull_url, method="POST", headers={"Content-Type": "application/json"})
+        resp_pull = opener.open(req_pull, timeout=15)
+        data = json.loads(resp_pull.read().decode("utf-8"))
+        return data
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 def main() -> int:
     import argparse
     parser = argparse.ArgumentParser(description="Vérifie si prospup.work est à jour")
     parser.add_argument("--url", default="https://prospup.work", help="URL de prospup.work")
+    parser.add_argument("--force-pull", action="store_true", help="Forcer un git pull à distance (nécessite --user et --pass)")
+    parser.add_argument("--user", help="Nom d'utilisateur admin pour --force-pull")
+    parser.add_argument("--pass", dest="password", help="Mot de passe admin pour --force-pull")
     args = parser.parse_args()
     
     print("🔍 Diagnostic déploiement ProspUp\n")
@@ -98,6 +130,8 @@ def main() -> int:
         print("   - Le serveur tourne sur prospup.work")
         print("   - L'URL est correcte")
         print("   - Vous êtes connecté à Internet")
+        if args.force_pull:
+            print("\n   ⚠️  --force-pull nécessite que l'endpoint /api/app-version soit accessible")
         return 1
     
     print(f"\n📦 Commit sur {args.url}:")
@@ -123,10 +157,31 @@ def main() -> int:
         print("⚠️  prospup.work n'est PAS à jour")
         print(f"   Local:  {local_hash}")
         print(f"   Remote: {remote_info['commit_hash']}")
-        print("\n   Actions possibles:")
-        print("   1. Attendre que le superviseur fasse le pull automatique (max 90s)")
-        print("   2. Sur le PC qui héberge prospup.work, faire: git pull origin main")
-        print("   3. Redémarrer le serveur si nécessaire")
+        
+        # Option force-pull
+        if args.force_pull:
+            if not args.user or not args.password:
+                print("\n❌ --force-pull nécessite --user et --pass")
+                return 1
+            print(f"\n🔄 Tentative de pull forcé à distance...")
+            result = force_pull_remote(args.url, args.user, args.password)
+            if result and result.get("ok"):
+                if result.get("updated"):
+                    print("✅ Pull réussi ! Le serveur va redémarrer dans quelques secondes.")
+                    print(f"   {result.get('message', '')}")
+                else:
+                    print("ℹ️  Le serveur était déjà à jour.")
+                return 0
+            else:
+                error = result.get("error", "Erreur inconnue") if result else "Impossible de se connecter"
+                print(f"❌ Échec du pull forcé: {error}")
+                print("   Vérifiez vos identifiants admin et que la route /api/deploy/pull existe")
+                return 1
+        else:
+            print("\n   Actions possibles:")
+            print("   1. Attendre que le superviseur fasse le pull automatique (max 90s)")
+            print("   2. Sur le PC qui héberge prospup.work, faire: git pull origin main")
+            print("   3. Utiliser --force-pull avec --user et --pass pour forcer à distance")
         return 1
 
 

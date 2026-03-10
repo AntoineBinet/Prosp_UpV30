@@ -6405,6 +6405,83 @@ def api_ollama_generate():
         return jsonify(ok=False, error=str(e)), 503
 
 
+@app.post("/api/deploy/pull")
+@login_required
+@role_required('admin')
+def api_deploy_pull():
+    """Force un git pull depuis origin/main et redémarre le serveur (admin uniquement)."""
+    chk = _require_same_origin()
+    if chk:
+        return chk
+    
+    try:
+        # Vérifier que c'est un dépôt git
+        cp = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp.returncode != 0:
+            return jsonify(ok=False, error="Pas un dépôt git"), 400
+        
+        # Fetch + pull
+        fetch = subprocess.run(
+            ["git", "fetch", "--prune", "origin", "main"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if fetch.returncode != 0:
+            return jsonify(ok=False, error=f"git fetch échoué: {fetch.stderr}"), 500
+        
+        # Vérifier s'il y a des changements
+        cp2 = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        local_hash = (cp2.stdout or "").strip()[:7] if cp2.returncode == 0 else "unknown"
+        
+        cp3 = subprocess.run(
+            ["git", "rev-parse", "origin/main"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        remote_hash = (cp3.stdout or "").strip()[:7] if cp3.returncode == 0 else "unknown"
+        
+        if local_hash == remote_hash:
+            return jsonify(ok=True, message="Déjà à jour", local_hash=local_hash, remote_hash=remote_hash, updated=False)
+        
+        # Pull fast-forward only
+        pull = subprocess.run(
+            ["git", "pull", "--ff-only", "origin", "main"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if pull.returncode != 0:
+            return jsonify(ok=False, error=f"git pull échoué: {pull.stderr}", local_hash=local_hash, remote_hash=remote_hash), 500
+        
+        # Redémarrer le serveur (code 42)
+        logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
+        _schedule_restart(delay=3.0)
+        
+        return jsonify(ok=True, message="Mise à jour appliquée, redémarrage en cours", local_hash=local_hash, remote_hash=remote_hash, updated=True, restarting=True)
+    except subprocess.TimeoutExpired:
+        return jsonify(ok=False, error="Timeout lors du pull"), 500
+    except Exception as e:
+        logger.exception("Deploy pull error")
+        return jsonify(ok=False, error=str(e)), 500
+
+
 @app.get("/api/app-version")
 def api_app_version():
     """Retourne la version de l'app, le hash du commit et la date du dernier commit pour affichage badge."""
