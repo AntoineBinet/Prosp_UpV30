@@ -119,6 +119,17 @@
         return out;
     }
 
+    function _fixMarkdownAfterString(s) {
+        // Corriger les cas où du texte markdown apparaît après la fermeture d'une chaîne JSON
+        // Exemple: "notes": "texte" [linkedin](url) -> "notes": "texte [linkedin](url)"
+        // Pattern simple: guillemet, espace(s), lien markdown [text](url), puis virgule/accolade/fin
+        // On cherche: " ... " [markdown](url) et on remplace par " ... [markdown](url)"
+        // Limitation: ne gère pas les guillemets échappés complexes, mais couvre le cas courant
+        return s.replace(/"\s+(\[[^\]]+\]\([^)]+\))(\s*[,}\]]|\s*\n)/g, function(match, markdown, after) {
+            return ' ' + markdown + '"' + after;
+        });
+    }
+
     function _tryParseQARaw(raw, type) {
         if (!raw || !raw.trim()) return { ok: false };
         let rawStr = raw.trim()
@@ -127,12 +138,19 @@
             .replace(/[\u200B-\u200D\uFEFF]/g, '');
         let parsed = null;
 
-        // 1) Essai direct : brut, virgules finales, newlines dans chaînes
+        // 0) Correction automatique : texte markdown après fermeture de chaîne
+        const fixedMarkdown = _fixMarkdownAfterString(rawStr);
+
+        // 1) Essai direct : brut, virgules finales, newlines dans chaînes, markdown corrigé
         const candidates = [
             rawStr,
+            fixedMarkdown,
             rawStr.replace(/,\s*([}\]])/g, '$1'),
+            fixedMarkdown.replace(/,\s*([}\]])/g, '$1'),
             _fixJsonString(rawStr),
-            _fixJsonString(rawStr).replace(/,\s*([}\]])/g, '$1')
+            _fixJsonString(fixedMarkdown),
+            _fixJsonString(rawStr).replace(/,\s*([}\]])/g, '$1'),
+            _fixJsonString(fixedMarkdown).replace(/,\s*([}\]])/g, '$1')
         ];
         for (const candidate of candidates) {
             try {
