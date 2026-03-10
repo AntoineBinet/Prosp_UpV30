@@ -914,29 +914,51 @@ function renderCompanies() {
 
     const q = (document.getElementById('companySearchInput')?.value || '').trim().toLowerCase();
 
-    // Pré-calcul des compteurs
+    // Optimisation: utiliser requestAnimationFrame pour différer le rendu lourd
+    if (window._renderCompaniesRaf) {
+        cancelAnimationFrame(window._renderCompaniesRaf);
+    }
+    
+    window._renderCompaniesRaf = requestAnimationFrame(() => {
+        _renderCompaniesInternal(tbody, q);
+        window._renderCompaniesRaf = null;
+    });
+}
+
+function _renderCompaniesInternal(tbody, q) {
+    // Pré-calcul des compteurs (une seule passe)
     const counts = {};
     data.companies.forEach(c => {
         counts[c.id] = { prospects: 0, rdv: 0, callable: 0 };
     });
 
+    // Une seule passe sur les prospects
     data.prospects.forEach(p => {
-        if (!counts[p.company_id]) counts[p.company_id] = { prospects: 0, rdv: 0, callable: 0 };
-        counts[p.company_id].prospects += 1;
-        if (p.statut === 'Rendez-vous') counts[p.company_id].rdv += 1;
-        if (isProspectCallable(p)) counts[p.company_id].callable += 1;
+        if (p.company_id && counts[p.company_id]) {
+            counts[p.company_id].prospects += 1;
+            if (p.statut === 'Rendez-vous') counts[p.company_id].rdv += 1;
+            if (isProspectCallable(p)) counts[p.company_id].callable += 1;
+        }
     });
 
     const unassignedId = ensureUnassignedCompany();
 
-    // Normaliser les entreprises
+    // Normaliser les entreprises (une seule passe)
     data.companies.forEach(c => {
         if (c.notes === undefined || c.notes === null) c.notes = '';
         if (c.phone === undefined || c.phone === null) c.phone = 'Non disponible';
         if (c.tags === undefined || c.tags === null) c.tags = [];
     });
 
-    const companiesSorted = [...data.companies].sort((a, b) => {
+    // Filtrer et trier en une seule passe
+    const companiesFiltered = q 
+        ? data.companies.filter(c => {
+            const label = `${c.groupe || ''} ${c.site || ''}`.toLowerCase();
+            return label.includes(q);
+        })
+        : data.companies;
+
+    const companiesSorted = [...companiesFiltered].sort((a, b) => {
         // Toujours garder "Sans entreprise" en premier
         if (a.id === unassignedId) return -1;
         if (b.id === unassignedId) return 1;
@@ -967,18 +989,17 @@ function renderCompanies() {
         return (companySortDir === 'asc') ? res : -res;
     });
 
-    tbody.innerHTML = '';
+    // Utiliser DocumentFragment pour réduire les reflows
+    const fragment = document.createDocumentFragment();
     let summary = { companies: 0, prospects: 0, rdv: 0, callable: 0 };
 
     companiesSorted.forEach(company => {
-        const label = `${company.groupe || ''} ${company.site || ''}`.toLowerCase();
-        if (q && !label.includes(q)) return;
-
         const c = counts[company.id] || { prospects: 0, rdv: 0, callable: 0 };
         summary.companies += 1;
         summary.prospects += c.prospects;
         summary.rdv += c.rdv;
         summary.callable += c.callable;
+        
         const notesRaw = (company.notes || '').trim();
         let notesSnippet = '';
         if (inlineCompanyNotesEditingId === company.id) {
@@ -1000,8 +1021,11 @@ function renderCompanies() {
                 </div>
             `;
         }
+        
         const tr = document.createElement('tr');
+        tr.className = 'company-row';
         tr.style.cursor = 'pointer';
+        
         // Focus visuel (ex: depuis une fiche prospect)
         if (pendingCompanyFocusId && company.id === pendingCompanyFocusId) {
             tr.classList.add('company-focus');
@@ -1011,18 +1035,31 @@ function renderCompanies() {
             pendingCompanyFocusId = null;
         }
 
-
         tr.innerHTML = `
-            <td>${company.groupe || ''}${company.id === unassignedId ? ' <span style="color: var(--color-text-secondary);">(défaut)</span>' : ''}${notesSnippet}</td>
-            <td>${company.site || ''}</td>
-            <td class="center">${c.prospects}</td>
-            <td class="center">${c.rdv}</td>
-            <td class="center">${c.callable}</td>
-            <td class="center">
-                <button class="btn btn-secondary" style="padding: 6px 10px;" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');">🏢</button>
-                <button class="btn btn-secondary" style="padding: 6px 10px;" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});">👥</button>
-                <button class="btn btn-primary" style="padding: 6px 10px;" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});">✏️</button>
-                <button class="btn btn-danger" style="padding: 6px 10px;" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}>🗑️</button>
+            <td class="company-name-cell">
+                <div class="company-name-wrapper">
+                    <strong class="company-groupe">${escapeHtml(company.groupe || '')}</strong>
+                    ${company.id === unassignedId ? '<span class="company-default-badge">(défaut)</span>' : ''}
+                </div>
+                ${notesSnippet}
+            </td>
+            <td class="company-site-cell">${escapeHtml(company.site || '')}</td>
+            <td class="center company-count-cell">
+                <span class="count-badge ${c.prospects > 0 ? 'has-prospects' : ''}">${c.prospects}</span>
+            </td>
+            <td class="center company-count-cell">
+                <span class="count-badge rdv ${c.rdv > 0 ? 'has-rdv' : ''}">${c.rdv}</span>
+            </td>
+            <td class="center company-count-cell">
+                <span class="count-badge callable ${c.callable > 0 ? 'has-callable' : ''}">${c.callable}</span>
+            </td>
+            <td class="center company-actions-cell">
+                <div class="company-actions-group">
+                    <button class="btn btn-icon" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');">🏢</button>
+                    <button class="btn btn-icon" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});">👥</button>
+                    <button class="btn btn-icon btn-primary" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});">✏️</button>
+                    <button class="btn btn-icon btn-danger" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}>🗑️</button>
+                </div>
             </td>
         `;
 
@@ -1036,8 +1073,12 @@ function renderCompanies() {
             switchView('all');
         };
 
-        tbody.appendChild(tr);
+        fragment.appendChild(tr);
     });
+
+    // Un seul reflow pour remplacer tout le contenu
+    tbody.innerHTML = '';
+    tbody.appendChild(fragment);
 
     updateCompanySummary(summary);
     updateCompanySortIndicators();

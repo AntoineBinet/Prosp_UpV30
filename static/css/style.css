@@ -98,6 +98,7 @@ header {
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     position: relative;
     overflow: hidden;
+<<<<<<< HEAD
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -116,29 +117,41 @@ header {
     flex-shrink: 0;
 }
 
-/* Loupe (recherche) dans le header — pas de position fixed */
+/* Loupe (recherche) — toujours fixée en haut à droite */
 .header-search-btn,
-.header-center .floating-search-btn {
-    position: static;
-    width: 40px;
-    height: 40px;
+.header-center .floating-search-btn,
+.floating-search-btn {
+    position: fixed !important;
+    top: 26px;
+    right: 18px;
+    z-index: 900;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
     border: 1px solid var(--color-border);
     background: var(--color-surface);
     backdrop-filter: blur(12px);
-    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
     cursor: pointer;
     font-size: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform .28s ease, box-shadow .2s, border-color .2s;
+    transition: transform .2s ease, box-shadow .2s, border-color .2s, scale .2s;
 }
+
 .header-search-btn:hover,
-.header-center .floating-search-btn:hover {
-    transform: scale(1.08);
-    box-shadow: 0 4px 16px rgba(var(--color-primary-rgb),.25);
+.header-center .floating-search-btn:hover,
+.floating-search-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 24px rgba(var(--color-primary-rgb),.3);
     border-color: var(--color-primary);
+}
+
+.header-search-btn:active,
+.header-center .floating-search-btn:active,
+.floating-search-btn:active {
+    transform: scale(0.95);
 }
 
 /* Badge utilisateur dans le header — transition pour animation scroll */
@@ -154,7 +167,7 @@ header {
     overflow: hidden;
 }
 
-/* Au scroll : badge masqué, loupe glisse à droite */
+/* Au scroll : badge masqué, bouton recherche reste fixé en haut à droite */
 body.header-scrolled .header-center .user-session-badge {
     opacity: 0;
     transform: translateX(-12px);
@@ -164,10 +177,8 @@ body.header-scrolled .header-center .user-session-badge {
     margin: 0 !important;
     pointer-events: none;
 }
-body.header-scrolled .header-center .header-search-btn,
-body.header-scrolled .header-center .floating-search-btn {
-    transform: translateX(calc(140px + 10px));
-}
+/* Le bouton recherche reste fixé, pas besoin de translate */
+>>>>>>> local
 
 
 /* ────────────── Up Technologies branding ────────────── */
@@ -1104,6 +1115,112 @@ table th, table td {
 .company-focus {
     outline: 2px solid rgba(var(--color-primary-rgb), 0.35);
     outline-offset: -2px;
+}
+
+/* Amélioration visuelle des lignes entreprises */
+.company-row {
+    transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.company-row:hover {
+    background-color: rgba(var(--color-primary-rgb), 0.05);
+    transform: translateX(2px);
+}
+
+.company-name-cell {
+    min-width: 200px;
+}
+
+.company-name-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.company-groupe {
+    color: var(--color-text);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.company-default-badge {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    font-weight: normal;
+    font-style: italic;
+}
+
+.company-site-cell {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+}
+
+.company-count-cell {
+    padding: 12px 8px !important;
+}
+
+.count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 16px;
+    font-weight: 600;
+    font-size: 13px;
+    background: rgba(var(--color-text-rgb), 0.08);
+    color: var(--color-text-secondary);
+    transition: all 0.2s ease;
+}
+
+.count-badge.has-prospects {
+    background: rgba(var(--color-primary-rgb), 0.15);
+    color: var(--color-primary);
+}
+
+.count-badge.rdv.has-rdv {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+}
+
+.count-badge.callable.has-callable {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+}
+
+.company-actions-cell {
+    padding: 8px !important;
+}
+
+.company-actions-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-icon {
+    padding: 8px 10px !important;
+    min-width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+    font-size: 16px;
+}
+
+.btn-icon:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.btn-icon:active {
+    transform: scale(0.95);
 }
 
 
@@ -6219,7 +6336,9 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 }
 
 @media (max-width: 768px) {
-  .floating-search-btn {
+  .floating-search-btn,
+  .header-search-btn,
+  .header-center .floating-search-btn {
     top: calc(14px + env(safe-area-inset-top, 0px));
     bottom: auto;
     right: 14px;
