@@ -348,15 +348,30 @@ Belle journée,"></textarea>
       let checkInterval = null;
       
       async function updateVersionBadge() {
+        const badgeDot = document.getElementById('versionBadgeDot');
+        const badgeText = document.getElementById('versionBadgeText');
+        if (!badgeDot || !badgeText) return;
+        
         try {
           const res = await fetch('/api/app-version');
-          if (!res.ok) return;
-          const data = await res.json();
-          if (!data.ok) return;
+          if (!res.ok) {
+            // Erreur HTTP - afficher un message d'erreur
+            badgeText.textContent = 'v? • Erreur de chargement';
+            badgeDot.style.background = '#ef4444';
+            badgeDot.style.animation = 'none';
+            console.warn('Version badge: HTTP error', res.status);
+            return;
+          }
           
-          const badgeDot = document.getElementById('versionBadgeDot');
-          const badgeText = document.getElementById('versionBadgeText');
-          if (!badgeDot || !badgeText) return;
+          const data = await res.json();
+          if (!data || !data.ok) {
+            // Réponse invalide
+            badgeText.textContent = 'v? • Erreur de chargement';
+            badgeDot.style.background = '#ef4444';
+            badgeDot.style.animation = 'none';
+            console.warn('Version badge: invalid response', data);
+            return;
+          }
           
           const version = data.version || '?';
           const commitHash = data.commit_hash || 'unknown';
@@ -365,6 +380,9 @@ Belle journée,"></textarea>
           
           // Mettre à jour la couleur du badge
           badgeDot.style.background = badgeColor;
+          
+          // Arrêter l'animation de chargement
+          badgeDot.style.animation = 'none';
           
           // Formater la date si disponible
           let dateStr = '';
@@ -381,7 +399,7 @@ Belle journée,"></textarea>
           // Texte du badge
           let text = `v${version}`;
           if (commitHash !== 'unknown') {
-            text += ` • ${commitHash}`;
+            text += ` • ${commitHash.substring(0, 7)}`;
           }
           if (dateStr) {
             text += ` • ${dateStr}`;
@@ -391,10 +409,7 @@ Belle journée,"></textarea>
           // Détecter si c'est une nouvelle version (hash différent)
           if (lastCommitHash && lastCommitHash !== commitHash && commitHash !== 'unknown') {
             // Nouvelle version détectée !
-            badgeDot.style.animation = 'none';
-            setTimeout(() => {
-              badgeDot.style.animation = 'pulse 1s ease-in-out 3';
-            }, 10);
+            badgeDot.style.animation = 'pulse 1s ease-in-out 3';
             if (typeof showToast === 'function') {
               showToast('✅ Nouvelle version détectée !', 'success');
             }
@@ -406,7 +421,11 @@ Belle journée,"></textarea>
             lastCommitHash = commitHash;
           }
         } catch (e) {
+          // Erreur réseau ou autre exception
           console.warn('Version badge update error:', e);
+          badgeText.textContent = 'v? • Erreur réseau';
+          badgeDot.style.background = '#ef4444';
+          badgeDot.style.animation = 'none';
         }
       }
       
