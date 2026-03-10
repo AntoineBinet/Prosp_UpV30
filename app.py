@@ -137,7 +137,7 @@ def _after_request(response):
     # CSP: restrictive but allows inline styles/scripts (needed for current architecture)
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: blob:; "
         "connect-src 'self'; "
@@ -6482,7 +6482,7 @@ def api_deploy_pull():
         return jsonify(ok=False, error=str(e)), 500
 
 
-@app.get("/api/app-version")
+@app.route("/api/app-version", methods=["GET"])
 def api_app_version():
     """Retourne la version de l'app, le hash du commit et la date du dernier commit pour affichage badge."""
     try:
