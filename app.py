@@ -8842,6 +8842,277 @@ def api_candidate_folder_open_file():
             return jsonify(ok=False, error=str(e2))
 
 
+# ═══════════════════════════════════════════════════════════════════
+# Collaboration API (v25.5)
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/collab/collaborators")
+@login_required
+def api_collab_collaborators():
+    """Liste des utilisateurs disponibles comme collaborateurs (exclut l'utilisateur connecté)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _auth_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, username, display_name, role, is_active FROM users WHERE id != ? AND is_active = 1 ORDER BY display_name, username;",
+            (uid,)
+        ).fetchall()
+    return jsonify(ok=True, collaborators=[dict(r) for r in rows])
+
+
+@app.get("/api/collab/shared-companies")
+@login_required
+def api_collab_shared_companies():
+    """Liste des entreprises partagées (reçues et envoyées)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    with _auth_conn() as aconn:
+        # Entreprises partagées PAR l'utilisateur (envoyées)
+        sent_rows = aconn.execute(
+            """
+            SELECT sc.id, sc.company_id, sc.to_user_id, sc.shared_at,
+                   u.username, u.display_name,
+                   c.groupe, c.site
+            FROM shared_companies sc
+            JOIN users u ON u.id = sc.to_user_id
+            LEFT JOIN companies c ON c.id = sc.company_id AND c.owner_id = ?
+            WHERE sc.from_user_id = ?
+            ORDER BY sc.shared_at DESC;
+            """,
+            (uid, uid)
+        ).fetchall()
+        
+        # Entreprises partagées AVEC l'utilisateur (reçues)
+        received_rows = aconn.execute(
+            """
+            SELECT sc.id, sc.company_id, sc.from_user_id, sc.shared_at,
+                   u.username, u.display_name,
+                   c.groupe, c.site
+            FROM shared_companies sc
+            JOIN users u ON u.id = sc.from_user_id
+            LEFT JOIN companies c ON c.id = sc.company_id AND c.owner_id = sc.from_user_id
+            WHERE sc.to_user_id = ?
+            ORDER BY sc.shared_at DESC;
+            """,
+            (uid,)
+        ).fetchall()
+    
+    return jsonify(ok=True, sent=[dict(r) for r in sent_rows], received=[dict(r) for r in received_rows])
+
+
+@app.post("/api/collab/share-company")
+@login_required
+def api_collab_share_company():
+    """Partager une entreprise avec un collaborateur."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    payload = request.get_json(force=True, silent=False) or {}
+    company_id = payload.get("company_id")
+    to_user_id = payload.get("to_user_id")
+    
+    if not company_id or not to_user_id:
+        return jsonify(ok=False, error="company_id et to_user_id requis"), 400
+    
+    try:
+        company_id = int(company_id)
+        to_user_id = int(to_user_id)
+    except (ValueError, TypeError):
+        return jsonify(ok=False, error="IDs invalides"), 400
+    
+    if to_user_id == uid:
+        return jsonify(ok=False, error="Impossible de partager avec soi-même"), 400
+    
+    # Vérifier que l'entreprise appartient à l'utilisateur
+    with _conn() as conn:
+        company = conn.execute(
+            "SELECT * FROM companies WHERE id = ? AND owner_id = ? AND deleted_at IS NULL;",
+            (company_id, uid)
+        ).fetchone()
+        if not company:
+            return jsonify(ok=False, error="Entreprise non trouvée"), 404
+    
+    # Vérifier que le collaborateur existe
+    with _auth_conn() as aconn:
+        collaborator = aconn.execute(
+            "SELECT id, username, display_name FROM users WHERE id = ? AND is_active = 1;",
+            (to_user_id,)
+        ).fetchone()
+        if not collaborator:
+            return jsonify(ok=False, error="Collaborateur non trouvé"), 404
+        
+        # Vérifier si déjà partagé
+        existing = aconn.execute(
+            "SELECT id FROM shared_companies WHERE company_id = ? AND from_user_id = ? AND to_user_id = ?;",
+            (company_id, uid, to_user_id)
+        ).fetchone()
+        if existing:
+            return jsonify(ok=False, error="Cette entreprise est déjà partagée avec ce collaborateur"), 409
+        
+        # Créer le partage
+        now = _now_iso()
+        aconn.execute(
+            "INSERT INTO shared_companies (company_id, from_user_id, to_user_id, shared_at) VALUES (?, ?, ?, ?);",
+            (company_id, uid, to_user_id, now)
+        )
+    
+    # Copier l'entreprise et ses prospects dans la DB du collaborateur
+    _sync_shared_company_to_collaborator(company_id, uid, to_user_id)
+    
+    return jsonify(ok=True, message="Entreprise partagée avec succès")
+
+
+def _sync_shared_company_to_collaborator(company_id: int, from_user_id: int, to_user_id: int) -> None:
+    """Copie une entreprise partagée et ses prospects dans la DB du collaborateur."""
+    # Lire l'entreprise et ses prospects depuis la DB de l'utilisateur source
+    with _conn_for_user(from_user_id) as from_conn:
+        company = from_conn.execute(
+            "SELECT * FROM companies WHERE id = ? AND deleted_at IS NULL;",
+            (company_id,)
+        ).fetchone()
+        if not company:
+            return
+        
+        prospects = from_conn.execute(
+            "SELECT * FROM prospects WHERE company_id = ? AND deleted_at IS NULL;",
+            (company_id,)
+        ).fetchall()
+    
+    # Écrire dans la DB du collaborateur
+    with _conn_for_user(to_user_id) as to_conn:
+        to_conn.execute("PRAGMA foreign_keys = OFF;")
+        try:
+            # Vérifier si l'entreprise existe déjà (par groupe+site)
+            existing = to_conn.execute(
+                "SELECT id FROM companies WHERE groupe = ? AND site = ? AND owner_id = ?;",
+                (company["groupe"], company["site"], to_user_id)
+            ).fetchone()
+            
+            if existing:
+                target_company_id = existing["id"]
+            else:
+                # Insérer l'entreprise
+                to_conn.execute(
+                    """
+                    INSERT OR REPLACE INTO companies 
+                    (id, groupe, site, phone, notes, tags, website, linkedin, industry, size, 
+                     address, city, country, stack, pain_points, budget, urgency, owner_id, deleted_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL);
+                    """,
+                    (
+                        company["id"], company["groupe"], company["site"], company.get("phone"),
+                        company.get("notes"), company.get("tags"), company.get("website"),
+                        company.get("linkedin"), company.get("industry"), company.get("size"),
+                        company.get("address"), company.get("city"), company.get("country"),
+                        company.get("stack"), company.get("pain_points"), company.get("budget"),
+                        company.get("urgency"), to_user_id
+                    )
+                )
+                target_company_id = company["id"]
+            
+            # Insérer/mettre à jour les prospects
+            for p_row in prospects:
+                p = dict(p_row)
+                to_conn.execute(
+                    """
+                    INSERT OR REPLACE INTO prospects
+                    (id, name, company_id, fonction, telephone, email, linkedin, pertinence, statut,
+                     lastContact, nextFollowUp, priority, notes, callNotes, pushEmailSentAt, tags,
+                     template_id, nextAction, pushLinkedInSentAt, photo_url, push_category_id,
+                     fixedMetier, rdvDate, is_contact, owner_id, deleted_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL);
+                    """,
+                    (
+                        p["id"], p["name"], target_company_id, p.get("fonction"), p.get("telephone"),
+                        p.get("email"), p.get("linkedin"), p.get("pertinence"), p.get("statut"),
+                        p.get("lastContact"), p.get("nextFollowUp"), p.get("priority"),
+                        p.get("notes"), p.get("callNotes"), p.get("pushEmailSentAt"), p.get("tags"),
+                        p.get("template_id"), p.get("nextAction"), p.get("pushLinkedInSentAt"),
+                        p.get("photo_url"), p.get("push_category_id"), p.get("fixedMetier"),
+                        p.get("rdvDate"), p.get("is_contact"), to_user_id
+                    )
+                )
+        finally:
+            to_conn.execute("PRAGMA foreign_keys = ON;")
+
+
+@app.get("/api/collab/shared-company/<int:company_id>/prospects")
+@login_required
+def api_collab_shared_company_prospects(company_id: int):
+    """Liste des prospects d'une entreprise partagée."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    # Vérifier que l'entreprise est bien partagée avec l'utilisateur
+    with _auth_conn() as aconn:
+        share = aconn.execute(
+            "SELECT from_user_id FROM shared_companies WHERE company_id = ? AND to_user_id = ?;",
+            (company_id, uid)
+        ).fetchone()
+        if not share:
+            return jsonify(ok=False, error="Entreprise non partagée"), 404
+    
+    # Lire les prospects depuis la DB de l'utilisateur (l'entreprise partagée devrait être dans sa DB)
+    with _conn() as conn:
+        prospects = conn.execute(
+            "SELECT * FROM prospects WHERE company_id = ? AND owner_id = ? AND deleted_at IS NULL ORDER BY id;",
+            (company_id, uid)
+        ).fetchall()
+    
+    def _parse_tags(v):
+        if not v:
+            return []
+        try:
+            return json.loads(v) if isinstance(v, str) else v
+        except:
+            return [t.strip() for t in str(v).split(",") if t.strip()]
+    
+    result = []
+    for p in prospects:
+        d = dict(p)
+        try:
+            d["callNotes"] = json.loads(d.get("callNotes") or "[]")
+        except:
+            d["callNotes"] = []
+        d["tags"] = _parse_tags(d.get("tags"))
+        d["is_contact"] = int(d.get("is_contact") or 0)
+        result.append(d)
+    
+    return jsonify(ok=True, prospects=result)
+
+
+@app.post("/api/collab/unshare-company")
+@login_required
+def api_collab_unshare_company():
+    """Retirer le partage d'une entreprise."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    payload = request.get_json(force=True, silent=False) or {}
+    share_id = payload.get("share_id")
+    
+    if not share_id:
+        return jsonify(ok=False, error="share_id requis"), 400
+    
+    with _auth_conn() as aconn:
+        share = aconn.execute(
+            "SELECT * FROM shared_companies WHERE id = ? AND from_user_id = ?;",
+            (share_id, uid)
+        ).fetchone()
+        if not share:
+            return jsonify(ok=False, error="Partage non trouvé"), 404
+        
+        aconn.execute("DELETE FROM shared_companies WHERE id = ?;", (share_id,))
+    
+    return jsonify(ok=True, message="Partage retiré")
+
+
 if __name__ == "__main__":
     DATA_DIR.mkdir(exist_ok=True)
     init_db()

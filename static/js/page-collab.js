@@ -6,14 +6,34 @@ let __sharedCompanies = { sent: [], received: [] };
 async function loadCollaborators() {
     try {
         const res = await fetch('/api/collab/collaborators');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        if (!res.ok) {
+            // Ne pas afficher d'erreur si c'est juste qu'il n'y a pas de collaborateurs (liste vide = normal)
+            if (res.status === 200) {
+                __collaborators = [];
+                return __collaborators;
+            }
+            throw new Error('HTTP ' + res.status);
+        }
         const json = await res.json();
-        if (!json.ok) throw new Error(json.error || 'Erreur');
+        if (!json.ok) {
+            // Si l'erreur est juste qu'il n'y a pas de données, ne pas afficher d'erreur
+            if (json.error && json.error.includes('Non authentifié')) {
+                throw new Error(json.error);
+            }
+            // Pour les autres cas, retourner une liste vide sans erreur
+            __collaborators = [];
+            return __collaborators;
+        }
         __collaborators = Array.isArray(json.collaborators) ? json.collaborators : [];
         return __collaborators;
     } catch (e) {
         console.error('Error loading collaborators:', e);
-        showToast('Erreur lors du chargement des collaborateurs.', 'error');
+        // Ne pas afficher d'erreur si c'est juste qu'il n'y a pas de collaborateurs
+        // (cas normal pour un utilisateur seul)
+        if (e.message && !e.message.includes('HTTP') && !e.message.includes('Non authentifié')) {
+            // Erreur réseau ou autre erreur réelle
+            showToast('Erreur lors du chargement des collaborateurs.', 'error');
+        }
         return [];
     }
 }
@@ -21,9 +41,24 @@ async function loadCollaborators() {
 async function loadSharedCompanies() {
     try {
         const res = await fetch('/api/collab/shared-companies');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        if (!res.ok) {
+            // Ne pas afficher d'erreur si c'est juste qu'il n'y a pas d'entreprises partagées (liste vide = normal)
+            if (res.status === 200) {
+                __sharedCompanies = { sent: [], received: [] };
+                return __sharedCompanies;
+            }
+            throw new Error('HTTP ' + res.status);
+        }
         const json = await res.json();
-        if (!json.ok) throw new Error(json.error || 'Erreur');
+        if (!json.ok) {
+            // Si l'erreur est juste qu'il n'y a pas de données, ne pas afficher d'erreur
+            if (json.error && json.error.includes('Non authentifié')) {
+                throw new Error(json.error);
+            }
+            // Pour les autres cas, retourner des listes vides sans erreur
+            __sharedCompanies = { sent: [], received: [] };
+            return __sharedCompanies;
+        }
         __sharedCompanies = {
             sent: Array.isArray(json.sent) ? json.sent : [],
             received: Array.isArray(json.received) ? json.received : []
@@ -31,7 +66,12 @@ async function loadSharedCompanies() {
         return __sharedCompanies;
     } catch (e) {
         console.error('Error loading shared companies:', e);
-        showToast('Erreur lors du chargement des entreprises partagées.', 'error');
+        // Ne pas afficher d'erreur si c'est juste qu'il n'y a pas d'entreprises partagées
+        // (cas normal pour un utilisateur seul)
+        if (e.message && !e.message.includes('HTTP') && !e.message.includes('Non authentifié')) {
+            // Erreur réseau ou autre erreur réelle
+            showToast('Erreur lors du chargement des entreprises partagées.', 'error');
+        }
         return { sent: [], received: [] };
     }
 }
