@@ -2525,12 +2525,24 @@ tr.company-focus {
   cursor: help;
 }
 
-/* Ne pas appliquer cursor: help sur le header (évite point d'interrogation) */
+/* Ne pas appliquer cursor: help sur le header et la sidebar (évite point d'interrogation) */
 header, header *, .header-left, .header-center, .header-subtitle, header h1, header img {
   cursor: default !important;
 }
 header a, header button {
   cursor: pointer !important;
+}
+.sidebar, .sidebar *, .sidebar .nav-button, .sidebar .nav-group-label, .sidebar h2, .sidebar-footer, .sidebar-collapse-btn {
+  cursor: default !important;
+}
+.sidebar a, .sidebar .nav-button, .sidebar button {
+  cursor: pointer !important;
+}
+/* Désactiver le tooltip global sur les boutons de la sidebar (évite dédoublement du texte au survol ; le mode réduit a son propre tooltip) */
+.sidebar .nav-button[data-tooltip]:hover::before,
+.sidebar .nav-button[data-tooltip]:hover::after {
+  content: none !important;
+  display: none !important;
 }
 [data-tooltip]:hover::before,
 .has-tooltip:hover::before {
@@ -7169,10 +7181,10 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 }
 .sidebar-collapsed .user-session-info { display: none !important; }
 .sidebar-collapsed .user-session-logout { display: none !important; }
-/* Tooltip on hover when collapsed */
-/* Tooltip uniquement quand sidebar est collapsed */
+/* Tooltip on hover when collapsed (!important pour primer sur la désactivation du tooltip global) */
 .sidebar-collapsed .sidebar .nav-button:hover::after {
-  content: attr(data-tooltip);
+  content: attr(data-tooltip) !important;
+  display: block !important;
   position: absolute;
   left: calc(100% + 8px);
   top: 50%;
