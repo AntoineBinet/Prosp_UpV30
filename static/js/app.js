@@ -8649,6 +8649,76 @@ function applyImportListReformat() {
     showToast('Colonne mise à jour. Vérifiez l’aperçu puis importez.', 'success');
 }
 
+function openImportListReformatAllModal() {
+    const rows = window._importListPreviewRows;
+    if (!rows || !rows.length) return;
+    const modal = document.getElementById('modalImportListReformatAll');
+    if (!modal) return;
+    const checkboxes = document.getElementById('importListReformatAllCheckboxes');
+    const reformatCols = ['name', 'groupe', 'fonction', 'telephone', 'email'];
+    checkboxes.innerHTML = reformatCols.map(c => {
+        const label = (IMPORT_LIST_FIELDS.find(f => f.value === c) || {}).label || c;
+        const hasData = rows.some(r => r[c] && r[c].trim());
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" value="${c}" ${hasData ? 'checked' : ''} style="cursor:pointer;"> ${label}${hasData ? '' : ' <span class="muted">(vide)</span>'}</label>`;
+    }).join('');
+    if (window.openModal) window.openModal(modal); else modal.classList.add('active');
+}
+
+function closeImportListReformatAllModal() {
+    const modal = document.getElementById('modalImportListReformatAll');
+    if (modal) {
+        if (window.closeModal) window.closeModal(modal); else modal.classList.remove('active');
+    }
+}
+
+async function runImportListReformatAllWithOllama() {
+    const rows = window._importListPreviewRows;
+    if (!rows || !rows.length) return;
+    const checkboxes = document.querySelectorAll('#importListReformatAllCheckboxes input[type="checkbox"]:checked');
+    const selectedFields = Array.from(checkboxes).map(cb => cb.value);
+    if (selectedFields.length === 0) {
+        showToast('Sélectionnez au moins une colonne à reformater.', 'warning');
+        return;
+    }
+    const btn = document.getElementById('importListReformatAllOllamaBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
+    try {
+        const fieldLabels = selectedFields.map(f => (IMPORT_LIST_FIELDS.find(fld => fld.value === f) || {}).label || f);
+        const prompts = selectedFields.map(f => _IMPORT_REFORMAT_PROMPTS[f] || `Normalise les données suivantes pour le champ "${(IMPORT_LIST_FIELDS.find(fld => fld.value === f) || {}).label || f}" (une valeur par ligne, même ordre). Données :`);
+        const combinedPrompt = `Tu es un assistant. Normalise les données suivantes pour ${selectedFields.length} colonne(s) : ${fieldLabels.join(', ')}.\n\nPour chaque colonne, je vais te donner les données à normaliser. Réponds avec un JSON où chaque clé est le nom du champ et la valeur est un tableau de valeurs normalisées (une par ligne, dans le même ordre).\n\n${selectedFields.map((f, i) => {
+            const values = rows.map(r => (r[f] || '').trim() || '(vide)');
+            return `Colonne "${fieldLabels[i]}" :\n${prompts[i]}\n${values.join('\n')}`;
+        }).join('\n\n')}\n\nRéponds avec un JSON de cette forme :\n{\n  "${selectedFields[0]}": ["valeur1", "valeur2", ...],\n  ${selectedFields.slice(1).map(f => `"${f}": ["valeur1", "valeur2", ...]`).join(',\n  ')}\n}`;
+        const text = await callOllama(combinedPrompt);
+        let jsonStr = (text || '').trim();
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonStr = jsonMatch[0];
+        const result = JSON.parse(jsonStr);
+        let applied = 0;
+        selectedFields.forEach(field => {
+            if (result[field] && Array.isArray(result[field])) {
+                const values = result[field];
+                if (values.length >= rows.length) {
+                    rows.forEach((r, i) => { r[field] = (values[i] || '').trim(); });
+                    applied++;
+                }
+            }
+        });
+        if (applied > 0) {
+            _renderImportListPreviewTable();
+            closeImportListReformatAllModal();
+            showToast(`${applied} colonne(s) reformatée(s). Vérifiez l'aperçu puis importez.`, 'success', 5000);
+        } else {
+            showToast('Aucune colonne reformatée. Vérifiez le format de la réponse Ollama.', 'warning');
+        }
+    } catch (e) {
+        console.error('Erreur reformatage multi-colonnes:', e);
+        showToast('Ollama indisponible ou réponse invalide. Reformatez colonne par colonne.', 'warning', 5000);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Générer avec Ollama'; }
+    }
+}
+
 function applyImportList() {
     const rows = window._importListPreviewRows;
     if (!rows || !rows.length) { showToast('Aucune ligne à importer.', 'warning'); return; }
