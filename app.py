@@ -86,7 +86,7 @@ OLLAMA_URL = (os.environ.get("OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL") or "llama3.2"
 OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT") or "120")
 
-app = Flask(__name__, static_folder=str(APP_DIR / 'static'), static_url_path='/static')
+app = Flask(__name__, static_folder=str(APP_DIR / 'static'), static_url_path='/static', template_folder=str(APP_DIR / 'templates'))
 
 # ═══════════════════════════════════════════════════════════════════
 # Session & Auth configuration
