@@ -500,6 +500,7 @@
 <style>
     .qa-card:hover, .qa-card.active { border-color: var(--color-primary) !important; background: rgba(var(--color-primary-rgb),.08) !important; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(var(--color-primary-rgb),.15); }
     .qa-card.active::after { content: '✓'; position: absolute; top: 6px; right: 8px; color: var(--color-primary); font-weight: 800; font-size: 16px; }
+    .qa-card[data-method] { cursor: pointer; }
 </style>
 {% endblock %}
 
