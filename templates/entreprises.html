@@ -14,38 +14,46 @@
 
 {% block content %}
 <div id="viewCompanies" style="display: block;">
-    <div class="content-header">
-        <div class="content-title">📍 Entreprises</div>
-        <p style="color: var(--color-text-secondary);">Cliquez sur une ligne pour filtrer les prospects sur cette entreprise.</p>
+    <div class="content-header companies-page-header">
+        <div class="content-title">Entreprises</div>
+        <p class="companies-page-subtitle">Cliquez sur une ligne ou une carte pour filtrer les prospects.</p>
     </div>
 
-    <div class="controls" style="grid-template-columns: 1fr auto;">
-        <input type="text" id="companySearchInput" placeholder="🔍 Rechercher une entreprise...">
-        <button class="btn btn-primary" onclick="openAddCompanyModal()">🏢 Ajouter</button>
+    <div class="controls companies-controls">
+        <input type="text" id="companySearchInput" placeholder="Rechercher une entreprise..." class="companies-search" aria-label="Rechercher une entreprise">
+        <button class="btn btn-primary" onclick="openAddCompanyModal()">Ajouter</button>
+        <div class="view-toggle companies-view-toggle" role="group" aria-label="Vue cartes ou liste">
+            <button type="button" class="view-toggle-btn active" id="btnCompaniesViewCards" onclick="switchCompaniesView('cards')" title="Vue cartes">Cartes</button>
+            <button type="button" class="view-toggle-btn" id="btnCompaniesViewTable" onclick="switchCompaniesView('table')" title="Vue liste">Liste</button>
+        </div>
     </div>
 
-    <div class="company-summary" id="companySummary">
-        <div class="summary-chip"><span class="chip-label">Entreprises</span> <span class="chip-value" id="companySummaryCompanies">0</span></div>
-        <div class="summary-chip"><span class="chip-label">Prospects</span> <span class="chip-value" id="companySummaryProspects">0</span></div>
-        <div class="summary-chip"><span class="chip-label">RDV</span> <span class="chip-value" id="companySummaryRDV">0</span></div>
-        <div class="summary-chip"><span class="chip-label">Appelables</span> <span class="chip-value" id="companySummaryCallable">0</span></div>
+    <div class="company-summary company-summary--compact" id="companySummary">
+        <span class="summary-chip summary-chip--compact"><span class="chip-label">Entreprises</span> <span class="chip-value" id="companySummaryCompanies">0</span></span>
+        <span class="summary-chip summary-chip--compact"><span class="chip-label">Prospects</span> <span class="chip-value" id="companySummaryProspects">0</span></span>
+        <span class="summary-chip summary-chip--compact"><span class="chip-label">RDV</span> <span class="chip-value" id="companySummaryRDV">0</span></span>
+        <span class="summary-chip summary-chip--compact"><span class="chip-label">Appelables</span> <span class="chip-value" id="companySummaryCallable">0</span></span>
     </div>
 
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th class="company-sortable" data-company-sort="groupe"><span class="th-inner">Groupe <span class="sort-indicator" aria-hidden="true"></span></span></th>
-                    <th class="company-sortable" data-company-sort="site"><span class="th-inner">Site <span class="sort-indicator" aria-hidden="true"></span></span></th>
-                    <th class="center company-sortable" data-company-sort="prospects"><span class="th-inner">Prospects <span class="sort-indicator" aria-hidden="true"></span></span></th>
-                    <th class="center company-sortable" data-company-sort="rdv"><span class="th-inner">RDV <span class="sort-indicator" aria-hidden="true"></span></span></th>
-                    <th class="center company-sortable" data-company-sort="callable"><span class="th-inner">Appelables <span class="sort-indicator" aria-hidden="true"></span></span></th>
-                    <th class="center">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="companyTableBody"></tbody>
-        </table>
+    <div id="companiesTableView" class="companies-table-wrap">
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="company-sortable" data-company-sort="groupe"><span class="th-inner">Groupe <span class="sort-indicator" aria-hidden="true"></span></span></th>
+                        <th class="company-sortable" data-company-sort="site"><span class="th-inner">Site <span class="sort-indicator" aria-hidden="true"></span></span></th>
+                        <th class="center company-sortable" data-company-sort="prospects"><span class="th-inner">Prospects <span class="sort-indicator" aria-hidden="true"></span></span></th>
+                        <th class="center company-sortable" data-company-sort="rdv"><span class="th-inner">RDV <span class="sort-indicator" aria-hidden="true"></span></span></th>
+                        <th class="center company-sortable" data-company-sort="callable"><span class="th-inner">Appelables <span class="sort-indicator" aria-hidden="true"></span></span></th>
+                        <th class="center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="companyTableBody"></tbody>
+            </table>
+        </div>
     </div>
+
+    <div id="companiesCardsView" class="company-grid companies-cards-grid" style="display: none;" aria-label="Vue cartes des entreprises"></div>
 </div>
 {% endblock %}
 

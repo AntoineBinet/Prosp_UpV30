@@ -294,8 +294,17 @@
     <li><strong>Pipeline candidats</strong> : liste complète avec filtres par statut (À sourcer, Contacté, Qualifié, En mission, Archivé), recherche, et tri.</li>
     <li><strong>Ajout rapide</strong> : créez un candidat avec nom, rôle, compétences, localisation, LinkedIn, source.</li>
     <li><strong>Import LinkedIn CSV</strong> : importez directement un export de contacts LinkedIn — le système mappe automatiquement les colonnes (prénom, nom, poste, URL…).</li>
+    <li><strong>Ajouter via VSA</strong> : ajoutez un candidat à partir d’une fiche VSA (Suivi des candidats) en collant le contenu de la page puis en utilisant l’extraction Ollama. Voir ci-dessous.</li>
     <li><strong>Export CSV</strong> : exportez votre base candidats.</li>
   </ul>
+  <p style="margin-top:14px"><strong>Ajouter un candidat depuis VSA</strong></p>
+  <p class="muted" style="font-size:13px;">Si vous utilisez VSA (vsactivity) pour le suivi des candidats, vous pouvez importer une fiche dans Prosp’Up sans saisie manuelle :</p>
+  <ol style="margin-top:8px;padding-left:20px;">
+    <li><strong>Sur VSA</strong> : ouvrez la fiche du candidat, puis sélectionnez tout le texte de la page (Ctrl+A ou Cmd+A) et copiez (Ctrl+C ou Cmd+C).</li>
+    <li><strong>Dans Prosp’Up</strong> : cliquez sur « 🔗 Ajouter via VSA » sur la page Sourcing. Collez éventuellement le lien de la fiche VSA (optionnel), puis collez le texte copié dans la zone prévue.</li>
+    <li><strong>Extraire</strong> : cliquez sur « Extraire avec Ollama ». Les champs (nom, rôle, localisation, compétences, etc.) sont extraits et pré-remplissent la fiche candidat. Si Ollama n’est pas disponible, vous pouvez coller un texte au format <code>NOM: … ROLE: … LOCALISATION: …</code> et utiliser « Pré-remplir quand même ».</li>
+    <li><strong>Enregistrer</strong> : vérifiez la fiche candidat pré-remplie, modifiez si besoin, puis enregistrez. La source sera « VSA » et le lien VSA sera enregistré si vous l’avez indiqué.</li>
+  </ol>
   <p style="margin-top:10px"><strong>Outil Productivité / Matching :</strong></p>
   <ul>
     <li><strong>Sélection d'entreprises cibles</strong> : choisissez une ou plusieurs entreprises pour lesquelles vous cherchez des candidats.</li>

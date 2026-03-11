@@ -1130,6 +1130,9 @@ let excludedStatuses = new Set();
 let sortKey = 'lastContact';
 let companySortKey = 'groupe';
 let companySortDir = 'asc';
+const COMPANIES_VIEW_STORAGE_KEY = 'prospup_companies_view';
+let companiesViewMode = (typeof localStorage !== 'undefined' && localStorage.getItem(COMPANIES_VIEW_STORAGE_KEY)) || 'cards';
+if (companiesViewMode !== 'table' && companiesViewMode !== 'cards') companiesViewMode = 'cards';
 let inlineCompanyNotesEditingId = null;
 let sortDir = 'desc'; // 'asc' ou 'desc'
 let pendingCompanyFocusId = null;
@@ -1750,8 +1753,85 @@ function renderCompanies() {
     }
     
     window._renderCompaniesRaf = requestAnimationFrame(() => {
-        _renderCompaniesInternal(tbody, q);
+        const result = _renderCompaniesInternal(tbody, q);
         window._renderCompaniesRaf = null;
+        applyCompaniesViewVisibility();
+        if (result && companiesViewMode === 'cards') {
+            renderCompaniesCards(result.companiesSorted, result.counts);
+        }
+    });
+}
+
+function applyCompaniesViewVisibility() {
+    const tableView = document.getElementById('companiesTableView');
+    const cardsView = document.getElementById('companiesCardsView');
+    const btnTable = document.getElementById('btnCompaniesViewTable');
+    const btnCards = document.getElementById('btnCompaniesViewCards');
+    if (!tableView || !cardsView) return;
+    if (companiesViewMode === 'cards') {
+        tableView.style.display = 'none';
+        cardsView.style.display = 'grid';
+        if (btnTable) btnTable.classList.remove('active');
+        if (btnCards) btnCards.classList.add('active');
+    } else {
+        tableView.style.display = '';
+        cardsView.style.display = 'none';
+        if (btnTable) btnTable.classList.add('active');
+        if (btnCards) btnCards.classList.remove('active');
+    }
+}
+
+function switchCompaniesView(mode) {
+    if (mode !== 'table' && mode !== 'cards') return;
+    companiesViewMode = mode;
+    try { localStorage.setItem(COMPANIES_VIEW_STORAGE_KEY, mode); } catch (e) {}
+    applyCompaniesViewVisibility();
+    if (mode === 'cards') renderCompanies();
+}
+
+function renderCompaniesCards(companiesSorted, counts) {
+    const container = document.getElementById('companiesCardsView');
+    if (!container) return;
+    const unassignedId = ensureUnassignedCompany();
+    container.innerHTML = '';
+    companiesSorted.forEach(company => {
+        const c = counts[company.id] || { prospects: 0, rdv: 0, callable: 0 };
+        const card = document.createElement('div');
+        card.className = 'company-card company-card-modern';
+        card.setAttribute('role', 'button');
+        card.tabIndex = 0;
+        card.setAttribute('aria-label', `Entreprise ${escapeHtml(company.groupe || '')} ${escapeHtml(company.site || '')}`);
+        const notesRaw = (company.notes || '').trim();
+        const noteSnippet = notesRaw ? (escapeHtml(notesRaw).slice(0, 80) + (notesRaw.length > 80 ? '…' : '')) : '';
+        card.innerHTML = `
+            <div class="company-card-header">
+                <span class="company-card-name">${escapeHtml(company.groupe || '')}</span>
+                ${company.id === unassignedId ? '<span class="company-default-badge">(défaut)</span>' : ''}
+            </div>
+            <div class="company-card-site">${escapeHtml(company.site || '')}</div>
+            ${noteSnippet ? `<div class="company-card-note">${noteSnippet}</div>` : ''}
+            <div class="company-card-counts">
+                <span class="count-badge count-badge-sm ${c.prospects > 0 ? 'has-prospects' : ''}" title="Prospects">${c.prospects}</span>
+                <span class="count-badge count-badge-sm rdv ${c.rdv > 0 ? 'has-rdv' : ''}" title="RDV">${c.rdv}</span>
+                <span class="count-badge count-badge-sm callable ${c.callable > 0 ? 'has-callable' : ''}" title="Appelables">${c.callable}</span>
+            </div>
+            <div class="company-card-actions" onclick="event.stopPropagation();">
+                <button type="button" class="btn-action btn-action-view" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');"><span class="btn-action-icon">&#x1F3E2;</span></button>
+                <button type="button" class="btn-action btn-action-prospects" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});"><span class="btn-action-icon">&#x1F465;</span></button>
+                <button type="button" class="btn-action btn-action-edit" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});"><span class="btn-action-icon">&#x270F;&#xFE0F;</span></button>
+                <button type="button" class="btn-action btn-action-delete" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}><span class="btn-action-icon">&#x1F5D1;</span></button>
+            </div>
+        `;
+        card.onclick = () => {
+            if (window.__APP_PAGE__ === 'companies') {
+                window.location.href = `/?company=${company.id}`;
+                return;
+            }
+            const companyFilter = document.getElementById('companyFilter');
+            if (companyFilter) companyFilter.value = company.id;
+            switchView('all');
+        };
+        container.appendChild(card);
     });
 }
 
@@ -1920,6 +2000,7 @@ function _renderCompaniesInternal(tbody, q) {
 
     updateCompanySummary(summary);
     updateCompanySortIndicators();
+    return { companiesSorted, counts, summary };
 }
 
 // ===== Score (v6) =====
@@ -5746,6 +5827,80 @@ function copyScrapingPromptCandidate(candidateData) {
 }
 
 // ═══════════════════════════════════════════════════════
+// VSA IMPORT — Extraction candidat depuis fiche VSA (collage + Ollama)
+// ═══════════════════════════════════════════════════════
+
+/** Retourne le prompt pour extraire les champs candidat depuis un contenu de fiche VSA. */
+function getVsaExtractionPrompt(vsaContent) {
+    return `Tu as ci-dessous le contenu d'une fiche candidat VSA (Suivi des candidats, vsactivity). Extrais les champs suivants au format exact (une ligne par champ, clé en majuscules avec underscores) :
+
+NOM: [nom et prénom du candidat]
+ROLE: [titre de poste / rôle]
+LOCALISATION: [ville, région, mobilité si mentionnée]
+SENIORITE: [Junior, Confirmé, Senior, Expert si identifiable]
+TECH: [technologies principales, séparées par des virgules]
+SKILLS: [compétences, tags séparés par des virgules]
+TELEPHONE: [numéro si présent]
+EMAIL: [email si présent]
+LINKEDIN: [URL du profil LinkedIn si présente]
+NOTES: [résumé ou contexte utile en une ou deux lignes]
+
+Si un champ est absent ou introuvable, ne l'écris pas. Réponds UNIQUEMENT avec les lignes CLÉ: valeur, sans introduction ni conclusion.
+
+══════ CONTENU FICHE VSA ══════
+${vsaContent}`;
+}
+
+/** Parse un texte au format KEY: value et retourne un objet pour pré-remplir le formulaire candidat (name, role, location, etc.). */
+function parseVsaCandidateText(text) {
+    const out = { name: '', role: '', location: '', seniority: '', tech: '', linkedin: '', source: 'VSA', notes: '', phone: '', email: '', skills: [], vsa_url: '' };
+    if (!text || typeof text !== 'string') return out;
+    const lines = text.split('\n');
+    let currentKey = null;
+    let currentValue = '';
+
+    const keyToField = {
+        'NOM': 'name',
+        'ROLE': 'role',
+        'LOCALISATION': 'location',
+        'SENIORITE': 'seniority',
+        'TECH': 'tech',
+        'LINKEDIN': 'linkedin',
+        'NOTES': 'notes',
+        'TELEPHONE': 'phone',
+        'EMAIL': 'email',
+        'SKILLS': 'skills'
+    };
+
+    function flush() {
+        if (!currentKey) return;
+        const key = currentKey.toUpperCase().replace(/\s+/g, '_');
+        const field = keyToField[key];
+        const val = currentValue.trim();
+        if (!field || !val || /^\[?à trouver\]?$/i.test(val) || /^\[?absent\]?$/i.test(val)) return;
+        if (field === 'skills') {
+            const list = val.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+            if (list.length) out.skills = list;
+        } else {
+            out[field] = val;
+        }
+    }
+
+    for (const line of lines) {
+        const match = line.match(/^([A-ZÀ-Ü_]+)\s*:\s*(.*)$/);
+        if (match) {
+            flush();
+            currentKey = match[1].trim();
+            currentValue = match[2].trim();
+        } else if (currentKey) {
+            currentValue += '\n' + line;
+        }
+    }
+    flush();
+    return out;
+}
+
+// ═══════════════════════════════════════════════════════
 // IA IMPORT SYSTEM — Parse AI results & fill fields
 // ═══════════════════════════════════════════════════════
 
@@ -9006,6 +9161,7 @@ async function bootstrap(page) {
     }
 
     if (page === 'companies') {
+        applyCompaniesViewVisibility();
         const openCompanyId = params.get('openCompany');
         const openCompanyMode = params.get('companyMode') === 'edit' ? 'edit' : 'view';
         if (openCompanyId) {
@@ -9039,6 +9195,7 @@ async function bootstrap(page) {
 // which can make `bootstrap` undefined from other scripts.
 try { window.bootstrap = bootstrap; } catch (e) {}
 try { window.appBootstrap = bootstrap; } catch (e) {}
+try { window.switchCompaniesView = switchCompaniesView; } catch (e) {}
 
 // ====== Prospect export & navigation helpers ======
 function openStatsModal() {

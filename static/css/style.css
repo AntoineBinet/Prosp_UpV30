@@ -1267,6 +1267,57 @@ th.company-sortable:hover {
     font-size: 14px;
 }
 
+/* Page Entreprises — résumé compact */
+.company-summary--compact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 14px 0;
+    align-items: center;
+}
+.company-summary--compact .summary-chip--compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    transition: transform .12s var(--transition-smooth);
+}
+.company-summary--compact .summary-chip--compact .chip-label {
+    font-size: 11px;
+    letter-spacing: 0.1px;
+}
+.company-summary--compact .summary-chip--compact .chip-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+/* Page Entreprises — header & toolbar */
+.companies-page-subtitle {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    margin: 0 0 10px 0;
+}
+.companies-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 14px;
+}
+.companies-controls .companies-search {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+.companies-controls .view-toggle {
+    flex-shrink: 0;
+}
+
 .company-note-snippet {
     margin-top: 6px;
     display: flex;
@@ -1903,6 +1954,122 @@ form.has-invalid-fields input[type="submit"] {
     border-radius: var(--spacing-sm);
     font-size: 18px;
     font-weight: bold;
+}
+
+/* Page Entreprises — vue cartes moderne */
+.companies-table-wrap {
+    margin-top: 0;
+}
+.companies-cards-grid {
+    margin-top: 0;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--spacing-md);
+}
+.company-card-modern {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--spacing-md);
+    cursor: pointer;
+    transition: all .2s var(--transition-smooth);
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    box-shadow: var(--shadow-sm);
+}
+.company-card-modern:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover);
+    border-color: rgba(var(--color-primary-rgb), 0.25);
+}
+.company-card-modern .company-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.company-card-modern .company-card-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 0;
+}
+.company-card-modern .company-card-site {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-bottom: 0;
+}
+.company-card-modern .company-card-note {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.company-card-modern .company-card-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.count-badge-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 13px;
+    font-weight: 600;
+    font-size: 12px;
+    background: rgba(var(--color-text-rgb), 0.08);
+    color: var(--color-text-secondary);
+    transition: all .2s ease;
+}
+.count-badge-sm.has-prospects {
+    background: rgba(var(--color-primary-rgb), 0.15);
+    color: var(--color-primary);
+}
+.count-badge-sm.rdv.has-rdv {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+}
+.count-badge-sm.callable.has-callable {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+}
+.company-card-modern .company-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+}
+.company-card-modern .company-card-actions .btn-action {
+    flex: 1 1 auto;
+    min-width: 44px;
+    min-height: 40px;
+    aspect-ratio: auto;
+}
+
+/* Page Entreprises — responsive */
+@media (max-width: 600px) {
+  body[data-page="companies"] .companies-cards-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+  body[data-page="companies"] .companies-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  body[data-page="companies"] .companies-controls .companies-search {
+    flex: 0 0 auto;
+  }
 }
 
 .settings-section {
@@ -3408,6 +3575,10 @@ body[data-page="prospects"] .table-wrapper td:nth-child(3) {
   }
   .company-card {
     background: linear-gradient(135deg, rgba(var(--color-primary-rgb),0.08) 0%, rgba(var(--color-primary-rgb),0.04) 100%);
+  }
+  .company-card-modern {
+    background: var(--color-surface);
+    border-color: var(--color-border);
   }
   .call-notes-container {
     background: var(--color-surface-2);
