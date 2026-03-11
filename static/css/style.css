@@ -1,7 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════
    style.css — Unified stylesheet
-   Up Technologies — Prosp'Up v23.4
+   Up Technologies — Prosp'Up v25
    ═══════════════════════════════════════════════════════════════ */
+
+/* ── View Transitions (cross-document, Chrome 126+) ── */
+@view-transition {
+  navigation: auto;
+}
 
 /* ──────────────────── BASE RESET & VARIABLES ──────────────────── */
 * {
@@ -293,6 +298,7 @@ h1 {
 }
 
 .sidebar {
+    view-transition-name: sidebar;
     background: var(--color-surface);
     padding: calc(var(--spacing-sm) + var(--spacing-xs)) var(--spacing-sm);
     border-radius: 18px;
@@ -371,6 +377,25 @@ h1 {
     font-weight: 600;
 }
 
+.nav-button.nav-loading {
+    opacity: 0.8;
+    pointer-events: none;
+}
+.nav-button.nav-loading::after {
+    content: '';
+    position: absolute;
+    right: var(--spacing-sm);
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: nav-loading-spin 0.6s linear infinite;
+}
+@keyframes nav-loading-spin {
+    to { transform: rotate(360deg); }
+}
+
 /* ── Sub-menu (indented children) ── */
 .nav-submenu {
     max-height: 0;
@@ -418,6 +443,7 @@ h1 {
 }
 
 .content {
+    view-transition-name: main-content;
     background: var(--color-surface);
     padding: 20px;
     border-radius: 16px;

@@ -1,5 +1,5 @@
-// Prosp'Up Service Worker v23.4 — enhanced caching + offline fallback + security hardening
-const CACHE = 'prospup-v23.4';
+// Prosp'Up Service Worker v25 — enhanced caching + offline fallback + HTML stale-while-revalidate
+const CACHE = 'prospup-v25';
 const API_CACHE = 'prospup-api-v23.4';
 const API_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -77,19 +77,35 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // ── HTML / navigation: network-first, offline fallback ──
-  const accept = e.request.headers.get('accept') || '';
+  // ── HTML / navigation: stale-while-revalidate (instant from cache if present, revalidate in background) ──
+  var accept = e.request.headers.get('accept') || '';
   if (e.request.mode === 'navigate' || accept.includes('text/html')) {
+    var navUrl = e.request.url;
     e.respondWith(
-      fetch(e.request)
-        .then(response => {
-          const copy = response.clone();
-          caches.open(CACHE).then(cache => cache.put(e.request, copy)).catch(() => {});
-          return response;
-        })
-        .catch(() =>
-          caches.match(e.request).then(cached => cached || caches.match('/offline.html'))
-        )
+      caches.open(CACHE).then(function (cache) {
+        // Match by URL only (prefetch uses different Request than navigation, so match by url)
+        return cache.keys().then(function (keys) {
+          var sameUrl = keys.find(function (req) { return req.url === navUrl; });
+          return sameUrl ? cache.match(sameUrl) : Promise.resolve(null);
+        }).then(function (cached) {
+          if (cached) {
+            fetch(e.request).then(function (response) {
+              if (response && response.ok) {
+                var copy = response.clone();
+                cache.put(e.request, copy).catch(function () {});
+              }
+            }).catch(function () {});
+            return cached;
+          }
+          return fetch(e.request).then(function (response) {
+            var copy = response.clone();
+            cache.put(e.request, copy).catch(function () {});
+            return response;
+          }).catch(function () {
+            return caches.match('/offline.html');
+          });
+        });
+      })
     );
     return;
   }
