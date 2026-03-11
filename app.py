@@ -26,7 +26,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "25.4"
+APP_VERSION = "25.5"
 import os
 import subprocess
 import traceback
@@ -6243,8 +6243,33 @@ def api_company_update():
     with _conn() as conn:
         conn.execute(f"UPDATE companies SET {sets} WHERE id=? AND owner_id=?;", (*vals, cid_i, uid))
         row = conn.execute("SELECT * FROM companies WHERE id=? AND owner_id=?;", (cid_i, uid)).fetchone()
+    
+    # Synchroniser si l'entreprise est partagée
+    _sync_shared_company_if_needed(cid_i, uid)
+    
     _audit_log("update", "company", cid_i, new_value=json.dumps(fields, ensure_ascii=False))
     return jsonify({"ok": True, "company": dict(row) if row else None})
+
+
+def _sync_shared_company_if_needed(company_id: int, user_id: int) -> None:
+    """Synchronise une entreprise partagée si elle est partagée avec d'autres utilisateurs."""
+    with _auth_conn() as aconn:
+        # Trouver tous les partages pour cette entreprise
+        shares = aconn.execute(
+            "SELECT from_user_id, to_user_id FROM shared_companies WHERE company_id = ?;",
+            (company_id,)
+        ).fetchall()
+        
+        for share in shares:
+            from_user_id = share["from_user_id"]
+            to_user_id = share["to_user_id"]
+            
+            # Si l'utilisateur actuel est celui qui a partagé, synchroniser vers le collaborateur
+            if user_id == from_user_id:
+                _sync_shared_company_to_collaborator(company_id, from_user_id, to_user_id)
+            # Si l'utilisateur actuel est le collaborateur, synchroniser vers l'utilisateur source
+            elif user_id == to_user_id:
+                _sync_shared_company_to_collaborator(company_id, from_user_id, to_user_id)
 
 
 @app.get("/api/audit-log")

@@ -12,7 +12,8 @@
             { href: '/',            icon: '\uD83D\uDC65', label: 'Prospects',    page: 'prospects',  helpSection: 'prospects' },
             { href: '/entreprises', icon: '\uD83D\uDCCD', label: 'Entreprises',  page: 'companies',  helpSection: 'entreprises' },
             { href: '/focus',       icon: '\uD83C\uDFAF', label: 'Focus',        page: 'focus',      helpSection: 'focus' },
-            { href: '/calendrier',  icon: '\uD83D\uDCC5', label: 'Calendrier',   page: 'calendar',   helpSection: 'calendrier' }
+            { href: '/calendrier',  icon: '\uD83D\uDCC5', label: 'Calendrier',   page: 'calendar',   helpSection: 'calendrier' },
+            { href: '/collab',      icon: '\uD83D\uDC65', label: 'Collaboration', page: 'collab',     helpSection: 'collab' }
         ]},
         { group: 'Actions', items: [
             { href: '/sourcing',  icon: '\uD83E\uDDF2', label: 'Sourcing',         page: 'sourcing',  helpSection: 'sourcing' },

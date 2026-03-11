@@ -135,22 +135,37 @@ function formatDate(iso) {
     }
 }
 
+let __userCompanies = [];
+
+async function loadUserCompanies() {
+    try {
+        // Charger les entreprises de l'utilisateur depuis l'API (GET /api/save)
+        const res = await fetch('/api/save');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        __userCompanies = Array.isArray(json.companies) ? json.companies : [];
+        return __userCompanies;
+    } catch (e) {
+        console.error('Error loading user companies:', e);
+        // Fallback: utiliser data global si disponible
+        if (typeof data !== 'undefined' && data.companies) {
+            __userCompanies = data.companies;
+            return __userCompanies;
+        }
+        return [];
+    }
+}
+
 async function reloadCollab() {
     const container = document.getElementById('collabContainer');
     if (container) {
         container.innerHTML = '<div class="skeleton skeleton-row" style="margin:8px 0"></div><div class="skeleton skeleton-row" style="margin:8px 0"></div>';
     }
     
-    // S'assurer que les données sont chargées
-    if (typeof data === 'undefined' || !data.companies || data.companies.length === 0) {
-        if (typeof loadFromServer === 'function') {
-            await loadFromServer();
-        }
-    }
-    
     await Promise.all([
         loadCollaborators(),
-        loadSharedCompanies()
+        loadSharedCompanies(),
+        loadUserCompanies()
     ]);
     
     renderCollaborators();
@@ -180,7 +195,7 @@ function openAddCollaboratorModal(preselectedUserId = null) {
 
     if (companySelect) {
         companySelect.innerHTML = '<option value="">-- Sélectionner une entreprise --</option>';
-        const companies = (typeof data !== 'undefined' && data.companies) ? data.companies : [];
+        const companies = __userCompanies.length > 0 ? __userCompanies : ((typeof data !== 'undefined' && data.companies) ? data.companies : []);
         companies.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.id;
