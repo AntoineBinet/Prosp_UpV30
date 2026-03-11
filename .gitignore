@@ -11,3 +11,4 @@ scripts/.agent-secret
 scripts/.cursor-api-key
 nul 
 logs/
+.last_commit_hash
