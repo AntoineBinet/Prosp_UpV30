@@ -204,23 +204,8 @@ body.header-scrolled .header-center .user-session-badge {
     pointer-events: none;
 }
 
-/* Bouton "Mettre à jour et redémarrer" disparaît au scroll */
-body.header-scrolled #btnDeployPull,
-body.header-scrolled #deployUpdateSection {
-    opacity: 0;
-    transform: translateY(-10px);
-    pointer-events: none;
-    transition: opacity .28s ease, transform .28s ease;
-    max-height: 0;
-    overflow: hidden;
-    margin: 0 !important;
-    padding: 0 !important;
-}
-
-#btnDeployPull,
-#deployUpdateSection {
-    transition: opacity .28s ease, transform .28s ease, max-height .28s ease, margin .28s ease, padding .28s ease;
-}
+/* La section "Mettre à jour et redémarrer" reste dans le contenu de la page Paramètres :
+   on ne la masque pas au scroll (header-scrolled), sinon elle disparaît dès qu'on scrolle pour y accéder. */
 
 @media (max-width: 900px) {
     .header-center .user-session-badge {
