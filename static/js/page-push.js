@@ -100,12 +100,22 @@ function openPushDetail(id) {
         </div>
     `;
 
-    modal.classList.add('active');
+    if (window.openModal) {
+        window.openModal(modal);
+    } else {
+        modal.classList.add('active');
+    }
 }
 
 function closePushDetail() {
     const modal = document.getElementById('modalPushDetail');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
     __pushDetail = null;
 }
 

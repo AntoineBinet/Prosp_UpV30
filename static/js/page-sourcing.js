@@ -25,12 +25,22 @@ function openEC1Modal(ev, candidateId) {
     const note = document.getElementById('ec1ModalNote');
     if (dt && !dt.value) dt.value = _defaultEC1DatetimeLocal();
     if (note) note.value = '';
-    modal.classList.add('active');
+    if (window.openModal) {
+        window.openModal(modal, { focusElement: '#ec1ModalDatetime' });
+    } else {
+        modal.classList.add('active');
+    }
 }
 
 function closeEC1Modal() {
     const modal = document.getElementById('modalEC1');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
     __ec1CandidateId = null;
 }
 
@@ -234,12 +244,22 @@ function renderCandidateTable() {
 function openCandidateModal(editing=false) {
     const modal = document.getElementById('modalCandidate');
     if (!modal) return;
-    modal.classList.add('active');
     document.getElementById('candModalTitle').textContent = editing ? 'Modifier candidat' : 'Ajouter candidat';
+    if (window.openModal) {
+        window.openModal(modal, { focusElement: '#candName' });
+    } else {
+        modal.classList.add('active');
+    }
 }
 function closeCandidateModal() {
     const modal = document.getElementById('modalCandidate');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
     __candEditing = null;
     try { document.getElementById('candForm')?.reset(); } catch(e) {}
 }

@@ -1562,9 +1562,9 @@ table th, table td {
 }
 
 /* Bordure subtile pour les champs requis (état normal) */
-.form-group input[required],
-.form-group select[required],
-.form-group textarea[required] {
+.form-group input[required]:not(:invalid):not(.is-invalid),
+.form-group select[required]:not(:invalid):not(.is-invalid),
+.form-group textarea[required]:not(:invalid):not(.is-invalid) {
     border-left: 3px solid rgba(var(--color-primary-rgb), 0.2);
     padding-left: 9px; /* Compenser la bordure gauche */
 }
@@ -4495,13 +4495,60 @@ table tbody tr:hover .name-cell {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ---- Detail modal entrance ---- */
-#modalDetail .modal-content {
-  animation: modalPop .25s var(--transition-smooth);
+/* ---- Modal animations (entrance/exit) ---- */
+@keyframes modalEnter {
+  from { 
+    opacity: 0; 
+    transform: scale(0.9) translateY(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1) translateY(0); 
+  }
 }
-@keyframes modalPop {
-  from { opacity: 0; transform: scale(0.95) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+
+@keyframes modalExit {
+  from { 
+    opacity: 1; 
+    transform: scale(1) translateY(0); 
+  }
+  to { 
+    opacity: 0; 
+    transform: scale(0.9) translateY(20px); 
+  }
+}
+
+@keyframes modalBackdropEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalBackdropExit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ---- Detail modal entrance (legacy support) ---- */
+#modalDetail .modal-content {
+  animation: modalEnter .25s ease-out;
+}
+
+/* ---- All modals: apply entrance animation when active ---- */
+.modal.active {
+  animation: modalBackdropEnter .2s ease-out;
+}
+
+.modal.active .modal-content {
+  animation: modalEnter .25s ease-out;
+}
+
+/* ---- Modal exit animation (applied via class) ---- */
+.modal.exiting {
+  animation: modalBackdropExit .2s ease-in;
+}
+
+.modal.exiting .modal-content {
+  animation: modalExit .2s ease-in;
 }
 
 /* ---- Relance + Actions : colonnes rapprochées (largeurs réduites) ---- */

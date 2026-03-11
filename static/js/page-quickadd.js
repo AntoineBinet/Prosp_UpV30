@@ -22,12 +22,22 @@
         document.getElementById('qaStep3Paste').style.display = 'none';
         document.getElementById('qaStep4Preview').style.display = 'none';
         document.querySelectorAll('.qa-card').forEach(c => c.classList.remove('active'));
-        m.classList.add('active');
+        if (window.openModal) {
+            window.openModal(m);
+        } else {
+            m.classList.add('active');
+        }
     };
 
     window.closeQuickAddModal = function () {
         const m = document.getElementById('modalQuickAdd');
-        if (m) m.classList.remove('active');
+        if (m) {
+            if (window.closeModal) {
+                window.closeModal(m);
+            } else {
+                m.classList.remove('active');
+            }
+        }
     };
 
     // ─── Step 0: pick method (manual or IA) ───

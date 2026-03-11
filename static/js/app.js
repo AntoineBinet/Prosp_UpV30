@@ -278,6 +278,186 @@ function markUnsaved() {}
 
 // Fix #21: Active nav highlighting now handled by sidebar.js (v23)
 
+// ═══════════════════════════════════════════════════════════════════
+// Modal Management Utilities (v25.1)
+// ═══════════════════════════════════════════════════════════════════
+let _activeModal = null;
+let _modalFocusTrap = null;
+let _modalEscapeHandler = null;
+let _previousActiveElement = null;
+
+/**
+ * Open a modal with animations, focus trap, and accessibility
+ * @param {string|HTMLElement} modalIdOrElement - Modal ID or element
+ * @param {Object} options - Options: { focusElement, onClose }
+ */
+function openModal(modalIdOrElement, options = {}) {
+    const modal = typeof modalIdOrElement === 'string' 
+        ? document.getElementById(modalIdOrElement) 
+        : modalIdOrElement;
+    
+    if (!modal) {
+        console.warn('[openModal] Modal not found:', modalIdOrElement);
+        return;
+    }
+
+    // Close any existing modal first
+    if (_activeModal && _activeModal !== modal) {
+        closeModal(_activeModal);
+    }
+
+    // Store previous active element for focus restoration
+    _previousActiveElement = document.activeElement;
+
+    // Set aria attributes
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-hidden', 'false');
+
+    // Add active class (triggers display + animation)
+    modal.classList.add('active');
+
+    // Focus management
+    const focusElement = options.focusElement 
+        ? (typeof options.focusElement === 'string' 
+            ? modal.querySelector(options.focusElement) 
+            : options.focusElement)
+        : modal.querySelector('input, textarea, button, [tabindex="0"]') 
+            || modal.querySelector('.modal-close') 
+            || modal.querySelector('.modal-content');
+
+    if (focusElement && typeof focusElement.focus === 'function') {
+        // Small delay to ensure modal is visible
+        requestAnimationFrame(() => {
+            focusElement.focus();
+        });
+    }
+
+    // Focus trap: keep Tab/Shift+Tab within modal
+    _modalFocusTrap = (e) => {
+        if (e.key !== 'Tab') return;
+        
+        const focusableElements = modal.querySelectorAll(
+            'a[href], button:not([disabled]), textarea:not([disabled]), ' +
+            'input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        
+        const firstFocusable = focusableElements[0];
+        const lastFocusable = focusableElements[focusableElements.length - 1];
+
+        if (!firstFocusable) return;
+
+        if (e.shiftKey) {
+            // Shift+Tab: if on first element, go to last
+            if (document.activeElement === firstFocusable) {
+                e.preventDefault();
+                lastFocusable?.focus();
+            }
+        } else {
+            // Tab: if on last element, go to first
+            if (document.activeElement === lastFocusable) {
+                e.preventDefault();
+                firstFocusable.focus();
+            }
+        }
+    };
+
+    // Escape key handler
+    _modalEscapeHandler = (e) => {
+        if (e.key === 'Escape' && _activeModal === modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeModal(modal, options.onClose);
+        }
+    };
+
+    // Attach event listeners
+    modal.addEventListener('keydown', _modalFocusTrap);
+    document.addEventListener('keydown', _modalEscapeHandler);
+
+    // Close on backdrop click
+    const backdropClickHandler = (e) => {
+        if (e.target === modal) {
+            closeModal(modal, options.onClose);
+        }
+    };
+    modal.addEventListener('click', backdropClickHandler);
+    modal._backdropClickHandler = backdropClickHandler;
+
+    _activeModal = modal;
+    modal._modalOptions = options;
+}
+
+/**
+ * Close a modal with exit animation
+ * @param {string|HTMLElement} modalIdOrElement - Modal ID or element
+ * @param {Function} onClose - Optional callback after close
+ */
+function closeModal(modalIdOrElement, onClose) {
+    const modal = typeof modalIdOrElement === 'string' 
+        ? document.getElementById(modalIdOrElement) 
+        : modalIdOrElement;
+    
+    if (!modal || !modal.classList.contains('active')) return;
+
+    // Remove event listeners
+    if (_modalFocusTrap) {
+        modal.removeEventListener('keydown', _modalFocusTrap);
+        _modalFocusTrap = null;
+    }
+    if (_modalEscapeHandler) {
+        document.removeEventListener('keydown', _modalEscapeHandler);
+        _modalEscapeHandler = null;
+    }
+    if (modal._backdropClickHandler) {
+        modal.removeEventListener('click', modal._backdropClickHandler);
+        modal._backdropClickHandler = null;
+    }
+
+    // Trigger exit animation
+    modal.classList.add('exiting');
+    modal.classList.remove('active');
+
+    // Remove exiting class and hide after animation
+    setTimeout(() => {
+        modal.classList.remove('exiting');
+        modal.setAttribute('aria-hidden', 'true');
+        _activeModal = null;
+        modal._modalOptions = null;
+
+        // Restore focus to previous element
+        if (_previousActiveElement && typeof _previousActiveElement.focus === 'function') {
+            _previousActiveElement.focus();
+        }
+        _previousActiveElement = null;
+
+        // Call onClose callback if provided
+        if (typeof onClose === 'function') {
+            onClose();
+        }
+    }, 200); // Match modalExit animation duration
+}
+
+// Expose to window for global access
+window.openModal = openModal;
+window.closeModal = closeModal;
+
+// Auto-handle modal-close buttons
+document.addEventListener('DOMContentLoaded', function() {
+    // Delegate click events to modal-close buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal-close') || e.target.closest('.modal-close')) {
+            const closeBtn = e.target.classList.contains('modal-close') ? e.target : e.target.closest('.modal-close');
+            const modal = closeBtn.closest('.modal');
+            if (modal) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeModal(modal);
+            }
+        }
+    });
+});
+
 
 function ensureUnassignedCompany() {
     // Crée (si besoin) l'entreprise "Sans entreprise" et renvoie son id
@@ -305,6 +485,265 @@ function escapeHtml(str) {
         "'": '&#39;'
     }[ch]));
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Form Validation System (v25.1)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Affiche un message d'erreur pour un champ de formulaire
+ * @param {HTMLElement} field - Le champ de formulaire (input, select, textarea)
+ * @param {string} message - Le message d'erreur à afficher
+ */
+function showFieldError(field, message) {
+    if (!field) return;
+    
+    // Ajouter la classe is-invalid
+    field.classList.add('is-invalid');
+    field.setAttribute('aria-invalid', 'true');
+    
+    // Créer ou récupérer le conteneur d'erreur
+    let errorContainer = field.parentElement.querySelector('.form-error');
+    if (!errorContainer) {
+        errorContainer = document.createElement('span');
+        errorContainer.className = 'form-error';
+        errorContainer.setAttribute('role', 'alert');
+        field.parentElement.appendChild(errorContainer);
+    }
+    
+    // Lier le champ au message d'erreur via aria-describedby
+    const errorId = errorContainer.id || `error-${field.id || Math.random().toString(36).substr(2, 9)}`;
+    errorContainer.id = errorId;
+    const describedBy = field.getAttribute('aria-describedby');
+    if (!describedBy || !describedBy.includes(errorId)) {
+        field.setAttribute('aria-describedby', describedBy ? `${describedBy} ${errorId}` : errorId);
+    }
+    
+    // Afficher le message
+    errorContainer.textContent = message;
+    errorContainer.style.display = 'block';
+}
+
+/**
+ * Efface le message d'erreur d'un champ
+ * @param {HTMLElement} field - Le champ de formulaire
+ */
+function clearFieldError(field) {
+    if (!field) return;
+    
+    field.classList.remove('is-invalid');
+    field.setAttribute('aria-invalid', 'false');
+    
+    const errorContainer = field.parentElement.querySelector('.form-error');
+    if (errorContainer) {
+        errorContainer.textContent = '';
+        errorContainer.style.display = 'none';
+    }
+}
+
+/**
+ * Valide un champ de formulaire selon ses contraintes HTML5 et règles personnalisées
+ * @param {HTMLElement} field - Le champ à valider
+ * @param {Object} options - Options de validation personnalisées
+ * @returns {boolean} - true si valide, false sinon
+ */
+function validateField(field, options = {}) {
+    if (!field) return true;
+    
+    const value = field.value.trim();
+    const isRequired = field.hasAttribute('required');
+    const type = field.type || field.tagName.toLowerCase();
+    
+    // Si le champ n'est pas requis et est vide, il est valide
+    if (!isRequired && !value) {
+        clearFieldError(field);
+        return true;
+    }
+    
+    // Validation HTML5 native
+    if (!field.checkValidity()) {
+        let message = field.validationMessage || 'Ce champ est invalide';
+        
+        // Messages personnalisés selon le type d'erreur
+        if (field.validity.valueMissing) {
+            message = options.requiredMessage || 'Ce champ est requis';
+        } else if (field.validity.typeMismatch) {
+            if (type === 'email') {
+                message = options.emailMessage || 'Veuillez entrer une adresse email valide';
+            } else if (type === 'url') {
+                message = options.urlMessage || 'Veuillez entrer une URL valide';
+            }
+        } else if (field.validity.patternMismatch) {
+            message = options.patternMessage || 'Le format saisi est incorrect';
+        } else if (field.validity.tooShort) {
+            message = options.tooShortMessage || `Minimum ${field.minLength} caractères requis`;
+        } else if (field.validity.tooLong) {
+            message = options.tooLongMessage || `Maximum ${field.maxLength} caractères autorisés`;
+        } else if (field.validity.rangeUnderflow) {
+            message = options.rangeUnderflowMessage || `La valeur minimale est ${field.min}`;
+        } else if (field.validity.rangeOverflow) {
+            message = options.rangeOverflowMessage || `La valeur maximale est ${field.max}`;
+        }
+        
+        showFieldError(field, message);
+        return false;
+    }
+    
+    // Validations personnalisées
+    if (options.customValidator && typeof options.customValidator === 'function') {
+        const customResult = options.customValidator(value, field);
+        if (customResult !== true) {
+            showFieldError(field, typeof customResult === 'string' ? customResult : 'Validation personnalisée échouée');
+            return false;
+        }
+    }
+    
+    // Validation email personnalisée (plus stricte que HTML5)
+    if (type === 'email' && value && options.strictEmail !== false) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value)) {
+            showFieldError(field, options.emailMessage || 'Veuillez entrer une adresse email valide');
+            return false;
+        }
+    }
+    
+    // Tout est OK
+    clearFieldError(field);
+    return true;
+}
+
+/**
+ * Valide tous les champs d'un formulaire
+ * @param {HTMLFormElement} form - Le formulaire à valider
+ * @param {Object} fieldOptions - Options de validation par champ (clé = name ou id du champ)
+ * @returns {boolean} - true si tous les champs sont valides
+ */
+function validateForm(form, fieldOptions = {}) {
+    if (!form) return false;
+    
+    let isValid = true;
+    const fields = form.querySelectorAll('input, select, textarea');
+    
+    fields.forEach(field => {
+        const fieldName = field.name || field.id;
+        const options = fieldOptions[fieldName] || {};
+        if (!validateField(field, options)) {
+            isValid = false;
+        }
+    });
+    
+    // Mettre à jour l'état du formulaire pour désactiver le submit
+    if (isValid) {
+        form.classList.remove('has-invalid-fields');
+    } else {
+        form.classList.add('has-invalid-fields');
+    }
+    
+    return isValid;
+}
+
+/**
+ * Initialise la validation en temps réel sur un formulaire
+ * @param {HTMLFormElement} form - Le formulaire
+ * @param {Object} options - Options (validateOnBlur, validateOnInput, fieldOptions)
+ */
+function initFormValidation(form, options = {}) {
+    if (!form) return;
+    
+    const {
+        validateOnBlur = true,
+        validateOnInput = true,
+        fieldOptions = {}
+    } = options;
+    
+    const fields = form.querySelectorAll('input, select, textarea');
+    
+    fields.forEach(field => {
+        // Validation au blur (quand l'utilisateur quitte le champ)
+        if (validateOnBlur) {
+            field.addEventListener('blur', function() {
+                const fieldName = this.name || this.id;
+                const options = fieldOptions[fieldName] || {};
+                validateField(this, options);
+                updateFormSubmitState(form);
+            });
+        }
+        
+        // Validation en temps réel (pendant la saisie) pour les champs critiques
+        if (validateOnInput && field.hasAttribute('required')) {
+            let timeout;
+            field.addEventListener('input', function() {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    const fieldName = this.name || this.id;
+                    const options = fieldOptions[fieldName] || {};
+                    validateField(this, options);
+                    updateFormSubmitState(form);
+                }, 300); // Debounce de 300ms
+            });
+        }
+        
+        // Validation au change pour les selects
+        if (field.tagName.toLowerCase() === 'select') {
+            field.addEventListener('change', function() {
+                const fieldName = this.name || this.id;
+                const options = fieldOptions[fieldName] || {};
+                validateField(this, options);
+                updateFormSubmitState(form);
+            });
+        }
+    });
+    
+    // Validation à la soumission
+    form.addEventListener('submit', function(e) {
+        if (!validateForm(form, fieldOptions)) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Focus sur le premier champ invalide
+            const firstInvalid = form.querySelector('.is-invalid, :invalid');
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            
+            showToast('Veuillez corriger les erreurs dans le formulaire', 'error');
+            return false;
+        }
+    });
+    
+    // Mise à jour initiale de l'état du submit
+    updateFormSubmitState(form);
+}
+
+/**
+ * Met à jour l'état des boutons submit d'un formulaire
+ * @param {HTMLFormElement} form - Le formulaire
+ */
+function updateFormSubmitState(form) {
+    if (!form) return;
+    
+    const isValid = validateForm(form);
+    const submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+    
+    submitButtons.forEach(btn => {
+        if (isValid) {
+            btn.disabled = false;
+            btn.removeAttribute('aria-disabled');
+        } else {
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+        }
+    });
+}
+
+// Exposer les fonctions globalement
+window.showFieldError = showFieldError;
+window.clearFieldError = clearFieldError;
+window.validateField = validateField;
+window.validateForm = validateForm;
+window.initFormValidation = initFormValidation;
+window.updateFormSubmitState = updateFormSubmitState;
 
 function todayISO() {
     const d = new Date();
@@ -2454,7 +2893,11 @@ async function viewDetail(id) {
     const firstActiveTab = detailContentEl.querySelector('.detail-tab-content.active');
     if (firstActiveTab) firstActiveTab.scrollTop = 0;
     const detailModal = document.getElementById('modalDetail');
-    detailModal.classList.add('active');
+    if (window.openModal) {
+        window.openModal(detailModal);
+    } else {
+        detailModal.classList.add('active');
+    }
     if (window.decorateHelpSections) window.decorateHelpSections();
     const detailCard = detailModal.querySelector('.modal-content');
     if (detailCard) {
@@ -3342,7 +3785,11 @@ async function openCompanySheet(companyId, mode) {
     companySheetState.companyId = Number(companyId);
     const modal = document.getElementById('modalCompanySheet');
     if (!modal) return;
-    modal.classList.add('active');
+    if (window.openModal) {
+        window.openModal(modal);
+    } else {
+        modal.classList.add('active');
+    }
 
     try {
         await loadCompanySheet(companySheetState.companyId);
@@ -3356,7 +3803,13 @@ async function openCompanySheet(companyId, mode) {
 
 function closeCompanySheet() {
     const modal = document.getElementById('modalCompanySheet');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function syncCompanyCacheFromPayload(payload) {
@@ -3577,12 +4030,22 @@ function openCallChoice(phones, prospectId) {
         list.appendChild(btn);
     });
 
-    modal.classList.add('active');
+    if (window.openModal) {
+        window.openModal(modal);
+    } else {
+        modal.classList.add('active');
+    }
 }
 
 function closeCallChoice() {
     const modal = document.getElementById('modalCallChoice');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function _stampProspectLastContact(prospect) {
@@ -4256,12 +4719,25 @@ async function openPushSelectModal(prospectId, channel = 'email') {
         }
     }
 
-    document.getElementById('pushSelectModal').classList.add('active');
+    const modal = document.getElementById('pushSelectModal');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal);
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 function closePushSelectModal() {
     const modal = document.getElementById('pushSelectModal');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
     _pushModalProspectId = null;
     _pushModalChannel = 'email';
 }
@@ -4868,11 +5344,25 @@ function openIAImportModal(type, id) {
     document.getElementById('iaManagersPreview').style.display = 'none';
     const titles = { prospect: 'prospect', candidate: 'candidat', company: 'entreprise' };
     document.getElementById('iaModalTitle').textContent = `📥 Import IA — Fiche ${titles[type] || type}`;
-    document.getElementById('modalIAImport').classList.add('active');
+    const modal = document.getElementById('modalIAImport');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: '.gsearch-input, input, textarea' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 function closeIAImportModal() {
-    document.getElementById('modalIAImport')?.classList.remove('active');
+    const modal = document.getElementById('modalIAImport');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function iaBackToStep1() {
@@ -5641,7 +6131,14 @@ function openBulkIAModal(mode) {
     document.getElementById('bulkIACsvMapping').style.display = 'none';
     document.getElementById('bulkIACsvFile').value = '';
 
-    document.getElementById('modalBulkIA').classList.add('active');
+    const modal = document.getElementById('modalBulkIA');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: 'input, textarea' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 function switchBulkIATab(tab) {
@@ -5662,7 +6159,14 @@ function switchBulkIATab(tab) {
 }
 
 function closeBulkIAModal() {
-    document.getElementById('modalBulkIA')?.classList.remove('active');
+    const modal = document.getElementById('modalBulkIA');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function bulkIABackToStep1() {
@@ -6304,7 +6808,11 @@ function toggleDetailEdit(isEdit) {
 function closeDetail(options = {}) {
     const modal = document.getElementById('modalDetail');
     if (!modal) return;
-    modal.classList.remove('active');
+    if (window.closeModal) {
+        window.closeModal(modal);
+    } else {
+        modal.classList.remove('active');
+    }
 
     const card = modal.querySelector('.modal-content');
     if (card) {
@@ -6495,7 +7003,30 @@ document.addEventListener('click', (e) => {
 function openAddModal() {
     editingId = null;
     document.getElementById('modalTitle').textContent = 'Ajouter Prospect';
-    document.getElementById('prospectForm').reset();
+    const form = document.getElementById('prospectForm');
+    if (form) {
+        form.reset();
+        // Nettoyer les erreurs de validation
+        if (typeof window.clearFieldError === 'function') {
+            form.querySelectorAll('input, select, textarea').forEach(field => {
+                window.clearFieldError(field);
+            });
+        }
+        // Initialiser la validation si pas déjà fait
+        if (typeof window.initFormValidation === 'function' && !form.dataset.validationInitialized) {
+            window.initFormValidation(form, {
+                validateOnBlur: true,
+                validateOnInput: true,
+                fieldOptions: {
+                    name: { requiredMessage: 'Le nom est requis' },
+                    company: { requiredMessage: 'L\'entreprise est requise' },
+                    email: { emailMessage: 'Veuillez entrer une adresse email valide' },
+                    linkedin: { urlMessage: 'Veuillez entrer une URL LinkedIn valide' }
+                }
+            });
+            form.dataset.validationInitialized = 'true';
+        }
+    }
 
     // Auto-fill company if a company filter is active
     const companyFilterVal = document.getElementById('companyFilter')?.value;
@@ -6504,27 +7035,61 @@ function openAddModal() {
         if (companySelect) companySelect.value = companyFilterVal;
     }
 
-    document.getElementById('modalProspect').classList.add('active');
+    const modal = document.getElementById('modalProspect');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: '#inputName' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
-function closeModal() {
-    document.getElementById('modalProspect').classList.remove('active');
+function closeProspectModal() {
+    const modal = document.getElementById('modalProspect');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function saveProspect(e) {
     e.preventDefault();
+    const form = document.getElementById('prospectForm');
+    
+    // Valider le formulaire
+    if (typeof window.validateForm === 'function') {
+        if (!window.validateForm(form, {
+            name: { requiredMessage: 'Le nom est requis' },
+            company: { requiredMessage: 'L\'entreprise est requise' },
+            email: { emailMessage: 'Veuillez entrer une adresse email valide' },
+            linkedin: { urlMessage: 'Veuillez entrer une URL LinkedIn valide' }
+        })) {
+            // Focus sur le premier champ invalide
+            const firstInvalid = form.querySelector('.is-invalid, :invalid');
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
+    }
+    
     const newProspect = {
         id: Math.max(...data.prospects.map(p => p.id), 0) + 1,
-        name: document.getElementById('inputName').value,
+        name: document.getElementById('inputName').value.trim(),
         company_id: parseInt(document.getElementById('inputCompany').value),
-        fonction: document.getElementById('inputFonction').value,
-        telephone: document.getElementById('inputTel').value,
-        email: document.getElementById('inputEmail').value,
-        linkedin: document.getElementById('inputLinkedin').value,
+        fonction: document.getElementById('inputFonction').value.trim(),
+        telephone: document.getElementById('inputTel').value.trim(),
+        email: document.getElementById('inputEmail').value.trim(),
+        linkedin: document.getElementById('inputLinkedin').value.trim(),
         pertinence: document.getElementById('inputPertinence').value,
         statut: document.getElementById('inputStatut').value,
         lastContact: todayISO(),
-        notes: document.getElementById('inputNotes').value,
+        notes: document.getElementById('inputNotes').value.trim(),
         callNotes: [],
         nextFollowUp: '',
         priority: 2,
@@ -6605,7 +7170,36 @@ function openAddCompanyModal() {
     } catch (e) {}
     const iaSection = document.getElementById('companyIASection');
     if (iaSection) iaSection.style.display = 'none';
-    document.getElementById('modalCompany').classList.add('active');
+    
+    // Initialiser la validation du formulaire
+    const form = document.getElementById('companyForm');
+    if (form && typeof window.initFormValidation === 'function' && !form.dataset.validationInitialized) {
+        window.initFormValidation(form, {
+            validateOnBlur: true,
+            validateOnInput: true,
+            fieldOptions: {
+                company_name: { requiredMessage: 'Le nom du groupe est requis' },
+                company_site: { requiredMessage: 'Le site / localisation est requis' }
+            }
+        });
+        form.dataset.validationInitialized = 'true';
+    }
+    
+    // Nettoyer les erreurs de validation
+    if (form && typeof window.clearFieldError === 'function') {
+        form.querySelectorAll('input, select, textarea').forEach(field => {
+            window.clearFieldError(field);
+        });
+    }
+    
+    const modal = document.getElementById('modalCompany');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: 'input' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 function openEditCompanyModal(companyId) {
@@ -6627,15 +7221,40 @@ function openCompanyFromProspect(companyId) {
 }
 
 function closeCompanyModal() {
-    document.getElementById('modalCompany').classList.remove('active');
+    const modal = document.getElementById('modalCompany');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function saveCompany(e) {
     e.preventDefault();
+    
+    const form = document.getElementById('companyForm');
+    
+    // Valider le formulaire
+    if (typeof window.validateForm === 'function') {
+        if (!window.validateForm(form, {
+            company_name: { requiredMessage: 'Le nom du groupe est requis' },
+            company_site: { requiredMessage: 'Le site / localisation est requis' }
+        })) {
+            // Focus sur le premier champ invalide
+            const firstInvalid = form.querySelector('.is-invalid, :invalid');
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
+    }
 
     const idRaw = document.getElementById('inputCompanyId').value;
-    const groupe = document.getElementById('inputCompanyName').value;
-    const site = document.getElementById('inputCompanySite').value;
+    const groupe = document.getElementById('inputCompanyName').value.trim();
+    const site = document.getElementById('inputCompanySite').value.trim();
     const phoneVal = document.getElementById('inputCompanyPhone').value || 'Non disponible';
     const notesVal = document.getElementById('inputCompanyNotes').value || '';
     const tagsVal = readTagsFromHidden('inputCompanyTagsValue');
@@ -7024,11 +7643,25 @@ function openImportListModal() {
     document.getElementById('importListStepChoice').style.display = '';
     document.getElementById('importListStepMapping').style.display = 'none';
     document.getElementById('importListStepPreview').style.display = 'none';
-    document.getElementById('modalImportList').classList.add('active');
+    const modal = document.getElementById('modalImportList');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal);
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 function closeImportListModal() {
-    document.getElementById('modalImportList')?.classList.remove('active');
+    const modal = document.getElementById('modalImportList');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function importListBackToChoice() {
@@ -7287,7 +7920,14 @@ function openImportListReformatModal(field) {
     const promptText = (_IMPORT_REFORMAT_PROMPTS[field] || 'Normalise les données suivantes (une valeur par ligne, même ordre). Données :') + '\n\n' + values.join('\n');
     document.getElementById('importListReformatPrompt').value = promptText;
     document.getElementById('importListReformatPaste').value = '';
-    document.getElementById('modalImportListReformat').classList.add('active');
+    const modal = document.getElementById('modalImportListReformat');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: 'textarea' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 async function runImportListReformatWithOllama() {
@@ -7306,7 +7946,14 @@ async function runImportListReformatWithOllama() {
 }
 
 function closeImportListReformatModal() {
-    document.getElementById('modalImportListReformat').classList.remove('active');
+    const modal = document.getElementById('modalImportListReformat');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
     window._importListReformatField = null;
 }
 
@@ -8263,11 +8910,25 @@ function openPostMeetingImportModal(prospectId) {
     document.getElementById('pmImportTextarea').value = '';
     document.getElementById('pmStep1').style.display = '';
     document.getElementById('pmStep2').style.display = 'none';
-    document.getElementById('modalPostMeetingIA').classList.add('active');
+    const modal = document.getElementById('modalPostMeetingIA');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: 'textarea' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 function closePostMeetingModal() {
-    document.getElementById('modalPostMeetingIA')?.classList.remove('active');
+    const modal = document.getElementById('modalPostMeetingIA');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function pmBackToStep1() {

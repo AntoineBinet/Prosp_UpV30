@@ -60,26 +60,26 @@
     <input type="hidden" id="editUserId">
 
     <div class="form-grid" style="display:grid;gap:14px;margin-top:14px;">
-      <div>
-        <label class="filter-label">Identifiant *</label>
-        <input id="uUsername" type="text" placeholder="prenom.nom" class="filter-input" style="width:100%;">
+      <div class="form-group">
+        <label class="filter-label required" for="uUsername">Identifiant</label>
+        <input id="uUsername" name="username" type="text" placeholder="prenom.nom" class="filter-input" style="width:100%;" required aria-required="true">
       </div>
-      <div>
-        <label class="filter-label">Nom affiché</label>
-        <input id="uDisplayName" type="text" placeholder="Prénom Nom" class="filter-input" style="width:100%;">
+      <div class="form-group">
+        <label class="filter-label" for="uDisplayName">Nom affiché</label>
+        <input id="uDisplayName" name="display_name" type="text" placeholder="Prénom Nom" class="filter-input" style="width:100%;">
       </div>
-      <div class="full-width">
-        <label class="filter-label">Mot de passe <span id="pwHint">(requis)</span></label>
+      <div class="form-group full-width">
+        <label class="filter-label" for="uPassword">Mot de passe <span id="pwHint">(requis)</span></label>
         <div class="input-with-toggle">
-          <input id="uPassword" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" oninput="updatePwConfirmVisibility()">
+          <input id="uPassword" name="password" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" minlength="8" pattern="^(?=.*[A-Za-z])(?=.*\d).{8,}$" oninput="updatePwConfirmVisibility(); validateUserPassword()">
           <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Afficher / masquer">👁️</button>
         </div>
         <span id="pwReqHint" style="font-size:11px;color:var(--color-text-secondary,#94a3b8);margin-top:4px;display:block;">Min. 8 caractères, au moins 1 lettre et 1 chiffre.</span>
       </div>
-      <div class="full-width" id="pwConfirmRow">
-        <label class="filter-label">Confirmer le mot de passe</label>
+      <div class="form-group full-width" id="pwConfirmRow">
+        <label class="filter-label" for="uPasswordConfirm">Confirmer le mot de passe</label>
         <div class="input-with-toggle">
-          <input id="uPasswordConfirm" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password">
+          <input id="uPasswordConfirm" name="password_confirm" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" oninput="validateUserPassword()">
           <button type="button" class="pw-toggle" id="pwConfirmToggleBtn" onclick="toggleConfirmVisibility()" title="Afficher / masquer">👁️</button>
         </div>
         <span id="pwMismatchMsg" style="display:none;font-size:12px;color:#ef4444;margin-top:4px;">Les deux mots de passe ne correspondent pas.</span>
@@ -235,17 +235,98 @@ function updatePwConfirmVisibility() {
   const id = document.getElementById('editUserId').value.trim();
   const pw = document.getElementById('uPassword').value;
   const row = document.getElementById('pwConfirmRow');
-  row.style.display = (id && !pw) ? 'none' : 'block';
+  const isEdit = !!id;
+  const hasPassword = !!pw;
+  
+  // En mode édition, si le mot de passe est vide, on cache la confirmation
+  row.style.display = (isEdit && !hasPassword) ? 'none' : 'block';
+  
+  // Mettre à jour l'attribut required du champ password selon le contexte
+  const pwField = document.getElementById('uPassword');
+  if (isEdit && !hasPassword) {
+    pwField.removeAttribute('required');
+  } else if (!isEdit) {
+    pwField.setAttribute('required', 'required');
+  }
+  
+  // Valider le mot de passe si nécessaire
+  if (hasPassword && typeof window.validateField === 'function') {
+    window.validateField(pwField, {
+      requiredMessage: 'Le mot de passe est requis',
+      patternMessage: 'Le mot de passe doit contenir au moins 8 caractères, dont au moins 1 lettre et 1 chiffre'
+    });
+  }
+}
+
+function validateUserPassword() {
+  const id = document.getElementById('editUserId').value.trim();
+  const password = document.getElementById('uPassword').value;
+  const passwordConfirm = document.getElementById('uPasswordConfirm').value;
+  const isEdit = !!id;
+  
+  // En mode édition, si le mot de passe est vide, pas de validation
+  if (isEdit && !password) {
+    clearFieldError(document.getElementById('uPassword'));
+    clearFieldError(document.getElementById('uPasswordConfirm'));
+    document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
+    document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.remove('pw-mismatch');
+    document.getElementById('pwMismatchMsg').style.display = 'none';
+    return;
+  }
+  
+  // Validation du format du mot de passe
+  if (password && typeof window.validateField === 'function') {
+    window.validateField(document.getElementById('uPassword'), {
+      requiredMessage: 'Le mot de passe est requis',
+      patternMessage: 'Le mot de passe doit contenir au moins 8 caractères, dont au moins 1 lettre et 1 chiffre'
+    });
+  }
+  
+  // Validation de la correspondance des mots de passe
+  if (password && passwordConfirm) {
+    if (password !== passwordConfirm) {
+      if (typeof window.showFieldError === 'function') {
+        window.showFieldError(document.getElementById('uPasswordConfirm'), 'Les deux mots de passe ne correspondent pas');
+      }
+      document.getElementById('uPassword').closest('.input-with-toggle').classList.add('pw-mismatch');
+      document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.add('pw-mismatch');
+      document.getElementById('pwMismatchMsg').style.display = 'block';
+    } else {
+      if (typeof window.clearFieldError === 'function') {
+        window.clearFieldError(document.getElementById('uPasswordConfirm'));
+      }
+      document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
+      document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.remove('pw-mismatch');
+      document.getElementById('pwMismatchMsg').style.display = 'none';
+    }
+  }
+  
+  // Mettre à jour l'état du bouton submit si le formulaire existe
+  const modal = document.getElementById('userModal');
+  if (modal && typeof window.updateFormSubmitState === 'function') {
+    // Créer un formulaire virtuel pour la validation
+    const form = document.createElement('form');
+    form.appendChild(document.getElementById('uUsername').cloneNode(true));
+    form.appendChild(document.getElementById('uPassword').cloneNode(true));
+    if (password) {
+      form.appendChild(document.getElementById('uPasswordConfirm').cloneNode(true));
+    }
+    window.updateFormSubmitState(form);
+  }
 }
 
 function openUserModal() {
   document.getElementById('editUserId').value = '';
-  document.getElementById('uUsername').value = '';
+  const usernameField = document.getElementById('uUsername');
+  const passwordField = document.getElementById('uPassword');
+  const passwordConfirmField = document.getElementById('uPasswordConfirm');
+  
+  usernameField.value = '';
   document.getElementById('uDisplayName').value = '';
-  document.getElementById('uPassword').value = '';
-  document.getElementById('uPasswordConfirm').value = '';
-  document.getElementById('uPassword').type = 'password';
-  document.getElementById('uPasswordConfirm').type = 'password';
+  passwordField.value = '';
+  passwordConfirmField.value = '';
+  passwordField.type = 'password';
+  passwordConfirmField.type = 'password';
   document.getElementById('pwToggleBtn').textContent = '👁️';
   document.getElementById('pwConfirmToggleBtn').textContent = '👁️';
   document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
@@ -256,6 +337,17 @@ function openUserModal() {
   document.getElementById('modalTitle').textContent = 'Nouvel utilisateur';
   document.getElementById('pwHint').textContent = '(requis)';
   document.getElementById('pwConfirmRow').style.display = 'block';
+  
+  // Nettoyer les erreurs de validation
+  if (typeof window.clearFieldError === 'function') {
+    window.clearFieldError(usernameField);
+    window.clearFieldError(passwordField);
+    window.clearFieldError(passwordConfirmField);
+  }
+  
+  // Ajouter required au mot de passe en mode création
+  passwordField.setAttribute('required', 'required');
+  
   document.getElementById('userModal').style.display = 'flex';
 }
 
@@ -265,12 +357,16 @@ function closeUserModal() {
 
 function editUser(u) {
   document.getElementById('editUserId').value = u.id;
-  document.getElementById('uUsername').value = u.username || '';
+  const usernameField = document.getElementById('uUsername');
+  const passwordField = document.getElementById('uPassword');
+  const passwordConfirmField = document.getElementById('uPasswordConfirm');
+  
+  usernameField.value = u.username || '';
   document.getElementById('uDisplayName').value = u.display_name || '';
-  document.getElementById('uPassword').value = '';
-  document.getElementById('uPasswordConfirm').value = '';
-  document.getElementById('uPassword').type = 'password';
-  document.getElementById('uPasswordConfirm').type = 'password';
+  passwordField.value = '';
+  passwordConfirmField.value = '';
+  passwordField.type = 'password';
+  passwordConfirmField.type = 'password';
   document.getElementById('pwToggleBtn').textContent = '👁️';
   document.getElementById('pwConfirmToggleBtn').textContent = '👁️';
   document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
@@ -281,35 +377,91 @@ function editUser(u) {
   document.getElementById('modalTitle').textContent = 'Modifier utilisateur';
   document.getElementById('pwHint').textContent = '(laisser vide pour ne pas changer)';
   document.getElementById('pwConfirmRow').style.display = 'none';
+  
+  // Nettoyer les erreurs de validation
+  if (typeof window.clearFieldError === 'function') {
+    window.clearFieldError(usernameField);
+    window.clearFieldError(passwordField);
+    window.clearFieldError(passwordConfirmField);
+  }
+  
+  // Retirer required du mot de passe en mode édition
+  passwordField.removeAttribute('required');
+  
   document.getElementById('userModal').style.display = 'flex';
 }
 
 async function saveUser() {
   const id = document.getElementById('editUserId').value.trim();
-  const password = document.getElementById('uPassword').value;
-  const passwordConfirm = document.getElementById('uPasswordConfirm').value;
+  const usernameField = document.getElementById('uUsername');
+  const passwordField = document.getElementById('uPassword');
+  const passwordConfirmField = document.getElementById('uPasswordConfirm');
+  const password = passwordField.value;
+  const passwordConfirm = passwordConfirmField.value;
+  const isEdit = !!id;
+  
+  // Nettoyer les erreurs précédentes
   document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
   document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.remove('pw-mismatch');
   document.getElementById('pwMismatchMsg').style.display = 'none';
-
-  if (password && password !== passwordConfirm) {
-    document.getElementById('uPassword').closest('.input-with-toggle').classList.add('pw-mismatch');
-    document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.add('pw-mismatch');
-    document.getElementById('pwMismatchMsg').style.display = 'block';
-    if (typeof showToast === 'function') showToast('Les deux mots de passe ne correspondent pas.', 'error');
-    else alert('⚠️ Les deux mots de passe ne correspondent pas.');
+  if (typeof window.clearFieldError === 'function') {
+    window.clearFieldError(usernameField);
+    window.clearFieldError(passwordField);
+    window.clearFieldError(passwordConfirmField);
+  }
+  
+  // Validation de l'identifiant
+  if (typeof window.validateField === 'function') {
+    if (!window.validateField(usernameField, { requiredMessage: 'L\'identifiant est requis' })) {
+      usernameField.focus();
+      return;
+    }
+  } else if (!usernameField.value.trim()) {
+    alert('⚠️ Identifiant requis');
+    usernameField.focus();
     return;
+  }
+  
+  // Validation du mot de passe (requis seulement en création)
+  if (!isEdit) {
+    if (typeof window.validateField === 'function') {
+      if (!window.validateField(passwordField, {
+        requiredMessage: 'Le mot de passe est requis',
+        patternMessage: 'Le mot de passe doit contenir au moins 8 caractères, dont au moins 1 lettre et 1 chiffre'
+      })) {
+        passwordField.focus();
+        return;
+      }
+    } else if (!password) {
+      alert('⚠️ Mot de passe requis');
+      passwordField.focus();
+      return;
+    }
+  }
+  
+  // Validation de la correspondance des mots de passe (si un mot de passe est saisi)
+  if (password) {
+    if (password !== passwordConfirm) {
+      if (typeof window.showFieldError === 'function') {
+        window.showFieldError(passwordConfirmField, 'Les deux mots de passe ne correspondent pas');
+      }
+      document.getElementById('uPassword').closest('.input-with-toggle').classList.add('pw-mismatch');
+      document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.add('pw-mismatch');
+      document.getElementById('pwMismatchMsg').style.display = 'block';
+      if (typeof showToast === 'function') showToast('Les deux mots de passe ne correspondent pas.', 'error');
+      else alert('⚠️ Les deux mots de passe ne correspondent pas.');
+      passwordConfirmField.focus();
+      return;
+    }
   }
 
   const payload = {
-    username: document.getElementById('uUsername').value.trim(),
+    username: usernameField.value.trim(),
     display_name: document.getElementById('uDisplayName').value.trim(),
     password: password,
     role: document.getElementById('uRole').value,
     is_active: document.getElementById('uActive').checked ? 1 : 0
   };
-  if (!payload.username) { alert('⚠️ Identifiant requis'); return; }
-  if (!id && !payload.password) { alert('⚠️ Mot de passe requis'); return; }
   if (id) payload.id = parseInt(id, 10);
 
   const r = await fetch('/api/users/save', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });

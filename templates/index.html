@@ -279,32 +279,32 @@
     <div class="modal-content">
         <div class="modal-header">
             <span id="modalTitle">Ajouter Prospect</span>
-            <button class="modal-close" onclick="closeModal()" aria-label="Fermer">&times;</button>
+            <button class="modal-close" onclick="closeProspectModal()" aria-label="Fermer">&times;</button>
         </div>
         <form id="prospectForm" onsubmit="saveProspect(event)">
             <div class="form-group">
-                <label>Nom *</label>
-                <input type="text" id="inputName" required>
+                <label class="required" for="inputName">Nom</label>
+                <input type="text" id="inputName" name="name" required aria-required="true">
             </div>
             <div class="form-group">
-                <label>Entreprise *</label>
-                <select id="inputCompany" required></select>
+                <label class="required" for="inputCompany">Entreprise</label>
+                <select id="inputCompany" name="company" required aria-required="true"></select>
             </div>
             <div class="form-group">
-                <label>Fonction</label>
-                <input type="text" id="inputFonction">
+                <label for="inputFonction">Fonction</label>
+                <input type="text" id="inputFonction" name="fonction">
             </div>
             <div class="form-group">
-                <label>Téléphone</label>
-                <input type="tel" id="inputTel">
+                <label for="inputTel">Téléphone</label>
+                <input type="tel" id="inputTel" name="tel">
             </div>
             <div class="form-group">
-                <label>Email</label>
-                <input type="email" id="inputEmail">
+                <label for="inputEmail">Email</label>
+                <input type="email" id="inputEmail" name="email">
             </div>
             <div class="form-group">
-                <label>LinkedIn</label>
-                <input type="url" id="inputLinkedin" placeholder="https://linkedin.com/in/...">
+                <label for="inputLinkedin">LinkedIn</label>
+                <input type="url" id="inputLinkedin" name="linkedin" placeholder="https://linkedin.com/in/...">
             </div>
             <div class="form-group">
                 <label>Pertinence</label>
@@ -332,7 +332,7 @@
                 <textarea id="inputNotes"></textarea>
             </div>
             <div class="btn-group">
-                <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+                <button type="button" class="btn btn-secondary" onclick="closeProspectModal()">Annuler</button>
                 <button type="submit" class="btn btn-primary">Enregistrer</button>
             </div>
         </form>
@@ -363,14 +363,14 @@
             <button class="modal-close" onclick="closeCompanyModal()">&times;</button>
         </div>
         <form id="companyForm" onsubmit="saveCompany(event)">
-            <input type="hidden" id="inputCompanyId">
+            <input type="hidden" id="inputCompanyId" name="company_id">
             <div class="form-group">
-                <label>Nom Groupe *</label>
-                <input type="text" id="inputCompanyName" required>
+                <label class="required" for="inputCompanyName">Nom Groupe</label>
+                <input type="text" id="inputCompanyName" name="company_name" required aria-required="true">
             </div>
             <div class="form-group">
-                <label>Site / Localisation *</label>
-                <input type="text" id="inputCompanySite" required>
+                <label class="required" for="inputCompanySite">Site / Localisation</label>
+                <input type="text" id="inputCompanySite" name="company_site" required aria-required="true">
             </div>
             <div class="form-group">
                 <label>Téléphone</label>
