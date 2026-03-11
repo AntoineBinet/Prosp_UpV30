@@ -4490,7 +4490,7 @@ function closeCompanyQuickView() {
     const el = document.getElementById('companyQuickViewOverlay');
     if (el) el.remove();
 }
-function deleteProspect(id) {
+async function deleteProspect(id) {
     const prospect = data.prospects.find(p => p.id === id);
     if (!prospect) return;
 
@@ -4499,14 +4499,20 @@ function deleteProspect(id) {
 
     if (!confirm(`⚠️ Supprimer définitivement ce prospect ?\n\n${label}`)) return;
 
-    data.prospects = data.prospects.filter(p => p.id !== id);
-
-    saveToServer();
-    markUnsaved();
-
-    closeDetail();
-    filterProspects();
-    showToast('🗑️ Prospect supprimé', 'success', 3000);
+    // Find delete button if in modal
+    const deleteBtn = document.querySelector('[onclick*="deleteProspect(' + id + ')"]') || 
+                      document.querySelector('.btn-danger[onclick*="deleteProspect"]');
+    
+    await withButtonFeedback(deleteBtn, async () => {
+        data.prospects = data.prospects.filter(p => p.id !== id);
+        await saveToServerAsync();
+        markUnsaved();
+        closeDetail();
+        filterProspects();
+        showToast('🗑️ Prospect supprimé', 'success', 3000);
+    }, {
+        haptic: true
+    });
 }
 
 

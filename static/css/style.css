@@ -1656,7 +1656,7 @@ table th, table td {
 }
 
 .modal-content {
-    background: rgba(var(--color-surface), 0.95);
+    background: var(--color-surface);
     backdrop-filter: blur(20px) saturate(1.2);
     -webkit-backdrop-filter: blur(20px) saturate(1.2);
     padding: 30px;
@@ -2529,7 +2529,7 @@ tr.company-focus {
   position: absolute;
   z-index: 10000;
   padding: 6px 10px;
-  background: rgba(var(--color-surface), 0.95);
+  background: var(--color-surface);
   backdrop-filter: blur(12px) saturate(1.2);
   -webkit-backdrop-filter: blur(12px) saturate(1.2);
   border: 1px solid var(--color-border);
@@ -2853,7 +2853,7 @@ body:not([data-page="prospects"]) .table-wrapper td {
   padding: 12px;
   border-radius: 14px;
   border: 1px solid var(--color-border);
-  background: rgba(var(--color-surface), 0.95);
+  background: var(--color-surface);
   backdrop-filter: blur(12px) saturate(1.2);
   -webkit-backdrop-filter: blur(12px) saturate(1.2);
   box-shadow: var(--shadow-xl);
@@ -3719,9 +3719,10 @@ body[data-page="prospects"] .table-wrapper td:nth-child(3) {
 .detail-status-select:hover {
   background: rgba(255,255,255,0.3);
 }
-.detail-status-select:focus {
+.detail-status-select:focus-visible {
   outline: none;
   background: rgba(255,255,255,0.35);
+  box-shadow: var(--focus-ring) !important;
 }
 .detail-status-select option {
   color: #1e293b;
@@ -4017,10 +4018,10 @@ body[data-page="prospects"] .table-wrapper td:nth-child(3) {
   transition: border-color .2s;
   margin-top: 4px;
 }
-.detail-edit-input:focus {
+.detail-edit-input:focus-visible {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb),0.15);
+  box-shadow: var(--focus-ring) !important;
 }
 select.detail-edit-input {
   cursor: pointer;
@@ -4182,8 +4183,8 @@ textarea.detail-edit-input {
   color: var(--color-text);
   outline: none;
 }
-.tpl-editor:focus {
-  box-shadow: inset 0 0 0 2px rgba(var(--color-primary-rgb),0.15);
+.tpl-editor:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(var(--color-primary-rgb),0.2), var(--focus-ring);
 }
 .tpl-editor a {
   color: #e65100;
@@ -4291,10 +4292,10 @@ textarea.detail-edit-input {
   border-color: rgba(var(--color-primary-rgb),.3);
   background: rgba(var(--color-primary-rgb),.06);
 }
-.filter-select:focus {
+.filter-select:focus-visible {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb),0.15);
+  box-shadow: var(--focus-ring) !important;
   background: rgba(var(--color-primary-rgb),.08);
 }
 
@@ -4319,10 +4320,10 @@ textarea.detail-edit-input {
 .filter-input:hover {
   border-color: rgba(var(--color-primary-rgb), 0.3);
 }
-.filter-input:focus {
+.filter-input:focus-visible {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--glow-primary, rgba(var(--color-primary-rgb), 0.15));
+  box-shadow: var(--focus-ring) !important;
 }
 /* Section mot de passe (Paramètres) : espacement et lisibilité */
 #changePwSection .filter-label {
@@ -4632,9 +4633,9 @@ table tbody td {
   transition: all .2s var(--transition-smooth);
 }
 #searchInput:focus,
-.controls input[type="text"]:focus {
+.controls input[type="text"]:focus-visible {
   border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 3px var(--glow-primary) !important;
+  box-shadow: var(--focus-ring) !important;
   outline: none;
 }
 
@@ -6085,10 +6086,10 @@ body:not([data-page="prospects"]) .table-wrapper td:nth-child(13) {
   transition: border-color .2s;
   line-height: 1.4;
 }
-.rdv-textarea:focus {
+.rdv-textarea:focus-visible {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(59,130,246,.15);
+  box-shadow: var(--focus-ring) !important;
 }
 .rdv-textarea::placeholder {
   color: var(--color-text-secondary);
@@ -7166,7 +7167,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   left: calc(100% + 8px);
   top: 50%;
   transform: translateY(-50%) translateX(10px);
-  background: rgba(var(--color-surface), 0.95);
+  background: var(--color-surface);
   backdrop-filter: blur(12px) saturate(1.2);
   -webkit-backdrop-filter: blur(12px) saturate(1.2);
   border: 1px solid var(--color-border);
@@ -8756,10 +8757,10 @@ a.tel-link:hover { text-decoration: underline; }
   color: var(--color-text);
   font-size: 12px;
 }
-.goal-setting-fields input:focus {
+.goal-setting-fields input:focus-visible {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--glow-primary);
+  box-shadow: var(--focus-ring) !important;
 }
 
 
@@ -8878,9 +8879,9 @@ a.tel-link:hover { text-decoration: underline; }
   outline: none;
   transition: border-color .2s;
 }
-.rdv-date-input:focus {
+.rdv-date-input:focus-visible {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), .15);
+  box-shadow: var(--focus-ring) !important;
 }
 
 /* ── Calendar ICS Import ── */
@@ -9079,8 +9080,9 @@ a.tel-link:hover { text-decoration: underline; }
   cursor: pointer;
   outline: none;
 }
-.pagination-size-select:focus {
+.pagination-size-select:focus-visible {
   border-color: var(--color-primary);
+  box-shadow: var(--focus-ring) !important;
 }
 .pagination-pages {
   display: flex;
