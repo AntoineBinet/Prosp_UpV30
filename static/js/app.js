@@ -273,6 +273,303 @@ function showToast(msg, type) {
     }, type === 'error' ? 5000 : 3000);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Button Loading & Success Feedback Helpers (v25.1)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Set button to loading state with spinner
+ * @param {HTMLElement|string} button - Button element or selector
+ * @returns {HTMLElement} The button element
+ */
+function setButtonLoading(button) {
+    if (typeof button === 'string') button = document.querySelector(button);
+    if (!button) return null;
+    
+    // Store original content if not already stored
+    if (!button.dataset.originalContent) {
+        button.dataset.originalContent = button.innerHTML;
+    }
+    
+    // Add loading class and spinner
+    button.classList.add('btn-loading');
+    button.disabled = true;
+    
+    // Create spinner if not exists
+    let spinner = button.querySelector('.spinner');
+    if (!spinner) {
+        spinner = document.createElement('div');
+        spinner.className = 'spinner spinner-small';
+        button.appendChild(spinner);
+    }
+    
+    return button;
+}
+
+/**
+ * Remove loading state from button
+ * @param {HTMLElement|string} button - Button element or selector
+ * @returns {HTMLElement} The button element
+ */
+function removeButtonLoading(button) {
+    if (typeof button === 'string') button = document.querySelector(button);
+    if (!button) return null;
+    
+    button.classList.remove('btn-loading');
+    button.disabled = false;
+    
+    // Remove spinner
+    const spinner = button.querySelector('.spinner');
+    if (spinner) spinner.remove();
+    
+    return button;
+}
+
+/**
+ * Show success feedback on button (checkmark animation)
+ * @param {HTMLElement|string} button - Button element or selector
+ * @param {number} duration - Duration in ms (default 1500)
+ * @returns {HTMLElement} The button element
+ */
+function showButtonSuccess(button, duration) {
+    duration = duration || 1500;
+    if (typeof button === 'string') button = document.querySelector(button);
+    if (!button) return null;
+    
+    // Add success feedback class
+    button.classList.add('btn-success-feedback');
+    
+    // Remove after animation
+    setTimeout(() => {
+        button.classList.remove('btn-success-feedback');
+        // Remove the ::after pseudo-element by forcing a reflow
+        button.style.animation = 'none';
+        void button.offsetWidth;
+        button.style.animation = '';
+    }, duration);
+    
+    return button;
+}
+
+/**
+ * Wrapper for async functions with automatic loading/success feedback
+ * @param {HTMLElement|string} button - Button element or selector
+ * @param {Function} asyncFn - Async function to execute
+ * @param {Object} options - Options { onSuccess, onError, successDuration, haptic }
+ * @returns {Promise} Promise from asyncFn
+ */
+async function withButtonFeedback(button, asyncFn, options) {
+    options = options || {};
+    const { onSuccess, onError, successDuration = 1500, haptic = true } = options;
+    
+    if (typeof button === 'string') button = document.querySelector(button);
+    if (!button) {
+        console.warn('withButtonFeedback: button not found');
+        return asyncFn();
+    }
+    
+    // Haptic feedback on click
+    if (haptic && window.haptic) window.haptic(10);
+    
+    // Set loading state
+    setButtonLoading(button);
+    
+    try {
+        const result = await asyncFn();
+        
+        // Show success feedback
+        removeButtonLoading(button);
+        showButtonSuccess(button, successDuration);
+        
+        if (onSuccess) onSuccess(result);
+        return result;
+    } catch (error) {
+        // Remove loading state on error
+        removeButtonLoading(button);
+        
+        if (onError) onError(error);
+        else {
+            console.error('withButtonFeedback error:', error);
+            if (window.showToast) {
+                window.showToast(error.message || 'Erreur', 'error');
+            }
+        }
+        throw error;
+    }
+}
+
+// Expose helpers globally
+window.setButtonLoading = setButtonLoading;
+window.removeButtonLoading = removeButtonLoading;
+window.showButtonSuccess = showButtonSuccess;
+window.withButtonFeedback = withButtonFeedback;
+
+/**
+ * Enhanced haptic feedback helper with automatic button detection
+ * Adds haptic feedback to all important button clicks
+ */
+function enhanceHapticFeedback() {
+    // Add haptic to all buttons on click
+    document.addEventListener('click', function(e) {
+        const target = e.target;
+        
+        // Check if it's a button or inside a button
+        const button = target.closest('button, .btn, [role="button"], a.btn');
+        if (!button) return;
+        
+        // Skip if disabled or loading
+        if (button.disabled || button.classList.contains('btn-loading')) return;
+        
+        // Skip navigation links (they have their own feedback)
+        if (button.tagName === 'A' && button.href && !button.classList.contains('btn')) return;
+        
+        // Determine haptic intensity based on button type
+        let intensity = 10; // Default
+        
+        if (button.classList.contains('btn-primary') || 
+            button.classList.contains('btn-success') ||
+            button.classList.contains('btn-danger')) {
+            intensity = 15; // Stronger for primary actions
+        }
+        
+        // Apply haptic feedback
+        if (window.haptic) {
+            window.haptic(intensity);
+        }
+    }, true); // Use capture phase to catch early
+    
+    // Also add haptic to form submissions
+    document.addEventListener('submit', function(e) {
+        const form = e.target;
+        if (form.tagName === 'FORM') {
+            const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+            if (submitBtn && !submitBtn.disabled && window.haptic) {
+                window.haptic(15);
+            }
+        }
+    });
+}
+
+// Initialize haptic feedback enhancement on DOM ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', enhanceHapticFeedback);
+} else {
+    enhanceHapticFeedback();
+}
+
+// Bulk progress system
+let _bulkProgressContainer = null;
+let _bulkProgressToast = null;
+
+function showBulkProgress(current, total, message) {
+    message = message || 'Traitement en cours...';
+    const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+    
+    // Create or get container
+    if (!_bulkProgressContainer) {
+        _bulkProgressContainer = document.getElementById('bulkProgressContainer');
+        if (!_bulkProgressContainer) {
+            _bulkProgressContainer = document.createElement('div');
+            _bulkProgressContainer.id = 'bulkProgressContainer';
+            _bulkProgressContainer.className = 'bulk-progress-container';
+            document.body.appendChild(_bulkProgressContainer);
+        }
+    }
+    
+    // Create or update progress bar
+    if (!_bulkProgressContainer.querySelector('.bulk-progress')) {
+        const progressEl = document.createElement('div');
+        progressEl.className = 'bulk-progress';
+        progressEl.innerHTML = `
+            <div class="bulk-progress-bar">
+                <div class="bulk-progress-fill"></div>
+            </div>
+            <div class="bulk-progress-text"></div>
+        `;
+        _bulkProgressContainer.appendChild(progressEl);
+    }
+    
+    const progressEl = _bulkProgressContainer.querySelector('.bulk-progress');
+    const fillEl = progressEl.querySelector('.bulk-progress-fill');
+    const textEl = progressEl.querySelector('.bulk-progress-text');
+    
+    fillEl.style.width = percent + '%';
+    textEl.textContent = `${current}/${total} ${message}`;
+    
+    // Show container
+    _bulkProgressContainer.style.display = 'block';
+    progressEl.style.display = 'flex';
+    
+    // Show toast with counter
+    if (!_bulkProgressToast) {
+        _bulkProgressToast = document.createElement('div');
+        _bulkProgressToast.className = 'bulk-progress-toast';
+        const toastContainer = document.getElementById('toastContainer') || document.getElementById('toast-container');
+        if (!toastContainer) {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.style.cssText = 'position:fixed;top:16px;right:16px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none;';
+            document.body.appendChild(container);
+            container.appendChild(_bulkProgressToast);
+        } else {
+            toastContainer.appendChild(_bulkProgressToast);
+        }
+    }
+    
+    _bulkProgressToast.textContent = `${current}/${total} ${message}`;
+    _bulkProgressToast.style.display = 'block';
+    _bulkProgressToast.style.opacity = '1';
+    
+    // Hide when complete
+    if (current >= total) {
+        setTimeout(() => {
+            if (_bulkProgressContainer) {
+                _bulkProgressContainer.style.display = 'none';
+            }
+            if (_bulkProgressToast) {
+                _bulkProgressToast.style.opacity = '0';
+                setTimeout(() => {
+                    if (_bulkProgressToast) _bulkProgressToast.style.display = 'none';
+                }, 300);
+            }
+        }, 500);
+    }
+}
+
+function hideBulkProgress() {
+    if (_bulkProgressContainer) {
+        _bulkProgressContainer.style.display = 'none';
+    }
+    if (_bulkProgressToast) {
+        _bulkProgressToast.classList.remove('show');
+        setTimeout(() => {
+            if (_bulkProgressToast) _bulkProgressToast.style.display = 'none';
+        }, 300);
+    }
+}
+
+// Animation flash vert pour les lignes modifiées
+function flashRowSuccess(prospectId) {
+    const row = document.querySelector(`tr[data-prospect-id="${prospectId}"]`);
+    if (row) {
+        row.classList.add('flash-success');
+        setTimeout(() => {
+            row.classList.remove('flash-success');
+        }, 800);
+    }
+}
+
+// Animate row with .row-updated class temporarily
+function animateRowUpdated(prospectId) {
+    const row = document.querySelector(`tr[data-prospect-id="${prospectId}"]`);
+    if (!row) return;
+    
+    row.classList.add('row-updated');
+    setTimeout(() => {
+        row.classList.remove('row-updated');
+    }, 2000);
+}
+
 // Auto-sauvegarde activée (SQLite) : on garde markUnsaved comme no-op pour compatibilité.
 function markUnsaved() {}
 
@@ -456,6 +753,68 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+
+    // Indicateur de chargement pour navigation entre pages
+    let pageLoadingIndicator = document.getElementById('page-loading-indicator');
+    if (!pageLoadingIndicator) {
+        pageLoadingIndicator = document.createElement('div');
+        pageLoadingIndicator.id = 'page-loading-indicator';
+        pageLoadingIndicator.className = 'page-loading-indicator';
+        document.body.appendChild(pageLoadingIndicator);
+    }
+
+    const showPageLoading = () => {
+        if (pageLoadingIndicator) {
+            pageLoadingIndicator.classList.add('active');
+        }
+    };
+
+    const hidePageLoading = () => {
+        if (pageLoadingIndicator) {
+            pageLoadingIndicator.classList.remove('active');
+        }
+    };
+
+    // Intercepter les clics sur les liens de navigation interne
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+
+        const href = link.getAttribute('href');
+        // Ignorer les liens externes, javascript:, mailto:, tel:, etc.
+        if (!href || href.startsWith('http') || href.startsWith('javascript:') || 
+            href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('#') ||
+            link.target === '_blank' || link.hasAttribute('download')) {
+            return;
+        }
+
+        // Vérifier si c'est un lien interne (commence par / ou est relatif)
+        if (href.startsWith('/') || (!href.startsWith('http') && !href.startsWith('//'))) {
+            showPageLoading();
+            
+            // Si la navigation est immédiate, cacher l'indicateur après un court délai
+            // Sinon, il sera caché par le chargement de la nouvelle page
+            setTimeout(() => {
+                // Si on est toujours sur la même page après 2 secondes, cacher l'indicateur
+                if (document.getElementById('page-loading-indicator')) {
+                    hidePageLoading();
+                }
+            }, 2000);
+        }
+    });
+
+    // Cacher l'indicateur au chargement de la page
+    hidePageLoading();
+
+    // Appliquer la classe page-transition au contenu principal
+    const content = document.querySelector('.content, main.content, main');
+    if (content && !content.classList.contains('page-transition')) {
+        content.classList.add('page-transition', 'entering');
+        // Retirer la classe entering après l'animation
+        setTimeout(() => {
+            content.classList.remove('entering');
+        }, 400);
+    }
 });
 
 
@@ -1992,26 +2351,64 @@ function updateBulkBar() {
     bulk.style.display = count > 0 ? 'flex' : 'none';
 }
 
-function applyBulkStatus() {
+async function applyBulkStatus() {
     const status = document.getElementById('bulkStatus').value;
     if (!status) return;
-    selectedProspects.forEach(id => {
+    
+    const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    if (total === 0) return;
+    
+    let updated = 0;
+    for (const id of ids) {
         const p = data.prospects.find(x => x.id === id);
-        if (p) p.statut = status;
-    });
-    saveToServer();
+        if (p) {
+            p.statut = status;
+            updated++;
+            showBulkProgress(updated, total, 'prospects mis à jour...');
+            flashRowSuccess(id);
+            // Petit délai pour visualiser la progression
+            if (total > 10) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
+    }
+    
+    await saveToServerAsync();
     filterProspects(); // refresh list & stats
+    selectedProspects.clear();
+    updateBulkBar();
+    showToast(`✅ ${updated} prospect(s) mis à jour`, 'success');
 }
 
-function applyBulkPertinence() {
+async function applyBulkPertinence() {
     const per = document.getElementById('bulkPertinence').value;
     if (!per) return;
-    selectedProspects.forEach(id => {
+    
+    const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    if (total === 0) return;
+    
+    let updated = 0;
+    for (const id of ids) {
         const p = data.prospects.find(x => x.id === id);
-        if (p) p.pertinence = per;
-    });
-    saveToServer();
+        if (p) {
+            p.pertinence = per;
+            updated++;
+            showBulkProgress(updated, total, 'prospects mis à jour...');
+            flashRowSuccess(id);
+            // Petit délai pour visualiser la progression
+            if (total > 10) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
+    }
+    
+    await saveToServerAsync();
     filterProspects();
+    selectedProspects.clear();
+    updateBulkBar();
+    showToast(`✅ ${updated} prospect(s) mis à jour`, 'success');
 }
 
 async function applyBulkRelance() {
@@ -2031,7 +2428,12 @@ async function applyBulkRelance() {
         if (!Number.isNaN(days)) dateStr = addDaysISO(todayISO(), days);
     }
     const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    
     try {
+        // Afficher la progression pendant l'appel API
+        showBulkProgress(0, total, 'relances en cours...');
+        
         const res = await fetch('/api/prospects/bulk-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2039,16 +2441,29 @@ async function applyBulkRelance() {
         });
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Erreur');
-        ids.forEach(id => {
+        
+        // Mettre à jour avec progression visuelle
+        let updated = 0;
+        for (const id of ids) {
             const p = data.prospects.find(x => x.id === id);
-            if (p) p.nextFollowUp = dateStr;
-        });
+            if (p) {
+                p.nextFollowUp = dateStr;
+                updated++;
+                showBulkProgress(updated, total, 'relances appliquées...');
+                flashRowSuccess(id);
+                if (total > 10) {
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                }
+            }
+        }
+        
         selectedProspects.clear();
         updateBulkBar();
         filterProspects();
         updateOverdueAlerts();
         if (typeof showToast === 'function') showToast('Relance appliquée à ' + (json.updated || ids.length) + ' prospect(s)', 'success');
     } catch (e) {
+        hideBulkProgress();
         if (typeof showToast === 'function') showToast(e.message || 'Erreur bulk relance', 'error');
     }
 }
@@ -2056,7 +2471,12 @@ async function applyBulkRelance() {
 async function applyBulkRelanceDone() {
     if (selectedProspects.size === 0) return;
     const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    
     try {
+        // Afficher la progression pendant l'appel API
+        showBulkProgress(0, total, 'relances en cours...');
+        
         const res = await fetch('/api/prospects/bulk-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2064,31 +2484,60 @@ async function applyBulkRelanceDone() {
         });
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Erreur');
-        ids.forEach(id => {
+        
+        // Mettre à jour avec progression visuelle
+        let updated = 0;
+        for (const id of ids) {
             const p = data.prospects.find(x => x.id === id);
-            if (p) p.nextFollowUp = null;
-        });
+            if (p) {
+                p.nextFollowUp = null;
+                updated++;
+                showBulkProgress(updated, total, 'relances marquées faites...');
+                flashRowSuccess(id);
+                if (total > 10) {
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                }
+            }
+        }
+        
         selectedProspects.clear();
         updateBulkBar();
         filterProspects();
         updateOverdueAlerts();
         if (typeof showToast === 'function') showToast('Relance marquée faite pour ' + (json.updated || ids.length) + ' prospect(s)', 'success');
     } catch (e) {
+        hideBulkProgress();
         if (typeof showToast === 'function') showToast(e.message || 'Erreur', 'error');
     }
 }
 
-function deleteSelectedProspects() {
+async function deleteSelectedProspects() {
     const count = selectedProspects.size;
     if (count === 0) return;
     if (!confirm(`⚠️ Supprimer définitivement ${count} prospect(s) ?`)) return;
 
-    data.prospects = data.prospects.filter(p => !selectedProspects.has(p.id));
+    const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    
+    // Afficher la progression
+    let deleted = 0;
+    for (const id of ids) {
+        const index = data.prospects.findIndex(p => p.id === id);
+        if (index !== -1) {
+            data.prospects.splice(index, 1);
+            deleted++;
+            showBulkProgress(deleted, total, 'prospects supprimés...');
+            if (total > 10) {
+                await new Promise(resolve => setTimeout(resolve, 30));
+            }
+        }
+    }
+    
     selectedProspects.clear();
-
-    saveToServer({ confirmMassDelete: true });
+    await saveToServerAsync({ confirmMassDelete: true });
     filterProspects();
     updateBulkBar();
+    showToast(`✅ ${deleted} prospect(s) supprimé(s)`, 'success');
 }
 
 // todayISO() est défini dans les helpers globaux (en haut du fichier).
@@ -3349,21 +3798,87 @@ function syncProspSessionWithFilteredList() {
 
 function switchTableKanban(mode) {
     const normalizedMode = (mode === 'kanban' || mode === 'prosp') ? mode : 'table';
+    const previousMode = _currentView;
     _currentView = normalizedMode;
 
     const tableEl = document.getElementById('tableView');
     const kanbanEl = document.getElementById('kanbanView');
     if (!tableEl || !kanbanEl) return;
 
-    tableEl.style.display = (normalizedMode === 'table') ? '' : 'none';
-    kanbanEl.style.display = (normalizedMode === 'kanban') ? '' : 'none';
+    // Fonction helper pour appliquer les transitions fluides entre vues
+    const applyViewTransition = (elementOut, elementIn, callback) => {
+        if (!elementIn) {
+            // Si pas d'élément entrant (mode prosp), juste cacher l'élément sortant
+            if (elementOut && previousMode !== normalizedMode && elementOut.style.display !== 'none') {
+                elementOut.classList.remove('view-transition-enter');
+                elementOut.classList.add('view-transition-exit');
+                setTimeout(() => {
+                    elementOut.style.display = 'none';
+                    elementOut.classList.remove('view-transition-exit');
+                    if (callback) callback();
+                }, 300);
+            } else {
+                if (elementOut) {
+                    elementOut.style.display = 'none';
+                    elementOut.classList.remove('view-transition-enter', 'view-transition-exit');
+                }
+                if (callback) callback();
+            }
+            return;
+        }
+
+        if (!elementOut) {
+            // Pas d'élément sortant, juste montrer le nouveau
+            elementIn.style.display = '';
+            elementIn.classList.remove('view-transition-exit');
+            elementIn.classList.add('view-transition-enter');
+            void elementIn.offsetWidth;
+            if (callback) callback();
+            return;
+        }
+
+        // Si c'est la première fois ou si on change de vue
+        if (previousMode !== normalizedMode && elementOut.style.display !== 'none') {
+            // Animation de sortie
+            elementOut.classList.remove('view-transition-enter');
+            elementOut.classList.add('view-transition-exit');
+            
+            // Après l'animation de sortie, cacher l'élément et montrer le nouveau
+            setTimeout(() => {
+                elementOut.style.display = 'none';
+                elementOut.classList.remove('view-transition-exit');
+                
+                elementIn.style.display = '';
+                elementIn.classList.remove('view-transition-exit');
+                elementIn.classList.add('view-transition-enter');
+                
+                // Forcer le reflow pour déclencher l'animation
+                void elementIn.offsetWidth;
+                
+                if (callback) callback();
+            }, 300); // Durée de l'animation de sortie
+        } else {
+            // Pas de transition nécessaire, changement direct
+            elementOut.style.display = 'none';
+            elementOut.classList.remove('view-transition-enter', 'view-transition-exit');
+            elementIn.style.display = '';
+            elementIn.classList.remove('view-transition-exit');
+            elementIn.classList.add('view-transition-enter');
+            void elementIn.offsetWidth;
+            if (callback) callback();
+        }
+    };
+
     _setViewToggleButtons(normalizedMode);
 
     if (normalizedMode === 'kanban') {
         _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
         const modal = document.getElementById('modalDetail');
         if (modal && modal.classList.contains('active')) closeDetail({ keepProspMode: false, fromViewSwitch: true });
-        renderKanban();
+        
+        applyViewTransition(tableEl, kanbanEl, () => {
+            renderKanban();
+        });
         return;
     }
 
@@ -3371,16 +3886,19 @@ function switchTableKanban(mode) {
         _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
         const modal = document.getElementById('modalDetail');
         if (modal && modal.classList.contains('active')) closeDetail({ keepProspMode: false, fromViewSwitch: true });
+        
+        applyViewTransition(kanbanEl, tableEl);
         return;
     }
 
+    // Mode prosp
     const ids = _getCurrentProspIds();
     if (!ids.length) {
         _currentView = 'table';
-        tableEl.style.display = '';
-        kanbanEl.style.display = 'none';
-        _setViewToggleButtons('table');
-        if (typeof showToast === 'function') showToast('Aucun prospect à défiler avec les filtres actuels.', 'warning');
+        applyViewTransition(kanbanEl, tableEl, () => {
+            _setViewToggleButtons('table');
+            if (typeof showToast === 'function') showToast('Aucun prospect à défiler avec les filtres actuels.', 'warning');
+        });
         return;
     }
 
@@ -3395,7 +3913,11 @@ function switchTableKanban(mode) {
         showToast(`Mode Prosp activé · ${ids.length} prospect${ids.length > 1 ? 's' : ''} à traiter`, 'info');
     }
     if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-    viewDetail(ids[0]).catch(() => {});
+    
+    // Pour le mode prosp, on cache les deux vues (table et kanban)
+    applyViewTransition(previousMode === 'kanban' ? kanbanEl : tableEl, null, () => {
+        viewDetail(ids[0]).catch(() => {});
+    });
 }
 
 function renderKanban() {
@@ -6526,15 +7048,26 @@ async function applyBulkIA() {
         return;
     }
 
-    // Apply to local data
+    const total = updates.length;
+    const label = isEmail ? 'email(s)' : 'téléphone(s)';
+    
+    // Apply to local data with progression
     const ids = [];
     const values = [];
+    let applied = 0;
+    
     for (const u of updates) {
         const p = data.prospects.find(x => x.id === _bulkIAProspects[u.idx].id);
         if (p) {
             p[field] = u.value;
             ids.push(p.id);
             values.push(u.value);
+            applied++;
+            showBulkProgress(applied, total, `${label} ajoutés...`);
+            flashRowSuccess(p.id);
+            if (total > 10) {
+                await new Promise(resolve => setTimeout(resolve, 30));
+            }
         }
     }
 
@@ -6554,8 +7087,7 @@ async function applyBulkIA() {
 
     closeBulkIAModal();
     filterProspects();
-    const label = isEmail ? 'email(s)' : 'téléphone(s)';
-    showToast(`✅ ${updates.length} ${label} ajouté(s) via IA !`, 'success', 5000);
+    showToast(`✅ ${applied} ${label} ajouté(s) via IA !`, 'success', 5000);
 }
 
 // Copy email address to clipboard (from email hyperlink)

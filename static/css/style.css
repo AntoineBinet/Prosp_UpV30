@@ -2853,9 +2853,10 @@ body:not([data-page="prospects"]) .table-wrapper td {
   padding: 12px;
   border-radius: 14px;
   border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 12px 36px rgba(0,0,0,0.2);
+  background: rgba(var(--color-surface), 0.95);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  box-shadow: var(--shadow-xl);
   animation: filterSlideIn .2s var(--transition-smooth);
 }
 
@@ -4709,12 +4710,47 @@ table tbody td {
   border-radius: 10px !important;
   transition: all .15s var(--transition-smooth);
 }
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
+/* Focus states - keyboard only with :focus-visible */
+.form-group input:focus-visible,
+.form-group select:focus-visible,
+.form-group textarea:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+.btn:focus-visible,
+.detail-status-select:focus-visible,
+.detail-edit-input:focus-visible,
+.tpl-editor:focus-visible,
+.filter-select:focus-visible,
+.filter-input:focus-visible,
+.rdv-textarea:focus-visible,
+.rdv-date-input:focus-visible,
+.pagination-size-select:focus-visible,
+.goal-setting-fields input:focus-visible {
   outline: none;
   border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 3px var(--glow-primary) !important;
+  box-shadow: var(--focus-ring) !important;
+}
+
+/* Fallback for mouse clicks (legacy support) */
+.form-group input:focus:not(:focus-visible),
+.form-group select:focus:not(:focus-visible),
+.form-group textarea:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible) {
+  outline: none;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1) !important;
+}
+
+/* Buttons focus-visible */
+button:focus-visible,
+.btn:focus-visible,
+.nav-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring) !important;
 }
 
 /* ---- Scrollbar ---- */
