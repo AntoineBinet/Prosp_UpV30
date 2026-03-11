@@ -211,30 +211,27 @@
   </form>
 </section>
 
-<!-- ═══ EC1 – Qualification checklist ═══ -->
-<section class="card" id="ec1Section" style="margin-top:14px; display:none;">
-  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
-    <div style="font-weight:800; font-size:16px;">📞 EC1 — entretien de qualification</div>
-    <span id="ec1SaveStatus" class="muted" style="font-size:12px;">—</span>
-  </div>
-
-  <div class="form-row">
-    <div class="form-group" style="flex: 1 1 320px;">
-      <label>📅 Date & heure de l'entretien (remonte dans le Calendrier)</label>
-      <input id="ec1InterviewAt" type="datetime-local" />
+<!-- ═══ Onglets (EC1 / note libre) ═══ -->
+<section class="card candidate-tabs-section" id="candidateTabsSection" style="margin-top:14px;">
+  <div class="candidate-tabs-header">
+    <div class="candidate-tabs-bar" id="candidateTabsBar">
+      <!-- onglets injectés par JS -->
     </div>
+    <button type="button" class="btn btn-secondary candidate-tab-add" id="btnAddCandidateTab" title="Nouvel onglet">+</button>
   </div>
-
-  <div id="ec1Checklist" class="ec1-checklist"></div>
-
-  <div class="form-group" style="margin-top:12px;">
-    <label>📝 Note (EC1)</label>
-    <textarea id="ec1Note" rows="4" placeholder="Résumé, points forts, points de vigilance…"></textarea>
+  <div class="candidate-tabs-panels" id="candidateTabsPanels">
+    <!-- panneaux (EC1 ou note libre) injectés par JS -->
   </div>
+</section>
 
-  <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-    <button class="btn btn-secondary" type="button" onclick="resetEC1Checklist()">↩️ Réinitialiser</button>
-    <button class="btn btn-primary" type="button" onclick="saveEC1Checklist(true)">💾 Sauver</button>
+<!-- ═══ Timeline ═══ -->
+<section class="card" style="margin-top:14px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <div style="font-weight:800;font-size:15px;">📅 Timeline</div>
+    <button type="button" class="btn btn-secondary" id="btnAddTimelineEvent" style="font-size:12px;">➕ Ajouter un événement</button>
+  </div>
+  <div id="candidateTimelineList" class="timeline-box candidate-timeline">
+    <div class="muted" style="text-align:center;padding:14px;">Chargement…</div>
   </div>
 </section>
 
@@ -254,6 +251,27 @@
     Cette fiche est pensée pour relier vos candidats à vos entreprises prospects (et gagner du temps sur le matching / sourcing).
   </div>
 </div>
+<!-- Modale Nouvel onglet -->
+<div id="modalNewCandidateTab" class="modal" role="dialog" aria-labelledby="modalNewTabTitle">
+  <div class="modal-backdrop"></div>
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modalNewTabTitle">Nouvel onglet</h2>
+      <button type="button" class="modal-close" onclick="closeNewTabModal()" aria-label="Fermer">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted" style="margin-bottom:14px;">Choisissez le type d'onglet à créer :</p>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button type="button" class="btn btn-primary" onclick="createNewTab('ec1')">📞 Format EC1 (grille de qualification)</button>
+        <button type="button" class="btn btn-secondary" onclick="createNewTab('note_libre')">📝 Note libre (champ texte)</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" onclick="closeNewTabModal()">Annuler</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block page_scripts %}
