@@ -1316,7 +1316,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
                 "INSERT INTO users (username, display_name, password_hash, role, is_active, createdAt) VALUES (?, ?, ?, ?, 1, ?);",
                 ("admin", "Antoine (Admin)", generate_password_hash("admin"), "admin", now)
             )
-            print("✅ Compte admin créé — login: admin / mdp: admin (à changer !)")
+            print("Compte admin cree — login: admin / mdp: admin (a changer !)")
 
         # Migration: reader -> editor (rôles simplifiés à admin + editor uniquement)
         try:
@@ -8586,17 +8586,17 @@ if __name__ == "__main__":
     if use_waitress:
         try:
             from waitress import serve
-            print(f"🚀 Prosp'Up v{APP_VERSION} en production (waitress) sur http://{host}:{port}")
+            print(f"Prosp'Up v{APP_VERSION} en production (waitress) sur http://{host}:{port}")
             logger.info("Waitress server started with 4 threads")
             serve(app, host=host, port=port, threads=4)
         except ImportError:
-            print("⚠️ waitress non installé, fallback sur Flask dev server")
+            print("ATTENTION: waitress non installe, fallback sur Flask dev server")
             logger.warning("waitress not installed, falling back to Flask dev server")
-            print(f"🚀 Prosp'Up démarré sur http://{host}:{port}")
+            print(f"Prosp'Up demarre sur http://{host}:{port}")
             app.run(host=host, port=port, debug=False)
     else:
-        print(f"⚠️  Mode développement — NE PAS utiliser en production 24/7")
+        print("ATTENTION: Mode developpement — NE PAS utiliser en production 24/7")
         print(f"    Lancer avec: python app.py --prod")
-        print(f"🚀 Prosp'Up v{APP_VERSION} en dev sur http://127.0.0.1:{port}")
+        print(f"Prosp'Up v{APP_VERSION} en dev sur http://127.0.0.1:{port}")
         logger.info("Dev server started (debug=True) — not for 24/7 use")
         app.run(host="127.0.0.1", port=port, debug=True)
