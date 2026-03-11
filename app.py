@@ -3889,10 +3889,11 @@ def api_prospect_best_candidates(prospect_id: int):
                 (company_id, uid),
             ).fetchone()
             if c_row:
-                company_groupe = (c_row.get("groupe") or "").strip()
+                # sqlite3.Row n'a pas de méthode .get(), utiliser l'accès direct
+                company_groupe = (c_row["groupe"] or "").strip() if c_row["groupe"] else ""
                 company_tags = _parse_json_str_list(c_row["tags"])
-                company_city = (c_row["city"] or c_row["site"] or "").lower().strip()
-                company_industry = (c_row["industry"] or "").lower().strip()
+                company_city = ((c_row["city"] or "") if c_row["city"] else (c_row["site"] or "")).lower().strip()
+                company_industry = (c_row["industry"] or "").lower().strip() if c_row["industry"] else ""
 
         # Piste 5: optional push category keywords
         category_keywords = []
@@ -7926,7 +7927,7 @@ def page_calendar():
 @login_required
 def page_collab():
     """Page de collaboration."""
-    return render_template("collab.html")
+    return render_template("collab.html", static_hashes=_static_hashes)
 
 
 @app.get("/api/calendar_events")
