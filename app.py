@@ -684,7 +684,7 @@ def api_auth_change_password():
 @login_required
 @role_required('admin')
 def page_users():
-    return send_from_directory(APP_DIR, "users.html")
+    return render_template("users.html", static_hashes=_static_hashes)
 
 @app.get("/api/users")
 @login_required
@@ -2615,7 +2615,7 @@ def home():
 
 @app.get("/entreprises")
 def page_entreprises():
-    return send_from_directory(APP_DIR, "entreprises.html")
+    return render_template("entreprises.html", static_hashes=_static_hashes)
 
 @app.get("/company")
 def page_company():
@@ -2625,65 +2625,65 @@ def page_company():
 
 @app.get("/parametres")
 def page_parametres():
-    return send_from_directory(APP_DIR, "parametres.html")
+    return render_template("parametres.html", static_hashes=_static_hashes)
 
 
 
 
 @app.get("/sourcing")
 def page_sourcing():
-    return send_from_directory(APP_DIR, "sourcing.html")
+    return render_template("sourcing.html", static_hashes=_static_hashes)
 
 
 @app.get("/candidat")
 def page_candidat():
     """Fiche candidat (détail). Utilise le query param ?id=..."""
-    return send_from_directory(APP_DIR, "candidate.html")
+    return render_template("candidate.html", static_hashes=_static_hashes)
 
 
 @app.get("/push")
 def page_push():
-    return send_from_directory(APP_DIR, "push.html")
+    return render_template("push.html", static_hashes=_static_hashes)
 
 @app.get("/templates")
 def page_templates():
-    return send_from_directory(APP_DIR, "templates.html")
+    return render_template("templates.html", static_hashes=_static_hashes)
 
 
 
 @app.get("/stats")
 def page_stats():
-    return send_from_directory(APP_DIR, "stats.html")
+    return render_template("stats.html", static_hashes=_static_hashes)
 
 
 @app.get("/duplicates")
 def page_duplicates():
-    return send_from_directory(APP_DIR, "duplicates.html")
+    return render_template("duplicates.html", static_hashes=_static_hashes)
 
 
 @app.get("/focus")
 def page_focus():
-    return send_from_directory(APP_DIR, "focus.html")
+    return render_template("focus.html", static_hashes=_static_hashes)
 
 
 @app.get("/snapshots")
 def page_snapshots():
-    return send_from_directory(APP_DIR, "snapshots.html")
+    return render_template("snapshots.html", static_hashes=_static_hashes)
 
 
 @app.get("/help")
 def page_help():
-    return send_from_directory(APP_DIR, "help.html")
+    return render_template("help.html", static_hashes=_static_hashes)
 
 
 @app.get("/aide")
 def page_aide():
-    return send_from_directory(APP_DIR, "help.html")
+    return render_template("help.html", static_hashes=_static_hashes)
 
 
 @app.get("/metiers")
 def page_metiers():
-    return send_from_directory(APP_DIR, "metiers.html")
+    return render_template("metiers.html", static_hashes=_static_hashes)
 
 
 @app.get("/offline.html")
@@ -7474,7 +7474,7 @@ def api_export_day():
 
 @app.get("/rapport")
 def page_rapport():
-    return send_from_directory(str(APP_DIR), "rapport.html")
+    return render_template("rapport.html", static_hashes=_static_hashes)
 
 
 @app.get("/api/rapport-hebdo")
@@ -7662,7 +7662,7 @@ def api_custom_metiers_delete(item_id):
 
 @app.get("/calendrier")
 def page_calendar():
-    return send_from_directory(str(APP_DIR), "calendrier.html")
+    return render_template("calendrier.html", static_hashes=_static_hashes)
 
 
 @app.get("/api/calendar_events")

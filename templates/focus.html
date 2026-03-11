@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Prosp'Up — Focus{% endblock %}
+
+{% block page_id %}focus{% endblock %}
+
+{% block header_title %}Prosp'Up — Focus{% endblock %}
+
+{% block header_subtitle %}Votre file d'actions : relances à faire, triées par échéance.{% endblock %}
+
+{% block content %}
+<!-- Alerte export hebdo (jeudi+) -->
+<div id="weeklyExportAlertFocus" class="card" style="display:none; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.4); margin-bottom:14px; padding:12px 16px;">
+  <div style="display:flex; align-items:center; gap:10px;">
+    <span style="font-size:20px;">⚠️</span>
+    <div style="flex:1;">
+      <strong>Rappel :</strong> Vous n'avez pas encore exporté votre suivi activité cette semaine.
+      <a href="/stats" class="btn btn-primary btn-sm" style="margin-left:10px;">📥 Aller aux Stats</a>
+    </div>
+    <button class="mini-action" onclick="this.closest('.card').style.display='none'" title="Masquer">✕</button>
+  </div>
+</div>
+
+<!-- ═══ To-Do List ═══ -->
+<div class="card" id="todoSection" style="margin-bottom: 16px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;">
+    <div class="dash-card-title">✅ Tâches</div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-secondary btn-sm" id="btnShowArchived">📁 Archives</button>
+      <button class="btn btn-primary btn-sm" id="btnAddTask">+ Ajouter</button>
+    </div>
+  </div>
+  <div id="todoList"><div class="skeleton skeleton-row" style="margin:8px 0"></div><div class="skeleton skeleton-row" style="margin:8px 0"></div><div class="skeleton skeleton-row" style="margin:8px 0"></div></div>
+  <div id="todoArchivedList" style="display:none;"></div>
+</div>
+
+<div class="content-header">
+  <div class="content-title">Relances</div>
+  <div class="controls">
+    <select id="focusFilter">
+      <option value="all">Toutes</option>
+      <option value="late">En retard</option>
+      <option value="today">Aujourd'hui</option>
+      <option value="tomorrow">Demain</option>
+      <option value="week">Cette semaine</option>
+    </select>
+    <button class="btn btn-secondary" id="btnFocusReload">🔄 Actualiser</button>
+    <div class="muted" id="focusSummary" style="flex: 999 1 auto; min-width: 240px;"></div>
+  </div>
+</div>
+
+<div id="focusContainer"></div>
+
+<div class="card" style="margin-top: 14px;">
+  <div class="muted">Astuce : gardez <strong>nextFollowUp</strong> à jour et utilisez Focus comme "to-do" quotidien.</div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Task Modal -->
+<div class="modal" role="dialog" aria-modal="true" id="taskModal" style="display:none;">
+  <div class="modal-content" style="max-width:520px;">
+    <div class="modal-header">
+      <span id="taskModalTitle">Nouvelle tâche</span>
+      <button class="modal-close" onclick="closeTaskModal()">×</button>
+    </div>
+    <div style="padding:16px 0;">
+      <div class="form-group" style="margin-bottom:12px;">
+        <label style="font-weight:600;font-size:13px;">Titre *</label>
+        <input type="text" id="taskTitleInput" placeholder="Ex: Relancer prospect X" class="filter-select" style="width:100%;margin-top:4px;">
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label style="font-weight:600;font-size:13px;">Commentaire</label>
+        <textarea id="taskCommentInput" rows="3" placeholder="Notes, détails…" class="filter-select" style="width:100%;margin-top:4px;resize:vertical;"></textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label style="font-weight:600;font-size:13px;">Date d'échéance</label>
+        <input type="date" id="taskDueDateInput" class="filter-select" style="width:100%;margin-top:4px;">
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label style="font-weight:600;font-size:13px;">Prospects affectés</label>
+        <input type="text" id="taskProspectsSearch" placeholder="🔍 Rechercher un prospect…" class="filter-select" style="width:100%;margin-top:4px;margin-bottom:4px;font-size:12px;" autocomplete="off">
+        <select id="taskProspectsSelect" multiple class="filter-select" style="width:100%;min-height:100px;"></select>
+        <div class="muted" style="font-size:11px;margin-top:2px;">Ctrl+clic pour sélection multiple · tapez pour filtrer</div>
+      </div>
+      <div class="form-group" style="margin-bottom:16px;">
+        <label style="font-weight:600;font-size:13px;">Candidats affectés</label>
+        <input type="text" id="taskCandidatesSearch" placeholder="🔍 Rechercher un candidat…" class="filter-select" style="width:100%;margin-top:4px;margin-bottom:4px;font-size:12px;" autocomplete="off">
+        <select id="taskCandidatesSelect" multiple class="filter-select" style="width:100%;min-height:100px;"></select>
+        <div class="muted" style="font-size:11px;margin-top:2px;">Ctrl+clic pour sélection multiple · tapez pour filtrer</div>
+      </div>
+      <input type="hidden" id="taskEditId" value="">
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-secondary" onclick="closeTaskModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveTask()">💾 Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script defer src="/static/js/page-focus.js?v=2000"></script>
+{% endblock %}

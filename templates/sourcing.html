@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Prosp'Up — Sourcing candidats{% endblock %}
+
+{% block page_id %}sourcing{% endblock %}
+
+{% block header_title %}Prosp'Up — Sourcing candidats{% endblock %}
+
+{% block header_subtitle %}Pipeline + mode productivité (matching avec vos entreprises prospects).{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:16px;">
+  <h3 style="font-size:14px;margin-bottom:10px;">📂 Dossier candidats</h3>
+  <p class="muted" style="font-size:12px;margin-bottom:10px;">Chemin racine des dossiers candidats (format NOM Prénom). Utilisez « Scanner le dossier » pour détecter les nouveaux noms.</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex-wrap:wrap;">
+    <div>
+      <label class="muted" style="font-size:11px;">Chemin de base</label>
+      <input type="text" id="settingCandidateFolderBase" placeholder="C:\...\02 Candidats" style="width:100%;font-size:12px;padding:6px 10px;margin-top:4px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);" />
+    </div>
+    <div>
+      <label class="muted" style="font-size:11px;">Format du nom (ex: {NOM} {Prenom})</label>
+      <input type="text" id="settingCandidateFolderFormat" placeholder="{NOM} {Prenom}" style="width:100%;font-size:12px;padding:6px 10px;margin-top:4px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);" />
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">
+    <button class="btn btn-primary" id="btnSaveCandidateFolder">💾 Enregistrer</button>
+    <button class="btn btn-secondary" id="btnScanCandidateFolder">🔍 Scanner le dossier</button>
+    <span id="folderSettingsStatus" class="muted" style="font-size:12px;"></span>
+  </div>
+  <div id="sourceFromFolderResult" style="margin-top:12px;display:none;"></div>
+</div>
+<div class="content-header">
+  <div class="content-title">Sourcing</div>
+  <div class="tabbar">
+    <button class="tab active" id="tabPipeline" type="button">Pipeline</button>
+    <button class="tab" id="tabProd" type="button">Productivité</button>
+  </div>
+</div>
+
+<!-- Pipeline -->
+<section id="panelPipeline">
+  <div class="controls">
+    <input id="candSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech, notes...)" />
+    <select id="candStatusFilter">
+      <option value="">Tous les statuts</option>
+      <option value="a_sourcer">🧲 À sourcer</option>
+      <option value="a_contacter">📨 À contacter</option>
+      <option value="en_cours">⏳ En cours</option>
+      <option value="ec1">📞 EC1</option>
+      <option value="ec2">📞📞 EC2</option>
+      <option value="ed">📋 ED</option>
+      <option value="interesse">✅ Intéressé</option>
+      <option value="mission">🚀 Mission</option>
+      <option value="refuse">❌ Refusé</option>
+      <option value="embauche">🎉 Embauché</option>
+      <option value="archive">📦 Archivé</option>
+    </select>
+    <input id="candSkillsFilter" type="text" placeholder="🎯 Filtrer compétences (ex: RTOS, AUTOSAR)" />
+    <button class="btn btn-primary" id="btnAddCandidate">➕ Ajouter</button>
+    <a class="btn btn-secondary btn-link-inline" href="/api/candidates/export.csv" target="_blank">⬇️ Export CSV</a>
+
+    <input type="file" id="candImportFile" accept=".csv" style="display:none;">
+    <button class="btn btn-secondary" id="btnImportLinkedin">📥 Import LinkedIn CSV</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Nom</th>
+          <th>Rôle</th>
+          <th>Localisation</th>
+          <th>Compétences / Tech</th>
+          <th>Statut</th>
+          <th>MAJ</th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="candTableBody"></tbody>
+    </table>
+  </div>
+
+  <div id="candEmptyState" class="card" style="margin-top:14px; display:none;">
+    <div class="muted">Aucun candidat pour ces filtres.</div>
+  </div>
+</section>
+
+<!-- Productivité -->
+<section id="panelProd" style="display:none;">
+  <div class="card">
+    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+      <div style="flex: 1 1 320px;">
+        <div class="muted" style="margin-bottom:6px;">Entreprises cibles</div>
+        <select id="targetCompanySelect" multiple size="6" style="width:100%; min-height: 160px;"></select>
+        <div class="muted" style="margin-top:8px;">Astuce : Ctrl/Cmd + clic pour multi-sélection.</div>
+      </div>
+
+      <div style="flex: 2 1 520px;">
+        <div class="muted" style="margin-bottom:6px;">Mots-clés (issus des tags + notes entreprise + fonctions prospects)</div>
+        <div id="keywordChips" class="chips"></div>
+
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <input id="keywordAddInput" type="text" placeholder="Ajouter un mot-clé (ex: RTOS, AUTOSAR...)" />
+          <button class="btn btn-secondary" id="btnAddKeyword">➕</button>
+          <button class="btn btn-secondary" id="btnSaveCompanyTags">💾 Sauver en tags</button>
+        </div>
+
+        <div style="margin-top:12px;">
+          <div class="muted" style="margin-bottom:6px;">Requête LinkedIn (Boolean) prête à coller</div>
+          <textarea id="liQuery" rows="3" style="width:100%; padding:10px 12px; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-surface-2); color: var(--color-text);"></textarea>
+          <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="btnCopyQuery">📋 Copier</button>
+            <button class="btn btn-secondary" id="btnOpenLinkedIn">🔗 Ouvrir LinkedIn</button>
+            <button class="btn btn-secondary" id="btnPickCandidateOfDay">⭐ Candidat du jour</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content-header" style="margin-top: 16px;">
+    <div class="content-title">Matching candidats</div>
+    <div class="controls">
+      <select id="matchStatusFilter">
+        <option value="">Tous</option>
+        <option value="a_sourcer" selected>🧲 À sourcer</option>
+        <option value="a_contacter">📨 À contacter</option>
+        <option value="en_cours">⏳ En cours</option>
+        <option value="interesse">✅ Intéressé</option>
+      </select>
+      <input id="matchSearch" type="text" placeholder="Filtrer (nom/tech...)" />
+      <button class="btn btn-secondary" id="btnRefreshMatch">🔄 Recalculer</button>
+      <div class="muted" id="matchSummary" style="flex:999 1 auto; min-width: 220px;"></div>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Match</th>
+          <th>Nom</th>
+          <th>Rôle</th>
+          <th>Localisation</th>
+          <th>Compétences / Tech</th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="matchTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top: 14px;">
+    <div class="muted">
+      Le score est un <strong>matching simple</strong> (overlap mots-clés ↔ texte candidat). C'est volontairement rapide et "productif".
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block modals %}
+<!-- Modal candidate -->
+<div id="modalCandidate" class="modal">
+  <div class="modal-content" style="max-width: 820px;">
+    <div class="modal-header">
+      <h2 id="candModalTitle">Ajouter candidat</h2>
+      <button class="modal-close" onclick="closeCandidateModal()" aria-label="Fermer">×</button>
+    </div>
+    <form id="candForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nom *</label>
+          <input id="candName" required>
+        </div>
+        <div class="form-group">
+          <label>Rôle</label>
+          <input id="candRole">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Localisation</label>
+          <input id="candLocation">
+        </div>
+        <div class="form-group">
+          <label>Seniorité</label>
+          <input id="candSeniority">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tech (mots-clés)</label>
+          <input id="candTech" placeholder="C/C++, RTOS, Linux, CAN...">
+        </div>
+        <div class="form-group">
+          <label>LinkedIn</label>
+          <input id="candLinkedin" placeholder="https://...">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Source</label>
+          <input id="candSource" placeholder="LinkedIn Recruiter, cooptation...">
+        </div>
+        <div class="form-group">
+          <label>Statut</label>
+          <select id="candStatus">
+            <option value="a_sourcer">🧲 À sourcer</option>
+            <option value="a_contacter">📨 À contacter</option>
+            <option value="en_cours">⏳ En cours</option>
+            <option value="ec1">📞 EC1</option>
+            <option value="ec2">📞📞 EC2</option>
+            <option value="ed">📋 ED</option>
+            <option value="interesse">✅ Intéressé</option>
+            <option value="mission">🚀 Mission</option>
+            <option value="refuse">❌ Refusé</option>
+            <option value="embauche">🎉 Embauché</option>
+            <option value="archive">📦 Archivé</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="candNotes" rows="5" placeholder="Contexte, échanges, TODO, points clés..."></textarea>
+      </div>
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button type="button" class="btn btn-secondary" onclick="closeCandidateModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+
+<!-- Modal EC1 -->
+<div id="modalEC1" class="modal">
+  <div class="modal-content" style="max-width: 520px;">
+    <div class="modal-header">
+      <h2 style="margin:0;">📞 Planifier EC1</h2>
+      <button class="modal-close" onclick="closeEC1Modal()" aria-label="Fermer">×</button>
+    </div>
+    <div class="muted" style="margin-bottom:10px;">Choisissez la date/heure de l'entretien. L'événement apparaîtra dans le calendrier.</div>
+    <div class="form-group">
+      <label>Date & heure *</label>
+      <input id="ec1ModalDatetime" type="datetime-local" />
+    </div>
+    <div class="form-group">
+      <label>Note (optionnel)</label>
+      <textarea id="ec1ModalNote" rows="3" placeholder="Ex: points à creuser, contexte..." style="min-height: 70px;"></textarea>
+    </div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button type="button" class="btn btn-secondary" onclick="closeEC1Modal()">Annuler</button>
+      <button type="button" class="btn btn-primary" onclick="confirmEC1()">Valider</button>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script defer src="/static/js/page-sourcing.js?v=2101"></script>
+<script defer src="/static/js/page-quickadd.js?v=2000"></script>
+{% endblock %}

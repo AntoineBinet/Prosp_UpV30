@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}ProspUp — Entreprises{% endblock %}
+
+{% block page_id %}companies{% endblock %}
+
+{% block header_title %}ProspUp — Entreprises{% endblock %}
+
+{% block header_subtitle %}Sites et entreprises cibles — Prospection Embedded Systems & Robotique{% endblock %}
+
+{% block extra_head %}
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="viewCompanies" style="display: block;">
+    <div class="content-header">
+        <div class="content-title">📍 Entreprises</div>
+        <p style="color: var(--color-text-secondary);">Cliquez sur une ligne pour filtrer les prospects sur cette entreprise.</p>
+    </div>
+
+    <div class="controls" style="grid-template-columns: 1fr auto;">
+        <input type="text" id="companySearchInput" placeholder="🔍 Rechercher une entreprise...">
+        <button class="btn btn-primary" onclick="openAddCompanyModal()">🏢 Ajouter</button>
+    </div>
+
+    <div class="company-summary" id="companySummary">
+        <div class="summary-chip"><span class="chip-label">Entreprises</span> <span class="chip-value" id="companySummaryCompanies">0</span></div>
+        <div class="summary-chip"><span class="chip-label">Prospects</span> <span class="chip-value" id="companySummaryProspects">0</span></div>
+        <div class="summary-chip"><span class="chip-label">RDV</span> <span class="chip-value" id="companySummaryRDV">0</span></div>
+        <div class="summary-chip"><span class="chip-label">Appelables</span> <span class="chip-value" id="companySummaryCallable">0</span></div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th class="company-sortable" data-company-sort="groupe"><span class="th-inner">Groupe <span class="sort-indicator" aria-hidden="true"></span></span></th>
+                    <th class="company-sortable" data-company-sort="site"><span class="th-inner">Site <span class="sort-indicator" aria-hidden="true"></span></span></th>
+                    <th class="center company-sortable" data-company-sort="prospects"><span class="th-inner">Prospects <span class="sort-indicator" aria-hidden="true"></span></span></th>
+                    <th class="center company-sortable" data-company-sort="rdv"><span class="th-inner">RDV <span class="sort-indicator" aria-hidden="true"></span></span></th>
+                    <th class="center company-sortable" data-company-sort="callable"><span class="th-inner">Appelables <span class="sort-indicator" aria-hidden="true"></span></span></th>
+                    <th class="center">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="companyTableBody"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal" role="dialog" aria-modal="true" id="modalCompany">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span id="companyModalTitle">Ajouter Entreprise</span>
+            <button class="modal-close" aria-label="Fermer" onclick="this.closest('.modal').classList.remove('active')">&times;</button>
+        </div>
+        <form id="companyForm" onsubmit="saveCompany(event)">
+            <input type="hidden" id="inputCompanyId">
+            <div class="form-group">
+                <label>Nom Groupe *</label>
+                <input type="text" id="inputCompanyName" required>
+            </div>
+            <div class="form-group">
+                <label>Site / Localisation *</label>
+                <input type="text" id="inputCompanySite" required>
+            </div>
+            <div class="form-group">
+                <label>Téléphone</label>
+                <input type="tel" id="inputCompanyPhone">
+            </div>
+            <div class="form-group">
+                <label>Notes / Description</label>
+                <textarea id="inputCompanyNotes" rows="4" placeholder="Infos utiles sur l'entreprise (contacts, contexte, etc.)"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Tags</label>
+                <input id="inputCompanyTagsValue" type="hidden" value="[]">
+                <div id="companyTagsEditor" class="tag-editor-host"></div>
+            </div>
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" onclick="closeCompanyModal()">Annuler</button>
+                <button type="submit" id="companySubmitBtn" class="btn btn-primary">Ajouter</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="modal" role="dialog" aria-modal="true" id="modalCompanySheet">
+    <div class="modal-content company-sheet-modal-content">
+        <div class="modal-header">
+            <span id="companySheetTitle">Fiche entreprise</span>
+            <button class="modal-close" aria-label="Fermer" onclick="this.closest('.modal').classList.remove('active')">&times;</button>
+        </div>
+        <div class="company-sheet-subtitle" id="companySheetSubtitle"></div>
+        <form id="companySheetForm" onsubmit="saveCompanySheet(event)">
+            <input type="hidden" id="companySheetId">
+            <div class="form-grid company-sheet-grid">
+                <div>
+                    <label>Groupe *</label>
+                    <input type="text" id="cs_groupe" required>
+                </div>
+                <div>
+                    <label>Site / Localisation *</label>
+                    <input type="text" id="cs_site" required>
+                </div>
+                <div>
+                    <label>Téléphone</label>
+                    <input type="text" id="cs_phone">
+                </div>
+                <div>
+                    <label>Website</label>
+                    <input type="text" id="cs_website" placeholder="https://...">
+                </div>
+                <div>
+                    <label>LinkedIn</label>
+                    <input type="text" id="cs_linkedin" placeholder="https://linkedin.com/company/...">
+                </div>
+                <div>
+                    <label>Industrie</label>
+                    <input type="text" id="cs_industry">
+                </div>
+                <div>
+                    <label>Taille</label>
+                    <input type="text" id="cs_size" placeholder="ex: 500-1000">
+                </div>
+                <div>
+                    <label>Ville</label>
+                    <input type="text" id="cs_city">
+                </div>
+                <div>
+                    <label>Pays</label>
+                    <input type="text" id="cs_country">
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Adresse</label>
+                    <input type="text" id="cs_address">
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Stack / Tech</label>
+                    <textarea id="cs_stack" rows="2"></textarea>
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Pain points</label>
+                    <textarea id="cs_pain_points" rows="2"></textarea>
+                </div>
+                <div>
+                    <label>Budget</label>
+                    <input type="text" id="cs_budget">
+                </div>
+                <div>
+                    <label>Urgence</label>
+                    <input type="text" id="cs_urgency" placeholder="ex: Q2 / urgent / moyen">
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Tags</label>
+                    <input id="cs_tags_value" type="hidden" value="[]">
+                    <div id="cs_tags_editor" class="tag-editor-host"></div>
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Notes / Description</label>
+                    <textarea id="cs_notes" rows="5" placeholder="Notes entreprise, contexte, informations utiles..."></textarea>
+                </div>
+            </div>
+            <div class="btn-group company-sheet-actions">
+                <button type="button" class="btn btn-secondary" id="companySheetCloseBtn" onclick="closeCompanySheet()">Fermer</button>
+                <button type="button" class="btn btn-secondary" id="companySheetProspectsBtn" onclick="openCompanySheetProspects()">Voir les prospects</button>
+                <button type="button" class="btn btn-primary" id="companySheetEditBtn" onclick="setCompanySheetMode('edit')">Modifier</button>
+                <button type="submit" class="btn btn-primary" id="companySheetSaveBtn">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script defer src="/static/js/metiers-data.js?v=2000"></script>
+<script defer src="/static/js/page-companies.js?v=2000"></script>
+{% endblock %}
