@@ -417,6 +417,29 @@
 
     window.toggleSidebar = _toggleSidebar;
 
+<<<<<<< Updated upstream
+=======
+    // ────────────── 3b. HEADER LAYOUT (left + center for search + badge, v25) ──────────────
+    function _initHeaderLayout() {
+        if (window.location.pathname === '/login') return;
+        const header = document.querySelector('header');
+        if (!header || header.querySelector('.header-center')) return;
+        const h1 = header.querySelector('h1');
+        const subtitle = header.querySelector('.header-subtitle');
+        if (!h1) return;
+        const left = document.createElement('div');
+        left.className = 'header-left';
+        left.appendChild(h1);
+        if (subtitle) left.appendChild(subtitle);
+        const center = document.createElement('div');
+        center.className = 'header-center';
+        header.appendChild(left);
+        header.appendChild(center);
+        // Dispatcher un événement pour signaler que le header est prêt
+        document.dispatchEvent(new CustomEvent('header-layout-ready'));
+    }
+
+>>>>>>> Stashed changes
     // ────────────── 3c. FLOATING SEARCH BUTTON ──────────────
 
     function _initFloatingSearch() {

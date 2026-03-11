@@ -17,7 +17,11 @@ import difflib
 from pathlib import Path
 from typing import Any, Dict, List
 
+<<<<<<< Updated upstream
 from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g
+=======
+from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g, Response, render_template
+>>>>>>> Stashed changes
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import secrets
@@ -119,6 +123,14 @@ def _compute_static_hashes():
 
 
 _compute_static_hashes()
+
+# Helper function for Jinja2 templates to get static file hash
+def _get_static_hash(static_path: str) -> str:
+    """Get the hash for a static file path (e.g., 'css/style.css' -> 'a1b2c3d4')."""
+    return _static_hashes.get(static_path, '')
+
+# Register the helper in Jinja2
+app.jinja_env.globals['static_hash'] = _get_static_hash
 
 # Regex to match ?v=XXXX in /static/ paths
 _CACHE_BUSTER_RE = re.compile(r'(/static/[^"\'?]+)\?v=\d+')
@@ -2568,7 +2580,7 @@ def restore_snapshot(filename: str) -> None:
 
 @app.get("/")
 def home():
-    return send_from_directory(APP_DIR, "index.html")
+    return render_template("index.html", static_hashes=_static_hashes)
 
 
 @app.get("/entreprises")
@@ -6988,7 +7000,7 @@ def api_calendar_events_external():
 
 @app.get("/dashboard")
 def page_dashboard():
-    return send_from_directory(str(APP_DIR), "dashboard.html")
+    return render_template("dashboard.html", static_hashes=_static_hashes)
 
 
 # Gamified goals helpers are extracted in services/dashboard_goals.py.

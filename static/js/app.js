@@ -48,6 +48,78 @@ const AppAuth = {
                 </div>
                 <button onclick="AppAuth.logout()" title="Déconnexion" class="user-session-logout">⏻</button>
             </div>`;
+<<<<<<< Updated upstream
+=======
+        
+        // v25: Attendre que header-center existe (créé par _initHeaderLayout dans v8-features.js)
+        const _injectInSidebar = () => {
+            const sidebar = document.querySelector('.sidebar, aside.sidebar');
+            if (!sidebar) return;
+            let footer = sidebar.querySelector('.sidebar-footer');
+            if (!footer) {
+                footer = document.createElement('div');
+                footer.className = 'sidebar-footer';
+                sidebar.appendChild(footer);
+            }
+            footer.innerHTML = badgeHtml;
+        };
+        
+        const _doInject = () => {
+            const headerCenter = document.querySelector('.header-center');
+            const existingHeaderBadge = headerCenter ? headerCenter.querySelector('.user-session-badge') : null;
+            if (existingHeaderBadge) existingHeaderBadge.remove();
+            if (!isMobile && headerCenter) {
+                headerCenter.insertAdjacentHTML('beforeend', badgeHtml);
+                return true;
+            }
+            return false;
+        };
+        
+        // Essayer immédiatement
+        if (_doInject()) return;
+        
+        // Si header-center n'existe pas encore, attendre via événement ou polling
+        if (!isMobile) {
+            let pollInterval = null;
+            let eventListener = null;
+            let resolved = false;
+            
+            const cleanup = () => {
+                if (pollInterval) clearInterval(pollInterval);
+                if (eventListener) document.removeEventListener('header-layout-ready', eventListener);
+                resolved = true;
+            };
+            
+            const tryInject = () => {
+                if (resolved) return;
+                if (_doInject()) {
+                    cleanup();
+                    return;
+                }
+            };
+            
+            // Écouter l'événement header-layout-ready
+            eventListener = tryInject;
+            document.addEventListener('header-layout-ready', eventListener, { once: true });
+            
+            // Polling de secours (max 2s)
+            let attempts = 0;
+            const maxAttempts = 40; // 40 * 50ms = 2s
+            pollInterval = setInterval(() => {
+                attempts++;
+                tryInject();
+                if (resolved || attempts >= maxAttempts) {
+                    cleanup();
+                    // Si toujours pas de header-center après timeout, fallback vers sidebar
+                    if (!document.querySelector('.header-center')) {
+                        _injectInSidebar();
+                    }
+                }
+            }, 50);
+        } else {
+            _injectInSidebar();
+        }
+>>>>>>> Stashed changes
     },
     _applyReadOnly() {
         if (!this.user || this.user.role !== 'reader') return;
