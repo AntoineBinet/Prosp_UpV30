@@ -1331,6 +1331,20 @@ CREATE TABLE IF NOT EXISTS candidate_ec1_checklists (
 CREATE INDEX IF NOT EXISTS idx_candidate_ec1_candidate ON candidate_ec1_checklists(candidate_id);
 CREATE INDEX IF NOT EXISTS idx_candidate_ec1_interviewAt ON candidate_ec1_checklists(interviewAt);
 
+-- Candidate tabs (EC1 + note libre, v25) — onglets fiche candidat
+CREATE TABLE IF NOT EXISTS candidate_tabs (
+    id           INTEGER PRIMARY KEY,
+    candidate_id INTEGER NOT NULL,
+    sort_order   INTEGER NOT NULL DEFAULT 0,
+    type         TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    payload      TEXT,
+    updated_at   TEXT,
+    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_candidate_tabs_candidate ON candidate_tabs(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_tabs_sort ON candidate_tabs(candidate_id, sort_order);
+
 CREATE TABLE IF NOT EXISTS tasks (
     id          INTEGER PRIMARY KEY,
     title       TEXT NOT NULL,
@@ -1685,11 +1699,67 @@ Cordialement,"""
                 ),
             )
 
+        # v25: candidate_tabs (onglets fiche candidat) — migration depuis candidate_ec1_checklists
+        _migrate_candidate_tabs(conn)
+
+
+
+def _migrate_candidate_tabs(conn: sqlite3.Connection) -> None:
+    """Crée candidate_tabs si absent et migre les données depuis candidate_ec1_checklists (v25)."""
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS candidate_tabs (
+                id           INTEGER PRIMARY KEY,
+                candidate_id INTEGER NOT NULL,
+                sort_order   INTEGER NOT NULL DEFAULT 0,
+                type         TEXT NOT NULL,
+                title        TEXT NOT NULL,
+                payload      TEXT,
+                updated_at   TEXT,
+                FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+            );
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_candidate_tabs_candidate ON candidate_tabs(candidate_id);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_candidate_tabs_sort ON candidate_tabs(candidate_id, sort_order);")
+        conn.commit()
+    except Exception:
+        pass
+    # Migrer chaque EC1 existant vers le premier onglet
+    try:
+        rows = conn.execute(
+            "SELECT candidate_id, interviewAt, data, updatedAt FROM candidate_ec1_checklists;"
+        ).fetchall()
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        for row in rows:
+            cid = row["candidate_id"]
+            existing = conn.execute(
+                "SELECT id FROM candidate_tabs WHERE candidate_id=? AND sort_order=0;",
+                (cid,),
+            ).fetchone()
+            if existing:
+                continue
+            try:
+                data = json.loads(row["data"]) if row["data"] else {}
+            except Exception:
+                data = {}
+            payload = json.dumps(
+                {"interviewAt": row["interviewAt"] or None, "data": data},
+                ensure_ascii=False,
+            )
+            conn.execute(
+                """INSERT INTO candidate_tabs (candidate_id, sort_order, type, title, payload, updated_at)
+                   VALUES (?, 0, 'ec1', 'EC1', ?, ?);""",
+                (cid, payload, row["updatedAt"] or now),
+            )
+        conn.commit()
+    except Exception:
+        pass
 
 
 def _migrate_user_db_schema(db_path: Path) -> None:
     """Ajoute deleted_at aux tables companies, prospects, candidates si absent (v23.5).
-    Ajoute aussi dossier_competence_pdf à la table candidates si absent."""
+    Ajoute aussi dossier_competence_pdf à la table candidates si absent.
+    v25: candidate_tabs + migration depuis candidate_ec1_checklists."""
     if not db_path.exists():
         return
     conn = sqlite3.connect(db_path)
@@ -1711,6 +1781,7 @@ def _migrate_user_db_schema(db_path: Path) -> None:
                 conn.commit()
         except Exception:
             pass
+        _migrate_candidate_tabs(conn)
     finally:
         conn.close()
 
@@ -1944,6 +2015,19 @@ def _init_user_db(user_id: int) -> Path:
                 updatedAt    TEXT,
                 FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS candidate_tabs (
+                id           INTEGER PRIMARY KEY,
+                candidate_id INTEGER NOT NULL,
+                sort_order   INTEGER NOT NULL DEFAULT 0,
+                type         TEXT NOT NULL,
+                title        TEXT NOT NULL,
+                payload      TEXT,
+                updated_at   TEXT,
+                FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_candidate_tabs_candidate ON candidate_tabs(candidate_id);
+            CREATE INDEX IF NOT EXISTS idx_candidate_tabs_sort ON candidate_tabs(candidate_id, sort_order);
 
             CREATE TABLE IF NOT EXISTS tasks (
                 id          INTEGER PRIMARY KEY,
@@ -4339,6 +4423,79 @@ def api_prospect_timeline():
     return jsonify({"ok": True, "events": events})
 
 
+@app.get("/api/candidate/timeline")
+def api_candidate_timeline():
+    """Timeline des événements d'un candidat (candidate_events)."""
+    cid = request.args.get("id")
+    if not cid:
+        return jsonify({"ok": False, "error": "id is required"}), 400
+    uid = _uid()
+    if not uid:
+        return jsonify({"ok": False, "error": "Non authentifié"}), 401
+    with _conn() as conn:
+        row = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "candidat not found"}), 404
+        extra = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT date, type, title, content, meta, createdAt FROM candidate_events WHERE candidate_id=? ORDER BY date DESC, id DESC LIMIT 80;",
+                (int(cid),),
+            ).fetchall()
+        ]
+    events = []
+    for e in extra:
+        meta = None
+        try:
+            meta = json.loads(e.get("meta") or "null")
+        except Exception:
+            meta = None
+        events.append({
+            "type": e.get("type") or "event",
+            "date": e.get("date") or e.get("createdAt") or "",
+            "title": e.get("title") or "",
+            "content": e.get("content") or "",
+            "meta": meta,
+        })
+    def _key(ev):
+        return str(ev.get("date") or "")
+    events = sorted(events, key=_key, reverse=True)[:120]
+    return jsonify({"ok": True, "events": events})
+
+
+@app.post("/api/candidate/events/add")
+def api_candidate_events_add():
+    """Ajoute un événement manuel à la timeline d'un candidat."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    cid = payload.get("candidate_id")
+    if not cid:
+        return jsonify(ok=False, error="candidate_id requis"), 400
+    try:
+        cid_i = int(cid)
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="candidate_id invalide"), 400
+    if not _candidate_owned(cid_i):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    title = (payload.get("title") or "").strip() or "Événement"
+    content = (payload.get("content") or "").strip()
+    etype = (payload.get("type") or "event").strip()
+    date = (payload.get("date") or datetime.datetime.now().isoformat(timespec="seconds")).strip()
+    if len(date) > 19:
+        date = date[:19]
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    meta = payload.get("meta")
+    meta_json = json.dumps(meta, ensure_ascii=False) if meta is not None else None
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO candidate_events (candidate_id, date, type, title, content, meta, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?);",
+            (cid_i, date, etype, title, content, meta_json, now),
+        )
+    return jsonify(ok=True)
+
+
 # ====== Stats API ======
 @app.get("/api/stats")
 def api_stats():
@@ -4707,14 +4864,18 @@ def api_stats_export_weekly_xlsx():
             return ""
 
     with _conn() as conn:
-        # ── 1) Candidats EC1 (entretiens de la semaine) ──
+        # ── 1) Candidats EC1 (entretiens de la semaine) — v25: candidate_tabs type=ec1 ──
         ec1_rows = conn.execute(
             """SELECT ca.id, ca.name, ca.role, ca.sector, ca.seniority, ca.years_experience, ca.status,
-                      e.interviewAt, e.data AS ec1_data
-               FROM candidate_ec1_checklists e
-               JOIN candidates ca ON ca.id = e.candidate_id AND ca.owner_id = ?
-               WHERE substr(e.interviewAt, 1, 10) >= ? AND substr(e.interviewAt, 1, 10) <= ?
-               ORDER BY e.interviewAt;""",
+                      json_extract(t.payload, '$.interviewAt') AS interviewAt,
+                      json_extract(t.payload, '$.data') AS ec1_data
+               FROM candidate_tabs t
+               JOIN candidates ca ON ca.id = t.candidate_id AND ca.owner_id = ?
+               WHERE t.type = 'ec1'
+                 AND json_extract(t.payload, '$.interviewAt') IS NOT NULL
+                 AND substr(json_extract(t.payload, '$.interviewAt'), 1, 10) >= ?
+                 AND substr(json_extract(t.payload, '$.interviewAt'), 1, 10) <= ?
+               ORDER BY json_extract(t.payload, '$.interviewAt');""",
             (uid, start, end),
         ).fetchall()
         ec1_list = [dict(r) for r in ec1_rows]
@@ -6754,6 +6915,234 @@ def api_ia_enrichment_log():
         return jsonify(ok=False, error=str(e)), 500
 
 
+@app.post("/api/quickadd/parse-document")
+def api_quickadd_parse_document():
+    """Extrait le texte d'un PDF ou Word, envoie à Ollama pour identifier prospects/entreprises/candidats, renvoie une liste JSON."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if "file" not in request.files:
+        return jsonify(ok=False, error="Fichier requis"), 400
+    entity_type = (request.form.get("entity_type") or "prospect").strip().lower()
+    if entity_type not in ("prospect", "company", "candidate"):
+        entity_type = "prospect"
+    f = request.files["file"]
+    if not f or not f.filename:
+        return jsonify(ok=False, error="Aucun fichier"), 400
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in (".pdf", ".doc", ".docx"):
+        return jsonify(ok=False, error="Format non supporté. Utilisez PDF ou Word (.doc/.docx)."), 400
+
+    raw = f.read()
+    text = ""
+    try:
+        if ext == ".pdf":
+            from pypdf import PdfReader
+            reader = PdfReader(BytesIO(raw))
+            parts = []
+            for page in reader.pages:
+                parts.append(page.extract_text() or "")
+            text = "\n".join(parts)
+        elif ext in (".doc", ".docx"):
+            from docx import Document
+            doc = Document(BytesIO(raw))
+            text = "\n".join(p.text for p in doc.paragraphs)
+            for table in doc.tables:
+                for row in table.rows:
+                    text += "\n" + "\t".join(cell.text.strip() for cell in row.cells)
+    except Exception as e:
+        logger.exception("Parse document failed: %s", e)
+        return jsonify(ok=False, error=f"Impossible de lire le document: {e}"), 400
+
+    text = (text or "").strip()
+    if not text or len(text) < 20:
+        return jsonify(ok=False, error="Aucun texte extrait ou document trop court."), 400
+
+    # Limiter la taille pour Ollama (éviter timeout)
+    if len(text) > 25000:
+        text = text[:25000] + "\n[... texte tronqué ...]"
+
+    if entity_type == "prospect":
+        prompt = """Tu dois extraire une liste de prospects (contacts B2B : nom, fonction, entreprise, téléphone, email, LinkedIn, notes) à partir du texte ci-dessous.
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ou après. Chaque élément doit avoir : name (ou nom), fonction (ou function), _company_name (ou entreprise, company), telephone (ou phone), email, linkedin, notes.
+Exemple : [{"name":"Jean Dupont","fonction":"Directeur R&D","_company_name":"Acme","telephone":"06...","email":"jean@acme.fr","linkedin":"","notes":""}]
+Texte :
+"""
+    elif entity_type == "company":
+        prompt = """Tu dois extraire une liste d'entreprises (nom, site/ville, téléphone, secteur, notes) à partir du texte ci-dessous.
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ou après. Chaque élément : groupe (ou name, nom), site (ou city), phone (ou telephone), industry (ou sector), notes, tags (tableau de chaînes).
+Exemple : [{"groupe":"Acme SA","site":"Paris","phone":"","industry":"Tech","notes":"","tags":[]}]
+Texte :
+"""
+    else:
+        prompt = """Tu dois extraire une liste de candidats (nom, rôle, localisation, LinkedIn, téléphone, email, compétences, notes) à partir du texte ci-dessous (CV, liste de profils, etc.).
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ou après. Chaque élément : name (ou nom), role, location (ou localisation), linkedin, phone (ou telephone), email, skills (tableau de chaînes), sector, notes.
+Exemple : [{"name":"Marie Martin","role":"Ingénieur","location":"Lyon","linkedin":"","phone":"","email":"","skills":["Python","Java"],"notes":""}]
+Texte :
+"""
+    prompt += text
+
+    try:
+        body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            f"{OLLAMA_URL}/api/generate",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        timeout = min(180, OLLAMA_TIMEOUT + 60)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        raw_response = data.get("response", "")
+        # Extraire le tableau JSON de la réponse
+        import re as re_mod
+        match = re_mod.search(r"\[[\s\S]*\]", raw_response)
+        if not match:
+            return jsonify(ok=False, error="L'IA n'a pas renvoyé de liste valide. Modèle peut-être trop léger : essayez un modèle plus puissant (ex. llama3.1) ou importez en Excel/CSV."), 400
+        items = json.loads(match.group(0))
+        if not isinstance(items, list):
+            items = [items]
+        return jsonify(ok=True, items=items, entity_type=entity_type)
+    except urllib.error.URLError as e:
+        logger.warning("Ollama unreachable (parse-document): %s", e)
+        return jsonify(ok=False, error="Ollama indisponible sur le PC qui héberge Prosp'Up. Lancez Ollama ou utilisez Excel/CSV."), 503
+    except json.JSONDecodeError as e:
+        logger.warning("Ollama invalid JSON (parse-document): %s", e)
+        return jsonify(ok=False, error="Réponse IA invalide (modèle peut-être trop léger). Essayez un modèle plus puissant ou importez en Excel/CSV."), 400
+    except Exception as e:
+        logger.exception("quickadd parse-document failed: %s", e)
+        return jsonify(ok=False, error=str(e)), 500
+
+
+def _sse_message(event: str, data: Any) -> str:
+    """Format one SSE message (event + data). data can be dict (will be JSON-encoded) or str."""
+    payload = json.dumps(data, ensure_ascii=False) if isinstance(data, dict) else str(data)
+    return f"event: {event}\ndata: {payload}\n\n"
+
+
+@app.post("/api/quickadd/parse-document-stream")
+def api_quickadd_parse_document_stream():
+    """Like parse-document but streams SSE: phase (upload, extract, ollama), then token events, then done with items.
+    Allows the client to show live progress. File must be in request.files['file'], entity_type in form."""
+    uid = _uid()
+    if not uid:
+        return Response(_sse_message("error", {"message": "Non authentifié"}), status=401, mimetype="text/event-stream")
+    if "file" not in request.files:
+        return Response(_sse_message("error", {"message": "Fichier requis"}), status=400, mimetype="text/event-stream")
+    entity_type = (request.form.get("entity_type") or "prospect").strip().lower()
+    if entity_type not in ("prospect", "company", "candidate"):
+        entity_type = "prospect"
+    f = request.files["file"]
+    if not f or not f.filename:
+        return Response(_sse_message("error", {"message": "Aucun fichier"}), status=400, mimetype="text/event-stream")
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in (".pdf", ".doc", ".docx"):
+        return Response(_sse_message("error", {"message": "Format non supporté. Utilisez PDF ou Word."}), status=400, mimetype="text/event-stream")
+
+    def generate():
+        try:
+            yield _sse_message("phase", {"step": "extract", "label": "Extraction du document…"})
+            raw = f.read()
+            text = ""
+            if ext == ".pdf":
+                from pypdf import PdfReader
+                reader = PdfReader(BytesIO(raw))
+                text = "\n".join((p.extract_text() or "") for p in reader.pages)
+            elif ext in (".doc", ".docx"):
+                from docx import Document
+                doc = Document(BytesIO(raw))
+                text = "\n".join(p.text for p in doc.paragraphs)
+                for table in doc.tables:
+                    for row in table.rows:
+                        text += "\n" + "\t".join(cell.text.strip() for cell in row.cells)
+            text = (text or "").strip()
+            if not text or len(text) < 20:
+                yield _sse_message("error", {"message": "Aucun texte extrait ou document trop court."})
+                return
+            if len(text) > 25000:
+                text = text[:25000] + "\n[... texte tronqué ...]"
+
+            if entity_type == "prospect":
+                prompt = """Tu dois extraire une liste de prospects (contacts B2B : nom, fonction, entreprise, téléphone, email, LinkedIn, notes) à partir du texte ci-dessous.
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ou après. Chaque élément doit avoir : name (ou nom), fonction (ou function), _company_name (ou entreprise, company), telephone (ou phone), email, linkedin, notes.
+Exemple : [{"name":"Jean Dupont","fonction":"Directeur R&D","_company_name":"Acme","telephone":"06...","email":"jean@acme.fr","linkedin":"","notes":""}]
+Texte :
+"""
+            elif entity_type == "company":
+                prompt = """Tu dois extraire une liste d'entreprises (nom, site/ville, téléphone, secteur, notes) à partir du texte ci-dessous.
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ou après. Chaque élément : groupe (ou name, nom), site (ou city), phone (ou telephone), industry (ou sector), notes, tags (tableau de chaînes).
+Exemple : [{"groupe":"Acme SA","site":"Paris","phone":"","industry":"Tech","notes":"","tags":[]}]
+Texte :
+"""
+            else:
+                prompt = """Tu dois extraire une liste de candidats (nom, rôle, localisation, LinkedIn, téléphone, email, compétences, notes) à partir du texte ci-dessous (CV, liste de profils, etc.).
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ou après. Chaque élément : name (ou nom), role, location (ou localisation), linkedin, phone (ou telephone), email, skills (tableau de chaînes), sector, notes.
+Exemple : [{"name":"Marie Martin","role":"Ingénieur","location":"Lyon","linkedin":"","phone":"","email":"","skills":["Python","Java"],"notes":""}]
+Texte :
+"""
+            prompt += text
+
+            yield _sse_message("phase", {"step": "ollama", "label": "Analyse par l'IA (Ollama)…"})
+            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/generate",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            timeout = min(180, OLLAMA_TIMEOUT + 60)
+            full_response = []
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                buffer = b""
+                for chunk in resp:
+                    buffer += chunk
+                    while b"\n" in buffer:
+                        line_bytes, buffer = buffer.split(b"\n", 1)
+                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
+                        if not line_json:
+                            continue
+                        try:
+                            data = json.loads(line_json)
+                            token = data.get("response", "")
+                            if token:
+                                full_response.append(token)
+                                yield _sse_message("token", {"text": token})
+                            if data.get("done", False):
+                                break
+                        except json.JSONDecodeError:
+                            continue
+            raw_response = "".join(full_response)
+            re_mod = __import__("re")
+            match = re_mod.search(r"\[[\s\S]*\]", raw_response)
+            if not match:
+                yield _sse_message("error", {
+                    "message": "L'IA n'a pas renvoyé de liste valide. Modèle peut-être trop léger : essayez un modèle plus puissant (ex. llama3.1) ou importez en Excel/CSV."
+                })
+                return
+            try:
+                items = json.loads(match.group(0))
+            except json.JSONDecodeError:
+                yield _sse_message("error", {"message": "Réponse IA invalide. Essayez un modèle plus puissant ou importez en Excel/CSV."})
+                return
+            if not isinstance(items, list):
+                items = [items]
+            yield _sse_message("done", {"items": items, "entity_type": entity_type})
+        except urllib.error.URLError as e:
+            logger.warning("Ollama unreachable (parse-document-stream): %s", e)
+            yield _sse_message("error", {
+                "message": "Ollama indisponible sur le PC qui héberge Prosp'Up. Lancez Ollama ou utilisez Excel/CSV."
+            })
+        except Exception as e:
+            logger.exception("quickadd parse-document-stream failed: %s", e)
+            yield _sse_message("error", {"message": str(e)})
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.post("/api/ollama/generate")
 def api_ollama_generate():
     """Proxy vers Ollama local : reçoit un prompt, appelle Ollama, renvoie le texte généré. timeouts: 120s défaut, jusqu'à 600s si demandé."""
@@ -8046,13 +8435,14 @@ def api_calendar_events():
             (uid, uid),
         ).fetchall()
 
-        # Candidate EC1 interviews (v15.1) — uniquement candidats du user
+        # Candidate EC1 interviews (v25: candidate_tabs type=ec1)
         cand_ec1 = conn.execute(
-            """SELECT c.id, c.name, c.role, e.interviewAt
+            """SELECT c.id, c.name, c.role, json_extract(t.payload, '$.interviewAt') AS interviewAt
                FROM candidates c
-               JOIN candidate_ec1_checklists e ON e.candidate_id = c.id
+               JOIN candidate_tabs t ON t.candidate_id = c.id AND t.type = 'ec1'
                WHERE c.owner_id = ?
-                 AND e.interviewAt IS NOT NULL AND e.interviewAt != ''""",
+                 AND json_extract(t.payload, '$.interviewAt') IS NOT NULL
+                 AND json_extract(t.payload, '$.interviewAt') != ''""",
             (uid,),
         ).fetchall()
 
@@ -8626,6 +9016,130 @@ def ec1_checklist_save():
         )
 
     return jsonify(ok=True, updatedAt=now)
+
+
+# ────────────────────────────────────────────────────────────────────
+# Candidate tabs (onglets fiche candidat: EC1 + note libre, v25)
+# ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/candidate-tabs")
+def api_candidate_tabs_list():
+    """Liste des onglets d'un candidat (triés par sort_order)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    cid = request.args.get("candidate_id", type=int)
+    if not cid:
+        return jsonify(ok=False, error="candidate_id requis"), 400
+    if not _candidate_owned(cid):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, candidate_id, sort_order, type, title, payload, updated_at FROM candidate_tabs WHERE candidate_id=? ORDER BY sort_order ASC, id ASC;",
+            (cid,),
+        ).fetchall()
+    tabs = []
+    for r in rows:
+        payload = None
+        if r["payload"]:
+            try:
+                payload = json.loads(r["payload"])
+            except Exception:
+                payload = {}
+        tabs.append({
+            "id": r["id"],
+            "candidate_id": r["candidate_id"],
+            "sort_order": r["sort_order"],
+            "type": r["type"],
+            "title": r["title"],
+            "payload": payload,
+            "updated_at": r["updated_at"],
+        })
+    return jsonify(ok=True, tabs=tabs)
+
+
+@app.post("/api/candidate-tabs")
+def api_candidate_tabs_create():
+    """Crée un nouvel onglet (ec1 ou note_libre)."""
+    body = request.get_json(force=True, silent=True) or {}
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    cid = body.get("candidate_id")
+    if not cid:
+        return jsonify(ok=False, error="candidate_id requis"), 400
+    try:
+        cid_i = int(cid)
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="candidate_id invalide"), 400
+    if not _candidate_owned(cid_i):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    tab_type = (body.get("type") or "").strip().lower()
+    if tab_type not in ("ec1", "note_libre"):
+        return jsonify(ok=False, error="type doit être 'ec1' ou 'note_libre'"), 400
+    title = (body.get("title") or "").strip() or ("EC1" if tab_type == "ec1" else "Note")
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    if tab_type == "ec1":
+        payload = {"interviewAt": None, "data": _blank_ec1_data()}
+    else:
+        payload = {"content": ""}
+    payload_str = json.dumps(payload, ensure_ascii=False)
+    with _conn() as conn:
+        max_order = conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM candidate_tabs WHERE candidate_id=?;",
+            (cid_i,),
+        ).fetchone()["next_order"]
+        cur = conn.execute(
+            """INSERT INTO candidate_tabs (candidate_id, sort_order, type, title, payload, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?);""",
+            (cid_i, max_order, tab_type, title, payload_str, now),
+        )
+        tab_id = cur.lastrowid
+        conn.commit()
+    return jsonify(ok=True, tab={"id": tab_id, "candidate_id": cid_i, "sort_order": max_order, "type": tab_type, "title": title, "payload": payload, "updated_at": now})
+
+
+@app.put("/api/candidate-tabs/<int:tab_id>")
+def api_candidate_tabs_update(tab_id: int):
+    """Met à jour le titre et/ou le payload d'un onglet."""
+    body = request.get_json(force=True, silent=True) or {}
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, candidate_id, sort_order, type, title, payload FROM candidate_tabs WHERE id=?;",
+            (tab_id,),
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Onglet introuvable"), 404
+        if not _candidate_owned(int(row["candidate_id"])):
+            return jsonify(ok=False, error="Accès refusé"), 403
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        updates = []
+        params = []
+        if "title" in body:
+            updates.append("title=?")
+            params.append((body.get("title") or "").strip() or row["title"])
+        if "payload" in body:
+            pl = body["payload"]
+            if isinstance(pl, dict):
+                payload_str = json.dumps(pl, ensure_ascii=False)
+            else:
+                payload_str = str(pl) if pl is not None else row["payload"] or "{}"
+            updates.append("payload=?")
+            params.append(payload_str)
+        if not updates:
+            return jsonify(ok=True, updated_at=row.get("updated_at"))
+        updates.append("updated_at=?")
+        params.append(now)
+        params.append(tab_id)
+        conn.execute(
+            "UPDATE candidate_tabs SET " + ", ".join(updates) + " WHERE id=?;",
+            params,
+        )
+        conn.commit()
+    return jsonify(ok=True, updated_at=now)
 
 # ═══════════════════════════════════════════════════════
 # App Settings API (v11)

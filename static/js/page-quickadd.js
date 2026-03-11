@@ -19,9 +19,15 @@
         const step0 = document.getElementById('qaStep0');
         if (step0) step0.style.display = '';
         document.getElementById('qaStep1').style.display = 'none';
+        const stepFile = document.getElementById('qaStepFile');
+        if (stepFile) stepFile.style.display = 'none';
         document.getElementById('qaStep3Paste').style.display = 'none';
         document.getElementById('qaStep4Preview').style.display = 'none';
         document.querySelectorAll('.qa-card').forEach(c => c.classList.remove('active'));
+        const qaFileInput = document.getElementById('qaFileInput');
+        if (qaFileInput) { qaFileInput.value = ''; }
+        const qaFileChosen = document.getElementById('qaFileChosen');
+        if (qaFileChosen) { qaFileChosen.style.display = 'none'; qaFileChosen.textContent = ''; }
         if (window.openModal) {
             window.openModal(m);
         } else {
@@ -40,27 +46,324 @@
         }
     };
 
-    // ─── Step 0: pick method (manual or IA) ───
+    // ─── Step 0: pick method (manual or IA or file) ───
     window.qaPickMethod = function (method) {
         if (method === 'manual') {
-            // Ouvrir le modal d'ajout manuel et fermer le modal QuickAdd
             closeQuickAddModal();
             if (typeof openAddModal === 'function') {
                 openAddModal();
             }
             return;
         }
-        // Si méthode IA, afficher l'étape 1 (choix type)
         const step0 = document.getElementById('qaStep0');
         if (step0) step0.style.display = 'none';
+        if (method === 'file') {
+            document.getElementById('qaStep1').style.display = 'none';
+            const stepFile = document.getElementById('qaStepFile');
+            if (stepFile) stepFile.style.display = '';
+            _qaType = 'prospect';
+            document.querySelectorAll('#qaStepFile .qa-card').forEach(c => {
+                c.classList.toggle('active', c.dataset.type === 'prospect');
+            });
+            return;
+        }
+        const sf = document.getElementById('qaStepFile');
+        if (sf) sf.style.display = 'none';
         document.getElementById('qaStep1').style.display = '';
     };
 
-    // ─── Step 1: pick type ───
+    window.qaBackFromFileToStep0 = function () {
+        const stepFile = document.getElementById('qaStepFile');
+        if (stepFile) stepFile.style.display = 'none';
+        const step0 = document.getElementById('qaStep0');
+        if (step0) step0.style.display = '';
+        _qaType = '';
+        const qaFileInput = document.getElementById('qaFileInput');
+        if (qaFileInput) qaFileInput.value = '';
+        const qaFileChosen = document.getElementById('qaFileChosen');
+        if (qaFileChosen) { qaFileChosen.style.display = 'none'; qaFileChosen.textContent = ''; }
+        document.querySelectorAll('.qa-card').forEach(c => c.classList.remove('active'));
+    };
+
+    // ─── File import: Excel/CSV (client) or PDF/Word (API) ───
+    function _guessFieldProspect(h) {
+        const x = (h || '').toLowerCase();
+        if (/prénom|prenom|firstname/.test(x)) return 'prenom';
+        if (/(^nom$|^name$|contact)/.test(x) && !/société|company|entreprise|groupe/.test(x)) return 'name';
+        if (/entreprise|société|company|groupe/.test(x)) return '_company_name';
+        if (/site|ville|city|filiale/.test(x)) return 'site';
+        if (/fonction|poste|role|titre/.test(x)) return 'fonction';
+        if (/tél|tel|telephone|phone|mobile|portable/.test(x)) return 'telephone';
+        if (/mail|email/.test(x)) return 'email';
+        if (/linkedin/.test(x)) return 'linkedin';
+        if (/note|commentaire/.test(x)) return 'notes';
+        if (/tag|compétence/.test(x)) return 'tags';
+        if (/pertinence|score/.test(x)) return 'pertinence';
+        return '';
+    }
+    function _guessFieldCompany(h) {
+        const x = (h || '').toLowerCase();
+        if (/nom|name|groupe|société|company|entreprise/.test(x)) return 'groupe';
+        if (/site|ville|city|adresse|filiale/.test(x)) return 'site';
+        if (/tél|tel|telephone|phone/.test(x)) return 'phone';
+        if (/secteur|industry/.test(x)) return 'industry';
+        if (/tag/.test(x)) return 'tags';
+        if (/note|commentaire/.test(x)) return 'notes';
+        return '';
+    }
+    function _guessFieldCandidate(h) {
+        const x = (h || '').toLowerCase();
+        if (/nom|name|contact/.test(x) && !/company|entreprise/.test(x)) return 'name';
+        if (/rôle|role|poste|titre|position/.test(x)) return 'role';
+        if (/localisation|location|ville|city/.test(x)) return 'location';
+        if (/linkedin/.test(x)) return 'linkedin';
+        if (/tél|tel|telephone|phone/.test(x)) return 'phone';
+        if (/mail|email/.test(x)) return 'email';
+        if (/compétence|skill|techno|tech/.test(x)) return 'skills';
+        if (/secteur/.test(x)) return 'sector';
+        if (/note|commentaire/.test(x)) return 'notes';
+        return '';
+    }
+
+    function _parseCsvQuickAdd(text) {
+        const lines = text.split(/\r?\n/).filter(function(l) { return l.trim(); });
+        if (!lines.length) return null;
+        let sep = ';';
+        if (lines[0].includes('\t') && (lines[0].match(/\t/g) || []).length >= (lines[0].match(/[;,]/g) || []).length) sep = '\t';
+        else if ((lines[0].match(/,/g) || []).length > (lines[0].match(/;/g) || []).length) sep = ',';
+        function parseLine(line) {
+            const cells = [];
+            let cur = '', inQuotes = false;
+            for (let j = 0; j < line.length; j++) {
+                const c = line[j];
+                if (c === '"' || c === "'") inQuotes = !inQuotes;
+                else if (c === sep && !inQuotes) { cells.push(cur.replace(/^["']|["']$/g, '').trim()); cur = ''; }
+                else cur += c;
+            }
+            cells.push(cur.replace(/^["']|["']$/g, '').trim());
+            return cells;
+        }
+        const headers = parseLine(lines[0]);
+        const rows = [];
+        for (let i = 1; i < lines.length; i++) {
+            const cells = parseLine(lines[i]);
+            if (cells.some(function(c) { return c; })) rows.push(cells);
+        }
+        return { headers: headers, rows: rows };
+    }
+
+    function _spreadsheetToItems(raw, entityType) {
+        const guess = entityType === 'company' ? _guessFieldCompany : (entityType === 'candidate' ? _guessFieldCandidate : _guessFieldProspect);
+        const colToField = {};
+        raw.headers.forEach(function(h, i) {
+            const f = guess(h);
+            if (f && !colToField[i]) colToField[i] = f;
+        });
+        const items = [];
+        raw.rows.forEach(function(row) {
+            const item = {};
+            Object.keys(colToField).forEach(function(colIdx) {
+                const field = colToField[colIdx];
+                const val = (row[parseInt(colIdx, 10)] != null ? row[parseInt(colIdx, 10)] : '').toString().trim();
+                if (!val) return;
+                if (field === 'tags' || field === 'skills') {
+                    item[field] = val.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+                } else if (field === 'prenom') {
+                    item.prenom = val;
+                } else {
+                    item[field] = val;
+                }
+            });
+            if (entityType === 'prospect' && (item.prenom || item.name)) {
+                item.name = (item.prenom || '') + ' ' + (item.name || '').trim();
+                delete item.prenom;
+            }
+            if (Object.keys(item).length > 0) items.push(item);
+        });
+        return items;
+    }
+
+    function _qaOverlayShow(opts) {
+        const overlay = document.getElementById('qaOllamaOverlay');
+        if (!overlay) return;
+        const titleEl = document.getElementById('qaOllamaOverlayTitle');
+        const detailEl = document.getElementById('qaOllamaOverlayDetail');
+        const phaseEl = document.getElementById('qaOllamaLivePhase');
+        const liveEl = document.getElementById('qaOllamaLiveText');
+        if (titleEl && opts.title !== undefined) titleEl.textContent = opts.title;
+        if (detailEl && opts.detail !== undefined) detailEl.textContent = opts.detail;
+        if (phaseEl && opts.phase !== undefined) { phaseEl.textContent = opts.phase; phaseEl.style.display = opts.phase ? '' : 'none'; }
+        if (liveEl) {
+            if (opts.liveText !== undefined) { liveEl.textContent = opts.liveText; liveEl.style.display = opts.liveText ? 'block' : 'none'; }
+        }
+        overlay.style.display = 'flex';
+    }
+    function _qaOverlayHide() {
+        const overlay = document.getElementById('qaOllamaOverlay');
+        if (overlay) overlay.style.display = 'none';
+        const phaseEl = document.getElementById('qaOllamaLivePhase');
+        const liveEl = document.getElementById('qaOllamaLiveText');
+        if (phaseEl) { phaseEl.textContent = ''; phaseEl.style.display = 'none'; }
+        if (liveEl) { liveEl.textContent = ''; liveEl.style.display = 'none'; }
+    }
+
+    function _onQaFileSelected(file) {
+        if (!file || !_qaType) return;
+        const name = file.name || '';
+        const ext = name.indexOf('.') >= 0 ? name.slice(name.lastIndexOf('.')).toLowerCase() : '';
+        const qaFileChosen = document.getElementById('qaFileChosen');
+        if (qaFileChosen) { qaFileChosen.textContent = 'Fichier : ' + name; qaFileChosen.style.display = ''; }
+
+        if (ext === '.pdf' || ext === '.doc' || ext === '.docx') {
+            _qaOverlayShow({
+                title: 'Traitement du document',
+                detail: 'Le fichier est envoyé au serveur. Extraction puis analyse par l\'IA (Ollama sur le PC qui héberge). Ne fermez pas.',
+                phase: 'Envoi du fichier…'
+            });
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('entity_type', _qaType);
+            fetch('/api/quickadd/parse-document-stream', { method: 'POST', body: fd })
+                .then(function(res) {
+                    if (!res.ok || !res.body) {
+                        return res.text().then(function(t) { throw new Error(t || res.statusText); });
+                    }
+                    return res.body.getReader();
+                })
+                .then(function(reader) {
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let liveText = '';
+                    const maxLiveLen = 400;
+                    var event = '';
+                    function readChunk() {
+                        return reader.read().then(function(result) {
+                            if (result.done) return;
+                            buffer += decoder.decode(result.value, { stream: true });
+                            var lines = buffer.split('\n');
+                            buffer = lines.pop() || '';
+                            for (var i = 0; i < lines.length; i++) {
+                                var line = lines[i];
+                                if (line === '') {
+                                    event = '';
+                                    continue;
+                                }
+                                if (line.indexOf('event: ') === 0) event = line.slice(7).trim();
+                                else if (line.indexOf('data: ') === 0) {
+                                    var dataStr = line.slice(6);
+                                    try {
+                                        var data = JSON.parse(dataStr);
+                                        if (event === 'phase') {
+                                            _qaOverlayShow({ phase: data.label || data.step || '' });
+                                        } else if (event === 'token' && data.text) {
+                                            liveText += data.text;
+                                            if (liveText.length > maxLiveLen) liveText = liveText.slice(-maxLiveLen);
+                                            var el = document.getElementById('qaOllamaLiveText');
+                                            if (el) { el.textContent = liveText; el.style.display = 'block'; el.scrollTop = el.scrollHeight; }
+                                        } else if (event === 'done') {
+                                            _qaOverlayHide();
+                                            var items = data.items;
+                                            if (data.entity_type) _qaType = data.entity_type;
+                                            if (items && items.length > 0) {
+                                                _qaParsed = items;
+                                                var sfel = document.getElementById('qaStepFile');
+                                                if (sfel) sfel.style.display = 'none';
+                                                var prevEl = document.getElementById('qaStep4Preview');
+                                                if (prevEl) prevEl.style.display = '';
+                                                _renderPreview(_qaParsed);
+                                                showToast('Vérifiez les données puis cliquez Créer.', 'success', 4000);
+                                            } else {
+                                                showToast('Aucune donnée extraite.', 'warning', 5000);
+                                            }
+                                        } else if (event === 'error') {
+                                            _qaOverlayHide();
+                                            showToast(data.message || 'Erreur', 'error', 6000);
+                                        }
+                                    } catch (err) { }
+                                }
+                            }
+                            return readChunk();
+                        });
+                    }
+                    return readChunk();
+                })
+                .then(function() {})
+                .catch(function(err) {
+                    _qaOverlayHide();
+                    var msg = (err && err.message) || 'Erreur réseau ou serveur. Ollama peut être indisponible ou le modèle trop lent : essayez Excel/CSV ou un modèle plus léger.';
+                    showToast(msg, 'error', 6000);
+                });
+            return;
+        }
+
+        if (ext === '.csv' || ext === '.xlsx' || ext === '.xls') {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                let raw = null;
+                if (ext === '.csv') {
+                    const text = (e.target.result || '').toString();
+                    raw = _parseCsvQuickAdd(text);
+                } else {
+                    if (typeof XLSX === 'undefined') { showToast('Bibliothèque Excel non chargée.', 'error'); return; }
+                    try {
+                        const wb = XLSX.read(e.target.result, { type: 'array' });
+                        const sheetName = (wb.SheetNames && wb.SheetNames[0]) || '';
+                        if (!sheetName) { showToast('Fichier Excel sans feuille.', 'warning'); return; }
+                        const sh = wb.Sheets[sheetName];
+                        const data = XLSX.utils.sheet_to_json(sh, { header: 1, defval: '' });
+                        if (!data.length) { showToast('Feuille vide.', 'warning'); return; }
+                        const headers = data[0].map(function(h) { return String(h || '').trim(); });
+                        const rows = data.slice(1).filter(function(row) { return row.some(function(c) { return String(c || '').trim(); }); }).map(function(row) {
+                            const r = [];
+                            for (let i = 0; i < headers.length; i++) r.push(String(row[i] != null ? row[i] : '').trim());
+                            return r;
+                        });
+                        raw = { headers: headers, rows: rows };
+                    } catch (err) {
+                        showToast('Fichier Excel illisible.', 'error');
+                        return;
+                    }
+                }
+                if (!raw || !raw.rows.length) { showToast('Aucune ligne de données.', 'warning'); return; }
+                const items = _spreadsheetToItems(raw, _qaType);
+                if (!items.length) { showToast('Aucune donnée reconnue. Vérifiez les en-têtes.', 'warning'); return; }
+                _qaParsed = items;
+                const sfel = document.getElementById('qaStepFile');
+                if (sfel) sfel.style.display = 'none';
+                const prevEl = document.getElementById('qaStep4Preview');
+                if (prevEl) prevEl.style.display = '';
+                _renderPreview(_qaParsed);
+                showToast(items.length + ' élément(s) détecté(s). Vérifiez puis cliquez Créer.', 'success', 4000);
+            };
+            if (ext === '.csv') {
+                reader.readAsText(file, 'UTF-8');
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
+            return;
+        }
+        showToast('Format non supporté. Utilisez .xlsx, .csv, .pdf, .doc ou .docx', 'warning');
+    }
+
+    (function initQaFileInput() {
+        const input = document.getElementById('qaFileInput');
+        if (input) input.addEventListener('change', function(e) {
+            const f = e.target.files && e.target.files[0];
+            if (f) _onQaFileSelected(f);
+            e.target.value = '';
+        });
+    })();
+
+    // ─── Step 1: pick type (also used in file step) ───
     window.qaPickType = function (type) {
         _qaType = type;
-        document.querySelectorAll('.qa-card').forEach(c => c.classList.remove('active'));
-        document.querySelector(`.qa-card[data-type="${type}"]`)?.classList.add('active');
+        const stepFile = document.getElementById('qaStepFile');
+        if (stepFile && stepFile.style.display !== 'none') {
+            stepFile.querySelectorAll('.qa-card').forEach(c => c.classList.toggle('active', c.dataset.type === type));
+        } else {
+            document.querySelectorAll('.qa-card').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.qa-card[data-type="${type}"]`)?.classList.add('active');
+        }
     };
 
     // ─── Step 2: copy prompt or generate with Ollama ───
@@ -96,14 +399,16 @@
         }
         const prompt = multiple ? _buildMultiPrompt(_qaType, context) : _buildSinglePrompt(_qaType, context);
         if (typeof window.callOllama !== 'function') { showToast('Ollama non disponible', 'error'); return; }
-        const overlay = document.getElementById('qaOllamaOverlay');
-        if (overlay) {
-            overlay.style.display = 'flex';
-        }
+        _qaOverlayShow({
+            title: 'Génération en cours…',
+            detail: 'Cela peut prendre plusieurs minutes. Ne fermez pas la fenêtre.',
+            phase: '',
+            liveText: ''
+        });
         // Désactiver le streaming pour tous les appels (proxy/tunnel peut mal gérer le streaming SSE → erreur 405)
         const opts = multiple ? { timeoutMs: 300000, stream: false } : { timeoutMs: 180000, stream: false };
         window.callOllama(prompt, opts).then(function (text) {
-            if (overlay) overlay.style.display = 'none';
+            _qaOverlayHide();
             const result = _tryParseQARaw(text || '', _qaType);
             if (result.ok) {
                 _qaParsed = result.parsed;
@@ -120,7 +425,7 @@
                 showToast('Format non reconnu. Modifiez le JSON ci-dessous puis cliquez Analyser.', 'warning', 6000);
             }
         }).catch(function (err) {
-            if (overlay) overlay.style.display = 'none';
+            _qaOverlayHide();
             const msg = (err && err.message) === 'Timeout' ? 'Génération trop longue. Utilisez « Copier » puis collez le retour manuellement.' : 'Ollama indisponible. Utilisez « Copier » puis collez le retour manuellement.';
             showToast(msg, 'warning', 6000);
         });
@@ -128,6 +433,8 @@
 
     window.qaBackToStep0 = function () {
         document.getElementById('qaStep1').style.display = 'none';
+        const stepFile = document.getElementById('qaStepFile');
+        if (stepFile) stepFile.style.display = 'none';
         document.getElementById('qaStep3Paste').style.display = 'none';
         document.getElementById('qaStep4Preview').style.display = 'none';
         const step0 = document.getElementById('qaStep0');
