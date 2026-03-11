@@ -26,7 +26,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "25.6"
+APP_VERSION = "25.7"
 import os
 import subprocess
 import traceback
@@ -907,24 +907,105 @@ def api_users_save():
 @login_required
 @role_required('admin')
 def api_users_delete():
+    """Supprime un utilisateur et toutes ses données, en gérant correctement les données collaboratives."""
     payload = request.get_json(force=True, silent=True) or {}
     uid = payload.get("id")
     if not uid:
         return jsonify(ok=False, error="ID requis"), 400
     if uid == session.get('user_id'):
         return jsonify(ok=False, error="Impossible de supprimer votre propre compte"), 400
+    
+    try:
+        uid = int(uid)
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="ID invalide"), 400
+    
     with _auth_conn() as conn:
+        # Vérifier que l'utilisateur existe
+        user = conn.execute("SELECT id, username, display_name FROM users WHERE id=?;", (uid,)).fetchone()
+        if not user:
+            return jsonify(ok=False, error="Utilisateur introuvable"), 404
+        
+        username = user.get("username") or user.get("display_name") or f"user_{uid}"
+        
+        # 1. Nettoyer shared_companies
+        # - Supprimer les partages où from_user_id = uid (partages envoyés)
+        #   Les données restent dans la DB du collaborateur (to_user_id)
+        sent_shares = conn.execute(
+            "SELECT id, company_id, to_user_id FROM shared_companies WHERE from_user_id=?;",
+            (uid,)
+        ).fetchall()
+        conn.execute("DELETE FROM shared_companies WHERE from_user_id=?;", (uid,))
+        
+        # - Supprimer les partages où to_user_id = uid (partages reçus)
+        #   Supprimer aussi les données copiées dans la DB de l'utilisateur supprimé
+        received_shares = conn.execute(
+            "SELECT id, company_id, from_user_id FROM shared_companies WHERE to_user_id=?;",
+            (uid,)
+        ).fetchall()
+        conn.execute("DELETE FROM shared_companies WHERE to_user_id=?;", (uid,))
+        
+        # Supprimer les entreprises et prospects partagés de la DB de l'utilisateur supprimé
+        # (ces données ont été copiées via _sync_shared_company_to_collaborator)
+        if received_shares:
+            user_db_path = _user_db_path(uid)
+            if user_db_path.exists():
+                try:
+                    user_conn = sqlite3.connect(user_db_path)
+                    user_conn.row_factory = sqlite3.Row
+                    user_conn.execute("PRAGMA foreign_keys = OFF;")
+                    try:
+                        # Supprimer les prospects des entreprises partagées
+                        company_ids = [s["company_id"] for s in received_shares]
+                        if company_ids:
+                            placeholders = ','.join(['?'] * len(company_ids))
+                            user_conn.execute(
+                                f"DELETE FROM prospects WHERE company_id IN ({placeholders}) AND owner_id=?;",
+                                (*company_ids, uid)
+                            )
+                            # Supprimer les entreprises partagées
+                            user_conn.execute(
+                                f"DELETE FROM companies WHERE id IN ({placeholders}) AND owner_id=?;",
+                                (*company_ids, uid)
+                            )
+                        user_conn.commit()
+                    finally:
+                        user_conn.execute("PRAGMA foreign_keys = ON;")
+                        user_conn.close()
+                except Exception as e:
+                    logger.warning(f"Erreur nettoyage données partagées user {uid}: {e}")
+        
+        # 2. Nettoyer audit_log
+        conn.execute("DELETE FROM audit_log WHERE user_id=?;", (uid,))
+        
+        # 3. Nettoyer refresh_tokens (CASCADE devrait le faire, mais on le fait explicitement)
+        conn.execute("DELETE FROM refresh_tokens WHERE user_id=?;", (uid,))
+        
+        # 4. Supprimer l'utilisateur (CASCADE supprimera aussi refresh_tokens)
         conn.execute("DELETE FROM users WHERE id=?;", (uid,))
-
+        
+        logger.info(f"Utilisateur {uid} ({username}) supprimé : {len(sent_shares)} partages envoyés, {len(received_shares)} partages reçus nettoyés")
+    
+    # 5. Supprimer le dossier utilisateur avec retry
     user_dir = DATA_DIR / f"user_{uid}"
     if user_dir.exists():
-        try:
-            shutil.rmtree(user_dir)
-            print(f"[OK] DB utilisateur supprimee : {user_dir}")
-        except Exception as e:
-            print(f"[WARN] Impossible de supprimer {user_dir}: {e}")
+        max_retries = 3
+        retry_delay = 1.0  # secondes
+        for attempt in range(max_retries):
+            try:
+                shutil.rmtree(user_dir)
+                logger.info(f"DB utilisateur supprimée : {user_dir}")
+                break
+            except (OSError, PermissionError) as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Tentative {attempt + 1}/{max_retries} échouée pour {user_dir}, retry dans {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    logger.warning(f"Impossible de supprimer {user_dir} après {max_retries} tentatives: {e}")
+                    # Le dossier sera nettoyé au prochain redémarrage par _migrate_all_user_dbs()
 
-    return jsonify(ok=True)
+    return jsonify(ok=True, message=f"Utilisateur {username} supprimé avec succès")
 
 # Admin: View another user's data (read-only)
 @app.get("/api/users/<int:target_user_id>/data")
@@ -1452,6 +1533,22 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
                 createdAt  TEXT NOT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             );
+        ''')
+
+        # Shared companies for collaboration (v25.5+)
+        conn.executescript('''
+            CREATE TABLE IF NOT EXISTS shared_companies (
+                id          INTEGER PRIMARY KEY,
+                company_id  INTEGER NOT NULL,
+                from_user_id INTEGER NOT NULL,
+                to_user_id  INTEGER NOT NULL,
+                shared_at   TEXT NOT NULL,
+                FOREIGN KEY(from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_shared_companies_from ON shared_companies(from_user_id);
+            CREATE INDEX IF NOT EXISTS idx_shared_companies_to ON shared_companies(to_user_id);
+            CREATE INDEX IF NOT EXISTS idx_shared_companies_company ON shared_companies(company_id);
         ''')
 
         # Manual KPI entries table (v16.5)

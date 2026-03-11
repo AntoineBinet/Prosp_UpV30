@@ -8115,6 +8115,7 @@ function _ensureImportListModal() {
                     <div id="importListPreviewTable" style="max-height:280px;overflow:auto;border:1px solid var(--color-border);border-radius:8px;"></div>
                     <div style="display:flex;gap:10px;margin-top:14px;">
                         <button type="button" class="btn btn-secondary" onclick="importListBackToMapping()">← Retour</button>
+                        <button type="button" class="btn btn-secondary" id="importListReformatAllBtn" onclick="openImportListReformatAllModal()" style="display:none;">🤖 Reformater plusieurs colonnes</button>
                         <button type="button" class="btn btn-primary" onclick="applyImportList()">✅ Importer</button>
                     </div>
                 </div>
@@ -8136,6 +8137,22 @@ function _ensureImportListModal() {
                             <div style="display:flex;gap:10px;margin-top:12px;">
                                 <button type="button" class="btn btn-primary" onclick="applyImportListReformat()">Appliquer</button>
                                 <button type="button" class="btn btn-secondary" onclick="closeImportListReformatModal()">Annuler</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="modalImportListReformatAll" class="modal" style="z-index:1150;">
+                    <div class="modal-content" style="max-width:600px;">
+                        <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>🤖 Reformater plusieurs colonnes avec l'IA</span>
+                            <button type="button" class="btn btn-secondary" onclick="closeImportListReformatAllModal()" style="padding:4px 10px;">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="muted" style="font-size:12px;margin-bottom:12px;">Sélectionnez les colonnes à reformater en une seule fois. Ollama normalisera toutes les colonnes sélectionnées.</p>
+                            <div id="importListReformatAllCheckboxes" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+                            <div style="display:flex;gap:10px;margin-top:12px;">
+                                <button type="button" class="btn btn-primary" id="importListReformatAllOllamaBtn" onclick="runImportListReformatAllWithOllama()">Générer avec Ollama</button>
+                                <button type="button" class="btn btn-secondary" onclick="closeImportListReformatAllModal()">Annuler</button>
                             </div>
                         </div>
                     </div>
@@ -8366,30 +8383,137 @@ async function suggestImportListMappingWithOllama() {
     if (!_importListRaw || !_importListRaw.headers.length) return;
     const headers = _importListRaw.headers;
     const fieldsList = 'name, prenom, groupe, site, fonction, telephone, email, linkedin, notes, tags, pertinence, statut, lastContact';
-    const prompt = `Tu es un assistant. Voici les en-têtes de colonnes d'un fichier Excel d'import de prospects : ${JSON.stringify(headers)}. Retourne un objet JSON unique dont les clés sont exactement ces en-têtes (une par colonne) et les valeurs sont exactement un des champs suivants (ou chaîne vide "" pour ignorer) : ${fieldsList}. Exemple : {"NOM":"name","PRENOM":"prenom","GROUPE":"groupe","SITE":"site","FONCTION":"fonction","TEL":"telephone","PORTABLE":"telephone","MAIL":"email","COMMENTAIRE":"notes","LINKEDIN":"linkedin","ACTION":"statut","DATE DERNIER CONTACT":"lastContact"}. Réponds uniquement avec ce JSON, sans texte avant ou après, sans markdown.`;
+    
+    // Enrichir le prompt avec des exemples de formats variés
+    const examples = [
+        '{"NOM":"name","PRENOM":"prenom","GROUPE":"groupe","SITE":"site","FONCTION":"fonction","TEL":"telephone","PORTABLE":"telephone","MAIL":"email","COMMENTAIRE":"notes","LINKEDIN":"linkedin","ACTION":"statut","DATE DERNIER CONTACT":"lastContact"}',
+        '{"Nom complet":"name","Société":"groupe","Ville":"site","Poste":"fonction","Téléphone":"telephone","Email":"email","Notes":"notes","Statut":"statut"}',
+        '{"Contact":"name","Entreprise":"groupe","Localisation":"site","Fonction":"fonction","Tel":"telephone","E-mail":"email","Remarques":"notes","État":"statut"}',
+        '{"FIRSTNAME":"prenom","LASTNAME":"name","COMPANY":"groupe","CITY":"site","ROLE":"fonction","PHONE":"telephone","EMAIL":"email","NOTES":"notes","STATUS":"statut"}'
+    ];
+    
+    const prompt = `Tu es un assistant expert en mapping de données Excel pour un CRM de prospection B2B.
+
+Voici les en-têtes de colonnes d'un fichier Excel d'import de prospects : ${JSON.stringify(headers)}
+
+Tu dois retourner un objet JSON unique dont :
+- Les clés sont exactement ces en-têtes (une par colonne, respecte la casse et les accents)
+- Les valeurs sont exactement un des champs suivants (ou chaîne vide "" pour ignorer) : ${fieldsList}
+
+Règles importantes :
+- "name" = nom complet ou nom de famille (peut être combiné avec "prenom")
+- "prenom" = prénom (peut être combiné avec "name" pour former le nom complet)
+- "groupe" = nom de l'entreprise/société
+- "site" = ville/localisation/filiale
+- "telephone" = numéro de téléphone (peut être plusieurs colonnes fusionnées : TEL, PORTABLE, MOBILE, etc.)
+- "email" = adresse email (MAIL, E-MAIL, EMAIL, etc.)
+- "fonction" = poste/rôle/titre
+- "notes" = commentaires/remarques/observations
+- "statut" = statut/action/état
+- "lastContact" = date dernier contact (peut être en format varié)
+
+Exemples de mappings corrects :
+${examples.join('\n')}
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant ou après, sans markdown, sans explications.`;
+    
     const btn = document.getElementById('importListSuggestOllamaBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
     try {
         const text = await callOllama(prompt);
         let jsonStr = (text || '').trim();
+        // Extraire le JSON même s'il y a du texte autour
         const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
         if (jsonMatch) jsonStr = jsonMatch[0];
         const mapping = JSON.parse(jsonStr);
         const headerToIndex = {};
         headers.forEach((h, i) => { headerToIndex[h] = i; });
+        let applied = 0;
         Object.keys(mapping).forEach(header => {
             const field = mapping[header];
             const idx = headerToIndex[header];
             if (idx === undefined || !field) return;
             const select = document.querySelector(`.import-list-map-select[data-col="${idx}"]`);
-            if (select && IMPORT_LIST_FIELDS.some(f => f.value === field)) select.value = field;
+            if (select && IMPORT_LIST_FIELDS.some(f => f.value === field)) {
+                select.value = field;
+                applied++;
+            }
         });
-        showToast('Mapping suggéré appliqué. Vérifiez puis cliquez Aperçu.', 'success', 4000);
+        if (applied > 0) {
+            showToast(`Mapping suggéré appliqué (${applied} colonne(s)). Vérifiez puis cliquez Aperçu.`, 'success', 4000);
+        } else {
+            showToast('Aucun mapping valide trouvé. Vérifiez manuellement.', 'warning', 4000);
+        }
     } catch (e) {
+        console.error('Erreur mapping Ollama:', e);
         showToast('Ollama indisponible ou réponse invalide. Vérifiez le mapping manuellement.', 'warning', 5000);
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Suggérer le mapping avec Ollama'; }
     }
+}
+
+function _detectDataIssues(previewRows) {
+    /** Détecte les problèmes de données dans l'aperçu et suggère des actions. */
+    const issues = [];
+    
+    // Vérifier les emails invalides
+    const emailRows = previewRows.filter(r => r.email && r.email.trim());
+    if (emailRows.length > 0) {
+        const invalidEmails = emailRows.filter(r => {
+            const email = r.email.trim();
+            return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        });
+        if (invalidEmails.length > 0) {
+            issues.push({
+                field: 'email',
+                count: invalidEmails.length,
+                message: `${invalidEmails.length} email(s) invalide(s) détecté(s)`,
+                severity: 'warning'
+            });
+        }
+    }
+    
+    // Vérifier les téléphones mal formatés
+    const phoneRows = previewRows.filter(r => r.telephone && r.telephone.trim());
+    if (phoneRows.length > 0) {
+        const invalidPhones = phoneRows.filter(r => {
+            const phone = r.telephone.trim().replace(/\s+/g, '');
+            // Format français : 10 chiffres commençant par 0, ou international
+            return !/^(0[1-9]|(\+33|0033)[1-9])\d{8,9}$/.test(phone);
+        });
+        if (invalidPhones.length > phoneRows.length * 0.3) { // Si plus de 30% sont invalides
+            issues.push({
+                field: 'telephone',
+                count: invalidPhones.length,
+                message: `${invalidPhones.length} téléphone(s) avec format suspect`,
+                severity: 'info'
+            });
+        }
+    }
+    
+    // Vérifier les noms vides ou suspects
+    const nameRows = previewRows.filter(r => r.name && r.name.trim());
+    if (nameRows.length < previewRows.length * 0.5) {
+        issues.push({
+            field: 'name',
+            count: previewRows.length - nameRows.length,
+            message: `${previewRows.length - nameRows.length} prospect(s) sans nom`,
+            severity: 'warning'
+        });
+    }
+    
+    // Vérifier les entreprises vides
+    const groupeRows = previewRows.filter(r => r.groupe && r.groupe.trim());
+    if (groupeRows.length < previewRows.length * 0.3) {
+        issues.push({
+            field: 'groupe',
+            count: previewRows.length - groupeRows.length,
+            message: `${previewRows.length - groupeRows.length} prospect(s) sans entreprise`,
+            severity: 'info'
+        });
+    }
+    
+    return issues;
 }
 
 function importListGoPreview() {
@@ -8421,12 +8545,26 @@ function importListGoPreview() {
     window._importListPreviewRows = previewRows;
     document.getElementById('importListPreviewCount').textContent = previewRows.length;
     _renderImportListPreviewTable();
+    
+    // Détecter les problèmes de données
+    const issues = _detectDataIssues(previewRows);
+    const issuesHtml = issues.length > 0 ? `<div style="background:var(--color-bg-secondary);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;"><strong>💡 Suggestions d'amélioration :</strong><ul style="margin:8px 0 0 0;padding-left:20px;">${issues.map(i => `<li style="margin:4px 0;">${i.message} — <button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 6px;" onclick="openImportListReformatModal('${i.field}')">Reformater ${(IMPORT_LIST_FIELDS.find(f => f.value === i.field) || {}).label || i.field}</button></li>`).join('')}</ul></div>` : '';
+    
     const reformatCols = ['name', 'groupe', 'fonction', 'telephone', 'email'];
     const btns = document.getElementById('importListReformatButtons');
-    btns.innerHTML = reformatCols.map(c => {
+    btns.innerHTML = issuesHtml + reformatCols.map(c => {
         const label = (IMPORT_LIST_FIELDS.find(f => f.value === c) || {}).label || c;
-        return `<button type="button" class="btn btn-secondary" style="font-size:12px;padding:4px 10px;" onclick="openImportListReformatModal('${c}')">🤖 Reformater ${label}</button>`;
+        const hasIssue = issues.some(i => i.field === c);
+        return `<button type="button" class="btn ${hasIssue ? 'btn-warning' : 'btn-secondary'}" style="font-size:12px;padding:4px 10px;" onclick="openImportListReformatModal('${c}')">🤖 Reformater ${label}${hasIssue ? ' ⚠️' : ''}</button>`;
     }).join('');
+    
+    // Afficher le bouton de reformatage multi-colonnes si plusieurs colonnes ont des données
+    const hasMultipleFields = reformatCols.filter(c => previewRows.some(r => r[c] && r[c].trim())).length > 1;
+    const reformatAllBtn = document.getElementById('importListReformatAllBtn');
+    if (reformatAllBtn) {
+        reformatAllBtn.style.display = hasMultipleFields ? '' : 'none';
+    }
+    
     document.getElementById('importListStepMapping').style.display = 'none';
     document.getElementById('importListStepPreview').style.display = '';
 }
