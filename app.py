@@ -26,7 +26,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "25.5"
+APP_VERSION = "25.6"
 import os
 import subprocess
 import traceback
@@ -7065,8 +7065,8 @@ def api_system_check_deployment():
     verify_script = APP_DIR / "scripts" / "verify_all.py"
     verify_script_exists = verify_script.exists()
     
-    # Vérifier si la section est dans parametres.html
-    parametres_file = APP_DIR / "parametres.html"
+    # Vérifier si la section est dans templates/parametres.html
+    parametres_file = APP_DIR / "templates" / "parametres.html"
     has_section = False
     if parametres_file.exists():
         try:
@@ -7074,6 +7074,16 @@ def api_system_check_deployment():
             has_section = "systemVerifySection" in content and "Vérification système" in content
         except Exception:
             pass
+    
+    # Vérifier aussi si le fichier existe à la racine (compatibilité)
+    if not has_section:
+        parametres_file_root = APP_DIR / "parametres.html"
+        if parametres_file_root.exists():
+            try:
+                content = parametres_file_root.read_text(encoding="utf-8")
+                has_section = "systemVerifySection" in content and "Vérification système" in content
+            except Exception:
+                pass
     
     # Vérifier si la fonction JS existe
     page_settings_file = APP_DIR / "static" / "js" / "page-settings.js"
@@ -7910,6 +7920,13 @@ def api_custom_metiers_delete(item_id):
 @app.get("/calendrier")
 def page_calendar():
     return render_template("calendrier.html", static_hashes=_static_hashes)
+
+
+@app.get("/collab")
+@login_required
+def page_collab():
+    """Page de collaboration."""
+    return render_template("collab.html")
 
 
 @app.get("/api/calendar_events")

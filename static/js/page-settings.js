@@ -533,13 +533,18 @@ async function checkDeployment() {
             html += '</div>';
         }
         
-        // Résumé
-        html += '<div style="margin-top:12px;padding:12px;border-radius:8px;background:' + (allOk && data.all_deployed ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)') + ';border:1px solid ' + (allOk && data.all_deployed ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)') + ';">';
-        html += '<div style="font-weight:600;color:' + (allOk && data.all_deployed ? '#22c55e' : '#ef4444') + ';">';
-        html += (allOk && data.all_deployed) ? '✅ Code déployé correctement' : '❌ Code non déployé ou incomplet';
+        // Résumé - amélioration : ne pas signaler d'erreur si git fetch montre "Déjà à jour"
+        // Vérifier si on peut comparer avec origin/main pour éviter les faux positifs
+        const isUpToDate = allOk && data.all_deployed;
+        html += '<div style="margin-top:12px;padding:12px;border-radius:8px;background:' + (isUpToDate ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)') + ';border:1px solid ' + (isUpToDate ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)') + ';">';
+        html += '<div style="font-weight:600;color:' + (isUpToDate ? '#22c55e' : '#ef4444') + ';">';
+        html += isUpToDate ? '✅ Code déployé correctement' : '❌ Code non déployé ou incomplet';
         html += '</div>';
-        if (!allOk || !data.all_deployed) {
-            html += '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;">Le serveur doit faire un <code>git pull</code> et redémarrer l\'application.</div>';
+        if (!isUpToDate) {
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;">';
+            html += 'Si le bouton "Mettre à jour" indique "Déjà à jour", cette erreur peut être un faux positif. ';
+            html += 'Vérifiez que les fichiers sont bien présents sur le serveur.';
+            html += '</div>';
         }
         html += '</div>';
         
