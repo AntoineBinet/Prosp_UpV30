@@ -83,6 +83,7 @@
     <div style="margin-top: 24px;">
       <a href="/dashboard" class="btn-home">Retour au Dashboard</a>
       <button id="btnUpdate" class="btn-update" onclick="triggerUpdate()">🔄 Réeffectuer MAJ</button>
+      <button id="btnRollback" class="btn-update" onclick="triggerRollback()" style="background: linear-gradient(135deg, #ef4444, #dc2626); margin-left: 12px;">⏪ Rollback</button>
     </div>
     <div id="updateStatus" class="update-status"></div>
   </div>
@@ -123,6 +124,49 @@
         status.textContent = '❌ Erreur réseau : ' + error.message;
         btn.disabled = false;
         btn.textContent = '🔄 Réeffectuer MAJ';
+      }
+    }
+    
+    async function triggerRollback() {
+      const btn = document.getElementById('btnRollback');
+      const status = document.getElementById('updateStatus');
+      
+      if (!confirm('⚠️ Êtes-vous sûr de vouloir revenir au commit précédent ? Cette action est irréversible.')) {
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = '⏳ Rollback en cours...';
+      status.style.display = 'block';
+      status.className = 'update-status info';
+      status.textContent = 'Retour au commit précédent...';
+      
+      try {
+        const response = await fetch('/api/deploy/rollback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (data.ok) {
+          status.className = 'update-status success';
+          status.textContent = '✅ ' + (data.message || 'Rollback effectué ! Redémarrez le serveur pour appliquer les changements.');
+          btn.textContent = '✅ Rollback effectué';
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 2000);
+        } else {
+          status.className = 'update-status error';
+          status.textContent = '❌ Erreur : ' + (data.error || 'Échec du rollback');
+          btn.disabled = false;
+          btn.textContent = '⏪ Rollback';
+        }
+      } catch (error) {
+        status.className = 'update-status error';
+        status.textContent = '❌ Erreur réseau : ' + error.message;
+        btn.disabled = false;
+        btn.textContent = '⏪ Rollback';
       }
     }
   </script>

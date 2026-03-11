@@ -388,6 +388,28 @@ def api_deploy_pull_from_404():
         if cp.returncode != 0:
             return jsonify(ok=False, error="Pas un dépôt git"), 400
         
+        # SAFETY: Sauvegarder le commit actuel pour rollback
+        cp2 = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        local_hash_full = (cp2.stdout or "").strip() if cp2.returncode == 0 else None
+        if local_hash_full:
+            try:
+                last_commit_file = APP_DIR / ".last_commit_hash"
+                last_commit_file.write_text(local_hash_full, encoding="utf-8")
+            except Exception:
+                pass
+        
+        # SAFETY: Créer snapshot DB avant mise à jour
+        try:
+            create_snapshot(label="before_update_404", is_auto=False)
+        except Exception:
+            pass
+        
         # Fetch
         fetch = subprocess.run(
             ["git", "fetch", "--prune", "origin", "main"],
@@ -417,6 +439,84 @@ def api_deploy_pull_from_404():
         return jsonify(ok=False, error="Timeout lors du pull"), 500
     except Exception as e:
         logger.exception("Deploy pull from 404 error")
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.post("/api/deploy/rollback")
+def api_deploy_rollback():
+    """Rollback vers le commit précédent (sans auth pour permettre réparation depuis 404)."""
+    chk = _require_same_origin()
+    if chk:
+        return chk
+    
+    try:
+        # Vérifier que c'est un dépôt git
+        cp = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp.returncode != 0:
+            return jsonify(ok=False, error="Pas un dépôt git"), 400
+        
+        # Lire le hash du commit précédent sauvegardé
+        last_commit_file = APP_DIR / ".last_commit_hash"
+        if not last_commit_file.exists():
+            # Essayer de récupérer le commit précédent via git
+            cp2 = subprocess.run(
+                ["git", "rev-parse", "HEAD~1"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if cp2.returncode != 0:
+                return jsonify(ok=False, error="Aucun commit précédent trouvé pour rollback"), 400
+            rollback_hash = cp2.stdout.strip()
+        else:
+            rollback_hash = last_commit_file.read_text(encoding="utf-8").strip()
+        
+        if not rollback_hash:
+            return jsonify(ok=False, error="Hash de commit invalide pour rollback"), 400
+        
+        # Vérifier que le commit existe
+        cp3 = subprocess.run(
+            ["git", "cat-file", "-e", rollback_hash],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp3.returncode != 0:
+            return jsonify(ok=False, error=f"Commit {rollback_hash[:7]} introuvable"), 400
+        
+        # SAFETY: Créer snapshot DB avant rollback
+        try:
+            create_snapshot(label="before_rollback", is_auto=False)
+        except Exception:
+            pass
+        
+        # Reset hard vers le commit précédent
+        reset = subprocess.run(
+            ["git", "reset", "--hard", rollback_hash],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if reset.returncode != 0:
+            err = (reset.stderr or reset.stdout or "Erreur reset").strip()
+            return jsonify(ok=False, error=f"Rollback échoué: {err}"), 500
+        
+        logger.info("Deploy rollback: retour au commit %s", rollback_hash[:7])
+        return jsonify(ok=True, message=f"Rollback effectué vers le commit {rollback_hash[:7]}. Redémarrez le serveur pour appliquer les changements.", commit_hash=rollback_hash[:7])
+    
+    except subprocess.TimeoutExpired:
+        return jsonify(ok=False, error="Timeout lors du rollback"), 500
+    except Exception as e:
+        logger.exception("Deploy rollback error")
         return jsonify(ok=False, error=str(e)), 500
 
 
@@ -6740,6 +6840,7 @@ def api_deploy_pull():
                 timeout=2,
             )
             local_hash = (cp2.stdout or "").strip()[:7] if cp2.returncode == 0 else "unknown"
+            local_hash_full = (cp2.stdout or "").strip() if cp2.returncode == 0 else "unknown"
             cp3 = subprocess.run(
                 ["git", "rev-parse", "origin/main"],
                 cwd=str(APP_DIR),
@@ -6748,10 +6849,33 @@ def api_deploy_pull():
                 timeout=2,
             )
             remote_hash = (cp3.stdout or "").strip()[:7] if cp3.returncode == 0 else "unknown"
+            remote_hash_full = (cp3.stdout or "").strip() if cp3.returncode == 0 else "unknown"
 
             if local_hash == remote_hash:
                 yield f"data: {json.dumps({'step': 'done', 'updated': False, 'restarting': False, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Déjà à jour'}, ensure_ascii=False)}\n\n"
                 return
+
+            # ═══════════════════════════════════════════════════════════════════
+            # SAFETY: Sauvegarder le commit actuel pour rollback possible
+            # ═══════════════════════════════════════════════════════════════════
+            if local_hash_full != "unknown":
+                try:
+                    last_commit_file = APP_DIR / ".last_commit_hash"
+                    last_commit_file.write_text(local_hash_full, encoding="utf-8")
+                    yield f"data: {json.dumps({'step': 'log', 'line': f'✅ Commit actuel sauvegardé ({local_hash}) pour rollback possible'}, ensure_ascii=False)}\n\n"
+                except Exception as e:
+                    logger.warning("Failed to save last commit hash: %s", e)
+
+            # ═══════════════════════════════════════════════════════════════════
+            # SAFETY: Créer un snapshot DB automatique avant mise à jour
+            # ═══════════════════════════════════════════════════════════════════
+            try:
+                yield f"data: {json.dumps({'step': 'log', 'line': '💾 Création snapshot DB automatique avant mise à jour...'}, ensure_ascii=False)}\n\n"
+                snapshot_file = create_snapshot(label="before_update", is_auto=False)
+                yield f"data: {json.dumps({'step': 'log', 'line': f'✅ Snapshot créé: {snapshot_file}'}, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                logger.warning("Failed to create snapshot before update: %s", e)
+                yield f"data: {json.dumps({'step': 'log', 'line': f'⚠️ Impossible de créer snapshot: {e}'}, ensure_ascii=False)}\n\n"
 
             # Fichiers sous logs/ souvent verrouillés par l'app : on les ignore pour le pull
             log_paths = []
@@ -6843,6 +6967,24 @@ def api_deploy_pull():
                     timeout=5,
                 )
 
+            # ═══════════════════════════════════════════════════════════════════
+            # SAFETY: Sauvegarder le nouveau hash après pull réussi
+            # ═══════════════════════════════════════════════════════════════════
+            cp4 = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            new_hash_full = (cp4.stdout or "").strip() if cp4.returncode == 0 else None
+            if new_hash_full:
+                try:
+                    last_commit_file = APP_DIR / ".last_commit_hash"
+                    last_commit_file.write_text(new_hash_full, encoding="utf-8")
+                except Exception:
+                    pass
+
             logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
             _schedule_restart(delay=10.0)
             yield f"data: {json.dumps({'step': 'done', 'updated': True, 'restarting': True, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Mise à jour appliquée, redémarrage dans 10 s', 'restart_delay_s': 10}, ensure_ascii=False)}\n\n"
@@ -6857,6 +6999,35 @@ def api_deploy_pull():
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/deploy/health")
+def api_deploy_health():
+    """Health check simple pour vérifier que l'app répond (accessible sans auth pour 404)."""
+    try:
+        # Vérifier que l'app peut répondre
+        cp = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        current_hash = (cp.stdout or "").strip()[:7] if cp.returncode == 0 else "unknown"
+        
+        # Vérifier si un rollback est possible
+        last_commit_file = APP_DIR / ".last_commit_hash"
+        can_rollback = last_commit_file.exists()
+        rollback_hash = None
+        if can_rollback:
+            try:
+                rollback_hash = last_commit_file.read_text(encoding="utf-8").strip()[:7]
+            except Exception:
+                can_rollback = False
+        
+        return jsonify(ok=True, current_hash=current_hash, can_rollback=can_rollback, rollback_hash=rollback_hash)
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
 
 
 @app.route("/api/system/check-deployment", methods=["GET"])
