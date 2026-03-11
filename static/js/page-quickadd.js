@@ -15,7 +15,10 @@
         _qaType = '';
         _qaMode = '';
         _qaParsed = null;
-        document.getElementById('qaStep1').style.display = '';
+        // Afficher l'étape 0 (choix méthode) et masquer les autres
+        const step0 = document.getElementById('qaStep0');
+        if (step0) step0.style.display = '';
+        document.getElementById('qaStep1').style.display = 'none';
         document.getElementById('qaStep3Paste').style.display = 'none';
         document.getElementById('qaStep4Preview').style.display = 'none';
         document.querySelectorAll('.qa-card').forEach(c => c.classList.remove('active'));
@@ -25,6 +28,22 @@
     window.closeQuickAddModal = function () {
         const m = document.getElementById('modalQuickAdd');
         if (m) m.classList.remove('active');
+    };
+
+    // ─── Step 0: pick method (manual or IA) ───
+    window.qaPickMethod = function (method) {
+        if (method === 'manual') {
+            // Ouvrir le modal d'ajout manuel et fermer le modal QuickAdd
+            closeQuickAddModal();
+            if (typeof openAddModal === 'function') {
+                openAddModal();
+            }
+            return;
+        }
+        // Si méthode IA, afficher l'étape 1 (choix type)
+        const step0 = document.getElementById('qaStep0');
+        if (step0) step0.style.display = 'none';
+        document.getElementById('qaStep1').style.display = '';
     };
 
     // ─── Step 1: pick type ───
@@ -95,6 +114,18 @@
             const msg = (err && err.message) === 'Timeout' ? 'Génération trop longue. Utilisez « Copier » puis collez le retour manuellement.' : 'Ollama indisponible. Utilisez « Copier » puis collez le retour manuellement.';
             showToast(msg, 'warning', 6000);
         });
+    };
+
+    window.qaBackToStep0 = function () {
+        document.getElementById('qaStep1').style.display = 'none';
+        document.getElementById('qaStep3Paste').style.display = 'none';
+        document.getElementById('qaStep4Preview').style.display = 'none';
+        const step0 = document.getElementById('qaStep0');
+        if (step0) step0.style.display = '';
+        _qaType = '';
+        _qaMode = '';
+        _qaParsed = null;
+        document.querySelectorAll('.qa-card').forEach(c => c.classList.remove('active'));
     };
 
     window.qaBackToStep1 = function () {

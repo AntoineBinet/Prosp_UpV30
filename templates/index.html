@@ -155,7 +155,6 @@
             </div>
             </div>
             <button class="btn btn-secondary" onclick="openImportListModal()" title="Importer Excel ou CSV" data-help-section="parametres">📥 Importer ma liste</button>
-            <button class="btn btn-primary" onclick="openQuickAddModal()" title="Ajouter via IA" data-help-section="ajout-ia" style="padding:6px 14px;font-size:13px;">🚀 Ajout IA</button>
             <div class="view-toggle" id="viewToggle">
                 <button class="view-toggle-btn active" id="btnViewTable" onclick="switchTableKanban('table')" title="Vue tableau">☰</button>
                 <button class="view-toggle-btn" id="btnViewProsp" onclick="switchTableKanban('prosp')" title="Mode Prosp défilant">🃏</button>
@@ -421,12 +420,29 @@
             <div class="muted" style="font-size:12px;">Cela peut prendre plusieurs minutes. Ne fermez pas la fenêtre.</div>
         </div>
         <div class="modal-header">
-            <span>➕ Ajouter via IA</span>
+            <span>➕ Ajouter un prospect</span>
             <button class="modal-close" onclick="closeQuickAddModal()">&times;</button>
         </div>
 
-        <!-- Étape 1 : Type + Contexte + Action -->
-        <div id="qaStep1" style="padding:16px 0 0;">
+        <!-- Étape 0 : Choix méthode (Manuel ou IA) -->
+        <div id="qaStep0" style="padding:16px 0 0;">
+            <p class="muted" style="font-size:12px;margin-bottom:10px;">Choisissez votre méthode d'ajout :</p>
+            <div style="display:flex;gap:10px;margin-bottom:16px;">
+                <div class="qa-card" data-method="manual" onclick="qaPickMethod('manual')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
+                    <div style="font-size:28px;margin-bottom:6px;">✏️</div>
+                    <div style="font-weight:700;font-size:13px;">Ajout manuel</div>
+                    <div class="muted" style="font-size:11px;margin-top:3px;">Saisie directe</div>
+                </div>
+                <div class="qa-card" data-method="ia" onclick="qaPickMethod('ia')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
+                    <div style="font-size:28px;margin-bottom:6px;">🤖</div>
+                    <div style="font-weight:700;font-size:13px;">Ajout via IA</div>
+                    <div class="muted" style="font-size:11px;margin-top:3px;">Ollama / ChatGPT</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Étape 1 : Type + Contexte + Action (IA uniquement) -->
+        <div id="qaStep1" style="padding:16px 0 0;display:none;">
             <p class="muted" style="font-size:12px;margin-bottom:10px;">1) Choisissez le type à ajouter :</p>
             <div style="display:flex;gap:10px;margin-bottom:16px;">
                 <div class="qa-card" data-type="prospect" onclick="qaPickType('prospect')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
@@ -448,12 +464,15 @@
             <p class="muted" style="font-size:12px;margin-bottom:6px;">2) Contexte pour l'IA (recommandé) — lien LinkedIn, nom + entreprise, ou texte. Sans contexte, l'IA génèrera un exemple :</p>
             <textarea id="qaContextInput" rows="2" style="width:100%;border:1px solid var(--color-border);border-radius:8px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;margin-bottom:14px;" placeholder="https://linkedin.com/in/... ou Jean Dupont, Responsable R&amp;D chez Acme..."></textarea>
             <p class="muted" style="font-size:12px;margin-bottom:10px;">3) Générez avec Ollama (sur le PC qui héberge Prosp'Up) ou copiez le prompt pour une autre IA :</p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
-                <button class="btn btn-secondary" onclick="closeQuickAddModal()">Annuler</button>
-                <button class="btn btn-secondary" onclick="qaStartSingle()">📋 Copier (un seul)</button>
-                <button class="btn btn-secondary" onclick="qaStartMultiple()">📋 Copier (plusieurs)</button>
-                <button class="btn btn-primary" onclick="qaGenerateWithOllama(false)">🤖 Générer avec Ollama (un seul)</button>
-                <button class="btn btn-primary" onclick="qaGenerateWithOllama(true)">🤖 Générer avec Ollama (plusieurs)</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;">
+                <button class="btn btn-secondary" onclick="qaBackToStep0()">← Retour</button>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="btn btn-secondary" onclick="closeQuickAddModal()">Annuler</button>
+                    <button class="btn btn-secondary" onclick="qaStartSingle()">📋 Copier (un seul)</button>
+                    <button class="btn btn-secondary" onclick="qaStartMultiple()">📋 Copier (plusieurs)</button>
+                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(false)">🤖 Générer avec Ollama (un seul)</button>
+                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(true)">🤖 Générer avec Ollama (plusieurs)</button>
+                </div>
             </div>
         </div>
 
@@ -486,7 +505,7 @@
 
 {% block fab %}
 <!-- FAB: Ajouter un prospect -->
-<button class="fab" id="fabAdd" onclick="openAddModal()" title="Ajouter un prospect">
+<button class="fab" id="fabAdd" onclick="openQuickAddModal()" title="Ajouter un prospect (IA ou manuel)">
     <span class="fab-icon">+</span>
     <span class="fab-label">Prospect</span>
 </button>
