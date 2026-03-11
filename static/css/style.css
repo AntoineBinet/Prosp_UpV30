@@ -228,10 +228,10 @@ body.header-scrolled .header-center .user-session-badge {
   width: auto;
   display: inline-block;
   vertical-align: middle;
-  margin-right: 10px;
+  margin-right: calc(var(--spacing-sm) + var(--spacing-xs));
 }
 @media (max-width: 900px){
-  .up-brand-logo{ height: 20px; margin-right: 8px; }
+  .up-brand-logo{ height: 20px; margin-right: var(--spacing-sm); }
 }
 
 h1 {
@@ -240,7 +240,7 @@ h1 {
     font-weight: 800;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: calc(var(--spacing-sm) + var(--spacing-xs));
 }
 
 .header-subtitle {
@@ -252,7 +252,7 @@ h1 {
 .main-layout {
     display: grid;
     grid-template-columns: 220px 1fr;
-    gap: 10px;
+    gap: calc(var(--spacing-sm) + var(--spacing-xs));
 }
 
 .sidebar {
@@ -285,21 +285,21 @@ h1 {
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 1.5px;
-    margin-bottom: 8px;
-    padding: 0 10px;
+    margin-bottom: var(--spacing-sm);
+    padding: 0 calc(var(--spacing-sm) + var(--spacing-xs));
     color: var(--color-text-secondary);
     font-weight: 700;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--spacing-sm);
 }
 
 .nav-button {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--spacing-sm);
     width: 100%;
-    padding: 8px 12px;
+    padding: var(--spacing-sm) calc(var(--spacing-sm) + var(--spacing-xs));
     margin-bottom: 2px;
     border: none;
     border-radius: 10px;
@@ -339,7 +339,7 @@ h1 {
     max-height: 0;
     overflow: hidden;
     opacity: 0;
-    padding-left: 8px;
+    padding-left: var(--spacing-sm);
     transition: max-height .3s cubic-bezier(.4, 0, .2, 1),
                 opacity .2s ease;
 }
@@ -349,9 +349,9 @@ h1 {
 }
 .nav-sub-item {
     font-size: 11.5px !important;
-    padding: 5px 10px 5px 22px !important;
+    padding: 5px calc(var(--spacing-sm) + var(--spacing-xs)) 5px calc(var(--spacing-md) + var(--spacing-xs) + var(--spacing-xs)) !important;
     margin-bottom: 0 !important;
-    border-radius: 8px !important;
+    border-radius: var(--spacing-sm) !important;
     position: relative;
 }
 .nav-sub-item::before {
@@ -705,7 +705,7 @@ input[type="file"]::file-selector-button:hover{
 
 
 .btn {
-    padding: 8px 14px;
+    padding: var(--spacing-sm) calc(var(--spacing-sm) + var(--spacing-xs) + var(--spacing-xs));
     border: none;
     border-radius: 10px;
     font-size: 12.5px;
@@ -714,7 +714,7 @@ input[type="file"]::file-selector-button:hover{
     transition: all .15s var(--transition-smooth);
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: calc(var(--spacing-xs) + var(--spacing-xs));
     position: relative;
     overflow: hidden;
 }
@@ -776,14 +776,14 @@ a.btn:visited {
 .stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: calc(var(--spacing-sm) + var(--spacing-xs));
+    margin-bottom: var(--spacing-md);
 }
 
 .stat-card {
     background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
     color: white;
-    padding: 18px 16px;
+    padding: calc(var(--spacing-md) + var(--spacing-xs)) var(--spacing-md);
     border-radius: 16px;
     text-align: center;
     position: relative;
@@ -1239,7 +1239,7 @@ table th, table td {
 .company-actions-group {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    gap: var(--spacing-sm);
     max-width: 120px;
     margin: 0 auto;
 }
@@ -1525,7 +1525,7 @@ table th, table td {
 }
 
 .form-group {
-    margin-bottom: 15px;
+    margin-bottom: calc(var(--spacing-sm) + var(--spacing-xs) + var(--spacing-xs));
 }
 
 .form-group label {
@@ -1539,7 +1539,7 @@ table th, table td {
 .form-group select,
 .form-group textarea {
     width: 100%;
-    padding: 10px;
+    padding: calc(var(--spacing-sm) + var(--spacing-xs));
     border: 1px solid var(--color-border);
     border-radius: 12px;
     font-family: inherit;
@@ -1682,23 +1682,23 @@ form.has-invalid-fields input[type="submit"] {
 
 .btn-group {
     display: flex;
-    gap: 10px;
+    gap: calc(var(--spacing-sm) + var(--spacing-xs));
     justify-content: flex-end;
-    margin-top: 20px;
+    margin-top: var(--spacing-md);
 }
 
 .company-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 15px;
-    margin-top: 20px;
+    gap: calc(var(--spacing-md) - var(--spacing-xs));
+    margin-top: var(--spacing-md);
 }
 
 .company-card {
     background: linear-gradient(135deg, #f0f9fb 0%, #e8f4f8 100%);
     border: 1px solid var(--color-border);
     border-radius: 14px;
-    padding: 20px;
+    padding: var(--spacing-md);
     text-align: center;
     cursor: pointer;
     transition: all .2s var(--transition-smooth);
@@ -1719,14 +1719,14 @@ form.has-invalid-fields input[type="submit"] {
 .company-card-site {
     font-size: 12px;
     color: var(--color-text-secondary);
-    margin-bottom: 15px;
+    margin-bottom: calc(var(--spacing-sm) + var(--spacing-xs) + var(--spacing-xs));
 }
 
 .company-card-count {
     background: var(--color-primary);
     color: white;
-    padding: 12px;
-    border-radius: 8px;
+    padding: calc(var(--spacing-sm) + var(--spacing-xs));
+    border-radius: var(--spacing-sm);
     font-size: 18px;
     font-weight: bold;
 }
@@ -1735,21 +1735,21 @@ form.has-invalid-fields input[type="submit"] {
     background: var(--color-surface-2);
     border: 1px solid var(--color-border);
     border-radius: 16px;
-    padding: 18px 22px;
-    margin-bottom: 12px;
+    padding: calc(var(--spacing-md) + var(--spacing-xs)) var(--spacing-lg);
+    margin-bottom: calc(var(--spacing-sm) + var(--spacing-xs));
 }
 
 .settings-section h3 {
     font-size: 14px;
     font-weight: 700;
-    margin-bottom: 15px;
+    margin-bottom: calc(var(--spacing-sm) + var(--spacing-xs) + var(--spacing-xs));
     color: var(--color-primary);
 }
 
 .settings-group {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 10px;
+    gap: calc(var(--spacing-sm) + var(--spacing-xs));
 }
 
 .about-section {
@@ -1915,8 +1915,8 @@ form.has-invalid-fields input[type="submit"] {
 .form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin: 10px 0 20px 0;
+    gap: calc(var(--spacing-sm) + var(--spacing-xs));
+    margin: calc(var(--spacing-sm) + var(--spacing-xs)) 0 var(--spacing-md) 0;
 }
 @media (max-width: 700px) { .form-grid { grid-template-columns: 1fr; } }
 #detailEditSection { display: none; } /* caché par défaut */
@@ -2246,7 +2246,7 @@ a, button, select, input, .btn, .nav-button, .view-toggle-btn, .stat-card {
 .content-header .controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--spacing-sm);
   align-items: center;
 }
 
