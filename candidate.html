@@ -6,17 +6,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f172a">
-<meta name="description" content="ProspUp — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
+<meta name="description" content="Prosp'Up — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
 <link rel="icon" href="/static/favicon.ico">
-  <title>ProspUp — Fiche candidat</title>
+  <title>Prosp'Up — Fiche candidat</title>
 <link rel="stylesheet" href="/static/css/style.css?v=2103" />
 </head>
 <body data-page="candidate">
   <div class="container">
     <header>
-      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> ProspUp — Fiche candidat</h1>
+      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> Prosp'Up — Fiche candidat</h1>
       <p class="header-subtitle">Liens (LinkedIn / OneNote / VSA) · Compétences · Entreprises associées</p>
     </header>
 
@@ -177,6 +177,13 @@
               <div class="form-group">
                 <label>Tech (texte libre)</label>
                 <input id="fTech" placeholder="C/C++, RTOS, Linux…" class="autosave-field" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Dossier de compétence (PDF)</label>
+                <input id="fDossierCompetence" type="text" placeholder="Nom du fichier PDF (ex: dossier_jean_dupont.pdf)" class="autosave-field" />
+                <div class="muted" style="margin-top:4px; font-size:11px;">Le fichier doit être placé dans le dossier "dossiers_competence" à la racine du projet.</div>
               </div>
             </div>
 

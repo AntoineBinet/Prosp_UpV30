@@ -7,7 +7,7 @@ echo.
 echo  ============================================
 echo    ProspUp - Serveur + Tunnel (prospup.work)
 echo  ============================================
-echo  Astuce : faites un PULL ^(ou PULL.bat^) pour avoir la derniere version.
+echo  Mise à jour manuelle : utilisez le bouton dans les paramètres de l'application.
 echo.
 
 :: Python

@@ -6,18 +6,18 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f172a">
-<meta name="description" content="ProspUp — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
+<meta name="description" content="Prosp'Up — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
 <link rel="icon" href="/static/favicon.ico">
-  <title>ProspUp — Paramètres</title>
+  <title>Prosp'Up — Paramètres</title>
 <link rel="stylesheet" href="/static/css/style.css?v=2103">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
 </head>
 <body data-page="settings">
   <div class="container">
     <header>
-      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> ProspUp — Paramètres</h1>
+      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> Prosp'Up — Paramètres</h1>
       <p class="header-subtitle">Sauvegarde, import/export, outils.</p>
     </header>
 
@@ -36,7 +36,6 @@
             <button class="btn btn-primary" onclick="importJSON()">📥 Importer JSON</button>
             <a href="/api/export/xlsx" download target="_blank" class="btn btn-secondary btn-link-inline">📊 Exporter Excel</a>
             <a href="/snapshots" class="btn btn-secondary btn-link-inline">💾 Snapshots</a>
-            <a href="/kpi" class="btn btn-secondary btn-link-inline">📈 KPI</a>
             <button class="btn btn-danger" onclick="resetAllData()">🔄 Réinitialiser</button>
           </div>
           <input type="file" id="jsonFile" accept=".json" style="display:block;">
@@ -266,34 +265,43 @@ Belle journée,"></textarea>
           </div>
         </div>
 
-        <div class="settings-section">
-          <h3>❓ Aide</h3>
+        <div class="settings-section admin-only-section" id="systemVerifySection">
+          <h3>🔍 Vérification système</h3>
           <div class="about-section">
-            <p>Un guide clair (chapitres, bonnes pratiques) est disponible ici :</p>
-            <div class="settings-group" style="margin-top: 12px;">
-              <a href="/help" class="btn btn-secondary btn-link-inline">📘 Ouvrir l’aide</a>
+            <p class="muted" style="margin-bottom:10px;">Vérifie que tous les composants nécessaires au travail à distance avec Cursor fonctionnent correctement (Git, Ollama, Flask, API, scripts).</p>
+            <div class="settings-group" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-primary" id="btnSystemVerify" onclick="runSystemVerify()">🔍 Lancer la vérification</button>
+              <button class="btn btn-secondary" id="btnSystemLogs" onclick="showSystemLogs()">📋 Voir les logs serveur</button>
+              <button class="btn btn-secondary" id="btnCheckDeployment" onclick="checkDeployment()">🔎 Vérifier le déploiement</button>
             </div>
+            <div id="systemVerifyResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);"></div>
           </div>
         </div>
 
-        <div class="settings-section">
-          <h3>🧰 Outils</h3>
+        <div class="settings-section admin-only-section" id="deployUpdateSection">
+          <h3>🔄 Mise à jour du serveur</h3>
           <div class="about-section">
-            <p>Accès rapide aux outils de maintenance et référentiels.</p>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-              <a href="/duplicates" class="btn btn-secondary btn-link-inline">🧬 Doublons</a>
-              <a href="/snapshots" class="btn btn-secondary btn-link-inline">💾 Snapshots</a>
-              <a href="/metiers" class="btn btn-secondary btn-link-inline">🏗️ Métiers</a>
-              <a href="/kpi" class="btn btn-secondary btn-link-inline">📊 KPI</a>
+            <p class="muted" style="margin-bottom:10px;">Récupère les dernières modifications depuis Git (origin/main) et redémarre automatiquement le serveur. Cette action est irréversible.</p>
+            <div class="settings-group" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <button class="btn btn-primary" id="btnDeployPull" onclick="triggerDeployPull()">🔄 Mettre à jour et redémarrer</button>
+              <span id="deployPullStatus" style="font-size:13px;color:var(--color-text-secondary);"></span>
             </div>
+            <div id="deployPullResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);max-height:320px;overflow-y:auto;"><pre id="deployPullLog" style="margin:0;font-size:12px;font-family:monospace;white-space:pre-wrap;word-break:break-all;"></pre><div id="deployPullSummary" style="margin-top:10px;"></div></div>
           </div>
         </div>
 
         <div class="settings-section">
           <h3>ℹ️ À propos</h3>
           <div class="about-section">
-            <h4>ProspUp</h4>
+            <h4>Prosp'Up</h4>
             <p>Outil local de prospection & sourcing.</p>
+            
+            <!-- Badge version / commit (indicateur mise à jour) -->
+            <div id="appVersionBadge" style="margin-top: 12px; margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; background: var(--color-surface-2); border: 1px solid var(--color-border); display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
+              <span id="versionBadgeDot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #64748b; animation: pulse 2s infinite;"></span>
+              <span id="versionBadgeText">Chargement…</span>
+            </div>
+            
             <p style="margin-top: 15px; font-size: 13px;">💾 Stockage : base SQLite locale (sur votre PC)</p>
             <p style="font-size: 13px;">🔒 Aucune donnée ne quitte votre ordinateur</p>
             <p style="font-size: 13px;">🧷 Sauvegardes : snapshots automatiques + manuels</p>
@@ -310,6 +318,107 @@ Belle journée,"></textarea>
   <script defer src="/static/js/notifications.js?v=2000"></script>
   <script defer src="/static/js/page-settings.js?v=2000"></script>
   <script>
+    // ════════════════════════════════════════════════════════════════
+    // Badge version / commit (indicateur mise à jour prospup.work)
+    // ════════════════════════════════════════════════════════════════
+    (function() {
+      let lastCommitHash = localStorage.getItem('prospup_last_commit_hash') || '';
+      let checkInterval = null;
+      
+      async function updateVersionBadge() {
+        const badgeDot = document.getElementById('versionBadgeDot');
+        const badgeText = document.getElementById('versionBadgeText');
+        if (!badgeDot || !badgeText) return;
+        
+        try {
+          const res = await fetch('/api/app-version');
+          if (!res.ok) {
+            // Erreur HTTP - afficher un message d'erreur
+            badgeText.textContent = 'v? • Erreur de chargement';
+            badgeDot.style.background = '#ef4444';
+            badgeDot.style.animation = 'none';
+            console.warn('Version badge: HTTP error', res.status);
+            return;
+          }
+          
+          const data = await res.json();
+          if (!data || !data.ok) {
+            // Réponse invalide
+            badgeText.textContent = 'v? • Erreur de chargement';
+            badgeDot.style.background = '#ef4444';
+            badgeDot.style.animation = 'none';
+            console.warn('Version badge: invalid response', data);
+            return;
+          }
+          
+          const version = data.version || '?';
+          const commitHash = data.commit_hash || 'unknown';
+          const branch = data.branch || 'main';
+          const commitDate = data.commit_date || '';
+          const badgeColor = data.badge_color || '#64748b';
+          
+          // Mettre à jour la couleur du badge
+          badgeDot.style.background = badgeColor;
+          
+          // Arrêter l'animation de chargement
+          badgeDot.style.animation = 'none';
+          
+          // Formater la date si disponible
+          let dateStr = '';
+          if (commitDate) {
+            try {
+              const dt = new Date(commitDate);
+              dateStr = dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + 
+                       ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+              dateStr = commitDate.substring(0, 16).replace('T', ' ');
+            }
+          }
+          
+          // Texte du badge : version · branche · commit (date optionnelle)
+          let text = `v${version} · ${branch} · ${commitHash !== 'unknown' ? commitHash.substring(0, 7) : '?'}`;
+          if (dateStr) {
+            text += ` · ${dateStr}`;
+          }
+          badgeText.textContent = text;
+          
+          // Détecter si c'est une nouvelle version (hash différent)
+          if (lastCommitHash && lastCommitHash !== commitHash && commitHash !== 'unknown') {
+            // Nouvelle version détectée !
+            badgeDot.style.animation = 'pulse 1s ease-in-out 3';
+            if (typeof showToast === 'function') {
+              showToast('✅ Nouvelle version détectée !', 'success');
+            }
+          }
+          
+          // Sauvegarder le hash actuel
+          if (commitHash !== 'unknown') {
+            localStorage.setItem('prospup_last_commit_hash', commitHash);
+            lastCommitHash = commitHash;
+          }
+        } catch (e) {
+          // Erreur réseau ou autre exception
+          console.warn('Version badge update error:', e);
+          badgeText.textContent = 'v? • Erreur réseau';
+          badgeDot.style.background = '#ef4444';
+          badgeDot.style.animation = 'none';
+        }
+      }
+      
+      // Charger immédiatement
+      document.addEventListener('DOMContentLoaded', function() {
+        updateVersionBadge();
+        // Vérifier toutes les 30 secondes pour détecter les nouvelles versions
+        checkInterval = setInterval(updateVersionBadge, 30000);
+      });
+      
+      // Nettoyer l'intervalle si la page est fermée
+      window.addEventListener('beforeunload', function() {
+        if (checkInterval) clearInterval(checkInterval);
+      });
+    })();
+  </script>
+  <script>
     // v16.5: Hide admin-only sections for non-admin users
     document.addEventListener('DOMContentLoaded', function() {
       setTimeout(function() {
@@ -322,6 +431,11 @@ Belle journée,"></textarea>
           document.querySelectorAll('.admin-only-section').forEach(function(el) {
             el.style.display = 'none';
           });
+        }
+        // Debug: vérifier si la section vérification système existe
+        const verifySection = document.getElementById('systemVerifySection');
+        if (!verifySection && window.AppAuth && AppAuth.user && AppAuth.user.role === 'admin') {
+          console.warn('Section vérification système non trouvée — le code n\'est peut-être pas à jour sur le serveur');
         }
       }, 300);
     });

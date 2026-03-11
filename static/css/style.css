@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    style.css — Unified stylesheet
-   Up Technologies — ProspUp v23.4
+   Up Technologies — Prosp'Up v23.4
    ═══════════════════════════════════════════════════════════════ */
 
 /* ──────────────────── BASE RESET & VARIABLES ──────────────────── */
@@ -98,6 +98,119 @@ header {
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     position: relative;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+/* Header zones (injected by JS): left = title, center = search + user badge (v25) */
+.header-left {
+    flex: 1;
+    min-width: 0;
+}
+.header-center {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+/* Loupe (recherche) — toujours fixée en haut à droite */
+.header-search-btn,
+.header-center .floating-search-btn,
+.floating-search-btn {
+    position: fixed !important;
+    top: 26px;
+    right: 18px;
+    z-index: 900;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .2s ease, box-shadow .2s, border-color .2s, scale .2s;
+    order: 1; /* Bouton recherche avant le badge */
+}
+
+.header-search-btn:hover,
+.header-center .floating-search-btn:hover,
+.floating-search-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 24px rgba(var(--color-primary-rgb),.3);
+    border-color: var(--color-primary);
+}
+
+.header-search-btn:active,
+.header-center .floating-search-btn:active,
+.floating-search-btn:active {
+    transform: scale(0.95);
+}
+
+/* Badge utilisateur dans le header — aligné avec la loupe (même ligne), disparaît au scroll */
+.header-center {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+/* Alignement vertical avec .floating-search-btn (top: 26px, height: 42px) */
+.header-center .user-session-badge {
+    position: fixed;
+    top: 26px;
+    right: 70px; /* 18px (marge) + 42px (largeur loupe) + 10px (écart) */
+    z-index: 899;
+    height: 42px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    background: rgba(99,102,241,.06);
+    border-radius: 21px;
+    border: 1px solid var(--color-border);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+    transition: opacity .28s ease, transform .28s ease, width .28s ease, min-width .28s ease, padding .28s ease, margin .28s ease;
+    min-width: 140px;
+    overflow: hidden;
+    order: 2;
+}
+
+.header-center .user-session-badge .user-session-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+}
+.header-center .user-session-badge .user-session-name { font-size: 12px; }
+.header-center .user-session-badge .user-session-role { font-size: 10px; }
+
+/* Au scroll : badge masqué, bouton recherche reste fixé en haut à droite */
+body.header-scrolled .header-center .user-session-badge {
+    opacity: 0;
+    transform: translateX(12px);
+    width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    pointer-events: none;
+}
+
+/* La section "Mettre à jour et redémarrer" reste dans le contenu de la page Paramètres :
+   on ne la masque pas au scroll (header-scrolled), sinon elle disparaît dès qu'on scrolle pour y accéder. */
+
+@media (max-width: 900px) {
+    .header-center .user-session-badge {
+        display: none !important;
+    }
 }
 
 
@@ -1035,6 +1148,188 @@ table th, table td {
 .company-focus {
     outline: 2px solid rgba(var(--color-primary-rgb), 0.35);
     outline-offset: -2px;
+}
+
+/* Amélioration visuelle des lignes entreprises */
+.company-row {
+    transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.company-row:hover {
+    background-color: rgba(var(--color-primary-rgb), 0.05);
+    transform: translateX(2px);
+}
+
+.company-name-cell {
+    min-width: 200px;
+}
+
+.company-name-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.company-groupe {
+    color: var(--color-text);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.company-default-badge {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    font-weight: normal;
+    font-style: italic;
+}
+
+.company-site-cell {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+}
+
+.company-count-cell {
+    padding: 12px 8px !important;
+}
+
+.count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 16px;
+    font-weight: 600;
+    font-size: 13px;
+    background: rgba(var(--color-text-rgb), 0.08);
+    color: var(--color-text-secondary);
+    transition: all 0.2s ease;
+}
+
+.count-badge.has-prospects {
+    background: rgba(var(--color-primary-rgb), 0.15);
+    color: var(--color-primary);
+}
+
+.count-badge.rdv.has-rdv {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+}
+
+.count-badge.callable.has-callable {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+}
+
+.company-actions-cell {
+    padding: 12px 8px !important;
+    min-width: 180px;
+}
+
+.company-actions-group {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    max-width: 120px;
+    margin: 0 auto;
+}
+
+.btn-action {
+    width: 100%;
+    aspect-ratio: 1;
+    min-width: 50px;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    padding: 0;
+}
+
+.btn-action::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.btn-action:hover::before {
+    opacity: 1;
+}
+
+.btn-action-icon {
+    font-size: 20px;
+    line-height: 1;
+    transition: transform 0.2s ease;
+    z-index: 1;
+    position: relative;
+}
+
+.btn-action:hover .btn-action-icon {
+    transform: scale(1.15);
+}
+
+.btn-action:active {
+    transform: scale(0.95);
+}
+
+.btn-action-view {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.btn-action-view:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.15) 100%);
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.btn-action-prospects {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.05) 100%);
+    border-color: rgba(168, 85, 247, 0.3);
+}
+
+.btn-action-prospects:hover {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.15) 100%);
+    border-color: rgba(168, 85, 247, 0.5);
+    box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+}
+
+.btn-action-edit {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(249, 115, 22, 0.05) 100%);
+    border-color: rgba(249, 115, 22, 0.3);
+}
+
+.btn-action-edit:hover {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.25) 0%, rgba(249, 115, 22, 0.15) 100%);
+    border-color: rgba(249, 115, 22, 0.5);
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
+}
+
+.btn-action-delete {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-action-delete:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.15) 100%);
+    border-color: rgba(239, 68, 68, 0.5);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.btn-action:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 
@@ -4295,6 +4590,14 @@ body:not([data-page="prospects"]) .table-wrapper td:nth-child(13) {
 }
 .dash-kpi-alert {
   animation: kpi-pulse 2s ease-in-out infinite;
+
+/* ════════════════════════════════════════════════════════════════
+   Badge version (indicateur mise à jour)
+   ════════════════════════════════════════════════════════════════ */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
 }
 @keyframes kpi-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
@@ -4609,6 +4912,8 @@ body:not([data-page="prospects"]) .table-wrapper td:nth-child(13) {
 .cal-ev-relance { background:rgba(59,130,246,.12);color:#3b82f6;border-left:2px solid #3b82f6; }
 .cal-ev-external { background:rgba(139,92,246,.15);color:#8b5cf6;border-left:2px solid #8b5cf6; }
 .cal-ev-overdue { background:rgba(239,68,68,.12);color:#ef4444;border-left:2px solid #ef4444; }
+.cal-ev-ec1 { background:rgba(168,85,247,.15);color:#a855f7;border-left:2px solid #a855f7; }
+.cal-ev-ec2 { background:rgba(236,72,153,.15);color:#ec4899;border-left:2px solid #ec4899; }
 .cal-ev-time { font-weight:700;margin-right:3px; }
 .cal-ev-more { font-size:10px;color:var(--color-text-secondary);padding:1px 4px; }
 .cal-cell-clickable { cursor: pointer; }
@@ -6105,7 +6410,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 }
 .sidebar-collapsed .sidebar .nav-submenu { display: none !important; }
 
-/* ── Floating Search Button (aligné avec le titre ProspUp du header) ── */
+/* ── Floating Search Button (aligné avec le titre Prosp'Up du header) ── */
 .floating-search-btn {
   position: fixed;
   top: 26px;
@@ -6140,7 +6445,9 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 }
 
 @media (max-width: 768px) {
-  .floating-search-btn {
+  .floating-search-btn,
+  .header-search-btn,
+  .header-center .floating-search-btn {
     top: calc(14px + env(safe-area-inset-top, 0px));
     bottom: auto;
     right: 14px;
@@ -6769,10 +7076,54 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 .bulk-ia-results-table .found { color: var(--color-success); }
 .bulk-ia-results-table .not-found { color: var(--color-text-secondary); opacity: 0.5; }
 
+/* Bulk IA tabs */
+.bulk-ia-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--color-text-secondary);
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.bulk-ia-tab:hover {
+    color: var(--color-text);
+    background: var(--color-surface-2);
+}
+.bulk-ia-tab.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+    font-weight: 600;
+}
+#bulkIAPasteTextarea {
+    width: 100%;
+    min-height: 200px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    padding: 12px;
+    resize: vertical;
+}
+.bulk-ia-csv-map-select {
+    width: 100%;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text);
+    font-size: 12px;
+    padding: 6px 10px;
+}
+
 @media (max-width: 600px) {
     #modalBulkIA .modal-content { padding: 18px 14px; }
     .bulk-ia-prompt-box { font-size: 10px; max-height: 150px; }
     #bulkIAResultTextarea { min-height: 120px; font-size: 11px; }
+    #bulkIAPasteTextarea { min-height: 150px; font-size: 11px; }
+    .bulk-ia-tab { padding: 6px 12px; font-size: 12px; }
 }
 
 /* ═══ Dashboard welcome card (nouveau collaborateur) ═══ */
@@ -8272,5 +8623,104 @@ a.tel-link:hover { text-decoration: underline; }
   }
   .stats .stat-card .stat-number { font-size: 15px !important; }
   .stats .stat-card .stat-label { font-size: 7px !important; }
+}
+
+/* ═══ OLLAMA PROGRESS INDICATOR ──────────────────────────────────────── */
+#ollama-progress-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ollama-progress-container {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 32px 40px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  min-width: 280px;
+  max-width: 400px;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ollama-progress-spinner {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 20px;
+  border: 4px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.ollama-progress-message {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.ollama-progress-stats {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  #ollama-progress-overlay {
+    background: rgba(0, 0, 0, 0.75);
+  }
+  .ollama-progress-container {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+  }
+}
+
+@media (max-width: 480px) {
+  .ollama-progress-container {
+    min-width: 240px;
+    padding: 24px 28px;
+  }
+  .ollama-progress-spinner {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 16px;
+  }
+  .ollama-progress-message {
+    font-size: 14px;
+  }
+  .ollama-progress-stats {
+    font-size: 12px;
+  }
 }
 

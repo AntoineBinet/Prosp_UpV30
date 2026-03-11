@@ -1,4 +1,4 @@
-# 🚀 ProspUp v21 — Mode d'emploi complet
+# 🚀 Prosp'Up v21 — Mode d'emploi complet
 
 ## Installation, démarrage & accès HTTPS depuis partout
 
@@ -57,12 +57,12 @@ cloudflared --version
 
 ## 2 — Installation
 
-1. **Décompressez** le dossier `ProspUp_v15.zip` où vous voulez (ex: `C:\ProspUp`)
+1. **Décompressez** le dossier `Prosp'Up_v15.zip` où vous voulez (ex: `C:\Prosp'Up`)
 2. C'est tout ! Pas besoin d'installer autre chose, le script de démarrage s'en charge.
 
 Structure du dossier :
 ```
-ProspUp_v15/
+Prosp'Up_v15/
 ├── app.py              ← Serveur Flask
 ├── prospects.db        ← Base de données SQLite
 ├── PROSPUP.bat         ← Double-cliquez pour tout lancer (serveur + tunnel)
@@ -83,7 +83,7 @@ ProspUp_v15/
 
 Deux fenêtres s'ouvrent (serveur + tunnel). La première affiche :
 ```
-🚀 ProspUp démarré en production (waitress) sur http://0.0.0.0:8000
+🚀 Prosp'Up démarré en production (waitress) sur http://0.0.0.0:8000
 ```
 
 > Le serveur et le tunnel tournent tant que les fenêtres sont ouvertes. Ne les fermez pas !
@@ -180,7 +180,7 @@ cloudflared tunnel run prospup
 
 ## 5 — Accès depuis iPhone (PWA)
 
-ProspUp est optimisé pour iPhone via Safari. Il s'installe comme une vraie app !
+Prosp'Up est optimisé pour iPhone via Safari. Il s'installe comme une vraie app !
 
 ### Ajouter à l'écran d'accueil
 
@@ -189,9 +189,9 @@ ProspUp est optimisé pour iPhone via Safari. Il s'installe comme une vraie app 
 3. Connectez-vous (admin / admin)
 4. Appuyez sur l'icône **Partager** (carré avec flèche vers le haut)
 5. Faites défiler et appuyez sur **"Sur l'écran d'accueil"**
-6. Nommez-la "ProspUp" et appuyez sur **Ajouter**
+6. Nommez-la "Prosp'Up" et appuyez sur **Ajouter**
 
-→ L'icône ProspUp apparaît sur votre écran d'accueil ! 📱
+→ L'icône Prosp'Up apparaît sur votre écran d'accueil ! 📱
 
 ### Fonctionnalités mobiles
 
@@ -247,14 +247,14 @@ POST /api/auth/change-password
 
 ## 7 — Démarrage automatique au boot (Windows)
 
-Pour que ProspUp se lance automatiquement quand Windows démarre :
+Pour que Prosp'Up se lance automatiquement quand Windows démarre :
 
 ### Méthode 1 : Planificateur de tâches (recommandé)
 
 1. Ouvrez le **Planificateur de tâches** (cherchez "Planificateur" dans le menu Démarrer)
 2. Cliquez **Créer une tâche...**
 3. Onglet **Général** :
-   - Nom : `ProspUp Serveur`
+   - Nom : `Prosp'Up Serveur`
    - Cochez "Exécuter même si l'utilisateur n'est pas connecté"
    - Cochez "Exécuter avec les privilèges les plus élevés"
 4. Onglet **Déclencheurs** :
@@ -263,7 +263,7 @@ Pour que ProspUp se lance automatiquement quand Windows démarre :
 5. Onglet **Actions** :
    - Nouvelle → Programme : `python`
    - Arguments : `app.py --production`
-   - Démarrer dans : `C:\ProspUp` (votre dossier)
+   - Démarrer dans : `C:\Prosp'Up` (votre dossier)
 6. OK
 
 Répétez pour le tunnel (optionnel) :
@@ -314,7 +314,7 @@ Le fichier `prospects.db` contient toutes vos données. Pour sauvegarder :
 
 ### Changer le port
 
-Par défaut, ProspUp tourne sur le port 8000. Pour changer :
+Par défaut, Prosp'Up tourne sur le port 8000. Pour changer :
 ```
 set PORT=3000
 python app.py --production
@@ -333,4 +333,4 @@ python app.py --production
 
 ---
 
-*ProspUp v21 — Up Technologies — Mars 2026*
+*Prosp'Up v21 — Up Technologies — Mars 2026*

@@ -6,17 +6,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f172a">
-<meta name="description" content="ProspUp — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
+<meta name="description" content="Prosp'Up — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
 <link rel="icon" href="/static/favicon.ico">
-  <title>ProspUp — Aide</title>
+  <title>Prosp'Up — Aide</title>
 <link rel="stylesheet" href="/static/css/style.css?v=2103">
 </head>
 <body data-page="help">
   <div class="container">
     <header>
-      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> ProspUp — Aide</h1>
+      <h1><img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app"> Prosp'Up — Aide</h1>
       <p class="header-subtitle">Guide d'utilisation — simple, clair, actionnable.</p>
     </header>
 
@@ -25,12 +25,12 @@
 
       <main class="content">
         <div class="content-header">
-          <div class="content-title">Guide utilisateur ProspUp</div>
+          <div class="content-title">Guide utilisateur Prosp'Up</div>
         </div>
 
         <!-- Hero bienvenue -->
         <section class="help-hero card">
-          <h2 class="help-hero-title">Bienvenue dans ProspUp</h2>
+          <h2 class="help-hero-title">Bienvenue dans Prosp'Up</h2>
           <p class="help-hero-desc">CRM de prospection B2B pour l’embarqué et la robotique. Ce guide présente toutes les fonctionnalités et des tutoriels rapides pour les tester.</p>
           <div class="help-hero-features">
             <span class="help-hero-pill">Prospects & entreprises</span>
@@ -79,9 +79,9 @@
             <div class="help-toc-group">
               <span class="help-toc-group-label">Analyse & outils</span>
               <a href="#recherche">Recherche (Ctrl+K)</a>
-              <a href="#stats">Statistiques</a>
-              <a href="#rapport">Rapport hebdo</a>
-              <a href="#kpi">KPI & Excel</a>
+              <a href="#stats">Statistiques & Rapport</a>
+              <a href="#rapport">Rapport hebdo Excel</a>
+              <a href="#kpi">Checklist KPI</a>
               <a href="#metiers">Métiers</a>
               <a href="#doublons">Doublons</a>
               <a href="#snapshots">Snapshots</a>
@@ -117,12 +117,12 @@
         <!-- 1b. Utilisation à distance (prospup.work) -->
         <div class="card help-section" id="acces-distance">
           <h3>1b) Utilisation à distance (prospup.work)</h3>
-          <p>Vous pouvez utiliser ProspUp en vous connectant à <strong>prospup.work</strong> depuis n'importe quel appareil (bureau, domicile, autre PC). Voici ce qu'il faut savoir :</p>
+          <p>Vous pouvez utiliser Prosp'Up en vous connectant à <strong>prospup.work</strong> depuis n'importe quel appareil (bureau, domicile, autre PC). Voici ce qu'il faut savoir :</p>
           <ul>
-            <li><strong>Où tourne l'application ?</strong> ProspUp et vos données tournent sur <strong>un seul PC</strong> (celui sur lequel vous avez lancé <code>app.py</code> et éventuellement un tunnel Cloudflare). C'est ce PC qui « héberge » l'accès prospup.work.</li>
+            <li><strong>Où tourne l'application ?</strong> Prosp'Up et vos données tournent sur <strong>un seul PC</strong> (celui sur lequel vous avez lancé <code>app.py</code> et éventuellement un tunnel Cloudflare). C'est ce PC qui « héberge » l'accès prospup.work.</li>
             <li><strong>Vos données</strong> (prospects, entreprises, candidats) sont stockées sur ce PC. En vous connectant à prospup.work, vous travaillez sur les mêmes données que si vous étiez devant ce PC.</li>
-            <li><strong>Fonctions IA (Ollama)</strong> : pour que les boutons « Scrapping IA », « Ajout IA », « Générer avec Ollama », etc. fonctionnent, <strong>Ollama doit être installé et lancé sur le même PC qui héberge ProspUp</strong>. Si vous utilisez ProspUp depuis un autre ordinateur via prospup.work, l'IA s'exécute donc sur le PC serveur, pas sur votre machine. Si Ollama n'est pas démarré sur ce PC, les boutons IA afficheront une erreur ou une modale vide ; vous pouvez alors utiliser l'option « Copier » pour utiliser une autre IA (ex. ChatGPT) et coller le retour dans l'app.</li>
-            <li><strong>En résumé</strong> : pour un utilisateur lambda qui se connecte à prospup.work à distance, tout fonctionne comme en local, à condition que sur le PC qui héberge ProspUp, Ollama soit lancé si vous voulez utiliser les fonctions IA.</li>
+            <li><strong>Fonctions IA (Ollama)</strong> : pour que les boutons « Scrapping IA », « Ajout IA », « Générer avec Ollama », etc. fonctionnent, <strong>Ollama doit être installé et lancé sur le même PC qui héberge Prosp'Up</strong>. Si vous utilisez Prosp'Up depuis un autre ordinateur via prospup.work, l'IA s'exécute donc sur le PC serveur, pas sur votre machine. Si Ollama n'est pas démarré sur ce PC, les boutons IA afficheront une erreur ou une modale vide ; vous pouvez alors utiliser l'option « Copier » pour utiliser une autre IA (ex. ChatGPT) et coller le retour dans l'app.</li>
+            <li><strong>En résumé</strong> : pour un utilisateur lambda qui se connecte à prospup.work à distance, tout fonctionne comme en local, à condition que sur le PC qui héberge Prosp'Up, Ollama soit lancé si vous voulez utiliser les fonctions IA.</li>
           </ul>
         </div>
 
@@ -198,7 +198,7 @@
             <li>Une modale s'ouvre avec le <strong>résultat pré-rempli</strong>. Le système analyse le texte, détecte les champs (fonction, téléphone, email, LinkedIn, tags, notes…) et affiche une prévisualisation.</li>
           </ol>
           <div class="help-callout help-callout-warn">
-            <strong>Prérequis</strong> — <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> doit être installé et lancé sur le même PC que ProspUp. Modèle par défaut : <code>llama3.2</code> (variables <code>OLLAMA_MODEL</code>, <code>OLLAMA_URL</code>). Si Ollama est indisponible, la modale s’ouvre vide : vous pouvez coller le retour d’une autre IA (ChatGPT, Claude).
+            <strong>Prérequis</strong> — <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> doit être installé et lancé sur le même PC que Prosp'Up. Modèle par défaut : <code>llama3.2</code> (variables <code>OLLAMA_MODEL</code>, <code>OLLAMA_URL</code>). Si Ollama est indisponible, la modale s’ouvre vide : vous pouvez coller le retour d’une autre IA (ChatGPT, Claude).
           </div>
           <p>Vous pouvez <strong>accepter ou ignorer chaque champ</strong> individuellement avant d'appliquer. L'enrichissement est tracé dans la timeline.</p>
           <ul>
@@ -225,13 +225,13 @@
             <li><strong>Type + Contexte</strong> : choisissez ce que vous voulez ajouter (Prospect, Entreprise ou Candidat). Renseignez le champ <strong>Contexte</strong> (recommandé) : un lien LinkedIn, un nom et une entreprise, ou un court texte. Sans contexte, l’IA génèrera un exemple que vous pourrez modifier à l’étape suivante.</li>
             <li><strong>Générer ou coller</strong> :
               <ul>
-                <li><strong>Générer avec Ollama (un seul / plusieurs)</strong> : envoie un prompt à Ollama sur le PC qui héberge ProspUp. Le résultat s’affiche dans la zone de texte. Vous pouvez modifier le JSON (nom, LinkedIn, téléphone, etc.) avant de cliquer <strong>Analyser</strong>.</li>
+                <li><strong>Générer avec Ollama (un seul / plusieurs)</strong> : envoie un prompt à Ollama sur le PC qui héberge Prosp'Up. Le résultat s’affiche dans la zone de texte. Vous pouvez modifier le JSON (nom, LinkedIn, téléphone, etc.) avant de cliquer <strong>Analyser</strong>.</li>
                 <li><strong>Copier (un seul / plusieurs)</strong> : copie le prompt dans le presse-papier. Collez-le dans Ollama (ou une autre IA) sur votre machine, ajoutez votre lien ou contexte si besoin, puis collez le retour de l’IA dans la zone ci-dessous et cliquez <strong>Analyser</strong>.</li>
               </ul>
             </li>
             <li><strong>Aperçu et création</strong> : après analyse, les fiches détectées s’affichent. Décochez celles à ne pas créer, puis cliquez <strong>Créer</strong>.</li>
           </ol>
-          <p><strong>À distance (prospup.work)</strong> : si vous êtes connecté via prospup.work depuis un autre PC, « Générer avec Ollama » utilise Ollama installé sur le PC qui héberge ProspUp. Si Ollama n’y est pas lancé, utilisez « Copier » et une IA locale ou en ligne, puis collez le retour dans l’app.</p>
+          <p><strong>À distance (prospup.work)</strong> : si vous êtes connecté via prospup.work depuis un autre PC, « Générer avec Ollama » utilise Ollama installé sur le PC qui héberge Prosp'Up. Si Ollama n’y est pas lancé, utilisez « Copier » et une IA locale ou en ligne, puis collez le retour dans l’app.</p>
           <div class="help-tutorial">
             <span class="help-tutorial-label">Tutoriel interactif</span>
             <p class="help-tutorial-note">Le lien ci-dessous ouvre la page Prospects et affiche la modale « Ajout IA ». Choisissez un type, remplissez le contexte puis « Générer avec Ollama » ou « Copier ».</p>
@@ -285,13 +285,19 @@
         <!-- 9. Calendrier -->
         <div class="card help-section" id="calendrier">
           <h3>9) Calendrier</h3>
-          <p>Vue calendrier mensuelle de vos <strong>RDV planifiés</strong> et <strong>relances</strong> :</p>
+          <p>Vue calendrier mensuelle de vos <strong>RDV planifiés</strong>, <strong>relances</strong> et <strong>entretiens candidats</strong> :</p>
           <ul>
-            <li>Les RDV (prospects avec statut "Rendez-vous" et date RDV) sont affichés sur le calendrier.</li>
-            <li>Les relances planifiées (<em>nextFollowUp</em>) sont également visibles.</li>
-            <li>Cliquez sur un événement pour accéder directement à la fiche prospect.</li>
-            <li>Navigation mois par mois.</li>
+            <li>Les <strong>RDV</strong> (prospects avec statut "Rendez-vous" et date RDV) sont affichés sur le calendrier avec l'icône 🤝.</li>
+            <li>Les <strong>relances planifiées</strong> (<em>nextFollowUp</em>) sont également visibles avec l'icône 🔄 (⚠️ si en retard).</li>
+            <li><strong>Entretiens candidats EC1</strong> : les entretiens de qualification (EC1) planifiés apparaissent avec l'icône 📞. La date provient de la checklist EC1 du candidat.</li>
+            <li><strong>Entretiens candidats EC2</strong> : les entretiens techniques (EC2) apparaissent avec l'icône 📞📞. La date est déterminée automatiquement depuis le passage du candidat au statut EC2.</li>
+            <li>Cliquez sur un événement pour accéder directement à la fiche prospect ou candidat (les EC1 ouvrent directement la section EC1 de la fiche candidat).</li>
+            <li>Navigation mois par mois ou vue semaine.</li>
+            <li><strong>Modale détail du jour</strong> : cliquez sur un jour avec plusieurs événements pour voir la liste complète.</li>
           </ul>
+          <div class="help-callout help-callout-tip">
+            <strong>Astuce</strong> — Les EC1/EC2 sont automatiquement ajoutés au calendrier dès que vous planifiez un entretien dans la fiche candidat ou que vous changez le statut à EC2.
+          </div>
           <a href="/calendrier" class="help-try-btn">Ouvrir le Calendrier →</a>
         </div>
 
@@ -385,6 +391,9 @@
         <!-- 15. Stats -->
         <div class="card help-section" id="stats">
           <h3>15) Statistiques</h3>
+          <p>La page <strong>Stats</strong> propose deux vues via des onglets :</p>
+          
+          <h4 style="margin-top:16px;margin-bottom:8px;">📊 Onglet Statistiques</h4>
           <p>Analyse visuelle de votre activité de prospection :</p>
           <ul>
             <li><strong>KPIs</strong> : push envoyés, notes d'appel, relances en retard, taux de conversion, sur période configurable (semaine, mois, trimestre…).</li>
@@ -393,31 +402,96 @@
             <li><strong>Activité push</strong> : courbe d'évolution des push envoyés par semaine/mois.</li>
             <li><strong>Top entreprises</strong> : classement des entreprises les plus actives (basé sur nombre de push, RDV, et interactions).</li>
             <li><strong>Filtrage temporel</strong> : choisissez la plage (semaine, mois, trimestre, année) et naviguez entre les périodes.</li>
+            <li><strong>Entreprises "chaudes"</strong> : tableau des entreprises prioritaires avec score calculé automatiquement.</li>
           </ul>
+
+          <h4 style="margin-top:16px;margin-bottom:8px;">📄 Onglet Rapport & KPI</h4>
+          <p>Génération de rapports Excel hebdomadaires et checklist KPI :</p>
+          <ul>
+            <li><strong>Export suivi d'activité</strong> : générez un Excel de suivi hebdomadaire avec :
+              <ul>
+                <li>Sélection de la semaine (format ISO : 2026-W10)</li>
+                <li>Option <strong>"Enrichir avec l'IA (Ollama)"</strong> : normalise les métiers, extrait les besoins depuis les notes, génère les codes notes (B OKS, A OKS, etc.)</li>
+                <li>Le rapport inclut : candidats vus en EC1/EC2, prospections (RDV pris), clients vus (RDV effectué), pushs par consultant, objectifs gamification</li>
+                <li>Format Excel avec 17 colonnes, fusion des cellules "Semaine", séparateur visuel</li>
+              </ul>
+            </li>
+            <li><strong>Checklist KPI</strong> : outil de validation rapide avec :
+              <ul>
+                <li>Date et titre personnalisables</li>
+                <li>Checklist par catégories (Prospection, RDV, Client, Push, Candidats)</li>
+                <li>Commentaires optionnels par item</li>
+                <li>Modèles rapides : "Tout cocher", "Tout décocher", "Modèle semaine"</li>
+                <li>Export Excel de la checklist</li>
+              </ul>
+            </li>
+          </ul>
+          <div class="help-callout help-callout-info">
+            <strong>Rappel export</strong> — Une alerte vous rappelle chaque jeudi matin si vous n'avez pas encore exporté votre suivi d'activité de la semaine.
+          </div>
+          <a href="/stats" class="help-try-btn">Ouvrir la page Stats →</a>
         </div>
 
-        <!-- 16. Rapport hebdomadaire -->
+        <!-- 16. Rapport hebdomadaire Excel -->
         <div class="card help-section" id="rapport">
-          <h3>16) Rapport hebdomadaire</h3>
-          <p>Générez un <strong>rapport de synthèse</strong> pour chaque semaine :</p>
+          <h3>16) Rapport hebdomadaire Excel</h3>
+          <p>Générez un <strong>rapport Excel de suivi d'activité</strong> pour chaque semaine depuis l'onglet <strong>"📄 Rapport & KPI"</strong> de la page Stats :</p>
+          <ol>
+            <li><strong>Sélectionnez la semaine</strong> : utilisez le sélecteur de semaine (format ISO : 2026-W10, ex: "2026-W10" pour la semaine 10). Par défaut, la semaine courante est pré-sélectionnée.</li>
+            <li><strong>Optionnel : activez l'enrichissement IA</strong> : cochez "Enrichir avec l'IA (Ollama)" pour :
+              <ul>
+                <li>Normaliser les métiers des candidats (si ambigu ou vide)</li>
+                <li>Extraire les besoins depuis les notes des prospects (clients vus)</li>
+                <li>Générer les codes notes (B OKS, A OKS, etc.) depuis les données EC1</li>
+              </ul>
+              <em>Note : si Ollama n'est pas disponible, le rapport est généré sans enrichissement (fallback automatique).</em>
+            </li>
+            <li><strong>Générez le rapport</strong> : cliquez sur "📥 Générer le rapport Excel". Le fichier se télécharge automatiquement.</li>
+          </ol>
+          
+          <h4 style="margin-top:16px;margin-bottom:8px;">Contenu du rapport Excel</h4>
+          <p>Le fichier Excel contient <strong>17 colonnes</strong> avec :</p>
           <ul>
-            <li><strong>KPIs hebdo</strong> : push envoyés, notes d'appel, nouveaux prospects, RDV, relances traitées.</li>
-            <li><strong>Détail par entreprise</strong> : activité détaillée par client avec tags, push, et interactions de la semaine.</li>
-            <li><strong>Barre de statuts</strong> : répartition visuelle de votre pipeline.</li>
-            <li><strong>Export Markdown</strong> : générez le rapport au format Markdown, prêt à copier-coller dans OneNote, Slack, Teams, ou un email.</li>
-            <li><strong>Impression</strong> : mode impression optimisé (CSS print).</li>
-            <li><strong>Navigation semaine</strong> : sélecteur de semaine pour consulter les rapports passés.</li>
+            <li><strong>Colonnes A-G (Candidats)</strong> : Semaine (fusionné), Entretiens (nom), Métier, Exp (années), Dispo, Notes (codes), Commenta (commentaires détaillés)</li>
+            <li><strong>Colonnes H-J (Prospection)</strong> : Prospections (RDV pris), Clients vus (RDV effectué), Besoins (extraits depuis notes)</li>
+            <li><strong>Colonnes K-L</strong> : RT, Suivi Mission (réservés, vides)</li>
+            <li><strong>Colonnes M-N (Pushs)</strong> : Pushs consultant (nom), Nb pushs (nombre)</li>
+            <li><strong>Colonnes O-Q (Objectifs)</strong> : Attendus Prosp, Attendus Entretiens, Attendus Pushs (depuis la section Gamification)</li>
           </ul>
+          <p><strong>Données collectées automatiquement</strong> :</p>
+          <ul>
+            <li><strong>Candidats EC1/EC2</strong> : tous les candidats vus en entretien (EC1 ou EC2) dans la semaine sélectionnée</li>
+            <li><strong>Prospections</strong> : tous les RDV pris avec des prospects (événements <code>rdv_taken</code> ou prospects avec <code>statut='Rendez-vous'</code> et <code>rdvDate</code> dans la semaine)</li>
+            <li><strong>Clients vus</strong> : tous les prospects avec <code>statut='Rendez-vous'</code> et <code>lastContact</code> dans la semaine (RDV effectué)</li>
+            <li><strong>Pushs</strong> : tous les pushs envoyés dans la semaine, groupés par consultant</li>
+            <li><strong>Objectifs</strong> : valeurs depuis la section Gamification (Paramètres → Objectifs & Gamification)</li>
+          </ul>
+          <div class="help-callout help-callout-tip">
+            <strong>Format Excel</strong> — Les cellules "Semaine" sont fusionnées pour toutes les lignes de la même semaine. La colonne G (Commenta) a une bordure épaisse pour servir de séparateur visuel entre les candidats et la prospection.
+          </div>
         </div>
 
-        <!-- 17. KPI Export -->
+        <!-- 17. KPI Checklist -->
         <div class="card help-section" id="kpi">
-          <h3>17) KPI & export Excel de validation</h3>
-          <p>Outil de <strong>checklist rapide</strong> pour générer un fichier Excel de validation :</p>
-          <ul>
-            <li>Sélectionnez une <strong>date</strong> et un <strong>titre</strong> (ex: "Semaine 06").</li>
-            <li>Cliquez sur <strong>"Générer Excel"</strong> pour obtenir un .xlsx formaté avec vos KPIs du jour, prêt à envoyer à votre manager ou à archiver.</li>
-          </ul>
+          <h3>17) Checklist KPI</h3>
+          <p>Outil de <strong>checklist rapide</strong> pour générer un fichier Excel de validation, accessible depuis l'onglet <strong>"📄 Rapport & KPI"</strong> de la page Stats :</p>
+          <ol>
+            <li><strong>Sélectionnez une date</strong> : choisissez la date du jour ou de la semaine à valider.</li>
+            <li><strong>Ajoutez un titre</strong> (optionnel) : ex: "Semaine 06", "Validation jour X", etc.</li>
+            <li><strong>Cochez les items</strong> : parcourez la checklist par catégories (Prospection, RDV, Client, Push, Candidats) et cochez les actions réalisées.</li>
+            <li><strong>Ajoutez des commentaires</strong> (optionnel) : pour chaque item, vous pouvez ajouter un commentaire (ex: nom client, contexte, etc.).</li>
+            <li><strong>Utilisez les modèles rapides</strong> :
+              <ul>
+                <li><strong>"Tout cocher"</strong> : coche tous les items</li>
+                <li><strong>"Tout décocher"</strong> : décoche tous les items</li>
+                <li><strong>"Modèle semaine"</strong> : coche automatiquement les items typiques d'une semaine (contact, relance, validation, RDV, push, candidat)</li>
+              </ul>
+            </li>
+            <li><strong>Générez l'Excel</strong> : cliquez sur "📄 Générer Excel KPI" pour télécharger le fichier .xlsx formaté avec vos validations.</li>
+          </ol>
+          <div class="help-callout help-callout-info">
+            <strong>Note</strong> — La checklist KPI est maintenant intégrée dans la page Stats (onglet Rapport & KPI) pour centraliser tous vos outils de reporting.
+          </div>
         </div>
 
         <!-- 18. Référentiel métiers -->
@@ -472,14 +546,13 @@
 
         <!-- 22. Mises à jour -->
         <div class="card help-section" id="mises-a-jour">
-          <h3>22) Système de mises à jour</h3>
-          <p>Mettez à jour l'application directement depuis la page Paramètres :</p>
+          <h3>22) Mise à jour du serveur</h3>
+          <p>Pour mettre à jour prospup.work après un commit/push sur Git :</p>
           <ul>
-            <li><strong>Glisser-déposer</strong> : déposez vos fichiers de mise à jour (.py, .html, .js, .css…) dans la zone prévue. Le système <strong>détecte automatiquement</strong> l'emplacement de chaque fichier dans le projet.</li>
-            <li><strong>Zone de staging</strong> : vérifiez les fichiers détectés et leur destination avant d'appliquer.</li>
-            <li><strong>Backup automatique</strong> : une sauvegarde complète du projet est créée automatiquement avant chaque mise à jour.</li>
-            <li><strong>Application</strong> : un clic sur "Appliquer" remplace les fichiers. Relancez ensuite l'application pour que les changements prennent effet.</li>
-            <li><strong>Rollback</strong> : si une mise à jour pose problème, restaurez une version précédente en un clic depuis la liste des sauvegardes.</li>
+            <li><strong>Sur le PC qui héberge</strong> : ouvrez Paramètres (section admin), puis cliquez sur <strong>« Mettre à jour et redémarrer »</strong>.</li>
+            <li>L’application effectue un <code>git fetch</code> puis <code>git pull</code> sur <code>origin/main</code>, affiche la sortie en direct, puis redémarre le serveur.</li>
+            <li>La page se recharge automatiquement après le redémarrage pour reprendre sur la nouvelle version.</li>
+            <li>Le badge « À propos » (version · branche · commit) permet de vérifier que la mise à jour a bien été appliquée.</li>
           </ul>
         </div>
 
@@ -510,7 +583,8 @@
             <li>Utilisez les <strong>vues sauvegardées</strong> pour vos scénarios de filtrage récurrents.</li>
             <li>Consultez le <strong>Dashboard</strong> chaque matin pour prioriser votre journée.</li>
             <li>Utilisez la <strong>Recherche <kbd>Ctrl+K</kbd></strong> plutôt que naviguer dans les listes.</li>
-            <li>Exportez un <strong>Rapport hebdo</strong> en fin de semaine pour votre suivi d'activité.</li>
+            <li>Générez un <strong>Rapport hebdomadaire Excel</strong> en fin de semaine depuis l'onglet Rapport de Stats pour votre suivi d'activité (candidats EC1/EC2, prospections, clients vus, pushs, objectifs).</li>
+            <li>Utilisez la <strong>Checklist KPI</strong> pour valider rapidement vos actions de la semaine.</li>
             <li>Tenez à jour les <strong>Opportunités</strong> sur les fiches entreprise pour suivre votre pipeline commercial.</li>
           </ul>
         </div>

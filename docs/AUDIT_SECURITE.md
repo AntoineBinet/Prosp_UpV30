@@ -1,4 +1,4 @@
-# Audit cybersécurité — ProspUp
+# Audit cybersécurité — Prosp'Up
 
 **Date :** mars 2025  
 **Contexte :** application Flask exposée en permanence via Cloudflare Tunnel (prospup.work) sur PC personnel.

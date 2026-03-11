@@ -19,7 +19,7 @@ test.describe('Dashboard', () => {
 
   test('has page title', async ({ page }) => {
     await page.goto('/dashboard');
-    await expect(page).toHaveTitle(/ProspUp/i);
+    await expect(page).toHaveTitle(/Prosp'Up/i);
   });
 
   test('sidebar is visible on desktop', async ({ page }) => {

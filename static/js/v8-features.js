@@ -417,8 +417,6 @@
 
     window.toggleSidebar = _toggleSidebar;
 
-<<<<<<< Updated upstream
-=======
     // ────────────── 3b. HEADER LAYOUT (left + center for search + badge, v25) ──────────────
     function _initHeaderLayout() {
         if (window.location.pathname === '/login') return;
@@ -438,8 +436,6 @@
         // Dispatcher un événement pour signaler que le header est prêt
         document.dispatchEvent(new CustomEvent('header-layout-ready'));
     }
-
->>>>>>> Stashed changes
     // ────────────── 3c. FLOATING SEARCH BUTTON ──────────────
 
     function _initFloatingSearch() {
@@ -447,11 +443,36 @@
         const btn = document.createElement('button');
         btn.id = 'floatingSearchBtn';
         btn.className = 'floating-search-btn';
+        const center = document.querySelector('.header-center');
+        if (center) {
+            btn.classList.add('header-search-btn');
+            center.appendChild(btn);
+        } else {
+            document.body.appendChild(btn);
+        }
         btn.innerHTML = '🔍';
         btn.title = 'Recherche rapide (Ctrl+K)';
         btn.setAttribute('data-help-section', 'recherche');
         btn.onclick = _openGlobalSearch;
-        document.body.appendChild(btn);
+    }
+
+    // ────────────── 3d. SCROLL: header-scrolled pour animation badge/loupe ──────────────
+    function _initHeaderScroll() {
+        const SCROLL_THRESHOLD = 50;
+        let ticking = false;
+        function updateScrolled() {
+            const scrolled = (window.scrollY || document.documentElement.scrollTop) > SCROLL_THRESHOLD;
+            document.body.classList.toggle('header-scrolled', scrolled);
+            ticking = false;
+        }
+        function onScroll() {
+            if (!ticking) {
+                requestAnimationFrame(updateScrolled);
+                ticking = true;
+            }
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        updateScrolled();
     }
 
     // ────────────── 4. MOBILE HAMBURGER ──────────────
@@ -776,6 +797,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        _initHeaderLayout();
         _initThemeToggle();
         _initMobile();
         if (window.applyDisplayPrefs) window.applyDisplayPrefs();
@@ -792,6 +814,7 @@
                 _initSidebarCollapse();
         }, 400);
         _initFloatingSearch();
+        _initHeaderScroll();
 
         // Ctrl+K global search
         document.addEventListener('keydown', function (e) {

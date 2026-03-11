@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Surveillance ProspUp : vérifie toutes les 15 minutes que l'application répond.
+Surveillance Prosp'Up : vérifie toutes les 15 minutes que l'application répond.
 Si la requête GET échoue (timeout, status != 200), relance la commande configurée.
 
 Variables d'environnement (optionnel) :

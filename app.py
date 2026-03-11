@@ -17,11 +17,7 @@ import difflib
 from pathlib import Path
 from typing import Any, Dict, List
 
-<<<<<<< Updated upstream
-from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g
-=======
 from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g, Response, render_template
->>>>>>> Stashed changes
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import secrets
@@ -30,7 +26,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "25.1"
+APP_VERSION = "25.3"
 import os
 import subprocess
 import traceback
@@ -84,8 +80,6 @@ DATA_DIR = APP_DIR / "data"
 INITIAL_JSON = APP_DIR / "initial_data.json"
 TEMPLATE_PATH = APP_DIR / "excel_template.xlsx"
 SNAPSHOT_DIR = APP_DIR / "snapshots"
-UPDATE_STAGING_DIR = APP_DIR / "updates_staging"
-UPDATE_BACKUP_DIR = APP_DIR / "updates_backup"
 
 # Ollama (IA locale) — proxy backend vers 127.0.0.1:11434
 OLLAMA_URL = (os.environ.get("OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("/")
@@ -149,7 +143,7 @@ def _after_request(response):
     # CSP: restrictive but allows inline styles/scripts (needed for current architecture)
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: blob:; "
         "connect-src 'self'; "
@@ -279,10 +273,19 @@ def role_required(min_role):
     return decorator
 
 # Origines autorisées quand l'app est derrière le tunnel (request.host = localhost, Origin = prospup.work)
-_ALLOWED_ORIGINS = frozenset({
+# Variable d'environnement PROSPUP_ALLOWED_ORIGINS = URLs séparées par des virgules (ex. https://mon-domaine.fr)
+_origins_list = [
     "https://prospup.work", "https://www.prospup.work", "https://crm.prospup.work",
     "http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8000/", "http://127.0.0.1:8000/",
-})
+]
+_env_origins = os.environ.get("PROSPUP_ALLOWED_ORIGINS", "").strip()
+if _env_origins:
+    for o in _env_origins.split(","):
+        o = o.strip().rstrip("/")
+        if o:
+            _origins_list.append(o)
+            _origins_list.append(o + "/")
+_ALLOWED_ORIGINS = frozenset(_origins_list)
 
 def _require_same_origin():
     """Anti-CSRF léger : si l'en-tête Origin est présent, exiger une origine autorisée."""
@@ -308,7 +311,7 @@ def _require_auth():
     if request.method == "OPTIONS":
         return
 
-    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/')
+    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment', '/api/system/logs')
     if any(request.path.startswith(p) for p in allowed):
         return
 
@@ -875,10 +878,14 @@ def _auth_conn() -> sqlite3.Connection:
 
 
 def _user_db_path(user_id: int) -> Path:
-    """Chemin de la DB d'un utilisateur. Retourne la per-user DB si elle existe, sinon DB_PATH."""
+    """Chemin de la DB d'un utilisateur. Retourne la per-user DB si elle existe et n'est pas vide, sinon DB_PATH."""
     user_db = DATA_DIR / f"user_{user_id}" / "prospects.db"
     if user_db.exists():
-        return user_db
+        try:
+            if user_db.stat().st_size > 0:
+                return user_db
+        except OSError:
+            pass
     return DB_PATH
 
 
@@ -913,6 +920,8 @@ def _conn() -> sqlite3.Connection:
 
 def init_db() -> None:
     SNAPSHOT_DIR.mkdir(exist_ok=True)
+    # Créer le dossier pour les dossiers de compétences
+    (APP_DIR / "dossiers_competence").mkdir(exist_ok=True)
 
     with _conn() as conn:
         conn.executescript(
@@ -1206,6 +1215,15 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
             _add_col("push_logs", "template_id", "INTEGER")
         if "template_name" not in lcols:
             _add_col("push_logs", "template_name", "TEXT")
+        # v25.3: Traçabilité candidats et consultants dans push_logs
+        if "candidate_id1" not in lcols:
+            _add_col("push_logs", "candidate_id1", "INTEGER")
+        if "candidate_id2" not in lcols:
+            _add_col("push_logs", "candidate_id2", "INTEGER")
+        if "consultant1_id" not in lcols:
+            _add_col("push_logs", "consultant1_id", "INTEGER")
+        if "consultant2_id" not in lcols:
+            _add_col("push_logs", "consultant2_id", "INTEGER")
 
         cand_cols = [r["name"] for r in conn.execute("PRAGMA table_info(candidates);").fetchall()]
         # Links & matching (v5.1+)
@@ -1230,6 +1248,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
             _add_col("candidates", "phone", "TEXT")
         if "email" not in cand_cols:
             _add_col("candidates", "email", "TEXT")
+        if "dossier_competence_pdf" not in cand_cols:
+            _add_col("candidates", "dossier_competence_pdf", "TEXT")
         if "owner_id" not in cand_cols:
             _add_col("candidates", "owner_id", "INTEGER")
 
@@ -1304,7 +1324,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
                 "INSERT INTO users (username, display_name, password_hash, role, is_active, createdAt) VALUES (?, ?, ?, ?, 1, ?);",
                 ("admin", "Antoine (Admin)", generate_password_hash("admin"), "admin", now)
             )
-            print("✅ Compte admin créé — login: admin / mdp: admin (à changer !)")
+            print("Compte admin cree — login: admin / mdp: admin (a changer !)")
 
         # Migration: reader -> editor (rôles simplifiés à admin + editor uniquement)
         try:
@@ -1420,7 +1440,8 @@ Cordialement,"""
 
 
 def _migrate_user_db_schema(db_path: Path) -> None:
-    """Ajoute deleted_at aux tables companies, prospects, candidates si absent (v23.5)."""
+    """Ajoute deleted_at aux tables companies, prospects, candidates si absent (v23.5).
+    Ajoute aussi dossier_competence_pdf à la table candidates si absent."""
     if not db_path.exists():
         return
     conn = sqlite3.connect(db_path)
@@ -1434,6 +1455,14 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             if "deleted_at" not in cols:
                 conn.execute(f"ALTER TABLE {tbl} ADD COLUMN deleted_at TEXT;")
                 conn.commit()
+        # Migration: ajouter dossier_competence_pdf à candidates
+        try:
+            cand_cols = [r["name"] for r in conn.execute("PRAGMA table_info(candidates);").fetchall()]
+            if "dossier_competence_pdf" not in cand_cols:
+                conn.execute("ALTER TABLE candidates ADD COLUMN dossier_competence_pdf TEXT;")
+                conn.commit()
+        except Exception:
+            pass
     finally:
         conn.close()
 
@@ -1552,6 +1581,7 @@ def _init_user_db(user_id: int) -> Path:
                 sector    TEXT,
                 phone     TEXT,
                 email     TEXT,
+                dossier_competence_pdf TEXT,
                 owner_id  INTEGER,
                 deleted_at TEXT
             );
@@ -2641,10 +2671,6 @@ def page_snapshots():
     return send_from_directory(APP_DIR, "snapshots.html")
 
 
-@app.get("/kpi")
-def page_kpi():
-    return send_from_directory(APP_DIR, "kpi.html")
-
 @app.get("/help")
 def page_help():
     return send_from_directory(APP_DIR, "help.html")
@@ -2952,6 +2978,42 @@ def api_candidate_get(candidate_id: int):
     return jsonify({"ok": True, "candidate": cand, "companies": companies})
 
 
+@app.get("/api/candidates/<int:candidate_id>/dossier-competence")
+def api_candidate_dossier_competence(candidate_id: int):
+    """Serve the competence dossier PDF for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    with _conn() as conn:
+        row = conn.execute("SELECT dossier_competence_pdf FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        
+        pdf_path = row["dossier_competence_pdf"]
+        if not pdf_path or not pdf_path.strip():
+            return jsonify({"ok": False, "error": "Aucun dossier de compétence renseigné"}), 404
+        
+        # Chemin du PDF (peut être relatif ou absolu)
+        pdf_file = Path(pdf_path)
+        if not pdf_file.is_absolute():
+            # Si relatif, chercher dans le dossier dossiers_competence à la racine
+            pdf_file = APP_DIR / "dossiers_competence" / pdf_file
+        
+        if not pdf_file.exists() or not pdf_file.is_file():
+            return jsonify({"ok": False, "error": "Fichier PDF introuvable"}), 404
+        
+        # Vérifier que c'est bien un PDF
+        if pdf_file.suffix.lower() != ".pdf":
+            return jsonify({"ok": False, "error": "Le fichier n'est pas un PDF"}), 400
+        
+        try:
+            return send_file(str(pdf_file), mimetype="application/pdf", as_attachment=True, download_name=pdf_file.name)
+        except Exception as e:
+            logger.error(f"Error serving PDF: {e}")
+            return jsonify({"ok": False, "error": f"Erreur lors du chargement du PDF: {str(e)}"}), 500
+
+
 @app.post("/api/candidates/save")
 def api_candidates_save():
     uid = _uid()
@@ -3009,7 +3071,7 @@ def api_candidates_save():
                 UPDATE candidates
                 SET name=?, role=?, location=?, seniority=?, tech=?, linkedin=?, source=?, status=?, notes=?,
                     onenote_url=?, vsa_url=?, skills=?, company_ids=?, is_archived=?,
-                    years_experience=?, sector=?, phone=?, email=?,
+                    years_experience=?, sector=?, phone=?, email=?, dossier_competence_pdf=?,
                     updatedAt=?
                 WHERE id=? AND owner_id=?;
                 ''',
@@ -3032,6 +3094,7 @@ def api_candidates_save():
                     _t("sector"),
                     _t("phone"),
                     _t("email"),
+                    _t("dossier_competence_pdf"),
                     now,
                     int(cid),
                     uid,
@@ -3045,10 +3108,10 @@ def api_candidates_save():
                 INSERT INTO candidates (
                     name, role, location, seniority, tech, linkedin, source, status, notes,
                     onenote_url, vsa_url, skills, company_ids, is_archived,
-                    years_experience, sector, phone, email,
+                    years_experience, sector, phone, email, dossier_competence_pdf,
                     createdAt, updatedAt, owner_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 ''',
                 (
                     name,
@@ -3069,6 +3132,7 @@ def api_candidates_save():
                     _t("sector"),
                     _t("phone"),
                     _t("email"),
+                    _t("dossier_competence_pdf"),
                     now,
                     now,
                     uid,
@@ -3203,7 +3267,7 @@ def api_candidate_push_add():
         card = _build_adaptive_card(
             "📤 Push candidat",
             [("Candidat", candidate_name), ("Prospect", prospect_name), ("Entreprise", company_name), ("Consultant", prefix), ("Date", event_date)],
-            [{"title": "Voir dans ProspUp", "url": f"https://prospup.work/candidate?id={cid_i}"}]
+            [{"title": "Voir dans Prosp'Up", "url": f"https://prospup.work/candidate?id={cid_i}"}]
         )
         _send_teams_webhook(card, "candidate_push")
     except Exception:
@@ -4335,16 +4399,18 @@ def api_stats_charts():
 
 @app.get("/api/stats/export_weekly_xlsx")
 def api_stats_export_weekly_xlsx():
-    """Generate an XLSX file following the 'Suivi activité' template for a given ISO week.
+    """Generate an XLSX file following the exact 'Suivi activité' template for a given ISO week.
     Query params:
       - week: ISO week like 2026-W10  (defaults to current week)
-    Sheets:
-      - Liste: one block per week with entretiens, pushs, prospections
-      - KPI:   summary row for the week
+      - ollama: 1 to enable Ollama enrichment (normalize métiers, extract besoins, generate codes notes)
+    Format: 17 columns (A-Q) with merged cells for week, thick border on column G, goals in first row.
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.utils import get_column_letter
     import io
+    import urllib.request
+    import urllib.error
 
     uid = _uid()
     if not uid:
@@ -4352,6 +4418,7 @@ def api_stats_export_weekly_xlsx():
 
     # ── Parse week param ──
     week_param = request.args.get("week", "").strip()
+    use_ollama = request.args.get("ollama", "").strip() == "1"
     today = datetime.date.today()
 
     if week_param:
@@ -4372,26 +4439,29 @@ def api_stats_export_weekly_xlsx():
     week_num = monday.isocalendar()[1]
     week_label = f"S{week_num}"
 
-    with _conn() as conn:
-        # ── 1) Pushs of the week ──
-        push_rows = conn.execute(
-            """SELECT l.sentAt, l.channel, l.subject,
-                      p.name AS prospect_name,
-                      COALESCE(c.groupe, '') AS company_groupe,
-                      COALESCE(c.site, '') AS company_site
-               FROM push_logs l
-               JOIN prospects p ON p.id = l.prospect_id AND p.owner_id = ?
-               LEFT JOIN companies c ON c.id = p.company_id
-               WHERE substr(l.sentAt, 1, 10) >= ? AND substr(l.sentAt, 1, 10) <= ?
-               ORDER BY l.sentAt;""",
-            (uid, start, end),
-        ).fetchall()
-        push_list = [dict(r) for r in push_rows]
+    # ── Helper: Call Ollama if enabled ──
+    def _call_ollama(prompt: str) -> str:
+        if not use_ollama:
+            return ""
+        try:
+            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/generate",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            return data.get("response", "").strip()
+        except Exception:
+            return ""
 
-        # ── 2) EC1 Entretiens candidats of the week (sourcing) ──
+    with _conn() as conn:
+        # ── 1) Candidats EC1 (entretiens de la semaine) ──
         ec1_rows = conn.execute(
-            """SELECT ca.name, ca.role, ca.seniority, ca.status,
-                      e.interviewAt
+            """SELECT ca.id, ca.name, ca.role, ca.sector, ca.seniority, ca.years_experience, ca.status,
+                      e.interviewAt, e.data AS ec1_data
                FROM candidate_ec1_checklists e
                JOIN candidates ca ON ca.id = e.candidate_id AND ca.owner_id = ?
                WHERE substr(e.interviewAt, 1, 10) >= ? AND substr(e.interviewAt, 1, 10) <= ?
@@ -4400,43 +4470,179 @@ def api_stats_export_weekly_xlsx():
         ).fetchall()
         ec1_list = [dict(r) for r in ec1_rows]
 
-        # ── 3) Prospections (RDV pris cette semaine — prospects passés en Rendez-vous) ──
-        #    We look at call notes dated this week where prospect has statut=Rendez-vous
-        prosp_rdv = conn.execute(
-            """SELECT COUNT(*) AS n FROM prospects
-               WHERE owner_id = ? AND statut = 'Rendez-vous'
-               AND lastContact >= ? AND lastContact <= ?;""",
-            (uid, start, end),
-        ).fetchone()["n"]
+        # ── 2) Candidats EC2 (passage à EC2 dans la semaine) ──
+        ec2_rows = conn.execute(
+            """SELECT DISTINCT ca.id, ca.name, ca.role, ca.sector, ca.seniority, ca.years_experience, ca.status, ca.notes,
+                      COALESCE(e.date, substr(ca.updatedAt, 1, 10)) AS ec2_date
+               FROM candidates ca
+               LEFT JOIN candidate_events e ON e.candidate_id = ca.id AND e.type = 'ec2' AND e.date >= ? AND e.date <= ?
+               WHERE ca.owner_id = ? AND ca.status = 'ec2'
+               AND (e.date IS NOT NULL OR (substr(ca.updatedAt, 1, 10) >= ? AND substr(ca.updatedAt, 1, 10) <= ?))
+               ORDER BY COALESCE(e.date, ca.updatedAt);""",
+            (start, end, uid, start, end),
+        ).fetchall()
+        ec2_list = [dict(r) for r in ec2_rows]
 
-        # ── 4) Clients vus (status changed / contact this week) ──
-        clients_vus = conn.execute(
-            """SELECT COUNT(DISTINCT p.company_id) AS n FROM prospects p
-               WHERE p.owner_id = ? AND p.statut = 'Rendez-vous'
-               AND p.lastContact >= ? AND p.lastContact <= ?;""",
-            (uid, start, end),
-        ).fetchone()["n"]
+        # ── 3) Prospections (RDV pris) : prospects avec statut changé vers 'Rendez-vous' dans la semaine ──
+        # Détecte via prospect_events rdv_taken OU via changement de statut (lastContact dans la semaine + statut='Rendez-vous')
+        prosp_rdv_rows = conn.execute(
+            """SELECT DISTINCT p.id, p.name AS prospect_name, COALESCE(c.groupe, '') AS company_name,
+                      COALESCE(e.date, substr(p.lastContact, 1, 10)) AS rdv_date
+               FROM prospects p
+               LEFT JOIN companies c ON c.id = p.company_id
+               LEFT JOIN prospect_events e ON e.prospect_id = p.id AND e.type = 'rdv_taken' AND e.date >= ? AND e.date <= ?
+               WHERE p.owner_id = ? AND p.statut = 'Rendez-vous' AND (
+                   (e.date IS NOT NULL) OR
+                   (p.lastContact >= ? AND p.lastContact <= ?)
+               )
+               ORDER BY COALESCE(e.date, p.lastContact);""",
+            (start, end, uid, start, end),
+        ).fetchall()
+        prosp_rdv_list = [dict(r) for r in prosp_rdv_rows]
+
+        # ── 4) Clients vus (RDV effectué) : prospects avec réunion dans la semaine ──
+        # Détecte via prospect_events type 'meeting' ou 'reunion', ou via lastContact avec statut='Rendez-vous'
+        clients_vus_rows = conn.execute(
+            """SELECT DISTINCT p.id, p.name AS prospect_name, COALESCE(c.groupe, '') AS company_name,
+                      p.notes, p.callNotes, p.lastContact,
+                      COALESCE(e.date, substr(p.lastContact, 1, 10)) AS meeting_date
+               FROM prospects p
+               LEFT JOIN companies c ON c.id = p.company_id
+               LEFT JOIN prospect_events e ON e.prospect_id = p.id 
+                   AND e.type IN ('meeting', 'reunion', 'rdv_done') 
+                   AND e.date >= ? AND e.date <= ?
+               WHERE p.owner_id = ? AND p.statut = 'Rendez-vous' AND (
+                   (e.date IS NOT NULL) OR
+                   (p.lastContact >= ? AND p.lastContact <= ?)
+               )
+               ORDER BY COALESCE(e.date, p.lastContact);""",
+            (start, end, uid, start, end),
+        ).fetchall()
+        clients_vus_list = [dict(r) for r in clients_vus_rows]
+
+        # ── 5) Pushs (groupés par candidat) : candidats envoyés et nombre de fois ──
+        push_rows = conn.execute(
+            """SELECT l.candidate_id1, l.candidate_id2, ca1.name AS candidate1_name, ca2.name AS candidate2_name,
+                      l.sentAt
+               FROM push_logs l
+               JOIN prospects p ON p.id = l.prospect_id AND p.owner_id = ?
+               LEFT JOIN candidates ca1 ON ca1.id = l.candidate_id1 AND ca1.owner_id = ?
+               LEFT JOIN candidates ca2 ON ca2.id = l.candidate_id2 AND ca2.owner_id = ?
+               WHERE substr(l.sentAt, 1, 10) >= ? AND substr(l.sentAt, 1, 10) <= ?
+               ORDER BY l.sentAt;""",
+            (uid, uid, uid, start, end),
+        ).fetchall()
+        push_list = [dict(r) for r in push_rows]
+        # Grouper par candidat (compter les pushs pour chaque candidat)
+        push_by_candidate = {}
+        for pl in push_list:
+            # Candidat 1
+            if pl.get("candidate_id1"):
+                cid = pl["candidate_id1"]
+                cname = pl.get("candidate1_name") or f"Candidat {cid}"
+                push_by_candidate[cid] = push_by_candidate.get(cid, {"name": cname, "count": 0})
+                push_by_candidate[cid]["count"] += 1
+            # Candidat 2
+            if pl.get("candidate_id2"):
+                cid = pl["candidate_id2"]
+                cname = pl.get("candidate2_name") or f"Candidat {cid}"
+                push_by_candidate[cid] = push_by_candidate.get(cid, {"name": cname, "count": 0})
+                push_by_candidate[cid]["count"] += 1
+        push_consultants = [{"name": v["name"], "count": v["count"]} for v in push_by_candidate.values()]
+
+        # ── 6) Objectifs (Gamification) ──
+        goals_cfg = _get_goals_config(conn)
+        weekly_goals = goals_cfg.get("weekly", {})
+        attendus_prosp = weekly_goals.get("rdv", {}).get("target", 5)
+        attendus_entretiens = weekly_goals.get("sourcing_solid", {}).get("target", 3)
+        attendus_pushs = weekly_goals.get("push", {}).get("target", 15)
+
+    # ── Enrichissement Ollama (optionnel) ──
+    if use_ollama:
+        # Normaliser les métiers pour EC1/EC2
+        for item in ec1_list + ec2_list:
+            metier = item.get("role") or item.get("sector") or ""
+            if not metier or len(metier) < 3:
+                prompt = f"Normalise ce métier en un nom court et standard (ex: 'Développeur Python', 'Chef de projet IT'): '{metier}'. Réponds uniquement avec le métier normalisé, sans explication."
+                normalized = _call_ollama(prompt)
+                if normalized:
+                    item["_normalized_metier"] = normalized[:50]
+                else:
+                    item["_normalized_metier"] = metier
+            else:
+                item["_normalized_metier"] = metier
+
+        # Extraire les besoins depuis les notes des clients vus
+        for client in clients_vus_list:
+            notes = (client.get("notes") or "") + " " + (client.get("callNotes") or "")
+            if notes.strip():
+                prompt = f"Extrais les besoins exprimés par ce client depuis ces notes (une ligne par besoin, format court):\n{notes[:500]}\n\nRéponds uniquement avec les besoins, un par ligne, sans explication."
+                besoins = _call_ollama(prompt)
+                client["_besoins"] = besoins[:200] if besoins else ""
+            else:
+                client["_besoins"] = ""
+
+        # Générer les codes notes pour EC1
+        for ec1 in ec1_list:
+            ec1_data_str = ec1.get("ec1_data") or "{}"
+            try:
+                ec1_data = json.loads(ec1_data_str) if ec1_data_str else {}
+            except Exception:
+                ec1_data = {}
+            # Construire un prompt basé sur les données EC1
+            prompt_parts = []
+            if ec1.get("role"):
+                prompt_parts.append(f"Métier: {ec1['role']}")
+            if ec1.get("years_experience"):
+                prompt_parts.append(f"Expérience: {ec1['years_experience']} ans")
+            if ec1_data:
+                prompt_parts.append(f"Données EC1: {json.dumps(ec1_data, ensure_ascii=False)[:200]}")
+            if prompt_parts:
+                prompt = f"Génère un code note court (ex: 'B OKS', 'A OKS', 'C OKS') pour ce candidat:\n" + "\n".join(prompt_parts) + "\n\nRéponds uniquement avec le code (ex: 'B OKS'), sans explication."
+                code = _call_ollama(prompt)
+                ec1["_code_note"] = code[:20] if code else ""
+            else:
+                ec1["_code_note"] = ""
 
     # ══════════════════════════════════════════════════════
     # Build the XLSX workbook
     # ══════════════════════════════════════════════════════
     wb = Workbook()
-
-    # ── Sheet "Liste" ──
     ws = wb.active
     ws.title = "Liste"
 
-    header_font = Font(bold=True, size=11)
+    # Styles
     header_fill = PatternFill(start_color="2B3A4E", end_color="2B3A4E", fill_type="solid")
     header_font_white = Font(bold=True, size=11, color="FFFFFF")
     thin_border = Border(
         left=Side(style="thin"), right=Side(style="thin"),
         top=Side(style="thin"), bottom=Side(style="thin"),
     )
+    thick_border = Border(
+        left=Side(style="thick", color="000000"), right=Side(style="thick", color="000000"),
+        top=Side(style="thick", color="000000"), bottom=Side(style="thick", color="000000"),
+    )
 
-    headers = ["Semaine", "Entretiens", "Métier", "Exp", "Dispo", "Notes", "",
-               "Prospections RDV pris", "Clients vus", "Besoins",
-               "Pushs consultant", "Nb pushs", "Attendus Prosp", "Attendus Entretiens"]
+    # ── Headers (17 colonnes A-Q) ──
+    headers = [
+        "Semaine",           # A
+        "Entretiens",        # B
+        "Métier",            # C
+        "Exp",               # D
+        "Dispo",             # E
+        "Notes",             # F
+        "Commenta",          # G (séparateur visuel avec bordure épaisse)
+        "Prospections",      # H
+        "Clients vus",       # I
+        "Besoins",           # J
+        "RT",                # K (vide, réservé)
+        "Suivi Mission",     # L (vide, réservé)
+        "Pushs consultant",  # M
+        "Nb pushs",          # N
+        "Attendus Prosp",    # O
+        "Attendus Entretiens", # P
+        "Attendus Pushs",    # Q
+    ]
     for col_idx, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_idx, value=h)
         cell.font = header_font_white
@@ -4444,88 +4650,141 @@ def api_stats_export_weekly_xlsx():
         cell.border = thin_border
         cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
-    # Column widths
-    col_widths = [8, 12, 40, 6, 8, 20, 2, 22, 12, 10, 35, 10, 14, 16]
-    for i, w in enumerate(col_widths, 1):
-        ws.column_dimensions[chr(64 + i) if i <= 26 else 'N'].width = w
-    from openpyxl.utils import get_column_letter
+    # Largeurs de colonnes
+    col_widths = [10, 20, 30, 6, 10, 15, 15, 25, 20, 30, 8, 15, 25, 10, 15, 18, 15]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
-    # ── Entretiens EC1 rows ──
-    row_num = 2
-    nb_entretiens = len(ec1_list)
+    # ── Calculer le nombre total de lignes ──
+    total_candidates = len(ec1_list) + len(ec2_list)
+    total_prospections = len(prosp_rdv_list)
+    total_clients_vus = len(clients_vus_list)
+    total_pushs = len(push_consultants)
+    # Une ligne par type + une ligne d'objectifs en première ligne de la semaine
+    total_rows = max(1, total_candidates + total_prospections + total_clients_vus + total_pushs) + 1
 
-    # Build push detail string: "Prospect → Entreprise"
-    push_detail_lines = []
-    for pl in push_list:
-        company = pl["company_groupe"]
-        if pl["company_site"]:
-            company = f"{pl['company_groupe']} ({pl['company_site']})" if pl["company_groupe"] else pl["company_site"]
-        push_detail_lines.append(f"{pl['prospect_name']} -> {company}")
-    push_detail_str = "\n".join(push_detail_lines) if push_detail_lines else ""
-
-    # Number of rows = max(entretiens, 1) to always have at least one row
-    data_rows = max(nb_entretiens, 1)
-
-    for i in range(data_rows):
-        r = row_num + i
-        ws.cell(row=r, column=1, value=week_label)
-
-        if i < nb_entretiens:
-            ec = ec1_list[i]
-            ws.cell(row=r, column=2, value=i + 1)  # Entretien number
-            ws.cell(row=r, column=3, value=ec.get("name") or ec.get("role") or "")  # Métier / name
-            seniority = ec.get("seniority") or ""
-            # Try to extract numeric years
-            try:
-                ws.cell(row=r, column=4, value=int(seniority))
-            except (ValueError, TypeError):
-                ws.cell(row=r, column=4, value=seniority)
-            ws.cell(row=r, column=5, value="asap")
-
-        # First row gets the aggregated data
-        if i == 0:
-            ws.cell(row=r, column=8, value=prosp_rdv)  # Prospections RDV pris
-            ws.cell(row=r, column=9, value=clients_vus)  # Clients vus
-            ws.cell(row=r, column=10, value=0)  # Besoins (manual)
-            ws.cell(row=r, column=11, value=push_detail_str)  # Push detail
-            ws.cell(row=r, column=12, value=len(push_list))  # Nb pushs
-
-        # Apply borders
-        for col in range(1, 15):
-            cell = ws.cell(row=r, column=col)
-            cell.border = thin_border
-
-    # Wrap text for push detail column
-    for r in range(2, row_num + data_rows):
-        ws.cell(row=r, column=11).alignment = Alignment(wrap_text=True, vertical="top")
-        ws.cell(row=r, column=3).alignment = Alignment(wrap_text=True, vertical="top")
-
-    # ── Sheet "KPI" (summary) ──
-    ws_kpi = wb.create_sheet("KPI")
-    kpi_headers = ["Semaine", "Nombre de Entretiens", "Attendus Entretiens",
-                   "Nombre de Prospections", "Attendus Prosp",
-                   "Nombre de Clients vus", "Nombre de Besoins",
-                   "Somme de Nb pushs", "Attendus Pushs"]
-    for col_idx, h in enumerate(kpi_headers, 1):
-        cell = ws_kpi.cell(row=1, column=col_idx, value=h)
-        cell.font = header_font_white
-        cell.fill = header_fill
+    # ── Ligne d'objectifs (première ligne de données, row 2) ──
+    row = 2
+    week_start_row = row  # Pour fusionner la colonne A (inclut la ligne d'objectifs)
+    ws.cell(row=row, column=1, value=week_label)  # A: Semaine
+    ws.cell(row=row, column=15, value=attendus_prosp)  # O: Attendus Prosp
+    ws.cell(row=row, column=16, value=attendus_entretiens)  # P: Attendus Entretiens
+    ws.cell(row=row, column=17, value=attendus_pushs)  # Q: Attendus Pushs
+    # Bordures pour la ligne d'objectifs
+    for col in range(1, 18):
+        cell = ws.cell(row=row, column=col)
         cell.border = thin_border
-    ws_kpi.cell(row=2, column=1, value=week_label)
-    ws_kpi.cell(row=2, column=2, value=nb_entretiens)
-    ws_kpi.cell(row=2, column=3, value="")  # Attendus Entretiens (manual)
-    ws_kpi.cell(row=2, column=4, value=prosp_rdv)
-    ws_kpi.cell(row=2, column=5, value="")  # Attendus Prosp (manual)
-    ws_kpi.cell(row=2, column=6, value=clients_vus)
-    ws_kpi.cell(row=2, column=7, value=0)
-    ws_kpi.cell(row=2, column=8, value=len(push_list))
-    ws_kpi.cell(row=2, column=9, value="")  # Attendus Pushs (manual)
+    # Bordure épaisse colonne G
+    ws.cell(row=row, column=7).border = thick_border
 
-    for col_idx in range(1, 10):
-        ws_kpi.cell(row=2, column=col_idx).border = thin_border
-        ws_kpi.column_dimensions[get_column_letter(col_idx)].width = 20
+    # ── Lignes candidats EC1/EC2 ──
+    current_row = row + 1
+
+    for ec in ec1_list + ec2_list:
+        ws.cell(row=current_row, column=1, value=week_label)  # A: Semaine (sera fusionné)
+        ws.cell(row=current_row, column=2, value=ec.get("name") or "")  # B: Entretiens (nom candidat)
+        # C: Métier
+        metier = ec.get("_normalized_metier") if use_ollama else (ec.get("role") or ec.get("sector") or "")
+        ws.cell(row=current_row, column=3, value=metier)
+        # D: Exp (années d'expérience)
+        exp = ec.get("years_experience") or ec.get("seniority") or ""
+        try:
+            if isinstance(exp, str) and exp.strip():
+                # Essayer d'extraire un nombre
+                exp_num = re.search(r'\d+', exp)
+                if exp_num:
+                    exp = int(exp_num.group())
+                else:
+                    exp = ""
+        except Exception:
+            pass
+        ws.cell(row=current_row, column=4, value=exp)
+        # E: Dispo (disponibilité - par défaut "asap" ou depuis les données)
+        dispo = "asap"  # Par défaut, peut être enrichi depuis les données EC1
+        ws.cell(row=current_row, column=5, value=dispo)
+        # F: Notes (codes courts)
+        code_note = ec.get("_code_note") if use_ollama else ""
+        ws.cell(row=current_row, column=6, value=code_note)
+        # G: Commenta (commentaires détaillés) + bordure épaisse
+        # Pour EC1, utiliser les données de la checklist ; pour EC2, utiliser les notes du candidat
+        if "ec1_data" in ec:
+            ec1_data_str = ec.get("ec1_data") or "{}"
+            try:
+                ec1_data = json.loads(ec1_data_str) if ec1_data_str else {}
+                commenta = json.dumps(ec1_data, ensure_ascii=False)[:500] if ec1_data else ""
+            except Exception:
+                commenta = ""
+        else:
+            # EC2 : utiliser les notes du candidat
+            commenta = ec.get("notes", "")[:500] if ec.get("notes") else ""
+        ws.cell(row=current_row, column=7, value=commenta)
+        cell_g = ws.cell(row=current_row, column=7)
+        cell_g.border = thick_border  # Bordure épaisse pour séparateur visuel
+        # Bordures pour les autres colonnes
+        for col in [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]:
+            ws.cell(row=current_row, column=col).border = thin_border
+        current_row += 1
+
+    # ── Lignes prospections (RDV pris) ──
+    for prosp in prosp_rdv_list:
+        ws.cell(row=current_row, column=1, value=week_label)  # A: Semaine
+        # H: Prospections (nom prospect - RDV pris)
+        prosp_text = f"{prosp.get('prospect_name', '')} - {prosp.get('company_name', '')}"
+        ws.cell(row=current_row, column=8, value=prosp_text)
+        # Bordures
+        for col in range(1, 18):
+            ws.cell(row=current_row, column=col).border = thin_border
+        # Bordure épaisse colonne G
+        ws.cell(row=current_row, column=7).border = thick_border
+        current_row += 1
+
+    # ── Lignes clients vus (RDV effectué) ──
+    for client in clients_vus_list:
+        ws.cell(row=current_row, column=1, value=week_label)  # A: Semaine
+        # I: Clients vus (nom prospect - RDV effectué)
+        client_text = f"{client.get('prospect_name', '')} - {client.get('company_name', '')}"
+        ws.cell(row=current_row, column=9, value=client_text)
+        # J: Besoins (extraits depuis notes)
+        besoins = client.get("_besoins") if use_ollama else ""
+        if not besoins:
+            # Fallback: extraire manuellement depuis notes
+            notes = (client.get("notes") or "") + " " + (client.get("callNotes") or "")
+            besoins = notes[:200] if notes.strip() else ""
+        ws.cell(row=current_row, column=10, value=besoins)
+        # Bordures
+        for col in range(1, 18):
+            ws.cell(row=current_row, column=col).border = thin_border
+        # Bordure épaisse colonne G
+        ws.cell(row=current_row, column=7).border = thick_border
+        current_row += 1
+
+    # ── Lignes pushs (par candidat) ──
+    for push_candidate in push_consultants:
+        ws.cell(row=current_row, column=1, value=week_label)  # A: Semaine
+        # M: Pushs consultant (nom candidat + nombre de fois)
+        candidate_name = push_candidate.get("name", "")
+        candidate_count = push_candidate.get("count", 0)
+        ws.cell(row=current_row, column=13, value=f"{candidate_name} ({candidate_count}x)")
+        # N: Nb pushs (nombre)
+        ws.cell(row=current_row, column=14, value=candidate_count)
+        # Bordures
+        for col in range(1, 18):
+            ws.cell(row=current_row, column=col).border = thin_border
+        # Bordure épaisse colonne G
+        ws.cell(row=current_row, column=7).border = thick_border
+        current_row += 1
+
+    # ── Fusionner les cellules "Semaine" (colonne A) pour chaque groupe de lignes de la même semaine ──
+    week_end_row = current_row - 1
+    if week_end_row > week_start_row:
+        ws.merge_cells(f'A{week_start_row}:A{week_end_row}')
+
+    # ── Alignement et wrap text ──
+    for r in range(2, current_row):
+        ws.cell(row=r, column=3).alignment = Alignment(wrap_text=True, vertical="top")  # Métier
+        ws.cell(row=r, column=7).alignment = Alignment(wrap_text=True, vertical="top")  # Commenta
+        ws.cell(row=r, column=10).alignment = Alignment(wrap_text=True, vertical="top")  # Besoins
+        ws.cell(row=r, column=13).alignment = Alignment(wrap_text=True, vertical="top")  # Pushs consultant
 
     # ── Stream the file ──
     buf = io.BytesIO()
@@ -5385,6 +5644,28 @@ def api_push_logs_add():
     except Exception:
         template_id = None
 
+    # v25.3: Candidats et consultants pour traçabilité
+    candidate_id1 = payload.get("candidate_id1")
+    candidate_id2 = payload.get("candidate_id2")
+    consultant1_id = payload.get("consultant1_id")
+    consultant2_id = payload.get("consultant2_id")
+    try:
+        candidate_id1 = int(candidate_id1) if candidate_id1 not in (None, "", "null") else None
+    except Exception:
+        candidate_id1 = None
+    try:
+        candidate_id2 = int(candidate_id2) if candidate_id2 not in (None, "", "null") else None
+    except Exception:
+        candidate_id2 = None
+    try:
+        consultant1_id = int(consultant1_id) if consultant1_id not in (None, "", "null") else None
+    except Exception:
+        consultant1_id = None
+    try:
+        consultant2_id = int(consultant2_id) if consultant2_id not in (None, "", "null") else None
+    except Exception:
+        consultant2_id = None
+
     now = datetime.datetime.now().isoformat(timespec="seconds")
 
     with _conn() as conn:
@@ -5396,10 +5677,10 @@ def api_push_logs_add():
         cur = conn.cursor()
         cur.execute(
             '''
-            INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, subject, body, template_id, template_name, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, createdAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             ''',
-            (int(prospect_id), sent_at, channel, to_email, subject, body, template_id, template_name, now),
+            (int(prospect_id), sent_at, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, now),
         )
 
         # Update denormalized fields on prospect for quick UI
@@ -6247,6 +6528,516 @@ def api_ollama_generate():
         return jsonify(ok=False, error=str(e)), 503
 
 
+@app.post("/api/ollama/generate-stream")
+def api_ollama_generate_stream():
+    """Proxy vers Ollama local avec streaming SSE : envoie les tokens au fur et à mesure pour éviter les timeouts Cloudflare."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    prompt = payload.get("prompt")
+    model = payload.get("model") or OLLAMA_MODEL
+    req_timeout = payload.get("timeout")
+    if req_timeout is not None:
+        try:
+            req_timeout = min(600, max(30, int(req_timeout)))
+        except (TypeError, ValueError):
+            req_timeout = OLLAMA_TIMEOUT
+    else:
+        req_timeout = OLLAMA_TIMEOUT
+    if not prompt:
+        return jsonify(ok=False, error="prompt requis"), 400
+    
+    def generate():
+        try:
+            body = json.dumps({"model": model, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/generate",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=req_timeout) as resp:
+                # Envoyer un événement de démarrage
+                yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
+                
+                buffer = b""
+                for chunk in resp:
+                    buffer += chunk
+                    # Ollama envoie des lignes JSON séparées par \n
+                    while b"\n" in buffer:
+                        line_bytes, buffer = buffer.split(b"\n", 1)
+                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
+                        if not line_json:
+                            continue
+                        try:
+                            data = json.loads(line_json)
+                            if data.get("done", False):
+                                # Dernier chunk avec le texte complet
+                                full_text = data.get("response", "")
+                                if full_text:
+                                    yield f"data: {json.dumps({'type': 'token', 'text': full_text, 'done': True}, ensure_ascii=False)}\n\n"
+                                yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
+                                break
+                            else:
+                                # Token partiel
+                                token = data.get("response", "")
+                                if token:
+                                    yield f"data: {json.dumps({'type': 'token', 'text': token, 'done': False}, ensure_ascii=False)}\n\n"
+                        except json.JSONDecodeError:
+                            continue
+        except urllib.error.URLError as e:
+            logger.warning("Ollama unreachable (stream): %s", e)
+            err_msg = "Ollama indisponible (vérifiez qu'il tourne sur ce PC)"
+            yield f"data: {json.dumps({'type': 'error', 'message': err_msg}, ensure_ascii=False)}\n\n"
+        except urllib.error.HTTPError as e:
+            try:
+                err_body = e.read().decode("utf-8")
+                err_data = json.loads(err_body) if err_body else {}
+                msg = err_data.get("error", err_body) or str(e)
+            except Exception:
+                msg = str(e)
+            logger.warning("Ollama HTTP error %s (stream): %s", e.code, msg)
+            yield f"data: {json.dumps({'type': 'error', 'message': msg}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("Ollama generate stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+    
+    return Response(generate(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no"  # Désactive le buffering nginx
+    })
+
+
+def _schedule_restart(delay: float = 10.0):
+    """Restart after responding.
+
+    - If launched via PROSPUP.bat (or _run_serveur.bat), it will restart on exit code 42.
+    - If launched directly (python app.py), it spawns a new process then exits.
+
+    Le délai permet aux clients (Cloudflare, navigateurs) de recevoir la réponse HTTP
+    avant que le serveur ne redémarre, évitant les erreurs 502.
+    """
+    def _do():
+        time.sleep(float(delay))
+        launcher = (os.environ.get("PROSPUP_LAUNCHER") or "").strip().upper()
+        if launcher == "BAT":
+            logger.info("Restart: exit code 42 pour le superviseur")
+            os._exit(42)
+        try:
+            import sys as _sys
+            args = [_sys.executable] + _sys.argv
+            logger.info("Restart: lancement nouveau processus: %s", " ".join(args))
+            proc = subprocess.Popen(args, cwd=str(APP_DIR))
+            time.sleep(2.0)
+            logger.info("Restart: nouveau processus lancé, arrêt de l'ancien serveur")
+        except Exception as e:
+            logger.error("Restart: erreur lors du lancement du nouveau processus: %s", e)
+        os._exit(0)
+
+    threading.Thread(target=_do, daemon=True).start()
+
+
+@app.post("/api/deploy/pull")
+@login_required
+@role_required('admin')
+def api_deploy_pull():
+    """Streaming git pull depuis origin/main puis redémarrage (admin uniquement). Réponse SSE."""
+    chk = _require_same_origin()
+    if chk:
+        return chk
+
+    def generate():
+        try:
+            cp = subprocess.run(
+                ["git", "rev-parse", "--git-dir"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if cp.returncode != 0:
+                yield f"data: {json.dumps({'step': 'error', 'error': 'Pas un dépôt git'}, ensure_ascii=False)}\n\n"
+                return
+
+            yield f"data: {json.dumps({'step': 'fetch', 'message': 'git fetch --prune origin main...'}, ensure_ascii=False)}\n\n"
+            fetch = subprocess.run(
+                ["git", "fetch", "--prune", "origin", "main"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if fetch.returncode != 0:
+                err = (fetch.stderr or fetch.stdout or "Erreur inconnue").strip()
+                yield f"data: {json.dumps({'step': 'error', 'error': f'git fetch échoué: {err}'}, ensure_ascii=False)}\n\n"
+                return
+            if fetch.stdout:
+                for line in fetch.stdout.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+            if fetch.stderr:
+                for line in fetch.stderr.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+
+            cp2 = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            local_hash = (cp2.stdout or "").strip()[:7] if cp2.returncode == 0 else "unknown"
+            cp3 = subprocess.run(
+                ["git", "rev-parse", "origin/main"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            remote_hash = (cp3.stdout or "").strip()[:7] if cp3.returncode == 0 else "unknown"
+
+            if local_hash == remote_hash:
+                yield f"data: {json.dumps({'step': 'done', 'updated': False, 'restarting': False, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Déjà à jour'}, ensure_ascii=False)}\n\n"
+                return
+
+            # Fichiers sous logs/ souvent verrouillés par l'app : on les ignore pour le pull
+            log_paths = []
+            ls_logs = subprocess.run(
+                ["git", "ls-files", "logs/"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if ls_logs.returncode == 0 and ls_logs.stdout.strip():
+                for p in ls_logs.stdout.strip().splitlines():
+                    p = p.strip()
+                    if p:
+                        log_paths.append(p)
+                for p in log_paths:
+                    subprocess.run(
+                        ["git", "update-index", "--assume-unchanged", p],
+                        cwd=str(APP_DIR),
+                        capture_output=True,
+                        timeout=5,
+                    )
+                if log_paths:
+                    yield f"data: {json.dumps({'step': 'log', 'line': 'Fichiers logs/ ignorés pour le pull (évite fichiers verrouillés)'}, ensure_ascii=False)}\n\n"
+
+            status = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            has_local_changes = status.returncode == 0 and bool(status.stdout.strip())
+            if has_local_changes:
+                yield f"data: {json.dumps({'step': 'log', 'line': 'Modifications locales détectées, stash...'}, ensure_ascii=False)}\n\n"
+                stash = subprocess.run(
+                    ["git", "stash", "push", "-m", f"Auto-stash avant pull {remote_hash}"],
+                    cwd=str(APP_DIR),
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if stash.returncode != 0:
+                    err = (stash.stderr or stash.stdout or "Erreur stash").strip()
+                    yield f"data: {json.dumps({'step': 'error', 'error': f'Impossible de stasher: {err}'}, ensure_ascii=False)}\n\n"
+                    # Restaurer assume-unchanged avant de quitter
+                    for p in log_paths:
+                        subprocess.run(
+                            ["git", "update-index", "--no-assume-unchanged", p],
+                            cwd=str(APP_DIR),
+                            capture_output=True,
+                            timeout=5,
+                        )
+                    return
+
+            yield f"data: {json.dumps({'step': 'pull', 'message': 'git pull --ff-only origin main...'}, ensure_ascii=False)}\n\n"
+            pull = subprocess.run(
+                ["git", "pull", "--ff-only", "origin", "main"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if pull.stdout:
+                for line in pull.stdout.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+            if pull.stderr:
+                for line in pull.stderr.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+            if pull.returncode != 0:
+                err = (pull.stderr or pull.stdout or "Erreur pull").strip()
+                yield f"data: {json.dumps({'step': 'error', 'error': f'git pull échoué: {err}'}, ensure_ascii=False)}\n\n"
+                for p in log_paths:
+                    subprocess.run(
+                        ["git", "update-index", "--no-assume-unchanged", p],
+                        cwd=str(APP_DIR),
+                        capture_output=True,
+                        timeout=5,
+                    )
+                return
+
+            for p in log_paths:
+                subprocess.run(
+                    ["git", "update-index", "--no-assume-unchanged", p],
+                    cwd=str(APP_DIR),
+                    capture_output=True,
+                    timeout=5,
+                )
+
+            logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
+            _schedule_restart(delay=10.0)
+            yield f"data: {json.dumps({'step': 'done', 'updated': True, 'restarting': True, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Mise à jour appliquée, redémarrage dans 10 s', 'restart_delay_s': 10}, ensure_ascii=False)}\n\n"
+        except subprocess.TimeoutExpired:
+            yield f"data: {json.dumps({'step': 'error', 'error': 'Timeout lors du pull'}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("Deploy pull error")
+            yield f"data: {json.dumps({'step': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/system/check-deployment", methods=["GET"])
+def api_system_check_deployment():
+    """Vérifie si le code de vérification système est déployé."""
+    user = _get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Admin requis"), 403
+    
+    verify_script = APP_DIR / "scripts" / "verify_all.py"
+    verify_script_exists = verify_script.exists()
+    
+    # Vérifier si la section est dans parametres.html
+    parametres_file = APP_DIR / "parametres.html"
+    has_section = False
+    if parametres_file.exists():
+        try:
+            content = parametres_file.read_text(encoding="utf-8")
+            has_section = "systemVerifySection" in content and "Vérification système" in content
+        except Exception:
+            pass
+    
+    # Vérifier si la fonction JS existe
+    page_settings_file = APP_DIR / "static" / "js" / "page-settings.js"
+    has_js_function = False
+    if page_settings_file.exists():
+        try:
+            content = page_settings_file.read_text(encoding="utf-8")
+            has_js_function = "runSystemVerify" in content
+        except Exception:
+            pass
+    
+    # Dernier commit et branche (pour affichage "version en ligne")
+    last_commit = "unknown"
+    commit_hash = "unknown"
+    branch = "main"
+    try:
+        cp = subprocess.run(
+            ["git", "log", "-1", "--oneline", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp.returncode == 0:
+            last_commit = (cp.stdout or "").strip()[:50]
+        cp2 = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp2.returncode == 0:
+            commit_hash = (cp2.stdout or "").strip()[:7]
+        cp3 = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp3.returncode == 0 and (cp3.stdout or "").strip():
+            branch = (cp3.stdout or "").strip()
+    except Exception:
+        pass
+    
+    return jsonify(
+        ok=True,
+        verify_script_exists=verify_script_exists,
+        html_section_exists=has_section,
+        js_function_exists=has_js_function,
+        all_deployed=verify_script_exists and has_section and has_js_function,
+        last_commit=last_commit,
+        version=APP_VERSION,
+        commit_hash=commit_hash,
+        branch=branch,
+    )
+
+
+@app.route("/api/system/logs", methods=["GET"])
+def api_system_logs():
+    """Retourne les dernières lignes du log serveur. Admin uniquement."""
+    user = _get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Admin requis"), 403
+    
+    log_file = APP_DIR / "logs" / "prospup.log"
+    lines = request.args.get("lines", 50, type=int)
+    lines = min(max(10, lines), 500)  # Entre 10 et 500 lignes
+    
+    if not log_file.exists():
+        return jsonify(ok=False, error="Fichier de log introuvable"), 404
+    
+    try:
+        # Lire les dernières lignes du fichier
+        with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+            all_lines = f.readlines()
+            last_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        
+        return jsonify(
+            ok=True,
+            lines=last_lines,
+            total_lines=len(all_lines),
+            file_size=log_file.stat().st_size,
+        )
+    except Exception as e:
+        logger.exception("Failed to read logs")
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.post("/api/system/verify")
+def api_system_verify():
+    """Exécute le script de vérification système et retourne les résultats détaillés."""
+    user = _get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Admin requis"), 403
+    
+    verify_script = APP_DIR / "scripts" / "verify_all.py"
+    if not verify_script.exists():
+        return jsonify(ok=False, error="Script de vérification introuvable"), 404
+    
+    try:
+        # Exécuter le script avec capture de la sortie
+        proc = subprocess.run(
+            [sys.executable, str(verify_script)],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        
+        # Parser les résultats (le script utilise des exit codes)
+        checks = {
+            "git": {"ok": True, "message": "OK"},
+            "ollama": {"ok": True, "message": "OK"},
+            "flask": {"ok": True, "message": "OK"},
+            "api_ollama": {"ok": True, "message": "OK"},
+            "scripts": {"ok": True, "message": "OK"},
+            "env": {"ok": True, "message": "OK"},
+        }
+        
+        # Déterminer quel check a échoué selon l'exit code
+        if proc.returncode == 1:
+            checks["git"]["ok"] = False
+            checks["git"]["message"] = proc.stderr or "Erreur Git (repo, branche ou pull)"
+        elif proc.returncode == 2:
+            checks["ollama"]["ok"] = False
+            checks["ollama"]["message"] = proc.stderr or "Ollama inaccessible ou modèle introuvable"
+        elif proc.returncode == 3:
+            checks["flask"]["ok"] = False
+            checks["flask"]["message"] = proc.stderr or "Flask ne répond pas"
+        elif proc.returncode == 4:
+            checks["api_ollama"]["ok"] = False
+            checks["api_ollama"]["message"] = proc.stderr or "API Ollama via Flask en erreur (possible erreur 405)"
+        elif proc.returncode == 5:
+            checks["scripts"]["ok"] = False
+            checks["scripts"]["message"] = proc.stderr or "Erreur dans les scripts Python"
+        elif proc.returncode == 6:
+            checks["env"]["ok"] = False
+            checks["env"]["message"] = proc.stderr or "Variables d'environnement invalides"
+        
+        all_ok = proc.returncode == 0
+        
+        return jsonify(
+            ok=all_ok,
+            exit_code=proc.returncode,
+            checks=checks,
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+        )
+    except subprocess.TimeoutExpired:
+        return jsonify(ok=False, error="Timeout lors de l'exécution du script"), 504
+    except Exception as e:
+        logger.exception("System verify failed")
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.route("/api/app-version", methods=["GET"])
+def api_app_version():
+    """Retourne la version de l'app, le hash du commit et la date du dernier commit pour affichage badge."""
+    try:
+        # Hash du commit actuel
+        cp = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        commit_hash = (cp.stdout or "").strip()[:7] if cp.returncode == 0 else "unknown"
+        
+        # Date du dernier commit
+        cp2 = subprocess.run(
+            ["git", "log", "-1", "--format=%ci", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        commit_date = (cp2.stdout or "").strip() if cp2.returncode == 0 else ""
+        
+        # Branche actuelle (ex. main)
+        cp3 = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        branch = (cp3.stdout or "").strip() or "main"
+        
+        # Générer une couleur basée sur le hash (pour changement visuel)
+        if commit_hash != "unknown":
+            # Utiliser les 6 premiers caractères du hash pour générer une couleur
+            hash_int = int(commit_hash[:6], 16) if len(commit_hash) >= 6 else 0
+            # Palette de couleurs vives mais lisibles
+            colors = [
+                "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6",
+                "#ec4899", "#14b8a6", "#6366f1", "#f97316", "#06b6d4"
+            ]
+            color_index = hash_int % len(colors)
+            badge_color = colors[color_index]
+        else:
+            badge_color = "#64748b"
+        
+        return jsonify(ok=True, version=APP_VERSION, commit_hash=commit_hash, commit_date=commit_date, branch=branch, badge_color=badge_color)
+    except Exception as e:
+        logger.warning("App version fetch error: %s", e)
+        return jsonify(ok=True, version=APP_VERSION, commit_hash="unknown", commit_date="", branch="main", badge_color="#64748b")
+
+
 @app.get("/api/health")
 def api_health():
     """Health check endpoint. Sensitive details only for admins (v23.4)."""
@@ -6903,6 +7694,19 @@ def api_calendar_events():
             (uid,),
         ).fetchall()
 
+        # Candidate EC2 (v25.1) — candidats avec status='ec2'
+        cand_ec2 = conn.execute(
+            """SELECT c.id, c.name, c.role, c.updatedAt,
+                      COALESCE(ce.date, c.updatedAt) AS event_date
+               FROM candidates c
+               LEFT JOIN candidate_events ce ON ce.candidate_id = c.id 
+                 AND ce.type = 'candidate_solid'
+               WHERE c.owner_id = ?
+                 AND c.status = 'ec2'
+                 AND (ce.date IS NOT NULL OR c.updatedAt IS NOT NULL)""",
+            (uid,),
+        ).fetchall()
+
     events = []
     # Prospects
     for p in prospects:
@@ -6923,7 +7727,7 @@ def api_calendar_events():
                 "type": "rdv", "statut": d.get("statut", ""),
             })
 
-    # Candidates
+    # Candidates EC1
     for r in cand_ec1:
         d = dict(r)
         ia = (d.get("interviewAt") or "").strip()
@@ -6935,9 +7739,26 @@ def api_calendar_events():
             "company": d.get("role") or "EC1",
             "date": ia[:10],
             "time": ia[11:16] if len(ia) > 10 else "",
-            "type": "rdv",
+            "type": "ec1",
             "statut": "EC1",
             "url": f"/candidat?id={d['id']}&section=ec1",
+        })
+
+    # Candidates EC2
+    for r in cand_ec2:
+        d = dict(r)
+        event_date = (d.get("event_date") or "").strip()
+        if not event_date:
+            continue
+        events.append({
+            "id": d["id"],
+            "name": d.get("name") or "Candidat",
+            "company": d.get("role") or "EC2",
+            "date": event_date[:10],
+            "time": event_date[11:16] if len(event_date) > 10 else "",
+            "type": "ec2",
+            "statut": "EC2",
+            "url": f"/candidat?id={d['id']}",
         })
 
     return jsonify(ok=True, events=events)
@@ -6977,7 +7798,7 @@ def api_calendar_events_external():
     if not url or not url.startswith(("http://", "https://")):
         return jsonify(ok=False, error="URL invalide"), 400
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "ProspUp/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Prosp'Up/1.0"})
         with urllib.request.urlopen(req, timeout=15) as resp:
             ics_text = resp.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
@@ -7444,506 +8265,6 @@ def ec1_checklist_save():
 
     return jsonify(ok=True, updatedAt=now)
 
-
-# ═══════════════════════════════════════════════════════════════════
-# UPDATE SYSTEM — Upload, stage, apply & rollback
-# ═══════════════════════════════════════════════════════════════════
-
-# Directories excluded from backup / scan
-_UPDATE_EXCLUDE_DIRS = {
-    "snapshots", "updates_staging", "updates_backup",
-    "__pycache__", ".git", "node_modules", "static/photos",
-}
-_UPDATE_EXCLUDE_EXTS = {".db", ".pyc", ".bak"}
-
-
-def _ensure_update_dirs():
-    UPDATE_STAGING_DIR.mkdir(parents=True, exist_ok=True)
-    UPDATE_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _safe_relpath(rel: str) -> str:
-    """Normalize a relative path (POSIX style) and block traversal."""
-    rel = (rel or "").replace("\\", "/").lstrip("/").strip()
-    if not rel:
-        return ""
-    # Strip common leading folder in patch zips
-    _m = re.match(r"ProspUp_v[\d.]+/", rel)
-    if _m:
-        rel = rel[_m.end():]
-    if not rel:
-        return ""
-    parts = [p for p in rel.split("/") if p not in ("", ".")]
-    if not parts or any(p == ".." for p in parts):
-        return ""
-    # Block hidden files by default
-    if any(p.startswith(".") for p in parts):
-        return ""
-    return "/".join(parts)
-
-
-def _staging_target(rel: str) -> Path:
-    safe = _safe_relpath(rel)
-    if not safe:
-        raise ValueError("Nom de fichier invalide")
-    root = UPDATE_STAGING_DIR.resolve()
-    target = (UPDATE_STAGING_DIR / safe).resolve()
-    if root != target and root not in target.parents:
-        raise ValueError("Chemin invalide")
-    return target
-
-
-def _schedule_restart(delay: float = 10.0):
-    """Restart after responding.
-
-    - If launched via PROSPUP.bat (or _run_serveur.bat), it will restart on exit code 42.
-    - If launched directly (python app.py), it spawns a new process then exits.
-    """
-    def _do():
-        time.sleep(float(delay))
-        launcher = (os.environ.get("PROSPUP_LAUNCHER") or "").strip().upper()
-        if launcher == "BAT":
-            os._exit(42)
-        try:
-            import subprocess, sys
-            args = [sys.executable] + sys.argv
-            subprocess.Popen(args, cwd=str(APP_DIR))
-        except Exception:
-            pass
-        os._exit(0)
-
-    threading.Thread(target=_do, daemon=True).start()
-
-
-def _scan_project_files() -> Dict[str, Path]:
-    """Build a map of filename -> relative path for all project files."""
-    result: Dict[str, Path] = {}
-    for p in APP_DIR.rglob("*"):
-        if not p.is_file():
-            continue
-        rel = p.relative_to(APP_DIR)
-        # Skip excluded dirs
-        parts = rel.parts
-        if any(ex in parts for ex in _UPDATE_EXCLUDE_DIRS):
-            continue
-        if p.suffix in _UPDATE_EXCLUDE_EXTS:
-            continue
-        fname = p.name
-        # First match wins (prefer shorter/more direct path)
-        if fname not in result:
-            result[fname] = rel
-    return result
-
-
-def _detect_destination(staged_rel: str, project_map: Dict[str, Path]) -> Dict[str, Any]:
-    """Detect where a staged file should go in the project.
-
-    If the staged file includes a relative path (e.g. static/js/app.js),
-    we trust that path as destination. Otherwise, we fall back to a filename map.
-    """
-    staged_rel = _safe_relpath(staged_rel)
-    if not staged_rel:
-        return {
-            "destination": "",
-            "exists": False,
-            "action": "skip",
-        }
-
-    if "/" in staged_rel:
-        dest = staged_rel
-        exists = (APP_DIR / dest).exists()
-        return {
-            "destination": dest,
-            "exists": bool(exists),
-            "action": "replace" if exists else "add",
-        }
-
-    filename = Path(staged_rel).name
-    if filename in project_map:
-        return {
-            "destination": str(project_map[filename]).replace("\\", "/"),
-            "exists": True,
-            "action": "replace",
-        }
-
-    # New file: place at root by default, or in static/ if css/js
-    ext = Path(filename).suffix.lower()
-    if ext == ".css":
-        dest = f"static/css/{filename}"
-    elif ext == ".js":
-        dest = f"static/js/{filename}"
-    else:
-        dest = filename
-    return {
-        "destination": dest,
-        "exists": False,
-        "action": "add",
-    }
-
-
-@app.post("/api/update/upload")
-@login_required
-@role_required('admin')
-def api_update_upload():
-    """Upload files to the staging area.
-
-    Supports:
-    - direct files (app.py, *.js, *.css, *.html, etc.)
-    - .zip patches containing a folder structure (static/js/app.js, etc.)
-    """
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    _ensure_update_dirs()
-    files = request.files.getlist("files")
-    if not files:
-        return jsonify(ok=False, error="Aucun fichier reçu"), 400
-
-    uploaded = []
-    extracted = []
-    skipped = []
-    errors = []
-
-    for f in files:
-        if not f or not getattr(f, "filename", ""):
-            continue
-        raw_name = str(f.filename or "")
-        base_name = Path(raw_name).name
-        if not base_name:
-            continue
-
-        # ZIP patch: expand into staging
-        if base_name.lower().endswith(".zip"):
-            try:
-                import io
-                data_bytes = f.read()
-                zf = zipfile.ZipFile(io.BytesIO(data_bytes))
-                for info in zf.infolist():
-                    if info.is_dir():
-                        continue
-                    rel = _safe_relpath(info.filename)
-                    if not rel:
-                        continue
-                    # Skip extremely large files (safety)
-                    if info.file_size and info.file_size > 50 * 1024 * 1024:
-                        skipped.append(rel)
-                        continue
-                    try:
-                        target = _staging_target(rel)
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        with zf.open(info, "r") as src, open(target, "wb") as dst:
-                            shutil.copyfileobj(src, dst)
-                        extracted.append(rel)
-                    except Exception as e:
-                        errors.append({"file": rel, "error": str(e)})
-                zf.close()
-                uploaded.append(base_name)
-            except Exception as e:
-                errors.append({"file": base_name, "error": f"ZIP invalide: {e}"})
-            continue
-
-        # Single file
-        try:
-            rel = _safe_relpath(base_name)
-            if not rel:
-                skipped.append(base_name)
-                continue
-            target = _staging_target(rel)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            f.save(target)
-            uploaded.append(rel)
-        except Exception as e:
-            errors.append({"file": base_name, "error": str(e)})
-
-    if not (uploaded or extracted):
-        return jsonify(ok=False, error="Aucun fichier valide", errors=errors, skipped=skipped), 400
-
-    return jsonify(
-        ok=True,
-        uploaded=uploaded,
-        extracted=extracted,
-        count=len(uploaded) + len(extracted),
-        skipped=skipped,
-        errors=errors,
-    )
-
-@app.get("/api/update/staging")
-@login_required
-@role_required('admin')
-def api_update_staging():
-    """List files in the staging area (recursive) with detected destinations."""
-    _ensure_update_dirs()
-    project_map = _scan_project_files()
-    staged = []
-    for p in sorted(UPDATE_STAGING_DIR.rglob("*")):
-        if not p.is_file() or p.name.startswith("."):
-            continue
-        rel = p.relative_to(UPDATE_STAGING_DIR).as_posix()
-        info = _detect_destination(rel, project_map)
-        info["filename"] = rel
-        info["size"] = p.stat().st_size
-        staged.append(info)
-    return jsonify(ok=True, files=staged)
-
-@app.delete("/api/update/staging/<path:filename>")
-@login_required
-@role_required('admin')
-def api_update_staging_delete(filename: str):
-    """Remove a specific staged file (supports nested paths)."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    try:
-        target = _staging_target(filename)
-    except Exception:
-        return jsonify(ok=False, error="Nom de fichier invalide"), 400
-
-    if target.exists() and target.is_file():
-        target.unlink()
-        # prune empty dirs
-        cur = target.parent
-        root = UPDATE_STAGING_DIR.resolve()
-        while cur.resolve() != root and cur.exists():
-            try:
-                next_dir = cur.parent
-                if any(cur.iterdir()):
-                    break
-                cur.rmdir()
-                cur = next_dir
-            except Exception:
-                break
-        return jsonify(ok=True)
-    return jsonify(ok=False, error="Fichier non trouvé"), 404
-
-
-@app.post("/api/update/staging/delete")
-@login_required
-@role_required('admin')
-def api_update_staging_delete_json():
-    """Remove a specific staged file using JSON body: {filename} (safe for nested paths)."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    body = request.get_json(force=True, silent=True) or {}
-    filename = body.get("filename", "")
-    if not filename:
-        return jsonify(ok=False, error="filename requis"), 400
-    try:
-        target = _staging_target(filename)
-    except Exception:
-        return jsonify(ok=False, error="Nom de fichier invalide"), 400
-
-    if target.exists() and target.is_file():
-        target.unlink()
-        # prune empty dirs
-        cur = target.parent
-        root = UPDATE_STAGING_DIR.resolve()
-        while cur.resolve() != root and cur.exists():
-            try:
-                next_dir = cur.parent
-                if any(cur.iterdir()):
-                    break
-                cur.rmdir()
-                cur = next_dir
-            except Exception:
-                break
-        return jsonify(ok=True)
-    return jsonify(ok=False, error="Fichier non trouvé"), 404
-
-@app.post("/api/update/staging/clear")
-@login_required
-@role_required('admin')
-def api_update_staging_clear():
-    """Clear all staged files (recursive)."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    count = 0
-    for p in list(UPDATE_STAGING_DIR.rglob("*")):
-        if p.is_file():
-            try:
-                p.unlink()
-                count += 1
-            except Exception:
-                pass
-    # remove empty folders
-    for d in sorted([p for p in UPDATE_STAGING_DIR.rglob("*") if p.is_dir()], reverse=True):
-        try:
-            if not any(d.iterdir()):
-                d.rmdir()
-        except Exception:
-            pass
-    return jsonify(ok=True, cleared=count)
-
-@app.post("/api/update/apply")
-@login_required
-@role_required('admin')
-def api_update_apply():
-    """Apply staged files: backup → copy → schedule restart."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-
-    # Check there are staged files (recursive)
-    staged_files = [p for p in UPDATE_STAGING_DIR.rglob("*") if p.is_file()]
-    if not staged_files:
-        return jsonify(ok=False, error="Aucun fichier en attente"), 400
-
-    # 1) Create full backup
-    try:
-        backup_name = _create_full_backup()
-    except Exception as e:
-        return jsonify(ok=False, error=f"Erreur backup: {e}"), 500
-
-    # 2) DB snapshot (best-effort)
-    try:
-        create_snapshot(label="pre_update", is_auto=False)
-    except Exception:
-        pass
-
-    # 3) Copy staged files to their destinations
-    project_map = _scan_project_files()
-    applied = []
-    errors = []
-
-    for sf in staged_files:
-        staged_rel = sf.relative_to(UPDATE_STAGING_DIR).as_posix()
-        info = _detect_destination(staged_rel, project_map)
-        dest_rel = info.get("destination") or ""
-        if not dest_rel:
-            errors.append({"filename": staged_rel, "error": "Destination invalide"})
-            continue
-
-        dest_path = APP_DIR / dest_rel
-        try:
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(sf, dest_path)
-            applied.append({
-                "filename": staged_rel,
-                "destination": dest_rel,
-                "action": info.get("action", "replace"),
-            })
-            # Remove staged file
-            sf.unlink()
-        except Exception as e:
-            errors.append({"filename": staged_rel, "error": str(e)})
-
-    # Cleanup empty staging directories
-    for d in sorted([p for p in UPDATE_STAGING_DIR.rglob("*") if p.is_dir()], reverse=True):
-        try:
-            if not any(d.iterdir()):
-                d.rmdir()
-        except Exception:
-            pass
-
-    if errors and not applied:
-        return jsonify(ok=False, error="Aucun fichier appliqué", errors=errors), 500
-
-    # 4) Schedule restart with enough delay for remote clients (Cloudflare/iOS)
-    _schedule_restart(delay=10.0)
-
-    return jsonify(
-        ok=True,
-        backup=backup_name,
-        applied=applied,
-        errors=errors,
-        restarting=True,
-        restart_delay_s=10,
-    )
-
-@app.get("/api/update/backups")
-@login_required
-@role_required('admin')
-def api_update_backups():
-    """List available update backups."""
-    _ensure_update_dirs()
-    backups = []
-    for p in sorted(UPDATE_BACKUP_DIR.glob("*.zip"), key=lambda x: x.stat().st_mtime, reverse=True):
-        st = p.stat()
-        backups.append({
-            "filename": p.name,
-            "size": st.st_size,
-            "date": datetime.datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
-        })
-    return jsonify(ok=True, backups=backups)
-
-
-@app.post("/api/update/rollback")
-@login_required
-@role_required('admin')
-def api_update_rollback():
-    """Restore project files from a backup zip."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    body = request.get_json(force=True, silent=True) or {}
-    filename = body.get("filename", "")
-
-    if not filename or ".." in filename or "/" in filename or "\\" in filename:
-        return jsonify(ok=False, error="Nom de fichier invalide"), 400
-
-    backup_path = UPDATE_BACKUP_DIR / filename
-    if not backup_path.exists():
-        return jsonify(ok=False, error="Backup non trouvé"), 404
-
-    restored = []
-    try:
-        with zipfile.ZipFile(backup_path, "r") as zf:
-            for entry in zf.namelist():
-                rel = _safe_relpath(entry)
-                if not rel:
-                    continue
-                dest = (APP_DIR / rel).resolve()
-                root = APP_DIR.resolve()
-                if root != dest and root not in dest.parents:
-                    continue
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                with zf.open(entry) as src, open(dest, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
-                restored.append(rel)
-    except Exception as e:
-        return jsonify(ok=False, error=f"Erreur restauration: {e}"), 500
-
-    _schedule_restart(delay=10.0)
-    return jsonify(ok=True, restored=len(restored), restarting=True, restart_delay_s=10)
-
-@app.get("/api/update/download-backup/<filename>")
-@login_required
-@role_required('admin')
-def api_update_download_backup(filename: str):
-    """Download a backup zip file."""
-    _ensure_update_dirs()
-    safe = Path(filename).name
-    if ".." in safe or "/" in safe:
-        return jsonify(ok=False, error="Nom invalide"), 400
-    backup_path = UPDATE_BACKUP_DIR / safe
-    if not backup_path.exists():
-        return jsonify(ok=False, error="Backup non trouvé"), 404
-    return send_file(backup_path, as_attachment=True, download_name=safe)
-
-
-@app.delete("/api/update/backups/<filename>")
-@login_required
-@role_required('admin')
-def api_update_backup_delete(filename: str):
-    """Delete a specific backup."""
-    _ensure_update_dirs()
-    chk = _require_same_origin()
-    if chk:
-        return chk
-    safe = Path(filename).name
-    target = UPDATE_BACKUP_DIR / safe
-    if target.exists():
-        target.unlink()
-        return jsonify(ok=True)
-    return jsonify(ok=False, error="Backup non trouvé"), 404
-
-
 # ═══════════════════════════════════════════════════════
 # App Settings API (v11)
 # ═══════════════════════════════════════════════════════
@@ -8267,23 +8588,23 @@ if __name__ == "__main__":
     host = "0.0.0.0"  # Bind all interfaces for tunnel access
     port = int(os.environ.get("PORT", 8000))
 
-    logger.info("ProspUp v%s starting (mode=%s, host=%s, port=%d)",
+    logger.info("Prosp'Up v%s starting (mode=%s, host=%s, port=%d)",
                 APP_VERSION, "production" if use_waitress else "dev", host, port)
 
     if use_waitress:
         try:
             from waitress import serve
-            print(f"🚀 ProspUp v{APP_VERSION} en production (waitress) sur http://{host}:{port}")
+            print(f"Prosp'Up v{APP_VERSION} en production (waitress) sur http://{host}:{port}")
             logger.info("Waitress server started with 4 threads")
             serve(app, host=host, port=port, threads=4)
         except ImportError:
-            print("⚠️ waitress non installé, fallback sur Flask dev server")
+            print("ATTENTION: waitress non installe, fallback sur Flask dev server")
             logger.warning("waitress not installed, falling back to Flask dev server")
-            print(f"🚀 ProspUp démarré sur http://{host}:{port}")
+            print(f"Prosp'Up demarre sur http://{host}:{port}")
             app.run(host=host, port=port, debug=False)
     else:
-        print(f"⚠️  Mode développement — NE PAS utiliser en production 24/7")
+        print("ATTENTION: Mode developpement — NE PAS utiliser en production 24/7")
         print(f"    Lancer avec: python app.py --prod")
-        print(f"🚀 ProspUp v{APP_VERSION} en dev sur http://127.0.0.1:{port}")
+        print(f"Prosp'Up v{APP_VERSION} en dev sur http://127.0.0.1:{port}")
         logger.info("Dev server started (debug=True) — not for 24/7 use")
         app.run(host="127.0.0.1", port=port, debug=True)

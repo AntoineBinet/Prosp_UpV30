@@ -1,10 +1,10 @@
 // v24.2 — Global error safety net
 window.addEventListener('unhandledrejection', function(e) {
-    console.error('[ProspUp] Unhandled promise:', e.reason);
+    console.error("[Prosp'Up] Unhandled promise:", e.reason);
     if (window.showToast) window.showToast('Erreur inattendue', 'error');
 });
 window.onerror = function(msg, src, line) {
-    console.error('[ProspUp] Error:', msg, 'at', src + ':' + line);
+    console.error("[Prosp'Up] Error:", msg, "at", src + ":" + line);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -25,21 +25,12 @@ const AppAuth = {
     },
     _injectBadge() {
         if (!this.user) return;
-        const sidebar = document.querySelector('.sidebar, aside.sidebar');
-        if (!sidebar) return;
-        // Users link now in sidebar.js nav structure (v23)
-        // Badge at bottom
-        let footer = sidebar.querySelector('.sidebar-footer');
-        if (!footer) {
-            footer = document.createElement('div');
-            footer.className = 'sidebar-footer';
-            sidebar.appendChild(footer);
-        }
         const u = this.user;
         const label = this.ROLE_LABELS[u.role] || u.role;
         const name = (typeof escapeHtml === 'function' ? escapeHtml(u.display_name || u.username) : String(u.display_name || u.username || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c)));
         const initial = (u.display_name || u.username || '').charAt(0).toUpperCase();
-        footer.innerHTML = `
+        const isMobile = window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
+        const badgeHtml = `
             <div class="user-session-badge">
                 <div class="user-session-avatar">${initial}</div>
                 <div class="user-session-info">
@@ -48,8 +39,6 @@ const AppAuth = {
                 </div>
                 <button onclick="AppAuth.logout()" title="Déconnexion" class="user-session-logout">⏻</button>
             </div>`;
-<<<<<<< Updated upstream
-=======
         
         // v25: Attendre que header-center existe (créé par _initHeaderLayout dans v8-features.js)
         const _injectInSidebar = () => {
@@ -119,7 +108,6 @@ const AppAuth = {
         } else {
             _injectInSidebar();
         }
->>>>>>> Stashed changes
     },
     _applyReadOnly() {
         if (!this.user || this.user.role !== 'reader') return;
@@ -142,6 +130,21 @@ const AppAuth = {
         window.location.href = '/login';
     }
 };
+
+// Ré-injecter le badge utilisateur après chaque reconstruction de la sidebar (sidebar.js écrase le contenu)
+document.addEventListener('sidebar-ready', function () {
+    if (window.AppAuth && typeof AppAuth._injectBadge === 'function') AppAuth._injectBadge();
+});
+
+let _badgeResizeRaf = null;
+window.addEventListener('resize', function () {
+    if (!window.AppAuth || !AppAuth.user || typeof AppAuth._injectBadge !== 'function') return;
+    if (_badgeResizeRaf) cancelAnimationFrame(_badgeResizeRaf);
+    _badgeResizeRaf = requestAnimationFrame(function () {
+        AppAuth._injectBadge();
+        _badgeResizeRaf = null;
+    });
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // Mobile tel: link helper (v15)
@@ -169,6 +172,10 @@ let _globalMaxCompanyId = null;
 async function loadFromServer() {
     try {
         const res = await fetch('/api/data');
+        if (res.status === 401) {
+            window.location.href = '/login';
+            return false;
+        }
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const parsed = await res.json();
         if (!parsed || !Array.isArray(parsed.companies) || !Array.isArray(parsed.prospects)) return false;
@@ -973,29 +980,51 @@ function renderCompanies() {
 
     const q = (document.getElementById('companySearchInput')?.value || '').trim().toLowerCase();
 
-    // Pré-calcul des compteurs
+    // Optimisation: utiliser requestAnimationFrame pour différer le rendu lourd
+    if (window._renderCompaniesRaf) {
+        cancelAnimationFrame(window._renderCompaniesRaf);
+    }
+    
+    window._renderCompaniesRaf = requestAnimationFrame(() => {
+        _renderCompaniesInternal(tbody, q);
+        window._renderCompaniesRaf = null;
+    });
+}
+
+function _renderCompaniesInternal(tbody, q) {
+    // Pré-calcul des compteurs (une seule passe)
     const counts = {};
     data.companies.forEach(c => {
         counts[c.id] = { prospects: 0, rdv: 0, callable: 0 };
     });
 
+    // Une seule passe sur les prospects
     data.prospects.forEach(p => {
-        if (!counts[p.company_id]) counts[p.company_id] = { prospects: 0, rdv: 0, callable: 0 };
-        counts[p.company_id].prospects += 1;
-        if (p.statut === 'Rendez-vous') counts[p.company_id].rdv += 1;
-        if (isProspectCallable(p)) counts[p.company_id].callable += 1;
+        if (p.company_id && counts[p.company_id]) {
+            counts[p.company_id].prospects += 1;
+            if (p.statut === 'Rendez-vous') counts[p.company_id].rdv += 1;
+            if (isProspectCallable(p)) counts[p.company_id].callable += 1;
+        }
     });
 
     const unassignedId = ensureUnassignedCompany();
 
-    // Normaliser les entreprises
+    // Normaliser les entreprises (une seule passe)
     data.companies.forEach(c => {
         if (c.notes === undefined || c.notes === null) c.notes = '';
         if (c.phone === undefined || c.phone === null) c.phone = 'Non disponible';
         if (c.tags === undefined || c.tags === null) c.tags = [];
     });
 
-    const companiesSorted = [...data.companies].sort((a, b) => {
+    // Filtrer et trier en une seule passe
+    const companiesFiltered = q 
+        ? data.companies.filter(c => {
+            const label = `${c.groupe || ''} ${c.site || ''}`.toLowerCase();
+            return label.includes(q);
+        })
+        : data.companies;
+
+    const companiesSorted = [...companiesFiltered].sort((a, b) => {
         // Toujours garder "Sans entreprise" en premier
         if (a.id === unassignedId) return -1;
         if (b.id === unassignedId) return 1;
@@ -1026,18 +1055,17 @@ function renderCompanies() {
         return (companySortDir === 'asc') ? res : -res;
     });
 
-    tbody.innerHTML = '';
+    // Utiliser DocumentFragment pour réduire les reflows
+    const fragment = document.createDocumentFragment();
     let summary = { companies: 0, prospects: 0, rdv: 0, callable: 0 };
 
     companiesSorted.forEach(company => {
-        const label = `${company.groupe || ''} ${company.site || ''}`.toLowerCase();
-        if (q && !label.includes(q)) return;
-
         const c = counts[company.id] || { prospects: 0, rdv: 0, callable: 0 };
         summary.companies += 1;
         summary.prospects += c.prospects;
         summary.rdv += c.rdv;
         summary.callable += c.callable;
+        
         const notesRaw = (company.notes || '').trim();
         let notesSnippet = '';
         if (inlineCompanyNotesEditingId === company.id) {
@@ -1059,8 +1087,11 @@ function renderCompanies() {
                 </div>
             `;
         }
+        
         const tr = document.createElement('tr');
+        tr.className = 'company-row';
         tr.style.cursor = 'pointer';
+        
         // Focus visuel (ex: depuis une fiche prospect)
         if (pendingCompanyFocusId && company.id === pendingCompanyFocusId) {
             tr.classList.add('company-focus');
@@ -1070,18 +1101,39 @@ function renderCompanies() {
             pendingCompanyFocusId = null;
         }
 
-
         tr.innerHTML = `
-            <td>${company.groupe || ''}${company.id === unassignedId ? ' <span style="color: var(--color-text-secondary);">(défaut)</span>' : ''}${notesSnippet}</td>
-            <td>${company.site || ''}</td>
-            <td class="center">${c.prospects}</td>
-            <td class="center">${c.rdv}</td>
-            <td class="center">${c.callable}</td>
-            <td class="center">
-                <button class="btn btn-secondary" style="padding: 6px 10px;" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');">🏢</button>
-                <button class="btn btn-secondary" style="padding: 6px 10px;" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});">👥</button>
-                <button class="btn btn-primary" style="padding: 6px 10px;" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});">✏️</button>
-                <button class="btn btn-danger" style="padding: 6px 10px;" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}>🗑️</button>
+            <td class="company-name-cell">
+                <div class="company-name-wrapper">
+                    <strong class="company-groupe">${escapeHtml(company.groupe || '')}</strong>
+                    ${company.id === unassignedId ? '<span class="company-default-badge">(défaut)</span>' : ''}
+                </div>
+                ${notesSnippet}
+            </td>
+            <td class="company-site-cell">${escapeHtml(company.site || '')}</td>
+            <td class="center company-count-cell">
+                <span class="count-badge ${c.prospects > 0 ? 'has-prospects' : ''}">${c.prospects}</span>
+            </td>
+            <td class="center company-count-cell">
+                <span class="count-badge rdv ${c.rdv > 0 ? 'has-rdv' : ''}">${c.rdv}</span>
+            </td>
+            <td class="center company-count-cell">
+                <span class="count-badge callable ${c.callable > 0 ? 'has-callable' : ''}">${c.callable}</span>
+            </td>
+            <td class="center company-actions-cell">
+                <div class="company-actions-group">
+                    <button class="btn-action btn-action-view" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');">
+                        <span class="btn-action-icon">🏢</span>
+                    </button>
+                    <button class="btn-action btn-action-prospects" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});">
+                        <span class="btn-action-icon">👥</span>
+                    </button>
+                    <button class="btn-action btn-action-edit" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});">
+                        <span class="btn-action-icon">✏️</span>
+                    </button>
+                    <button class="btn-action btn-action-delete" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}>
+                        <span class="btn-action-icon">🗑️</span>
+                    </button>
+                </div>
             </td>
         `;
 
@@ -1095,8 +1147,12 @@ function renderCompanies() {
             switchView('all');
         };
 
-        tbody.appendChild(tr);
+        fragment.appendChild(tr);
     });
+
+    // Un seul reflow pour remplacer tout le contenu
+    tbody.innerHTML = '';
+    tbody.appendChild(fragment);
 
     updateCompanySummary(summary);
     updateCompanySortIndicators();
@@ -4065,49 +4121,235 @@ function clearFixedMetier(prospectId) {
 }
 
 
-async function openEmailForProspect(prospectId) {
+// v25.3: Modale pour sélectionner candidats et consultants avant push
+let _pushModalProspectId = null;
+let _pushModalChannel = 'email';
+let _pushModalCandidates = [];
+let _pushModalUsers = [];
+
+function _ensurePushModal() {
+    if (document.getElementById('pushSelectModal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'pushSelectModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:700px;">
+            <button class="modal-close" onclick="closePushSelectModal()">×</button>
+            <h2 style="margin-top:0;">📤 Envoyer un push</h2>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Catégorie push (optionnel)</label>
+                <select id="pushModalCategory" class="input" style="width:100%;">
+                    <option value="">Aucune catégorie</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Candidat 1 (optionnel)</label>
+                <select id="pushModalCandidate1" class="input" style="width:100%;">
+                    <option value="">Aucun candidat</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Candidat 2 (optionnel)</label>
+                <select id="pushModalCandidate2" class="input" style="width:100%;">
+                    <option value="">Aucun candidat</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Consultant 1 (optionnel)</label>
+                <select id="pushModalConsultant1" class="input" style="width:100%;">
+                    <option value="">Aucun consultant</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Consultant 2 (optionnel)</label>
+                <select id="pushModalConsultant2" class="input" style="width:100%;">
+                    <option value="">Aucun consultant</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closePushSelectModal()">Annuler</button>
+                <button class="btn btn-primary" onclick="confirmPushSend()">📤 Envoyer</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function openPushSelectModal(prospectId, channel = 'email') {
+    _ensurePushModal();
+    _pushModalProspectId = prospectId;
+    _pushModalChannel = channel;
     const p = data.prospects.find(x => x.id === prospectId);
-    if (!p || !p.email) {
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'warning');
+        return;
+    }
+    if (channel === 'email' && !p.email) {
         showToast("⚠️ Aucun email renseigné pour ce prospect.", 'warning');
         return;
     }
-    const company = data.companies.find(c => c.id === p.company_id);
-    const companyName = company?.groupe || '';
-
-    // ALWAYS copy the email address to clipboard
-    try { await navigator.clipboard.writeText(p.email); } catch(e) {
-        const ta = document.createElement('textarea');
-        ta.value = p.email;
-        ta.style.position = 'fixed'; ta.style.left = '-9999px';
-        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-        document.body.removeChild(ta);
+    if (channel === 'linkedin' && !p.linkedin) {
+        showToast("⚠️ Aucun LinkedIn renseigné pour ce prospect.", 'warning');
+        return;
     }
 
-    // If no push category selected, auto-propose one
-    let catId = p.push_category_id;
-    if (!catId) {
-        const cats = Array.isArray(pushCategories) ? pushCategories : [];
-        if (cats.length > 0) {
-            const options = cats.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
-            const choice = prompt(`Aucune catégorie push sélectionnée.\nChoisissez un numéro :\n\n${options}\n\n(Laissez vide pour envoyer sans template)`);
-            if (choice !== null) {
-                const idx = parseInt(choice, 10) - 1;
-                if (idx >= 0 && idx < cats.length) {
-                    catId = cats[idx].id;
-                    p.push_category_id = catId;
-                    try { await saveToServerAsync(); } catch (e) {}
-                    // update dropdown if visible
-                    const sel = document.getElementById('detailCategorySelect');
-                    if (sel) sel.value = String(catId);
+    // Charger les catégories push
+    const catSelect = document.getElementById('pushModalCategory');
+    if (catSelect) {
+        try {
+            const res = await fetch('/api/push-categories');
+            if (res.ok) {
+                const cats = await res.json();
+                catSelect.innerHTML = '<option value="">Aucune catégorie</option>' +
+                    (Array.isArray(cats) ? cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') : '');
+                if (p.push_category_id) {
+                    catSelect.value = String(p.push_category_id);
                 }
             }
+        } catch (e) {
+            console.warn('Error loading push categories', e);
         }
     }
 
-    // Try to open .msg template if push category is set
+    // Charger les candidats
+    _pushModalCandidates = [];
+    const cand1Select = document.getElementById('pushModalCandidate1');
+    const cand2Select = document.getElementById('pushModalCandidate2');
+    if (cand1Select && cand2Select) {
+        try {
+            const qs = p.push_category_id ? `?push_category_id=${encodeURIComponent(p.push_category_id)}` : '';
+            const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
+            if (res.ok) {
+                const j = await res.json();
+                if (j.ok && j.candidates) {
+                    _pushModalCandidates = j.candidates;
+                    const options = '<option value="">Aucun candidat</option>' +
+                        _pushModalCandidates.map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' - ' + escapeHtml(c.role) : ''}</option>`).join('');
+                    cand1Select.innerHTML = options;
+                    cand2Select.innerHTML = options;
+                }
+            }
+        } catch (e) {
+            console.warn('Error loading candidates', e);
+        }
+    }
+
+    // Charger les utilisateurs (consultants)
+    _pushModalUsers = [];
+    const cons1Select = document.getElementById('pushModalConsultant1');
+    const cons2Select = document.getElementById('pushModalConsultant2');
+    if (cons1Select && cons2Select) {
+        try {
+            const res = await fetch('/api/users');
+            if (res.ok) {
+                const users = await res.json();
+                if (Array.isArray(users)) {
+                    _pushModalUsers = users;
+                    const options = '<option value="">Aucun consultant</option>' +
+                        users.map(u => `<option value="${u.id}">${escapeHtml(u.display_name || u.username || 'Utilisateur ' + u.id)}</option>`).join('');
+                    cons1Select.innerHTML = options;
+                    cons2Select.innerHTML = options;
+                }
+            }
+        } catch (e) {
+            console.warn('Error loading users', e);
+        }
+    }
+
+    document.getElementById('pushSelectModal').classList.add('active');
+}
+
+function closePushSelectModal() {
+    const modal = document.getElementById('pushSelectModal');
+    if (modal) modal.classList.remove('active');
+    _pushModalProspectId = null;
+    _pushModalChannel = 'email';
+}
+
+async function confirmPushSend() {
+    if (!_pushModalProspectId) return;
+    const p = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'error');
+        return;
+    }
+    const channel = _pushModalChannel || 'email';
+    if (channel === 'email' && !p.email) {
+        showToast("⚠️ Aucun email renseigné.", 'error');
+        return;
+    }
+    if (channel === 'linkedin' && !p.linkedin) {
+        showToast("⚠️ Aucun LinkedIn renseigné.", 'error');
+        return;
+    }
+
+    const catId = document.getElementById('pushModalCategory')?.value || null;
+    const candidateId1 = document.getElementById('pushModalCandidate1')?.value || null;
+    const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
+    const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
+    const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+
+    const company = data.companies.find(c => c.id === p.company_id);
+    const companyName = company?.groupe || '';
+
+    let text = '';
     let templateOpened = false;
     let templateName = '';
-    if (catId) {
+
+    if (channel === 'email') {
+        // ALWAYS copy the email address to clipboard
+        try { await navigator.clipboard.writeText(p.email); } catch(e) {
+            const ta = document.createElement('textarea');
+            ta.value = p.email;
+            ta.style.position = 'fixed'; ta.style.left = '-9999px';
+            document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+    } else if (channel === 'linkedin') {
+        // Template choisi -> sinon défaut
+        let templateId = p.template_id;
+        const tpl = (templateId ? getTemplateById(templateId) : null) || getDefaultTemplate();
+        const vars = buildTemplateVars(p, company);
+
+        // Check for custom InMail template in settings
+        try {
+            const settingsRes = await fetch('/api/settings');
+            const settings = await settingsRes.json();
+            if (settings && settings.linkedin_inmail_template && settings.linkedin_inmail_template.trim()) {
+                text = renderTemplateString(settings.linkedin_inmail_template, vars).trim();
+            }
+        } catch(e) {}
+
+        if (!text) {
+            text = `Bonjour ${vars.civilite ? (vars.civilite + ' ') : ''}${vars.nom || vars.nom_complet || ''},\n\nJe me permets de vous contacter concernant ${vars.entreprise || 'votre entreprise'}.\n\nBelle journée,`;
+            if (tpl) {
+                const b = renderTemplateString((tpl.linkedin_body || tpl.linkedinBody || tpl.body || ''), vars).trim();
+                if (b) text = b;
+            }
+        }
+
+        // Copy to clipboard
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (e) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus(); ta.select();
+            try { document.execCommand('copy'); } catch (e2) {}
+            document.body.removeChild(ta);
+        }
+
+        // Open LinkedIn profile in new tab
+        if (p.linkedin) {
+            window.open(p.linkedin, '_blank');
+        }
+    }
+
+    // Try to open .msg template if push category is set (email only)
+    if (channel === 'email' && catId) {
         try {
             const res = await fetch(`/api/push-categories/${catId}/files`);
             if (res.ok) {
@@ -4138,75 +4380,242 @@ async function openEmailForProspect(prospectId) {
         }
     }
 
+    // Télécharger automatiquement les dossiers de compétences des candidats sélectionnés (email only)
+    if (channel === 'email' && (candidateId1 || candidateId2)) {
+        const candidateIds = [candidateId1, candidateId2].filter(Boolean);
+        for (const candId of candidateIds) {
+            try {
+                // Récupérer les infos du candidat pour vérifier s'il a un dossier de compétence
+                const candRes = await fetch(`/api/candidates/${candId}`);
+                if (candRes.ok) {
+                    const candData = await candRes.json();
+                    if (candData.ok && candData.candidate && candData.candidate.dossier_competence_pdf) {
+                        // Télécharger le PDF
+                        const pdfUrl = `/api/candidates/${candId}/dossier-competence`;
+                        const link = document.createElement('a');
+                        link.href = pdfUrl;
+                        link.download = candData.candidate.dossier_competence_pdf;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        // Petit délai entre les téléchargements pour éviter les problèmes
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    }
+                }
+            } catch (e) {
+                console.warn(`Error downloading PDF for candidate ${candId}:`, e);
+            }
+        }
+    }
+
     // Mark push as sent
     const sentAt = todayISO();
-    p.pushEmailSentAt = sentAt;
-    try {
-        const el = document.getElementById('detailPushSent');
-        if (el) el.textContent = '✅ ' + sentAt;
-    } catch (e) {}
+    if (channel === 'email') {
+        p.pushEmailSentAt = sentAt;
+        try {
+            const el = document.getElementById('detailPushSent');
+            if (el) el.textContent = '✅ ' + sentAt;
+        } catch (e) {}
+    } else if (channel === 'linkedin') {
+        p.pushLinkedInSentAt = sentAt;
+        try {
+            const el = document.getElementById('detailPushLinkedInSent');
+            if (el) el.textContent = '✅ ' + sentAt;
+        } catch (e) {}
+    }
 
     try { await saveToServerAsync(); } catch (e) {}
 
-    // Log push
+    // Log push avec candidats et consultants
     try {
         await fetch('/api/push-logs/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                prospect_id: p.id, sentAt, channel: 'email',
-                to_email: p.email,
-                subject: templateOpened ? `Push ${companyName}` : 'Push manuel',
-                body: templateOpened ? `Template: ${templateName}` : '',
+                prospect_id: p.id, sentAt, channel: channel,
+                to_email: channel === 'email' ? p.email : null,
+                subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : 'Push manuel') : null,
+                body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : '') : text,
                 template_id: null,
-                template_name: templateName || null
+                template_name: templateName || null,
+                candidate_id1: candidateId1 ? parseInt(candidateId1, 10) : null,
+                candidate_id2: candidateId2 ? parseInt(candidateId2, 10) : null,
+                consultant1_id: consultantId1 ? parseInt(consultantId1, 10) : null,
+                consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null
             })
         });
-    } catch (e) {}
+    } catch (e) {
+        console.warn('Error logging push', e);
+    }
+
+    closePushSelectModal();
 
     // Feedback
-    if (templateOpened) {
-        showToast(`✅ Email ${p.email} copié ! Template Outlook ouvert. Collez l'email dans "À:".`, 'success', 6000);
-    } else {
-        showToast(`📋 Email ${p.email} copié dans le presse-papier.`, 'info', 4000);
+    if (channel === 'email') {
+        if (templateOpened) {
+            showToast(`✅ Email ${p.email} copié ! Template Outlook ouvert. Collez l'email dans "À:".`, 'success', 6000);
+        } else {
+            showToast(`📋 Email ${p.email} copié dans le presse-papier.`, 'info', 4000);
+        }
+    } else if (channel === 'linkedin') {
+        showToast(`📋 Message LinkedIn copié ! Profil ouvert dans un nouvel onglet.`, 'success', 4000);
     }
+}
+
+async function openEmailForProspect(prospectId) {
+    // v25.3: Ouvrir la modale de sélection candidats/consultants
+    await openPushSelectModal(prospectId);
 }
 
 
 // ═══ OLLAMA — Appel IA locale (proxy backend) ═══
-/** Envoie le prompt à Ollama via le backend, retourne le texte généré. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
+/** Affiche/masque l'indicateur visuel de progression Ollama */
+function _showOllamaProgress(show, message, tokenCount) {
+    let overlay = document.getElementById('ollama-progress-overlay');
+    if (show) {
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'ollama-progress-overlay';
+            overlay.innerHTML = `
+                <div class="ollama-progress-container">
+                    <div class="ollama-progress-spinner"></div>
+                    <div class="ollama-progress-message" id="ollama-progress-message">${message || 'Connexion à Ollama…'}</div>
+                    <div class="ollama-progress-stats" id="ollama-progress-stats"></div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+        const msgEl = document.getElementById('ollama-progress-message');
+        const statsEl = document.getElementById('ollama-progress-stats');
+        if (msgEl) msgEl.textContent = message || 'Connexion à Ollama…';
+        if (statsEl && tokenCount !== undefined) {
+            statsEl.textContent = tokenCount > 0 ? `${tokenCount} caractères reçus` : '';
+        }
+        overlay.style.display = 'flex';
+    } else {
+        if (overlay) overlay.style.display = 'none';
+    }
+}
+
+/** Envoie le prompt à Ollama via le backend avec streaming, retourne le texte généré. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
 async function callOllama(prompt, options) {
     options = options || {};
     const timeoutMs = options.timeoutMs != null ? Math.max(10000, Math.min(600000, options.timeoutMs)) : 180000;
-    const toastId = 'ollama-loading';
-    if (typeof showToast === 'function') showToast('Génération en cours (Ollama)…', 'info', Math.min(60000, timeoutMs));
+    const useStream = options.stream !== false; // Streaming par défaut, peut être désactivé
+    
+    // Afficher l'indicateur visuel
+    _showOllamaProgress(true, 'Connexion à Ollama…', 0);
+    
     const controller = new AbortController();
-    const timeoutId = setTimeout(function () { controller.abort(); }, timeoutMs);
+    const timeoutId = setTimeout(function () { 
+        controller.abort(); 
+        _showOllamaProgress(false);
+    }, timeoutMs);
+    
     try {
         const body = { prompt };
         if (options.model) body.model = options.model;
         body.timeout = Math.min(600, Math.ceil(timeoutMs / 1000));
-        const res = await fetch('/api/ollama/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-            const msg = data.error || ('Erreur ' + res.status);
-            if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
-            throw new Error(msg);
+        
+        let fullText = '';
+        let tokenCount = 0;
+        
+        if (useStream) {
+            // Mode streaming avec SSE
+            const res = await fetch('/api/ollama/generate-stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+            
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                const msg = data.error || ('Erreur ' + res.status);
+                _showOllamaProgress(false);
+                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                throw new Error(msg);
+            }
+            
+            // Lire le stream SSE
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                // SSE utilise des blocs séparés par \n\n
+                let parts = buffer.split('\n\n');
+                buffer = parts.pop() || ''; // Garder le dernier bloc incomplet
+                
+                for (const part of parts) {
+                    const lines = part.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                if (data.type === 'start') {
+                                    _showOllamaProgress(true, data.message || 'Génération en cours…', 0);
+                                } else if (data.type === 'token') {
+                                    fullText += data.text || '';
+                                    tokenCount = fullText.length;
+                                    _showOllamaProgress(true, 'Génération en cours…', tokenCount);
+                                    if (data.done) {
+                                        // Dernier token
+                                        _showOllamaProgress(true, 'Finalisation…', tokenCount);
+                                    }
+                                } else if (data.type === 'end') {
+                                    _showOllamaProgress(true, data.message || 'Terminé', tokenCount);
+                                } else if (data.type === 'error') {
+                                    _showOllamaProgress(false);
+                                    if (typeof showToast === 'function') showToast('Ollama : ' + data.message, 'error', 5000);
+                                    throw new Error(data.message);
+                                }
+                            } catch (e) {
+                                // Ignorer les erreurs de parsing des lignes SSE invalides
+                                if (e.name !== 'SyntaxError') {
+                                    console.warn('Erreur parsing SSE:', e);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            clearTimeout(timeoutId);
+            _showOllamaProgress(false);
+            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            return fullText;
+        } else {
+            // Mode non-streaming (fallback)
+            const res = await fetch('/api/ollama/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            _showOllamaProgress(false);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const msg = data.error || ('Erreur ' + res.status);
+                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                throw new Error(msg);
+            }
+            if (!data.ok || data.text === undefined) {
+                if (typeof showToast === 'function') showToast('Réponse Ollama invalide', 'error', 4000);
+                throw new Error('Réponse invalide');
+            }
+            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            return data.text;
         }
-        if (!data.ok || data.text === undefined) {
-            if (typeof showToast === 'function') showToast('Réponse Ollama invalide', 'error', 4000);
-            throw new Error('Réponse invalide');
-        }
-        if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
-        return data.text;
     } catch (e) {
         clearTimeout(timeoutId);
+        _showOllamaProgress(false);
         if (e.name === 'AbortError') {
             if (typeof showToast === 'function') showToast('Génération trop longue. Utilisez « Copier » puis collez le retour manuellement, ou réduisez le nombre d\'entrées.', 'error', 8000);
             throw new Error('Timeout');
@@ -5071,8 +5480,15 @@ function _ensureBulkIAModal() {
                 <button class="btn btn-secondary" onclick="closeBulkIAModal()" style="font-size:14px;padding:4px 10px;">✕</button>
             </div>
 
-            <!-- Step 1: Prompt -->
-            <div id="bulkIAStep1" style="margin-top:14px;">
+            <!-- Tabs (only for tel mode) -->
+            <div id="bulkIATabs" style="display:none;margin-top:12px;border-bottom:1px solid var(--border-color);">
+                <button class="bulk-ia-tab active" data-tab="ollama" onclick="switchBulkIATab('ollama')">🤖 Ollama</button>
+                <button class="bulk-ia-tab" data-tab="paste" onclick="switchBulkIATab('paste')">📋 Coller</button>
+                <button class="bulk-ia-tab" data-tab="csv" onclick="switchBulkIATab('csv')">📄 CSV</button>
+            </div>
+
+            <!-- Step 1: Ollama (existing) -->
+            <div id="bulkIAStep1Ollama" class="bulk-ia-step" style="margin-top:14px;">
                 <p class="muted" style="font-size:12px;margin-bottom:8px;">
                     <strong>Étape 1 :</strong> Générez avec Ollama (local) ou copiez le prompt pour une autre IA.
                 </p>
@@ -5088,6 +5504,45 @@ function _ensureBulkIAModal() {
                 <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
                     <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
                     <button class="btn btn-primary" onclick="parseBulkIAResult()">🔍 Analyser</button>
+                </div>
+            </div>
+
+            <!-- Step 1: Paste manual -->
+            <div id="bulkIAStep1Paste" class="bulk-ia-step" style="margin-top:14px;display:none;">
+                <p class="muted" style="font-size:12px;margin-bottom:8px;">
+                    <strong>Collez vos numéros :</strong> Format : une ligne par prospect avec "Nom / Numéro" ou "Nom / Numéro1 / Numéro2" pour plusieurs numéros.
+                </p>
+                <textarea id="bulkIAPasteTextarea" placeholder="Exemple :&#10;Nicolas Mugnier / +33 4 37 59 09 80&#10;Herve Pays / +33 4 37 59 09 80 / +33 6 15 23 65 89&#10;Sebastien Chapacou / +33 6 12 34 56 78" style="min-height:200px;font-family:monospace;font-size:12px;"></textarea>
+                <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+                    <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
+                    <button class="btn btn-primary" onclick="parseBulkIAPaste()">🔍 Analyser</button>
+                </div>
+            </div>
+
+            <!-- Step 1: CSV import -->
+            <div id="bulkIAStep1Csv" class="bulk-ia-step" style="margin-top:14px;display:none;">
+                <p class="muted" style="font-size:12px;margin-bottom:8px;">
+                    <strong>Importez un fichier CSV :</strong> Le format peut varier. Vous pourrez vérifier le mapping avec Ollama si nécessaire.
+                </p>
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:12px;display:block;margin-bottom:4px;">Séparateur :</label>
+                    <select id="bulkIACsvSeparator" style="font-size:13px;padding:6px 10px;border-radius:6px;margin-right:12px;">
+                        <option value="auto">Auto</option>
+                        <option value=";">Point-virgule (;)</option>
+                        <option value=",">Virgule (,)</option>
+                        <option value="\t">Tabulation</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="suggestBulkIACsvMappingWithOllama()" id="bulkIACsvSuggestOllamaBtn" style="font-size:12px;padding:6px 12px;">🤖 Vérifier format avec Ollama</button>
+                </div>
+                <input type="file" id="bulkIACsvFile" accept=".csv,.txt" style="display:none;">
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('bulkIACsvFile').click()">Choisir un fichier CSV</button>
+                <div id="bulkIACsvMapping" style="display:none;margin-top:16px;">
+                    <p class="muted" style="font-size:12px;margin-bottom:8px;"><strong>Mapping des colonnes :</strong></p>
+                    <div id="bulkIACsvMappingGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
+                        <button class="btn btn-primary" onclick="parseBulkIACsv()">🔍 Analyser</button>
+                    </div>
                 </div>
             </div>
 
@@ -5121,7 +5576,16 @@ function _ensureBulkIAModal() {
         </div>
     </div>`;
     document.body.appendChild(div.firstElementChild);
+    
+    // CSV file handler
+    document.getElementById('bulkIACsvFile').addEventListener('change', function(e) {
+        const f = e.target.files[0];
+        if (f) parseBulkIACsvFile(f);
+    });
 }
+
+let _bulkIACurrentTab = 'ollama';
+let _bulkIACsvData = null; // {headers, rows}
 
 function openBulkIAModal(mode) {
     if (selectedProspects.size === 0) {
@@ -5159,14 +5623,42 @@ function openBulkIAModal(mode) {
     document.getElementById('bulkIATitle').textContent = `${icon} Trouver les ${fieldLabel}s — ${_bulkIAProspects.length} prospect(s)`;
     document.getElementById('bulkIAResultHeader').textContent = fieldLabel;
 
+    // Show tabs only for tel mode
+    const tabsEl = document.getElementById('bulkIATabs');
+    if (tabsEl) tabsEl.style.display = mode === 'tel' ? '' : 'none';
+
+    // Reset tabs and show ollama by default
+    _bulkIACurrentTab = 'ollama';
+    switchBulkIATab('ollama');
+
     // Generate prompt
     const prompt = _generateBulkIAPrompt(mode);
     document.getElementById('bulkIAPromptText').textContent = prompt;
     document.getElementById('bulkIAResultTextarea').value = '';
-    document.getElementById('bulkIAStep1').style.display = '';
+    document.getElementById('bulkIAPasteTextarea').value = '';
     document.getElementById('bulkIAStep2').style.display = 'none';
+    _bulkIACsvData = null;
+    document.getElementById('bulkIACsvMapping').style.display = 'none';
+    document.getElementById('bulkIACsvFile').value = '';
 
     document.getElementById('modalBulkIA').classList.add('active');
+}
+
+function switchBulkIATab(tab) {
+    _bulkIACurrentTab = tab;
+    document.querySelectorAll('.bulk-ia-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    document.querySelectorAll('.bulk-ia-step').forEach(step => {
+        step.style.display = 'none';
+    });
+    if (tab === 'ollama') {
+        document.getElementById('bulkIAStep1Ollama').style.display = '';
+    } else if (tab === 'paste') {
+        document.getElementById('bulkIAStep1Paste').style.display = '';
+    } else if (tab === 'csv') {
+        document.getElementById('bulkIAStep1Csv').style.display = '';
+    }
 }
 
 function closeBulkIAModal() {
@@ -5174,7 +5666,13 @@ function closeBulkIAModal() {
 }
 
 function bulkIABackToStep1() {
-    document.getElementById('bulkIAStep1').style.display = '';
+    if (_bulkIACurrentTab === 'ollama') {
+        document.getElementById('bulkIAStep1Ollama').style.display = '';
+    } else if (_bulkIACurrentTab === 'paste') {
+        document.getElementById('bulkIAStep1Paste').style.display = '';
+    } else if (_bulkIACurrentTab === 'csv') {
+        document.getElementById('bulkIAStep1Csv').style.display = '';
+    }
     document.getElementById('bulkIAStep2').style.display = 'none';
 }
 
@@ -5278,7 +5776,195 @@ function parseBulkIAResult() {
         }
     }
 
-    // Build preview table
+    _displayBulkIAResults(results);
+}
+
+// Parse pasted manual data (format: "Nom / Numéro" or "Nom / Numéro1 / Numéro2")
+function parseBulkIAPaste() {
+    const text = document.getElementById('bulkIAPasteTextarea').value.trim();
+    if (!text) { showToast('⚠️ Collez les numéros d\'abord.', 'warning'); return; }
+
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const results = [];
+
+    // Build a map of name -> phone numbers
+    const nameToPhones = {};
+    lines.forEach(line => {
+        const parts = line.split('/').map(p => p.trim()).filter(p => p);
+        if (parts.length < 2) return; // Need at least name + one phone
+        const name = parts[0];
+        const phones = parts.slice(1).filter(p => p);
+        if (phones.length > 0) {
+            nameToPhones[name] = phones.join(' / ');
+        }
+    });
+
+    // Match prospects by name (fuzzy matching)
+    _bulkIAProspects.forEach((p, i) => {
+        let found = '';
+        // Exact match first
+        if (nameToPhones[p.name]) {
+            found = nameToPhones[p.name];
+        } else {
+            // Try fuzzy match (case insensitive, partial)
+            const pNameLower = p.name.toLowerCase();
+            for (const [name, phones] of Object.entries(nameToPhones)) {
+                if (name.toLowerCase() === pNameLower || 
+                    name.toLowerCase().includes(pNameLower) || 
+                    pNameLower.includes(name.toLowerCase())) {
+                    found = phones;
+                    break;
+                }
+            }
+        }
+        results[i] = found;
+    });
+
+    _displayBulkIAResults(results);
+}
+
+// Parse CSV file
+function parseBulkIACsvFile(file) {
+    const sepEl = document.getElementById('bulkIACsvSeparator');
+    let sep = (sepEl && sepEl.value && sepEl.value !== 'auto') ? sepEl.value : null;
+    if (sep === '\\t') sep = '\t';
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const raw = _parseCsvText(e.target.result, sep ? { separator: sep } : {});
+            if (!raw || !raw.rows.length) { 
+                showToast('CSV vide ou invalide.', 'warning'); 
+                return; 
+            }
+            _bulkIACsvData = raw;
+            _showBulkIACsvMapping();
+        } catch (err) {
+            showToast('Erreur lecture CSV: ' + (err.message || err), 'error');
+        }
+    };
+    reader.onerror = function() { 
+        showToast('Erreur de lecture du fichier.', 'error'); 
+    };
+    reader.readAsText(file, 'utf-8');
+}
+
+function _showBulkIACsvMapping() {
+    if (!_bulkIACsvData) return;
+    const grid = document.getElementById('bulkIACsvMappingGrid');
+    const mapping = {};
+    
+    grid.innerHTML = _bulkIACsvData.headers.map((h, i) => {
+        const guessed = _guessMapping(h);
+        const isName = /nom|name|contact/i.test(h) && !/entreprise|company|société/i.test(h);
+        const isTel = /tél|tel|telephone|phone|mobile|portable/i.test(h);
+        let opts = '<option value="">— Ignorer —</option>';
+        if (isName) opts += '<option value="name" selected>Nom du prospect</option>';
+        if (isTel) opts += '<option value="telephone" selected>Téléphone</option>';
+        if (!isName && !isTel) {
+            opts += '<option value="name">Nom du prospect</option>';
+            opts += '<option value="telephone">Téléphone</option>';
+        }
+        return `<div class="import-list-mapping-row"><label style="font-size:11px;">${escapeHtml(h) || 'Colonne ' + (i+1)}</label><select class="bulk-ia-csv-map-select" data-col="${i}" style="font-size:12px;padding:4px 8px;">${opts}</select></div>`;
+    }).join('');
+    
+    document.getElementById('bulkIACsvMapping').style.display = '';
+}
+
+async function suggestBulkIACsvMappingWithOllama() {
+    if (!_bulkIACsvData || !_bulkIACsvData.headers.length) return;
+    const headers = _bulkIACsvData.headers;
+    const prompt = `Tu es un assistant. Voici les en-têtes de colonnes d'un fichier CSV pour ajouter des numéros de téléphone à des prospects : ${JSON.stringify(headers)}. Retourne un objet JSON unique dont les clés sont exactement ces en-têtes (une par colonne) et les valeurs sont soit "name" (pour la colonne contenant le nom du prospect), soit "telephone" (pour la colonne contenant le numéro de téléphone), soit "" (chaîne vide pour ignorer). Exemple : {"NOM":"name","TEL":"telephone","PORTABLE":"telephone","AUTRE":"","DATE":""}. Réponds uniquement avec ce JSON, sans texte avant ou après, sans markdown.`;
+    const btn = document.getElementById('bulkIACsvSuggestOllamaBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
+    try {
+        const text = await callOllama(prompt);
+        let jsonStr = (text || '').trim();
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonStr = jsonMatch[0];
+        const mapping = JSON.parse(jsonStr);
+        const headerToIndex = {};
+        headers.forEach((h, i) => { headerToIndex[h] = i; });
+        Object.keys(mapping).forEach(header => {
+            const field = mapping[header];
+            const idx = headerToIndex[header];
+            if (idx === undefined || !field) return;
+            const select = document.querySelector(`.bulk-ia-csv-map-select[data-col="${idx}"]`);
+            if (select && (field === 'name' || field === 'telephone')) select.value = field;
+        });
+        showToast('Mapping suggéré appliqué. Vérifiez puis cliquez Analyser.', 'success', 4000);
+    } catch (e) {
+        showToast('Ollama indisponible ou réponse invalide. Vérifiez le mapping manuellement.', 'warning', 5000);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 Vérifier format avec Ollama'; }
+    }
+}
+
+function parseBulkIACsv() {
+    if (!_bulkIACsvData) { showToast('⚠️ Importez un fichier CSV d\'abord.', 'warning'); return; }
+    
+    const selects = document.querySelectorAll('.bulk-ia-csv-map-select');
+    const nameCols = [];
+    const telCols = [];
+    
+    selects.forEach(s => {
+        const col = parseInt(s.dataset.col, 10);
+        const field = s.value;
+        if (field === 'name') nameCols.push(col);
+        else if (field === 'telephone') telCols.push(col);
+    });
+    
+    if (nameCols.length === 0) {
+        showToast('⚠️ Mappez au moins une colonne "Nom du prospect".', 'warning');
+        return;
+    }
+    
+    if (telCols.length === 0) {
+        showToast('⚠️ Mappez au moins une colonne "Téléphone".', 'warning');
+        return;
+    }
+    
+    // Build map: name -> phones (multiple phones joined with /)
+    const nameToPhones = {};
+    _bulkIACsvData.rows.forEach(row => {
+        const nameParts = nameCols.map(c => (row[c] != null ? String(row[c]).trim() : '')).filter(Boolean);
+        const name = nameParts.join(' ').trim();
+        if (!name) return;
+        
+        const phoneParts = telCols.map(c => (row[c] != null ? String(row[c]).trim() : '')).filter(Boolean);
+        if (phoneParts.length > 0) {
+            // If multiple phone columns, join them with /
+            nameToPhones[name] = phoneParts.join(' / ');
+        }
+    });
+    
+    // Match prospects by name
+    const results = [];
+    _bulkIAProspects.forEach((p, i) => {
+        let found = '';
+        // Exact match first
+        if (nameToPhones[p.name]) {
+            found = nameToPhones[p.name];
+        } else {
+            // Try fuzzy match
+            const pNameLower = p.name.toLowerCase();
+            for (const [name, phones] of Object.entries(nameToPhones)) {
+                if (name.toLowerCase() === pNameLower || 
+                    name.toLowerCase().includes(pNameLower) || 
+                    pNameLower.includes(name.toLowerCase())) {
+                    found = phones;
+                    break;
+                }
+            }
+        }
+        results[i] = found;
+    });
+    
+    _displayBulkIAResults(results);
+}
+
+// Common function to display results (used by all parsing methods)
+function _displayBulkIAResults(results) {
     const tbody = document.getElementById('bulkIAResultsBody');
     let html = '';
     let foundCount = 0;
@@ -5304,7 +5990,13 @@ function parseBulkIAResult() {
     tbody.innerHTML = html;
     document.getElementById('bulkIAFoundCount').textContent = `${foundCount}/${_bulkIAProspects.length} trouvé(s)`;
 
-    document.getElementById('bulkIAStep1').style.display = 'none';
+    if (_bulkIACurrentTab === 'ollama') {
+        document.getElementById('bulkIAStep1Ollama').style.display = 'none';
+    } else if (_bulkIACurrentTab === 'paste') {
+        document.getElementById('bulkIAStep1Paste').style.display = 'none';
+    } else if (_bulkIACurrentTab === 'csv') {
+        document.getElementById('bulkIAStep1Csv').style.display = 'none';
+    }
     document.getElementById('bulkIAStep2').style.display = '';
 }
 
@@ -5406,10 +6098,15 @@ function copyEmailToClipboard(email) {
 
 
 async function copyLinkedInForProspect(prospectId) {
+    // v25.3: Ouvrir la modale de sélection candidats/consultants pour LinkedIn aussi
+    await openPushSelectModal(prospectId, 'linkedin');
+    return;
+    
+    // Code legacy (ne devrait plus être atteint)
     const p = data.prospects.find(x => x.id === prospectId);
     if (!p || !p.linkedin) {
-alert("⚠️ Aucun LinkedIn renseigné.");
-return;
+        alert("⚠️ Aucun LinkedIn renseigné.");
+        return;
     }
     const company = data.companies.find(c => c.id === p.company_id);
 
@@ -6849,7 +7546,7 @@ function ensureBuildIndicator() {
 
         const env = /prospup\.work$/i.test(window.location.hostname) ? 'web' : 'local';
         badge.textContent = `build ${APP_BUILD} · ${env}`;
-        badge.title = `ProspUp build ${APP_BUILD} (${window.location.hostname})`;
+        badge.title = `Prosp'Up build ${APP_BUILD} (${window.location.hostname})`;
     } catch (e) {}
 }
 
@@ -6861,8 +7558,8 @@ async function bootstrap(page) {
     await AppAuth.init();
 
     await loadFromServer();
-    try { await loadTemplatesFromServer(); } catch(e) { console.warn('[ProspUp] Templates load failed:', e); }
-    try { await loadPushCategories(); } catch(e) { console.warn('[ProspUp] Push categories load failed:', e); }
+    try { await loadTemplatesFromServer(); } catch(e) { console.warn("[Prosp'Up] Templates load failed:", e); }
+    try { await loadPushCategories(); } catch(e) { console.warn("[Prosp'Up] Push categories load failed:", e); }
     normalizeData();
     filteredProspects = [...data.prospects];
 
