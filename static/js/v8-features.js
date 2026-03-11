@@ -387,8 +387,11 @@
         toggle.onclick = function () { _toggleSidebar(); };
         sidebar.prepend(toggle);
 
-        // Wrap emoji and text in spans for CSS control
-        sidebar.querySelectorAll('.nav-button').forEach(function (btn) {
+        // Wrap emoji and text in spans for CSS control (seulement si pas déjà wrappé)
+        sidebar.querySelectorAll('.nav-button:not(:has(.nav-icon))').forEach(function (btn) {
+            // Vérifier que le bouton n'a pas déjà été wrappé (évite doublons)
+            if (btn.querySelector('.nav-icon') || btn.querySelector('.nav-label')) return;
+            
             const text = btn.textContent.trim();
             // First 1-2 chars are emoji, rest is label
             const match = text.match(/^(\S+)\s*(.*)/);
@@ -396,7 +399,10 @@
                 const emoji = match[1];
                 const label = match[2];
                 btn.innerHTML = '<span class="nav-icon">' + emoji + '</span><span class="nav-label">' + label + '</span>';
-                btn.setAttribute('data-tooltip', label);
+                // Ne pas ajouter data-tooltip si déjà présent (évite doublons)
+                if (!btn.hasAttribute('data-tooltip')) {
+                    btn.setAttribute('data-tooltip', label);
+                }
             }
         });
 

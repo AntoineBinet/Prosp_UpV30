@@ -2523,6 +2523,14 @@ tr.company-focus {
   position: relative;
   cursor: help;
 }
+
+/* Ne pas appliquer cursor: help sur le header (évite point d'interrogation) */
+header, header *, .header-left, .header-center, .header-subtitle, header h1, header img {
+  cursor: default !important;
+}
+header a, header button {
+  cursor: pointer !important;
+}
 [data-tooltip]:hover::before,
 .has-tooltip:hover::before {
   content: attr(data-tooltip);
