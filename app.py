@@ -369,6 +369,57 @@ def favicon():
     # Serve app icon (tab favicon)
     return send_from_directory(str(APP_DIR / "static"), "favicon.ico", mimetype="image/vnd.microsoft.icon")
 
+@app.post("/api/deploy/pull-from-404")
+def api_deploy_pull_from_404():
+    """Pull Git simple depuis la page 404 (sans auth pour permettre réparation)."""
+    chk = _require_same_origin()
+    if chk:
+        return chk
+    
+    try:
+        # Vérifier que c'est un dépôt git
+        cp = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp.returncode != 0:
+            return jsonify(ok=False, error="Pas un dépôt git"), 400
+        
+        # Fetch
+        fetch = subprocess.run(
+            ["git", "fetch", "--prune", "origin", "main"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if fetch.returncode != 0:
+            return jsonify(ok=False, error=f"git fetch échoué: {fetch.stderr or fetch.stdout}"), 500
+        
+        # Pull
+        pull = subprocess.run(
+            ["git", "pull", "--ff-only", "origin", "main"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if pull.returncode != 0:
+            return jsonify(ok=False, error=f"git pull échoué: {pull.stderr or pull.stdout}"), 500
+        
+        logger.info("Deploy pull from 404: mise à jour appliquée")
+        return jsonify(ok=True, message="Mise à jour appliquée. Redémarrez le serveur pour appliquer les changements.")
+    
+    except subprocess.TimeoutExpired:
+        return jsonify(ok=False, error="Timeout lors du pull"), 500
+    except Exception as e:
+        logger.exception("Deploy pull from 404 error")
+        return jsonify(ok=False, error=str(e)), 500
+
+
 @app.errorhandler(404)
 def page_not_found(e):
     """Custom 404 page (v23.4)."""
