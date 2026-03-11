@@ -7170,6 +7170,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 .sidebar-collapsed .user-session-info { display: none !important; }
 .sidebar-collapsed .user-session-logout { display: none !important; }
 /* Tooltip on hover when collapsed */
+/* Tooltip uniquement quand sidebar est collapsed */
 .sidebar-collapsed .sidebar .nav-button:hover::after {
   content: attr(data-tooltip);
   position: absolute;
@@ -7190,6 +7191,11 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   color: var(--color-text);
   animation: fadeSlideUp 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   opacity: 0;
+}
+/* S'assurer qu'il n'y a pas de tooltip quand sidebar n'est pas collapsed */
+.sidebar:not(.sidebar-collapsed) .nav-button::after,
+body:not(.sidebar-collapsed) .sidebar .nav-button::after {
+  content: none !important;
 }
 .sidebar-collapsed .sidebar .nav-button:hover::before {
   content: '';
