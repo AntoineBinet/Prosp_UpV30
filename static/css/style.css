@@ -5427,54 +5427,116 @@ body:not([data-page="prospects"]) .table-wrapper td:nth-child(13) {
 }
 .dash-col { display: flex; flex-direction: column; gap: 14px; }
 /* Zone widgets dashboard réorganisables (v25) — 2 colonnes côte à côte */
+/* ─── Contrôles de modularité ─── */
+.dash-widgets-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 16px 0 12px;
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(8px);
+}
+.dash-layout-btn {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dash-layout-btn:hover {
+  background: var(--color-surface);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.dash-layout-btn:active {
+  transform: scale(0.95);
+}
+
+/* ─── Container widgets modulaire ─── */
 .dash-widgets-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+  transition: grid-template-columns 0.3s ease;
 }
 .dash-widget {
   position: relative;
   min-height: 2em;
-  min-width: 0; /* permet au contenu de shrink dans la grille */
+  min-width: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.dash-widget-header {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 10;
+  padding: 8px;
+  pointer-events: none;
+}
+.dash-widget-header > * {
+  pointer-events: auto;
 }
 @media (max-width: 768px) {
   .dash-widgets-container {
-    grid-template-columns: 1fr; /* une colonne sur mobile */
+    grid-template-columns: 1fr !important;
+  }
+  .dash-widgets-controls {
+    flex-wrap: wrap;
+  }
+  .dash-widgets-controls > span:last-child {
+    display: none;
   }
 }
+
+/* ─── Handle de glisser-déposer ─── */
 .dash-widget-handle {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 2;
   cursor: grab;
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 1;
   color: var(--color-text-secondary, #94a3b8);
-  padding: 4px 6px;
+  padding: 6px 8px;
   border-radius: 6px;
   user-select: none;
-  opacity: 0.7;
+  opacity: 0.6;
+  transition: all 0.2s;
+  display: inline-block;
+  background: rgba(var(--color-background-rgb, 255, 255, 255), 0.5);
+  backdrop-filter: blur(4px);
 }
 .dash-widget-handle:hover {
   color: var(--color-primary);
   opacity: 1;
+  background: rgba(var(--color-primary-rgb, 59, 130, 246), 0.1);
+  transform: scale(1.1);
 }
 .dash-widget-handle:active {
   cursor: grabbing;
+  transform: scale(0.95);
 }
+
+/* ─── États de drag & drop ─── */
 .dash-widget.dash-widget-dragging {
-  opacity: 0.9;
-  transform: scale(1.05);
-  box-shadow: 0 16px 40px rgba(0,0,0,0.3), 0 0 0 2px var(--color-primary);
+  opacity: 0.85;
+  transform: scale(1.03) rotate(1deg);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4), 0 0 0 3px var(--color-primary);
   z-index: 1000;
   transition: none;
   cursor: grabbing !important;
+  border-radius: 12px;
 }
 .dash-widget.dash-widget-drag-over {
   outline: 2px dashed var(--color-primary);
-  outline-offset: 4px;
-  background: rgba(var(--color-primary-rgb),0.06);
-  animation: attentionPulse 1s ease-in-out infinite;
+  outline-offset: 6px;
+  background: rgba(var(--color-primary-rgb, 59, 130, 246), 0.08);
+  animation: dashWidgetPulse 1.2s ease-in-out infinite;
+  border-radius: 12px;
 }
 .dash-widget.dash-widget-drag-over::before {
   content: 'Déposer ici';
@@ -5484,15 +5546,31 @@ body:not([data-page="prospects"]) .table-wrapper td:nth-child(13) {
   transform: translate(-50%, -50%);
   background: var(--color-primary);
   color: white;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
   z-index: 100;
   pointer-events: none;
-  animation: fadeSlideUp 0.3s ease-out;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  animation: dashWidgetDropHint 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  letter-spacing: 0.5px;
 }
+@keyframes dashWidgetPulse {
+  0%, 100% { outline-color: var(--color-primary); }
+  50% { outline-color: rgba(var(--color-primary-rgb, 59, 130, 246), 0.5); }
+}
+@keyframes dashWidgetDropHint {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
 .dash-widget .card.dash-first-glance { margin-bottom: 0; }
 .dash-widget + .dash-widget { margin-top: 0; }
 .dash-card { padding: 18px; }

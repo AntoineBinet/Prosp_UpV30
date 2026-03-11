@@ -27,10 +27,22 @@
   <button class="kpi-manual-btn" onclick="openManualKpiModal()" title="Ajouter manuellement une action KPI">➕ Ajout KPI manuel</button>
 </div>
 
+<!-- Barre de contrôle de la modularité -->
+<div class="dash-widgets-controls" id="dashWidgetsControls" style="display:flex;gap:8px;align-items:center;margin:16px 0 12px;padding:10px 14px;background:var(--color-surface);border-radius:10px;border:1px solid var(--color-border);">
+  <span style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-right:4px;">Layout:</span>
+  <button class="dash-layout-btn" onclick="setDashboardColumns(1)" title="1 colonne" style="padding:6px 10px;font-size:11px;">1</button>
+  <button class="dash-layout-btn" onclick="setDashboardColumns(2)" title="2 colonnes" style="padding:6px 10px;font-size:11px;">2</button>
+  <button class="dash-layout-btn" onclick="setDashboardColumns(3)" title="3 colonnes" style="padding:6px 10px;font-size:11px;">3</button>
+  <div style="flex:1;"></div>
+  <span style="font-size:11px;color:var(--color-text-secondary);">💡 Glissez les widgets par la poignée ⋮⋮ pour réorganiser</span>
+</div>
+
 <!-- Zone widgets réorganisables (ordre sauvegardé par utilisateur) -->
 <div id="dashWidgetsContainer" class="dash-widgets-container">
   <div class="dash-widget" data-widget-id="dashFirstGlance">
-    <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
     <div class="card dash-first-glance" id="dashFirstGlance" style="margin-bottom:0;">
       <div class="dash-first-glance-title">👀 Premier coup d'œil</div>
       <div id="dashFirstGlanceItems" class="dash-first-glance-items"></div>
@@ -41,7 +53,9 @@
     </div>
   </div>
   <div class="dash-widget" data-widget-id="dashGoalsCard">
-    <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
     <div class="card dash-card dash-goals-card" id="dashGoalsCard">
       <div class="dash-confetti-layer" id="dashGoalsConfetti"></div>
       <div class="dash-goals-head">
@@ -57,14 +71,18 @@
     </div>
   </div>
   <div class="dash-widget" data-widget-id="dashFeedCard">
-    <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
     <div class="card dash-card" id="dashFeedCard">
       <div class="dash-card-title">🕐 Activité du jour</div>
       <div id="dashFeed"></div>
     </div>
   </div>
   <div class="dash-widget" data-widget-id="dashTasksCard">
-    <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
     <div class="card dash-card" id="dashTasksCard">
       <div class="dash-card-head-row">
         <div class="dash-card-title">&#x2705; T&acirc;ches</div>
@@ -74,7 +92,9 @@
     </div>
   </div>
   <div class="dash-widget" data-widget-id="dashWeekChartCard">
-    <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
     <div class="card dash-card" id="dashWeekChartCard">
       <div class="dash-card-title">📅 Activité de la semaine</div>
       <div id="dashWeekChart" class="dash-week-chart"></div>
@@ -82,21 +102,27 @@
     </div>
   </div>
   <div class="dash-widget" data-widget-id="dashOverdueCard">
-    <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
     <div class="card dash-card" id="dashOverdueCard">
       <div class="dash-card-title">⚠️ Relances en retard</div>
       <div id="dashOverdue"></div>
     </div>
   </div>
   <div class="dash-widget" data-widget-id="dashRdvCard">
-    <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
     <div class="card dash-card" id="dashRdvCard">
       <div class="dash-card-title">🤝 Prochains RDV</div>
       <div id="dashUpcomingRdv"></div>
     </div>
   </div>
   <div class="dash-widget" data-widget-id="dashPipelineCard">
-    <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
     <div class="card dash-card" id="dashPipelineCard">
       <div class="dash-card-title">🎯 Pipeline</div>
       <div id="dashPipeline"></div>
