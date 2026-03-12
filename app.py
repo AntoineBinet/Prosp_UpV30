@@ -151,11 +151,11 @@ def _call_ai(prompt: str, timeout: int = 120) -> str:
             raise primary_err
 
 def _call_ai_web(prompt: str, timeout: int = 120) -> str:
-    """Appel IA avec recherche web. Sonar si configuré (avec fallback), sinon provider principal."""
+    """Appel IA avec recherche web. Sonar si configuré (avec citations + fallback), sinon provider principal."""
     config = _load_ai_config()
     if config.get("sonar_api_key"):
         try:
-            return _call_sonar(prompt, config, timeout)
+            return _call_sonar(prompt, config, timeout, include_citations=True)
         except Exception as e:
             logger.warning("Sonar failed, falling back to main provider: %s", e)
     return _call_ai(prompt, timeout)
@@ -179,7 +179,7 @@ def _call_ollama_direct(prompt: str, config: dict, timeout: int) -> str:
         data = json.loads(resp.read().decode("utf-8"))
     return data.get("response", "").strip()
 
-def _call_sonar(prompt: str, config: dict, timeout: int) -> str:
+def _call_sonar(prompt: str, config: dict, timeout: int, include_citations: bool = False) -> str:
     """Appel à Perplexity Sonar (non-streaming, recherche web intégrée)."""
     api_key = config.get("sonar_api_key", "")
     if not api_key:
@@ -199,9 +199,10 @@ def _call_sonar(prompt: str, config: dict, timeout: int) -> str:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     text = data["choices"][0]["message"]["content"].strip()
-    citations = data.get("citations", [])
-    if citations:
-        text += "\n\n📎 Sources :\n" + "\n".join(f"- {c}" for c in citations[:5])
+    if include_citations:
+        citations = data.get("citations", [])
+        if citations:
+            text += "\n\n📎 Sources :\n" + "\n".join(f"- {c}" for c in citations[:5])
     return text
 
 def _stream_ai_web_sse(prompt: str, model_override: str | None, timeout: int):
