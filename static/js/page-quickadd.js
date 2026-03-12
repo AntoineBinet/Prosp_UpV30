@@ -419,9 +419,17 @@
             : { timeoutMs: 180000, stream: false, webSearch: useWebSearch };
         window.callOllama(prompt, opts).then(function (text) {
             _qaOverlayHide();
+            // Debug : afficher le retour brut de l'IA dans la console et dans un panneau debug
+            console.log('[Quick Add IA] Retour brut de l\'IA:', text);
+            _showIADebugPanel(text, prompt);
+            
             const result = _tryParseQARaw(text || '', _qaType);
             if (result.ok) {
                 _qaParsed = result.parsed;
+                // Nettoyer les données parsées (corriger email/LinkedIn)
+                _qaParsed = _qaParsed.map(function(item) {
+                    return _cleanParsedItem(item);
+                });
                 document.getElementById('qaStep1').style.display = 'none';
                 document.getElementById('qaStep3Paste').style.display = 'none';
                 document.getElementById('qaStep4Preview').style.display = '';
@@ -663,6 +671,11 @@
             return item;
         });
         
+        // Nettoyer les données (corriger email/LinkedIn)
+        parsed = parsed.map(function(item) {
+            return _cleanParsedItem(item);
+        });
+        
         return { ok: true, parsed: parsed };
     }
 
@@ -745,6 +758,104 @@
         } else {
             obj[field] = val;
         }
+    }
+
+    // ─── Nettoyer les données parsées (corriger erreurs courantes) ───
+    function _cleanParsedItem(item) {
+        if (!item || typeof item !== 'object') return item;
+        const cleaned = Object.assign({}, item);
+        
+        // Corriger email qui contient une URL LinkedIn
+        if (cleaned.email) {
+            const email = String(cleaned.email).trim();
+            // Si c'est une URL LinkedIn (même tronquée), vider le champ email
+            if (/linkedin\.com|https?:\/\/.*linkedin/i.test(email) || /^https?:\/\//.test(email)) {
+                console.warn('[Quick Add] Email contient une URL LinkedIn, champ vidé:', email);
+                cleaned.email = '';
+            }
+            // Si c'est un email valide mais contient des caractères bizarres, nettoyer
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                // Si ça ressemble à une URL ou contient des caractères encodés, vider
+                if (/https?:\/\/|%[0-9A-Fa-f]{2}/.test(email)) {
+                    console.warn('[Quick Add] Email invalide (URL ou encodé), champ vidé:', email);
+                    cleaned.email = '';
+                }
+            }
+        }
+        
+        // Corriger LinkedIn qui est tronqué ou mal formaté
+        if (cleaned.linkedin) {
+            const linkedin = String(cleaned.linkedin).trim();
+            // Si c'est une URL LinkedIn valide mais tronquée, essayer de la compléter
+            if (/linkedin\.com\/in\/[^\/]+$/.test(linkedin) && !linkedin.endsWith('/')) {
+                // URL valide mais peut-être tronquée, garder tel quel
+            }
+            // Si c'est une URL encodée ou malformée, nettoyer
+            else if (/linkedin\.com\/in\/.*%/.test(linkedin)) {
+                // Décoder l'URL
+                try {
+                    cleaned.linkedin = decodeURIComponent(linkedin);
+                } catch (e) {
+                    // Si le décodage échoue, garder tel quel
+                }
+            }
+            // Si ce n'est pas une URL LinkedIn valide, vider
+            else if (!/^https?:\/\/.*linkedin\.com\/in\/[^\/\s]+/.test(linkedin)) {
+                if (linkedin && !linkedin.startsWith('http')) {
+                    // Peut-être juste l'identifiant, construire l'URL
+                    const id = linkedin.replace(/[^a-zA-Z0-9-]/g, '');
+                    if (id.length > 3) {
+                        cleaned.linkedin = 'https://www.linkedin.com/in/' + id;
+                    } else {
+                        cleaned.linkedin = '';
+                    }
+                } else {
+                    cleaned.linkedin = '';
+                }
+            }
+        }
+        
+        return cleaned;
+    }
+
+    // ─── Panneau de debug pour voir le retour brut de l'IA ───
+    function _showIADebugPanel(rawText, prompt) {
+        // Créer ou récupérer le panneau debug
+        let panel = document.getElementById('qaIADebugPanel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'qaIADebugPanel';
+            panel.style.cssText = 'position:fixed;bottom:20px;right:20px;width:500px;max-height:400px;background:var(--color-surface);border:2px solid var(--color-primary);border-radius:8px;padding:12px;z-index:10000;box-shadow:0 4px 12px rgba(0,0,0,0.3);overflow:auto;font-size:11px;font-family:monospace;';
+            panel.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <strong style="color:var(--color-primary);">🔍 Debug IA — Retour brut</strong>
+                    <button onclick="document.getElementById('qaIADebugPanel').style.display='none'" style="background:none;border:none;color:var(--color-text);cursor:pointer;font-size:16px;padding:0 8px;">×</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="font-size:10px;padding:4px 8px;background:var(--color-bg-secondary);border:1px solid var(--color-border);border-radius:4px;cursor:pointer;">📋 Voir le prompt</button>
+                    <pre id="qaDebugPrompt" style="display:none;background:var(--color-bg-secondary);padding:8px;border-radius:4px;margin-top:4px;white-space:pre-wrap;word-wrap:break-word;max-height:150px;overflow:auto;font-size:10px;">${(prompt || '').substring(0, 1000)}${(prompt || '').length > 1000 ? '...' : ''}</pre>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <strong style="color:var(--color-text-secondary);font-size:10px;">Retour brut (${(rawText || '').length} caractères):</strong>
+                    <pre id="qaDebugRawText" style="background:var(--color-bg-secondary);padding:8px;border-radius:4px;margin-top:4px;white-space:pre-wrap;word-wrap:break-word;max-height:200px;overflow:auto;font-size:10px;border:1px solid var(--color-border);">${_escDebugText(rawText || '')}</pre>
+                </div>
+                <div style="font-size:10px;color:var(--color-muted);">
+                    💡 Ce panneau montre le retour brut de l'IA avant parsing. Vérifiez si l'IA a bien extrait les données.
+                </div>
+            `;
+            document.body.appendChild(panel);
+        } else {
+            // Mettre à jour le contenu
+            const rawEl = document.getElementById('qaDebugRawText');
+            const promptEl = document.getElementById('qaDebugPrompt');
+            if (rawEl) rawEl.textContent = rawText || '';
+            if (promptEl) promptEl.textContent = (prompt || '').substring(0, 1000) + ((prompt || '').length > 1000 ? '...' : '');
+            panel.style.display = 'block';
+        }
+    }
+
+    function _escDebugText(text) {
+        return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     // ─── Preview : formulaire de validation éditable ───
@@ -1130,7 +1241,8 @@ Utilise exactement les clés de l'exemple. Pour un prospect : name, fonction, en
 - N'invente JAMAIS d'informations qui ne sont pas visibles dans le contexte fourni
 - Si une information n'est pas disponible (téléphone, email, etc.), utilise "" (chaîne vide) au lieu d'inventer
 - Pour les tags, utilise uniquement ceux qui correspondent réellement au profil (domaines techniques mentionnés)
-- Le champ "linkedin" doit être l'URL complète du profil si fournie dans le contexte
+- Le champ "linkedin" doit être l'URL complète du profil si fournie dans le contexte (ex: "https://www.linkedin.com/in/nom-profil/")
+- Le champ "email" DOIT être une adresse email valide (format: nom@domaine.com). JAMAIS d'URL LinkedIn dans le champ email. Si l'email n'est pas visible, utilise "" (chaîne vide)
 - Le champ "entreprise" doit être le nom exact de l'entreprise visible sur le profil
 - Le champ "fonction" doit être le titre exact du poste actuel visible sur le profil
 - Le champ "pertinence" DOIT être un nombre entre 1 et 5 (chaîne de caractères : "1", "2", "3", "4" ou "5"). 5 = décideur direct qui recrute dans nos domaines, 1 = peu de lien. Si tu ne peux pas évaluer, utilise "" (chaîne vide). JAMAIS de valeur hors de cette plage.
@@ -1199,7 +1311,8 @@ IMPORTANT : "pertinence" doit être "1", "2", "3", "4" ou "5" (chaîne de caract
 - N'invente JAMAIS d'informations qui ne sont pas visibles dans le contexte fourni
 - Si une information n'est pas disponible, utilise "" (chaîne vide) au lieu d'inventer
 - Pour les tags, utilise uniquement ceux qui correspondent réellement aux profils
-- Les champs "linkedin" doivent être les URLs complètes des profils si fournies
+- Les champs "linkedin" doivent être les URLs complètes des profils si fournies (ex: "https://www.linkedin.com/in/nom-profil/")
+- Les champs "email" DOIVENT être des adresses email valides (format: nom@domaine.com). JAMAIS d'URL LinkedIn dans les champs email. Si l'email n'est pas visible, utilise "" (chaîne vide)
 - Les champs "entreprise" doivent être les noms exacts des entreprises visibles
 - Les champs "fonction" doivent être les titres exacts des postes actuels visibles
 - Les champs "pertinence" DOIVENT être des nombres entre 1 et 5 (chaînes : "1", "2", "3", "4" ou "5"). 5 = décideur direct qui recrute dans nos domaines, 1 = peu de lien. Si tu ne peux pas évaluer, utilise "" (chaîne vide). JAMAIS de valeur hors de cette plage.

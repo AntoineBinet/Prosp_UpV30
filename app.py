@@ -155,9 +155,15 @@ def _call_ai_web(prompt: str, timeout: int = 120) -> str:
     config = _load_ai_config()
     if config.get("sonar_api_key"):
         try:
-            return _call_sonar(prompt, config, timeout, include_citations=True)
+            logger.info("IA web: utilisation de Sonar pour recherche web")
+            result = _call_sonar(prompt, config, timeout, include_citations=True)
+            logger.info("IA web: Sonar a réussi (%d caractères)", len(result))
+            return result
         except Exception as e:
-            logger.warning("Sonar failed, falling back to main provider: %s", e)
+            logger.warning("Sonar failed, falling back to main provider: %s", str(e))
+            logger.warning("Détails erreur Sonar: %s", repr(e))
+    else:
+        logger.info("IA web: Sonar non configuré, utilisation du provider principal")
     return _call_ai(prompt, timeout)
 
 def _call_ai_provider(provider: str, prompt: str, config: dict, timeout: int) -> str:
@@ -196,14 +202,24 @@ def _call_sonar(prompt: str, config: dict, timeout: int, include_citations: bool
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    text = data["choices"][0]["message"]["content"].strip()
-    if include_citations:
-        citations = data.get("citations", [])
-        if citations:
-            text += "\n\n📎 Sources :\n" + "\n".join(f"- {c}" for c in citations[:5])
-    return text
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        text = data["choices"][0]["message"]["content"].strip()
+        if include_citations:
+            citations = data.get("citations", [])
+            if citations:
+                logger.info("Sonar: %d citations trouvées", len(citations))
+                text += "\n\n📎 Sources :\n" + "\n".join(f"- {c}" for c in citations[:5])
+        logger.info("Sonar: réponse reçue (%d caractères)", len(text))
+        return text
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8") if e.fp else ""
+        logger.error("Sonar HTTP error %d: %s", e.code, error_body[:500])
+        raise ValueError(f"Erreur Sonar {e.code}: {error_body[:200] if error_body else e.reason}")
+    except Exception as e:
+        logger.error("Sonar error: %s", str(e))
+        raise
 
 def _stream_ai_web_sse(prompt: str, model_override: str | None, timeout: int):
     """Stream SSE pour recherche web (Sonar si configuré, sinon provider principal)."""
