@@ -3012,9 +3012,9 @@ function updateStats(prospects) {
     // VERT : RDV — total brut
     const rdvEl = document.getElementById('rdvCount');
     if (rdvEl) rdvEl.textContent = allProspects.filter(p => p.statut === 'Rendez-vous').length;
-    // VIOLET : prospectés (statut Prospectés) — total brut
+    // VIOLET : prospectés (statut Prospecté) — total brut
     const prospectésEl = document.getElementById('prospectésCount');
-    if (prospectésEl) prospectésEl.textContent = allProspects.filter(p => p.statut === 'Prospectés').length;
+    if (prospectésEl) prospectésEl.textContent = allProspects.filter(p => p.statut === 'Prospecté').length;
 
     // Relances en retard : basé sur les prospects affichés (filtrés)
     updateOverdueAlerts(activeProspects);
@@ -3070,7 +3070,7 @@ function quickFilterStat(type) {
     } else if (type === 'rdv') {
         if (sf) sf.value = 'Rendez-vous';
     } else if (type === 'prospectés') {
-        if (sf) sf.value = 'Prospectés';
+        if (sf) sf.value = 'Prospecté';
     }
 
     filterProspects();
