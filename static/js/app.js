@@ -5620,6 +5620,10 @@ return '<span class="muted">Ajoutez des compétences pour obtenir des suggestion
                             const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
                             const fullPath = m.category + ' > ' + m.specialty;
                             const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                            // Phase 1: Afficher les matches sémantiques
+                            const semanticInfo = (m.semanticMatches && m.semanticMatches.length > 0)
+                                ? `<div style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🔗 Sémantique: ${m.semanticMatches.map(sm => escapeHtml(sm.tag + ' ≈ ' + sm.refTag)).join(', ')}</div>`
+                                : '';
                             return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
     <div class="metier-suggestion-header">
         <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
@@ -5628,6 +5632,7 @@ return '<span class="muted">Ajoutez des compétences pour obtenir des suggestion
         ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
     </div>
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
+    ${semanticInfo}
 </div>`;
                         }).join('');
                     }
@@ -5689,6 +5694,10 @@ async function refreshMetierSuggestions() {
                         const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
                         const fullPath = m.category + ' > ' + m.specialty;
                         const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                        // Phase 1: Afficher les matches sémantiques
+                        const semanticInfo = (m.semanticMatches && m.semanticMatches.length > 0)
+                            ? `<div style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🔗 Sémantique: ${m.semanticMatches.map(sm => escapeHtml(sm.tag + ' ≈ ' + sm.refTag)).join(', ')}</div>`
+                            : '';
                         return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
     <div class="metier-suggestion-header">
         <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
@@ -5697,6 +5706,7 @@ async function refreshMetierSuggestions() {
         ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
     </div>
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
+    ${semanticInfo}
 </div>`;
                     }).join('');
                 } else {
@@ -5799,6 +5809,14 @@ function _ensurePushModal() {
                 <select id="pushModalConsultant2" class="input" style="width:100%;">
                     <option value="">Aucun consultant</option>
                 </select>
+            </div>
+            <div style="margin-bottom:20px;padding:12px;background:var(--color-bg-secondary);border-radius:8px;border:1px solid var(--color-border);">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">💬 Message personnalisé (Phase 1: IA)</label>
+                <textarea id="pushModalMessage" rows="6" style="width:100%;border:1px solid var(--color-border);border-radius:6px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;" placeholder="Le message sera généré automatiquement par l'IA ou vous pouvez le saisir manuellement..."></textarea>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                    <button class="btn btn-secondary" onclick="generatePushMessageWithAI()" style="font-size:12px;padding:6px 12px;">🤖 Générer avec l'IA</button>
+                    <button class="btn btn-secondary" onclick="generatePushMessageVariants()" style="font-size:12px;padding:6px 12px;">🔄 Générer 3 variantes</button>
+                </div>
             </div>
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closePushSelectModal()">Annuler</button>
@@ -5913,6 +5931,158 @@ function closePushSelectModal() {
     _pushModalChannel = 'email';
 }
 
+// Phase 1: Génération de message personnalisé avec IA
+async function generatePushMessageWithAI() {
+    if (!_pushModalProspectId) return;
+    const p = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'error');
+        return;
+    }
+    
+    const channel = _pushModalChannel || 'email';
+    const catId = document.getElementById('pushModalCategory')?.value || null;
+    const candidateId1 = document.getElementById('pushModalCandidate1')?.value || null;
+    const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
+    const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
+    const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+    
+    const company = data.companies.find(c => c.id === p.company_id);
+    const candidates = [];
+    if (candidateId1) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId1);
+        if (cand) candidates.push(cand);
+    }
+    if (candidateId2) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId2);
+        if (cand) candidates.push(cand);
+    }
+    
+    const consultants = [];
+    if (consultantId1) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId1);
+        if (cons) consultants.push(cons);
+    }
+    if (consultantId2) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId2);
+        if (cons) consultants.push(cons);
+    }
+    
+    const messageEl = document.getElementById('pushModalMessage');
+    if (messageEl) messageEl.value = 'Génération en cours…';
+    
+    try {
+        const prompt = _buildPushMessagePrompt(p, company, candidates, consultants, catId, channel);
+        const text = await callOllama(prompt, { timeoutMs: 60000, stream: false });
+        if (messageEl && text) {
+            messageEl.value = text.trim();
+            showToast('✅ Message généré avec l\'IA !', 'success', 3000);
+        }
+    } catch (e) {
+        showToast('❌ Erreur génération IA : ' + (e.message || 'Erreur inconnue'), 'error', 5000);
+        if (messageEl) messageEl.value = '';
+    }
+}
+
+async function generatePushMessageVariants() {
+    if (!_pushModalProspectId) return;
+    const p = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'error');
+        return;
+    }
+    
+    const channel = _pushModalChannel || 'email';
+    const catId = document.getElementById('pushModalCategory')?.value || null;
+    const candidateId1 = document.getElementById('pushModalCandidate1')?.value || null;
+    const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
+    const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
+    const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+    
+    const company = data.companies.find(c => c.id === p.company_id);
+    const candidates = [];
+    if (candidateId1) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId1);
+        if (cand) candidates.push(cand);
+    }
+    if (candidateId2) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId2);
+        if (cand) candidates.push(cand);
+    }
+    
+    const consultants = [];
+    if (consultantId1) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId1);
+        if (cons) consultants.push(cons);
+    }
+    if (consultantId2) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId2);
+        if (cons) consultants.push(cons);
+    }
+    
+    const messageEl = document.getElementById('pushModalMessage');
+    if (messageEl) messageEl.value = 'Génération de 3 variantes en cours…';
+    
+    try {
+        const prompt = _buildPushMessagePrompt(p, company, candidates, consultants, catId, channel, variants=3);
+        const text = await callOllama(prompt, { timeoutMs: 90000, stream: false });
+        if (messageEl && text) {
+            // Parser les variantes (format: Variante 1: ... Variante 2: ... Variante 3: ...)
+            const variants = text.split(/Variante\s+\d+\s*:/i).filter(v => v.trim()).map(v => v.trim());
+            if (variants.length >= 3) {
+                messageEl.value = `=== VARIANTE 1 ===\n${variants[0]}\n\n=== VARIANTE 2 ===\n${variants[1]}\n\n=== VARIANTE 3 ===\n${variants[2]}`;
+            } else {
+                messageEl.value = text.trim();
+            }
+            showToast('✅ 3 variantes générées avec l\'IA !', 'success', 3000);
+        }
+    } catch (e) {
+        showToast('❌ Erreur génération IA : ' + (e.message || 'Erreur inconnue'), 'error', 5000);
+        if (messageEl) messageEl.value = '';
+    }
+}
+
+function _buildPushMessagePrompt(prospect, company, candidates, consultants, categoryId, channel, variants = 1) {
+    const prospectInfo = `Prospect: ${prospect.name || ''}
+Entreprise: ${company?.groupe || ''}
+Fonction: ${prospect.fonction || ''}
+Tags techniques: ${(prospect.tags || []).join(', ') || 'Aucun'}
+Notes: ${(prospect.notes || '').substring(0, 200) || 'Aucune'}`;
+    
+    let candidatesInfo = '';
+    if (candidates.length > 0) {
+        candidatesInfo = '\n\nCandidats à présenter:\n' + candidates.map(c => 
+            `- ${c.name || ''} (${c.role || ''}): ${(c.skills || []).slice(0, 5).join(', ')}`
+        ).join('\n');
+    }
+    
+    let consultantsInfo = '';
+    if (consultants.length > 0) {
+        consultantsInfo = '\n\nConsultants à mentionner:\n' + consultants.map(c => 
+            `- ${c.display_name || c.username || ''}`
+        ).join('\n');
+    }
+    
+    const channelType = channel === 'linkedin' ? 'message LinkedIn InMail' : 'email professionnel';
+    const variantsText = variants > 1 ? `Génère ${variants} variantes différentes du message, numérotées "Variante 1:", "Variante 2:", etc.` : '';
+    
+    return `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel).
+
+Je dois rédiger un ${channelType} personnalisé pour un prospect.
+
+${prospectInfo}${candidatesInfo}${consultantsInfo}
+
+Instructions:
+- Ton professionnel mais chaleureux
+- Mentionne les compétences techniques pertinentes si des candidats sont sélectionnés
+- Référence l'entreprise du prospect si possible
+- Longueur: ${channel === 'linkedin' ? '150-200 mots (InMail LinkedIn)' : '200-300 mots (email)'}
+- Structure: Salutation personnalisée, présentation brève de votre ESN, proposition de valeur, appel à l'action, signature
+${variantsText}
+
+Réponds UNIQUEMENT par le message ${variants > 1 ? '(variantes numérotées)' : ''}, sans texte avant ou après, sans markdown.`;
+}
+
 async function confirmPushSend() {
     if (!_pushModalProspectId) return;
     const p = data.prospects.find(x => x.id === _pushModalProspectId);
@@ -5935,6 +6105,9 @@ async function confirmPushSend() {
     const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
     const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
     const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+    
+    // Phase 1: Récupérer le message personnalisé généré par IA
+    const customMessage = document.getElementById('pushModalMessage')?.value?.trim() || '';
 
     const company = data.companies.find(c => c.id === p.company_id);
     const companyName = company?.groupe || '';
@@ -5953,25 +6126,30 @@ async function confirmPushSend() {
             document.body.removeChild(ta);
         }
     } else if (channel === 'linkedin') {
-        // Template choisi -> sinon défaut
-        let templateId = p.template_id;
-        const tpl = (templateId ? getTemplateById(templateId) : null) || getDefaultTemplate();
-        const vars = buildTemplateVars(p, company);
+        // Phase 1: Utiliser le message personnalisé IA si disponible
+        if (customMessage) {
+            text = customMessage;
+        } else {
+            // Template choisi -> sinon défaut
+            let templateId = p.template_id;
+            const tpl = (templateId ? getTemplateById(templateId) : null) || getDefaultTemplate();
+            const vars = buildTemplateVars(p, company);
 
-        // Check for custom InMail template in settings
-        try {
-            const settingsRes = await fetch('/api/settings');
-            const settings = await settingsRes.json();
-            if (settings && settings.linkedin_inmail_template && settings.linkedin_inmail_template.trim()) {
-                text = renderTemplateString(settings.linkedin_inmail_template, vars).trim();
-            }
-        } catch(e) {}
+            // Check for custom InMail template in settings
+            try {
+                const settingsRes = await fetch('/api/settings');
+                const settings = await settingsRes.json();
+                if (settings && settings.linkedin_inmail_template && settings.linkedin_inmail_template.trim()) {
+                    text = renderTemplateString(settings.linkedin_inmail_template, vars).trim();
+                }
+            } catch(e) {}
 
-        if (!text) {
-            text = `Bonjour ${vars.civilite ? (vars.civilite + ' ') : ''}${vars.nom || vars.nom_complet || ''},\n\nJe me permets de vous contacter concernant ${vars.entreprise || 'votre entreprise'}.\n\nBelle journée,`;
-            if (tpl) {
-                const b = renderTemplateString((tpl.linkedin_body || tpl.linkedinBody || tpl.body || ''), vars).trim();
-                if (b) text = b;
+            if (!text) {
+                text = `Bonjour ${vars.civilite ? (vars.civilite + ' ') : ''}${vars.nom || vars.nom_complet || ''},\n\nJe me permets de vous contacter concernant ${vars.entreprise || 'votre entreprise'}.\n\nBelle journée,`;
+                if (tpl) {
+                    const b = renderTemplateString((tpl.linkedin_body || tpl.linkedinBody || tpl.body || ''), vars).trim();
+                    if (b) text = b;
+                }
             }
         }
 
@@ -6079,17 +6257,18 @@ async function confirmPushSend() {
         await fetch('/api/push-logs/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+                body: JSON.stringify({
                 prospect_id: p.id, sentAt, channel: channel,
                 to_email: channel === 'email' ? p.email : null,
-                subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : 'Push manuel') : null,
-                body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : '') : text,
+                subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : (customMessage ? 'Push IA personnalisé' : 'Push manuel')) : null,
+                body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : (customMessage || '')) : (customMessage || text),
                 template_id: null,
                 template_name: templateName || null,
                 candidate_id1: candidateId1 ? parseInt(candidateId1, 10) : null,
                 candidate_id2: candidateId2 ? parseInt(candidateId2, 10) : null,
                 consultant1_id: consultantId1 ? parseInt(consultantId1, 10) : null,
-                consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null
+                consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null,
+                ai_generated: customMessage ? true : null  // Phase 1: marquer comme généré par IA
             })
         });
     } catch (e) {
@@ -10098,8 +10277,11 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
     listBox.innerHTML = '<span class="muted">🔍 Recherche de candidats…</span>';
 
     try {
-        // Piste 5: one API call with tags + optional push_category_id (backend merges category keywords)
-        const qs = pushCategoryId ? `?push_category_id=${encodeURIComponent(pushCategoryId)}` : '';
+        // Phase 1: Ajouter paramètre pour activer explications IA
+        const qsParams = new URLSearchParams();
+        if (pushCategoryId) qsParams.set('push_category_id', pushCategoryId);
+        qsParams.set('ai_explanations', '1');  // Activer explications IA par défaut
+        const qs = qsParams.toString() ? '?' + qsParams.toString() : '';
         const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
         let tagCandidates = [];
         let prospectTags = [];
@@ -10143,6 +10325,17 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
             if (c.exp_score) scoreDetails.push(`XP: ${c.exp_score}`);
             if (c.geo_score) scoreDetails.push(`Géo: ${c.geo_score}`);
             if (c.relevance_pct != null) scoreDetails.push(`Pertinence globale: ${c.relevance_pct}%`);
+            
+            // Phase 1: Afficher les matches sémantiques
+            const semanticMatches = c.semantic_matches || [];
+            const semanticInfo = semanticMatches.length > 0 
+                ? `<div class="bestmatch-semantic" style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🤖 Sémantique: ${semanticMatches.map(m => escapeHtml(m)).join(', ')}</div>`
+                : '';
+            
+            // Phase 1: Afficher l'explication IA si disponible
+            const aiExplanation = c.ai_explanation 
+                ? `<div class="bestmatch-explanation" style="margin-top:8px;padding:8px;background:var(--color-bg-secondary);border-radius:6px;font-size:11px;line-height:1.4;color:var(--color-text-secondary);border-left:3px solid var(--color-primary);">🤖 <strong>Pourquoi ce match :</strong> ${escapeHtml(c.ai_explanation)}</div>`
+                : '';
 
             return `
                 <a href="${viewFicheUrl}" class="bestmatch-card bestmatch-card-link${idx === 0 ? ' bestmatch-top' : ''}" title="Ouvrir la fiche candidat">
@@ -10158,6 +10351,8 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
                     <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · 📍 ' + escapeHtml(c.location) : ''}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
                     <div class="bestmatch-skills">${skillsHtml || '<span class="muted">Aucune compétence renseignée</span>'}</div>
                     <div class="bestmatch-matched">${(c.matched_tags || []).length} compétence${(c.matched_tags || []).length > 1 ? 's' : ''} en commun : ${(c.matched_tags || []).map(t => escapeHtml(t)).join(', ')}</div>
+                    ${semanticInfo}
+                    ${aiExplanation}
                     <div class="bestmatch-actions"><span class="bestmatch-action-label">Voir la fiche →</span></div>
                 </a>`;
         }).join('');
