@@ -321,9 +321,47 @@ Belle journée,"></textarea>
       </label>
     </div>
 
+    <div id="aiSonarSection" style="margin-bottom:14px;padding:14px;border-radius:10px;background:linear-gradient(135deg, rgba(59,130,246,.06), rgba(139,92,246,.06));border:1px solid rgba(59,130,246,.2);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <span style="font-size:22px;">🔍</span>
+        <div>
+          <h4 style="margin:0;font-size:14px;">Recherche web IA (Perplexity Sonar)</h4>
+          <div style="font-size:11px;color:var(--color-text-secondary);">Les boutons Scrapping IA, Scan IA et Bulk Email/Tel utiliseront Sonar pour chercher de vraies infos sur le web.</div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="aiWebSearchEnabled">
+          <span style="font-weight:600;">Activer la recherche web pour Scrapping / Scan / Bulk</span>
+        </label>
+      </div>
+      <div style="display:grid;gap:10px;max-width:450px;">
+        <div>
+          <label class="filter-label">Clé API Perplexity</label>
+          <div style="display:flex;gap:8px;">
+            <input type="password" id="aiSonarApiKey" class="filter-input" style="flex:1;" placeholder="pplx-..." autocomplete="off">
+            <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="var el=document.getElementById('aiSonarApiKey');el.type=el.type==='password'?'text':'password';">👁️</button>
+          </div>
+          <div class="muted" style="font-size:11px;margin-top:4px;">Obtenez une clé sur <a href="https://docs.perplexity.ai/guides/getting-started" target="_blank" style="color:var(--color-accent);">docs.perplexity.ai</a> · ~0.005$/requête</div>
+        </div>
+        <div>
+          <label class="filter-label">Modèle Sonar</label>
+          <select id="aiSonarModel" class="filter-input" style="width:100%;">
+            <option value="sonar">Sonar (rapide, économique)</option>
+            <option value="sonar-pro">Sonar Pro (meilleur, plus cher)</option>
+            <option value="sonar-reasoning-pro">Sonar Reasoning Pro (raisonnement avancé)</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="btn btn-secondary" id="btnSonarTest" onclick="testSonarConnection()">🔌 Tester Sonar</button>
+        <span id="sonarTestStatus" style="font-size:13px;margin-left:8px;"></span>
+      </div>
+    </div>
+
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <button class="btn btn-primary" id="btnAiSave" onclick="saveAiConfig()">💾 Enregistrer</button>
-      <button class="btn btn-secondary" id="btnAiTest" onclick="testAiConnection()">🔌 Tester la connexion</button>
+      <button class="btn btn-secondary" id="btnAiTest" onclick="testAiConnection()">🔌 Tester provider principal</button>
       <span id="aiConfigStatus" style="font-size:13px;"></span>
     </div>
 
@@ -885,6 +923,12 @@ window.changePassword = changePassword;
       if (groqModelEl) groqModelEl.value = c.groq_model || 'llama-3.3-70b-versatile';
       var fbEl = document.getElementById('aiFallbackEnabled');
       if (fbEl) fbEl.checked = c.fallback_enabled !== false;
+      var wsEl = document.getElementById('aiWebSearchEnabled');
+      if (wsEl) wsEl.checked = !!c.web_search_enabled;
+      var sonarKeyEl = document.getElementById('aiSonarApiKey');
+      if (sonarKeyEl) sonarKeyEl.placeholder = c.sonar_api_key_set ? (c.sonar_api_key_preview + ' (configurée)') : 'pplx-...';
+      var sonarModelEl = document.getElementById('aiSonarModel');
+      if (sonarModelEl && c.sonar_model) sonarModelEl.value = c.sonar_model;
       updateCardStyles();
     } catch(e) { console.warn('AI config load error:', e); }
   }
@@ -897,12 +941,16 @@ window.changePassword = changePassword;
     var payload = {
       provider: provider,
       fallback_enabled: document.getElementById('aiFallbackEnabled').checked,
+      web_search_enabled: document.getElementById('aiWebSearchEnabled').checked,
       ollama_url: (document.getElementById('aiOllamaUrl').value || '').trim(),
       ollama_model: (document.getElementById('aiOllamaModel').value || '').trim(),
-      groq_model: document.getElementById('aiGroqModel').value
+      groq_model: document.getElementById('aiGroqModel').value,
+      sonar_model: document.getElementById('aiSonarModel').value
     };
     var groqKey = (document.getElementById('aiGroqApiKey').value || '').trim();
     if (groqKey) payload.groq_api_key = groqKey;
+    var sonarKey = (document.getElementById('aiSonarApiKey').value || '').trim();
+    if (sonarKey) payload.sonar_api_key = sonarKey;
     try {
       var res = await fetch('/api/ai/config', {
         method: 'POST',
@@ -962,6 +1010,35 @@ window.changePassword = changePassword;
       resultEl.style.background = 'rgba(239,68,68,.08)';
       resultEl.style.border = '1px solid rgba(239,68,68,.3)';
       resultEl.innerHTML = '❌ Erreur réseau';
+    }
+  };
+
+  window.testSonarConnection = async function() {
+    var statusEl = document.getElementById('sonarTestStatus');
+    statusEl.textContent = '⏳ Test…';
+    statusEl.style.color = 'var(--color-text-secondary)';
+    var payload = { provider: 'sonar' };
+    var key = (document.getElementById('aiSonarApiKey').value || '').trim();
+    if (key) payload.sonar_api_key = key;
+    payload.sonar_model = document.getElementById('aiSonarModel').value;
+    try {
+      var res = await fetch('/api/ai/test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      var j = await res.json();
+      if (j.ok) {
+        statusEl.style.color = '#22c55e';
+        statusEl.textContent = '✅ Sonar connecté · ' + (j.model || '');
+        if (typeof showToast === 'function') showToast('Connexion Sonar OK', 'success');
+      } else {
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = '❌ ' + (j.error || 'Erreur');
+      }
+    } catch(e) {
+      statusEl.style.color = '#ef4444';
+      statusEl.textContent = '❌ Erreur réseau';
     }
   };
 

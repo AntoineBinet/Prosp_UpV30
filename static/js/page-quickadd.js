@@ -217,7 +217,7 @@
         if (ext === '.pdf' || ext === '.doc' || ext === '.docx') {
             _qaOverlayShow({
                 title: 'Traitement du document',
-                detail: 'Le fichier est envoyé au serveur. Extraction puis analyse par l\'IA (Ollama sur le PC qui héberge). Ne fermez pas.',
+                detail: 'Le fichier est envoyé au serveur. Extraction puis analyse par l\'IA. Ne fermez pas.',
                 phase: 'Envoi du fichier…'
             });
             const fd = new FormData();
@@ -290,7 +290,7 @@
                 .then(function() {})
                 .catch(function(err) {
                     _qaOverlayHide();
-                    var msg = (err && err.message) || 'Erreur réseau ou serveur. Ollama peut être indisponible ou le modèle trop lent : essayez Excel/CSV ou un modèle plus léger.';
+                    var msg = (err && err.message) || 'Erreur réseau ou serveur. L\'IA peut être indisponible ou le modèle trop lent : essayez Excel/CSV ou un modèle plus léger.';
                     showToast(msg, 'error', 6000);
                 });
             return;
@@ -375,7 +375,7 @@
         document.getElementById('qaStep3Paste').style.display = '';
         document.getElementById('qaPasteTextarea').value = '';
         document.getElementById('qaPasteTextarea').focus();
-        showToast('Prompt copié. Collez-le dans Ollama ou une autre IA, puis collez le retour ci-dessous.', 'info', 5000);
+        showToast('Prompt copié. Collez-le dans votre IA, puis collez le retour ci-dessous.', 'info', 5000);
     };
 
     window.qaStartMultiple = function () {
@@ -386,7 +386,7 @@
         document.getElementById('qaStep3Paste').style.display = '';
         document.getElementById('qaPasteTextarea').value = '';
         document.getElementById('qaPasteTextarea').focus();
-        showToast('Prompt copié. Collez-le dans Ollama ou une autre IA, puis collez le retour ci-dessous.', 'info', 5000);
+        showToast('Prompt copié. Collez-le dans votre IA, puis collez le retour ci-dessous.', 'info', 5000);
     };
 
     window.qaGenerateWithOllama = function (multiple) {
@@ -398,7 +398,7 @@
             showToast('Sans contexte, l\'IA génère un exemple. Vous pourrez modifier le résultat puis cliquer Analyser.', 'info', 5000);
         }
         const prompt = multiple ? _buildMultiPrompt(_qaType, context) : _buildSinglePrompt(_qaType, context);
-        if (typeof window.callOllama !== 'function') { showToast('Ollama non disponible', 'error'); return; }
+        if (typeof window.callOllama !== 'function') { showToast('IA non disponible', 'error'); return; }
         _qaOverlayShow({
             title: 'Génération en cours…',
             detail: 'Cela peut prendre plusieurs minutes. Ne fermez pas la fenêtre.',
@@ -426,7 +426,7 @@
             }
         }).catch(function (err) {
             _qaOverlayHide();
-            const msg = (err && err.message) === 'Timeout' ? 'Génération trop longue. Utilisez « Copier » puis collez le retour manuellement.' : 'Ollama indisponible. Utilisez « Copier » puis collez le retour manuellement.';
+            const msg = (err && err.message) === 'Timeout' ? 'Génération trop longue. Utilisez « Copier » puis collez le retour manuellement.' : 'IA indisponible. Utilisez « Copier » puis collez le retour manuellement.';
             showToast(msg, 'warning', 6000);
         });
     };

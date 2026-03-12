@@ -37,7 +37,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 - Multi-tenant : `owner_id` sur chaque enregistrement ; DB isolée par user dans `data/user_<id>/prospects.db` si elle existe
 
 ## Conventions
-- `APP_VERSION` dans app.py (actuellement "26.3") — incrementer a chaque release
+- `APP_VERSION` dans app.py (actuellement "26.4") — incrementer a chaque release
 - **Workflow git (IMPORTANT)** : TOUJOURS travailler directement sur `main`. Ne JAMAIS créer de branches. Après chaque demande avec modifications, vérifier qu'on est sur `main` (`git checkout main` si nécessaire), puis committer et pousser directement sur `main` (`git add`, `git commit`, `git push origin main`). Pour mettre à jour le serveur sur le PC hébergeur : utiliser le bouton « Mettre à jour et redémarrer » dans Paramètres (section admin). Le flux affiche la sortie git en direct puis recharge la page après redémarrage.
 - **Rappel fin de session** : À chaque fin de réponse où du code a été modifié, committer et pousser sur `main` pour que la session cloud et le pull (bouton Mettre à jour) soient à jour. Sinon les modifications ne seront pas sur Git donc pas dans le pull sur l'hébergeur.
 - Cache busters automatiques : app.py calcule les hash MD5 des fichiers statiques au demarrage et remplace `?v=XXXX` dans le HTML
@@ -52,18 +52,21 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 - **Providers supportés** :
   - **Ollama** (local, défaut) : gratuit, fonctionne hors-ligne, requiert GPU. Proxy backend vers `http://127.0.0.1:11434`.
   - **Groq** (cloud gratuit) : ultra-rapide (500+ tok/s), Llama 3.3 70B, nécessite clé API gratuite sur console.groq.com/keys.
+  - **Perplexity Sonar** (cloud + recherche web, v26.4) : enrichissement avec données web réelles. Pour Scrapping/Scan/Bulk IA. ~0.005$/requête. Clé API sur docs.perplexity.ai.
 - **Configuration** : Paramètres > Configuration IA (admin uniquement). Choix du provider, clés API, modèle, fallback. Persisté dans `data/ai_config.json`.
 - **Variables d'environnement** (défauts, surchargés par la config UI) :
   - `OLLAMA_URL` (défaut `http://127.0.0.1:11434`), `OLLAMA_MODEL` (défaut `llama3.2`), `OLLAMA_TIMEOUT` (secondes, défaut 120)
   - `GROQ_API_KEY` (vide par défaut), `GROQ_MODEL` (défaut `llama-3.3-70b-versatile`)
-  - `AI_PROVIDER` (défaut `ollama`, peut être `groq`)
+  - `PERPLEXITY_API_KEY` (vide par défaut), `SONAR_MODEL` (défaut `sonar`)
+  - `AI_PROVIDER` (défaut `ollama`, peut être `groq` ou `sonar`)
 - **Routes API** :
   - `POST /api/ollama/generate` — proxy IA unifié non-streaming (rétrocompatible)
   - `POST /api/ollama/generate-stream` — proxy IA unifié streaming SSE (rétrocompatible)
   - `GET /api/ai/config` — config IA courante (clés API masquées)
   - `POST /api/ai/config` — mise à jour config IA (admin)
   - `POST /api/ai/test` — test de connexion au provider
-- **Frontend** : `callOllama(prompt)` dans app.js reste le helper principal (nom conservé pour rétrocompatibilité). Le backend gère le routage transparent.
+- **Routing par fonctionnalité** (v26.4) : les boutons Scrapping/Scan/Bulk passent `web_search: true` au backend → routé vers Sonar si configuré, sinon provider principal. Les autres fonctions (reformatage, mapping, après réunion) restent sur le provider principal.
+- **Frontend** : `callOllama(prompt, { webSearch: true })` dans app.js active le routing web. Le backend gère le routage transparent.
 
 ### Entrées IA implémentées (boutons / flux)
 | Où | Bouton / action | Comportement |

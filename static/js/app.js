@@ -6112,6 +6112,7 @@ async function callOllama(prompt, options) {
     try {
         const body = { prompt };
         if (options.model) body.model = options.model;
+        if (options.webSearch) body.web_search = true;
         body.timeout = Math.min(600, Math.ceil(timeoutMs / 1000));
         
         let fullText = '';
@@ -6537,11 +6538,11 @@ function handleIAButton(type, id) {
     }
     const btn = document.getElementById(`btnIA_${type}_${id}`);
     if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
-    callOllama(prompt).then(function (text) {
+    callOllama(prompt, { webSearch: true }).then(function (text) {
         openIAImportModalWithText(type, id, text);
     }).catch(function () {
         openIAImportModal(type, id);
-        showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+        showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
     }).finally(function () {
         if (btn) { btn.disabled = false; btn.textContent = '🤖 Scrapping IA'; }
     });
@@ -6560,11 +6561,11 @@ function handleScanIA(prospectId) {
         btn.disabled = true; 
         const originalText = btn.textContent;
         btn.textContent = '🔍 Recherche…';
-        callOllama(prompt).then(function (text) {
+        callOllama(prompt, { webSearch: true }).then(function (text) {
             openIAImportModalWithText('prospect', prospectId, text);
         }).catch(function () {
             openIAImportModal('prospect', prospectId);
-            showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+            showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
         }).finally(function () {
             if (btn) { 
                 btn.disabled = false; 
@@ -6573,11 +6574,11 @@ function handleScanIA(prospectId) {
         });
     } else {
         // Fallback si le bouton n'est pas trouvé
-        callOllama(prompt).then(function (text) {
+        callOllama(prompt, { webSearch: true }).then(function (text) {
             openIAImportModalWithText('prospect', prospectId, text);
         }).catch(function () {
             openIAImportModal('prospect', prospectId);
-            showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+            showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
         });
     }
 }
@@ -7274,7 +7275,7 @@ function _ensureBulkIAModal() {
                     <strong>Étape 1 :</strong> Générez avec Ollama (local) ou copiez le prompt pour une autre IA.
                 </p>
                 <div class="bulk-ia-prompt-box" id="bulkIAPromptBox">
-                    <button class="copy-prompt-btn" onclick="runBulkIAWithOllama()" id="bulkIAOllamaBtn">🤖 Générer avec Ollama</button>
+                    <button class="copy-prompt-btn" onclick="runBulkIAWithOllama()" id="bulkIAOllamaBtn">🤖 Générer avec l'IA</button>
                     <button class="copy-prompt-btn" onclick="copyBulkIAPrompt()">📋 Copier</button>
                     <pre id="bulkIAPromptText" style="margin:0;white-space:pre-wrap;font-size:12px;"></pre>
                 </div>
@@ -7523,20 +7524,20 @@ async function runBulkIAWithOllama() {
     const btn = document.getElementById('bulkIAOllamaBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
     try {
-        const text = await callOllama(prompt);
+        const text = await callOllama(prompt, { webSearch: true });
         document.getElementById('bulkIAResultTextarea').value = text;
         parseBulkIAResult();
     } catch (e) {
-        showToast('Génération Ollama échouée. Collez manuellement le retour ci-dessous.', 'warning', 5000);
+        showToast('Génération IA échouée. Collez manuellement le retour ci-dessous.', 'warning', 5000);
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Générer avec Ollama'; }
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 Générer avec l\'IA'; }
     }
 }
 
 function copyBulkIAPrompt() {
     const text = document.getElementById('bulkIAPromptText').textContent;
     navigator.clipboard.writeText(text).then(() => {
-        showToast('Prompt copié. Collez dans votre IA ou utilisez Générer avec Ollama.', 'success', 4000);
+        showToast('Prompt copié. Collez dans votre IA ou utilisez Générer avec l\'IA.', 'success', 4000);
     }).catch(() => {
         const ta = document.createElement('textarea');
         ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;';

@@ -27,7 +27,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "26.3"
+APP_VERSION = "26.4"
 import os
 import subprocess
 import traceback
@@ -92,6 +92,11 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY") or ""
 GROQ_MODEL = os.environ.get("GROQ_MODEL") or "llama-3.3-70b-versatile"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
+# Multi-provider IA — Perplexity Sonar (cloud + recherche web)
+SONAR_API_KEY = os.environ.get("PERPLEXITY_API_KEY") or ""
+SONAR_MODEL = os.environ.get("SONAR_MODEL") or "sonar"
+SONAR_URL = "https://api.perplexity.ai/chat/completions"
+
 # ═══════════════════════════════════════════════════════════════════
 # v26.3: Multi-provider IA — config persistence & unified AI calls
 # ═══════════════════════════════════════════════════════════════════
@@ -110,6 +115,9 @@ def _load_ai_config() -> dict:
         "ollama_model": OLLAMA_MODEL,
         "groq_api_key": GROQ_API_KEY,
         "groq_model": GROQ_MODEL,
+        "sonar_api_key": SONAR_API_KEY,
+        "sonar_model": SONAR_MODEL,
+        "web_search_enabled": False,
     }
     if _AI_CONFIG_FILE.exists():
         try:
@@ -151,8 +159,21 @@ def _call_ai(prompt: str, timeout: int = 120) -> str:
         except Exception:
             raise primary_err
 
+def _call_ai_web(prompt: str, timeout: int = 120) -> str:
+    """Appel IA avec recherche web (Sonar si configuré, sinon provider principal)."""
+    config = _load_ai_config()
+    if config.get("web_search_enabled") and config.get("sonar_api_key"):
+        try:
+            return _call_sonar(prompt, config, timeout)
+        except Exception as e:
+            logger.warning("Sonar failed, falling back to main provider: %s", e)
+            return _call_ai(prompt, timeout)
+    return _call_ai(prompt, timeout)
+
 def _call_ai_provider(provider: str, prompt: str, config: dict, timeout: int) -> str:
     """Appelle un provider spécifique (non-streaming)."""
+    if provider == "sonar":
+        return _call_sonar(prompt, config, timeout)
     if provider == "groq":
         return _call_groq(prompt, config, timeout)
     return _call_ollama_direct(prompt, config, timeout)
@@ -191,6 +212,42 @@ def _call_groq(prompt: str, config: dict, timeout: int) -> str:
         data = json.loads(resp.read().decode("utf-8"))
     return data["choices"][0]["message"]["content"].strip()
 
+def _call_sonar(prompt: str, config: dict, timeout: int) -> str:
+    """Appel à Perplexity Sonar (non-streaming, recherche web intégrée)."""
+    api_key = config.get("sonar_api_key", "")
+    if not api_key:
+        raise ValueError("Clé API Perplexity non configurée. Ajoutez-la dans Paramètres > Configuration IA.")
+    model = config.get("sonar_model", SONAR_MODEL)
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "temperature": 0.3,
+    }, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        SONAR_URL, data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    text = data["choices"][0]["message"]["content"].strip()
+    citations = data.get("citations", [])
+    if citations:
+        text += "\n\n📎 Sources :\n" + "\n".join(f"- {c}" for c in citations[:5])
+    return text
+
+def _stream_ai_web_sse(prompt: str, model_override: str | None, timeout: int):
+    """Stream SSE pour recherche web (Sonar si configuré, sinon provider principal)."""
+    config = _load_ai_config()
+    if config.get("web_search_enabled") and config.get("sonar_api_key"):
+        try:
+            yield from _stream_sonar_sse(prompt, model_override, config, timeout)
+            return
+        except Exception as e:
+            logger.warning("Sonar stream failed, falling back: %s", e)
+    yield from _stream_ai_sse(prompt, model_override, timeout)
+
 def _stream_ai_sse(prompt: str, model_override: str | None, timeout: int):
     """Générateur SSE unifié. Yield des lignes 'data: {...}\\n\\n' dans le format attendu par le frontend."""
     config = _load_ai_config()
@@ -217,7 +274,9 @@ def _stream_ai_sse(prompt: str, model_override: str | None, timeout: int):
 
 def _stream_provider_sse(provider: str, prompt: str, model_override: str | None, config: dict, timeout: int):
     """Stream SSE pour un provider spécifique."""
-    if provider == "groq":
+    if provider == "sonar":
+        yield from _stream_sonar_sse(prompt, model_override, config, timeout)
+    elif provider == "groq":
         yield from _stream_groq_sse(prompt, model_override, config, timeout)
     else:
         yield from _stream_ollama_sse(prompt, model_override, config, timeout)
@@ -299,6 +358,49 @@ def _stream_groq_sse(prompt: str, model_override: str | None, config: dict, time
                 except json.JSONDecodeError:
                     continue
     yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
+
+def _stream_sonar_sse(prompt: str, model_override: str | None, config: dict, timeout: int):
+    """Stream SSE via Perplexity Sonar (OpenAI-compatible streaming + web search)."""
+    api_key = config.get("sonar_api_key", "")
+    if not api_key:
+        raise ValueError("Clé API Perplexity non configurée")
+    model = model_override or config.get("sonar_model", SONAR_MODEL)
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": True,
+        "temperature": 0.3,
+    }, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        SONAR_URL, data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        yield f"data: {json.dumps({'type': 'start', 'message': 'Recherche web Sonar en cours…'}, ensure_ascii=False)}\n\n"
+        buffer = b""
+        for chunk in resp:
+            buffer += chunk
+            while b"\n" in buffer:
+                line_bytes, buffer = buffer.split(b"\n", 1)
+                line_str = line_bytes.decode("utf-8", errors="ignore").strip()
+                if not line_str:
+                    continue
+                if not line_str.startswith("data: "):
+                    continue
+                data_str = line_str[6:]
+                if data_str == "[DONE]":
+                    yield f"data: {json.dumps({'type': 'end', 'message': 'Recherche terminée'}, ensure_ascii=False)}\n\n"
+                    return
+                try:
+                    data = json.loads(data_str)
+                    delta = data.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content", "")
+                    if content:
+                        yield f"data: {json.dumps({'type': 'token', 'text': content, 'done': False}, ensure_ascii=False)}\n\n"
+                except json.JSONDecodeError:
+                    continue
+    yield f"data: {json.dumps({'type': 'end', 'message': 'Recherche terminée'}, ensure_ascii=False)}\n\n"
 
 app = Flask(__name__, static_folder=str(APP_DIR / 'static'), static_url_path='/static', template_folder=str(APP_DIR / 'templates'))
 
@@ -7674,8 +7776,9 @@ def api_ollama_generate():
         req_timeout = OLLAMA_TIMEOUT
     if not prompt:
         return jsonify(ok=False, error="prompt requis"), 400
+    web_search = payload.get("web_search", False)
     try:
-        text = _call_ai(prompt, timeout=req_timeout)
+        text = _call_ai_web(prompt, timeout=req_timeout) if web_search else _call_ai(prompt, timeout=req_timeout)
         return jsonify(ok=True, text=text)
     except urllib.error.HTTPError as e:
         try:
@@ -7716,9 +7819,11 @@ def api_ollama_generate_stream():
         req_timeout = OLLAMA_TIMEOUT
     if not prompt:
         return jsonify(ok=False, error="prompt requis"), 400
+    web_search = payload.get("web_search", False)
+    stream_fn = _stream_ai_web_sse if web_search else _stream_ai_sse
 
     return Response(
-        _stream_ai_sse(prompt, model, req_timeout),
+        stream_fn(prompt, model, req_timeout),
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -7736,6 +7841,7 @@ def api_ai_config_get():
         return jsonify(ok=False, error="Non authentifié"), 401
     config = _load_ai_config()
     groq_key = config.get("groq_api_key", "")
+    sonar_key = config.get("sonar_api_key", "")
     return jsonify(ok=True, config={
         "provider": config.get("provider", "ollama"),
         "fallback_enabled": config.get("fallback_enabled", True),
@@ -7744,6 +7850,10 @@ def api_ai_config_get():
         "groq_model": config.get("groq_model", GROQ_MODEL),
         "groq_api_key_set": bool(groq_key),
         "groq_api_key_preview": (groq_key[:8] + "…") if len(groq_key) > 8 else ("••••" if groq_key else ""),
+        "web_search_enabled": config.get("web_search_enabled", False),
+        "sonar_model": config.get("sonar_model", SONAR_MODEL),
+        "sonar_api_key_set": bool(sonar_key),
+        "sonar_api_key_preview": (sonar_key[:8] + "…") if len(sonar_key) > 8 else ("••••" if sonar_key else ""),
     })
 
 @app.post("/api/ai/config")
@@ -7756,7 +7866,7 @@ def api_ai_config_post():
         return jsonify(ok=False, error="Réservé aux administrateurs"), 403
     payload = request.get_json(force=True, silent=True) or {}
     config = _load_ai_config()
-    if "provider" in payload and payload["provider"] in ("ollama", "groq"):
+    if "provider" in payload and payload["provider"] in ("ollama", "groq", "sonar"):
         config["provider"] = payload["provider"]
     if "fallback_enabled" in payload:
         config["fallback_enabled"] = bool(payload["fallback_enabled"])
@@ -7768,6 +7878,12 @@ def api_ai_config_post():
         config["groq_api_key"] = str(payload["groq_api_key"]).strip()
     if "groq_model" in payload:
         config["groq_model"] = str(payload["groq_model"]).strip() or GROQ_MODEL
+    if "sonar_api_key" in payload:
+        config["sonar_api_key"] = str(payload["sonar_api_key"]).strip()
+    if "sonar_model" in payload:
+        config["sonar_model"] = str(payload["sonar_model"]).strip() or SONAR_MODEL
+    if "web_search_enabled" in payload:
+        config["web_search_enabled"] = bool(payload["web_search_enabled"])
     _save_ai_config(config)
     logger.info("AI config updated by user %s: provider=%s", user.get("id"), config.get("provider"))
     return jsonify(ok=True)
@@ -7792,11 +7908,15 @@ def api_ai_test():
             config["ollama_url"] = payload["ollama_url"]
         if payload.get("ollama_model"):
             config["ollama_model"] = payload["ollama_model"]
+        if payload.get("sonar_api_key"):
+            config["sonar_api_key"] = payload["sonar_api_key"]
+        if payload.get("sonar_model"):
+            config["sonar_model"] = payload["sonar_model"]
     test_provider = config.get("provider", "ollama")
     test_prompt = "Réponds uniquement par le mot OK."
     try:
         text = _call_ai_provider(test_provider, test_prompt, config, timeout=15)
-        model = config.get("groq_model") if test_provider == "groq" else config.get("ollama_model")
+        model = config.get("sonar_model") if test_provider == "sonar" else config.get("groq_model") if test_provider == "groq" else config.get("ollama_model")
         return jsonify(ok=True, provider=test_provider, model=model, response=text.strip()[:200])
     except urllib.error.HTTPError as e:
         try:

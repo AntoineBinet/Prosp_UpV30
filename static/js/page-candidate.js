@@ -925,14 +925,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!prompt) return;
         const btn = document.getElementById('btnIA_candidate_0');
         if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
-        (typeof callOllama === 'function' ? callOllama(prompt) : Promise.reject(new Error('callOllama manquant')))
+        (typeof callOllama === 'function' ? callOllama(prompt, { webSearch: true }) : Promise.reject(new Error('callOllama manquant')))
             .then(function (text) {
                 if (typeof openIAImportModalWithText === 'function') openIAImportModalWithText('candidate', __cand.id, text);
                 else if (typeof openIAImportModal === 'function') { openIAImportModal('candidate', __cand.id); document.getElementById('iaImportTextarea').value = text; if (typeof parseIAImportModal === 'function') parseIAImportModal(); }
             })
             .catch(function () {
                 if (typeof openIAImportModal === 'function') openIAImportModal('candidate', __cand.id);
-                if (typeof showToast === 'function') showToast('Ollama indisponible. Collez manuellement le retour ci-dessous.', 'warning', 6000);
+                if (typeof showToast === 'function') showToast('IA indisponible. Collez manuellement le retour ci-dessous.', 'warning', 6000);
             })
             .finally(function () {
                 if (btn) { btn.disabled = false; btn.textContent = '🤖 Scrapping IA'; }
