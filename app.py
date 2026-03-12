@@ -27,7 +27,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "26.2"
+APP_VERSION = "26.3"
 import os
 import subprocess
 import traceback
@@ -86,6 +86,219 @@ SNAPSHOT_DIR = APP_DIR / "snapshots"
 OLLAMA_URL = (os.environ.get("OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL") or "llama3.2"
 OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT") or "120")
+
+# Multi-provider IA — Groq (cloud gratuit, API OpenAI-compatible)
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY") or ""
+GROQ_MODEL = os.environ.get("GROQ_MODEL") or "llama-3.3-70b-versatile"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# ═══════════════════════════════════════════════════════════════════
+# v26.3: Multi-provider IA — config persistence & unified AI calls
+# ═══════════════════════════════════════════════════════════════════
+_AI_CONFIG_FILE = DATA_DIR / "ai_config.json"
+_ai_config_cache: dict | None = None
+
+def _load_ai_config() -> dict:
+    """Charge la config IA depuis le fichier ou les variables d'environnement."""
+    global _ai_config_cache
+    if _ai_config_cache is not None:
+        return _ai_config_cache
+    defaults = {
+        "provider": os.environ.get("AI_PROVIDER") or "ollama",
+        "fallback_enabled": True,
+        "ollama_url": OLLAMA_URL,
+        "ollama_model": OLLAMA_MODEL,
+        "groq_api_key": GROQ_API_KEY,
+        "groq_model": GROQ_MODEL,
+    }
+    if _AI_CONFIG_FILE.exists():
+        try:
+            with open(_AI_CONFIG_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            for k, v in saved.items():
+                if v is not None and v != "":
+                    defaults[k] = v
+        except Exception:
+            pass
+    _ai_config_cache = defaults
+    return defaults
+
+def _save_ai_config(config: dict):
+    """Persiste la config IA sur disque et rafraîchit le cache."""
+    global _ai_config_cache
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(_AI_CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+    _ai_config_cache = config
+
+def _call_ai(prompt: str, timeout: int = 120) -> str:
+    """Appel IA non-streaming unifié. Retourne le texte généré. Gère le fallback."""
+    config = _load_ai_config()
+    provider = config.get("provider", "ollama")
+    fallback = config.get("fallback_enabled", True)
+    try:
+        return _call_ai_provider(provider, prompt, config, timeout)
+    except Exception as primary_err:
+        if not fallback:
+            raise
+        alt = "ollama" if provider == "groq" else "groq"
+        alt_key = config.get("groq_api_key", "")
+        if alt == "groq" and not alt_key:
+            raise primary_err
+        try:
+            logger.info("IA fallback %s → %s", provider, alt)
+            return _call_ai_provider(alt, prompt, config, timeout)
+        except Exception:
+            raise primary_err
+
+def _call_ai_provider(provider: str, prompt: str, config: dict, timeout: int) -> str:
+    """Appelle un provider spécifique (non-streaming)."""
+    if provider == "groq":
+        return _call_groq(prompt, config, timeout)
+    return _call_ollama_direct(prompt, config, timeout)
+
+def _call_ollama_direct(prompt: str, config: dict, timeout: int) -> str:
+    """Appel direct à Ollama (non-streaming)."""
+    url = config.get("ollama_url", OLLAMA_URL)
+    model = config.get("ollama_model", OLLAMA_MODEL)
+    body = json.dumps({"model": model, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        f"{url}/api/generate", data=body,
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return data.get("response", "").strip()
+
+def _call_groq(prompt: str, config: dict, timeout: int) -> str:
+    """Appel à Groq (non-streaming, API OpenAI-compatible)."""
+    api_key = config.get("groq_api_key", "")
+    if not api_key:
+        raise ValueError("Clé API Groq non configurée. Ajoutez-la dans Paramètres > Configuration IA.")
+    model = config.get("groq_model", GROQ_MODEL)
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "temperature": 0.3,
+    }, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        GROQ_URL, data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return data["choices"][0]["message"]["content"].strip()
+
+def _stream_ai_sse(prompt: str, model_override: str | None, timeout: int):
+    """Générateur SSE unifié. Yield des lignes 'data: {...}\\n\\n' dans le format attendu par le frontend."""
+    config = _load_ai_config()
+    provider = config.get("provider", "ollama")
+    fallback = config.get("fallback_enabled", True)
+
+    try:
+        yield from _stream_provider_sse(provider, prompt, model_override, config, timeout)
+        return
+    except Exception as primary_err:
+        if not fallback:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(primary_err)}, ensure_ascii=False)}\n\n"
+            return
+        alt = "ollama" if provider == "groq" else "groq"
+        if alt == "groq" and not config.get("groq_api_key", ""):
+            yield f"data: {json.dumps({'type': 'error', 'message': str(primary_err)}, ensure_ascii=False)}\n\n"
+            return
+        try:
+            logger.info("IA stream fallback %s → %s", provider, alt)
+            yield f"data: {json.dumps({'type': 'start', 'message': f'Basculement vers {alt}…'}, ensure_ascii=False)}\n\n"
+            yield from _stream_provider_sse(alt, prompt, model_override, config, timeout)
+        except Exception:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(primary_err)}, ensure_ascii=False)}\n\n"
+
+def _stream_provider_sse(provider: str, prompt: str, model_override: str | None, config: dict, timeout: int):
+    """Stream SSE pour un provider spécifique."""
+    if provider == "groq":
+        yield from _stream_groq_sse(prompt, model_override, config, timeout)
+    else:
+        yield from _stream_ollama_sse(prompt, model_override, config, timeout)
+
+def _stream_ollama_sse(prompt: str, model_override: str | None, config: dict, timeout: int):
+    """Stream SSE via Ollama."""
+    url = config.get("ollama_url", OLLAMA_URL)
+    model = model_override or config.get("ollama_model", OLLAMA_MODEL)
+    body = json.dumps({"model": model, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        f"{url}/api/generate", data=body,
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
+        buffer = b""
+        for chunk in resp:
+            buffer += chunk
+            while b"\n" in buffer:
+                line_bytes, buffer = buffer.split(b"\n", 1)
+                line_json = line_bytes.decode("utf-8", errors="ignore").strip()
+                if not line_json:
+                    continue
+                try:
+                    data = json.loads(line_json)
+                    if data.get("done", False):
+                        full_text = data.get("response", "")
+                        if full_text:
+                            yield f"data: {json.dumps({'type': 'token', 'text': full_text, 'done': True}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
+                        return
+                    else:
+                        token = data.get("response", "")
+                        if token:
+                            yield f"data: {json.dumps({'type': 'token', 'text': token, 'done': False}, ensure_ascii=False)}\n\n"
+                except json.JSONDecodeError:
+                    continue
+    yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
+
+def _stream_groq_sse(prompt: str, model_override: str | None, config: dict, timeout: int):
+    """Stream SSE via Groq (OpenAI-compatible streaming)."""
+    api_key = config.get("groq_api_key", "")
+    if not api_key:
+        raise ValueError("Clé API Groq non configurée")
+    model = model_override or config.get("groq_model", GROQ_MODEL)
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": True,
+        "temperature": 0.3,
+    }, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        GROQ_URL, data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Groq établie'}, ensure_ascii=False)}\n\n"
+        buffer = b""
+        for chunk in resp:
+            buffer += chunk
+            while b"\n" in buffer:
+                line_bytes, buffer = buffer.split(b"\n", 1)
+                line_str = line_bytes.decode("utf-8", errors="ignore").strip()
+                if not line_str:
+                    continue
+                if not line_str.startswith("data: "):
+                    continue
+                data_str = line_str[6:]
+                if data_str == "[DONE]":
+                    yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
+                    return
+                try:
+                    data = json.loads(data_str)
+                    delta = data.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content", "")
+                    if content:
+                        yield f"data: {json.dumps({'type': 'token', 'text': content, 'done': False}, ensure_ascii=False)}\n\n"
+                except json.JSONDecodeError:
+                    continue
+    yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
 
 app = Flask(__name__, static_folder=str(APP_DIR / 'static'), static_url_path='/static', template_folder=str(APP_DIR / 'templates'))
 
@@ -4543,14 +4756,7 @@ def api_prospect_best_candidates(prospect_id: int):
             prospect_ctx = f"Prospect: {prospect_name}, entreprise {company_groupe}, tags: {prospect_tags}"
             cand_lines = "\n".join(f"- {c.get('name') or '?'}: {', '.join((c.get('matched_tags') or [])[:8])}" for c in top)
             prompt = f"Contexte: {prospect_ctx}\n\nCandidats (nom + compétences matchées):\n{cand_lines}\n\nRéponds UNIQUEMENT par les noms des candidats, un par ligne, du meilleur au moins bon match. Pas d'autre texte."
-            body = json.dumps({"model": os.environ.get("OLLAMA_MODEL") or "llama3.2", "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{os.environ.get('OLLAMA_URL') or 'http://127.0.0.1:11434'}/api/generate",
-                data=body, headers={"Content-Type": "application/json"}, method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            text = (data.get("response") or "").strip()
+            text = _call_ai(prompt, timeout=15)
             if text:
                 order_names = [n.strip() for n in text.split("\n") if n.strip()]
                 by_name = {c.get("name"): c for c in top}
@@ -5179,21 +5385,12 @@ def api_stats_export_weekly_xlsx():
     week_num = monday.isocalendar()[1]
     week_label = f"S{week_num}"
 
-    # ── Helper: Call Ollama if enabled ──
+    # ── Helper: Call AI if enabled ──
     def _call_ollama(prompt: str) -> str:
         if not use_ollama:
             return ""
         try:
-            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{OLLAMA_URL}/api/generate",
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            return data.get("response", "").strip()
+            return _call_ai(prompt, timeout=OLLAMA_TIMEOUT)
         except Exception:
             return ""
 
@@ -7317,31 +7514,20 @@ Texte :
     prompt += text
 
     try:
-        body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
-        req = urllib.request.Request(
-            f"{OLLAMA_URL}/api/generate",
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
         timeout = min(180, OLLAMA_TIMEOUT + 60)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        raw_response = data.get("response", "")
-        # Extraire le tableau JSON de la réponse
-        import re as re_mod
-        match = re_mod.search(r"\[[\s\S]*\]", raw_response)
+        raw_response = _call_ai(prompt, timeout=timeout)
+        match = re.search(r"\[[\s\S]*\]", raw_response)
         if not match:
-            return jsonify(ok=False, error="L'IA n'a pas renvoyé de liste valide. Modèle peut-être trop léger : essayez un modèle plus puissant (ex. llama3.1) ou importez en Excel/CSV."), 400
+            return jsonify(ok=False, error="L'IA n'a pas renvoyé de liste valide. Essayez un modèle plus puissant ou importez en Excel/CSV."), 400
         items = json.loads(match.group(0))
         if not isinstance(items, list):
             items = [items]
         return jsonify(ok=True, items=items, entity_type=entity_type)
     except urllib.error.URLError as e:
-        logger.warning("Ollama unreachable (parse-document): %s", e)
-        return jsonify(ok=False, error="Ollama indisponible sur le PC qui héberge Prosp'Up. Lancez Ollama ou utilisez Excel/CSV."), 503
+        logger.warning("AI unreachable (parse-document): %s", e)
+        return jsonify(ok=False, error="IA indisponible. Vérifiez la configuration dans Paramètres > Configuration IA."), 503
     except json.JSONDecodeError as e:
-        logger.warning("Ollama invalid JSON (parse-document): %s", e)
+        logger.warning("AI invalid JSON (parse-document): %s", e)
         return jsonify(ok=False, error="Réponse IA invalide (modèle peut-être trop léger). Essayez un modèle plus puissant ou importez en Excel/CSV."), 400
     except Exception as e:
         logger.exception("quickadd parse-document failed: %s", e)
@@ -7416,41 +7602,34 @@ Texte :
 """
             prompt += text
 
-            yield _sse_message("phase", {"step": "ollama", "label": "Analyse par l'IA (Ollama)…"})
-            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{OLLAMA_URL}/api/generate",
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
+            config = _load_ai_config()
+            provider_label = "Groq" if config.get("provider") == "groq" else "Ollama"
+            yield _sse_message("phase", {"step": "ollama", "label": f"Analyse par l'IA ({provider_label})…"})
             timeout = min(180, OLLAMA_TIMEOUT + 60)
             full_response = []
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                buffer = b""
-                for chunk in resp:
-                    buffer += chunk
-                    while b"\n" in buffer:
-                        line_bytes, buffer = buffer.split(b"\n", 1)
-                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
-                        if not line_json:
-                            continue
-                        try:
-                            data = json.loads(line_json)
-                            token = data.get("response", "")
-                            if token:
-                                full_response.append(token)
-                                yield _sse_message("token", {"text": token})
-                            if data.get("done", False):
-                                break
-                        except json.JSONDecodeError:
-                            continue
+            for sse_line in _stream_ai_sse(prompt, None, timeout):
+                if not sse_line.startswith("data: "):
+                    continue
+                data_str = sse_line.strip().removeprefix("data: ").strip()
+                if not data_str:
+                    continue
+                try:
+                    evt = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+                if evt.get("type") == "token":
+                    token_text = evt.get("text", "")
+                    if token_text:
+                        full_response.append(token_text)
+                        yield _sse_message("token", {"text": token_text})
+                elif evt.get("type") == "error":
+                    yield _sse_message("error", {"message": evt.get("message", "Erreur IA")})
+                    return
             raw_response = "".join(full_response)
-            re_mod = __import__("re")
-            match = re_mod.search(r"\[[\s\S]*\]", raw_response)
+            match = re.search(r"\[[\s\S]*\]", raw_response)
             if not match:
                 yield _sse_message("error", {
-                    "message": "L'IA n'a pas renvoyé de liste valide. Modèle peut-être trop léger : essayez un modèle plus puissant (ex. llama3.1) ou importez en Excel/CSV."
+                    "message": "L'IA n'a pas renvoyé de liste valide. Essayez un modèle plus puissant ou importez en Excel/CSV."
                 })
                 return
             try:
@@ -7462,9 +7641,9 @@ Texte :
                 items = [items]
             yield _sse_message("done", {"items": items, "entity_type": entity_type})
         except urllib.error.URLError as e:
-            logger.warning("Ollama unreachable (parse-document-stream): %s", e)
+            logger.warning("AI unreachable (parse-document-stream): %s", e)
             yield _sse_message("error", {
-                "message": "Ollama indisponible sur le PC qui héberge Prosp'Up. Lancez Ollama ou utilisez Excel/CSV."
+                "message": "IA indisponible. Vérifiez la configuration dans Paramètres > Configuration IA."
             })
         except Exception as e:
             logger.exception("quickadd parse-document-stream failed: %s", e)
@@ -7479,13 +7658,12 @@ Texte :
 
 @app.post("/api/ollama/generate")
 def api_ollama_generate():
-    """Proxy vers Ollama local : reçoit un prompt, appelle Ollama, renvoie le texte généré. timeouts: 120s défaut, jusqu'à 600s si demandé."""
+    """Proxy IA unifié (non-streaming) : route vers le provider configuré (Ollama/Groq) avec fallback."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
     payload = request.get_json(force=True, silent=True) or {}
     prompt = payload.get("prompt")
-    model = payload.get("model") or OLLAMA_MODEL
     req_timeout = payload.get("timeout")
     if req_timeout is not None:
         try:
@@ -7497,20 +7675,8 @@ def api_ollama_generate():
     if not prompt:
         return jsonify(ok=False, error="prompt requis"), 400
     try:
-        body = json.dumps({"model": model, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
-        req = urllib.request.Request(
-            f"{OLLAMA_URL}/api/generate",
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=req_timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        text = data.get("response", "")
+        text = _call_ai(prompt, timeout=req_timeout)
         return jsonify(ok=True, text=text)
-    except urllib.error.URLError as e:
-        logger.warning("Ollama unreachable: %s", e)
-        return jsonify(ok=False, error="Ollama indisponible (vérifiez qu'il tourne sur ce PC)"), 503
     except urllib.error.HTTPError as e:
         try:
             err_body = e.read().decode("utf-8")
@@ -7518,22 +7684,28 @@ def api_ollama_generate():
             msg = err_data.get("error", err_body) or str(e)
         except Exception:
             msg = str(e)
-        logger.warning("Ollama HTTP error %s: %s", e.code, msg)
+        logger.warning("AI HTTP error %s: %s", e.code, msg)
         return jsonify(ok=False, error=msg), 502
+    except urllib.error.URLError as e:
+        config = _load_ai_config()
+        provider = config.get("provider", "ollama")
+        label = "Ollama" if provider == "ollama" else "Groq"
+        logger.warning("%s unreachable: %s", label, e)
+        return jsonify(ok=False, error=f"{label} indisponible (vérifiez la configuration dans Paramètres)"), 503
     except Exception as e:
-        logger.exception("Ollama generate failed")
+        logger.exception("AI generate failed")
         return jsonify(ok=False, error=str(e)), 503
 
 
 @app.post("/api/ollama/generate-stream")
 def api_ollama_generate_stream():
-    """Proxy vers Ollama local avec streaming SSE : envoie les tokens au fur et à mesure pour éviter les timeouts Cloudflare."""
+    """Proxy IA unifié avec streaming SSE : route vers le provider configuré (Ollama/Groq) avec fallback."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
     payload = request.get_json(force=True, silent=True) or {}
     prompt = payload.get("prompt")
-    model = payload.get("model") or OLLAMA_MODEL
+    model = payload.get("model")
     req_timeout = payload.get("timeout")
     if req_timeout is not None:
         try:
@@ -7544,67 +7716,101 @@ def api_ollama_generate_stream():
         req_timeout = OLLAMA_TIMEOUT
     if not prompt:
         return jsonify(ok=False, error="prompt requis"), 400
-    
-    def generate():
-        try:
-            body = json.dumps({"model": model, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{OLLAMA_URL}/api/generate",
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=req_timeout) as resp:
-                # Envoyer un événement de démarrage
-                yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
-                
-                buffer = b""
-                for chunk in resp:
-                    buffer += chunk
-                    # Ollama envoie des lignes JSON séparées par \n
-                    while b"\n" in buffer:
-                        line_bytes, buffer = buffer.split(b"\n", 1)
-                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
-                        if not line_json:
-                            continue
-                        try:
-                            data = json.loads(line_json)
-                            if data.get("done", False):
-                                # Dernier chunk avec le texte complet
-                                full_text = data.get("response", "")
-                                if full_text:
-                                    yield f"data: {json.dumps({'type': 'token', 'text': full_text, 'done': True}, ensure_ascii=False)}\n\n"
-                                yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
-                                break
-                            else:
-                                # Token partiel
-                                token = data.get("response", "")
-                                if token:
-                                    yield f"data: {json.dumps({'type': 'token', 'text': token, 'done': False}, ensure_ascii=False)}\n\n"
-                        except json.JSONDecodeError:
-                            continue
-        except urllib.error.URLError as e:
-            logger.warning("Ollama unreachable (stream): %s", e)
-            err_msg = "Ollama indisponible (vérifiez qu'il tourne sur ce PC)"
-            yield f"data: {json.dumps({'type': 'error', 'message': err_msg}, ensure_ascii=False)}\n\n"
-        except urllib.error.HTTPError as e:
-            try:
-                err_body = e.read().decode("utf-8")
-                err_data = json.loads(err_body) if err_body else {}
-                msg = err_data.get("error", err_body) or str(e)
-            except Exception:
-                msg = str(e)
-            logger.warning("Ollama HTTP error %s (stream): %s", e.code, msg)
-            yield f"data: {json.dumps({'type': 'error', 'message': msg}, ensure_ascii=False)}\n\n"
-        except Exception as e:
-            logger.exception("Ollama generate stream failed")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
-    
-    return Response(generate(), mimetype="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no"  # Désactive le buffering nginx
+
+    return Response(
+        _stream_ai_sse(prompt, model, req_timeout),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v26.3: API de configuration IA multi-provider
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/ai/config")
+def api_ai_config_get():
+    """Retourne la config IA courante (provider, modèles, statut). Masque les clés API."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    config = _load_ai_config()
+    groq_key = config.get("groq_api_key", "")
+    return jsonify(ok=True, config={
+        "provider": config.get("provider", "ollama"),
+        "fallback_enabled": config.get("fallback_enabled", True),
+        "ollama_url": config.get("ollama_url", OLLAMA_URL),
+        "ollama_model": config.get("ollama_model", OLLAMA_MODEL),
+        "groq_model": config.get("groq_model", GROQ_MODEL),
+        "groq_api_key_set": bool(groq_key),
+        "groq_api_key_preview": (groq_key[:8] + "…") if len(groq_key) > 8 else ("••••" if groq_key else ""),
     })
 
+@app.post("/api/ai/config")
+def api_ai_config_post():
+    """Met à jour la config IA. Admin uniquement."""
+    user = _get_current_user()
+    if not user:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if user.get("role") != "admin":
+        return jsonify(ok=False, error="Réservé aux administrateurs"), 403
+    payload = request.get_json(force=True, silent=True) or {}
+    config = _load_ai_config()
+    if "provider" in payload and payload["provider"] in ("ollama", "groq"):
+        config["provider"] = payload["provider"]
+    if "fallback_enabled" in payload:
+        config["fallback_enabled"] = bool(payload["fallback_enabled"])
+    if "ollama_url" in payload:
+        config["ollama_url"] = str(payload["ollama_url"]).strip().rstrip("/") or OLLAMA_URL
+    if "ollama_model" in payload:
+        config["ollama_model"] = str(payload["ollama_model"]).strip() or OLLAMA_MODEL
+    if "groq_api_key" in payload:
+        config["groq_api_key"] = str(payload["groq_api_key"]).strip()
+    if "groq_model" in payload:
+        config["groq_model"] = str(payload["groq_model"]).strip() or GROQ_MODEL
+    _save_ai_config(config)
+    logger.info("AI config updated by user %s: provider=%s", user.get("id"), config.get("provider"))
+    return jsonify(ok=True)
+
+@app.post("/api/ai/test")
+def api_ai_test():
+    """Teste la connexion au provider IA configuré."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    provider = payload.get("provider")
+    config = _load_ai_config()
+    if provider:
+        config = dict(config)
+        config["provider"] = provider
+        if payload.get("groq_api_key"):
+            config["groq_api_key"] = payload["groq_api_key"]
+        if payload.get("groq_model"):
+            config["groq_model"] = payload["groq_model"]
+        if payload.get("ollama_url"):
+            config["ollama_url"] = payload["ollama_url"]
+        if payload.get("ollama_model"):
+            config["ollama_model"] = payload["ollama_model"]
+    test_provider = config.get("provider", "ollama")
+    test_prompt = "Réponds uniquement par le mot OK."
+    try:
+        text = _call_ai_provider(test_provider, test_prompt, config, timeout=15)
+        model = config.get("groq_model") if test_provider == "groq" else config.get("ollama_model")
+        return jsonify(ok=True, provider=test_provider, model=model, response=text.strip()[:200])
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode("utf-8")
+            err_data = json.loads(err_body) if err_body else {}
+            msg = err_data.get("error", {}).get("message", "") or err_data.get("error", err_body) or str(e)
+        except Exception:
+            msg = str(e)
+        return jsonify(ok=False, error=msg), e.code if 400 <= e.code < 600 else 502
+    except urllib.error.URLError as e:
+        label = "Groq" if test_provider == "groq" else "Ollama"
+        return jsonify(ok=False, error=f"{label} injoignable : {e}"), 503
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
 
 # ═══════════════════════════════════════════════════════════════════
 # v25.8: Intégration automatique des tags dans l'arbre des métiers via Ollama
@@ -7732,16 +7938,7 @@ Réponds UNIQUEMENT avec un JSON valide au format suivant (sans markdown, sans c
 Si le tag ne correspond clairement à aucun métier, réponds avec {{"category": null, "reasoning": "..."}}."""
         
         try:
-            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{OLLAMA_URL}/api/generate",
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            response_text = data.get("response", "").strip()
+            response_text = _call_ai(prompt, timeout=60)
             
             # Extraire le JSON de la réponse (gérer les blocs de code markdown)
             json_block = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
