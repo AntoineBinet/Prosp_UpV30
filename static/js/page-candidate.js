@@ -1,4 +1,4 @@
-// Page fiche candidat — v10.1 : vue lecture / édition + auto-save
+// Page fiche candidat — v10.1 : vue lecture / édition + auto-save ; v25 : onglets EC1/note libre + timeline
 
 let __cand = null;
 let __skills = [];
@@ -6,7 +6,10 @@ let __companies = [];
 let __autoSaveTimer = null;
 let __editMode = false;
 
-// ═══ EC1 checklist (candidate) ═══
+// ═══ Onglets candidat (EC1 + note libre) ═══
+let __candidateTabs = [];
+let __activeTabIndex = 0;
+let __candidateTabsSaveTimer = null;
 
 const EC1_CHECKLIST_ITEMS_UI = [
   { key: 'mobilite_dispo_souhaits', label: 'Infos mobilité, disponibilité, souhaits' },
@@ -20,10 +23,6 @@ const EC1_CHECKLIST_ITEMS_UI = [
   { key: 'process_prochaines_etapes', label: 'Détail du process et des prochaines étapes' },
 ];
 
-let __ec1Data = null;       // { key: {checked, note}, ..., __note: string }
-let __ec1InterviewAt = '';  // datetime-local string
-let __ec1SaveTimer = null;
-
 function blankEC1Data() {
   const d = {};
   EC1_CHECKLIST_ITEMS_UI.forEach(it => { d[it.key] = { checked: false, note: '' }; });
@@ -34,154 +33,315 @@ function blankEC1Data() {
 function normalizeDateTimeLocal(v) {
   const s = safeStr(v).trim();
   if (!s) return '';
-  // Accept "YYYY-MM-DD HH:MM" or ISO "YYYY-MM-DDTHH:MM:SS"
   let out = s.replace(' ', 'T');
-  // Trim seconds if present
   if (out.length >= 19) out = out.slice(0, 16);
   if (out.length === 16) return out;
-  // If only date provided, keep date
   if (out.length >= 10) return out.slice(0, 10) + 'T09:00';
   return '';
 }
 
-function shouldShowEC1Section() {
-  const st = (document.getElementById('fStatus')?.value || __cand?.status || '').toLowerCase();
-  return st === 'ec1';
-}
-
-function updateEC1Visibility(scrollTo=false) {
-  const sec = document.getElementById('ec1Section');
-  if (!sec) return;
-  const show = shouldShowEC1Section();
-  sec.style.display = show ? 'block' : 'none';
-  if (show && scrollTo) {
-    setTimeout(() => {
-      try { sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) {}
-    }, 50);
-  }
-}
-
-async function loadEC1Checklist() {
+async function loadCandidateTabs() {
   if (!__cand?.id) return;
   try {
-    const res = await fetch(`/api/ec1-checklist?candidate_id=${__cand.id}`);
+    const res = await fetch(`/api/candidate-tabs?candidate_id=${__cand.id}`);
     const j = await res.json();
     if (!j?.ok) throw new Error('API');
-    __ec1Data = (j.data && typeof j.data === 'object') ? j.data : blankEC1Data();
-    __ec1InterviewAt = normalizeDateTimeLocal(j.interviewAt || '');
-  } catch(e) {
-    console.error('EC1 load error', e);
-    __ec1Data = blankEC1Data();
-    __ec1InterviewAt = '';
+    __candidateTabs = Array.isArray(j.tabs) ? j.tabs : [];
+    if (__candidateTabs.length === 0) {
+      __candidateTabs = [{ id: null, type: 'ec1', title: 'EC1', payload: { interviewAt: null, data: blankEC1Data() }, sort_order: 0 }];
+    }
+    __activeTabIndex = 0;
+    renderCandidateTabs();
+  } catch (e) {
+    console.error('Candidate tabs load error', e);
+    __candidateTabs = [{ id: null, type: 'ec1', title: 'EC1', payload: { interviewAt: null, data: blankEC1Data() }, sort_order: 0 }];
+    __activeTabIndex = 0;
+    renderCandidateTabs();
   }
-  renderEC1Checklist();
 }
 
-function renderEC1Checklist() {
-  const wrap = document.getElementById('ec1Checklist');
-  const dt = document.getElementById('ec1InterviewAt');
-  const note = document.getElementById('ec1Note');
-  if (!wrap) return;
+function getActiveTab() {
+  return __candidateTabs[__activeTabIndex] || null;
+}
 
-  if (!__ec1Data || typeof __ec1Data !== 'object') __ec1Data = blankEC1Data();
+function collectTabPayloadFromDOM(tab) {
+  if (!tab) return null;
+  const panelId = 'candidateTabPanel_' + (tab.id != null ? String(tab.id) : 'v' + __activeTabIndex);
+  const panel = document.getElementById(panelId);
+  if (!panel) return tab.payload;
+  if (tab.type === 'ec1') {
+    const data = tab.payload && tab.payload.data ? { ...tab.payload.data } : blankEC1Data();
+    const dt = panel.querySelector('.ec1-datetime');
+    const noteEl = panel.querySelector('.ec1-note-textarea');
+    data.__note = noteEl ? noteEl.value || '' : (data.__note || '');
+    EC1_CHECKLIST_ITEMS_UI.forEach(it => {
+      const chk = panel.querySelector('#ec1_chk_' + it.key);
+      const inp = panel.querySelector('#ec1_note_' + it.key);
+      data[it.key] = { checked: !!(chk && chk.checked), note: inp ? safeStr(inp.value) : '' };
+    });
+    return { interviewAt: (dt && dt.value) ? dt.value : null, data };
+  }
+  if (tab.type === 'note_libre') {
+    const ta = panel.querySelector('.note-libre-textarea');
+    return { content: ta ? ta.value || '' : '' };
+  }
+  return tab.payload;
+}
 
-  // Date
-  if (dt) dt.value = __ec1InterviewAt || '';
-  if (note) note.value = safeStr(__ec1Data.__note || '');
+function renderCandidateTabs() {
+  const bar = document.getElementById('candidateTabsBar');
+  const panelsWrap = document.getElementById('candidateTabsPanels');
+  if (!bar || !panelsWrap) return;
 
-  wrap.innerHTML = EC1_CHECKLIST_ITEMS_UI.map(it => {
-    const row = __ec1Data[it.key] || { checked: false, note: '' };
-    return `
-      <div class="ec1-row">
-        <label class="ec1-left">
-          <input type="checkbox" id="ec1_chk_${it.key}">
-          <span>${escapeHtml(it.label)}</span>
-        </label>
-        <input class="ec1-note" type="text" id="ec1_note_${it.key}" placeholder="Note..." />
-      </div>
-    `;
+  bar.innerHTML = __candidateTabs.map((tab, idx) => {
+    const active = idx === __activeTabIndex ? ' active' : '';
+    const id = tab.id != null ? tab.id : 'v' + idx;
+    return `<button type="button" class="candidate-tab-btn${active}" data-tab-index="${idx}" data-tab-id="${id}">${escapeHtml(tab.title || 'Onglet')}</button>`;
   }).join('');
 
-  // Wire events
-  EC1_CHECKLIST_ITEMS_UI.forEach(it => {
-    const row = __ec1Data[it.key] || { checked: false, note: '' };
-    const chk = document.getElementById(`ec1_chk_${it.key}`);
-    const inp = document.getElementById(`ec1_note_${it.key}`);
-    if (chk) chk.checked = !!row.checked;
-    if (inp) inp.value = safeStr(row.note || '');
+  panelsWrap.innerHTML = __candidateTabs.map((tab, idx) => {
+    const id = tab.id != null ? tab.id : 'v' + idx;
+    const show = idx === __activeTabIndex ? '' : ' display:none;';
+    if (tab.type === 'ec1') {
+      const pl = tab.payload || {};
+      const data = (pl.data && typeof pl.data === 'object') ? pl.data : blankEC1Data();
+      const interviewAt = normalizeDateTimeLocal(pl.interviewAt || '');
+      const rows = EC1_CHECKLIST_ITEMS_UI.map(it => {
+        const row = data[it.key] || { checked: false, note: '' };
+        return `
+          <div class="ec1-row">
+            <label class="ec1-left">
+              <input type="checkbox" id="ec1_chk_${it.key}" ${row.checked ? 'checked' : ''}>
+              <span>${escapeHtml(it.label)}</span>
+            </label>
+            <input class="ec1-note" type="text" id="ec1_note_${it.key}" placeholder="Note..." value="${escapeHtml(row.note || '')}" />
+          </div>`;
+      }).join('');
+      return `
+        <div class="candidate-tab-panel" id="candidateTabPanel_${id}" data-tab-index="${idx}" style="${show}">
+          <div class="candidate-tab-panel-inner">
+            <div class="form-row">
+              <div class="form-group" style="flex:1 1 320px;">
+                <label>📅 Date & heure de l'entretien (remonte dans le Calendrier)</label>
+                <input class="ec1-datetime" type="datetime-local" value="${escapeHtml(interviewAt)}" />
+              </div>
+            </div>
+            <div class="ec1-checklist">${rows}</div>
+            <div class="form-group" style="margin-top:12px;">
+              <label>📝 Note (EC1)</label>
+              <textarea class="ec1-note-textarea" rows="4" placeholder="Résumé, points forts, points de vigilance…">${escapeHtml(data.__note || '')}</textarea>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px;">
+              <button type="button" class="btn btn-secondary" onclick="resetCurrentEC1Tab()">↩️ Réinitialiser</button>
+              <button type="button" class="btn btn-primary" onclick="saveCurrentTab(true)">💾 Sauver</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    const content = (tab.payload && tab.payload.content != null) ? tab.payload.content : '';
+    return `
+      <div class="candidate-tab-panel" id="candidateTabPanel_${id}" data-tab-index="${idx}" style="${show}">
+        <div class="candidate-tab-panel-inner">
+          <label>📝 Note libre</label>
+          <textarea class="note-libre-textarea" rows="8" placeholder="Saisissez votre note…">${escapeHtml(content)}</textarea>
+          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px;">
+            <button type="button" class="btn btn-primary" onclick="saveCurrentTab(true)">💾 Sauver</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
 
-    chk && chk.addEventListener('change', () => {
-      __ec1Data[it.key] = __ec1Data[it.key] || { checked: false, note: '' };
-      __ec1Data[it.key].checked = chk.checked;
-      scheduleEC1Save();
-    });
-    inp && inp.addEventListener('input', () => {
-      __ec1Data[it.key] = __ec1Data[it.key] || { checked: false, note: '' };
-      __ec1Data[it.key].note = inp.value;
-      scheduleEC1Save();
+  bar.querySelectorAll('.candidate-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.getAttribute('data-tab-index'), 10);
+      if (Number.isFinite(idx) && idx !== __activeTabIndex) switchCandidateTab(idx);
     });
   });
 
-  if (dt && !dt.dataset.wired) {
-    dt.addEventListener('change', () => {
-      __ec1InterviewAt = dt.value || '';
-      scheduleEC1Save(true);
-    });
-    dt.dataset.wired = '1';
-  }
-
-  if (note && !note.dataset.wired) {
-    note.addEventListener('input', () => {
-      __ec1Data.__note = note.value || '';
-      scheduleEC1Save();
-    });
-    note.dataset.wired = '1';
-  }
+  panelsWrap.querySelectorAll('.ec1-datetime, .ec1-note-textarea, .ec1-chk, .ec1-note').forEach(el => {
+    if (el.classList && el.classList.contains('ec1-datetime')) {
+      el.addEventListener('change', () => scheduleCurrentTabSave());
+    } else if (el.classList && (el.classList.contains('ec1-note-textarea') || el.classList.contains('ec1-note'))) {
+      el.addEventListener('input', () => scheduleCurrentTabSave());
+    }
+  });
+  panelsWrap.querySelectorAll('.ec1-row input[type="checkbox"]').forEach(chk => {
+    chk.addEventListener('change', () => scheduleCurrentTabSave());
+  });
+  panelsWrap.querySelectorAll('.note-libre-textarea').forEach(ta => {
+    ta.addEventListener('input', () => scheduleCurrentTabSave());
+  });
 }
 
-function scheduleEC1Save(immediate=false) {
-  if (__ec1SaveTimer) clearTimeout(__ec1SaveTimer);
-  const status = document.getElementById('ec1SaveStatus');
-  if (status) status.textContent = '💾 Modifications...';
-  __ec1SaveTimer = setTimeout(() => saveEC1Checklist(false), immediate ? 0 : 900);
+function switchCandidateTab(toIndex) {
+  const tab = __candidateTabs[__activeTabIndex];
+  if (tab) {
+    const payload = collectTabPayloadFromDOM(tab);
+    if (payload) __candidateTabs[__activeTabIndex] = { ...tab, payload };
+  }
+  __activeTabIndex = Math.max(0, Math.min(toIndex, __candidateTabs.length - 1));
+  renderCandidateTabs();
 }
 
-async function saveEC1Checklist(showToastOnSuccess=false) {
-  if (!__cand?.id) return;
-  const status = document.getElementById('ec1SaveStatus');
+function scheduleCurrentTabSave(immediate) {
+  if (__candidateTabsSaveTimer) clearTimeout(__candidateTabsSaveTimer);
+  __candidateTabsSaveTimer = setTimeout(() => saveCurrentTab(false), immediate ? 0 : 900);
+}
+
+async function saveCurrentTab(showToastOnSuccess) {
+  const tab = getActiveTab();
+  if (!tab || !__cand?.id) return;
+  const payload = collectTabPayloadFromDOM(tab);
+  if (payload) __candidateTabs[__activeTabIndex] = { ...tab, payload };
+
+  if (tab.id == null) {
+    try {
+      const res = await fetch('/api/candidate-tabs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_id: __cand.id, type: tab.type, title: tab.title || 'EC1' })
+      });
+      const j = await res.json();
+      if (!j?.ok || !j.tab) throw new Error(j.error || 'API');
+      __candidateTabs[__activeTabIndex] = { ...j.tab, payload };
+      const tabId = j.tab.id;
+      const putRes = await fetch('/api/candidate-tabs/' + tabId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload: __candidateTabs[__activeTabIndex].payload })
+      });
+      if (!putRes.ok) throw new Error(await putRes.text().catch(() => 'PUT failed'));
+      __candidateTabs[__activeTabIndex].id = tabId;
+      if (showToastOnSuccess && typeof showToast === 'function') showToast('✅ Onglet créé et sauvegardé', 'success');
+    } catch (e) {
+      console.error('Tab create/save error', e);
+      if (typeof showToast === 'function') showToast('❌ Erreur sauvegarde', 'error');
+    }
+    return;
+  }
+
   try {
-    const payload = {
-      candidate_id: __cand.id,
-      interviewAt: __ec1InterviewAt || null,
-      data: __ec1Data || blankEC1Data()
-    };
-    const res = await fetch('/api/ec1-checklist', {
+    const res = await fetch('/api/candidate-tabs/' + tab.id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload: __candidateTabs[__activeTabIndex].payload })
+    });
+    if (!res.ok) throw new Error(await res.text().catch(() => 'HTTP ' + res.status));
+    if (showToastOnSuccess && typeof showToast === 'function') showToast('✅ Sauvegardé', 'success');
+  } catch (e) {
+    console.error('Tab save error', e);
+    if (typeof showToast === 'function') showToast('❌ Erreur sauvegarde', 'error');
+  }
+}
+
+function resetCurrentEC1Tab() {
+  if (!confirm('↩️ Réinitialiser ce formulaire EC1 ?')) return;
+  const tab = getActiveTab();
+  if (!tab || tab.type !== 'ec1') return;
+  __candidateTabs[__activeTabIndex] = { ...tab, payload: { interviewAt: null, data: blankEC1Data() } };
+  renderCandidateTabs();
+  scheduleCurrentTabSave(true);
+}
+
+function openNewTabModal() {
+  const modal = document.getElementById('modalNewCandidateTab');
+  if (modal) {
+    modal.classList.add('active');
+    if (typeof window.openModal === 'function') window.openModal(modal);
+  }
+}
+
+function closeNewTabModal() {
+  const modal = document.getElementById('modalNewCandidateTab');
+  if (modal) {
+    modal.classList.remove('active');
+    if (typeof window.closeModal === 'function') window.closeModal(modal);
+  }
+}
+
+async function createNewTab(type) {
+  closeNewTabModal();
+  if (!__cand?.id) return;
+  try {
+    const res = await fetch('/api/candidate-tabs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        candidate_id: __cand.id,
+        type,
+        title: type === 'ec1' ? 'EC1' : 'Note'
+      })
     });
-    if (!res.ok) throw new Error(await res.text().catch(()=> 'HTTP ' + res.status));
-    if (status) status.textContent = '✅ Sauvegardé';
-    if (showToastOnSuccess && typeof showToast === 'function') showToast('✅ EC1 sauvegardé', 'success');
-    setTimeout(() => { if (status) status.textContent = '—'; }, 2500);
-  } catch(e) {
-    console.error('EC1 save error', e);
-    if (status) status.textContent = '❌ Erreur';
+    const j = await res.json();
+    if (!j?.ok || !j.tab) throw new Error(j.error || 'API');
+    __candidateTabs.push(j.tab);
+    __activeTabIndex = __candidateTabs.length - 1;
+    renderCandidateTabs();
+    if (typeof showToast === 'function') showToast('✅ Nouvel onglet créé', 'success');
+  } catch (e) {
+    console.error('Create tab error', e);
+    if (typeof showToast === 'function') showToast('❌ Erreur création onglet', 'error');
   }
 }
 
-function resetEC1Checklist() {
-  if (!confirm('↩️ Réinitialiser la checklist EC1 ?')) return;
-  __ec1Data = blankEC1Data();
-  __ec1InterviewAt = '';
-  renderEC1Checklist();
-  scheduleEC1Save(true);
+window.saveCurrentTab = saveCurrentTab;
+window.resetCurrentEC1Tab = resetCurrentEC1Tab;
+window.openNewTabModal = openNewTabModal;
+window.closeNewTabModal = closeNewTabModal;
+window.createNewTab = createNewTab;
+
+// ═══ Timeline candidat ═══
+async function loadCandidateTimeline() {
+  const listEl = document.getElementById('candidateTimelineList');
+  if (!listEl || !__cand?.id) return;
+  try {
+    const res = await fetch(`/api/candidate/timeline?id=${__cand.id}`);
+    const j = await res.json();
+    if (!j?.ok) {
+      listEl.innerHTML = '<div class="muted" style="text-align:center;padding:14px;">Aucun événement</div>';
+      return;
+    }
+    const events = Array.isArray(j.events) ? j.events : [];
+    renderCandidateTimeline(events, listEl);
+  } catch (e) {
+    console.error('Timeline load error', e);
+    listEl.innerHTML = '<div class="muted" style="text-align:center;padding:14px;">Impossible de charger la timeline</div>';
+  }
 }
 
-// expose for HTML buttons
-window.saveEC1Checklist = saveEC1Checklist;
-window.resetEC1Checklist = resetEC1Checklist;
+function renderCandidateTimeline(events, listEl) {
+  if (!listEl) return;
+  if (events.length === 0) {
+    listEl.innerHTML = '<div class="muted" style="text-align:center;padding:14px;">Aucun événement</div>';
+    return;
+  }
+  listEl.innerHTML = events.map(ev => {
+    const date = (ev.date || '').slice(0, 19).replace('T', ' ');
+    const title = escapeHtml(ev.title || ev.type || '');
+    const content = (ev.content || '').trim().split('\n').map(l => escapeHtml(l)).join('<br>');
+    return `<div class="timeline-item"><div class="timeline-date">${escapeHtml(date)}</div><div class="timeline-title">${title}</div>${content ? `<div class="timeline-content">${content}</div>` : ''}</div>`;
+  }).join('');
+}
 
+async function addCandidateTimelineEvent() {
+  const title = (prompt('Titre de l\'événement') || '').trim() || 'Événement';
+  const content = (prompt('Contenu (optionnel)') || '').trim();
+  if (!__cand?.id) return;
+  try {
+    const res = await fetch('/api/candidate/events/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ candidate_id: __cand.id, title, content })
+    });
+    const j = await res.json();
+    if (!j?.ok) throw new Error(j.error || 'API');
+    if (typeof showToast === 'function') showToast('✅ Événement ajouté', 'success');
+    await loadCandidateTimeline();
+  } catch (e) {
+    console.error('Add timeline event error', e);
+    if (typeof showToast === 'function') showToast('❌ Erreur', 'error');
+  }
+}
 
 // safeStr() and escapeHtml() are provided by app.js
 
@@ -270,6 +430,10 @@ function renderViewMode() {
     if (__cand.linkedin) fields.push({ label: 'LinkedIn', value: `<a href="${escapeHtml(__cand.linkedin)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.linkedin)}</a>` });
     if (__cand.onenote_url) fields.push({ label: 'OneNote', value: `<a href="${escapeHtml(__cand.onenote_url)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.onenote_url)}</a>` });
     if (__cand.vsa_url) fields.push({ label: 'VSA', value: `<a href="${escapeHtml(__cand.vsa_url)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.vsa_url)}</a>` });
+    if (__cand.dossier_competence_pdf) {
+        const pdfUrl = `/api/candidates/${__cand.id}/dossier-competence`;
+        fields.push({ label: 'Dossier de compétence', value: `<a href="${pdfUrl}" target="_blank" style="word-break:break-all;">📄 ${escapeHtml(__cand.dossier_competence_pdf)}</a>` });
+    }
 
     if (grid) {
         grid.innerHTML = fields.map(f =>
@@ -541,6 +705,7 @@ function buildPayload() {
         phone: (document.getElementById('fPhone')?.value || '').trim(),
         email: (document.getElementById('fEmail')?.value || '').trim(),
         sector: (document.getElementById('fSector')?.value || '').trim(),
+        dossier_competence_pdf: (document.getElementById('fDossierCompetence')?.value || '').trim(),
     };
 }
 
@@ -640,6 +805,9 @@ async function loadCandidate() {
   document.getElementById('fOneNote').value = safeStr(__cand.onenote_url);
   document.getElementById('fVSA').value = safeStr(__cand.vsa_url);
   document.getElementById('fTech').value = safeStr(__cand.tech);
+  if (document.getElementById('fDossierCompetence')) {
+      document.getElementById('fDossierCompetence').value = safeStr(__cand.dossier_competence_pdf || '');
+  }
   document.getElementById('fNotes').value = safeStr(__cand.notes);
 
   __skills = Array.isArray(__cand.skills) ? uniqCaseInsensitive(__cand.skills) : [];
@@ -654,9 +822,9 @@ async function loadCandidate() {
   // Render view mode
   renderViewMode();
 
-  // EC1 section
-  await loadEC1Checklist();
-  updateEC1Visibility(false);
+  // Onglets (EC1 / note libre) + Timeline
+  await loadCandidateTabs();
+  await loadCandidateTimeline();
 }
 
 
@@ -715,10 +883,7 @@ function wireAutoSave() {
         el.addEventListener(evt, () => triggerAutoSave());
     });
 
-    // Show/hide EC1 section instantly on status change
-    document.getElementById('fStatus')?.addEventListener('change', () => {
-        updateEC1Visibility(true);
-    });
+  document.getElementById('fStatus')?.addEventListener('change', () => {});
 }
 
 // ═══ Init ═══
@@ -733,6 +898,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('candidateForm')?.addEventListener('submit', saveCandidate);
     document.getElementById('btnReload')?.addEventListener('click', loadCandidate);
+    document.getElementById('btnAddCandidateTab')?.addEventListener('click', openNewTabModal);
+    document.getElementById('btnAddTimelineEvent')?.addEventListener('click', addCandidateTimelineEvent);
 
     // ═══ Scrapping IA button (Ollama en 1 clic) ═══
     window.handleCandidateIAButton = function() {
@@ -792,7 +959,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('edit') === '1') switchToEditMode();
     if ((params.get('section') || '').toLowerCase() === 'ec1') {
-        updateEC1Visibility(true);
+      const sec = document.getElementById('candidateTabsSection');
+      if (sec) setTimeout(() => { try { sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) {} }, 100);
     }
 
   } catch (e) {

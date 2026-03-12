@@ -69,6 +69,25 @@ function togglePw() {
     btn.textContent = show ? '🙈' : '👁️';
 }
 
+// Initialiser la validation du formulaire de login
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('loginForm');
+    if (form && typeof window.initFormValidation === 'function') {
+        window.initFormValidation(form, {
+            validateOnBlur: true,
+            validateOnInput: true,
+            fieldOptions: {
+                username: {
+                    requiredMessage: 'L\'identifiant est requis'
+                },
+                password: {
+                    requiredMessage: 'Le mot de passe est requis'
+                }
+            }
+        });
+    }
+});
+
 async function doLogin(e) {
     e.preventDefault();
     const btn = document.getElementById('btnLogin');

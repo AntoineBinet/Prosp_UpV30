@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+
+{% block title %}Prosp'Up — Utilisateurs{% endblock %}
+
+{% block page_id %}users{% endblock %}
+
+{% block header_title %}Prosp'Up — Utilisateurs{% endblock %}
+
+{% block header_subtitle %}Gestion des comptes & rôles.{% endblock %}
+
+{% block extra_head %}
+<style>
+  .user-modal .modal-content { border-radius: 16px; border: 1px solid var(--color-border); box-shadow: 0 24px 48px rgba(0,0,0,0.35); }
+  .user-modal .form-grid { grid-template-columns: 1fr 1fr; }
+  .user-modal .form-grid .full-width { grid-column: 1 / -1; }
+  .user-modal .input-with-toggle {
+    display: flex; align-items: center; gap: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+    padding: 0 4px 0 12px;
+    min-height: 42px;
+  }
+  .user-modal .input-with-toggle:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb),0.15); }
+  .user-modal .input-with-toggle input {
+    flex: 1; min-width: 0;
+    border: none !important; background: transparent !important; box-shadow: none !important;
+    padding: 10px 8px 10px 0;
+  }
+  .user-modal .input-with-toggle input:focus { outline: none; }
+  .user-modal .input-with-toggle .pw-toggle {
+    flex-shrink: 0; width: 36px; height: 36px;
+    border: none; background: transparent;
+    color: var(--color-text-secondary); cursor: pointer;
+    font-size: 18px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .user-modal .input-with-toggle .pw-toggle:hover { color: var(--color-primary); background: rgba(243,111,33,0.12); }
+  .user-modal .input-with-toggle.pw-mismatch { border-color: #ef4444 !important; box-shadow: 0 0 0 2px rgba(239,68,68,0.2); }
+  @media (max-width: 520px) { .user-modal .form-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+  <div class="content-title">Gestion des Utilisateurs</div>
+  <button class="btn btn-primary" onclick="openUserModal()">+ Nouvel utilisateur</button>
+</div>
+
+<div id="usersList" style="display:grid;gap:12px;"></div>
+{% endblock %}
+
+{% block modals %}
+<!-- Modal -->
+<div id="userModal" class="modal user-modal" style="display:none;">
+  <div class="modal-content" style="max-width:540px;">
+    <button class="modal-close" onclick="closeUserModal()">×</button>
+    <h2 id="modalTitle">Nouvel utilisateur</h2>
+
+    <input type="hidden" id="editUserId">
+
+    <div class="form-grid" style="display:grid;gap:14px;margin-top:14px;">
+      <div class="form-group">
+        <label class="filter-label required" for="uUsername">Identifiant</label>
+        <input id="uUsername" name="username" type="text" placeholder="prenom.nom" class="filter-input" style="width:100%;" required aria-required="true">
+      </div>
+      <div class="form-group">
+        <label class="filter-label" for="uDisplayName">Nom affiché</label>
+        <input id="uDisplayName" name="display_name" type="text" placeholder="Prénom Nom" class="filter-input" style="width:100%;">
+      </div>
+      <div class="form-group full-width">
+        <label class="filter-label" for="uPassword">Mot de passe <span id="pwHint">(requis)</span></label>
+        <div class="input-with-toggle">
+          <input id="uPassword" name="password" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" minlength="8" pattern="^(?=.*[A-Za-z])(?=.*\d).{8,}$" oninput="updatePwConfirmVisibility(); validateUserPassword()">
+          <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Afficher / masquer">👁️</button>
+        </div>
+        <span id="pwReqHint" style="font-size:11px;color:var(--color-text-secondary,#94a3b8);margin-top:4px;display:block;">Min. 8 caractères, au moins 1 lettre et 1 chiffre.</span>
+      </div>
+      <div class="form-group full-width" id="pwConfirmRow">
+        <label class="filter-label" for="uPasswordConfirm">Confirmer le mot de passe</label>
+        <div class="input-with-toggle">
+          <input id="uPasswordConfirm" name="password_confirm" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" oninput="validateUserPassword()">
+          <button type="button" class="pw-toggle" id="pwConfirmToggleBtn" onclick="toggleConfirmVisibility()" title="Afficher / masquer">👁️</button>
+        </div>
+        <span id="pwMismatchMsg" style="display:none;font-size:12px;color:#ef4444;margin-top:4px;">Les deux mots de passe ne correspondent pas.</span>
+      </div>
+      <div>
+        <label class="filter-label">Rôle</label>
+        <select id="uRole" class="filter-select" style="width:100%;">
+          <option value="admin">🔑 Admin — accès total</option>
+          <option value="editor" selected>✏️ Éditeur — lecture + modification</option>
+        </select>
+      </div>
+      <div></div>
+
+      <label class="full-width" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--color-text-secondary);">
+        <input type="checkbox" id="uActive" checked style="accent-color: var(--color-primary); width:16px; height:16px;">
+        Compte actif
+      </label>
+
+      <div class="full-width" style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;">
+        <button class="btn btn-secondary" onclick="closeUserModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveUser()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+const ROLE_LABELS = {admin:'🔑 Admin', editor:'✏️ Éditeur'};
+const ROLE_COLORS = {admin:'#6366f1', editor:'#f59e0b'};
+let _isAdmin = false;
+let _currentUserId = null;
+let _usersCache = [];
+
+async function loadUsers() {
+  const resp = await fetch('/api/users', { cache: 'no-store' });
+  const payload = await resp.json();
+  _isAdmin = payload.is_admin === true;
+  _currentUserId = Number(payload.current_user_id || 0) || null;
+  _usersCache = payload.users || [];
+  const el = document.getElementById('usersList');
+  
+  // Show/hide admin-only elements
+  const newUserBtn = document.querySelector('[onclick="openUserModal()"]');
+  if (newUserBtn) newUserBtn.style.display = _isAdmin ? '' : 'none';
+  
+  el.innerHTML = _usersCache.map(u => `
+    <div style="background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:12px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:240px;">
+        <div style="width:42px;height:42px;border-radius:50%;background:${ROLE_COLORS[u.role]||'#475569'};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;">${(u.display_name||u.username).charAt(0).toUpperCase()}</div>
+        <div style="min-width:0;">
+          <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            ${u.display_name||u.username} ${!u.is_active?'<span style="color:#ef4444;font-size:12px;">(désactivé)</span>':''}
+          </div>
+          <div style="font-size:12px;color:var(--color-text-secondary);">@${u.username} · ${ROLE_LABELS[u.role]||u.role}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        ${_isAdmin ? `<button class="btn btn-secondary" onclick='editUser(${JSON.stringify(u)})'>✏️ Modifier</button>` : ''}
+        ${_isAdmin && u.role!=='admin' ? `<button class="btn btn-secondary" onclick='viewUserData(${u.id})' title="Voir les données">👁️ Voir</button>` : ''}
+        ${_isAdmin && Number(u.id)!==Number(_currentUserId) ? `<button class="btn btn-primary" onclick='reassignUserDataToMe(${u.id})' title="Réattribuer prospects + entreprises">↩️ Réattribuer à moi</button>` : ''}
+        ${_isAdmin && u.role!=='admin' ? `<button class="btn btn-danger" onclick='deleteUser(${u.id},"${u.username}")'>🗑️</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function viewUserData(userId) {
+  try {
+    const resp = await fetch('/api/users/' + userId + '/data');
+    const data = await resp.json();
+    if (data.ok) {
+      const u = data.user;
+      const s = data.stats;
+      alert(
+        '📊 Données de ' + (u.display_name || u.username) + '\n\n' +
+        '• Prospects: ' + s.prospects + '\n' +
+        '• Candidats: ' + s.candidates + '\n\n' +
+        '(Consultation uniquement — vous voyez les données de cet utilisateur, sans pouvoir les modifier ici.)'
+      );
+    }
+  } catch(e) {
+    alert('Erreur lors du chargement des données');
+  }
+}
+
+async function reassignUserDataToMe(fromUserId) {
+  if (!_isAdmin || !_currentUserId) {
+    showToast('Action réservée aux administrateurs.', 'error');
+    return;
+  }
+  const fromId = parseInt(fromUserId, 10);
+  if (!Number.isFinite(fromId) || fromId <= 0) {
+    showToast('Utilisateur invalide.', 'error');
+    return;
+  }
+  if (fromId === Number(_currentUserId)) {
+    showToast('Vous êtes déjà propriétaire de vos données.', 'warning');
+    return;
+  }
+  const u = (_usersCache || []).find(x => Number(x.id) === fromId);
+  const label = u ? (u.display_name || u.username) : ('ID ' + fromId);
+  if (!confirm('Réattribuer tous les prospects et entreprises de "' + label + '" vers votre compte ?')) return;
+
+  const r = await fetch('/api/admin/reassign-ownership', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      from_user_id: fromId,
+      to_user_id: Number(_currentUserId)
+    })
+  });
+  const j = await r.json().catch(()=>({ok:false,error:'Erreur serveur'}));
+  if (!r.ok || !j.ok) {
+    showToast('❌ ' + (j.error || 'Erreur'), 'error');
+    return;
+  }
+  const moved = j.moved || {};
+  showToast(`✅ ${moved.prospects || 0} prospect(s) et ${moved.companies || 0} entreprise(s) réattribués à vous.`, 'success', 6000);
+  await loadUsers();
+}
+
+function togglePasswordVisibility() {
+  const el = document.getElementById('uPassword');
+  const btn = document.getElementById('pwToggleBtn');
+  if (el.type === 'password') {
+    el.type = 'text';
+    btn.textContent = '🙈';
+    btn.title = 'Masquer';
+  } else {
+    el.type = 'password';
+    btn.textContent = '👁️';
+    btn.title = 'Afficher';
+  }
+}
+
+function toggleConfirmVisibility() {
+  const el = document.getElementById('uPasswordConfirm');
+  const btn = document.getElementById('pwConfirmToggleBtn');
+  if (el.type === 'password') {
+    el.type = 'text';
+    btn.textContent = '🙈';
+    btn.title = 'Masquer';
+  } else {
+    el.type = 'password';
+    btn.textContent = '👁️';
+    btn.title = 'Afficher';
+  }
+}
+
+function updatePwConfirmVisibility() {
+  const id = document.getElementById('editUserId').value.trim();
+  const pw = document.getElementById('uPassword').value;
+  const row = document.getElementById('pwConfirmRow');
+  const isEdit = !!id;
+  const hasPassword = !!pw;
+  
+  // En mode édition, si le mot de passe est vide, on cache la confirmation
+  row.style.display = (isEdit && !hasPassword) ? 'none' : 'block';
+  
+  // Mettre à jour l'attribut required du champ password selon le contexte
+  const pwField = document.getElementById('uPassword');
+  if (isEdit && !hasPassword) {
+    pwField.removeAttribute('required');
+  } else if (!isEdit) {
+    pwField.setAttribute('required', 'required');
+  }
+  
+  // Valider le mot de passe si nécessaire
+  if (hasPassword && typeof window.validateField === 'function') {
+    window.validateField(pwField, {
+      requiredMessage: 'Le mot de passe est requis',
+      patternMessage: 'Le mot de passe doit contenir au moins 8 caractères, dont au moins 1 lettre et 1 chiffre'
+    });
+  }
+}
+
+function validateUserPassword() {
+  const id = document.getElementById('editUserId').value.trim();
+  const password = document.getElementById('uPassword').value;
+  const passwordConfirm = document.getElementById('uPasswordConfirm').value;
+  const isEdit = !!id;
+  
+  // En mode édition, si le mot de passe est vide, pas de validation
+  if (isEdit && !password) {
+    clearFieldError(document.getElementById('uPassword'));
+    clearFieldError(document.getElementById('uPasswordConfirm'));
+    document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
+    document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.remove('pw-mismatch');
+    document.getElementById('pwMismatchMsg').style.display = 'none';
+    return;
+  }
+  
+  // Validation du format du mot de passe
+  if (password && typeof window.validateField === 'function') {
+    window.validateField(document.getElementById('uPassword'), {
+      requiredMessage: 'Le mot de passe est requis',
+      patternMessage: 'Le mot de passe doit contenir au moins 8 caractères, dont au moins 1 lettre et 1 chiffre'
+    });
+  }
+  
+  // Validation de la correspondance des mots de passe
+  if (password && passwordConfirm) {
+    if (password !== passwordConfirm) {
+      if (typeof window.showFieldError === 'function') {
+        window.showFieldError(document.getElementById('uPasswordConfirm'), 'Les deux mots de passe ne correspondent pas');
+      }
+      document.getElementById('uPassword').closest('.input-with-toggle').classList.add('pw-mismatch');
+      document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.add('pw-mismatch');
+      document.getElementById('pwMismatchMsg').style.display = 'block';
+    } else {
+      if (typeof window.clearFieldError === 'function') {
+        window.clearFieldError(document.getElementById('uPasswordConfirm'));
+      }
+      document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
+      document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.remove('pw-mismatch');
+      document.getElementById('pwMismatchMsg').style.display = 'none';
+    }
+  }
+  
+  // Mettre à jour l'état du bouton submit si le formulaire existe
+  const modal = document.getElementById('userModal');
+  if (modal && typeof window.updateFormSubmitState === 'function') {
+    // Créer un formulaire virtuel pour la validation
+    const form = document.createElement('form');
+    form.appendChild(document.getElementById('uUsername').cloneNode(true));
+    form.appendChild(document.getElementById('uPassword').cloneNode(true));
+    if (password) {
+      form.appendChild(document.getElementById('uPasswordConfirm').cloneNode(true));
+    }
+    window.updateFormSubmitState(form);
+  }
+}
+
+function openUserModal() {
+  document.getElementById('editUserId').value = '';
+  const usernameField = document.getElementById('uUsername');
+  const passwordField = document.getElementById('uPassword');
+  const passwordConfirmField = document.getElementById('uPasswordConfirm');
+  
+  usernameField.value = '';
+  document.getElementById('uDisplayName').value = '';
+  passwordField.value = '';
+  passwordConfirmField.value = '';
+  passwordField.type = 'password';
+  passwordConfirmField.type = 'password';
+  document.getElementById('pwToggleBtn').textContent = '👁️';
+  document.getElementById('pwConfirmToggleBtn').textContent = '👁️';
+  document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
+  document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.remove('pw-mismatch');
+  document.getElementById('pwMismatchMsg').style.display = 'none';
+  document.getElementById('uRole').value = 'editor';
+  document.getElementById('uActive').checked = true;
+  document.getElementById('modalTitle').textContent = 'Nouvel utilisateur';
+  document.getElementById('pwHint').textContent = '(requis)';
+  document.getElementById('pwConfirmRow').style.display = 'block';
+  
+  // Nettoyer les erreurs de validation
+  if (typeof window.clearFieldError === 'function') {
+    window.clearFieldError(usernameField);
+    window.clearFieldError(passwordField);
+    window.clearFieldError(passwordConfirmField);
+  }
+  
+  // Ajouter required au mot de passe en mode création
+  passwordField.setAttribute('required', 'required');
+  
+  document.getElementById('userModal').style.display = 'flex';
+}
+
+function closeUserModal() {
+  document.getElementById('userModal').style.display = 'none';
+}
+
+function editUser(u) {
+  document.getElementById('editUserId').value = u.id;
+  const usernameField = document.getElementById('uUsername');
+  const passwordField = document.getElementById('uPassword');
+  const passwordConfirmField = document.getElementById('uPasswordConfirm');
+  
+  usernameField.value = u.username || '';
+  document.getElementById('uDisplayName').value = u.display_name || '';
+  passwordField.value = '';
+  passwordConfirmField.value = '';
+  passwordField.type = 'password';
+  passwordConfirmField.type = 'password';
+  document.getElementById('pwToggleBtn').textContent = '👁️';
+  document.getElementById('pwConfirmToggleBtn').textContent = '👁️';
+  document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
+  document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.remove('pw-mismatch');
+  document.getElementById('pwMismatchMsg').style.display = 'none';
+  document.getElementById('uRole').value = u.role || 'editor';
+  document.getElementById('uActive').checked = !!u.is_active;
+  document.getElementById('modalTitle').textContent = 'Modifier utilisateur';
+  document.getElementById('pwHint').textContent = '(laisser vide pour ne pas changer)';
+  document.getElementById('pwConfirmRow').style.display = 'none';
+  
+  // Nettoyer les erreurs de validation
+  if (typeof window.clearFieldError === 'function') {
+    window.clearFieldError(usernameField);
+    window.clearFieldError(passwordField);
+    window.clearFieldError(passwordConfirmField);
+  }
+  
+  // Retirer required du mot de passe en mode édition
+  passwordField.removeAttribute('required');
+  
+  document.getElementById('userModal').style.display = 'flex';
+}
+
+async function saveUser() {
+  const id = document.getElementById('editUserId').value.trim();
+  const usernameField = document.getElementById('uUsername');
+  const passwordField = document.getElementById('uPassword');
+  const passwordConfirmField = document.getElementById('uPasswordConfirm');
+  const password = passwordField.value;
+  const passwordConfirm = passwordConfirmField.value;
+  const isEdit = !!id;
+  
+  // Nettoyer les erreurs précédentes
+  document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
+  document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.remove('pw-mismatch');
+  document.getElementById('pwMismatchMsg').style.display = 'none';
+  if (typeof window.clearFieldError === 'function') {
+    window.clearFieldError(usernameField);
+    window.clearFieldError(passwordField);
+    window.clearFieldError(passwordConfirmField);
+  }
+  
+  // Validation de l'identifiant
+  if (typeof window.validateField === 'function') {
+    if (!window.validateField(usernameField, { requiredMessage: 'L\'identifiant est requis' })) {
+      usernameField.focus();
+      return;
+    }
+  } else if (!usernameField.value.trim()) {
+    alert('⚠️ Identifiant requis');
+    usernameField.focus();
+    return;
+  }
+  
+  // Validation du mot de passe (requis seulement en création)
+  if (!isEdit) {
+    if (typeof window.validateField === 'function') {
+      if (!window.validateField(passwordField, {
+        requiredMessage: 'Le mot de passe est requis',
+        patternMessage: 'Le mot de passe doit contenir au moins 8 caractères, dont au moins 1 lettre et 1 chiffre'
+      })) {
+        passwordField.focus();
+        return;
+      }
+    } else if (!password) {
+      alert('⚠️ Mot de passe requis');
+      passwordField.focus();
+      return;
+    }
+  }
+  
+  // Validation de la correspondance des mots de passe (si un mot de passe est saisi)
+  if (password) {
+    if (password !== passwordConfirm) {
+      if (typeof window.showFieldError === 'function') {
+        window.showFieldError(passwordConfirmField, 'Les deux mots de passe ne correspondent pas');
+      }
+      document.getElementById('uPassword').closest('.input-with-toggle').classList.add('pw-mismatch');
+      document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.add('pw-mismatch');
+      document.getElementById('pwMismatchMsg').style.display = 'block';
+      if (typeof showToast === 'function') showToast('Les deux mots de passe ne correspondent pas.', 'error');
+      else alert('⚠️ Les deux mots de passe ne correspondent pas.');
+      passwordConfirmField.focus();
+      return;
+    }
+  }
+
+  const payload = {
+    username: usernameField.value.trim(),
+    display_name: document.getElementById('uDisplayName').value.trim(),
+    password: password,
+    role: document.getElementById('uRole').value,
+    is_active: document.getElementById('uActive').checked ? 1 : 0
+  };
+  if (id) payload.id = parseInt(id, 10);
+
+  const r = await fetch('/api/users/save', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const j = await r.json().catch(()=>({ok:false,error:'Erreur serveur'}));
+  if (!r.ok || !j.ok) { alert('❌ ' + (j.error || 'Erreur')); return; }
+
+  closeUserModal();
+  await loadUsers();
+  alert('✅ Enregistré');
+}
+
+async function deleteUser(id, username) {
+  if (!confirm('Supprimer @' + username + ' ?')) return;
+  const r = await fetch('/api/users/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id: parseInt(id, 10) }) });
+  const j = await r.json().catch(()=>({ok:false,error:'Erreur serveur'}));
+  if (!r.ok || !j.ok) { alert('❌ ' + (j.error || 'Erreur')); return; }
+  await loadUsers();
+  alert('✅ Supprimé');
+}
+
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeUserModal(); });
+
+// Bootstrap minimal for this page: auth badge + sidebar features
+(async function(){
+  if (window.AppAuth && AppAuth.init) await AppAuth.init();
+  await loadUsers();
+})();
+</script>
+{% endblock %}

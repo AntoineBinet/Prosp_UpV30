@@ -1,0 +1,765 @@
+{% extends "base.html" %}
+
+{% block title %}Prosp'Up — Paramètres{% endblock %}
+
+{% block page_id %}settings{% endblock %}
+
+{% block header_title %}Prosp'Up — Paramètres{% endblock %}
+
+{% block header_subtitle %}Sauvegarde, import/export, outils.{% endblock %}
+
+{% block extra_head %}
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="content-header">
+  <div class="content-title">Paramètres & export</div>
+</div>
+
+<div class="settings-section">
+  <h3>💾 Gestion des données</h3>
+  <div class="settings-group">
+    <button class="btn btn-primary" onclick="exportJSON()">💾 Exporter JSON</button>
+    <button class="btn btn-primary" onclick="importJSON()">📥 Importer JSON</button>
+    <a href="/api/export/xlsx" download target="_blank" class="btn btn-secondary btn-link-inline">📊 Exporter Excel</a>
+    <a href="/snapshots" class="btn btn-secondary btn-link-inline">💾 Snapshots</a>
+    <button class="btn btn-danger" onclick="resetAllData()">🔄 Réinitialiser</button>
+  </div>
+  <input type="file" id="jsonFile" accept=".json" style="display:block;">
+  <div class="muted" style="margin-top:10px;">
+    Astuce : faites un snapshot avant une grosse importation.
+  </div>
+</div>
+
+<div class="settings-section" id="changePwSection">
+  <h3>🔐 Changer mon mot de passe</h3>
+  <div class="settings-group" style="display:grid;gap:12px;max-width:380px;">
+    <div>
+      <label class="filter-label">Mot de passe actuel</label>
+      <input type="password" id="oldPw" class="filter-input" style="width:100%;" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <div>
+      <label class="filter-label">Nouveau mot de passe</label>
+      <input type="password" id="newPw" class="filter-input" style="width:100%;" autocomplete="new-password" placeholder="Min. 8 car., 1 lettre, 1 chiffre">
+    </div>
+    <div>
+      <label class="filter-label">Confirmer le nouveau mot de passe</label>
+      <input type="password" id="newPw2" class="filter-input" style="width:100%;" autocomplete="new-password" placeholder="••••••••">
+    </div>
+    <div>
+      <button class="btn btn-primary" onclick="changePassword()">Changer le mot de passe</button>
+      <span id="changePwStatus" style="margin-left:12px;font-size:13px;"></span>
+    </div>
+  </div>
+</div>
+
+<div class="settings-section" id="display-modules">
+  <h3>🖥️ Personnalisation de l'affichage</h3>
+  <p class="muted" style="margin-bottom:10px;">Activez ou désactivez des modules et blocs. Glissez pour changer de catégorie.</p>
+
+  <div class="display-prefs-tabs" role="tablist">
+    <button type="button" class="display-prefs-tab active" data-tab="nav" role="tab" aria-selected="true">🧭 Nav</button>
+    <button type="button" class="display-prefs-tab" data-tab="dashboard" role="tab" aria-selected="false">📊 Dashboard</button>
+    <button type="button" class="display-prefs-tab" data-tab="fiche" role="tab" aria-selected="false">👤 Fiche</button>
+  </div>
+
+  <div class="display-prefs-swipe" id="displayPrefsSwipe">
+    <div class="display-prefs-pane active" id="pane-nav" role="tabpanel">
+      <div class="display-prefs-scroll display-prefs-scroll-compact">
+        <div class="settings-group display-prefs-group">
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dashboard">Dashboard</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dashboard" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_focus">Focus</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_focus" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_calendrier">Calendrier</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_calendrier" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_entreprises">Entreprises</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_entreprises" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_sourcing">Sourcing</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_sourcing" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_push">Push</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_push" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_templates">Catégories Push</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_templates" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_stats">Stats</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_stats" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_rapport">Rapport</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_rapport" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_contacts">Contacts</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_contacts" checked><span class="slider"></span></label></div>
+        </div>
+      </div>
+    </div>
+    <div class="display-prefs-pane" id="pane-dashboard" role="tabpanel">
+      <div class="display-prefs-scroll display-prefs-scroll-compact">
+        <div class="settings-group display-prefs-group">
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_relance_banner">Bannière relances</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_relance_banner" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_kpi_row">Ligne KPI</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_kpi_row" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_first_glance">Premier coup d'œil</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_first_glance" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_goals">Objectifs</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_goals" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dash_activity">Activité du jour</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dash_activity" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dash_week">Activité de la semaine</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dash_week" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dash_overdue">Relances en retard</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dash_overdue" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dash_rdv">Prochains RDV</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dash_rdv" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dash_pipeline">Pipeline</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dash_pipeline" checked><span class="slider"></span></label></div>
+        </div>
+      </div>
+    </div>
+    <div class="display-prefs-pane" id="pane-fiche" role="tabpanel">
+      <div class="display-prefs-scroll display-prefs-scroll-compact">
+        <div class="settings-group display-prefs-group">
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_candidate_proposition">Candidats recommandés</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_candidate_proposition" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_prospect_timeline">Onglet Timeline</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_prospect_timeline" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_prospect_push_section">Bloc Push &amp; catégorie</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_prospect_push_section" checked><span class="slider"></span></label></div>
+          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_prospect_metier">Métier suggéré</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_prospect_metier" checked><span class="slider"></span></label></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="settings-section" id="goals">
+  <h3>🎮 Objectifs &amp; Gamification</h3>
+  <div class="about-section">
+    <p class="muted">Ces objectifs alimentent la carte "Objectifs" du Dashboard. L'XP et la progression hebdo se réinitialisent chaque lundi.</p>
+
+    <div class="goals-settings-grid" style="margin-top:12px;">
+      <div class="goals-settings-scope">
+        <h4 style="margin:0 0 8px 0;">Objectifs quotidiens</h4>
+
+        <div class="goal-setting-row">
+          <div class="goal-setting-label">Prendre 1 RDV Prosp</div>
+          <div class="goal-setting-fields">
+            <input type="number" min="0" id="goal_daily_rdv_target" placeholder="Cible">
+            <input type="number" min="0" id="goal_daily_rdv_xp" placeholder="XP">
+          </div>
+        </div>
+
+        <div class="goal-setting-row">
+          <div class="goal-setting-label">3 push</div>
+          <div class="goal-setting-fields">
+            <input type="number" min="0" id="goal_daily_push_target" placeholder="Cible">
+            <input type="number" min="0" id="goal_daily_push_xp" placeholder="XP">
+          </div>
+        </div>
+
+        <div class="goal-setting-row">
+          <div class="goal-setting-label">Sourcing : contacter 3 candidats qualifiés</div>
+          <div class="goal-setting-fields">
+            <input type="number" min="0" id="goal_daily_sourcing_contacted_target" placeholder="Cible">
+            <input type="number" min="0" id="goal_daily_sourcing_contacted_xp" placeholder="XP">
+          </div>
+        </div>
+
+        <div class="muted" style="font-size:12px;margin-top:8px;">Astuce : mettez une cible à 0 pour masquer un objectif.</div>
+      </div>
+
+      <div class="goals-settings-scope">
+        <h4 style="margin:0 0 8px 0;">Objectifs hebdo</h4>
+
+        <div class="goal-setting-row">
+          <div class="goal-setting-label">Prendre 5 RDV Prosp</div>
+          <div class="goal-setting-fields">
+            <input type="number" min="0" id="goal_weekly_rdv_target" placeholder="Cible">
+            <input type="number" min="0" id="goal_weekly_rdv_xp" placeholder="XP">
+          </div>
+        </div>
+
+        <div class="goal-setting-row">
+          <div class="goal-setting-label">15 push</div>
+          <div class="goal-setting-fields">
+            <input type="number" min="0" id="goal_weekly_push_target" placeholder="Cible">
+            <input type="number" min="0" id="goal_weekly_push_xp" placeholder="XP">
+          </div>
+        </div>
+
+        <div class="goal-setting-row">
+          <div class="goal-setting-label">Sourcing : contacter 15 candidats qualifiés</div>
+          <div class="goal-setting-fields">
+            <input type="number" min="0" id="goal_weekly_sourcing_contacted_target" placeholder="Cible">
+            <input type="number" min="0" id="goal_weekly_sourcing_contacted_xp" placeholder="XP">
+          </div>
+        </div>
+
+        <div class="goal-setting-row">
+          <div class="goal-setting-label">Sourcing : 3 profils solides (EC1+)</div>
+          <div class="goal-setting-fields">
+            <input type="number" min="0" id="goal_weekly_sourcing_solid_target" placeholder="Cible">
+            <input type="number" min="0" id="goal_weekly_sourcing_solid_xp" placeholder="XP">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-primary" id="btnSaveGoals">💾 Enregistrer les objectifs</button>
+      <button class="btn btn-secondary" id="btnResetGoals">↩️ Restaurer par défaut</button>
+      <span class="muted" id="goalsSaveStatus" style="font-size:12px;"></span>
+    </div>
+  </div>
+</div>
+
+<div class="settings-section" id="notifications">
+  <h3>🔔 Notifications navigateur</h3>
+  <div class="about-section">
+    <p class="muted">Rappel quotidien (relances en retard / à faire aujourd'hui) via une notification du navigateur, une fois par jour à l'heure choisie. L'onglet ou l'app doit avoir été ouverte récemment.</p>
+    <div class="settings-group" style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="notifEnabled" value="1">
+        <span>Activer les rappels</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;">
+        <span>Heure :</span>
+        <select id="notifHour" style="padding:6px 10px;border-radius:8px;">
+          <option value="7">07h</option>
+          <option value="8">08h</option>
+          <option value="9" selected>09h</option>
+          <option value="10">10h</option>
+          <option value="11">11h</option>
+          <option value="12">12h</option>
+          <option value="13">13h</option>
+          <option value="14">14h</option>
+          <option value="15">15h</option>
+          <option value="16">16h</option>
+          <option value="17">17h</option>
+          <option value="18">18h</option>
+        </select>
+      </label>
+      <button type="button" class="btn btn-secondary" id="btnNotifSave">Enregistrer</button>
+    </div>
+    <p id="notifStatus" class="muted" style="font-size:12px;margin-top:8px;"></p>
+  </div>
+</div>
+
+<div class="settings-section">
+  <h3>🏷️ Import de tags depuis CSV</h3>
+  <div class="about-section">
+    <p>Importe des compétences/tags en masse depuis un fichier CSV ou Excel. Colonnes acceptées : <strong>nom</strong> (ou name), <strong>entreprise</strong> (ou company), <strong>tags</strong> (ou tag, compétences).</p>
+    <p style="margin-top:6px;font-size:13px;">Séparateur détecté automatiquement (point-virgule, virgule ou tabulation). Si les accents sont mal affichés, enregistrez le fichier en UTF-8.</p>
+    <p style="margin-top:6px;font-size:13px;">Matching approximatif (ignore casse/accents) par <strong>nom + entreprise</strong>. Les tags sont <strong>fusionnés</strong> avec les existants.</p>
+    <div class="settings-group" style="margin-top:12px;">
+      <input type="file" id="csvTagsFile" accept=".csv,.txt,.xlsx,.xls" style="display:none;">
+      <button class="btn btn-primary" onclick="document.getElementById('csvTagsFile').click()">📥 Charger un CSV ou Excel de tags</button>
+    </div>
+    <div id="csvTagsPreview" style="display:none;margin-top:14px;"></div>
+  </div>
+</div>
+
+<div class="settings-section">
+  <h3>📋 Template InMail LinkedIn</h3>
+  <div class="about-section">
+    <p class="muted" style="font-size:13px;margin-bottom:10px;">Ce texte sera copié automatiquement lors d'un push LinkedIn. Variables disponibles : <code>{nom}</code>, <code>{prenom}</code>, <code>{entreprise}</code>, <code>{fonction}</code>, <code>{civilite}</code></p>
+    <textarea id="linkedinInmailTemplate" class="inmail-textarea" placeholder="Bonjour {civilite} {nom},
+
+Je me permets de vous contacter concernant {entreprise}.
+
+Belle journée,"></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end;">
+      <button class="btn btn-secondary" onclick="resetLinkedinTemplate()">🔄 Par défaut</button>
+      <button class="btn btn-primary" onclick="saveLinkedinTemplate()">💾 Enregistrer</button>
+    </div>
+    <span id="linkedinTemplateStatus" class="muted" style="font-size:12px;margin-top:6px;display:block;"></span>
+  </div>
+</div>
+
+<div class="settings-section admin-only-section" id="systemVerifySection">
+  <h3>🔍 Vérification système</h3>
+  <div class="about-section">
+    <p class="muted" style="margin-bottom:10px;">Vérifie que tous les composants nécessaires au travail à distance avec Cursor fonctionnent correctement (Git, Ollama, Flask, API, scripts).</p>
+    <div class="settings-group" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-primary" id="btnSystemVerify" onclick="runSystemVerify()">🔍 Lancer la vérification</button>
+      <button class="btn btn-secondary" id="btnSystemLogs" onclick="showSystemLogs()">📋 Voir les logs serveur</button>
+      <button class="btn btn-secondary" id="btnCheckDeployment" onclick="checkDeployment()">🔎 Vérifier le déploiement</button>
+    </div>
+    <div id="systemVerifyResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);"></div>
+  </div>
+</div>
+
+<div class="settings-section admin-only-section" id="deployUpdateSection">
+  <h3>🔄 Mise à jour du serveur</h3>
+  <div class="about-section">
+    <p class="muted" style="margin-bottom:10px;">Récupère les dernières modifications depuis Git (origin/main) et redémarre automatiquement le serveur. Cette action est irréversible.</p>
+    <div class="settings-group" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-primary" id="btnDeployPull" onclick="triggerDeployPull()">🔄 Mettre à jour et redémarrer</button>
+      <span id="deployPullStatus" style="font-size:13px;color:var(--color-text-secondary);"></span>
+    </div>
+    <div id="deployPullResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);max-height:320px;overflow-y:auto;"><pre id="deployPullLog" style="margin:0;font-size:12px;font-family:monospace;white-space:pre-wrap;word-break:break-all;"></pre><div id="deployPullSummary" style="margin-top:10px;"></div></div>
+  </div>
+</div>
+
+<div class="settings-section">
+  <h3>ℹ️ À propos</h3>
+  <div class="about-section">
+    <h4>Prosp'Up</h4>
+    <p>Outil local de prospection & sourcing.</p>
+    
+    <div style="margin-top: 12px; margin-bottom: 16px; padding: 12px 16px; border-radius: 10px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.08)); border: 2px solid rgba(34, 197, 94, 0.3);">
+      <div style="display: flex; align-items: center; gap: 10px; font-weight: 600; color: #22c55e; font-size: 14px;">
+        <span style="font-size: 20px;">✅</span>
+        <span>Dernière version active — Uniformisation header/sidebar complétée (v25.4)</span>
+      </div>
+      <p style="margin-top: 8px; margin-bottom: 0; font-size: 12px; color: var(--color-text-secondary);">
+        Toutes les pages utilisent maintenant le template de base avec header et sidebar uniformisés. Bouton "Réeffectuer MAJ" disponible sur la page 404.
+      </p>
+    </div>
+    
+    <!-- Badge version / commit (indicateur mise à jour) -->
+    <div id="appVersionBadge" style="margin-top: 12px; margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; background: var(--color-surface-2); border: 1px solid var(--color-border); display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
+      <span id="versionBadgeDot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #64748b; animation: pulse 2s infinite;"></span>
+      <span id="versionBadgeText">Chargement…</span>
+    </div>
+    
+    <p style="margin-top: 15px; font-size: 13px;">💾 Stockage : base SQLite locale (sur votre PC)</p>
+    <p style="font-size: 13px;">🔒 Aucune donnée ne quitte votre ordinateur</p>
+    <p style="font-size: 13px;">🧷 Sauvegardes : snapshots automatiques + manuels</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script defer src="/static/js/notifications.js?v=2000"></script>
+<script defer src="/static/js/page-settings.js?v=2000"></script>
+<script>
+  // ════════════════════════════════════════════════════════════════
+  // Badge version / commit (indicateur mise à jour prospup.work)
+  // ════════════════════════════════════════════════════════════════
+  (function() {
+    let lastCommitHash = localStorage.getItem('prospup_last_commit_hash') || '';
+    let checkInterval = null;
+    
+    async function updateVersionBadge() {
+      const badgeDot = document.getElementById('versionBadgeDot');
+      const badgeText = document.getElementById('versionBadgeText');
+      if (!badgeDot || !badgeText) return;
+      
+      try {
+        const res = await fetch('/api/app-version');
+        if (!res.ok) {
+          badgeText.textContent = 'v? • Erreur de chargement';
+          badgeDot.style.background = '#ef4444';
+          badgeDot.style.animation = 'none';
+          console.warn('Version badge: HTTP error', res.status);
+          return;
+        }
+        
+        const data = await res.json();
+        if (!data || !data.ok) {
+          badgeText.textContent = 'v? • Erreur de chargement';
+          badgeDot.style.background = '#ef4444';
+          badgeDot.style.animation = 'none';
+          console.warn('Version badge: invalid response', data);
+          return;
+        }
+        
+        const version = data.version || '?';
+        const commitHash = data.commit_hash || 'unknown';
+        const branch = data.branch || 'main';
+        const commitDate = data.commit_date || '';
+        const badgeColor = data.badge_color || '#64748b';
+        
+        badgeDot.style.background = badgeColor;
+        badgeDot.style.animation = 'none';
+        
+        let dateStr = '';
+        if (commitDate) {
+          try {
+            const dt = new Date(commitDate);
+            dateStr = dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + 
+                     ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          } catch (e) {
+            dateStr = commitDate.substring(0, 16).replace('T', ' ');
+          }
+        }
+        
+        let text = `v${version} · ${branch} · ${commitHash !== 'unknown' ? commitHash.substring(0, 7) : '?'}`;
+        if (dateStr) {
+          text += ` · ${dateStr}`;
+        }
+        badgeText.textContent = text;
+        
+        if (lastCommitHash && lastCommitHash !== commitHash && commitHash !== 'unknown') {
+          badgeDot.style.animation = 'pulse 1s ease-in-out 3';
+          if (typeof showToast === 'function') {
+            showToast('✅ Nouvelle version détectée !', 'success');
+          }
+        }
+        
+        if (commitHash !== 'unknown') {
+          localStorage.setItem('prospup_last_commit_hash', commitHash);
+          lastCommitHash = commitHash;
+        }
+      } catch (e) {
+        console.warn('Version badge update error:', e);
+        badgeText.textContent = 'v? • Erreur réseau';
+        badgeDot.style.background = '#ef4444';
+        badgeDot.style.animation = 'none';
+      }
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      updateVersionBadge();
+      checkInterval = setInterval(updateVersionBadge, 30000);
+    });
+    
+    window.addEventListener('beforeunload', function() {
+      if (checkInterval) clearInterval(checkInterval);
+    });
+  })();
+</script>
+<script>
+  // v16.5: Hide admin-only sections for non-admin users
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+      if (window.AppAuth && AppAuth.user && AppAuth.user.role !== 'admin') {
+        document.querySelectorAll('.settings-section h3').forEach(function(h3) {
+          if (h3.textContent.includes('Gestion des données')) {
+            h3.closest('.settings-section').style.display = 'none';
+          }
+        });
+        document.querySelectorAll('.admin-only-section').forEach(function(el) {
+          el.style.display = 'none';
+        });
+      }
+      const verifySection = document.getElementById('systemVerifySection');
+      if (!verifySection && window.AppAuth && AppAuth.user && AppAuth.user.role === 'admin') {
+        console.warn('Section vérification système non trouvée — le code n\'est peut-être pas à jour sur le serveur');
+      }
+    }, 300);
+  });
+</script>
+<script>
+  // Onglets + swipe personnalisation affichage
+  (function() {
+    var tabs = document.querySelectorAll('.display-prefs-tab');
+    var panes = document.querySelectorAll('.display-prefs-pane');
+    var swipeEl = document.getElementById('displayPrefsSwipe');
+    var currentIndex = 0;
+    var touchStartX = 0, touchEndX = 0;
+
+    function showPane(index) {
+      index = Math.max(0, Math.min(index, panes.length - 1));
+      currentIndex = index;
+      panes.forEach(function(p, i) {
+        p.classList.toggle('active', i === index);
+      });
+      tabs.forEach(function(t, i) {
+        t.classList.toggle('active', i === index);
+        t.setAttribute('aria-selected', i === index ? 'true' : 'false');
+      });
+    }
+
+    tabs.forEach(function(tab, i) {
+      tab.addEventListener('click', function() { showPane(i); });
+    });
+
+    if (swipeEl) {
+      swipeEl.addEventListener('touchstart', function(e) { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+      swipeEl.addEventListener('touchend', function(e) {
+        touchEndX = e.changedTouches[0].screenX;
+        var diff = touchStartX - touchEndX;
+        if (Math.abs(diff) > 50) {
+          if (diff > 0) showPane(currentIndex + 1);
+          else showPane(currentIndex - 1);
+        }
+      }, { passive: true });
+    }
+  })();
+</script>
+<script>
+/* ── Import tags CSV ── */
+function normalizeStr(s) {
+  return (s || '').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+const csvTagsEl = document.getElementById('csvTagsFile');
+if (csvTagsEl) {
+  csvTagsEl.addEventListener('change', async function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fn = (file.name || '').toLowerCase();
+    if (fn.endsWith('.xlsx') || fn.endsWith('.xls')) {
+      const buf = await file.arrayBuffer();
+      parseAndPreviewTagsFromExcel(buf);
+    } else {
+      const text = await file.text();
+      parseAndPreviewTags(text);
+    }
+    this.value = '';
+  });
+} else {
+  console.warn('csvTagsFile not found (import CSV tags disabled).');
+}
+
+function detectCsvSeparator(firstLine) {
+  if (firstLine.includes('\t') && (firstLine.match(/\t/g) || []).length >= (firstLine.match(/[;,]/g) || []).length) return '\t';
+  const semi = (firstLine.match(/;/g) || []).length;
+  const comma = (firstLine.match(/,/g) || []).length;
+  return semi >= comma ? ';' : ',';
+}
+
+function findTagColumnIndex(header, names) {
+  const h = header.map(c => (c || '').trim().toLowerCase());
+  for (const n of names) {
+    const i = h.indexOf(n);
+    if (i >= 0) return i;
+  }
+  return -1;
+}
+
+function parseAndPreviewTags(csvText) {
+  const lines = csvText.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) { alert('CSV vide ou invalide.'); return; }
+
+  const sep = detectCsvSeparator(lines[0]);
+  const header = lines[0].split(sep).map(h => (h || '').trim().toLowerCase());
+  const nameIdx = findTagColumnIndex(header, ['name', 'nom', 'contact', 'full name', 'nom complet']);
+  const compIdx = findTagColumnIndex(header, ['company', 'company name', 'entreprise', 'societe', 'société', 'groupe', 'organisation']);
+  const tagsIdx = findTagColumnIndex(header, ['tags', 'tag', 'competences', 'compétences', 'skills', 'compétences / tags']);
+  if (nameIdx < 0 || tagsIdx < 0) {
+    alert('Le CSV doit contenir au moins une colonne Nom (name/nom) et une colonne Tags (tags/tag/compétences). Séparateur détecté : ' + (sep === '\t' ? 'tabulation' : sep));
+    return;
+  }
+
+  const csvRows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(sep);
+    const name = (cols[nameIdx] || '').trim();
+    const company = compIdx >= 0 ? (cols[compIdx] || '').trim() : '';
+    const tagStr = (cols[tagsIdx] || '').trim();
+    const tags = tagStr.split(/[,;|]/).map(t => t.trim()).filter(Boolean);
+    if (name && tags.length) csvRows.push({ name, company, tags });
+  }
+
+  if (!csvRows.length) { alert('Aucune ligne avec des tags dans le fichier.'); return; }
+  runTagsMatching(csvRows);
+}
+
+function parseAndPreviewTagsFromExcel(buf) {
+  if (typeof XLSX === 'undefined') { alert('Bibliothèque Excel non chargée.'); return; }
+  try {
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sh = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sh, { header: 1, defval: '' });
+    if (!data.length) { alert('Feuille vide.'); return; }
+    const header = (data[0] || []).map(h => String(h || '').trim().toLowerCase());
+    const nameIdx = findTagColumnIndex(header, ['name', 'nom', 'contact', 'full name', 'nom complet']);
+    const compIdx = findTagColumnIndex(header, ['company', 'company name', 'entreprise', 'societe', 'société', 'groupe', 'organisation']);
+    const tagsIdx = findTagColumnIndex(header, ['tags', 'tag', 'competences', 'compétences', 'skills', 'compétences / tags']);
+    if (nameIdx < 0 || tagsIdx < 0) {
+      alert('Le fichier doit contenir au moins une colonne Nom (name/nom) et une colonne Tags (tags/tag/compétences).');
+      return;
+    }
+    const csvRows = [];
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i] || [];
+      const name = String(row[nameIdx] != null ? row[nameIdx] : '').trim();
+      const company = compIdx >= 0 ? String(row[compIdx] != null ? row[compIdx] : '').trim() : '';
+      const tagStr = String(row[tagsIdx] != null ? row[tagsIdx] : '').trim();
+      const tags = tagStr.split(/[,;|]/).map(t => t.trim()).filter(Boolean);
+      if (name && tags.length) csvRows.push({ name, company, tags });
+    }
+    if (!csvRows.length) { alert('Aucune ligne avec des tags dans la feuille.'); return; }
+    runTagsMatching(csvRows);
+  } catch (err) {
+    alert('Erreur lecture Excel: ' + (err.message || err));
+  }
+}
+
+function runTagsMatching(csvRows) {
+  const companyById = {};
+  (data.companies || []).forEach(c => { companyById[c.id] = c; });
+  const matches = [];
+  const notFound = [];
+
+  csvRows.forEach(row => {
+    const nRow = normalizeStr(row.name);
+    const cRow = normalizeStr(row.company);
+    let bestMatch = null;
+    let bestScore = 0;
+
+    (data.prospects || []).forEach(p => {
+      const nProspect = normalizeStr(p.name);
+      const comp = companyById[p.company_id];
+      const cProspect = normalizeStr(comp ? (comp.groupe || '') : '');
+      let nameScore = 0;
+      if (nRow === nProspect) nameScore = 1.0;
+      else if (nRow.includes(nProspect) || nProspect.includes(nRow)) nameScore = 0.8;
+      else {
+        const bigrams = (s) => { const b = []; for (let i = 0; i < s.length - 1; i++) b.push(s.slice(i, i+2)); return b; };
+        const b1 = bigrams(nRow), b2 = bigrams(nProspect);
+        if (b1.length && b2.length) {
+          const set2 = new Set(b2);
+          const inter = b1.filter(b => set2.has(b)).length;
+          nameScore = (2 * inter) / (b1.length + b2.length);
+        }
+      }
+      let compScore = 0;
+      if (cRow && cProspect) {
+        if (cRow === cProspect) compScore = 0.3;
+        else if (cRow.includes(cProspect) || cProspect.includes(cRow)) compScore = 0.25;
+      }
+      const total = nameScore + compScore;
+      if (total > bestScore && nameScore >= 0.6) { bestScore = total; bestMatch = p; }
+    });
+
+    if (bestMatch) {
+      const existingTags = new Set((bestMatch.tags || []).map(t => t.toLowerCase()));
+      const newTags = row.tags.filter(t => !existingTags.has(t.toLowerCase()));
+      matches.push({
+        csvName: row.name,
+        csvCompany: row.company,
+        prospectId: bestMatch.id,
+        prospectName: bestMatch.name,
+        prospectCompany: (companyById[bestMatch.company_id] || {}).groupe || '',
+        score: bestScore,
+        existingTags: bestMatch.tags || [],
+        csvTags: row.tags,
+        newTags: newTags,
+      });
+    } else {
+      notFound.push(row);
+    }
+  });
+
+  matches.sort((a, b) => b.newTags.length - a.newTags.length);
+  showTagsPreview(matches, notFound);
+}
+
+function showTagsPreview(matches, notFound) {
+  const box = document.getElementById('csvTagsPreview');
+  const withNew = matches.filter(m => m.newTags.length > 0);
+  const upToDate = matches.filter(m => m.newTags.length === 0);
+
+  let html = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+      <div class="stat-chip" style="padding:8px 14px;">
+        <span class="stat-chip-value" style="font-size:18px;">${matches.length}</span> matchés
+      </div>
+      <div class="stat-chip" style="padding:8px 14px;">
+        <span class="stat-chip-value" style="font-size:18px;color:#22c55e;">${withNew.length}</span> à mettre à jour
+      </div>
+      <div class="stat-chip" style="padding:8px 14px;">
+        <span class="stat-chip-value" style="font-size:18px;color:#64748b;">${upToDate.length}</span> déjà à jour
+      </div>
+      <div class="stat-chip" style="padding:8px 14px;">
+        <span class="stat-chip-value" style="font-size:18px;color:#ef4444;">${notFound.length}</span> non trouvés
+      </div>
+    </div>`;
+
+  if (withNew.length) {
+    html += `<div style="max-height:350px;overflow-y:auto;border:1px solid var(--color-border);border-radius:10px;margin-bottom:12px;">
+      <table style="width:100%;font-size:12.5px;border-collapse:collapse;">
+        <thead><tr style="background:var(--color-surface-2);position:sticky;top:0;">
+          <th style="padding:8px 10px;text-align:left;">CSV</th>
+          <th style="padding:8px 10px;text-align:left;">→ Prospect trouvé</th>
+          <th style="padding:8px 10px;text-align:left;">Nouveaux tags</th>
+        </tr></thead><tbody>`;
+
+    withNew.forEach(m => {
+      html += `<tr style="border-top:1px solid var(--color-border);">
+        <td style="padding:6px 10px;">${esc(m.csvName)}<br><span style="color:var(--color-text-secondary);font-size:11px;">${esc(m.csvCompany)}</span></td>
+        <td style="padding:6px 10px;">${esc(m.prospectName)}<br><span style="color:var(--color-text-secondary);font-size:11px;">${esc(m.prospectCompany)} · ${Math.round(m.score*100)}%</span></td>
+        <td style="padding:6px 10px;">${m.newTags.map(t => '<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:11px;background:rgba(34,197,94,.1);color:#22c55e;border:1px solid rgba(34,197,94,.2);margin:1px 2px;">+ ' + esc(t) + '</span>').join('')}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  if (notFound.length) {
+    html += `<details style="margin-bottom:12px;"><summary style="cursor:pointer;color:var(--color-text-secondary);font-size:12.5px;">❌ ${notFound.length} non trouvés (cliquer pour voir)</summary>
+      <div style="max-height:150px;overflow-y:auto;margin-top:6px;font-size:12px;color:var(--color-text-secondary);">
+        ${notFound.map(r => esc(r.name) + ' (' + esc(r.company) + ')').join('<br>')}
+      </div></details>`;
+  }
+
+  if (withNew.length) {
+    html += `<div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="applyTagsImport()">✅ Appliquer ${withNew.length} mises à jour</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('csvTagsPreview').style.display='none';">Annuler</button>
+    </div>`;
+  } else {
+    html += '<p style="color:var(--color-text-secondary);">Tous les prospects sont déjà à jour, rien à importer.</p>';
+  }
+
+  box.innerHTML = html;
+  box.style.display = 'block';
+
+  window._pendingTagsImport = matches.filter(m => m.newTags.length > 0);
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function applyTagsImport() {
+  const pending = window._pendingTagsImport || [];
+  if (!pending.length) return;
+
+  let updated = 0;
+  pending.forEach(m => {
+    const p = data.prospects.find(x => x.id === m.prospectId);
+    if (!p) return;
+    const existing = new Set((p.tags || []).map(t => t.toLowerCase()));
+    const merged = [...(p.tags || [])];
+    m.newTags.forEach(t => {
+      if (!existing.has(t.toLowerCase())) {
+        merged.push(t);
+        existing.add(t.toLowerCase());
+      }
+    });
+    p.tags = merged;
+    updated++;
+  });
+
+  saveToServer();
+  markUnsaved();
+
+  const box = document.getElementById('csvTagsPreview');
+  box.innerHTML = `<div style="padding:12px;border-radius:10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:#22c55e;">
+    ✅ <strong>${updated} prospects</strong> mis à jour avec leurs nouveaux tags. Sauvegarde effectuée.
+  </div>`;
+
+  window._pendingTagsImport = [];
+}
+// ═══ Change password banner (redirected from first login) ═══
+;(function() {
+  if (new URLSearchParams(window.location.search).get('change_password') !== '1') return;
+  function mkBanner() {
+    if (document.getElementById('mustChangePwBanner')) return;
+    var b = document.createElement('div');
+    b.id = 'mustChangePwBanner';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#f59e0b;color:#1c1917;padding:14px 20px;text-align:center;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+    b.innerHTML = '🔐 Sécurité : changez votre mot de passe avant de commencer. &nbsp;<button onclick="document.getElementById(\'changePwSection\').scrollIntoView({behavior:\'smooth\'});document.getElementById(\'oldPw\').focus();" style="background:#1c1917;color:#fef3c7;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600;">Changer maintenant</button>';
+    document.body.prepend(b);
+  }
+  mkBanner();
+  [200, 600, 1500].forEach(function(ms) { setTimeout(mkBanner, ms); });
+})();
+
+async function changePassword() {
+  const oldPw = document.getElementById('oldPw').value;
+  const newPw = document.getElementById('newPw').value;
+  const newPw2 = document.getElementById('newPw2').value;
+  const status = document.getElementById('changePwStatus');
+  status.textContent = '';
+  if (!oldPw || !newPw || !newPw2) { status.textContent = '⚠️ Tous les champs sont requis.'; return; }
+  if (newPw !== newPw2) { status.textContent = '⚠️ Les mots de passe ne correspondent pas.'; return; }
+  try {
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+    });
+    const j = await res.json();
+    if (j.ok) {
+      status.style.color = '#22c55e';
+      status.textContent = '✅ Mot de passe changé avec succès !';
+      document.getElementById('oldPw').value = '';
+      document.getElementById('newPw').value = '';
+      document.getElementById('newPw2').value = '';
+      document.getElementById('mustChangePwBanner') && document.getElementById('mustChangePwBanner').remove();
+      if (typeof showToast === 'function') showToast('✅ Mot de passe mis à jour', 'success');
+    } else {
+      status.style.color = '#ef4444';
+      status.textContent = '⚠️ ' + (j.error || 'Erreur');
+    }
+  } catch(e) {
+    status.style.color = '#ef4444';
+    status.textContent = '⚠️ Erreur réseau';
+  }
+}
+window.changePassword = changePassword;
+</script>
+{% endblock %}

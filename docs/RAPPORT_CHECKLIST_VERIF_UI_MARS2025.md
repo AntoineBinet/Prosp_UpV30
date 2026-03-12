@@ -2,7 +2,7 @@
 
 **Date** : 9 mars 2025  
 **Référence** : `docs/CHECKLIST_VERIF_UI_MARS2025.md`  
-**Contexte** : Application ProspUp (Flask + HTML/JS/CSS, PWA), cible prospup.work ou http://127.0.0.1:8000.
+**Contexte** : Application Prosp'Up (Flask + HTML/JS/CSS, PWA), cible prospup.work ou http://127.0.0.1:8000.
 
 ---
 

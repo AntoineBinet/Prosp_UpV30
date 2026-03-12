@@ -11,8 +11,8 @@ setup('authenticate', async ({ page }) => {
   await page.fill('#password', PASS);
   await page.click('.btn-login');
 
-  // Wait for redirect to home page (successful login)
-  await page.waitForURL('/', { timeout: 10_000 });
+  // Wait for redirect after successful login (could be / or /dashboard)
+  await page.waitForURL(/\/(dashboard)?$/, { timeout: 10_000 });
 
   // Persist session cookies for other tests
   await page.context().storageState({ path: './tests/e2e/.auth/user.json' });

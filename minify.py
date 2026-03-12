@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minify CSS and JS static assets for ProspUp.
+"""Minify CSS and JS static assets for Prosp'Up.
 
 Usage:
     python minify.py          # Minify all assets

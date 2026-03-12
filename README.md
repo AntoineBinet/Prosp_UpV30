@@ -34,6 +34,8 @@ Ouvrir http://127.0.0.1:8000 dans le navigateur.
 
 Double-cliquer sur `PROSPUP.bat` — installe les dependances et lance le serveur.
 
+Les mises à jour se font manuellement via le bouton "Mettre à jour et redémarrer" dans les paramètres de l'application (section admin).
+
 Compte initial : `admin / admin` (a changer immediatement).
 
 ### prospup.work inaccessible depuis l'iPhone ?

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Prosp'Up — Snapshots{% endblock %}
+
+{% block page_id %}snapshots{% endblock %}
+
+{% block header_title %}Prosp'Up — Snapshots{% endblock %}
+
+{% block header_subtitle %}Sauvegardes / restauration de la base SQLite (local).{% endblock %}
+
+{% block content %}
+<div class="content-header">
+  <div class="content-title">Sauvegardes</div>
+  <div class="controls">
+    <input id="snapshotLabel" type="text" placeholder="Label (ex: avant_import_fev)" />
+    <button class="btn btn-primary" id="btnCreateSnapshot">➕ Créer</button>
+    <button class="btn btn-secondary" id="btnReloadSnapshots">🔄 Actualiser</button>
+    <div class="muted" id="snapshotsSummary" style="flex:999 1 auto; min-width: 260px;"></div>
+  </div>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Fichier</th>
+        <th>Taille</th>
+        <th>Dernière modif</th>
+        <th style="text-align:right;">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="snapshotsBody"></tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top: 14px;">
+  <div class="muted">
+    Une sauvegarde <strong>before_restore</strong> est créée automatiquement avant chaque restauration.
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script defer src="/static/js/page-snapshots.js?v=2000"></script>
+{% endblock %}

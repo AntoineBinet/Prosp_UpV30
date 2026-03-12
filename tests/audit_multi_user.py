@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Audit multi-utilisateurs ProspUp — isolation des données, créations/suppressions, stabilité.
+Audit multi-utilisateurs Prosp'Up — isolation des données, créations/suppressions, stabilité.
 Lance de nombreux scénarios et collecte toutes les erreurs pour correction ultérieure.
 Usage: python -m tests.audit_multi_user
        ou: cd tests && python audit_multi_user.py
@@ -59,7 +59,7 @@ def run_audit():
         errors.append(err)
         print(f"  [FAIL] {step}: {message}")
 
-    print("=== Audit multi-utilisateurs ProspUp ===\n")
+    print("=== Audit multi-utilisateurs Prosp'Up ===\n")
 
     # --- 1) Init ---
     try:

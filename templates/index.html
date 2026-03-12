@@ -1,0 +1,553 @@
+{% extends "base.html" %}
+
+{% block title %}Prosp'Up — Gestion Prospects{% endblock %}
+
+{% block page_id %}prospects{% endblock %}
+
+{% block header_title %}Prosp'Up — Gestion Prospects{% endblock %}
+
+{% block header_subtitle %}Prospection Embedded Systems & Robotique — Up Technologies{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="viewProspects" style="display: block;">
+    <div id="relanceAlertBannerProspects" class="relance-alert-banner" style="display:none; margin-bottom:12px;" aria-live="polite">
+        <span id="relanceAlertBannerProspectsText"></span>
+        <a href="/focus" class="relance-alert-banner-link">Voir Focus →</a>
+        <button type="button" class="relance-alert-banner-close" onclick="document.getElementById('relanceAlertBannerProspects').style.display='none'; sessionStorage.setItem('relanceAlertDismissed', Date.now());" title="Masquer">×</button>
+    </div>
+    <div class="content-header">
+        <div class="content-title" id="viewTitle">👥 Tous les prospects</div>
+        
+        <div class="controls" id="mainControls">
+            <input type="text" id="searchInput" placeholder="🔍 Rechercher (nom, entreprise…)">
+            <button class="btn btn-secondary filter-toggle-btn" id="btnToggleFilters" type="button" title="Afficher les filtres" data-help-section="prospects">⚙️ Filtres</button>
+            <div id="activeFilterChips" class="filter-chips-bar"></div>
+        </div>
+
+        <div id="filterPanel" class="filter-panel" style="display:none;">
+            <div class="filter-panel-grid">
+                <div class="filter-group">
+                    <label class="filter-label">Entreprise</label>
+                    <select id="companyFilter" class="filter-select"><option value="">Toutes</option></select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Statut</label>
+                    <select id="statusFilter" class="filter-select">
+                        <option value="">Tous</option>
+                        <option value="Appelé">📞 Appelé</option>
+                        <option value="Rendez-vous">🤝 Rendez-vous</option>
+                        <option value="Rencontré">✅ Rencontré</option>
+                        <option value="Messagerie">💬 Messagerie</option>
+                        <option value="À rappeler">📞 À rappeler</option>
+                        <option value="Pas d'actions">✓ Pas d'actions</option>
+                        <option value="Pas intéressé">❌ Pas intéressé</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Pertinence</label>
+                    <select id="pertinenceFilter" class="filter-select">
+                        <option value="">Toutes</option>
+                        <option value="5">⭐⭐⭐⭐⭐</option>
+                        <option value="4">⭐⭐⭐⭐</option>
+                        <option value="3">⭐⭐⭐</option>
+                        <option value="2">⭐⭐</option>
+                        <option value="1">⭐</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Téléphone</label>
+                    <select id="phoneFilter" class="filter-select">
+                        <option value="">Tous</option>
+                        <option value="with">✅ Avec</option>
+                        <option value="without">❌ Sans</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Email</label>
+                    <select id="emailFilter" class="filter-select">
+                        <option value="">Tous</option>
+                        <option value="with">✅ Avec</option>
+                        <option value="without">❌ Sans</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">LinkedIn</label>
+                    <select id="linkedinFilter" class="filter-select">
+                        <option value="">Tous</option>
+                        <option value="with">✅ Avec</option>
+                        <option value="without">❌ Sans</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Push email</label>
+                    <select id="pushFilter" class="filter-select">
+                        <option value="">Tous</option>
+                        <option value="sent">✅ Envoyé</option>
+                        <option value="unsent">🕒 Non envoyé</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Relance</label>
+                    <select id="followupFilter" class="filter-select">
+                        <option value="">Toutes</option>
+                        <option value="due">⚠️ À relancer</option>
+                        <option value="has">📅 Avec relance</option>
+                        <option value="none">— Sans relance</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Priorité</label>
+                    <select id="priorityFilter" class="filter-select">
+                        <option value="">Toutes</option>
+                        <option value="1">P1 (haute)</option>
+                        <option value="2">P2</option>
+                        <option value="3">P3 (basse)</option>
+                    </select>
+                </div>
+                <div class="filter-group filter-group-wide">
+                    <label class="filter-label">Compétences</label>
+                    <div class="filter-tags-input-wrap">
+                        <div id="filterTagsChips" class="filter-tags-chips"></div>
+                        <input id="filterTagsInput" type="text" class="filter-select" placeholder="Taper + Entrée..." list="filterTagsSuggestions" autocomplete="off">
+                        <datalist id="filterTagsSuggestions"></datalist>
+                    </div>
+                </div>
+            </div>
+            <div class="filter-panel-actions">
+                <div class="exclude-wrap" id="excludeWrap">
+                    <button class="btn btn-secondary" type="button" id="excludeToggle" title="Exclure des statuts">🚫 Exclure statuts</button>
+                    <div class="dropdown-panel" id="excludePanel" style="display:none;">
+                        <div class="dropdown-title">Masquer les statuts</div>
+                        <label class="dropdown-item"><input type="checkbox" value="Appelé"> 📞 Appelé</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Rendez-vous"> 🤝 Rendez-vous</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Rencontré"> ✅ Rencontré</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Messagerie"> 💬 Messagerie</label>
+                        <label class="dropdown-item"><input type="checkbox" value="À rappeler"> 📞 À rappeler</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Pas d'actions"> ✓ Pas d'actions</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Pas intéressé"> ❌ Pas intéressé</label>
+                        <div class="dropdown-actions">
+                            <button class="btn btn-secondary" type="button" id="excludeClear">Tout afficher</button>
+                            <button class="btn btn-primary" type="button" id="excludeApply">Appliquer</button>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" type="button" id="btnResetFilters">🔄 Réinitialiser</button>
+                <span id="filterCount" class="filter-count"></span>
+            </div>
+        </div>
+
+        <div class="toolbar-row">
+            <select id="savedViewSelect" title="Vues enregistrées"><option value="">Vues…</option></select>
+            <button class="btn btn-secondary" id="btnSaveView" type="button" title="Enregistrer la vue courante">💾 Vue</button>
+            <button class="btn btn-secondary" id="btnDeleteView" type="button" title="Supprimer la vue sélectionnée">🗑️ Suppr.</button>
+            <button class="btn btn-secondary" onclick="openStatsModal()" aria-label="Statistiques">📊 Stats</button>
+            <div class="export-dropdown" id="exportDropdown">
+            <button class="btn btn-secondary" type="button" onclick="this.parentElement.classList.toggle('open')" aria-label="Exporter les données">⬇️ Export</button>
+            <div class="export-dropdown-menu">
+                <button class="export-dropdown-item" onclick="window.location.href='/api/export/xlsx'">📊 Export Excel</button>
+                <button class="export-dropdown-item" onclick="exportCurrentViewCSV()">📄 Export CSV</button>
+                <button class="export-dropdown-item" onclick="exportCurrentViewJSON()">📋 Export JSON</button>
+                <button class="export-dropdown-item" onclick="printCurrentView()">🖨️ Imprimer</button>
+            </div>
+            </div>
+            <button class="btn btn-secondary" onclick="openImportListModal()" title="Importer Excel ou CSV" data-help-section="parametres">📥 Importer ma liste</button>
+            <div class="view-toggle" id="viewToggle">
+                <button class="view-toggle-btn active" id="btnViewTable" onclick="switchTableKanban('table')" title="Vue tableau">☰</button>
+                <button class="view-toggle-btn" id="btnViewProsp" onclick="switchTableKanban('prosp')" title="Mode Prosp défilant">🃏</button>
+                <button class="view-toggle-btn" id="btnViewKanban" onclick="switchTableKanban('kanban')" title="Vue Kanban">▦</button>
+            </div>
+        </div>
+
+        <div class="bulk-actions" id="bulkActions" style="display:none;">
+            <div class="bulk-left">
+                <strong id="bulkCount">0</strong> sélectionné(s)
+                <button class="btn btn-secondary" onclick="clearSelection()">Tout désélectionner</button>
+            </div>
+            <div class="bulk-right">
+                <select id="bulkStatus">
+                    <option value="">Changer statut...</option>
+                    <option value="Appelé">📞 Appelé</option>
+                    <option value="Rendez-vous">🤝 Rendez-vous</option>
+                    <option value="Rencontré">✅ Rencontré</option>
+                    <option value="Messagerie">💬 Messagerie</option>
+                    <option value="À rappeler">📞 À rappeler</option>
+                    <option value="Pas d'actions">✓ Pas d'actions</option>
+                    <option value="Pas intéressé">❌ Pas intéressé</option>
+                </select>
+                <button class="btn btn-primary" onclick="applyBulkStatus()">Appliquer</button>
+
+                <select id="bulkPertinence">
+                    <option value="">Changer pertinence...</option>
+                    <option value="5">⭐⭐⭐⭐⭐</option>
+                    <option value="4">⭐⭐⭐⭐</option>
+                    <option value="3">⭐⭐⭐</option>
+                    <option value="2">⭐⭐</option>
+                    <option value="1">⭐</option>
+                </select>
+                <button class="btn btn-primary" onclick="applyBulkPertinence()">Appliquer</button>
+
+                <select id="bulkRelance" onchange="var d=document.getElementById('bulkRelanceDate'); if(d) d.style.display=this.value==='date'?'inline-block':'none';">
+                    <option value="">Relance...</option>
+                    <option value="+3">+3j</option>
+                    <option value="+7">+7j</option>
+                    <option value="+30">+30j</option>
+                    <option value="date">Date...</option>
+                </select>
+                <input type="date" id="bulkRelanceDate" style="display:none; width:140px;" title="Date de relance">
+                <button class="btn btn-primary" onclick="applyBulkRelance()">📅 Relance</button>
+                <button class="btn btn-secondary" onclick="applyBulkRelanceDone()" title="Vider la date de relance pour les sélectionnés">✓ Relance faite</button>
+
+                <button class="btn btn-secondary" onclick="exportSelectedJSON()">⬇️ Export JSON</button>
+                <button class="btn btn-secondary" onclick="exportSelectedCSV()">⬇️ Export CSV</button>
+                <button class="btn btn-secondary" onclick="exportSelectedVCF()">📇 Export VCF</button>
+
+                <button class="btn btn-ia-bulk" onclick="openBulkIAModal('email')" title="Trouver les emails via IA pour les prospects sélectionnés" data-help-section="scrapping-ia">📧 Email IA</button>
+                <button class="btn btn-ia-bulk" onclick="openBulkIAModal('tel')" title="Trouver les téléphones via IA pour les prospects sélectionnés" data-help-section="scrapping-ia">📞 Tel IA</button>
+
+                <button class="btn btn-danger" onclick="deleteSelectedProspects()">🗑️ Supprimer</button>
+            </div>
+        </div>
+
+        <div class="stats">
+
+            <div class="stat-card" onclick="quickFilterStat('total')" title="Afficher tous les prospects">
+                <div class="stat-number" id="totalCount">0</div>
+                <div class="stat-label">TOTAL</div>
+            </div>
+            <div class="stat-card appelé" onclick="quickFilterStat('appelables')" title="Filtrer les prospects avec téléphone">
+                <div class="stat-number" id="appeléCount">0</div>
+                <div class="stat-label">APPELABLES</div>
+            </div>
+            <div class="stat-card rdv" onclick="quickFilterStat('rdv')" title="Filtrer les prospects en RDV">
+                <div class="stat-number" id="rdvCount">0</div>
+                <div class="stat-label">RDV</div>
+            </div>
+            <div class="stat-card intéressés" onclick="quickFilterStat('interactions')" title="Filtrer Appelé + À rappeler + Messagerie">
+                <div class="stat-number" id="intéressésCount">0</div>
+                <div class="stat-label">INTERACTIONS</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="prosp-cta-mobile" id="prospCtaMobile">
+        <button class="btn btn-primary prosp-cta-btn" type="button" onclick="switchTableKanban('prosp')" title="Défiler les prospects un par un">🃏 Mode Prosp</button>
+    </div>
+    <div id="prospResumeBanner" class="prosp-resume-banner" aria-live="polite">
+        <span class="prosp-resume-text">Mode Prosp interrompu.</span>
+        <button type="button" class="btn btn-primary btn-sm" onclick="resumeProspSession()">Reprendre</button>
+        <button type="button" class="prosp-resume-dismiss" onclick="dismissProspResumeBanner()" title="Fermer">×</button>
+    </div>
+
+    <div class="table-toolbar" style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="resetProspectColumnWidths()" title="Réinitialiser les largeurs des colonnes du tableau">↺ Réinitialiser colonnes</button>
+    </div>
+    <div class="table-wrapper" id="tableView">
+        <table>
+            <thead>
+                <tr>
+                    <th data-col="1" scope="col" class="col-resizable"><input type="checkbox" id="selectAll" title="Sélectionner tous les prospects" aria-label="Sélectionner tous les prospects" onclick="toggleSelectAll(this.checked)"></th>
+                    <th data-col="2" scope="col" class="sortable col-resizable" data-sort="id" title="Trier par ordre d'ajout"># <span class="sort-indicator" id="sort-id"></span><span class="col-resize-handle" data-col="2" title="Redimensionner"></span></th>
+                    <th data-col="3" scope="col" class="sortable col-resizable" data-sort="name">Nom <span class="sort-indicator" id="sort-name"></span><span class="col-resize-handle" data-col="3" title="Redimensionner"></span></th>
+                    <th data-col="4" scope="col" class="sortable col-resizable" data-sort="company">Entreprise <span class="sort-indicator" id="sort-company"></span><span class="col-resize-handle" data-col="4" title="Redimensionner"></span></th>
+                    <th data-col="5" scope="col" class="col-resizable">Fonction<span class="col-resize-handle" data-col="5" title="Redimensionner"></span></th>
+                    <th data-col="6" scope="col" class="sortable col-resizable" data-sort="pertinence">Pertinence <span class="sort-indicator" id="sort-pertinence"></span><span class="col-resize-handle" data-col="6" title="Redimensionner"></span></th>
+                    <th data-col="7" scope="col" class="sortable col-resizable" data-sort="score">Score <span class="sort-indicator" id="sort-score"></span><span class="col-resize-handle" data-col="7" title="Redimensionner"></span></th>
+                    <th data-col="8" scope="col" class="sortable col-resizable" data-sort="statut">Statut <span class="sort-indicator" id="sort-statut"></span><span class="col-resize-handle" data-col="8" title="Redimensionner"></span></th>
+                    <th data-col="9" scope="col" class="sortable col-resizable" data-sort="lastContact">Dernier Contact <span class="sort-indicator" id="sort-lastContact"></span><span class="col-resize-handle" data-col="9" title="Redimensionner"></span></th>
+                    <th data-col="10" scope="col" class="col-resizable">Email<span class="col-resize-handle" data-col="10" title="Redimensionner"></span></th>
+                    <th data-col="11" scope="col" class="col-resizable">Push<span class="col-resize-handle" data-col="11" title="Redimensionner"></span></th>
+                    <th data-col="12" scope="col" class="sortable col-resizable" data-sort="nextFollowUp">Relance <span class="sort-indicator" id="sort-nextFollowUp"></span><span class="col-resize-handle" data-col="12" title="Redimensionner"></span></th>
+                    <th data-col="13" scope="col" class="col-resizable">Actions<span class="col-resize-handle" data-col="13" title="Redimensionner"></span></th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+    <div id="paginationControls"></div>
+
+    <div class="kanban-board" id="kanbanView" style="display:none;"></div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal" role="dialog" aria-modal="true" id="modalProspect">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span id="modalTitle">Ajouter Prospect</span>
+            <button class="modal-close" onclick="closeProspectModal()" aria-label="Fermer">&times;</button>
+        </div>
+        <form id="prospectForm" onsubmit="saveProspect(event)">
+            <div class="form-group">
+                <label class="required" for="inputName">Nom</label>
+                <input type="text" id="inputName" name="name" required aria-required="true">
+            </div>
+            <div class="form-group">
+                <label class="required" for="inputCompany">Entreprise</label>
+                <select id="inputCompany" name="company" required aria-required="true"></select>
+            </div>
+            <div class="form-group">
+                <label for="inputFonction">Fonction</label>
+                <input type="text" id="inputFonction" name="fonction">
+            </div>
+            <div class="form-group">
+                <label for="inputTel">Téléphone</label>
+                <input type="tel" id="inputTel" name="tel">
+            </div>
+            <div class="form-group">
+                <label for="inputEmail">Email</label>
+                <input type="email" id="inputEmail" name="email">
+            </div>
+            <div class="form-group">
+                <label for="inputLinkedin">LinkedIn</label>
+                <input type="url" id="inputLinkedin" name="linkedin" placeholder="https://linkedin.com/in/...">
+            </div>
+            <div class="form-group">
+                <label>Pertinence</label>
+                <select id="inputPertinence">
+                    <option value="5">⭐⭐⭐⭐⭐ Très pertinent</option>
+                    <option value="4">⭐⭐⭐⭐ Pertinent</option>
+                    <option value="3" selected>⭐⭐⭐ Moyen</option>
+                    <option value="2">⭐⭐ Peu pertinent</option>
+                    <option value="1">⭐ Non pertinent</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Statut</label>
+                <select id="inputStatut">
+                    <option value="Pas d'actions" selected>Pas d'actions</option>
+                    <option value="Appelé">Appelé</option>
+                    <option value="À rappeler">À rappeler</option>
+                    <option value="Rendez-vous">Rendez-vous</option>
+                    <option value="Messagerie">Messagerie</option>
+                    <option value="Pas intéressé">Pas intéressé</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Notes</label>
+                <textarea id="inputNotes"></textarea>
+            </div>
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" onclick="closeProspectModal()">Annuler</button>
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="modal" role="dialog" aria-modal="true" id="modalDetail">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>Détail du Prospect</span>
+            <button class="modal-close" onclick="closeDetail()">&times;</button>
+        </div>
+        <div id="detailContent"></div>
+    </div>
+</div>
+<div class="modal" role="dialog" aria-modal="true" id="modalStats">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>📊 Statistiques</span>
+            <button class="modal-close" onclick="closeStatsModal()">&times;</button>
+        </div>
+        <div id="statsContent"></div>
+    </div>
+</div>
+<div class="modal" role="dialog" aria-modal="true" id="modalCompany">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span id="companyModalTitle">Ajouter Entreprise</span>
+            <button class="modal-close" onclick="closeCompanyModal()">&times;</button>
+        </div>
+        <form id="companyForm" onsubmit="saveCompany(event)">
+            <input type="hidden" id="inputCompanyId" name="company_id">
+            <div class="form-group">
+                <label class="required" for="inputCompanyName">Nom Groupe</label>
+                <input type="text" id="inputCompanyName" name="company_name" required aria-required="true">
+            </div>
+            <div class="form-group">
+                <label class="required" for="inputCompanySite">Site / Localisation</label>
+                <input type="text" id="inputCompanySite" name="company_site" required aria-required="true">
+            </div>
+            <div class="form-group">
+                <label>Téléphone</label>
+                <input type="tel" id="inputCompanyPhone">
+            </div>
+            <div class="form-group">
+                <label>Notes / Description</label>
+                <textarea id="inputCompanyNotes" rows="4" placeholder="Infos utiles sur l'entreprise (contacts, contexte, etc.)"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Tags</label>
+                <input id="inputCompanyTagsValue" type="hidden" value="[]">
+                <div id="companyTagsEditor" class="tag-editor-host"></div>
+            </div>
+            <div id="companyIASection" style="display:none; padding-top:12px; border-top:1px solid var(--color-border); margin-bottom:12px;">
+                <button id="btnIA_company_0" class="btn btn-secondary" onclick="handleIAButton('company', parseInt(document.getElementById('inputCompanyId').value))" title="Enrichir l'entreprise avec l'IA" data-help-section="scrapping-ia" style="font-size:13px;">🤖 Scrapping IA</button>
+                <div class="muted" style="margin-top:4px; font-size:11px;">1er clic = copier le prompt · 2e clic = coller le retour IA</div>
+            </div>
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" onclick="closeCompanyModal()">Annuler</button>
+                <button type="submit" id="companySubmitBtn" class="btn btn-primary">Ajouter</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="modal" role="dialog" aria-modal="true" id="modalCallChoice">
+    <div class="modal-content" style="max-width: 420px;">
+        <div class="modal-header">
+            <span>Choisir un numéro</span>
+            <button class="modal-close" onclick="closeCallChoice()">×</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 12px; color: var(--color-muted);">Plusieurs numéros sont disponibles pour ce prospect.</p>
+            <div id="callChoiceList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            <div class="btn-group" style="margin-top: 16px;">
+                <button class="btn btn-secondary" onclick="closeCallChoice()">Annuler</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Modal Quick Add IA -->
+<div class="modal" role="dialog" aria-modal="true" id="modalQuickAdd">
+    <div class="modal-content" style="max-width:560px;position:relative;">
+        <div id="qaOllamaOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.7);border-radius:12px;z-index:10;flex-direction:column;align-items:center;justify-content:center;color:var(--color-text);padding:20px;text-align:center;">
+            <div style="font-size:32px;margin-bottom:12px;">⏳</div>
+            <div id="qaOllamaOverlayTitle" style="font-weight:600;margin-bottom:6px;">Génération en cours…</div>
+            <div id="qaOllamaOverlayDetail" class="muted" style="font-size:12px;margin-bottom:8px;">Cela peut prendre plusieurs minutes. Ne fermez pas la fenêtre.</div>
+            <div id="qaOllamaLivePhase" style="font-size:11px;color:var(--color-primary);margin-bottom:6px;"></div>
+            <pre id="qaOllamaLiveText" style="display:none;max-height:120px;overflow:auto;font-size:10px;text-align:left;background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;width:100%;max-width:480px;white-space:pre-wrap;word-break:break-all;"></pre>
+        </div>
+        <div class="modal-header">
+            <span>➕ Ajouter</span>
+            <button class="modal-close" onclick="closeQuickAddModal()">&times;</button>
+        </div>
+
+        <!-- Étape 0 : Choix méthode (Manuel ou IA) -->
+        <div id="qaStep0" style="padding:16px 0 0;">
+            <p class="muted" style="font-size:12px;margin-bottom:10px;">Choisissez votre méthode d'ajout :</p>
+            <div style="display:flex;gap:10px;margin-bottom:16px;">
+                <div class="qa-card" data-method="manual" onclick="qaPickMethod('manual')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
+                    <div style="font-size:28px;margin-bottom:6px;">✏️</div>
+                    <div style="font-weight:700;font-size:13px;">Ajout manuel</div>
+                    <div class="muted" style="font-size:11px;margin-top:3px;">Saisie directe</div>
+                </div>
+                <div class="qa-card" data-method="ia" onclick="qaPickMethod('ia')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
+                    <div style="font-size:28px;margin-bottom:6px;">🤖</div>
+                    <div style="font-weight:700;font-size:13px;">Ajout via IA</div>
+                    <div class="muted" style="font-size:11px;margin-top:3px;">Ollama / ChatGPT</div>
+                </div>
+                <div class="qa-card" data-method="file" onclick="qaPickMethod('file')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
+                    <div style="font-size:28px;margin-bottom:6px;">📄</div>
+                    <div style="font-weight:700;font-size:13px;">Importer un fichier</div>
+                    <div class="muted" style="font-size:11px;margin-top:3px;">Excel, CSV, PDF, Word</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Étape Fichier : type + choix fichier -->
+        <div id="qaStepFile" style="padding:16px 0 0;display:none;">
+            <p class="muted" style="font-size:12px;margin-bottom:10px;">1) Type de données à extraire :</p>
+            <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+                <div class="qa-card" data-type="prospect" onclick="qaPickType('prospect')" style="flex:1;min-width:80px;padding:14px 10px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;">
+                    <div style="font-size:22px;margin-bottom:4px;">👥</div>
+                    <div style="font-weight:700;font-size:12px;">Prospects</div>
+                </div>
+                <div class="qa-card" data-type="company" onclick="qaPickType('company')" style="flex:1;min-width:80px;padding:14px 10px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;">
+                    <div style="font-size:22px;margin-bottom:4px;">🏢</div>
+                    <div style="font-weight:700;font-size:12px;">Entreprises</div>
+                </div>
+                <div class="qa-card" data-type="candidate" onclick="qaPickType('candidate')" style="flex:1;min-width:80px;padding:14px 10px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;">
+                    <div style="font-size:22px;margin-bottom:4px;">🧑‍💻</div>
+                    <div style="font-weight:700;font-size:12px;">Candidats</div>
+                </div>
+            </div>
+            <p class="muted" style="font-size:12px;margin-bottom:8px;">2) Choisissez un fichier (Excel, CSV, PDF ou Word) :</p>
+            <input type="file" id="qaFileInput" accept=".xlsx,.xls,.csv,.pdf,.doc,.docx" style="display:none;">
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('qaFileInput').click()">📁 Choisir un fichier</button>
+            <p id="qaFileChosen" class="muted" style="font-size:12px;margin-top:8px;display:none;"></p>
+            <p class="muted" style="font-size:11px;margin-top:10px;">Le fichier est envoyé au serveur (PC qui héberge Prosp'Up). PDF/Word : l’analyse IA (Ollama) se fait sur ce même PC — vous pouvez être sur un autre appareil.</p>
+            <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
+                <button class="btn btn-secondary" onclick="qaBackFromFileToStep0()">← Retour</button>
+            </div>
+        </div>
+
+        <!-- Étape 1 : Type + Contexte + Action (IA uniquement) -->
+        <div id="qaStep1" style="padding:16px 0 0;display:none;">
+            <p class="muted" style="font-size:12px;margin-bottom:10px;">1) Choisissez le type à ajouter :</p>
+            <div style="display:flex;gap:10px;margin-bottom:16px;">
+                <div class="qa-card" data-type="prospect" onclick="qaPickType('prospect')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
+                    <div style="font-size:28px;margin-bottom:6px;">👥</div>
+                    <div style="font-weight:700;font-size:13px;">Prospect</div>
+                    <div class="muted" style="font-size:11px;margin-top:3px;">Manager / Décideur</div>
+                </div>
+                <div class="qa-card" data-type="company" onclick="qaPickType('company')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
+                    <div style="font-size:28px;margin-bottom:6px;">🏢</div>
+                    <div style="font-weight:700;font-size:13px;">Entreprise</div>
+                    <div class="muted" style="font-size:11px;margin-top:3px;">Client / Cible</div>
+                </div>
+                <div class="qa-card" data-type="candidate" onclick="qaPickType('candidate')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
+                    <div style="font-size:28px;margin-bottom:6px;">🧑‍💻</div>
+                    <div style="font-weight:700;font-size:13px;">Candidat</div>
+                    <div class="muted" style="font-size:11px;margin-top:3px;">Consultant / Profil</div>
+                </div>
+            </div>
+            <p class="muted" style="font-size:12px;margin-bottom:6px;">2) Contexte pour l'IA (recommandé) — lien LinkedIn, nom + entreprise, ou texte. Sans contexte, l'IA génèrera un exemple :</p>
+            <textarea id="qaContextInput" rows="2" style="width:100%;border:1px solid var(--color-border);border-radius:8px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;margin-bottom:14px;" placeholder="https://linkedin.com/in/... ou Jean Dupont, Responsable R&amp;D chez Acme..."></textarea>
+            <p class="muted" style="font-size:12px;margin-bottom:10px;">3) Générez avec Ollama (sur le PC qui héberge Prosp'Up) ou copiez le prompt pour une autre IA :</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;">
+                <button class="btn btn-secondary" onclick="qaBackToStep0()">← Retour</button>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="btn btn-secondary" onclick="closeQuickAddModal()">Annuler</button>
+                    <button class="btn btn-secondary" onclick="qaStartSingle()">📋 Copier (un seul)</button>
+                    <button class="btn btn-secondary" onclick="qaStartMultiple()">📋 Copier (plusieurs)</button>
+                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(false)">🤖 Générer avec Ollama (un seul)</button>
+                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(true)">🤖 Générer avec Ollama (plusieurs)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Étape 2 : Coller le retour d'une autre IA (uniquement si vous avez utilisé « Copier ») -->
+        <div id="qaStep3Paste" style="display:none;padding:16px 0 0;">
+            <p class="muted" style="font-size:12px;margin-bottom:10px;">Collez ici le retour d'une autre IA (ChatGPT, Claude…), modifiez le JSON si besoin, puis cliquez <strong>Analyser</strong> :</p>
+            <textarea id="qaPasteTextarea" rows="10" style="width:100%;border:1px solid var(--color-border);border-radius:10px;padding:12px;font-size:12px;font-family:monospace;background:var(--color-surface);color:var(--color-text);resize:vertical;" placeholder="Collez ici le retour de l'IA (JSON) ou modifiez le texte généré…"></textarea>
+            <div style="display:flex;gap:10px;margin-top:14px;justify-content:space-between;">
+                <button class="btn btn-secondary" onclick="qaBackToStep1()">← Retour</button>
+                <button class="btn btn-primary" onclick="qaParse()">🔍 Analyser</button>
+            </div>
+        </div>
+
+        <!-- Étape 3 : Aperçu et création -->
+        <div id="qaStep4Preview" style="display:none;padding:16px 0 0;">
+            <div id="qaPreviewTitle" style="font-weight:700;font-size:14px;margin-bottom:12px;"></div>
+            <div id="qaPreviewList" style="max-height:350px;overflow-y:auto;"></div>
+            <div style="display:flex;gap:10px;margin-top:14px;justify-content:space-between;">
+                <button class="btn btn-secondary" onclick="qaBackToStep1()">← Retour</button>
+                <button class="btn btn-primary" onclick="qaCreateAll()">🚀 Créer</button>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    .qa-card:hover, .qa-card.active { border-color: var(--color-primary) !important; background: rgba(var(--color-primary-rgb),.08) !important; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(var(--color-primary-rgb),.15); }
+    .qa-card.active::after { content: '✓'; position: absolute; top: 6px; right: 8px; color: var(--color-primary); font-weight: 800; font-size: 16px; }
+    .qa-card[data-method] { cursor: pointer; }
+</style>
+{% endblock %}
+
+{% block fab %}
+<!-- FAB: Ajouter -->
+<button class="fab" id="fabAdd" onclick="openQuickAddModal()" title="Ajouter (IA ou manuel)">
+    <span class="fab-icon">+</span>
+    <span class="fab-label">Ajouter</span>
+</button>
+{% endblock %}
+
+{% block page_scripts %}
+<script defer src="/static/js/metiers-data.js?v=2000"></script>
+<script defer src="/static/js/page-prospects.js?v=2000"></script>
+<script defer src="/static/js/page-quickadd.js?v=2000"></script>
+{% endblock %}

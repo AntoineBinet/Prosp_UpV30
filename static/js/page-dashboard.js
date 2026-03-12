@@ -68,6 +68,11 @@ function renderDashboard(d) {
     renderUpcomingRdv(d.upcoming_rdv || []);
     renderPipeline(d.pipeline);
     if (typeof window.applyDashboardDisplayPrefs === 'function') window.applyDashboardDisplayPrefs();
+    
+    // Réinitialiser le drag & drop après le rendu
+    setTimeout(function() {
+        initDashboardWidgetDragDrop();
+    }, 100);
 }
 
 // Applique les préférences d'affichage des cartes du dashboard
@@ -97,8 +102,9 @@ function applyDashboardDisplayPrefs() {
 }
 window.applyDashboardDisplayPrefs = applyDashboardDisplayPrefs;
 
-// ═══ Widgets réorganisables (v25) — ordre sauvegardé par utilisateur ─══
+// ═══ Widgets réorganisables (v25+) — ordre sauvegardé par utilisateur ─══
 var DASH_WIDGET_ORDER_KEY = 'dashboard_widget_order';
+var DASH_WIDGET_COLUMNS_KEY = 'dashboard_widget_columns';
 var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard'];
 
 function getDashboardWidgetOrder() {
@@ -118,10 +124,72 @@ function saveDashboardWidgetOrder() {
     var order = [];
     container.querySelectorAll('.dash-widget').forEach(function (w) {
         var id = w.getAttribute('data-widget-id');
-        if (id) order.push(id);
+        if (id && w.style.display !== 'none') order.push(id);
     });
     try { localStorage.setItem(DASH_WIDGET_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
     if (window.showToast) window.showToast('Ordre des widgets enregistré.', 'success', 2000);
+}
+
+function getDashboardColumns() {
+    try {
+        var cols = parseInt(localStorage.getItem(DASH_WIDGET_COLUMNS_KEY) || '2', 10);
+        return Math.max(1, Math.min(3, cols));
+    } catch (e) {
+        return 2;
+    }
+}
+
+function setDashboardColumns(cols) {
+    var container = document.getElementById('dashWidgetsContainer');
+    if (!container) return;
+    cols = Math.max(1, Math.min(3, parseInt(cols, 10) || 2));
+    try { localStorage.setItem(DASH_WIDGET_COLUMNS_KEY, String(cols)); } catch (e) {}
+    container.style.gridTemplateColumns = cols === 1 ? '1fr' : (cols === 2 ? '1fr 1fr' : '1fr 1fr 1fr');
+    
+    // Mettre à jour l'état visuel des boutons
+    var controls = document.getElementById('dashWidgetsControls');
+    if (controls) {
+        controls.querySelectorAll('.dash-layout-btn').forEach(function (btn, idx) {
+            var btnCols = idx + 1;
+            if (btnCols === cols) {
+                btn.style.background = 'var(--color-primary)';
+                btn.style.color = 'white';
+                btn.style.borderColor = 'var(--color-primary)';
+            } else {
+                btn.style.background = 'var(--color-background)';
+                btn.style.color = 'var(--color-text)';
+                btn.style.borderColor = 'var(--color-border)';
+            }
+        });
+    }
+    
+    if (window.showToast) window.showToast('Layout mis à jour : ' + cols + ' colonne' + (cols > 1 ? 's' : ''), 'success', 2000);
+    // Feedback haptique si disponible
+    if (typeof window.haptic === 'function') window.haptic(15);
+}
+
+function applyDashboardColumns() {
+    var container = document.getElementById('dashWidgetsContainer');
+    if (!container) return;
+    var cols = getDashboardColumns();
+    container.style.gridTemplateColumns = cols === 1 ? '1fr' : (cols === 2 ? '1fr 1fr' : '1fr 1fr 1fr');
+    
+    // Mettre à jour l'état visuel des boutons
+    var controls = document.getElementById('dashWidgetsControls');
+    if (controls) {
+        controls.querySelectorAll('.dash-layout-btn').forEach(function (btn, idx) {
+            var btnCols = idx + 1;
+            if (btnCols === cols) {
+                btn.style.background = 'var(--color-primary)';
+                btn.style.color = 'white';
+                btn.style.borderColor = 'var(--color-primary)';
+            } else {
+                btn.style.background = 'var(--color-background)';
+                btn.style.color = 'var(--color-text)';
+                btn.style.borderColor = 'var(--color-border)';
+            }
+        });
+    }
 }
 
 function applyDashboardWidgetOrder() {
@@ -138,57 +206,116 @@ function applyDashboardWidgetOrder() {
     });
 }
 
+// ═══ Système de glisser-déposer amélioré et modulaire ═══
+var _dashboardDragDropInitialized = false;
+var _dashboardDraggedWidget = null;
+
 function initDashboardWidgetDragDrop() {
     var container = document.getElementById('dashWidgetsContainer');
     if (!container) return;
-    var draggedWidget = null;
-
+    
+    // Nettoyer les anciens event listeners si déjà initialisé
+    if (_dashboardDragDropInitialized) {
+        container.querySelectorAll('.dash-widget-handle').forEach(function (handle) {
+            var newHandle = handle.cloneNode(true);
+            handle.parentNode.replaceChild(newHandle, handle);
+        });
+        container.querySelectorAll('.dash-widget').forEach(function (w) {
+            var newWidget = w.cloneNode(true);
+            w.parentNode.replaceChild(newWidget, w);
+        });
+    }
+    
+    _dashboardDraggedWidget = null;
+    
+    // Attacher les événements sur les handles
     container.querySelectorAll('.dash-widget-handle').forEach(function (handle) {
+        handle.setAttribute('draggable', 'true');
         handle.addEventListener('dragstart', function (e) {
             var w = handle.closest('.dash-widget');
             if (!w) return;
-            draggedWidget = w;
-            e.dataTransfer.setData('text/plain', w.getAttribute('data-widget-id'));
+            _dashboardDraggedWidget = w;
+            e.dataTransfer.setData('text/plain', w.getAttribute('data-widget-id') || '');
             e.dataTransfer.effectAllowed = 'move';
             w.classList.add('dash-widget-dragging');
+            // Feedback haptique si disponible
+            if (typeof window.haptic === 'function') window.haptic(10);
         });
-        handle.addEventListener('dragend', function () {
-            if (draggedWidget) {
-                draggedWidget.classList.remove('dash-widget-dragging');
-                draggedWidget = null;
+        handle.addEventListener('dragend', function (e) {
+            if (_dashboardDraggedWidget) {
+                _dashboardDraggedWidget.classList.remove('dash-widget-dragging');
+                _dashboardDraggedWidget = null;
             }
-            container.querySelectorAll('.dash-widget').forEach(function (w) { w.classList.remove('dash-widget-drag-over'); });
+            container.querySelectorAll('.dash-widget').forEach(function (w) { 
+                w.classList.remove('dash-widget-drag-over'); 
+            });
         });
     });
 
+    // Attacher les événements sur les widgets (zones de drop)
     container.querySelectorAll('.dash-widget').forEach(function (w) {
         w.addEventListener('dragover', function (e) {
             e.preventDefault();
+            e.stopPropagation();
             e.dataTransfer.dropEffect = 'move';
-            if (draggedWidget && draggedWidget !== w) w.classList.add('dash-widget-drag-over');
+            if (_dashboardDraggedWidget && _dashboardDraggedWidget !== w) {
+                w.classList.add('dash-widget-drag-over');
+            }
         });
-        w.addEventListener('dragleave', function () { w.classList.remove('dash-widget-drag-over'); });
+        w.addEventListener('dragleave', function (e) {
+            // Ne retirer la classe que si on quitte vraiment le widget
+            var rect = w.getBoundingClientRect();
+            var x = e.clientX;
+            var y = e.clientY;
+            if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                w.classList.remove('dash-widget-drag-over');
+            }
+        });
         w.addEventListener('drop', function (e) {
             e.preventDefault();
+            e.stopPropagation();
             w.classList.remove('dash-widget-drag-over');
-            if (!draggedWidget || draggedWidget === w) return;
-            var next = w.nextElementSibling;
-            container.insertBefore(draggedWidget, next);
+            if (!_dashboardDraggedWidget || _dashboardDraggedWidget === w) return;
+            
+            // Calculer la position d'insertion (avant ou après selon la position de la souris)
+            var rect = w.getBoundingClientRect();
+            var y = e.clientY;
+            var midY = rect.top + rect.height / 2;
+            
+            if (y < midY) {
+                // Insérer avant
+                container.insertBefore(_dashboardDraggedWidget, w);
+            } else {
+                // Insérer après
+                var next = w.nextElementSibling;
+                container.insertBefore(_dashboardDraggedWidget, next);
+            }
+            
             saveDashboardWidgetOrder();
+            // Feedback haptique si disponible
+            if (typeof window.haptic === 'function') window.haptic(20);
         });
     });
+    
+    _dashboardDragDropInitialized = true;
 }
 
 // Appliquer l’ordre sauvegardé au chargement de la page
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
+        applyDashboardColumns();
         applyDashboardWidgetOrder();
         initDashboardWidgetDragDrop();
     });
 } else {
+    applyDashboardColumns();
     applyDashboardWidgetOrder();
     initDashboardWidgetDragDrop();
 }
+
+// Exposer les fonctions globalement pour les boutons de contrôle
+window.setDashboardColumns = setDashboardColumns;
+window.getDashboardColumns = getDashboardColumns;
 
 // ═══ Bannière alerte relances (P1) ═══
 function renderRelanceAlertBanner(pipeline) {
@@ -257,7 +384,7 @@ async function exportDayRecap() {
         const blob = new Blob([JSON.stringify(recap, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'ProspUp_ma_journee_' + dateStr + '.json';
+        a.download = "Prosp'Up_ma_journee_" + dateStr + ".json";
         a.click();
         URL.revokeObjectURL(a.href);
         if (typeof showToast === 'function') showToast('📥 Récap du jour téléchargé', 'success');
