@@ -10294,22 +10294,7 @@ async function copyPostMeetingPrompt(prospectId) {
 }
 
 function handlePostMeetingIA(prospectId) {
-    const btn = document.getElementById(`btnPostMeetingIA_${prospectId}`);
-    if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
-    getPostMeetingPrompt(prospectId).then(function (promptText) {
-        if (!promptText) return;
-        return callOllama(promptText);
-    }).then(function (text) {
-        if (text == null) return;
-        openPostMeetingImportModal(prospectId);
-        document.getElementById('pmImportTextarea').value = text;
-        parsePostMeetingImport();
-    }).catch(function () {
-        openPostMeetingImportModal(prospectId);
-        showToast('Ollama indisponible. Collez manuellement le JSON ci-dessous.', 'warning', 6000);
-    }).finally(function () {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Après réunion IA'; }
-    });
+    openPostMeetingImportModal(prospectId);
 }
 
 // ─── Post-meeting import modal ───
@@ -10321,15 +10306,21 @@ function _ensurePostMeetingModal() {
     <div id="modalPostMeetingIA" class="modal">
         <div class="modal-content">
             <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <span>📥 Import compte-rendu IA</span>
+                <span>📥 Import compte-rendu de réunion</span>
                 <button class="btn btn-secondary" onclick="closePostMeetingModal()" style="font-size:14px;padding:4px 10px;">✕</button>
             </div>
             <div id="pmStep1" style="margin-top:16px;">
-                <p class="muted" style="font-size:12px;margin-bottom:8px;">Collez le JSON retourné par l'IA ci-dessous.</p>
-                <textarea id="pmImportTextarea" style="width:100%;min-height:200px;font-family:monospace;font-size:12px;" placeholder='{"compte_rendu": "...", "next_action": "...", ...}'></textarea>
+                <p class="muted" style="font-size:12px;margin-bottom:12px;">Déposez votre compte-rendu de réunion (PDF, Word, Excel) ou collez le texte ci-dessous.</p>
+                <div style="margin-bottom:12px;">
+                    <input type="file" id="pmFileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" style="display:none;" onchange="handlePostMeetingFile(event)">
+                    <button class="btn btn-primary" onclick="document.getElementById('pmFileInput').click()" style="width:100%;padding:12px;font-size:14px;">📎 Déposer un fichier (PDF, Word, Excel...)</button>
+                    <div id="pmFileInfo" style="margin-top:8px;font-size:12px;color:var(--color-text-secondary);display:none;"></div>
+                </div>
+                <div style="text-align:center;margin:12px 0;color:var(--color-text-secondary);font-size:12px;">OU</div>
+                <textarea id="pmImportTextarea" style="width:100%;min-height:200px;font-family:monospace;font-size:12px;" placeholder="Collez ici le texte du compte-rendu ou le JSON retourné par l'IA..."></textarea>
                 <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
                     <button class="btn btn-secondary" onclick="closePostMeetingModal()">Annuler</button>
-                    <button class="btn btn-primary" onclick="parsePostMeetingImport()">🔍 Analyser</button>
+                    <button class="btn btn-primary" id="pmAnalyzeBtn" onclick="processPostMeetingContent()">🤖 Analyser avec Ollama</button>
                 </div>
             </div>
             <div id="pmStep2" style="margin-top:16px;display:none;">
@@ -10348,6 +10339,7 @@ function _ensurePostMeetingModal() {
 let _pmProspectId = null;
 let _pmParsedData = null;
 let _pmFieldAccepted = {};
+let _pmChecklistResponses = null;
 
 function openPostMeetingImportModal(prospectId) {
     _ensurePostMeetingModal();
@@ -10355,6 +10347,9 @@ function openPostMeetingImportModal(prospectId) {
     _pmParsedData = null;
     _pmFieldAccepted = {};
     document.getElementById('pmImportTextarea').value = '';
+    document.getElementById('pmFileInput').value = '';
+    document.getElementById('pmFileInfo').style.display = 'none';
+    document.getElementById('pmFileInfo').textContent = '';
     document.getElementById('pmStep1').style.display = '';
     document.getElementById('pmStep2').style.display = 'none';
     const modal = document.getElementById('modalPostMeetingIA');
@@ -10365,6 +10360,144 @@ function openPostMeetingImportModal(prospectId) {
             modal.classList.add('active');
         }
     }
+}
+
+async function handlePostMeetingFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const fileInfo = document.getElementById('pmFileInfo');
+    fileInfo.style.display = 'block';
+    fileInfo.textContent = `📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB) — Analyse en cours...`;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const res = await fetch('/api/rdv-checklist/parse-file', {
+            method: 'POST',
+            body: formData
+        });
+        const json = await res.json();
+        if (json.ok && json.text) {
+            document.getElementById('pmImportTextarea').value = json.text;
+            fileInfo.textContent = `✅ ${file.name} — Texte extrait (${json.text.length} caractères)`;
+            showToast('Fichier analysé. Cliquez sur "Analyser avec Ollama" pour remplir la grille.', 'success', 4000);
+        } else {
+            fileInfo.textContent = `❌ Erreur : ${json.error || 'Impossible d\'extraire le texte'}`;
+            showToast('Erreur lors de l\'extraction du texte du fichier', 'error', 5000);
+        }
+    } catch (e) {
+        fileInfo.textContent = `❌ Erreur réseau`;
+        showToast('Erreur lors de l\'upload du fichier', 'error', 5000);
+        console.error(e);
+    }
+}
+
+async function processPostMeetingContent() {
+    const textarea = document.getElementById('pmImportTextarea');
+    const content = (textarea?.value || '').trim();
+    if (!content) {
+        showToast('⚠️ Veuillez déposer un fichier ou coller le texte du compte-rendu.', 'warning');
+        return;
+    }
+    
+    const btn = document.getElementById('pmAnalyzeBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '🤖 Analyse en cours...';
+    }
+    
+    try {
+        const prospectId = _pmProspectId;
+        const promptText = await getPostMeetingPromptFromContent(prospectId, content);
+        if (!promptText) {
+            showToast('Erreur : impossible de générer le prompt', 'error');
+            return;
+        }
+        const text = await callOllama(promptText);
+        if (text) {
+            document.getElementById('pmImportTextarea').value = text;
+            parsePostMeetingImport();
+        }
+    } catch (e) {
+        showToast('Ollama indisponible. Vous pouvez coller manuellement le JSON ci-dessous.', 'warning', 6000);
+        console.error(e);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🤖 Analyser avec Ollama';
+        }
+    }
+}
+
+async function getPostMeetingPromptFromContent(prospectId, meetingContent) {
+    const p = data.prospects.find(x => x.id === prospectId);
+    if (!p) return null;
+    const company = data.companies.find(c => c.id === p.company_id);
+    const companyName = company ? `${company.groupe || ''} (${company.site || ''})` : '';
+    const themes = await _ensureRdvThemes();
+    
+    // Build checklist structure for extraction
+    let checklistStructure = '';
+    themes.forEach(t => {
+        checklistStructure += `• ${t.key} (${t.theme}): ${t.question}\n`;
+    });
+    
+    const tags = Array.isArray(p.tags) ? p.tags.join(', ') : '';
+    const notes = (p.notes || '').trim();
+    
+    const promptText = `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel). Je viens de terminer un RDV / entretien client avec un prospect. J'ai un compte-rendu de réunion et je veux que tu extraies les informations pertinentes pour remplir ma grille de qualification.
+
+══════ CONTEXTE PROSPECT ══════
+• Nom : ${p.name || 'Inconnu'}
+• Entreprise : ${companyName}
+• Fonction : ${p.fonction || 'Non renseignée'}
+• Statut actuel : ${p.statut || 'Non renseigné'}
+• Compétences/Tags : ${tags || 'Aucun'}
+• Notes existantes : ${notes || 'Aucune'}
+
+══════ COMPTE-RENDU DE RÉUNION ══════
+${meetingContent}
+
+══════ GRILLE DE QUALIFICATION À REMPLIR ══════
+${checklistStructure}
+
+══════ CE QUE JE VEUX ══════
+
+À partir du compte-rendu ci-dessus, extrais les informations pertinentes et génère un JSON avec deux parties :
+
+1. **Champs généraux du prospect** (pour mettre à jour la fiche) :
+{
+  "compte_rendu": "[Résumé structuré de la réunion en 5-10 lignes : contexte, points clés discutés, besoins identifiés, opportunités]",
+  "next_action": "[Prochaine action concrète : ex. 'Envoyer 2 profils C/C++ embarqué', 'Planifier RT technique', 'Relancer dans 2 semaines']",
+  "next_follow_up": "[Date YYYY-MM-DD de la prochaine relance, basée sur ce qui a été convenu]",
+  "statut": "[Nouveau statut parmi : Appelé, À rappeler, Rendez-vous, Rencontré, Prospecté, Messagerie, Pas intéressé — ou null si inchangé]",
+  "tags": ["tag1", "tag2", "..."],
+  "pertinence": [1-5 ou null],
+  "notes_enrichies": "[Informations clés à ajouter aux notes : taille équipe, projets, technos, besoins, budget, process achat — en complément des notes existantes]",
+  "profils_a_proposer": "[Description des profils à envoyer : compétences, séniorité, techno, durée mission]",
+  "besoins_identifies": "[Liste des besoins concrets identifiés pendant la réunion]"
+}
+
+2. **Réponses pour la grille de qualification** (clé = key du thème, valeur = texte extrait du compte-rendu) :
+{
+  "checklist_responses": {
+    "metiers_equipe": "[Texte extrait du compte-rendu répondant à la question 'Quels métiers dans l'équipe ?']",
+    "outils": "[Texte extrait du compte-rendu répondant à la question 'Quels outils (dev, gestion de projet, tests…) ?']",
+    "taille_equipe": "[Texte extrait du compte-rendu répondant à la question 'Nb pers dont internes / externes ?']",
+    "projets_actuels": "[Texte extrait du compte-rendu répondant à la question 'Projets en cours ?']",
+    "projets_a_venir": "[Texte extrait du compte-rendu répondant à la question 'Projets / roadmap à venir (3–12 mois) ?']",
+    ...
+  }
+}
+
+IMPORTANT : 
+- Remplis UNIQUEMENT les champs pour lesquels tu as des informations dans le compte-rendu. Laisse null ou une chaîne vide pour les champs sans info.
+- Pour checklist_responses, utilise les clés exactes des thèmes (metiers_equipe, outils, taille_equipe, etc.).
+- Extrais le texte directement du compte-rendu, ne l'invente pas.
+- Retourne UNIQUEMENT le JSON, sans texte autour. Le JSON doit être valide et parsable.`;
+    return promptText;
 }
 
 function closePostMeetingModal() {
@@ -10383,7 +10516,7 @@ function pmBackToStep1() {
     document.getElementById('pmStep2').style.display = 'none';
 }
 
-function parsePostMeetingImport() {
+async function parsePostMeetingImport() {
     const raw = (document.getElementById('pmImportTextarea')?.value || '').trim();
     if (!raw) { showToast('⚠️ Collez le JSON retourné par l\'IA.', 'warning'); return; }
 
@@ -10398,6 +10531,11 @@ function parsePostMeetingImport() {
         return;
     }
     _pmParsedData = parsed;
+    
+    // Si checklist_responses est présent, on le stocke séparément
+    if (parsed.checklist_responses) {
+        _pmChecklistResponses = parsed.checklist_responses;
+    }
 
     // Build preview
     const FIELD_LABELS = {
@@ -10414,6 +10552,8 @@ function parsePostMeetingImport() {
 
     _pmFieldAccepted = {};
     let html = '';
+    
+    // Champs généraux
     for (const [key, label] of Object.entries(FIELD_LABELS)) {
         const val = parsed[key];
         if (val === null || val === undefined || val === '') continue;
@@ -10427,6 +10567,25 @@ function parsePostMeetingImport() {
             </div>
             <div style="font-size:12px;white-space:pre-wrap;color:var(--color-text-secondary);">${escapeHtml(display)}</div>
         </div>`;
+    }
+    
+    // Réponses de la grille
+    if (_pmChecklistResponses && Object.keys(_pmChecklistResponses).length > 0) {
+        html += `<div style="margin-top:16px;padding-top:16px;border-top:2px solid var(--color-border);">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px;">📋 Grille de qualification</div>`;
+        const themes = await _ensureRdvThemes();
+        for (const [key, value] of Object.entries(_pmChecklistResponses)) {
+            if (!value || String(value).trim() === '') continue;
+            const theme = themes.find(t => t.key === key);
+            if (theme) {
+                html += `
+                <div style="border:1px solid var(--color-border);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--color-surface-2);">
+                    <div style="font-weight:600;font-size:12px;margin-bottom:4px;color:var(--color-primary);">${escapeHtml(theme.theme)} — ${escapeHtml(theme.question)}</div>
+                    <div style="font-size:12px;white-space:pre-wrap;color:var(--color-text-secondary);">${escapeHtml(String(value))}</div>
+                </div>`;
+            }
+        }
+        html += `</div>`;
     }
 
     if (!html) {
@@ -10474,6 +10633,24 @@ async function applyPostMeetingImport() {
     if (notesParts.length) {
         const newNote = notesParts.join('\n\n');
         p.notes = p.notes ? (p.notes + '\n\n' + newNote) : newNote;
+    }
+
+    // Apply checklist responses if present
+    if (_pmChecklistResponses && Object.keys(_pmChecklistResponses).length > 0) {
+        const themes = await _ensureRdvThemes();
+        for (const [key, value] of Object.entries(_pmChecklistResponses)) {
+            if (!value || String(value).trim() === '') continue;
+            const theme = themes.find(t => t.key === key);
+            if (theme && _rdvData) {
+                if (!_rdvData[key]) _rdvData[key] = { reponse: '', checked: false };
+                _rdvData[key].reponse = String(value).trim();
+                _rdvData[key].checked = true;
+            }
+        }
+        // Save checklist
+        await saveRdvChecklist();
+        // Re-render checklist
+        _renderRdvChecklist(themes);
     }
 
     // Add a callNote entry for the meeting summary

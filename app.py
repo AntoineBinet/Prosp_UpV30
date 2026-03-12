@@ -9395,6 +9395,73 @@ def rdv_checklist_save():
         )
     return jsonify(ok=True, updatedAt=now)
 
+
+@app.post("/api/rdv-checklist/parse-file")
+def rdv_checklist_parse_file():
+    """Parse uploaded file (PDF, Word, Excel) and extract text content."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    if 'file' not in request.files:
+        return jsonify(ok=False, error="Aucun fichier fourni"), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify(ok=False, error="Fichier vide"), 400
+    
+    filename = file.filename.lower()
+    text = None
+    
+    try:
+        if filename.endswith('.pdf'):
+            from pypdf import PdfReader
+            raw = file.read()
+            reader = PdfReader(BytesIO(raw))
+            text_parts = []
+            for page in reader.pages:
+                text_parts.append(page.extract_text() or '')
+            text = '\n'.join(text_parts)
+        
+        elif filename.endswith(('.doc', '.docx')):
+            from docx import Document
+            doc = Document(BytesIO(file.read()))
+            text_parts = []
+            for para in doc.paragraphs:
+                if para.text.strip():
+                    text_parts.append(para.text)
+            text = '\n'.join(text_parts)
+        
+        elif filename.endswith(('.xls', '.xlsx')):
+            from openpyxl import load_workbook
+            wb = load_workbook(BytesIO(file.read()), read_only=True)
+            text_parts = []
+            for sheet in wb.worksheets:
+                for row in sheet.iter_rows(values_only=True):
+                    row_text = ' | '.join(str(cell) if cell is not None else '' for cell in row)
+                    if row_text.strip():
+                        text_parts.append(row_text)
+            text = '\n'.join(text_parts)
+        
+        elif filename.endswith('.txt'):
+            text = file.read().decode('utf-8', errors='ignore')
+        
+        else:
+            return jsonify(ok=False, error=f"Format de fichier non supporté: {filename}"), 400
+        
+        if not text or not text.strip():
+            return jsonify(ok=False, error="Aucun texte extrait du fichier"), 400
+        
+        return jsonify(ok=True, text=text.strip())
+    
+    except Exception as e:
+        import traceback
+        _log_handler.handle(logging.LogRecord(
+            name='prospup', level=logging.ERROR, pathname=__file__, lineno=0,
+            msg=f"Erreur parsing fichier: {str(e)}\n{traceback.format_exc()}", args=(), exc_info=None
+        ))
+        return jsonify(ok=False, error=f"Erreur lors de l'extraction: {str(e)}"), 500
+
 # ────────────────────────────────────────────────────────────────────
 # EC1 Checklist – entretien de qualification candidat
 # ────────────────────────────────────────────────────────────────────
