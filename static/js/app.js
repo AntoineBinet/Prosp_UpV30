@@ -10573,9 +10573,10 @@ function _ensurePostMeetingModal() {
                     <div id="pmFileInfo" style="margin-top:8px;font-size:12px;color:var(--color-text-secondary);display:none;"></div>
                 </div>
                 <div style="text-align:center;margin:12px 0;color:var(--color-text-secondary);font-size:12px;">OU</div>
-                <textarea id="pmImportTextarea" style="width:100%;min-height:200px;font-family:monospace;font-size:12px;" placeholder="Collez ici le texte du compte-rendu ou le JSON retourné par l'IA..."></textarea>
+                <textarea id="pmImportTextarea" style="width:100%;min-height:200px;font-family:monospace;font-size:12px;" placeholder="Collez ici le texte du compte-rendu ou le JSON retourné par l'IA..." oninput="checkAndAutoParseJSON()"></textarea>
                 <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
                     <button class="btn btn-secondary" onclick="closePostMeetingModal()">Annuler</button>
+                    <button class="btn btn-secondary" id="pmParseBtn" onclick="parsePostMeetingImport()" style="display:none;">📋 Analyser le JSON</button>
                     <button class="btn btn-primary" id="pmAnalyzeBtn" onclick="processPostMeetingContent()">🤖 Analyser avec Ollama</button>
                 </div>
             </div>
@@ -10605,7 +10606,10 @@ function openPostMeetingImportModal(prospectId) {
     _pmFieldAccepted = {};
     _pmChecklistResponses = null;
     _pmChecklistAccepted = {};
-    document.getElementById('pmImportTextarea').value = '';
+    const textarea = document.getElementById('pmImportTextarea');
+    if (textarea) textarea.value = '';
+    const parseBtn = document.getElementById('pmParseBtn');
+    if (parseBtn) parseBtn.style.display = 'none';
     document.getElementById('pmFileInput').value = '';
     document.getElementById('pmFileInfo').style.display = 'none';
     document.getElementById('pmFileInfo').textContent = '';
@@ -10649,7 +10653,9 @@ async function handlePostMeetingFile(event) {
         if (json.ok && json.text) {
             document.getElementById('pmImportTextarea').value = json.text;
             fileInfo.textContent = `✅ ${file.name} — Texte extrait (${json.text.length} caractères)`;
-            showToast('Fichier analysé. Cliquez sur "Analyser avec Ollama" pour remplir la grille.', 'success', 4000);
+            // v26: Vérifier si le texte extrait contient déjà un JSON valide
+            checkAndAutoParseJSON();
+            showToast('Fichier analysé. Si un JSON est détecté, utilisez "Analyser le JSON", sinon "Analyser avec Ollama".', 'success', 5000);
         } else {
             fileInfo.textContent = `❌ Erreur : ${json.error || 'Impossible d\'extraire le texte'}`;
             showToast('Erreur lors de l\'extraction du texte du fichier', 'error', 5000);
@@ -10669,6 +10675,20 @@ async function processPostMeetingContent() {
         return;
     }
     
+    // v26: Vérifier si c'est déjà un JSON valide — si oui, parser directement
+    const jsonStr = extractJSONFromText(content);
+    if (jsonStr) {
+        try {
+            JSON.parse(jsonStr);
+            showToast('✅ JSON valide détecté. Analyse en cours...', 'success', 2000);
+            // Parser directement sans passer par Ollama
+            await parsePostMeetingImport();
+            return;
+        } catch (e) {
+            // JSON invalide, continuer avec Ollama
+        }
+    }
+    
     const btn = document.getElementById('pmAnalyzeBtn');
     if (btn) {
         btn.disabled = true;
@@ -10682,14 +10702,25 @@ async function processPostMeetingContent() {
             showToast('Erreur : impossible de générer le prompt', 'error');
             return;
         }
-        const text = await callOllama(promptText);
+        // v26: Timeout augmenté pour les prompts longs (post-meeting)
+        const text = await callOllama(promptText, { timeoutMs: 300000 }); // 5 minutes au lieu de 3
         if (text) {
             document.getElementById('pmImportTextarea').value = text;
-            parsePostMeetingImport();
+            // Vérifier si le résultat est déjà un JSON valide
+            const resultJson = extractJSONFromText(text);
+            if (resultJson) {
+                await parsePostMeetingImport();
+            } else {
+                showToast('⚠️ Réponse Ollama reçue mais format JSON non détecté. Vérifiez le contenu.', 'warning', 5000);
+            }
         }
     } catch (e) {
-        showToast('Ollama indisponible. Vous pouvez coller manuellement le JSON ci-dessous.', 'warning', 6000);
-        console.error(e);
+        if (e.message === 'Timeout') {
+            showToast('⏱️ Ollama a pris trop de temps. Le JSON peut être partiel — essayez de l\'analyser manuellement avec le bouton "Analyser le JSON".', 'warning', 8000);
+        } else {
+            showToast('Ollama indisponible. Si vous avez déjà un JSON, utilisez le bouton "Analyser le JSON".', 'warning', 6000);
+        }
+        console.error('Ollama error:', e);
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -10790,22 +10821,114 @@ function closePostMeetingModal() {
 }
 
 function pmBackToStep1() {
+    // v26: Réinitialiser le bouton parse lors du retour à l'étape 1
+    const parseBtn = document.getElementById('pmParseBtn');
+    if (parseBtn) parseBtn.style.display = 'none';
+    checkAndAutoParseJSON(); // Vérifier si le JSON est toujours valide
     document.getElementById('pmStep1').style.display = '';
     document.getElementById('pmStep2').style.display = 'none';
+}
+
+// v26: Fonction pour détecter et parser automatiquement le JSON
+function checkAndAutoParseJSON() {
+    const textarea = document.getElementById('pmImportTextarea');
+    const parseBtn = document.getElementById('pmParseBtn');
+    if (!textarea || !parseBtn) return;
+    
+    const raw = (textarea.value || '').trim();
+    if (!raw) {
+        parseBtn.style.display = 'none';
+        return;
+    }
+    
+    // Essayer de détecter un JSON valide
+    const jsonStr = extractJSONFromText(raw);
+    if (jsonStr) {
+        try {
+            JSON.parse(jsonStr);
+            // JSON valide détecté — afficher le bouton
+            parseBtn.style.display = '';
+            parseBtn.textContent = '📋 Analyser le JSON détecté';
+        } catch (e) {
+            parseBtn.style.display = 'none';
+        }
+    } else {
+        parseBtn.style.display = 'none';
+    }
+}
+
+// v26: Extraction robuste du JSON depuis un texte (tolérant aux formats)
+function extractJSONFromText(text) {
+    if (!text || !text.trim()) return null;
+    
+    // 1. Essayer de parser directement
+    try {
+        JSON.parse(text.trim());
+        return text.trim();
+    } catch (e) {}
+    
+    // 2. Chercher dans des blocs markdown ```json ... ```
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+        try {
+            const extracted = jsonMatch[1].trim();
+            JSON.parse(extracted);
+            return extracted;
+        } catch (e) {}
+    }
+    
+    // 3. Chercher un objet JSON entre { } (même avec du texte avant/après)
+    const objectMatch = text.match(/\{[\s\S]*\}/);
+    if (objectMatch) {
+        try {
+            const extracted = objectMatch[0];
+            JSON.parse(extracted);
+            return extracted;
+        } catch (e) {}
+    }
+    
+    // 4. Chercher un objet JSON qui commence par { et se termine par } (multiligne)
+    const lines = text.split('\n');
+    let startIdx = -1;
+    let braceCount = 0;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (startIdx === -1 && line.includes('{')) {
+            startIdx = i;
+        }
+        if (startIdx !== -1) {
+            braceCount += (line.match(/\{/g) || []).length;
+            braceCount -= (line.match(/\}/g) || []).length;
+            if (braceCount === 0 && startIdx !== i) {
+                const extracted = lines.slice(startIdx, i + 1).join('\n');
+                try {
+                    JSON.parse(extracted);
+                    return extracted;
+                } catch (e) {}
+            }
+        }
+    }
+    
+    return null;
 }
 
 async function parsePostMeetingImport() {
     const raw = (document.getElementById('pmImportTextarea')?.value || '').trim();
     if (!raw) { showToast('⚠️ Collez le JSON retourné par l\'IA.', 'warning'); return; }
 
-    // Try to extract JSON from the text (handle markdown code blocks)
-    let jsonStr = raw;
-    const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) jsonStr = jsonMatch[1].trim();
+    // v26: Utiliser la fonction d'extraction robuste
+    const jsonStr = extractJSONFromText(raw);
+    if (!jsonStr) {
+        showToast('❌ JSON invalide ou introuvable. Vérifiez le format ou utilisez "Analyser avec Ollama" pour extraire depuis du texte brut.', 'error', 6000);
+        return;
+    }
 
     let parsed;
-    try { parsed = JSON.parse(jsonStr); } catch(e) {
-        showToast('❌ JSON invalide. Vérifiez le format.', 'error', 5000);
+    try { 
+        parsed = JSON.parse(jsonStr); 
+    } catch(e) {
+        showToast('❌ JSON invalide : ' + (e.message || 'Erreur de parsing'), 'error', 5000);
+        console.error('JSON parsing error:', e, 'Extracted:', jsonStr);
         return;
     }
     _pmParsedData = parsed;
