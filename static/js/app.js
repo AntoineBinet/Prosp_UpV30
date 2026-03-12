@@ -3231,7 +3231,7 @@ async function viewDetail(id) {
             ${showCandidats ? `<button class="detail-tab" onclick="var infosTab=this.parentElement.querySelector('.detail-tab'); switchDetailTab(infosTab,'tab-info'); setTimeout(function(){ document.getElementById('candidateMatchSection')?.scrollIntoView({behavior:'smooth',block:'start'}); }, 80);" title="Aller aux candidats recommandés">🎯 Candidats</button>` : ''}
             ${showTimeline ? '<button class="detail-tab" onclick="switchDetailTab(this,\'tab-timeline\')">Timeline</button>' : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-notes')">Notes (${(prospect.callNotes||[]).length})</button>
-            ${['Rendez-vous','Rencontré'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
+            ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-edit')">✏️ Modifier</button>
         </div>
         ${isProspMode ? `<div class="detail-prosp-progress">Mode Prosp · ${prospProgress.index}/${prospProgress.total}</div><div class="detail-prosp-hint">Swipe gauche: suivant · Swipe droite: fermer</div>` : ''}
@@ -3324,7 +3324,7 @@ async function viewDetail(id) {
             ${notesHtml || '<div class="muted" style="text-align:center;padding:20px;">Aucune note d\'appel</div>'}
         </div>
 
-        ${['Rendez-vous','Rencontré'].includes(prospect.statut) ? `
+        ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `
         <!-- TAB: RDV Checklist -->
         <div class="detail-tab-content" id="tab-rdv">
             <!-- Onglets des réunions précédentes -->
@@ -3425,7 +3425,7 @@ async function viewDetail(id) {
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-danger" onclick="deleteProspect(${id})" title="Supprimer définitivement">🗑️</button>
                 ${prospect.is_contact ? `<button class="btn btn-primary" onclick="restoreFromContacts(${id})" title="Restaurer dans les prospects" style="font-size:12px;">👥 Restaurer</button>` : `<button class="btn btn-secondary" onclick="moveToContacts(${id})" title="Déplacer vers le vivier de contacts" style="font-size:12px;">📁 Contacts</button>`}
-                ${['Rendez-vous','Rencontré'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
+                ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
             </div>
             <div style="display:flex;gap:8px;">
                 ${hasPrevInProsp ? `<button class="btn btn-secondary btn-prosp-prev" onclick="goToProspPrev(${id})" title="Prospect précédent">← Précédent</button>` : ''}
