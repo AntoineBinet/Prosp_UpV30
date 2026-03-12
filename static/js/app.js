@@ -10637,11 +10637,15 @@ async function applyPostMeetingImport() {
 
     // Apply checklist responses if present
     if (_pmChecklistResponses && Object.keys(_pmChecklistResponses).length > 0) {
+        // Ensure RDV data is loaded for this prospect
+        if (!_rdvData || _rdvProspectId !== _pmProspectId) {
+            await loadRdvChecklist(_pmProspectId);
+        }
         const themes = await _ensureRdvThemes();
         for (const [key, value] of Object.entries(_pmChecklistResponses)) {
             if (!value || String(value).trim() === '') continue;
             const theme = themes.find(t => t.key === key);
-            if (theme && _rdvData) {
+            if (theme) {
                 if (!_rdvData[key]) _rdvData[key] = { reponse: '', checked: false };
                 _rdvData[key].reponse = String(value).trim();
                 _rdvData[key].checked = true;
@@ -10649,8 +10653,11 @@ async function applyPostMeetingImport() {
         }
         // Save checklist
         await saveRdvChecklist();
-        // Re-render checklist
-        _renderRdvChecklist(themes);
+        // Re-render checklist if we're on the RDV tab
+        const rdvTab = document.getElementById('tab-rdv');
+        if (rdvTab && rdvTab.classList.contains('active')) {
+            _renderRdvChecklist(themes);
+        }
     }
 
     // Add a callNote entry for the meeting summary
