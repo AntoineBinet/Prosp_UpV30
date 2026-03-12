@@ -10702,8 +10702,8 @@ async function processPostMeetingContent() {
             showToast('Erreur : impossible de générer le prompt', 'error');
             return;
         }
-        // v26: Timeout augmenté pour les prompts longs (post-meeting)
-        const text = await callOllama(promptText, { timeoutMs: 300000 }); // 5 minutes au lieu de 3
+        // v26.2: Timeout réduit car prompt optimisé (2 min suffisent maintenant)
+        const text = await callOllama(promptText, { timeoutMs: 120000 }); // 2 minutes
         if (text) {
             document.getElementById('pmImportTextarea').value = text;
             // Vérifier si le résultat est déjà un JSON valide
@@ -10736,76 +10736,43 @@ async function getPostMeetingPromptFromContent(prospectId, meetingContent) {
     const companyName = company ? `${company.groupe || ''} (${company.site || ''})` : '';
     const themes = await _ensureRdvThemes();
     
-    // Build checklist structure for extraction
-    let checklistStructure = '';
-    themes.forEach(t => {
-        checklistStructure += `• ${t.key} (${t.theme}): ${t.question}\n`;
-    });
+    // v26.2: Optimisation — tronquer le contenu si trop long (max 5000 caractères)
+    let contentToUse = meetingContent;
+    if (contentToUse.length > 5000) {
+        contentToUse = contentToUse.substring(0, 5000) + '\n\n[... contenu tronqué ...]';
+    }
     
-    const tags = Array.isArray(p.tags) ? p.tags.join(', ') : '';
-    const notes = (p.notes || '').trim();
+    // v26.2: Optimisation — liste simplifiée des clés de thèmes (pas toutes les questions)
+    const themeKeys = themes.map(t => t.key).join(', ');
     
-    const promptText = `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel). Je viens de terminer un RDV / entretien client avec un prospect. J'ai un compte-rendu de réunion et je veux que tu extraies les informations pertinentes pour remplir automatiquement ma grille de qualification RDV.
+    // v26.2: Prompt optimisé — beaucoup plus concis
+    const promptText = `Extrais les infos d'un compte-rendu de réunion B2B et génère un JSON.
 
-══════ CONTEXTE PROSPECT ══════
-• Nom : ${p.name || 'Inconnu'}
-• Entreprise : ${companyName}
-• Fonction : ${p.fonction || 'Non renseignée'}
-• Statut actuel : ${p.statut || 'Non renseigné'}
-• Compétences/Tags : ${tags || 'Aucun'}
-• Notes existantes : ${notes || 'Aucune'}
+CONTEXTE: ${p.name || 'Prospect'} — ${companyName || 'Entreprise'}
 
-══════ COMPTE-RENDU DE RÉUNION ══════
-${meetingContent}
+COMPTE-RENDU:
+${contentToUse}
 
-══════ GRILLE DE QUALIFICATION (PRIORITÉ ABSOLUE) ══════
-Voici les thèmes de ma grille de qualification. Pour CHAQUE thème, cherche dans le compte-rendu les informations correspondantes et extrais-les :
+GRILLE (clés: ${themeKeys})
 
-${themes.map(t => `• ${t.key} — ${t.theme} : ${t.question}`).join('\n')}
-
-══════ CE QUE JE VEUX ══════
-
-Génère un JSON avec DEUX parties. La PARTIE 1 (checklist_responses) est LA PRIORITÉ ABSOLUE car elle remplit automatiquement la grille de qualification.
-
-**PARTIE 1 — GRILLE DE QUALIFICATION (OBLIGATOIRE) :**
-Pour chaque thème de la grille ci-dessus, si tu trouves des informations correspondantes dans le compte-rendu, ajoute-les dans "checklist_responses" avec la clé exacte du thème. Extrais le texte directement du compte-rendu, reformule si nécessaire mais garde toutes les informations pertinentes.
-
-**PARTIE 2 — CHAMPS GÉNÉRAUX (COMPLÉMENTAIRES) :**
-Les autres informations qui ne rentrent pas dans la grille vont dans les champs généraux.
-
-Format JSON attendu :
-
+Génère UNIQUEMENT ce JSON (sans texte autour):
 {
   "checklist_responses": {
-    "metiers_equipe": "[Extrait du compte-rendu : quels métiers/équipes ont été mentionnés ? Ex: 'Équipe web marketing de 3 personnes, équipe IT en modernisation, prestataire historique pour ColdFusion']",
-    "outils": "[Extrait du compte-rendu : quels outils/technologies ont été mentionnés ? Ex: 'Adobe ColdFusion, PHP, MySQL, MariaDB, Punchout/cXML, SAP, Google Ads, Analytics, VS Code, outils IA']",
-    "taille_equipe": "[Extrait du compte-rendu : nombre de personnes, internes/externes ? Ex: 'Environ 200 collaborateurs, équipe web marketing de 3 personnes, équipe IT']",
-    "projets_actuels": "[Extrait du compte-rendu : projets en cours mentionnés ? Ex: 'Refonte des outils internes en PHP/MySQL, maintenance site e-commerce ColdFusion']",
-    "projets_a_venir": "[Extrait du compte-rendu : projets/roadmap à venir ? Ex: 'Refonte complète du site e-commerce écartée pour l'instant, hypothèse future refonte non prioritaire']",
-    "societe": "[Extrait du compte-rendu : taille société, CA, effectifs ? Ex: 'Environ 200 collaborateurs pour 50 M€ de CA, siège à Valence, Quart Sud-Est']",
-    "produits": "[Extrait du compte-rendu : produits/systèmes principaux ? Ex: 'Distribution composants pour systèmes industriels (pneumatique, hydraulique, automatisme), site e-commerce B2B']",
-    "profils_recherches": "[Extrait du compte-rendu : profils recherchés mentionnés ? Ex: 'Développeur expert Adobe ColdFusion avec Punchout/cXML, développeurs PHP/SQL, profils Data/Web marketing']",
-    "besoin_identifie": "[Extrait du compte-rendu : besoins ouverts/à venir ? Ex: 'Besoin urgent compétences ColdFusion/Punchout, renforts équipe IT PHP/SQL, recherche profil expert']",
-    "profils_a_proposer": "[Extrait du compte-rendu : quels profils à proposer ? Ex: 'Profils PHP/SQL pour refonte interne, expert ColdFusion/Punchout à rechercher']",
-    "next_step": "[Extrait du compte-rendu : prochaine étape mentionnée ? Ex: 'Envoyer email récapitulatif + présentation + profils PHP/SQL, démarrer recherche profil ColdFusion/Punchout']",
-    ...
+    ${themes.map(t => `"${t.key}": "[Extrait pertinent du compte-rendu]"`).join(',\n    ')}
   },
-  "compte_rendu": "[Résumé structuré de la réunion en 5-10 lignes]",
-  "next_action": "[Prochaine action concrète]",
-  "next_follow_up": "[Date YYYY-MM-DD si mentionnée]",
-  "statut": "[Nouveau statut si changement nécessaire, sinon null]",
-  "tags": ["tags techniques extraits du compte-rendu"],
+  "compte_rendu": "[Résumé 5-10 lignes]",
+  "next_action": "[Action concrète]",
+  "next_follow_up": "[YYYY-MM-DD ou null]",
+  "statut": "[Statut ou null]",
+  "tags": ["tag1", "tag2"],
   "pertinence": [1-5 ou null],
-  "notes_enrichies": "[Informations complémentaires qui ne rentrent pas dans la grille]"
+  "notes_enrichies": "[Infos complémentaires]"
 }
 
-RÈGLES IMPORTANTES :
-1. **PRIORITÉ 1** : Remplis "checklist_responses" avec TOUTES les informations trouvées dans le compte-rendu qui correspondent aux thèmes de la grille.
-2. Utilise les clés EXACTES des thèmes (metiers_equipe, outils, taille_equipe, projets_actuels, etc.) — voir la liste complète ci-dessus.
-3. Pour chaque thème, extrais le texte du compte-rendu qui répond à la question. Si plusieurs informations correspondent, combine-les.
-4. Ne laisse PAS de champs vides dans checklist_responses si tu as trouvé des infos correspondantes dans le compte-rendu.
-5. Les champs généraux (compte_rendu, next_action, etc.) sont complémentaires et peuvent être null si pas d'info.
-6. Retourne UNIQUEMENT le JSON valide, sans texte autour.`;
+RÈGLES:
+- Remplis checklist_responses avec les clés EXACTES: ${themeKeys}
+- Extrais directement du compte-rendu, garde les infos pertinentes
+- JSON valide uniquement, pas de texte autour`;
     return promptText;
 }
 
