@@ -3216,11 +3216,12 @@ async function viewDetail(id) {
         </div>
 
         <div class="detail-quick-actions">
-            <button class="btn btn-success" onclick="callNumberById(${prospect.id})" ${prospect.telephone ? '' : 'disabled'}>📞 Appeler</button>
-            ${prospect.email ? `<button class="btn btn-secondary" onclick="openEmailForProspect(${prospect.id})">✉️ Email</button>` : `<button class="btn btn-secondary" disabled>✉️ Email</button>`}
-            <button class="btn btn-primary" onclick="openTeamsInvite(${prospect.id})">📅 Teams</button>
-            ${prospect.linkedin ? `<button class="btn btn-secondary" onclick="copyLinkedInForProspect(${prospect.id})">📋 LinkedIn</button>` : ''}
+            <button class="btn btn-success" onclick="callNumberById(${prospect.id})" ${prospect.telephone ? '' : 'disabled'} title="Appeler le prospect (ouvre l'application téléphone)">📞 Appeler</button>
+            ${prospect.email ? `<button class="btn btn-secondary" onclick="openEmailForProspect(${prospect.id})" title="Copier l'email et ouvrir le template Outlook si une catégorie push est définie">✉️ Email</button>` : `<button class="btn btn-secondary" disabled title="Email non renseigné">✉️ Email</button>`}
+            <button class="btn btn-primary" onclick="openTeamsInvite(${prospect.id})" title="Copier le profil formaté pour une invitation Teams">📅 Teams</button>
+            ${prospect.linkedin ? `<button class="btn btn-secondary" onclick="copyLinkedInForProspect(${prospect.id})" title="Copier le lien LinkedIn dans le presse-papier">📋 LinkedIn</button>` : ''}
             <button class="btn btn-secondary" onclick="downloadVcf(${prospect.id})" title="Télécharger la fiche contact (.vcf)">📇 vCard</button>
+            <button class="btn btn-secondary" onclick="handleScanIA(${prospect.id})" title="Rechercher des informations supplémentaires sur internet via l'IA pour enrichir la fiche" data-help-section="scrapping-ia">🔍 Scan IA</button>
         </div>
         ${(prospect.nextAction || '').trim() ? `<div class="detail-next-action-banner" role="status"><strong>🎯 Prochaine action :</strong> ${escapeHtml(prospect.nextAction)}</div>` : ''}
 
@@ -6220,6 +6221,69 @@ function copyScrapingPromptProspect(prospectId) {
     });
 }
 
+/** Retourne le prompt de scan IA prospect (recherche d'infos sur internet). */
+function getScanIAPromptProspect(prospectId) {
+    const p = data.prospects.find(x => x.id === prospectId);
+    if (!p) return null;
+    const company = data.companies.find(c => c.id === p.company_id);
+    const companyName = company ? `${company.groupe} (${company.site})` : '';
+    const tags = Array.isArray(p.tags) ? p.tags.join(', ') : '';
+    return `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel). Je dois rechercher des informations supplémentaires sur internet pour enrichir la fiche d'un PROSPECT dans mon CRM de prospection.
+
+══════ INFORMATIONS ACTUELLES ══════
+• Nom : ${p.name || '[INCONNU]'}
+• Entreprise : ${companyName || '[INCONNUE]'}
+• Fonction : ${p.fonction || '[À TROUVER]'}
+• Téléphone : ${p.telephone || '[À TROUVER]'}
+• Email : ${p.email || '[À TROUVER]'}
+• LinkedIn : ${p.linkedin || '[À TROUVER]'}
+• Compétences/Tags : ${tags || '[À TROUVER]'}
+• Notes : ${p.notes || '[VIDE]'}
+
+══════ MISSION : RECHERCHE SUR INTERNET ══════
+
+Je veux que tu recherches activement des informations sur internet concernant cette personne et son entreprise. Utilise tes connaissances et ta capacité à rechercher des informations publiques disponibles sur :
+- LinkedIn (profil professionnel, expériences, compétences, publications)
+- Site web de l'entreprise ${companyName || ''}
+- Articles de presse, communiqués, actualités
+- Réseaux sociaux professionnels
+- Bases de données publiques (societe.com, etc.)
+
+══════ CE QUE JE VEUX QUE TU TROUVES ══════
+
+1. **Informations de contact manquantes** : Si le téléphone, l'email ou le LinkedIn ne sont pas renseignés, cherche-les activement. Pour le LinkedIn, fournis l'URL complète exacte.
+
+2. **Fonction exacte et périmètre** : Titre de poste précis, périmètre managérial (nombre de personnes, types d'équipes), lien hiérarchique (à qui il reporte), responsabilités.
+
+3. **Compétences / Tags techniques** : Liste les domaines techniques que cette personne ou son équipe pilote. Utilise des tags courts au format suivant :
+   AUTOSAR, C/C++, RTOS, Linux embarqué, FPGA, VHDL, Verilog, Python, Java, C#, .NET, ARM, Microcontrôleur, PCB, Altium, KiCad, Yocto, QNX, FreeRTOS, VxWorks, CAN, LIN, Ethernet, TCP/IP, SPI, I2C, UART, JTAG, Modbus, Cybersécurité, ISO 26262, DO-178, IEC 61508, ADAS, Lidar, Radar, Vision, IA/ML, ROS, Matlab/Simulink, LabVIEW, Banc de test, Qualification, Validation, Electronique analogique, Electronique numérique, Puissance, RF, Hyperfréquence, Mécatronique, CAO mécanique, Catia, SolidWorks, Gestion de projet, Agilité, V-cycle
+
+4. **Métier principal** : Détermine le métier principal parmi : Électronique, Logiciel embarqué, Informatique industrielle, Mécanique, Systèmes, Automatisme, Robotique, Validation/Test, Chef de projet, Direction technique.
+
+5. **Pertinence** (1 à 5 étoiles) : Évalue la pertinence de ce prospect pour une ESN spécialisée en systèmes embarqués et électronique. 5 = décideur direct qui recrute des ingénieurs dans nos domaines, 1 = peu de lien avec nos métiers.
+
+6. **Notes enrichies** : Résumé en 3-5 lignes basé sur tes recherches : contexte de l'équipe, projets en cours/récents mentionnés publiquement, technologies utilisées, besoins potentiels en sous-traitance ou consultants, actualités récentes.
+
+7. **Entreprise** : Infos clés sur le site ${company?.site || ''} basées sur tes recherches : taille du site, activité principale, présence de bureaux d'études, actualité récente (recrutements, projets, communiqués).
+
+8. **Informations supplémentaires** : Toute autre information pertinente trouvée (formations, certifications, publications, interventions publiques, etc.).
+
+══════ FORMAT DE SORTIE ══════
+Retourne les résultats dans ce format exact (je vais copier-coller dans mon CRM) :
+
+FONCTION: [titre exact trouvé]
+TELEPHONE: [numéro direct si trouvé]
+EMAIL: [email pro si trouvé]
+LINKEDIN: [URL complète si trouvée]
+TAGS: [tag1, tag2, tag3, ...]
+METIER: [métier principal]
+PERTINENCE: [1-5]
+NOTES: [résumé 3-5 lignes basé sur tes recherches]
+ENTREPRISE_NOTES: [infos site/activité trouvées]
+
+Important : Ne fournis que les informations que tu as réellement trouvées ou que tu peux déduire avec confiance. Si une information n'est pas disponible, ne l'invente pas.`;
+}
+
 /** Retourne le prompt d'enrichissement candidat (pour Ollama ou copie). */
 function getScrapingPromptCandidate(candidateData) {
     const c = candidateData;
@@ -6412,6 +6476,41 @@ function handleIAButton(type, id) {
     }).finally(function () {
         if (btn) { btn.disabled = false; btn.textContent = '🤖 Scrapping IA'; }
     });
+}
+
+/** Gère le bouton "Scan IA" : recherche d'infos supplémentaires sur internet via Ollama. */
+function handleScanIA(prospectId) {
+    const prompt = getScanIAPromptProspect(prospectId);
+    if (!prompt) {
+        showToast('Données introuvables pour ce prospect.', 'warning');
+        return;
+    }
+    // Trouver le bouton dans la barre d'actions rapides
+    const btn = document.querySelector(`button[onclick="handleScanIA(${prospectId})"]`);
+    if (btn) { 
+        btn.disabled = true; 
+        const originalText = btn.textContent;
+        btn.textContent = '🔍 Recherche…';
+        callOllama(prompt).then(function (text) {
+            openIAImportModalWithText('prospect', prospectId, text);
+        }).catch(function () {
+            openIAImportModal('prospect', prospectId);
+            showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+        }).finally(function () {
+            if (btn) { 
+                btn.disabled = false; 
+                btn.textContent = originalText;
+            }
+        });
+    } else {
+        // Fallback si le bouton n'est pas trouvé
+        callOllama(prompt).then(function (text) {
+            openIAImportModalWithText('prospect', prospectId, text);
+        }).catch(function () {
+            openIAImportModal('prospect', prospectId);
+            showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+        });
+    }
 }
 
 // ─── Modal ───
