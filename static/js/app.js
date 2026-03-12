@@ -2067,6 +2067,8 @@ function _injectSidebarBadge(overdueCount, dueTodayCount) {
 
 
 async function viewDetail(id) {
+    // Stocker l'ID du prospect actuel pour refreshMetierSuggestions
+    window._currentDetailProspectId = id;
     const prospect = data.prospects.find(p => p.id === id);
     if (!prospect) return;
     const isProspMode = (_currentView === 'prosp' && _prospSession.active);
@@ -2179,7 +2181,7 @@ async function viewDetail(id) {
                 <div class="detail-info-item"><div class="detail-info-label">Next action</div><div class="detail-info-value">${escapeHtml(prospect.nextAction || '—')}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Priorité</div><div class="detail-info-value">P${prospect.priority ?? 2}</div></div>
                 ${prospect.rdvDate ? `<div class="detail-info-item"><div class="detail-info-label">📅 Date RDV</div><div class="detail-info-value">${escapeHtml(prospect.rdvDate)} <button class="mini-action" onclick="copyRdvForTeams(${prospect.id})" title="Copier RDV pour Teams" style="margin-left:6px;font-size:11px;">📋 Teams</button></div></div>` : ''}
-                <div class="detail-info-item full"><div class="detail-info-label">Compétences</div><div class="detail-info-value">${(prospect.tags && prospect.tags.length) ? prospect.tags.map(t => { const inRef = typeof buildReferentialTagSet === 'function' && buildReferentialTagSet().has(t.toLowerCase()); return `<span class="tag-pill${inRef ? '' : ' tag-pill-custom'}" title="${inRef ? 'Référentiel Up Technologies' : 'Tag personnalisé (hors référentiel)'}">${escapeHtml(t)}${inRef ? '' : ' *'}</span>`; }).join(' ') : '—'}</div></div>
+                <div class="detail-info-item full"><div class="detail-info-label">Compétences</div><div class="detail-info-value" id="detailTagsContainer">${(prospect.tags && prospect.tags.length) ? prospect.tags.map(t => { const inRef = typeof buildReferentialTagSet === 'function' && buildReferentialTagSet().has(t.toLowerCase()); return `<span class="tag-pill${inRef ? '' : ' tag-pill-custom'}" title="${inRef ? 'Référentiel Up Technologies' : 'Tag personnalisé (hors référentiel)'}">${escapeHtml(t)}${inRef ? '' : ' *'}</span>`; }).join(' ') : '—'}</div></div>
                 ${showMetier ? `<div class="detail-info-item full" id="metierSection"><div class="detail-info-label">🏗️ Métier suggéré</div><div class="detail-info-value" id="metierSuggestions">${renderMetierSection(prospect)}</div></div>` : ''}
                 <div class="detail-info-item full"><div class="detail-info-label">Notes</div><div class="detail-info-value" style="white-space:pre-wrap;">${escapeHtml(prospect.notes || '—')}</div></div>
             </div>
@@ -3941,8 +3943,42 @@ return '<span class="muted">Ajoutez des compétences pour obtenir des suggestion
 
     if (typeof computeMetierMatches !== 'function') return '<span class="muted">Référentiel non chargé</span>';
 
+    // Version synchrone pour affichage immédiat
     const matches = computeMetierMatches(prospect.tags).slice(0, 3);
-    if (!matches.length) return '<span class="muted">Aucune correspondance trouvée</span>';
+    if (!matches.length) {
+        // Si aucune correspondance, lancer l'intégration en arrière-plan et réafficher
+        if (typeof computeMetierMatchesEnhanced === 'function' && prospect.id) {
+            const company = data.companies.find(c => c.id === prospect.company_id);
+            const context = {
+                company: company ? `${company.groupe} (${company.site})` : '',
+                fonction: prospect.fonction || '',
+                linkedin: prospect.linkedin || ''
+            };
+            computeMetierMatchesEnhanced(prospect.tags, context).then(enhancedMatches => {
+                if (enhancedMatches.length > 0) {
+                    const el = document.getElementById('metierSuggestions');
+                    if (el) {
+                        el.innerHTML = enhancedMatches.slice(0, 3).map((m, i) => {
+                            const barWidth = Math.max(m.score, 8);
+                            const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
+                            const fullPath = m.category + ' > ' + m.specialty;
+                            const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                            return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
+    <div class="metier-suggestion-header">
+        <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
+        <span class="metier-suggestion-name"><strong>${escapeHtml(m.category)}</strong> › ${escapeHtml(m.specialty)}</span>
+        <span class="metier-suggestion-score">${m.score}%${integratedBadge}</span>
+        ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
+    </div>
+    <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
+</div>`;
+                        }).join('');
+                    }
+                }
+            });
+        }
+        return '<span class="muted">Aucune correspondance trouvée. Intégration des tags en cours…</span>';
+    }
 
     return matches.map((m, i) => {
 const barWidth = Math.max(m.score, 8);
@@ -3958,6 +3994,68 @@ return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.ma
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
 </div>`;
     }).join('');
+}
+
+// Fonction pour rafraîchir les suggestions de métier (appelée après intégration)
+async function refreshMetierSuggestions() {
+    const prospectId = window._currentDetailProspectId;
+    if (!prospectId) return;
+    const prospect = data.prospects.find(p => p.id === prospectId);
+    if (!prospect) return;
+    
+    const company = data.companies.find(c => c.id === prospect.company_id);
+    const context = {
+        company: company ? `${company.groupe} (${company.site})` : '',
+        fonction: prospect.fonction || '',
+        linkedin: prospect.linkedin || ''
+    };
+    
+    // Recharger le cache des intégrations
+    if (typeof loadTagIntegrationsCache === 'function') {
+        await loadTagIntegrationsCache();
+    }
+    
+    if (typeof computeMetierMatchesEnhanced === 'function') {
+        computeMetierMatchesEnhanced(prospect.tags, context).then(enhancedMatches => {
+            const el = document.getElementById('metierSuggestions');
+            if (el) {
+                if (enhancedMatches.length > 0) {
+                    el.innerHTML = enhancedMatches.slice(0, 3).map((m, i) => {
+                        const barWidth = Math.max(m.score, 8);
+                        const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
+                        const fullPath = m.category + ' > ' + m.specialty;
+                        const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                        return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
+    <div class="metier-suggestion-header">
+        <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
+        <span class="metier-suggestion-name"><strong>${escapeHtml(m.category)}</strong> › ${escapeHtml(m.specialty)}</span>
+        <span class="metier-suggestion-score">${m.score}%${integratedBadge}</span>
+        ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
+    </div>
+    <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
+</div>`;
+                    }).join('');
+                } else {
+                    el.innerHTML = '<span class="muted">Aucune correspondance trouvée</span>';
+                }
+            }
+            
+            // Mettre à jour l'affichage des tags pour montrer ceux qui ont été intégrés
+            const tagsEl = document.getElementById('detailTagsContainer');
+            if (tagsEl && prospect.tags && prospect.tags.length) {
+                const refSet = typeof buildReferentialTagSet === 'function' ? buildReferentialTagSet() : new Set();
+                const integrations = window._tagIntegrationsCache || {};
+                tagsEl.innerHTML = prospect.tags.map(t => {
+                    const tLower = t.toLowerCase().trim();
+                    const inRef = refSet.has(tLower);
+                    const integrated = integrations[tLower] && integrations[tLower].category;
+                    let title = inRef ? 'Référentiel Up Technologies' : (integrated ? 'Tag intégré via IA dans ' + integrations[tLower].category : 'Tag personnalisé (hors référentiel)');
+                    let badge = inRef ? '' : (integrated ? ' 🤖' : ' *');
+                    return `<span class="tag-pill${inRef ? '' : ' tag-pill-custom'}" title="${title}">${escapeHtml(t)}${badge}</span>`;
+                }).join(' ');
+            }
+        });
+    }
 }
 
 function buildMetierOptionsHtml(currentValue) {

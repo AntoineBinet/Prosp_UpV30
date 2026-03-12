@@ -26,7 +26,11 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
+<<<<<<< Updated upstream
 APP_VERSION = "25.1"
+=======
+APP_VERSION = "25.8"
+>>>>>>> Stashed changes
 import os
 import subprocess
 import traceback
@@ -6235,6 +6239,789 @@ def api_ollama_generate():
         return jsonify(ok=False, error=str(e)), 503
 
 
+<<<<<<< Updated upstream
+=======
+@app.post("/api/ollama/generate-stream")
+def api_ollama_generate_stream():
+    """Proxy vers Ollama local avec streaming SSE : envoie les tokens au fur et à mesure pour éviter les timeouts Cloudflare."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    prompt = payload.get("prompt")
+    model = payload.get("model") or OLLAMA_MODEL
+    req_timeout = payload.get("timeout")
+    if req_timeout is not None:
+        try:
+            req_timeout = min(600, max(30, int(req_timeout)))
+        except (TypeError, ValueError):
+            req_timeout = OLLAMA_TIMEOUT
+    else:
+        req_timeout = OLLAMA_TIMEOUT
+    if not prompt:
+        return jsonify(ok=False, error="prompt requis"), 400
+    
+    def generate():
+        try:
+            body = json.dumps({"model": model, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/generate",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=req_timeout) as resp:
+                # Envoyer un événement de démarrage
+                yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
+                
+                buffer = b""
+                for chunk in resp:
+                    buffer += chunk
+                    # Ollama envoie des lignes JSON séparées par \n
+                    while b"\n" in buffer:
+                        line_bytes, buffer = buffer.split(b"\n", 1)
+                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
+                        if not line_json:
+                            continue
+                        try:
+                            data = json.loads(line_json)
+                            if data.get("done", False):
+                                # Dernier chunk avec le texte complet
+                                full_text = data.get("response", "")
+                                if full_text:
+                                    yield f"data: {json.dumps({'type': 'token', 'text': full_text, 'done': True}, ensure_ascii=False)}\n\n"
+                                yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
+                                break
+                            else:
+                                # Token partiel
+                                token = data.get("response", "")
+                                if token:
+                                    yield f"data: {json.dumps({'type': 'token', 'text': token, 'done': False}, ensure_ascii=False)}\n\n"
+                        except json.JSONDecodeError:
+                            continue
+        except urllib.error.URLError as e:
+            logger.warning("Ollama unreachable (stream): %s", e)
+            err_msg = "Ollama indisponible (vérifiez qu'il tourne sur ce PC)"
+            yield f"data: {json.dumps({'type': 'error', 'message': err_msg}, ensure_ascii=False)}\n\n"
+        except urllib.error.HTTPError as e:
+            try:
+                err_body = e.read().decode("utf-8")
+                err_data = json.loads(err_body) if err_body else {}
+                msg = err_data.get("error", err_body) or str(e)
+            except Exception:
+                msg = str(e)
+            logger.warning("Ollama HTTP error %s (stream): %s", e.code, msg)
+            yield f"data: {json.dumps({'type': 'error', 'message': msg}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("Ollama generate stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+    
+    return Response(generate(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no"  # Désactive le buffering nginx
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v25.8: Intégration automatique des tags dans l'arbre des métiers via Ollama
+# ═══════════════════════════════════════════════════════════════════
+_TAG_INTEGRATION_CACHE_FILE = APP_DIR / "data" / "tag_integrations.json"
+
+def _load_tag_integrations() -> Dict[str, Dict[str, Any]]:
+    """Charge le cache des intégrations de tags."""
+    if _TAG_INTEGRATION_CACHE_FILE.exists():
+        try:
+            with open(_TAG_INTEGRATION_CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning("Erreur chargement cache intégrations tags: %s", e)
+    return {}
+
+def _save_tag_integrations(cache: Dict[str, Dict[str, Any]]):
+    """Sauvegarde le cache des intégrations de tags."""
+    try:
+        _TAG_INTEGRATION_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_TAG_INTEGRATION_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error("Erreur sauvegarde cache intégrations tags: %s", e)
+
+@app.post("/api/metiers/integrate-tags")
+def api_metiers_integrate_tags():
+    """Intègre automatiquement des tags manquants dans l'arbre des métiers via Ollama.
+    
+    Reçoit: { "tags": ["tag1", "tag2"], "context": { "company": "...", "fonction": "...", "linkedin": "..." } }
+    Retourne: { "ok": true, "integrations": { "tag1": { "category": "...", "specialty": "...", "techCategory": "..." } } }
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    payload = request.get_json(force=True, silent=True) or {}
+    tags = payload.get("tags", [])
+    context = payload.get("context", {})
+    
+    if not tags or not isinstance(tags, list):
+        return jsonify(ok=False, error="Liste de tags requise"), 400
+    
+    cache = _load_tag_integrations()
+    results = {}
+    
+    # Charger les données métiers depuis le fichier JS (structure simplifiée)
+    metiers_structure = [
+        {"name": "Ingénierie Logicielle", "icon": "💻", "color": "#6366f1"},
+        {"name": "Ingénierie Électronique", "icon": "⚡", "color": "#f59e0b"},
+        {"name": "Ingénierie Système", "icon": "🔧", "color": "#22c55e"},
+        {"name": "Life Science", "icon": "🧬", "color": "#ec4899"},
+    ]
+    
+    # Liste des catégories de tech possibles
+    tech_categories = [
+        "Langages", "Systèmes", "IDE", "Bases de données", "Méthodologies",
+        "Outils", "Librairies", "Protocoles", "Microcontrôleurs", "Capteurs",
+        "Frameworks", "Matériel", "Outils CAO", "Serveurs", "Secteurs"
+    ]
+    
+    for tag in tags:
+        tag_lower = tag.lower().strip()
+        
+        # Vérifier le cache
+        if tag_lower in cache:
+            results[tag] = cache[tag_lower]
+            continue
+        
+        # Construire le prompt pour Ollama
+        context_str = ""
+        if context.get("company"):
+            context_str += f"Entreprise: {context['company']}. "
+        if context.get("fonction"):
+            context_str += f"Poste: {context['fonction']}. "
+        if context.get("linkedin"):
+            context_str += f"LinkedIn disponible. "
+        
+        # Charger la structure complète des métiers depuis le fichier JS
+        metiers_structure_detailed = """Ingénierie Logicielle:
+  - Logiciel applicatif
+  - Test / Validation / Qualification logicielle
+  - Logiciels embarqués / Systèmes embarqués / IoT
+  - Data Science / ML / Deep Learning / Vision
+  - DevOps / Infrastructure / Cloud
+  - Gestion de projet logiciel / Scrum Master
+  - Développement Web / Fullstack
+
+Ingénierie Électronique:
+  - Électronique analogique
+  - Électronique numérique
+  - Électronique de puissance
+  - Génie électrique / Électrotechnique
+  - Industrialisation
+  - FPGA / ASIC / SoC
+
+Ingénierie Système:
+  - Mécatronique / Robotique
+  - Model Based Design (MBD)
+  - Safety / Sûreté de fonctionnement
+  - Contrôle commande / Automatique
+  - Simulation multiphysique / Modélisation
+  - Mécanique
+  - Système (ingénierie système)
+  - Test / Validation / Essais système
+
+Life Science:
+  - Qualification d'équipements (Pharma & DM)
+  - Validation de systèmes automatisés (VSA)
+  - Validation de systèmes d'informations (VSI)
+  - Validation de produits (Dispositifs Médicaux)"""
+        
+        prompt = f"""Tu es un expert en classification de compétences techniques pour l'ingénierie.
+
+Contexte du prospect: {context_str}
+
+Tag à classer: "{tag}"
+
+Arbre des métiers disponible:
+{metiers_structure_detailed}
+
+Catégories de technologies possibles: {', '.join(tech_categories)}
+
+Instructions:
+1. Analyse le tag "{tag}" dans le contexte donné
+2. Identifie la catégorie métier (Ingénierie Logicielle, Ingénierie Électronique, Ingénierie Système, ou Life Science)
+3. Identifie la spécialité la plus appropriée dans cette catégorie
+4. Identifie la catégorie de technologie la plus appropriée
+
+Réponds UNIQUEMENT avec un JSON valide au format suivant (sans markdown, sans code block):
+{{"category": "Nom exact de la catégorie métier", "specialty": "Nom exact de la spécialité", "techCategory": "Catégorie de technologie la plus appropriée", "reasoning": "Explication courte (1 phrase)"}}
+
+Si le tag ne correspond clairement à aucun métier, réponds avec {{"category": null, "reasoning": "..."}}."""
+        
+        try:
+            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/generate",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            response_text = data.get("response", "").strip()
+            
+            # Extraire le JSON de la réponse (gérer les blocs de code markdown)
+            import re
+            # Chercher un bloc JSON (peut être dans ```json ... ```)
+            json_block = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+            if json_block:
+                response_text = json_block.group(1)
+            else:
+                # Chercher directement un objet JSON
+                json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
+                if json_match:
+                    response_text = json_match.group(0)
+            
+            try:
+                integration = json.loads(response_text)
+                if integration.get("category") and integration.get("specialty") and integration.get("category") != "null":
+                    cache[tag_lower] = integration
+                    results[tag] = integration
+                else:
+                    results[tag] = {"category": None, "reason": "Tag non classable selon Ollama"}
+            except json.JSONDecodeError:
+                results[tag] = {"category": None, "reason": "Réponse Ollama invalide (JSON non parsable)"}
+        except urllib.error.URLError:
+            results[tag] = {"category": None, "reason": "Ollama indisponible"}
+        except Exception as e:
+            logger.warning("Erreur intégration tag %s: %s", tag, e)
+            results[tag] = {"category": None, "reason": str(e)}
+    
+    # Sauvegarder le cache
+    if results:
+        _save_tag_integrations(cache)
+    
+    return jsonify(ok=True, integrations=results)
+
+
+@app.get("/api/metiers/integrations-cache")
+def api_metiers_integrations_cache():
+    """Retourne le cache des intégrations de tags."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    cache = _load_tag_integrations()
+    return jsonify(ok=True, integrations=cache)
+
+
+def _schedule_restart(delay: float = 10.0):
+    """Restart after responding.
+
+    - If launched via PROSPUP.bat (or _run_serveur.bat), it will restart on exit code 42.
+    - If launched directly (python app.py), it spawns a new process then exits.
+
+    Le délai permet aux clients (Cloudflare, navigateurs) de recevoir la réponse HTTP
+    avant que le serveur ne redémarre, évitant les erreurs 502.
+    """
+    def _do():
+        time.sleep(float(delay))
+        launcher = (os.environ.get("PROSPUP_LAUNCHER") or "").strip().upper()
+        if launcher == "BAT":
+            logger.info("Restart: exit code 42 pour le superviseur")
+            os._exit(42)
+        try:
+            import sys as _sys
+            args = [_sys.executable] + _sys.argv
+            logger.info("Restart: lancement nouveau processus: %s", " ".join(args))
+            proc = subprocess.Popen(args, cwd=str(APP_DIR))
+            time.sleep(2.0)
+            logger.info("Restart: nouveau processus lancé, arrêt de l'ancien serveur")
+        except Exception as e:
+            logger.error("Restart: erreur lors du lancement du nouveau processus: %s", e)
+        os._exit(0)
+
+    threading.Thread(target=_do, daemon=True).start()
+
+
+@app.post("/api/deploy/pull")
+@login_required
+@role_required('admin')
+def api_deploy_pull():
+    """Streaming git pull depuis origin/main puis redémarrage (admin uniquement). Réponse SSE."""
+    chk = _require_same_origin()
+    if chk:
+        return chk
+
+    def generate():
+        try:
+            cp = subprocess.run(
+                ["git", "rev-parse", "--git-dir"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if cp.returncode != 0:
+                yield f"data: {json.dumps({'step': 'error', 'error': 'Pas un dépôt git'}, ensure_ascii=False)}\n\n"
+                return
+
+            yield f"data: {json.dumps({'step': 'fetch', 'message': 'git fetch --prune origin main...'}, ensure_ascii=False)}\n\n"
+            fetch = subprocess.run(
+                ["git", "fetch", "--prune", "origin", "main"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if fetch.returncode != 0:
+                err = (fetch.stderr or fetch.stdout or "Erreur inconnue").strip()
+                yield f"data: {json.dumps({'step': 'error', 'error': f'git fetch échoué: {err}'}, ensure_ascii=False)}\n\n"
+                return
+            if fetch.stdout:
+                for line in fetch.stdout.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+            if fetch.stderr:
+                for line in fetch.stderr.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+
+            cp2 = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            local_hash = (cp2.stdout or "").strip()[:7] if cp2.returncode == 0 else "unknown"
+            local_hash_full = (cp2.stdout or "").strip() if cp2.returncode == 0 else "unknown"
+            cp3 = subprocess.run(
+                ["git", "rev-parse", "origin/main"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            remote_hash = (cp3.stdout or "").strip()[:7] if cp3.returncode == 0 else "unknown"
+            remote_hash_full = (cp3.stdout or "").strip() if cp3.returncode == 0 else "unknown"
+
+            if local_hash == remote_hash:
+                yield f"data: {json.dumps({'step': 'done', 'updated': False, 'restarting': False, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Déjà à jour'}, ensure_ascii=False)}\n\n"
+                return
+
+            # ═══════════════════════════════════════════════════════════════════
+            # SAFETY: Sauvegarder le commit actuel pour rollback possible
+            # ═══════════════════════════════════════════════════════════════════
+            if local_hash_full != "unknown":
+                try:
+                    last_commit_file = APP_DIR / ".last_commit_hash"
+                    last_commit_file.write_text(local_hash_full, encoding="utf-8")
+                    yield f"data: {json.dumps({'step': 'log', 'line': f'✅ Commit actuel sauvegardé ({local_hash}) pour rollback possible'}, ensure_ascii=False)}\n\n"
+                except Exception as e:
+                    logger.warning("Failed to save last commit hash: %s", e)
+
+            # ═══════════════════════════════════════════════════════════════════
+            # SAFETY: Créer un snapshot DB automatique avant mise à jour
+            # ═══════════════════════════════════════════════════════════════════
+            try:
+                yield f"data: {json.dumps({'step': 'log', 'line': '💾 Création snapshot DB automatique avant mise à jour...'}, ensure_ascii=False)}\n\n"
+                snapshot_file = create_snapshot(label="before_update", is_auto=False)
+                yield f"data: {json.dumps({'step': 'log', 'line': f'✅ Snapshot créé: {snapshot_file}'}, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                logger.warning("Failed to create snapshot before update: %s", e)
+                yield f"data: {json.dumps({'step': 'log', 'line': f'⚠️ Impossible de créer snapshot: {e}'}, ensure_ascii=False)}\n\n"
+
+            # Fichiers sous logs/ souvent verrouillés par l'app : on les ignore pour le pull
+            log_paths = []
+            ls_logs = subprocess.run(
+                ["git", "ls-files", "logs/"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if ls_logs.returncode == 0 and ls_logs.stdout.strip():
+                for p in ls_logs.stdout.strip().splitlines():
+                    p = p.strip()
+                    if p:
+                        log_paths.append(p)
+                for p in log_paths:
+                    subprocess.run(
+                        ["git", "update-index", "--assume-unchanged", p],
+                        cwd=str(APP_DIR),
+                        capture_output=True,
+                        timeout=5,
+                    )
+                if log_paths:
+                    yield f"data: {json.dumps({'step': 'log', 'line': 'Fichiers logs/ ignorés pour le pull (évite fichiers verrouillés)'}, ensure_ascii=False)}\n\n"
+
+            status = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            has_local_changes = status.returncode == 0 and bool(status.stdout.strip())
+            if has_local_changes:
+                yield f"data: {json.dumps({'step': 'log', 'line': 'Modifications locales détectées, stash...'}, ensure_ascii=False)}\n\n"
+                stash = subprocess.run(
+                    ["git", "stash", "push", "-m", f"Auto-stash avant pull {remote_hash}"],
+                    cwd=str(APP_DIR),
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if stash.returncode != 0:
+                    err = (stash.stderr or stash.stdout or "Erreur stash").strip()
+                    yield f"data: {json.dumps({'step': 'error', 'error': f'Impossible de stasher: {err}'}, ensure_ascii=False)}\n\n"
+                    # Restaurer assume-unchanged avant de quitter
+                    for p in log_paths:
+                        subprocess.run(
+                            ["git", "update-index", "--no-assume-unchanged", p],
+                            cwd=str(APP_DIR),
+                            capture_output=True,
+                            timeout=5,
+                        )
+                    return
+
+            yield f"data: {json.dumps({'step': 'pull', 'message': 'git pull --ff-only origin main...'}, ensure_ascii=False)}\n\n"
+            pull = subprocess.run(
+                ["git", "pull", "--ff-only", "origin", "main"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if pull.stdout:
+                for line in pull.stdout.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+            if pull.stderr:
+                for line in pull.stderr.strip().splitlines():
+                    if line.strip():
+                        yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
+            if pull.returncode != 0:
+                err = (pull.stderr or pull.stdout or "Erreur pull").strip()
+                yield f"data: {json.dumps({'step': 'error', 'error': f'git pull échoué: {err}'}, ensure_ascii=False)}\n\n"
+                for p in log_paths:
+                    subprocess.run(
+                        ["git", "update-index", "--no-assume-unchanged", p],
+                        cwd=str(APP_DIR),
+                        capture_output=True,
+                        timeout=5,
+                    )
+                return
+
+            for p in log_paths:
+                subprocess.run(
+                    ["git", "update-index", "--no-assume-unchanged", p],
+                    cwd=str(APP_DIR),
+                    capture_output=True,
+                    timeout=5,
+                )
+
+            # ═══════════════════════════════════════════════════════════════════
+            # SAFETY: Sauvegarder le nouveau hash après pull réussi
+            # ═══════════════════════════════════════════════════════════════════
+            cp4 = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            new_hash_full = (cp4.stdout or "").strip() if cp4.returncode == 0 else None
+            if new_hash_full:
+                try:
+                    last_commit_file = APP_DIR / ".last_commit_hash"
+                    last_commit_file.write_text(new_hash_full, encoding="utf-8")
+                except Exception:
+                    pass
+
+            logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
+            _schedule_restart(delay=10.0)
+            yield f"data: {json.dumps({'step': 'done', 'updated': True, 'restarting': True, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Mise à jour appliquée, redémarrage dans 10 s', 'restart_delay_s': 10}, ensure_ascii=False)}\n\n"
+        except subprocess.TimeoutExpired:
+            yield f"data: {json.dumps({'step': 'error', 'error': 'Timeout lors du pull'}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("Deploy pull error")
+            yield f"data: {json.dumps({'step': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/api/deploy/health")
+def api_deploy_health():
+    """Health check simple pour vérifier que l'app répond (accessible sans auth pour 404)."""
+    try:
+        # Vérifier que l'app peut répondre
+        cp = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        current_hash = (cp.stdout or "").strip()[:7] if cp.returncode == 0 else "unknown"
+        
+        # Vérifier si un rollback est possible
+        last_commit_file = APP_DIR / ".last_commit_hash"
+        can_rollback = last_commit_file.exists()
+        rollback_hash = None
+        if can_rollback:
+            try:
+                rollback_hash = last_commit_file.read_text(encoding="utf-8").strip()[:7]
+            except Exception:
+                can_rollback = False
+        
+        return jsonify(ok=True, current_hash=current_hash, can_rollback=can_rollback, rollback_hash=rollback_hash)
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.route("/api/system/check-deployment", methods=["GET"])
+def api_system_check_deployment():
+    """Vérifie si le code de vérification système est déployé."""
+    user = _get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Admin requis"), 403
+    
+    verify_script = APP_DIR / "scripts" / "verify_all.py"
+    verify_script_exists = verify_script.exists()
+    
+    # Vérifier si la section est dans templates/parametres.html
+    parametres_file = APP_DIR / "templates" / "parametres.html"
+    has_section = False
+    if parametres_file.exists():
+        try:
+            content = parametres_file.read_text(encoding="utf-8")
+            has_section = "systemVerifySection" in content and "Vérification système" in content
+        except Exception:
+            pass
+    
+    # Vérifier aussi si le fichier existe à la racine (compatibilité)
+    if not has_section:
+        parametres_file_root = APP_DIR / "parametres.html"
+        if parametres_file_root.exists():
+            try:
+                content = parametres_file_root.read_text(encoding="utf-8")
+                has_section = "systemVerifySection" in content and "Vérification système" in content
+            except Exception:
+                pass
+    
+    # Vérifier si la fonction JS existe
+    page_settings_file = APP_DIR / "static" / "js" / "page-settings.js"
+    has_js_function = False
+    if page_settings_file.exists():
+        try:
+            content = page_settings_file.read_text(encoding="utf-8")
+            has_js_function = "runSystemVerify" in content
+        except Exception:
+            pass
+    
+    # Dernier commit et branche (pour affichage "version en ligne")
+    last_commit = "unknown"
+    commit_hash = "unknown"
+    branch = "main"
+    try:
+        cp = subprocess.run(
+            ["git", "log", "-1", "--oneline", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp.returncode == 0:
+            last_commit = (cp.stdout or "").strip()[:50]
+        cp2 = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp2.returncode == 0:
+            commit_hash = (cp2.stdout or "").strip()[:7]
+        cp3 = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if cp3.returncode == 0 and (cp3.stdout or "").strip():
+            branch = (cp3.stdout or "").strip()
+    except Exception:
+        pass
+    
+    return jsonify(
+        ok=True,
+        verify_script_exists=verify_script_exists,
+        html_section_exists=has_section,
+        js_function_exists=has_js_function,
+        all_deployed=verify_script_exists and has_section and has_js_function,
+        last_commit=last_commit,
+        version=APP_VERSION,
+        commit_hash=commit_hash,
+        branch=branch,
+    )
+
+
+@app.route("/api/system/logs", methods=["GET"])
+def api_system_logs():
+    """Retourne les dernières lignes du log serveur. Admin uniquement."""
+    user = _get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Admin requis"), 403
+    
+    log_file = APP_DIR / "logs" / "prospup.log"
+    lines = request.args.get("lines", 50, type=int)
+    lines = min(max(10, lines), 500)  # Entre 10 et 500 lignes
+    
+    if not log_file.exists():
+        return jsonify(ok=False, error="Fichier de log introuvable"), 404
+    
+    try:
+        # Lire les dernières lignes du fichier
+        with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+            all_lines = f.readlines()
+            last_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        
+        return jsonify(
+            ok=True,
+            lines=last_lines,
+            total_lines=len(all_lines),
+            file_size=log_file.stat().st_size,
+        )
+    except Exception as e:
+        logger.exception("Failed to read logs")
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.post("/api/system/verify")
+def api_system_verify():
+    """Exécute le script de vérification système et retourne les résultats détaillés."""
+    user = _get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Admin requis"), 403
+    
+    verify_script = APP_DIR / "scripts" / "verify_all.py"
+    if not verify_script.exists():
+        return jsonify(ok=False, error="Script de vérification introuvable"), 404
+    
+    try:
+        # Exécuter le script avec capture de la sortie
+        proc = subprocess.run(
+            [sys.executable, str(verify_script)],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        
+        # Parser les résultats (le script utilise des exit codes)
+        checks = {
+            "git": {"ok": True, "message": "OK"},
+            "ollama": {"ok": True, "message": "OK"},
+            "flask": {"ok": True, "message": "OK"},
+            "api_ollama": {"ok": True, "message": "OK"},
+            "scripts": {"ok": True, "message": "OK"},
+            "env": {"ok": True, "message": "OK"},
+        }
+        
+        # Déterminer quel check a échoué selon l'exit code
+        if proc.returncode == 1:
+            checks["git"]["ok"] = False
+            checks["git"]["message"] = proc.stderr or "Erreur Git (repo, branche ou pull)"
+        elif proc.returncode == 2:
+            checks["ollama"]["ok"] = False
+            checks["ollama"]["message"] = proc.stderr or "Ollama inaccessible ou modèle introuvable"
+        elif proc.returncode == 3:
+            checks["flask"]["ok"] = False
+            checks["flask"]["message"] = proc.stderr or "Flask ne répond pas"
+        elif proc.returncode == 4:
+            checks["api_ollama"]["ok"] = False
+            checks["api_ollama"]["message"] = proc.stderr or "API Ollama via Flask en erreur (possible erreur 405)"
+        elif proc.returncode == 5:
+            checks["scripts"]["ok"] = False
+            checks["scripts"]["message"] = proc.stderr or "Erreur dans les scripts Python"
+        elif proc.returncode == 6:
+            checks["env"]["ok"] = False
+            checks["env"]["message"] = proc.stderr or "Variables d'environnement invalides"
+        
+        all_ok = proc.returncode == 0
+        
+        return jsonify(
+            ok=all_ok,
+            exit_code=proc.returncode,
+            checks=checks,
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+        )
+    except subprocess.TimeoutExpired:
+        return jsonify(ok=False, error="Timeout lors de l'exécution du script"), 504
+    except Exception as e:
+        logger.exception("System verify failed")
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.route("/api/app-version", methods=["GET"])
+def api_app_version():
+    """Retourne la version de l'app, le hash du commit et la date du dernier commit pour affichage badge."""
+    try:
+        # Hash du commit actuel
+        cp = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        commit_hash = (cp.stdout or "").strip()[:7] if cp.returncode == 0 else "unknown"
+        
+        # Date du dernier commit
+        cp2 = subprocess.run(
+            ["git", "log", "-1", "--format=%ci", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        commit_date = (cp2.stdout or "").strip() if cp2.returncode == 0 else ""
+        
+        # Branche actuelle (ex. main)
+        cp3 = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        branch = (cp3.stdout or "").strip() or "main"
+        
+        # Générer une couleur basée sur le hash (pour changement visuel)
+        if commit_hash != "unknown":
+            # Utiliser les 6 premiers caractères du hash pour générer une couleur
+            hash_int = int(commit_hash[:6], 16) if len(commit_hash) >= 6 else 0
+            # Palette de couleurs vives mais lisibles
+            colors = [
+                "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6",
+                "#ec4899", "#14b8a6", "#6366f1", "#f97316", "#06b6d4"
+            ]
+            color_index = hash_int % len(colors)
+            badge_color = colors[color_index]
+        else:
+            badge_color = "#64748b"
+        
+        return jsonify(ok=True, version=APP_VERSION, commit_hash=commit_hash, commit_date=commit_date, branch=branch, badge_color=badge_color)
+    except Exception as e:
+        logger.warning("App version fetch error: %s", e)
+        return jsonify(ok=True, version=APP_VERSION, commit_hash="unknown", commit_date="", branch="main", badge_color="#64748b")
+
+
+>>>>>>> Stashed changes
 @app.get("/api/health")
 def api_health():
     """Health check endpoint. Sensitive details only for admins (v23.4)."""
