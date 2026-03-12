@@ -37,7 +37,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 - Multi-tenant : `owner_id` sur chaque enregistrement ; DB isolée par user dans `data/user_<id>/prospects.db` si elle existe
 
 ## Conventions
-- `APP_VERSION` dans app.py (actuellement "25.0") — incrementer a chaque release
+- `APP_VERSION` dans app.py (actuellement "26.3") — incrementer a chaque release
 - **Workflow git (IMPORTANT)** : TOUJOURS travailler directement sur `main`. Ne JAMAIS créer de branches. Après chaque demande avec modifications, vérifier qu'on est sur `main` (`git checkout main` si nécessaire), puis committer et pousser directement sur `main` (`git add`, `git commit`, `git push origin main`). Pour mettre à jour le serveur sur le PC hébergeur : utiliser le bouton « Mettre à jour et redémarrer » dans Paramètres (section admin). Le flux affiche la sortie git en direct puis recharge la page après redémarrage.
 - **Rappel fin de session** : À chaque fin de réponse où du code a été modifié, committer et pousser sur `main` pour que la session cloud et le pull (bouton Mettre à jour) soient à jour. Sinon les modifications ne seront pas sur Git donc pas dans le pull sur l'hébergeur.
 - Cache busters automatiques : app.py calcule les hash MD5 des fichiers statiques au demarrage et remplace `?v=XXXX` dans le HTML
@@ -47,10 +47,23 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 - Toast notifications via `window.showToast(msg, type, duration)` dans app.js
 - Haptic feedback via `window.haptic(ms)` dans v8-features.js
 
-## Ollama (IA locale)
-- Tous les flux IA passent par **Ollama** sur le PC (proxy backend) : le navigateur appelle Flask, Flask appelle `http://127.0.0.1:11434`. Aucun appel direct du front à Ollama (compatible « Expose Ollama to the network » désactivé).
-- Variables d'environnement : `OLLAMA_URL` (défaut `http://127.0.0.1:11434`), `OLLAMA_MODEL` (défaut `llama3.2`), `OLLAMA_TIMEOUT` (secondes, défaut 120).
-- Route backend : `POST /api/ollama/generate` avec `{ "prompt": "..." }` ; renvoie `{ "ok": true, "text": "..." }`. Helper front : `callOllama(prompt)` dans app.js.
+## IA Multi-provider (v26.3)
+- **Architecture** : le backend unifie les appels IA via `_call_ai(prompt)` qui route vers le provider configuré (Ollama ou Groq) avec fallback automatique.
+- **Providers supportés** :
+  - **Ollama** (local, défaut) : gratuit, fonctionne hors-ligne, requiert GPU. Proxy backend vers `http://127.0.0.1:11434`.
+  - **Groq** (cloud gratuit) : ultra-rapide (500+ tok/s), Llama 3.3 70B, nécessite clé API gratuite sur console.groq.com/keys.
+- **Configuration** : Paramètres > Configuration IA (admin uniquement). Choix du provider, clés API, modèle, fallback. Persisté dans `data/ai_config.json`.
+- **Variables d'environnement** (défauts, surchargés par la config UI) :
+  - `OLLAMA_URL` (défaut `http://127.0.0.1:11434`), `OLLAMA_MODEL` (défaut `llama3.2`), `OLLAMA_TIMEOUT` (secondes, défaut 120)
+  - `GROQ_API_KEY` (vide par défaut), `GROQ_MODEL` (défaut `llama-3.3-70b-versatile`)
+  - `AI_PROVIDER` (défaut `ollama`, peut être `groq`)
+- **Routes API** :
+  - `POST /api/ollama/generate` — proxy IA unifié non-streaming (rétrocompatible)
+  - `POST /api/ollama/generate-stream` — proxy IA unifié streaming SSE (rétrocompatible)
+  - `GET /api/ai/config` — config IA courante (clés API masquées)
+  - `POST /api/ai/config` — mise à jour config IA (admin)
+  - `POST /api/ai/test` — test de connexion au provider
+- **Frontend** : `callOllama(prompt)` dans app.js reste le helper principal (nom conservé pour rétrocompatibilité). Le backend gère le routage transparent.
 
 ### Entrées IA implémentées (boutons / flux)
 | Où | Bouton / action | Comportement |

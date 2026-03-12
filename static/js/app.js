@@ -6095,14 +6095,13 @@ function _showOllamaProgress(show, message, tokenCount) {
     }
 }
 
-/** Envoie le prompt à Ollama via le backend avec streaming, retourne le texte généré. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
+/** Envoie le prompt au provider IA configuré (Ollama/Groq) via le backend avec streaming. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
 async function callOllama(prompt, options) {
     options = options || {};
     const timeoutMs = options.timeoutMs != null ? Math.max(10000, Math.min(600000, options.timeoutMs)) : 180000;
-    const useStream = options.stream !== false; // Streaming par défaut, peut être désactivé
+    const useStream = options.stream !== false;
     
-    // Afficher l'indicateur visuel
-    _showOllamaProgress(true, 'Connexion à Ollama…', 0);
+    _showOllamaProgress(true, 'Connexion à l\'IA…', 0);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(function () { 
@@ -6131,7 +6130,7 @@ async function callOllama(prompt, options) {
                 const data = await res.json().catch(() => ({}));
                 const msg = data.error || ('Erreur ' + res.status);
                 _showOllamaProgress(false);
-                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                if (typeof showToast === 'function') showToast('IA : ' + msg, 'error', 5000);
                 throw new Error(msg);
             }
             
@@ -6156,11 +6155,11 @@ async function callOllama(prompt, options) {
                             try {
                                 const data = JSON.parse(line.slice(6));
                                 if (data.type === 'start') {
-                                    _showOllamaProgress(true, data.message || 'Génération en cours…', 0);
+                                    _showOllamaProgress(true, data.message || 'Génération IA en cours…', 0);
                                 } else if (data.type === 'token') {
                                     fullText += data.text || '';
                                     tokenCount = fullText.length;
-                                    _showOllamaProgress(true, 'Génération en cours…', tokenCount);
+                                    _showOllamaProgress(true, 'Génération IA en cours…', tokenCount);
                                     if (data.done) {
                                         // Dernier token
                                         _showOllamaProgress(true, 'Finalisation…', tokenCount);
@@ -6169,7 +6168,7 @@ async function callOllama(prompt, options) {
                                     _showOllamaProgress(true, data.message || 'Terminé', tokenCount);
                                 } else if (data.type === 'error') {
                                     _showOllamaProgress(false);
-                                    if (typeof showToast === 'function') showToast('Ollama : ' + data.message, 'error', 5000);
+                                    if (typeof showToast === 'function') showToast('IA : ' + data.message, 'error', 5000);
                                     throw new Error(data.message);
                                 }
                             } catch (e) {
@@ -6185,10 +6184,9 @@ async function callOllama(prompt, options) {
             
             clearTimeout(timeoutId);
             _showOllamaProgress(false);
-            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            if (typeof showToast === 'function') showToast('IA : résultat reçu', 'success', 2500);
             return fullText;
         } else {
-            // Mode non-streaming (fallback)
             const res = await fetch('/api/ollama/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -6200,14 +6198,14 @@ async function callOllama(prompt, options) {
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 const msg = data.error || ('Erreur ' + res.status);
-                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                if (typeof showToast === 'function') showToast('IA : ' + msg, 'error', 5000);
                 throw new Error(msg);
             }
             if (!data.ok || data.text === undefined) {
-                if (typeof showToast === 'function') showToast('Réponse Ollama invalide', 'error', 4000);
+                if (typeof showToast === 'function') showToast('Réponse IA invalide', 'error', 4000);
                 throw new Error('Réponse invalide');
             }
-            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            if (typeof showToast === 'function') showToast('IA : résultat reçu', 'success', 2500);
             return data.text;
         }
     } catch (e) {
@@ -6218,7 +6216,7 @@ async function callOllama(prompt, options) {
             throw new Error('Timeout');
         }
         if (e.name === 'TypeError' && e.message.includes('fetch')) {
-            if (typeof showToast === 'function') showToast('Ollama indisponible (réseau ou serveur)', 'error', 5000);
+            if (typeof showToast === 'function') showToast('IA indisponible (réseau ou serveur)', 'error', 5000);
         }
         throw e;
     }
