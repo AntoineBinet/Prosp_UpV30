@@ -55,6 +55,7 @@ window.updateAIButtonLabels = updateAIButtonLabels;
 // Mettre à jour au chargement de la page
 document.addEventListener('DOMContentLoaded', function() {
     updateAIButtonLabels();
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // Auth & User Session Module (v15)
