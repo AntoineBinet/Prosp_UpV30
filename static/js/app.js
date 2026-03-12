@@ -1,10 +1,10 @@
 // v24.2 — Global error safety net
 window.addEventListener('unhandledrejection', function(e) {
-    console.error('[ProspUp] Unhandled promise:', e.reason);
+    console.error("[Prosp'Up] Unhandled promise:", e.reason);
     if (window.showToast) window.showToast('Erreur inattendue', 'error');
 });
 window.onerror = function(msg, src, line) {
-    console.error('[ProspUp] Error:', msg, 'at', src + ':' + line);
+    console.error("[Prosp'Up] Error:", msg, "at", src + ":" + line);
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -25,21 +25,12 @@ const AppAuth = {
     },
     _injectBadge() {
         if (!this.user) return;
-        const sidebar = document.querySelector('.sidebar, aside.sidebar');
-        if (!sidebar) return;
-        // Users link now in sidebar.js nav structure (v23)
-        // Badge at bottom
-        let footer = sidebar.querySelector('.sidebar-footer');
-        if (!footer) {
-            footer = document.createElement('div');
-            footer.className = 'sidebar-footer';
-            sidebar.appendChild(footer);
-        }
         const u = this.user;
         const label = this.ROLE_LABELS[u.role] || u.role;
         const name = (typeof escapeHtml === 'function' ? escapeHtml(u.display_name || u.username) : String(u.display_name || u.username || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c)));
         const initial = (u.display_name || u.username || '').charAt(0).toUpperCase();
-        footer.innerHTML = `
+        const isMobile = window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
+        const badgeHtml = `
             <div class="user-session-badge">
                 <div class="user-session-avatar">${initial}</div>
                 <div class="user-session-info">
@@ -48,6 +39,41 @@ const AppAuth = {
                 </div>
                 <button onclick="AppAuth.logout()" title="Déconnexion" class="user-session-logout">⏻</button>
             </div>`;
+        
+        // v25: badge utilisateur uniquement dans le header (plus dans la sidebar)
+        const _doInject = () => {
+            const headerCenter = document.querySelector('.header-center');
+            const existingHeaderBadge = headerCenter ? headerCenter.querySelector('.user-session-badge') : null;
+            if (existingHeaderBadge) existingHeaderBadge.remove();
+            if (headerCenter) {
+                headerCenter.insertAdjacentHTML('beforeend', badgeHtml);
+                return true;
+            }
+            return false;
+        };
+        
+        if (_doInject()) return;
+        
+        let pollInterval = null;
+        let eventListener = null;
+        let resolved = false;
+        const cleanup = () => {
+            if (pollInterval) clearInterval(pollInterval);
+            if (eventListener) document.removeEventListener('header-layout-ready', eventListener);
+            resolved = true;
+        };
+        const tryInject = () => {
+            if (resolved) return;
+            if (_doInject()) cleanup();
+        };
+        document.addEventListener('header-layout-ready', tryInject, { once: true });
+        let attempts = 0;
+        const maxAttempts = 40;
+        pollInterval = setInterval(() => {
+            attempts++;
+            tryInject();
+            if (resolved || attempts >= maxAttempts) cleanup();
+        }, 50);
     },
     _applyReadOnly() {
         if (!this.user || this.user.role !== 'reader') return;
@@ -70,6 +96,21 @@ const AppAuth = {
         window.location.href = '/login';
     }
 };
+
+// Ré-injecter le badge utilisateur après chaque reconstruction de la sidebar (sidebar.js écrase le contenu)
+document.addEventListener('sidebar-ready', function () {
+    if (window.AppAuth && typeof AppAuth._injectBadge === 'function') AppAuth._injectBadge();
+});
+
+let _badgeResizeRaf = null;
+window.addEventListener('resize', function () {
+    if (!window.AppAuth || !AppAuth.user || typeof AppAuth._injectBadge !== 'function') return;
+    if (_badgeResizeRaf) cancelAnimationFrame(_badgeResizeRaf);
+    _badgeResizeRaf = requestAnimationFrame(function () {
+        AppAuth._injectBadge();
+        _badgeResizeRaf = null;
+    });
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // Mobile tel: link helper (v15)
@@ -97,6 +138,10 @@ let _globalMaxCompanyId = null;
 async function loadFromServer() {
     try {
         const res = await fetch('/api/data');
+        if (res.status === 401) {
+            window.location.href = '/login';
+            return false;
+        }
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const parsed = await res.json();
         if (!parsed || !Array.isArray(parsed.companies) || !Array.isArray(parsed.prospects)) return false;
@@ -194,10 +239,549 @@ function showToast(msg, type) {
     }, type === 'error' ? 5000 : 3000);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Button Loading & Success Feedback Helpers (v25.1)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Set button to loading state with spinner
+ * @param {HTMLElement|string} button - Button element or selector
+ * @returns {HTMLElement} The button element
+ */
+function setButtonLoading(button) {
+    if (typeof button === 'string') button = document.querySelector(button);
+    if (!button) return null;
+    
+    // Store original content if not already stored
+    if (!button.dataset.originalContent) {
+        button.dataset.originalContent = button.innerHTML;
+    }
+    
+    // Add loading class and spinner
+    button.classList.add('btn-loading');
+    button.disabled = true;
+    
+    // Create spinner if not exists
+    let spinner = button.querySelector('.spinner');
+    if (!spinner) {
+        spinner = document.createElement('div');
+        spinner.className = 'spinner spinner-small';
+        button.appendChild(spinner);
+    }
+    
+    return button;
+}
+
+/**
+ * Remove loading state from button
+ * @param {HTMLElement|string} button - Button element or selector
+ * @returns {HTMLElement} The button element
+ */
+function removeButtonLoading(button) {
+    if (typeof button === 'string') button = document.querySelector(button);
+    if (!button) return null;
+    
+    button.classList.remove('btn-loading');
+    button.disabled = false;
+    
+    // Remove spinner
+    const spinner = button.querySelector('.spinner');
+    if (spinner) spinner.remove();
+    
+    return button;
+}
+
+/**
+ * Show success feedback on button (checkmark animation)
+ * @param {HTMLElement|string} button - Button element or selector
+ * @param {number} duration - Duration in ms (default 1500)
+ * @returns {HTMLElement} The button element
+ */
+function showButtonSuccess(button, duration) {
+    duration = duration || 1500;
+    if (typeof button === 'string') button = document.querySelector(button);
+    if (!button) return null;
+    
+    // Add success feedback class
+    button.classList.add('btn-success-feedback');
+    
+    // Remove after animation
+    setTimeout(() => {
+        button.classList.remove('btn-success-feedback');
+        // Remove the ::after pseudo-element by forcing a reflow
+        button.style.animation = 'none';
+        void button.offsetWidth;
+        button.style.animation = '';
+    }, duration);
+    
+    return button;
+}
+
+/**
+ * Wrapper for async functions with automatic loading/success feedback
+ * @param {HTMLElement|string} button - Button element or selector
+ * @param {Function} asyncFn - Async function to execute
+ * @param {Object} options - Options { onSuccess, onError, successDuration, haptic }
+ * @returns {Promise} Promise from asyncFn
+ */
+async function withButtonFeedback(button, asyncFn, options) {
+    options = options || {};
+    const { onSuccess, onError, successDuration = 1500, haptic = true } = options;
+    
+    if (typeof button === 'string') button = document.querySelector(button);
+    if (!button) {
+        console.warn('withButtonFeedback: button not found');
+        return asyncFn();
+    }
+    
+    // Haptic feedback on click
+    if (haptic && window.haptic) window.haptic(10);
+    
+    // Set loading state
+    setButtonLoading(button);
+    
+    try {
+        const result = await asyncFn();
+        
+        // Show success feedback
+        removeButtonLoading(button);
+        showButtonSuccess(button, successDuration);
+        
+        if (onSuccess) onSuccess(result);
+        return result;
+    } catch (error) {
+        // Remove loading state on error
+        removeButtonLoading(button);
+        
+        if (onError) onError(error);
+        else {
+            console.error('withButtonFeedback error:', error);
+            if (window.showToast) {
+                window.showToast(error.message || 'Erreur', 'error');
+            }
+        }
+        throw error;
+    }
+}
+
+// Expose helpers globally
+window.setButtonLoading = setButtonLoading;
+window.removeButtonLoading = removeButtonLoading;
+window.showButtonSuccess = showButtonSuccess;
+window.withButtonFeedback = withButtonFeedback;
+
+/**
+ * Enhanced haptic feedback helper with automatic button detection
+ * Adds haptic feedback to all important button clicks
+ */
+function enhanceHapticFeedback() {
+    // Add haptic to all buttons on click
+    document.addEventListener('click', function(e) {
+        const target = e.target;
+        
+        // Check if it's a button or inside a button
+        const button = target.closest('button, .btn, [role="button"], a.btn');
+        if (!button) return;
+        
+        // Skip if disabled or loading
+        if (button.disabled || button.classList.contains('btn-loading')) return;
+        
+        // Skip navigation links (they have their own feedback)
+        if (button.tagName === 'A' && button.href && !button.classList.contains('btn')) return;
+        
+        // Determine haptic intensity based on button type
+        let intensity = 10; // Default
+        
+        if (button.classList.contains('btn-primary') || 
+            button.classList.contains('btn-success') ||
+            button.classList.contains('btn-danger')) {
+            intensity = 15; // Stronger for primary actions
+        }
+        
+        // Apply haptic feedback
+        if (window.haptic) {
+            window.haptic(intensity);
+        }
+    }, true); // Use capture phase to catch early
+    
+    // Also add haptic to form submissions
+    document.addEventListener('submit', function(e) {
+        const form = e.target;
+        if (form.tagName === 'FORM') {
+            const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+            if (submitBtn && !submitBtn.disabled && window.haptic) {
+                window.haptic(15);
+            }
+        }
+    });
+}
+
+// Initialize haptic feedback enhancement on DOM ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', enhanceHapticFeedback);
+} else {
+    enhanceHapticFeedback();
+}
+
+// Bulk progress system
+let _bulkProgressContainer = null;
+let _bulkProgressToast = null;
+
+function showBulkProgress(current, total, message) {
+    message = message || 'Traitement en cours...';
+    const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+    
+    // Create or get container
+    if (!_bulkProgressContainer) {
+        _bulkProgressContainer = document.getElementById('bulkProgressContainer');
+        if (!_bulkProgressContainer) {
+            _bulkProgressContainer = document.createElement('div');
+            _bulkProgressContainer.id = 'bulkProgressContainer';
+            _bulkProgressContainer.className = 'bulk-progress-container';
+            document.body.appendChild(_bulkProgressContainer);
+        }
+    }
+    
+    // Create or update progress bar
+    if (!_bulkProgressContainer.querySelector('.bulk-progress')) {
+        const progressEl = document.createElement('div');
+        progressEl.className = 'bulk-progress';
+        progressEl.innerHTML = `
+            <div class="bulk-progress-bar">
+                <div class="bulk-progress-fill"></div>
+            </div>
+            <div class="bulk-progress-text"></div>
+        `;
+        _bulkProgressContainer.appendChild(progressEl);
+    }
+    
+    const progressEl = _bulkProgressContainer.querySelector('.bulk-progress');
+    const fillEl = progressEl.querySelector('.bulk-progress-fill');
+    const textEl = progressEl.querySelector('.bulk-progress-text');
+    
+    fillEl.style.width = percent + '%';
+    textEl.textContent = `${current}/${total} ${message}`;
+    
+    // Show container
+    _bulkProgressContainer.style.display = 'block';
+    progressEl.style.display = 'flex';
+    
+    // Show toast with counter
+    if (!_bulkProgressToast) {
+        _bulkProgressToast = document.createElement('div');
+        _bulkProgressToast.className = 'bulk-progress-toast';
+        const toastContainer = document.getElementById('toastContainer') || document.getElementById('toast-container');
+        if (!toastContainer) {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.style.cssText = 'position:fixed;top:16px;right:16px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none;';
+            document.body.appendChild(container);
+            container.appendChild(_bulkProgressToast);
+        } else {
+            toastContainer.appendChild(_bulkProgressToast);
+        }
+    }
+    
+    _bulkProgressToast.textContent = `${current}/${total} ${message}`;
+    _bulkProgressToast.style.display = 'block';
+    _bulkProgressToast.style.opacity = '1';
+    
+    // Hide when complete
+    if (current >= total) {
+        setTimeout(() => {
+            if (_bulkProgressContainer) {
+                _bulkProgressContainer.style.display = 'none';
+            }
+            if (_bulkProgressToast) {
+                _bulkProgressToast.style.opacity = '0';
+                setTimeout(() => {
+                    if (_bulkProgressToast) _bulkProgressToast.style.display = 'none';
+                }, 300);
+            }
+        }, 500);
+    }
+}
+
+function hideBulkProgress() {
+    if (_bulkProgressContainer) {
+        _bulkProgressContainer.style.display = 'none';
+    }
+    if (_bulkProgressToast) {
+        _bulkProgressToast.classList.remove('show');
+        setTimeout(() => {
+            if (_bulkProgressToast) _bulkProgressToast.style.display = 'none';
+        }, 300);
+    }
+}
+
+// Animation flash vert pour les lignes modifiées
+function flashRowSuccess(prospectId) {
+    const row = document.querySelector(`tr[data-prospect-id="${prospectId}"]`);
+    if (row) {
+        row.classList.add('flash-success');
+        setTimeout(() => {
+            row.classList.remove('flash-success');
+        }, 800);
+    }
+}
+
+// Animate row with .row-updated class temporarily
+function animateRowUpdated(prospectId) {
+    const row = document.querySelector(`tr[data-prospect-id="${prospectId}"]`);
+    if (!row) return;
+    
+    row.classList.add('row-updated');
+    setTimeout(() => {
+        row.classList.remove('row-updated');
+    }, 2000);
+}
+
 // Auto-sauvegarde activée (SQLite) : on garde markUnsaved comme no-op pour compatibilité.
 function markUnsaved() {}
 
 // Fix #21: Active nav highlighting now handled by sidebar.js (v23)
+
+// ═══════════════════════════════════════════════════════════════════
+// Modal Management Utilities (v25.1)
+// ═══════════════════════════════════════════════════════════════════
+let _activeModal = null;
+let _modalFocusTrap = null;
+let _modalEscapeHandler = null;
+let _previousActiveElement = null;
+
+/**
+ * Open a modal with animations, focus trap, and accessibility
+ * @param {string|HTMLElement} modalIdOrElement - Modal ID or element
+ * @param {Object} options - Options: { focusElement, onClose }
+ */
+function openModal(modalIdOrElement, options = {}) {
+    const modal = typeof modalIdOrElement === 'string' 
+        ? document.getElementById(modalIdOrElement) 
+        : modalIdOrElement;
+    
+    if (!modal) {
+        console.warn('[openModal] Modal not found:', modalIdOrElement);
+        return;
+    }
+
+    // Close any existing modal first
+    if (_activeModal && _activeModal !== modal) {
+        closeModal(_activeModal);
+    }
+
+    // Store previous active element for focus restoration
+    _previousActiveElement = document.activeElement;
+
+    // Set aria attributes
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-hidden', 'false');
+
+    // Add active class (triggers display + animation)
+    modal.classList.add('active');
+
+    // Focus management
+    const focusElement = options.focusElement 
+        ? (typeof options.focusElement === 'string' 
+            ? modal.querySelector(options.focusElement) 
+            : options.focusElement)
+        : modal.querySelector('input, textarea, button, [tabindex="0"]') 
+            || modal.querySelector('.modal-close') 
+            || modal.querySelector('.modal-content');
+
+    if (focusElement && typeof focusElement.focus === 'function') {
+        // Small delay to ensure modal is visible
+        requestAnimationFrame(() => {
+            focusElement.focus();
+        });
+    }
+
+    // Focus trap: keep Tab/Shift+Tab within modal
+    _modalFocusTrap = (e) => {
+        if (e.key !== 'Tab') return;
+        
+        const focusableElements = modal.querySelectorAll(
+            'a[href], button:not([disabled]), textarea:not([disabled]), ' +
+            'input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        
+        const firstFocusable = focusableElements[0];
+        const lastFocusable = focusableElements[focusableElements.length - 1];
+
+        if (!firstFocusable) return;
+
+        if (e.shiftKey) {
+            // Shift+Tab: if on first element, go to last
+            if (document.activeElement === firstFocusable) {
+                e.preventDefault();
+                lastFocusable?.focus();
+            }
+        } else {
+            // Tab: if on last element, go to first
+            if (document.activeElement === lastFocusable) {
+                e.preventDefault();
+                firstFocusable.focus();
+            }
+        }
+    };
+
+    // Escape key handler
+    _modalEscapeHandler = (e) => {
+        if (e.key === 'Escape' && _activeModal === modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeModal(modal, options.onClose);
+        }
+    };
+
+    // Attach event listeners
+    modal.addEventListener('keydown', _modalFocusTrap);
+    document.addEventListener('keydown', _modalEscapeHandler);
+
+    // Close on backdrop click
+    const backdropClickHandler = (e) => {
+        if (e.target === modal) {
+            closeModal(modal, options.onClose);
+        }
+    };
+    modal.addEventListener('click', backdropClickHandler);
+    modal._backdropClickHandler = backdropClickHandler;
+
+    _activeModal = modal;
+    modal._modalOptions = options;
+}
+
+/**
+ * Close a modal with exit animation
+ * @param {string|HTMLElement} modalIdOrElement - Modal ID or element
+ * @param {Function} onClose - Optional callback after close
+ */
+function closeModal(modalIdOrElement, onClose) {
+    const modal = typeof modalIdOrElement === 'string' 
+        ? document.getElementById(modalIdOrElement) 
+        : modalIdOrElement;
+    
+    if (!modal || !modal.classList.contains('active')) return;
+
+    // Remove event listeners
+    if (_modalFocusTrap) {
+        modal.removeEventListener('keydown', _modalFocusTrap);
+        _modalFocusTrap = null;
+    }
+    if (_modalEscapeHandler) {
+        document.removeEventListener('keydown', _modalEscapeHandler);
+        _modalEscapeHandler = null;
+    }
+    if (modal._backdropClickHandler) {
+        modal.removeEventListener('click', modal._backdropClickHandler);
+        modal._backdropClickHandler = null;
+    }
+
+    // Trigger exit animation
+    modal.classList.add('exiting');
+    modal.classList.remove('active');
+
+    // Remove exiting class and hide after animation
+    setTimeout(() => {
+        modal.classList.remove('exiting');
+        modal.setAttribute('aria-hidden', 'true');
+        _activeModal = null;
+        modal._modalOptions = null;
+
+        // Restore focus to previous element
+        if (_previousActiveElement && typeof _previousActiveElement.focus === 'function') {
+            _previousActiveElement.focus();
+        }
+        _previousActiveElement = null;
+
+        // Call onClose callback if provided
+        if (typeof onClose === 'function') {
+            onClose();
+        }
+    }, 200); // Match modalExit animation duration
+}
+
+// Expose to window for global access
+window.openModal = openModal;
+window.closeModal = closeModal;
+
+// Auto-handle modal-close buttons
+document.addEventListener('DOMContentLoaded', function() {
+    // Delegate click events to modal-close buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal-close') || e.target.closest('.modal-close')) {
+            const closeBtn = e.target.classList.contains('modal-close') ? e.target : e.target.closest('.modal-close');
+            const modal = closeBtn.closest('.modal');
+            if (modal) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeModal(modal);
+            }
+        }
+    });
+
+    // Indicateur de chargement pour navigation entre pages
+    let pageLoadingIndicator = document.getElementById('page-loading-indicator');
+    if (!pageLoadingIndicator) {
+        pageLoadingIndicator = document.createElement('div');
+        pageLoadingIndicator.id = 'page-loading-indicator';
+        pageLoadingIndicator.className = 'page-loading-indicator';
+        document.body.appendChild(pageLoadingIndicator);
+    }
+
+    const showPageLoading = () => {
+        if (pageLoadingIndicator) {
+            pageLoadingIndicator.classList.add('active');
+        }
+    };
+
+    const hidePageLoading = () => {
+        if (pageLoadingIndicator) {
+            pageLoadingIndicator.classList.remove('active');
+        }
+    };
+
+    // Intercepter les clics sur les liens de navigation interne
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+
+        const href = link.getAttribute('href');
+        // Ignorer les liens externes, javascript:, mailto:, tel:, etc.
+        if (!href || href.startsWith('http') || href.startsWith('javascript:') || 
+            href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('#') ||
+            link.target === '_blank' || link.hasAttribute('download')) {
+            return;
+        }
+
+        // Vérifier si c'est un lien interne (commence par / ou est relatif)
+        if (href.startsWith('/') || (!href.startsWith('http') && !href.startsWith('//'))) {
+            showPageLoading();
+            
+            // Si la navigation est immédiate, cacher l'indicateur après un court délai
+            // Sinon, il sera caché par le chargement de la nouvelle page
+            setTimeout(() => {
+                // Si on est toujours sur la même page après 2 secondes, cacher l'indicateur
+                if (document.getElementById('page-loading-indicator')) {
+                    hidePageLoading();
+                }
+            }, 2000);
+        }
+    });
+
+    // Cacher l'indicateur au chargement de la page
+    hidePageLoading();
+
+    // Appliquer la classe page-transition au contenu principal
+    const content = document.querySelector('.content, main.content, main');
+    if (content && !content.classList.contains('page-transition')) {
+        content.classList.add('page-transition', 'entering');
+        // Retirer la classe entering après l'animation
+        setTimeout(() => {
+            content.classList.remove('entering');
+        }, 400);
+    }
+});
 
 
 function ensureUnassignedCompany() {
@@ -226,6 +810,265 @@ function escapeHtml(str) {
         "'": '&#39;'
     }[ch]));
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Form Validation System (v25.1)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Affiche un message d'erreur pour un champ de formulaire
+ * @param {HTMLElement} field - Le champ de formulaire (input, select, textarea)
+ * @param {string} message - Le message d'erreur à afficher
+ */
+function showFieldError(field, message) {
+    if (!field) return;
+    
+    // Ajouter la classe is-invalid
+    field.classList.add('is-invalid');
+    field.setAttribute('aria-invalid', 'true');
+    
+    // Créer ou récupérer le conteneur d'erreur
+    let errorContainer = field.parentElement.querySelector('.form-error');
+    if (!errorContainer) {
+        errorContainer = document.createElement('span');
+        errorContainer.className = 'form-error';
+        errorContainer.setAttribute('role', 'alert');
+        field.parentElement.appendChild(errorContainer);
+    }
+    
+    // Lier le champ au message d'erreur via aria-describedby
+    const errorId = errorContainer.id || `error-${field.id || Math.random().toString(36).substr(2, 9)}`;
+    errorContainer.id = errorId;
+    const describedBy = field.getAttribute('aria-describedby');
+    if (!describedBy || !describedBy.includes(errorId)) {
+        field.setAttribute('aria-describedby', describedBy ? `${describedBy} ${errorId}` : errorId);
+    }
+    
+    // Afficher le message
+    errorContainer.textContent = message;
+    errorContainer.style.display = 'block';
+}
+
+/**
+ * Efface le message d'erreur d'un champ
+ * @param {HTMLElement} field - Le champ de formulaire
+ */
+function clearFieldError(field) {
+    if (!field) return;
+    
+    field.classList.remove('is-invalid');
+    field.setAttribute('aria-invalid', 'false');
+    
+    const errorContainer = field.parentElement.querySelector('.form-error');
+    if (errorContainer) {
+        errorContainer.textContent = '';
+        errorContainer.style.display = 'none';
+    }
+}
+
+/**
+ * Valide un champ de formulaire selon ses contraintes HTML5 et règles personnalisées
+ * @param {HTMLElement} field - Le champ à valider
+ * @param {Object} options - Options de validation personnalisées
+ * @returns {boolean} - true si valide, false sinon
+ */
+function validateField(field, options = {}) {
+    if (!field) return true;
+    
+    const value = field.value.trim();
+    const isRequired = field.hasAttribute('required');
+    const type = field.type || field.tagName.toLowerCase();
+    
+    // Si le champ n'est pas requis et est vide, il est valide
+    if (!isRequired && !value) {
+        clearFieldError(field);
+        return true;
+    }
+    
+    // Validation HTML5 native
+    if (!field.checkValidity()) {
+        let message = field.validationMessage || 'Ce champ est invalide';
+        
+        // Messages personnalisés selon le type d'erreur
+        if (field.validity.valueMissing) {
+            message = options.requiredMessage || 'Ce champ est requis';
+        } else if (field.validity.typeMismatch) {
+            if (type === 'email') {
+                message = options.emailMessage || 'Veuillez entrer une adresse email valide';
+            } else if (type === 'url') {
+                message = options.urlMessage || 'Veuillez entrer une URL valide';
+            }
+        } else if (field.validity.patternMismatch) {
+            message = options.patternMessage || 'Le format saisi est incorrect';
+        } else if (field.validity.tooShort) {
+            message = options.tooShortMessage || `Minimum ${field.minLength} caractères requis`;
+        } else if (field.validity.tooLong) {
+            message = options.tooLongMessage || `Maximum ${field.maxLength} caractères autorisés`;
+        } else if (field.validity.rangeUnderflow) {
+            message = options.rangeUnderflowMessage || `La valeur minimale est ${field.min}`;
+        } else if (field.validity.rangeOverflow) {
+            message = options.rangeOverflowMessage || `La valeur maximale est ${field.max}`;
+        }
+        
+        showFieldError(field, message);
+        return false;
+    }
+    
+    // Validations personnalisées
+    if (options.customValidator && typeof options.customValidator === 'function') {
+        const customResult = options.customValidator(value, field);
+        if (customResult !== true) {
+            showFieldError(field, typeof customResult === 'string' ? customResult : 'Validation personnalisée échouée');
+            return false;
+        }
+    }
+    
+    // Validation email personnalisée (plus stricte que HTML5)
+    if (type === 'email' && value && options.strictEmail !== false) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value)) {
+            showFieldError(field, options.emailMessage || 'Veuillez entrer une adresse email valide');
+            return false;
+        }
+    }
+    
+    // Tout est OK
+    clearFieldError(field);
+    return true;
+}
+
+/**
+ * Valide tous les champs d'un formulaire
+ * @param {HTMLFormElement} form - Le formulaire à valider
+ * @param {Object} fieldOptions - Options de validation par champ (clé = name ou id du champ)
+ * @returns {boolean} - true si tous les champs sont valides
+ */
+function validateForm(form, fieldOptions = {}) {
+    if (!form) return false;
+    
+    let isValid = true;
+    const fields = form.querySelectorAll('input, select, textarea');
+    
+    fields.forEach(field => {
+        const fieldName = field.name || field.id;
+        const options = fieldOptions[fieldName] || {};
+        if (!validateField(field, options)) {
+            isValid = false;
+        }
+    });
+    
+    // Mettre à jour l'état du formulaire pour désactiver le submit
+    if (isValid) {
+        form.classList.remove('has-invalid-fields');
+    } else {
+        form.classList.add('has-invalid-fields');
+    }
+    
+    return isValid;
+}
+
+/**
+ * Initialise la validation en temps réel sur un formulaire
+ * @param {HTMLFormElement} form - Le formulaire
+ * @param {Object} options - Options (validateOnBlur, validateOnInput, fieldOptions)
+ */
+function initFormValidation(form, options = {}) {
+    if (!form) return;
+    
+    const {
+        validateOnBlur = true,
+        validateOnInput = true,
+        fieldOptions = {}
+    } = options;
+    
+    const fields = form.querySelectorAll('input, select, textarea');
+    
+    fields.forEach(field => {
+        // Validation au blur (quand l'utilisateur quitte le champ)
+        if (validateOnBlur) {
+            field.addEventListener('blur', function() {
+                const fieldName = this.name || this.id;
+                const options = fieldOptions[fieldName] || {};
+                validateField(this, options);
+                updateFormSubmitState(form);
+            });
+        }
+        
+        // Validation en temps réel (pendant la saisie) pour les champs critiques
+        if (validateOnInput && field.hasAttribute('required')) {
+            let timeout;
+            field.addEventListener('input', function() {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    const fieldName = this.name || this.id;
+                    const options = fieldOptions[fieldName] || {};
+                    validateField(this, options);
+                    updateFormSubmitState(form);
+                }, 300); // Debounce de 300ms
+            });
+        }
+        
+        // Validation au change pour les selects
+        if (field.tagName.toLowerCase() === 'select') {
+            field.addEventListener('change', function() {
+                const fieldName = this.name || this.id;
+                const options = fieldOptions[fieldName] || {};
+                validateField(this, options);
+                updateFormSubmitState(form);
+            });
+        }
+    });
+    
+    // Validation à la soumission
+    form.addEventListener('submit', function(e) {
+        if (!validateForm(form, fieldOptions)) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Focus sur le premier champ invalide
+            const firstInvalid = form.querySelector('.is-invalid, :invalid');
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            
+            showToast('Veuillez corriger les erreurs dans le formulaire', 'error');
+            return false;
+        }
+    });
+    
+    // Mise à jour initiale de l'état du submit
+    updateFormSubmitState(form);
+}
+
+/**
+ * Met à jour l'état des boutons submit d'un formulaire
+ * @param {HTMLFormElement} form - Le formulaire
+ */
+function updateFormSubmitState(form) {
+    if (!form) return;
+    
+    const isValid = validateForm(form);
+    const submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+    
+    submitButtons.forEach(btn => {
+        if (isValid) {
+            btn.disabled = false;
+            btn.removeAttribute('aria-disabled');
+        } else {
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+        }
+    });
+}
+
+// Exposer les fonctions globalement
+window.showFieldError = showFieldError;
+window.clearFieldError = clearFieldError;
+window.validateField = validateField;
+window.validateForm = validateForm;
+window.initFormValidation = initFormValidation;
+window.updateFormSubmitState = updateFormSubmitState;
 
 function todayISO() {
     const d = new Date();
@@ -287,6 +1130,9 @@ let excludedStatuses = new Set();
 let sortKey = 'lastContact';
 let companySortKey = 'groupe';
 let companySortDir = 'asc';
+const COMPANIES_VIEW_STORAGE_KEY = 'prospup_companies_view';
+let companiesViewMode = (typeof localStorage !== 'undefined' && localStorage.getItem(COMPANIES_VIEW_STORAGE_KEY)) || 'cards';
+if (companiesViewMode !== 'table' && companiesViewMode !== 'cards') companiesViewMode = 'cards';
 let inlineCompanyNotesEditingId = null;
 let sortDir = 'desc'; // 'asc' ou 'desc'
 let pendingCompanyFocusId = null;
@@ -901,29 +1747,128 @@ function renderCompanies() {
 
     const q = (document.getElementById('companySearchInput')?.value || '').trim().toLowerCase();
 
-    // Pré-calcul des compteurs
+    // Optimisation: utiliser requestAnimationFrame pour différer le rendu lourd
+    if (window._renderCompaniesRaf) {
+        cancelAnimationFrame(window._renderCompaniesRaf);
+    }
+    
+    window._renderCompaniesRaf = requestAnimationFrame(() => {
+        const result = _renderCompaniesInternal(tbody, q);
+        window._renderCompaniesRaf = null;
+        applyCompaniesViewVisibility();
+        if (result && companiesViewMode === 'cards') {
+            renderCompaniesCards(result.companiesSorted, result.counts);
+        }
+    });
+}
+
+function applyCompaniesViewVisibility() {
+    const tableView = document.getElementById('companiesTableView');
+    const cardsView = document.getElementById('companiesCardsView');
+    const btnTable = document.getElementById('btnCompaniesViewTable');
+    const btnCards = document.getElementById('btnCompaniesViewCards');
+    if (!tableView || !cardsView) return;
+    if (companiesViewMode === 'cards') {
+        tableView.style.display = 'none';
+        cardsView.style.display = 'grid';
+        if (btnTable) btnTable.classList.remove('active');
+        if (btnCards) btnCards.classList.add('active');
+    } else {
+        tableView.style.display = '';
+        cardsView.style.display = 'none';
+        if (btnTable) btnTable.classList.add('active');
+        if (btnCards) btnCards.classList.remove('active');
+    }
+}
+
+function switchCompaniesView(mode) {
+    if (mode !== 'table' && mode !== 'cards') return;
+    companiesViewMode = mode;
+    try { localStorage.setItem(COMPANIES_VIEW_STORAGE_KEY, mode); } catch (e) {}
+    applyCompaniesViewVisibility();
+    if (mode === 'cards') renderCompanies();
+}
+
+function renderCompaniesCards(companiesSorted, counts) {
+    const container = document.getElementById('companiesCardsView');
+    if (!container) return;
+    const unassignedId = ensureUnassignedCompany();
+    container.innerHTML = '';
+    companiesSorted.forEach(company => {
+        const c = counts[company.id] || { prospects: 0, rdv: 0, callable: 0 };
+        const card = document.createElement('div');
+        card.className = 'company-card company-card-modern';
+        card.setAttribute('role', 'button');
+        card.tabIndex = 0;
+        card.setAttribute('aria-label', `Entreprise ${escapeHtml(company.groupe || '')} ${escapeHtml(company.site || '')}`);
+        const notesRaw = (company.notes || '').trim();
+        const noteSnippet = notesRaw ? (escapeHtml(notesRaw).slice(0, 80) + (notesRaw.length > 80 ? '…' : '')) : '';
+        card.innerHTML = `
+            <div class="company-card-header">
+                <span class="company-card-name">${escapeHtml(company.groupe || '')}</span>
+                ${company.id === unassignedId ? '<span class="company-default-badge">(défaut)</span>' : ''}
+            </div>
+            <div class="company-card-site">${escapeHtml(company.site || '')}</div>
+            ${noteSnippet ? `<div class="company-card-note">${noteSnippet}</div>` : ''}
+            <div class="company-card-counts">
+                <span class="count-badge count-badge-sm ${c.prospects > 0 ? 'has-prospects' : ''}" title="Prospects">${c.prospects}</span>
+                <span class="count-badge count-badge-sm rdv ${c.rdv > 0 ? 'has-rdv' : ''}" title="RDV">${c.rdv}</span>
+                <span class="count-badge count-badge-sm callable ${c.callable > 0 ? 'has-callable' : ''}" title="Appelables">${c.callable}</span>
+            </div>
+            <div class="company-card-actions" onclick="event.stopPropagation();">
+                <button type="button" class="btn-action btn-action-view" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');"><span class="btn-action-icon">&#x1F3E2;</span></button>
+                <button type="button" class="btn-action btn-action-prospects" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});"><span class="btn-action-icon">&#x1F465;</span></button>
+                <button type="button" class="btn-action btn-action-edit" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});"><span class="btn-action-icon">&#x270F;&#xFE0F;</span></button>
+                <button type="button" class="btn-action btn-action-delete" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}><span class="btn-action-icon">&#x1F5D1;</span></button>
+            </div>
+        `;
+        card.onclick = () => {
+            if (window.__APP_PAGE__ === 'companies') {
+                window.location.href = `/?company=${company.id}`;
+                return;
+            }
+            const companyFilter = document.getElementById('companyFilter');
+            if (companyFilter) companyFilter.value = company.id;
+            switchView('all');
+        };
+        container.appendChild(card);
+    });
+}
+
+function _renderCompaniesInternal(tbody, q) {
+    // Pré-calcul des compteurs (une seule passe)
     const counts = {};
     data.companies.forEach(c => {
         counts[c.id] = { prospects: 0, rdv: 0, callable: 0 };
     });
 
+    // Une seule passe sur les prospects
     data.prospects.forEach(p => {
-        if (!counts[p.company_id]) counts[p.company_id] = { prospects: 0, rdv: 0, callable: 0 };
-        counts[p.company_id].prospects += 1;
-        if (p.statut === 'Rendez-vous') counts[p.company_id].rdv += 1;
-        if (isProspectCallable(p)) counts[p.company_id].callable += 1;
+        if (p.company_id && counts[p.company_id]) {
+            counts[p.company_id].prospects += 1;
+            if (p.statut === 'Rendez-vous') counts[p.company_id].rdv += 1;
+            if (isProspectCallable(p)) counts[p.company_id].callable += 1;
+        }
     });
 
     const unassignedId = ensureUnassignedCompany();
 
-    // Normaliser les entreprises
+    // Normaliser les entreprises (une seule passe)
     data.companies.forEach(c => {
         if (c.notes === undefined || c.notes === null) c.notes = '';
         if (c.phone === undefined || c.phone === null) c.phone = 'Non disponible';
         if (c.tags === undefined || c.tags === null) c.tags = [];
     });
 
-    const companiesSorted = [...data.companies].sort((a, b) => {
+    // Filtrer et trier en une seule passe
+    const companiesFiltered = q 
+        ? data.companies.filter(c => {
+            const label = `${c.groupe || ''} ${c.site || ''}`.toLowerCase();
+            return label.includes(q);
+        })
+        : data.companies;
+
+    const companiesSorted = [...companiesFiltered].sort((a, b) => {
         // Toujours garder "Sans entreprise" en premier
         if (a.id === unassignedId) return -1;
         if (b.id === unassignedId) return 1;
@@ -954,18 +1899,17 @@ function renderCompanies() {
         return (companySortDir === 'asc') ? res : -res;
     });
 
-    tbody.innerHTML = '';
+    // Utiliser DocumentFragment pour réduire les reflows
+    const fragment = document.createDocumentFragment();
     let summary = { companies: 0, prospects: 0, rdv: 0, callable: 0 };
 
     companiesSorted.forEach(company => {
-        const label = `${company.groupe || ''} ${company.site || ''}`.toLowerCase();
-        if (q && !label.includes(q)) return;
-
         const c = counts[company.id] || { prospects: 0, rdv: 0, callable: 0 };
         summary.companies += 1;
         summary.prospects += c.prospects;
         summary.rdv += c.rdv;
         summary.callable += c.callable;
+        
         const notesRaw = (company.notes || '').trim();
         let notesSnippet = '';
         if (inlineCompanyNotesEditingId === company.id) {
@@ -987,8 +1931,11 @@ function renderCompanies() {
                 </div>
             `;
         }
+        
         const tr = document.createElement('tr');
+        tr.className = 'company-row';
         tr.style.cursor = 'pointer';
+        
         // Focus visuel (ex: depuis une fiche prospect)
         if (pendingCompanyFocusId && company.id === pendingCompanyFocusId) {
             tr.classList.add('company-focus');
@@ -998,18 +1945,39 @@ function renderCompanies() {
             pendingCompanyFocusId = null;
         }
 
-
         tr.innerHTML = `
-            <td>${company.groupe || ''}${company.id === unassignedId ? ' <span style="color: var(--color-text-secondary);">(défaut)</span>' : ''}${notesSnippet}</td>
-            <td>${company.site || ''}</td>
-            <td class="center">${c.prospects}</td>
-            <td class="center">${c.rdv}</td>
-            <td class="center">${c.callable}</td>
-            <td class="center">
-                <button class="btn btn-secondary" style="padding: 6px 10px;" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');">🏢</button>
-                <button class="btn btn-secondary" style="padding: 6px 10px;" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});">👥</button>
-                <button class="btn btn-primary" style="padding: 6px 10px;" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});">✏️</button>
-                <button class="btn btn-danger" style="padding: 6px 10px;" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}>🗑️</button>
+            <td class="company-name-cell">
+                <div class="company-name-wrapper">
+                    <strong class="company-groupe">${escapeHtml(company.groupe || '')}</strong>
+                    ${company.id === unassignedId ? '<span class="company-default-badge">(défaut)</span>' : ''}
+                </div>
+                ${notesSnippet}
+            </td>
+            <td class="company-site-cell">${escapeHtml(company.site || '')}</td>
+            <td class="center company-count-cell">
+                <span class="count-badge ${c.prospects > 0 ? 'has-prospects' : ''}">${c.prospects}</span>
+            </td>
+            <td class="center company-count-cell">
+                <span class="count-badge rdv ${c.rdv > 0 ? 'has-rdv' : ''}">${c.rdv}</span>
+            </td>
+            <td class="center company-count-cell">
+                <span class="count-badge callable ${c.callable > 0 ? 'has-callable' : ''}">${c.callable}</span>
+            </td>
+            <td class="center company-actions-cell">
+                <div class="company-actions-group">
+                    <button class="btn-action btn-action-view" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');">
+                        <span class="btn-action-icon">🏢</span>
+                    </button>
+                    <button class="btn-action btn-action-prospects" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});">
+                        <span class="btn-action-icon">👥</span>
+                    </button>
+                    <button class="btn-action btn-action-edit" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});">
+                        <span class="btn-action-icon">✏️</span>
+                    </button>
+                    <button class="btn-action btn-action-delete" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}>
+                        <span class="btn-action-icon">🗑️</span>
+                    </button>
+                </div>
             </td>
         `;
 
@@ -1023,11 +1991,16 @@ function renderCompanies() {
             switchView('all');
         };
 
-        tbody.appendChild(tr);
+        fragment.appendChild(tr);
     });
+
+    // Un seul reflow pour remplacer tout le contenu
+    tbody.innerHTML = '';
+    tbody.appendChild(fragment);
 
     updateCompanySummary(summary);
     updateCompanySortIndicators();
+    return { companiesSorted, counts, summary };
 }
 
 // ===== Score (v6) =====
@@ -1425,26 +2398,64 @@ function updateBulkBar() {
     bulk.style.display = count > 0 ? 'flex' : 'none';
 }
 
-function applyBulkStatus() {
+async function applyBulkStatus() {
     const status = document.getElementById('bulkStatus').value;
     if (!status) return;
-    selectedProspects.forEach(id => {
+    
+    const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    if (total === 0) return;
+    
+    let updated = 0;
+    for (const id of ids) {
         const p = data.prospects.find(x => x.id === id);
-        if (p) p.statut = status;
-    });
-    saveToServer();
+        if (p) {
+            p.statut = status;
+            updated++;
+            showBulkProgress(updated, total, 'prospects mis à jour...');
+            flashRowSuccess(id);
+            // Petit délai pour visualiser la progression
+            if (total > 10) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
+    }
+    
+    await saveToServerAsync();
     filterProspects(); // refresh list & stats
+    selectedProspects.clear();
+    updateBulkBar();
+    showToast(`✅ ${updated} prospect(s) mis à jour`, 'success');
 }
 
-function applyBulkPertinence() {
+async function applyBulkPertinence() {
     const per = document.getElementById('bulkPertinence').value;
     if (!per) return;
-    selectedProspects.forEach(id => {
+    
+    const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    if (total === 0) return;
+    
+    let updated = 0;
+    for (const id of ids) {
         const p = data.prospects.find(x => x.id === id);
-        if (p) p.pertinence = per;
-    });
-    saveToServer();
+        if (p) {
+            p.pertinence = per;
+            updated++;
+            showBulkProgress(updated, total, 'prospects mis à jour...');
+            flashRowSuccess(id);
+            // Petit délai pour visualiser la progression
+            if (total > 10) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
+    }
+    
+    await saveToServerAsync();
     filterProspects();
+    selectedProspects.clear();
+    updateBulkBar();
+    showToast(`✅ ${updated} prospect(s) mis à jour`, 'success');
 }
 
 async function applyBulkRelance() {
@@ -1464,7 +2475,12 @@ async function applyBulkRelance() {
         if (!Number.isNaN(days)) dateStr = addDaysISO(todayISO(), days);
     }
     const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    
     try {
+        // Afficher la progression pendant l'appel API
+        showBulkProgress(0, total, 'relances en cours...');
+        
         const res = await fetch('/api/prospects/bulk-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1472,16 +2488,29 @@ async function applyBulkRelance() {
         });
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Erreur');
-        ids.forEach(id => {
+        
+        // Mettre à jour avec progression visuelle
+        let updated = 0;
+        for (const id of ids) {
             const p = data.prospects.find(x => x.id === id);
-            if (p) p.nextFollowUp = dateStr;
-        });
+            if (p) {
+                p.nextFollowUp = dateStr;
+                updated++;
+                showBulkProgress(updated, total, 'relances appliquées...');
+                flashRowSuccess(id);
+                if (total > 10) {
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                }
+            }
+        }
+        
         selectedProspects.clear();
         updateBulkBar();
         filterProspects();
         updateOverdueAlerts();
         if (typeof showToast === 'function') showToast('Relance appliquée à ' + (json.updated || ids.length) + ' prospect(s)', 'success');
     } catch (e) {
+        hideBulkProgress();
         if (typeof showToast === 'function') showToast(e.message || 'Erreur bulk relance', 'error');
     }
 }
@@ -1489,7 +2518,12 @@ async function applyBulkRelance() {
 async function applyBulkRelanceDone() {
     if (selectedProspects.size === 0) return;
     const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    
     try {
+        // Afficher la progression pendant l'appel API
+        showBulkProgress(0, total, 'relances en cours...');
+        
         const res = await fetch('/api/prospects/bulk-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1497,31 +2531,60 @@ async function applyBulkRelanceDone() {
         });
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Erreur');
-        ids.forEach(id => {
+        
+        // Mettre à jour avec progression visuelle
+        let updated = 0;
+        for (const id of ids) {
             const p = data.prospects.find(x => x.id === id);
-            if (p) p.nextFollowUp = null;
-        });
+            if (p) {
+                p.nextFollowUp = null;
+                updated++;
+                showBulkProgress(updated, total, 'relances marquées faites...');
+                flashRowSuccess(id);
+                if (total > 10) {
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                }
+            }
+        }
+        
         selectedProspects.clear();
         updateBulkBar();
         filterProspects();
         updateOverdueAlerts();
         if (typeof showToast === 'function') showToast('Relance marquée faite pour ' + (json.updated || ids.length) + ' prospect(s)', 'success');
     } catch (e) {
+        hideBulkProgress();
         if (typeof showToast === 'function') showToast(e.message || 'Erreur', 'error');
     }
 }
 
-function deleteSelectedProspects() {
+async function deleteSelectedProspects() {
     const count = selectedProspects.size;
     if (count === 0) return;
     if (!confirm(`⚠️ Supprimer définitivement ${count} prospect(s) ?`)) return;
 
-    data.prospects = data.prospects.filter(p => !selectedProspects.has(p.id));
+    const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    
+    // Afficher la progression
+    let deleted = 0;
+    for (const id of ids) {
+        const index = data.prospects.findIndex(p => p.id === id);
+        if (index !== -1) {
+            data.prospects.splice(index, 1);
+            deleted++;
+            showBulkProgress(deleted, total, 'prospects supprimés...');
+            if (total > 10) {
+                await new Promise(resolve => setTimeout(resolve, 30));
+            }
+        }
+    }
+    
     selectedProspects.clear();
-
-    saveToServer({ confirmMassDelete: true });
+    await saveToServerAsync({ confirmMassDelete: true });
     filterProspects();
     updateBulkBar();
+    showToast(`✅ ${deleted} prospect(s) supprimé(s)`, 'success');
 }
 
 // todayISO() est défini dans les helpers globaux (en haut du fichier).
@@ -2067,6 +3130,9 @@ function _injectSidebarBadge(overdueCount, dueTodayCount) {
 
 
 async function viewDetail(id) {
+    // Stocker l'ID du prospect actuel pour refreshMetierSuggestions
+    window._currentDetailProspectId = id;
+    window._currentPushTemplate = null; // Reset template
     const prospect = data.prospects.find(p => p.id === id);
     if (!prospect) return;
     const isProspMode = (_currentView === 'prosp' && _prospSession.active);
@@ -2179,31 +3245,64 @@ async function viewDetail(id) {
                 <div class="detail-info-item"><div class="detail-info-label">Next action</div><div class="detail-info-value">${escapeHtml(prospect.nextAction || '—')}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Priorité</div><div class="detail-info-value">P${prospect.priority ?? 2}</div></div>
                 ${prospect.rdvDate ? `<div class="detail-info-item"><div class="detail-info-label">📅 Date RDV</div><div class="detail-info-value">${escapeHtml(prospect.rdvDate)} <button class="mini-action" onclick="copyRdvForTeams(${prospect.id})" title="Copier RDV pour Teams" style="margin-left:6px;font-size:11px;">📋 Teams</button></div></div>` : ''}
-                <div class="detail-info-item full"><div class="detail-info-label">Compétences</div><div class="detail-info-value">${(prospect.tags && prospect.tags.length) ? prospect.tags.map(t => { const inRef = typeof buildReferentialTagSet === 'function' && buildReferentialTagSet().has(t.toLowerCase()); return `<span class="tag-pill${inRef ? '' : ' tag-pill-custom'}" title="${inRef ? 'Référentiel Up Technologies' : 'Tag personnalisé (hors référentiel)'}">${escapeHtml(t)}${inRef ? '' : ' *'}</span>`; }).join(' ') : '—'}</div></div>
+                <div class="detail-info-item full"><div class="detail-info-label">Compétences</div><div class="detail-info-value" id="detailTagsContainer">${(prospect.tags && prospect.tags.length) ? prospect.tags.map(t => { const inRef = typeof buildReferentialTagSet === 'function' && buildReferentialTagSet().has(t.toLowerCase()); return `<span class="tag-pill${inRef ? '' : ' tag-pill-custom'}" title="${inRef ? 'Référentiel Up Technologies' : 'Tag personnalisé (hors référentiel)'}">${escapeHtml(t)}${inRef ? '' : ' *'}</span>`; }).join(' ') : '—'}</div></div>
                 ${showMetier ? `<div class="detail-info-item full" id="metierSection"><div class="detail-info-label">🏗️ Métier suggéré</div><div class="detail-info-value" id="metierSuggestions">${renderMetierSection(prospect)}</div></div>` : ''}
                 <div class="detail-info-item full"><div class="detail-info-label">Notes</div><div class="detail-info-value" style="white-space:pre-wrap;">${escapeHtml(prospect.notes || '—')}</div></div>
             </div>
 
             ${showPushSection ? `<div class="detail-section-card" style="margin-top:14px;">
-                <div class="detail-section-title">📤 Push & Catégorie</div>
+                <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>📤 Push & Catégorie</span>
+                    <button class="btn btn-secondary btn-sm" onclick="openPushCategoryManager()" style="font-size:12px;padding:4px 10px;">⚙️ Gérer catégorie</button>
+                </div>
                 <div class="detail-info-grid">
-                    <div class="detail-info-item full"><div class="detail-info-label">Catégorie push</div><div class="detail-info-value">${renderPushCategorySelect(id, prospect.push_category_id)}</div></div>
-                    <div class="detail-info-item full" id="detailPushFiles" style="display:none;">
-                        <div class="detail-info-label">📂 Templates disponibles</div>
-                        <div class="detail-info-value" id="detailPushFileList"><span class="muted">Chargement…</span></div>
+                    <div class="detail-info-item full">
+                        <div class="detail-info-label">Catégorie push</div>
+                        <div class="detail-info-value">${renderPushCategorySelect(id, prospect.push_category_id)}</div>
+                    </div>
+                    <div class="detail-info-item full" id="detailPushTemplate" style="display:none;">
+                        <div class="detail-info-label">📧 Template disponible</div>
+                        <div class="detail-info-value" id="detailPushTemplateList"><span class="muted">Chargement…</span></div>
+                    </div>
+                    <div class="detail-info-item full">
+                        <div class="detail-info-label">Dossiers de compétences</div>
+                        <div class="detail-info-value" style="display:flex;gap:12px;">
+                            <div style="flex:1;">
+                                <select id="detailPushCandidate1" class="template-select" style="width:100%;" onchange="updatePushGenerateButton(${id})">
+                                    <option value="">— Aucun —</option>
+                                </select>
+                            </div>
+                            <div style="flex:1;">
+                                <select id="detailPushCandidate2" class="template-select" style="width:100%;" onchange="updatePushGenerateButton(${id})">
+                                    <option value="">— Aucun —</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-info-item full" style="margin-top:10px;">
+                        <button class="btn btn-primary" id="btnGeneratePush" onclick="generatePush(${id})" disabled style="width:100%;">📧 Générer et télécharger le push</button>
                     </div>
                     <div class="detail-info-item"><div class="detail-info-label">Push email</div><div class="detail-info-value"><span id="detailPushSent">${prospect.email ? (prospect.pushEmailSentAt ? ('✅ ' + prospect.pushEmailSentAt) : '🕒 Non envoyé') : '—'}</span>${(prospect.email && prospect.pushEmailSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${id},'email')">↩️</button>` : ''}</div></div>
                     <div class="detail-info-item"><div class="detail-info-label">Push LinkedIn</div><div class="detail-info-value"><span id="detailPushLinkedInSent">${prospect.linkedin ? (prospect.pushLinkedInSentAt ? ('✅ ' + prospect.pushLinkedInSentAt) : '🕒 Non envoyé') : '—'}</span>${(prospect.linkedin && prospect.pushLinkedInSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${id},'linkedin')">↩️</button>` : ''}</div></div>
                 </div>
-            </div>` : ''}
+            </div>
+            <script>
+                // v25.9: Initialiser les dropdowns de candidats après chargement de la fiche
+                (function() {
+                    setTimeout(() => {
+                        if (typeof updatePushCandidates === 'function') {
+                            updatePushCandidates(${id});
+                        }
+                        if (${prospect.push_category_id ? 'true' : 'false'} && typeof onPushCategoryChange === 'function') {
+                            onPushCategoryChange(${id}, ${prospect.push_category_id});
+                        }
+                    }, 200);
+                })();
+            </script>` : ''}
 
             ${showCandidats ? `<div class="detail-section-card" id="candidateMatchSection" style="margin-top:14px;">
-                <div class="detail-section-title">🎯 Candidats recommandés</div>
+                <div class="detail-section-title">🎯 Candidats recommandés (4 maximum)</div>
                 <div id="unifiedCandidateList"><span class="muted">Analyse en cours…</span></div>
-                <div class="detail-info-item full" id="detailCandidateSuggestions" style="display:none;">
-                    <div class="detail-info-label">Via catégorie push</div>
-                    <div class="detail-info-value" id="detailCandidateList"><span class="muted">Sélectionnez une catégorie...</span></div>
-                </div>
             </div>` : ''}
         </div>
 
@@ -2326,7 +3425,11 @@ async function viewDetail(id) {
     const firstActiveTab = detailContentEl.querySelector('.detail-tab-content.active');
     if (firstActiveTab) firstActiveTab.scrollTop = 0;
     const detailModal = document.getElementById('modalDetail');
-    detailModal.classList.add('active');
+    if (window.openModal) {
+        window.openModal(detailModal);
+    } else {
+        detailModal.classList.add('active');
+    }
     if (window.decorateHelpSections) window.decorateHelpSections();
     const detailCard = detailModal.querySelector('.modal-content');
     if (detailCard) {
@@ -2778,21 +3881,87 @@ function syncProspSessionWithFilteredList() {
 
 function switchTableKanban(mode) {
     const normalizedMode = (mode === 'kanban' || mode === 'prosp') ? mode : 'table';
+    const previousMode = _currentView;
     _currentView = normalizedMode;
 
     const tableEl = document.getElementById('tableView');
     const kanbanEl = document.getElementById('kanbanView');
     if (!tableEl || !kanbanEl) return;
 
-    tableEl.style.display = (normalizedMode === 'table') ? '' : 'none';
-    kanbanEl.style.display = (normalizedMode === 'kanban') ? '' : 'none';
+    // Fonction helper pour appliquer les transitions fluides entre vues
+    const applyViewTransition = (elementOut, elementIn, callback) => {
+        if (!elementIn) {
+            // Si pas d'élément entrant (mode prosp), juste cacher l'élément sortant
+            if (elementOut && previousMode !== normalizedMode && elementOut.style.display !== 'none') {
+                elementOut.classList.remove('view-transition-enter');
+                elementOut.classList.add('view-transition-exit');
+                setTimeout(() => {
+                    elementOut.style.display = 'none';
+                    elementOut.classList.remove('view-transition-exit');
+                    if (callback) callback();
+                }, 300);
+            } else {
+                if (elementOut) {
+                    elementOut.style.display = 'none';
+                    elementOut.classList.remove('view-transition-enter', 'view-transition-exit');
+                }
+                if (callback) callback();
+            }
+            return;
+        }
+
+        if (!elementOut) {
+            // Pas d'élément sortant, juste montrer le nouveau
+            elementIn.style.display = '';
+            elementIn.classList.remove('view-transition-exit');
+            elementIn.classList.add('view-transition-enter');
+            void elementIn.offsetWidth;
+            if (callback) callback();
+            return;
+        }
+
+        // Si c'est la première fois ou si on change de vue
+        if (previousMode !== normalizedMode && elementOut.style.display !== 'none') {
+            // Animation de sortie
+            elementOut.classList.remove('view-transition-enter');
+            elementOut.classList.add('view-transition-exit');
+            
+            // Après l'animation de sortie, cacher l'élément et montrer le nouveau
+            setTimeout(() => {
+                elementOut.style.display = 'none';
+                elementOut.classList.remove('view-transition-exit');
+                
+                elementIn.style.display = '';
+                elementIn.classList.remove('view-transition-exit');
+                elementIn.classList.add('view-transition-enter');
+                
+                // Forcer le reflow pour déclencher l'animation
+                void elementIn.offsetWidth;
+                
+                if (callback) callback();
+            }, 300); // Durée de l'animation de sortie
+        } else {
+            // Pas de transition nécessaire, changement direct
+            elementOut.style.display = 'none';
+            elementOut.classList.remove('view-transition-enter', 'view-transition-exit');
+            elementIn.style.display = '';
+            elementIn.classList.remove('view-transition-exit');
+            elementIn.classList.add('view-transition-enter');
+            void elementIn.offsetWidth;
+            if (callback) callback();
+        }
+    };
+
     _setViewToggleButtons(normalizedMode);
 
     if (normalizedMode === 'kanban') {
         _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
         const modal = document.getElementById('modalDetail');
         if (modal && modal.classList.contains('active')) closeDetail({ keepProspMode: false, fromViewSwitch: true });
-        renderKanban();
+        
+        applyViewTransition(tableEl, kanbanEl, () => {
+            renderKanban();
+        });
         return;
     }
 
@@ -2800,16 +3969,19 @@ function switchTableKanban(mode) {
         _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
         const modal = document.getElementById('modalDetail');
         if (modal && modal.classList.contains('active')) closeDetail({ keepProspMode: false, fromViewSwitch: true });
+        
+        applyViewTransition(kanbanEl, tableEl);
         return;
     }
 
+    // Mode prosp
     const ids = _getCurrentProspIds();
     if (!ids.length) {
         _currentView = 'table';
-        tableEl.style.display = '';
-        kanbanEl.style.display = 'none';
-        _setViewToggleButtons('table');
-        if (typeof showToast === 'function') showToast('Aucun prospect à défiler avec les filtres actuels.', 'warning');
+        applyViewTransition(kanbanEl, tableEl, () => {
+            _setViewToggleButtons('table');
+            if (typeof showToast === 'function') showToast('Aucun prospect à défiler avec les filtres actuels.', 'warning');
+        });
         return;
     }
 
@@ -2824,7 +3996,11 @@ function switchTableKanban(mode) {
         showToast(`Mode Prosp activé · ${ids.length} prospect${ids.length > 1 ? 's' : ''} à traiter`, 'info');
     }
     if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-    viewDetail(ids[0]).catch(() => {});
+    
+    // Pour le mode prosp, on cache les deux vues (table et kanban)
+    applyViewTransition(previousMode === 'kanban' ? kanbanEl : tableEl, null, () => {
+        viewDetail(ids[0]).catch(() => {});
+    });
 }
 
 function renderKanban() {
@@ -3214,7 +4390,11 @@ async function openCompanySheet(companyId, mode) {
     companySheetState.companyId = Number(companyId);
     const modal = document.getElementById('modalCompanySheet');
     if (!modal) return;
-    modal.classList.add('active');
+    if (window.openModal) {
+        window.openModal(modal);
+    } else {
+        modal.classList.add('active');
+    }
 
     try {
         await loadCompanySheet(companySheetState.companyId);
@@ -3228,7 +4408,13 @@ async function openCompanySheet(companyId, mode) {
 
 function closeCompanySheet() {
     const modal = document.getElementById('modalCompanySheet');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function syncCompanyCacheFromPayload(payload) {
@@ -3387,7 +4573,7 @@ function closeCompanyQuickView() {
     const el = document.getElementById('companyQuickViewOverlay');
     if (el) el.remove();
 }
-function deleteProspect(id) {
+async function deleteProspect(id) {
     const prospect = data.prospects.find(p => p.id === id);
     if (!prospect) return;
 
@@ -3396,14 +4582,20 @@ function deleteProspect(id) {
 
     if (!confirm(`⚠️ Supprimer définitivement ce prospect ?\n\n${label}`)) return;
 
-    data.prospects = data.prospects.filter(p => p.id !== id);
-
-    saveToServer();
-    markUnsaved();
-
-    closeDetail();
-    filterProspects();
-    showToast('🗑️ Prospect supprimé', 'success', 3000);
+    // Find delete button if in modal
+    const deleteBtn = document.querySelector('[onclick*="deleteProspect(' + id + ')"]') || 
+                      document.querySelector('.btn-danger[onclick*="deleteProspect"]');
+    
+    await withButtonFeedback(deleteBtn, async () => {
+        data.prospects = data.prospects.filter(p => p.id !== id);
+        await saveToServerAsync();
+        markUnsaved();
+        closeDetail();
+        filterProspects();
+        showToast('🗑️ Prospect supprimé', 'success', 3000);
+    }, {
+        haptic: true
+    });
 }
 
 
@@ -3449,12 +4641,22 @@ function openCallChoice(phones, prospectId) {
         list.appendChild(btn);
     });
 
-    modal.classList.add('active');
+    if (window.openModal) {
+        window.openModal(modal);
+    } else {
+        modal.classList.add('active');
+    }
 }
 
 function closeCallChoice() {
     const modal = document.getElementById('modalCallChoice');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function _stampProspectLastContact(prospect) {
@@ -3668,83 +4870,418 @@ async function onPushCategoryChange(prospectId, value) {
     // Debounced save
     if (__categorySaveTimer) clearTimeout(__categorySaveTimer);
     __categorySaveTimer = setTimeout(async () => {
-try { await saveToServerAsync(); } catch (e) {}
+        try { await saveToServerAsync(); } catch (e) {}
     }, 700);
 
-    // Load template files from pushs/ folder
-    const filesBox = document.getElementById('detailPushFiles');
-    const fileList = document.getElementById('detailPushFileList');
+    // Load template files (v25.9: nouveau système)
+    const templateBox = document.getElementById('detailPushTemplate');
+    const templateList = document.getElementById('detailPushTemplateList');
     if (!v) {
-if (filesBox) filesBox.style.display = 'none';
+        if (templateBox) templateBox.style.display = 'none';
+        window._currentPushTemplate = null;
+        setTimeout(() => updatePushCandidates(prospectId), 100);
+        return;
     }
-    if (v && filesBox) {
-        filesBox.style.display = '';
-        if (fileList) fileList.innerHTML = '<span class="muted">Chargement…</span>';
+    
+    if (v && templateBox) {
+        templateBox.style.display = '';
+        if (templateList) templateList.innerHTML = '<span class="muted">Chargement…</span>';
         try {
             const res = await fetch(`/api/push-categories/${v}/files`);
             if (res.ok) {
                 const fdata = await res.json();
                 if (fdata.ok && fdata.files && fdata.files.length) {
-                    fileList.innerHTML = fdata.files.map(f => `
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                            <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="openPushFile(${prospectId}, '${escapeHtml(f.name)}')" title="Ouvrir dans Outlook">📧 ${escapeHtml(f.name)}</button>
-                            <span class="muted" style="font-size:10px;">${(f.size/1024).toFixed(0)} Ko</span>
+                    // Prendre le premier template disponible
+                    const firstTemplate = fdata.files[0];
+                    templateList.innerHTML = `
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span>📧 ${escapeHtml(firstTemplate.name)}</span>
+                            <span class="muted" style="font-size:11px;">${(firstTemplate.size/1024).toFixed(0)} Ko</span>
                         </div>
-                    `).join('');
+                    `;
+                    // Stocker le nom du template pour generatePush
+                    window._currentPushTemplate = firstTemplate.name;
+                    // Mettre à jour le bouton
+                    updatePushGenerateButton(prospectId);
                 } else {
-                    fileList.innerHTML = '<span class="muted">Aucun template dans ce dossier</span>';
+                    templateList.innerHTML = '<span class="muted">Aucun template disponible. Utilisez "Gérer catégorie" pour en ajouter un.</span>';
+                    window._currentPushTemplate = null;
                 }
             }
         } catch (e) {
-            if (fileList) fileList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            if (templateList) templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            window._currentPushTemplate = null;
         }
     }
 
-    // Load matching candidates
-    const sugBox = document.getElementById('detailCandidateSuggestions');
-    const listBox = document.getElementById('detailCandidateList');
-    if (!v) {
-if (sugBox) sugBox.style.display = 'none';
-return;
-    }
-
-    if (sugBox) sugBox.style.display = '';
-    if (listBox) listBox.innerHTML = '<span class="muted">Recherche de candidats...</span>';
-
-    try {
-const res = await fetch(`/api/push-categories/${v}/match-candidates`);
-if (res.ok) {
-    const data = await res.json();
-    if (data.ok && data.candidates && data.candidates.length) {
-        listBox.innerHTML = data.candidates.map(c => {
-            const skills = Array.isArray(c.skills) ? c.skills.slice(0, 5) : [];
-            const skillsHtml = skills.map(s => `<span class="tag-pill" style="font-size:10px;padding:2px 7px;">${escapeHtml(s)}</span>`).join(' ');
-            const phone = (c.phone || '').trim();
-            const telBtn = phone ? `<a href="tel:${escapeHtml(phone)}" class="candidate-suggestion-tel" title="Appeler" onclick="event.stopPropagation()">📞</a>` : '';
-            return `
-                <a href="/candidate?id=${c.id}" class="candidate-suggestion candidate-suggestion-link" title="Ouvrir la fiche candidat">
-                    <div class="candidate-suggestion-header">
-                        <strong>${escapeHtml(c.name)}</strong>
-                        <span class="candidate-suggestion-actions">${telBtn}<span class="candidate-match-score" title="Score de matching">${c.score} pts</span></span>
-                    </div>
-                    <div class="candidate-suggestion-role">${escapeHtml(c.role || '')}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
-                    <div class="candidate-suggestion-skills">${skillsHtml || '<span class="muted">Aucune compétence</span>'}</div>
-                </a>
-            `;
-        }).join('');
-    } else {
-        listBox.innerHTML = '<span class="muted">Aucun candidat correspondant trouvé</span>';
-    }
-}
-    } catch (e) {
-listBox.innerHTML = '<span class="muted">Erreur de chargement</span>';
-    }
+    // Mettre à jour les dropdowns de candidats
+    setTimeout(() => updatePushCandidates(prospectId), 100);
 
     // Also refresh unified candidates list with updated category
     const prospect = data.prospects.find(x => x.id === prospectId);
     if (prospect) {
         loadUnifiedCandidates(prospectId, prospect.tags, prospect.push_category_id);
     }
+}
+
+// v25.9: Suggérer une catégorie push selon le métier suggéré (appelé après chargement des suggestions)
+function suggestPushCategoryFromMetier(prospectId) {
+    const prospect = data.prospects.find(p => p.id === prospectId);
+    if (!prospect || prospect.push_category_id) return; // Déjà une catégorie sélectionnée
+    
+    const metierEl = document.getElementById('metierSuggestions');
+    if (!metierEl) return;
+    
+    // Attendre un peu que les catégories soient chargées
+    setTimeout(async () => {
+        await loadPushCategories();
+        const metierText = metierEl.textContent.toLowerCase();
+        const suggestedCat = pushCategories.find(cat => {
+            const catName = cat.name.toLowerCase();
+            const keywords = (cat.keywords || []).map(k => k.toLowerCase());
+            // Matching simple : nom de catégorie ou keywords dans le texte du métier
+            return metierText.includes(catName) || keywords.some(k => metierText.includes(k)) ||
+                   (catName.includes('logiciel') && metierText.includes('logiciel')) ||
+                   (catName.includes('embarqué') && (metierText.includes('embarqué') || metierText.includes('iot'))) ||
+                   (catName.includes('électronique') && metierText.includes('électronique')) ||
+                   (catName.includes('système') && metierText.includes('système'));
+        });
+        if (suggestedCat) {
+            const select = document.getElementById('detailCategorySelect');
+            if (select && !select.value) {
+                select.value = suggestedCat.id;
+                onPushCategoryChange(prospectId, suggestedCat.id);
+            }
+        }
+    }, 800);
+}
+
+// v25.9: Mettre à jour les dropdowns de candidats pour le push
+async function updatePushCandidates(prospectId) {
+    const prospect = data.prospects.find(x => x.id === prospectId);
+    if (!prospect) return;
+    
+    const select1 = document.getElementById('detailPushCandidate1');
+    const select2 = document.getElementById('detailPushCandidate2');
+    const btnGenerate = document.getElementById('btnGeneratePush');
+    
+    if (!select1 || !select2) return;
+    
+    // Charger les 4 meilleurs candidats recommandés
+    let recommendedCandidates = [];
+    try {
+        const res = await fetch(`/api/prospect/${prospectId}/best-candidates${prospect.push_category_id ? `?push_category_id=${prospect.push_category_id}` : ''}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.candidates) {
+                recommendedCandidates = data.candidates.slice(0, 4);
+            }
+        }
+    } catch (e) {
+        console.warn('Erreur chargement candidats recommandés:', e);
+    }
+    
+    // Remplir les dropdowns avec tous les candidats (charger depuis l'API si nécessaire)
+    let allCandidates = data.candidates || [];
+    if (allCandidates.length === 0) {
+        // Charger les candidats depuis l'API
+        try {
+            const res = await fetch('/api/candidates');
+            if (res.ok) {
+                const apiData = await res.json();
+                // Gérer les deux formats : array direct ou {ok: true, candidates: [...]}
+                if (Array.isArray(apiData)) {
+                    allCandidates = apiData;
+                } else if (apiData.ok && apiData.candidates) {
+                    allCandidates = apiData.candidates;
+                } else if (apiData.candidates) {
+                    allCandidates = apiData.candidates;
+                }
+                if (typeof data !== 'undefined') {
+                    data.candidates = allCandidates; // Mettre en cache
+                }
+            }
+        } catch (e) {
+            console.warn('Erreur chargement candidats:', e);
+        }
+    }
+    allCandidates = allCandidates.filter(c => !c.is_archived);
+    const options = allCandidates.map(c => 
+        `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' - ' + escapeHtml(c.role) : ''}</option>`
+    ).join('');
+    
+    select1.innerHTML = '<option value="">— Aucun —</option>' + options;
+    select2.innerHTML = '<option value="">— Aucun —</option>' + options;
+    
+    // Pré-remplir avec les candidats recommandés si disponibles
+    if (recommendedCandidates.length > 0) {
+        if (select1 && recommendedCandidates[0]) {
+            select1.value = recommendedCandidates[0].id;
+        }
+        if (select2 && recommendedCandidates[1]) {
+            select2.value = recommendedCandidates[1].id;
+        }
+    }
+    
+    // Activer/désactiver le bouton selon les sélections
+    updatePushGenerateButton(prospectId);
+}
+
+// v25.9: Mettre à jour l'état du bouton de génération
+function updatePushGenerateButton(prospectId) {
+    const prospect = data.prospects.find(x => x.id === prospectId);
+    if (!prospect) return;
+    
+    const btnGenerate = document.getElementById('btnGeneratePush');
+    const select1 = document.getElementById('detailPushCandidate1');
+    const select2 = document.getElementById('detailPushCandidate2');
+    
+    if (btnGenerate) {
+        const hasCategory = prospect.push_category_id;
+        const hasTemplate = window._currentPushTemplate;
+        const hasCandidate = (select1 && select1.value) || (select2 && select2.value);
+        btnGenerate.disabled = !(hasCategory && hasTemplate && hasCandidate);
+    }
+}
+
+// v25.9: Générer le push (template rempli ou ZIP)
+async function generatePush(prospectId) {
+    const prospect = data.prospects.find(x => x.id === prospectId);
+    if (!prospect || !prospect.push_category_id) {
+        showToast('Sélectionnez d\'abord une catégorie', 'error');
+        return;
+    }
+    
+    const templateName = window._currentPushTemplate;
+    if (!templateName) {
+        showToast('Aucun template disponible pour cette catégorie', 'error');
+        return;
+    }
+    
+    const select1 = document.getElementById('detailPushCandidate1');
+    const select2 = document.getElementById('detailPushCandidate2');
+    const candidateId1 = select1 ? parseInt(select1.value) : null;
+    const candidateId2 = select2 ? parseInt(select2.value) : null;
+    
+    if (!candidateId1 && !candidateId2) {
+        showToast('Sélectionnez au moins un candidat', 'error');
+        return;
+    }
+    
+    try {
+        showToast('Génération du push en cours...', 'info');
+        const res = await fetch('/api/push/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prospect_id: prospectId,
+                category_id: prospect.push_category_id,
+                template_filename: templateName,
+                candidate_id1: candidateId1,
+                candidate_id2: candidateId2,
+                format: 'zip' // Pour l'instant, toujours ZIP (template + DC)
+            })
+        });
+        
+        if (res.ok) {
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `push_${prospect.name}_${Date.now()}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            // Copier l'email dans le presse-papier si disponible
+            if (prospect.email) {
+                await navigator.clipboard.writeText(prospect.email);
+                showToast('Push généré ! Email copié dans le presse-papier', 'success');
+            } else {
+                showToast('Push généré !', 'success');
+            }
+        } else {
+            const data = await res.json();
+            showToast(data.error || 'Erreur lors de la génération', 'error');
+        }
+    } catch (e) {
+        console.error('Erreur génération push:', e);
+        showToast('Erreur lors de la génération du push', 'error');
+    }
+}
+
+// v25.9: Ouvrir la modale de gestion des catégories push
+function openPushCategoryManager() {
+    if (document.getElementById('pushCategoryManagerModal')) {
+        document.getElementById('pushCategoryManagerModal').style.display = 'flex';
+        loadPushCategoryManager();
+        return;
+    }
+    
+    const modal = document.createElement('div');
+    modal.id = 'pushCategoryManagerModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:700px;">
+            <button class="modal-close" onclick="closePushCategoryManager()">×</button>
+            <h2 style="margin-top:0;">⚙️ Gérer les catégories push</h2>
+            <div style="margin-bottom:20px;">
+                <button class="btn btn-primary" onclick="createNewPushCategory()">➕ Nouvelle catégorie</button>
+            </div>
+            <div id="pushCategoryManagerList">
+                <span class="muted">Chargement…</span>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+    loadPushCategoryManager();
+}
+
+function closePushCategoryManager() {
+    const modal = document.getElementById('pushCategoryManagerModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function loadPushCategoryManager() {
+    const listBox = document.getElementById('pushCategoryManagerList');
+    if (!listBox) return;
+    
+    try {
+        const res = await fetch('/api/push-categories');
+        if (res.ok) {
+            const categories = await res.json();
+            if (categories.length === 0) {
+                listBox.innerHTML = '<span class="muted">Aucune catégorie. Créez-en une pour commencer.</span>';
+                return;
+            }
+            
+            listBox.innerHTML = categories.map(cat => `
+                <div class="push-category-item" style="padding:12px;border:1px solid var(--color-border);border-radius:8px;margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <strong>${escapeHtml(cat.name)}</strong>
+                            ${cat.keywords && cat.keywords.length ? `<div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;">Mots-clés: ${escapeHtml(cat.keywords.join(', '))}</div>` : ''}
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="uploadPushTemplate(${cat.id}, '${escapeHtml(cat.name)}')" style="font-size:11px;">📤 Upload template</button>
+                            <button class="btn btn-danger btn-sm" onclick="deletePushCategory(${cat.id})" style="font-size:11px;">🗑️</button>
+                        </div>
+                    </div>
+                    <div id="pushCatFiles_${cat.id}" style="margin-top:8px;font-size:11px;color:var(--color-text-secondary);">
+                        <span class="muted">Chargement fichiers…</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Charger les fichiers pour chaque catégorie
+            categories.forEach(cat => {
+                loadPushCategoryFiles(cat.id);
+            });
+        }
+    } catch (e) {
+        listBox.innerHTML = '<span class="muted">Erreur de chargement</span>';
+    }
+}
+
+async function loadPushCategoryFiles(catId) {
+    const filesBox = document.getElementById(`pushCatFiles_${catId}`);
+    if (!filesBox) return;
+    
+    try {
+        const res = await fetch(`/api/push-categories/${catId}/files`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.files && data.files.length) {
+                filesBox.innerHTML = `Templates: ${data.files.map(f => escapeHtml(f.name)).join(', ')}`;
+            } else {
+                filesBox.innerHTML = '<span class="muted">Aucun template</span>';
+            }
+        }
+    } catch (e) {
+        filesBox.innerHTML = '<span class="muted">Erreur</span>';
+    }
+}
+
+function createNewPushCategory() {
+    const name = prompt('Nom de la catégorie:');
+    if (!name || !name.trim()) return;
+    
+    fetch('/api/push-categories/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() })
+    }).then(res => res.json()).then(data => {
+        if (data.ok) {
+            showToast('Catégorie créée', 'success');
+            loadPushCategoryManager();
+            loadPushCategories().then(() => {
+                // Recharger le select dans la fiche prospect si ouvert
+                const select = document.getElementById('detailCategorySelect');
+                if (select) {
+                    const prospectId = window._currentDetailProspectId;
+                    if (prospectId) {
+                        const prospect = data.prospects.find(p => p.id === prospectId);
+                        if (prospect) {
+                            select.outerHTML = renderPushCategorySelect(prospectId, prospect.push_category_id);
+                        }
+                    }
+                }
+            });
+        } else {
+            showToast(data.error || 'Erreur', 'error');
+        }
+    });
+}
+
+function uploadPushTemplate(catId, catName) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.msg,.eml,.oft,.htm,.html';
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            showToast('Upload en cours...', 'info');
+            const res = await fetch(`/api/push-categories/${catId}/upload-template`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast('Template uploadé avec succès', 'success');
+                loadPushCategoryFiles(catId);
+            } else {
+                showToast(data.error || 'Erreur upload', 'error');
+            }
+        } catch (e) {
+            showToast('Erreur upload', 'error');
+        }
+    };
+    input.click();
+}
+
+function deletePushCategory(catId) {
+    if (!confirm('Supprimer cette catégorie ? Les templates associés seront également supprimés.')) return;
+    
+    fetch('/api/push-categories/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: catId })
+    }).then(res => res.json()).then(data => {
+        if (data.ok) {
+            showToast('Catégorie supprimée', 'success');
+            loadPushCategoryManager();
+            loadPushCategories();
+        } else {
+            showToast(data.error || 'Erreur', 'error');
+        }
+    });
 }
 
 function onTemplateChange(prospectId, value) {
@@ -3941,10 +5478,44 @@ return '<span class="muted">Ajoutez des compétences pour obtenir des suggestion
 
     if (typeof computeMetierMatches !== 'function') return '<span class="muted">Référentiel non chargé</span>';
 
+    // Version synchrone pour affichage immédiat
     const matches = computeMetierMatches(prospect.tags).slice(0, 3);
-    if (!matches.length) return '<span class="muted">Aucune correspondance trouvée</span>';
+    if (!matches.length) {
+        // Si aucune correspondance, lancer l'intégration en arrière-plan et réafficher
+        if (typeof computeMetierMatchesEnhanced === 'function' && prospect.id) {
+            const company = data.companies.find(c => c.id === prospect.company_id);
+            const context = {
+                company: company ? `${company.groupe} (${company.site})` : '',
+                fonction: prospect.fonction || '',
+                linkedin: prospect.linkedin || ''
+            };
+            computeMetierMatchesEnhanced(prospect.tags, context).then(enhancedMatches => {
+                if (enhancedMatches.length > 0) {
+                    const el = document.getElementById('metierSuggestions');
+                    if (el) {
+                        el.innerHTML = enhancedMatches.slice(0, 3).map((m, i) => {
+                            const barWidth = Math.max(m.score, 8);
+                            const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
+                            const fullPath = m.category + ' > ' + m.specialty;
+                            const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                            return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
+    <div class="metier-suggestion-header">
+        <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
+        <span class="metier-suggestion-name"><strong>${escapeHtml(m.category)}</strong> › ${escapeHtml(m.specialty)}</span>
+        <span class="metier-suggestion-score">${m.score}%${integratedBadge}</span>
+        ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
+    </div>
+    <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
+</div>`;
+                        }).join('');
+                    }
+                }
+            });
+        }
+        return '<span class="muted">Aucune correspondance trouvée. Intégration des tags en cours…</span>';
+    }
 
-    return matches.map((m, i) => {
+    const html = matches.map((m, i) => {
 const barWidth = Math.max(m.score, 8);
 const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
 const fullPath = m.category + ' > ' + m.specialty;
@@ -3958,6 +5529,75 @@ return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.ma
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
 </div>`;
     }).join('');
+    
+    // v25.9: Suggérer une catégorie push après affichage des métiers
+    if (prospect.id && typeof suggestPushCategoryFromMetier === 'function') {
+        setTimeout(() => suggestPushCategoryFromMetier(prospect.id), 300);
+    }
+    
+    return html;
+}
+
+// Fonction pour rafraîchir les suggestions de métier (appelée après intégration)
+async function refreshMetierSuggestions() {
+    const prospectId = window._currentDetailProspectId;
+    if (!prospectId) return;
+    const prospect = data.prospects.find(p => p.id === prospectId);
+    if (!prospect) return;
+    
+    const company = data.companies.find(c => c.id === prospect.company_id);
+    const context = {
+        company: company ? `${company.groupe} (${company.site})` : '',
+        fonction: prospect.fonction || '',
+        linkedin: prospect.linkedin || ''
+    };
+    
+    // Recharger le cache des intégrations
+    if (typeof loadTagIntegrationsCache === 'function') {
+        await loadTagIntegrationsCache();
+    }
+    
+    if (typeof computeMetierMatchesEnhanced === 'function') {
+        computeMetierMatchesEnhanced(prospect.tags, context).then(enhancedMatches => {
+            const el = document.getElementById('metierSuggestions');
+            if (el) {
+                if (enhancedMatches.length > 0) {
+                    el.innerHTML = enhancedMatches.slice(0, 3).map((m, i) => {
+                        const barWidth = Math.max(m.score, 8);
+                        const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
+                        const fullPath = m.category + ' > ' + m.specialty;
+                        const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                        return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
+    <div class="metier-suggestion-header">
+        <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
+        <span class="metier-suggestion-name"><strong>${escapeHtml(m.category)}</strong> › ${escapeHtml(m.specialty)}</span>
+        <span class="metier-suggestion-score">${m.score}%${integratedBadge}</span>
+        ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
+    </div>
+    <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
+</div>`;
+                    }).join('');
+                } else {
+                    el.innerHTML = '<span class="muted">Aucune correspondance trouvée</span>';
+                }
+            }
+            
+            // Mettre à jour l'affichage des tags pour montrer ceux qui ont été intégrés
+            const tagsEl = document.getElementById('detailTagsContainer');
+            if (tagsEl && prospect.tags && prospect.tags.length) {
+                const refSet = typeof buildReferentialTagSet === 'function' ? buildReferentialTagSet() : new Set();
+                const integrations = window._tagIntegrationsCache || {};
+                tagsEl.innerHTML = prospect.tags.map(t => {
+                    const tLower = t.toLowerCase().trim();
+                    const inRef = refSet.has(tLower);
+                    const integrated = integrations[tLower] && integrations[tLower].category;
+                    let title = inRef ? 'Référentiel Up Technologies' : (integrated ? 'Tag intégré via IA dans ' + integrations[tLower].category : 'Tag personnalisé (hors référentiel)');
+                    let badge = inRef ? '' : (integrated ? ' 🤖' : ' *');
+                    return `<span class="tag-pill${inRef ? '' : ' tag-pill-custom'}" title="${title}">${escapeHtml(t)}${badge}</span>`;
+                }).join(' ');
+            }
+        });
+    }
 }
 
 function buildMetierOptionsHtml(currentValue) {
@@ -3993,49 +5633,248 @@ function clearFixedMetier(prospectId) {
 }
 
 
-async function openEmailForProspect(prospectId) {
+// v25.3: Modale pour sélectionner candidats et consultants avant push
+let _pushModalProspectId = null;
+let _pushModalChannel = 'email';
+let _pushModalCandidates = [];
+let _pushModalUsers = [];
+
+function _ensurePushModal() {
+    if (document.getElementById('pushSelectModal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'pushSelectModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:700px;">
+            <button class="modal-close" onclick="closePushSelectModal()">×</button>
+            <h2 style="margin-top:0;">📤 Envoyer un push</h2>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Catégorie push (optionnel)</label>
+                <select id="pushModalCategory" class="input" style="width:100%;">
+                    <option value="">Aucune catégorie</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Candidat 1 (optionnel)</label>
+                <select id="pushModalCandidate1" class="input" style="width:100%;">
+                    <option value="">Aucun candidat</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Candidat 2 (optionnel)</label>
+                <select id="pushModalCandidate2" class="input" style="width:100%;">
+                    <option value="">Aucun candidat</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Consultant 1 (optionnel)</label>
+                <select id="pushModalConsultant1" class="input" style="width:100%;">
+                    <option value="">Aucun consultant</option>
+                </select>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Consultant 2 (optionnel)</label>
+                <select id="pushModalConsultant2" class="input" style="width:100%;">
+                    <option value="">Aucun consultant</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closePushSelectModal()">Annuler</button>
+                <button class="btn btn-primary" onclick="confirmPushSend()">📤 Envoyer</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function openPushSelectModal(prospectId, channel = 'email') {
+    _ensurePushModal();
+    _pushModalProspectId = prospectId;
+    _pushModalChannel = channel;
     const p = data.prospects.find(x => x.id === prospectId);
-    if (!p || !p.email) {
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'warning');
+        return;
+    }
+    if (channel === 'email' && !p.email) {
         showToast("⚠️ Aucun email renseigné pour ce prospect.", 'warning');
         return;
     }
-    const company = data.companies.find(c => c.id === p.company_id);
-    const companyName = company?.groupe || '';
-
-    // ALWAYS copy the email address to clipboard
-    try { await navigator.clipboard.writeText(p.email); } catch(e) {
-        const ta = document.createElement('textarea');
-        ta.value = p.email;
-        ta.style.position = 'fixed'; ta.style.left = '-9999px';
-        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-        document.body.removeChild(ta);
+    if (channel === 'linkedin' && !p.linkedin) {
+        showToast("⚠️ Aucun LinkedIn renseigné pour ce prospect.", 'warning');
+        return;
     }
 
-    // If no push category selected, auto-propose one
-    let catId = p.push_category_id;
-    if (!catId) {
-        const cats = Array.isArray(pushCategories) ? pushCategories : [];
-        if (cats.length > 0) {
-            const options = cats.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
-            const choice = prompt(`Aucune catégorie push sélectionnée.\nChoisissez un numéro :\n\n${options}\n\n(Laissez vide pour envoyer sans template)`);
-            if (choice !== null) {
-                const idx = parseInt(choice, 10) - 1;
-                if (idx >= 0 && idx < cats.length) {
-                    catId = cats[idx].id;
-                    p.push_category_id = catId;
-                    try { await saveToServerAsync(); } catch (e) {}
-                    // update dropdown if visible
-                    const sel = document.getElementById('detailCategorySelect');
-                    if (sel) sel.value = String(catId);
+    // Charger les catégories push
+    const catSelect = document.getElementById('pushModalCategory');
+    if (catSelect) {
+        try {
+            const res = await fetch('/api/push-categories');
+            if (res.ok) {
+                const cats = await res.json();
+                catSelect.innerHTML = '<option value="">Aucune catégorie</option>' +
+                    (Array.isArray(cats) ? cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') : '');
+                if (p.push_category_id) {
+                    catSelect.value = String(p.push_category_id);
                 }
             }
+        } catch (e) {
+            console.warn('Error loading push categories', e);
         }
     }
 
-    // Try to open .msg template if push category is set
+    // Charger les candidats
+    _pushModalCandidates = [];
+    const cand1Select = document.getElementById('pushModalCandidate1');
+    const cand2Select = document.getElementById('pushModalCandidate2');
+    if (cand1Select && cand2Select) {
+        try {
+            const qs = p.push_category_id ? `?push_category_id=${encodeURIComponent(p.push_category_id)}` : '';
+            const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
+            if (res.ok) {
+                const j = await res.json();
+                if (j.ok && j.candidates) {
+                    _pushModalCandidates = j.candidates;
+                    const options = '<option value="">Aucun candidat</option>' +
+                        _pushModalCandidates.map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' - ' + escapeHtml(c.role) : ''}</option>`).join('');
+                    cand1Select.innerHTML = options;
+                    cand2Select.innerHTML = options;
+                }
+            }
+        } catch (e) {
+            console.warn('Error loading candidates', e);
+        }
+    }
+
+    // Charger les utilisateurs (consultants)
+    _pushModalUsers = [];
+    const cons1Select = document.getElementById('pushModalConsultant1');
+    const cons2Select = document.getElementById('pushModalConsultant2');
+    if (cons1Select && cons2Select) {
+        try {
+            const res = await fetch('/api/users');
+            if (res.ok) {
+                const users = await res.json();
+                if (Array.isArray(users)) {
+                    _pushModalUsers = users;
+                    const options = '<option value="">Aucun consultant</option>' +
+                        users.map(u => `<option value="${u.id}">${escapeHtml(u.display_name || u.username || 'Utilisateur ' + u.id)}</option>`).join('');
+                    cons1Select.innerHTML = options;
+                    cons2Select.innerHTML = options;
+                }
+            }
+        } catch (e) {
+            console.warn('Error loading users', e);
+        }
+    }
+
+    const modal = document.getElementById('pushSelectModal');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal);
+        } else {
+            modal.classList.add('active');
+        }
+    }
+}
+
+function closePushSelectModal() {
+    const modal = document.getElementById('pushSelectModal');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
+    _pushModalProspectId = null;
+    _pushModalChannel = 'email';
+}
+
+async function confirmPushSend() {
+    if (!_pushModalProspectId) return;
+    const p = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'error');
+        return;
+    }
+    const channel = _pushModalChannel || 'email';
+    if (channel === 'email' && !p.email) {
+        showToast("⚠️ Aucun email renseigné.", 'error');
+        return;
+    }
+    if (channel === 'linkedin' && !p.linkedin) {
+        showToast("⚠️ Aucun LinkedIn renseigné.", 'error');
+        return;
+    }
+
+    const catId = document.getElementById('pushModalCategory')?.value || null;
+    const candidateId1 = document.getElementById('pushModalCandidate1')?.value || null;
+    const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
+    const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
+    const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+
+    const company = data.companies.find(c => c.id === p.company_id);
+    const companyName = company?.groupe || '';
+
+    let text = '';
     let templateOpened = false;
     let templateName = '';
-    if (catId) {
+
+    if (channel === 'email') {
+        // ALWAYS copy the email address to clipboard
+        try { await navigator.clipboard.writeText(p.email); } catch(e) {
+            const ta = document.createElement('textarea');
+            ta.value = p.email;
+            ta.style.position = 'fixed'; ta.style.left = '-9999px';
+            document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+    } else if (channel === 'linkedin') {
+        // Template choisi -> sinon défaut
+        let templateId = p.template_id;
+        const tpl = (templateId ? getTemplateById(templateId) : null) || getDefaultTemplate();
+        const vars = buildTemplateVars(p, company);
+
+        // Check for custom InMail template in settings
+        try {
+            const settingsRes = await fetch('/api/settings');
+            const settings = await settingsRes.json();
+            if (settings && settings.linkedin_inmail_template && settings.linkedin_inmail_template.trim()) {
+                text = renderTemplateString(settings.linkedin_inmail_template, vars).trim();
+            }
+        } catch(e) {}
+
+        if (!text) {
+            text = `Bonjour ${vars.civilite ? (vars.civilite + ' ') : ''}${vars.nom || vars.nom_complet || ''},\n\nJe me permets de vous contacter concernant ${vars.entreprise || 'votre entreprise'}.\n\nBelle journée,`;
+            if (tpl) {
+                const b = renderTemplateString((tpl.linkedin_body || tpl.linkedinBody || tpl.body || ''), vars).trim();
+                if (b) text = b;
+            }
+        }
+
+        // Copy to clipboard
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (e) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus(); ta.select();
+            try { document.execCommand('copy'); } catch (e2) {}
+            document.body.removeChild(ta);
+        }
+
+        // Open LinkedIn profile in new tab
+        if (p.linkedin) {
+            window.open(p.linkedin, '_blank');
+        }
+    }
+
+    // Try to open .msg template if push category is set (email only)
+    if (channel === 'email' && catId) {
         try {
             const res = await fetch(`/api/push-categories/${catId}/files`);
             if (res.ok) {
@@ -4066,75 +5905,242 @@ async function openEmailForProspect(prospectId) {
         }
     }
 
+    // Télécharger automatiquement les dossiers de compétences des candidats sélectionnés (email only)
+    if (channel === 'email' && (candidateId1 || candidateId2)) {
+        const candidateIds = [candidateId1, candidateId2].filter(Boolean);
+        for (const candId of candidateIds) {
+            try {
+                // Récupérer les infos du candidat pour vérifier s'il a un dossier de compétence
+                const candRes = await fetch(`/api/candidates/${candId}`);
+                if (candRes.ok) {
+                    const candData = await candRes.json();
+                    if (candData.ok && candData.candidate && candData.candidate.dossier_competence_pdf) {
+                        // Télécharger le PDF
+                        const pdfUrl = `/api/candidates/${candId}/dossier-competence`;
+                        const link = document.createElement('a');
+                        link.href = pdfUrl;
+                        link.download = candData.candidate.dossier_competence_pdf;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        // Petit délai entre les téléchargements pour éviter les problèmes
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    }
+                }
+            } catch (e) {
+                console.warn(`Error downloading PDF for candidate ${candId}:`, e);
+            }
+        }
+    }
+
     // Mark push as sent
     const sentAt = todayISO();
-    p.pushEmailSentAt = sentAt;
-    try {
-        const el = document.getElementById('detailPushSent');
-        if (el) el.textContent = '✅ ' + sentAt;
-    } catch (e) {}
+    if (channel === 'email') {
+        p.pushEmailSentAt = sentAt;
+        try {
+            const el = document.getElementById('detailPushSent');
+            if (el) el.textContent = '✅ ' + sentAt;
+        } catch (e) {}
+    } else if (channel === 'linkedin') {
+        p.pushLinkedInSentAt = sentAt;
+        try {
+            const el = document.getElementById('detailPushLinkedInSent');
+            if (el) el.textContent = '✅ ' + sentAt;
+        } catch (e) {}
+    }
 
     try { await saveToServerAsync(); } catch (e) {}
 
-    // Log push
+    // Log push avec candidats et consultants
     try {
         await fetch('/api/push-logs/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                prospect_id: p.id, sentAt, channel: 'email',
-                to_email: p.email,
-                subject: templateOpened ? `Push ${companyName}` : 'Push manuel',
-                body: templateOpened ? `Template: ${templateName}` : '',
+                prospect_id: p.id, sentAt, channel: channel,
+                to_email: channel === 'email' ? p.email : null,
+                subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : 'Push manuel') : null,
+                body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : '') : text,
                 template_id: null,
-                template_name: templateName || null
+                template_name: templateName || null,
+                candidate_id1: candidateId1 ? parseInt(candidateId1, 10) : null,
+                candidate_id2: candidateId2 ? parseInt(candidateId2, 10) : null,
+                consultant1_id: consultantId1 ? parseInt(consultantId1, 10) : null,
+                consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null
             })
         });
-    } catch (e) {}
+    } catch (e) {
+        console.warn('Error logging push', e);
+    }
+
+    closePushSelectModal();
 
     // Feedback
-    if (templateOpened) {
-        showToast(`✅ Email ${p.email} copié ! Template Outlook ouvert. Collez l'email dans "À:".`, 'success', 6000);
-    } else {
-        showToast(`📋 Email ${p.email} copié dans le presse-papier.`, 'info', 4000);
+    if (channel === 'email') {
+        if (templateOpened) {
+            showToast(`✅ Email ${p.email} copié ! Template Outlook ouvert. Collez l'email dans "À:".`, 'success', 6000);
+        } else {
+            showToast(`📋 Email ${p.email} copié dans le presse-papier.`, 'info', 4000);
+        }
+    } else if (channel === 'linkedin') {
+        showToast(`📋 Message LinkedIn copié ! Profil ouvert dans un nouvel onglet.`, 'success', 4000);
     }
+}
+
+async function openEmailForProspect(prospectId) {
+    // v25.3: Ouvrir la modale de sélection candidats/consultants
+    await openPushSelectModal(prospectId);
 }
 
 
 // ═══ OLLAMA — Appel IA locale (proxy backend) ═══
-/** Envoie le prompt à Ollama via le backend, retourne le texte généré. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
+/** Affiche/masque l'indicateur visuel de progression Ollama */
+function _showOllamaProgress(show, message, tokenCount) {
+    let overlay = document.getElementById('ollama-progress-overlay');
+    if (show) {
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'ollama-progress-overlay';
+            overlay.innerHTML = `
+                <div class="ollama-progress-container">
+                    <div class="ollama-progress-spinner"></div>
+                    <div class="ollama-progress-message" id="ollama-progress-message">${message || 'Connexion à Ollama…'}</div>
+                    <div class="ollama-progress-stats" id="ollama-progress-stats"></div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+        const msgEl = document.getElementById('ollama-progress-message');
+        const statsEl = document.getElementById('ollama-progress-stats');
+        if (msgEl) msgEl.textContent = message || 'Connexion à Ollama…';
+        if (statsEl && tokenCount !== undefined) {
+            statsEl.textContent = tokenCount > 0 ? `${tokenCount} caractères reçus` : '';
+        }
+        overlay.style.display = 'flex';
+    } else {
+        if (overlay) overlay.style.display = 'none';
+    }
+}
+
+/** Envoie le prompt à Ollama via le backend avec streaming, retourne le texte généré. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
 async function callOllama(prompt, options) {
     options = options || {};
     const timeoutMs = options.timeoutMs != null ? Math.max(10000, Math.min(600000, options.timeoutMs)) : 180000;
-    const toastId = 'ollama-loading';
-    if (typeof showToast === 'function') showToast('Génération en cours (Ollama)…', 'info', Math.min(60000, timeoutMs));
+    const useStream = options.stream !== false; // Streaming par défaut, peut être désactivé
+    
+    // Afficher l'indicateur visuel
+    _showOllamaProgress(true, 'Connexion à Ollama…', 0);
+    
     const controller = new AbortController();
-    const timeoutId = setTimeout(function () { controller.abort(); }, timeoutMs);
+    const timeoutId = setTimeout(function () { 
+        controller.abort(); 
+        _showOllamaProgress(false);
+    }, timeoutMs);
+    
     try {
         const body = { prompt };
         if (options.model) body.model = options.model;
         body.timeout = Math.min(600, Math.ceil(timeoutMs / 1000));
-        const res = await fetch('/api/ollama/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-            const msg = data.error || ('Erreur ' + res.status);
-            if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
-            throw new Error(msg);
+        
+        let fullText = '';
+        let tokenCount = 0;
+        
+        if (useStream) {
+            // Mode streaming avec SSE
+            const res = await fetch('/api/ollama/generate-stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+            
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                const msg = data.error || ('Erreur ' + res.status);
+                _showOllamaProgress(false);
+                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                throw new Error(msg);
+            }
+            
+            // Lire le stream SSE
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                // SSE utilise des blocs séparés par \n\n
+                let parts = buffer.split('\n\n');
+                buffer = parts.pop() || ''; // Garder le dernier bloc incomplet
+                
+                for (const part of parts) {
+                    const lines = part.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                if (data.type === 'start') {
+                                    _showOllamaProgress(true, data.message || 'Génération en cours…', 0);
+                                } else if (data.type === 'token') {
+                                    fullText += data.text || '';
+                                    tokenCount = fullText.length;
+                                    _showOllamaProgress(true, 'Génération en cours…', tokenCount);
+                                    if (data.done) {
+                                        // Dernier token
+                                        _showOllamaProgress(true, 'Finalisation…', tokenCount);
+                                    }
+                                } else if (data.type === 'end') {
+                                    _showOllamaProgress(true, data.message || 'Terminé', tokenCount);
+                                } else if (data.type === 'error') {
+                                    _showOllamaProgress(false);
+                                    if (typeof showToast === 'function') showToast('Ollama : ' + data.message, 'error', 5000);
+                                    throw new Error(data.message);
+                                }
+                            } catch (e) {
+                                // Ignorer les erreurs de parsing des lignes SSE invalides
+                                if (e.name !== 'SyntaxError') {
+                                    console.warn('Erreur parsing SSE:', e);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            clearTimeout(timeoutId);
+            _showOllamaProgress(false);
+            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            return fullText;
+        } else {
+            // Mode non-streaming (fallback)
+            const res = await fetch('/api/ollama/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            _showOllamaProgress(false);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const msg = data.error || ('Erreur ' + res.status);
+                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                throw new Error(msg);
+            }
+            if (!data.ok || data.text === undefined) {
+                if (typeof showToast === 'function') showToast('Réponse Ollama invalide', 'error', 4000);
+                throw new Error('Réponse invalide');
+            }
+            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            return data.text;
         }
-        if (!data.ok || data.text === undefined) {
-            if (typeof showToast === 'function') showToast('Réponse Ollama invalide', 'error', 4000);
-            throw new Error('Réponse invalide');
-        }
-        if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
-        return data.text;
     } catch (e) {
         clearTimeout(timeoutId);
+        _showOllamaProgress(false);
         if (e.name === 'AbortError') {
             if (typeof showToast === 'function') showToast('Génération trop longue. Utilisez « Copier » puis collez le retour manuellement, ou réduisez le nombre d\'entrées.', 'error', 8000);
             throw new Error('Timeout');
@@ -4295,6 +6301,80 @@ function copyScrapingPromptCandidate(candidateData) {
 }
 
 // ═══════════════════════════════════════════════════════
+// VSA IMPORT — Extraction candidat depuis fiche VSA (collage + Ollama)
+// ═══════════════════════════════════════════════════════
+
+/** Retourne le prompt pour extraire les champs candidat depuis un contenu de fiche VSA. */
+function getVsaExtractionPrompt(vsaContent) {
+    return `Tu as ci-dessous le contenu d'une fiche candidat VSA (Suivi des candidats, vsactivity). Extrais les champs suivants au format exact (une ligne par champ, clé en majuscules avec underscores) :
+
+NOM: [nom et prénom du candidat]
+ROLE: [titre de poste / rôle]
+LOCALISATION: [ville, région, mobilité si mentionnée]
+SENIORITE: [Junior, Confirmé, Senior, Expert si identifiable]
+TECH: [technologies principales, séparées par des virgules]
+SKILLS: [compétences, tags séparés par des virgules]
+TELEPHONE: [numéro si présent]
+EMAIL: [email si présent]
+LINKEDIN: [URL du profil LinkedIn si présente]
+NOTES: [résumé ou contexte utile en une ou deux lignes]
+
+Si un champ est absent ou introuvable, ne l'écris pas. Réponds UNIQUEMENT avec les lignes CLÉ: valeur, sans introduction ni conclusion.
+
+══════ CONTENU FICHE VSA ══════
+${vsaContent}`;
+}
+
+/** Parse un texte au format KEY: value et retourne un objet pour pré-remplir le formulaire candidat (name, role, location, etc.). */
+function parseVsaCandidateText(text) {
+    const out = { name: '', role: '', location: '', seniority: '', tech: '', linkedin: '', source: 'VSA', notes: '', phone: '', email: '', skills: [], vsa_url: '' };
+    if (!text || typeof text !== 'string') return out;
+    const lines = text.split('\n');
+    let currentKey = null;
+    let currentValue = '';
+
+    const keyToField = {
+        'NOM': 'name',
+        'ROLE': 'role',
+        'LOCALISATION': 'location',
+        'SENIORITE': 'seniority',
+        'TECH': 'tech',
+        'LINKEDIN': 'linkedin',
+        'NOTES': 'notes',
+        'TELEPHONE': 'phone',
+        'EMAIL': 'email',
+        'SKILLS': 'skills'
+    };
+
+    function flush() {
+        if (!currentKey) return;
+        const key = currentKey.toUpperCase().replace(/\s+/g, '_');
+        const field = keyToField[key];
+        const val = currentValue.trim();
+        if (!field || !val || /^\[?à trouver\]?$/i.test(val) || /^\[?absent\]?$/i.test(val)) return;
+        if (field === 'skills') {
+            const list = val.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+            if (list.length) out.skills = list;
+        } else {
+            out[field] = val;
+        }
+    }
+
+    for (const line of lines) {
+        const match = line.match(/^([A-ZÀ-Ü_]+)\s*:\s*(.*)$/);
+        if (match) {
+            flush();
+            currentKey = match[1].trim();
+            currentValue = match[2].trim();
+        } else if (currentKey) {
+            currentValue += '\n' + line;
+        }
+    }
+    flush();
+    return out;
+}
+
+// ═══════════════════════════════════════════════════════
 // IA IMPORT SYSTEM — Parse AI results & fill fields
 // ═══════════════════════════════════════════════════════
 
@@ -4387,11 +6467,25 @@ function openIAImportModal(type, id) {
     document.getElementById('iaManagersPreview').style.display = 'none';
     const titles = { prospect: 'prospect', candidate: 'candidat', company: 'entreprise' };
     document.getElementById('iaModalTitle').textContent = `📥 Import IA — Fiche ${titles[type] || type}`;
-    document.getElementById('modalIAImport').classList.add('active');
+    const modal = document.getElementById('modalIAImport');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: '.gsearch-input, input, textarea' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 function closeIAImportModal() {
-    document.getElementById('modalIAImport')?.classList.remove('active');
+    const modal = document.getElementById('modalIAImport');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function iaBackToStep1() {
@@ -4999,8 +7093,15 @@ function _ensureBulkIAModal() {
                 <button class="btn btn-secondary" onclick="closeBulkIAModal()" style="font-size:14px;padding:4px 10px;">✕</button>
             </div>
 
-            <!-- Step 1: Prompt -->
-            <div id="bulkIAStep1" style="margin-top:14px;">
+            <!-- Tabs (only for tel mode) -->
+            <div id="bulkIATabs" style="display:none;margin-top:12px;border-bottom:1px solid var(--border-color);">
+                <button class="bulk-ia-tab active" data-tab="ollama" onclick="switchBulkIATab('ollama')">🤖 Ollama</button>
+                <button class="bulk-ia-tab" data-tab="paste" onclick="switchBulkIATab('paste')">📋 Coller</button>
+                <button class="bulk-ia-tab" data-tab="csv" onclick="switchBulkIATab('csv')">📄 CSV</button>
+            </div>
+
+            <!-- Step 1: Ollama (existing) -->
+            <div id="bulkIAStep1Ollama" class="bulk-ia-step" style="margin-top:14px;">
                 <p class="muted" style="font-size:12px;margin-bottom:8px;">
                     <strong>Étape 1 :</strong> Générez avec Ollama (local) ou copiez le prompt pour une autre IA.
                 </p>
@@ -5016,6 +7117,45 @@ function _ensureBulkIAModal() {
                 <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
                     <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
                     <button class="btn btn-primary" onclick="parseBulkIAResult()">🔍 Analyser</button>
+                </div>
+            </div>
+
+            <!-- Step 1: Paste manual -->
+            <div id="bulkIAStep1Paste" class="bulk-ia-step" style="margin-top:14px;display:none;">
+                <p class="muted" style="font-size:12px;margin-bottom:8px;">
+                    <strong>Collez vos numéros :</strong> Format : une ligne par prospect avec "Nom / Numéro" ou "Nom / Numéro1 / Numéro2" pour plusieurs numéros.
+                </p>
+                <textarea id="bulkIAPasteTextarea" placeholder="Exemple :&#10;Nicolas Mugnier / +33 4 37 59 09 80&#10;Herve Pays / +33 4 37 59 09 80 / +33 6 15 23 65 89&#10;Sebastien Chapacou / +33 6 12 34 56 78" style="min-height:200px;font-family:monospace;font-size:12px;"></textarea>
+                <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+                    <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
+                    <button class="btn btn-primary" onclick="parseBulkIAPaste()">🔍 Analyser</button>
+                </div>
+            </div>
+
+            <!-- Step 1: CSV import -->
+            <div id="bulkIAStep1Csv" class="bulk-ia-step" style="margin-top:14px;display:none;">
+                <p class="muted" style="font-size:12px;margin-bottom:8px;">
+                    <strong>Importez un fichier CSV :</strong> Le format peut varier. Vous pourrez vérifier le mapping avec Ollama si nécessaire.
+                </p>
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:12px;display:block;margin-bottom:4px;">Séparateur :</label>
+                    <select id="bulkIACsvSeparator" style="font-size:13px;padding:6px 10px;border-radius:6px;margin-right:12px;">
+                        <option value="auto">Auto</option>
+                        <option value=";">Point-virgule (;)</option>
+                        <option value=",">Virgule (,)</option>
+                        <option value="\t">Tabulation</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="suggestBulkIACsvMappingWithOllama()" id="bulkIACsvSuggestOllamaBtn" style="font-size:12px;padding:6px 12px;">🤖 Vérifier format avec Ollama</button>
+                </div>
+                <input type="file" id="bulkIACsvFile" accept=".csv,.txt" style="display:none;">
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('bulkIACsvFile').click()">Choisir un fichier CSV</button>
+                <div id="bulkIACsvMapping" style="display:none;margin-top:16px;">
+                    <p class="muted" style="font-size:12px;margin-bottom:8px;"><strong>Mapping des colonnes :</strong></p>
+                    <div id="bulkIACsvMappingGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
+                        <button class="btn btn-primary" onclick="parseBulkIACsv()">🔍 Analyser</button>
+                    </div>
                 </div>
             </div>
 
@@ -5049,7 +7189,16 @@ function _ensureBulkIAModal() {
         </div>
     </div>`;
     document.body.appendChild(div.firstElementChild);
+    
+    // CSV file handler
+    document.getElementById('bulkIACsvFile').addEventListener('change', function(e) {
+        const f = e.target.files[0];
+        if (f) parseBulkIACsvFile(f);
+    });
 }
+
+let _bulkIACurrentTab = 'ollama';
+let _bulkIACsvData = null; // {headers, rows}
 
 function openBulkIAModal(mode) {
     if (selectedProspects.size === 0) {
@@ -5087,22 +7236,70 @@ function openBulkIAModal(mode) {
     document.getElementById('bulkIATitle').textContent = `${icon} Trouver les ${fieldLabel}s — ${_bulkIAProspects.length} prospect(s)`;
     document.getElementById('bulkIAResultHeader').textContent = fieldLabel;
 
+    // Show tabs only for tel mode
+    const tabsEl = document.getElementById('bulkIATabs');
+    if (tabsEl) tabsEl.style.display = mode === 'tel' ? '' : 'none';
+
+    // Reset tabs and show ollama by default
+    _bulkIACurrentTab = 'ollama';
+    switchBulkIATab('ollama');
+
     // Generate prompt
     const prompt = _generateBulkIAPrompt(mode);
     document.getElementById('bulkIAPromptText').textContent = prompt;
     document.getElementById('bulkIAResultTextarea').value = '';
-    document.getElementById('bulkIAStep1').style.display = '';
+    document.getElementById('bulkIAPasteTextarea').value = '';
     document.getElementById('bulkIAStep2').style.display = 'none';
+    _bulkIACsvData = null;
+    document.getElementById('bulkIACsvMapping').style.display = 'none';
+    document.getElementById('bulkIACsvFile').value = '';
 
-    document.getElementById('modalBulkIA').classList.add('active');
+    const modal = document.getElementById('modalBulkIA');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: 'input, textarea' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
+}
+
+function switchBulkIATab(tab) {
+    _bulkIACurrentTab = tab;
+    document.querySelectorAll('.bulk-ia-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    document.querySelectorAll('.bulk-ia-step').forEach(step => {
+        step.style.display = 'none';
+    });
+    if (tab === 'ollama') {
+        document.getElementById('bulkIAStep1Ollama').style.display = '';
+    } else if (tab === 'paste') {
+        document.getElementById('bulkIAStep1Paste').style.display = '';
+    } else if (tab === 'csv') {
+        document.getElementById('bulkIAStep1Csv').style.display = '';
+    }
 }
 
 function closeBulkIAModal() {
-    document.getElementById('modalBulkIA')?.classList.remove('active');
+    const modal = document.getElementById('modalBulkIA');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function bulkIABackToStep1() {
-    document.getElementById('bulkIAStep1').style.display = '';
+    if (_bulkIACurrentTab === 'ollama') {
+        document.getElementById('bulkIAStep1Ollama').style.display = '';
+    } else if (_bulkIACurrentTab === 'paste') {
+        document.getElementById('bulkIAStep1Paste').style.display = '';
+    } else if (_bulkIACurrentTab === 'csv') {
+        document.getElementById('bulkIAStep1Csv').style.display = '';
+    }
     document.getElementById('bulkIAStep2').style.display = 'none';
 }
 
@@ -5206,7 +7403,195 @@ function parseBulkIAResult() {
         }
     }
 
-    // Build preview table
+    _displayBulkIAResults(results);
+}
+
+// Parse pasted manual data (format: "Nom / Numéro" or "Nom / Numéro1 / Numéro2")
+function parseBulkIAPaste() {
+    const text = document.getElementById('bulkIAPasteTextarea').value.trim();
+    if (!text) { showToast('⚠️ Collez les numéros d\'abord.', 'warning'); return; }
+
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const results = [];
+
+    // Build a map of name -> phone numbers
+    const nameToPhones = {};
+    lines.forEach(line => {
+        const parts = line.split('/').map(p => p.trim()).filter(p => p);
+        if (parts.length < 2) return; // Need at least name + one phone
+        const name = parts[0];
+        const phones = parts.slice(1).filter(p => p);
+        if (phones.length > 0) {
+            nameToPhones[name] = phones.join(' / ');
+        }
+    });
+
+    // Match prospects by name (fuzzy matching)
+    _bulkIAProspects.forEach((p, i) => {
+        let found = '';
+        // Exact match first
+        if (nameToPhones[p.name]) {
+            found = nameToPhones[p.name];
+        } else {
+            // Try fuzzy match (case insensitive, partial)
+            const pNameLower = p.name.toLowerCase();
+            for (const [name, phones] of Object.entries(nameToPhones)) {
+                if (name.toLowerCase() === pNameLower || 
+                    name.toLowerCase().includes(pNameLower) || 
+                    pNameLower.includes(name.toLowerCase())) {
+                    found = phones;
+                    break;
+                }
+            }
+        }
+        results[i] = found;
+    });
+
+    _displayBulkIAResults(results);
+}
+
+// Parse CSV file
+function parseBulkIACsvFile(file) {
+    const sepEl = document.getElementById('bulkIACsvSeparator');
+    let sep = (sepEl && sepEl.value && sepEl.value !== 'auto') ? sepEl.value : null;
+    if (sep === '\\t') sep = '\t';
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const raw = _parseCsvText(e.target.result, sep ? { separator: sep } : {});
+            if (!raw || !raw.rows.length) { 
+                showToast('CSV vide ou invalide.', 'warning'); 
+                return; 
+            }
+            _bulkIACsvData = raw;
+            _showBulkIACsvMapping();
+        } catch (err) {
+            showToast('Erreur lecture CSV: ' + (err.message || err), 'error');
+        }
+    };
+    reader.onerror = function() { 
+        showToast('Erreur de lecture du fichier.', 'error'); 
+    };
+    reader.readAsText(file, 'utf-8');
+}
+
+function _showBulkIACsvMapping() {
+    if (!_bulkIACsvData) return;
+    const grid = document.getElementById('bulkIACsvMappingGrid');
+    const mapping = {};
+    
+    grid.innerHTML = _bulkIACsvData.headers.map((h, i) => {
+        const guessed = _guessMapping(h);
+        const isName = /nom|name|contact/i.test(h) && !/entreprise|company|société/i.test(h);
+        const isTel = /tél|tel|telephone|phone|mobile|portable/i.test(h);
+        let opts = '<option value="">— Ignorer —</option>';
+        if (isName) opts += '<option value="name" selected>Nom du prospect</option>';
+        if (isTel) opts += '<option value="telephone" selected>Téléphone</option>';
+        if (!isName && !isTel) {
+            opts += '<option value="name">Nom du prospect</option>';
+            opts += '<option value="telephone">Téléphone</option>';
+        }
+        return `<div class="import-list-mapping-row"><label style="font-size:11px;">${escapeHtml(h) || 'Colonne ' + (i+1)}</label><select class="bulk-ia-csv-map-select" data-col="${i}" style="font-size:12px;padding:4px 8px;">${opts}</select></div>`;
+    }).join('');
+    
+    document.getElementById('bulkIACsvMapping').style.display = '';
+}
+
+async function suggestBulkIACsvMappingWithOllama() {
+    if (!_bulkIACsvData || !_bulkIACsvData.headers.length) return;
+    const headers = _bulkIACsvData.headers;
+    const prompt = `Tu es un assistant. Voici les en-têtes de colonnes d'un fichier CSV pour ajouter des numéros de téléphone à des prospects : ${JSON.stringify(headers)}. Retourne un objet JSON unique dont les clés sont exactement ces en-têtes (une par colonne) et les valeurs sont soit "name" (pour la colonne contenant le nom du prospect), soit "telephone" (pour la colonne contenant le numéro de téléphone), soit "" (chaîne vide pour ignorer). Exemple : {"NOM":"name","TEL":"telephone","PORTABLE":"telephone","AUTRE":"","DATE":""}. Réponds uniquement avec ce JSON, sans texte avant ou après, sans markdown.`;
+    const btn = document.getElementById('bulkIACsvSuggestOllamaBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
+    try {
+        const text = await callOllama(prompt);
+        let jsonStr = (text || '').trim();
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonStr = jsonMatch[0];
+        const mapping = JSON.parse(jsonStr);
+        const headerToIndex = {};
+        headers.forEach((h, i) => { headerToIndex[h] = i; });
+        Object.keys(mapping).forEach(header => {
+            const field = mapping[header];
+            const idx = headerToIndex[header];
+            if (idx === undefined || !field) return;
+            const select = document.querySelector(`.bulk-ia-csv-map-select[data-col="${idx}"]`);
+            if (select && (field === 'name' || field === 'telephone')) select.value = field;
+        });
+        showToast('Mapping suggéré appliqué. Vérifiez puis cliquez Analyser.', 'success', 4000);
+    } catch (e) {
+        showToast('Ollama indisponible ou réponse invalide. Vérifiez le mapping manuellement.', 'warning', 5000);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 Vérifier format avec Ollama'; }
+    }
+}
+
+function parseBulkIACsv() {
+    if (!_bulkIACsvData) { showToast('⚠️ Importez un fichier CSV d\'abord.', 'warning'); return; }
+    
+    const selects = document.querySelectorAll('.bulk-ia-csv-map-select');
+    const nameCols = [];
+    const telCols = [];
+    
+    selects.forEach(s => {
+        const col = parseInt(s.dataset.col, 10);
+        const field = s.value;
+        if (field === 'name') nameCols.push(col);
+        else if (field === 'telephone') telCols.push(col);
+    });
+    
+    if (nameCols.length === 0) {
+        showToast('⚠️ Mappez au moins une colonne "Nom du prospect".', 'warning');
+        return;
+    }
+    
+    if (telCols.length === 0) {
+        showToast('⚠️ Mappez au moins une colonne "Téléphone".', 'warning');
+        return;
+    }
+    
+    // Build map: name -> phones (multiple phones joined with /)
+    const nameToPhones = {};
+    _bulkIACsvData.rows.forEach(row => {
+        const nameParts = nameCols.map(c => (row[c] != null ? String(row[c]).trim() : '')).filter(Boolean);
+        const name = nameParts.join(' ').trim();
+        if (!name) return;
+        
+        const phoneParts = telCols.map(c => (row[c] != null ? String(row[c]).trim() : '')).filter(Boolean);
+        if (phoneParts.length > 0) {
+            // If multiple phone columns, join them with /
+            nameToPhones[name] = phoneParts.join(' / ');
+        }
+    });
+    
+    // Match prospects by name
+    const results = [];
+    _bulkIAProspects.forEach((p, i) => {
+        let found = '';
+        // Exact match first
+        if (nameToPhones[p.name]) {
+            found = nameToPhones[p.name];
+        } else {
+            // Try fuzzy match
+            const pNameLower = p.name.toLowerCase();
+            for (const [name, phones] of Object.entries(nameToPhones)) {
+                if (name.toLowerCase() === pNameLower || 
+                    name.toLowerCase().includes(pNameLower) || 
+                    pNameLower.includes(name.toLowerCase())) {
+                    found = phones;
+                    break;
+                }
+            }
+        }
+        results[i] = found;
+    });
+    
+    _displayBulkIAResults(results);
+}
+
+// Common function to display results (used by all parsing methods)
+function _displayBulkIAResults(results) {
     const tbody = document.getElementById('bulkIAResultsBody');
     let html = '';
     let foundCount = 0;
@@ -5232,7 +7617,13 @@ function parseBulkIAResult() {
     tbody.innerHTML = html;
     document.getElementById('bulkIAFoundCount').textContent = `${foundCount}/${_bulkIAProspects.length} trouvé(s)`;
 
-    document.getElementById('bulkIAStep1').style.display = 'none';
+    if (_bulkIACurrentTab === 'ollama') {
+        document.getElementById('bulkIAStep1Ollama').style.display = 'none';
+    } else if (_bulkIACurrentTab === 'paste') {
+        document.getElementById('bulkIAStep1Paste').style.display = 'none';
+    } else if (_bulkIACurrentTab === 'csv') {
+        document.getElementById('bulkIAStep1Csv').style.display = 'none';
+    }
     document.getElementById('bulkIAStep2').style.display = '';
 }
 
@@ -5258,15 +7649,26 @@ async function applyBulkIA() {
         return;
     }
 
-    // Apply to local data
+    const total = updates.length;
+    const label = isEmail ? 'email(s)' : 'téléphone(s)';
+    
+    // Apply to local data with progression
     const ids = [];
     const values = [];
+    let applied = 0;
+    
     for (const u of updates) {
         const p = data.prospects.find(x => x.id === _bulkIAProspects[u.idx].id);
         if (p) {
             p[field] = u.value;
             ids.push(p.id);
             values.push(u.value);
+            applied++;
+            showBulkProgress(applied, total, `${label} ajoutés...`);
+            flashRowSuccess(p.id);
+            if (total > 10) {
+                await new Promise(resolve => setTimeout(resolve, 30));
+            }
         }
     }
 
@@ -5286,8 +7688,7 @@ async function applyBulkIA() {
 
     closeBulkIAModal();
     filterProspects();
-    const label = isEmail ? 'email(s)' : 'téléphone(s)';
-    showToast(`✅ ${updates.length} ${label} ajouté(s) via IA !`, 'success', 5000);
+    showToast(`✅ ${applied} ${label} ajouté(s) via IA !`, 'success', 5000);
 }
 
 // Copy email address to clipboard (from email hyperlink)
@@ -5334,10 +7735,15 @@ function copyEmailToClipboard(email) {
 
 
 async function copyLinkedInForProspect(prospectId) {
+    // v25.3: Ouvrir la modale de sélection candidats/consultants pour LinkedIn aussi
+    await openPushSelectModal(prospectId, 'linkedin');
+    return;
+    
+    // Code legacy (ne devrait plus être atteint)
     const p = data.prospects.find(x => x.id === prospectId);
     if (!p || !p.linkedin) {
-alert("⚠️ Aucun LinkedIn renseigné.");
-return;
+        alert("⚠️ Aucun LinkedIn renseigné.");
+        return;
     }
     const company = data.companies.find(c => c.id === p.company_id);
 
@@ -5535,7 +7941,11 @@ function toggleDetailEdit(isEdit) {
 function closeDetail(options = {}) {
     const modal = document.getElementById('modalDetail');
     if (!modal) return;
-    modal.classList.remove('active');
+    if (window.closeModal) {
+        window.closeModal(modal);
+    } else {
+        modal.classList.remove('active');
+    }
 
     const card = modal.querySelector('.modal-content');
     if (card) {
@@ -5726,7 +8136,30 @@ document.addEventListener('click', (e) => {
 function openAddModal() {
     editingId = null;
     document.getElementById('modalTitle').textContent = 'Ajouter Prospect';
-    document.getElementById('prospectForm').reset();
+    const form = document.getElementById('prospectForm');
+    if (form) {
+        form.reset();
+        // Nettoyer les erreurs de validation
+        if (typeof window.clearFieldError === 'function') {
+            form.querySelectorAll('input, select, textarea').forEach(field => {
+                window.clearFieldError(field);
+            });
+        }
+        // Initialiser la validation si pas déjà fait
+        if (typeof window.initFormValidation === 'function' && !form.dataset.validationInitialized) {
+            window.initFormValidation(form, {
+                validateOnBlur: true,
+                validateOnInput: true,
+                fieldOptions: {
+                    name: { requiredMessage: 'Le nom est requis' },
+                    company: { requiredMessage: 'L\'entreprise est requise' },
+                    email: { emailMessage: 'Veuillez entrer une adresse email valide' },
+                    linkedin: { urlMessage: 'Veuillez entrer une URL LinkedIn valide' }
+                }
+            });
+            form.dataset.validationInitialized = 'true';
+        }
+    }
 
     // Auto-fill company if a company filter is active
     const companyFilterVal = document.getElementById('companyFilter')?.value;
@@ -5735,27 +8168,61 @@ function openAddModal() {
         if (companySelect) companySelect.value = companyFilterVal;
     }
 
-    document.getElementById('modalProspect').classList.add('active');
+    const modal = document.getElementById('modalProspect');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: '#inputName' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
-function closeModal() {
-    document.getElementById('modalProspect').classList.remove('active');
+function closeProspectModal() {
+    const modal = document.getElementById('modalProspect');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function saveProspect(e) {
     e.preventDefault();
+    const form = document.getElementById('prospectForm');
+    
+    // Valider le formulaire
+    if (typeof window.validateForm === 'function') {
+        if (!window.validateForm(form, {
+            name: { requiredMessage: 'Le nom est requis' },
+            company: { requiredMessage: 'L\'entreprise est requise' },
+            email: { emailMessage: 'Veuillez entrer une adresse email valide' },
+            linkedin: { urlMessage: 'Veuillez entrer une URL LinkedIn valide' }
+        })) {
+            // Focus sur le premier champ invalide
+            const firstInvalid = form.querySelector('.is-invalid, :invalid');
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
+    }
+    
     const newProspect = {
         id: Math.max(...data.prospects.map(p => p.id), 0) + 1,
-        name: document.getElementById('inputName').value,
+        name: document.getElementById('inputName').value.trim(),
         company_id: parseInt(document.getElementById('inputCompany').value),
-        fonction: document.getElementById('inputFonction').value,
-        telephone: document.getElementById('inputTel').value,
-        email: document.getElementById('inputEmail').value,
-        linkedin: document.getElementById('inputLinkedin').value,
+        fonction: document.getElementById('inputFonction').value.trim(),
+        telephone: document.getElementById('inputTel').value.trim(),
+        email: document.getElementById('inputEmail').value.trim(),
+        linkedin: document.getElementById('inputLinkedin').value.trim(),
         pertinence: document.getElementById('inputPertinence').value,
         statut: document.getElementById('inputStatut').value,
         lastContact: todayISO(),
-        notes: document.getElementById('inputNotes').value,
+        notes: document.getElementById('inputNotes').value.trim(),
         callNotes: [],
         nextFollowUp: '',
         priority: 2,
@@ -5836,7 +8303,36 @@ function openAddCompanyModal() {
     } catch (e) {}
     const iaSection = document.getElementById('companyIASection');
     if (iaSection) iaSection.style.display = 'none';
-    document.getElementById('modalCompany').classList.add('active');
+    
+    // Initialiser la validation du formulaire
+    const form = document.getElementById('companyForm');
+    if (form && typeof window.initFormValidation === 'function' && !form.dataset.validationInitialized) {
+        window.initFormValidation(form, {
+            validateOnBlur: true,
+            validateOnInput: true,
+            fieldOptions: {
+                company_name: { requiredMessage: 'Le nom du groupe est requis' },
+                company_site: { requiredMessage: 'Le site / localisation est requis' }
+            }
+        });
+        form.dataset.validationInitialized = 'true';
+    }
+    
+    // Nettoyer les erreurs de validation
+    if (form && typeof window.clearFieldError === 'function') {
+        form.querySelectorAll('input, select, textarea').forEach(field => {
+            window.clearFieldError(field);
+        });
+    }
+    
+    const modal = document.getElementById('modalCompany');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: 'input' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 function openEditCompanyModal(companyId) {
@@ -5858,15 +8354,40 @@ function openCompanyFromProspect(companyId) {
 }
 
 function closeCompanyModal() {
-    document.getElementById('modalCompany').classList.remove('active');
+    const modal = document.getElementById('modalCompany');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function saveCompany(e) {
     e.preventDefault();
+    
+    const form = document.getElementById('companyForm');
+    
+    // Valider le formulaire
+    if (typeof window.validateForm === 'function') {
+        if (!window.validateForm(form, {
+            company_name: { requiredMessage: 'Le nom du groupe est requis' },
+            company_site: { requiredMessage: 'Le site / localisation est requis' }
+        })) {
+            // Focus sur le premier champ invalide
+            const firstInvalid = form.querySelector('.is-invalid, :invalid');
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
+    }
 
     const idRaw = document.getElementById('inputCompanyId').value;
-    const groupe = document.getElementById('inputCompanyName').value;
-    const site = document.getElementById('inputCompanySite').value;
+    const groupe = document.getElementById('inputCompanyName').value.trim();
+    const site = document.getElementById('inputCompanySite').value.trim();
     const phoneVal = document.getElementById('inputCompanyPhone').value || 'Non disponible';
     const notesVal = document.getElementById('inputCompanyNotes').value || '';
     const tagsVal = readTagsFromHidden('inputCompanyTagsValue');
@@ -6189,6 +8710,7 @@ function _ensureImportListModal() {
                     <div id="importListPreviewTable" style="max-height:280px;overflow:auto;border:1px solid var(--color-border);border-radius:8px;"></div>
                     <div style="display:flex;gap:10px;margin-top:14px;">
                         <button type="button" class="btn btn-secondary" onclick="importListBackToMapping()">← Retour</button>
+                        <button type="button" class="btn btn-secondary" id="importListReformatAllBtn" onclick="openImportListReformatAllModal()" style="display:none;">🤖 Reformater plusieurs colonnes</button>
                         <button type="button" class="btn btn-primary" onclick="applyImportList()">✅ Importer</button>
                     </div>
                 </div>
@@ -6210,6 +8732,22 @@ function _ensureImportListModal() {
                             <div style="display:flex;gap:10px;margin-top:12px;">
                                 <button type="button" class="btn btn-primary" onclick="applyImportListReformat()">Appliquer</button>
                                 <button type="button" class="btn btn-secondary" onclick="closeImportListReformatModal()">Annuler</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="modalImportListReformatAll" class="modal" style="z-index:1150;">
+                    <div class="modal-content" style="max-width:600px;">
+                        <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>🤖 Reformater plusieurs colonnes avec l'IA</span>
+                            <button type="button" class="btn btn-secondary" onclick="closeImportListReformatAllModal()" style="padding:4px 10px;">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="muted" style="font-size:12px;margin-bottom:12px;">Sélectionnez les colonnes à reformater en une seule fois. Ollama normalisera toutes les colonnes sélectionnées.</p>
+                            <div id="importListReformatAllCheckboxes" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+                            <div style="display:flex;gap:10px;margin-top:12px;">
+                                <button type="button" class="btn btn-primary" id="importListReformatAllOllamaBtn" onclick="runImportListReformatAllWithOllama()">Générer avec Ollama</button>
+                                <button type="button" class="btn btn-secondary" onclick="closeImportListReformatAllModal()">Annuler</button>
                             </div>
                         </div>
                     </div>
@@ -6255,11 +8793,25 @@ function openImportListModal() {
     document.getElementById('importListStepChoice').style.display = '';
     document.getElementById('importListStepMapping').style.display = 'none';
     document.getElementById('importListStepPreview').style.display = 'none';
-    document.getElementById('modalImportList').classList.add('active');
+    const modal = document.getElementById('modalImportList');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal);
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 function closeImportListModal() {
-    document.getElementById('modalImportList')?.classList.remove('active');
+    const modal = document.getElementById('modalImportList');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function importListBackToChoice() {
@@ -6426,30 +8978,137 @@ async function suggestImportListMappingWithOllama() {
     if (!_importListRaw || !_importListRaw.headers.length) return;
     const headers = _importListRaw.headers;
     const fieldsList = 'name, prenom, groupe, site, fonction, telephone, email, linkedin, notes, tags, pertinence, statut, lastContact';
-    const prompt = `Tu es un assistant. Voici les en-têtes de colonnes d'un fichier Excel d'import de prospects : ${JSON.stringify(headers)}. Retourne un objet JSON unique dont les clés sont exactement ces en-têtes (une par colonne) et les valeurs sont exactement un des champs suivants (ou chaîne vide "" pour ignorer) : ${fieldsList}. Exemple : {"NOM":"name","PRENOM":"prenom","GROUPE":"groupe","SITE":"site","FONCTION":"fonction","TEL":"telephone","PORTABLE":"telephone","MAIL":"email","COMMENTAIRE":"notes","LINKEDIN":"linkedin","ACTION":"statut","DATE DERNIER CONTACT":"lastContact"}. Réponds uniquement avec ce JSON, sans texte avant ou après, sans markdown.`;
+    
+    // Enrichir le prompt avec des exemples de formats variés
+    const examples = [
+        '{"NOM":"name","PRENOM":"prenom","GROUPE":"groupe","SITE":"site","FONCTION":"fonction","TEL":"telephone","PORTABLE":"telephone","MAIL":"email","COMMENTAIRE":"notes","LINKEDIN":"linkedin","ACTION":"statut","DATE DERNIER CONTACT":"lastContact"}',
+        '{"Nom complet":"name","Société":"groupe","Ville":"site","Poste":"fonction","Téléphone":"telephone","Email":"email","Notes":"notes","Statut":"statut"}',
+        '{"Contact":"name","Entreprise":"groupe","Localisation":"site","Fonction":"fonction","Tel":"telephone","E-mail":"email","Remarques":"notes","État":"statut"}',
+        '{"FIRSTNAME":"prenom","LASTNAME":"name","COMPANY":"groupe","CITY":"site","ROLE":"fonction","PHONE":"telephone","EMAIL":"email","NOTES":"notes","STATUS":"statut"}'
+    ];
+    
+    const prompt = `Tu es un assistant expert en mapping de données Excel pour un CRM de prospection B2B.
+
+Voici les en-têtes de colonnes d'un fichier Excel d'import de prospects : ${JSON.stringify(headers)}
+
+Tu dois retourner un objet JSON unique dont :
+- Les clés sont exactement ces en-têtes (une par colonne, respecte la casse et les accents)
+- Les valeurs sont exactement un des champs suivants (ou chaîne vide "" pour ignorer) : ${fieldsList}
+
+Règles importantes :
+- "name" = nom complet ou nom de famille (peut être combiné avec "prenom")
+- "prenom" = prénom (peut être combiné avec "name" pour former le nom complet)
+- "groupe" = nom de l'entreprise/société
+- "site" = ville/localisation/filiale
+- "telephone" = numéro de téléphone (peut être plusieurs colonnes fusionnées : TEL, PORTABLE, MOBILE, etc.)
+- "email" = adresse email (MAIL, E-MAIL, EMAIL, etc.)
+- "fonction" = poste/rôle/titre
+- "notes" = commentaires/remarques/observations
+- "statut" = statut/action/état
+- "lastContact" = date dernier contact (peut être en format varié)
+
+Exemples de mappings corrects :
+${examples.join('\n')}
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant ou après, sans markdown, sans explications.`;
+    
     const btn = document.getElementById('importListSuggestOllamaBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
     try {
         const text = await callOllama(prompt);
         let jsonStr = (text || '').trim();
+        // Extraire le JSON même s'il y a du texte autour
         const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
         if (jsonMatch) jsonStr = jsonMatch[0];
         const mapping = JSON.parse(jsonStr);
         const headerToIndex = {};
         headers.forEach((h, i) => { headerToIndex[h] = i; });
+        let applied = 0;
         Object.keys(mapping).forEach(header => {
             const field = mapping[header];
             const idx = headerToIndex[header];
             if (idx === undefined || !field) return;
             const select = document.querySelector(`.import-list-map-select[data-col="${idx}"]`);
-            if (select && IMPORT_LIST_FIELDS.some(f => f.value === field)) select.value = field;
+            if (select && IMPORT_LIST_FIELDS.some(f => f.value === field)) {
+                select.value = field;
+                applied++;
+            }
         });
-        showToast('Mapping suggéré appliqué. Vérifiez puis cliquez Aperçu.', 'success', 4000);
+        if (applied > 0) {
+            showToast(`Mapping suggéré appliqué (${applied} colonne(s)). Vérifiez puis cliquez Aperçu.`, 'success', 4000);
+        } else {
+            showToast('Aucun mapping valide trouvé. Vérifiez manuellement.', 'warning', 4000);
+        }
     } catch (e) {
+        console.error('Erreur mapping Ollama:', e);
         showToast('Ollama indisponible ou réponse invalide. Vérifiez le mapping manuellement.', 'warning', 5000);
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Suggérer le mapping avec Ollama'; }
     }
+}
+
+function _detectDataIssues(previewRows) {
+    /** Détecte les problèmes de données dans l'aperçu et suggère des actions. */
+    const issues = [];
+    
+    // Vérifier les emails invalides
+    const emailRows = previewRows.filter(r => r.email && r.email.trim());
+    if (emailRows.length > 0) {
+        const invalidEmails = emailRows.filter(r => {
+            const email = r.email.trim();
+            return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        });
+        if (invalidEmails.length > 0) {
+            issues.push({
+                field: 'email',
+                count: invalidEmails.length,
+                message: `${invalidEmails.length} email(s) invalide(s) détecté(s)`,
+                severity: 'warning'
+            });
+        }
+    }
+    
+    // Vérifier les téléphones mal formatés
+    const phoneRows = previewRows.filter(r => r.telephone && r.telephone.trim());
+    if (phoneRows.length > 0) {
+        const invalidPhones = phoneRows.filter(r => {
+            const phone = r.telephone.trim().replace(/\s+/g, '');
+            // Format français : 10 chiffres commençant par 0, ou international
+            return !/^(0[1-9]|(\+33|0033)[1-9])\d{8,9}$/.test(phone);
+        });
+        if (invalidPhones.length > phoneRows.length * 0.3) { // Si plus de 30% sont invalides
+            issues.push({
+                field: 'telephone',
+                count: invalidPhones.length,
+                message: `${invalidPhones.length} téléphone(s) avec format suspect`,
+                severity: 'info'
+            });
+        }
+    }
+    
+    // Vérifier les noms vides ou suspects
+    const nameRows = previewRows.filter(r => r.name && r.name.trim());
+    if (nameRows.length < previewRows.length * 0.5) {
+        issues.push({
+            field: 'name',
+            count: previewRows.length - nameRows.length,
+            message: `${previewRows.length - nameRows.length} prospect(s) sans nom`,
+            severity: 'warning'
+        });
+    }
+    
+    // Vérifier les entreprises vides
+    const groupeRows = previewRows.filter(r => r.groupe && r.groupe.trim());
+    if (groupeRows.length < previewRows.length * 0.3) {
+        issues.push({
+            field: 'groupe',
+            count: previewRows.length - groupeRows.length,
+            message: `${previewRows.length - groupeRows.length} prospect(s) sans entreprise`,
+            severity: 'info'
+        });
+    }
+    
+    return issues;
 }
 
 function importListGoPreview() {
@@ -6481,12 +9140,26 @@ function importListGoPreview() {
     window._importListPreviewRows = previewRows;
     document.getElementById('importListPreviewCount').textContent = previewRows.length;
     _renderImportListPreviewTable();
+    
+    // Détecter les problèmes de données
+    const issues = _detectDataIssues(previewRows);
+    const issuesHtml = issues.length > 0 ? `<div style="background:var(--color-bg-secondary);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;"><strong>💡 Suggestions d'amélioration :</strong><ul style="margin:8px 0 0 0;padding-left:20px;">${issues.map(i => `<li style="margin:4px 0;">${i.message} — <button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 6px;" onclick="openImportListReformatModal('${i.field}')">Reformater ${(IMPORT_LIST_FIELDS.find(f => f.value === i.field) || {}).label || i.field}</button></li>`).join('')}</ul></div>` : '';
+    
     const reformatCols = ['name', 'groupe', 'fonction', 'telephone', 'email'];
     const btns = document.getElementById('importListReformatButtons');
-    btns.innerHTML = reformatCols.map(c => {
+    btns.innerHTML = issuesHtml + reformatCols.map(c => {
         const label = (IMPORT_LIST_FIELDS.find(f => f.value === c) || {}).label || c;
-        return `<button type="button" class="btn btn-secondary" style="font-size:12px;padding:4px 10px;" onclick="openImportListReformatModal('${c}')">🤖 Reformater ${label}</button>`;
+        const hasIssue = issues.some(i => i.field === c);
+        return `<button type="button" class="btn ${hasIssue ? 'btn-warning' : 'btn-secondary'}" style="font-size:12px;padding:4px 10px;" onclick="openImportListReformatModal('${c}')">🤖 Reformater ${label}${hasIssue ? ' ⚠️' : ''}</button>`;
     }).join('');
+    
+    // Afficher le bouton de reformatage multi-colonnes si plusieurs colonnes ont des données
+    const hasMultipleFields = reformatCols.filter(c => previewRows.some(r => r[c] && r[c].trim())).length > 1;
+    const reformatAllBtn = document.getElementById('importListReformatAllBtn');
+    if (reformatAllBtn) {
+        reformatAllBtn.style.display = hasMultipleFields ? '' : 'none';
+    }
+    
     document.getElementById('importListStepMapping').style.display = 'none';
     document.getElementById('importListStepPreview').style.display = '';
 }
@@ -6518,7 +9191,14 @@ function openImportListReformatModal(field) {
     const promptText = (_IMPORT_REFORMAT_PROMPTS[field] || 'Normalise les données suivantes (une valeur par ligne, même ordre). Données :') + '\n\n' + values.join('\n');
     document.getElementById('importListReformatPrompt').value = promptText;
     document.getElementById('importListReformatPaste').value = '';
-    document.getElementById('modalImportListReformat').classList.add('active');
+    const modal = document.getElementById('modalImportListReformat');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: 'textarea' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 async function runImportListReformatWithOllama() {
@@ -6537,7 +9217,14 @@ async function runImportListReformatWithOllama() {
 }
 
 function closeImportListReformatModal() {
-    document.getElementById('modalImportListReformat').classList.remove('active');
+    const modal = document.getElementById('modalImportListReformat');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
     window._importListReformatField = null;
 }
 
@@ -6555,6 +9242,76 @@ function applyImportListReformat() {
     _renderImportListPreviewTable();
     closeImportListReformatModal();
     showToast('Colonne mise à jour. Vérifiez l’aperçu puis importez.', 'success');
+}
+
+function openImportListReformatAllModal() {
+    const rows = window._importListPreviewRows;
+    if (!rows || !rows.length) return;
+    const modal = document.getElementById('modalImportListReformatAll');
+    if (!modal) return;
+    const checkboxes = document.getElementById('importListReformatAllCheckboxes');
+    const reformatCols = ['name', 'groupe', 'fonction', 'telephone', 'email'];
+    checkboxes.innerHTML = reformatCols.map(c => {
+        const label = (IMPORT_LIST_FIELDS.find(f => f.value === c) || {}).label || c;
+        const hasData = rows.some(r => r[c] && r[c].trim());
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" value="${c}" ${hasData ? 'checked' : ''} style="cursor:pointer;"> ${label}${hasData ? '' : ' <span class="muted">(vide)</span>'}</label>`;
+    }).join('');
+    if (window.openModal) window.openModal(modal); else modal.classList.add('active');
+}
+
+function closeImportListReformatAllModal() {
+    const modal = document.getElementById('modalImportListReformatAll');
+    if (modal) {
+        if (window.closeModal) window.closeModal(modal); else modal.classList.remove('active');
+    }
+}
+
+async function runImportListReformatAllWithOllama() {
+    const rows = window._importListPreviewRows;
+    if (!rows || !rows.length) return;
+    const checkboxes = document.querySelectorAll('#importListReformatAllCheckboxes input[type="checkbox"]:checked');
+    const selectedFields = Array.from(checkboxes).map(cb => cb.value);
+    if (selectedFields.length === 0) {
+        showToast('Sélectionnez au moins une colonne à reformater.', 'warning');
+        return;
+    }
+    const btn = document.getElementById('importListReformatAllOllamaBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
+    try {
+        const fieldLabels = selectedFields.map(f => (IMPORT_LIST_FIELDS.find(fld => fld.value === f) || {}).label || f);
+        const prompts = selectedFields.map(f => _IMPORT_REFORMAT_PROMPTS[f] || `Normalise les données suivantes pour le champ "${(IMPORT_LIST_FIELDS.find(fld => fld.value === f) || {}).label || f}" (une valeur par ligne, même ordre). Données :`);
+        const combinedPrompt = `Tu es un assistant. Normalise les données suivantes pour ${selectedFields.length} colonne(s) : ${fieldLabels.join(', ')}.\n\nPour chaque colonne, je vais te donner les données à normaliser. Réponds avec un JSON où chaque clé est le nom du champ et la valeur est un tableau de valeurs normalisées (une par ligne, dans le même ordre).\n\n${selectedFields.map((f, i) => {
+            const values = rows.map(r => (r[f] || '').trim() || '(vide)');
+            return `Colonne "${fieldLabels[i]}" :\n${prompts[i]}\n${values.join('\n')}`;
+        }).join('\n\n')}\n\nRéponds avec un JSON de cette forme :\n{\n  "${selectedFields[0]}": ["valeur1", "valeur2", ...],\n  ${selectedFields.slice(1).map(f => `"${f}": ["valeur1", "valeur2", ...]`).join(',\n  ')}\n}`;
+        const text = await callOllama(combinedPrompt);
+        let jsonStr = (text || '').trim();
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonStr = jsonMatch[0];
+        const result = JSON.parse(jsonStr);
+        let applied = 0;
+        selectedFields.forEach(field => {
+            if (result[field] && Array.isArray(result[field])) {
+                const values = result[field];
+                if (values.length >= rows.length) {
+                    rows.forEach((r, i) => { r[field] = (values[i] || '').trim(); });
+                    applied++;
+                }
+            }
+        });
+        if (applied > 0) {
+            _renderImportListPreviewTable();
+            closeImportListReformatAllModal();
+            showToast(`${applied} colonne(s) reformatée(s). Vérifiez l'aperçu puis importez.`, 'success', 5000);
+        } else {
+            showToast('Aucune colonne reformatée. Vérifiez le format de la réponse Ollama.', 'warning');
+        }
+    } catch (e) {
+        console.error('Erreur reformatage multi-colonnes:', e);
+        showToast('Ollama indisponible ou réponse invalide. Reformatez colonne par colonne.', 'warning', 5000);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Générer avec Ollama'; }
+    }
 }
 
 function applyImportList() {
@@ -6777,7 +9534,7 @@ function ensureBuildIndicator() {
 
         const env = /prospup\.work$/i.test(window.location.hostname) ? 'web' : 'local';
         badge.textContent = `build ${APP_BUILD} · ${env}`;
-        badge.title = `ProspUp build ${APP_BUILD} (${window.location.hostname})`;
+        badge.title = `Prosp'Up build ${APP_BUILD} (${window.location.hostname})`;
     } catch (e) {}
 }
 
@@ -6789,8 +9546,8 @@ async function bootstrap(page) {
     await AppAuth.init();
 
     await loadFromServer();
-    try { await loadTemplatesFromServer(); } catch(e) { console.warn('[ProspUp] Templates load failed:', e); }
-    try { await loadPushCategories(); } catch(e) { console.warn('[ProspUp] Push categories load failed:', e); }
+    try { await loadTemplatesFromServer(); } catch(e) { console.warn("[Prosp'Up] Templates load failed:", e); }
+    try { await loadPushCategories(); } catch(e) { console.warn("[Prosp'Up] Push categories load failed:", e); }
     normalizeData();
     filteredProspects = [...data.prospects];
 
@@ -6878,6 +9635,7 @@ async function bootstrap(page) {
     }
 
     if (page === 'companies') {
+        applyCompaniesViewVisibility();
         const openCompanyId = params.get('openCompany');
         const openCompanyMode = params.get('companyMode') === 'edit' ? 'edit' : 'view';
         if (openCompanyId) {
@@ -6911,6 +9669,7 @@ async function bootstrap(page) {
 // which can make `bootstrap` undefined from other scripts.
 try { window.bootstrap = bootstrap; } catch (e) {}
 try { window.appBootstrap = bootstrap; } catch (e) {}
+try { window.switchCompaniesView = switchCompaniesView; } catch (e) {}
 
 // ====== Prospect export & navigation helpers ======
 function openStatsModal() {
@@ -7125,8 +9884,11 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
             return;
         }
 
+        // Limiter à 4 candidats maximum (v25.9)
+        const limitedCandidates = tagCandidates.slice(0, 4);
+        
         // Render with bestmatch cards (pct may be capped; relevance_pct = score-based)
-        listBox.innerHTML = tagCandidates.map((c, idx) => {
+        listBox.innerHTML = limitedCandidates.map((c, idx) => {
             const skills = Array.isArray(c.skills) ? c.skills : [];
             const matchedLower = (c.matched_tags || []).map(t => t.toLowerCase());
 
@@ -7494,11 +10256,25 @@ function openPostMeetingImportModal(prospectId) {
     document.getElementById('pmImportTextarea').value = '';
     document.getElementById('pmStep1').style.display = '';
     document.getElementById('pmStep2').style.display = 'none';
-    document.getElementById('modalPostMeetingIA').classList.add('active');
+    const modal = document.getElementById('modalPostMeetingIA');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal, { focusElement: 'textarea' });
+        } else {
+            modal.classList.add('active');
+        }
+    }
 }
 
 function closePostMeetingModal() {
-    document.getElementById('modalPostMeetingIA')?.classList.remove('active');
+    const modal = document.getElementById('modalPostMeetingIA');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
 }
 
 function pmBackToStep1() {

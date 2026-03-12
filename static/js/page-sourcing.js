@@ -25,12 +25,22 @@ function openEC1Modal(ev, candidateId) {
     const note = document.getElementById('ec1ModalNote');
     if (dt && !dt.value) dt.value = _defaultEC1DatetimeLocal();
     if (note) note.value = '';
-    modal.classList.add('active');
+    if (window.openModal) {
+        window.openModal(modal, { focusElement: '#ec1ModalDatetime' });
+    } else {
+        modal.classList.add('active');
+    }
 }
 
 function closeEC1Modal() {
     const modal = document.getElementById('modalEC1');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
     __ec1CandidateId = null;
 }
 
@@ -234,12 +244,22 @@ function renderCandidateTable() {
 function openCandidateModal(editing=false) {
     const modal = document.getElementById('modalCandidate');
     if (!modal) return;
-    modal.classList.add('active');
     document.getElementById('candModalTitle').textContent = editing ? 'Modifier candidat' : 'Ajouter candidat';
+    if (window.openModal) {
+        window.openModal(modal, { focusElement: '#candName' });
+    } else {
+        modal.classList.add('active');
+    }
 }
 function closeCandidateModal() {
     const modal = document.getElementById('modalCandidate');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
     __candEditing = null;
     try { document.getElementById('candForm')?.reset(); } catch(e) {}
 }
@@ -254,6 +274,8 @@ function fillCandidateForm(c) {
     document.getElementById('candSource').value = safeStr(c.source);
     document.getElementById('candStatus').value = safeStr(c.status || 'a_sourcer');
     document.getElementById('candNotes').value = safeStr(c.notes);
+    const vsaEl = document.getElementById('candVsaUrl');
+    if (vsaEl) vsaEl.value = safeStr(c.vsa_url || '');
 }
 
 function editCandidate(id) {
@@ -267,6 +289,7 @@ function editCandidate(id) {
 async function saveCandidate(e) {
     e.preventDefault();
 
+    const vsaUrlEl = document.getElementById('candVsaUrl');
     const payload = {
         id: __candEditing ? __candEditing.id : null,
         name: document.getElementById('candName').value.trim(),
@@ -279,6 +302,7 @@ async function saveCandidate(e) {
         status: document.getElementById('candStatus').value,
         notes: document.getElementById('candNotes').value.trim(),
     };
+    if (vsaUrlEl && vsaUrlEl.value) payload.vsa_url = vsaUrlEl.value.trim();
 
     const res = await fetch('/api/candidates/save', {
         method: 'POST',
@@ -318,6 +342,112 @@ async function deleteCandidate(id) {
     await loadCandidates();
     applyCandidateFilters();
     refreshProductivityMatching();
+}
+
+// ===== Ajouter via VSA =====
+const VSA_MIN_LENGTH = 20;
+
+function openVsaImportModal() {
+    const modal = document.getElementById('modalVsaImport');
+    if (!modal) return;
+    document.getElementById('vsaImportLink').value = '';
+    document.getElementById('vsaImportTextarea').value = '';
+    document.getElementById('vsaImportError').style.display = 'none';
+    document.getElementById('vsaImportError').textContent = '';
+    document.getElementById('btnVsaPreFillAnyway').style.display = 'none';
+    const btn = document.getElementById('btnVsaExtractOllama');
+    if (btn) { btn.disabled = true; btn.textContent = '🤖 Extraire avec Ollama'; }
+    _vsaImportToggleExtractButton();
+    if (window.openModal) {
+        window.openModal(modal, { focusElement: '#vsaImportTextarea' });
+    } else {
+        modal.classList.add('active');
+    }
+}
+
+function closeVsaImportModal() {
+    const modal = document.getElementById('modalVsaImport');
+    if (modal) {
+        if (window.closeModal) window.closeModal(modal);
+        else modal.classList.remove('active');
+    }
+}
+
+function _vsaImportToggleExtractButton() {
+    const ta = document.getElementById('vsaImportTextarea');
+    const btn = document.getElementById('btnVsaExtractOllama');
+    if (!btn || !ta) return;
+    const ok = (ta.value || '').trim().length >= VSA_MIN_LENGTH;
+    btn.disabled = !ok;
+}
+
+function _vsaImportApplyParsed(parsed) {
+    const link = (document.getElementById('vsaImportLink')?.value || '').trim();
+    const techParts = [parsed.tech].filter(Boolean);
+    if (Array.isArray(parsed.skills) && parsed.skills.length) {
+        techParts.push(...parsed.skills);
+    }
+    const formData = {
+        name: parsed.name || '',
+        role: parsed.role || '',
+        location: parsed.location || '',
+        seniority: parsed.seniority || '',
+        tech: techParts.join(', ').trim() || parsed.tech || '',
+        linkedin: parsed.linkedin || '',
+        source: 'VSA',
+        status: 'a_sourcer',
+        notes: parsed.notes || '',
+        vsa_url: link || parsed.vsa_url || ''
+    };
+    if (!formData.name && (parsed.role || parsed.location)) {
+        formData.name = [parsed.role, parsed.location].filter(Boolean).join(' — ').slice(0, 200);
+    }
+    __candEditing = null;
+    document.getElementById('candForm')?.reset();
+    fillCandidateForm(formData);
+    closeVsaImportModal();
+    openCandidateModal(false);
+    if (typeof showToast === 'function') showToast('Données extraites. Vérifiez la fiche candidat puis enregistrez.', 'success', 5000);
+}
+
+async function _vsaImportExtractWithOllama() {
+    const ta = document.getElementById('vsaImportTextarea');
+    const content = (ta?.value || '').trim();
+    if (content.length < VSA_MIN_LENGTH) return;
+    const btn = document.getElementById('btnVsaExtractOllama');
+    const errEl = document.getElementById('vsaImportError');
+    const prefillBtn = document.getElementById('btnVsaPreFillAnyway');
+    if (btn) { btn.disabled = true; btn.textContent = 'Extraction en cours…'; }
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+    if (prefillBtn) prefillBtn.style.display = 'none';
+
+    const prompt = typeof getVsaExtractionPrompt === 'function' ? getVsaExtractionPrompt(content) : '';
+    if (!prompt) {
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 Extraire avec Ollama'; }
+        return;
+    }
+    try {
+        const text = typeof callOllama === 'function' ? await callOllama(prompt) : '';
+        const parsed = typeof parseVsaCandidateText === 'function' ? parseVsaCandidateText(text) : {};
+        _vsaImportApplyParsed(parsed);
+    } catch (e) {
+        if (errEl) {
+            errEl.textContent = 'Ollama est indisponible. Vous pouvez coller manuellement un texte au format : NOM: … ROLE: … LOCALISATION: … (une ligne par champ).';
+            errEl.style.display = 'block';
+        }
+        if (prefillBtn) prefillBtn.style.display = 'inline-block';
+        if (typeof showToast === 'function') showToast('Ollama indisponible. Utilisez « Pré-remplir quand même » si le texte est au bon format.', 'warning', 6000);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 Extraire avec Ollama'; _vsaImportToggleExtractButton(); }
+    }
+}
+
+function _vsaImportPreFillAnyway() {
+    const ta = document.getElementById('vsaImportTextarea');
+    const text = (ta?.value || '').trim();
+    if (!text) return;
+    const parsed = typeof parseVsaCandidateText === 'function' ? parseVsaCandidateText(text) : {};
+    _vsaImportApplyParsed(parsed);
 }
 
 // ===== Productivité =====
@@ -776,6 +906,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         await importLinkedInCsv(f);
         file.value = '';
     });
+
+    // Ajouter via VSA
+    document.getElementById('btnAddViaVsa')?.addEventListener('click', openVsaImportModal);
+    document.getElementById('vsaImportTextarea')?.addEventListener('input', _vsaImportToggleExtractButton);
+    document.getElementById('btnVsaExtractOllama')?.addEventListener('click', () => _vsaImportExtractWithOllama());
+    document.getElementById('btnVsaPreFillAnyway')?.addEventListener('click', _vsaImportPreFillAnyway);
 
     // Tabs
     document.getElementById('tabPipeline')?.addEventListener('click', () => setTab('pipeline'));

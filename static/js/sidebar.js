@@ -27,7 +27,6 @@
               children: [
                   { href: '/duplicates', icon: '\uD83D\uDD00', label: 'Doublons',  page: 'duplicates', helpSection: 'doublons' },
                   { href: '/snapshots',  icon: '\uD83D\uDCBE', label: 'Snapshots', page: 'snapshots',  helpSection: 'snapshots' },
-                  { href: '/kpi',        icon: '\uD83D\uDCC8', label: 'KPI',       page: 'kpi',        helpSection: 'kpi' },
                   { href: '/metiers',    icon: '\uD83C\uDFD7\uFE0F', label: 'M\u00e9tiers',  page: 'metiers',  helpSection: 'metiers' },
                   { href: '/templates', icon: '\uD83D\uDCC2', label: 'Cat\u00e9gories Push', page: 'templates', helpSection: 'categories-push' },
                   { href: '/help',       icon: '\u2753',       label: 'Aide',      page: 'help',       helpSection: 'raccourcis' }
@@ -53,6 +52,7 @@
     var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'kpi', 'metiers', 'templates', 'help'];
 
     // ── State ─────────────────────────────────────────────────────
+    var _currentUser = null;  // user from /api/auth/me (for badge)
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();
     var effectivePage = PAGE_PARENT_MAP[currentPage] || currentPage;
     var currentPath = window.location.pathname;
@@ -111,6 +111,8 @@
                     };
                 } else {
                     a.href = item.href;
+                    _attachPrefetch(a, item.href);
+                    _attachNavLoading(a, item.href);
                 }
                 if (item.helpSection) a.setAttribute('data-help-section', item.helpSection);
 
@@ -137,6 +139,8 @@
                         var ca = document.createElement('a');
                         ca.className = 'nav-button nav-sub-item';
                         ca.href = child.href;
+                        _attachPrefetch(ca, child.href);
+                        _attachNavLoading(ca, child.href);
                         if (child.helpSection) ca.setAttribute('data-help-section', child.helpSection);
                         if (child.page === currentPage) {
                             ca.classList.add('active');
@@ -178,6 +182,8 @@
             if (!item) return;
             var a = document.createElement('a');
             a.href = item.href;
+            _attachPrefetch(a, item.href);
+            _attachNavLoading(a, item.href);
             if (item.helpSection) a.setAttribute('data-help-section', item.helpSection);
             if (_isActive(item)) a.classList.add('active');
             a.innerHTML = '<span class="bn-icon">' + item.icon + '</span>' + item.label;
@@ -197,7 +203,8 @@
         fetch('/api/auth/me', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : { ok: false }; })
             .then(function (d) {
-                var isAdmin = d.ok && d.user && d.user.role === 'admin';
+                _currentUser = (d.ok && d.user) ? d.user : null;
+                var isAdmin = _currentUser && _currentUser.role === 'admin';
                 if (!isAdmin) {
                     // Remove admin-only items from NAV before building
                     NAV.forEach(function (group) {

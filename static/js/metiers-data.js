@@ -418,7 +418,36 @@ function buildAutocompleteTags() {
   return [...set].sort((a, b) => a.localeCompare(b, 'fr'));
 }
 
-/* ── Helper: compute metier match scores for a set of prospect tags ── */
+/* ── Cache des intégrations de tags (chargé dynamiquement) ── */
+let _tagIntegrationsCache = null;
+let _tagIntegrationsCachePromise = null;
+
+async function loadTagIntegrationsCache() {
+  if (_tagIntegrationsCache !== null) return _tagIntegrationsCache;
+  if (_tagIntegrationsCachePromise) return _tagIntegrationsCachePromise;
+  
+  _tagIntegrationsCachePromise = (async () => {
+    try {
+      const res = await fetch('/api/metiers/integrations-cache');
+      if (res.ok) {
+        const data = await res.json();
+        _tagIntegrationsCache = data.integrations || {};
+        // Exposer globalement pour refreshMetierSuggestions
+        window._tagIntegrationsCache = _tagIntegrationsCache;
+        return _tagIntegrationsCache;
+      }
+    } catch (e) {
+      console.warn('Erreur chargement cache intégrations:', e);
+    }
+    _tagIntegrationsCache = {};
+    window._tagIntegrationsCache = _tagIntegrationsCache;
+    return _tagIntegrationsCache;
+  })();
+  
+  return _tagIntegrationsCachePromise;
+}
+
+/* ── Helper: compute metier match scores (version synchrone, sans intégrations) ── */
 function computeMetierMatches(prospectTags) {
   if (!prospectTags || !prospectTags.length) return [];
 
@@ -438,7 +467,8 @@ function computeMetierMatches(prospectTags) {
       ptLower.forEach(pt => {
         if (techSet.has(pt)) {
           matched++;
-          matchedTags.push(pt);
+          const tagOriginal = prospectTags.find(t => t.toLowerCase().trim() === pt);
+          matchedTags.push(tagOriginal || pt);
         }
       });
 
@@ -453,6 +483,115 @@ function computeMetierMatches(prospectTags) {
           matched,
           total: ptLower.size,
           matchedTags
+        });
+      }
+    });
+  });
+
+  results.sort((a, b) => b.score - a.score || b.matched - a.matched);
+  return results;
+}
+
+/* ── Helper: compute metier match scores avec intégrations Ollama (version async améliorée) ── */
+async function computeMetierMatchesEnhanced(prospectTags, prospectContext = {}) {
+  if (!prospectTags || !prospectTags.length) return [];
+
+  const ptLower = new Set(prospectTags.map(t => t.toLowerCase().trim()));
+  const results = [];
+  
+  // Charger le cache des intégrations
+  const integrations = await loadTagIntegrationsCache();
+  
+  // Détecter les tags non référencés et les intégrer si nécessaire
+  const refSet = buildReferentialTagSet();
+  const missingTags = [];
+  prospectTags.forEach(t => {
+    if (!refSet.has(t.toLowerCase().trim())) {
+      missingTags.push(t);
+    }
+  });
+  
+  // Intégrer les tags manquants via Ollama si nécessaire (en arrière-plan, ne bloque pas)
+  if (missingTags.length > 0) {
+    const tagsToIntegrate = missingTags.filter(t => !integrations[t.toLowerCase().trim()]);
+    if (tagsToIntegrate.length > 0) {
+      // Lancer l'intégration en arrière-plan (ne pas attendre)
+      fetch('/api/metiers/integrate-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tags: tagsToIntegrate,
+          context: prospectContext
+        })
+      }).then(res => res.json()).then(data => {
+        if (data.ok && data.integrations) {
+            // Mettre à jour le cache local
+            Object.keys(data.integrations).forEach(tag => {
+              const integration = data.integrations[tag];
+              if (integration.category) {
+                integrations[tag.toLowerCase().trim()] = integration;
+                _tagIntegrationsCache[tag.toLowerCase().trim()] = integration;
+                window._tagIntegrationsCache = _tagIntegrationsCache;
+              }
+            });
+          // Recalculer les suggestions si on est sur la fiche du prospect
+          if (typeof refreshMetierSuggestions === 'function') {
+            refreshMetierSuggestions();
+          }
+        }
+      }).catch(e => {
+        console.warn('Erreur intégration tags:', e);
+      });
+    }
+  }
+
+  METIERS_DATA.forEach(metier => {
+    metier.specialties.forEach(spec => {
+      // Collect all tech terms for this specialty
+      const allTech = [];
+      Object.values(spec.tech).forEach(arr => arr.forEach(t => allTech.push(t.toLowerCase())));
+      const techSet = new Set(allTech);
+
+      // Count matching tags (référentiel + intégrations)
+      let matched = 0;
+      const matchedTags = [];
+      let refMatches = 0;
+      let integratedMatches = 0;
+      
+      ptLower.forEach(pt => {
+        const tagOriginal = prospectTags.find(t => t.toLowerCase().trim() === pt);
+        // Vérifier si dans le référentiel
+        if (techSet.has(pt)) {
+          matched++;
+          refMatches++;
+          matchedTags.push(tagOriginal || pt);
+        } else {
+          // Vérifier si intégré via Ollama
+          const integration = integrations[pt];
+          if (integration && integration.category === metier.name && integration.specialty === spec.name) {
+            matched++;
+            integratedMatches++;
+            matchedTags.push(tagOriginal || pt);
+          }
+        }
+      });
+
+      if (matched > 0) {
+        // Score amélioré : prendre en compte les tags intégrés avec un poids légèrement inférieur
+        // Score = (référentiel * 1.0 + intégrés * 0.8) / total * 100
+        const weightedMatches = refMatches + (integratedMatches * 0.8);
+        const score = Math.round((weightedMatches / ptLower.size) * 100);
+        
+        results.push({
+          category: metier.name,
+          categoryIcon: metier.icon,
+          categoryColor: metier.color,
+          specialty: spec.name,
+          score,
+          matched,
+          total: ptLower.size,
+          matchedTags,
+          hasIntegratedTags: integratedMatches > 0
         });
       }
     });

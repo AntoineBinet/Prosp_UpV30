@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Prosp'Up — Doublons{% endblock %}
+
+{% block page_id %}duplicates{% endblock %}
+
+{% block header_title %}Prosp'Up — Doublons{% endblock %}
+
+{% block header_subtitle %}Détection et fusion des doublons (prospects & entreprises).{% endblock %}
+
+{% block content %}
+<div class="content-header">
+  <div class="content-title">Détection</div>
+  <div class="controls">
+    <select id="dupMinScore">
+      <option value="0.6">Seuil: 0.60</option>
+      <option value="0.7" selected>Seuil: 0.70</option>
+      <option value="0.8">Seuil: 0.80</option>
+      <option value="0.9">Seuil: 0.90</option>
+    </select>
+    <button class="btn btn-secondary" id="btnDupReload">🔄 Scanner</button>
+    <div class="muted" id="dupSummary" style="flex:999 1 auto; min-width: 260px;"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="muted">Fusion = création d'un historique propre (notes, tags, callNotes, push logs) + suppression de l'élément doublon.</div>
+</div>
+
+<div class="content-header" style="margin-top: 16px;">
+  <div class="content-title">Doublons prospects</div>
+</div>
+<div id="dupProspects"></div>
+
+<div class="content-header" style="margin-top: 16px;">
+  <div class="content-title">Doublons entreprises</div>
+</div>
+<div id="dupCompanies"></div>
+{% endblock %}
+
+{% block modals %}
+<!-- Modal fusion prospect : choix par champ -->
+<div id="mergeProspectModal" class="modal" role="dialog" aria-labelledby="mergeModalTitle" onclick="if(event.target===this) closeMergeModal()">
+  <div class="modal-content" style="max-width: 900px;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span id="mergeModalTitle">Fusionner deux prospects — choisir les données à garder</span>
+      <button type="button" class="modal-close" onclick="closeMergeModal()" aria-label="Fermer">&times;</button>
+    </div>
+    <p class="muted" style="margin-bottom: 14px;">Fiche A = prospect conservée (ID <span id="mergeKeepId"></span>). Fiche B = prospect qui sera supprimée après fusion (ID <span id="mergeMergeId"></span>). Pour chaque champ, choisissez la valeur à garder.</p>
+    <div id="mergeModalBody"><!-- rempli en JS --></div>
+    <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+      <button type="button" class="btn btn-secondary" onclick="closeMergeModal()">Annuler</button>
+      <button type="button" class="btn btn-primary" id="mergeConfirmBtn">Fusionner</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script defer src="/static/js/page-duplicates.js?v=2000"></script>
+{% endblock %}

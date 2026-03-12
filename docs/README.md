@@ -1,4 +1,4 @@
-# ProspUp v21
+# Prosp'Up v21
 
 **Application de gestion de prospects et prospection B2B** — Up Technologies (Embedded Systems, Électronique & Robotique).
 
@@ -23,7 +23,7 @@
 - **Référentiel métiers** : 251 tags techniques en 15 catégories.
 - **Multi-utilisateurs** : rôles (admin / éditeur / lecteur), isolation des données.
 - **Accès distant** : tunnel HTTPS (Cloudflare), PWA mobile optimisée iPhone.
-- **Mise à jour intégrée** : upload de fichiers, staging, rollback.
+- **Mise à jour du serveur** : bouton « Mettre à jour et redémarrer » dans Paramètres (admin) — pull Git puis redémarrage, affichage en direct.
 
 ## Démarrage rapide
 

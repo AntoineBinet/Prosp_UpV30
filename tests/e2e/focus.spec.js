@@ -14,6 +14,6 @@ test.describe('Focus (relances) page', () => {
 
   test('has page title', async ({ page }) => {
     await page.goto('/focus');
-    await expect(page).toHaveTitle(/ProspUp/i);
+    await expect(page).toHaveTitle(/Prosp'Up/i);
   });
 });

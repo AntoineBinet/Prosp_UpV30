@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="Prosp'Up — CRM Prospection B2B par Up Technologies. Gestion de prospects, suivi des relances et pilotage commercial.">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/favicon.ico">
+    <title>{% block title %}ProspUp{% endblock %}</title>
+<link rel="stylesheet" href="/static/css/style.css?v={{ static_hash('css/style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body data-page="{% block page_id %}{% endblock %}">
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <h1>
+                    <img src="/static/logo-up-technologies.png" alt="Up Technologies" class="header-logo-app">
+                    {% block header_title %}ProspUp{% endblock %}
+                </h1>
+                <p class="header-subtitle">{% block header_subtitle %}{% endblock %}</p>
+            </div>
+            <div class="header-center"></div>
+        </header>
+        <div class="main-layout">
+                              <aside class="sidebar"></aside>
+            <main class="content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    {% block modals %}{% endblock %}
+    {% block fab %}{% endblock %}
+    {% block scripts %}
+    <script defer src="/static/js/sidebar.js?v=2000"></script>
+    <script defer src="/static/js/v8-features.js?v=2100"></script>
+    <script defer src="/static/js/help-shortcut.js?v=2000"></script>
+    <script defer src="/static/js/notifications.js?v=2000"></script>
+    <script defer src="/static/js/app.js?v={{ static_hash('js/app.js') }}"></script>
+    {% endblock %}
+    {% block page_scripts %}{% endblock %}
+</body>
+</html>

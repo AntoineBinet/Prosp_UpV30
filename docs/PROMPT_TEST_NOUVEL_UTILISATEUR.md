@@ -1,13 +1,13 @@
-# Prompt à donner à Claude (ou un testeur) — Test complet nouvel utilisateur + IA
+# Prompt à donner à Cursor (ou un testeur) — Test complet nouvel utilisateur + IA
 
-Copie-colle le bloc ci-dessous à un assistant (ex. Claude) pour qu’il simule un **nouvel utilisateur** et valide **toutes les fonctionnalités IA** et l’**import Excel**, puis qu’il fasse un **audit** et propose le **nettoyage** des données de test.
+Copie-colle le bloc ci-dessous à un assistant (ex. Cursor) pour qu’il simule un **nouvel utilisateur** et valide **toutes les fonctionnalités IA** et l’**import Excel**, puis qu’il fasse un **audit** et propose le **nettoyage** des données de test.
 
 ---
 
 ## Bloc à copier
 
 ```
-Tu es un testeur pour l’application ProspUp (CRM B2B). Simule un **nouvel utilisateur** qui découvre l’app et veut tout tester, en particulier l’IA locale (Ollama) et l’import Excel.
+Tu es un testeur pour l’application Prosp'Up (CRM B2B). Simule un **nouvel utilisateur** qui découvre l’app et veut tout tester, en particulier l’IA locale (Ollama) et l’import Excel.
 
 **Contexte technique**
 - App : Flask + Vanilla JS, PWA. L’IA tourne en local via Ollama sur le PC (proxy backend : le navigateur appelle Flask, Flask appelle http://127.0.0.1:11434). Aucun appel direct du navigateur à Ollama.
@@ -57,6 +57,6 @@ Tu es un testeur pour l’application ProspUp (CRM B2B). Simule un **nouvel util
 ## Usage
 
 1. Ouvrir l’app (et Ollama si tu veux tester les flux IA).
-2. Copier tout le contenu du **Bloc à copier** (entre les triples backticks) dans un chat Claude (ou autre assistant).
+2. Copier tout le contenu du **Bloc à copier** (entre les triples backticks) dans un chat Cursor (ou autre assistant).
 3. L’assistant te guidera ou décrira les étapes à faire manuellement ; il peut aussi rédiger un rapport à partir de tes retours après exécution.
 4. Pour un test E2E automatisé (sans IA dans le test), utiliser : `npx playwright test import-excel.spec.js` (voir `docs/PLAN_TEST_IMPORT_EXCEL.md`).

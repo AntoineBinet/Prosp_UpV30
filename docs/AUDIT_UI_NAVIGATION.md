@@ -1,4 +1,4 @@
-# Audit cohérence UI et navigation — ProspUp
+# Audit cohérence UI et navigation — Prosp'Up
 
 **Date :** mars 2025
 
@@ -19,7 +19,7 @@
 ## Structure validée
 
 - **Sidebar et bottom nav :** une seule source (`sidebar.js`) ; `data-page` aligné sur toutes les pages.
-- **Header :** logo + titre « ProspUp — … » + sous-titre ; cohérent sur les pages authentifiées.
+- **Header :** logo + titre « Prosp'Up — … » + sous-titre ; cohérent sur les pages authentifiées.
 - **Modales :** structure `.modal` → `.modal-content` → `modal-close` ; formulaires avec `filter-input`, `filter-select`, `form-grid`.
 
 ## Référence
