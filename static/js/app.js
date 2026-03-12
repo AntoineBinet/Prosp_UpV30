@@ -1410,8 +1410,16 @@ function setupListeners() {
         if (el) el.addEventListener(evt, fn);
     };
 
-    // Prospects page filters
-    on('searchInput', 'input', filterProspects);
+    // Prospects page filters — v26: debounce pour input (performance)
+    let _filterDebounceTimer = null;
+    const debouncedFilterProspects = () => {
+        if (_filterDebounceTimer) clearTimeout(_filterDebounceTimer);
+        _filterDebounceTimer = setTimeout(() => {
+            filterProspects();
+            _filterDebounceTimer = null;
+        }, 150); // 150ms debounce pour input
+    };
+    on('searchInput', 'input', debouncedFilterProspects);
     on('companyFilter', 'change', filterProspects);
     on('statusFilter', 'change', filterProspects);
     on('pertinenceFilter', 'change', filterProspects);
@@ -2226,8 +2234,12 @@ function filterProspects() {
     }
     syncStatsCardsMode();
 
+    // v26: Optimisation — créer un Map pour lookup companies (évite find() répétés dans le filtre)
+    const companyMapForFilter = new Map();
+    data.companies.forEach(c => companyMapForFilter.set(c.id, c));
+    
     filteredProspects = baseProspects.filter(p => {
-        const companyObj = data.companies.find(c => c.id === p.company_id);
+        const companyObj = companyMapForFilter.get(p.company_id);
         const companyName = companyObj?.groupe || '';
         const companySite = companyObj?.site || '';
         const notesText = (p.notes || '');
@@ -2261,7 +2273,7 @@ function filterProspects() {
     if (prospScrollSnapshot) {
         _queueProspectsScrollRestore(prospScrollSnapshot);
     }
-    renderProspects();
+    renderProspects(); // v26: utilise maintenant RAF pour éviter re-renders multiples
     updateBulkBar();
     updateSelectAllState();
     renderActiveFilterChips();
@@ -2281,8 +2293,11 @@ function syncStatsCardsMode() {
 
 
 function applySort() {
+    // v26: Optimisation — créer un Map pour lookup companies (évite find() répétés)
+    const companyMapForSort = new Map();
+    data.companies.forEach(c => companyMapForSort.set(c.id, c));
     const getCompanyName = (p) => {
-        const c = data.companies.find(x => x.id === p.company_id);
+        const c = companyMapForSort.get(p.company_id);
         return (c?.groupe || '') + ' ' + (c?.site || '');
     };
 
@@ -2777,9 +2792,25 @@ function _renderPagination() {
     container.innerHTML = html;
 }
 
+// v26: Optimisation — éviter les re-renders multiples avec RAF
+let _renderProspectsRaf = null;
 function renderProspects() {
+    if (_renderProspectsRaf) {
+        cancelAnimationFrame(_renderProspectsRaf);
+        _renderProspectsRaf = null;
+    }
+    _renderProspectsRaf = requestAnimationFrame(() => {
+        _renderProspectsRaf = null;
+        _renderProspectsImpl();
+    });
+}
+
+function _renderProspectsImpl() {
     const tbody = document.getElementById('tableBody');
     if (!tbody) return;
+    
+    // v26: Optimisation performance — utiliser DocumentFragment pour batch DOM updates
+    const fragment = document.createDocumentFragment();
     tbody.innerHTML = '';
 
     if (filteredProspects.length === 0) {
@@ -2812,9 +2843,13 @@ function renderProspects() {
     var endIdx = Math.min(startIdx + _pageSize, filteredProspects.length);
     var pageProspects = filteredProspects.slice(startIdx, endIdx);
 
+    // v26: Optimisation — créer un Map pour lookup companies (évite find() répétés)
+    const companyMap = new Map();
+    data.companies.forEach(c => companyMap.set(c.id, c));
+
     // Desktop : tableau avec 13 colonnes triables + bouton Voir. Mobile : carte (premier td) via CSS.
     pageProspects.forEach((prospect, pageIdx) => {
-        const company = data.companies.find(c => c.id === prospect.company_id);
+        const company = companyMap.get(prospect.company_id);
         const stMeta = getStatusMeta(prospect.statut);
         const companyName = (company && company.groupe) ? String(company.groupe).trim() : '';
         const mobileSub = companyName ? escapeHtml(companyName) : '—';
@@ -2878,14 +2913,22 @@ function renderProspects() {
             '<td class="prospect-actions-cell">' +
             '<div class="prospect-actions-inner"><button type="button" class="btn btn-secondary prospect-action-voir" onclick="event.stopPropagation();viewDetail(' + pid + ')" title="Voir fiche">Voir</button></div>' +
             '</td>';
-        tbody.appendChild(row);
+        fragment.appendChild(row);
     });
+    
+    // v26: Append fragment en une seule opération DOM (plus rapide)
+    tbody.appendChild(fragment);
 
     // Stats use ALL filtered prospects (not just current page)
     updateStats(filteredProspects);
     _renderPagination();
     if (typeof renderKanban === 'function') renderKanban();
     _flushProspectsScrollRestore();
+}
+
+// v26: Alias pour compatibilité (anciens appels directs)
+function _renderProspectsDirect() {
+    _renderProspectsImpl();
 }
 
 function renderEmailCell(p) {
