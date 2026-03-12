@@ -7792,7 +7792,7 @@ def api_ollama_generate():
     except urllib.error.URLError as e:
         config = _load_ai_config()
         provider = config.get("provider", "ollama")
-        label = "Ollama" if provider == "ollama" else "Groq"
+        label = {"ollama": "Ollama", "groq": "Groq", "sonar": "Sonar"}.get(provider, provider)
         logger.warning("%s unreachable: %s", label, e)
         return jsonify(ok=False, error=f"{label} indisponible (vérifiez la configuration dans Paramètres)"), 503
     except Exception as e:
@@ -7894,6 +7894,8 @@ def api_ai_test():
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
+    global _ai_config_cache
+    _ai_config_cache = None
     payload = request.get_json(force=True, silent=True) or {}
     provider = payload.get("provider")
     config = _load_ai_config()
@@ -7913,6 +7915,11 @@ def api_ai_test():
         if payload.get("sonar_model"):
             config["sonar_model"] = payload["sonar_model"]
     test_provider = config.get("provider", "ollama")
+    _provider_labels = {"groq": "Groq", "sonar": "Sonar", "ollama": "Ollama"}
+    label = _provider_labels.get(test_provider, test_provider)
+    api_key = config.get("groq_api_key") if test_provider == "groq" else config.get("sonar_api_key") if test_provider == "sonar" else None
+    if test_provider in ("groq", "sonar") and not api_key:
+        return jsonify(ok=False, error=f"Clé API {label} non configurée. Enregistrez d'abord la configuration."), 400
     test_prompt = "Réponds uniquement par le mot OK."
     try:
         text = _call_ai_provider(test_provider, test_prompt, config, timeout=15)
@@ -7922,15 +7929,20 @@ def api_ai_test():
         try:
             err_body = e.read().decode("utf-8")
             err_data = json.loads(err_body) if err_body else {}
-            msg = err_data.get("error", {}).get("message", "") or err_data.get("error", err_body) or str(e)
+            if isinstance(err_data.get("error"), dict):
+                msg = err_data["error"].get("message", "") or str(e)
+            else:
+                msg = err_data.get("error", "") or str(e)
         except Exception:
             msg = str(e)
-        return jsonify(ok=False, error=msg), e.code if 400 <= e.code < 600 else 502
+        if e.code in (401, 403):
+            msg = f"Clé API {label} invalide ou expirée (HTTP {e.code}). Vérifiez-la sur le site du provider."
+        logger.warning("AI test %s HTTP %s: %s", label, e.code, msg)
+        return jsonify(ok=False, error=msg), 200
     except urllib.error.URLError as e:
-        label = "Groq" if test_provider == "groq" else "Ollama"
-        return jsonify(ok=False, error=f"{label} injoignable : {e}"), 503
+        return jsonify(ok=False, error=f"{label} injoignable. Vérifiez que le service tourne."), 200
     except Exception as e:
-        return jsonify(ok=False, error=str(e)), 500
+        return jsonify(ok=False, error=str(e)), 200
 
 # ═══════════════════════════════════════════════════════════════════
 # v25.8: Intégration automatique des tags dans l'arbre des métiers via Ollama
