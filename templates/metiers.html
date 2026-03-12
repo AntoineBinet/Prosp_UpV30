@@ -307,7 +307,28 @@ function filterTree(query) {
 document.addEventListener('keydown', function(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); document.getElementById('treeSearch').focus(); }
 });
-renderStats(); renderTree();
+
+// Attendre que METIERS_DATA soit chargé avant de rendre
+function initMetiersPage() {
+  if (typeof METIERS_DATA === 'undefined' || !METIERS_DATA || METIERS_DATA.length === 0) {
+    // Réessayer après un court délai si les données ne sont pas encore chargées
+    setTimeout(initMetiersPage, 100);
+    return;
+  }
+  renderStats();
+  renderTree();
+  // loadCustomMetiers sera appelé plus tard dans le script, après sa définition
+  if (typeof loadCustomMetiers === 'function') {
+    loadCustomMetiers();
+  }
+}
+
+// Démarrer l'initialisation
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initMetiersPage);
+} else {
+  initMetiersPage();
+}
 
 // ═══ Custom Métiers Editing ═══
 let _customMetiers = [];
@@ -441,8 +462,10 @@ renderTree = function() {
   _origRenderTree();
 };
 
-// Load on init
-loadCustomMetiers();
+// Charger les métiers personnalisés après leur définition
+if (typeof loadCustomMetiers === 'function') {
+  loadCustomMetiers();
+}
 
 document.querySelectorAll('.nav-button').forEach(function(btn) {
   btn.classList.remove('active');
