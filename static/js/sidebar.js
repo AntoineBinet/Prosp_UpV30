@@ -11,13 +11,12 @@
             { href: '/dashboard',   icon: '\uD83D\uDCCA', label: 'Dashboard',   page: 'dashboard',   helpSection: 'dashboard' },
             { href: '/',            icon: '\uD83D\uDC65', label: 'Prospects',    page: 'prospects',  helpSection: 'prospects' },
             { href: '/entreprises', icon: '\uD83D\uDCCD', label: 'Entreprises',  page: 'companies',  helpSection: 'entreprises' },
-            { href: '/focus',       icon: '\uD83C\uDFAF', label: 'Focus',        page: 'focus',      helpSection: 'focus' },
-            { href: '/calendrier',  icon: '\uD83D\uDCC5', label: 'Calendrier',   page: 'calendar',   helpSection: 'calendrier' }
+            { href: '/focus',       icon: '\uD83C\uDFAF', label: 'Focus',        page: 'focus',      helpSection: 'focus' }
         ]},
         { group: 'Actions', items: [
-            { href: '/sourcing',  icon: '\uD83E\uDDF2', label: 'Sourcing',         page: 'sourcing',  helpSection: 'sourcing' },
-            { href: '/push',      icon: '\uD83D\uDCE4', label: 'Push',             page: 'push',      helpSection: 'push' },
-            { href: '/templates', icon: '\uD83D\uDCC2', label: 'Cat\u00e9gories Push', page: 'templates', helpSection: 'categories-push' }
+            { href: '/sourcing',  icon: '\uD83E\uDDF2', label: 'Candidats',         page: 'sourcing',  helpSection: 'sourcing' },
+            { href: '/calendrier',  icon: '\uD83D\uDCC5', label: 'Calendrier',   page: 'calendar',   helpSection: 'calendrier' },
+            { href: '/collab',      icon: '\uD83D\uDC65', label: 'Collaboration', page: 'collab',     helpSection: 'collab' }
         ]},
         { group: 'Analyse', items: [
             { href: '/stats',   icon: '\uD83D\uDCC8', label: 'Stats',   page: 'stats',   helpSection: 'stats' },
@@ -30,9 +29,11 @@
                   { href: '/snapshots',  icon: '\uD83D\uDCBE', label: 'Snapshots', page: 'snapshots',  helpSection: 'snapshots' },
                   { href: '/kpi',        icon: '\uD83D\uDCC8', label: 'KPI',       page: 'kpi',        helpSection: 'kpi' },
                   { href: '/metiers',    icon: '\uD83C\uDFD7\uFE0F', label: 'M\u00e9tiers',  page: 'metiers',  helpSection: 'metiers' },
+                  { href: '/templates', icon: '\uD83D\uDCC2', label: 'Cat\u00e9gories Push', page: 'templates', helpSection: 'categories-push' },
                   { href: '/help',       icon: '\u2753',       label: 'Aide',      page: 'help',       helpSection: 'raccourcis' }
               ]
             },
+            { href: '/push',      icon: '\uD83D\uDCE4', label: 'Push',             page: 'push',      helpSection: 'push' },
             { href: '/?contacts=1', icon: '\uD83D\uDCC1', label: 'Contacts', id: 'sidebarContactsBtn', page: '_contacts', helpSection: 'contacts' },
             { href: '/users',       icon: '\uD83D\uDC65', label: 'Utilisateurs', page: 'users' },
             { id: 'themeToggleBtn', icon: '\uD83C\uDF19', label: 'Th\u00e8me', page: null, action: 'toggleTheme' }
@@ -49,7 +50,7 @@
     };
 
     // Sub-pages that belong to Paramètres
-    var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'kpi', 'metiers', 'help'];
+    var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'kpi', 'metiers', 'templates', 'help'];
 
     // ── State ─────────────────────────────────────────────────────
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();
