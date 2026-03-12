@@ -51,6 +51,77 @@
     // Sub-pages that belong to Paramètres
     var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'kpi', 'metiers', 'templates', 'help'];
 
+    // ── Prefetch (navigation fluidity) ────────────────────────────
+    var PREFETCH_DELAY_MS = 120;
+    var PREFETCH_MAX_CONCURRENT = 2;
+    var _prefetchPending = 0;
+    var _prefetchTimer = null;
+
+    function _normalizeNavUrl(href) {
+        if (!href || href.indexOf('javascript:') === 0 || href.indexOf('#') === 0) return null;
+        try {
+            var a = document.createElement('a');
+            a.href = href;
+            if (a.origin !== window.location.origin) return null;
+            return a.pathname + (a.search || '');
+        } catch (e) { return null; }
+    }
+
+    function _isCurrentPageUrl(navPath) {
+        var current = window.location.pathname + (window.location.search || '');
+        if (navPath === '/' && current === '/') return true;
+        if (navPath === current) return true;
+        if (navPath === '/' && current.indexOf('/') === 0 && current.length > 1) return false;
+        return navPath === current;
+    }
+
+    function _doPrefetch(url) {
+        if (_prefetchPending >= PREFETCH_MAX_CONCURRENT) return;
+        var path = _normalizeNavUrl(url);
+        if (!path || _isCurrentPageUrl(path)) return;
+        _prefetchPending += 1;
+        fetch(url, { credentials: 'same-origin', headers: { Accept: 'text/html' } })
+            .then(function () { _prefetchPending -= 1; })
+            .catch(function () { _prefetchPending -= 1; });
+    }
+
+    function _schedulePrefetch(url) {
+        if (_prefetchTimer) clearTimeout(_prefetchTimer);
+        _prefetchTimer = setTimeout(function () {
+            _prefetchTimer = null;
+            _doPrefetch(url);
+        }, PREFETCH_DELAY_MS);
+    }
+
+    function _cancelPrefetch() {
+        if (_prefetchTimer) {
+            clearTimeout(_prefetchTimer);
+            _prefetchTimer = null;
+        }
+    }
+
+    function _attachPrefetch(el, href) {
+        if (!href || href.indexOf('javascript:') === 0) return;
+        el.addEventListener('mouseenter', function () {
+            _schedulePrefetch(el.href);
+        });
+        el.addEventListener('mouseleave', _cancelPrefetch);
+        el.addEventListener('click', _cancelPrefetch);
+        el.addEventListener('touchend', function () {
+            _schedulePrefetch(el.href);
+        }, { passive: true });
+    }
+
+    function _attachNavLoading(el, href) {
+        if (!href || href.indexOf('javascript:') === 0) return;
+        el.addEventListener('click', function (e) {
+            if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+            var path = _normalizeNavUrl(href);
+            if (!path || _isCurrentPageUrl(path)) return;
+            el.classList.add('nav-loading');
+        });
+    }
+
     // ── State ─────────────────────────────────────────────────────
     var _currentUser = null;  // user from /api/auth/me (for badge)
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();
