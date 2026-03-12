@@ -9526,12 +9526,12 @@ def meetings_create():
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     
     with _conn() as conn:
-        conn.execute(
+        cursor = conn.execute(
             """INSERT INTO meetings (prospect_id, owner_id, date, title, checklist_data, notes, createdAt)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (prospect_id, uid, today, title, json.dumps(checklist_data, ensure_ascii=False) if checklist_data else None, notes, now)
         )
-        meeting_id = conn.lastrowid
+        meeting_id = cursor.lastrowid
     
     return jsonify(ok=True, id=meeting_id, date=today)
 
