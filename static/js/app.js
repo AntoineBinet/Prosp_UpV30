@@ -3265,19 +3265,18 @@ async function viewDetail(id) {
                         <div class="detail-info-value" id="detailPushTemplateList"><span class="muted">Chargement…</span></div>
                     </div>
                     <div class="detail-info-item full">
-                        <div class="detail-info-label">Dossier de compétences 1</div>
-                        <div class="detail-info-value">
-                            <select id="detailPushCandidate1" class="input" style="width:100%;" onchange="updatePushGenerateButton(${id})">
-                                <option value="">— Aucun —</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="detail-info-item full">
-                        <div class="detail-info-label">Dossier de compétences 2</div>
-                        <div class="detail-info-value">
-                            <select id="detailPushCandidate2" class="input" style="width:100%;" onchange="updatePushGenerateButton(${id})">
-                                <option value="">— Aucun —</option>
-                            </select>
+                        <div class="detail-info-label">Dossiers de compétences</div>
+                        <div class="detail-info-value" style="display:flex;gap:12px;">
+                            <div style="flex:1;">
+                                <select id="detailPushCandidate1" class="template-select" style="width:100%;" onchange="updatePushGenerateButton(${id})">
+                                    <option value="">— Aucun —</option>
+                                </select>
+                            </div>
+                            <div style="flex:1;">
+                                <select id="detailPushCandidate2" class="template-select" style="width:100%;" onchange="updatePushGenerateButton(${id})">
+                                    <option value="">— Aucun —</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="detail-info-item full" style="margin-top:10px;">
