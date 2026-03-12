@@ -1311,7 +1311,6 @@ CREATE TABLE IF NOT EXISTS push_categories (
     UNIQUE(name, owner_id)
 );
 CREATE INDEX IF NOT EXISTS idx_push_categories_name ON push_categories(name);
-CREATE INDEX IF NOT EXISTS idx_push_categories_owner ON push_categories(owner_id);
 
 CREATE TABLE IF NOT EXISTS rdv_checklists (
     id          INTEGER PRIMARY KEY,
