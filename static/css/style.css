@@ -1013,6 +1013,10 @@ a.btn:visited {
     background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
 }
 
+.stat-card.prospectés {
+    background: linear-gradient(135deg, #5b21b6 0%, #3730a3 100%);
+}
+
 .stat-card.relances {
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     animation: statCardIn .4s ease both, pulse-glow 2.5s ease-in-out infinite .5s;

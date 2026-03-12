@@ -2678,6 +2678,7 @@ function getStatusMeta(statut) {
     if (s.includes('appel')) return { icon: '📞', slug: 'appele', label: 'Appelé' };
     if (s.includes('pas intéress')) return { icon: '❌', slug: 'pas-interesse', label: 'Pas intéressé' };
     if (s.includes("pas d'actions") || s.includes('pas dactions')) return { icon: '✓', slug: 'pas-actions', label: 'Pas d\'actions' };
+    if (s.includes('prospect')) return { icon: '📋', slug: 'prospectes', label: 'Prospectés' };
 
     return { icon: '•', slug: 'autre', label: (statut || '').slice(0, 12) };
 }
@@ -2989,30 +2990,33 @@ function isProspectCallable(p) {
 
 function updateStats(prospects) {
     const activeProspects = Array.isArray(prospects) ? prospects : [];
+    // Totaux bruts (toujours sur tous les prospects, sans filtre) pour les 4 panneaux
+    const allProspects = Array.isArray(data.prospects) ? data.prospects : [];
     const totalEl = document.getElementById('totalCount');
-    if (totalEl) totalEl.textContent = activeProspects.length;
+    if (totalEl) totalEl.textContent = allProspects.length;
 
     if (_showContacts) {
         const calledEl = document.getElementById('appeléCount');
         const rdvEl = document.getElementById('rdvCount');
-        const interactionsEl = document.getElementById('intéressésCount');
+        const prospectésEl = document.getElementById('prospectésCount');
         if (calledEl) calledEl.textContent = '-';
         if (rdvEl) rdvEl.textContent = '-';
-        if (interactionsEl) interactionsEl.textContent = '-';
+        if (prospectésEl) prospectésEl.textContent = '-';
         updateOverdueAlerts([]);
         return;
     }
 
-    // ORANGE : nombre de prospects "appelables" (champ téléphone rempli / exploitable)
-    document.getElementById('appeléCount').textContent = activeProspects.filter(p => isProspectCallable(p)).length;
+    // ORANGE : appelables (avec téléphone) — total brut
+    const appeléEl = document.getElementById('appeléCount');
+    if (appeléEl) appeléEl.textContent = allProspects.filter(p => isProspectCallable(p)).length;
+    // VERT : RDV — total brut
+    const rdvEl = document.getElementById('rdvCount');
+    if (rdvEl) rdvEl.textContent = allProspects.filter(p => p.statut === 'Rendez-vous').length;
+    // VIOLET : prospectés (statut Prospectés) — total brut
+    const prospectésEl = document.getElementById('prospectésCount');
+    if (prospectésEl) prospectésEl.textContent = allProspects.filter(p => p.statut === 'Prospectés').length;
 
-    // VERT : RDV (exclude Rencontré — they've been met)
-    document.getElementById('rdvCount').textContent = activeProspects.filter(p => p.statut === 'Rendez-vous').length;
-
-    // BLEU : prospectés (statut : Prospecté)
-    document.getElementById('intéressésCount').textContent = activeProspects.filter(p => p.statut === 'Prospecté').length;
-
-    // ROUGE : relances en retard
+    // Relances en retard : basé sur les prospects affichés (filtrés)
     updateOverdueAlerts(activeProspects);
 }
 
@@ -3057,7 +3061,7 @@ function quickFilterStat(type) {
     }
 
     // Highlight active card
-    const cardMap = { appelables: '.stat-card.appelé', rdv: '.stat-card.rdv', prospectes: '.stat-card.intéressés' };
+    const cardMap = { appelables: '.stat-card.appelé', rdv: '.stat-card.rdv', prospectés: '.stat-card.prospectés' };
     const card = document.querySelector(cardMap[type]);
     if (card) card.classList.add('stat-active');
 
@@ -3065,8 +3069,8 @@ function quickFilterStat(type) {
         if (pf) pf.value = 'with';
     } else if (type === 'rdv') {
         if (sf) sf.value = 'Rendez-vous';
-    } else if (type === 'prospectes') {
-        if (sf) sf.value = 'Prospecté';
+    } else if (type === 'prospectés') {
+        if (sf) sf.value = 'Prospectés';
     }
 
     filterProspects();
@@ -3439,6 +3443,7 @@ async function viewDetail(id) {
                         <option value="Prospecté" ${prospect.statut==='Prospecté'?'selected':''}>Prospecté</option>
                         <option value="Messagerie" ${prospect.statut==='Messagerie'?'selected':''}>Messagerie</option>
                         <option value="Pas intéressé" ${prospect.statut==='Pas intéressé'?'selected':''}>Pas intéressé</option>
+                        <option value="Prospectés" ${prospect.statut==='Prospectés'?'selected':''}>Prospectés</option>
                     </select>
                 </div>
                 <div style="margin-top:16px;">
