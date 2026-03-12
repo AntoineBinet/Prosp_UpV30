@@ -405,8 +405,14 @@
             phase: '',
             liveText: ''
         });
+        // Activer la recherche web si le contexte contient un lien LinkedIn ou une URL
+        const hasLinkedInUrl = context && /linkedin\.com\/in\/|linkedin\.com\/company\//i.test(context);
+        const hasUrl = context && /https?:\/\//i.test(context);
+        const useWebSearch = hasLinkedInUrl || hasUrl;
         // Désactiver le streaming pour tous les appels (proxy/tunnel peut mal gérer le streaming SSE → erreur 405)
-        const opts = multiple ? { timeoutMs: 300000, stream: false } : { timeoutMs: 180000, stream: false };
+        const opts = multiple 
+            ? { timeoutMs: 300000, stream: false, webSearch: useWebSearch } 
+            : { timeoutMs: 180000, stream: false, webSearch: useWebSearch };
         window.callOllama(prompt, opts).then(function (text) {
             _qaOverlayHide();
             const result = _tryParseQARaw(text || '', _qaType);
@@ -1071,10 +1077,17 @@
             ? `\n══════ INFORMATIONS DONT JE DISPOSE (utilise-les pour remplir la fiche) ══════\n${context}\n\n`
             : '';
 
+        const isLinkedInUrl = context && /linkedin\.com\/in\/|linkedin\.com\/company\//i.test(context);
+        const extractionInstructions = isLinkedInUrl
+            ? `IMPORTANT : Le contexte contient un lien LinkedIn. Utilise la recherche web pour accéder au profil LinkedIn et extrais UNIQUEMENT les informations réellement visibles sur le profil. NE PAS INVENTER d'informations qui ne sont pas présentes. Si une information n'est pas visible sur le profil (ex: téléphone, email), laisse le champ vide ou utilise "" (chaîne vide). Extrais précisément : nom complet, titre du poste actuel, entreprise actuelle, localisation, description/résumé, expériences professionnelles.`
+            : (contextBlock 
+                ? 'Remplis la fiche à partir de ces informations. Extrais uniquement les données réellement présentes. Ne pas inventer d\'informations manquantes.'
+                : 'Recherche toutes les informations disponibles sur cette personne/entité à partir des documents, liens ou informations que je te fournis. Extrais uniquement les données réellement trouvées.');
+
         return `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel).
 
 Je dois créer la fiche de ${contexts[type]} dans mon CRM.
-${contextBlock ? contextBlock + 'Remplis la fiche à partir de ces informations. Si c\'est un lien LinkedIn ou un profil, extrais nom, fonction, entreprise, etc.' : 'Recherche toutes les informations disponibles sur cette personne/entité à partir des documents, liens ou informations que je te fournis.'}
+${contextBlock}${extractionInstructions}
 
 ══════ TAGS TECHNIQUES STANDARDS ══════
 AUTOSAR, C/C++, RTOS, Linux embarqué, FPGA, VHDL, Verilog, Python, Java, C#, .NET, ARM, Microcontrôleur, PCB, Altium, KiCad, Yocto, QNX, FreeRTOS, VxWorks, CAN, LIN, Ethernet, TCP/IP, SPI, I2C, UART, JTAG, Modbus, ISO 26262, DO-178, IEC 61508, ADAS, Lidar, Radar, Vision, IA/ML, ROS, Matlab/Simulink, LabVIEW, Banc de test, Qualification, Validation, Electronique analogique, Electronique numérique, Puissance, RF, Mécatronique, CAO mécanique, Catia, SolidWorks, Gestion de projet, Agilité, V-cycle
@@ -1082,6 +1095,15 @@ AUTOSAR, C/C++, RTOS, Linux embarqué, FPGA, VHDL, Verilog, Python, Java, C#, .N
 ══════ FORMAT DE SORTIE (JSON strict) ══════
 Réponds UNIQUEMENT par un objet JSON valide, sans aucun texte avant ou après, sans \`\`\` ni markdown.
 Utilise exactement les clés de l'exemple. Pour un prospect : name, fonction, entreprise, telephone, email, linkedin, tags, metier, pertinence, secteur, notes. Limite "tags" à 12 éléments max.
+
+⚠️ RÈGLES IMPORTANTES :
+- N'invente JAMAIS d'informations qui ne sont pas visibles dans le contexte fourni
+- Si une information n'est pas disponible (téléphone, email, etc.), utilise "" (chaîne vide) au lieu d'inventer
+- Pour les tags, utilise uniquement ceux qui correspondent réellement au profil (domaines techniques mentionnés)
+- Le champ "linkedin" doit être l'URL complète du profil si fournie dans le contexte
+- Le champ "entreprise" doit être le nom exact de l'entreprise visible sur le profil
+- Le champ "fonction" doit être le titre exact du poste actuel visible sur le profil
+
 Exemple (une seule ligne si possible) :
 
 ${jsonFormats[type]}`;
@@ -1113,10 +1135,17 @@ ${jsonFormats[type]}`;
             ? `\n══════ INFORMATIONS DONT JE DISPOSE (extrais les fiches à partir de cela) ══════\n${context}\n\n`
             : '';
 
+        const hasLinkedInUrls = context && /linkedin\.com\/in\/|linkedin\.com\/company\//i.test(context);
+        const extractionInstructions = hasLinkedInUrls
+            ? 'IMPORTANT : Le contexte contient des liens LinkedIn. Utilise la recherche web pour accéder aux profils LinkedIn et extrais UNIQUEMENT les informations réellement visibles. NE PAS INVENTER d\'informations manquantes. Si une information n\'est pas visible, utilise "" (chaîne vide).'
+            : (contextBlock 
+                ? 'Extrais toutes les fiches possibles à partir de ces informations. Utilise uniquement les données réellement présentes.'
+                : 'À partir des documents, liens ou informations que je te fournis, extrais toutes les fiches possibles. Utilise uniquement les données réellement trouvées.');
+
         return `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel).
 
 Je dois créer les fiches de ${contexts[type]} dans mon CRM pour une ESN spécialisée en systèmes embarqués, électronique et ingénierie autour de Lyon.
-${contextBlock ? contextBlock + 'Extrais toutes les fiches possibles à partir de ces informations.' : 'À partir des documents, liens ou informations que je te fournis, extrais toutes les fiches possibles.'}
+${contextBlock}${extractionInstructions}
 
 ══════ TAGS TECHNIQUES STANDARDS ══════
 AUTOSAR, C/C++, RTOS, Linux embarqué, FPGA, VHDL, Verilog, Python, Java, C#, ARM, Microcontrôleur, PCB, Altium, KiCad, Yocto, QNX, FreeRTOS, VxWorks, CAN, LIN, Ethernet, TCP/IP, SPI, I2C, UART, ISO 26262, DO-178, ADAS, Lidar, Radar, Vision, IA/ML, ROS, Matlab/Simulink, LabVIEW, Banc de test, Validation, Electronique analogique, Electronique numérique, Puissance, RF, Mécatronique, CAO mécanique, Catia, SolidWorks, Gestion de projet, Agilité, V-cycle
@@ -1124,6 +1153,15 @@ AUTOSAR, C/C++, RTOS, Linux embarqué, FPGA, VHDL, Verilog, Python, Java, C#, AR
 ══════ FORMAT DE SORTIE (JSON array strict) ══════
 Réponds UNIQUEMENT par un array JSON valide, sans aucun texte avant ou après, sans \`\`\` ni markdown.
 Limite les tableaux "tags" / "skills" à 12 éléments par fiche pour éviter la troncature.
+
+⚠️ RÈGLES IMPORTANTES :
+- N'invente JAMAIS d'informations qui ne sont pas visibles dans le contexte fourni
+- Si une information n'est pas disponible, utilise "" (chaîne vide) au lieu d'inventer
+- Pour les tags, utilise uniquement ceux qui correspondent réellement aux profils
+- Les champs "linkedin" doivent être les URLs complètes des profils si fournies
+- Les champs "entreprise" doivent être les noms exacts des entreprises visibles
+- Les champs "fonction" doivent être les titres exacts des postes actuels visibles
+
 Exemple : ${jsonFormats[type]}`;
     }
 
