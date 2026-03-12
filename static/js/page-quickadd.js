@@ -644,6 +644,21 @@
         if (!parsed || (typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length === 0))
             return { ok: false };
         if (!Array.isArray(parsed)) parsed = [parsed];
+        
+        // Normaliser la pertinence : forcer entre 1 et 5, sinon vide
+        parsed = parsed.map(function(item) {
+            if (item && typeof item === 'object' && item.pertinence !== undefined) {
+                const pert = item.pertinence;
+                if (typeof pert === 'string' || typeof pert === 'number') {
+                    const n = parseInt(pert);
+                    item.pertinence = (n >= 1 && n <= 5) ? String(n) : '';
+                } else {
+                    item.pertinence = '';
+                }
+            }
+            return item;
+        });
+        
         return { ok: true, parsed: parsed };
     }
 
@@ -718,7 +733,8 @@
             obj[field] = isNaN(n) ? null : n;
         } else if (field === 'pertinence') {
             const n = parseInt(val);
-            obj[field] = (n >= 1 && n <= 5) ? String(n) : val;
+            // Forcer la pertinence entre 1 et 5, sinon vide
+            obj[field] = (n >= 1 && n <= 5) ? String(n) : '';
         } else if (field.startsWith('_')) {
             // Append to notes
             obj.notes = (obj.notes || '') + '\n' + rawKey + ': ' + val;
@@ -856,7 +872,8 @@
                     item[field] = val ? val.split(',').map(s => s.trim()).filter(Boolean) : [];
                 } else if (field === 'pertinence') {
                     const n = parseInt(val);
-                    item[field] = (n >= 1 && n <= 5) ? String(n) : val;
+                    // Forcer la pertinence entre 1 et 5, sinon vide
+                    item[field] = (n >= 1 && n <= 5) ? String(n) : '';
                 } else {
                     item[field] = val;
                 }
@@ -1092,9 +1109,18 @@ ${contextBlock}${extractionInstructions}
 ══════ TAGS TECHNIQUES STANDARDS ══════
 AUTOSAR, C/C++, RTOS, Linux embarqué, FPGA, VHDL, Verilog, Python, Java, C#, .NET, ARM, Microcontrôleur, PCB, Altium, KiCad, Yocto, QNX, FreeRTOS, VxWorks, CAN, LIN, Ethernet, TCP/IP, SPI, I2C, UART, JTAG, Modbus, ISO 26262, DO-178, IEC 61508, ADAS, Lidar, Radar, Vision, IA/ML, ROS, Matlab/Simulink, LabVIEW, Banc de test, Qualification, Validation, Electronique analogique, Electronique numérique, Puissance, RF, Mécatronique, CAO mécanique, Catia, SolidWorks, Gestion de projet, Agilité, V-cycle
 
+══════ PERTINENCE (OBLIGATOIRE : 1 à 5) ══════
+Le champ "pertinence" DOIT être une chaîne de caractères : "1", "2", "3", "4" ou "5" (jamais autre chose).
+- 5 = Décideur direct qui recrute des ingénieurs dans nos domaines (systèmes embarqués, électronique, robotique)
+- 4 = Manager/responsable avec influence sur les recrutements dans nos domaines
+- 3 = Contact dans une entreprise pertinente, rôle moins direct mais domaine aligné
+- 2 = Contact dans une entreprise pertinente mais rôle peu lié à nos métiers
+- 1 = Peu de lien avec nos domaines d'expertise
+Si tu ne peux pas évaluer à partir des informations disponibles, utilise "" (chaîne vide).
+
 ══════ FORMAT DE SORTIE (JSON strict) ══════
 Réponds UNIQUEMENT par un objet JSON valide, sans aucun texte avant ou après, sans \`\`\` ni markdown.
-Utilise exactement les clés de l'exemple. Pour un prospect : name, fonction, entreprise, telephone, email, linkedin, tags, metier, pertinence, secteur, notes. Limite "tags" à 12 éléments max.
+Utilise exactement les clés de l'exemple. Pour un prospect : name, fonction, entreprise, telephone, email, linkedin, tags, metier, pertinence, secteur, notes. Limite "tags" à 12 éléments max. IMPORTANT : "pertinence" doit être "1", "2", "3", "4" ou "5" (chaîne de caractères), jamais autre chose.
 
 ⚠️ RÈGLES IMPORTANTES :
 - N'invente JAMAIS d'informations qui ne sont pas visibles dans le contexte fourni
@@ -1103,6 +1129,7 @@ Utilise exactement les clés de l'exemple. Pour un prospect : name, fonction, en
 - Le champ "linkedin" doit être l'URL complète du profil si fournie dans le contexte
 - Le champ "entreprise" doit être le nom exact de l'entreprise visible sur le profil
 - Le champ "fonction" doit être le titre exact du poste actuel visible sur le profil
+- Le champ "pertinence" DOIT être un nombre entre 1 et 5 (chaîne de caractères : "1", "2", "3", "4" ou "5"). 5 = décideur direct qui recrute dans nos domaines, 1 = peu de lien. Si tu ne peux pas évaluer, utilise "" (chaîne vide). JAMAIS de valeur hors de cette plage.
 
 Exemple (une seule ligne si possible) :
 
@@ -1112,7 +1139,7 @@ ${jsonFormats[type]}`;
     function _buildMultiPrompt(type, context) {
         const jsonFormats = {
             prospect: `[
-  { "name": "...", "fonction": "...", "entreprise": "...", "telephone": "...", "email": "...", "linkedin": "...", "tags": [...], "metier": "...", "pertinence": "1-5", "notes": "..." },
+  { "name": "...", "fonction": "...", "entreprise": "...", "telephone": "...", "email": "...", "linkedin": "...", "tags": [...], "metier": "...", "pertinence": "5", "notes": "..." },
   ...
 ]`,
             company: `[
@@ -1150,9 +1177,19 @@ ${contextBlock}${extractionInstructions}
 ══════ TAGS TECHNIQUES STANDARDS ══════
 AUTOSAR, C/C++, RTOS, Linux embarqué, FPGA, VHDL, Verilog, Python, Java, C#, ARM, Microcontrôleur, PCB, Altium, KiCad, Yocto, QNX, FreeRTOS, VxWorks, CAN, LIN, Ethernet, TCP/IP, SPI, I2C, UART, ISO 26262, DO-178, ADAS, Lidar, Radar, Vision, IA/ML, ROS, Matlab/Simulink, LabVIEW, Banc de test, Validation, Electronique analogique, Electronique numérique, Puissance, RF, Mécatronique, CAO mécanique, Catia, SolidWorks, Gestion de projet, Agilité, V-cycle
 
+══════ PERTINENCE (OBLIGATOIRE : 1 à 5) ══════
+Le champ "pertinence" DOIT être une chaîne de caractères : "1", "2", "3", "4" ou "5" (jamais autre chose).
+- 5 = Décideur direct qui recrute des ingénieurs dans nos domaines (systèmes embarqués, électronique, robotique)
+- 4 = Manager/responsable avec influence sur les recrutements dans nos domaines
+- 3 = Contact dans une entreprise pertinente, rôle moins direct mais domaine aligné
+- 2 = Contact dans une entreprise pertinente mais rôle peu lié à nos métiers
+- 1 = Peu de lien avec nos domaines d'expertise
+Si tu ne peux pas évaluer à partir des informations disponibles, utilise "" (chaîne vide).
+
 ══════ FORMAT DE SORTIE (JSON array strict) ══════
 Réponds UNIQUEMENT par un array JSON valide, sans aucun texte avant ou après, sans \`\`\` ni markdown.
 Limite les tableaux "tags" / "skills" à 12 éléments par fiche pour éviter la troncature.
+IMPORTANT : "pertinence" doit être "1", "2", "3", "4" ou "5" (chaîne de caractères) pour chaque prospect, jamais autre chose.
 
 ⚠️ RÈGLES IMPORTANTES :
 - N'invente JAMAIS d'informations qui ne sont pas visibles dans le contexte fourni
@@ -1161,6 +1198,7 @@ Limite les tableaux "tags" / "skills" à 12 éléments par fiche pour éviter la
 - Les champs "linkedin" doivent être les URLs complètes des profils si fournies
 - Les champs "entreprise" doivent être les noms exacts des entreprises visibles
 - Les champs "fonction" doivent être les titres exacts des postes actuels visibles
+- Les champs "pertinence" DOIVENT être des nombres entre 1 et 5 (chaînes : "1", "2", "3", "4" ou "5"). 5 = décideur direct qui recrute dans nos domaines, 1 = peu de lien. Si tu ne peux pas évaluer, utilise "" (chaîne vide). JAMAIS de valeur hors de cette plage.
 
 Exemple : ${jsonFormats[type]}`;
     }
