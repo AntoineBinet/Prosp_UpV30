@@ -73,7 +73,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 ```bash
 python app.py                    # Dev server (port 8000, debug=True)
 python app.py --prod             # Prod avec Waitress
-python scripts/supervise_prospup.py   # Superviseur: lance le serveur et le relance en cas de crash (pull manuel via bouton dans les paramètres)
+python scripts/supervise_prospup.py   # Superviseur v2: lance le serveur, détecte crash loops, rollback auto, health check
 npx playwright test              # Lancer les 38 tests E2E
 npx playwright test --headed     # Tests avec navigateur visible
 python minify.py                 # Minifier CSS/JS
@@ -81,6 +81,16 @@ python scripts/watch-prospup.py  # Une vérification puis sortie
 python scripts/watch-prospup.py --loop   # Surveillance en continu sur le PC hébergeur, relance si prospup.work ne répond plus
 ```
 - **Surveillance ProspUp** : `scripts/watch-prospup.py` vérifie que l’app répond (GET sur l’URL configurée). Si échec (timeout 10 s ou status ≠ 200), lance la commande de relance. Variables d’environnement : `PROSPUP_WATCH_URL` (défaut https://prospup.work), `PROSPUP_WATCH_CMD` (défaut `python app.py --prod`), `PROSPUP_WATCH_DIR` (répertoire de travail), `PROSPUP_WATCH_INTERVAL` (900), `PROSPUP_WATCH_TIMEOUT` (10). Sous Windows : tâche planifiée toutes les 15 min ou exécuter en arrière-plan avec `--loop`.
+
+## Fiabilité des mises à jour (mars 2026)
+- **Problème** : quand deux modifications sont poussées simultanément sur `main` (ex: deux agents Cursor), le `git pull --ff-only` échoue sur le serveur car les branches divergent → le serveur crashe → 502 Bad Gateway via Cloudflare.
+- **Solution multi-couches** :
+  1. **Git pull résilient** (`app.py`) : toutes les routes deploy (`/api/deploy/pull`, `/api/deploy/pull-from-404`, `/api/deploy/rollback`) essaient d'abord `git pull --ff-only`. Si ça échoue (divergence), fallback automatique vers `git reset --hard origin/main` pour forcer la synchronisation.
+  2. **Auto-checkout main** : avant tout pull, les routes vérifient que le repo est sur `main` et font un `checkout main` si nécessaire.
+  3. **Restart automatique depuis 404** : les routes `pull-from-404` et `rollback` appellent désormais `_schedule_restart()` pour un redémarrage automatique sans intervention manuelle.
+  4. **Superviseur v2** (`scripts/supervise_prospup.py`) : détection de crash loop (3 crashs en 120 s par défaut), rollback automatique vers `.last_commit_hash`, health check HTTP après chaque restart, auto-checkout main au démarrage.
+  5. **Page 404 améliorée** : retry automatique avec countdown, boutons MAJ + Rollback avec restart intégré.
+- **Variables d'environnement superviseur** : `PROSPUP_CRASH_THRESHOLD` (défaut 3), `PROSPUP_CRASH_WINDOW` (120 s), `PROSPUP_HEALTH_PORT` (8000), `PROSPUP_HEALTH_TIMEOUT` (30 s), `PROSPUP_GRACE_PERIOD` (8 s).
 
 ## Tracabilité — Correctif utilisateurs et DB (mars 2025)
 - **Problème** : les DB per-user (`data/user_<id>/prospects.db`) étaient créées sans la colonne `deleted_at` (soft delete v23.5), ce qui provoquait `sqlite3.OperationalError: no such column: deleted_at` au chargement des données. La suppression d’un utilisateur échouait parfois (fichier verrouillé).

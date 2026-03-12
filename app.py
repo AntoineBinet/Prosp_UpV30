@@ -311,7 +311,8 @@ def _require_auth():
     if request.method == "OPTIONS":
         return
 
-    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment', '/api/system/logs')
+    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment', '/api/system/logs',
+               '/api/deploy/health', '/api/deploy/pull-from-404', '/api/deploy/rollback')
     if any(request.path.startswith(p) for p in allowed):
         return
 
@@ -410,6 +411,19 @@ def api_deploy_pull_from_404():
         except Exception:
             pass
         
+        # S'assurer d'être sur main
+        branch_cp = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=str(APP_DIR), capture_output=True, text=True, timeout=2,
+        )
+        cur_branch = (branch_cp.stdout or "").strip() if branch_cp.returncode == 0 else ""
+        if cur_branch and cur_branch != "main":
+            co = subprocess.run(["git", "checkout", "main"],
+                                cwd=str(APP_DIR), capture_output=True, text=True, timeout=5)
+            if co.returncode != 0:
+                subprocess.run(["git", "checkout", "-B", "main", "origin/main"],
+                               cwd=str(APP_DIR), capture_output=True, text=True, timeout=5)
+
         # Fetch
         fetch = subprocess.run(
             ["git", "fetch", "--prune", "origin", "main"],
@@ -421,7 +435,7 @@ def api_deploy_pull_from_404():
         if fetch.returncode != 0:
             return jsonify(ok=False, error=f"git fetch échoué: {fetch.stderr or fetch.stdout}"), 500
         
-        # Pull
+        # Pull (ff-only d'abord, puis reset --hard en fallback)
         pull = subprocess.run(
             ["git", "pull", "--ff-only", "origin", "main"],
             cwd=str(APP_DIR),
@@ -430,10 +444,20 @@ def api_deploy_pull_from_404():
             timeout=30,
         )
         if pull.returncode != 0:
-            return jsonify(ok=False, error=f"git pull échoué: {pull.stderr or pull.stdout}"), 500
+            logger.warning("Deploy pull-from-404: ff-only failed, falling back to git reset --hard origin/main")
+            reset = subprocess.run(
+                ["git", "reset", "--hard", "origin/main"],
+                cwd=str(APP_DIR),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if reset.returncode != 0:
+                return jsonify(ok=False, error=f"git reset --hard échoué: {reset.stderr or reset.stdout}"), 500
         
-        logger.info("Deploy pull from 404: mise à jour appliquée")
-        return jsonify(ok=True, message="Mise à jour appliquée. Redémarrez le serveur pour appliquer les changements.")
+        logger.info("Deploy pull from 404: mise à jour appliquée, redémarrage dans 5s")
+        _schedule_restart(delay=5.0)
+        return jsonify(ok=True, message="Mise à jour appliquée. Redémarrage automatique dans 5 s…")
     
     except subprocess.TimeoutExpired:
         return jsonify(ok=False, error="Timeout lors du pull"), 500
@@ -510,8 +534,9 @@ def api_deploy_rollback():
             err = (reset.stderr or reset.stdout or "Erreur reset").strip()
             return jsonify(ok=False, error=f"Rollback échoué: {err}"), 500
         
-        logger.info("Deploy rollback: retour au commit %s", rollback_hash[:7])
-        return jsonify(ok=True, message=f"Rollback effectué vers le commit {rollback_hash[:7]}. Redémarrez le serveur pour appliquer les changements.", commit_hash=rollback_hash[:7])
+        logger.info("Deploy rollback: retour au commit %s, redémarrage dans 5s", rollback_hash[:7])
+        _schedule_restart(delay=5.0)
+        return jsonify(ok=True, message=f"Rollback effectué vers {rollback_hash[:7]}. Redémarrage automatique dans 5 s…", commit_hash=rollback_hash[:7])
     
     except subprocess.TimeoutExpired:
         return jsonify(ok=False, error="Timeout lors du rollback"), 500
@@ -7895,6 +7920,24 @@ def api_deploy_pull():
                         )
                     return
 
+            # ═══════════════════════════════════════════════════════════════════
+            # S'assurer d'être sur la branche main
+            # ═══════════════════════════════════════════════════════════════════
+            branch_cp = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=str(APP_DIR), capture_output=True, text=True, timeout=2,
+            )
+            cur_branch = (branch_cp.stdout or "").strip() if branch_cp.returncode == 0 else ""
+            if cur_branch and cur_branch != "main":
+                yield f"data: {json.dumps({'step': 'log', 'line': f'⚠️ Branche actuelle: {cur_branch} → checkout main'}, ensure_ascii=False)}\n\n"
+                co = subprocess.run(
+                    ["git", "checkout", "main"],
+                    cwd=str(APP_DIR), capture_output=True, text=True, timeout=5,
+                )
+                if co.returncode != 0:
+                    subprocess.run(["git", "checkout", "-B", "main", "origin/main"],
+                                   cwd=str(APP_DIR), capture_output=True, text=True, timeout=5)
+
             yield f"data: {json.dumps({'step': 'pull', 'message': 'git pull --ff-only origin main...'}, ensure_ascii=False)}\n\n"
             pull = subprocess.run(
                 ["git", "pull", "--ff-only", "origin", "main"],
@@ -7912,16 +7955,25 @@ def api_deploy_pull():
                     if line.strip():
                         yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
             if pull.returncode != 0:
-                err = (pull.stderr or pull.stdout or "Erreur pull").strip()
-                yield f"data: {json.dumps({'step': 'error', 'error': f'git pull échoué: {err}'}, ensure_ascii=False)}\n\n"
-                for p in log_paths:
-                    subprocess.run(
-                        ["git", "update-index", "--no-assume-unchanged", p],
-                        cwd=str(APP_DIR),
-                        capture_output=True,
-                        timeout=5,
-                    )
-                return
+                yield f"data: {json.dumps({'step': 'log', 'line': '⚠️ Fast-forward impossible — forçage sync sur origin/main (git reset --hard)...'}, ensure_ascii=False)}\n\n"
+                logger.warning("Deploy pull: ff-only failed, falling back to git reset --hard origin/main")
+                reset = subprocess.run(
+                    ["git", "reset", "--hard", "origin/main"],
+                    cwd=str(APP_DIR),
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if reset.returncode != 0:
+                    err = (reset.stderr or reset.stdout or "Erreur reset").strip()
+                    yield f"data: {json.dumps({'step': 'error', 'error': f'git reset --hard échoué: {err}'}, ensure_ascii=False)}\n\n"
+                    for p in log_paths:
+                        subprocess.run(
+                            ["git", "update-index", "--no-assume-unchanged", p],
+                            cwd=str(APP_DIR), capture_output=True, timeout=5,
+                        )
+                    return
+                yield f"data: {json.dumps({'step': 'log', 'line': '✅ Synchronisation forcée sur origin/main réussie'}, ensure_ascii=False)}\n\n"
 
             for p in log_paths:
                 subprocess.run(

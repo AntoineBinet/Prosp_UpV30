@@ -12,3 +12,4 @@ scripts/.cursor-api-key
 nul 
 logs/
 .last_commit_hash
+.rollback_done

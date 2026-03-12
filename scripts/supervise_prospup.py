@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """
-Superviseur ProspUp:
-- lance le serveur Flask/Waitress,
-- surveille le processus et le relance automatiquement en cas de crash,
-- redémarre le serveur si l'application demande un redémarrage (code 42).
+Superviseur ProspUp — lance le serveur, détecte les crash loops et rollback automatiquement.
 
-Note: Le pull automatique a été désactivé. Utilisez le bouton "Mettre à jour et redémarrer"
-dans les paramètres de l'application (section admin) pour déclencher manuellement un pull.
+Fonctionnalités :
+  - Lance le serveur Flask/Waitress
+  - Redémarre sur exit code 42 (restart demandé par l'app)
+  - Relance automatiquement en cas de crash
+  - Détecte les crash loops (N crashs en M secondes) et rollback au commit précédent
+  - Health check HTTP après chaque restart
+  - Auto-checkout main si le repo n'est pas sur la bonne branche
 
-Variables d'environnement (optionnel):
-  PROSPUP_APP_CMD                Commande serveur (défaut: python app.py --production)
+Variables d'environnement (optionnel) :
+  PROSPUP_APP_CMD           Commande serveur (défaut: python app.py --production)
+  PROSPUP_CRASH_THRESHOLD   Nombre de crashs pour déclencher un rollback (défaut: 3)
+  PROSPUP_CRASH_WINDOW      Fenêtre en secondes pour la détection crash loop (défaut: 120)
+  PROSPUP_HEALTH_PORT       Port HTTP pour le health check (défaut: 8000)
+  PROSPUP_HEALTH_TIMEOUT    Timeout du health check en secondes (défaut: 30)
+  PROSPUP_GRACE_PERIOD      Temps de grâce après restart avant health check (défaut: 8)
 """
 from __future__ import annotations
 
@@ -17,10 +24,15 @@ import os
 import subprocess
 import sys
 import time
+import urllib.request
+import urllib.error
+from collections import deque
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LAST_COMMIT_FILE = PROJECT_ROOT / ".last_commit_hash"
+ROLLBACK_DONE_FILE = PROJECT_ROOT / ".rollback_done"
 
 
 def _log(message: str) -> None:
@@ -28,92 +40,106 @@ def _log(message: str) -> None:
     print(f"[{stamp}] {message}", flush=True)
 
 
-def _run(cmd: list[str], *, check: bool = False) -> subprocess.CompletedProcess:
+def _run(cmd: list[str], *, check: bool = False, timeout: int = 15) -> subprocess.CompletedProcess:
     return subprocess.run(
         cmd,
         cwd=str(PROJECT_ROOT),
         capture_output=True,
         text=True,
         check=check,
+        timeout=timeout,
     )
 
 
-def _is_git_repo() -> bool:
-    return (PROJECT_ROOT / ".git").exists()
-
-
 def _git_rev(ref: str) -> str:
-    cp = _run(["git", "rev-parse", ref])
-    if cp.returncode != 0:
+    try:
+        cp = _run(["git", "rev-parse", ref])
+        if cp.returncode != 0:
+            return ""
+        return (cp.stdout or "").strip()
+    except Exception:
         return ""
-    return (cp.stdout or "").strip()
 
 
 def _current_branch() -> str:
-    cp = _run(["git", "branch", "--show-current"])
-    if cp.returncode != 0:
+    try:
+        cp = _run(["git", "branch", "--show-current"])
+        if cp.returncode != 0:
+            return ""
+        return (cp.stdout or "").strip()
+    except Exception:
         return ""
-    return (cp.stdout or "").strip()
 
 
-def _is_worktree_clean() -> bool:
-    cp = _run(["git", "status", "--porcelain"])
-    if cp.returncode != 0:
-        return False
-    return not (cp.stdout or "").strip()
-
-
-def _ensure_deploy_branch(branch: str) -> bool:
-    """Tente de se placer sur la branche de déploiement; False si impossible."""
+def _ensure_on_main() -> bool:
+    """S'assure que le repo est sur la branche main. Retourne True si OK."""
     cur = _current_branch()
-    if cur == branch:
+    if cur == "main":
         return True
-    if not _is_worktree_clean():
-        _log(f"[AUTO-DEPLOY] Branche actuelle '{cur}' et worktree non propre: checkout '{branch}' annulé.")
+    _log(f"[GIT] Branche actuelle: '{cur}' — checkout main")
+    cp = _run(["git", "checkout", "main"])
+    if cp.returncode == 0:
+        _log("[GIT] Basculé sur main.")
+        return True
+    _log(f"[GIT] checkout main échoué, tentative checkout -B main origin/main")
+    cp2 = _run(["git", "checkout", "-B", "main", "origin/main"])
+    if cp2.returncode == 0:
+        _log("[GIT] Recréation de main depuis origin/main réussie.")
+        return True
+    _log(f"[GIT] Impossible de passer sur main: {(cp2.stderr or cp2.stdout or '').strip()}")
+    return False
+
+
+def _rollback_to_last_commit() -> bool:
+    """Rollback vers le commit sauvegardé dans .last_commit_hash. Retourne True si réussi."""
+    if not LAST_COMMIT_FILE.exists():
+        _log("[ROLLBACK] Pas de .last_commit_hash — tentative HEAD~1")
+        prev = _git_rev("HEAD~1")
+        if not prev:
+            _log("[ROLLBACK] Impossible de trouver un commit de rollback.")
+            return False
+        rollback_hash = prev
+    else:
+        rollback_hash = LAST_COMMIT_FILE.read_text(encoding="utf-8").strip()
+        if not rollback_hash:
+            _log("[ROLLBACK] .last_commit_hash vide.")
+            return False
+
+    current = _git_rev("HEAD")
+    if current == rollback_hash:
+        _log("[ROLLBACK] Déjà sur le commit de rollback — rollback inutile.")
         return False
-    cp = _run(["git", "checkout", branch])
+
+    _log(f"[ROLLBACK] Rollback vers {rollback_hash[:10]}...")
+    cp = _run(["git", "reset", "--hard", rollback_hash])
     if cp.returncode != 0:
-        _log(f"[AUTO-DEPLOY] Impossible de passer sur '{branch}': {(cp.stderr or cp.stdout).strip()}")
+        _log(f"[ROLLBACK] git reset --hard échoué: {(cp.stderr or cp.stdout or '').strip()}")
         return False
-    _log(f"[AUTO-DEPLOY] Branche active basculée sur '{branch}'.")
+
+    _log(f"[ROLLBACK] ✅ Rollback réussi vers {rollback_hash[:10]}")
+    try:
+        ROLLBACK_DONE_FILE.write_text(
+            f"rollback_to={rollback_hash}\ntime={time.strftime('%Y-%m-%d %H:%M:%S')}\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
     return True
 
 
-def _is_ancestor(ancestor: str, descendant: str) -> bool:
-    cp = _run(["git", "merge-base", "--is-ancestor", ancestor, descendant])
-    return cp.returncode == 0
-
-
-def _auto_pull(remote: str, branch: str) -> bool:
-    """Retourne True si un pull a réellement mis à jour le code."""
-    fetch = _run(["git", "fetch", "--prune", remote, branch])
-    if fetch.returncode != 0:
-        _log(f"[AUTO-DEPLOY] git fetch en échec: {(fetch.stderr or fetch.stdout).strip()}")
+def _health_check(port: int, timeout: int = 5) -> bool:
+    """Vérifie que le serveur répond sur localhost:port."""
+    url = f"http://127.0.0.1:{port}/api/deploy/health"
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status == 200
+    except Exception:
         return False
-
-    local_ref = _git_rev("HEAD")
-    remote_ref = _git_rev(f"{remote}/{branch}")
-    if not local_ref or not remote_ref:
-        return False
-    if local_ref == remote_ref:
-        return False
-
-    if not _is_ancestor(local_ref, remote_ref):
-        _log("[AUTO-DEPLOY] Branche divergente: fast-forward impossible (action manuelle requise).")
-        return False
-
-    pull = _run(["git", "pull", "--ff-only", remote, branch])
-    if pull.returncode != 0:
-        _log(f"[AUTO-DEPLOY] git pull en échec: {(pull.stderr or pull.stdout).strip()}")
-        return False
-
-    _log("[AUTO-DEPLOY] Nouvelle version détectée et appliquée (fast-forward).")
-    return True
 
 
 def _start_server(app_cmd: str) -> subprocess.Popen:
     env = os.environ.copy()
-    # Conserve le contrat existant: app.py sort avec code 42 pour redémarrage.
     env["PROSPUP_LAUNCHER"] = "BAT"
     _log(f"[SERVER] Démarrage: {app_cmd}")
     return subprocess.Popen(
@@ -127,7 +153,7 @@ def _start_server(app_cmd: str) -> subprocess.Popen:
 def _stop_server(proc: subprocess.Popen, timeout_s: int = 20) -> None:
     if proc.poll() is not None:
         return
-    _log("[SERVER] Redémarrage en cours: arrêt du processus serveur...")
+    _log("[SERVER] Arrêt du processus serveur...")
     try:
         proc.terminate()
         proc.wait(timeout=timeout_s)
@@ -140,30 +166,87 @@ def _stop_server(proc: subprocess.Popen, timeout_s: int = 20) -> None:
         pass
 
 
-def _as_bool(raw: str | None, default: bool = True) -> bool:
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
-
-
 def main() -> int:
     app_cmd = (os.environ.get("PROSPUP_APP_CMD") or "python app.py --production").strip()
-    
-    _log("[SUPERVISEUR] Démarrage du superviseur (pull automatique désactivé)")
-    _log("[SUPERVISEUR] Pour mettre à jour, utilisez le bouton dans les paramètres de l'application")
+    crash_threshold = int(os.environ.get("PROSPUP_CRASH_THRESHOLD", "3"))
+    crash_window = float(os.environ.get("PROSPUP_CRASH_WINDOW", "120"))
+    health_port = int(os.environ.get("PROSPUP_HEALTH_PORT", "8000"))
+    health_timeout = int(os.environ.get("PROSPUP_HEALTH_TIMEOUT", "30"))
+    grace_period = float(os.environ.get("PROSPUP_GRACE_PERIOD", "8"))
 
+    _log("╔═══════════════════════════════════════════════════════════╗")
+    _log("║  SUPERVISEUR ProspUp v2 — avec protection crash loop     ║")
+    _log("╚═══════════════════════════════════════════════════════════╝")
+    _log(f"  Crash loop: {crash_threshold} crashs en {crash_window}s → rollback auto")
+    _log(f"  Health check: localhost:{health_port} (timeout {health_timeout}s, grâce {grace_period}s)")
+
+    _ensure_on_main()
+
+    if ROLLBACK_DONE_FILE.exists():
+        _log("[INFO] Fichier .rollback_done détecté — un rollback a eu lieu précédemment.")
+        try:
+            _log(f"  → {ROLLBACK_DONE_FILE.read_text(encoding='utf-8').strip()}")
+        except Exception:
+            pass
+
+    crash_times: deque[float] = deque()
+    rollback_attempted = False
     server = _start_server(app_cmd)
+    start_time = time.monotonic()
 
     try:
         while True:
             code = server.poll()
             if code is not None:
+                elapsed_since_start = time.monotonic() - start_time
+
                 if code == 42:
                     _log("[SERVER] Redémarrage demandé par l'application (code 42).")
+                    crash_times.clear()
+                    rollback_attempted = False
+                    if ROLLBACK_DONE_FILE.exists():
+                        try:
+                            ROLLBACK_DONE_FILE.unlink()
+                        except Exception:
+                            pass
                 else:
-                    _log(f"[SERVER] Processus arrêté (code={code}). Relance automatique dans 2s.")
-                    time.sleep(2)
+                    _log(f"[SERVER] Processus arrêté (code={code}, uptime={elapsed_since_start:.0f}s).")
+                    now = time.monotonic()
+                    crash_times.append(now)
+                    while crash_times and (now - crash_times[0]) > crash_window:
+                        crash_times.popleft()
+
+                    if len(crash_times) >= crash_threshold and not rollback_attempted:
+                        _log(f"[CRASH LOOP] ⚠️ {len(crash_times)} crashs en {crash_window}s — ROLLBACK AUTOMATIQUE")
+                        _ensure_on_main()
+                        if _rollback_to_last_commit():
+                            rollback_attempted = True
+                            crash_times.clear()
+                            _log("[CRASH LOOP] Rollback effectué, relance du serveur...")
+                        else:
+                            _log("[CRASH LOOP] Rollback impossible — relance avec le code actuel.")
+                    elif rollback_attempted and len(crash_times) >= crash_threshold:
+                        _log("[CRASH LOOP] ⚠️ Crash loop persiste après rollback — attente 30s avant nouvelle tentative.")
+                        time.sleep(30)
+                    else:
+                        time.sleep(2)
+
                 server = _start_server(app_cmd)
+                start_time = time.monotonic()
+
+                _log(f"[HEALTH] Attente {grace_period}s avant health check...")
+                time.sleep(grace_period)
+                ok = False
+                for attempt in range(1, 4):
+                    if _health_check(health_port, timeout=health_timeout // 3):
+                        ok = True
+                        break
+                    _log(f"[HEALTH] Tentative {attempt}/3 échouée, attente 3s...")
+                    time.sleep(3)
+                if ok:
+                    _log("[HEALTH] ✅ Serveur opérationnel.")
+                else:
+                    _log("[HEALTH] ⚠️ Serveur ne répond pas au health check — surveillance continue.")
                 continue
 
             time.sleep(2)
