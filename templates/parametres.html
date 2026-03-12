@@ -917,6 +917,10 @@ window.changePassword = changePassword;
         statusEl.style.color = '#22c55e';
         statusEl.textContent = '✅ Configuration sauvegardée';
         if (typeof showToast === 'function') showToast('Configuration IA enregistrée', 'success');
+        // Mettre à jour les labels des boutons IA avec le nouveau modèle
+        if (typeof window.updateAIButtonLabels === 'function') {
+          window.updateAIButtonLabels();
+        }
         loadAiConfig();
       } else {
         statusEl.style.color = '#ef4444';

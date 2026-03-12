@@ -8,6 +8,55 @@ window.onerror = function(msg, src, line) {
 };
 
 // ═══════════════════════════════════════════════════════════════════
+// Mise à jour des boutons IA avec le nom du modèle configuré
+// ═══════════════════════════════════════════════════════════════════
+let _aiModelNameCache = null;
+
+async function updateAIButtonLabels() {
+    try {
+        const res = await fetch('/api/ai/config');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.ok || !data.config) return;
+        
+        const config = data.config;
+        const provider = config.provider || 'ollama';
+        const modelName = provider === 'sonar' 
+            ? (config.sonar_model || 'sonar')
+            : (config.ollama_model || 'llama3.2');
+        
+        _aiModelNameCache = modelName;
+        
+        // Mettre à jour tous les boutons "Générer avec l'IA" / "Générer avec Ollama"
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(function(btn) {
+            const text = btn.textContent || btn.innerText || '';
+            if (!text) return;
+            
+            // Patterns à remplacer
+            if (/Générer avec l'IA \(un seul\)/i.test(text)) {
+                btn.textContent = text.replace(/Générer avec l'IA \(un seul\)/i, 'Générer avec ' + modelName + ' (un seul)');
+            } else if (/Générer avec l'IA \(plusieurs\)/i.test(text)) {
+                btn.textContent = text.replace(/Générer avec l'IA \(plusieurs\)/i, 'Générer avec ' + modelName + ' (plusieurs)');
+            } else if (/Générer avec Ollama/i.test(text) && !/Générer avec Ollama \(/i.test(text)) {
+                btn.textContent = text.replace(/Générer avec Ollama/i, 'Générer avec ' + modelName);
+            } else if (/Générer avec l'IA/i.test(text) && !/Générer avec l'IA \(/i.test(text)) {
+                btn.textContent = text.replace(/Générer avec l'IA/i, 'Générer avec ' + modelName);
+            }
+        });
+    } catch (e) {
+        console.warn('Failed to update AI button labels:', e);
+    }
+}
+
+// Exposer la fonction pour mise à jour manuelle
+window.updateAIButtonLabels = updateAIButtonLabels;
+
+// Mettre à jour au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    updateAIButtonLabels();
+
+// ═══════════════════════════════════════════════════════════════════
 // Auth & User Session Module (v15)
 // ═══════════════════════════════════════════════════════════════════
 const AppAuth = {
@@ -7399,6 +7448,11 @@ function openBulkIAModal(mode) {
         showToast('⚠️ Aucun prospect valide sélectionné.', 'warning');
         return;
     }
+    
+    // Mettre à jour les labels des boutons IA avec le modèle configuré
+    if (typeof window.updateAIButtonLabels === 'function') {
+        window.updateAIButtonLabels();
+    }
 
     // Update title
     const icon = mode === 'email' ? '📧' : '📞';
@@ -9360,6 +9414,10 @@ function openImportListReformatModal(field) {
     const promptText = (_IMPORT_REFORMAT_PROMPTS[field] || 'Normalise les données suivantes (une valeur par ligne, même ordre). Données :') + '\n\n' + values.join('\n');
     document.getElementById('importListReformatPrompt').value = promptText;
     document.getElementById('importListReformatPaste').value = '';
+    // Mettre à jour les labels des boutons IA avec le modèle configuré
+    if (typeof window.updateAIButtonLabels === 'function') {
+        window.updateAIButtonLabels();
+    }
     const modal = document.getElementById('modalImportListReformat');
     if (modal) {
         if (window.openModal) {
@@ -9425,6 +9483,10 @@ function openImportListReformatAllModal() {
         const hasData = rows.some(r => r[c] && r[c].trim());
         return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" value="${c}" ${hasData ? 'checked' : ''} style="cursor:pointer;"> ${label}${hasData ? '' : ' <span class="muted">(vide)</span>'}</label>`;
     }).join('');
+    // Mettre à jour les labels des boutons IA avec le modèle configuré
+    if (typeof window.updateAIButtonLabels === 'function') {
+        window.updateAIButtonLabels();
+    }
     if (window.openModal) window.openModal(modal); else modal.classList.add('active');
 }
 

@@ -28,6 +28,10 @@
         if (qaFileInput) { qaFileInput.value = ''; }
         const qaFileChosen = document.getElementById('qaFileChosen');
         if (qaFileChosen) { qaFileChosen.style.display = 'none'; qaFileChosen.textContent = ''; }
+        // Mettre à jour les labels des boutons IA avec le modèle configuré
+        if (typeof window.updateAIButtonLabels === 'function') {
+            window.updateAIButtonLabels();
+        }
         if (window.openModal) {
             window.openModal(m);
         } else {
