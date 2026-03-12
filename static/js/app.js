@@ -10340,12 +10340,15 @@ let _pmProspectId = null;
 let _pmParsedData = null;
 let _pmFieldAccepted = {};
 let _pmChecklistResponses = null;
+let _pmChecklistAccepted = {}; // Pour stocker les réponses acceptées/refusées de la grille
 
 function openPostMeetingImportModal(prospectId) {
     _ensurePostMeetingModal();
     _pmProspectId = prospectId;
     _pmParsedData = null;
     _pmFieldAccepted = {};
+    _pmChecklistResponses = null;
+    _pmChecklistAccepted = {};
     document.getElementById('pmImportTextarea').value = '';
     document.getElementById('pmFileInput').value = '';
     document.getElementById('pmFileInfo').style.display = 'none';
@@ -10359,6 +10362,14 @@ function openPostMeetingImportModal(prospectId) {
         } else {
             modal.classList.add('active');
         }
+    }
+}
+
+function updateChecklistTextarea(textareaId, enabled) {
+    const textarea = document.getElementById(textareaId);
+    if (textarea) {
+        textarea.disabled = !enabled;
+        textarea.style.opacity = enabled ? '1' : '0.5';
     }
 }
 
@@ -10585,14 +10596,21 @@ async function parsePostMeetingImport() {
         html += `<div style="margin-top:16px;padding-top:16px;border-top:2px solid var(--color-border);">
             <div style="font-weight:700;font-size:14px;margin-bottom:8px;">📋 Grille de qualification</div>`;
         const themes = await _ensureRdvThemes();
+        _pmChecklistAccepted = {}; // Réinitialiser les acceptations
         for (const [key, value] of Object.entries(_pmChecklistResponses)) {
             if (!value || String(value).trim() === '') continue;
             const theme = themes.find(t => t.key === key);
             if (theme) {
+                _pmChecklistAccepted[key] = true; // Par défaut accepté
+                const responseId = `pmChecklist_${key}`;
+                const textareaId = `pmChecklistText_${key}`;
                 html += `
                 <div style="border:1px solid var(--color-border);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--color-surface-2);">
-                    <div style="font-weight:600;font-size:12px;margin-bottom:4px;color:var(--color-primary);">${escapeHtml(theme.theme)} — ${escapeHtml(theme.question)}</div>
-                    <div style="font-size:12px;white-space:pre-wrap;color:var(--color-text-secondary);">${escapeHtml(String(value))}</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                        <input type="checkbox" checked onchange="_pmChecklistAccepted['${key}']=this.checked; updateChecklistTextarea('${textareaId}', this.checked)" id="${responseId}">
+                        <label for="${responseId}" style="font-weight:600;font-size:12px;color:var(--color-primary);cursor:pointer;">${escapeHtml(theme.theme)} — ${escapeHtml(theme.question)}</label>
+                    </div>
+                    <textarea id="${textareaId}" style="width:100%;min-height:60px;padding:8px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text);font-size:12px;font-family:inherit;resize:vertical;white-space:pre-wrap;" oninput="_pmChecklistResponses['${key}']=this.value">${escapeHtml(String(value))}</textarea>
                 </div>`;
             }
         }
@@ -10646,28 +10664,33 @@ async function applyPostMeetingImport() {
         p.notes = p.notes ? (p.notes + '\n\n' + newNote) : newNote;
     }
 
-    // Apply checklist responses if present
+    // Apply checklist responses if present (seulement ceux acceptés)
     if (_pmChecklistResponses && Object.keys(_pmChecklistResponses).length > 0) {
         // Ensure RDV data is loaded for this prospect
         if (!_rdvData || _rdvProspectId !== _pmProspectId) {
             await loadRdvChecklist(_pmProspectId);
         }
         const themes = await _ensureRdvThemes();
+        let appliedCount = 0;
         for (const [key, value] of Object.entries(_pmChecklistResponses)) {
-            if (!value || String(value).trim() === '') continue;
+            // Ne remplir que si accepté et non vide
+            if (!_pmChecklistAccepted[key] || !value || String(value).trim() === '') continue;
             const theme = themes.find(t => t.key === key);
             if (theme) {
                 if (!_rdvData[key]) _rdvData[key] = { reponse: '', checked: false };
                 _rdvData[key].reponse = String(value).trim();
                 _rdvData[key].checked = true;
+                appliedCount++;
             }
         }
-        // Save checklist
-        await saveRdvChecklist();
-        // Re-render checklist if we're on the RDV tab
-        const rdvTab = document.getElementById('tab-rdv');
-        if (rdvTab && rdvTab.classList.contains('active')) {
-            _renderRdvChecklist(themes);
+        // Save checklist seulement si des champs ont été remplis
+        if (appliedCount > 0) {
+            await saveRdvChecklist();
+            // Re-render checklist if we're on the RDV tab
+            const rdvTab = document.getElementById('tab-rdv');
+            if (rdvTab && rdvTab.classList.contains('active')) {
+                _renderRdvChecklist(themes);
+            }
         }
     }
 
