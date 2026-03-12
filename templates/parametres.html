@@ -256,7 +256,7 @@ Belle journée,"></textarea>
 <div class="settings-section admin-only-section" id="aiConfigSection">
   <h3>🤖 Configuration IA</h3>
   <div class="about-section">
-    <p class="muted" style="margin-bottom:14px;">Choisissez le provider IA pour les fonctions Scrapping, Scan, Quick Add, Import et autres. Le fallback bascule automatiquement sur l'autre provider si le principal échoue.</p>
+    <p class="muted" style="margin-bottom:14px;">Choisissez le provider IA. Sonar (Perplexity) inclut la recherche web pour enrichir vos prospects avec de vraies données. Ollama reste disponible en local comme fallback.</p>
 
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
       <label class="ai-provider-card" id="aiCardOllama" style="flex:1;min-width:200px;cursor:pointer;padding:14px 18px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface-2);transition:all .2s;">
@@ -265,15 +265,15 @@ Belle journée,"></textarea>
           <span style="font-size:22px;">🏠</span>
           <strong style="font-size:15px;">Ollama (local)</strong>
         </div>
-        <div style="font-size:12px;color:var(--color-text-secondary);">Gratuit · Fonctionne hors-ligne · Requiert GPU</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);">Gratuit · Fonctionne hors-ligne · Requiert GPU · Pas de recherche web</div>
       </label>
-      <label class="ai-provider-card" id="aiCardGroq" style="flex:1;min-width:200px;cursor:pointer;padding:14px 18px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface-2);transition:all .2s;">
-        <input type="radio" name="ai_provider" value="groq" style="display:none;" id="aiProviderGroq">
+      <label class="ai-provider-card" id="aiCardSonar" style="flex:1;min-width:200px;cursor:pointer;padding:14px 18px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface-2);transition:all .2s;">
+        <input type="radio" name="ai_provider" value="sonar" style="display:none;" id="aiProviderSonar">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <span style="font-size:22px;">☁️</span>
-          <strong style="font-size:15px;">Groq (cloud gratuit)</strong>
+          <span style="font-size:22px;">🔍</span>
+          <strong style="font-size:15px;">Sonar (Perplexity)</strong>
         </div>
-        <div style="font-size:12px;color:var(--color-text-secondary);">Gratuit · Ultra-rapide · Llama 3.3 70B · Nécessite clé API</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);">Cloud · Recherche web intégrée · ~0.005$/requête · Enrichissement réel</div>
       </label>
     </div>
 
@@ -291,24 +291,23 @@ Belle journée,"></textarea>
       </div>
     </div>
 
-    <div id="aiGroqConfig" style="margin-bottom:14px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);">
-      <h4 style="margin:0 0 10px 0;font-size:14px;">☁️ Configuration Groq</h4>
+    <div id="aiSonarConfig" style="margin-bottom:14px;padding:14px;border-radius:10px;background:linear-gradient(135deg, rgba(59,130,246,.06), rgba(139,92,246,.06));border:1px solid rgba(59,130,246,.2);">
+      <h4 style="margin:0 0 10px 0;font-size:14px;">🔍 Configuration Sonar (Perplexity)</h4>
       <div style="display:grid;gap:10px;max-width:450px;">
         <div>
-          <label class="filter-label">Clé API Groq</label>
+          <label class="filter-label">Clé API Perplexity</label>
           <div style="display:flex;gap:8px;">
-            <input type="password" id="aiGroqApiKey" class="filter-input" style="flex:1;" placeholder="gsk_..." autocomplete="off">
-            <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="var el=document.getElementById('aiGroqApiKey');el.type=el.type==='password'?'text':'password';">👁️</button>
+            <input type="password" id="aiSonarApiKey" class="filter-input" style="flex:1;" placeholder="pplx-..." autocomplete="off">
+            <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="var el=document.getElementById('aiSonarApiKey');el.type=el.type==='password'?'text':'password';">👁️</button>
           </div>
-          <div class="muted" style="font-size:11px;margin-top:4px;">Obtenez une clé gratuite sur <a href="https://console.groq.com/keys" target="_blank" style="color:var(--color-accent);">console.groq.com/keys</a></div>
+          <div class="muted" style="font-size:11px;margin-top:4px;">Obtenez une clé sur <a href="https://docs.perplexity.ai/guides/getting-started" target="_blank" style="color:var(--color-accent);">docs.perplexity.ai</a></div>
         </div>
         <div>
           <label class="filter-label">Modèle</label>
-          <select id="aiGroqModel" class="filter-input" style="width:100%;">
-            <option value="llama-3.3-70b-versatile">Llama 3.3 70B (recommandé)</option>
-            <option value="llama-3.1-8b-instant">Llama 3.1 8B (rapide)</option>
-            <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-            <option value="gemma2-9b-it">Gemma 2 9B</option>
+          <select id="aiSonarModel" class="filter-input" style="width:100%;">
+            <option value="sonar">Sonar (rapide, économique)</option>
+            <option value="sonar-pro">Sonar Pro (meilleur, plus cher)</option>
+            <option value="sonar-reasoning-pro">Sonar Reasoning Pro (raisonnement avancé)</option>
           </select>
         </div>
       </div>
@@ -321,51 +320,13 @@ Belle journée,"></textarea>
       </label>
     </div>
 
-    <div id="aiSonarSection" style="margin-bottom:14px;padding:14px;border-radius:10px;background:linear-gradient(135deg, rgba(59,130,246,.06), rgba(139,92,246,.06));border:1px solid rgba(59,130,246,.2);">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <span style="font-size:22px;">🔍</span>
-        <div>
-          <h4 style="margin:0;font-size:14px;">Recherche web IA (Perplexity Sonar)</h4>
-          <div style="font-size:11px;color:var(--color-text-secondary);">Les boutons Scrapping IA, Scan IA et Bulk Email/Tel utiliseront Sonar pour chercher de vraies infos sur le web.</div>
-        </div>
-      </div>
-      <div style="margin-bottom:10px;">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-          <input type="checkbox" id="aiWebSearchEnabled">
-          <span style="font-weight:600;">Activer la recherche web pour Scrapping / Scan / Bulk</span>
-        </label>
-      </div>
-      <div style="display:grid;gap:10px;max-width:450px;">
-        <div>
-          <label class="filter-label">Clé API Perplexity</label>
-          <div style="display:flex;gap:8px;">
-            <input type="password" id="aiSonarApiKey" class="filter-input" style="flex:1;" placeholder="pplx-..." autocomplete="off">
-            <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="var el=document.getElementById('aiSonarApiKey');el.type=el.type==='password'?'text':'password';">👁️</button>
-          </div>
-          <div class="muted" style="font-size:11px;margin-top:4px;">Obtenez une clé sur <a href="https://docs.perplexity.ai/guides/getting-started" target="_blank" style="color:var(--color-accent);">docs.perplexity.ai</a> · ~0.005$/requête</div>
-        </div>
-        <div>
-          <label class="filter-label">Modèle Sonar</label>
-          <select id="aiSonarModel" class="filter-input" style="width:100%;">
-            <option value="sonar">Sonar (rapide, économique)</option>
-            <option value="sonar-pro">Sonar Pro (meilleur, plus cher)</option>
-            <option value="sonar-reasoning-pro">Sonar Reasoning Pro (raisonnement avancé)</option>
-          </select>
-        </div>
-      </div>
-      <div style="margin-top:10px;">
-        <button class="btn btn-secondary" id="btnSonarTest" onclick="testSonarConnection()">🔌 Tester Sonar</button>
-        <span id="sonarTestStatus" style="font-size:13px;margin-left:8px;"></span>
-      </div>
-    </div>
-
     <div style="margin-bottom:10px;padding:8px 12px;border-radius:8px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);font-size:11px;color:var(--color-text-secondary);">
-      🔒 Vos clés API sont stockées localement sur ce PC dans <code>data/ai_config.json</code> et <strong>ne sont jamais écrasées</strong> par les mises à jour Git.
+      🔒 Vos clés API sont stockées localement dans <code>data/ai_config.json</code> et <strong>ne sont jamais écrasées</strong> par les mises à jour Git.
     </div>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <button class="btn btn-primary" id="btnAiSave" onclick="saveAiConfig()">💾 Enregistrer</button>
-      <button class="btn btn-secondary" id="btnAiTest" onclick="testAiConnection()">🔌 Tester provider principal</button>
+      <button class="btn btn-secondary" id="btnAiTest" onclick="testAiConnection()">🔌 Tester la connexion</button>
       <span id="aiConfigStatus" style="font-size:13px;"></span>
     </div>
 
@@ -915,20 +876,14 @@ window.changePassword = changePassword;
       var j = await res.json();
       if (!j || !j.ok) return;
       var c = j.config;
-      var radio = document.getElementById(c.provider === 'groq' ? 'aiProviderGroq' : 'aiProviderOllama');
+      var radio = document.getElementById(c.provider === 'sonar' ? 'aiProviderSonar' : 'aiProviderOllama');
       if (radio) radio.checked = true;
       var urlEl = document.getElementById('aiOllamaUrl');
       if (urlEl) urlEl.value = c.ollama_url || '';
       var modelEl = document.getElementById('aiOllamaModel');
       if (modelEl) modelEl.value = c.ollama_model || '';
-      var groqKeyEl = document.getElementById('aiGroqApiKey');
-      if (groqKeyEl) groqKeyEl.placeholder = c.groq_api_key_set ? (c.groq_api_key_preview + ' (configurée)') : 'gsk_...';
-      var groqModelEl = document.getElementById('aiGroqModel');
-      if (groqModelEl) groqModelEl.value = c.groq_model || 'llama-3.3-70b-versatile';
       var fbEl = document.getElementById('aiFallbackEnabled');
       if (fbEl) fbEl.checked = c.fallback_enabled !== false;
-      var wsEl = document.getElementById('aiWebSearchEnabled');
-      if (wsEl) wsEl.checked = !!c.web_search_enabled;
       var sonarKeyEl = document.getElementById('aiSonarApiKey');
       if (sonarKeyEl) sonarKeyEl.placeholder = c.sonar_api_key_set ? (c.sonar_api_key_preview + ' (configurée)') : 'pplx-...';
       var sonarModelEl = document.getElementById('aiSonarModel');
@@ -945,14 +900,10 @@ window.changePassword = changePassword;
     var payload = {
       provider: provider,
       fallback_enabled: document.getElementById('aiFallbackEnabled').checked,
-      web_search_enabled: document.getElementById('aiWebSearchEnabled').checked,
       ollama_url: (document.getElementById('aiOllamaUrl').value || '').trim(),
       ollama_model: (document.getElementById('aiOllamaModel').value || '').trim(),
-      groq_model: document.getElementById('aiGroqModel').value,
       sonar_model: document.getElementById('aiSonarModel').value
     };
-    var groqKey = (document.getElementById('aiGroqApiKey').value || '').trim();
-    if (groqKey) payload.groq_api_key = groqKey;
     var sonarKey = (document.getElementById('aiSonarApiKey').value || '').trim();
     if (sonarKey) payload.sonar_api_key = sonarKey;
     try {
@@ -985,11 +936,7 @@ window.changePassword = changePassword;
     resultEl.innerHTML = '⏳ Test en cours…';
     var provider = (document.querySelector('input[name="ai_provider"]:checked') || {}).value || 'ollama';
     var payload = { provider: provider };
-    if (provider === 'groq') {
-      var key = (document.getElementById('aiGroqApiKey').value || '').trim();
-      if (key) payload.groq_api_key = key;
-      payload.groq_model = document.getElementById('aiGroqModel').value;
-    } else if (provider === 'sonar') {
+    if (provider === 'sonar') {
       var skey = (document.getElementById('aiSonarApiKey').value || '').trim();
       if (skey) payload.sonar_api_key = skey;
       payload.sonar_model = document.getElementById('aiSonarModel').value;
@@ -1005,9 +952,10 @@ window.changePassword = changePassword;
       });
       var j = await res.json();
       if (j.ok) {
+        var label = j.provider === 'sonar' ? 'Sonar' : 'Ollama';
         resultEl.style.background = 'rgba(34,197,94,.08)';
         resultEl.style.border = '1px solid rgba(34,197,94,.3)';
-        resultEl.innerHTML = '✅ <strong>' + (j.provider === 'groq' ? 'Groq' : 'Ollama') + '</strong> connecté · Modèle : <code>' + (j.model || '?') + '</code><br><span style="color:var(--color-text-secondary);font-size:12px;">Réponse : ' + (j.response || '').substring(0, 100) + '</span>';
+        resultEl.innerHTML = '✅ <strong>' + label + '</strong> connecté · Modèle : <code>' + (j.model || '?') + '</code><br><span style="color:var(--color-text-secondary);font-size:12px;">Réponse : ' + (j.response || '').substring(0, 100) + '</span>';
         if (typeof showToast === 'function') showToast('Connexion IA OK', 'success');
       } else {
         resultEl.style.background = 'rgba(239,68,68,.08)';
@@ -1018,35 +966,6 @@ window.changePassword = changePassword;
       resultEl.style.background = 'rgba(239,68,68,.08)';
       resultEl.style.border = '1px solid rgba(239,68,68,.3)';
       resultEl.innerHTML = '❌ Erreur réseau';
-    }
-  };
-
-  window.testSonarConnection = async function() {
-    var statusEl = document.getElementById('sonarTestStatus');
-    statusEl.textContent = '⏳ Test…';
-    statusEl.style.color = 'var(--color-text-secondary)';
-    var payload = { provider: 'sonar' };
-    var key = (document.getElementById('aiSonarApiKey').value || '').trim();
-    if (key) payload.sonar_api_key = key;
-    payload.sonar_model = document.getElementById('aiSonarModel').value;
-    try {
-      var res = await fetch('/api/ai/test', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
-      });
-      var j = await res.json();
-      if (j.ok) {
-        statusEl.style.color = '#22c55e';
-        statusEl.textContent = '✅ Sonar connecté · ' + (j.model || '');
-        if (typeof showToast === 'function') showToast('Connexion Sonar OK', 'success');
-      } else {
-        statusEl.style.color = '#ef4444';
-        statusEl.textContent = '❌ ' + (j.error || 'Erreur');
-      }
-    } catch(e) {
-      statusEl.style.color = '#ef4444';
-      statusEl.textContent = '❌ Erreur réseau';
     }
   };
 
