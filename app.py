@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g, Response, render_template
+from markupsafe import escape as escape_html
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import secrets
@@ -1617,6 +1618,25 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
                 createdAt   TEXT
             );
         ''')
+        
+        # Meetings table (v25.10) — historique des réunions avec grille de qualification
+        conn.executescript('''
+            CREATE TABLE IF NOT EXISTS meetings (
+                id            INTEGER PRIMARY KEY,
+                prospect_id  INTEGER NOT NULL,
+                owner_id     INTEGER NOT NULL,
+                date         TEXT NOT NULL,
+                title        TEXT NOT NULL,
+                checklist_data TEXT,
+                notes        TEXT,
+                createdAt    TEXT NOT NULL,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_meetings_prospect ON meetings(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(date);
+        ''')
 
         # Seed default admin if no users exist
         user_count = conn.execute("SELECT COUNT(*) AS n FROM users;").fetchone()["n"]
@@ -2108,6 +2128,19 @@ def _init_user_db(user_id: int) -> Path:
                 createdAt   TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS meetings (
+                id            INTEGER PRIMARY KEY,
+                prospect_id  INTEGER NOT NULL,
+                owner_id     INTEGER NOT NULL,
+                date         TEXT NOT NULL,
+                title        TEXT NOT NULL,
+                checklist_data TEXT,
+                notes        TEXT,
+                createdAt    TEXT NOT NULL,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_push_logs_prospect_id ON push_logs(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_push_logs_sentAt ON push_logs(sentAt);
             CREATE INDEX IF NOT EXISTS idx_templates_default ON templates(is_default);
@@ -2124,6 +2157,9 @@ def _init_user_db(user_id: int) -> Path:
             CREATE INDEX IF NOT EXISTS idx_push_categories_name ON push_categories(name);
             CREATE INDEX IF NOT EXISTS idx_push_categories_owner ON push_categories(owner_id);
             CREATE INDEX IF NOT EXISTS idx_rdv_checklists_prospect ON rdv_checklists(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meetings_prospect ON meetings(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(date);
             CREATE INDEX IF NOT EXISTS idx_candidate_ec1_candidate ON candidate_ec1_checklists(candidate_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_ec1_interviewAt ON candidate_ec1_checklists(interviewAt);
             CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
@@ -9461,6 +9497,195 @@ def rdv_checklist_parse_file():
             msg=f"Erreur parsing fichier: {str(e)}\n{traceback.format_exc()}", args=(), exc_info=None
         ))
         return jsonify(ok=False, error=f"Erreur lors de l'extraction: {str(e)}"), 500
+
+# ────────────────────────────────────────────────────────────────────
+# Meetings – historique des réunions avec grille de qualification
+# ────────────────────────────────────────────────────────────────────
+
+@app.post("/api/meetings")
+def meetings_create():
+    """Créer une nouvelle réunion à partir de la grille de qualification actuelle."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    body = request.get_json(force=True)
+    prospect_id = body.get("prospect_id")
+    title = body.get("title", "").strip()
+    checklist_data = body.get("checklist_data")
+    notes = body.get("notes", "").strip()
+    
+    if not prospect_id:
+        return jsonify(ok=False, error="prospect_id requis"), 400
+    if not title:
+        return jsonify(ok=False, error="Titre requis"), 400
+    if not _prospect_owned(int(prospect_id)):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO meetings (prospect_id, owner_id, date, title, checklist_data, notes, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (prospect_id, uid, today, title, json.dumps(checklist_data, ensure_ascii=False) if checklist_data else None, notes, now)
+        )
+        meeting_id = conn.lastrowid
+    
+    return jsonify(ok=True, id=meeting_id, date=today)
+
+
+@app.get("/api/meetings")
+def meetings_list():
+    """Lister les réunions d'un prospect (owner only)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    prospect_id = request.args.get("prospect_id", type=int)
+    if not prospect_id:
+        return jsonify(ok=False, error="prospect_id requis"), 400
+    if not _prospect_owned(prospect_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, date, title, checklist_data, notes, createdAt
+               FROM meetings
+               WHERE prospect_id = ? AND owner_id = ?
+               ORDER BY date DESC, createdAt DESC""",
+            (prospect_id, uid)
+        ).fetchall()
+    
+    meetings = []
+    for row in rows:
+        checklist = None
+        if row["checklist_data"]:
+            try:
+                checklist = json.loads(row["checklist_data"])
+            except Exception:
+                pass
+        meetings.append({
+            "id": row["id"],
+            "date": row["date"],
+            "title": row["title"],
+            "checklist_data": checklist,
+            "notes": row["notes"] or "",
+            "createdAt": row["createdAt"]
+        })
+    
+    return jsonify(ok=True, meetings=meetings)
+
+
+@app.get("/api/meetings/<int:meeting_id>/pdf")
+def meetings_export_pdf(meeting_id):
+    """Exporter une réunion en PDF."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT m.id, m.prospect_id, m.date, m.title, m.checklist_data, m.notes, m.createdAt,
+                      p.name as prospect_name, p.fonction, c.groupe as company_name, c.site
+               FROM meetings m
+               JOIN prospects p ON m.prospect_id = p.id
+               LEFT JOIN companies c ON p.company_id = c.id
+               WHERE m.id = ? AND m.owner_id = ?""",
+            (meeting_id, uid)
+        ).fetchone()
+    
+    if not row:
+        return jsonify(ok=False, error="Réunion introuvable"), 404
+    
+    # Parse checklist data
+    checklist = None
+    if row["checklist_data"]:
+        try:
+            checklist = json.loads(row["checklist_data"])
+        except Exception:
+            pass
+    
+    # Load themes for display
+    themes_dict = {t["key"]: t for t in RDV_CHECKLIST_THEMES}
+    
+    # Generate HTML for PDF
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{ font-family: Arial, sans-serif; padding: 40px; line-height: 1.6; color: #333; }}
+            h1 {{ color: #f59e0b; border-bottom: 3px solid #f59e0b; padding-bottom: 10px; }}
+            h2 {{ color: #6366f1; margin-top: 30px; }}
+            .header {{ margin-bottom: 30px; }}
+            .info-row {{ margin: 8px 0; }}
+            .info-label {{ font-weight: bold; display: inline-block; width: 150px; }}
+            .section {{ margin: 20px 0; padding: 15px; background: #f9fafb; border-left: 4px solid #6366f1; }}
+            .theme-title {{ font-weight: bold; color: #6366f1; margin-top: 15px; }}
+            .theme-question {{ color: #666; font-style: italic; margin: 5px 0; }}
+            .theme-answer {{ margin: 10px 0 20px 20px; white-space: pre-wrap; }}
+            .notes {{ margin-top: 30px; padding: 15px; background: #fff3cd; border-left: 4px solid #f59e0b; }}
+        </style>
+    </head>
+    <body>
+        <h1>📋 Compte-rendu de réunion</h1>
+        <div class="header">
+            <div class="info-row"><span class="info-label">Date :</span> {escape_html(str(row["date"] or ""))}</div>
+            <div class="info-row"><span class="info-label">Titre :</span> {escape_html(str(row["title"] or ""))}</div>
+            <div class="info-row"><span class="info-label">Prospect :</span> {escape_html(str(row["prospect_name"] or ""))}</div>
+            <div class="info-row"><span class="info-label">Fonction :</span> {escape_html(str(row["fonction"] or ""))}</div>
+            <div class="info-row"><span class="info-label">Entreprise :</span> {escape_html(str((row["company_name"] or "") + (" (" + (row["site"] or "") + ")" if row["site"] else "")))}</div>
+        </div>
+    """
+    
+    if checklist:
+        html_content += "<h2>Grille de qualification</h2>"
+        for key, data in checklist.items():
+            if not data or not isinstance(data, dict):
+                continue
+            theme = themes_dict.get(key)
+            if not theme:
+                continue
+            reponse = data.get("reponse", "").strip()
+            if not reponse:
+                continue
+            html_content += f"""
+            <div class="section">
+                <div class="theme-title">{escape_html(str(theme["theme"]))}</div>
+                <div class="theme-question">{escape_html(str(theme["question"]))}</div>
+                <div class="theme-answer">{escape_html(str(reponse))}</div>
+            </div>
+            """
+    
+    if row["notes"]:
+        html_content += f'<div class="notes"><strong>Notes complémentaires :</strong><br>{escape_html(str(row["notes"]))}</div>'
+    
+    html_content += """
+    </body>
+    </html>
+    """
+    
+    # Convert HTML to PDF using weasyprint (fallback to HTML if not available)
+    try:
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html_content).write_pdf()
+        return send_file(
+            BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"reunion_{row['date']}_{meeting_id}.pdf"
+        )
+    except ImportError:
+        # Fallback: return HTML that can be printed to PDF by browser (Ctrl+P > Enregistrer en PDF)
+        return Response(
+            html_content,
+            mimetype="text/html",
+            headers={"Content-Disposition": f'inline; filename="reunion_{row["date"]}_{meeting_id}.html"'}
+        )
+
 
 # ────────────────────────────────────────────────────────────────────
 # EC1 Checklist – entretien de qualification candidat

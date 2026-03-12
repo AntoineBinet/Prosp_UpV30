@@ -3327,20 +3327,34 @@ async function viewDetail(id) {
         ${['Rendez-vous','Rencontré'].includes(prospect.statut) ? `
         <!-- TAB: RDV Checklist -->
         <div class="detail-tab-content" id="tab-rdv">
-            <div class="rdv-checklist-header">
-                <div class="rdv-checklist-title">
-                    <span>📋 Grille de qualification</span>
-                    <span class="rdv-checklist-progress" id="rdvProgress">0 / 0</span>
+            <!-- Onglets des réunions précédentes -->
+            <div id="meetingsTabsContainer" style="margin-bottom:16px;display:none;">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--color-border);">
+                    <button class="btn btn-secondary btn-sm" onclick="switchMeetingTab(null, ${prospect.id})" id="meetingTab_current" style="background:var(--color-primary);color:#fff;">📋 Grille actuelle</button>
+                    <div id="meetingsTabsList"></div>
                 </div>
-                <div class="rdv-checklist-actions">
-                    <button class="btn btn-primary btn-sm" id="btnPostMeetingIA_${prospect.id}" onclick="handlePostMeetingIA(${prospect.id})" title="Générer un compte-rendu IA et pré-remplir les champs" data-help-section="scrapping-ia">🤖 Après réunion IA</button>
-                    <button class="btn btn-secondary btn-sm" onclick="copyRdvChecklist(${prospect.id})" title="Copier dans le presse-papier">📋 Copier</button>
-                    <button class="btn btn-secondary btn-sm" onclick="resetRdvChecklist(${prospect.id})" title="Réinitialiser toutes les réponses">🔄 Reset</button>
+                <div id="meetingDetailView" style="display:none;">
+                    <div id="meetingDetailContent"></div>
                 </div>
             </div>
-            <div class="rdv-checklist-bar-wrap"><div class="rdv-checklist-bar" id="rdvProgressBar"></div></div>
-            <div id="rdvChecklistBody" class="rdv-checklist-body">
-                <div class="muted" style="text-align:center;padding:20px;">Chargement…</div>
+            
+            <!-- Grille de qualification -->
+            <div id="rdvChecklistContainer">
+                <div class="rdv-checklist-header">
+                    <div class="rdv-checklist-title">
+                        <span>📋 Grille de qualification</span>
+                        <span class="rdv-checklist-progress" id="rdvProgress">0 / 0</span>
+                    </div>
+                    <div class="rdv-checklist-actions">
+                        <button class="btn btn-primary btn-sm" id="btnPostMeetingIA_${prospect.id}" onclick="handlePostMeetingIA(${prospect.id})" title="Générer un compte-rendu IA et pré-remplir les champs" data-help-section="scrapping-ia">🤖 Après réunion IA</button>
+                        <button class="btn btn-secondary btn-sm" onclick="copyRdvChecklist(${prospect.id})" title="Copier dans le presse-papier">📋 Copier</button>
+                        <button class="btn btn-secondary btn-sm" onclick="resetRdvChecklist(${prospect.id})" title="Réinitialiser toutes les réponses">🔄 Reset</button>
+                    </div>
+                </div>
+                <div class="rdv-checklist-bar-wrap"><div class="rdv-checklist-bar" id="rdvProgressBar"></div></div>
+                <div id="rdvChecklistBody" class="rdv-checklist-body">
+                    <div class="muted" style="text-align:center;padding:20px;">Chargement…</div>
+                </div>
             </div>
         </div>
         ` : ''}
@@ -3411,6 +3425,7 @@ async function viewDetail(id) {
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-danger" onclick="deleteProspect(${id})" title="Supprimer définitivement">🗑️</button>
                 ${prospect.is_contact ? `<button class="btn btn-primary" onclick="restoreFromContacts(${id})" title="Restaurer dans les prospects" style="font-size:12px;">👥 Restaurer</button>` : `<button class="btn btn-secondary" onclick="moveToContacts(${id})" title="Déplacer vers le vivier de contacts" style="font-size:12px;">📁 Contacts</button>`}
+                ${['Rendez-vous','Rencontré'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
             </div>
             <div style="display:flex;gap:8px;">
                 ${hasPrevInProsp ? `<button class="btn btn-secondary btn-prosp-prev" onclick="goToProspPrev(${id})" title="Prospect précédent">← Précédent</button>` : ''}
@@ -3491,6 +3506,12 @@ async function viewDetail(id) {
 
 // ====== Detail tabs switching ======
 function switchDetailTab(btn, tabId) {
+    // Gérer l'affichage du bouton "Enregistrer réunion"
+    const prospectId = _rdvProspectId;
+    const saveMeetingBtn = prospectId ? document.getElementById(`btnSaveMeeting_${prospectId}`) : null;
+    if (saveMeetingBtn) {
+        saveMeetingBtn.style.display = (tabId === 'tab-rdv') ? '' : 'none';
+    }
     const tabs = btn.parentElement.querySelectorAll('.detail-tab');
     tabs.forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
@@ -10075,6 +10096,16 @@ console.error('rdv load error', e);
 _rdvData = {};
     }
     _renderRdvChecklist(themes);
+    // Charger et afficher les réunions précédentes
+    await loadMeetings(prospectId);
+    // Afficher le bouton "Enregistrer réunion" si on est sur l'onglet RDV
+    const rdvTab = document.getElementById('tab-rdv');
+    const saveMeetingBtn = document.getElementById(`btnSaveMeeting_${prospectId}`);
+    if (rdvTab && rdvTab.classList.contains('active') && saveMeetingBtn) {
+        saveMeetingBtn.style.display = '';
+    }
+    // Par défaut, afficher la grille actuelle (pas une réunion)
+    switchMeetingTab(null, prospectId);
 }
 
 function _renderRdvChecklist(themes) {
@@ -10190,6 +10221,188 @@ ta.select();
 document.execCommand('copy');
 document.body.removeChild(ta);
 showToast('📋 Checklist copiée !');
+    }
+}
+
+// ═══ Meetings — historique des réunions ═══
+let _meetingsList = [];
+let _currentMeetingId = null;
+
+async function loadMeetings(prospectId) {
+    try {
+        const res = await fetch(`/api/meetings?prospect_id=${prospectId}`);
+        const j = await res.json();
+        if (j.ok) {
+            _meetingsList = j.meetings || [];
+            renderMeetingsTabs(prospectId);
+        }
+    } catch (e) {
+        console.error('loadMeetings error', e);
+        _meetingsList = [];
+    }
+}
+
+function renderMeetingsTabs(prospectId) {
+    const container = document.getElementById('meetingsTabsContainer');
+    const tabsList = document.getElementById('meetingsTabsList');
+    if (!container || !tabsList) return;
+    
+    if (_meetingsList.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    container.style.display = 'block';
+    tabsList.innerHTML = _meetingsList.map(m => 
+        `<button class="btn btn-secondary btn-sm meeting-tab-btn" onclick="switchMeetingTab(${m.id}, ${prospectId})" id="meetingTab_${m.id}" title="${escapeHtml(m.title)} — ${escapeHtml(m.date)}">
+            📅 ${escapeHtml(m.date)} — ${escapeHtml(m.title.length > 30 ? m.title.substring(0, 30) + '…' : m.title)}
+        </button>`
+    ).join('');
+}
+
+function switchMeetingTab(meetingId, prospectId) {
+    _currentMeetingId = meetingId;
+    
+    // Update tab buttons
+    document.querySelectorAll('.meeting-tab-btn, #meetingTab_current').forEach(btn => {
+        btn.style.background = '';
+        btn.style.color = '';
+    });
+    
+    if (meetingId === null) {
+        // Show current checklist
+        const currentBtn = document.getElementById('meetingTab_current');
+        if (currentBtn) {
+            currentBtn.style.background = 'var(--color-primary)';
+            currentBtn.style.color = '#fff';
+        }
+        document.getElementById('rdvChecklistContainer').style.display = '';
+        document.getElementById('meetingDetailView').style.display = 'none';
+    } else {
+        // Show meeting detail
+        const btn = document.getElementById(`meetingTab_${meetingId}`);
+        if (btn) {
+            btn.style.background = 'var(--color-primary)';
+            btn.style.color = '#fff';
+        }
+        document.getElementById('rdvChecklistContainer').style.display = 'none';
+        document.getElementById('meetingDetailView').style.display = '';
+        displayMeetingDetail(meetingId);
+    }
+}
+
+async function displayMeetingDetail(meetingId) {
+    const meeting = _meetingsList.find(m => m.id === meetingId);
+    if (!meeting) return;
+    
+    const container = document.getElementById('meetingDetailContent');
+    if (!container) return;
+    
+    const themes = await _ensureRdvThemes();
+    const themesDict = {};
+    themes.forEach(t => { themesDict[t.key] = t; });
+    
+    let html = `
+        <div style="padding:16px;background:var(--color-surface);border-radius:12px;border:1px solid var(--color-border);margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;">
+                <div>
+                    <h3 style="margin:0 0 8px 0;color:var(--color-primary);">${escapeHtml(meeting.title)}</h3>
+                    <div style="color:var(--color-text-secondary);font-size:13px;">📅 ${escapeHtml(meeting.date)}</div>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="exportMeetingPDF(${meetingId})" title="Exporter en PDF">📄 PDF</button>
+            </div>
+        </div>
+    `;
+    
+    if (meeting.checklist_data) {
+        html += '<div style="margin-top:20px;"><h4 style="color:var(--color-primary);margin-bottom:12px;">📋 Grille de qualification</h4>';
+        for (const [key, data] of Object.entries(meeting.checklist_data)) {
+            if (!data || !data.reponse || !data.reponse.trim()) continue;
+            const theme = themesDict[key];
+            if (!theme) continue;
+            html += `
+                <div style="margin-bottom:20px;padding:14px;background:var(--color-surface-2);border-radius:10px;border-left:4px solid var(--color-primary);">
+                    <div style="font-weight:700;color:var(--color-primary);margin-bottom:6px;font-size:14px;">${escapeHtml(theme.theme)}</div>
+                    <div style="color:var(--color-text-secondary);font-size:12px;margin-bottom:10px;font-style:italic;">${escapeHtml(theme.question)}</div>
+                    <div style="color:var(--color-text);white-space:pre-wrap;line-height:1.6;">${escapeHtml(data.reponse)}</div>
+                </div>
+            `;
+        }
+        html += '</div>';
+    }
+    
+    if (meeting.notes) {
+        html += `
+            <div style="margin-top:20px;padding:14px;background:var(--color-surface-2);border-radius:10px;border-left:4px solid #f59e0b;">
+                <h4 style="color:#f59e0b;margin:0 0 10px 0;">📝 Notes complémentaires</h4>
+                <div style="color:var(--color-text);white-space:pre-wrap;line-height:1.6;">${escapeHtml(meeting.notes)}</div>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html;
+}
+
+function exportMeetingPDF(meetingId) {
+    window.open(`/api/meetings/${meetingId}/pdf`, '_blank');
+}
+
+async function saveMeeting(prospectId) {
+    if (!_rdvData || !_rdvProspectId || _rdvProspectId !== prospectId) {
+        showToast('⚠️ Veuillez d\'abord remplir la grille de qualification', 'warning');
+        return;
+    }
+    
+    // Vérifier qu'il y a au moins un champ rempli
+    const hasData = Object.values(_rdvData).some(d => d && d.reponse && d.reponse.trim());
+    if (!hasData) {
+        showToast('⚠️ La grille est vide. Remplissez au moins un champ avant d\'enregistrer.', 'warning');
+        return;
+    }
+    
+    // Demander le titre
+    const title = prompt('Titre de la réunion :', `Réunion ${new Date().toLocaleDateString('fr-FR')}`);
+    if (!title || !title.trim()) {
+        return;
+    }
+    
+    const btn = document.getElementById(`btnSaveMeeting_${prospectId}`);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '💾 Enregistrement...';
+    }
+    
+    try {
+        const res = await fetch('/api/meetings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prospect_id: prospectId,
+                title: title.trim(),
+                checklist_data: _rdvData,
+                notes: ''
+            })
+        });
+        const j = await res.json();
+        if (j.ok) {
+            showToast('✅ Réunion enregistrée !', 'success', 3000);
+            // Recharger les réunions
+            await loadMeetings(prospectId);
+            // Optionnel : vider la grille après enregistrement
+            if (confirm('Réunion enregistrée. Voulez-vous réinitialiser la grille pour une nouvelle réunion ?')) {
+                await resetRdvChecklist(prospectId);
+            }
+        } else {
+            showToast('❌ Erreur : ' + (j.error || 'Impossible d\'enregistrer'), 'error');
+        }
+    } catch (e) {
+        showToast('❌ Erreur réseau', 'error');
+        console.error(e);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '💾 Enregistrer réunion';
+        }
     }
 }
 
