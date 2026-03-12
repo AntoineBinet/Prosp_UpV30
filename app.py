@@ -8454,6 +8454,10 @@ def _excel_map_pertinence(val: str | None) -> str | None:
         "📞 À rappeler": "À rappeler",
         "Rendez-vous": "Rendez-vous",
         "🤝 Rendez-vous": "Rendez-vous",
+        "Rencontré": "Rencontré",
+        "✅ Rencontré": "Rencontré",
+        "Prospecté": "Prospecté",
+        "🎯 Prospecté": "Prospecté",
         "Messagerie": "Messagerie",
         "💬 Messagerie": "Messagerie",
         "Pas intéressé": "Pas intéressé",
@@ -8482,6 +8486,12 @@ def _excel_map_statut(val: str | None) -> str | None:
 
         "Rendez-vous": "Rendez-vous",
         "🤝 Rendez-vous": "Rendez-vous",
+
+        "Rencontré": "Rencontré",
+        "✅ Rencontré": "Rencontré",
+
+        "Prospecté": "Prospecté",
+        "🎯 Prospecté": "Prospecté",
 
         "Messagerie": "Messagerie",
         "💬 Messagerie": "Messagerie",

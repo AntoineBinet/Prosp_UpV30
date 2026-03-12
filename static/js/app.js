@@ -2249,7 +2249,7 @@ function filterProspects() {
                matchWithWithout(emailFilter, p.email) &&
                matchWithWithout(linkedinFilter, p.linkedin) &&
                (!pushFilter || (pushFilter === 'sent' ? (!!(p.pushEmailSentAt && String(p.pushEmailSentAt).trim())) : (pushFilter === 'unsent' ? ((p.email && String(p.email).trim() !== '') && !(p.pushEmailSentAt && String(p.pushEmailSentAt).trim())) : true))) &&
-               (!status || (status === '_interactions' ? ['Appelé', 'À rappeler', 'Messagerie'].includes(p.statut) : p.statut === status)) &&
+               (!status || p.statut === status) &&
                (!pertinence || String(p.pertinence) === String(pertinence)) &&
                (!priorityFilter || String(p.priority || '') === String(priorityFilter)) &&
                (!followup || (followup === 'due' ? (p.nextFollowUp && p.nextFollowUp <= todayISO()) : (followup === 'has' ? (!!p.nextFollowUp) : (!p.nextFollowUp)))) &&
@@ -2658,6 +2658,7 @@ function getStatusMeta(statut) {
     if (s.includes('messagerie')) return { icon: '💬', slug: 'messagerie', label: 'Messagerie' };
     if (s.includes('rendez')) return { icon: '🤝', slug: 'rdv', label: 'RDV' };
     if (s.includes('rencontr')) return { icon: '✅', slug: 'rencontre', label: 'Rencontré' };
+    if (s.includes('prospecté') || s.includes('prospecte')) return { icon: '🎯', slug: 'prospecte', label: 'Prospecté' };
     if (s.includes('à rappeler') || s.includes('rappeler')) return { icon: '⏳', slug: 'rappeler', label: 'À rappeler' };
     if (s.includes('appel')) return { icon: '📞', slug: 'appele', label: 'Appelé' };
     if (s.includes('pas intéress')) return { icon: '❌', slug: 'pas-interesse', label: 'Pas intéressé' };
@@ -2965,8 +2966,8 @@ function updateStats(prospects) {
     // VERT : RDV (exclude Rencontré — they've been met)
     document.getElementById('rdvCount').textContent = activeProspects.filter(p => p.statut === 'Rendez-vous').length;
 
-    // BLEU : interactions (statuts : Appelé + À rappeler + Messagerie)
-    document.getElementById('intéressésCount').textContent = activeProspects.filter(p => ['Appelé', 'À rappeler', 'Messagerie'].includes(p.statut)).length;
+    // BLEU : prospectés (statut : Prospecté)
+    document.getElementById('intéressésCount').textContent = activeProspects.filter(p => p.statut === 'Prospecté').length;
 
     // ROUGE : relances en retard
     updateOverdueAlerts(activeProspects);
@@ -3013,7 +3014,7 @@ function quickFilterStat(type) {
     }
 
     // Highlight active card
-    const cardMap = { appelables: '.stat-card.appelé', rdv: '.stat-card.rdv', interactions: '.stat-card.intéressés' };
+    const cardMap = { appelables: '.stat-card.appelé', rdv: '.stat-card.rdv', prospectes: '.stat-card.intéressés' };
     const card = document.querySelector(cardMap[type]);
     if (card) card.classList.add('stat-active');
 
@@ -3021,9 +3022,8 @@ function quickFilterStat(type) {
         if (pf) pf.value = 'with';
     } else if (type === 'rdv') {
         if (sf) sf.value = 'Rendez-vous';
-    } else if (type === 'interactions') {
-        // Special: set a marker, filterProspects handles it
-        if (sf) sf.value = '_interactions';
+    } else if (type === 'prospectes') {
+        if (sf) sf.value = 'Prospecté';
     }
 
     filterProspects();
@@ -3036,6 +3036,7 @@ function getNextActionSuggestionsHtml(statut) {
         "Appelé": ["Relancer dans 3 jours", "Envoyer email de suivi", "Planifier RDV"],
         "Rendez-vous": ["Envoyer 2 profils", "Préparer RT technique", "Relancer pour confirmation"],
         "Rencontré": ["Envoyer proposition", "Relancer pour suite", "Demander retour"],
+        "Prospecté": ["Planifier nouveau RDV", "Envoyer proposition commerciale", "Relancer pour suite"],
         "Messagerie": ["Relancer par message", "Proposer un appel", "Envoyer doc"],
         "Pas d'actions": ["Premier contact", "Qualifier le besoin", "Présenter Up Technologies"],
         "Pas intéressé": ["Relancer dans 6 mois", "Garder en base"]
@@ -3151,7 +3152,7 @@ async function viewDetail(id) {
     // Status color map
     const statusColors = {
         "Pas d'actions": '#64748b', 'Appelé': '#f59e0b', 'Messagerie': '#3b82f6',
-        'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Rencontré': '#10b981', 'Pas intéressé': '#94a3b8'
+        'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Rencontré': '#10b981', 'Prospecté': '#8b5cf6', 'Pas intéressé': '#94a3b8'
     };
     const heroColor = statusColors[prospect.statut] || '#64748b';
     const initials = (prospect.name || '??').split(/\s+/).map(w => w[0]).slice(0,2).join('');
@@ -3169,7 +3170,7 @@ async function viewDetail(id) {
         : '';
 
     // Status select options (for hero)
-    const statusOptions = ["Pas d'actions","Appelé","À rappeler","Rendez-vous","Rencontré","Messagerie","Pas intéressé"];
+    const statusOptions = ["Pas d'actions","Appelé","À rappeler","Rendez-vous","Rencontré","Prospecté","Messagerie","Pas intéressé"];
     const statusSelectHtml = statusOptions.map(s =>
         `<option value="${escapeHtml(s)}" ${prospect.statut === s ? 'selected' : ''}>${escapeHtml(s)}</option>`
     ).join('');
@@ -3378,6 +3379,7 @@ async function viewDetail(id) {
                         <option value="À rappeler" ${prospect.statut==='À rappeler'?'selected':''}>À rappeler</option>
                         <option value="Rendez-vous" ${prospect.statut==='Rendez-vous'?'selected':''}>Rendez-vous</option>
                         <option value="Rencontré" ${prospect.statut==='Rencontré'?'selected':''}>Rencontré</option>
+                        <option value="Prospecté" ${prospect.statut==='Prospecté'?'selected':''}>Prospecté</option>
                         <option value="Messagerie" ${prospect.statut==='Messagerie'?'selected':''}>Messagerie</option>
                         <option value="Pas intéressé" ${prospect.statut==='Pas intéressé'?'selected':''}>Pas intéressé</option>
                     </select>
@@ -4009,11 +4011,11 @@ function renderKanban() {
     if (!board || _currentView !== 'kanban') return;
 
     const statuses = [
-"Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Rencontré", "Pas intéressé"
+"Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Rencontré", "Prospecté", "Pas intéressé"
     ];
     const statusEmoji = {
 "Pas d'actions": '📋', 'Appelé': '📞', 'Messagerie': '💬',
-'À rappeler': '🔁', 'Rendez-vous': '🤝', 'Rencontré': '✅', 'Pas intéressé': '❌'
+'À rappeler': '🔁', 'Rendez-vous': '🤝', 'Rencontré': '✅', 'Prospecté': '🎯', 'Pas intéressé': '❌'
     };
 
     const grouped = {};

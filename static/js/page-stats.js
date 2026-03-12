@@ -47,9 +47,11 @@ const STATUS_COLORS = {
     'Messagerie': '#3b82f6',
     'À rappeler': '#ef4444',
     'Rendez-vous': '#22c55e',
+    'Rencontré': '#10b981',
+    'Prospecté': '#8b5cf6',
     'Pas intéressé': '#94a3b8'
 };
-const STATUS_ORDER = ["Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Pas intéressé"];
+const STATUS_ORDER = ["Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Rencontré", "Prospecté", "Pas intéressé"];
 
 const PERT_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#32b8c6'];
 const PERT_LABELS = ['⭐', '⭐⭐', '⭐⭐⭐', '⭐⭐⭐⭐', '⭐⭐⭐⭐⭐'];
@@ -628,7 +630,7 @@ async function loadCharts() {
             destroyChart('chartFunnel');
             const ctx = document.getElementById('chartFunnel');
             if (ctx && d && d.statusDistribution) {
-                const statusOrder = ["Pas d'actions", "Appelé", "À rappeler", "Messagerie", "Rendez-vous", "Rencontré", "Pas intéressé"];
+                const statusOrder = ["Pas d'actions", "Appelé", "À rappeler", "Messagerie", "Rendez-vous", "Rencontré", "Prospecté", "Pas intéressé"];
                 const statusCounts = {};
                 (d.statusDistribution || []).forEach(s => { statusCounts[s.label] = s.count; });
                 const funnelData = statusOrder.map(s => statusCounts[s] || 0);

@@ -67,7 +67,7 @@ function renderRapport(d) {
     html += '<div class="rapport-section-title">📊 Répartition pipeline</div>';
     const total = kpi.total_prospects || 1;
     html += '<div class="rapport-stat-bar">';
-    const statusOrder = ["Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Pas intéressé"];
+    const statusOrder = ["Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Rencontré", "Prospecté", "Pas intéressé"];
     statusOrder.forEach(s => {
         const count = d.statuts[s] || 0;
         const pct = (count / total * 100).toFixed(1);
@@ -164,7 +164,7 @@ function generateMarkdown() {
     md += `| Total prospects | ${kpi.total_prospects} |\n\n`;
 
     md += `### 📊 Pipeline\n\n`;
-    const statusOrder = ["Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Pas intéressé"];
+    const statusOrder = ["Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Rencontré", "Prospecté", "Pas intéressé"];
     statusOrder.forEach(s => {
         const count = d.statuts[s] || 0;
         md += `- **${s}**: ${count}\n`;
