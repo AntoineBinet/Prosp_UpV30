@@ -1205,16 +1205,62 @@
             candidate: `un CANDIDAT (= ingénieur / consultant potentiel à recruter) pour une ESN spécialisée en systèmes embarqués, électronique et ingénierie`
         };
 
+        // Extraire le nom de l'URL LinkedIn si présent
+        let extractedName = '';
+        let extractedCompany = '';
+        if (context) {
+            const linkedinMatch = context.match(/linkedin\.com\/in\/([^\/\s\?]+)/i);
+            if (linkedinMatch) {
+                // Convertir "stephane-dalliet" en "Stéphane Dalliet" (approximation)
+                const slug = linkedinMatch[1];
+                extractedName = slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+            }
+            // Chercher une entreprise mentionnée dans le contexte
+            const companyMatch = context.match(/(?:chez|at|@|entreprise|company)\s+([A-Z][a-zA-Z\s&-]+)/i);
+            if (companyMatch) {
+                extractedCompany = companyMatch[1].trim();
+            }
+        }
+
         const contextBlock = (context && context.length > 0)
             ? `\n══════ INFORMATIONS DONT JE DISPOSE (utilise-les pour remplir la fiche) ══════\n${context}\n\n`
             : '';
 
         const isLinkedInUrl = context && /linkedin\.com\/in\/|linkedin\.com\/company\//i.test(context);
-        const extractionInstructions = isLinkedInUrl
-            ? `IMPORTANT : Le contexte contient un lien LinkedIn. Utilise la recherche web pour accéder au profil LinkedIn et extrais UNIQUEMENT les informations réellement visibles sur le profil. NE PAS INVENTER d'informations qui ne sont pas présentes. Si une information n'est pas visible sur le profil (ex: téléphone, email), laisse le champ vide ou utilise "" (chaîne vide). Extrais précisément : nom complet, titre du poste actuel, entreprise actuelle, localisation, description/résumé, expériences professionnelles.`
-            : (contextBlock 
-                ? 'Remplis la fiche à partir de ces informations. Extrais uniquement les données réellement présentes. Ne pas inventer d\'informations manquantes.'
-                : 'Recherche toutes les informations disponibles sur cette personne/entité à partir des documents, liens ou informations que je te fournis. Extrais uniquement les données réellement trouvées.');
+        let extractionInstructions = '';
+        
+        if (isLinkedInUrl) {
+            // Extraire le nom et l'entreprise du lien LinkedIn pour améliorer la recherche
+            const linkedinMatch = context.match(/linkedin\.com\/in\/([^\/\s]+)/i);
+            const profileId = linkedinMatch ? linkedinMatch[1] : '';
+            
+            // Construire une recherche optimisée
+            const searchTerms = [];
+            if (extractedName) searchTerms.push(`"${extractedName}"`);
+            if (extractedCompany) searchTerms.push(`"${extractedCompany}"`);
+            const searchQuery = searchTerms.length > 0 ? searchTerms.join(' ') : 'profil LinkedIn';
+            
+            extractionInstructions = `IMPORTANT : Le contexte contient un lien LinkedIn (${context}).
+
+⚠️ LinkedIn bloque souvent l'accès direct aux profils via API. Utilise ces stratégies :
+
+1. **Recherche web par nom + entreprise** : 
+   ${extractedName ? `- Nom extrait de l'URL : "${extractedName}"` : '- Nom à extraire de l\'URL LinkedIn'}
+   ${extractedCompany ? `- Entreprise mentionnée : "${extractedCompany}"` : ''}
+   - Cherche sur le web : "${searchQuery} LinkedIn" ou "${extractedName || 'nom'} ${extractedCompany || 'entreprise'} LinkedIn" pour trouver des informations publiques (articles, sites d'entreprise, communiqués de presse, etc.).
+
+2. **Recherche alternative** : Si le contexte contient du texte copié-collé de la page LinkedIn, utilise directement ces informations (nom, poste, entreprise, localisation).
+
+3. **Extraction depuis le lien** : ${extractedName ? `Le nom "${extractedName}" a été extrait de l'URL.` : 'Extrais le nom de l\'URL LinkedIn (ex: "linkedin.com/in/stephane-dalliet" → "Stéphane Dalliet").'} Utilise cette information pour ta recherche web.
+
+4. **Informations à extraire** : Nom complet, titre du poste actuel, entreprise actuelle, localisation, description/résumé, expériences professionnelles. NE PAS INVENTER d'informations qui ne sont pas trouvées. Si une information n'est pas visible (ex: téléphone, email), utilise "" (chaîne vide).
+
+5. **Si aucune info trouvée** : Retourne au moins le nom ${extractedName ? `"${extractedName}"` : '(déduit de l\'URL si possible)'} et l'URL LinkedIn complète "${context.match(/https?:\/\/[^\s]+/)?.[0] || context}", avec les autres champs vides plutôt que d'inventer.`;
+        } else if (contextBlock) {
+            extractionInstructions = 'Remplis la fiche à partir de ces informations. Extrais uniquement les données réellement présentes. Ne pas inventer d\'informations manquantes.';
+        } else {
+            extractionInstructions = 'Recherche toutes les informations disponibles sur cette personne/entité à partir des documents, liens ou informations que je te fournis. Extrais uniquement les données réellement trouvées.';
+        }
 
         return `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel).
 
@@ -1279,11 +1325,25 @@ ${jsonFormats[type]}`;
             : '';
 
         const hasLinkedInUrls = context && /linkedin\.com\/in\/|linkedin\.com\/company\//i.test(context);
-        const extractionInstructions = hasLinkedInUrls
-            ? 'IMPORTANT : Le contexte contient des liens LinkedIn. Utilise la recherche web pour accéder aux profils LinkedIn et extrais UNIQUEMENT les informations réellement visibles. NE PAS INVENTER d\'informations manquantes. Si une information n\'est pas visible, utilise "" (chaîne vide).'
-            : (contextBlock 
-                ? 'Extrais toutes les fiches possibles à partir de ces informations. Utilise uniquement les données réellement présentes.'
-                : 'À partir des documents, liens ou informations que je te fournis, extrais toutes les fiches possibles. Utilise uniquement les données réellement trouvées.');
+        let extractionInstructions = '';
+        
+        if (hasLinkedInUrls) {
+            extractionInstructions = `IMPORTANT : Le contexte contient des liens LinkedIn.
+
+⚠️ LinkedIn bloque souvent l'accès direct aux profils via API. Utilise ces stratégies :
+
+1. **Recherche par nom + entreprise** : Pour chaque lien "linkedin.com/in/nom-profil", cherche sur le web "nom-profil LinkedIn [nom entreprise]" pour trouver des informations publiques.
+
+2. **Recherche alternative** : Cherche les noms + entreprises sur le web (sites d'entreprise, articles, etc.) pour trouver des informations publiques.
+
+3. **Extraction depuis les liens** : Les noms peuvent être déduits des URLs LinkedIn. Utilise ces informations pour ta recherche.
+
+4. **Si aucune info trouvée** : Retourne au moins les noms (déduits des URLs si possible) et les URLs LinkedIn complètes, avec les autres champs vides plutôt que d'inventer.`;
+        } else if (contextBlock) {
+            extractionInstructions = 'Extrais toutes les fiches possibles à partir de ces informations. Utilise uniquement les données réellement présentes.';
+        } else {
+            extractionInstructions = 'À partir des documents, liens ou informations que je te fournis, extrais toutes les fiches possibles. Utilise uniquement les données réellement trouvées.';
+        }
 
         return `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel).
 

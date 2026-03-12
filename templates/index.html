@@ -503,7 +503,10 @@
                 </div>
             </div>
             <p class="muted" style="font-size:12px;margin-bottom:6px;">2) Contexte pour l'IA (recommandé) — lien LinkedIn, nom + entreprise, ou texte. Sans contexte, l'IA génèrera un exemple :</p>
-            <textarea id="qaContextInput" rows="2" style="width:100%;border:1px solid var(--color-border);border-radius:8px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;margin-bottom:14px;" placeholder="https://linkedin.com/in/... ou Jean Dupont, Responsable R&amp;D chez Acme..."></textarea>
+            <textarea id="qaContextInput" rows="3" style="width:100%;border:1px solid var(--color-border);border-radius:8px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;margin-bottom:8px;" placeholder="Option 1 : Lien LinkedIn&#10;https://linkedin.com/in/nom-profil&#10;&#10;Option 2 : Nom + entreprise&#10;Jean Dupont, Responsable R&amp;D chez Acme&#10;&#10;Option 3 : Copiez-collez le contenu visible de la page LinkedIn (nom, poste, entreprise, etc.)"></textarea>
+            <p class="muted" style="font-size:11px;margin-top:0;margin-bottom:14px;color:var(--color-warning);">
+                ⚠️ <strong>LinkedIn bloque souvent l'accès direct via API.</strong> Si le lien ne fonctionne pas, copiez-collez le texte visible de la page LinkedIn (nom, poste, entreprise, localisation) dans le champ ci-dessus. L'IA utilisera ces infos pour compléter la fiche.
+            </p>
             <p class="muted" style="font-size:12px;margin-bottom:10px;">3) Générez avec Ollama (sur le PC qui héberge Prosp'Up) ou copiez le prompt pour une autre IA :</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;">
                 <button class="btn btn-secondary" onclick="qaBackToStep0()">← Retour</button>
