@@ -26,7 +26,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "25.8"
+APP_VERSION = "25.9"
 import os
 import subprocess
 import traceback
@@ -1302,13 +1302,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_candidate_events_unique ON candidate_event
 
 CREATE TABLE IF NOT EXISTS push_categories (
     id            INTEGER PRIMARY KEY,
-    name          TEXT NOT NULL UNIQUE,
+    name          TEXT NOT NULL,
     keywords      TEXT,
     auto_detected INTEGER DEFAULT 0,
+    owner_id      INTEGER,
     createdAt     TEXT,
-    updatedAt     TEXT
+    updatedAt     TEXT,
+    UNIQUE(name, owner_id)
 );
 CREATE INDEX IF NOT EXISTS idx_push_categories_name ON push_categories(name);
+CREATE INDEX IF NOT EXISTS idx_push_categories_owner ON push_categories(owner_id);
 
 CREATE TABLE IF NOT EXISTS rdv_checklists (
     id          INTEGER PRIMARY KEY,
@@ -1512,6 +1515,19 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
             CREATE INDEX IF NOT EXISTS idx_companies_owner ON companies(owner_id);
             CREATE INDEX IF NOT EXISTS idx_candidates_owner ON candidates(owner_id);
         ''')
+        
+        # v25.9: Add owner_id to push_categories for per-user categories
+        pc_cols = [r["name"] for r in conn.execute("PRAGMA table_info(push_categories);").fetchall()]
+        if "owner_id" not in pc_cols:
+            _add_col("push_categories", "owner_id", "INTEGER")
+            # Migrate existing categories: assign to first admin user, or NULL if no users
+            with _auth_conn() as auth_conn:
+                admin_user = auth_conn.execute("SELECT id FROM users WHERE role='admin' LIMIT 1;").fetchone()
+                if admin_user:
+                    conn.execute("UPDATE push_categories SET owner_id=? WHERE owner_id IS NULL;", (admin_user["id"],))
+            conn.executescript('''
+                CREATE INDEX IF NOT EXISTS idx_push_categories_owner ON push_categories(owner_id);
+            ''')
 
         # App settings (v11) — key/value config store
         conn.executescript('''
@@ -1992,11 +2008,13 @@ def _init_user_db(user_id: int) -> Path:
 
             CREATE TABLE IF NOT EXISTS push_categories (
                 id            INTEGER PRIMARY KEY,
-                name          TEXT NOT NULL UNIQUE,
+                name          TEXT NOT NULL,
                 keywords      TEXT,
                 auto_detected INTEGER DEFAULT 0,
+                owner_id      INTEGER,
                 createdAt     TEXT,
-                updatedAt     TEXT
+                updatedAt     TEXT,
+                UNIQUE(name, owner_id)
             );
 
             CREATE TABLE IF NOT EXISTS rdv_checklists (
@@ -2080,6 +2098,7 @@ def _init_user_db(user_id: int) -> Path:
             CREATE INDEX IF NOT EXISTS idx_candidate_events_date ON candidate_events(date);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_candidate_events_unique ON candidate_events(candidate_id, type, date);
             CREATE INDEX IF NOT EXISTS idx_push_categories_name ON push_categories(name);
+            CREATE INDEX IF NOT EXISTS idx_push_categories_owner ON push_categories(owner_id);
             CREATE INDEX IF NOT EXISTS idx_rdv_checklists_prospect ON rdv_checklists(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_ec1_candidate ON candidate_ec1_checklists(candidate_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_ec1_interviewAt ON candidate_ec1_checklists(interviewAt);
@@ -3733,8 +3752,12 @@ def api_templates_delete():
 
 @app.get("/api/push-categories")
 def api_push_categories_list():
+    """Liste les catégories push de l'utilisateur connecté."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
     with _conn() as conn:
-        rows = conn.execute("SELECT * FROM push_categories ORDER BY name;").fetchall()
+        rows = conn.execute("SELECT * FROM push_categories WHERE owner_id=? ORDER BY name;", (uid,)).fetchall()
     out = []
     for r in rows:
         d = dict(r)
@@ -3745,14 +3768,19 @@ def api_push_categories_list():
 
 @app.post("/api/push-categories/scan")
 def api_push_categories_scan():
-    """Scan pushs/ directory for subdirectories and create/update categories."""
+    """Scan le dossier push_templates de l'utilisateur pour créer/mettre à jour les catégories."""
+    uid = _uid()
+    if not uid:
+        return jsonify({"ok": False, "error": "Non authentifié"}), 401
+    
     import pathlib
-    pushs_dir = pathlib.Path(app.root_path) / "pushs"
-    if not pushs_dir.is_dir():
-        return jsonify({"ok": False, "error": f"Dossier pushs/ introuvable ({pushs_dir})"}), 404
+    user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates"
+    if not user_push_dir.is_dir():
+        user_push_dir.mkdir(parents=True, exist_ok=True)
+        return jsonify({"ok": True, "found": [], "created": 0, "message": "Dossier créé, aucun template trouvé"})
 
     found = []
-    for sub in sorted(pushs_dir.iterdir()):
+    for sub in sorted(user_push_dir.iterdir()):
         if sub.is_dir() and not sub.name.startswith('.'):
             found.append(sub.name)
 
@@ -3760,13 +3788,13 @@ def api_push_categories_scan():
     created = 0
     with _conn() as conn:
         for name in found:
-            existing = conn.execute("SELECT id FROM push_categories WHERE name=?;", (name,)).fetchone()
+            existing = conn.execute("SELECT id FROM push_categories WHERE name=? AND owner_id=?;", (name, uid)).fetchone()
             if not existing:
                 # Auto-generate keywords from folder name
                 keywords = [kw.strip().lower() for kw in name.replace('_', ' ').replace('-', ' ').split() if kw.strip()]
                 conn.execute(
-                    "INSERT INTO push_categories (name, keywords, auto_detected, createdAt, updatedAt) VALUES (?, ?, 1, ?, ?);",
-                    (name, json.dumps(keywords, ensure_ascii=False), now, now)
+                    "INSERT INTO push_categories (name, keywords, auto_detected, owner_id, createdAt, updatedAt) VALUES (?, ?, 1, ?, ?, ?);",
+                    (name, json.dumps(keywords, ensure_ascii=False), uid, now, now)
                 )
                 created += 1
 
@@ -3775,6 +3803,11 @@ def api_push_categories_scan():
 
 @app.post("/api/push-categories/save")
 def api_push_categories_save():
+    """Crée ou met à jour une catégorie push pour l'utilisateur connecté."""
+    uid = _uid()
+    if not uid:
+        return jsonify({"ok": False, "error": "Non authentifié"}), 401
+    
     payload = request.get_json(force=True, silent=False) or {}
     name = (payload.get("name") or "").strip()
     if not name:
@@ -3790,14 +3823,18 @@ def api_push_categories_save():
 
     with _conn() as conn:
         if cid:
+            # Vérifier que la catégorie appartient à l'utilisateur
+            existing = conn.execute("SELECT id FROM push_categories WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
+            if not existing:
+                return jsonify({"ok": False, "error": "Catégorie non trouvée ou accès refusé"}), 404
             conn.execute(
-                "UPDATE push_categories SET name=?, keywords=?, updatedAt=? WHERE id=?;",
-                (name, keywords_json, now, int(cid))
+                "UPDATE push_categories SET name=?, keywords=?, updatedAt=? WHERE id=? AND owner_id=?;",
+                (name, keywords_json, now, int(cid), uid)
             )
         else:
             conn.execute(
-                "INSERT INTO push_categories (name, keywords, auto_detected, createdAt, updatedAt) VALUES (?, ?, 0, ?, ?);",
-                (name, keywords_json, now, now)
+                "INSERT INTO push_categories (name, keywords, auto_detected, owner_id, createdAt, updatedAt) VALUES (?, ?, 0, ?, ?, ?);",
+                (name, keywords_json, uid, now, now)
             )
             cid = conn.execute("SELECT last_insert_rowid() AS id;").fetchone()["id"]
 
@@ -3806,12 +3843,33 @@ def api_push_categories_save():
 
 @app.post("/api/push-categories/delete")
 def api_push_categories_delete():
+    """Supprime une catégorie push de l'utilisateur connecté."""
+    uid = _uid()
+    if not uid:
+        return jsonify({"ok": False, "error": "Non authentifié"}), 401
+    
     payload = request.get_json(force=True, silent=False) or {}
     cid = payload.get("id")
     if not cid:
         return jsonify({"ok": False, "error": "id is required"}), 400
+    
     with _conn() as conn:
-        conn.execute("DELETE FROM push_categories WHERE id=?;", (int(cid),))
+        # Vérifier que la catégorie appartient à l'utilisateur
+        existing = conn.execute("SELECT id FROM push_categories WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
+        if not existing:
+            return jsonify({"ok": False, "error": "Catégorie non trouvée ou accès refusé"}), 404
+        
+        # Supprimer aussi le dossier de templates si il existe
+        cat_row = conn.execute("SELECT name FROM push_categories WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
+        if cat_row:
+            user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_row["name"]
+            if user_push_dir.exists():
+                try:
+                    shutil.rmtree(user_push_dir)
+                except Exception as e:
+                    logger.warning("Erreur suppression dossier templates %s: %s", user_push_dir, e)
+        
+        conn.execute("DELETE FROM push_categories WHERE id=? AND owner_id=?;", (int(cid), uid))
     return jsonify({"ok": True})
 
 
@@ -3822,7 +3880,7 @@ def api_push_categories_match(cat_id: int):
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
     with _conn() as conn:
-        cat_row = conn.execute("SELECT * FROM push_categories WHERE id=?;", (cat_id,)).fetchone()
+        cat_row = conn.execute("SELECT * FROM push_categories WHERE id=? AND owner_id=?;", (cat_id, uid)).fetchone()
         if not cat_row:
             return jsonify({"ok": False, "error": "category not found"}), 404
 
@@ -3882,75 +3940,106 @@ def api_push_categories_match(cat_id: int):
 
 @app.get("/api/push-categories/<int:cat_id>/files")
 def api_push_category_files(cat_id: int):
-    """List template files (.msg, .eml, .oft) in the push category folder."""
+    """List template files (.msg, .eml, .oft) in the push category folder (per-user)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
     import pathlib
     with _conn() as conn:
-        cat_row = conn.execute("SELECT * FROM push_categories WHERE id=?;", (cat_id,)).fetchone()
+        cat_row = conn.execute("SELECT * FROM push_categories WHERE id=? AND owner_id=?;", (cat_id, uid)).fetchone()
     if not cat_row:
         return jsonify(ok=False, error="Catégorie introuvable"), 404
 
     cat_name = cat_row["name"]
-    pushs_root = pathlib.Path(APP_DIR) / "pushs"
-    pushs_dir = pushs_root / cat_name
-
-    # Fallback: if exact name doesn't match, try fuzzy match on folder names
-    if not pushs_dir.is_dir() and pushs_root.is_dir():
-        cat_norm = unicodedata.normalize("NFC", cat_name.lower().replace(" ", "_").replace("-", "_"))
-        for sub in pushs_root.iterdir():
-            if sub.is_dir():
-                sub_norm = unicodedata.normalize("NFC", sub.name.lower().replace(" ", "_").replace("-", "_"))
-                if sub_norm == cat_norm or cat_norm in sub_norm or sub_norm in cat_norm:
-                    pushs_dir = sub
-                    cat_name = sub.name
-                    break
+    user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
+    user_push_dir.mkdir(parents=True, exist_ok=True)
 
     files = []
-    if pushs_dir.is_dir():
-        for f in sorted(pushs_dir.iterdir()):
+    if user_push_dir.is_dir():
+        for f in sorted(user_push_dir.iterdir()):
             if f.is_file() and f.suffix.lower() in ('.msg', '.eml', '.oft', '.htm', '.html'):
                 files.append({
                     "name": f.name,
                     "size": f.stat().st_size,
-                    "url": f"/api/pushs/{cat_name}/{f.name}"
+                    "url": f"/api/pushs/user/{uid}/{cat_id}/{f.name}"
                 })
     return jsonify(ok=True, category=cat_name, files=files)
 
 
 @app.get("/api/pushs/<path:filepath>")
 def api_serve_push_file(filepath: str):
-    """Serve a push template file (.msg, .eml, etc.) for download/opening."""
+    """Serve a push template file (.msg, .eml, etc.) for download/opening (per-user)."""
+    uid = _uid()
+    if not uid:
+        return ("Non authentifié", 401)
+    
     import pathlib
-    # filepath should be category/filename
-    parts = filepath.split("/", 1)
-    if len(parts) != 2:
-        return ("Not found", 404)
-    cat_name, filename = parts
-    # Prevent directory traversal (.. and backslash on Windows)
-    if ".." in cat_name or ".." in filename or "\\" in filename or "/" in filename:
+    # Nouveau format: user/<uid>/<cat_id>/filename ou ancien format: category/filename (backward compat)
+    parts = filepath.split("/")
+    
+    if len(parts) >= 3 and parts[0] == "user":
+        # Nouveau format: user/<uid>/<cat_id>/filename
+        try:
+            file_uid = int(parts[1])
+            cat_id = int(parts[2])
+            filename = "/".join(parts[3:])
+        except (ValueError, IndexError):
+            return ("Not found", 404)
+        
+        # Vérifier que l'utilisateur accède à ses propres fichiers
+        if file_uid != uid:
+            return ("Forbidden", 403)
+        
+        # Récupérer le nom de la catégorie
+        with _conn() as conn:
+            cat_row = conn.execute("SELECT name FROM push_categories WHERE id=? AND owner_id=?;", (cat_id, uid)).fetchone()
+        if not cat_row:
+            return ("Not found", 404)
+        
+        cat_name = cat_row["name"]
+        user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
+        target = user_push_dir / filename
+    else:
+        # Ancien format (backward compat): category/filename
+        if len(parts) != 2:
+            return ("Not found", 404)
+        cat_name, filename = parts
+        
+        # Fallback vers l'ancien système pushs/ pour compatibilité
+        pushs_root = pathlib.Path(APP_DIR) / "pushs"
+        pushs_dir = pushs_root / cat_name
+        if not pushs_dir.is_dir() and pushs_root.is_dir():
+            cat_norm = unicodedata.normalize("NFC", cat_name.lower().replace(" ", "_").replace("-", "_"))
+            for sub in pushs_root.iterdir():
+                if sub.is_dir():
+                    sub_norm = unicodedata.normalize("NFC", sub.name.lower().replace(" ", "_").replace("-", "_"))
+                    if sub_norm == cat_norm or cat_norm in sub_norm or sub_norm in cat_norm:
+                        pushs_dir = sub
+                        break
+        target = pushs_dir / filename
+
+    # Prevent directory traversal
+    if ".." in str(target) or "\\" in filename or (len(parts) > 2 and "/" in filename):
         return ("Forbidden", 403)
-
-    pushs_root = pathlib.Path(APP_DIR) / "pushs"
-    pushs_dir = pushs_root / cat_name
-
-    # Fallback: fuzzy match on folder name
-    if not pushs_dir.is_dir() and pushs_root.is_dir():
-        cat_norm = unicodedata.normalize("NFC", cat_name.lower().replace(" ", "_").replace("-", "_"))
-        for sub in pushs_root.iterdir():
-            if sub.is_dir():
-                sub_norm = unicodedata.normalize("NFC", sub.name.lower().replace(" ", "_").replace("-", "_"))
-                if sub_norm == cat_norm or cat_norm in sub_norm or sub_norm in cat_norm:
-                    pushs_dir = sub
-                    break
-
-    target = pushs_dir / filename
+    
     try:
         target_resolved = target.resolve()
-        pushs_resolved = pushs_root.resolve()
-        pushs_prefix = str(pushs_resolved).rstrip(os.sep) + os.sep
-        if not str(target_resolved).startswith(pushs_prefix):
-            return ("Forbidden", 403)
+        # Vérifier que le fichier est dans le bon répertoire
+        if "user_" in str(target_resolved):
+            user_dir = DATA_DIR / f"user_{uid}" / "push_templates"
+            user_prefix = str(user_dir.resolve()).rstrip(os.sep) + os.sep
+            if not str(target_resolved).startswith(user_prefix):
+                return ("Forbidden", 403)
+        else:
+            # Ancien système
+            pushs_root = pathlib.Path(APP_DIR) / "pushs"
+            pushs_prefix = str(pushs_root.resolve()).rstrip(os.sep) + os.sep
+            if not str(target_resolved).startswith(pushs_prefix):
+                return ("Forbidden", 403)
     except Exception:
         return ("Forbidden", 403)
+    
     if not target.is_file():
         return ("Not found", 404)
 
@@ -3967,7 +4056,11 @@ def api_serve_push_file(filepath: str):
 
 @app.post("/api/pushs/open")
 def api_open_push_file():
-    """Open a push template file (.msg) directly with the OS default handler (Outlook)."""
+    """Open a push template file (.msg) directly with the OS default handler (Outlook) - per-user."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
     import pathlib, subprocess, platform
     payload = request.get_json(force=True, silent=True) or {}
     cat_id = payload.get("category_id")
@@ -3979,25 +4072,24 @@ def api_open_push_file():
         return jsonify(ok=False, error="Invalid filename"), 403
 
     with _conn() as conn:
-        cat_row = conn.execute("SELECT name FROM push_categories WHERE id=?;", (int(cat_id),)).fetchone()
+        cat_row = conn.execute("SELECT name FROM push_categories WHERE id=? AND owner_id=?;", (int(cat_id), uid)).fetchone()
     if not cat_row:
         return jsonify(ok=False, error="Catégorie introuvable"), 404
 
     cat_name = cat_row["name"]
-    pushs_root = pathlib.Path(APP_DIR) / "pushs"
-    pushs_dir = pushs_root / cat_name
-
-    # Fuzzy match folder name (accent issues)
-    if not pushs_dir.is_dir() and pushs_root.is_dir():
-        cat_norm = unicodedata.normalize("NFC", cat_name.lower().replace(" ", "_").replace("-", "_"))
-        for sub in pushs_root.iterdir():
-            if sub.is_dir():
-                sub_norm = unicodedata.normalize("NFC", sub.name.lower().replace(" ", "_").replace("-", "_"))
-                if sub_norm == cat_norm or cat_norm in sub_norm or sub_norm in cat_norm:
-                    pushs_dir = sub
-                    break
-
-    target = pushs_dir / filename
+    user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
+    target = user_push_dir / filename
+    
+    # Vérifier le chemin pour éviter directory traversal
+    try:
+        target_resolved = target.resolve()
+        user_dir = DATA_DIR / f"user_{uid}" / "push_templates"
+        user_prefix = str(user_dir.resolve()).rstrip(os.sep) + os.sep
+        if not str(target_resolved).startswith(user_prefix):
+            return jsonify(ok=False, error="Chemin invalide"), 403
+    except Exception:
+        return jsonify(ok=False, error="Chemin invalide"), 403
+    
     if not target.is_file():
         return jsonify(ok=False, error=f"Fichier introuvable: {filename}"), 404
 
@@ -4011,6 +4103,188 @@ def api_open_push_file():
             subprocess.Popen(["xdg-open", str(target)])
         return jsonify(ok=True, opened=filename)
     except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v25.9: Upload de templates pour les catégories push (per-user)
+# ═══════════════════════════════════════════════════════════════════
+@app.post("/api/push-categories/<int:cat_id>/upload-template")
+def api_push_category_upload_template(cat_id: int):
+    """Upload un template de mail pour une catégorie push (per-user)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    # Vérifier que la catégorie appartient à l'utilisateur
+    with _conn() as conn:
+        cat_row = conn.execute("SELECT name FROM push_categories WHERE id=? AND owner_id=?;", (cat_id, uid)).fetchone()
+    if not cat_row:
+        return jsonify(ok=False, error="Catégorie introuvable"), 404
+    
+    if 'file' not in request.files:
+        return jsonify(ok=False, error="Aucun fichier fourni"), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify(ok=False, error="Nom de fichier vide"), 400
+    
+    # Vérifier l'extension
+    allowed_extensions = {'.msg', '.eml', '.oft', '.htm', '.html'}
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in allowed_extensions:
+        return jsonify(ok=False, error=f"Extension non autorisée. Autorisées: {', '.join(allowed_extensions)}"), 400
+    
+    # Créer le dossier de la catégorie
+    cat_name = cat_row["name"]
+    user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
+    user_push_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Sauvegarder le fichier
+    filename = file.filename
+    # Sécuriser le nom de fichier
+    filename = "".join(c for c in filename if c.isalnum() or c in "._- ")
+    target_path = user_push_dir / filename
+    
+    try:
+        file.save(str(target_path))
+        return jsonify(ok=True, filename=filename, url=f"/api/pushs/user/{uid}/{cat_id}/{filename}")
+    except Exception as e:
+        logger.error("Erreur upload template: %s", e)
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.post("/api/push/generate")
+def api_push_generate():
+    """Génère un template rempli ou un ZIP avec template + dossiers de compétences.
+    
+    Reçoit: {
+        "prospect_id": int,
+        "category_id": int,
+        "template_filename": str,
+        "candidate_id1": int (optionnel),
+        "candidate_id2": int (optionnel),
+        "format": "filled" | "zip" (défaut: "filled")
+    }
+    
+    Retourne: fichier téléchargeable (template rempli ou ZIP)
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    payload = request.get_json(force=True, silent=True) or {}
+    prospect_id = payload.get("prospect_id")
+    category_id = payload.get("category_id")
+    template_filename = payload.get("template_filename")
+    candidate_id1 = payload.get("candidate_id1")
+    candidate_id2 = payload.get("candidate_id2")
+    format_type = payload.get("format", "filled")  # "filled" ou "zip"
+    
+    if not prospect_id or not category_id or not template_filename:
+        return jsonify(ok=False, error="prospect_id, category_id et template_filename requis"), 400
+    
+    # Récupérer les données du prospect
+    with _conn() as conn:
+        prospect = conn.execute(
+            "SELECT name, email, fonction, company_id FROM prospects WHERE id=? AND owner_id=?;",
+            (prospect_id, uid)
+        ).fetchone()
+        if not prospect:
+            return jsonify(ok=False, error="Prospect introuvable"), 404
+        
+        # Récupérer la catégorie
+        cat_row = conn.execute("SELECT name FROM push_categories WHERE id=? AND owner_id=?;", (category_id, uid)).fetchone()
+        if not cat_row:
+            return jsonify(ok=False, error="Catégorie introuvable"), 404
+        
+        # Récupérer les candidats et leurs DC
+        candidates_data = []
+        for cand_id in [candidate_id1, candidate_id2]:
+            if not cand_id:
+                continue
+            cand = conn.execute(
+                "SELECT id, name, dossier_competence_pdf FROM candidates WHERE id=? AND owner_id=?;",
+                (cand_id, uid)
+            ).fetchone()
+            if cand:
+                candidates_data.append(dict(cand))
+    
+    # Chemin du template
+    cat_name = cat_row["name"]
+    user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
+    template_path = user_push_dir / template_filename
+    
+    if not template_path.is_file():
+        return jsonify(ok=False, error="Template introuvable"), 404
+    
+    try:
+        if format_type == "filled":
+            # Essayer de remplir le template (pour .msg, .eml, .oft)
+            # Pour l'instant, on retourne le template tel quel
+            # TODO: Implémenter le remplissage avec python-docx, extract_msg, etc.
+            return send_file(
+                str(template_path),
+                mimetype='application/octet-stream',
+                as_attachment=True,
+                download_name=f"push_{prospect['name']}_{template_filename}"
+            )
+        else:  # format == "zip"
+            # Créer un ZIP avec template + DC
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_zip:
+                zip_path = Path(tmp_zip.name)
+            
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # Ajouter le template
+                zipf.write(template_path, template_filename)
+                
+                # Ajouter les dossiers de compétences
+                for i, cand in enumerate(candidates_data, 1):
+                    if cand.get("dossier_competence_pdf"):
+                        dc_path_str = cand["dossier_competence_pdf"]
+                        # Gérer les chemins relatifs et absolus
+                        if not os.path.isabs(dc_path_str):
+                            # Chemin relatif : chercher dans dossiers_competence
+                            dc_path = APP_DIR / "dossiers_competence" / dc_path_str
+                        else:
+                            dc_path = Path(dc_path_str)
+                        
+                        if dc_path.is_file():
+                            # Vérifier que le fichier est dans un répertoire autorisé
+                            try:
+                                dc_resolved = dc_path.resolve()
+                                allowed_dirs = [
+                                    str((APP_DIR / "dossiers_competence").resolve()),
+                                    str(DATA_DIR.resolve())
+                                ]
+                                if any(str(dc_resolved).startswith(d.rstrip(os.sep) + os.sep) for d in allowed_dirs):
+                                    # Nettoyer le nom du fichier pour le ZIP
+                                    safe_name = "".join(c for c in cand['name'] if c.isalnum() or c in "._- ")
+                                    zipf.write(dc_path, f"DC_{safe_name}_{dc_path.name}")
+                            except Exception as e:
+                                logger.warning("Erreur ajout DC %s: %s", dc_path, e)
+            
+            # Envoyer le ZIP
+            response = send_file(
+                str(zip_path),
+                mimetype='application/zip',
+                as_attachment=True,
+                download_name=f"push_{prospect['name']}.zip"
+            )
+            # Nettoyer le fichier temporaire après envoi (en arrière-plan)
+            import threading
+            def cleanup():
+                time.sleep(5)  # Attendre que le fichier soit envoyé
+                try:
+                    if zip_path.exists():
+                        zip_path.unlink()
+                except Exception:
+                    pass
+            threading.Thread(target=cleanup, daemon=True).start()
+            return response
+    except Exception as e:
+        logger.exception("Erreur génération push")
         return jsonify(ok=False, error=str(e)), 500
 
 
@@ -4079,7 +4353,7 @@ def api_prospect_best_candidates(prospect_id: int):
         # Piste 5: optional push category keywords
         category_keywords = []
         if push_category_id:
-            cat_row = conn.execute("SELECT keywords FROM push_categories WHERE id=?;", (push_category_id,)).fetchone()
+            cat_row = conn.execute("SELECT keywords FROM push_categories WHERE id=? AND owner_id=?;", (push_category_id, uid)).fetchone()
             if cat_row and cat_row["keywords"]:
                 category_keywords = _parse_json_str_list(cat_row["keywords"])
 

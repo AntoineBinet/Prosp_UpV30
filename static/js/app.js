@@ -3132,6 +3132,7 @@ function _injectSidebarBadge(overdueCount, dueTodayCount) {
 async function viewDetail(id) {
     // Stocker l'ID du prospect actuel pour refreshMetierSuggestions
     window._currentDetailProspectId = id;
+    window._currentPushTemplate = null; // Reset template
     const prospect = data.prospects.find(p => p.id === id);
     if (!prospect) return;
     const isProspMode = (_currentView === 'prosp' && _prospSession.active);
@@ -3250,25 +3251,59 @@ async function viewDetail(id) {
             </div>
 
             ${showPushSection ? `<div class="detail-section-card" style="margin-top:14px;">
-                <div class="detail-section-title">📤 Push & Catégorie</div>
+                <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>📤 Push & Catégorie</span>
+                    <button class="btn btn-secondary btn-sm" onclick="openPushCategoryManager()" style="font-size:12px;padding:4px 10px;">⚙️ Gérer catégorie</button>
+                </div>
                 <div class="detail-info-grid">
-                    <div class="detail-info-item full"><div class="detail-info-label">Catégorie push</div><div class="detail-info-value">${renderPushCategorySelect(id, prospect.push_category_id)}</div></div>
-                    <div class="detail-info-item full" id="detailPushFiles" style="display:none;">
-                        <div class="detail-info-label">📂 Templates disponibles</div>
-                        <div class="detail-info-value" id="detailPushFileList"><span class="muted">Chargement…</span></div>
+                    <div class="detail-info-item full">
+                        <div class="detail-info-label">Catégorie push</div>
+                        <div class="detail-info-value">${renderPushCategorySelect(id, prospect.push_category_id)}</div>
+                    </div>
+                    <div class="detail-info-item full" id="detailPushTemplate" style="display:none;">
+                        <div class="detail-info-label">📧 Template disponible</div>
+                        <div class="detail-info-value" id="detailPushTemplateList"><span class="muted">Chargement…</span></div>
+                    </div>
+                    <div class="detail-info-item full">
+                        <div class="detail-info-label">Dossier de compétences 1</div>
+                        <div class="detail-info-value">
+                            <select id="detailPushCandidate1" class="input" style="width:100%;" onchange="updatePushGenerateButton(${id})">
+                                <option value="">— Aucun —</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="detail-info-item full">
+                        <div class="detail-info-label">Dossier de compétences 2</div>
+                        <div class="detail-info-value">
+                            <select id="detailPushCandidate2" class="input" style="width:100%;" onchange="updatePushGenerateButton(${id})">
+                                <option value="">— Aucun —</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="detail-info-item full" style="margin-top:10px;">
+                        <button class="btn btn-primary" id="btnGeneratePush" onclick="generatePush(${id})" disabled style="width:100%;">📧 Générer et télécharger le push</button>
                     </div>
                     <div class="detail-info-item"><div class="detail-info-label">Push email</div><div class="detail-info-value"><span id="detailPushSent">${prospect.email ? (prospect.pushEmailSentAt ? ('✅ ' + prospect.pushEmailSentAt) : '🕒 Non envoyé') : '—'}</span>${(prospect.email && prospect.pushEmailSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${id},'email')">↩️</button>` : ''}</div></div>
                     <div class="detail-info-item"><div class="detail-info-label">Push LinkedIn</div><div class="detail-info-value"><span id="detailPushLinkedInSent">${prospect.linkedin ? (prospect.pushLinkedInSentAt ? ('✅ ' + prospect.pushLinkedInSentAt) : '🕒 Non envoyé') : '—'}</span>${(prospect.linkedin && prospect.pushLinkedInSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${id},'linkedin')">↩️</button>` : ''}</div></div>
                 </div>
-            </div>` : ''}
+            </div>
+            <script>
+                // v25.9: Initialiser les dropdowns de candidats après chargement de la fiche
+                (function() {
+                    setTimeout(() => {
+                        if (typeof updatePushCandidates === 'function') {
+                            updatePushCandidates(${id});
+                        }
+                        if (${prospect.push_category_id ? 'true' : 'false'} && typeof onPushCategoryChange === 'function') {
+                            onPushCategoryChange(${id}, ${prospect.push_category_id});
+                        }
+                    }, 200);
+                })();
+            </script>` : ''}
 
             ${showCandidats ? `<div class="detail-section-card" id="candidateMatchSection" style="margin-top:14px;">
-                <div class="detail-section-title">🎯 Candidats recommandés</div>
+                <div class="detail-section-title">🎯 Candidats recommandés (4 maximum)</div>
                 <div id="unifiedCandidateList"><span class="muted">Analyse en cours…</span></div>
-                <div class="detail-info-item full" id="detailCandidateSuggestions" style="display:none;">
-                    <div class="detail-info-label">Via catégorie push</div>
-                    <div class="detail-info-value" id="detailCandidateList"><span class="muted">Sélectionnez une catégorie...</span></div>
-                </div>
             </div>` : ''}
         </div>
 
@@ -4836,83 +4871,418 @@ async function onPushCategoryChange(prospectId, value) {
     // Debounced save
     if (__categorySaveTimer) clearTimeout(__categorySaveTimer);
     __categorySaveTimer = setTimeout(async () => {
-try { await saveToServerAsync(); } catch (e) {}
+        try { await saveToServerAsync(); } catch (e) {}
     }, 700);
 
-    // Load template files from pushs/ folder
-    const filesBox = document.getElementById('detailPushFiles');
-    const fileList = document.getElementById('detailPushFileList');
+    // Load template files (v25.9: nouveau système)
+    const templateBox = document.getElementById('detailPushTemplate');
+    const templateList = document.getElementById('detailPushTemplateList');
     if (!v) {
-if (filesBox) filesBox.style.display = 'none';
+        if (templateBox) templateBox.style.display = 'none';
+        window._currentPushTemplate = null;
+        setTimeout(() => updatePushCandidates(prospectId), 100);
+        return;
     }
-    if (v && filesBox) {
-        filesBox.style.display = '';
-        if (fileList) fileList.innerHTML = '<span class="muted">Chargement…</span>';
+    
+    if (v && templateBox) {
+        templateBox.style.display = '';
+        if (templateList) templateList.innerHTML = '<span class="muted">Chargement…</span>';
         try {
             const res = await fetch(`/api/push-categories/${v}/files`);
             if (res.ok) {
                 const fdata = await res.json();
                 if (fdata.ok && fdata.files && fdata.files.length) {
-                    fileList.innerHTML = fdata.files.map(f => `
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                            <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="openPushFile(${prospectId}, '${escapeHtml(f.name)}')" title="Ouvrir dans Outlook">📧 ${escapeHtml(f.name)}</button>
-                            <span class="muted" style="font-size:10px;">${(f.size/1024).toFixed(0)} Ko</span>
+                    // Prendre le premier template disponible
+                    const firstTemplate = fdata.files[0];
+                    templateList.innerHTML = `
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span>📧 ${escapeHtml(firstTemplate.name)}</span>
+                            <span class="muted" style="font-size:11px;">${(firstTemplate.size/1024).toFixed(0)} Ko</span>
                         </div>
-                    `).join('');
+                    `;
+                    // Stocker le nom du template pour generatePush
+                    window._currentPushTemplate = firstTemplate.name;
+                    // Mettre à jour le bouton
+                    updatePushGenerateButton(prospectId);
                 } else {
-                    fileList.innerHTML = '<span class="muted">Aucun template dans ce dossier</span>';
+                    templateList.innerHTML = '<span class="muted">Aucun template disponible. Utilisez "Gérer catégorie" pour en ajouter un.</span>';
+                    window._currentPushTemplate = null;
                 }
             }
         } catch (e) {
-            if (fileList) fileList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            if (templateList) templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            window._currentPushTemplate = null;
         }
     }
 
-    // Load matching candidates
-    const sugBox = document.getElementById('detailCandidateSuggestions');
-    const listBox = document.getElementById('detailCandidateList');
-    if (!v) {
-if (sugBox) sugBox.style.display = 'none';
-return;
-    }
-
-    if (sugBox) sugBox.style.display = '';
-    if (listBox) listBox.innerHTML = '<span class="muted">Recherche de candidats...</span>';
-
-    try {
-const res = await fetch(`/api/push-categories/${v}/match-candidates`);
-if (res.ok) {
-    const data = await res.json();
-    if (data.ok && data.candidates && data.candidates.length) {
-        listBox.innerHTML = data.candidates.map(c => {
-            const skills = Array.isArray(c.skills) ? c.skills.slice(0, 5) : [];
-            const skillsHtml = skills.map(s => `<span class="tag-pill" style="font-size:10px;padding:2px 7px;">${escapeHtml(s)}</span>`).join(' ');
-            const phone = (c.phone || '').trim();
-            const telBtn = phone ? `<a href="tel:${escapeHtml(phone)}" class="candidate-suggestion-tel" title="Appeler" onclick="event.stopPropagation()">📞</a>` : '';
-            return `
-                <a href="/candidate?id=${c.id}" class="candidate-suggestion candidate-suggestion-link" title="Ouvrir la fiche candidat">
-                    <div class="candidate-suggestion-header">
-                        <strong>${escapeHtml(c.name)}</strong>
-                        <span class="candidate-suggestion-actions">${telBtn}<span class="candidate-match-score" title="Score de matching">${c.score} pts</span></span>
-                    </div>
-                    <div class="candidate-suggestion-role">${escapeHtml(c.role || '')}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
-                    <div class="candidate-suggestion-skills">${skillsHtml || '<span class="muted">Aucune compétence</span>'}</div>
-                </a>
-            `;
-        }).join('');
-    } else {
-        listBox.innerHTML = '<span class="muted">Aucun candidat correspondant trouvé</span>';
-    }
-}
-    } catch (e) {
-listBox.innerHTML = '<span class="muted">Erreur de chargement</span>';
-    }
+    // Mettre à jour les dropdowns de candidats
+    setTimeout(() => updatePushCandidates(prospectId), 100);
 
     // Also refresh unified candidates list with updated category
     const prospect = data.prospects.find(x => x.id === prospectId);
     if (prospect) {
         loadUnifiedCandidates(prospectId, prospect.tags, prospect.push_category_id);
     }
+}
+
+// v25.9: Suggérer une catégorie push selon le métier suggéré (appelé après chargement des suggestions)
+function suggestPushCategoryFromMetier(prospectId) {
+    const prospect = data.prospects.find(p => p.id === prospectId);
+    if (!prospect || prospect.push_category_id) return; // Déjà une catégorie sélectionnée
+    
+    const metierEl = document.getElementById('metierSuggestions');
+    if (!metierEl) return;
+    
+    // Attendre un peu que les catégories soient chargées
+    setTimeout(async () => {
+        await loadPushCategories();
+        const metierText = metierEl.textContent.toLowerCase();
+        const suggestedCat = pushCategories.find(cat => {
+            const catName = cat.name.toLowerCase();
+            const keywords = (cat.keywords || []).map(k => k.toLowerCase());
+            // Matching simple : nom de catégorie ou keywords dans le texte du métier
+            return metierText.includes(catName) || keywords.some(k => metierText.includes(k)) ||
+                   (catName.includes('logiciel') && metierText.includes('logiciel')) ||
+                   (catName.includes('embarqué') && (metierText.includes('embarqué') || metierText.includes('iot'))) ||
+                   (catName.includes('électronique') && metierText.includes('électronique')) ||
+                   (catName.includes('système') && metierText.includes('système'));
+        });
+        if (suggestedCat) {
+            const select = document.getElementById('detailCategorySelect');
+            if (select && !select.value) {
+                select.value = suggestedCat.id;
+                onPushCategoryChange(prospectId, suggestedCat.id);
+            }
+        }
+    }, 800);
+}
+
+// v25.9: Mettre à jour les dropdowns de candidats pour le push
+async function updatePushCandidates(prospectId) {
+    const prospect = data.prospects.find(x => x.id === prospectId);
+    if (!prospect) return;
+    
+    const select1 = document.getElementById('detailPushCandidate1');
+    const select2 = document.getElementById('detailPushCandidate2');
+    const btnGenerate = document.getElementById('btnGeneratePush');
+    
+    if (!select1 || !select2) return;
+    
+    // Charger les 4 meilleurs candidats recommandés
+    let recommendedCandidates = [];
+    try {
+        const res = await fetch(`/api/prospect/${prospectId}/best-candidates${prospect.push_category_id ? `?push_category_id=${prospect.push_category_id}` : ''}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.candidates) {
+                recommendedCandidates = data.candidates.slice(0, 4);
+            }
+        }
+    } catch (e) {
+        console.warn('Erreur chargement candidats recommandés:', e);
+    }
+    
+    // Remplir les dropdowns avec tous les candidats (charger depuis l'API si nécessaire)
+    let allCandidates = data.candidates || [];
+    if (allCandidates.length === 0) {
+        // Charger les candidats depuis l'API
+        try {
+            const res = await fetch('/api/candidates');
+            if (res.ok) {
+                const apiData = await res.json();
+                // Gérer les deux formats : array direct ou {ok: true, candidates: [...]}
+                if (Array.isArray(apiData)) {
+                    allCandidates = apiData;
+                } else if (apiData.ok && apiData.candidates) {
+                    allCandidates = apiData.candidates;
+                } else if (apiData.candidates) {
+                    allCandidates = apiData.candidates;
+                }
+                if (typeof data !== 'undefined') {
+                    data.candidates = allCandidates; // Mettre en cache
+                }
+            }
+        } catch (e) {
+            console.warn('Erreur chargement candidats:', e);
+        }
+    }
+    allCandidates = allCandidates.filter(c => !c.is_archived);
+    const options = allCandidates.map(c => 
+        `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' - ' + escapeHtml(c.role) : ''}</option>`
+    ).join('');
+    
+    select1.innerHTML = '<option value="">— Aucun —</option>' + options;
+    select2.innerHTML = '<option value="">— Aucun —</option>' + options;
+    
+    // Pré-remplir avec les candidats recommandés si disponibles
+    if (recommendedCandidates.length > 0) {
+        if (select1 && recommendedCandidates[0]) {
+            select1.value = recommendedCandidates[0].id;
+        }
+        if (select2 && recommendedCandidates[1]) {
+            select2.value = recommendedCandidates[1].id;
+        }
+    }
+    
+    // Activer/désactiver le bouton selon les sélections
+    updatePushGenerateButton(prospectId);
+}
+
+// v25.9: Mettre à jour l'état du bouton de génération
+function updatePushGenerateButton(prospectId) {
+    const prospect = data.prospects.find(x => x.id === prospectId);
+    if (!prospect) return;
+    
+    const btnGenerate = document.getElementById('btnGeneratePush');
+    const select1 = document.getElementById('detailPushCandidate1');
+    const select2 = document.getElementById('detailPushCandidate2');
+    
+    if (btnGenerate) {
+        const hasCategory = prospect.push_category_id;
+        const hasTemplate = window._currentPushTemplate;
+        const hasCandidate = (select1 && select1.value) || (select2 && select2.value);
+        btnGenerate.disabled = !(hasCategory && hasTemplate && hasCandidate);
+    }
+}
+
+// v25.9: Générer le push (template rempli ou ZIP)
+async function generatePush(prospectId) {
+    const prospect = data.prospects.find(x => x.id === prospectId);
+    if (!prospect || !prospect.push_category_id) {
+        showToast('Sélectionnez d\'abord une catégorie', 'error');
+        return;
+    }
+    
+    const templateName = window._currentPushTemplate;
+    if (!templateName) {
+        showToast('Aucun template disponible pour cette catégorie', 'error');
+        return;
+    }
+    
+    const select1 = document.getElementById('detailPushCandidate1');
+    const select2 = document.getElementById('detailPushCandidate2');
+    const candidateId1 = select1 ? parseInt(select1.value) : null;
+    const candidateId2 = select2 ? parseInt(select2.value) : null;
+    
+    if (!candidateId1 && !candidateId2) {
+        showToast('Sélectionnez au moins un candidat', 'error');
+        return;
+    }
+    
+    try {
+        showToast('Génération du push en cours...', 'info');
+        const res = await fetch('/api/push/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prospect_id: prospectId,
+                category_id: prospect.push_category_id,
+                template_filename: templateName,
+                candidate_id1: candidateId1,
+                candidate_id2: candidateId2,
+                format: 'zip' // Pour l'instant, toujours ZIP (template + DC)
+            })
+        });
+        
+        if (res.ok) {
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `push_${prospect.name}_${Date.now()}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            // Copier l'email dans le presse-papier si disponible
+            if (prospect.email) {
+                await navigator.clipboard.writeText(prospect.email);
+                showToast('Push généré ! Email copié dans le presse-papier', 'success');
+            } else {
+                showToast('Push généré !', 'success');
+            }
+        } else {
+            const data = await res.json();
+            showToast(data.error || 'Erreur lors de la génération', 'error');
+        }
+    } catch (e) {
+        console.error('Erreur génération push:', e);
+        showToast('Erreur lors de la génération du push', 'error');
+    }
+}
+
+// v25.9: Ouvrir la modale de gestion des catégories push
+function openPushCategoryManager() {
+    if (document.getElementById('pushCategoryManagerModal')) {
+        document.getElementById('pushCategoryManagerModal').style.display = 'flex';
+        loadPushCategoryManager();
+        return;
+    }
+    
+    const modal = document.createElement('div');
+    modal.id = 'pushCategoryManagerModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:700px;">
+            <button class="modal-close" onclick="closePushCategoryManager()">×</button>
+            <h2 style="margin-top:0;">⚙️ Gérer les catégories push</h2>
+            <div style="margin-bottom:20px;">
+                <button class="btn btn-primary" onclick="createNewPushCategory()">➕ Nouvelle catégorie</button>
+            </div>
+            <div id="pushCategoryManagerList">
+                <span class="muted">Chargement…</span>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+    loadPushCategoryManager();
+}
+
+function closePushCategoryManager() {
+    const modal = document.getElementById('pushCategoryManagerModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function loadPushCategoryManager() {
+    const listBox = document.getElementById('pushCategoryManagerList');
+    if (!listBox) return;
+    
+    try {
+        const res = await fetch('/api/push-categories');
+        if (res.ok) {
+            const categories = await res.json();
+            if (categories.length === 0) {
+                listBox.innerHTML = '<span class="muted">Aucune catégorie. Créez-en une pour commencer.</span>';
+                return;
+            }
+            
+            listBox.innerHTML = categories.map(cat => `
+                <div class="push-category-item" style="padding:12px;border:1px solid var(--color-border);border-radius:8px;margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <strong>${escapeHtml(cat.name)}</strong>
+                            ${cat.keywords && cat.keywords.length ? `<div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;">Mots-clés: ${escapeHtml(cat.keywords.join(', '))}</div>` : ''}
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="uploadPushTemplate(${cat.id}, '${escapeHtml(cat.name)}')" style="font-size:11px;">📤 Upload template</button>
+                            <button class="btn btn-danger btn-sm" onclick="deletePushCategory(${cat.id})" style="font-size:11px;">🗑️</button>
+                        </div>
+                    </div>
+                    <div id="pushCatFiles_${cat.id}" style="margin-top:8px;font-size:11px;color:var(--color-text-secondary);">
+                        <span class="muted">Chargement fichiers…</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Charger les fichiers pour chaque catégorie
+            categories.forEach(cat => {
+                loadPushCategoryFiles(cat.id);
+            });
+        }
+    } catch (e) {
+        listBox.innerHTML = '<span class="muted">Erreur de chargement</span>';
+    }
+}
+
+async function loadPushCategoryFiles(catId) {
+    const filesBox = document.getElementById(`pushCatFiles_${catId}`);
+    if (!filesBox) return;
+    
+    try {
+        const res = await fetch(`/api/push-categories/${catId}/files`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.files && data.files.length) {
+                filesBox.innerHTML = `Templates: ${data.files.map(f => escapeHtml(f.name)).join(', ')}`;
+            } else {
+                filesBox.innerHTML = '<span class="muted">Aucun template</span>';
+            }
+        }
+    } catch (e) {
+        filesBox.innerHTML = '<span class="muted">Erreur</span>';
+    }
+}
+
+function createNewPushCategory() {
+    const name = prompt('Nom de la catégorie:');
+    if (!name || !name.trim()) return;
+    
+    fetch('/api/push-categories/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() })
+    }).then(res => res.json()).then(data => {
+        if (data.ok) {
+            showToast('Catégorie créée', 'success');
+            loadPushCategoryManager();
+            loadPushCategories().then(() => {
+                // Recharger le select dans la fiche prospect si ouvert
+                const select = document.getElementById('detailCategorySelect');
+                if (select) {
+                    const prospectId = window._currentDetailProspectId;
+                    if (prospectId) {
+                        const prospect = data.prospects.find(p => p.id === prospectId);
+                        if (prospect) {
+                            select.outerHTML = renderPushCategorySelect(prospectId, prospect.push_category_id);
+                        }
+                    }
+                }
+            });
+        } else {
+            showToast(data.error || 'Erreur', 'error');
+        }
+    });
+}
+
+function uploadPushTemplate(catId, catName) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.msg,.eml,.oft,.htm,.html';
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            showToast('Upload en cours...', 'info');
+            const res = await fetch(`/api/push-categories/${catId}/upload-template`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast('Template uploadé avec succès', 'success');
+                loadPushCategoryFiles(catId);
+            } else {
+                showToast(data.error || 'Erreur upload', 'error');
+            }
+        } catch (e) {
+            showToast('Erreur upload', 'error');
+        }
+    };
+    input.click();
+}
+
+function deletePushCategory(catId) {
+    if (!confirm('Supprimer cette catégorie ? Les templates associés seront également supprimés.')) return;
+    
+    fetch('/api/push-categories/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: catId })
+    }).then(res => res.json()).then(data => {
+        if (data.ok) {
+            showToast('Catégorie supprimée', 'success');
+            loadPushCategoryManager();
+            loadPushCategories();
+        } else {
+            showToast(data.error || 'Erreur', 'error');
+        }
+    });
 }
 
 function onTemplateChange(prospectId, value) {
@@ -5146,7 +5516,7 @@ return '<span class="muted">Ajoutez des compétences pour obtenir des suggestion
         return '<span class="muted">Aucune correspondance trouvée. Intégration des tags en cours…</span>';
     }
 
-    return matches.map((m, i) => {
+    const html = matches.map((m, i) => {
 const barWidth = Math.max(m.score, 8);
 const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
 const fullPath = m.category + ' > ' + m.specialty;
@@ -5160,6 +5530,13 @@ return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.ma
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
 </div>`;
     }).join('');
+    
+    // v25.9: Suggérer une catégorie push après affichage des métiers
+    if (prospect.id && typeof suggestPushCategoryFromMetier === 'function') {
+        setTimeout(() => suggestPushCategoryFromMetier(prospect.id), 300);
+    }
+    
+    return html;
 }
 
 // Fonction pour rafraîchir les suggestions de métier (appelée après intégration)
@@ -9508,8 +9885,11 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
             return;
         }
 
+        // Limiter à 4 candidats maximum (v25.9)
+        const limitedCandidates = tagCandidates.slice(0, 4);
+        
         // Render with bestmatch cards (pct may be capped; relevance_pct = score-based)
-        listBox.innerHTML = tagCandidates.map((c, idx) => {
+        listBox.innerHTML = limitedCandidates.map((c, idx) => {
             const skills = Array.isArray(c.skills) ? c.skills : [];
             const matchedLower = (c.matched_tags || []).map(t => t.toLowerCase());
 
