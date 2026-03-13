@@ -106,7 +106,7 @@ window.applyDashboardDisplayPrefs = applyDashboardDisplayPrefs;
 // ═══ Widgets réorganisables (v25+) — ordre sauvegardé par utilisateur ─══
 var DASH_WIDGET_ORDER_KEY = 'dashboard_widget_order';
 var DASH_WIDGET_COLUMNS_KEY = 'dashboard_widget_columns';
-var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard', 'dashPrioritiesCard', 'dashAssistantCard', 'dashPushAnalyticsCard'];
+var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard', 'dashPrioritiesCard', 'dashPushAnalyticsCard'];
 
 function getDashboardWidgetOrder() {
     try {
@@ -1072,10 +1072,45 @@ async function renderPushAnalytics() {
     }
 }
 
-// ═══ Assistant virtuel ═══
+// ═══ Assistant virtuel (bouton flottant + modale) ═══
 let assistantChatHistory = [];
 
-function sendAssistantMessage() {
+window.openAssistantModal = function() {
+    const modal = document.getElementById('assistantModal');
+    if (!modal) return;
+    
+    // Ouvrir la modale
+    if (window.openModal) {
+        window.openModal(modal);
+    } else {
+        modal.classList.add('active');
+    }
+    
+    // Focus sur l'input
+    setTimeout(() => {
+        const input = document.getElementById('dashAssistantInput');
+        if (input) input.focus();
+    }, 100);
+    
+    // Afficher un message de bienvenue si le chat est vide
+    const chat = document.getElementById('dashAssistantChat');
+    if (chat && chat.children.length === 0) {
+        addChatMessage('assistant', 'Bonjour ! Je suis votre assistant virtuel. Posez-moi une question sur vos prospects, votre pipeline, ou vos tâches. Exemples :\n\n• "Quels sont mes prospects à relancer ?"\n• "Montre-moi les prospects du secteur automobile"\n• "Combien de RDV cette semaine ?"');
+    }
+}
+
+window.closeAssistantModal = function() {
+    const modal = document.getElementById('assistantModal');
+    if (!modal) return;
+    
+    if (window.closeModal) {
+        window.closeModal(modal);
+    } else {
+        modal.classList.remove('active');
+    }
+}
+
+window.sendAssistantMessage = function() {
     const input = document.getElementById('dashAssistantInput');
     if (!input) return;
     const question = input.value.trim();
@@ -1138,6 +1173,8 @@ function addChatMessage(role, text) {
         border-radius:6px;
         font-size:13px;
         line-height:1.5;
+        white-space:pre-wrap;
+        word-wrap:break-word;
         ${role === 'user' 
             ? 'background:var(--color-primary);color:white;margin-left:20%;text-align:right;' 
             : 'background:var(--color-surface);color:var(--color-text);margin-right:20%;'}
@@ -1205,18 +1242,7 @@ function executeAssistantAction(action) {
     }
 }
 
-// Permettre l'envoi avec Enter
-document.addEventListener('DOMContentLoaded', () => {
-    const input = document.getElementById('dashAssistantInput');
-    if (input) {
-        input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendAssistantMessage();
-            }
-        });
-    }
-});
+// Note: L'envoi avec Enter est géré directement dans le HTML via onkeypress
 
 // ═══ Boot ═══
 document.addEventListener('DOMContentLoaded', async () => {

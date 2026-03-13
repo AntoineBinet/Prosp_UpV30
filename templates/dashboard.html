@@ -9,6 +9,29 @@
 {% block header_subtitle %}Votre activité du jour{% endblock %}
 
 {% block content %}
+<!-- Bouton flottant Assistant virtuel -->
+<button class="fab" id="dashAssistantFab" onclick="openAssistantModal()" title="Assistant virtuel">
+  <span class="fab-icon">🤖</span>
+  <span class="fab-label">Assistant</span>
+</button>
+
+<!-- Modale Assistant virtuel -->
+<div id="assistantModal" class="modal">
+  <div class="modal-content" style="max-width:600px;max-height:80vh;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <h2>🤖 Assistant virtuel</h2>
+      <button type="button" class="modal-close" onclick="closeAssistantModal()" title="Fermer">×</button>
+    </div>
+    <div id="dashAssistant" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+      <div id="dashAssistantChat" class="dash-assistant-chat" style="flex:1;overflow-y:auto;min-height:300px;max-height:500px;"></div>
+      <div class="dash-assistant-input-container" style="padding:12px;border-top:1px solid var(--color-border);">
+        <input type="text" id="dashAssistantInput" class="dash-assistant-input" placeholder="Posez une question… (ex: Quels sont mes prospects à relancer ?)" onkeypress="if(event.key==='Enter') sendAssistantMessage()" />
+        <button id="dashAssistantSend" class="btn btn-primary btn-sm" onclick="sendAssistantMessage()">Envoyer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Bannière alerte relances (affichée par page-dashboard.js si overdue / due_today) -->
 <div id="relanceAlertBanner" class="relance-alert-banner" style="display:none;" aria-live="polite">
   <span id="relanceAlertBannerText"></span>
@@ -136,21 +159,6 @@
       <div class="dash-card-title">🎯 Priorités du jour (IA)</div>
       <div id="dashPriorities">
         <div class="muted" style="padding:12px;text-align:center;">Chargement des priorités…</div>
-      </div>
-    </div>
-  </div>
-  <div class="dash-widget" data-widget-id="dashAssistantCard">
-    <div class="dash-widget-header">
-      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
-    </div>
-    <div class="card dash-card" id="dashAssistantCard">
-      <div class="dash-card-title">🤖 Assistant virtuel</div>
-      <div id="dashAssistant">
-        <div id="dashAssistantChat" class="dash-assistant-chat"></div>
-        <div class="dash-assistant-input-container">
-          <input type="text" id="dashAssistantInput" class="dash-assistant-input" placeholder="Posez une question… (ex: Quels sont mes prospects à relancer ?)" />
-          <button id="dashAssistantSend" class="btn btn-primary btn-sm" onclick="sendAssistantMessage()">Envoyer</button>
-        </div>
       </div>
     </div>
   </div>
