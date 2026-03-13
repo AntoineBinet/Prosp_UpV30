@@ -27,7 +27,7 @@
     <div class="dash-card-title">✅ Tâches</div>
     <div style="display:flex; gap:8px;">
       <button class="btn btn-secondary btn-sm" id="btnShowArchived">📁 Archives</button>
-      <button class="btn btn-primary btn-sm" id="btnAddTask">+ Ajouter</button>
+      <button class="btn btn-primary btn-sm" id="btnAddTask">➕ Ajouter</button>
     </div>
   </div>
   <div id="todoList"><div class="skeleton skeleton-row" style="margin:8px 0"></div><div class="skeleton skeleton-row" style="margin:8px 0"></div><div class="skeleton skeleton-row" style="margin:8px 0"></div></div>
@@ -66,8 +66,8 @@
     </div>
     <div style="padding:16px 0;">
       <div class="form-group" style="margin-bottom:12px;">
-        <label style="font-weight:600;font-size:13px;">Titre *</label>
-        <input type="text" id="taskTitleInput" placeholder="Ex: Relancer prospect X" class="filter-select" style="width:100%;margin-top:4px;">
+        <label class="required" style="font-weight:600;font-size:13px;">Titre</label>
+        <input type="text" id="taskTitleInput" required placeholder="Ex: Relancer prospect X" class="filter-select" style="width:100%;margin-top:4px;">
       </div>
       <div class="form-group" style="margin-bottom:12px;">
         <label style="font-weight:600;font-size:13px;">Commentaire</label>

@@ -308,10 +308,18 @@
       if (!out.ok) throw new Error(out.error || 'Erreur');
       // also keep local caches
       await loadAll();
-      alert("✅ Entreprise enregistrée.");
+      if (typeof showToast === 'function') {
+        showToast("✅ Entreprise enregistrée", 'success');
+      } else {
+        alert("✅ Entreprise enregistrée.");
+      }
     } catch(e){
       console.error(e);
-      alert("❌ Impossible d'enregistrer l'entreprise.");
+      if (typeof showToast === 'function') {
+        showToast("❌ Impossible d'enregistrer l'entreprise", 'error');
+      } else {
+        alert("❌ Impossible d'enregistrer l'entreprise.");
+      }
     }
   }
 
@@ -333,7 +341,11 @@
     if (!cid) return;
     const payload = getOppPayload(id);
     if (!payload || !payload.title) {
-      alert("⚠️ Titre requis.");
+      if (typeof showToast === 'function') {
+        showToast("⚠️ Titre requis", 'warning');
+      } else {
+        alert("⚠️ Titre requis.");
+      }
       return;
     }
     try{
@@ -348,7 +360,11 @@
       await loadAll();
     }catch(e){
       console.error(e);
-      alert("❌ Impossible d'enregistrer l'opportunité.");
+      if (typeof showToast === 'function') {
+        showToast("❌ Impossible d'enregistrer l'opportunité", 'error');
+      } else {
+        alert("❌ Impossible d'enregistrer l'opportunité.");
+      }
     }
   };
 
@@ -368,7 +384,11 @@
       await loadAll();
     }catch(e){
       console.error(e);
-      alert("❌ Suppression impossible.");
+      if (typeof showToast === 'function') {
+        showToast("❌ Suppression impossible", 'error');
+      } else {
+        alert("❌ Suppression impossible.");
+      }
     }
   };
 
@@ -403,7 +423,11 @@
       await loadAll();
     }catch(e){
       console.error(e);
-      alert("❌ Impossible d'ajouter la note.");
+      if (typeof showToast === 'function') {
+        showToast("❌ Impossible d'ajouter la note", 'error');
+      } else {
+        alert("❌ Impossible d'ajouter la note.");
+      }
     }
   }
 

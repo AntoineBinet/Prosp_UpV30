@@ -23,7 +23,7 @@
         <div class="content-title" id="viewTitle">👥 Tous les prospects</div>
         
         <div class="controls" id="mainControls">
-            <input type="text" id="searchInput" placeholder="🔍 Rechercher (nom, entreprise…)">
+            <input type="text" id="searchInput" placeholder="🔍 Rechercher (nom, entreprise…)" aria-label="Rechercher un prospect">
             <button class="btn btn-secondary filter-toggle-btn" id="btnToggleFilters" type="button" title="Afficher les filtres" data-help-section="prospects">⚙️ Filtres</button>
             <div id="activeFilterChips" class="filter-chips-bar"></div>
         </div>
@@ -270,6 +270,7 @@
                 </tr>
             </thead>
             <tbody id="tableBody">
+                <tr><td colspan="13" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
             </tbody>
         </table>
     </div>
@@ -398,7 +399,7 @@
             </div>
             <div class="btn-group">
                 <button type="button" class="btn btn-secondary" onclick="closeCompanyModal()">Annuler</button>
-                <button type="submit" id="companySubmitBtn" class="btn btn-primary">Ajouter</button>
+                <button type="submit" id="companySubmitBtn" class="btn btn-primary">Enregistrer</button>
             </div>
         </form>
     </div>

@@ -51,7 +51,11 @@ async function confirmEC1() {
     const note = (document.getElementById('ec1ModalNote')?.value || '').trim();
 
     if (!dt) {
-        alert('❌ Date & heure requises pour planifier EC1.');
+        if (typeof showToast === 'function') {
+            showToast('❌ Date & heure requises pour planifier EC1', 'error');
+        } else {
+            alert('❌ Date & heure requises pour planifier EC1.');
+        }
         return;
     }
 
@@ -81,7 +85,11 @@ async function confirmEC1() {
         window.location.href = `/candidat?id=${cid}&section=ec1`;
     } catch(e) {
         console.error(e);
-        alert('❌ Impossible de planifier EC1 : ' + (e?.message || e));
+        if (typeof showToast === 'function') {
+            showToast('❌ Impossible de planifier EC1 : ' + (e?.message || e), 'error');
+        } else {
+            alert('❌ Impossible de planifier EC1 : ' + (e?.message || e));
+        }
     }
 }
 
@@ -312,7 +320,11 @@ async function saveCandidate(e) {
 
     if (!res.ok) {
         const txt = await res.text().catch(()=> '');
-        alert('❌ Enregistrement impossible: ' + (txt || ('HTTP ' + res.status)));
+        if (typeof showToast === 'function') {
+            showToast('❌ Enregistrement impossible: ' + (txt || ('HTTP ' + res.status)), 'error');
+        } else {
+            alert('❌ Enregistrement impossible: ' + (txt || ('HTTP ' + res.status)));
+        }
         return;
     }
 
@@ -335,7 +347,11 @@ async function deleteCandidate(id) {
 
     if (!res.ok) {
         const txt = await res.text().catch(()=> '');
-        alert('❌ Suppression impossible: ' + (txt || ('HTTP ' + res.status)));
+        if (typeof showToast === 'function') {
+            showToast('❌ Suppression impossible: ' + (txt || ('HTTP ' + res.status)), 'error');
+        } else {
+            alert('❌ Suppression impossible: ' + (txt || ('HTTP ' + res.status)));
+        }
         return;
     }
 
@@ -685,7 +701,11 @@ Votre profil m’a interpellé (mots-clés: ${kw || '—'}). Est-ce que vous ser
 Merci et bonne journée !`;
 
     const ok = await copyToClipboard(msg);
-    alert(ok ? "✅ Message copié." : "❌ Impossible de copier (clipboard).");
+    if (typeof showToast === 'function') {
+        showToast(ok ? "✅ Message copié" : "❌ Impossible de copier (clipboard)", ok ? 'success' : 'error');
+    } else {
+        alert(ok ? "✅ Message copié." : "❌ Impossible de copier (clipboard).");
+    }
 }
 
 async function handleCandidateOfDay() {
@@ -696,20 +716,45 @@ async function handleCandidateOfDay() {
         .map(c => ({ c, ...computeCandidateScore(c) }))
         .sort((a,b)=> b.score - a.score);
 
-    if (list.length === 0) { alert("Aucun candidat dans ce filtre."); return; }
+    if (list.length === 0) {
+        if (typeof showToast === 'function') {
+            showToast("Aucun candidat dans ce filtre", 'warning');
+        } else {
+            alert("Aucun candidat dans ce filtre.");
+        }
+        return;
+    }
 
     const best = list[0];
     const c = best.c;
     const label = `${safeStr(c.name)} — ${best.score}%`;
     const ok = await copyToClipboard(document.getElementById('liQuery')?.value || '');
-    alert(`⭐ Candidat du jour : ${label}\n\n${ok ? "La requête LinkedIn a été copiée." : ""}`);
+    if (typeof showToast === 'function') {
+        showToast(`⭐ Candidat du jour : ${label}${ok ? " — Requête LinkedIn copiée" : ""}`, 'success', 4000);
+    } else {
+        alert(`⭐ Candidat du jour : ${label}\n\n${ok ? "La requête LinkedIn a été copiée." : ""}`);
+    }
     // ouvrir LinkedIn du candidat si dispo
     if (c.linkedin) window.open(c.linkedin, '_blank');
 }
 
 async function saveCompanyTagsFromKeywords() {
-    if (__selectedCompanyIds.length === 0) { alert("Sélectionnez une entreprise."); return; }
-    if (__activeKeywords.length === 0) { alert("Aucun mot-clé."); return; }
+    if (__selectedCompanyIds.length === 0) {
+        if (typeof showToast === 'function') {
+            showToast("Sélectionnez une entreprise", 'warning');
+        } else {
+            alert("Sélectionnez une entreprise.");
+        }
+        return;
+    }
+    if (__activeKeywords.length === 0) {
+        if (typeof showToast === 'function') {
+            showToast("Aucun mot-clé", 'warning');
+        } else {
+            alert("Aucun mot-clé.");
+        }
+        return;
+    }
 
     // merge dans company.tags + save
     __selectedCompanyIds.forEach(cid => {
@@ -722,10 +767,18 @@ async function saveCompanyTagsFromKeywords() {
 
     try {
         await saveToServerAsync();
-        alert("✅ Tags entreprise mis à jour.");
+        if (typeof showToast === 'function') {
+            showToast("✅ Tags entreprise mis à jour", 'success');
+        } else {
+            alert("✅ Tags entreprise mis à jour.");
+        }
     } catch (e) {
         console.error(e);
-        alert("❌ Impossible de sauvegarder les tags.");
+        if (typeof showToast === 'function') {
+            showToast("❌ Impossible de sauvegarder les tags", 'error');
+        } else {
+            alert("❌ Impossible de sauvegarder les tags.");
+        }
     }
 }
 
@@ -755,7 +808,11 @@ function wireProductivityEvents() {
     document.getElementById('btnCopyQuery')?.addEventListener('click', async () => {
         const q = document.getElementById('liQuery')?.value || '';
         const ok = await copyToClipboard(q);
-        alert(ok ? "✅ Requête copiée." : "❌ Impossible de copier.");
+        if (typeof showToast === 'function') {
+            showToast(ok ? "✅ Requête copiée" : "❌ Impossible de copier", ok ? 'success' : 'error');
+        } else {
+            alert(ok ? "✅ Requête copiée." : "❌ Impossible de copier.");
+        }
     });
 
     document.getElementById('btnOpenLinkedIn')?.addEventListener('click', () => {
@@ -781,11 +838,19 @@ async function importLinkedInCsv(file) {
     const res = await fetch('/api/candidates/import_linkedin_csv', { method: 'POST', body: fd });
     if (!res.ok) {
         const txt = await res.text().catch(()=> '');
-        alert('❌ Import impossible: ' + (txt || ('HTTP ' + res.status)));
+        if (typeof showToast === 'function') {
+            showToast('❌ Import impossible: ' + (txt || ('HTTP ' + res.status)), 'error');
+        } else {
+            alert('❌ Import impossible: ' + (txt || ('HTTP ' + res.status)));
+        }
         return;
     }
     const j = await res.json().catch(()=> ({}));
-    alert(`✅ Import LinkedIn terminé : ${j.inserted || 0} ajouté(s), ${j.skipped || 0} ignoré(s).`);
+    if (typeof showToast === 'function') {
+        showToast(`✅ Import LinkedIn terminé : ${j.inserted || 0} ajouté(s), ${j.skipped || 0} ignoré(s)`, 'success', 5000);
+    } else {
+        alert(`✅ Import LinkedIn terminé : ${j.inserted || 0} ajouté(s), ${j.skipped || 0} ignoré(s).`);
+    }
     await loadCandidates();
     applyCandidateFilters();
     refreshProductivityMatching();
@@ -930,7 +995,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         refreshProductivityMatching();
     } catch (err) {
         console.error(err);
-        alert("❌ Impossible de charger les candidats. Vérifiez que le serveur Python est lancé (app.py).");
+        if (typeof showToast === 'function') {
+            showToast("❌ Impossible de charger les candidats. Vérifiez que le serveur Python est lancé (app.py).", 'error');
+        } else {
+            alert("❌ Impossible de charger les candidats. Vérifiez que le serveur Python est lancé (app.py).");
+        }
     }
 
     // URL param: editCandidate
