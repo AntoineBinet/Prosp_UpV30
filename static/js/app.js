@@ -2672,7 +2672,6 @@ function getStatusMeta(statut) {
 
     if (s.includes('messagerie')) return { icon: '💬', slug: 'messagerie', label: 'Messagerie' };
     if (s.includes('rendez')) return { icon: '🤝', slug: 'rdv', label: 'RDV' };
-    if (s.includes('rencontr')) return { icon: '✅', slug: 'rencontre', label: 'Rencontré' };
     if (s.includes('prospecté') || s.includes('prospecte')) return { icon: '🎯', slug: 'prospecte', label: 'Prospecté' };
     if (s.includes('à rappeler') || s.includes('rappeler')) return { icon: '⏳', slug: 'rappeler', label: 'À rappeler' };
     if (s.includes('appel')) return { icon: '📞', slug: 'appele', label: 'Appelé' };
@@ -2684,7 +2683,7 @@ function getStatusMeta(statut) {
 }
 
 function _statusSlugToBadgeClass(slug) {
-    const map = { rappeler: 'badge-à-rappeler', appele: 'badge-appelé', rdv: 'badge-rdv', messagerie: 'badge-messagerie', rencontre: 'badge-rencontre', 'pas-interesse': 'badge-pas-intéressé', 'pas-actions': 'badge-pas-d\'actions' };
+    const map = { rappeler: 'badge-à-rappeler', appele: 'badge-appelé', rdv: 'badge-rdv', messagerie: 'badge-messagerie', 'pas-interesse': 'badge-pas-intéressé', 'pas-actions': 'badge-pas-d\'actions' };
     return map[slug] || '';
 }
 
@@ -3082,7 +3081,6 @@ function getNextActionSuggestionsHtml(statut) {
         "À rappeler": ["Relancer dans 1 semaine", "Rappeler demain", "Envoyer email de relance"],
         "Appelé": ["Relancer dans 3 jours", "Envoyer email de suivi", "Planifier RDV"],
         "Rendez-vous": ["Envoyer 2 profils", "Préparer RT technique", "Relancer pour confirmation"],
-        "Rencontré": ["Envoyer proposition", "Relancer pour suite", "Demander retour"],
         "Prospecté": ["Planifier nouveau RDV", "Envoyer proposition commerciale", "Relancer pour suite"],
         "Messagerie": ["Relancer par message", "Proposer un appel", "Envoyer doc"],
         "Pas d'actions": ["Premier contact", "Qualifier le besoin", "Présenter Up Technologies"],
@@ -3199,7 +3197,7 @@ async function viewDetail(id) {
     // Status color map
     const statusColors = {
         "Pas d'actions": '#64748b', 'Appelé': '#f59e0b', 'Messagerie': '#3b82f6',
-        'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Rencontré': '#10b981', 'Prospecté': '#8b5cf6', 'Pas intéressé': '#94a3b8'
+        'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Prospecté': '#8b5cf6', 'Pas intéressé': '#94a3b8'
     };
     const heroColor = statusColors[prospect.statut] || '#64748b';
     const initials = (prospect.name || '??').split(/\s+/).map(w => w[0]).slice(0,2).join('');
@@ -3217,7 +3215,7 @@ async function viewDetail(id) {
         : '';
 
     // Status select options (for hero)
-    const statusOptions = ["Pas d'actions","Appelé","À rappeler","Rendez-vous","Rencontré","Prospecté","Messagerie","Pas intéressé"];
+    const statusOptions = ["Pas d'actions","Appelé","À rappeler","Rendez-vous","Prospecté","Messagerie","Pas intéressé"];
     const statusSelectHtml = statusOptions.map(s =>
         `<option value="${escapeHtml(s)}" ${prospect.statut === s ? 'selected' : ''}>${escapeHtml(s)}</option>`
     ).join('');
@@ -3278,7 +3276,7 @@ async function viewDetail(id) {
             ${showCandidats ? `<button class="detail-tab" onclick="var infosTab=this.parentElement.querySelector('.detail-tab'); switchDetailTab(infosTab,'tab-info'); setTimeout(function(){ document.getElementById('candidateMatchSection')?.scrollIntoView({behavior:'smooth',block:'start'}); }, 80);" title="Aller aux candidats recommandés">🎯 Candidats</button>` : ''}
             ${showTimeline ? '<button class="detail-tab" onclick="switchDetailTab(this,\'tab-timeline\')">Timeline</button>' : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-notes')">Notes (${(prospect.callNotes||[]).length})</button>
-            ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
+            ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-edit')">✏️ Modifier</button>
         </div>
         ${isProspMode ? `<div class="detail-prosp-progress">Mode Prosp · ${prospProgress.index}/${prospProgress.total}</div><div class="detail-prosp-hint">Swipe gauche: suivant · Swipe droite: fermer</div>` : ''}
@@ -3371,7 +3369,7 @@ async function viewDetail(id) {
             ${notesHtml || '<div class="muted" style="text-align:center;padding:20px;">Aucune note d\'appel</div>'}
         </div>
 
-        ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `
+        ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `
         <!-- TAB: RDV Checklist -->
         <div class="detail-tab-content" id="tab-rdv">
             <!-- Onglets des réunions précédentes -->
@@ -3439,7 +3437,6 @@ async function viewDetail(id) {
                         <option value="Appelé" ${prospect.statut==='Appelé'?'selected':''}>Appelé</option>
                         <option value="À rappeler" ${prospect.statut==='À rappeler'?'selected':''}>À rappeler</option>
                         <option value="Rendez-vous" ${prospect.statut==='Rendez-vous'?'selected':''}>Rendez-vous</option>
-                        <option value="Rencontré" ${prospect.statut==='Rencontré'?'selected':''}>Rencontré</option>
                         <option value="Prospecté" ${prospect.statut==='Prospecté'?'selected':''}>Prospecté</option>
                         <option value="Messagerie" ${prospect.statut==='Messagerie'?'selected':''}>Messagerie</option>
                         <option value="Pas intéressé" ${prospect.statut==='Pas intéressé'?'selected':''}>Pas intéressé</option>
@@ -3473,7 +3470,7 @@ async function viewDetail(id) {
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-danger" onclick="deleteProspect(${id})" title="Supprimer définitivement">🗑️</button>
                 ${prospect.is_contact ? `<button class="btn btn-primary" onclick="restoreFromContacts(${id})" title="Restaurer dans les prospects" style="font-size:12px;">👥 Restaurer</button>` : `<button class="btn btn-secondary" onclick="moveToContacts(${id})" title="Déplacer vers le vivier de contacts" style="font-size:12px;">📁 Contacts</button>`}
-                ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
+                ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
             </div>
             <div style="display:flex;gap:8px;">
                 ${hasPrevInProsp ? `<button class="btn btn-secondary btn-prosp-prev" onclick="goToProspPrev(${id})" title="Prospect précédent">← Précédent</button>` : ''}
@@ -4080,11 +4077,11 @@ function renderKanban() {
     if (!board || _currentView !== 'kanban') return;
 
     const statuses = [
-"Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Rencontré", "Prospecté", "Pas intéressé"
+"Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Prospecté", "Pas intéressé"
     ];
     const statusEmoji = {
 "Pas d'actions": '📋', 'Appelé': '📞', 'Messagerie': '💬',
-'À rappeler': '🔁', 'Rendez-vous': '🤝', 'Rencontré': '✅', 'Prospecté': '🎯', 'Pas intéressé': '❌'
+'À rappeler': '🔁', 'Rendez-vous': '🤝', 'Prospecté': '🎯', 'Pas intéressé': '❌'
     };
 
     const grouped = {};
@@ -10530,7 +10527,7 @@ ${checklistSummary || '(Aucune note saisie dans la grille)'}
   "compte_rendu": "[Résumé structuré de la réunion en 5-10 lignes : contexte, points clés discutés, besoins identifiés, opportunités]",
   "next_action": "[Prochaine action concrète : ex. 'Envoyer 2 profils C/C++ embarqué', 'Planifier RT technique', 'Relancer dans 2 semaines']",
   "next_follow_up": "[Date YYYY-MM-DD de la prochaine relance, basée sur ce qui a été convenu]",
-  "statut": "[Nouveau statut parmi : Appelé, À rappeler, Rendez-vous, Rencontré, Messagerie, Pas intéressé — ou null si inchangé]",
+  "statut": "[Nouveau statut parmi : Appelé, À rappeler, Rendez-vous, Messagerie, Pas intéressé — ou null si inchangé]",
   "tags": ["tag1", "tag2", "..."],
   "pertinence": [1-5 ou null],
   "notes_enrichies": "[Informations clés à ajouter aux notes : taille équipe, projets, technos, besoins, budget, process achat — en complément des notes existantes]",
