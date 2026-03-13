@@ -5187,10 +5187,14 @@ def api_push_category_files(cat_id: int):
     if user_push_dir.is_dir():
         for f in sorted(user_push_dir.iterdir()):
             if f.is_file() and f.suffix.lower() in ('.msg', '.eml', '.oft', '.htm', '.html'):
+                # Encoder correctement le nom de fichier dans l'URL pour éviter les problèmes d'encodage
+                from urllib.parse import quote
+                safe_name = f.name
+                safe_url = f"/api/pushs/user/{uid}/{cat_id}/{quote(safe_name, safe='')}"
                 files.append({
-                    "name": f.name,
+                    "name": safe_name,
                     "size": f.stat().st_size,
-                    "url": f"/api/pushs/user/{uid}/{cat_id}/{f.name}"
+                    "url": safe_url
                 })
     return jsonify(ok=True, category=cat_name, files=files)
 
@@ -5227,7 +5231,11 @@ def api_serve_push_file(filepath: str):
         
         cat_name = cat_row["name"]
         user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
-        target = user_push_dir / filename
+        
+        # Décoder le filename depuis l'URL (il peut être encodé)
+        from urllib.parse import unquote
+        decoded_filename = unquote(filename, encoding='utf-8', errors='replace')
+        target = user_push_dir / decoded_filename
     else:
         # Ancien format (backward compat): category/filename
         if len(parts) != 2:
@@ -5279,7 +5287,18 @@ def api_serve_push_file(filepath: str):
         '.html': 'text/html',
     }
     mime = mime_map.get(target.suffix.lower(), 'application/octet-stream')
-    return send_file(str(target), mimetype=mime, as_attachment=False, download_name=filename)
+    
+    # Encoder correctement le nom de fichier pour éviter les problèmes d'encodage Unicode
+    # Flask gère automatiquement l'encodage RFC 2231, mais on s'assure que le nom est bien encodé
+    from urllib.parse import quote
+    safe_filename = filename.encode('utf-8', errors='replace').decode('utf-8')
+    
+    return send_file(
+        str(target), 
+        mimetype=mime, 
+        as_attachment=False, 
+        download_name=safe_filename
+    )
 
 
 @app.post("/api/pushs/open")

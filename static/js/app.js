@@ -328,15 +328,31 @@ async function updateAIButtonLabels() {
             const text = btn.textContent || btn.innerText || '';
             if (!text) return;
             
-            // Patterns à remplacer
+            // S'assurer que modelName est une chaîne valide et bien encodée
+            const safeModelName = String(modelName || 'IA').trim();
+            if (!safeModelName) return;
+            
+            let newText = text;
+            
+            // Patterns à remplacer - utiliser des remplacements plus sûrs
             if (/Générer avec l'IA \(un seul\)/i.test(text)) {
-                btn.textContent = text.replace(/Générer avec l'IA \(un seul\)/i, 'Générer avec ' + modelName + ' (un seul)');
+                newText = '🤖 Générer avec ' + safeModelName + ' (un seul)';
             } else if (/Générer avec l'IA \(plusieurs\)/i.test(text)) {
-                btn.textContent = text.replace(/Générer avec l'IA \(plusieurs\)/i, 'Générer avec ' + modelName + ' (plusieurs)');
+                newText = '🤖 Générer avec ' + safeModelName + ' (plusieurs)';
             } else if (/Générer avec Ollama/i.test(text) && !/Générer avec Ollama \(/i.test(text)) {
-                btn.textContent = text.replace(/Générer avec Ollama/i, 'Générer avec ' + modelName);
+                newText = text.replace(/Générer avec Ollama/i, 'Générer avec ' + safeModelName);
             } else if (/Générer avec l'IA/i.test(text) && !/Générer avec l'IA \(/i.test(text)) {
-                btn.textContent = text.replace(/Générer avec l'IA/i, 'Générer avec ' + modelName);
+                // Remplacer "l'IA" par le nom du modèle, en préservant l'emoji si présent
+                const hasEmoji = /🤖/.test(text);
+                newText = text.replace(/Générer avec l'IA/i, 'Générer avec ' + safeModelName);
+                if (hasEmoji && !/🤖/.test(newText)) {
+                    newText = '🤖 ' + newText.replace(/^🤖\s*/, '');
+                }
+            }
+            
+            // Ne mettre à jour que si le texte a changé et est valide
+            if (newText !== text && newText && newText.length > 0) {
+                btn.textContent = newText;
             }
         });
     } catch (e) {
