@@ -9409,7 +9409,7 @@ def build_ollama_prompt_rdv(prospect: Dict[str, Any], company: Dict[str, Any] = 
     if company:
         entreprise = f"{company.get('groupe', '')} ({company.get('site', '')})".strip(" ()")
         ville = company.get("site", "").strip()
-    linkedin = prospect.get("linkedin", "").strip()
+    linkedin = (prospect.get("linkedin") or "").strip()
     
     return f"""Tu es un expert en prospection B2B pour une ESN spécialisée en systèmes embarqués, robotique et ingénierie industrielle (société UpTechnologie, Lyon).
 
@@ -9476,7 +9476,7 @@ def build_fallback_prompt_rdv(prospect: Dict[str, Any], company: Dict[str, Any] 
     if company:
         entreprise = f"{company.get('groupe', '')} ({company.get('site', '')})".strip(" ()")
         ville = company.get("site", "").strip()
-    linkedin = prospect.get("linkedin", "").strip()
+    linkedin = (prospect.get("linkedin") or "").strip()
     
     return f"""Tu es un expert en prospection B2B pour une ESN spécialisée en systèmes embarqués, robotique et ingénierie industrielle (société UpTechnologie, Lyon).
 
@@ -9535,8 +9535,20 @@ def build_fiche_rdv_pdf(prospect: Dict[str, Any], company: Dict[str, Any], ollam
         BytesIO contenant le PDF généré
     """
     nom_complet = prospect.get("name", "").strip()
-    prenom = prospect.get("prenom", "").strip() or nom_complet.split()[0] if nom_complet else ""
-    nom = prospect.get("nom", "").strip() or " ".join(nom_complet.split()[1:]) if len(nom_complet.split()) > 1 else nom_complet
+    # Extraire prénom et nom depuis name si prenom/nom ne sont pas définis
+    if nom_complet:
+        parts = nom_complet.split()
+        prenom = prospect.get("prenom", "").strip() or (parts[0] if parts else "")
+        nom = prospect.get("nom", "").strip() or (" ".join(parts[1:]) if len(parts) > 1 else "")
+    else:
+        prenom = prospect.get("prenom", "").strip() or ""
+        nom = prospect.get("nom", "").strip() or ""
+    
+    # Fallback si toujours vide
+    if not prenom and not nom:
+        prenom = "Prospect"
+        nom = ""
+    
     poste = prospect.get("fonction", "").strip()
     entreprise_str = ""
     ville_str = ""
