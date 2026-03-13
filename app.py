@@ -12958,7 +12958,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant/après."""
 
 @app.post("/api/dashboard/assistant")
 def api_dashboard_assistant():
-    """Assistant virtuel : répond à des questions en langage naturel et peut exécuter des actions."""
+    """Assistant virtuel : répond à des questions en langage naturel et peut exécuter des actions (disponible sur toutes les pages)."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
@@ -12968,25 +12968,32 @@ def api_dashboard_assistant():
     if not question:
         return jsonify(ok=False, error="question requise"), 400
     
+    # Contexte de la page (optionnel)
+    page_context = body.get("page_context", "")
+    page_description = body.get("page_description", "")
+    
     today = _today_iso()
     d_today = datetime.date.fromisoformat(today)
     monday = (d_today - datetime.timedelta(days=d_today.weekday())).isoformat()
     
-    # Récupérer le contexte disponible
+    # Récupérer le contexte disponible selon la page
     with _conn() as conn:
-        prospects = conn.execute("SELECT id, name, statut, nextFollowUp, rdvDate, company_id FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
-        companies = conn.execute("SELECT id, groupe, site FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
-        candidates = conn.execute("SELECT id, name, status FROM candidates WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        prospects = conn.execute("SELECT id, name, statut, nextFollowUp, rdvDate, company_id, tags, pertinence FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        companies = conn.execute("SELECT id, groupe, site, tags FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        candidates = conn.execute("SELECT id, name, status, skills, role FROM candidates WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        tasks = conn.execute("SELECT id, title, status, due_date FROM tasks WHERE owner_id=? AND status='pending' ORDER BY due_date ASC LIMIT 10;", (uid,)).fetchall()
     
     prospects_list = [dict(r) for r in prospects]
     companies_list = [dict(r) for r in companies]
     candidates_list = [dict(r) for r in candidates]
+    tasks_list = [dict(r) for r in tasks]
     
-    # Construire le contexte pour l'IA
+    # Construire le contexte pour l'IA selon la page
     overdue_prospects = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() and p["nextFollowUp"].strip() < today]
     due_today_prospects = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() == today]
     rdv_prospects = [p for p in prospects_list if p.get("statut") == "Rendez-vous"]
     
+    # Contexte de base
     context_summary = f"""Contexte disponible:
 - {len(prospects_list)} prospects au total
 - {len(overdue_prospects)} relances en retard
@@ -12994,12 +13001,43 @@ def api_dashboard_assistant():
 - {len(rdv_prospects)} prospects en RDV
 - {len(companies_list)} entreprises
 - {len(candidates_list)} candidats
+- {len(tasks_list)} tâches en cours
 
 Statuts prospects: {', '.join(set(p.get('statut') or 'Inconnu' for p in prospects_list))}
-
-Exemples de prospects en retard (max 5):
-{chr(10).join(f"- {p['name']} (ID: {p['id']}, statut: {p.get('statut', 'N/A')}, relance: {p.get('nextFollowUp', 'N/A')})" for p in overdue_prospects[:5])}
 """
+    
+    # Enrichir selon le contexte de la page
+    if page_context:
+        context_summary += f"\nContexte de la page: {page_description}\n"
+        
+        if "prospects" in page_context.lower() or "Gestion des prospects" in page_context:
+            context_summary += f"\nExemples de prospects (max 5):\n"
+            for p in prospects_list[:5]:
+                tags_str = ', '.join(json.loads(p.get('tags') or '[]')[:3]) if p.get('tags') else 'Aucun'
+                context_summary += f"- {p['name']} (ID: {p['id']}, statut: {p.get('statut', 'N/A')}, pertinence: {p.get('pertinence', 'N/A')}, tags: {tags_str})\n"
+        
+        elif "candidat" in page_context.lower() or "Sourcing" in page_context:
+            context_summary += f"\nExemples de candidats (max 5):\n"
+            for c in candidates_list[:5]:
+                skills_str = ', '.join(json.loads(c.get('skills') or '[]')[:3]) if c.get('skills') else 'Aucune'
+                context_summary += f"- {c['name']} (ID: {c['id']}, rôle: {c.get('role', 'N/A')}, compétences: {skills_str})\n"
+        
+        elif "entreprise" in page_context.lower():
+            context_summary += f"\nExemples d'entreprises (max 5):\n"
+            for c in companies_list[:5]:
+                context_summary += f"- {c.get('groupe', 'N/A')} (ID: {c['id']}, site: {c.get('site', 'N/A')})\n"
+        
+        elif "Focus" in page_context or "focus" in page_context.lower():
+            context_summary += f"\nRelances en retard (max 5):\n"
+            for p in overdue_prospects[:5]:
+                context_summary += f"- {p['name']} (ID: {p['id']}, relance: {p.get('nextFollowUp', 'N/A')})\n"
+            context_summary += f"\nTâches en cours (max 5):\n"
+            for t in tasks_list[:5]:
+                context_summary += f"- {t.get('title', 'N/A')} (échéance: {t.get('due_date', 'N/A')})\n"
+    
+    context_summary += f"\nExemples de prospects en retard (max 3):\n"
+    for p in overdue_prospects[:3]:
+        context_summary += f"- {p['name']} (ID: {p['id']}, statut: {p.get('statut', 'N/A')}, relance: {p.get('nextFollowUp', 'N/A')})\n"
     
     prompt = f"""Tu es un assistant virtuel pour un CRM de prospection B2B. L'utilisateur pose une question en langage naturel.
 
@@ -13012,13 +13050,14 @@ Analyse la question et génère une réponse JSON avec:
 2. "intent": intention détectée parmi ["filter", "create", "modify", "display", "action", "info"]
 3. "actions": liste d'actions possibles (chaque action = {{"type": "filter|open|navigate", "label": "...", "params": {{...}}}})
    - type "filter": filtrer des prospects (params: {{"field": "statut|nextFollowUp|...", "value": "..."}})
-   - type "open": ouvrir une fiche (params: {{"id": prospect_id}})
-   - type "navigate": naviguer vers une page (params: {{"url": "/focus|/calendrier|..."}})
+   - type "open": ouvrir une fiche (params: {{"id": prospect_id|candidate_id|company_id}})
+   - type "navigate": naviguer vers une page (params: {{"url": "/focus|/sourcing|/stats|..."}})
 
 Exemples d'actions:
-- Pour "prospects à relancer": {{"type": "filter", "label": "Voir les prospects à relancer", "params": {{"field": "nextFollowUp", "value": "overdue"}}}}
+- Pour "prospects à relancer": {{"type": "navigate", "label": "Voir les relances en retard", "params": {{"url": "/focus"}}}}
 - Pour "prospects du secteur X": {{"type": "filter", "label": "Filtrer par secteur", "params": {{"field": "sector", "value": "X"}}}}
 - Pour "ouvrir prospect X": {{"type": "open", "label": "Ouvrir {question.split()[-1] if question.split() else ''}", "params": {{"id": null}}}}
+- Pour "candidats avec compétence Y": {{"type": "navigate", "label": "Voir les candidats", "params": {{"url": "/sourcing"}}}}
 
 Réponds UNIQUEMENT avec le JSON, sans texte avant/après."""
     

@@ -7,6 +7,289 @@ window.onerror = function(msg, src, line) {
     console.error("[Prosp'Up] Error:", msg, "at", src + ":" + line);
 };
 
+// ═══ Assistant virtuel (disponible sur toutes les pages) ═══
+let assistantChatHistory = [];
+
+// Obtenir le contexte de la page actuelle
+function getPageContext() {
+    const pageId = document.body.getAttribute('data-page') || '';
+    const path = window.location.pathname;
+    
+    const contextMap = {
+        'prospects': {
+            name: 'Gestion des prospects',
+            description: 'Vous êtes sur la page de gestion des prospects. Vous pouvez poser des questions sur vos prospects, leurs statuts, les relances, les entreprises, etc.',
+            examples: [
+                'Quels sont mes prospects à relancer ?',
+                'Montre-moi les prospects du secteur automobile',
+                'Combien de prospects en RDV cette semaine ?',
+                'Quels prospects ont le plus haut score ?'
+            ]
+        },
+        'dashboard': {
+            name: 'Dashboard',
+            description: 'Vous êtes sur le dashboard. Vous pouvez poser des questions sur votre activité du jour, vos KPIs, votre pipeline, vos tâches, etc.',
+            examples: [
+                'Quels sont mes prospects à relancer ?',
+                'Montre-moi les prospects du secteur automobile',
+                'Combien de RDV cette semaine ?',
+                'Quelles sont mes priorités du jour ?'
+            ]
+        },
+        'company': {
+            name: 'Gestion des entreprises',
+            description: 'Vous êtes sur la page de gestion des entreprises. Vous pouvez poser des questions sur vos entreprises, leurs prospects associés, etc.',
+            examples: [
+                'Quelles sont mes entreprises les plus actives ?',
+                'Combien de prospects par entreprise ?',
+                'Quelles entreprises ont des relances en retard ?'
+            ]
+        },
+        'sourcing': {
+            name: 'Sourcing de candidats',
+            description: 'Vous êtes sur la page de sourcing de candidats. Vous pouvez poser des questions sur vos candidats, leurs compétences, leurs disponibilités, etc.',
+            examples: [
+                'Quels candidats ont des compétences en AUTOSAR ?',
+                'Combien de candidats disponibles cette semaine ?',
+                'Quels sont les meilleurs candidats pour un poste de développeur embarqué ?'
+            ]
+        },
+        'candidate': {
+            name: 'Fiche candidat',
+            description: 'Vous êtes sur une fiche candidat. Vous pouvez poser des questions sur ce candidat, ses compétences, son parcours, etc.',
+            examples: [
+                'Quelles sont les compétences principales de ce candidat ?',
+                'Quel est le parcours professionnel ?',
+                'Ce candidat correspond-il à un besoin spécifique ?'
+            ]
+        },
+        'stats': {
+            name: 'Statistiques',
+            description: 'Vous êtes sur la page des statistiques. Vous pouvez poser des questions sur vos performances, vos tendances, vos conversions, etc.',
+            examples: [
+                'Quel est mon taux de conversion ?',
+                'Quelles sont mes meilleures périodes ?',
+                'Comment évolue mon pipeline ?'
+            ]
+        },
+        'focus': {
+            name: 'Focus',
+            description: 'Vous êtes sur la page Focus. Vous pouvez poser des questions sur vos relances, vos tâches, vos priorités, etc.',
+            examples: [
+                'Quelles sont mes relances en retard ?',
+                'Quelles tâches sont prioritaires ?',
+                'Quels sont mes prochains RDV ?'
+            ]
+        },
+        'settings': {
+            name: 'Paramètres',
+            description: 'Vous êtes sur la page des paramètres. Vous pouvez poser des questions sur la configuration, les utilisateurs, etc.',
+            examples: [
+                'Comment configurer l\'IA ?',
+                'Quels utilisateurs sont actifs ?'
+            ]
+        }
+    };
+    
+    // Essayer d'abord avec page_id, puis avec le path
+    let context = contextMap[pageId];
+    if (!context) {
+        if (path.includes('/candidate/')) {
+            context = contextMap['candidate'];
+        } else if (path.includes('/company/')) {
+            context = contextMap['company'];
+        } else if (path === '/') {
+            context = contextMap['prospects'];
+        }
+    }
+    
+    // Fallback par défaut
+    return context || {
+        name: 'Application',
+        description: 'Vous êtes sur Prosp\'Up. Posez-moi une question sur vos prospects, votre pipeline, ou vos tâches.',
+        examples: [
+            'Quels sont mes prospects à relancer ?',
+            'Montre-moi les prospects du secteur automobile',
+            'Combien de RDV cette semaine ?'
+        ]
+    };
+}
+
+window.toggleAssistantChat = function() {
+    const chatWindow = document.getElementById('assistantChatWindow');
+    const fab = document.getElementById('dashAssistantFab');
+    if (!chatWindow || !fab) return;
+    
+    const isOpen = chatWindow.classList.contains('open');
+    
+    if (isOpen) {
+        // Fermer avec animation
+        chatWindow.classList.remove('open');
+        fab.style.transform = 'scale(1)';
+    } else {
+        // Ouvrir avec animation
+        chatWindow.classList.add('open');
+        fab.style.transform = 'scale(0.9)';
+        
+        // Focus sur l'input après l'animation
+        setTimeout(() => {
+            const input = document.getElementById('dashAssistantInput');
+            if (input) input.focus();
+        }, 300);
+        
+        // Afficher un message de bienvenue adapté à la page si le chat est vide
+        const chat = document.getElementById('dashAssistantChat');
+        if (chat && chat.children.length === 0) {
+            setTimeout(() => {
+                const context = getPageContext();
+                const examplesText = context.examples.map(ex => `• "${ex}"`).join('\n');
+                addChatMessage('assistant', `${context.description}\n\nExemples de questions :\n${examplesText}`);
+            }, 100);
+        }
+    }
+}
+
+window.sendAssistantMessage = function() {
+    const input = document.getElementById('dashAssistantInput');
+    if (!input) return;
+    const question = input.value.trim();
+    if (!question) return;
+    
+    // Ajouter la question au chat
+    addChatMessage('user', question);
+    input.value = '';
+    input.disabled = true;
+    
+    const sendBtn = document.getElementById('dashAssistantSend');
+    if (sendBtn) {
+        sendBtn.disabled = true;
+        const svg = sendBtn.querySelector('svg');
+        if (svg) svg.style.opacity = '0.5';
+    }
+    
+    // Obtenir le contexte de la page
+    const context = getPageContext();
+    
+    // Appeler l'API avec le contexte
+    fetch('/api/dashboard/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            question,
+            page_context: context.name,
+            page_description: context.description
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.ok && data.data) {
+            const response = data.data;
+            addChatMessage('assistant', response.answer || 'Désolé, je n\'ai pas de réponse.');
+            
+            // Afficher les actions si disponibles
+            if (response.actions && response.actions.length > 0) {
+                renderAssistantActions(response.actions);
+            }
+        } else {
+            addChatMessage('assistant', 'Erreur: ' + (data.error || 'Réponse invalide'));
+        }
+    })
+    .catch(e => {
+        console.error('Assistant error:', e);
+        addChatMessage('assistant', 'Erreur de connexion. Vérifiez votre connexion.');
+    })
+    .finally(() => {
+        input.disabled = false;
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            const svg = sendBtn.querySelector('svg');
+            if (svg) svg.style.opacity = '1';
+        }
+        input.focus();
+    });
+}
+
+function addChatMessage(role, text) {
+    const chat = document.getElementById('dashAssistantChat');
+    if (!chat) return;
+    
+    const messageEl = document.createElement('div');
+    messageEl.className = `assistant-chat-message ${role}`;
+    messageEl.textContent = text;
+    
+    chat.appendChild(messageEl);
+    chat.scrollTop = chat.scrollHeight;
+    
+    assistantChatHistory.push({ role, text });
+}
+
+function renderAssistantActions(actions) {
+    const chat = document.getElementById('dashAssistantChat');
+    if (!chat) return;
+    
+    const actionsEl = document.createElement('div');
+    actionsEl.className = 'assistant-chat-actions';
+    
+    actions.forEach(action => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-secondary btn-sm';
+        btn.textContent = action.label || 'Action';
+        btn.onclick = () => executeAssistantAction(action);
+        actionsEl.appendChild(btn);
+    });
+    
+    chat.appendChild(actionsEl);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function executeAssistantAction(action) {
+    if (!action || !action.type) return;
+    
+    switch (action.type) {
+        case 'filter':
+            // Filtrer les prospects
+            if (action.params && action.params.field) {
+                const field = action.params.field;
+                const value = action.params.value;
+                // Rediriger vers la page prospects avec filtre
+                let url = '/?';
+                if (field === 'statut') {
+                    url += `statut=${encodeURIComponent(value)}`;
+                } else if (field === 'nextFollowUp' && value === 'overdue') {
+                    url = '/focus'; // Page focus pour les relances
+                } else if (field === 'sector') {
+                    url += `sector=${encodeURIComponent(value)}`;
+                }
+                window.location.href = url;
+            }
+            break;
+        case 'open':
+            // Ouvrir une fiche (prospect, candidat, entreprise)
+            if (action.params && action.params.id) {
+                const id = action.params.id;
+                const pageId = document.body.getAttribute('data-page') || '';
+                let url = '/';
+                
+                // Déterminer l'URL selon le type
+                if (pageId === 'candidate' || pageId === 'sourcing') {
+                    url = `/candidate/${id}`;
+                } else if (pageId === 'company') {
+                    url = `/company/${id}`;
+                } else {
+                    url = `/?open=${id}`; // Prospect par défaut
+                }
+                window.location.href = url;
+            }
+            break;
+        case 'navigate':
+            // Naviguer vers une page
+            if (action.params && action.params.url) {
+                window.location.href = action.params.url;
+            }
+            break;
+    }
+}
+
 // ═══ Initialiser le bouton assistant sur toutes les pages ═══
 document.addEventListener('DOMContentLoaded', function() {
     const fab = document.getElementById('dashAssistantFab');
