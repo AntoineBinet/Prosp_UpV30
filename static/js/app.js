@@ -6987,8 +6987,10 @@ async function confirmPushSend() {
 }
 
 async function openEmailForProspect(prospectId) {
-    // Feedback visuel immédiat : désactiver le bouton et afficher un indicateur
-    const emailBtn = event?.target?.closest('button') || document.querySelector(`button[onclick*="openEmailForProspect(${prospectId})"]`);
+    // Feedback visuel immédiat : trouver et désactiver le bouton
+    const emailBtn = document.querySelector(`button[onclick*="openEmailForProspect(${prospectId})"]`) ||
+                     document.querySelector('.btn-secondary:has-text("Email")') ||
+                     document.activeElement?.closest('button');
     const originalText = emailBtn?.textContent || emailBtn?.innerHTML || '';
     const originalDisabled = emailBtn?.disabled;
     
@@ -7003,6 +7005,7 @@ async function openEmailForProspect(prospectId) {
     
     try {
         // v25.3: Ouvrir la modale de sélection candidats/consultants
+        // La modale s'ouvre maintenant immédiatement, les données se chargent en arrière-plan
         await openPushSelectModal(prospectId);
     } catch (e) {
         console.error('Erreur ouverture modale email', e);
@@ -7017,7 +7020,7 @@ async function openEmailForProspect(prospectId) {
                 if (emailBtn.textContent) emailBtn.textContent = originalText;
                 else if (emailBtn.innerHTML) emailBtn.innerHTML = originalText;
             }
-        }, 500);
+        }, 300);
     }
 }
 
