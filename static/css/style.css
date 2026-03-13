@@ -1467,34 +1467,34 @@ table th, table td {
 /* Styles compacts pour le tableau des entreprises */
 body[data-page="companies"] .table-wrapper th,
 body[data-page="companies"] .table-wrapper td {
-    padding: 4px 8px !important;
-    line-height: 1.3 !important;
+    padding: 2px 8px !important;
+    line-height: 1.15 !important;
 }
 
 body[data-page="companies"] .company-name-cell {
-    padding: 4px 8px !important;
-    line-height: 1.3;
+    padding: 2px 8px !important;
+    line-height: 1.15;
 }
 
 body[data-page="companies"] .company-name-wrapper {
-    margin-bottom: 1px;
-    gap: 4px;
-    line-height: 1.2;
+    margin-bottom: 0;
+    gap: 3px;
+    line-height: 1.1;
 }
 
 body[data-page="companies"] .company-groupe {
     font-size: 13px;
-    line-height: 1.2;
+    line-height: 1.1;
 }
 
 body[data-page="companies"] .company-site-cell {
     font-size: 12px;
-    padding: 4px 8px !important;
-    line-height: 1.3;
+    padding: 2px 8px !important;
+    line-height: 1.15;
 }
 
 body[data-page="companies"] .company-count-cell {
-    padding: 4px 8px !important;
+    padding: 2px 8px !important;
     line-height: 1;
 }
 
@@ -1508,7 +1508,7 @@ body[data-page="companies"] .count-badge {
 }
 
 body[data-page="companies"] .company-actions-cell {
-    padding: 4px 8px !important;
+    padding: 2px 8px !important;
     line-height: 1;
 }
 
@@ -1529,17 +1529,17 @@ body[data-page="companies"] .btn-action-icon {
 }
 
 body[data-page="companies"] .company-note-snippet {
-    margin-top: 2px;
-    padding: 3px 6px;
+    margin-top: 0;
+    padding: 2px 6px;
     border-radius: 6px;
     font-size: 11px;
-    gap: 4px;
-    line-height: 1.3;
+    gap: 3px;
+    line-height: 1.2;
 }
 
 body[data-page="companies"] .company-note-empty {
     font-size: 10px;
-    line-height: 1.3;
+    line-height: 1.2;
 }
 
 body[data-page="companies"] .company-note-edit {
@@ -1547,35 +1547,35 @@ body[data-page="companies"] .company-note-edit {
 }
 
 body[data-page="companies"] .company-note-editor textarea {
-    min-height: 40px;
-    padding: 4px 8px;
+    min-height: 35px;
+    padding: 3px 6px;
     border-radius: 6px;
     font-size: 12px;
-    line-height: 1.3;
-}
-
-body[data-page="companies"] .company-note-editor .note-actions {
-    gap: 4px;
-    margin-top: 4px;
-}
-
-body[data-page="companies"] .company-note-editor .note-actions .btn {
-    padding: 3px 10px;
-    font-size: 11px;
     line-height: 1.2;
 }
 
+body[data-page="companies"] .company-note-editor .note-actions {
+    gap: 3px;
+    margin-top: 3px;
+}
+
+body[data-page="companies"] .company-note-editor .note-actions .btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    line-height: 1.1;
+}
+
 body[data-page="companies"] .table-wrapper thead th {
-    padding: 6px 8px !important;
+    padding: 4px 8px !important;
     font-size: 11px;
     font-weight: 600;
-    line-height: 1.3;
+    line-height: 1.2;
 }
 
 body[data-page="companies"] .table-wrapper tbody tr {
     height: auto;
     min-height: auto;
-    line-height: 1.3;
+    line-height: 1.15;
 }
 
 body[data-page="companies"] .table-wrapper tbody td {
