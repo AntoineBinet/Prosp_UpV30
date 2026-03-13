@@ -68,17 +68,32 @@ function renderDashboard(d) {
     renderUpcomingRdv(d.upcoming_rdv || []);
     renderPipeline(d.pipeline);
     renderPushAnalytics();
-    if (typeof window.applyDashboardDisplayPrefs === 'function') window.applyDashboardDisplayPrefs();
     
-    // Réinitialiser le drag & drop après le rendu
+    // Appliquer les préférences d'affichage APRÈS le rendu de tous les widgets
+    // et réorganiser l'ordre APRÈS l'application des préférences
     setTimeout(function() {
+        if (typeof window.applyDashboardDisplayPrefs === 'function') {
+            window.applyDashboardDisplayPrefs();
+        }
+        // Réorganiser l'ordre après application des préférences
+        applyDashboardWidgetOrder();
+        // Réinitialiser le drag & drop après le tout
         initDashboardWidgetDragDrop();
-    }, 100);
+    }, 150);
 }
 
 // Applique les préférences d'affichage des cartes du dashboard
 function applyDashboardDisplayPrefs() {
-    if (typeof window.getDisplayPref !== 'function') return;
+    if (typeof window.getDisplayPref !== 'function') {
+        // Si getDisplayPref n'est pas disponible, afficher tous les widgets par défaut
+        var container = document.getElementById('dashWidgetsContainer');
+        if (container) {
+            container.querySelectorAll('.dash-widget').forEach(function (w) {
+                w.style.display = '';
+            });
+        }
+        return;
+    }
     var map = [
         { pref: 'display_kpi_row', ids: ['dashKpiRow', 'dashKpiActionsRow'] },
         { pref: 'display_first_glance', ids: ['dashFirstGlance'] },
@@ -88,15 +103,24 @@ function applyDashboardDisplayPrefs() {
         { pref: 'display_dash_overdue', ids: ['dashOverdueCard'] },
         { pref: 'display_dash_rdv', ids: ['dashRdvCard'] },
         { pref: 'display_dash_tasks', ids: ['dashTasksCard'] },
+        { pref: 'display_dash_priorities', ids: ['dashPrioritiesCard'] },
+        { pref: 'display_dash_push_analytics', ids: ['dashPushAnalyticsCard'] },
         { pref: 'display_dash_pipeline', ids: ['dashPipelineCard'] }
     ];
     map.forEach(function (item) {
+        // Par défaut, afficher si la préférence n'existe pas (true par défaut)
         var on = window.getDisplayPref(item.pref);
+        if (on === undefined || on === null) on = true; // Par défaut visible
         item.ids.forEach(function (id) {
             var el = document.getElementById(id);
             if (el) {
                 var wrapper = el.closest('.dash-widget');
-                (wrapper || el).style.display = on ? '' : 'none';
+                var target = wrapper || el;
+                if (target) {
+                    // Utiliser data-display-pref pour marquer que c'est une préférence, pas un masquage adaptatif
+                    target.setAttribute('data-display-pref', on ? '1' : '0');
+                    target.style.display = on ? '' : 'none';
+                }
             }
         });
     });
@@ -123,12 +147,20 @@ function saveDashboardWidgetOrder() {
     var container = document.getElementById('dashWidgetsContainer');
     if (!container) return;
     var order = [];
+    // Sauvegarder TOUS les widgets dans l'ordre, même ceux masqués par les préférences
+    // Cela permet de préserver l'ordre même si un widget est temporairement masqué
     container.querySelectorAll('.dash-widget').forEach(function (w) {
         var id = w.getAttribute('data-widget-id');
-        if (id && w.style.display !== 'none') order.push(id);
+        if (id) {
+            // Vérifier si le widget est masqué uniquement par les préférences (pas par l'adaptatif)
+            var isHiddenByPref = w.getAttribute('data-display-pref') === '0';
+            // Inclure dans l'ordre même si masqué par préférence (mais pas si complètement absent du DOM)
+            order.push(id);
+        }
     });
     try { localStorage.setItem(DASH_WIDGET_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
-    if (window.showToast) window.showToast('Ordre des widgets enregistré.', 'success', 2000);
+    // Ne pas afficher de toast à chaque drag & drop pour éviter le spam
+    // if (window.showToast) window.showToast('Ordre des widgets enregistré.', 'success', 2000);
 }
 
 function getDashboardColumns() {
@@ -198,11 +230,20 @@ function applyDashboardWidgetOrder() {
     if (!container) return;
     var order = getDashboardWidgetOrder();
     var byId = {};
+    // Collecter tous les widgets présents dans le DOM
     container.querySelectorAll('.dash-widget').forEach(function (w) {
         var id = w.getAttribute('data-widget-id');
         if (id) byId[id] = w;
     });
+    // Réorganiser selon l'ordre sauvegardé
     order.forEach(function (id) {
+        if (byId[id]) {
+            container.appendChild(byId[id]);
+            delete byId[id]; // Marquer comme traité
+        }
+    });
+    // Ajouter les widgets qui ne sont pas dans l'ordre sauvegardé (nouveaux widgets) à la fin
+    Object.keys(byId).forEach(function (id) {
         if (byId[id]) container.appendChild(byId[id]);
     });
 }
@@ -581,7 +622,22 @@ function _maybeToast(msg) {
 
 function renderGoals(goalsPayload, week, todayObj) {
     const card = document.getElementById('dashGoalsCard');
-    if (!card) return;
+    if (!card) {
+        console.warn('[Dashboard] dashGoalsCard non trouvé dans le DOM');
+        return;
+    }
+    
+    // Vérifier que le widget parent existe et est visible selon les préférences
+    const widget = card.closest('.dash-widget');
+    if (widget) {
+        // Si le widget est masqué par les préférences, ne pas le rendre (mais ne pas le supprimer)
+        const isHiddenByPref = widget.getAttribute('data-display-pref') === '0';
+        if (isHiddenByPref) {
+            // Le widget est masqué intentionnellement par l'utilisateur, ne rien faire
+            return;
+        }
+    }
+    
     const body = card.querySelector('.dash-goals-body');
     const confetti = document.getElementById('dashGoalsConfetti') || card.querySelector('.dash-confetti-layer');
 
@@ -939,35 +995,9 @@ function renderAdaptiveDashboard(adaptiveData) {
     // Afficher les priorités du jour
     renderPriorities(adaptiveData.priorities || []);
     
-    // Gérer l'affichage/masquage des widgets selon les recommandations
-    const widgetsToShow = adaptiveData.widgets_to_show || [];
-    const widgetsToHide = adaptiveData.widgets_to_hide || [];
-    
-    const widgetMap = {
-        'overdue': 'dashOverdueCard',
-        'rdv': 'dashRdvCard',
-        'pipeline': 'dashPipelineCard',
-        'activity': 'dashFeedCard',
-        'goals': 'dashGoalsCard'
-    };
-    
-    // Masquer les widgets recommandés à masquer
-    widgetsToHide.forEach(widgetKey => {
-        const widgetId = widgetMap[widgetKey];
-        if (widgetId) {
-            const widget = document.querySelector(`[data-widget-id="${widgetId}"]`);
-            if (widget) widget.style.display = 'none';
-        }
-    });
-    
-    // Afficher les widgets recommandés (s'ils étaient masqués)
-    widgetsToShow.forEach(widgetKey => {
-        const widgetId = widgetMap[widgetKey];
-        if (widgetId) {
-            const widget = document.querySelector(`[data-widget-id="${widgetId}"]`);
-            if (widget) widget.style.display = '';
-        }
-    });
+    // NE PAS masquer/afficher les widgets selon les recommandations adaptatives
+    // Les préférences d'affichage utilisateur ont la priorité
+    // L'adaptatif ne doit que suggérer, pas forcer l'affichage/masquage
     
     // Afficher l'insight si disponible
     if (adaptiveData.insight) {
@@ -1088,18 +1118,64 @@ function initAssistantButton() {
     }
 }
 
+// ═══ Fonction de réinitialisation des widgets (pour debug/correction) ═══
+function resetDashboardWidgets() {
+    var container = document.getElementById('dashWidgetsContainer');
+    if (!container) return;
+    
+    // Réafficher tous les widgets
+    container.querySelectorAll('.dash-widget').forEach(function (w) {
+        w.style.display = '';
+        w.removeAttribute('data-display-pref');
+    });
+    
+    // Réappliquer les préférences
+    if (typeof window.applyDashboardDisplayPrefs === 'function') {
+        window.applyDashboardDisplayPrefs();
+    }
+    
+    // Réorganiser selon l'ordre par défaut
+    try {
+        localStorage.removeItem(DASH_WIDGET_ORDER_KEY);
+    } catch (e) {}
+    applyDashboardWidgetOrder();
+    
+    // Réinitialiser le drag & drop
+    initDashboardWidgetDragDrop();
+    
+    if (typeof showToast === 'function') {
+        showToast('✅ Widgets réinitialisés', 'success');
+    }
+}
+window.resetDashboardWidgets = resetDashboardWidgets;
+
 // ═══ Boot ═══
 document.addEventListener('DOMContentLoaded', async () => {
     // Initialiser le bouton assistant
     initAssistantButton();
     
-    if (typeof window.applyDashboardDisplayPrefs === 'function') window.applyDashboardDisplayPrefs();
+    // Appliquer les colonnes et l'ordre AVANT le chargement des données
+    applyDashboardColumns();
+    applyDashboardWidgetOrder();
+    
     try {
         const fn = window.bootstrap || window.appBootstrap;
         if (typeof fn === 'function') await fn('dashboard');
     } catch(e) {}
 
+    // Charger les données et appliquer les préférences après
     await Promise.all([loadDashboard(), loadDashTasks(), loadAdaptiveDashboard()]);
+    
+    // Appliquer les préférences d'affichage une dernière fois après tout le chargement
+    setTimeout(function() {
+        if (typeof window.applyDashboardDisplayPrefs === 'function') {
+            window.applyDashboardDisplayPrefs();
+        }
+        // Réorganiser l'ordre après application des préférences
+        applyDashboardWidgetOrder();
+        // Initialiser le drag & drop
+        initDashboardWidgetDragDrop();
+    }, 200);
 });
 
 // Exposer la fonction globalement
