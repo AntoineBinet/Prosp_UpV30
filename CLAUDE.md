@@ -1,7 +1,7 @@
 # ProspUp — CRM Prospection B2B (Up Technologies)
 
 ## Stack technique
-- **Backend** : Flask (app.py ~7000 lignes), SQLite, Waitress WSGI en prod
+- **Backend** : Flask (app.py ~10500 lignes), SQLite, Waitress WSGI en prod, ReportLab pour génération PDF
 - **Frontend** : Vanilla JS (pas de framework), 20 pages HTML standalone
 - **CSS** : Glassmorphism dark theme, `prefers-color-scheme` pour light mode
 - **PWA** : Service Worker (sw.js), manifest.json, offline.html
@@ -72,6 +72,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 | Page Prospects (ligne) | « Scrapping IA » | Un clic : envoie le prompt enrichissement prospect à Ollama, ouvre la modale avec le texte généré, analyse (Accepter / Ignorer) puis applique. Fallback : modale vide pour collage manuel si Ollama indisponible. |
 | Fiche entreprise (index) | « Scrapping IA » | Même principe pour une entreprise (prompt + modale import). |
 | Page Candidats (fiche) | « Scrapping IA » | Même principe pour un candidat (page-candidate.js + app.js). |
+| Page Prospects (onglet RDV) | « Avant réunion IA » | Un clic : analyse profil LinkedIn via Ollama (streaming SSE) → génération PDF fiche préparation RDV → téléchargement automatique. Visible uniquement si statut = "Rendez-vous". Fallback : prompt pré-rempli si Ollama indisponible. |
 | Page Prospects (ligne) | « Après réunion IA » | Un clic : prompt compte-rendu RDV → Ollama → modale avec JSON, analyse puis applique. |
 | Page Prospects (barre d’actions) | « Email IA » / « Tel IA » | Ouvre la modale bulk ; bouton « Générer avec Ollama » remplit la zone résultat et lance l’analyse (email ou téléphone en masse). |
 | Page Prospects | « Ajout IA » | Modale Quick Add : choix type (Prospect / Entreprise / Candidat), puis « Générer avec Ollama (un seul) » ou « (plusieurs) » ; résultat pré-rempli, analyse puis création. Boutons « Copier » en secours. |

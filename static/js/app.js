@@ -3803,6 +3803,7 @@ async function viewDetail(id) {
                         <span class="rdv-checklist-progress" id="rdvProgress">0 / 0</span>
                     </div>
                     <div class="rdv-checklist-actions">
+                        <button class="btn btn-primary btn-sm" id="btnPreMeetingIA_${prospect.id}" onclick="handlePreMeetingIA(${prospect.id})" title="Générer une fiche de préparation RDV avec IA" data-help-section="scrapping-ia" style="background:#2980B9;border-color:#2980B9;">📋 Avant réunion IA</button>
                         <button class="btn btn-primary btn-sm" id="btnPostMeetingIA_${prospect.id}" onclick="handlePostMeetingIA(${prospect.id})" title="Générer un compte-rendu IA et pré-remplir les champs" data-help-section="scrapping-ia">🤖 Après réunion IA</button>
                         <button class="btn btn-secondary btn-sm" onclick="copyRdvChecklist(${prospect.id})" title="Copier dans le presse-papier">📋 Copier</button>
                         <button class="btn btn-secondary btn-sm" onclick="resetRdvChecklist(${prospect.id})" title="Réinitialiser toutes les réponses">🔄 Reset</button>
@@ -11172,6 +11173,149 @@ async function copyPostMeetingPrompt(prospectId) {
 
 function handlePostMeetingIA(prospectId) {
     openPostMeetingImportModal(prospectId);
+}
+
+function handlePreMeetingIA(prospectId) {
+    openPreMeetingModal(prospectId);
+}
+
+// ─── Pre-meeting modal (Avant réunion IA) ───
+
+function _ensurePreMeetingModal() {
+    if (document.getElementById('modalPreMeetingIA')) return;
+    const div = document.createElement('div');
+    div.innerHTML = `
+    <div id="modalPreMeetingIA" class="modal">
+        <div class="modal-content">
+            <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>📋 Génération fiche préparation RDV</span>
+                <button class="btn btn-secondary" onclick="closePreMeetingModal()" style="font-size:14px;padding:4px 10px;">✕</button>
+            </div>
+            <div style="margin-top:16px;">
+                <div id="preMeetingProgressLog" class="progress-log" style="display:none;"></div>
+                <div id="preMeetingFallback" style="display:none;margin-top:16px;">
+                    <h4 style="color:var(--color-warning);margin-bottom:8px;">⚠️ Ollama n'a pas pu générer la fiche</h4>
+                    <p class="muted" style="font-size:12px;margin-bottom:8px;">Copie ce prompt dans une autre IA (ChatGPT, Claude, etc.) :</p>
+                    <textarea id="preMeetingPromptText" rows="20" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border:1px solid var(--color-border);border-radius:4px;background:var(--color-bg-secondary);color:var(--color-text);"></textarea>
+                    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="copyPreMeetingPrompt()">📋 Copier le prompt</button>
+                        <button class="btn btn-secondary" onclick="closePreMeetingModal()">Fermer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(div.firstElementChild);
+}
+
+function openPreMeetingModal(prospectId) {
+    _ensurePreMeetingModal();
+    const modal = document.getElementById('modalPreMeetingIA');
+    const logDiv = document.getElementById('preMeetingProgressLog');
+    const fallbackDiv = document.getElementById('preMeetingFallback');
+    
+    // Réinitialiser l'affichage
+    logDiv.style.display = 'block';
+    logDiv.innerHTML = '';
+    fallbackDiv.style.display = 'none';
+    
+    if (window.openModal) {
+        window.openModal(modal);
+    } else {
+        modal.classList.add('active');
+    }
+    
+    // Désactiver le bouton
+    const btn = document.getElementById(`btnPreMeetingIA_${prospectId}`);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Analyse en cours...';
+    }
+    
+    // Ouvrir la connexion EventSource
+    const evtSource = new EventSource(`/api/prospect/${prospectId}/infos-rdv-stream`);
+    
+    evtSource.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'start') {
+                logDiv.innerHTML += `<span style="color:#58a6ff;">${escapeHtml(data.message)}</span><br>`;
+                logDiv.scrollTop = logDiv.scrollHeight;
+            } else if (data.type === 'token') {
+                // Afficher les tokens au fur et à mesure
+                const content = data.content || '';
+                logDiv.innerHTML += escapeHtml(content).replace(/\n/g, '<br>');
+                logDiv.scrollTop = logDiv.scrollHeight;
+            } else if (data.type === 'done') {
+                evtSource.close();
+                logDiv.innerHTML += '<br><span style="color:#22c55e;">✅ Génération terminée. Téléchargement du PDF...</span>';
+                logDiv.scrollTop = logDiv.scrollHeight;
+                
+                // Déclencher le téléchargement
+                if (data.pdf_url) {
+                    window.location.href = data.pdf_url;
+                }
+                
+                // Réactiver le bouton après 3 secondes
+                setTimeout(() => {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = '📋 Avant réunion IA';
+                    }
+                    closePreMeetingModal();
+                }, 3000);
+            } else if (data.type === 'error') {
+                evtSource.close();
+                logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur : Ollama indisponible</span>';
+                logDiv.scrollTop = logDiv.scrollHeight;
+                
+                // Afficher le fallback
+                if (data.fallback_prompt) {
+                    document.getElementById('preMeetingPromptText').value = data.fallback_prompt;
+                    fallbackDiv.style.display = 'block';
+                }
+                
+                // Réactiver le bouton
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '📋 Avant réunion IA';
+                }
+            }
+        } catch (e) {
+            console.error('Erreur parsing SSE:', e);
+            logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur de parsing</span>';
+        }
+    };
+    
+    evtSource.onerror = function() {
+        evtSource.close();
+        logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur de connexion au serveur</span>';
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📋 Avant réunion IA';
+        }
+    };
+}
+
+function closePreMeetingModal() {
+    const modal = document.getElementById('modalPreMeetingIA');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
+}
+
+function copyPreMeetingPrompt() {
+    const textarea = document.getElementById('preMeetingPromptText');
+    if (textarea) {
+        textarea.select();
+        document.execCommand('copy');
+        showToast('Prompt copié dans le presse-papier !', 'success', 3000);
+    }
 }
 
 // ─── Post-meeting import modal ───

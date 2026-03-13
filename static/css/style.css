@@ -7040,6 +7040,40 @@ body[data-page=""] #fabAdd {
 }
 
 /* Table */
+/* Progress log pour streaming IA (Avant réunion IA) */
+.progress-log {
+    background: #0d1117;
+    color: #58a6ff;
+    font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
+    font-size: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 10px 0;
+    white-space: pre-wrap;
+    border: 1px solid #2980B9;
+    line-height: 1.5;
+}
+
+.progress-log::-webkit-scrollbar {
+    width: 8px;
+}
+
+.progress-log::-webkit-scrollbar-track {
+    background: #161b22;
+    border-radius: 4px;
+}
+
+.progress-log::-webkit-scrollbar-thumb {
+    background: #58a6ff;
+    border-radius: 4px;
+}
+
+.progress-log::-webkit-scrollbar-thumb:hover {
+    background: #79c0ff;
+}
+
 .rdv-checklist-body {
   overflow-x: auto;
 }
