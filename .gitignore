@@ -14,3 +14,4 @@ logs/
 .last_commit_hash
 .rollback_done
 data/ai_config.json
+test-results/
