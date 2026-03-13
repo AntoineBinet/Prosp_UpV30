@@ -1147,9 +1147,6 @@ tbody tr:hover {
   vertical-align: middle;
   padding-top: 2px;
   padding-bottom: 2px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 .table-statut-badge {
   display: inline-block;
@@ -1163,7 +1160,6 @@ tbody tr:hover {
   border: 1px solid transparent;
   box-shadow: none;
   letter-spacing: 0.01em;
-  margin: 0 auto;
 }
 [data-theme="light"] .table-statut-badge {
   border-color: transparent;
