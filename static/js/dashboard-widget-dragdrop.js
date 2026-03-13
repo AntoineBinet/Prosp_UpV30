@@ -26,6 +26,7 @@ class DashboardWidgetDragDrop {
         this.dragStartPos = { x: 0, y: 0 };
         this.currentPos = { x: 0, y: 0 };
         this.offset = { x: 0, y: 0 };
+        this.originalRect = null; // Position originale du widget avant le drag
         this.placeholder = null;
         this.targetWidget = null;
         this.animationFrameId = null;
@@ -180,22 +181,39 @@ class DashboardWidgetDragDrop {
         this.dragStartPos = { ...pos };
         this.currentPos = { ...pos };
         
-        // Calculer offset
+        // Calculer offset depuis le point de clic exact (comportement iOS-like)
+        // Avec position: fixed, on utilise getBoundingClientRect() qui donne déjà la position viewport
         const rect = widget.getBoundingClientRect();
+        
+        // Offset depuis le coin supérieur gauche du widget jusqu'au point de clic
+        // pos.x/y sont déjà en coordonnées viewport (clientX/clientY)
         this.offset = {
             x: pos.x - rect.left,
             y: pos.y - rect.top
+        };
+        
+        // Sauvegarder la position originale du widget (pour le remettre après)
+        this.originalRect = {
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height
         };
         
         // Préparer widget
         this.draggedWidget = widget;
         this.isDragging = false; // Sera activé après le seuil
         
-        // Préparer visuellement le widget
+        // Préparer visuellement le widget avec position fixed pour suivre exactement la souris
         widget.classList.add('dash-widget-dragging');
         widget.style.transition = 'none';
+        widget.style.position = 'fixed';
+        widget.style.left = rect.left + 'px';
+        widget.style.top = rect.top + 'px';
+        widget.style.width = rect.width + 'px';
         widget.style.zIndex = '1000';
         widget.style.cursor = 'grabbing';
+        widget.style.margin = '0';
         
         // Créer placeholder
         this._createPlaceholder(widget);
@@ -269,6 +287,7 @@ class DashboardWidgetDragDrop {
     
     /**
      * Mettre à jour la position du widget (via requestAnimationFrame)
+     * Utilise position: fixed pour suivre exactement la souris (comportement iOS-like)
      */
     _updatePosition() {
         if (!this.draggedWidget || !this.isDragging) {
@@ -276,11 +295,14 @@ class DashboardWidgetDragDrop {
             return;
         }
         
+        // Calculer la position exacte du widget pour qu'il suive le point de clic
+        // Avec position: fixed, on utilise directement clientX/clientY
         const x = this.currentPos.x - this.offset.x;
         const y = this.currentPos.y - this.offset.y;
         
-        // Utiliser transform pour performance (GPU-accelerated)
-        this.draggedWidget.style.transform = `translate(${x}px, ${y}px)`;
+        // Appliquer directement avec left/top (plus précis que transform pour position: fixed)
+        this.draggedWidget.style.left = x + 'px';
+        this.draggedWidget.style.top = y + 'px';
         
         // Programmer la prochaine frame seulement si on est toujours en train de drag
         if (this.isDragging && this.draggedWidget) {
@@ -291,7 +313,7 @@ class DashboardWidgetDragDrop {
     }
     
     /**
-     * Calculer la position de drop
+     * Calculer la position de drop (amélioré pour plus de fluidité)
      */
     _calculateDropPosition(pos) {
         const widgets = Array.from(this.container.querySelectorAll(this.options.widgetSelector))
@@ -302,18 +324,29 @@ class DashboardWidgetDragDrop {
         let closestWidget = null;
         let minDistance = Infinity;
         
-        // Trouver le widget le plus proche
+        // Trouver le widget le plus proche du point de la souris
+        // Utiliser une zone de détection plus large pour plus de flexibilité
         for (const widget of widgets) {
             const rect = widget.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            const distance = Math.sqrt(
-                Math.pow(pos.x - centerX, 2) + Math.pow(pos.y - centerY, 2)
-            );
             
-            // Vérifier si le point est dans les limites
-            if (pos.x >= rect.left && pos.x <= rect.right &&
-                pos.y >= rect.top && pos.y <= rect.bottom) {
+            // Zone de détection élargie (padding de 20px autour du widget)
+            const padding = 20;
+            const expandedLeft = rect.left - padding;
+            const expandedRight = rect.right + padding;
+            const expandedTop = rect.top - padding;
+            const expandedBottom = rect.bottom + padding;
+            
+            // Vérifier si le point est dans la zone élargie
+            if (pos.x >= expandedLeft && pos.x <= expandedRight &&
+                pos.y >= expandedTop && pos.y <= expandedBottom) {
+                
+                // Calculer la distance au centre du widget
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const distance = Math.sqrt(
+                    Math.pow(pos.x - centerX, 2) + Math.pow(pos.y - centerY, 2)
+                );
+                
                 if (distance < minDistance) {
                     minDistance = distance;
                     closestWidget = widget;
@@ -416,17 +449,20 @@ class DashboardWidgetDragDrop {
     }
     
     /**
-     * Insérer le widget à la nouvelle position
+     * Insérer le widget à la nouvelle position (amélioré pour plus de précision)
      */
     _insertWidget(draggedWidget, targetWidget) {
+        // Utiliser la position actuelle de la souris pour déterminer où insérer
         const targetRect = targetWidget.getBoundingClientRect();
-        const draggedRect = draggedWidget.getBoundingClientRect();
         const midY = targetRect.top + targetRect.height / 2;
-        const draggedCenterY = draggedRect.top + draggedRect.height / 2;
         
-        if (draggedCenterY < midY) {
+        // Utiliser currentPos (position de la souris) plutôt que la position du widget
+        // pour un comportement plus naturel et précis
+        if (this.currentPos.y < midY) {
+            // Insérer avant le widget cible
             this.container.insertBefore(draggedWidget, targetWidget);
         } else {
+            // Insérer après le widget cible
             const next = targetWidget.nextElementSibling;
             if (next) {
                 this.container.insertBefore(draggedWidget, next);
@@ -442,10 +478,16 @@ class DashboardWidgetDragDrop {
     _cleanup() {
         if (this.draggedWidget) {
             this.draggedWidget.classList.remove('dash-widget-dragging');
+            // Réinitialiser les styles (retour à la position normale)
             this.draggedWidget.style.transition = '';
+            this.draggedWidget.style.position = '';
+            this.draggedWidget.style.left = '';
+            this.draggedWidget.style.top = '';
+            this.draggedWidget.style.width = '';
             this.draggedWidget.style.transform = '';
             this.draggedWidget.style.zIndex = '';
             this.draggedWidget.style.cursor = '';
+            this.draggedWidget.style.margin = '';
         }
         
         this.container.querySelectorAll(this.options.widgetSelector).forEach(w => {
@@ -463,5 +505,6 @@ class DashboardWidgetDragDrop {
         this.dragStartPos = { x: 0, y: 0 };
         this.currentPos = { x: 0, y: 0 };
         this.offset = { x: 0, y: 0 };
+        this.originalRect = null;
     }
 }
