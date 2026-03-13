@@ -3365,6 +3365,118 @@ def _calculate_task_due_date(context: Dict[str, Any], conditions: Dict[str, Any]
     return _today_iso()
 
 
+def _optimize_task_schedule(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Suggère l'ordre optimal des tâches basé sur :
+    - Priorité
+    - Date d'échéance
+    - Type de tâche (regroupement)
+    - Estimation de temps
+    
+    Retourne les tâches triées avec des suggestions d'ordre.
+    """
+    if not tasks:
+        return []
+    
+    # Estimation de temps par type de tâche (en minutes)
+    task_time_estimates = {
+        "relance": 15,
+        "appel": 20,
+        "email": 10,
+        "rdv": 30,
+        "suivi": 15,
+        "default": 20,
+    }
+    
+    # Calculer un score pour chaque tâche
+    scored_tasks = []
+    for task in tasks:
+        score = 0
+        priority = task.get("priority") or 2
+        due_date = task.get("due_date")
+        title = (task.get("title") or "").lower()
+        
+        # Score basé sur la priorité (plus bas = plus urgent)
+        score += (4 - priority) * 100
+        
+        # Score basé sur la date d'échéance
+        if due_date:
+            try:
+                due = datetime.datetime.fromisoformat(due_date.replace("Z", "+00:00")[:10]).date()
+                today = datetime.date.today()
+                days_until = (due - today).days
+                if days_until < 0:
+                    score += 200  # En retard
+                elif days_until == 0:
+                    score += 150  # Aujourd'hui
+                elif days_until == 1:
+                    score += 100  # Demain
+                elif days_until <= 3:
+                    score += 50  # Cette semaine
+            except Exception:
+                pass
+        
+        # Estimation de temps
+        time_estimate = task_time_estimates.get("default")
+        for task_type, minutes in task_time_estimates.items():
+            if task_type in title:
+                time_estimate = minutes
+                break
+        task["estimated_minutes"] = time_estimate
+        
+        # Score négatif pour les tâches longues (prioriser les courtes)
+        score -= time_estimate / 10
+        
+        scored_tasks.append((score, task))
+    
+    # Trier par score décroissant
+    scored_tasks.sort(key=lambda x: x[0], reverse=True)
+    
+    # Regrouper les tâches similaires (même type, même entreprise)
+    grouped = []
+    current_group = []
+    for score, task in scored_tasks:
+        if not current_group:
+            current_group.append(task)
+        else:
+            # Vérifier si on peut regrouper
+            prev_task = current_group[0]
+            prev_title = (prev_task.get("title") or "").lower()
+            curr_title = (task.get("title") or "").lower()
+            
+            # Regrouper si même type de tâche
+            can_group = False
+            for task_type in task_time_estimates.keys():
+                if task_type in prev_title and task_type in curr_title:
+                    can_group = True
+                    break
+            
+            # Regrouper si même entreprise (via linked_ids)
+            try:
+                prev_linked = json.loads(prev_task.get("linked_ids") or "{}")
+                curr_linked = json.loads(task.get("linked_ids") or "{}")
+                if prev_linked.get("company_id") and curr_linked.get("company_id"):
+                    if prev_linked.get("company_id") == curr_linked.get("company_id"):
+                        can_group = True
+            except Exception:
+                pass
+            
+            if can_group and len(current_group) < 3:  # Max 3 tâches par groupe
+                current_group.append(task)
+            else:
+                grouped.append(current_group)
+                current_group = [task]
+    
+    if current_group:
+        grouped.append(current_group)
+    
+    # Aplatir et retourner
+    result = []
+    for group in grouped:
+        result.extend(group)
+    
+    return result
+
+
 def _snapshot_dir_for_user(user_id: int | None = None) -> Path:
     """Répertoire de snapshots pour un utilisateur (per-user ou global)."""
     if user_id:
@@ -7549,6 +7661,122 @@ def api_tasks_rules_delete():
     with _conn() as conn:
         conn.execute("DELETE FROM task_rules WHERE id=? AND owner_id=?;", (int(rule_id), uid))
     return jsonify({"ok": True})
+
+
+@app.post("/api/tasks/daily-check")
+@login_required
+def api_tasks_daily_check():
+    """Vérification quotidienne : crée des tâches automatiques pour les prospects avec nextFollowUp dans les prochains jours."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    days_ahead = request.args.get("days", type=int) or 2  # Par défaut: 2 jours
+    
+    today = datetime.date.today()
+    target_date = today + datetime.timedelta(days=days_ahead)
+    
+    created_count = 0
+    
+    with _conn() as conn:
+        # Récupérer les prospects avec nextFollowUp dans la fenêtre
+        prospects = conn.execute(
+            """
+            SELECT p.*, c.groupe AS company_groupe
+            FROM prospects p
+            LEFT JOIN companies c ON c.id = p.company_id AND c.owner_id = ?
+            WHERE p.owner_id = ?
+              AND p.nextFollowUp IS NOT NULL
+              AND p.nextFollowUp != ''
+              AND DATE(p.nextFollowUp) BETWEEN ? AND ?
+              AND p.deleted_at IS NULL
+            """,
+            (uid, uid, today.isoformat(), target_date.isoformat())
+        ).fetchall()
+        
+        for p_row in prospects:
+            p = dict(p_row)
+            try:
+                context = {
+                    "prospect_id": p["id"],
+                    "name": p.get("name") or "",
+                    "email": p.get("email"),
+                    "telephone": p.get("telephone"),
+                    "linkedin": p.get("linkedin"),
+                    "statut": p.get("statut"),
+                    "pertinence": p.get("pertinence"),
+                    "nextFollowUp": p.get("nextFollowUp"),
+                    "company_id": p.get("company_id"),
+                    "company_groupe": p.get("company_groupe") or "",
+                }
+                
+                # Calculer le nombre de jours jusqu'à nextFollowUp
+                try:
+                    follow_date = datetime.datetime.fromisoformat(
+                        context["nextFollowUp"].replace("Z", "+00:00")[:10]
+                    ).date()
+                    days_diff = (follow_date - today).days
+                    context["nextFollowUp_days"] = days_diff
+                except Exception:
+                    context["nextFollowUp_days"] = 0
+                
+                # Vérifier si une tâche existe déjà pour ce prospect et cette date
+                existing = conn.execute(
+                    """
+                    SELECT id FROM tasks
+                    WHERE owner_id = ?
+                      AND status = 'pending'
+                      AND json_extract(linked_ids, '$.prospect_id') = ?
+                      AND due_date = ?
+                    LIMIT 1
+                    """,
+                    (uid, context["prospect_id"], context["nextFollowUp"][:10])
+                ).fetchone()
+                
+                if not existing:
+                    # Créer la tâche via les règles
+                    _create_auto_task("daily_check", context)
+                    created_count += 1
+            except Exception as e:
+                logger.warning("Erreur vérification quotidienne pour prospect %s: %s", p.get("id"), e)
+    
+    return jsonify({"ok": True, "created": created_count, "checked": len(prospects)})
+
+
+@app.get("/api/tasks/optimize")
+@login_required
+def api_tasks_optimize():
+    """Retourne les tâches triées de manière optimale (planification intelligente)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    status = (request.args.get("status") or "pending").strip().lower()
+    with _conn() as conn:
+        if status == "all":
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE owner_id=? ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, id DESC;",
+                (uid,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE status=? AND owner_id=? ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, id DESC;",
+                (status, uid),
+            ).fetchall()
+    
+    tasks = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["linked_ids"] = json.loads(d.get("linked_ids") or "{}")
+        except Exception:
+            d["linked_ids"] = {}
+        tasks.append(d)
+    
+    # Optimiser l'ordre
+    optimized = _optimize_task_schedule(tasks)
+    
+    return jsonify({"ok": True, "tasks": optimized})
 
 
 # ====== Company / Opportunities API (v6) ======
