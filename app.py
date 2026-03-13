@@ -4172,6 +4172,22 @@ def _keywords_from_fixed_metier(fixed_metier: str | None) -> List[str]:
     return [p.strip() for p in parts if len(p.strip()) >= 2]
 
 
+# ====== Utils: SQLite Row conversion ======
+def _row_to_dict(row) -> Dict[str, Any] | None:
+    """Convert sqlite3.Row to dict safely. Returns None if row is None."""
+    if row is None:
+        return None
+    if isinstance(row, sqlite3.Row):
+        return dict(row)
+    if isinstance(row, dict):
+        return row
+    # Fallback: try to convert to dict
+    try:
+        return dict(row)
+    except Exception:
+        return None
+
+
 # ====== Utils: JSON lists for candidates (skills, company_ids) ======
 def _parse_json_str_list(v: Any) -> List[str]:
     """Accepts None | list | json string list | comma-separated string."""
@@ -5045,7 +5061,10 @@ def api_push_categories_save():
                 "INSERT INTO push_categories (name, keywords, auto_detected, owner_id, createdAt, updatedAt) VALUES (?, ?, 0, ?, ?, ?);",
                 (name, keywords_json, uid, now, now)
             )
-            cid = conn.execute("SELECT last_insert_rowid() AS id;").fetchone()["id"]
+            row = conn.execute("SELECT last_insert_rowid() AS id;").fetchone()
+            if not row:
+                return jsonify({"ok": False, "error": "Erreur lors de la création de la catégorie"}), 500
+            cid = row["id"]
 
     return jsonify({"ok": True, "id": cid})
 
@@ -5383,15 +5402,25 @@ def api_push_generate():
         return jsonify(ok=False, error="Non authentifié"), 401
     
     payload = request.get_json(force=True, silent=True) or {}
-    prospect_id = payload.get("prospect_id")
-    category_id = payload.get("category_id")
     template_filename = payload.get("template_filename")
-    candidate_id1 = payload.get("candidate_id1")
-    candidate_id2 = payload.get("candidate_id2")
     format_type = payload.get("format", "filled")  # "filled" ou "zip"
     
-    if not prospect_id or not category_id or not template_filename:
-        return jsonify(ok=False, error="prospect_id, category_id et template_filename requis"), 400
+    # Validation des paramètres requis
+    if not template_filename:
+        return jsonify(ok=False, error="template_filename est requis"), 400
+    
+    try:
+        prospect_id = _validate_positive_int(payload.get("prospect_id"), "prospect_id")
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    
+    try:
+        category_id = _validate_positive_int(payload.get("category_id"), "category_id")
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    
+    candidate_id1 = _validate_optional_positive_int(payload.get("candidate_id1"), "candidate_id1")
+    candidate_id2 = _validate_optional_positive_int(payload.get("candidate_id2"), "candidate_id2")
     
     # Récupérer les données du prospect
     with _conn() as conn:
@@ -5412,15 +5441,27 @@ def api_push_generate():
         for cand_id in [candidate_id1, candidate_id2]:
             if not cand_id:
                 continue
-            cand = conn.execute(
-                "SELECT id, name, dossier_competence_pdf FROM candidates WHERE id=? AND owner_id=?;",
-                (cand_id, uid)
-            ).fetchone()
-            if cand:
-                candidates_data.append(dict(cand))
+            try:
+                cand = conn.execute(
+                    "SELECT id, name, dossier_competence_pdf FROM candidates WHERE id=? AND owner_id=?;",
+                    (cand_id, uid)
+                ).fetchone()
+                if cand:
+                    cand_dict = _safe_row_to_dict(cand)
+                    if cand_dict:
+                        candidates_data.append(cand_dict)
+            except Exception as e:
+                logger.warning("Erreur récupération candidat %s: %s", cand_id, e)
+                continue
+    
+    # Convertir sqlite3.Row en dict pour accès sécurisé
+    prospect_dict = _row_to_dict(prospect)
+    cat_dict = _row_to_dict(cat_row)
+    if not prospect_dict or not cat_dict:
+        return jsonify(ok=False, error="Erreur lors de la récupération des données"), 500
     
     # Chemin du template
-    cat_name = cat_row["name"]
+    cat_name = cat_dict["name"]
     user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
     template_path = user_push_dir / template_filename
     
@@ -5436,7 +5477,7 @@ def api_push_generate():
                 str(template_path),
                 mimetype='application/octet-stream',
                 as_attachment=True,
-                download_name=f"push_{prospect['name']}_{template_filename}"
+                download_name=f"push_{prospect_dict['name']}_{template_filename}"
             )
         else:  # format == "zip"
             # Créer un ZIP avec template + DC
@@ -5479,7 +5520,7 @@ def api_push_generate():
                 str(zip_path),
                 mimetype='application/zip',
                 as_attachment=True,
-                download_name=f"push_{prospect['name']}.zip"
+                download_name=f"push_{prospect_dict['name']}.zip"
             )
             # Nettoyer le fichier temporaire après envoi (en arrière-plan)
             import threading
@@ -5563,8 +5604,10 @@ def api_prospect_best_candidates(prospect_id: int):
         category_keywords = []
         if push_category_id:
             cat_row = conn.execute("SELECT keywords FROM push_categories WHERE id=? AND owner_id=?;", (push_category_id, uid)).fetchone()
-            if cat_row and cat_row["keywords"]:
-                category_keywords = _parse_json_str_list(cat_row["keywords"])
+            if cat_row:
+                cat_dict = _row_to_dict(cat_row)
+                if cat_dict and cat_dict.get("keywords"):
+                    category_keywords = _parse_json_str_list(cat_dict["keywords"])
 
         all_sources = (
             [t.lower() for t in prospect_tags_effective]
@@ -5714,8 +5757,10 @@ def api_prospect_best_candidates(prospect_id: int):
     use_ai_explanations = request.args.get("ai_explanations") == "1"
     if use_ai_explanations and top:
         try:
-            prospect_name = (p_row.get("name") or "").strip() if p_row else ""
-            prospect_ctx = f"Prospect: {prospect_name}, entreprise {company_groupe}, fonction: {p_row.get('fonction', '')}, tags: {prospect_tags_effective}"
+            p_dict = _row_to_dict(p_row)
+            prospect_name = (p_dict.get("name") or "").strip() if p_dict else ""
+            prospect_fonction = (p_dict.get("fonction") or "").strip() if p_dict else ""
+            prospect_ctx = f"Prospect: {prospect_name}, entreprise {company_groupe}, fonction: {prospect_fonction}, tags: {prospect_tags_effective}"
             
             for candidate in top:
                 matched_tags_str = ", ".join(candidate.get("matched_tags", [])[:10])
@@ -5745,7 +5790,8 @@ Réponds UNIQUEMENT par une explication courte (2-3 phrases), sans formules de p
     use_ollama = request.args.get("use_ollama") == "1"
     if use_ollama and top:
         try:
-            prospect_name = (p_row.get("name") or "").strip() if p_row else ""
+            p_dict = _row_to_dict(p_row) if not isinstance(p_row, dict) else p_row
+            prospect_name = (p_dict.get("name") or "").strip() if p_dict else ""
             prospect_ctx = f"Prospect: {prospect_name}, entreprise {company_groupe}, tags: {prospect_tags}"
             cand_lines = "\n".join(f"- {c.get('name') or '?'}: {', '.join((c.get('matched_tags') or [])[:8])}" for c in top)
             prompt = f"Contexte: {prospect_ctx}\n\nCandidats (nom + compétences matchées):\n{cand_lines}\n\nRéponds UNIQUEMENT par les noms des candidats, un par ligne, du meilleur au moins bon match. Pas d'autre texte."
@@ -6625,6 +6671,82 @@ import uuid as _uuid
 
 PHOTOS_DIR = os.path.join(APP_DIR, "static", "photos")
 os.makedirs(PHOTOS_DIR, exist_ok=True)
+
+# ====== Utilitaires validation et sécurité pour routes push ======
+def _validate_positive_int(value: Any, param_name: str = "id") -> int:
+    """Valide qu'une valeur est un entier positif. Lève ValueError si invalide."""
+    if value is None:
+        raise ValueError(f"{param_name} est requis")
+    try:
+        int_val = int(value)
+        if int_val <= 0:
+            raise ValueError(f"{param_name} doit être un entier positif")
+        return int_val
+    except (ValueError, TypeError) as e:
+        if isinstance(e, ValueError) and "doit être" in str(e):
+            raise
+        raise ValueError(f"{param_name} doit être un entier valide") from e
+
+def _validate_optional_positive_int(value: Any, param_name: str = "id") -> int | None:
+    """Valide qu'une valeur est None ou un entier positif. Retourne None ou l'entier."""
+    if value is None or value == "" or value == "null":
+        return None
+    try:
+        int_val = int(value)
+        if int_val <= 0:
+            return None
+        return int_val
+    except (ValueError, TypeError):
+        return None
+
+def _safe_row_to_dict(row: sqlite3.Row | None) -> Dict[str, Any] | None:
+    """Convertit un sqlite3.Row en dict de manière sécurisée. Retourne None si row est None."""
+    if row is None:
+        return None
+    try:
+        return dict(row)
+    except Exception:
+        return None
+
+def _safe_execute_insert(conn: sqlite3.Connection, query: str, params: tuple) -> int:
+    """Exécute une insertion de manière sécurisée. Retourne lastrowid. Lève Exception en cas d'erreur."""
+    try:
+        cur = conn.cursor()
+        cur.execute(query, params)
+        return cur.lastrowid
+    except sqlite3.OperationalError as e:
+        logger.error("Erreur insertion DB: %s", e)
+        raise
+    except Exception as e:
+        logger.error("Erreur inattendue insertion DB: %s", e)
+        raise
+
+def _safe_execute_update(conn: sqlite3.Connection, query: str, params: tuple) -> None:
+    """Exécute une mise à jour de manière sécurisée. Lève Exception en cas d'erreur."""
+    try:
+        conn.execute(query, params)
+    except sqlite3.OperationalError as e:
+        logger.error("Erreur mise à jour DB: %s", e)
+        raise
+    except Exception as e:
+        logger.error("Erreur inattendue mise à jour DB: %s", e)
+        raise
+
+def _check_table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    """Vérifie si une table existe dans la base de données. Sécurisé contre injection SQL."""
+    # Validation stricte : nom de table doit contenir uniquement lettres, chiffres, underscores
+    if not table_name or not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table_name):
+        logger.warning("Nom de table invalide pour _check_table_exists: %s", table_name)
+        return False
+    try:
+        # Utilisation de quote_identifier serait idéale mais sqlite3 ne le supporte pas nativement
+        # On valide donc le nom et on l'utilise directement (sécurisé car validé)
+        conn.execute(f"SELECT 1 FROM {table_name} LIMIT 1").fetchone()
+        return True
+    except sqlite3.OperationalError as e:
+        if "no such table" in str(e).lower():
+            return False
+        raise
 
 @app.post("/api/prospect/photo")
 def api_prospect_photo():
@@ -8050,32 +8172,51 @@ def api_push_logs_add():
         variants = []
 
     with _conn() as conn:
+        # Validation prospect_id
+        try:
+            prospect_id_int = _validate_positive_int(prospect_id, "prospect_id")
+        except ValueError as e:
+            return jsonify({"ok": False, "error": str(e)}), 400
+        
         # ensure prospect exists
-        p = conn.execute("SELECT id FROM prospects WHERE id=? AND owner_id=?;", (int(prospect_id), uid)).fetchone()
+        p = conn.execute("SELECT id FROM prospects WHERE id=? AND owner_id=?;", (prospect_id_int, uid)).fetchone()
         if not p:
             return jsonify({"ok": False, "error": "prospect not found"}), 404
 
-        cur = conn.cursor()
-        cur.execute(
-            '''
-            INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, sent_at_hour, sent_at_day_of_week, variant_id, tracking_pixel_id, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            ''',
-            (int(prospect_id), sent_at, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, sent_at_hour, sent_at_day_of_week, variant_id, tracking_pixel_id, now),
-        )
-        push_log_id = cur.lastrowid
+        # Insertion push_logs avec gestion d'erreur
+        try:
+            push_log_id = _safe_execute_insert(
+                conn,
+                '''
+                INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, sent_at_hour, sent_at_day_of_week, variant_id, tracking_pixel_id, createdAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                ''',
+                (prospect_id_int, sent_at, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, sent_at_hour, sent_at_day_of_week, variant_id, tracking_pixel_id, now),
+            )
+        except Exception as e:
+            logger.error("Erreur insertion push_logs: %s", e)
+            return jsonify({"ok": False, "error": "Erreur lors de l'enregistrement du log"}), 500
 
         # Enregistrer les variantes A/B si fournies
         if variants:
-            for variant in variants:
-                if isinstance(variant, dict) and variant.get("variant_id") and variant.get("subject") is not None:
-                    conn.execute(
-                        '''
-                        INSERT INTO push_variants (push_log_id, variant_id, subject, body, sent_at, createdAt)
-                        VALUES (?, ?, ?, ?, ?, ?);
-                        ''',
-                        (push_log_id, variant["variant_id"], variant.get("subject"), variant.get("body"), sent_at, now),
-                    )
+            # Vérifier que la table push_variants existe
+            if not _check_table_exists(conn, "push_variants"):
+                logger.warning("Table push_variants n'existe pas, ignorons les variantes")
+            else:
+                for variant in variants:
+                    if isinstance(variant, dict) and variant.get("variant_id") and variant.get("subject") is not None:
+                        try:
+                            _safe_execute_insert(
+                                conn,
+                                '''
+                                INSERT INTO push_variants (push_log_id, variant_id, subject, body, sent_at, createdAt)
+                                VALUES (?, ?, ?, ?, ?, ?);
+                                ''',
+                                (push_log_id, variant["variant_id"], variant.get("subject"), variant.get("body"), sent_at, now),
+                            )
+                        except Exception as e:
+                            logger.warning("Erreur insertion variante %s: %s", variant.get("variant_id"), e)
+                            # Continue avec les autres variantes
 
         # Update denormalized fields on prospect for quick UI
         if channel == "email":
@@ -8166,15 +8307,36 @@ def api_push_logs_delete():
     if not log_id:
         return jsonify({"ok": False, "error": "id is required"}), 400
 
+    # Validation log_id
+    try:
+        log_id_int = _validate_positive_int(log_id, "id")
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
     with _conn() as conn:
-        row = conn.execute("SELECT prospect_id FROM push_logs WHERE id=?;", (int(log_id),)).fetchone()
+        row = conn.execute("SELECT prospect_id FROM push_logs WHERE id=?;", (log_id_int,)).fetchone()
         if not row:
             return jsonify(ok=True)
-        if not _prospect_owned(int(row["prospect_id"])):
-            return jsonify(ok=False, error="Accès refusé"), 403
-        conn.execute("DELETE FROM push_logs WHERE id=?;", (int(log_id),))
-        if row and row["prospect_id"] is not None:
-            _recompute_last_push_dates(conn, int(row["prospect_id"]))
+        
+        # Gérer le cas où prospect_id est None
+        prospect_id = row.get("prospect_id") if row else None
+        if prospect_id is None:
+            # Si pas de prospect_id, on peut quand même supprimer le log
+            conn.execute("DELETE FROM push_logs WHERE id=?;", (log_id_int,))
+            return jsonify({"ok": True})
+        
+        # Vérifier l'ownership
+        try:
+            prospect_id_int = int(prospect_id)
+            if not _prospect_owned(prospect_id_int):
+                return jsonify(ok=False, error="Accès refusé"), 403
+        except (ValueError, TypeError):
+            logger.warning("prospect_id invalide dans push_logs: %s", prospect_id)
+            conn.execute("DELETE FROM push_logs WHERE id=?;", (log_id_int,))
+            return jsonify({"ok": True})
+        
+        conn.execute("DELETE FROM push_logs WHERE id=?;", (log_id_int,))
+        _recompute_last_push_dates(conn, prospect_id_int)
     return jsonify({"ok": True})
 
 
@@ -8189,19 +8351,29 @@ def api_push_track():
     now = datetime.datetime.now().isoformat(timespec="seconds")
     with _conn() as conn:
         # Mettre à jour opened_at si pas déjà ouvert
-        conn.execute(
-            "UPDATE push_logs SET opened_at=? WHERE tracking_pixel_id=? AND opened_at IS NULL;",
-            (now, pixel_id),
-        )
+        try:
+            _safe_execute_update(
+                conn,
+                "UPDATE push_logs SET opened_at=? WHERE tracking_pixel_id=? AND opened_at IS NULL;",
+                (now, pixel_id),
+            )
+        except Exception as e:
+            logger.warning("Erreur mise à jour push_logs opened_at: %s", e)
+        
         # Mettre à jour aussi dans push_variants si applicable
-        conn.execute(
-            """
-            UPDATE push_variants SET opened_at=?
-            WHERE push_log_id IN (SELECT id FROM push_logs WHERE tracking_pixel_id=?)
-            AND opened_at IS NULL;
-            """,
-            (now, pixel_id),
-        )
+        if _check_table_exists(conn, "push_variants"):
+            try:
+                _safe_execute_update(
+                    conn,
+                    """
+                    UPDATE push_variants SET opened_at=?
+                    WHERE push_log_id IN (SELECT id FROM push_logs WHERE tracking_pixel_id=?)
+                    AND opened_at IS NULL;
+                    """,
+                    (now, pixel_id),
+                )
+            except Exception as e:
+                logger.warning("Erreur mise à jour push_variants opened_at: %s", e)
 
     # Retourner un pixel transparent 1x1 GIF
     gif_data = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
@@ -8219,19 +8391,29 @@ def api_push_track_click():
     now = datetime.datetime.now().isoformat(timespec="seconds")
     with _conn() as conn:
         # Mettre à jour clicked_at si pas déjà cliqué
-        conn.execute(
-            "UPDATE push_logs SET clicked_at=? WHERE tracking_pixel_id=? AND clicked_at IS NULL;",
-            (now, pixel_id),
-        )
+        try:
+            _safe_execute_update(
+                conn,
+                "UPDATE push_logs SET clicked_at=? WHERE tracking_pixel_id=? AND clicked_at IS NULL;",
+                (now, pixel_id),
+            )
+        except Exception as e:
+            logger.warning("Erreur mise à jour push_logs clicked_at: %s", e)
+        
         # Mettre à jour aussi dans push_variants si applicable
-        conn.execute(
-            """
-            UPDATE push_variants SET clicked_at=?
-            WHERE push_log_id IN (SELECT id FROM push_logs WHERE tracking_pixel_id=?)
-            AND clicked_at IS NULL;
-            """,
-            (now, pixel_id),
-        )
+        if _check_table_exists(conn, "push_variants"):
+            try:
+                _safe_execute_update(
+                    conn,
+                    """
+                    UPDATE push_variants SET clicked_at=?
+                    WHERE push_log_id IN (SELECT id FROM push_logs WHERE tracking_pixel_id=?)
+                    AND clicked_at IS NULL;
+                    """,
+                    (now, pixel_id),
+                )
+            except Exception as e:
+                logger.warning("Erreur mise à jour push_variants clicked_at: %s", e)
 
     # Rediriger vers l'URL
     return redirect(url, code=302)
@@ -8294,15 +8476,17 @@ def api_push_analytics():
         day_stats = []
         day_names = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
         for day in range(7):
-            rows = conn.execute(
-                f"""
+            # Construction sécurisée : base_where_owner est une constante contrôlée, day est un entier
+            query = f"""
                 SELECT 
                     COUNT(*) as total,
                     SUM(CASE WHEN opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened
                 FROM push_logs l
-                WHERE {base_where} AND l.sent_at_day_of_week=? AND l.channel='email'
-                """,
-                params + [day],
+                WHERE {base_where_owner} AND l.sent_at_day_of_week=? AND l.channel='email'
+                """
+            rows = conn.execute(
+                query,
+                base_params + [day],
             ).fetchone()
             if rows["total"] > 0:
                 open_rate = (rows["opened"] / rows["total"]) * 100
@@ -8354,8 +8538,8 @@ def api_push_analytics():
         
         if table_exists:
             try:
-                variant_rows = conn.execute(
-                    f"""
+                # Construction sécurisée : base_where_owner est une constante contrôlée
+                query = f"""
                     SELECT 
                         v.variant_id,
                         COUNT(*) as total,
@@ -8364,10 +8548,12 @@ def api_push_analytics():
                         SUM(CASE WHEN v.replied_at IS NOT NULL THEN 1 ELSE 0 END) as replied
                     FROM push_variants v
                     JOIN push_logs l ON l.id = v.push_log_id
-                    WHERE {base_where}
+                    WHERE {base_where_owner}
                     GROUP BY v.variant_id
-                    """,
-                    params,
+                    """
+                variant_rows = conn.execute(
+                    query,
+                    base_params,
                 ).fetchall()
             except sqlite3.OperationalError as e:
                 logger.error("Erreur lors de la requête push_variants: %s", e)
