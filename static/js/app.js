@@ -11578,17 +11578,24 @@ async function applyPostMeetingImport() {
                     });
                     
                     // Générer automatiquement une tâche depuis l'action item
-                    if (item.task && item.due_date) {
+                    if (item.task) {
                         try {
+                            // Si pas de date, utiliser +7 jours par défaut
+                            let dueDate = item.due_date;
+                            if (!dueDate) {
+                                const defaultDate = new Date();
+                                defaultDate.setDate(defaultDate.getDate() + 7);
+                                dueDate = defaultDate.toISOString().slice(0, 10);
+                            }
                             await fetch('/api/tasks/save', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     title: item.task,
                                     comment: `Action item de réunion - Prospect: ${p.name || ''}`,
-                                    due_date: item.due_date,
+                                    due_date: dueDate,
                                     status: 'pending',
-                                    linked_ids: JSON.stringify([_pmProspectId])
+                                    linked_ids: JSON.stringify({ prospects: [_pmProspectId] })
                                 })
                             });
                         } catch (e) {
