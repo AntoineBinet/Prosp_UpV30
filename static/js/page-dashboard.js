@@ -1075,38 +1075,35 @@ async function renderPushAnalytics() {
 // ═══ Assistant virtuel (bouton flottant + modale) ═══
 let assistantChatHistory = [];
 
-window.openAssistantModal = function() {
-    const modal = document.getElementById('assistantModal');
-    if (!modal) return;
+window.toggleAssistantChat = function() {
+    const chatWindow = document.getElementById('assistantChatWindow');
+    const fab = document.getElementById('dashAssistantFab');
+    if (!chatWindow || !fab) return;
     
-    // Ouvrir la modale
-    if (window.openModal) {
-        window.openModal(modal);
+    const isOpen = chatWindow.classList.contains('open');
+    
+    if (isOpen) {
+        // Fermer avec animation
+        chatWindow.classList.remove('open');
+        fab.style.transform = 'scale(1)';
     } else {
-        modal.classList.add('active');
-    }
-    
-    // Focus sur l'input
-    setTimeout(() => {
-        const input = document.getElementById('dashAssistantInput');
-        if (input) input.focus();
-    }, 100);
-    
-    // Afficher un message de bienvenue si le chat est vide
-    const chat = document.getElementById('dashAssistantChat');
-    if (chat && chat.children.length === 0) {
-        addChatMessage('assistant', 'Bonjour ! Je suis votre assistant virtuel. Posez-moi une question sur vos prospects, votre pipeline, ou vos tâches. Exemples :\n\n• "Quels sont mes prospects à relancer ?"\n• "Montre-moi les prospects du secteur automobile"\n• "Combien de RDV cette semaine ?"');
-    }
-}
-
-window.closeAssistantModal = function() {
-    const modal = document.getElementById('assistantModal');
-    if (!modal) return;
-    
-    if (window.closeModal) {
-        window.closeModal(modal);
-    } else {
-        modal.classList.remove('active');
+        // Ouvrir avec animation
+        chatWindow.classList.add('open');
+        fab.style.transform = 'scale(0.9)';
+        
+        // Focus sur l'input après l'animation
+        setTimeout(() => {
+            const input = document.getElementById('dashAssistantInput');
+            if (input) input.focus();
+        }, 300);
+        
+        // Afficher un message de bienvenue si le chat est vide
+        const chat = document.getElementById('dashAssistantChat');
+        if (chat && chat.children.length === 0) {
+            setTimeout(() => {
+                addChatMessage('assistant', 'Bonjour ! Je suis votre assistant virtuel. Posez-moi une question sur vos prospects, votre pipeline, ou vos tâches.\n\nExemples :\n• "Quels sont mes prospects à relancer ?"\n• "Montre-moi les prospects du secteur automobile"\n• "Combien de RDV cette semaine ?"');
+            }, 100);
+        }
     }
 }
 
@@ -1166,19 +1163,7 @@ function addChatMessage(role, text) {
     if (!chat) return;
     
     const messageEl = document.createElement('div');
-    messageEl.className = `dash-assistant-message dash-assistant-message-${role}`;
-    messageEl.style.cssText = `
-        padding:10px 12px;
-        margin-bottom:8px;
-        border-radius:6px;
-        font-size:13px;
-        line-height:1.5;
-        white-space:pre-wrap;
-        word-wrap:break-word;
-        ${role === 'user' 
-            ? 'background:var(--color-primary);color:white;margin-left:20%;text-align:right;' 
-            : 'background:var(--color-surface);color:var(--color-text);margin-right:20%;'}
-    `;
+    messageEl.className = `assistant-chat-message ${role}`;
     messageEl.textContent = text;
     
     chat.appendChild(messageEl);
@@ -1192,13 +1177,11 @@ function renderAssistantActions(actions) {
     if (!chat) return;
     
     const actionsEl = document.createElement('div');
-    actionsEl.className = 'dash-assistant-actions';
-    actionsEl.style.cssText = 'margin-top:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px;';
+    actionsEl.className = 'assistant-chat-actions';
     
     actions.forEach(action => {
         const btn = document.createElement('button');
         btn.className = 'btn btn-secondary btn-sm';
-        btn.style.cssText = 'font-size:12px;padding:6px 12px;text-align:left;';
         btn.textContent = action.label || 'Action';
         btn.onclick = () => executeAssistantAction(action);
         actionsEl.appendChild(btn);

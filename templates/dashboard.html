@@ -9,26 +9,29 @@
 {% block header_subtitle %}Votre activité du jour{% endblock %}
 
 {% block content %}
-<!-- Bouton flottant Assistant virtuel -->
-<button class="fab" id="dashAssistantFab" onclick="openAssistantModal()" title="Assistant virtuel">
+<!-- Bouton flottant Assistant virtuel (icône uniquement) -->
+<button class="fab fab-icon-only" id="dashAssistantFab" onclick="toggleAssistantChat()" title="Assistant virtuel">
   <span class="fab-icon">🤖</span>
-  <span class="fab-label">Assistant</span>
 </button>
 
-<!-- Modale Assistant virtuel -->
-<div id="assistantModal" class="modal">
-  <div class="modal-content" style="max-width:600px;max-height:80vh;display:flex;flex-direction:column;">
-    <div class="modal-header">
-      <h2>🤖 Assistant virtuel</h2>
-      <button type="button" class="modal-close" onclick="closeAssistantModal()" title="Fermer">×</button>
+<!-- Fenêtre de chat Assistant (s'ouvre depuis le bouton) -->
+<div id="assistantChatWindow" class="assistant-chat-window">
+  <div class="assistant-chat-header">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:20px;">🤖</span>
+      <span style="font-weight:600;font-size:14px;">Assistant virtuel</span>
     </div>
-    <div id="dashAssistant" style="flex:1;display:flex;flex-direction:column;min-height:0;">
-      <div id="dashAssistantChat" class="dash-assistant-chat" style="flex:1;overflow-y:auto;min-height:300px;max-height:500px;"></div>
-      <div class="dash-assistant-input-container" style="padding:12px;border-top:1px solid var(--color-border);">
-        <input type="text" id="dashAssistantInput" class="dash-assistant-input" placeholder="Posez une question… (ex: Quels sont mes prospects à relancer ?)" onkeypress="if(event.key==='Enter') sendAssistantMessage()" />
-        <button id="dashAssistantSend" class="btn btn-primary btn-sm" onclick="sendAssistantMessage()">Envoyer</button>
-      </div>
-    </div>
+    <button type="button" class="assistant-chat-close" onclick="toggleAssistantChat()" title="Fermer">×</button>
+  </div>
+  <div id="dashAssistantChat" class="assistant-chat-messages"></div>
+  <div class="assistant-chat-input-container">
+    <input type="text" id="dashAssistantInput" class="assistant-chat-input" placeholder="Posez une question…" onkeypress="if(event.key==='Enter') sendAssistantMessage()" />
+    <button id="dashAssistantSend" class="assistant-chat-send" onclick="sendAssistantMessage()" title="Envoyer">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
   </div>
 </div>
 
