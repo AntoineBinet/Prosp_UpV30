@@ -9,8 +9,16 @@ window.onerror = function(msg, src, line) {
 
 // ═══ Assistant virtuel (disponible sur toutes les pages) ═══
 let assistantChatHistory = [];
-let assistantSessionId = null;
+let assistantSessionId = localStorage.getItem('assistant_session_id') || null;
 let currentStreamingMessage = null;
+
+// Sauvegarder le session_id dans localStorage
+function saveAssistantSessionId(sessionId) {
+    if (sessionId) {
+        assistantSessionId = sessionId;
+        localStorage.setItem('assistant_session_id', sessionId);
+    }
+}
 
 // Obtenir le contexte de la page actuelle
 function getPageContext() {
@@ -140,7 +148,13 @@ window.toggleAssistantChat = function() {
         }, 300);
         
         // Charger l'historique si disponible
-        loadAssistantHistory();
+        if (assistantSessionId) {
+            loadAssistantHistory();
+        } else {
+            // Créer une nouvelle session si aucune n'existe
+            assistantSessionId = `session_${Date.now()}`;
+            saveAssistantSessionId(assistantSessionId);
+        }
         
         // Afficher un message de bienvenue adapté à la page si le chat est vide
         const chat = document.getElementById('dashAssistantChat');
@@ -195,7 +209,7 @@ window.sendAssistantMessage = function(useStreaming = true) {
         .then(data => {
             if (data.ok && data.data) {
                 const response = data.data;
-                if (response.session_id) assistantSessionId = response.session_id;
+                if (response.session_id) saveAssistantSessionId(response.session_id);
                 addChatMessage('assistant', response.answer || 'Désolé, je n\'ai pas de réponse.');
                 
                 // Afficher les actions si disponibles
@@ -299,7 +313,7 @@ function sendAssistantMessageStream(question, context) {
                                 messageEl.textContent += data.text;
                                 chat.scrollTop = chat.scrollHeight;
                             } else if (data.type === 'start' && data.session_id) {
-                                assistantSessionId = data.session_id;
+                                saveAssistantSessionId(data.session_id);
                             } else if (data.type === 'end') {
                                 // Fin du stream
                             } else if (data.type === 'error') {
@@ -353,19 +367,25 @@ function loadAssistantHistory() {
     fetch(`/api/dashboard/assistant/history?session_id=${assistantSessionId}`)
         .then(res => res.json())
         .then(data => {
-            if (data.ok && data.history && data.history.length > 0) {
-                const chat = document.getElementById('dashAssistantChat');
-                if (!chat) return;
+            if (data.ok) {
+                if (data.session_id) {
+                    saveAssistantSessionId(data.session_id);
+                }
                 
-                // Vider le chat
-                chat.innerHTML = '';
-                
-                // Charger l'historique
-                data.history.forEach(msg => {
-                    addChatMessage(msg.role, msg.content);
-                });
-                
-                chat.scrollTop = chat.scrollHeight;
+                if (data.history && data.history.length > 0) {
+                    const chat = document.getElementById('dashAssistantChat');
+                    if (!chat) return;
+                    
+                    // Vider le chat
+                    chat.innerHTML = '';
+                    
+                    // Charger l'historique
+                    data.history.forEach(msg => {
+                        addChatMessage(msg.role, msg.content);
+                    });
+                    
+                    chat.scrollTop = chat.scrollHeight;
+                }
             }
         })
         .catch(e => console.error('Erreur chargement historique:', e));

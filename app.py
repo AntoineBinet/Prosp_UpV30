@@ -329,8 +329,13 @@ def _call_sonar(prompt: str, config: dict, timeout: int, include_citations: bool
         logger.info("Sonar: réponse reçue (%d caractères)", len(text))
         return text
     except urllib.error.HTTPError as e:
-        error_body = e.read().decode("utf-8") if e.fp else ""
-        logger.error("Sonar HTTP error %d: %s", e.code, error_body[:500])
+        error_body = ""
+        try:
+            if e.fp:
+                error_body = e.read().decode("utf-8")
+        except Exception:
+            pass
+        logger.error("Sonar HTTP error %d: %s", e.code, error_body[:500] if error_body else e.reason)
         raise ValueError(f"Erreur Sonar {e.code}: {error_body[:200] if error_body else e.reason}")
     except Exception as e:
         logger.error("Sonar error: %s", str(e))
@@ -9901,7 +9906,12 @@ def api_ollama_generate():
         return jsonify(ok=True, text=text)
     except urllib.error.HTTPError as e:
         try:
-            err_body = e.read().decode("utf-8")
+            err_body = ""
+            try:
+                if e.fp:
+                    err_body = e.read().decode("utf-8")
+            except Exception:
+                pass
             err_data = json.loads(err_body) if err_body else {}
             msg = err_data.get("error", err_body) or str(e)
         except Exception:
@@ -10029,7 +10039,12 @@ def api_ai_test():
         return jsonify(ok=True, provider=test_provider, model=model, response=text.strip()[:200])
     except urllib.error.HTTPError as e:
         try:
-            err_body = e.read().decode("utf-8")
+            err_body = ""
+            try:
+                if e.fp:
+                    err_body = e.read().decode("utf-8")
+            except Exception:
+                pass
             err_data = json.loads(err_body) if err_body else {}
             if isinstance(err_data.get("error"), dict):
                 msg = err_data["error"].get("message", "") or str(e)
@@ -12829,7 +12844,12 @@ def api_prospect_infos_rdv_stream(prospect_id: int):
             yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
         except urllib.error.HTTPError as e:
             try:
-                err_body = e.read().decode("utf-8")
+                err_body = ""
+            try:
+                if e.fp:
+                    err_body = e.read().decode("utf-8")
+            except Exception:
+                pass
                 err_data = json.loads(err_body) if err_body else {}
                 msg = err_data.get("error", err_body) or str(e)
             except Exception:
@@ -14103,28 +14123,37 @@ def api_dashboard_assistant_stream():
         full_response = ""
         try:
             yield f"data: {json.dumps({'type': 'start', 'session_id': session_id}, ensure_ascii=False)}\n\n"
-            for event in _stream_ai_sse(prompt, None, 90):
-                if event.startswith("data: "):
-                    data_str = event[6:].strip()
-                    try:
-                        data = json.loads(data_str)
-                        if data.get("type") == "token":
-                            token = data.get("text", "")
-                            full_response += token
-                            yield f"data: {json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)}\n\n"
-                        elif data.get("type") == "end":
-                            # Sauvegarder la réponse complète
-                            with _conn() as conn:
-                                conn.execute(
-                                    "INSERT INTO assistant_history (user_id, session_id, role, content, createdAt) VALUES (?, ?, 'assistant', ?, datetime('now'));",
-                                    (uid, session_id, full_response)
-                                )
-                            yield f"data: {json.dumps({'type': 'end', 'session_id': session_id}, ensure_ascii=False)}\n\n"
-                            return
-                    except json.JSONDecodeError:
-                        continue
-                else:
-                    yield event
+            try:
+                for event in _stream_ai_sse(prompt, None, 90):
+                    if event.startswith("data: "):
+                        data_str = event[6:].strip()
+                        try:
+                            data = json.loads(data_str)
+                            if data.get("type") == "token":
+                                token = data.get("text", "")
+                                full_response += token
+                                yield f"data: {json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)}\n\n"
+                            elif data.get("type") == "end":
+                                # Sauvegarder la réponse complète
+                                try:
+                                    with _conn() as conn:
+                                        conn.execute(
+                                            "INSERT INTO assistant_history (user_id, session_id, role, content, createdAt) VALUES (?, ?, 'assistant', ?, datetime('now'));",
+                                            (uid, session_id, full_response)
+                                        )
+                                except Exception as save_err:
+                                    logger.warning("Erreur sauvegarde historique: %s", save_err)
+                                yield f"data: {json.dumps({'type': 'end', 'session_id': session_id}, ensure_ascii=False)}\n\n"
+                                return
+                            elif data.get("type") == "error":
+                                raise Exception(data.get("message", "Erreur streaming"))
+                        except json.JSONDecodeError:
+                            continue
+                    else:
+                        yield event
+            except Exception as stream_err:
+                logger.error("Erreur dans le stream: %s", stream_err)
+                raise
         except Exception as e:
             logger.error("Erreur streaming assistant: %s", e)
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
