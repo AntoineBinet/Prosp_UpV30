@@ -1759,6 +1759,22 @@ CREATE TABLE IF NOT EXISTS embeddings_cache (
 CREATE INDEX IF NOT EXISTS idx_embeddings_lookup ON embeddings_cache(entity_type, text_key);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
 
+CREATE TABLE IF NOT EXISTS task_rules (
+    id            INTEGER PRIMARY KEY,
+    name          TEXT NOT NULL,
+    trigger_type  TEXT NOT NULL,
+    conditions    TEXT NOT NULL,
+    template_title TEXT NOT NULL,
+    template_comment TEXT,
+    priority      INTEGER DEFAULT 2,
+    enabled       INTEGER DEFAULT 1,
+    owner_id      INTEGER,
+    createdAt     TEXT,
+    updatedAt     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_task_rules_trigger ON task_rules(trigger_type, enabled);
+CREATE INDEX IF NOT EXISTS idx_task_rules_owner ON task_rules(owner_id);
+
 -- v23.5: search performance indexes (columns that exist in CREATE TABLE)
 CREATE INDEX IF NOT EXISTS idx_prospects_name ON prospects(name);
 CREATE INDEX IF NOT EXISTS idx_prospects_email ON prospects(email);
@@ -2476,6 +2492,22 @@ def _init_user_db(user_id: int) -> Path:
                 owner_id    INTEGER
             );
 
+            CREATE TABLE IF NOT EXISTS task_rules (
+                id            INTEGER PRIMARY KEY,
+                name          TEXT NOT NULL,
+                trigger_type  TEXT NOT NULL,
+                conditions    TEXT NOT NULL,
+                template_title TEXT NOT NULL,
+                template_comment TEXT,
+                priority      INTEGER DEFAULT 2,
+                enabled       INTEGER DEFAULT 1,
+                owner_id      INTEGER,
+                createdAt     TEXT,
+                updatedAt     TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_task_rules_trigger ON task_rules(trigger_type, enabled);
+            CREATE INDEX IF NOT EXISTS idx_task_rules_owner ON task_rules(owner_id);
+
             CREATE TABLE IF NOT EXISTS custom_metiers (
                 id        INTEGER PRIMARY KEY,
                 type      TEXT NOT NULL,
@@ -3008,6 +3040,51 @@ def upsert_all(data: Dict[str, Any]) -> None:
                 pass
 
             cur.execute("COMMIT;")
+            
+            # Hooks pour création automatique de tâches
+            # Détecter les nouveaux prospects et changements de statut
+            for p in prospects:
+                try:
+                    pid = int(p.get("id"))
+                    old_row = old_prospect_map.get(pid) or {}
+                    is_new = pid not in old_prospect_map
+                    statut_changed = old_row.get("statut") != p.get("statut")
+                    
+                    # Construire le contexte pour les règles
+                    context = {
+                        "prospect_id": pid,
+                        "name": p.get("name", ""),
+                        "email": p.get("email"),
+                        "telephone": p.get("telephone"),
+                        "linkedin": p.get("linkedin"),
+                        "statut": p.get("statut"),
+                        "pertinence": p.get("pertinence"),
+                        "nextFollowUp": p.get("nextFollowUp"),
+                        "company_id": p.get("company_id"),
+                    }
+                    
+                    # Récupérer le nom de l'entreprise si disponible
+                    if context.get("company_id"):
+                        try:
+                            c_row = conn.execute(
+                                "SELECT groupe FROM companies WHERE id=? AND owner_id=?;",
+                                (context["company_id"], uid)
+                            ).fetchone()
+                            if c_row:
+                                context["company_groupe"] = c_row["groupe"] or ""
+                        except Exception:
+                            pass
+                    
+                    # Hook: prospect créé
+                    if is_new:
+                        _create_auto_task("prospect_created", context)
+                    
+                    # Hook: statut changé
+                    if statut_changed and p.get("statut"):
+                        context["old_statut"] = old_row.get("statut")
+                        _create_auto_task("status_changed", context)
+                except Exception as e:
+                    logger.warning("Erreur hook tâche auto pour prospect %s: %s", p.get("id"), e)
         except Exception:
             cur.execute("ROLLBACK;")
             raise
@@ -3245,6 +3322,295 @@ def _audit_log(action: str, entity: str, entity_id: int | None = None,
 
 def _today_iso() -> str:
     return datetime.date.today().isoformat()
+
+
+def _create_auto_task(trigger_type: str, context: Dict[str, Any]) -> None:
+    """Crée automatiquement des tâches basées sur les règles actives.
+    
+    Args:
+        trigger_type: Type de déclencheur ('prospect_created', 'status_changed', 'meeting_done', 'daily_check')
+        context: Contexte avec les données nécessaires (prospect_id, statut, etc.)
+    """
+    uid = _uid()
+    if not uid:
+        return
+    
+    try:
+        with _conn() as conn:
+            # Récupérer les règles actives pour ce trigger
+            rules = conn.execute(
+                "SELECT * FROM task_rules WHERE trigger_type=? AND enabled=1 AND (owner_id IS NULL OR owner_id=?);",
+                (trigger_type, uid)
+            ).fetchall()
+            
+            if not rules:
+                return
+            
+            for rule in rules:
+                rule_dict = dict(rule)
+                conditions = json.loads(rule_dict.get("conditions") or "{}")
+                
+                # Évaluer les conditions
+                if not _evaluate_task_conditions(conditions, context):
+                    continue
+                
+                # Générer le titre et commentaire
+                template_title = rule_dict.get("template_title") or ""
+                template_comment = rule_dict.get("template_comment") or ""
+                
+                # Remplacer les variables du contexte dans les templates
+                title = _render_task_template(template_title, context)
+                comment = _render_task_template(template_comment, context)
+                
+                # Générer via IA si le template contient {{IA:...}}
+                if "{{IA:" in title:
+                    title = _generate_task_text_ia(title, context)
+                if "{{IA:" in comment:
+                    comment = _generate_task_text_ia(comment, context)
+                
+                # Déterminer la date d'échéance
+                due_date = _calculate_task_due_date(context, conditions)
+                
+                # Construire linked_ids
+                linked_ids = {}
+                if context.get("prospect_id"):
+                    linked_ids["prospect_id"] = context["prospect_id"]
+                if context.get("company_id"):
+                    linked_ids["company_id"] = context["company_id"]
+                
+                # Créer la tâche
+                now = _now_iso()
+                priority = rule_dict.get("priority") or 2
+                conn.execute(
+                    "INSERT INTO tasks (title, comment, due_date, status, linked_ids, priority, createdAt, updatedAt, owner_id) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?);",
+                    (title, comment, due_date, json.dumps(linked_ids, ensure_ascii=False), priority, now, now, uid)
+                )
+                logger.info("Tâche auto-créée: %s (règle: %s)", title, rule_dict.get("name"))
+    except Exception as e:
+        logger.warning("Erreur création tâche auto: %s", e)
+
+
+def _evaluate_task_conditions(conditions: Dict[str, Any], context: Dict[str, Any]) -> bool:
+    """Évalue si les conditions sont remplies pour créer une tâche.
+    
+    Exemples de conditions:
+    - {"has_email": False} : prospect sans email
+    - {"statut": "Rendez-vous"} : statut spécifique
+    - {"nextFollowUp_days": 2} : nextFollowUp dans N jours
+    - {"has_linkedin": False} : pas de LinkedIn
+    """
+    if not conditions:
+        return True
+    
+    # Condition: prospect sans email
+    if conditions.get("has_email") is False:
+        if context.get("email"):
+            return False
+    
+    # Condition: statut spécifique
+    if "statut" in conditions:
+        if context.get("statut") != conditions["statut"]:
+            return False
+    
+    # Condition: nextFollowUp dans N jours
+    if "nextFollowUp_days" in conditions:
+        next_follow = context.get("nextFollowUp")
+        if not next_follow:
+            return False
+        try:
+            follow_date = datetime.datetime.fromisoformat(next_follow.replace("Z", "+00:00")[:10])
+            today = datetime.date.today()
+            days_diff = (follow_date.date() - today).days
+            if days_diff != conditions["nextFollowUp_days"]:
+                return False
+        except Exception:
+            return False
+    
+    # Condition: pas de LinkedIn
+    if conditions.get("has_linkedin") is False:
+        if context.get("linkedin"):
+            return False
+    
+    # Condition: pertinence spécifique
+    if "pertinence" in conditions:
+        if context.get("pertinence") != conditions["pertinence"]:
+            return False
+    
+    return True
+
+
+def _render_task_template(template: str, context: Dict[str, Any]) -> str:
+    """Remplace les variables {{var}} dans le template par les valeurs du contexte."""
+    if not template:
+        return ""
+    
+    result = template
+    # Remplacer {{variable}} par la valeur du contexte
+    for key, value in context.items():
+        placeholder = f"{{{{{key}}}}}"
+        if placeholder in result:
+            result = result.replace(placeholder, str(value or ""))
+    
+    return result
+
+
+def _generate_task_text_ia(template: str, context: Dict[str, Any]) -> str:
+    """Génère un texte via IA si le template contient {{IA:prompt}}.
+    
+    Exemple: "{{IA:Génère un titre de tâche pour : relancer {{name}} de {{company_groupe}} concernant {{context}}. Titre court (max 50 caractères).}}"
+    """
+    if "{{IA:" not in template:
+        return template
+    
+    # Extraire le prompt IA
+    import re
+    match = re.search(r'\{\{IA:([^}]+)\}\}', template)
+    if not match:
+        return template
+    
+    prompt_template = match.group(1)
+    
+    # Remplacer les variables du contexte dans le prompt
+    prompt = _render_task_template(prompt_template, context)
+    
+    try:
+        # Appeler l'IA
+        generated = _call_ai(prompt, timeout=30)
+        # Remplacer {{IA:...}} par le texte généré
+        result = template.replace(match.group(0), generated.strip())
+        return result
+    except Exception as e:
+        logger.warning("Erreur génération IA pour tâche: %s", e)
+        # Fallback: retourner le template sans {{IA:...}}
+        return template.replace(match.group(0), "")
+
+
+def _calculate_task_due_date(context: Dict[str, Any], conditions: Dict[str, Any]) -> str | None:
+    """Calcule la date d'échéance de la tâche basée sur le contexte et les conditions."""
+    # Si nextFollowUp est défini, utiliser cette date
+    if context.get("nextFollowUp"):
+        return context["nextFollowUp"]
+    
+    # Si une condition spécifie un délai
+    if "due_days" in conditions:
+        days = int(conditions.get("due_days", 0))
+        due_date = datetime.date.today() + datetime.timedelta(days=days)
+        return due_date.isoformat()
+    
+    # Par défaut: aujourd'hui
+    return _today_iso()
+
+
+def _optimize_task_schedule(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Suggère l'ordre optimal des tâches basé sur :
+    - Priorité
+    - Date d'échéance
+    - Type de tâche (regroupement)
+    - Estimation de temps
+    
+    Retourne les tâches triées avec des suggestions d'ordre.
+    """
+    if not tasks:
+        return []
+    
+    # Estimation de temps par type de tâche (en minutes)
+    task_time_estimates = {
+        "relance": 15,
+        "appel": 20,
+        "email": 10,
+        "rdv": 30,
+        "suivi": 15,
+        "default": 20,
+    }
+    
+    # Calculer un score pour chaque tâche
+    scored_tasks = []
+    for task in tasks:
+        score = 0
+        priority = task.get("priority") or 2
+        due_date = task.get("due_date")
+        title = (task.get("title") or "").lower()
+        
+        # Score basé sur la priorité (plus bas = plus urgent)
+        score += (4 - priority) * 100
+        
+        # Score basé sur la date d'échéance
+        if due_date:
+            try:
+                due = datetime.datetime.fromisoformat(due_date.replace("Z", "+00:00")[:10]).date()
+                today = datetime.date.today()
+                days_until = (due - today).days
+                if days_until < 0:
+                    score += 200  # En retard
+                elif days_until == 0:
+                    score += 150  # Aujourd'hui
+                elif days_until == 1:
+                    score += 100  # Demain
+                elif days_until <= 3:
+                    score += 50  # Cette semaine
+            except Exception:
+                pass
+        
+        # Estimation de temps
+        time_estimate = task_time_estimates.get("default")
+        for task_type, minutes in task_time_estimates.items():
+            if task_type in title:
+                time_estimate = minutes
+                break
+        task["estimated_minutes"] = time_estimate
+        
+        # Score négatif pour les tâches longues (prioriser les courtes)
+        score -= time_estimate / 10
+        
+        scored_tasks.append((score, task))
+    
+    # Trier par score décroissant
+    scored_tasks.sort(key=lambda x: x[0], reverse=True)
+    
+    # Regrouper les tâches similaires (même type, même entreprise)
+    grouped = []
+    current_group = []
+    for score, task in scored_tasks:
+        if not current_group:
+            current_group.append(task)
+        else:
+            # Vérifier si on peut regrouper
+            prev_task = current_group[0]
+            prev_title = (prev_task.get("title") or "").lower()
+            curr_title = (task.get("title") or "").lower()
+            
+            # Regrouper si même type de tâche
+            can_group = False
+            for task_type in task_time_estimates.keys():
+                if task_type in prev_title and task_type in curr_title:
+                    can_group = True
+                    break
+            
+            # Regrouper si même entreprise (via linked_ids)
+            try:
+                prev_linked = json.loads(prev_task.get("linked_ids") or "{}")
+                curr_linked = json.loads(task.get("linked_ids") or "{}")
+                if prev_linked.get("company_id") and curr_linked.get("company_id"):
+                    if prev_linked.get("company_id") == curr_linked.get("company_id"):
+                        can_group = True
+            except Exception:
+                pass
+            
+            if can_group and len(current_group) < 3:  # Max 3 tâches par groupe
+                current_group.append(task)
+            else:
+                grouped.append(current_group)
+                current_group = [task]
+    
+    if current_group:
+        grouped.append(current_group)
+    
+    # Aplatir et retourner
+    result = []
+    for group in grouped:
+        result.extend(group)
+    
+    return result
 
 
 def _snapshot_dir_for_user(user_id: int | None = None) -> Path:
@@ -5417,6 +5783,433 @@ def api_stats():
     return jsonify(payload)
 
 
+@app.post("/api/stats/insights")
+def api_stats_insights():
+    """Génère des insights IA à partir des statistiques actuelles et historiques."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    # Récupérer les paramètres de période (même logique que /api/stats)
+    today = datetime.date.today()
+    
+    def _parse_iso_date(s: str):
+        try:
+            return datetime.date.fromisoformat((s or "").strip())
+        except Exception:
+            return None
+    
+    req_data = request.json if request.is_json else request.form
+    mode = req_data.get("mode", "days")
+    start_d = None
+    end_d = None
+    
+    if mode == "all":
+        start_d = None
+        end_d = today
+        prev_start_d = None
+        prev_end_d = None
+    elif mode == "custom":
+        start_q = req_data.get("start")
+        end_q = req_data.get("end")
+        if start_q and end_q:
+            s = _parse_iso_date(start_q)
+            e = _parse_iso_date(end_q)
+            if s and e:
+                start_d, end_d = (s, e) if s <= e else (e, s)
+        if start_d is None or end_d is None:
+            # Fallback sur 30 jours
+            end_d = today
+            start_d = today - datetime.timedelta(days=29)
+    else:
+        # mode == "days"
+        days = req_data.get("days", 30)
+        try:
+            days_i = max(1, min(365, int(days)))
+        except Exception:
+            days_i = 30
+        end_d = today
+        start_d = today - datetime.timedelta(days=days_i - 1)
+    
+    # Période précédente pour comparaison (si pas "all")
+    if mode != "all" and start_d and end_d:
+        period_days = (end_d - start_d).days + 1
+        prev_end_d = start_d - datetime.timedelta(days=1)
+        prev_start_d = prev_end_d - datetime.timedelta(days=period_days - 1)
+    else:
+        prev_start_d = None
+        prev_end_d = None
+    
+    start_iso = start_d.isoformat() if start_d else ""
+    end_iso = end_d.isoformat() if end_d else ""
+    prev_start_iso = prev_start_d.isoformat() if prev_start_d else ""
+    prev_end_iso = prev_end_d.isoformat() if prev_end_d else ""
+    today_iso = _today_iso()
+
+    with _conn() as conn:
+        # Stats actuelles
+        current_stats = {
+            "totals": {
+                "prospects": conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=?;", (uid,)).fetchone()["n"],
+                "companies": conn.execute("SELECT COUNT(*) AS n FROM companies WHERE owner_id=?;", (uid,)).fetchone()["n"],
+            },
+            "activity": {},
+            "followups": {},
+            "statusCounts": {},
+            "hotCompanies": [],
+        }
+        
+        # Activity (période actuelle)
+        if mode == "all":
+            current_stats["activity"]["pushes"] = conn.execute(
+                "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=?;",
+                (uid,),
+            ).fetchone()["n"]
+        else:
+            current_stats["activity"]["pushes"] = conn.execute(
+                "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=? WHERE substr(l.sentAt,1,10) >= ? AND substr(l.sentAt,1,10) <= ?;",
+                (uid, start_iso, end_iso),
+            ).fetchone()["n"]
+        
+        # Call notes (période actuelle)
+        call_rows = conn.execute(
+            "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '';",
+            (uid,),
+        ).fetchall()
+        call_notes = 0
+        for r in call_rows:
+            try:
+                notes = json.loads(r["callNotes"] or "[]")
+                if isinstance(notes, list):
+                    for n in notes:
+                        d = (n.get("date") if isinstance(n, dict) else "") or ""
+                        d = d[:10]
+                        if not d:
+                            continue
+                        if mode == "all":
+                            call_notes += 1
+                        else:
+                            if start_iso <= d <= end_iso:
+                                call_notes += 1
+            except Exception:
+                continue
+        current_stats["activity"]["callNotes"] = call_notes
+        
+        # Followups
+        current_stats["followups"]["late"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND nextFollowUp IS NOT NULL AND nextFollowUp != '' AND nextFollowUp < ?;",
+            (uid, today_iso),
+        ).fetchone()["n"]
+        current_stats["followups"]["dueToday"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND nextFollowUp = ?;",
+            (uid, today_iso),
+        ).fetchone()["n"]
+        
+        # Status counts
+        current_stats["statusCounts"]["Rendezvous"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous';", (uid,)
+        ).fetchone()["n"]
+        current_stats["statusCounts"]["A_rappeler"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='À rappeler';", (uid,)
+        ).fetchone()["n"]
+        
+        # Hot companies (top 5)
+        hot_rows = conn.execute(
+            '''
+            SELECT c.id, c.groupe, c.site,
+                   COUNT(p.id) AS prospect_count,
+                   SUM(CASE WHEN p.statut='Rendez-vous' THEN 1 ELSE 0 END) AS rdv_count,
+                   SUM(CASE WHEN p.nextFollowUp IS NOT NULL AND p.nextFollowUp != '' AND p.nextFollowUp < ? THEN 1 ELSE 0 END) AS overdue_count
+            FROM companies c
+            LEFT JOIN prospects p ON p.company_id=c.id AND p.owner_id=?
+            WHERE c.owner_id=?
+            GROUP BY c.id
+            ORDER BY (rdv_count*5 + overdue_count*3) DESC
+            LIMIT 5;
+            ''',
+            (today_iso, uid, uid),
+        ).fetchall()
+        current_stats["hotCompanies"] = [
+            {
+                "groupe": r["groupe"],
+                "site": r["site"],
+                "prospectCount": r["prospect_count"] or 0,
+                "rdvCount": r["rdv_count"] or 0,
+                "lateFollowups": r["overdue_count"] or 0,
+            }
+            for r in hot_rows
+        ]
+        
+        # Stats période précédente (pour comparaison)
+        prev_stats = {}
+        if prev_start_d and prev_end_d:
+            prev_stats["activity"] = {}
+            if mode != "all":
+                prev_stats["activity"]["pushes"] = conn.execute(
+                    "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=? WHERE substr(l.sentAt,1,10) >= ? AND substr(l.sentAt,1,10) <= ?;",
+                    (uid, prev_start_iso, prev_end_iso),
+                ).fetchone()["n"]
+                
+                prev_call_notes = 0
+                for r in call_rows:
+                    try:
+                        notes = json.loads(r["callNotes"] or "[]")
+                        if isinstance(notes, list):
+                            for n in notes:
+                                d = (n.get("date") if isinstance(n, dict) else "") or ""
+                                d = d[:10]
+                                if prev_start_iso <= d <= prev_end_iso:
+                                    prev_call_notes += 1
+                    except Exception:
+                        continue
+                prev_stats["activity"]["callNotes"] = prev_call_notes
+                
+                prev_stats["statusCounts"] = {}
+                prev_stats["statusCounts"]["Rendezvous"] = conn.execute(
+                    "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous' AND lastContact >= ? AND lastContact <= ?;",
+                    (uid, prev_start_iso, prev_end_iso),
+                ).fetchone()["n"]
+        
+        # Calcul du taux de conversion
+        conversion_rate = 0
+        if current_stats["totals"]["prospects"] > 0:
+            conversion_rate = round((current_stats["statusCounts"]["Rendezvous"] / current_stats["totals"]["prospects"]) * 100, 1)
+        
+        # Construction du prompt pour Ollama
+        prompt = f"""Tu es un analyste expert en prospection B2B. Analyse les statistiques suivantes et génère des insights structurés en JSON.
+
+STATISTIQUES ACTUELLES (période: {start_iso} → {end_iso if end_iso else 'all time'}):
+- Total prospects: {current_stats["totals"]["prospects"]}
+- Total entreprises: {current_stats["totals"]["companies"]}
+- Push envoyés: {current_stats["activity"]["pushes"]}
+- Notes d'appel: {current_stats["activity"]["callNotes"]}
+- Relances en retard: {current_stats["followups"]["late"]}
+- Relances aujourd'hui: {current_stats["followups"]["dueToday"]}
+- Prospects en RDV: {current_stats["statusCounts"]["Rendezvous"]}
+- Prospects à rappeler: {current_stats["statusCounts"]["A_rappeler"]}
+- Taux de conversion (RDV/Total): {conversion_rate}%
+- Top entreprises chaudes: {json.dumps(current_stats["hotCompanies"], ensure_ascii=False)}"""
+
+        if prev_stats:
+            prompt += f"""
+
+STATISTIQUES PÉRIODE PRÉCÉDENTE (période: {prev_start_iso} → {prev_end_iso}):
+- Push envoyés: {prev_stats.get("activity", {}).get("pushes", 0)}
+- Notes d'appel: {prev_stats.get("activity", {}).get("callNotes", 0)}
+- Prospects en RDV: {prev_stats.get("statusCounts", {}).get("Rendezvous", 0)}"""
+
+        prompt += """
+
+ANALYSE À EFFECTUER:
+1. Résumé automatique: Décris l'évolution du pipeline en 2-3 phrases (augmentation/diminution, points forts).
+2. Points d'attention: Liste 2-4 alertes concrètes (ex: "3 prospects n'ont pas été contactés depuis 30 jours", "Relances en retard à traiter").
+3. Suggestions stratégiques: Propose 2-3 recommandations actionnables basées sur les données (ex: "Les prospects du secteur X convertissent mieux", "Augmenter la fréquence de relance").
+4. Benchmarking: Compare avec la période précédente si disponible, sinon avec les meilleures pratiques.
+
+RÉPONSE ATTENDUE (JSON strict, pas de markdown):
+{
+  "summary": "Résumé en 2-3 phrases",
+  "alerts": ["Alerte 1", "Alerte 2"],
+  "recommendations": ["Recommandation 1", "Recommandation 2"],
+  "benchmarks": {"current": X, "best": Y, "period": "description"}
+}
+
+IMPORTANT: Réponds UNIQUEMENT avec le JSON, sans texte avant ou après."""
+
+        try:
+            # Appel à l'IA
+            ai_response = _call_ai(prompt, timeout=120)
+            
+            # Nettoyage de la réponse (enlever markdown si présent)
+            ai_response = ai_response.strip()
+            if ai_response.startswith("```json"):
+                ai_response = ai_response[7:]
+            if ai_response.startswith("```"):
+                ai_response = ai_response[3:]
+            if ai_response.endswith("```"):
+                ai_response = ai_response[:-3]
+            ai_response = ai_response.strip()
+            
+            # Parse JSON
+            insights = json.loads(ai_response)
+            
+            # Validation de la structure
+            if not isinstance(insights, dict):
+                raise ValueError("Réponse IA n'est pas un objet JSON")
+            
+            # Structure par défaut si champs manquants
+            result = {
+                "summary": insights.get("summary", "Analyse en cours..."),
+                "alerts": insights.get("alerts", []),
+                "recommendations": insights.get("recommendations", []),
+                "benchmarks": insights.get("benchmarks", {}),
+            }
+            
+            return jsonify({"ok": True, "insights": result})
+            
+        except json.JSONDecodeError as e:
+            logger.error("Erreur parsing JSON insights IA: %s", e)
+            logger.error("Réponse brute: %s", ai_response[:500])
+            return jsonify({
+                "ok": False,
+                "error": "Erreur parsing réponse IA",
+                "raw": ai_response[:500] if 'ai_response' in locals() else "",
+            }), 500
+        except Exception as e:
+            logger.error("Erreur génération insights: %s", e)
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/stats/predictions")
+def api_stats_predictions():
+    """Génère des prédictions IA basées sur les statistiques historiques (tendances futures, conversions prévues)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    today = datetime.date.today()
+    today_iso = _today_iso()
+    
+    # Récupérer les statistiques historiques (12 dernières semaines)
+    weeks_data = []
+    with _conn() as conn:
+        for i in range(12, 0, -1):
+            week_end = today - datetime.timedelta(days=(i - 1) * 7)
+            week_start = week_end - datetime.timedelta(days=6)
+            week_start_iso = week_start.isoformat()
+            week_end_iso = week_end.isoformat()
+            
+            # Compter les actions de cette semaine
+            pushes = conn.execute(
+                "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=? WHERE substr(l.sentAt,1,10) >= ? AND substr(l.sentAt,1,10) <= ?;",
+                (uid, week_start_iso, week_end_iso),
+            ).fetchone()["n"]
+            
+            # Compter les notes d'appel
+            call_notes_count = 0
+            prospects_rows = conn.execute(
+                "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '';",
+                (uid,),
+            ).fetchall()
+            for r in prospects_rows:
+                try:
+                    notes = json.loads(r["callNotes"] or "[]")
+                    if isinstance(notes, list):
+                        for n in notes:
+                            note_date = (n.get("date") or "")[:10]
+                            if note_date >= week_start_iso and note_date <= week_end_iso:
+                                call_notes_count += 1
+                except Exception:
+                    pass
+            
+            # Compter les RDV
+            rdv_count = conn.execute(
+                "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND rdvDate IS NOT NULL AND rdvDate != '' AND substr(rdvDate,1,10) >= ? AND substr(rdvDate,1,10) <= ?;",
+                (uid, week_start_iso, week_end_iso),
+            ).fetchone()["n"]
+            
+            weeks_data.append({
+                "week": f"S{week_end.isocalendar()[1]}",
+                "pushes": pushes,
+                "call_notes": call_notes_count,
+                "rdv": rdv_count,
+            })
+    
+    # Récupérer les totaux actuels
+    with _conn() as conn:
+        total_prospects = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
+        total_companies = conn.execute("SELECT COUNT(*) AS n FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
+        rdv_prospects = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous' AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
+        overdue_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND nextFollowUp IS NOT NULL AND nextFollowUp != '' AND nextFollowUp < ? AND deleted_at IS NULL;",
+            (uid, today_iso),
+        ).fetchone()["n"]
+    
+    # Construire le prompt pour les prédictions
+    prompt = f"""Tu es un assistant pour un CRM de prospection B2B. Analyse les données historiques et génère des prédictions pour les 4 prochaines semaines.
+
+DONNÉES HISTORIQUES (12 dernières semaines):
+{json.dumps(weeks_data, indent=2, ensure_ascii=False)}
+
+SITUATION ACTUELLE:
+- Total prospects: {total_prospects}
+- Total entreprises: {total_companies}
+- Prospects en RDV: {rdv_prospects}
+- Relances en retard: {overdue_count}
+
+PRÉDICTIONS À GÉNÉRER:
+1. "trends": Tendances prévues pour les 4 prochaines semaines (pushes, notes, RDV)
+2. "conversion_rate": Taux de conversion prévu (prospects → RDV)
+3. "recommendations": 2-3 recommandations pour optimiser les résultats
+4. "forecast": Prévisions chiffrées pour les 4 prochaines semaines
+
+RÉPONSE ATTENDUE (JSON strict, pas de markdown):
+{{
+  "trends": {{
+    "pushes": "tendance (augmentation/diminution/stabilité)",
+    "call_notes": "tendance",
+    "rdv": "tendance"
+  }},
+  "conversion_rate": {{
+    "current": X,
+    "predicted": Y,
+    "explanation": "explication courte"
+  }},
+  "recommendations": ["Recommandation 1", "Recommandation 2"],
+  "forecast": {{
+    "week_1": {{"pushes": X, "call_notes": Y, "rdv": Z}},
+    "week_2": {{"pushes": X, "call_notes": Y, "rdv": Z}},
+    "week_3": {{"pushes": X, "call_notes": Y, "rdv": Z}},
+    "week_4": {{"pushes": X, "call_notes": Y, "rdv": Z}}
+  }}
+}}
+
+IMPORTANT: Réponds UNIQUEMENT avec le JSON, sans texte avant ou après."""
+    
+    try:
+        # Appel à l'IA
+        ai_response = _call_ai(prompt, timeout=120)
+        
+        # Nettoyage de la réponse (enlever markdown si présent)
+        ai_response = ai_response.strip()
+        if ai_response.startswith("```json"):
+            ai_response = ai_response[7:]
+        if ai_response.startswith("```"):
+            ai_response = ai_response[3:]
+        if ai_response.endswith("```"):
+            ai_response = ai_response[:-3]
+        ai_response = ai_response.strip()
+        
+        # Parse JSON
+        predictions = json.loads(ai_response)
+        
+        # Validation de la structure
+        if not isinstance(predictions, dict):
+            raise ValueError("Réponse IA n'est pas un objet JSON")
+        
+        # Structure par défaut si champs manquants
+        result = {
+            "trends": predictions.get("trends", {}),
+            "conversion_rate": predictions.get("conversion_rate", {}),
+            "recommendations": predictions.get("recommendations", []),
+            "forecast": predictions.get("forecast", {}),
+        }
+        
+        return jsonify({"ok": True, "predictions": result})
+        
+    except json.JSONDecodeError as e:
+        logger.error("Erreur parsing JSON predictions IA: %s", e)
+        logger.error("Réponse brute: %s", ai_response[:500] if 'ai_response' in locals() else "")
+        return jsonify({
+            "ok": False,
+            "error": "Erreur parsing réponse IA",
+            "raw": ai_response[:500] if 'ai_response' in locals() else "",
+        }), 500
+    except Exception as e:
+        logger.error("Erreur génération predictions: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ====== Prospect Photo Upload ======
 import uuid as _uuid
 
@@ -7120,6 +7913,214 @@ def api_tasks_delete():
     with _conn() as conn:
         conn.execute("DELETE FROM tasks WHERE id=? AND owner_id=?;", (int(tid), uid))
     return jsonify({"ok": True})
+
+
+# ====== Task Rules API (v26.6) ======
+@app.get("/api/tasks/rules")
+@login_required
+def api_tasks_rules_list():
+    """Lister les règles de création automatique de tâches."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM task_rules WHERE owner_id=? OR owner_id IS NULL ORDER BY name;",
+            (uid,)
+        ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["conditions"] = json.loads(d.get("conditions") or "{}")
+        except Exception:
+            d["conditions"] = {}
+        d["enabled"] = bool(d.get("enabled"))
+        out.append(d)
+    return jsonify({"ok": True, "rules": out})
+
+
+@app.post("/api/tasks/rules")
+@login_required
+@role_required("admin")
+def api_tasks_rules_save():
+    """Créer ou modifier une règle de création automatique de tâches (admin uniquement)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    trigger_type = (payload.get("trigger_type") or "").strip()
+    template_title = (payload.get("template_title") or "").strip()
+    
+    if not name:
+        return jsonify({"ok": False, "error": "name is required"}), 400
+    if not trigger_type:
+        return jsonify({"ok": False, "error": "trigger_type is required"}), 400
+    if not template_title:
+        return jsonify({"ok": False, "error": "template_title is required"}), 400
+    
+    if trigger_type not in ("prospect_created", "status_changed", "meeting_done", "daily_check"):
+        return jsonify({"ok": False, "error": "trigger_type invalide"}), 400
+    
+    conditions = payload.get("conditions") or {}
+    template_comment = (payload.get("template_comment") or "").strip()
+    priority = int(payload.get("priority") or 2)
+    enabled = 1 if payload.get("enabled") else 0
+    
+    conditions_json = json.dumps(conditions, ensure_ascii=False)
+    now = _now_iso()
+    rule_id = payload.get("id")
+    
+    with _conn() as conn:
+        if rule_id:
+            # Mise à jour
+            conn.execute(
+                "UPDATE task_rules SET name=?, trigger_type=?, conditions=?, template_title=?, template_comment=?, priority=?, enabled=?, updatedAt=? WHERE id=? AND owner_id=?;",
+                (name, trigger_type, conditions_json, template_title, template_comment, priority, enabled, now, int(rule_id), uid)
+            )
+        else:
+            # Création
+            cursor = conn.execute(
+                "INSERT INTO task_rules (name, trigger_type, conditions, template_title, template_comment, priority, enabled, owner_id, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                (name, trigger_type, conditions_json, template_title, template_comment, priority, enabled, uid, now, now)
+            )
+            rule_id = cursor.lastrowid
+    
+    return jsonify({"ok": True, "id": rule_id})
+
+
+@app.post("/api/tasks/rules/delete")
+@login_required
+@role_required("admin")
+def api_tasks_rules_delete():
+    """Supprimer une règle de création automatique de tâches (admin uniquement)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    rule_id = payload.get("id")
+    if not rule_id:
+        return jsonify({"ok": False, "error": "id is required"}), 400
+    with _conn() as conn:
+        conn.execute("DELETE FROM task_rules WHERE id=? AND owner_id=?;", (int(rule_id), uid))
+    return jsonify({"ok": True})
+
+
+@app.post("/api/tasks/daily-check")
+@login_required
+def api_tasks_daily_check():
+    """Vérification quotidienne : crée des tâches automatiques pour les prospects avec nextFollowUp dans les prochains jours."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    days_ahead = request.args.get("days", type=int) or 2  # Par défaut: 2 jours
+    
+    today = datetime.date.today()
+    target_date = today + datetime.timedelta(days=days_ahead)
+    
+    created_count = 0
+    
+    with _conn() as conn:
+        # Récupérer les prospects avec nextFollowUp dans la fenêtre
+        prospects = conn.execute(
+            """
+            SELECT p.*, c.groupe AS company_groupe
+            FROM prospects p
+            LEFT JOIN companies c ON c.id = p.company_id AND c.owner_id = ?
+            WHERE p.owner_id = ?
+              AND p.nextFollowUp IS NOT NULL
+              AND p.nextFollowUp != ''
+              AND DATE(p.nextFollowUp) BETWEEN ? AND ?
+              AND p.deleted_at IS NULL
+            """,
+            (uid, uid, today.isoformat(), target_date.isoformat())
+        ).fetchall()
+        
+        for p_row in prospects:
+            p = dict(p_row)
+            try:
+                context = {
+                    "prospect_id": p["id"],
+                    "name": p.get("name") or "",
+                    "email": p.get("email"),
+                    "telephone": p.get("telephone"),
+                    "linkedin": p.get("linkedin"),
+                    "statut": p.get("statut"),
+                    "pertinence": p.get("pertinence"),
+                    "nextFollowUp": p.get("nextFollowUp"),
+                    "company_id": p.get("company_id"),
+                    "company_groupe": p.get("company_groupe") or "",
+                }
+                
+                # Calculer le nombre de jours jusqu'à nextFollowUp
+                try:
+                    follow_date = datetime.datetime.fromisoformat(
+                        context["nextFollowUp"].replace("Z", "+00:00")[:10]
+                    ).date()
+                    days_diff = (follow_date - today).days
+                    context["nextFollowUp_days"] = days_diff
+                except Exception:
+                    context["nextFollowUp_days"] = 0
+                
+                # Vérifier si une tâche existe déjà pour ce prospect et cette date
+                existing = conn.execute(
+                    """
+                    SELECT id FROM tasks
+                    WHERE owner_id = ?
+                      AND status = 'pending'
+                      AND json_extract(linked_ids, '$.prospect_id') = ?
+                      AND due_date = ?
+                    LIMIT 1
+                    """,
+                    (uid, context["prospect_id"], context["nextFollowUp"][:10])
+                ).fetchone()
+                
+                if not existing:
+                    # Créer la tâche via les règles
+                    _create_auto_task("daily_check", context)
+                    created_count += 1
+            except Exception as e:
+                logger.warning("Erreur vérification quotidienne pour prospect %s: %s", p.get("id"), e)
+    
+    return jsonify({"ok": True, "created": created_count, "checked": len(prospects)})
+
+
+@app.get("/api/tasks/optimize")
+@login_required
+def api_tasks_optimize():
+    """Retourne les tâches triées de manière optimale (planification intelligente)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    status = (request.args.get("status") or "pending").strip().lower()
+    with _conn() as conn:
+        if status == "all":
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE owner_id=? ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, id DESC;",
+                (uid,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE status=? AND owner_id=? ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, id DESC;",
+                (status, uid),
+            ).fetchall()
+    
+    tasks = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["linked_ids"] = json.loads(d.get("linked_ids") or "{}")
+        except Exception:
+            d["linked_ids"] = {}
+        tasks.append(d)
+    
+    # Optimiser l'ordre
+    optimized = _optimize_task_schedule(tasks)
+    
+    return jsonify({"ok": True, "tasks": optimized})
 
 
 # ====== Company / Opportunities API (v6) ======
@@ -9968,6 +10969,38 @@ def meetings_create():
             (prospect_id, uid, today, title, json.dumps(checklist_data, ensure_ascii=False) if checklist_data else None, notes, now)
         )
         meeting_id = cursor.lastrowid
+        
+        # Hook: réunion créée (meeting_done)
+        try:
+            p_row = conn.execute(
+                "SELECT id, name, email, telephone, linkedin, statut, pertinence, nextFollowUp, company_id FROM prospects WHERE id=? AND owner_id=?;",
+                (prospect_id, uid)
+            ).fetchone()
+            if p_row:
+                context = {
+                    "prospect_id": p_row["id"],
+                    "name": p_row["name"] or "",
+                    "email": p_row["email"],
+                    "telephone": p_row["telephone"],
+                    "linkedin": p_row["linkedin"],
+                    "statut": p_row["statut"],
+                    "pertinence": p_row["pertinence"],
+                    "nextFollowUp": p_row["nextFollowUp"],
+                    "company_id": p_row["company_id"],
+                    "meeting_title": title,
+                    "meeting_notes": notes,
+                }
+                # Récupérer le nom de l'entreprise
+                if context.get("company_id"):
+                    c_row = conn.execute(
+                        "SELECT groupe FROM companies WHERE id=? AND owner_id=?;",
+                        (context["company_id"], uid)
+                    ).fetchone()
+                    if c_row:
+                        context["company_groupe"] = c_row["groupe"] or ""
+                _create_auto_task("meeting_done", context)
+        except Exception as e:
+            logger.warning("Erreur hook tâche auto pour réunion: %s", e)
     
     return jsonify(ok=True, id=meeting_id, date=today)
 
@@ -10964,6 +11997,212 @@ def api_collab_unshare_company():
         aconn.execute("DELETE FROM shared_companies WHERE id = ?;", (share_id,))
     
     return jsonify(ok=True, message="Partage retiré")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Dashboard adaptatif et Assistant virtuel (v26.6)
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/dashboard/adaptive")
+def api_dashboard_adaptive():
+    """Retourne les recommandations adaptatives basées sur l'activité récente (widgets, priorités)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    today = _today_iso()
+    d_today = datetime.date.fromisoformat(today)
+    monday = (d_today - datetime.timedelta(days=d_today.weekday())).isoformat()
+    
+    with _conn() as conn:
+        prospects = conn.execute("SELECT * FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        push_logs = conn.execute(
+            "SELECT l.* FROM push_logs l JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=? WHERE l.sentAt >= ?;",
+            (uid, monday),
+        ).fetchall()
+        notes = []
+        for p in prospects:
+            try:
+                call_notes = json.loads(p.get("callNotes") or "[]")
+                if isinstance(call_notes, list):
+                    for n in call_notes:
+                        if (n.get("date") or "")[:10] >= monday:
+                            notes.append(n)
+            except Exception:
+                pass
+    
+    prospects_list = [dict(r) for r in prospects]
+    push_list = [dict(r) for r in push_logs]
+    
+    # Calculer les métriques d'activité
+    overdue = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() and p["nextFollowUp"].strip() < today]
+    due_today = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() == today]
+    rdv_this_week = [p for p in prospects_list if (p.get("rdvDate") or "").strip() >= monday and (p.get("rdvDate") or "").strip() <= today]
+    recent_activity = len([n for n in notes if (n.get("date") or "")[:10] >= monday]) + len([p for p in push_list if (p.get("sentAt") or "")[:10] >= monday])
+    
+    # Préparer le contexte pour l'IA
+    context = {
+        "overdue_count": len(overdue),
+        "due_today_count": len(due_today),
+        "rdv_this_week_count": len(rdv_this_week),
+        "recent_activity_count": recent_activity,
+        "total_prospects": len(prospects_list),
+        "pipeline_status": {s: sum(1 for p in prospects_list if p.get("statut") == s) for s in ["Rendez-vous", "À rappeler", "Messagerie", "Appelé"]},
+    }
+    
+    # Construire le prompt pour l'analyse adaptative
+    prompt = f"""Tu es un assistant pour un CRM de prospection B2B. Analyse l'activité récente et génère des recommandations.
+
+Contexte actuel:
+- {context['overdue_count']} relances en retard
+- {context['due_today_count']} relances à faire aujourd'hui
+- {context['rdv_this_week_count']} RDV cette semaine
+- {context['recent_activity_count']} actions récentes (notes + push)
+- Pipeline: {context['pipeline_status']}
+
+Génère un JSON avec:
+1. "priorities": liste de 3 priorités du jour (max 60 caractères chacune)
+2. "widgets_to_show": liste des widgets recommandés parmi ["overdue", "rdv", "pipeline", "activity", "goals"]
+3. "widgets_to_hide": liste des widgets à masquer
+4. "insight": un message d'analyse court (max 100 caractères)
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant/après."""
+    
+    try:
+        ai_response = _call_ai(prompt, timeout=60)
+        # Nettoyer la réponse (enlever markdown si présent)
+        ai_response = ai_response.strip()
+        if ai_response.startswith("```json"):
+            ai_response = ai_response[7:]
+        if ai_response.startswith("```"):
+            ai_response = ai_response[3:]
+        if ai_response.endswith("```"):
+            ai_response = ai_response[:-3]
+        ai_response = ai_response.strip()
+        
+        adaptive_data = json.loads(ai_response)
+    except Exception as e:
+        logger.warning("Erreur analyse adaptative IA, fallback par défaut: %s", e)
+        # Fallback par défaut
+        adaptive_data = {
+            "priorities": [
+                f"Relancer {len(overdue)} prospects en retard" if overdue else "Aucune relance en retard",
+                f"{len(due_today)} relances à faire aujourd'hui" if due_today else "Aucune relance prévue",
+                f"{len(rdv_this_week)} RDV cette semaine" if rdv_this_week else "Aucun RDV cette semaine",
+            ],
+            "widgets_to_show": ["overdue", "rdv", "pipeline"] if overdue or rdv_this_week else ["activity", "goals"],
+            "widgets_to_hide": [],
+            "insight": "Analyse en cours..." if recent_activity < 5 else "Activité soutenue cette semaine",
+        }
+    
+    return jsonify(ok=True, data=adaptive_data)
+
+
+@app.post("/api/dashboard/assistant")
+def api_dashboard_assistant():
+    """Assistant virtuel : répond à des questions en langage naturel et peut exécuter des actions."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    body = request.get_json(force=True) or {}
+    question = body.get("question", "").strip()
+    if not question:
+        return jsonify(ok=False, error="question requise"), 400
+    
+    today = _today_iso()
+    d_today = datetime.date.fromisoformat(today)
+    monday = (d_today - datetime.timedelta(days=d_today.weekday())).isoformat()
+    
+    # Récupérer le contexte disponible
+    with _conn() as conn:
+        prospects = conn.execute("SELECT id, name, statut, nextFollowUp, rdvDate, company_id FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        companies = conn.execute("SELECT id, groupe, site FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        candidates = conn.execute("SELECT id, name, status FROM candidates WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+    
+    prospects_list = [dict(r) for r in prospects]
+    companies_list = [dict(r) for r in companies]
+    candidates_list = [dict(r) for r in candidates]
+    
+    # Construire le contexte pour l'IA
+    overdue_prospects = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() and p["nextFollowUp"].strip() < today]
+    due_today_prospects = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() == today]
+    rdv_prospects = [p for p in prospects_list if p.get("statut") == "Rendez-vous"]
+    
+    context_summary = f"""Contexte disponible:
+- {len(prospects_list)} prospects au total
+- {len(overdue_prospects)} relances en retard
+- {len(due_today_prospects)} relances à faire aujourd'hui
+- {len(rdv_prospects)} prospects en RDV
+- {len(companies_list)} entreprises
+- {len(candidates_list)} candidats
+
+Statuts prospects: {', '.join(set(p.get('statut') or 'Inconnu' for p in prospects_list))}
+
+Exemples de prospects en retard (max 5):
+{chr(10).join(f"- {p['name']} (ID: {p['id']}, statut: {p.get('statut', 'N/A')}, relance: {p.get('nextFollowUp', 'N/A')})" for p in overdue_prospects[:5])}
+"""
+    
+    prompt = f"""Tu es un assistant virtuel pour un CRM de prospection B2B. L'utilisateur pose une question en langage naturel.
+
+{context_summary}
+
+Question de l'utilisateur: "{question}"
+
+Analyse la question et génère une réponse JSON avec:
+1. "answer": réponse textuelle claire et concise (max 200 caractères)
+2. "intent": intention détectée parmi ["filter", "create", "modify", "display", "action", "info"]
+3. "actions": liste d'actions possibles (chaque action = {{"type": "filter|open|navigate", "label": "...", "params": {{...}}}})
+   - type "filter": filtrer des prospects (params: {{"field": "statut|nextFollowUp|...", "value": "..."}})
+   - type "open": ouvrir une fiche (params: {{"id": prospect_id}})
+   - type "navigate": naviguer vers une page (params: {{"url": "/focus|/calendrier|..."}})
+
+Exemples d'actions:
+- Pour "prospects à relancer": {{"type": "filter", "label": "Voir les prospects à relancer", "params": {{"field": "nextFollowUp", "value": "overdue"}}}}
+- Pour "prospects du secteur X": {{"type": "filter", "label": "Filtrer par secteur", "params": {{"field": "sector", "value": "X"}}}}
+- Pour "ouvrir prospect X": {{"type": "open", "label": "Ouvrir {question.split()[-1] if question.split() else ''}", "params": {{"id": null}}}}
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant/après."""
+    
+    try:
+        ai_response = _call_ai(prompt, timeout=90)
+        # Nettoyer la réponse
+        ai_response = ai_response.strip()
+        if ai_response.startswith("```json"):
+            ai_response = ai_response[7:]
+        if ai_response.startswith("```"):
+            ai_response = ai_response[3:]
+        if ai_response.endswith("```"):
+            ai_response = ai_response[:-3]
+        ai_response = ai_response.strip()
+        
+        assistant_data = json.loads(ai_response)
+        
+        # Enrichir les actions avec les IDs réels si possible
+        if assistant_data.get("intent") == "filter" and "prospects" in question.lower():
+            # Détecter les filtres courants
+            if "relancer" in question.lower() or "retard" in question.lower():
+                assistant_data["actions"] = [{
+                    "type": "navigate",
+                    "label": "Voir les relances en retard",
+                    "params": {"url": "/focus"}
+                }]
+            elif "rdv" in question.lower() or "rendez-vous" in question.lower():
+                assistant_data["actions"] = [{
+                    "type": "filter",
+                    "label": "Voir les prospects en RDV",
+                    "params": {"field": "statut", "value": "Rendez-vous"}
+                }]
+        
+    except Exception as e:
+        logger.warning("Erreur assistant IA: %s", e)
+        assistant_data = {
+            "answer": "Désolé, je n'ai pas pu traiter votre question. Pouvez-vous reformuler ?",
+            "intent": "info",
+            "actions": []
+        }
+    
+    return jsonify(ok=True, data=assistant_data)
 
 
 if __name__ == "__main__":

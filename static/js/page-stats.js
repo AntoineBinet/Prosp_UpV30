@@ -787,6 +787,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     document.getElementById('btnStatsReload')?.addEventListener('click', () => { loadStats(); loadCharts(); });
+    document.getElementById('btnGenerateInsights')?.addEventListener('click', generateInsights);
     const modeEl = document.getElementById('statsRangeMode');
     const weekEl = document.getElementById('statsWeek');
     const monthEl = document.getElementById('statsMonth');
@@ -1096,3 +1097,164 @@ function _checkThursdayExportAlert() {
 
   document.addEventListener('DOMContentLoaded', initKpi);
 })();
+
+// ════════════════════════════════════════════════════════════════
+// Insights IA (v26.6)
+// ════════════════════════════════════════════════════════════════
+
+async function generateInsights() {
+    const section = document.getElementById('insightsSection');
+    const loading = document.getElementById('insightsLoading');
+    const content = document.getElementById('insightsContent');
+    const error = document.getElementById('insightsError');
+    const btn = document.getElementById('btnGenerateInsights');
+    
+    if (!section || !loading || !content || !error) return;
+    
+    // Récupérer la période actuelle
+    const modeEl = document.getElementById('statsRangeMode');
+    const mode = String(modeEl?.value || '30');
+    const weekEl = document.getElementById('statsWeek');
+    const monthEl = document.getElementById('statsMonth');
+    
+    const buildMode = () => {
+        if (/^\d+$/.test(mode)) return { mode: 'days', days: parseInt(mode, 10) };
+        if (mode === 'all') return { mode: 'all' };
+        if (mode === 'week') {
+            const v = String(weekEl?.value || '').trim();
+            if (!v) return { mode: 'days', days: 30 };
+            const [yStr, wStr] = v.split('-W');
+            const y = parseInt(yStr, 10), w = parseInt(wStr, 10);
+            if (!y || !w) return { mode: 'days', days: 30 };
+            const { start, end } = isoWeekToDateRange(y, w);
+            return { mode: 'custom', start, end };
+        }
+        if (mode === 'month') {
+            const v = String(monthEl?.value || '').trim();
+            if (!v) return { mode: 'days', days: 30 };
+            const [yStr, mStr] = v.split('-');
+            const y = parseInt(yStr, 10), m = parseInt(mStr, 10);
+            if (!y || !m) return { mode: 'days', days: 30 };
+            const { start, end } = monthToDateRange(y, m);
+            return { mode: 'custom', start, end };
+        }
+        return { mode: 'days', days: 30 };
+    };
+    
+    // Afficher la section et le loading
+    section.style.display = '';
+    loading.style.display = '';
+    content.style.display = 'none';
+    error.style.display = 'none';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Génération…';
+    }
+    
+    try {
+        const modeData = buildMode();
+        const res = await fetch('/api/stats/insights', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(modeData),
+        });
+        
+        if (!res.ok) {
+            const txt = await res.text().catch(() => '');
+            throw new Error(txt || `HTTP ${res.status}`);
+        }
+        
+        const data = await res.json();
+        if (!data.ok) {
+            throw new Error(data.error || 'Erreur inconnue');
+        }
+        
+        const insights = data.insights || {};
+        
+        // Afficher le résumé
+        const summaryEl = document.getElementById('insightsSummaryText');
+        if (summaryEl) {
+            summaryEl.textContent = insights.summary || 'Aucun résumé disponible.';
+        }
+        
+        // Afficher les alertes
+        const alertsList = document.getElementById('insightsAlertsList');
+        if (alertsList) {
+            alertsList.innerHTML = '';
+            const alerts = Array.isArray(insights.alerts) ? insights.alerts : [];
+            if (alerts.length === 0) {
+                alertsList.innerHTML = '<li style="color: var(--color-text-secondary);">Aucune alerte</li>';
+            } else {
+                alerts.forEach(alert => {
+                    const li = document.createElement('li');
+                    li.textContent = alert;
+                    li.style.marginBottom = '6px';
+                    alertsList.appendChild(li);
+                });
+            }
+        }
+        
+        // Afficher les recommandations
+        const recList = document.getElementById('insightsRecommendationsList');
+        if (recList) {
+            recList.innerHTML = '';
+            const recommendations = Array.isArray(insights.recommendations) ? insights.recommendations : [];
+            if (recommendations.length === 0) {
+                recList.innerHTML = '<li style="color: var(--color-text-secondary);">Aucune recommandation</li>';
+            } else {
+                recommendations.forEach(rec => {
+                    const li = document.createElement('li');
+                    li.textContent = rec;
+                    li.style.marginBottom = '6px';
+                    recList.appendChild(li);
+                });
+            }
+        }
+        
+        // Afficher le benchmarking
+        const benchmarksEl = document.getElementById('insightsBenchmarks');
+        const benchmarksText = document.getElementById('insightsBenchmarksText');
+        if (benchmarksEl && benchmarksText) {
+            const benchmarks = insights.benchmarks || {};
+            if (benchmarks.current !== undefined || benchmarks.best !== undefined || benchmarks.period) {
+                let text = '';
+                if (benchmarks.current !== undefined && benchmarks.best !== undefined) {
+                    text += `Actuel: ${benchmarks.current} | Meilleur: ${benchmarks.best}`;
+                }
+                if (benchmarks.period) {
+                    if (text) text += ' | ';
+                    text += benchmarks.period;
+                }
+                benchmarksText.textContent = text || 'Données de benchmarking non disponibles.';
+                benchmarksEl.style.display = '';
+            } else {
+                benchmarksEl.style.display = 'none';
+            }
+        }
+        
+        // Masquer le loading et afficher le contenu
+        loading.style.display = 'none';
+        content.style.display = '';
+        
+        if (typeof showToast === 'function') {
+            showToast('Insights générés avec succès', 'success');
+        }
+        
+    } catch (err) {
+        console.error('Erreur génération insights:', err);
+        loading.style.display = 'none';
+        error.style.display = '';
+        const errorText = document.getElementById('insightsErrorText');
+        if (errorText) {
+            errorText.textContent = err.message || 'Erreur lors de la génération des insights.';
+        }
+        if (typeof showToast === 'function') {
+            showToast('Erreur lors de la génération des insights', 'error');
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '✨ Générer insights';
+        }
+    }
+}

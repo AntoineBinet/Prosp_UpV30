@@ -128,6 +128,32 @@
       <div id="dashPipeline"></div>
     </div>
   </div>
+  <div class="dash-widget" data-widget-id="dashPrioritiesCard">
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
+    <div class="card dash-card" id="dashPrioritiesCard">
+      <div class="dash-card-title">🎯 Priorités du jour (IA)</div>
+      <div id="dashPriorities">
+        <div class="muted" style="padding:12px;text-align:center;">Chargement des priorités…</div>
+      </div>
+    </div>
+  </div>
+  <div class="dash-widget" data-widget-id="dashAssistantCard">
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
+    <div class="card dash-card" id="dashAssistantCard">
+      <div class="dash-card-title">🤖 Assistant virtuel</div>
+      <div id="dashAssistant">
+        <div id="dashAssistantChat" class="dash-assistant-chat"></div>
+        <div class="dash-assistant-input-container">
+          <input type="text" id="dashAssistantInput" class="dash-assistant-input" placeholder="Posez une question… (ex: Quels sont mes prospects à relancer ?)" />
+          <button id="dashAssistantSend" class="btn btn-primary btn-sm" onclick="sendAssistantMessage()">Envoyer</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 

@@ -5979,6 +5979,74 @@ body:not([data-page="prospects"]) .table-wrapper td:nth-child(13) {
   margin-bottom: 8px;
 }
 .dash-card-head-row .dash-card-title { margin-bottom: 0; }
+
+/* ═══ Dashboard Priorités du jour (IA) ═══ */
+.dash-priority-item {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.dash-priority-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.dash-priorities-insight {
+  font-style: italic;
+}
+
+/* ═══ Dashboard Assistant virtuel ═══ */
+.dash-assistant-chat {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 12px;
+  background: var(--color-surface-2, #f1f3f5);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  min-height: 200px;
+}
+.dash-assistant-message {
+  word-wrap: break-word;
+  animation: fadeInMessage 0.3s ease-in;
+}
+@keyframes fadeInMessage {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.dash-assistant-input-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.dash-assistant-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.dash-assistant-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+}
+.dash-assistant-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.dash-assistant-actions {
+  margin-top: 8px;
+}
+.dash-assistant-actions .btn {
+  width: 100%;
+  justify-content: flex-start;
+}
 .dash-task-row {
   display: flex;
   align-items: center;
