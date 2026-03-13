@@ -801,7 +801,7 @@ function renderPipeline(pipeline) {
     const el = document.getElementById('dashPipeline');
     if (!el) return;
 
-    const statusOrder = ["Pas d'actions", "Appelé", "À rappeler", "Messagerie", "Rendez-vous", "Rencontré", "Prospecté", "Pas intéressé"];
+    const statusOrder = ["Pas d'actions", "Appelé", "À rappeler", "Messagerie", "Rendez-vous", "Prospecté", "Pas intéressé"];
     const statusColors = {
         "Pas d'actions": '#64748b', 'Appelé': '#f59e0b', 'Messagerie': '#3b82f6',
         'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Pas intéressé': '#94a3b8'
