@@ -1278,6 +1278,15 @@ async function validatePushCategory(categoryId) {
     return false;
 }
 
+// Exposer les fonctions utilitaires dans le scope global pour page-push.js
+if (typeof window !== 'undefined') {
+    window.formatPushDate = formatPushDate;
+    window.formatPushCompany = formatPushCompany;
+    window.validateProspectExists = validateProspectExists;
+    window.validateCandidateExists = validateCandidateExists;
+    window.validatePushCategory = validatePushCategory;
+}
+
 function escapeHtml(str) {
     return String(str ?? '').replace(/[&<>"']/g, (ch) => ({
         '&': '&amp;',
@@ -5465,16 +5474,24 @@ return `<option value="${id}" ${sel}>${escapeHtml(c.name)}${kw}</option>`;
 }
 
 let __categorySaveTimer = null;
+let __categoryFetchController = null; // AbortController pour annuler les requêtes en cours
 async function onPushCategoryChange(prospectId, value) {
     const p = data.prospects.find(x => x.id === prospectId);
     if (!p) return;
     const v = String(value || '').trim();
     p.push_category_id = v ? Number(v) : null;
 
-    // Debounced save
+    // Annuler la requête fetch précédente si elle existe (éviter race conditions)
+    if (__categoryFetchController) {
+        __categoryFetchController.abort();
+        __categoryFetchController = null;
+    }
+
+    // Debounced save avec cancel du timer précédent
     if (__categorySaveTimer) clearTimeout(__categorySaveTimer);
     __categorySaveTimer = setTimeout(async () => {
         try { await saveToServerAsync(); } catch (e) {}
+        __categorySaveTimer = null;
     }, 700);
 
     // Load template files (v25.9: nouveau système)
@@ -5490,8 +5507,18 @@ async function onPushCategoryChange(prospectId, value) {
     if (v && templateBox) {
         templateBox.style.display = '';
         if (templateList) templateList.innerHTML = '<span class="muted">Chargement…</span>';
+        
+        // Créer un nouvel AbortController pour cette requête
+        __categoryFetchController = new AbortController();
+        const signal = __categoryFetchController.signal;
+        
         try {
-            const res = await fetch(`/api/push-categories/${v}/files`);
+            const res = await fetch(`/api/push-categories/${v}/files`, { signal });
+            // Vérifier que la requête n'a pas été annulée
+            if (signal.aborted) {
+                return; // Ignorer le résultat si annulé
+            }
+            
             if (!res.ok) {
                 console.error(`Erreur chargement fichiers catégorie ${v}: HTTP ${res.status}`);
                 if (templateList) templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
@@ -5499,6 +5526,12 @@ async function onPushCategoryChange(prospectId, value) {
                 return;
             }
             const fdata = await res.json();
+            
+            // Vérifier à nouveau que la requête n'a pas été annulée pendant le parsing
+            if (signal.aborted) {
+                return;
+            }
+            
             if (fdata.ok && fdata.files && fdata.files.length) {
                 // Prendre le premier template disponible
                 const firstTemplate = fdata.files[0];
@@ -5517,9 +5550,20 @@ async function onPushCategoryChange(prospectId, value) {
                 window._currentPushTemplate = null;
             }
         } catch (e) {
+            // Ignorer les erreurs d'annulation (AbortError)
+            if (e.name === 'AbortError') {
+                return; // Requête annulée, ignorer
+            }
             console.error(`Erreur chargement fichiers catégorie ${v}:`, e);
-            if (templateList) templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            if (templateList && !signal.aborted) {
+                templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            }
             window._currentPushTemplate = null;
+        } finally {
+            // Nettoyer le controller si c'était la dernière requête
+            if (__categoryFetchController && __categoryFetchController.signal === signal) {
+                __categoryFetchController = null;
+            }
         }
     }
 
@@ -5859,18 +5903,35 @@ function createNewPushCategory() {
         if (data.ok) {
             showToast('Catégorie créée', 'success');
             loadPushCategoryManager();
+            // Forcer le rechargement des catégories puis mettre à jour le select
             loadPushCategories().then(() => {
                 // Recharger le select dans la fiche prospect si ouvert
                 const select = document.getElementById('detailCategorySelect');
                 if (select) {
                     const prospectId = window._currentDetailProspectId;
                     if (prospectId) {
-                        const prospect = data.prospects.find(p => p.id === prospectId);
-                        if (prospect) {
-                            select.outerHTML = renderPushCategorySelect(prospectId, prospect.push_category_id);
+                        // Utiliser l'objet global data, pas le paramètre data de la fonction
+                        const prospect = (typeof data !== 'undefined' && data.prospects) 
+                            ? data.prospects.find(p => p.id === prospectId)
+                            : null;
+                        const categoryId = prospect ? prospect.push_category_id : null;
+                        // Forcer le rechargement même si prospect est null
+                        select.outerHTML = renderPushCategorySelect(prospectId, categoryId);
+                        // Réattacher l'événement onchange si nécessaire
+                        const newSelect = document.getElementById('detailCategorySelect');
+                        if (newSelect && typeof onPushCategoryChange === 'function') {
+                            newSelect.addEventListener('change', function() {
+                                onPushCategoryChange(prospectId, this.value);
+                            });
                         }
+                    } else {
+                        // Si pas de prospectId, recharger quand même le select avec la valeur actuelle
+                        const currentValue = select.value;
+                        select.outerHTML = renderPushCategorySelect(null, currentValue);
                     }
                 }
+            }).catch(e => {
+                console.warn('Erreur rechargement catégories:', e);
             });
         } else {
             showToast(data.error || 'Erreur', 'error');
