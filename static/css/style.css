@@ -6310,8 +6310,8 @@ body[data-page=""] #fabAdd {
 .dash-widgets-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-auto-rows: auto;
-  grid-auto-flow: row;
+  grid-auto-rows: min-content;
+  grid-auto-flow: row dense;
   align-items: start;
   gap: 14px;
   transition: grid-template-columns 0.3s ease;
@@ -6324,6 +6324,8 @@ body[data-page=""] #fabAdd {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   display: flex;
   flex-direction: column;
+  /* Permettre au widget de s'étendre sur plusieurs colonnes */
+  grid-column: span 1;
 }
 .dash-widget > .card {
   flex: 1 1 auto;

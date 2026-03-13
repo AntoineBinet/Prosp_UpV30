@@ -186,11 +186,16 @@ class DashboardWidgetDragDrop {
         const rect = widget.getBoundingClientRect();
         
         // Offset depuis le coin supérieur gauche du widget jusqu'au point de clic
-        // pos.x/y sont déjà en coordonnées viewport (clientX/clientY)
+        // IMPORTANT: pos.x/y sont en coordonnées viewport (clientX/clientY)
+        // rect.left/top sont aussi en coordonnées viewport
+        // Donc l'offset est simplement la différence
         this.offset = {
             x: pos.x - rect.left,
             y: pos.y - rect.top
         };
+        
+        // Debug: vérifier que l'offset est correct
+        console.log('[DashboardDragDrop] Offset calculé:', this.offset, 'Position souris:', pos, 'Rect widget:', rect);
         
         // Sauvegarder la position originale du widget (pour le remettre après)
         this.originalRect = {
@@ -296,11 +301,12 @@ class DashboardWidgetDragDrop {
         }
         
         // Calculer la position exacte du widget pour qu'il suive le point de clic
-        // Avec position: fixed, on utilise directement clientX/clientY
+        // Avec position: fixed, on utilise directement clientX/clientY (coordonnées viewport)
+        // L'offset est calculé depuis le coin supérieur gauche du widget jusqu'au point de clic
         const x = this.currentPos.x - this.offset.x;
         const y = this.currentPos.y - this.offset.y;
         
-        // Appliquer directement avec left/top (plus précis que transform pour position: fixed)
+        // Appliquer directement avec left/top (coordonnées viewport pour position: fixed)
         this.draggedWidget.style.left = x + 'px';
         this.draggedWidget.style.top = y + 'px';
         

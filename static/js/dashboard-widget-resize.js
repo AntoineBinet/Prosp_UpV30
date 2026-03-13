@@ -239,15 +239,32 @@ class DashboardWidgetResize {
         }
         
         // Appliquer la nouvelle taille
-        this.resizedWidget.style.width = newWidth + 'px';
-        this.resizedWidget.style.minWidth = newWidth + 'px';
+        // IMPORTANT: Utiliser grid-column: span pour que le grid respecte la taille
+        if (this.options.gridSnap) {
+            const gridCols = this._getGridColumns();
+            const colWidth = this._getColumnWidth();
+            
+            if (colWidth > 0) {
+                const spans = Math.max(1, Math.round(newWidth / colWidth));
+                this.resizedWidget.style.gridColumn = `span ${spans}`;
+                // La largeur sera gérée par le grid
+                this.resizedWidget.style.width = '';
+                this.resizedWidget.style.minWidth = '';
+            } else {
+                // Fallback si on ne peut pas calculer
+                this.resizedWidget.style.width = newWidth + 'px';
+                this.resizedWidget.style.minWidth = newWidth + 'px';
+            }
+        } else {
+            // Mode libre : utiliser width directement
+            this.resizedWidget.style.width = newWidth + 'px';
+            this.resizedWidget.style.minWidth = newWidth + 'px';
+            this.resizedWidget.style.gridColumn = '';
+        }
+        
+        // Hauteur toujours en pixels (le grid gère les lignes automatiquement)
         this.resizedWidget.style.height = newHeight + 'px';
         this.resizedWidget.style.minHeight = newHeight + 'px';
-        
-        // Mettre à jour les spans grid si nécessaire
-        if (this.options.gridSnap) {
-            this._updateGridSpans(this.resizedWidget, newWidth, newHeight);
-        }
         
         event.preventDefault();
     }
@@ -335,12 +352,24 @@ class DashboardWidgetResize {
         if (!widgetId) return;
         
         const rect = widget.getBoundingClientRect();
+        const computedStyle = window.getComputedStyle(widget);
+        const gridColumn = computedStyle.gridColumn;
+        
+        // Extraire le span du grid-column (ex: "span 2" -> 2)
+        let gridColumnSpan = 1;
+        if (gridColumn && gridColumn.includes('span')) {
+            const match = gridColumn.match(/span\s+(\d+)/);
+            if (match) {
+                gridColumnSpan = parseInt(match[1], 10);
+            }
+        }
+        
         const sizes = this._loadSizes();
         
         sizes[widgetId] = {
             width: rect.width,
             height: rect.height,
-            gridColumnSpan: this._getGridColumns(),
+            gridColumnSpan: gridColumnSpan,
             lastModified: Date.now()
         };
         
@@ -369,22 +398,30 @@ class DashboardWidgetResize {
     _restoreSizes() {
         const sizes = this._loadSizes();
         const widgets = this.container.querySelectorAll(this.options.widgetSelector);
+        const gridCols = this._getGridColumns();
         
         widgets.forEach(widget => {
             const widgetId = widget.getAttribute('data-widget-id') || widget.id;
             if (!widgetId || !sizes[widgetId]) return;
             
             const size = sizes[widgetId];
-            if (size.width) {
+            
+            // Restaurer les spans grid si disponibles et si le nombre de colonnes correspond
+            if (size.gridColumnSpan && size.gridColumnSpan <= gridCols) {
+                widget.style.gridColumn = `span ${size.gridColumnSpan}`;
+                widget.style.width = '';
+                widget.style.minWidth = '';
+            } else if (size.width) {
+                // Fallback : utiliser width directement
                 widget.style.width = size.width + 'px';
                 widget.style.minWidth = size.width + 'px';
+                widget.style.gridColumn = '';
             }
+            
+            // Restaurer la hauteur
             if (size.height) {
                 widget.style.height = size.height + 'px';
                 widget.style.minHeight = size.height + 'px';
-            }
-            if (size.gridColumnSpan) {
-                widget.style.gridColumn = `span ${size.gridColumnSpan}`;
             }
         });
     }
