@@ -105,7 +105,7 @@ window.applyDashboardDisplayPrefs = applyDashboardDisplayPrefs;
 // ═══ Widgets réorganisables (v25+) — ordre sauvegardé par utilisateur ─══
 var DASH_WIDGET_ORDER_KEY = 'dashboard_widget_order';
 var DASH_WIDGET_COLUMNS_KEY = 'dashboard_widget_columns';
-var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard'];
+var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard', 'dashPrioritiesCard', 'dashAssistantCard'];
 
 function getDashboardWidgetOrder() {
     try {

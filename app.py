@@ -7459,6 +7459,98 @@ def api_tasks_delete():
     return jsonify({"ok": True})
 
 
+# ====== Task Rules API (v26.6) ======
+@app.get("/api/tasks/rules")
+@login_required
+def api_tasks_rules_list():
+    """Lister les règles de création automatique de tâches."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM task_rules WHERE owner_id=? OR owner_id IS NULL ORDER BY name;",
+            (uid,)
+        ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["conditions"] = json.loads(d.get("conditions") or "{}")
+        except Exception:
+            d["conditions"] = {}
+        d["enabled"] = bool(d.get("enabled"))
+        out.append(d)
+    return jsonify({"ok": True, "rules": out})
+
+
+@app.post("/api/tasks/rules")
+@login_required
+@role_required("admin")
+def api_tasks_rules_save():
+    """Créer ou modifier une règle de création automatique de tâches (admin uniquement)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    trigger_type = (payload.get("trigger_type") or "").strip()
+    template_title = (payload.get("template_title") or "").strip()
+    
+    if not name:
+        return jsonify({"ok": False, "error": "name is required"}), 400
+    if not trigger_type:
+        return jsonify({"ok": False, "error": "trigger_type is required"}), 400
+    if not template_title:
+        return jsonify({"ok": False, "error": "template_title is required"}), 400
+    
+    if trigger_type not in ("prospect_created", "status_changed", "meeting_done", "daily_check"):
+        return jsonify({"ok": False, "error": "trigger_type invalide"}), 400
+    
+    conditions = payload.get("conditions") or {}
+    template_comment = (payload.get("template_comment") or "").strip()
+    priority = int(payload.get("priority") or 2)
+    enabled = 1 if payload.get("enabled") else 0
+    
+    conditions_json = json.dumps(conditions, ensure_ascii=False)
+    now = _now_iso()
+    rule_id = payload.get("id")
+    
+    with _conn() as conn:
+        if rule_id:
+            # Mise à jour
+            conn.execute(
+                "UPDATE task_rules SET name=?, trigger_type=?, conditions=?, template_title=?, template_comment=?, priority=?, enabled=?, updatedAt=? WHERE id=? AND owner_id=?;",
+                (name, trigger_type, conditions_json, template_title, template_comment, priority, enabled, now, int(rule_id), uid)
+            )
+        else:
+            # Création
+            cursor = conn.execute(
+                "INSERT INTO task_rules (name, trigger_type, conditions, template_title, template_comment, priority, enabled, owner_id, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                (name, trigger_type, conditions_json, template_title, template_comment, priority, enabled, uid, now, now)
+            )
+            rule_id = cursor.lastrowid
+    
+    return jsonify({"ok": True, "id": rule_id})
+
+
+@app.post("/api/tasks/rules/delete")
+@login_required
+@role_required("admin")
+def api_tasks_rules_delete():
+    """Supprimer une règle de création automatique de tâches (admin uniquement)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    rule_id = payload.get("id")
+    if not rule_id:
+        return jsonify({"ok": False, "error": "id is required"}), 400
+    with _conn() as conn:
+        conn.execute("DELETE FROM task_rules WHERE id=? AND owner_id=?;", (int(rule_id), uid))
+    return jsonify({"ok": True})
+
+
 # ====== Company / Opportunities API (v6) ======
 @app.get("/api/company/full")
 def api_company_full():
