@@ -6987,8 +6987,38 @@ async function confirmPushSend() {
 }
 
 async function openEmailForProspect(prospectId) {
-    // v25.3: Ouvrir la modale de sélection candidats/consultants
-    await openPushSelectModal(prospectId);
+    // Feedback visuel immédiat : désactiver le bouton et afficher un indicateur
+    const emailBtn = event?.target?.closest('button') || document.querySelector(`button[onclick*="openEmailForProspect(${prospectId})"]`);
+    const originalText = emailBtn?.textContent || emailBtn?.innerHTML || '';
+    const originalDisabled = emailBtn?.disabled;
+    
+    if (emailBtn) {
+        emailBtn.disabled = true;
+        emailBtn.style.opacity = '0.6';
+        emailBtn.style.cursor = 'wait';
+        const loadingText = emailBtn.textContent?.includes('Email') ? '⏳ Ouverture...' : '⏳';
+        if (emailBtn.textContent) emailBtn.textContent = loadingText;
+        else if (emailBtn.innerHTML) emailBtn.innerHTML = loadingText;
+    }
+    
+    try {
+        // v25.3: Ouvrir la modale de sélection candidats/consultants
+        await openPushSelectModal(prospectId);
+    } catch (e) {
+        console.error('Erreur ouverture modale email', e);
+        showToast('❌ Erreur lors de l\'ouverture de la modale email', 'error');
+    } finally {
+        // Restaurer le bouton après un court délai (pour que l'utilisateur voie le feedback)
+        setTimeout(() => {
+            if (emailBtn) {
+                emailBtn.disabled = originalDisabled || false;
+                emailBtn.style.opacity = '';
+                emailBtn.style.cursor = '';
+                if (emailBtn.textContent) emailBtn.textContent = originalText;
+                else if (emailBtn.innerHTML) emailBtn.innerHTML = originalText;
+            }
+        }, 500);
+    }
 }
 
 
