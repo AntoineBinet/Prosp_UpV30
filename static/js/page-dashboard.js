@@ -70,16 +70,19 @@ function renderDashboard(d) {
     renderPushAnalytics();
     
     // Appliquer les préférences d'affichage APRÈS le rendu de tous les widgets
-    // et réorganiser l'ordre APRÈS l'application des préférences
-    setTimeout(function() {
-        if (typeof window.applyDashboardDisplayPrefs === 'function') {
-            window.applyDashboardDisplayPrefs();
-        }
-        // Réorganiser l'ordre après application des préférences
-        applyDashboardWidgetOrder();
-        // Réinitialiser le drag & drop après le tout
-        initDashboardWidgetDragDrop();
-    }, 150);
+    if (typeof window.applyDashboardDisplayPrefs === 'function') {
+        window.applyDashboardDisplayPrefs();
+    }
+    // Réorganiser l'ordre après application des préférences
+    applyDashboardWidgetOrder();
+    
+    // Réinitialiser le drag & drop après le rendu (sans timeout pour éviter les conflits)
+    // Le drag & drop sera réinitialisé une dernière fois dans le DOMContentLoaded
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(function() {
+            initDashboardWidgetDragDrop();
+        }, 100);
+    }
 }
 
 // Applique les préférences d'affichage des cartes du dashboard
@@ -254,9 +257,13 @@ var _dashboardDraggedWidget = null;
 
 function initDashboardWidgetDragDrop() {
     var container = document.getElementById('dashWidgetsContainer');
-    if (!container) return;
+    if (!container) {
+        console.warn('[Dashboard] dashWidgetsContainer non trouvé');
+        return;
+    }
     
     // Nettoyer les anciens event listeners si déjà initialisé
+    // Le clonage retire tous les event listeners précédents
     if (_dashboardDragDropInitialized) {
         container.querySelectorAll('.dash-widget-handle').forEach(function (handle) {
             var newHandle = handle.cloneNode(true);
@@ -270,12 +277,17 @@ function initDashboardWidgetDragDrop() {
     
     _dashboardDraggedWidget = null;
     
-    // Attacher les événements sur les handles
+    // Attacher les événements sur les handles (poignées de drag)
     container.querySelectorAll('.dash-widget-handle').forEach(function (handle) {
+        // S'assurer que draggable est activé
         handle.setAttribute('draggable', 'true');
+        
         handle.addEventListener('dragstart', function (e) {
             var w = handle.closest('.dash-widget');
-            if (!w) return;
+            if (!w) {
+                console.warn('[Dashboard] Widget parent non trouvé pour handle');
+                return;
+            }
             _dashboardDraggedWidget = w;
             e.dataTransfer.setData('text/plain', w.getAttribute('data-widget-id') || '');
             e.dataTransfer.effectAllowed = 'move';
@@ -283,6 +295,7 @@ function initDashboardWidgetDragDrop() {
             // Feedback haptique si disponible
             if (typeof window.haptic === 'function') window.haptic(10);
         });
+        
         handle.addEventListener('dragend', function (e) {
             if (_dashboardDraggedWidget) {
                 _dashboardDraggedWidget.classList.remove('dash-widget-dragging');
@@ -304,6 +317,7 @@ function initDashboardWidgetDragDrop() {
                 w.classList.add('dash-widget-drag-over');
             }
         });
+        
         w.addEventListener('dragleave', function (e) {
             // Ne retirer la classe que si on quitte vraiment le widget
             var rect = w.getBoundingClientRect();
@@ -313,6 +327,7 @@ function initDashboardWidgetDragDrop() {
                 w.classList.remove('dash-widget-drag-over');
             }
         });
+        
         w.addEventListener('drop', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -340,6 +355,7 @@ function initDashboardWidgetDragDrop() {
     });
     
     _dashboardDragDropInitialized = true;
+    console.log('[Dashboard] Drag & drop initialisé');
 }
 
 // Note: L'application de l'ordre et des colonnes est maintenant gérée dans le DOMContentLoaded
@@ -1157,15 +1173,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     await Promise.all([loadDashboard(), loadDashTasks(), loadAdaptiveDashboard()]);
     
     // Appliquer les préférences d'affichage une dernière fois après tout le chargement
+    // et initialiser le drag & drop une seule fois à la fin
     setTimeout(function() {
         if (typeof window.applyDashboardDisplayPrefs === 'function') {
             window.applyDashboardDisplayPrefs();
         }
         // Réorganiser l'ordre après application des préférences
         applyDashboardWidgetOrder();
-        // Initialiser le drag & drop
+        // Initialiser le drag & drop UNE SEULE FOIS à la fin (après que tout soit stable)
         initDashboardWidgetDragDrop();
-    }, 200);
+    }, 350);
 });
 
 // Exposer la fonction globalement
