@@ -8319,46 +8319,61 @@ def api_push_analytics():
         variant_stats = []
         # Vérifier que la table push_variants existe (peut être absente sur anciennes DB)
         try:
+            # Tester si la table existe
             conn.execute("SELECT 1 FROM push_variants LIMIT 1").fetchone()
-            variant_rows = conn.execute(
-                f"""
-                SELECT 
-                    v.variant_id,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN v.opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened,
-                    SUM(CASE WHEN v.clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicked,
-                    SUM(CASE WHEN v.replied_at IS NOT NULL THEN 1 ELSE 0 END) as replied
-                FROM push_variants v
-                JOIN push_logs l ON l.id = v.push_log_id
-                WHERE {base_where.replace('l.', '')}
-                GROUP BY v.variant_id
-                """,
-                params,
-            ).fetchall()
+            table_exists = True
         except sqlite3.OperationalError as e:
             if "no such table: push_variants" in str(e):
-                # Table absente : créer la table et réessayer
+                # Table absente : créer la table
                 logger.warning("Table push_variants absente, création...")
-                conn.executescript("""
-                    CREATE TABLE IF NOT EXISTS push_variants (
-                        id            INTEGER PRIMARY KEY,
-                        push_log_id   INTEGER NOT NULL,
-                        variant_id    TEXT NOT NULL,
-                        subject       TEXT,
-                        body          TEXT,
-                        sent_at       TEXT,
-                        opened_at     TEXT,
-                        clicked_at    TEXT,
-                        replied_at    TEXT,
-                        createdAt     TEXT NOT NULL,
-                        FOREIGN KEY(push_log_id) REFERENCES push_logs(id) ON DELETE CASCADE
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_push_variants_push_log_id ON push_variants(push_log_id);
-                    CREATE INDEX IF NOT EXISTS idx_push_variants_variant_id ON push_variants(variant_id);
-                """)
-                variant_rows = []  # Pas de données après création
+                try:
+                    conn.executescript("""
+                        CREATE TABLE IF NOT EXISTS push_variants (
+                            id            INTEGER PRIMARY KEY,
+                            push_log_id   INTEGER NOT NULL,
+                            variant_id    TEXT NOT NULL,
+                            subject       TEXT,
+                            body          TEXT,
+                            sent_at       TEXT,
+                            opened_at     TEXT,
+                            clicked_at    TEXT,
+                            replied_at    TEXT,
+                            createdAt     TEXT NOT NULL,
+                            FOREIGN KEY(push_log_id) REFERENCES push_logs(id) ON DELETE CASCADE
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_push_variants_push_log_id ON push_variants(push_log_id);
+                        CREATE INDEX IF NOT EXISTS idx_push_variants_variant_id ON push_variants(variant_id);
+                    """)
+                    table_exists = True
+                    logger.info("Table push_variants créée avec succès")
+                except Exception as create_err:
+                    logger.error("Impossible de créer push_variants: %s", create_err)
+                    table_exists = False
             else:
                 raise
+        
+        if table_exists:
+            try:
+                variant_rows = conn.execute(
+                    f"""
+                    SELECT 
+                        v.variant_id,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN v.opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened,
+                        SUM(CASE WHEN v.clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicked,
+                        SUM(CASE WHEN v.replied_at IS NOT NULL THEN 1 ELSE 0 END) as replied
+                    FROM push_variants v
+                    JOIN push_logs l ON l.id = v.push_log_id
+                    WHERE {base_where}
+                    GROUP BY v.variant_id
+                    """,
+                    params,
+                ).fetchall()
+            except sqlite3.OperationalError as e:
+                logger.error("Erreur lors de la requête push_variants: %s", e)
+                variant_rows = []
+        else:
+            variant_rows = []
         for row in variant_rows:
             total = row["total"]
             if total > 0:
