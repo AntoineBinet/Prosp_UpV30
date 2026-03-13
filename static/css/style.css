@@ -1464,122 +1464,325 @@ table th, table td {
     transition: all 0.2s ease;
 }
 
-/* Styles compacts pour le tableau des entreprises */
-body[data-page="companies"] .table-wrapper th,
-body[data-page="companies"] .table-wrapper td {
-    padding: 2px 8px !important;
-    line-height: 1.15 !important;
+/* ============================================
+   REDESIGN MODERNE - TABLEAU DES ENTREPRISES
+   ============================================ */
+
+/* Container principal - design épuré */
+body[data-page="companies"] .table-container {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
 }
 
-body[data-page="companies"] .company-name-cell {
-    padding: 2px 8px !important;
-    line-height: 1.15;
+body[data-page="companies"] .table-wrapper table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--color-surface);
+    border-radius: 12px;
+    overflow: hidden;
 }
 
-body[data-page="companies"] .company-name-wrapper {
-    margin-bottom: 0;
-    gap: 3px;
-    line-height: 1.1;
-}
-
-body[data-page="companies"] .company-groupe {
-    font-size: 13px;
-    line-height: 1.1;
-}
-
-body[data-page="companies"] .company-site-cell {
-    font-size: 12px;
-    padding: 2px 8px !important;
-    line-height: 1.15;
-}
-
-body[data-page="companies"] .company-count-cell {
-    padding: 2px 8px !important;
-    line-height: 1;
-}
-
-body[data-page="companies"] .count-badge {
-    min-width: 22px;
-    height: 22px;
-    padding: 0 6px;
-    border-radius: 11px;
-    font-size: 11px;
-    line-height: 1;
-}
-
-body[data-page="companies"] .company-actions-cell {
-    padding: 2px 8px !important;
-    line-height: 1;
-}
-
-body[data-page="companies"] .company-actions-group {
-    gap: 3px;
-    max-width: 90px;
-}
-
-body[data-page="companies"] .btn-action {
-    min-width: 32px;
-    min-height: 32px;
-    border-radius: 6px;
-    line-height: 1;
-}
-
-body[data-page="companies"] .btn-action-icon {
-    font-size: 13px;
-}
-
-body[data-page="companies"] .company-note-snippet {
-    margin-top: 0;
-    padding: 2px 6px;
-    border-radius: 6px;
-    font-size: 11px;
-    gap: 3px;
-    line-height: 1.2;
-}
-
-body[data-page="companies"] .company-note-empty {
-    font-size: 10px;
-    line-height: 1.2;
-}
-
-body[data-page="companies"] .company-note-edit {
-    font-size: 11px;
-}
-
-body[data-page="companies"] .company-note-editor textarea {
-    min-height: 35px;
-    padding: 3px 6px;
-    border-radius: 6px;
-    font-size: 12px;
-    line-height: 1.2;
-}
-
-body[data-page="companies"] .company-note-editor .note-actions {
-    gap: 3px;
-    margin-top: 3px;
-}
-
-body[data-page="companies"] .company-note-editor .note-actions .btn {
-    padding: 2px 8px;
-    font-size: 11px;
-    line-height: 1.1;
+/* En-têtes - style moderne et discret */
+body[data-page="companies"] .table-wrapper thead {
+    background: rgba(var(--color-primary-rgb), 0.05);
 }
 
 body[data-page="companies"] .table-wrapper thead th {
-    padding: 4px 8px !important;
+    padding: 12px 16px !important;
     font-size: 11px;
     font-weight: 600;
-    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
+    border-bottom: 2px solid var(--color-border);
+    line-height: 1.4;
 }
 
+body[data-page="companies"] .table-wrapper thead th.center {
+    text-align: center;
+}
+
+/* Lignes du tableau - design moderne */
 body[data-page="companies"] .table-wrapper tbody tr {
-    height: auto;
-    min-height: auto;
-    line-height: 1.15;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
 }
 
+body[data-page="companies"] .table-wrapper tbody tr:last-child {
+    border-bottom: none;
+}
+
+body[data-page="companies"] .table-wrapper tbody tr:hover {
+    background: rgba(var(--color-primary-rgb), 0.03);
+    transform: translateX(2px);
+    box-shadow: -2px 0 0 var(--color-primary);
+}
+
+body[data-page="companies"] .table-wrapper tbody tr.company-focus {
+    background: rgba(var(--color-primary-rgb), 0.08);
+    box-shadow: -3px 0 0 var(--color-primary);
+}
+
+/* Cellules - espacement optimal */
 body[data-page="companies"] .table-wrapper tbody td {
+    padding: 14px 16px !important;
     vertical-align: middle;
+    line-height: 1.5;
+    border: none;
+}
+
+/* Colonne Groupe - hiérarchie visuelle claire */
+body[data-page="companies"] .company-name-cell {
+    padding: 14px 16px !important;
+}
+
+body[data-page="companies"] .company-name-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+body[data-page="companies"] .company-groupe {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+    line-height: 1.3;
+}
+
+body[data-page="companies"] .company-default-badge {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    font-style: italic;
+    font-weight: normal;
+    padding: 2px 6px;
+    background: rgba(var(--color-text-rgb), 0.08);
+    border-radius: 4px;
+}
+
+/* Notes - design intégré et élégant */
+body[data-page="companies"] .company-note-snippet {
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    line-height: 1.4;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+body[data-page="companies"] .company-note-snippet:hover {
+    background: var(--color-surface);
+    border-color: rgba(var(--color-primary-rgb), 0.3);
+    color: var(--color-text);
+}
+
+body[data-page="companies"] .company-note-empty {
+    font-size: 11px;
+    opacity: 0.6;
+    font-style: italic;
+}
+
+body[data-page="companies"] .company-note-edit {
+    opacity: 0.5;
+    font-size: 12px;
+    flex-shrink: 0;
+    transition: opacity 0.2s;
+}
+
+body[data-page="companies"] .company-note-snippet:hover .company-note-edit {
+    opacity: 0.8;
+}
+
+body[data-page="companies"] .company-note-editor textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    font-family: inherit;
+}
+
+body[data-page="companies"] .company-note-editor .note-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    justify-content: flex-end;
+}
+
+body[data-page="companies"] .company-note-editor .note-actions .btn {
+    padding: 6px 16px;
+    font-size: 12px;
+}
+
+/* Colonne Site */
+body[data-page="companies"] .company-site-cell {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    padding: 14px 16px !important;
+}
+
+/* Badges de comptage - design moderne et coloré */
+body[data-page="companies"] .company-count-cell {
+    padding: 14px 16px !important;
+    text-align: center;
+}
+
+body[data-page="companies"] .count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 14px;
+    font-weight: 600;
+    font-size: 12px;
+    background: var(--color-surface-2);
+    color: var(--color-text-secondary);
+    transition: all 0.2s ease;
+    border: 1px solid var(--color-border);
+}
+
+body[data-page="companies"] .count-badge.has-prospects {
+    background: rgba(var(--color-primary-rgb), 0.15);
+    color: var(--color-primary);
+    border-color: rgba(var(--color-primary-rgb), 0.2);
+}
+
+body[data-page="companies"] .count-badge.rdv.has-rdv {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.3);
+}
+
+body[data-page="companies"] .count-badge.callable.has-callable {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+/* Actions - design moderne et discret */
+body[data-page="companies"] .company-actions-cell {
+    padding: 14px 16px !important;
+}
+
+body[data-page="companies"] .company-actions-group {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    align-items: center;
+}
+
+body[data-page="companies"] .btn-action {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface-2);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+body[data-page="companies"] .btn-action::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+body[data-page="companies"] .btn-action:hover {
+    border-color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.1);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.2);
+}
+
+body[data-page="companies"] .btn-action:active {
+    transform: translateY(0);
+}
+
+body[data-page="companies"] .btn-action-icon {
+    font-size: 16px;
+    position: relative;
+    z-index: 1;
+    filter: grayscale(0.3);
+    transition: filter 0.2s;
+}
+
+body[data-page="companies"] .btn-action:hover .btn-action-icon {
+    filter: grayscale(0);
+}
+
+body[data-page="companies"] .btn-action-view {
+    color: #3b82f6;
+}
+
+body[data-page="companies"] .btn-action-prospects {
+    color: var(--color-primary);
+}
+
+body[data-page="companies"] .btn-action-edit {
+    color: #f59e0b;
+}
+
+body[data-page="companies"] .btn-action-delete {
+    color: #ef4444;
+}
+
+body[data-page="companies"] .btn-action:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Responsive - ajustements pour petits écrans */
+@media (max-width: 768px) {
+    body[data-page="companies"] .table-wrapper thead th,
+    body[data-page="companies"] .table-wrapper tbody td {
+        padding: 10px 12px !important;
+    }
+    
+    body[data-page="companies"] .company-groupe {
+        font-size: 14px;
+    }
+    
+    body[data-page="companies"] .count-badge {
+        min-width: 24px;
+        height: 24px;
+        font-size: 11px;
+    }
+    
+    body[data-page="companies"] .btn-action {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        min-height: 32px;
+    }
 }
 
 .count-badge.has-prospects {
