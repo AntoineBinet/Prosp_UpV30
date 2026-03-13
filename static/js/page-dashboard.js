@@ -246,139 +246,47 @@ function applyDashboardWidgetOrder() {
     });
 }
 
-// ═══ Système de glisser-déposer amélioré et modulaire ═══
-var _dashboardDragDropInitialized = false;
-var _dashboardDraggedWidget = null;
+// ═══ Système de glisser-déposer unifié (desktop + mobile) ═══
+// Utilise la classe DashboardWidgetDragDrop pour un système robuste et modulaire
 
 function initDashboardWidgetDragDrop() {
-    // Éviter les initialisations multiples sauf si explicitement réinitialisé
-    if (_dashboardDragDropInitialized) {
-        console.log('[Dashboard] Drag & drop déjà initialisé, skip (utilisez resetDashboardWidgets() pour réinitialiser)');
-        return;
-    }
-    
-    var container = document.getElementById('dashWidgetsContainer');
+    const container = document.getElementById('dashWidgetsContainer');
     if (!container) {
         console.warn('[Dashboard] dashWidgetsContainer non trouvé');
         return;
     }
     
-    // Vérifier qu'il y a des widgets
-    var widgets = container.querySelectorAll('.dash-widget');
-    if (widgets.length === 0) {
-        console.warn('[Dashboard] Aucun widget trouvé pour le drag & drop');
+    // Détruire l'ancienne instance si elle existe
+    if (window._dashboardDragDropInstance) {
+        window._dashboardDragDropInstance.destroy();
+        window._dashboardDragDropInstance = null;
+    }
+    
+    // Vérifier que la classe est disponible
+    if (typeof DashboardWidgetDragDrop === 'undefined') {
+        console.error('[Dashboard] DashboardWidgetDragDrop non disponible. Vérifiez que dashboard-widget-dragdrop.js est chargé.');
         return;
     }
     
-    // Réinitialiser l'état
-    _dashboardDraggedWidget = null;
-    
-    // Retirer TOUS les anciens event listeners en clonant les handles uniquement
-    var handles = container.querySelectorAll('.dash-widget-handle');
-    handles.forEach(function (handle) {
-        var newHandle = handle.cloneNode(true);
-        handle.parentNode.replaceChild(newHandle, handle);
+    // Créer nouvelle instance
+    window._dashboardDragDropInstance = new DashboardWidgetDragDrop('#dashWidgetsContainer', {
+        handleSelector: '.dash-widget-handle',
+        widgetSelector: '.dash-widget',
+        dragThreshold: 5,
+        animationDuration: 200
     });
     
-    // Attacher les événements sur les handles (nouveaux après clonage)
-    container.querySelectorAll('.dash-widget-handle').forEach(function (handle) {
-        handle.setAttribute('draggable', 'true');
-        
-        handle.addEventListener('dragstart', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            var w = handle.closest('.dash-widget');
-            if (!w) {
-                console.warn('[Dashboard] Widget parent non trouvé pour handle');
-                e.preventDefault();
-                return;
-            }
-            _dashboardDraggedWidget = w;
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', w.getAttribute('data-widget-id') || w.id || '');
-            w.classList.add('dash-widget-dragging');
-            if (typeof window.haptic === 'function') window.haptic(10);
-            console.log('[Dashboard] Drag start:', w.id || w.getAttribute('data-widget-id'));
-        }, { passive: false, once: false });
-        
-        handle.addEventListener('dragend', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (_dashboardDraggedWidget) {
-                _dashboardDraggedWidget.classList.remove('dash-widget-dragging');
-                _dashboardDraggedWidget = null;
-            }
-            container.querySelectorAll('.dash-widget').forEach(function (w) { 
-                w.classList.remove('dash-widget-drag-over'); 
-            });
-            console.log('[Dashboard] Drag end');
-        }, { passive: false, once: false });
-    });
-
-    // Pour les widgets, on ne clone PAS pour éviter de perdre le contenu
-    // On réinitialise le flag pour permettre la réinitialisation si nécessaire
-    container.querySelectorAll('.dash-widget').forEach(function (w) {
-        // Retirer le flag pour permettre la réinitialisation
-        w.removeAttribute('data-drag-initialized');
-        
-        w.addEventListener('dragover', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (_dashboardDraggedWidget && _dashboardDraggedWidget !== w) {
-                e.dataTransfer.dropEffect = 'move';
-                w.classList.add('dash-widget-drag-over');
-            } else {
-                e.dataTransfer.dropEffect = 'none';
-            }
-        }, { passive: false });
-        
-        w.addEventListener('dragleave', function (e) {
-            e.stopPropagation();
-            var rect = w.getBoundingClientRect();
-            var x = e.clientX || 0;
-            var y = e.clientY || 0;
-            if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-                w.classList.remove('dash-widget-drag-over');
-            }
-        }, { passive: false });
-        
-        w.addEventListener('drop', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            w.classList.remove('dash-widget-drag-over');
-            
-            if (!_dashboardDraggedWidget || _dashboardDraggedWidget === w) {
-                _dashboardDraggedWidget = null;
-                return;
-            }
-            
-            var rect = w.getBoundingClientRect();
-            var y = e.clientY;
-            var midY = rect.top + rect.height / 2;
-            
-            if (y < midY) {
-                container.insertBefore(_dashboardDraggedWidget, w);
-            } else {
-                var next = w.nextElementSibling;
-                if (next) {
-                    container.insertBefore(_dashboardDraggedWidget, next);
-                } else {
-                    container.appendChild(_dashboardDraggedWidget);
-                }
-            }
-            
-            _dashboardDraggedWidget = null;
+    // Callback pour sauvegarder l'ordre
+    window._dashboardDragDropInstance.onOrderChange = function() {
+        if (typeof saveDashboardWidgetOrder === 'function') {
             saveDashboardWidgetOrder();
-            if (typeof window.haptic === 'function') window.haptic(20);
-            console.log('[Dashboard] Drop effectué, ordre sauvegardé');
-        }, { passive: false });
-        
-        // Marquer le widget comme initialisé
-        w.setAttribute('data-drag-initialized', 'true');
-    });
+        }
+    };
     
-    _dashboardDragDropInitialized = true;
-    console.log('[Dashboard] Drag & drop initialisé sur', container.querySelectorAll('.dash-widget').length, 'widgets');
+    // Initialiser
+    window._dashboardDragDropInstance.init();
+    
+    console.log('[Dashboard] Drag & drop initialisé (nouveau système unifié)');
 }
 
 // Note: L'application de l'ordre et des colonnes est maintenant gérée dans le DOMContentLoaded
@@ -1169,10 +1077,7 @@ function resetDashboardWidgets() {
     } catch (e) {}
     applyDashboardWidgetOrder();
     
-    // Réinitialiser le flag pour permettre une nouvelle initialisation du drag & drop
-    _dashboardDragDropInitialized = false;
-    
-    // Réinitialiser le drag & drop
+    // Réinitialiser le drag & drop (le nouveau système gère sa propre réinitialisation)
     initDashboardWidgetDragDrop();
     
     if (typeof showToast === 'function') {

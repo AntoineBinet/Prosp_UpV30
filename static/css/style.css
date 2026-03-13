@@ -6383,13 +6383,14 @@ body[data-page=""] #fabAdd {
 
 /* ─── États de drag & drop ─── */
 .dash-widget.dash-widget-dragging {
-  opacity: 0.85;
-  transform: scale(1.03) rotate(1deg);
+  opacity: 0.9;
+  transform: scale(1.02) rotate(0.5deg);
   box-shadow: 0 20px 50px rgba(0,0,0,0.4), 0 0 0 3px var(--color-primary);
   z-index: 1000;
-  transition: none;
+  transition: none !important;
   cursor: grabbing !important;
   border-radius: 12px;
+  will-change: transform;
 }
 .dash-widget.dash-widget-drag-over {
   outline: 2px dashed var(--color-primary);
@@ -6409,6 +6410,20 @@ body[data-page=""] #fabAdd {
   padding: 10px 18px;
   border-radius: 10px;
   font-size: 13px;
+}
+
+/* ─── Placeholder pour drag & drop ─── */
+.dash-widget-placeholder {
+  opacity: 0.3;
+  border: 2px dashed var(--color-primary, #3b82f6);
+  border-radius: 12px;
+  background-color: rgba(59, 130, 246, 0.1);
+  pointer-events: none;
+  transition: none;
+  margin: 0;
+  padding: 0;
+  min-height: 100px;
+}
   font-weight: 700;
   z-index: 100;
   pointer-events: none;
