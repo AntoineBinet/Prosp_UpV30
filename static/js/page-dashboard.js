@@ -342,18 +342,8 @@ function initDashboardWidgetDragDrop() {
     _dashboardDragDropInitialized = true;
 }
 
-// Appliquer l’ordre sauvegardé au chargement de la page
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
-        applyDashboardColumns();
-        applyDashboardWidgetOrder();
-        initDashboardWidgetDragDrop();
-    });
-} else {
-    applyDashboardColumns();
-    applyDashboardWidgetOrder();
-    initDashboardWidgetDragDrop();
-}
+// Note: L'application de l'ordre et des colonnes est maintenant gérée dans le DOMContentLoaded
+// pour éviter les conflits de timing avec le chargement des données
 
 // Exposer les fonctions globalement pour les boutons de contrôle
 window.setDashboardColumns = setDashboardColumns;
