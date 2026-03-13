@@ -47,6 +47,16 @@ const AppAuth = {
             if (existingHeaderBadge) existingHeaderBadge.remove();
             if (headerCenter) {
                 headerCenter.insertAdjacentHTML('beforeend', badgeHtml);
+                // Ajouter le gestionnaire de clic sur le badge (mais pas sur le bouton logout)
+                const badge = headerCenter.querySelector('.user-session-badge');
+                if (badge) {
+                    badge.style.cursor = 'pointer';
+                    badge.addEventListener('click', function(e) {
+                        // Ne pas rediriger si on clique sur le bouton de déconnexion
+                        if (e.target.closest('.user-session-logout')) return;
+                        window.location.href = '/parametres';
+                    });
+                }
                 return true;
             }
             return false;

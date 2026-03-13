@@ -228,10 +228,12 @@ header {
     border: 1px solid var(--color-border);
     backdrop-filter: blur(12px);
     box-shadow: 0 4px 16px rgba(0,0,0,.2);
-    transition: opacity .28s ease, transform .28s ease, width .28s ease, min-width .28s ease, padding .28s ease, margin .28s ease;
+    transition: opacity .28s ease, transform .28s ease, background .2s ease;
     min-width: 140px;
+    flex-shrink: 0;
     overflow: hidden;
     order: 2;
+    cursor: pointer;
 }
 
 .header-center .user-session-badge .user-session-avatar {
@@ -7560,13 +7562,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 
 /* Keep user badge inside collapsed sidebar */
 .sidebar-collapsed .sidebar-footer { padding: 10px 6px !important; overflow: hidden; }
-.sidebar-collapsed .user-session-badge {
-  padding: 8px 0 !important;
-  justify-content: center;
-  gap: 0 !important;
-}
-.sidebar-collapsed .user-session-info { display: none !important; }
-.sidebar-collapsed .user-session-logout { display: none !important; }
+/* Styles supprimés : le badge utilisateur n'est plus dans la sidebar (v25) */
 /* Tooltip on hover when collapsed (!important pour primer sur la désactivation du tooltip global) */
 .sidebar-collapsed .sidebar .nav-button:hover::after {
   content: attr(data-tooltip) !important;
