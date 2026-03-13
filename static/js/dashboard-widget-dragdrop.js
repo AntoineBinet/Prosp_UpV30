@@ -194,9 +194,6 @@ class DashboardWidgetDragDrop {
             y: pos.y - rect.top
         };
         
-        // Debug: vérifier que l'offset est correct
-        console.log('[DashboardDragDrop] Offset calculé:', this.offset, 'Position souris:', pos, 'Rect widget:', rect);
-        
         // Sauvegarder la position originale du widget (pour le remettre après)
         this.originalRect = {
             left: rect.left,
