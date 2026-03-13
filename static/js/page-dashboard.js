@@ -76,13 +76,8 @@ function renderDashboard(d) {
     // Réorganiser l'ordre après application des préférences
     applyDashboardWidgetOrder();
     
-    // Réinitialiser le drag & drop après le rendu (sans timeout pour éviter les conflits)
-    // Le drag & drop sera réinitialisé une dernière fois dans le DOMContentLoaded
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(function() {
-            initDashboardWidgetDragDrop();
-        }, 100);
-    }
+    // Note: Le drag & drop sera initialisé UNE SEULE FOIS dans le DOMContentLoaded
+    // après le chargement complet pour éviter les conflits de timing
 }
 
 // Applique les préférences d'affichage des cartes du dashboard
