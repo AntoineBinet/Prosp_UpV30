@@ -35,6 +35,33 @@
     </div>
     {% block modals %}{% endblock %}
     {% block fab %}{% endblock %}
+    
+    <!-- Bouton flottant Assistant virtuel (disponible partout) -->
+    <button class="fab fab-icon-only" id="dashAssistantFab" onclick="toggleAssistantChat()" title="Assistant virtuel" style="display:none;">
+      <span class="fab-icon">🤖</span>
+    </button>
+
+    <!-- Fenêtre de chat Assistant (s'ouvre depuis le bouton) -->
+    <div id="assistantChatWindow" class="assistant-chat-window">
+      <div class="assistant-chat-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">🤖</span>
+          <span style="font-weight:600;font-size:14px;">Assistant virtuel</span>
+        </div>
+        <button type="button" class="assistant-chat-close" onclick="toggleAssistantChat()" title="Fermer">×</button>
+      </div>
+      <div id="dashAssistantChat" class="assistant-chat-messages"></div>
+      <div class="assistant-chat-input-container">
+        <input type="text" id="dashAssistantInput" class="assistant-chat-input" placeholder="Posez une question…" onkeypress="if(event.key==='Enter') sendAssistantMessage()" />
+        <button id="dashAssistantSend" class="assistant-chat-send" onclick="sendAssistantMessage()" title="Envoyer">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </div>
+    
     {% block scripts %}
     <script defer src="/static/js/sidebar.js?v=2000"></script>
     <script defer src="/static/js/v8-features.js?v=2100"></script>

@@ -7,6 +7,18 @@ window.onerror = function(msg, src, line) {
     console.error("[Prosp'Up] Error:", msg, "at", src + ":" + line);
 };
 
+// ═══ Initialiser le bouton assistant sur toutes les pages ═══
+document.addEventListener('DOMContentLoaded', function() {
+    const fab = document.getElementById('dashAssistantFab');
+    if (fab) {
+        // Afficher le bouton si l'utilisateur est connecté (pas sur login)
+        const isLoginPage = window.location.pathname === '/login' || document.body.getAttribute('data-page') === 'login';
+        if (!isLoginPage) {
+            fab.style.display = 'flex';
+        }
+    }
+});
+
 // ═══════════════════════════════════════════════════════════════════
 // Mise à jour des boutons IA avec le nom du modèle configuré
 // ═══════════════════════════════════════════════════════════════════

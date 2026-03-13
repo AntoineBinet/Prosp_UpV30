@@ -1227,8 +1227,23 @@ function executeAssistantAction(action) {
 
 // Note: L'envoi avec Enter est géré directement dans le HTML via onkeypress
 
+// ═══ Afficher le bouton assistant sur toutes les pages ═══
+function initAssistantButton() {
+    const fab = document.getElementById('dashAssistantFab');
+    if (fab) {
+        // Afficher le bouton si l'utilisateur est connecté (pas sur login)
+        const isLoginPage = window.location.pathname === '/login' || document.body.getAttribute('data-page') === 'login';
+        if (!isLoginPage) {
+            fab.style.display = 'flex';
+        }
+    }
+}
+
 // ═══ Boot ═══
 document.addEventListener('DOMContentLoaded', async () => {
+    // Initialiser le bouton assistant
+    initAssistantButton();
+    
     if (typeof window.applyDashboardDisplayPrefs === 'function') window.applyDashboardDisplayPrefs();
     try {
         const fn = window.bootstrap || window.appBootstrap;
