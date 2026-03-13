@@ -1610,6 +1610,56 @@ CREATE TABLE IF NOT EXISTS candidate_tabs (
 CREATE INDEX IF NOT EXISTS idx_candidate_tabs_candidate ON candidate_tabs(candidate_id);
 CREATE INDEX IF NOT EXISTS idx_candidate_tabs_sort ON candidate_tabs(candidate_id, sort_order);
 
+-- Candidate experiences (v26.6: enrichissement IA structuré)
+CREATE TABLE IF NOT EXISTS candidate_experiences (
+    id           INTEGER PRIMARY KEY,
+    candidate_id INTEGER NOT NULL,
+    company_name TEXT NOT NULL,
+    role         TEXT,
+    start_date   TEXT,
+    end_date     TEXT,
+    description  TEXT,
+    technologies TEXT,
+    owner_id     INTEGER,
+    createdAt    TEXT,
+    updatedAt    TEXT,
+    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_candidate_experiences_candidate ON candidate_experiences(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_experiences_owner ON candidate_experiences(owner_id);
+
+-- Candidate educations (v26.6: enrichissement IA structuré)
+CREATE TABLE IF NOT EXISTS candidate_educations (
+    id            INTEGER PRIMARY KEY,
+    candidate_id  INTEGER NOT NULL,
+    degree        TEXT,
+    school        TEXT NOT NULL,
+    year          TEXT,
+    specialization TEXT,
+    owner_id      INTEGER,
+    createdAt     TEXT,
+    updatedAt     TEXT,
+    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_candidate_educations_candidate ON candidate_educations(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_educations_owner ON candidate_educations(owner_id);
+
+-- Candidate certifications (v26.6: enrichissement IA structuré)
+CREATE TABLE IF NOT EXISTS candidate_certifications (
+    id            INTEGER PRIMARY KEY,
+    candidate_id  INTEGER NOT NULL,
+    name          TEXT NOT NULL,
+    issuer        TEXT,
+    obtained_date TEXT,
+    expiry_date   TEXT,
+    owner_id      INTEGER,
+    createdAt     TEXT,
+    updatedAt     TEXT,
+    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_candidate_certifications_candidate ON candidate_certifications(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_certifications_owner ON candidate_certifications(owner_id);
+
 CREATE TABLE IF NOT EXISTS tasks (
     id          INTEGER PRIMARY KEY,
     title       TEXT NOT NULL,
@@ -1751,6 +1801,21 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
             _add_col("push_logs", "consultant1_id", "INTEGER")
         if "consultant2_id" not in lcols:
             _add_col("push_logs", "consultant2_id", "INTEGER")
+        # v26.6: Optimisation mailing (timing et A/B testing)
+        if "sent_at_hour" not in lcols:
+            _add_col("push_logs", "sent_at_hour", "INTEGER")
+        if "sent_at_day_of_week" not in lcols:
+            _add_col("push_logs", "sent_at_day_of_week", "INTEGER")
+        if "variant_id" not in lcols:
+            _add_col("push_logs", "variant_id", "TEXT")
+        if "opened_at" not in lcols:
+            _add_col("push_logs", "opened_at", "TEXT")
+        if "clicked_at" not in lcols:
+            _add_col("push_logs", "clicked_at", "TEXT")
+        if "replied_at" not in lcols:
+            _add_col("push_logs", "replied_at", "TEXT")
+        if "tracking_pixel_id" not in lcols:
+            _add_col("push_logs", "tracking_pixel_id", "TEXT")
 
         cand_cols = [r["name"] for r in conn.execute("PRAGMA table_info(candidates);").fetchall()]
         # Links & matching (v5.1+)
@@ -1889,6 +1954,44 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
             CREATE INDEX IF NOT EXISTS idx_meetings_prospect ON meetings(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_id);
             CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(date);
+            
+            CREATE TABLE IF NOT EXISTS meeting_action_items (
+                id            INTEGER PRIMARY KEY,
+                meeting_id    INTEGER NOT NULL,
+                prospect_id   INTEGER NOT NULL,
+                task          TEXT NOT NULL,
+                assignee      TEXT,
+                due_date      TEXT,
+                priority      TEXT,
+                status        TEXT NOT NULL DEFAULT 'pending',
+                owner_id      INTEGER NOT NULL,
+                createdAt     TEXT NOT NULL,
+                FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_meeting ON meeting_action_items(meeting_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_prospect ON meeting_action_items(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_owner ON meeting_action_items(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_status ON meeting_action_items(status);
+            
+            CREATE TABLE IF NOT EXISTS meeting_opportunities (
+                id              INTEGER PRIMARY KEY,
+                meeting_id      INTEGER NOT NULL,
+                prospect_id     INTEGER NOT NULL,
+                type            TEXT NOT NULL,
+                estimated_value REAL,
+                probability     INTEGER,
+                description     TEXT,
+                owner_id        INTEGER NOT NULL,
+                createdAt       TEXT NOT NULL,
+                FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_meeting ON meeting_opportunities(meeting_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_prospect ON meeting_opportunities(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_owner ON meeting_opportunities(owner_id);
         ''')
 
         # Seed default admin if no users exist
@@ -2314,6 +2417,22 @@ def _init_user_db(user_id: int) -> Path:
                 UNIQUE(name, owner_id)
             );
 
+            CREATE TABLE IF NOT EXISTS push_variants (
+                id            INTEGER PRIMARY KEY,
+                push_log_id   INTEGER NOT NULL,
+                variant_id    TEXT NOT NULL,
+                subject       TEXT,
+                body          TEXT,
+                sent_at       TEXT,
+                opened_at     TEXT,
+                clicked_at    TEXT,
+                replied_at    TEXT,
+                createdAt     TEXT NOT NULL,
+                FOREIGN KEY(push_log_id) REFERENCES push_logs(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_push_variants_push_log_id ON push_variants(push_log_id);
+            CREATE INDEX IF NOT EXISTS idx_push_variants_variant_id ON push_variants(variant_id);
+
             CREATE TABLE IF NOT EXISTS rdv_checklists (
                 id          INTEGER PRIMARY KEY,
                 prospect_id INTEGER NOT NULL UNIQUE,
@@ -2343,6 +2462,56 @@ def _init_user_db(user_id: int) -> Path:
             );
             CREATE INDEX IF NOT EXISTS idx_candidate_tabs_candidate ON candidate_tabs(candidate_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_tabs_sort ON candidate_tabs(candidate_id, sort_order);
+
+            -- Candidate experiences (v26.6: enrichissement IA structuré)
+            CREATE TABLE IF NOT EXISTS candidate_experiences (
+                id           INTEGER PRIMARY KEY,
+                candidate_id INTEGER NOT NULL,
+                company_name TEXT NOT NULL,
+                role         TEXT,
+                start_date   TEXT,
+                end_date     TEXT,
+                description  TEXT,
+                technologies TEXT,
+                owner_id     INTEGER,
+                createdAt    TEXT,
+                updatedAt    TEXT,
+                FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_candidate_experiences_candidate ON candidate_experiences(candidate_id);
+            CREATE INDEX IF NOT EXISTS idx_candidate_experiences_owner ON candidate_experiences(owner_id);
+
+            -- Candidate educations (v26.6: enrichissement IA structuré)
+            CREATE TABLE IF NOT EXISTS candidate_educations (
+                id            INTEGER PRIMARY KEY,
+                candidate_id  INTEGER NOT NULL,
+                degree        TEXT,
+                school        TEXT NOT NULL,
+                year          TEXT,
+                specialization TEXT,
+                owner_id      INTEGER,
+                createdAt     TEXT,
+                updatedAt     TEXT,
+                FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_candidate_educations_candidate ON candidate_educations(candidate_id);
+            CREATE INDEX IF NOT EXISTS idx_candidate_educations_owner ON candidate_educations(owner_id);
+
+            -- Candidate certifications (v26.6: enrichissement IA structuré)
+            CREATE TABLE IF NOT EXISTS candidate_certifications (
+                id            INTEGER PRIMARY KEY,
+                candidate_id  INTEGER NOT NULL,
+                name          TEXT NOT NULL,
+                issuer        TEXT,
+                obtained_date TEXT,
+                expiry_date   TEXT,
+                owner_id      INTEGER,
+                createdAt     TEXT,
+                updatedAt     TEXT,
+                FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_candidate_certifications_candidate ON candidate_certifications(candidate_id);
+            CREATE INDEX IF NOT EXISTS idx_candidate_certifications_owner ON candidate_certifications(owner_id);
 
             CREATE TABLE IF NOT EXISTS tasks (
                 id          INTEGER PRIMARY KEY,
@@ -2409,6 +2578,37 @@ def _init_user_db(user_id: int) -> Path:
                 FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
                 FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
             );
+            
+            CREATE TABLE IF NOT EXISTS meeting_action_items (
+                id            INTEGER PRIMARY KEY,
+                meeting_id    INTEGER NOT NULL,
+                prospect_id   INTEGER NOT NULL,
+                task          TEXT NOT NULL,
+                assignee      TEXT,
+                due_date      TEXT,
+                priority      TEXT,
+                status        TEXT NOT NULL DEFAULT 'pending',
+                owner_id      INTEGER NOT NULL,
+                createdAt     TEXT NOT NULL,
+                FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            
+            CREATE TABLE IF NOT EXISTS meeting_opportunities (
+                id              INTEGER PRIMARY KEY,
+                meeting_id      INTEGER NOT NULL,
+                prospect_id     INTEGER NOT NULL,
+                type            TEXT NOT NULL,
+                estimated_value REAL,
+                probability     INTEGER,
+                description     TEXT,
+                owner_id        INTEGER NOT NULL,
+                createdAt       TEXT NOT NULL,
+                FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
 
             CREATE INDEX IF NOT EXISTS idx_push_logs_prospect_id ON push_logs(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_push_logs_sentAt ON push_logs(sentAt);
@@ -2429,6 +2629,13 @@ def _init_user_db(user_id: int) -> Path:
             CREATE INDEX IF NOT EXISTS idx_meetings_prospect ON meetings(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_id);
             CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(date);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_meeting ON meeting_action_items(meeting_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_prospect ON meeting_action_items(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_owner ON meeting_action_items(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_status ON meeting_action_items(status);
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_meeting ON meeting_opportunities(meeting_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_prospect ON meeting_opportunities(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_owner ON meeting_opportunities(owner_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_ec1_candidate ON candidate_ec1_checklists(candidate_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_ec1_interviewAt ON candidate_ec1_checklists(interviewAt);
             CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
@@ -3990,6 +4197,186 @@ def api_candidate_get(candidate_id: int):
             companies = [dict(r) for r in rows2]
 
     return jsonify({"ok": True, "candidate": cand, "companies": companies})
+
+
+@app.get("/api/candidates/<int:candidate_id>/experiences")
+def api_candidate_experiences_get(candidate_id: int):
+    """Get all experiences for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        rows = conn.execute(
+            "SELECT * FROM candidate_experiences WHERE candidate_id=? AND owner_id=? ORDER BY start_date DESC, id DESC;",
+            (candidate_id, uid)
+        ).fetchall()
+        experiences = []
+        for row in rows:
+            exp = dict(row)
+            # Parse technologies JSON if present
+            if exp.get("technologies"):
+                try:
+                    exp["technologies"] = json.loads(exp["technologies"])
+                except:
+                    exp["technologies"] = []
+            else:
+                exp["technologies"] = []
+            experiences.append(exp)
+    return jsonify({"ok": True, "experiences": experiences})
+
+
+@app.post("/api/candidates/<int:candidate_id>/experiences")
+def api_candidate_experiences_post(candidate_id: int):
+    """Create a new experience for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=False) or {}
+    company_name = (payload.get("company_name") or "").strip()
+    if not company_name:
+        return jsonify({"ok": False, "error": "company_name is required"}), 400
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        now = datetime.datetime.now().isoformat()
+        technologies = payload.get("technologies")
+        if isinstance(technologies, (list, dict)):
+            technologies = json.dumps(technologies, ensure_ascii=False)
+        elif not isinstance(technologies, str):
+            technologies = ""
+        conn.execute(
+            """INSERT INTO candidate_experiences 
+               (candidate_id, company_name, role, start_date, end_date, description, technologies, owner_id, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+            (
+                candidate_id,
+                company_name,
+                (payload.get("role") or "").strip() or None,
+                (payload.get("start_date") or "").strip() or None,
+                (payload.get("end_date") or "").strip() or None,
+                (payload.get("description") or "").strip() or None,
+                technologies,
+                uid,
+                now,
+                now,
+            ),
+        )
+        exp_id = conn.lastrowid
+    return jsonify({"ok": True, "id": exp_id})
+
+
+@app.get("/api/candidates/<int:candidate_id>/educations")
+def api_candidate_educations_get(candidate_id: int):
+    """Get all educations for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        rows = conn.execute(
+            "SELECT * FROM candidate_educations WHERE candidate_id=? AND owner_id=? ORDER BY year DESC, id DESC;",
+            (candidate_id, uid)
+        ).fetchall()
+        educations = [dict(row) for row in rows]
+    return jsonify({"ok": True, "educations": educations})
+
+
+@app.post("/api/candidates/<int:candidate_id>/educations")
+def api_candidate_educations_post(candidate_id: int):
+    """Create a new education for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=False) or {}
+    school = (payload.get("school") or "").strip()
+    if not school:
+        return jsonify({"ok": False, "error": "school is required"}), 400
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        now = datetime.datetime.now().isoformat()
+        conn.execute(
+            """INSERT INTO candidate_educations 
+               (candidate_id, degree, school, year, specialization, owner_id, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
+            (
+                candidate_id,
+                (payload.get("degree") or "").strip() or None,
+                school,
+                (payload.get("year") or "").strip() or None,
+                (payload.get("specialization") or "").strip() or None,
+                uid,
+                now,
+                now,
+            ),
+        )
+        edu_id = conn.lastrowid
+    return jsonify({"ok": True, "id": edu_id})
+
+
+@app.get("/api/candidates/<int:candidate_id>/certifications")
+def api_candidate_certifications_get(candidate_id: int):
+    """Get all certifications for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        rows = conn.execute(
+            "SELECT * FROM candidate_certifications WHERE candidate_id=? AND owner_id=? ORDER BY obtained_date DESC, id DESC;",
+            (candidate_id, uid)
+        ).fetchall()
+        certifications = [dict(row) for row in rows]
+    return jsonify({"ok": True, "certifications": certifications})
+
+
+@app.post("/api/candidates/<int:candidate_id>/certifications")
+def api_candidate_certifications_post(candidate_id: int):
+    """Create a new certification for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=False) or {}
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "name is required"}), 400
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        now = datetime.datetime.now().isoformat()
+        conn.execute(
+            """INSERT INTO candidate_certifications 
+               (candidate_id, name, issuer, obtained_date, expiry_date, owner_id, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
+            (
+                candidate_id,
+                name,
+                (payload.get("issuer") or "").strip() or None,
+                (payload.get("obtained_date") or "").strip() or None,
+                (payload.get("expiry_date") or "").strip() or None,
+                uid,
+                now,
+                now,
+            ),
+        )
+        cert_id = conn.lastrowid
+    return jsonify({"ok": True, "id": cert_id})
 
 
 @app.get("/api/candidates/<int:candidate_id>/dossier-competence")
@@ -7426,6 +7813,25 @@ def api_push_logs_add():
 
     now = datetime.datetime.now().isoformat(timespec="seconds")
 
+    # v26.6: Calculer timing et générer tracking_pixel_id
+    try:
+        sent_dt = datetime.datetime.fromisoformat(sent_at.replace('Z', '+00:00') if 'Z' in sent_at else sent_at)
+        sent_at_hour = sent_dt.hour
+        sent_at_day_of_week = sent_dt.weekday()  # 0=lundi, 6=dimanche
+    except Exception:
+        # Fallback sur maintenant si parsing échoue
+        sent_dt = datetime.datetime.now()
+        sent_at_hour = sent_dt.hour
+        sent_at_day_of_week = sent_dt.weekday()
+
+    variant_id = (payload.get("variant_id") or "").strip() or None
+    tracking_pixel_id = str(_uuid.uuid4()) if channel == "email" else None
+
+    # Récupérer les variantes si fournies
+    variants = payload.get("variants", [])
+    if not isinstance(variants, list):
+        variants = []
+
     with _conn() as conn:
         # ensure prospect exists
         p = conn.execute("SELECT id FROM prospects WHERE id=? AND owner_id=?;", (int(prospect_id), uid)).fetchone()
@@ -7435,11 +7841,24 @@ def api_push_logs_add():
         cur = conn.cursor()
         cur.execute(
             '''
-            INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, sent_at_hour, sent_at_day_of_week, variant_id, tracking_pixel_id, createdAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             ''',
-            (int(prospect_id), sent_at, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, now),
+            (int(prospect_id), sent_at, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, sent_at_hour, sent_at_day_of_week, variant_id, tracking_pixel_id, now),
         )
+        push_log_id = cur.lastrowid
+
+        # Enregistrer les variantes A/B si fournies
+        if variants:
+            for variant in variants:
+                if isinstance(variant, dict) and variant.get("variant_id") and variant.get("subject") is not None:
+                    conn.execute(
+                        '''
+                        INSERT INTO push_variants (push_log_id, variant_id, subject, body, sent_at, createdAt)
+                        VALUES (?, ?, ?, ?, ?, ?);
+                        ''',
+                        (push_log_id, variant["variant_id"], variant.get("subject"), variant.get("body"), sent_at, now),
+                    )
 
         # Update denormalized fields on prospect for quick UI
         if channel == "email":
@@ -7451,7 +7870,7 @@ def api_push_logs_add():
             except sqlite3.OperationalError as e:
                 logger.warning("pushLinkedInSentAt column missing: %s", e)
 
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "push_log_id": push_log_id, "tracking_pixel_id": tracking_pixel_id})
 
 
 def _recompute_last_push_dates(conn: sqlite3.Connection, prospect_id: int) -> Dict[str, str]:
@@ -7540,6 +7959,292 @@ def api_push_logs_delete():
         if row and row["prospect_id"] is not None:
             _recompute_last_push_dates(conn, int(row["prospect_id"]))
     return jsonify({"ok": True})
+
+
+# ====== Push tracking & analytics API (v26.6) ======
+@app.get("/api/push/track")
+def api_push_track():
+    """Track email open via tracking pixel. Returns 1x1 transparent GIF."""
+    pixel_id = request.args.get("pixel_id")
+    if not pixel_id:
+        return jsonify({"ok": False, "error": "pixel_id required"}), 400
+
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        # Mettre à jour opened_at si pas déjà ouvert
+        conn.execute(
+            "UPDATE push_logs SET opened_at=? WHERE tracking_pixel_id=? AND opened_at IS NULL;",
+            (now, pixel_id),
+        )
+        # Mettre à jour aussi dans push_variants si applicable
+        conn.execute(
+            """
+            UPDATE push_variants SET opened_at=?
+            WHERE push_log_id IN (SELECT id FROM push_logs WHERE tracking_pixel_id=?)
+            AND opened_at IS NULL;
+            """,
+            (now, pixel_id),
+        )
+
+    # Retourner un pixel transparent 1x1 GIF
+    gif_data = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
+    return Response(gif_data, mimetype="image/gif")
+
+
+@app.get("/api/push/track/click")
+def api_push_track_click():
+    """Track email link click and redirect."""
+    pixel_id = request.args.get("pixel_id")
+    url = request.args.get("url")
+    if not pixel_id or not url:
+        return jsonify({"ok": False, "error": "pixel_id and url required"}), 400
+
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        # Mettre à jour clicked_at si pas déjà cliqué
+        conn.execute(
+            "UPDATE push_logs SET clicked_at=? WHERE tracking_pixel_id=? AND clicked_at IS NULL;",
+            (now, pixel_id),
+        )
+        # Mettre à jour aussi dans push_variants si applicable
+        conn.execute(
+            """
+            UPDATE push_variants SET clicked_at=?
+            WHERE push_log_id IN (SELECT id FROM push_logs WHERE tracking_pixel_id=?)
+            AND clicked_at IS NULL;
+            """,
+            (now, pixel_id),
+        )
+
+    # Rediriger vers l'URL
+    return redirect(url, code=302)
+
+
+@app.get("/api/push/optimal-time")
+def api_push_optimal_time():
+    """Retourne le timing optimal pour un prospect donné."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    prospect_id = request.args.get("prospect_id", type=int)
+    if not prospect_id:
+        return jsonify({"ok": False, "error": "prospect_id required"}), 400
+    result = _get_optimal_send_time(prospect_id)
+    return jsonify({"ok": True, "optimal_timing": result})
+
+
+@app.get("/api/push/analytics")
+def api_push_analytics():
+    """Retourne les analytics de mailing : meilleurs créneaux, performance variantes, recommandations."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    prospect_id = request.args.get("prospect_id", type=int)
+
+    with _conn() as conn:
+        # Base query pour filtrer par owner_id
+        base_where = "l.prospect_id IN (SELECT id FROM prospects WHERE owner_id=?)"
+        params = [uid]
+        if prospect_id:
+            base_where += " AND l.prospect_id=?"
+            params.append(prospect_id)
+
+        # 1. Meilleurs créneaux horaires (taux d'ouverture par heure)
+        hour_stats = []
+        for hour in range(24):
+            rows = conn.execute(
+                f"""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened
+                FROM push_logs l
+                WHERE {base_where} AND l.sent_at_hour=? AND l.channel='email'
+                """,
+                params + [hour],
+            ).fetchone()
+            if rows["total"] > 0:
+                open_rate = (rows["opened"] / rows["total"]) * 100
+                hour_stats.append({
+                    "hour": hour,
+                    "total": rows["total"],
+                    "opened": rows["opened"],
+                    "open_rate": round(open_rate, 2),
+                })
+        hour_stats.sort(key=lambda x: x["open_rate"], reverse=True)
+
+        # 2. Meilleurs jours (taux d'ouverture par jour de semaine)
+        day_stats = []
+        day_names = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+        for day in range(7):
+            rows = conn.execute(
+                f"""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened
+                FROM push_logs l
+                WHERE {base_where} AND l.sent_at_day_of_week=? AND l.channel='email'
+                """,
+                params + [day],
+            ).fetchone()
+            if rows["total"] > 0:
+                open_rate = (rows["opened"] / rows["total"]) * 100
+                day_stats.append({
+                    "day": day,
+                    "day_name": day_names[day],
+                    "total": rows["total"],
+                    "opened": rows["opened"],
+                    "open_rate": round(open_rate, 2),
+                })
+        day_stats.sort(key=lambda x: x["open_rate"], reverse=True)
+
+        # 3. Performance des variantes A/B
+        variant_stats = []
+        variant_rows = conn.execute(
+            f"""
+            SELECT 
+                v.variant_id,
+                COUNT(*) as total,
+                SUM(CASE WHEN v.opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened,
+                SUM(CASE WHEN v.clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicked,
+                SUM(CASE WHEN v.replied_at IS NOT NULL THEN 1 ELSE 0 END) as replied
+            FROM push_variants v
+            JOIN push_logs l ON l.id = v.push_log_id
+            WHERE {base_where.replace('l.', '')}
+            GROUP BY v.variant_id
+            """,
+            params,
+        ).fetchall()
+        for row in variant_rows:
+            total = row["total"]
+            if total > 0:
+                variant_stats.append({
+                    "variant_id": row["variant_id"],
+                    "total": total,
+                    "opened": row["opened"],
+                    "clicked": row["clicked"],
+                    "replied": row["replied"],
+                    "open_rate": round((row["opened"] / total) * 100, 2),
+                    "click_rate": round((row["clicked"] / total) * 100, 2),
+                    "reply_rate": round((row["replied"] / total) * 100, 2),
+                })
+        variant_stats.sort(key=lambda x: x["open_rate"], reverse=True)
+
+        # 4. Recommandations de timing optimal par prospect
+        optimal_timing = None
+        if prospect_id:
+            # Analyser l'historique de ce prospect
+            prospect_rows = conn.execute(
+                """
+                SELECT sent_at_hour, sent_at_day_of_week, opened_at
+                FROM push_logs
+                WHERE prospect_id=? AND channel='email'
+                ORDER BY id DESC LIMIT 20
+                """,
+                (prospect_id,),
+            ).fetchall()
+            if prospect_rows:
+                # Calculer les meilleurs créneaux pour ce prospect
+                hour_scores = {}
+                day_scores = {}
+                for row in prospect_rows:
+                    hour = row["sent_at_hour"]
+                    day = row["sent_at_day_of_week"]
+                    opened = 1 if row["opened_at"] else 0
+                    hour_scores[hour] = hour_scores.get(hour, [0, 0])
+                    hour_scores[hour][0] += opened
+                    hour_scores[hour][1] += 1
+                    day_scores[day] = day_scores.get(day, [0, 0])
+                    day_scores[day][0] += opened
+                    day_scores[day][1] += 1
+
+                best_hour = max(hour_scores.items(), key=lambda x: x[1][0] / x[1][1] if x[1][1] > 0 else 0)[0] if hour_scores else None
+                best_day = max(day_scores.items(), key=lambda x: x[1][0] / x[1][1] if x[1][1] > 0 else 0)[0] if day_scores else None
+                optimal_timing = {
+                    "best_hour": best_hour,
+                    "best_day": best_day,
+                    "best_day_name": day_names[best_day] if best_day is not None else None,
+                }
+
+    return jsonify({
+        "ok": True,
+        "hour_stats": hour_stats[:5],  # Top 5
+        "day_stats": day_stats[:5],  # Top 5
+        "variant_stats": variant_stats,
+        "optimal_timing": optimal_timing,
+    })
+
+
+def _get_optimal_send_time(prospect_id: int) -> Dict[str, Any]:
+    """Calcule le timing optimal pour envoyer un push à un prospect donné."""
+    uid = _uid()
+    if not uid:
+        return {}
+
+    with _conn() as conn:
+        # Vérifier que le prospect appartient à l'utilisateur
+        p = conn.execute(
+            "SELECT id FROM prospects WHERE id=? AND owner_id=?;",
+            (prospect_id, uid),
+        ).fetchone()
+        if not p:
+            return {}
+
+        # Analyser l'historique de ce prospect
+        rows = conn.execute(
+            """
+            SELECT sent_at_hour, sent_at_day_of_week, opened_at, clicked_at
+            FROM push_logs
+            WHERE prospect_id=? AND channel='email'
+            ORDER BY id DESC LIMIT 50
+            """,
+            (prospect_id,),
+        ).fetchall()
+
+        if not rows:
+            # Pas d'historique : recommandations par défaut
+            return {
+                "best_hour": 10,  # 10h du matin
+                "best_day": 1,  # Mardi
+                "confidence": "low",
+                "reason": "Pas d'historique disponible",
+            }
+
+        # Calculer les scores par créneau
+        hour_scores = {}
+        day_scores = {}
+        for row in rows:
+            hour = row["sent_at_hour"]
+            day = row["sent_at_day_of_week"]
+            score = 0
+            if row["opened_at"]:
+                score += 2
+            if row["clicked_at"]:
+                score += 3
+
+            hour_scores[hour] = hour_scores.get(hour, [0, 0])
+            hour_scores[hour][0] += score
+            hour_scores[hour][1] += 1
+
+            day_scores[day] = day_scores.get(day, [0, 0])
+            day_scores[day][0] += score
+            day_scores[day][1] += 1
+
+        # Trouver les meilleurs créneaux
+        best_hour = max(hour_scores.items(), key=lambda x: x[1][0] / x[1][1] if x[1][1] > 0 else 0)[0] if hour_scores else 10
+        best_day = max(day_scores.items(), key=lambda x: x[1][0] / x[1][1] if x[1][1] > 0 else 0)[0] if day_scores else 1
+
+        confidence = "high" if len(rows) >= 10 else "medium" if len(rows) >= 5 else "low"
+
+        day_names = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+        return {
+            "best_hour": best_hour,
+            "best_day": best_day,
+            "best_day_name": day_names[best_day],
+            "confidence": confidence,
+            "reason": f"Basé sur {len(rows)} envois précédents",
+        }
+
 
 # ====== Saved Views API (v6) ======
 @app.get("/api/views")
@@ -10843,6 +11548,159 @@ def meetings_list():
         })
     
     return jsonify(ok=True, meetings=meetings)
+
+
+@app.get("/api/meetings/<int:meeting_id>/action-items")
+def meetings_action_items_list(meeting_id):
+    """Lister les action items d'une réunion."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    with _conn() as conn:
+        # Vérifier que la réunion existe et appartient à l'utilisateur
+        meeting = conn.execute(
+            "SELECT id, prospect_id FROM meetings WHERE id = ? AND owner_id = ?",
+            (meeting_id, uid)
+        ).fetchone()
+        if not meeting:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+        
+        rows = conn.execute(
+            """SELECT id, task, assignee, due_date, priority, status, createdAt
+               FROM meeting_action_items
+               WHERE meeting_id = ? AND owner_id = ?
+               ORDER BY due_date ASC, priority DESC, createdAt ASC""",
+            (meeting_id, uid)
+        ).fetchall()
+    
+    action_items = []
+    for row in rows:
+        action_items.append({
+            "id": row["id"],
+            "task": row["task"],
+            "assignee": row["assignee"],
+            "due_date": row["due_date"],
+            "priority": row["priority"],
+            "status": row["status"],
+            "createdAt": row["createdAt"]
+        })
+    
+    return jsonify(ok=True, action_items=action_items)
+
+
+@app.post("/api/meetings/<int:meeting_id>/action-items")
+def meetings_action_items_create(meeting_id):
+    """Créer un action item pour une réunion."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    body = request.get_json(force=True)
+    task = body.get("task", "").strip()
+    assignee = body.get("assignee")
+    due_date = body.get("due_date")
+    priority = body.get("priority")
+    
+    if not task:
+        return jsonify(ok=False, error="task requis"), 400
+    
+    with _conn() as conn:
+        # Vérifier que la réunion existe et appartient à l'utilisateur
+        meeting = conn.execute(
+            "SELECT id, prospect_id FROM meetings WHERE id = ? AND owner_id = ?",
+            (meeting_id, uid)
+        ).fetchone()
+        if not meeting:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+        
+        prospect_id = meeting["prospect_id"]
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        
+        cursor = conn.execute(
+            """INSERT INTO meeting_action_items (meeting_id, prospect_id, task, assignee, due_date, priority, status, owner_id, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
+            (meeting_id, prospect_id, task, assignee, due_date, priority, uid, now)
+        )
+        action_item_id = cursor.lastrowid
+    
+    return jsonify(ok=True, id=action_item_id)
+
+
+@app.get("/api/meetings/<int:meeting_id>/opportunities")
+def meetings_opportunities_list(meeting_id):
+    """Lister les opportunités d'une réunion."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    with _conn() as conn:
+        # Vérifier que la réunion existe et appartient à l'utilisateur
+        meeting = conn.execute(
+            "SELECT id, prospect_id FROM meetings WHERE id = ? AND owner_id = ?",
+            (meeting_id, uid)
+        ).fetchone()
+        if not meeting:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+        
+        rows = conn.execute(
+            """SELECT id, type, estimated_value, probability, description, createdAt
+               FROM meeting_opportunities
+               WHERE meeting_id = ? AND owner_id = ?
+               ORDER BY estimated_value DESC, probability DESC, createdAt ASC""",
+            (meeting_id, uid)
+        ).fetchall()
+    
+    opportunities = []
+    for row in rows:
+        opportunities.append({
+            "id": row["id"],
+            "type": row["type"],
+            "estimated_value": row["estimated_value"],
+            "probability": row["probability"],
+            "description": row["description"],
+            "createdAt": row["createdAt"]
+        })
+    
+    return jsonify(ok=True, opportunities=opportunities)
+
+
+@app.post("/api/meetings/<int:meeting_id>/opportunities")
+def meetings_opportunities_create(meeting_id):
+    """Créer une opportunité pour une réunion."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    body = request.get_json(force=True)
+    type_opp = body.get("type", "").strip()
+    estimated_value = body.get("estimated_value")
+    probability = body.get("probability")
+    description = body.get("description")
+    
+    if not type_opp:
+        return jsonify(ok=False, error="type requis"), 400
+    
+    with _conn() as conn:
+        # Vérifier que la réunion existe et appartient à l'utilisateur
+        meeting = conn.execute(
+            "SELECT id, prospect_id FROM meetings WHERE id = ? AND owner_id = ?",
+            (meeting_id, uid)
+        ).fetchone()
+        if not meeting:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+        
+        prospect_id = meeting["prospect_id"]
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        
+        cursor = conn.execute(
+            """INSERT INTO meeting_opportunities (meeting_id, prospect_id, type, estimated_value, probability, description, owner_id, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (meeting_id, prospect_id, type_opp, estimated_value, probability, description, uid, now)
+        )
+        opportunity_id = cursor.lastrowid
+    
+    return jsonify(ok=True, id=opportunity_id)
 
 
 @app.get("/api/meetings/<int:meeting_id>/pdf")

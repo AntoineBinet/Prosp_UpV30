@@ -6024,27 +6024,43 @@ async function confirmPushSend() {
 
     try { await saveToServerAsync(); } catch (e) {}
 
-    // Log push avec candidats et consultants
+    // v26.6: Récupérer les variantes si générées
+    const variantId = window._currentPushVariantId || null;
+    const variants = window._currentPushVariants || [];
+
+    // Log push avec candidats et consultants + nouvelles colonnes timing/tracking
     try {
-        await fetch('/api/push-logs/add', {
+        const logPayload = {
+            prospect_id: p.id, sentAt, channel: channel,
+            to_email: channel === 'email' ? p.email : null,
+            subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : 'Push manuel') : null,
+            body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : '') : text,
+            template_id: null,
+            template_name: templateName || null,
+            candidate_id1: candidateId1 ? parseInt(candidateId1, 10) : null,
+            candidate_id2: candidateId2 ? parseInt(candidateId2, 10) : null,
+            consultant1_id: consultantId1 ? parseInt(consultantId1, 10) : null,
+            consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null,
+            variant_id: variantId,
+            variants: variants
+        };
+        const logRes = await fetch('/api/push-logs/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                prospect_id: p.id, sentAt, channel: channel,
-                to_email: channel === 'email' ? p.email : null,
-                subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : 'Push manuel') : null,
-                body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : '') : text,
-                template_id: null,
-                template_name: templateName || null,
-                candidate_id1: candidateId1 ? parseInt(candidateId1, 10) : null,
-                candidate_id2: candidateId2 ? parseInt(candidateId2, 10) : null,
-                consultant1_id: consultantId1 ? parseInt(consultantId1, 10) : null,
-                consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null
-            })
+            body: JSON.stringify(logPayload)
         });
+        const logData = await logRes.json();
+        if (logData.ok && logData.tracking_pixel_id && channel === 'email') {
+            // Stocker le tracking_pixel_id pour l'utiliser dans l'email si nécessaire
+            window._lastTrackingPixelId = logData.tracking_pixel_id;
+        }
     } catch (e) {
         console.warn('Error logging push', e);
     }
+    
+    // Nettoyer les variantes après envoi
+    window._currentPushVariantId = null;
+    window._currentPushVariants = [];
 
     closePushSelectModal();
 
@@ -6058,6 +6074,53 @@ async function confirmPushSend() {
     } else if (channel === 'linkedin') {
         showToast(`📋 Message LinkedIn copié ! Profil ouvert dans un nouvel onglet.`, 'success', 4000);
     }
+}
+
+// v26.6: Générer 3 variantes A/B/C de message push
+async function generatePushMessageVariants(prospectId, baseSubject, baseBody, testAll = false) {
+    const prospect = data.prospects.find(x => x.id === prospectId);
+    if (!prospect) {
+        showToast("⚠️ Prospect introuvable.", 'error');
+        return [];
+    }
+    
+    const company = data.companies.find(c => c.id === prospect.company_id);
+    const vars = buildTemplateVars(prospect, company);
+    
+    // Si testAll est false, retourner une seule variante (A)
+    if (!testAll) {
+        return [{
+            variant_id: 'A',
+            subject: baseSubject || `Contact ${vars.entreprise || ''}`,
+            body: baseBody || ''
+        }];
+    }
+    
+    // Générer 3 variantes avec des variations
+    const variants = [];
+    
+    // Variante A : Formel et professionnel
+    variants.push({
+        variant_id: 'A',
+        subject: baseSubject || `Contact professionnel - ${vars.entreprise || ''}`,
+        body: baseBody || `Bonjour ${vars.civilite ? (vars.civilite + ' ') : ''}${vars.nom || vars.nom_complet || ''},\n\nJe me permets de vous contacter concernant ${vars.entreprise || 'votre entreprise'}.\n\nCordialement,`
+    });
+    
+    // Variante B : Plus direct et concis
+    variants.push({
+        variant_id: 'B',
+        subject: baseSubject ? baseSubject.replace(/professionnel|contact/i, '') : `Opportunité ${vars.entreprise || ''}`,
+        body: baseBody || `Bonjour ${vars.nom || vars.nom_complet || ''},\n\nConcernant ${vars.entreprise || 'votre entreprise'}, j'aimerais échanger avec vous.\n\nBonne journée,`
+    });
+    
+    // Variante C : Plus personnel et engageant
+    variants.push({
+        variant_id: 'C',
+        subject: baseSubject ? baseSubject.replace(/Contact|professionnel/i, 'Échange') : `Échange - ${vars.entreprise || ''}`,
+        body: baseBody || `Bonjour ${vars.nom || vars.nom_complet || ''},\n\nJ'ai remarqué ${vars.entreprise || 'votre entreprise'} et je pense qu'il pourrait y avoir une opportunité intéressante à explorer ensemble.\n\nQu'en pensez-vous ?\n\nBien à vous,`
+    });
+    
+    return variants;
 }
 
 async function openEmailForProspect(prospectId) {
@@ -6377,26 +6440,34 @@ function getScrapingPromptCandidate(candidateData) {
 
 1. **Profil complet** : Titre de poste actuel, entreprise actuelle, années d'expérience totales, formation (école d'ingénieur, diplôme).
 
-2. **Parcours** : Résume les 3-4 dernières expériences (entreprise, durée, rôle, technos utilisées).
+2. **Expériences structurées** : Liste détaillée des expériences professionnelles avec dates (début/fin), entreprise, poste, description, technologies utilisées.
 
-3. **Compétences techniques (tags)** : Liste exhaustive des compétences identifiées. Utilise ces tags standard :
+3. **Formations** : Diplômes, écoles, années, spécialités.
+
+4. **Certifications** : Certifications professionnelles avec nom, organisme, date d'obtention, validité.
+
+5. **Projets GitHub/Portfolio** : Liens vers projets publics, descriptions, technologies.
+
+6. **Salaire actuel/attendu** : Montant, devise, type (brut/net), fourchette si disponible.
+
+7. **Compétences techniques (tags)** : Liste exhaustive des compétences identifiées. Utilise ces tags standard :
    AUTOSAR, C/C++, RTOS, Linux embarqué, FPGA, VHDL, Verilog, Python, Java, C#, .NET, ARM, Microcontrôleur, PCB, Altium, KiCad, Yocto, QNX, FreeRTOS, VxWorks, CAN, LIN, Ethernet, TCP/IP, SPI, I2C, UART, JTAG, Modbus, Cybersécurité, ISO 26262, DO-178, IEC 61508, ADAS, Lidar, Radar, Vision, IA/ML, ROS, Matlab/Simulink, LabVIEW, Banc de test, Qualification, Validation, Electronique analogique, Electronique numérique, Puissance, RF, Hyperfréquence, Mécatronique, CAO mécanique, Catia, SolidWorks, Gestion de projet, Agilité, V-cycle
 
-4. **Années d'expérience** : Nombre total d'années d'expérience professionnelle pertinente (nombre entier).
+8. **Années d'expérience** : Nombre total d'années d'expérience professionnelle pertinente (nombre entier).
 
-5. **Rôle cible** : Le titre de poste le plus pertinent pour ce profil (ex: Ingénieur développement embarqué C/C++, Ingénieur électronique hardware, Architecte logiciel embarqué…).
+9. **Rôle cible** : Le titre de poste le plus pertinent pour ce profil (ex: Ingénieur développement embarqué C/C++, Ingénieur électronique hardware, Architecte logiciel embarqué…).
 
-6. **Localisation** : Ville actuelle, mobilité géographique si mentionnée.
+10. **Localisation** : Ville actuelle, mobilité géographique si mentionnée.
 
-7. **Secteur** : Secteurs d'expérience (automobile, aéronautique, ferroviaire, médical, défense, énergie, spatial, IoT…).
+11. **Secteur** : Secteurs d'expérience (automobile, aéronautique, ferroviaire, médical, défense, énergie, spatial, IoT…).
 
-8. **Disponibilité estimée** : Freelance, en poste (ouvert/pas ouvert), en recherche active, préavis.
+12. **Disponibilité estimée** : Freelance, en poste (ouvert/pas ouvert), en recherche active, préavis.
 
-9. **TJM / Salaire estimé** : Fourchette indicative basée sur le profil, la localisation et le marché actuel en ingénierie embarquée région lyonnaise.
+13. **TJM / Salaire estimé** : Fourchette indicative basée sur le profil, la localisation et le marché actuel en ingénierie embarquée région lyonnaise.
 
-10. **Notes enrichies** : Résumé 3-5 lignes : points forts, domaines d'expertise principal, type de missions idéales.
+14. **Notes enrichies** : Résumé 3-5 lignes : points forts, domaines d'expertise principal, type de missions idéales.
 
-11. **Entreprises cibles** : Quelles entreprises de la région lyonnaise pourraient être intéressées par ce profil ? (liste 5-10 noms).
+15. **Entreprises cibles** : Quelles entreprises de la région lyonnaise pourraient être intéressées par ce profil ? (liste 5-10 noms).
 
 ══════ FORMAT DE SORTIE ══════
 Retourne les résultats dans ce format exact (je vais copier-coller dans mon CRM) :
@@ -6417,7 +6488,13 @@ NOTES: [résumé 3-5 lignes]
 PARCOURS: [exp1 | exp2 | exp3]
 ENTREPRISES_CIBLES: [entreprise1, entreprise2, ...]
 
-Sources : utilise LinkedIn et toute info publique disponible.`;
+EXPÉRIENCES_JSON: [JSON array avec structure : [{"company_name": "...", "role": "...", "start_date": "YYYY-MM ou YYYY", "end_date": "YYYY-MM ou YYYY ou null", "description": "...", "technologies": ["tech1", "tech2"]}, ...]]
+FORMATIONS_JSON: [JSON array avec structure : [{"degree": "...", "school": "...", "year": "YYYY", "specialization": "..."}, ...]]
+CERTIFICATIONS_JSON: [JSON array avec structure : [{"name": "...", "issuer": "...", "obtained_date": "YYYY-MM", "expiry_date": "YYYY-MM ou null"}, ...]]
+PROJETS_JSON: [JSON array avec structure : [{"url": "...", "description": "...", "technologies": ["tech1", "tech2"]}, ...]]
+SALAIRE_JSON: [JSON object avec structure : {"amount": nombre ou null, "currency": "EUR", "type": "brut/net", "range": "min-max" ou null}]
+
+Sources : utilise LinkedIn et toute info publique disponible. Recherche web activée pour enrichir les données.`;
 }
 
 function copyScrapingPromptCandidate(candidateData) {
@@ -6690,6 +6767,12 @@ const IA_FIELD_MAP_CANDIDATE = {
     'PARCOURS': { key: '_parcours', label: 'Parcours', appendNote: true },
     'ENTREPRISES_CIBLES': { key: '_cibles', label: 'Entreprises cibles', appendNote: true },
     'LINKEDIN': { key: 'linkedin', label: 'LinkedIn' },
+    'EXPÉRIENCES_JSON': { key: '_experiences_json', label: 'Expériences (JSON)', isJSON: true, jsonType: 'experiences' },
+    'EXPERIENCES_JSON': { key: '_experiences_json', label: 'Expériences (JSON)', isJSON: true, jsonType: 'experiences' },
+    'FORMATIONS_JSON': { key: '_educations_json', label: 'Formations (JSON)', isJSON: true, jsonType: 'educations' },
+    'CERTIFICATIONS_JSON': { key: '_certifications_json', label: 'Certifications (JSON)', isJSON: true, jsonType: 'certifications' },
+    'PROJETS_JSON': { key: '_projects_json', label: 'Projets (JSON)', isJSON: true, jsonType: 'projects' },
+    'SALAIRE_JSON': { key: '_salary_json', label: 'Salaire (JSON)', isJSON: true, jsonType: 'salary' },
 };
 const IA_FIELD_MAP_COMPANY = {
     'SECTEUR': { key: 'tags', label: 'Secteur / Tags', isArray: true },
@@ -6813,6 +6896,52 @@ function _processField(rawKey, rawValue, fieldMap, existing, fields, managers) {
                 displayOld: oldTags.join(', '),
                 isNew: oldTags.length === 0,
                 isConflict: false, // tags always merge
+                accepted: true,
+            });
+        }
+        return;
+    }
+
+    // JSON field (e.g. experiences, educations, certifications)
+    if (mapping.isJSON) {
+        try {
+            // Try to parse JSON - might be on single line or multi-line
+            let jsonValue = value.trim();
+            // Remove leading/trailing brackets if present on separate lines
+            if (jsonValue.startsWith('[') && jsonValue.endsWith(']')) {
+                // Already valid JSON array
+            } else if (jsonValue.startsWith('{') && jsonValue.endsWith('}')) {
+                // Already valid JSON object
+            } else {
+                // Try to extract JSON from text that might have extra content
+                const jsonMatch = jsonValue.match(/\[[\s\S]*\]/) || jsonValue.match(/\{[\s\S]*\}/);
+                if (jsonMatch) jsonValue = jsonMatch[0];
+            }
+            const parsed = JSON.parse(jsonValue);
+            if (parsed && (Array.isArray(parsed) || typeof parsed === 'object')) {
+                fields.push({
+                    mapping,
+                    newValue: parsed,
+                    oldValue: null,
+                    displayNew: Array.isArray(parsed) ? `${parsed.length} élément(s)` : 'Données structurées',
+                    displayOld: '',
+                    isNew: true,
+                    isConflict: false,
+                    accepted: true,
+                    jsonType: mapping.jsonType,
+                });
+            }
+        } catch (e) {
+            console.warn('Failed to parse JSON field', key, e);
+            // Fallback: treat as text
+            fields.push({
+                mapping,
+                newValue: value,
+                oldValue: '',
+                displayNew: value.length > 120 ? value.substring(0, 120) + '…' : value,
+                displayOld: '',
+                isNew: true,
+                isConflict: false,
                 accepted: true,
             });
         }
@@ -7014,11 +7143,93 @@ function _applyProspectIA(fields) {
     try { saveToServer(); } catch (e) {}
 }
 
-function _applyCandidateIA(fields) {
+async function _applyCandidateIA(fields) {
     let notesExtra = [];
+    const candidateId = _iaCurrentId;
 
     for (const f of fields) {
         const key = f.mapping.key;
+
+        // Handle JSON structured data
+        if (f.mapping.isJSON && f.jsonType) {
+            try {
+                const jsonData = Array.isArray(f.newValue) ? f.newValue : (f.newValue ? [f.newValue] : []);
+                if (jsonData.length > 0) {
+                    if (f.jsonType === 'experiences') {
+                        // Save experiences
+                        for (const exp of jsonData) {
+                            if (exp && exp.company_name) {
+                                await fetch(`/api/candidates/${candidateId}/experiences`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        company_name: exp.company_name || '',
+                                        role: exp.role || '',
+                                        start_date: exp.start_date || null,
+                                        end_date: exp.end_date || null,
+                                        description: exp.description || '',
+                                        technologies: Array.isArray(exp.technologies) ? JSON.stringify(exp.technologies) : (exp.technologies || '')
+                                    })
+                                }).catch(e => console.warn('Failed to save experience', e));
+                            }
+                        }
+                    } else if (f.jsonType === 'educations') {
+                        // Save educations
+                        for (const edu of jsonData) {
+                            if (edu && edu.school) {
+                                await fetch(`/api/candidates/${candidateId}/educations`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        degree: edu.degree || '',
+                                        school: edu.school || '',
+                                        year: edu.year || null,
+                                        specialization: edu.specialization || ''
+                                    })
+                                }).catch(e => console.warn('Failed to save education', e));
+                            }
+                        }
+                    } else if (f.jsonType === 'certifications') {
+                        // Save certifications
+                        for (const cert of jsonData) {
+                            if (cert && cert.name) {
+                                await fetch(`/api/candidates/${candidateId}/certifications`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        name: cert.name || '',
+                                        issuer: cert.issuer || '',
+                                        obtained_date: cert.obtained_date || null,
+                                        expiry_date: cert.expiry_date || null
+                                    })
+                                }).catch(e => console.warn('Failed to save certification', e));
+                            }
+                        }
+                    } else if (f.jsonType === 'projects') {
+                        // Projects: append to notes for now (could be stored separately later)
+                        const projectsText = jsonData.map(p => {
+                            const url = p.url ? ` (${p.url})` : '';
+                            const techs = Array.isArray(p.technologies) ? p.technologies.join(', ') : '';
+                            return `• ${p.description || 'Projet'}${url}${techs ? ' — ' + techs : ''}`;
+                        }).join('\n');
+                        notesExtra.push(`Projets GitHub/Portfolio:\n${projectsText}`);
+                    } else if (f.jsonType === 'salary') {
+                        // Salary: append to notes
+                        const sal = f.newValue;
+                        if (sal && (sal.amount || sal.range)) {
+                            const parts = [];
+                            if (sal.amount) parts.push(`${sal.amount} ${sal.currency || 'EUR'}`);
+                            if (sal.type) parts.push(`(${sal.type})`);
+                            if (sal.range) parts.push(`Fourchette: ${sal.range}`);
+                            notesExtra.push(`Salaire: ${parts.join(' ')}`);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to process JSON field', key, e);
+            }
+            continue;
+        }
 
         if (key === 'skills') {
             // Add to skills via exposed helper from page-candidate.js
@@ -7073,6 +7284,11 @@ function _applyCandidateIA(fields) {
     // Trigger autosave
     if (typeof window.triggerCandidateAutoSave === 'function') {
         window.triggerCandidateAutoSave();
+    }
+
+    // Reload structured data if page has refresh function
+    if (typeof window.loadCandidateStructuredData === 'function') {
+        window.loadCandidateStructuredData();
     }
 }
 
@@ -10602,6 +10818,11 @@ let _pmParsedData = null;
 let _pmFieldAccepted = {};
 let _pmChecklistResponses = null;
 let _pmChecklistAccepted = {}; // Pour stocker les réponses acceptées/refusées de la grille
+let _pmActionItems = [];
+let _pmOpportunities = [];
+let _pmDecisions = [];
+let _pmNextSteps = [];
+let _pmSentiment = null;
 
 function openPostMeetingImportModal(prospectId) {
     _ensurePostMeetingModal();
@@ -10610,6 +10831,11 @@ function openPostMeetingImportModal(prospectId) {
     _pmFieldAccepted = {};
     _pmChecklistResponses = null;
     _pmChecklistAccepted = {};
+    _pmActionItems = [];
+    _pmOpportunities = [];
+    _pmDecisions = [];
+    _pmNextSteps = [];
+    _pmSentiment = null;
     const textarea = document.getElementById('pmImportTextarea');
     if (textarea) textarea.value = '';
     const parseBtn = document.getElementById('pmParseBtn');
@@ -10749,8 +10975,8 @@ async function getPostMeetingPromptFromContent(prospectId, meetingContent) {
     // v26.2: Optimisation — liste simplifiée des clés de thèmes (pas toutes les questions)
     const themeKeys = themes.map(t => t.key).join(', ');
     
-    // v26.2: Prompt optimisé — beaucoup plus concis
-    const promptText = `Extrais les infos d'un compte-rendu de réunion B2B et génère un JSON.
+    // v26.6: Prompt enrichi — extraction de données structurées
+    const promptText = `Extrais les infos d'un compte-rendu de réunion B2B et génère un JSON enrichi.
 
 CONTEXTE: ${p.name || 'Prospect'} — ${companyName || 'Entreprise'}
 
@@ -10770,13 +10996,54 @@ Génère UNIQUEMENT ce JSON (sans texte autour):
   "statut": "[Statut ou null]",
   "tags": ["tag1", "tag2"],
   "pertinence": [1-5 ou null],
-  "notes_enrichies": "[Infos complémentaires]"
+  "notes_enrichies": "[Infos complémentaires]",
+  "action_items": [
+    {
+      "task": "[Description de la tâche]",
+      "assignee": "[Nom du responsable ou null]",
+      "due_date": "[YYYY-MM-DD ou null]",
+      "priority": "[high|medium|low ou null]"
+    }
+  ],
+  "opportunities": [
+    {
+      "type": "[Type d'opportunité: recrutement|mission|partenariat|autre]",
+      "value": "[Valeur estimée en euros ou null]",
+      "probability": "[Probabilité 0-100 ou null]",
+      "description": "[Description de l'opportunité]"
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "[Décision prise]",
+      "impact": "[Impact de la décision]",
+      "stakeholders": "[Parties prenantes impliquées]"
+    }
+  ],
+  "next_steps": [
+    {
+      "step": "[Étape suivante]",
+      "date": "[YYYY-MM-DD ou null]",
+      "dependencies": "[Dépendances ou null]"
+    }
+  ],
+  "sentiment": {
+    "tone": "[positif|neutre|négatif]",
+    "score": "[Score 1-10]",
+    "justification": "[Justification du sentiment]"
+  }
 }
 
 RÈGLES:
 - Remplis checklist_responses avec les clés EXACTES: ${themeKeys}
 - Extrais directement du compte-rendu, garde les infos pertinentes
-- JSON valide uniquement, pas de texte autour`;
+- action_items: liste des tâches identifiées avec responsable, échéance, priorité
+- opportunities: opportunités détectées (recrutement, mission, partenariat, etc.)
+- decisions: décisions importantes prises pendant la réunion
+- next_steps: prochaines étapes avec dates et dépendances
+- sentiment: ton général de la réunion avec justification
+- JSON valide uniquement, pas de texte autour
+- Utilise null pour les champs sans information`;
     return promptText;
 }
 
@@ -10908,6 +11175,13 @@ async function parsePostMeetingImport() {
     if (parsed.checklist_responses) {
         _pmChecklistResponses = parsed.checklist_responses;
     }
+    
+    // Extraire les données structurées
+    _pmActionItems = Array.isArray(parsed.action_items) ? parsed.action_items : [];
+    _pmOpportunities = Array.isArray(parsed.opportunities) ? parsed.opportunities : [];
+    _pmDecisions = Array.isArray(parsed.decisions) ? parsed.decisions : [];
+    _pmNextSteps = Array.isArray(parsed.next_steps) ? parsed.next_steps : [];
+    _pmSentiment = parsed.sentiment || null;
 
     // Build preview
     const FIELD_LABELS = {
@@ -10938,6 +11212,102 @@ async function parsePostMeetingImport() {
                 <label for="pmCheck_${key}" style="font-weight:700;font-size:13px;">${label}</label>
             </div>
             <div style="font-size:12px;white-space:pre-wrap;color:var(--color-text-secondary);">${escapeHtml(display)}</div>
+        </div>`;
+    }
+    
+    // Action items
+    if (_pmActionItems.length > 0) {
+        html += `<div style="margin-top:16px;padding-top:16px;border-top:2px solid var(--color-border);">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px;">✅ Action items</div>`;
+        _pmActionItems.forEach((item, idx) => {
+            const priorityColors = { high: '#ef4444', medium: '#f59e0b', low: '#10b981' };
+            const priorityColor = priorityColors[item.priority] || '#6b7280';
+            html += `
+            <div style="border:1px solid var(--color-border);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--color-surface-2);">
+                <div style="display:flex;align-items:start;gap:8px;">
+                    <input type="checkbox" checked id="pmActionItem_${idx}" onchange="_pmActionItems[${idx}].accepted=this.checked">
+                    <div style="flex:1;">
+                        <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${escapeHtml(item.task || 'Tâche')}</div>
+                        <div style="display:flex;gap:12px;font-size:11px;color:var(--color-text-secondary);flex-wrap:wrap;">
+                            ${item.assignee ? `<span>👤 ${escapeHtml(item.assignee)}</span>` : ''}
+                            ${item.due_date ? `<span>📅 ${escapeHtml(item.due_date)}</span>` : ''}
+                            ${item.priority ? `<span style="color:${priorityColor};">⚡ ${escapeHtml(item.priority)}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+    
+    // Opportunités
+    if (_pmOpportunities.length > 0) {
+        html += `<div style="margin-top:16px;padding-top:16px;border-top:2px solid var(--color-border);">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px;">💎 Opportunités</div>`;
+        _pmOpportunities.forEach((opp, idx) => {
+            html += `
+            <div style="border:1px solid var(--color-border);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--color-surface-2);">
+                <div style="display:flex;align-items:start;gap:8px;">
+                    <input type="checkbox" checked id="pmOpportunity_${idx}" onchange="_pmOpportunities[${idx}].accepted=this.checked">
+                    <div style="flex:1;">
+                        <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${escapeHtml(opp.type || 'Opportunité')}</div>
+                        ${opp.description ? `<div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:4px;">${escapeHtml(opp.description)}</div>` : ''}
+                        <div style="display:flex;gap:12px;font-size:11px;color:var(--color-text-secondary);flex-wrap:wrap;">
+                            ${opp.value ? `<span>💰 ${escapeHtml(String(opp.value))}€</span>` : ''}
+                            ${opp.probability !== null && opp.probability !== undefined ? `<span>📊 ${escapeHtml(String(opp.probability))}%</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+    
+    // Décisions
+    if (_pmDecisions.length > 0) {
+        html += `<div style="margin-top:16px;padding-top:16px;border-top:2px solid var(--color-border);">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px;">🎯 Décisions prises</div>`;
+        _pmDecisions.forEach((dec, idx) => {
+            html += `
+            <div style="border:1px solid var(--color-border);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--color-surface-2);">
+                <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${escapeHtml(dec.decision || 'Décision')}</div>
+                ${dec.impact ? `<div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:4px;">Impact: ${escapeHtml(dec.impact)}</div>` : ''}
+                ${dec.stakeholders ? `<div style="font-size:11px;color:var(--color-text-secondary);">Parties prenantes: ${escapeHtml(dec.stakeholders)}</div>` : ''}
+            </div>`;
+        });
+        html += `</div>`;
+    }
+    
+    // Prochaines étapes
+    if (_pmNextSteps.length > 0) {
+        html += `<div style="margin-top:16px;padding-top:16px;border-top:2px solid var(--color-border);">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px;">📋 Prochaines étapes</div>`;
+        _pmNextSteps.forEach((step, idx) => {
+            html += `
+            <div style="border:1px solid var(--color-border);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--color-surface-2);">
+                <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${escapeHtml(step.step || 'Étape')}</div>
+                <div style="display:flex;gap:12px;font-size:11px;color:var(--color-text-secondary);flex-wrap:wrap;">
+                    ${step.date ? `<span>📅 ${escapeHtml(step.date)}</span>` : ''}
+                    ${step.dependencies ? `<span>🔗 Dépendances: ${escapeHtml(step.dependencies)}</span>` : ''}
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+    
+    // Sentiment
+    if (_pmSentiment && _pmSentiment.tone) {
+        const sentimentColors = { positif: '#10b981', neutre: '#6b7280', négatif: '#ef4444' };
+        const sentimentColor = sentimentColors[_pmSentiment.tone] || '#6b7280';
+        html += `<div style="margin-top:16px;padding-top:16px;border-top:2px solid var(--color-border);">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px;">😊 Sentiment de la réunion</div>
+            <div style="border:1px solid var(--color-border);border-radius:10px;padding:10px;background:var(--color-surface-2);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <span style="color:${sentimentColor};font-weight:600;">${escapeHtml(_pmSentiment.tone)}</span>
+                    ${_pmSentiment.score ? `<span style="font-size:12px;color:var(--color-text-secondary);">(Score: ${escapeHtml(String(_pmSentiment.score))}/10)</span>` : ''}
+                </div>
+                ${_pmSentiment.justification ? `<div style="font-size:12px;color:var(--color-text-secondary);white-space:pre-wrap;">${escapeHtml(_pmSentiment.justification)}</div>` : ''}
+            </div>
         </div>`;
     }
     
@@ -11057,6 +11427,99 @@ async function applyPostMeetingImport() {
 
     try {
         await saveToServerAsync();
+        
+        // Créer une réunion (meeting) pour stocker les données structurées
+        let meetingId = null;
+        const meetingTitle = d.compte_rendu ? (d.compte_rendu.substring(0, 100) + (d.compte_rendu.length > 100 ? '...' : '')) : 'Réunion IA';
+        try {
+            const meetingRes = await fetch('/api/meetings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prospect_id: _pmProspectId,
+                    title: meetingTitle,
+                    checklist_data: _pmChecklistResponses || null,
+                    notes: d.compte_rendu || ''
+                })
+            });
+            const meetingData = await meetingRes.json();
+            if (meetingData.ok && meetingData.id) {
+                meetingId = meetingData.id;
+            }
+        } catch (e) {
+            console.warn('Erreur création meeting:', e);
+        }
+        
+        // Créer les action items acceptés
+        if (meetingId && _pmActionItems && _pmActionItems.length > 0) {
+            const acceptedActionItems = _pmActionItems.filter((item, idx) => {
+                const checkbox = document.getElementById(`pmActionItem_${idx}`);
+                return checkbox ? checkbox.checked : true;
+            });
+            
+            for (const item of acceptedActionItems) {
+                if (!item.task || !item.task.trim()) continue;
+                try {
+                    await fetch(`/api/meetings/${meetingId}/action-items`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            task: item.task,
+                            assignee: item.assignee || null,
+                            due_date: item.due_date || null,
+                            priority: item.priority || null
+                        })
+                    });
+                    
+                    // Générer automatiquement une tâche depuis l'action item
+                    if (item.task && item.due_date) {
+                        try {
+                            await fetch('/api/tasks/save', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    title: item.task,
+                                    comment: `Action item de réunion - Prospect: ${p.name || ''}`,
+                                    due_date: item.due_date,
+                                    status: 'pending',
+                                    linked_ids: JSON.stringify([_pmProspectId])
+                                })
+                            });
+                        } catch (e) {
+                            console.warn('Erreur création tâche:', e);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Erreur création action item:', e);
+                }
+            }
+        }
+        
+        // Créer les opportunités acceptées
+        if (meetingId && _pmOpportunities && _pmOpportunities.length > 0) {
+            const acceptedOpportunities = _pmOpportunities.filter((opp, idx) => {
+                const checkbox = document.getElementById(`pmOpportunity_${idx}`);
+                return checkbox ? checkbox.checked : true;
+            });
+            
+            for (const opp of acceptedOpportunities) {
+                if (!opp.type || !opp.type.trim()) continue;
+                try {
+                    await fetch(`/api/meetings/${meetingId}/opportunities`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: opp.type,
+                            estimated_value: opp.value ? parseFloat(opp.value) : null,
+                            probability: opp.probability !== null && opp.probability !== undefined ? parseInt(opp.probability) : null,
+                            description: opp.description || null
+                        })
+                    });
+                } catch (e) {
+                    console.warn('Erreur création opportunité:', e);
+                }
+            }
+        }
 
         // Log as event in timeline
         await fetch('/api/ia-enrichment-log', {
@@ -11071,7 +11534,7 @@ async function applyPostMeetingImport() {
         });
 
         closePostMeetingModal();
-        showToast('✅ Compte-rendu appliqué ! Fiche mise à jour.', 'success', 5000);
+        showToast('✅ Compte-rendu appliqué ! Fiche mise à jour.' + (meetingId ? ' Réunion et données structurées créées.' : ''), 'success', 5000);
         viewDetail(_pmProspectId); // refresh the detail modal
     } catch(e) {
         console.error(e);
