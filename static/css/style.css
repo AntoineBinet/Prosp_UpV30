@@ -5619,9 +5619,9 @@ body[data-page=""] .fab-icon-only {
 
 body[data-page="prospects"] #fabAdd,
 body[data-page=""] #fabAdd {
-  bottom: 28px; /* Même niveau */
-  right: 100px; /* Juste à gauche de l'IA (38px + 52px + 10px marge) */
-  left: auto;
+  bottom: 28px !important; /* Même niveau */
+  right: 100px !important; /* Juste à gauche de l'IA (38px + 52px + 10px marge) */
+  left: auto !important;
 }
 
 /* Responsive: icon-only on small screens */
