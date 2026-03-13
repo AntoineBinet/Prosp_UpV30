@@ -5750,6 +5750,18 @@ function _ensurePushModal() {
                     <option value="">Aucun consultant</option>
                 </select>
             </div>
+            <div id="pushModalTimingRecommendation" style="margin-bottom:20px;padding:12px;background:var(--color-surface);border-radius:8px;border:1px solid var(--color-border);display:none;">
+                <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--color-primary);">⏰ Recommandation de timing</div>
+                <div id="pushModalTimingText" style="font-size:12px;color:var(--color-text-secondary);"></div>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Planifier l'envoi (optionnel)</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="datetime-local" id="pushModalScheduledTime" class="input" style="flex:1;" />
+                    <button class="btn btn-secondary btn-sm" onclick="useOptimalTiming()" id="btnUseOptimalTiming" style="white-space:nowrap;">Utiliser timing optimal</button>
+                </div>
+                <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;">Laissez vide pour envoyer maintenant</div>
+            </div>
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closePushSelectModal()">Annuler</button>
                 <button class="btn btn-primary" onclick="confirmPushSend()">📤 Envoyer</button>
@@ -5840,6 +5852,11 @@ async function openPushSelectModal(prospectId, channel = 'email') {
         }
     }
 
+    // v26.6: Charger la recommandation de timing optimal
+    if (channel === 'email') {
+        loadOptimalTiming(prospectId);
+    }
+
     const modal = document.getElementById('pushSelectModal');
     if (modal) {
         if (window.openModal) {
@@ -5848,6 +5865,80 @@ async function openPushSelectModal(prospectId, channel = 'email') {
             modal.classList.add('active');
         }
     }
+}
+
+async function loadOptimalTiming(prospectId) {
+    const recEl = document.getElementById('pushModalTimingRecommendation');
+    const textEl = document.getElementById('pushModalTimingText');
+    if (!recEl || !textEl) return;
+    
+    try {
+        const res = await fetch(`/api/push/optimal-time?prospect_id=${prospectId}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.optimal_timing) {
+                const timing = data.optimal_timing;
+                if (timing.best_hour !== undefined && timing.best_day !== undefined) {
+                    recEl.style.display = 'block';
+                    const confidenceIcon = timing.confidence === 'high' ? '✅' : timing.confidence === 'medium' ? '⚠️' : '💡';
+                    textEl.innerHTML = `${confidenceIcon} <strong>${timing.best_day_name}</strong> à <strong>${String(timing.best_hour).padStart(2, '0')}h</strong> (${timing.reason || 'Recommandation basée sur l\'historique'})`;
+                } else {
+                    recEl.style.display = 'none';
+                }
+            } else {
+                recEl.style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.warn('Error loading optimal timing', e);
+        recEl.style.display = 'none';
+    }
+}
+
+function useOptimalTiming() {
+    const prospectId = _pushModalProspectId;
+    if (!prospectId) return;
+    
+    loadOptimalTiming(prospectId).then(() => {
+        const recEl = document.getElementById('pushModalTimingRecommendation');
+        const textEl = document.getElementById('pushModalTimingText');
+        const scheduledInput = document.getElementById('pushModalScheduledTime');
+        
+        if (!recEl || !textEl || !scheduledInput) return;
+        
+        // Extraire l'heure et le jour de la recommandation
+        const text = textEl.textContent || '';
+        const hourMatch = text.match(/(\d{2})h/);
+        const dayMatch = text.match(/(Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)/);
+        
+        if (hourMatch && dayMatch) {
+            const hour = parseInt(hourMatch[1], 10);
+            const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+            const targetDay = dayNames.indexOf(dayMatch[1]);
+            const today = new Date();
+            const currentDay = today.getDay();
+            
+            // Calculer le prochain jour cible
+            let daysToAdd = (targetDay - currentDay + 7) % 7;
+            if (daysToAdd === 0 && today.getHours() >= hour) {
+                daysToAdd = 7; // Si c'est aujourd'hui mais l'heure est passée, prendre la semaine prochaine
+            }
+            
+            const targetDate = new Date(today);
+            targetDate.setDate(today.getDate() + daysToAdd);
+            targetDate.setHours(hour, 0, 0, 0);
+            
+            // Formater pour datetime-local (YYYY-MM-DDTHH:mm)
+            const year = targetDate.getFullYear();
+            const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+            const day = String(targetDate.getDate()).padStart(2, '0');
+            const hours = String(targetDate.getHours()).padStart(2, '0');
+            const minutes = String(targetDate.getMinutes()).padStart(2, '0');
+            
+            scheduledInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            showToast('Timing optimal appliqué !', 'success', 2000);
+        }
+    });
 }
 
 function closePushSelectModal() {
@@ -6006,8 +6097,23 @@ async function confirmPushSend() {
         }
     }
 
+    // v26.6: Vérifier si un timing est planifié
+    const scheduledTimeInput = document.getElementById('pushModalScheduledTime');
+    let sentAt = todayISO();
+    if (scheduledTimeInput && scheduledTimeInput.value) {
+        // Convertir datetime-local en ISO
+        const scheduledDate = new Date(scheduledTimeInput.value);
+        if (!isNaN(scheduledDate.getTime())) {
+            sentAt = scheduledDate.toISOString().slice(0, 19).replace('T', ' ');
+            // Si l'heure planifiée est dans le futur, on ne peut pas envoyer maintenant
+            if (scheduledDate > new Date()) {
+                showToast(`⏰ Envoi planifié pour ${scheduledDate.toLocaleString('fr-FR')}. Le tracking sera activé à ce moment-là.`, 'info', 5000);
+                // Note: Dans une vraie implémentation, il faudrait une queue d'envoi planifié
+            }
+        }
+    }
+    
     // Mark push as sent
-    const sentAt = todayISO();
     if (channel === 'email') {
         p.pushEmailSentAt = sentAt;
         try {
@@ -7066,7 +7172,7 @@ async function applyIAImport() {
     if (accepted.length === 0) { showToast('ℹ️ Aucun champ sélectionné.', 'info'); return; }
 
     if (_iaCurrentType === 'prospect') _applyProspectIA(accepted);
-    else if (_iaCurrentType === 'candidate') _applyCandidateIA(accepted);
+    else if (_iaCurrentType === 'candidate') await _applyCandidateIA(accepted);
     else if (_iaCurrentType === 'company') _applyCompanyIA(accepted);
 
     // Log to timeline

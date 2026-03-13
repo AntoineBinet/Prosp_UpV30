@@ -67,6 +67,7 @@ function renderDashboard(d) {
     renderFeed(d.feed, d.today);
     renderUpcomingRdv(d.upcoming_rdv || []);
     renderPipeline(d.pipeline);
+    renderPushAnalytics();
     if (typeof window.applyDashboardDisplayPrefs === 'function') window.applyDashboardDisplayPrefs();
     
     // Réinitialiser le drag & drop après le rendu
@@ -105,7 +106,7 @@ window.applyDashboardDisplayPrefs = applyDashboardDisplayPrefs;
 // ═══ Widgets réorganisables (v25+) — ordre sauvegardé par utilisateur ─══
 var DASH_WIDGET_ORDER_KEY = 'dashboard_widget_order';
 var DASH_WIDGET_COLUMNS_KEY = 'dashboard_widget_columns';
-var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard', 'dashPrioritiesCard', 'dashAssistantCard'];
+var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard', 'dashPrioritiesCard', 'dashAssistantCard', 'dashPushAnalyticsCard'];
 
 function getDashboardWidgetOrder() {
     try {
@@ -998,6 +999,77 @@ function renderPriorities(priorities) {
             </div>
         </div>
     `).join('');
+}
+
+// ═══ Analytics Mailing (v26.6) ═══
+async function renderPushAnalytics() {
+    const el = document.getElementById('dashPushAnalytics');
+    if (!el) return;
+    
+    try {
+        const res = await fetch('/api/push/analytics');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Error');
+        
+        const analytics = data;
+        let html = '<div style="padding:12px;">';
+        
+        // Meilleurs créneaux horaires
+        if (analytics.hour_stats && analytics.hour_stats.length > 0) {
+            html += '<div style="margin-bottom:16px;">';
+            html += '<div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--color-text-secondary);">⏰ Meilleures heures</div>';
+            analytics.hour_stats.slice(0, 3).forEach(stat => {
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;">`;
+                html += `<span>${String(stat.hour).padStart(2, '0')}h</span>`;
+                html += `<span style="font-weight:600;color:var(--color-primary);">${stat.open_rate.toFixed(1)}%</span>`;
+                html += `</div>`;
+            });
+            html += '</div>';
+        }
+        
+        // Meilleurs jours
+        if (analytics.day_stats && analytics.day_stats.length > 0) {
+            html += '<div style="margin-bottom:16px;">';
+            html += '<div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--color-text-secondary);">📅 Meilleurs jours</div>';
+            analytics.day_stats.slice(0, 3).forEach(stat => {
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;">`;
+                html += `<span>${stat.day_name}</span>`;
+                html += `<span style="font-weight:600;color:var(--color-primary);">${stat.open_rate.toFixed(1)}%</span>`;
+                html += `</div>`;
+            });
+            html += '</div>';
+        }
+        
+        // Performance variantes A/B
+        if (analytics.variant_stats && analytics.variant_stats.length > 0) {
+            html += '<div style="margin-bottom:16px;">';
+            html += '<div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--color-text-secondary);">🧪 Variantes A/B</div>';
+            analytics.variant_stats.forEach(stat => {
+                html += `<div style="padding:8px;background:var(--color-surface);border-radius:6px;margin-bottom:6px;">`;
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">`;
+                html += `<span style="font-weight:600;">Variante ${stat.variant_id}</span>`;
+                html += `<span style="font-size:11px;color:var(--color-text-secondary);">${stat.total} envois</span>`;
+                html += `</div>`;
+                html += `<div style="display:flex;gap:12px;font-size:11px;">`;
+                html += `<span>Ouverture: <strong>${stat.open_rate.toFixed(1)}%</strong></span>`;
+                html += `<span>Clics: <strong>${stat.click_rate.toFixed(1)}%</strong></span>`;
+                html += `</div>`;
+                html += `</div>`;
+            });
+            html += '</div>';
+        }
+        
+        if (!analytics.hour_stats?.length && !analytics.day_stats?.length && !analytics.variant_stats?.length) {
+            html += '<div class="muted" style="text-align:center;padding:20px;">Pas encore de données d\'analytics disponibles.</div>';
+        }
+        
+        html += '</div>';
+        el.innerHTML = html;
+    } catch (e) {
+        console.error('Push analytics error:', e);
+        el.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">Erreur de chargement des analytics.</div>';
+    }
 }
 
 // ═══ Assistant virtuel ═══
