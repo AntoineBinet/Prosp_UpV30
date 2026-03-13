@@ -1,7 +1,7 @@
 # Audit de cohérence — ProspUp (Mars 2026)
 
 **Date de l'audit** : 13 mars 2026  
-**Version de l'application** : 26.2  
+**Version de l'application** : 27.0  
 **Objectif** : Identifier les incohérences dans les textes affichés (HTML), l'UX et les fonctionnalités suite aux nombreuses modifications de la semaine.
 
 ---
