@@ -17,7 +17,14 @@ import difflib
 from pathlib import Path
 from typing import Any, Dict, List
 
-from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g, Response, render_template
+from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g, Response, render_template, stream_with_context
+
+# ReportLab pour génération PDF
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
 from markupsafe import escape as escape_html
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -9379,6 +9386,422 @@ RDV_CHECKLIST_THEMES = [
 ]
 
 
+# ═══════════════════════════════════════════════════════════════════
+# v26.3: Fonctions utilitaires pour "Avant réunion IA" — génération PDF
+# ═══════════════════════════════════════════════════════════════════
+
+def build_ollama_prompt_rdv(prospect: Dict[str, Any], company: Dict[str, Any] = None) -> str:
+    """Construit le prompt Ollama pour analyser un profil LinkedIn et générer une fiche de préparation RDV.
+    
+    Args:
+        prospect: Dict avec les champs du prospect (name, fonction, linkedin, etc.)
+        company: Dict avec les infos de l'entreprise (groupe, site, etc.)
+    
+    Returns:
+        String prompt structuré pour Ollama
+    """
+    nom_complet = prospect.get("name", "").strip()
+    prenom = prospect.get("prenom", "").strip() or nom_complet.split()[0] if nom_complet else ""
+    nom = prospect.get("nom", "").strip() or " ".join(nom_complet.split()[1:]) if len(nom_complet.split()) > 1 else nom_complet
+    poste = prospect.get("fonction", "").strip()
+    entreprise = ""
+    ville = ""
+    if company:
+        entreprise = f"{company.get('groupe', '')} ({company.get('site', '')})".strip(" ()")
+        ville = company.get("site", "").strip()
+    linkedin = prospect.get("linkedin", "").strip()
+    
+    return f"""Tu es un expert en prospection B2B pour une ESN spécialisée en systèmes embarqués, robotique et ingénierie industrielle (société UpTechnologie, Lyon).
+
+Tu dois analyser le profil LinkedIn suivant et générer une fiche de préparation RDV structurée en JSON.
+
+--- PROFIL ---
+Nom : {prenom} {nom}
+Poste actuel : {poste}
+Entreprise : {entreprise}
+Ville : {ville}
+URL LinkedIn : {linkedin}
+
+--- FORMAT DE SORTIE ATTENDU (JSON strict) ---
+{{
+  "qui_est_il": {{
+    "resume": "2-3 phrases de synthèse sur son profil, sa sensibilité, ses priorités",
+    "titre_actuel": "...",
+    "parcours": "résumé du parcours en 1-2 phrases",
+    "stack_specialites": ["...", "..."],
+    "activite_complementaire": "freelance / autre activité éventuelle"
+  }},
+  "contexte_entreprise": {{
+    "description": "description de l'entreprise en 2-3 phrases",
+    "taille": "...",
+    "secteurs": ["...", "..."],
+    "metiers_autour": ["...", "..."],
+    "conclusion_matching": "pourquoi ces métiers matchent avec des candidats embarqué/robotique/IA"
+  }},
+  "besoins_probables": {{
+    "data_referentiels": ["..."],
+    "digital_bi2b": ["..."],
+    "automatisation": ["..."],
+    "ressources_contraintes": ["..."],
+    "candidats_a_positionner": ["Ingé embarqué / industrie 4.0", "Dev back-end / data", "Ingé systèmes / intégration"]
+  }},
+  "interlocuteurs_potentiels": {{
+    "marketing_digital": ["..."],
+    "commerce_technique": ["..."],
+    "technique_projet": ["..."],
+    "conclusion": "..."
+  }}
+}}
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.
+"""
+
+
+def build_fallback_prompt_rdv(prospect: Dict[str, Any], company: Dict[str, Any] = None) -> str:
+    """Construit un prompt complet pour fallback (copier-coller dans une autre IA).
+    
+    Args:
+        prospect: Dict avec les champs du prospect
+        company: Dict avec les infos de l'entreprise
+    
+    Returns:
+        String prompt complet
+    """
+    nom_complet = prospect.get("name", "").strip()
+    prenom = prospect.get("prenom", "").strip() or nom_complet.split()[0] if nom_complet else ""
+    nom = prospect.get("nom", "").strip() or " ".join(nom_complet.split()[1:]) if len(nom_complet.split()) > 1 else nom_complet
+    poste = prospect.get("fonction", "").strip()
+    entreprise = ""
+    ville = ""
+    if company:
+        entreprise = f"{company.get('groupe', '')} ({company.get('site', '')})".strip(" ()")
+        ville = company.get("site", "").strip()
+    linkedin = prospect.get("linkedin", "").strip()
+    
+    return f"""Tu es un expert en prospection B2B pour une ESN spécialisée en systèmes embarqués, robotique et ingénierie industrielle (société UpTechnologie, Lyon).
+
+Génère une fiche de préparation RDV complète au format JSON strict pour ce prospect :
+
+Nom : {prenom} {nom}
+Poste : {poste}
+Entreprise : {entreprise}
+Ville : {ville}
+LinkedIn : {linkedin}
+
+--- FORMAT DE SORTIE ATTENDU (JSON strict) ---
+{{
+  "qui_est_il": {{
+    "resume": "2-3 phrases de synthèse sur son profil, sa sensibilité, ses priorités",
+    "titre_actuel": "...",
+    "parcours": "résumé du parcours en 1-2 phrases",
+    "stack_specialites": ["...", "..."],
+    "activite_complementaire": "freelance / autre activité éventuelle"
+  }},
+  "contexte_entreprise": {{
+    "description": "description de l'entreprise en 2-3 phrases",
+    "taille": "...",
+    "secteurs": ["...", "..."],
+    "metiers_autour": ["...", "..."],
+    "conclusion_matching": "pourquoi ces métiers matchent avec des candidats embarqué/robotique/IA"
+  }},
+  "besoins_probables": {{
+    "data_referentiels": ["..."],
+    "digital_bi2b": ["..."],
+    "automatisation": ["..."],
+    "ressources_contraintes": ["..."],
+    "candidats_a_positionner": ["Ingé embarqué / industrie 4.0", "Dev back-end / data", "Ingé systèmes / intégration"]
+  }},
+  "interlocuteurs_potentiels": {{
+    "marketing_digital": ["..."],
+    "commerce_technique": ["..."],
+    "technique_projet": ["..."],
+    "conclusion": "..."
+  }}
+}}
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.
+"""
+
+
+def build_fiche_rdv_pdf(prospect: Dict[str, Any], company: Dict[str, Any], ollama_data: Dict[str, Any]) -> BytesIO:
+    """Génère un PDF A4 de fiche de préparation RDV avec ReportLab.
+    
+    Args:
+        prospect: Dict avec les infos du prospect
+        company: Dict avec les infos de l'entreprise
+        ollama_data: Dict JSON parsé depuis la réponse Ollama
+    
+    Returns:
+        BytesIO contenant le PDF généré
+    """
+    nom_complet = prospect.get("name", "").strip()
+    prenom = prospect.get("prenom", "").strip() or nom_complet.split()[0] if nom_complet else ""
+    nom = prospect.get("nom", "").strip() or " ".join(nom_complet.split()[1:]) if len(nom_complet.split()) > 1 else nom_complet
+    poste = prospect.get("fonction", "").strip()
+    entreprise_str = ""
+    ville_str = ""
+    if company:
+        entreprise_str = f"{company.get('groupe', '')} ({company.get('site', '')})".strip(" ()")
+        ville_str = company.get("site", "").strip()
+    
+    # Extraire les données Ollama
+    qui_est_il = ollama_data.get("qui_est_il", {})
+    contexte_entreprise = ollama_data.get("contexte_entreprise", {})
+    besoins_probables = ollama_data.get("besoins_probables", {})
+    interlocuteurs = ollama_data.get("interlocuteurs_potentiels", {})
+    
+    # Créer le buffer PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.8*cm,
+        leftMargin=1.8*cm,
+        topMargin=1.5*cm,
+        bottomMargin=1.5*cm,
+    )
+    
+    W, H = A4
+    styles = getSampleStyleSheet()
+    
+    def S(name, parent='Normal', **kw):
+        return ParagraphStyle(name, parent=styles[parent], **kw)
+    
+    # Couleurs
+    GREY_DARK = colors.HexColor('#1A1A2E')
+    GREY_MED = colors.HexColor('#2C3E50')
+    BLUE_ACC = colors.HexColor('#2980B9')
+    GREY_LINE = colors.HexColor('#BDC3C7')
+    
+    # Styles
+    sMainTitle = S('MainTitle', fontName='Helvetica-Bold', fontSize=16, textColor=GREY_DARK,
+                   spaceAfter=2, alignment=1, leading=20)
+    sSubTitle = S('SubTitle', fontName='Helvetica', fontSize=9.5, textColor=GREY_MED,
+                  spaceAfter=10, alignment=1, leading=14)
+    sH1 = S('H1', fontName='Helvetica-Bold', fontSize=11.5, textColor=colors.white,
+            spaceBefore=10, spaceAfter=4, leading=16)
+    sH2 = S('H2', fontName='Helvetica-Bold', fontSize=10, textColor=GREY_DARK,
+            spaceBefore=8, spaceAfter=2, leading=14)
+    sH3 = S('H3', fontName='Helvetica-BoldOblique', fontSize=9, textColor=BLUE_ACC,
+            spaceBefore=5, spaceAfter=2, leading=13)
+    sBody = S('Body', fontName='Helvetica', fontSize=8.5, textColor=GREY_MED,
+              spaceAfter=3, leading=13, alignment=4)
+    sBullet = S('Bullet', fontName='Helvetica', fontSize=8.5, textColor=GREY_MED,
+                spaceAfter=4, leading=14, leftIndent=10)
+    sCheck = S('Check', fontName='Helvetica', fontSize=8.5, textColor=GREY_MED,
+               spaceAfter=10, leading=18, leftIndent=12)
+    sLink = S('Link', fontName='Helvetica-Bold', fontSize=8.5, textColor=GREY_DARK,
+              spaceAfter=4, leading=14, leftIndent=10)
+    
+    def h1_block(text):
+        tbl = Table([[Paragraph(text, sH1)]], colWidths=[W - 3.6*cm])
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), GREY_MED),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ]))
+        return tbl
+    
+    def hr():
+        return HRFlowable(width='100%', thickness=0.5, color=GREY_LINE, spaceAfter=3, spaceBefore=2)
+    
+    def b(text):
+        return f'<b>{text}</b>'
+    
+    def bullet(text):
+        return Paragraph('• ' + text, sBullet)
+    
+    def check(text):
+        return Paragraph('[ ]  ' + text, sCheck)
+    
+    story = []
+    
+    # HEADER
+    story.append(Paragraph('FICHE PRÉPARATION RDV PROSPECTION', sMainTitle))
+    story.append(Paragraph(
+        f'Prospect : {prenom} {nom} – {poste} – {entreprise_str} ({ville_str})',
+        sSubTitle
+    ))
+    story.append(HRFlowable(width='100%', thickness=2, color=BLUE_ACC, spaceAfter=10))
+    
+    # SECTION 1
+    story.append(h1_block('SECTION 1 – SYNTHÈSE PROSPECT'))
+    story.append(Spacer(1, 6))
+    
+    # 1. Qui est [Prénom] et ce qu'il fait
+    story.append(Paragraph(f'1. Qui est {prenom} et ce qu\'il fait', sH2))
+    story.append(hr())
+    resume = qui_est_il.get("resume", "")
+    if resume:
+        story.append(Paragraph(resume, sBody))
+    if qui_est_il.get("titre_actuel"):
+        story.append(bullet(b('Titre actuel :') + ' ' + qui_est_il.get("titre_actuel", "")))
+    if qui_est_il.get("parcours"):
+        story.append(bullet(b('Parcours :') + ' ' + qui_est_il.get("parcours", "")))
+    if qui_est_il.get("stack_specialites"):
+        specs = qui_est_il.get("stack_specialites", [])
+        if isinstance(specs, list):
+            story.append(bullet(b('Spécialités :') + ' ' + ', '.join(specs)))
+    if qui_est_il.get("activite_complementaire"):
+        story.append(bullet(b('Activité complémentaire :') + ' ' + qui_est_il.get("activite_complementaire", "")))
+    if resume:
+        story.append(Paragraph(
+            f'<i>En clair : {resume}</i>',
+            sBody
+        ))
+    story.append(Spacer(1, 5))
+    
+    # 2. Entreprise : environnement et métiers
+    entreprise_nom = company.get('groupe', '') if company else entreprise_str
+    story.append(Paragraph(f'2. {entreprise_nom} : environnement et métiers autour de lui', sH2))
+    story.append(hr())
+    if contexte_entreprise.get("description"):
+        story.append(Paragraph(contexte_entreprise.get("description", ""), sBody))
+    if contexte_entreprise.get("metiers_autour"):
+        story.append(Paragraph(b('Métiers autour de lui :'), sBody))
+        metiers = contexte_entreprise.get("metiers_autour", [])
+        if isinstance(metiers, list):
+            for m in metiers:
+                story.append(bullet(m))
+    if contexte_entreprise.get("conclusion_matching"):
+        story.append(Paragraph(
+            '➜ ' + contexte_entreprise.get("conclusion_matching", ""),
+            sLink
+        ))
+    story.append(Spacer(1, 5))
+    
+    # 3. Besoins probables
+    story.append(Paragraph('3. Ses besoins probables (angle UpTechnologie)', sH2))
+    story.append(hr())
+    
+    if besoins_probables.get("data_referentiels"):
+        story.append(Paragraph('Data produits & référentiels', sH3))
+        for item in besoins_probables.get("data_referentiels", []):
+            if item:
+                story.append(bullet(item))
+    
+    if besoins_probables.get("digital_bi2b"):
+        story.append(Paragraph('E-commerce / Digital B2B', sH3))
+        for item in besoins_probables.get("digital_bi2b", []):
+            if item:
+                story.append(bullet(item))
+    
+    if besoins_probables.get("automatisation"):
+        story.append(Paragraph('Automatisation / outils internes', sH3))
+        for item in besoins_probables.get("automatisation", []):
+            if item:
+                story.append(bullet(item))
+    
+    if besoins_probables.get("ressources_contraintes"):
+        story.append(Paragraph('Ressources et contraintes', sH3))
+        for item in besoins_probables.get("ressources_contraintes", []):
+            if item:
+                story.append(bullet(item))
+    
+    if besoins_probables.get("candidats_a_positionner"):
+        story.append(Paragraph(b('C\'est là que je peux positionner mes candidats :'), sBody))
+        for item in besoins_probables.get("candidats_a_positionner", []):
+            if item:
+                story.append(bullet(item))
+    story.append(Spacer(1, 5))
+    
+    # 4. Métiers avec lesquels il travaille
+    story.append(Paragraph('4. Métiers avec lesquels il travaille (interlocuteurs potentiels)', sH2))
+    story.append(hr())
+    if interlocuteurs.get("marketing_digital"):
+        for item in interlocuteurs.get("marketing_digital", []):
+            if item:
+                story.append(bullet(item))
+    if interlocuteurs.get("commerce_technique"):
+        for item in interlocuteurs.get("commerce_technique", []):
+            if item:
+                story.append(bullet(item))
+    if interlocuteurs.get("technique_projet"):
+        for item in interlocuteurs.get("technique_projet", []):
+            if item:
+                story.append(bullet(item))
+    if interlocuteurs.get("conclusion"):
+        story.append(Paragraph(
+            '<i>' + interlocuteurs.get("conclusion", "") + '</i>',
+            sBody
+        ))
+    story.append(Spacer(1, 8))
+    
+    # SECTION 2
+    story.append(h1_block('SECTION 2 – CHECKLIST RDV'))
+    story.append(Spacer(1, 6))
+    
+    # Checklist fixe (8 sections)
+    checklist_sections = [
+        ('1. Contexte prospect', [
+            'Vérifier son rôle exact : périmètre des projets et responsabilités.',
+            'Confirmer s\'il gère aussi les outils internes (suivi projets, outils service, connecteurs SI).',
+            'Identifier ses interlocuteurs principaux : commerce, technique, service, qualité, IT/IS.',
+            'Comprendre les liens entre projets industriels, service client et activité business.',
+        ]),
+        ('2. Enjeux et priorités actuelles', [
+            'Projets prioritaires 2025–2026 côté projets internationaux / modernisation / service.',
+            'Objectifs business : satisfaction client, disponibilité des installations, marges projets, développement d\'offres.',
+            'KPIs suivis : respect planning, coûts, pannes, temps d\'arrêt, taux de satisfaction.',
+            'Contraintes majeures : budget, délais, ressources internes techniques / projet.',
+        ]),
+        ('3. Irritants et points de blocage', [
+            'Manque de ressources techniques (ingénieurs automation / soft / data industrielle).',
+            'Complexité / rigidité du SI projets / SAV (ERP, outils maison, PLM).',
+            'Qualité, structuration, mise à jour de la donnée technique (installations, interventions, pannes).',
+            'Difficultés à interfacer le digital (outils projet, service, IIoT) avec les systèmes terrain.',
+            'Besoin d\'outils spécifiques pour les équipes internes (checklists, configurateurs, tableaux de bord).',
+        ]),
+        ('4. Organisation et recours aux ressources externes', [
+            'Comment ils gèrent les besoins ponctuels : interne, freelances, intégrateurs, ESN.',
+            'S\'ils ont déjà travaillé avec des sociétés de conseil / placement d\'ingénieurs.',
+            'Leurs critères de choix d\'un partenaire technique (réactivité, expertise industrielle, proximité, mode d\'intervention).',
+            'Le process de décision : qui décide, qui influence, qui utilise les solutions au quotidien.',
+        ]),
+        ('5. Positionnement UpTechnologie à présenter', [
+            'Ton rôle : ingénieur d\'affaires spécialisé en systèmes embarqués, robotique, ingénierie industrielle.',
+            'Ce que fait UpTechnologie : placement de consultants / ingénieurs pour renforcer les équipes sur des projets techniques.',
+            'Capacité à intervenir à l\'interface terrain (automates, capteurs, lignes) / logiciel (SI, outils internes, supervision).',
+            'Proximité géographique et connaissance du tissu industriel AURA.',
+        ]),
+        ('6. Types de besoins où tu peux aider', [
+            'Solutions connectées : remontée de données des équipements vers le SI / outils projets / service.',
+            'Automatisation de flux et fiabilisation de la donnée (scripts, ETL, API, connecteurs entre outils).',
+            'Outils métiers pour les équipes internes (configurateurs, simulateurs, dashboards, portails clients).',
+            'Projets industrie 4.0 nécessitant du logiciel embarqué / temps réel.',
+        ]),
+        ('7. Profils candidats à évoquer', [
+            'Ingénieur systèmes embarqués / industrie 4.0 (automates, capteurs, équipements terrain).',
+            'Profil logiciel / data back-end (scripts, API, intégration SI industriel).',
+            'Profil passerelle terrain ↔ digital, à l\'aise en environnement industriel lourd.',
+        ]),
+        ('8. Next steps à sécuriser', [
+            'Proposer l\'envoi d\'un court récap des échanges.',
+            'Proposer 2–3 exemples de profils types alignés avec son environnement.',
+            'Valider un point de suivi (après cadrage projet / avant pic d\'activité).',
+            'Noter ses préférences de contact (mail, téléphone, LinkedIn) et disponibilités.',
+        ]),
+    ]
+    
+    for title, items in checklist_sections:
+        story.append(Paragraph(title, sH2))
+        story.append(hr())
+        for item in items:
+            story.append(check(item))
+        story.append(Spacer(1, 3))
+    
+    story.append(Spacer(1, 6))
+    story.append(HRFlowable(width='100%', thickness=1.5, color=BLUE_ACC, spaceAfter=4))
+    story.append(Paragraph(b('Notes libres / observations à chaud :'), sH2))
+    for _ in range(4):
+        story.append(HRFlowable(width='100%', thickness=0.4, color=GREY_LINE, spaceBefore=14, spaceAfter=0))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+
 @app.get("/api/rdv-checklist/themes")
 def rdv_checklist_themes():
     """Return the reference checklist themes (read-only list)."""
@@ -9685,6 +10108,193 @@ def meetings_export_pdf(meeting_id):
             mimetype="text/html",
             headers={"Content-Disposition": f'inline; filename="reunion_{row["date"]}_{meeting_id}.html"'}
         )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v26.3: Routes API pour "Avant réunion IA" — streaming SSE et génération PDF
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/prospect/<int:prospect_id>/infos-rdv-stream")
+@login_required
+def api_prospect_infos_rdv_stream(prospect_id: int):
+    """Route SSE pour analyser un prospect via Ollama et générer une fiche de préparation RDV.
+    
+    Stream les tokens Ollama en temps réel, puis stocke la réponse complète en session
+    pour la génération PDF ultérieure.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    # Vérifier que le prospect appartient à l'utilisateur
+    if not _prospect_owned(prospect_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    
+    # Récupérer le prospect et l'entreprise
+    with _conn() as conn:
+        prospect_row = conn.execute(
+            "SELECT * FROM prospects WHERE id=? AND owner_id=?;",
+            (prospect_id, uid)
+        ).fetchone()
+        if not prospect_row:
+            return jsonify(ok=False, error="Prospect introuvable"), 404
+        
+        prospect = dict(prospect_row)
+        company = None
+        if prospect.get("company_id"):
+            company_row = conn.execute(
+                "SELECT * FROM companies WHERE id=? AND owner_id=?;",
+                (prospect["company_id"], uid)
+            ).fetchone()
+            if company_row:
+                company = dict(company_row)
+    
+    # Construire le prompt Ollama
+    prompt = build_ollama_prompt_rdv(prospect, company)
+    fallback_prompt = build_fallback_prompt_rdv(prospect, company)
+    
+    def generate():
+        try:
+            # Appeler Ollama en streaming
+            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/generate",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            
+            yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
+            
+            full_response = ""
+            with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
+                buffer = b""
+                for chunk in resp:
+                    buffer += chunk
+                    while b"\n" in buffer:
+                        line_bytes, buffer = buffer.split(b"\n", 1)
+                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
+                        if not line_json:
+                            continue
+                        try:
+                            data = json.loads(line_json)
+                            if data.get("done", False):
+                                # Dernier chunk avec le texte complet
+                                final_text = data.get("response", "")
+                                if final_text:
+                                    full_response += final_text
+                                    yield f"data: {json.dumps({'type': 'token', 'content': final_text, 'done': True}, ensure_ascii=False)}\n\n"
+                                
+                                # Stocker la réponse complète en session pour le PDF
+                                session[f"rdv_analysis_{prospect_id}"] = full_response
+                                
+                                # Envoyer l'événement de fin avec l'URL du PDF
+                                yield f"data: {json.dumps({'type': 'done', 'pdf_url': f'/api/prospect/{prospect_id}/download-rdv-pdf'}, ensure_ascii=False)}\n\n"
+                                break
+                            else:
+                                # Token partiel
+                                token = data.get("response", "")
+                                if token:
+                                    full_response += token
+                                    yield f"data: {json.dumps({'type': 'token', 'content': token, 'done': False}, ensure_ascii=False)}\n\n"
+                        except json.JSONDecodeError:
+                            continue
+        except urllib.error.URLError as e:
+            logger.warning("Ollama unreachable (infos-rdv-stream): %s", e)
+            yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
+        except urllib.error.HTTPError as e:
+            try:
+                err_body = e.read().decode("utf-8")
+                err_data = json.loads(err_body) if err_body else {}
+                msg = err_data.get("error", err_body) or str(e)
+            except Exception:
+                msg = str(e)
+            logger.warning("Ollama HTTP error %s (infos-rdv-stream): %s", e.code, msg)
+            yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("Ollama infos-rdv-stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
+    
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+
+@app.get("/api/prospect/<int:prospect_id>/download-rdv-pdf")
+@login_required
+def api_prospect_download_rdv_pdf(prospect_id: int):
+    """Route pour télécharger le PDF de fiche de préparation RDV.
+    
+    Récupère la réponse Ollama stockée en session, parse le JSON, et génère le PDF.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    # Vérifier que le prospect appartient à l'utilisateur
+    if not _prospect_owned(prospect_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    
+    # Récupérer la réponse Ollama depuis la session
+    ollama_response = session.get(f"rdv_analysis_{prospect_id}")
+    if not ollama_response:
+        return jsonify(ok=False, error="Aucune analyse disponible. Relancez la génération."), 404
+    
+    # Récupérer le prospect et l'entreprise
+    with _conn() as conn:
+        prospect_row = conn.execute(
+            "SELECT * FROM prospects WHERE id=? AND owner_id=?;",
+            (prospect_id, uid)
+        ).fetchone()
+        if not prospect_row:
+            return jsonify(ok=False, error="Prospect introuvable"), 404
+        
+        prospect = dict(prospect_row)
+        company = None
+        if prospect.get("company_id"):
+            company_row = conn.execute(
+                "SELECT * FROM companies WHERE id=? AND owner_id=?;",
+                (prospect["company_id"], uid)
+            ).fetchone()
+            if company_row:
+                company = dict(company_row)
+    
+    # Parser le JSON depuis la réponse Ollama
+    # Extraire le JSON (peut être entouré de texte)
+    import re as re_mod
+    json_match = re_mod.search(r"\{[\s\S]*\}", ollama_response)
+    if not json_match:
+        return jsonify(ok=False, error="Format de réponse Ollama invalide. Réessayez."), 400
+    
+    try:
+        ollama_data = json.loads(json_match.group(0))
+    except json.JSONDecodeError as e:
+        logger.warning("Erreur parsing JSON Ollama: %s", e)
+        return jsonify(ok=False, error="Erreur lors du parsing de la réponse Ollama. Réessayez."), 400
+    
+    # Générer le PDF
+    try:
+        pdf_buffer = build_fiche_rdv_pdf(prospect, company, ollama_data)
+        
+        # Nettoyer la session (optionnel, pour éviter l'accumulation)
+        session.pop(f"rdv_analysis_{prospect_id}", None)
+        
+        # Nom du fichier
+        nom_complet = prospect.get("name", "").strip() or "prospect"
+        nom_safe = "".join(c for c in nom_complet if c.isalnum() or c in (' ', '-', '_')).strip()[:50]
+        filename = f"fiche_rdv_{nom_safe}.pdf"
+        
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        logger.exception("Erreur génération PDF fiche RDV")
+        return jsonify(ok=False, error=f"Erreur lors de la génération du PDF: {str(e)}"), 500
 
 
 # ────────────────────────────────────────────────────────────────────
