@@ -6449,69 +6449,7 @@ async function openPushSelectModal(prospectId, channel = 'email') {
         return;
     }
 
-    // Charger les catégories push
-    const catSelect = document.getElementById('pushModalCategory');
-    if (catSelect) {
-        try {
-            const res = await fetch('/api/push-categories');
-            if (res.ok) {
-                const cats = await res.json();
-                catSelect.innerHTML = '<option value="">Aucune catégorie</option>' +
-                    (Array.isArray(cats) ? cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') : '');
-                if (p.push_category_id) {
-                    catSelect.value = String(p.push_category_id);
-                }
-            }
-        } catch (e) {
-            console.warn('Error loading push categories', e);
-        }
-    }
-
-    // Charger les candidats
-    _pushModalCandidates = [];
-    const cand1Select = document.getElementById('pushModalCandidate1');
-    const cand2Select = document.getElementById('pushModalCandidate2');
-    if (cand1Select && cand2Select) {
-        try {
-            const qs = p.push_category_id ? `?push_category_id=${encodeURIComponent(p.push_category_id)}` : '';
-            const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
-            if (res.ok) {
-                const j = await res.json();
-                if (j.ok && j.candidates) {
-                    _pushModalCandidates = j.candidates;
-                    const options = '<option value="">Aucun candidat</option>' +
-                        _pushModalCandidates.map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' - ' + escapeHtml(c.role) : ''}</option>`).join('');
-                    cand1Select.innerHTML = options;
-                    cand2Select.innerHTML = options;
-                }
-            }
-        } catch (e) {
-            console.warn('Error loading candidates', e);
-        }
-    }
-
-    // Charger les utilisateurs (consultants)
-    _pushModalUsers = [];
-    const cons1Select = document.getElementById('pushModalConsultant1');
-    const cons2Select = document.getElementById('pushModalConsultant2');
-    if (cons1Select && cons2Select) {
-        try {
-            const res = await fetch('/api/users');
-            if (res.ok) {
-                const users = await res.json();
-                if (Array.isArray(users)) {
-                    _pushModalUsers = users;
-                    const options = '<option value="">Aucun consultant</option>' +
-                        users.map(u => `<option value="${u.id}">${escapeHtml(u.display_name || u.username || 'Utilisateur ' + u.id)}</option>`).join('');
-                    cons1Select.innerHTML = options;
-                    cons2Select.innerHTML = options;
-                }
-            }
-        } catch (e) {
-            console.warn('Error loading users', e);
-        }
-    }
-
+    // Ouvrir la modale IMMÉDIATEMENT avec indicateur de chargement
     const modal = document.getElementById('pushSelectModal');
     if (modal) {
         if (window.openModal) {
@@ -6520,6 +6458,105 @@ async function openPushSelectModal(prospectId, channel = 'email') {
             modal.classList.add('active');
         }
     }
+
+    // Afficher des indicateurs de chargement dans les selects
+    const catSelect = document.getElementById('pushModalCategory');
+    const cand1Select = document.getElementById('pushModalCandidate1');
+    const cand2Select = document.getElementById('pushModalCandidate2');
+    const cons1Select = document.getElementById('pushModalConsultant1');
+    const cons2Select = document.getElementById('pushModalConsultant2');
+    
+    if (catSelect) catSelect.innerHTML = '<option value="">Chargement...</option>';
+    if (cand1Select) cand1Select.innerHTML = '<option value="">Chargement...</option>';
+    if (cand2Select) cand2Select.innerHTML = '<option value="">Chargement...</option>';
+    if (cons1Select) cons1Select.innerHTML = '<option value="">Chargement...</option>';
+    if (cons2Select) cons2Select.innerHTML = '<option value="">Chargement...</option>';
+
+    // Charger les données en parallèle (non-bloquant)
+    const loadPromises = [];
+
+    // Charger les catégories push
+    if (catSelect) {
+        loadPromises.push(
+            fetch('/api/push-categories')
+                .then(res => res.ok ? res.json() : [])
+                .then(cats => {
+                    catSelect.innerHTML = '<option value="">Aucune catégorie</option>' +
+                        (Array.isArray(cats) ? cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') : '');
+                    if (p.push_category_id) {
+                        catSelect.value = String(p.push_category_id);
+                    }
+                })
+                .catch(e => {
+                    console.warn('Error loading push categories', e);
+                    catSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+                })
+        );
+    }
+
+    // Charger les candidats (peut être long)
+    _pushModalCandidates = [];
+    if (cand1Select && cand2Select) {
+        loadPromises.push(
+            (async () => {
+                try {
+                    const qs = p.push_category_id ? `?push_category_id=${encodeURIComponent(p.push_category_id)}` : '';
+                    const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
+                    if (res.ok) {
+                        const j = await res.json();
+                        if (j.ok && j.candidates) {
+                            _pushModalCandidates = j.candidates;
+                            const options = '<option value="">Aucun candidat</option>' +
+                                _pushModalCandidates.map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' - ' + escapeHtml(c.role) : ''}</option>`).join('');
+                            cand1Select.innerHTML = options;
+                            cand2Select.innerHTML = options;
+                        } else {
+                            cand1Select.innerHTML = '<option value="">Aucun candidat</option>';
+                            cand2Select.innerHTML = '<option value="">Aucun candidat</option>';
+                        }
+                    } else {
+                        cand1Select.innerHTML = '<option value="">Aucun candidat</option>';
+                        cand2Select.innerHTML = '<option value="">Aucun candidat</option>';
+                    }
+                } catch (e) {
+                    console.warn('Error loading candidates', e);
+                    cand1Select.innerHTML = '<option value="">Erreur de chargement</option>';
+                    cand2Select.innerHTML = '<option value="">Erreur de chargement</option>';
+                }
+            })()
+        );
+    }
+
+    // Charger les utilisateurs (consultants)
+    _pushModalUsers = [];
+    if (cons1Select && cons2Select) {
+        loadPromises.push(
+            fetch('/api/users')
+                .then(res => res.ok ? res.json() : [])
+                .then(users => {
+                    if (Array.isArray(users)) {
+                        _pushModalUsers = users;
+                        const options = '<option value="">Aucun consultant</option>' +
+                            users.map(u => `<option value="${u.id}">${escapeHtml(u.display_name || u.username || 'Utilisateur ' + u.id)}</option>`).join('');
+                        cons1Select.innerHTML = options;
+                        cons2Select.innerHTML = options;
+                    } else {
+                        cons1Select.innerHTML = '<option value="">Aucun consultant</option>';
+                        cons2Select.innerHTML = '<option value="">Aucun consultant</option>';
+                    }
+                })
+                .catch(e => {
+                    console.warn('Error loading users', e);
+                    cons1Select.innerHTML = '<option value="">Erreur de chargement</option>';
+                    cons2Select.innerHTML = '<option value="">Erreur de chargement</option>';
+                })
+        );
+    }
+
+    // Attendre que tous les chargements soient terminés (en arrière-plan, sans bloquer)
+    Promise.all(loadPromises).catch(e => {
+        console.warn('Erreur lors du chargement des données push', e);
+    });
 }
 
 function closePushSelectModal() {
