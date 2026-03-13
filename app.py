@@ -520,8 +520,8 @@ def _after_request(response):
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: blob:; "
-        "connect-src 'self'; "
-        "font-src 'self'; "
+        "connect-src 'self' https://api.perplexity.ai https://r2cdn.perplexity.ai; "
+        "font-src 'self' https://r2cdn.perplexity.ai; "
         "frame-ancestors 'self'"
     )
 
@@ -5052,40 +5052,64 @@ def api_push_categories_save():
     if not uid:
         return jsonify({"ok": False, "error": "Non authentifié"}), 401
     
-    payload = request.get_json(force=True, silent=False) or {}
-    name = (payload.get("name") or "").strip()
-    if not name:
-        return jsonify({"ok": False, "error": "name is required"}), 400
+    try:
+        payload = request.get_json(force=True, silent=False) or {}
+        name = (payload.get("name") or "").strip()
+        if not name:
+            return jsonify({"ok": False, "error": "name is required"}), 400
 
-    keywords = payload.get("keywords", [])
-    if isinstance(keywords, str):
-        keywords = [k.strip() for k in keywords.split(",") if k.strip()]
-    keywords_json = json.dumps(keywords, ensure_ascii=False)
+        keywords = payload.get("keywords", [])
+        if isinstance(keywords, str):
+            keywords = [k.strip() for k in keywords.split(",") if k.strip()]
+        keywords_json = json.dumps(keywords, ensure_ascii=False)
 
-    cid = payload.get("id")
-    now = _now_iso()
+        cid = payload.get("id")
+        now = _now_iso()
 
-    with _conn() as conn:
-        if cid:
-            # Vérifier que la catégorie appartient à l'utilisateur
-            existing = conn.execute("SELECT id FROM push_categories WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
-            if not existing:
-                return jsonify({"ok": False, "error": "Catégorie non trouvée ou accès refusé"}), 404
-            conn.execute(
-                "UPDATE push_categories SET name=?, keywords=?, updatedAt=? WHERE id=? AND owner_id=?;",
-                (name, keywords_json, now, int(cid), uid)
-            )
-        else:
-            conn.execute(
-                "INSERT INTO push_categories (name, keywords, auto_detected, owner_id, createdAt, updatedAt) VALUES (?, ?, 0, ?, ?, ?);",
-                (name, keywords_json, uid, now, now)
-            )
-            row = conn.execute("SELECT last_insert_rowid() AS id;").fetchone()
-            if not row:
-                return jsonify({"ok": False, "error": "Erreur lors de la création de la catégorie"}), 500
-            cid = row["id"]
+        with _conn() as conn:
+            # S'assurer que la table existe (migration pour DBs existantes)
+            try:
+                conn.execute("SELECT 1 FROM push_categories LIMIT 1;").fetchone()
+            except sqlite3.OperationalError:
+                # Table n'existe pas, l'initialiser
+                _init_user_db(uid)
+            
+            if cid:
+                # Vérifier que la catégorie appartient à l'utilisateur
+                try:
+                    existing = conn.execute("SELECT id FROM push_categories WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
+                    if not existing:
+                        return jsonify({"ok": False, "error": "Catégorie non trouvée ou accès refusé"}), 404
+                    conn.execute(
+                        "UPDATE push_categories SET name=?, keywords=?, updatedAt=? WHERE id=? AND owner_id=?;",
+                        (name, keywords_json, now, int(cid), uid)
+                    )
+                except sqlite3.IntegrityError as e:
+                    if "UNIQUE constraint" in str(e):
+                        return jsonify({"ok": False, "error": "Une catégorie avec ce nom existe déjà"}), 400
+                    raise
+            else:
+                try:
+                    conn.execute(
+                        "INSERT INTO push_categories (name, keywords, auto_detected, owner_id, createdAt, updatedAt) VALUES (?, ?, 0, ?, ?, ?);",
+                        (name, keywords_json, uid, now, now)
+                    )
+                    row = conn.execute("SELECT last_insert_rowid() AS id;").fetchone()
+                    if not row:
+                        return jsonify({"ok": False, "error": "Erreur lors de la création de la catégorie"}), 500
+                    cid = row["id"]
+                except sqlite3.IntegrityError as e:
+                    if "UNIQUE constraint" in str(e):
+                        return jsonify({"ok": False, "error": "Une catégorie avec ce nom existe déjà"}), 400
+                    raise
+                except Exception as e:
+                    app.logger.error(f"Erreur lors de la création de catégorie push: {e}", exc_info=True)
+                    return jsonify({"ok": False, "error": f"Erreur serveur: {str(e)}"}), 500
 
-    return jsonify({"ok": True, "id": cid})
+        return jsonify({"ok": True, "id": cid})
+    except Exception as e:
+        app.logger.error(f"Erreur dans api_push_categories_save: {e}", exc_info=True)
+        return jsonify({"ok": False, "error": f"Erreur serveur: {str(e)}"}), 500
 
 
 @app.post("/api/push-categories/delete")
