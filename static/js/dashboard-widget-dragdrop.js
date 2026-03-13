@@ -377,15 +377,24 @@ class DashboardWidgetDragDrop {
     
     /**
      * Créer un placeholder à la position du widget
+     * Important : Le placeholder doit préserver les propriétés grid du widget original
      */
     _createPlaceholder(widget) {
         const rect = widget.getBoundingClientRect();
+        const computedStyle = window.getComputedStyle(widget);
         
+        // Créer le placeholder avec les mêmes propriétés grid que le widget original
         const placeholder = document.createElement('div');
         placeholder.className = 'dash-widget-placeholder';
+        
+        // Copier les propriétés grid du widget original pour préserver sa position dans le grid
+        const gridColumn = computedStyle.gridColumn || 'auto';
+        const gridRow = computedStyle.gridRow || 'auto';
+        
         placeholder.style.cssText = `
             width: ${rect.width}px;
             height: ${rect.height}px;
+            min-height: ${rect.height}px;
             opacity: 0.3;
             border: 2px dashed var(--color-primary, #3b82f6);
             border-radius: 12px;
@@ -394,6 +403,8 @@ class DashboardWidgetDragDrop {
             transition: none;
             margin: 0;
             padding: 0;
+            grid-column: ${gridColumn};
+            grid-row: ${gridRow};
         `;
         
         this.container.insertBefore(placeholder, widget);

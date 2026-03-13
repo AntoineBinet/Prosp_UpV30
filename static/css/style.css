@@ -6424,6 +6424,45 @@ body[data-page=""] #fabAdd {
   padding: 0;
   min-height: 100px;
 }
+
+/* ─── Poignée de redimensionnement ─── */
+.dash-widget-resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--color-text-secondary, #94a3b8);
+  opacity: 0.6;
+  transition: opacity 0.2s, transform 0.2s;
+  user-select: none;
+  background: rgba(var(--color-surface-rgb, 30, 41, 59), 0.8);
+  border-radius: 6px 0 12px 0;
+  border: 1px solid var(--color-border);
+}
+.dash-widget-resize-handle:hover {
+  opacity: 1;
+  transform: scale(1.1);
+  color: var(--color-primary);
+  background: rgba(var(--color-primary-rgb, 59, 130, 246), 0.1);
+}
+.dash-widget-resize-handle:active {
+  transform: scale(0.95);
+}
+
+.dash-widget.dash-widget-resizing {
+  transition: none !important;
+  user-select: none;
+}
+.dash-widget.dash-widget-resizing * {
+  pointer-events: none;
+}
   font-weight: 700;
   z-index: 100;
   pointer-events: none;

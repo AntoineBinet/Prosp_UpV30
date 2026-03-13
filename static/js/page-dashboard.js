@@ -289,6 +289,41 @@ function initDashboardWidgetDragDrop() {
     console.log('[Dashboard] Drag & drop initialisé (nouveau système unifié)');
 }
 
+// ═══ Système de redimensionnement libre (style PowerPoint) ═══
+
+function initDashboardWidgetResize() {
+    const container = document.getElementById('dashWidgetsContainer');
+    if (!container) {
+        console.warn('[Dashboard] dashWidgetsContainer non trouvé pour resize');
+        return;
+    }
+    
+    // Détruire l'ancienne instance si elle existe
+    if (window._dashboardResizeInstance) {
+        window._dashboardResizeInstance.destroy();
+        window._dashboardResizeInstance = null;
+    }
+    
+    // Vérifier que la classe est disponible
+    if (typeof DashboardWidgetResize === 'undefined') {
+        console.error('[Dashboard] DashboardWidgetResize non disponible. Vérifiez que dashboard-widget-resize.js est chargé.');
+        return;
+    }
+    
+    // Créer nouvelle instance
+    window._dashboardResizeInstance = new DashboardWidgetResize('#dashWidgetsContainer', {
+        widgetSelector: '.dash-widget',
+        minWidth: 200,
+        minHeight: 150,
+        gridSnap: true
+    });
+    
+    // Initialiser
+    window._dashboardResizeInstance.init();
+    
+    console.log('[Dashboard] Resize initialisé (système libre)');
+}
+
 // Note: L'application de l'ordre et des colonnes est maintenant gérée dans le DOMContentLoaded
 // pour éviter les conflits de timing avec le chargement des données
 
@@ -1077,8 +1112,9 @@ function resetDashboardWidgets() {
     } catch (e) {}
     applyDashboardWidgetOrder();
     
-    // Réinitialiser le drag & drop (le nouveau système gère sa propre réinitialisation)
+    // Réinitialiser le drag & drop et resize
     initDashboardWidgetDragDrop();
+    initDashboardWidgetResize();
     
     if (typeof showToast === 'function') {
         showToast('✅ Widgets réinitialisés', 'success');
@@ -1104,7 +1140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await Promise.all([loadDashboard(), loadDashTasks(), loadAdaptiveDashboard()]);
     
     // Appliquer les préférences d'affichage une dernière fois après tout le chargement
-    // et initialiser le drag & drop une seule fois à la fin
+    // et initialiser le drag & drop et resize une seule fois à la fin
     setTimeout(function() {
         if (typeof window.applyDashboardDisplayPrefs === 'function') {
             window.applyDashboardDisplayPrefs();
@@ -1113,6 +1149,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         applyDashboardWidgetOrder();
         // Initialiser le drag & drop UNE SEULE FOIS à la fin (après que tout soit stable)
         initDashboardWidgetDragDrop();
+        // Initialiser le resize
+        initDashboardWidgetResize();
     }, 350);
 });
 
