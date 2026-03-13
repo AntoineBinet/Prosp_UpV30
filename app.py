@@ -5866,6 +5866,156 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON, sans texte avant ou après."""
             return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.get("/api/stats/predictions")
+def api_stats_predictions():
+    """Génère des prédictions IA basées sur les statistiques historiques (tendances futures, conversions prévues)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    today = datetime.date.today()
+    today_iso = _today_iso()
+    
+    # Récupérer les statistiques historiques (12 dernières semaines)
+    weeks_data = []
+    with _conn() as conn:
+        for i in range(12, 0, -1):
+            week_end = today - datetime.timedelta(days=(i - 1) * 7)
+            week_start = week_end - datetime.timedelta(days=6)
+            week_start_iso = week_start.isoformat()
+            week_end_iso = week_end.isoformat()
+            
+            # Compter les actions de cette semaine
+            pushes = conn.execute(
+                "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=? WHERE substr(l.sentAt,1,10) >= ? AND substr(l.sentAt,1,10) <= ?;",
+                (uid, week_start_iso, week_end_iso),
+            ).fetchone()["n"]
+            
+            # Compter les notes d'appel
+            call_notes_count = 0
+            prospects_rows = conn.execute(
+                "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '';",
+                (uid,),
+            ).fetchall()
+            for r in prospects_rows:
+                try:
+                    notes = json.loads(r["callNotes"] or "[]")
+                    if isinstance(notes, list):
+                        for n in notes:
+                            note_date = (n.get("date") or "")[:10]
+                            if note_date >= week_start_iso and note_date <= week_end_iso:
+                                call_notes_count += 1
+                except Exception:
+                    pass
+            
+            # Compter les RDV
+            rdv_count = conn.execute(
+                "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND rdvDate IS NOT NULL AND rdvDate != '' AND substr(rdvDate,1,10) >= ? AND substr(rdvDate,1,10) <= ?;",
+                (uid, week_start_iso, week_end_iso),
+            ).fetchone()["n"]
+            
+            weeks_data.append({
+                "week": f"S{week_end.isocalendar()[1]}",
+                "pushes": pushes,
+                "call_notes": call_notes_count,
+                "rdv": rdv_count,
+            })
+    
+    # Récupérer les totaux actuels
+    with _conn() as conn:
+        total_prospects = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
+        total_companies = conn.execute("SELECT COUNT(*) AS n FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
+        rdv_prospects = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous' AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
+        overdue_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND nextFollowUp IS NOT NULL AND nextFollowUp != '' AND nextFollowUp < ? AND deleted_at IS NULL;",
+            (uid, today_iso),
+        ).fetchone()["n"]
+    
+    # Construire le prompt pour les prédictions
+    prompt = f"""Tu es un assistant pour un CRM de prospection B2B. Analyse les données historiques et génère des prédictions pour les 4 prochaines semaines.
+
+DONNÉES HISTORIQUES (12 dernières semaines):
+{json.dumps(weeks_data, indent=2, ensure_ascii=False)}
+
+SITUATION ACTUELLE:
+- Total prospects: {total_prospects}
+- Total entreprises: {total_companies}
+- Prospects en RDV: {rdv_prospects}
+- Relances en retard: {overdue_count}
+
+PRÉDICTIONS À GÉNÉRER:
+1. "trends": Tendances prévues pour les 4 prochaines semaines (pushes, notes, RDV)
+2. "conversion_rate": Taux de conversion prévu (prospects → RDV)
+3. "recommendations": 2-3 recommandations pour optimiser les résultats
+4. "forecast": Prévisions chiffrées pour les 4 prochaines semaines
+
+RÉPONSE ATTENDUE (JSON strict, pas de markdown):
+{{
+  "trends": {{
+    "pushes": "tendance (augmentation/diminution/stabilité)",
+    "call_notes": "tendance",
+    "rdv": "tendance"
+  }},
+  "conversion_rate": {{
+    "current": X,
+    "predicted": Y,
+    "explanation": "explication courte"
+  }},
+  "recommendations": ["Recommandation 1", "Recommandation 2"],
+  "forecast": {{
+    "week_1": {{"pushes": X, "call_notes": Y, "rdv": Z}},
+    "week_2": {{"pushes": X, "call_notes": Y, "rdv": Z}},
+    "week_3": {{"pushes": X, "call_notes": Y, "rdv": Z}},
+    "week_4": {{"pushes": X, "call_notes": Y, "rdv": Z}}
+  }}
+}}
+
+IMPORTANT: Réponds UNIQUEMENT avec le JSON, sans texte avant ou après."""
+    
+    try:
+        # Appel à l'IA
+        ai_response = _call_ai(prompt, timeout=120)
+        
+        # Nettoyage de la réponse (enlever markdown si présent)
+        ai_response = ai_response.strip()
+        if ai_response.startswith("```json"):
+            ai_response = ai_response[7:]
+        if ai_response.startswith("```"):
+            ai_response = ai_response[3:]
+        if ai_response.endswith("```"):
+            ai_response = ai_response[:-3]
+        ai_response = ai_response.strip()
+        
+        # Parse JSON
+        predictions = json.loads(ai_response)
+        
+        # Validation de la structure
+        if not isinstance(predictions, dict):
+            raise ValueError("Réponse IA n'est pas un objet JSON")
+        
+        # Structure par défaut si champs manquants
+        result = {
+            "trends": predictions.get("trends", {}),
+            "conversion_rate": predictions.get("conversion_rate", {}),
+            "recommendations": predictions.get("recommendations", []),
+            "forecast": predictions.get("forecast", {}),
+        }
+        
+        return jsonify({"ok": True, "predictions": result})
+        
+    except json.JSONDecodeError as e:
+        logger.error("Erreur parsing JSON predictions IA: %s", e)
+        logger.error("Réponse brute: %s", ai_response[:500] if 'ai_response' in locals() else "")
+        return jsonify({
+            "ok": False,
+            "error": "Erreur parsing réponse IA",
+            "raw": ai_response[:500] if 'ai_response' in locals() else "",
+        }), 500
+    except Exception as e:
+        logger.error("Erreur génération predictions: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ====== Prospect Photo Upload ======
 import uuid as _uuid
 
