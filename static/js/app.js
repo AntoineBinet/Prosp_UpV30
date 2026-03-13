@@ -566,6 +566,40 @@ function saveToServer(opts) {
     });
 }
 
+// ═══ Gestion d'erreurs API unifiée ═══
+/**
+ * Gère de manière cohérente les erreurs API
+ * @param {Response} res - La réponse fetch
+ * @param {string} context - Le contexte de l'opération (pour les logs)
+ * @returns {Promise<Object>} Les données JSON ou null si erreur
+ */
+async function handleApiError(res, context) {
+    if (!res.ok) {
+        let errorMsg = `Erreur HTTP ${res.status}`;
+        try {
+            const data = await res.json();
+            errorMsg = data.error || data.message || errorMsg;
+        } catch (e) {
+            // Si le JSON ne peut pas être parsé, utiliser le status text
+            errorMsg = res.statusText || errorMsg;
+        }
+        console.error(`[${context}] ${errorMsg} (HTTP ${res.status})`);
+        if (window.showToast) {
+            showToast(`❌ ${context}: ${errorMsg}`, 'error');
+        }
+        return null;
+    }
+    try {
+        return await res.json();
+    } catch (e) {
+        console.error(`[${context}] Erreur parsing JSON:`, e);
+        if (window.showToast) {
+            showToast(`❌ ${context}: Erreur de format de réponse`, 'error');
+        }
+        return null;
+    }
+}
+
 // Toast notification system (enhanced v8)
 function showToast(msg, type) {
     type = type || 'success';
@@ -1155,6 +1189,94 @@ function isUnassignedCompany(companyId) {
 }
 
 function safeStr(v) { return (v === null || v === undefined) ? '' : String(v); }
+
+// ═══ Utilitaires formatage Push ═══
+/**
+ * Formate une date de manière cohérente pour l'affichage push
+ * @param {string|null|undefined} dateStr - Date ISO (YYYY-MM-DD) ou null/undefined
+ * @returns {string} Date formatée ou chaîne vide
+ */
+function formatPushDate(dateStr) {
+    if (!dateStr) return '';
+    // Si c'est déjà une date ISO (YYYY-MM-DD), on la retourne telle quelle
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+        return dateStr;
+    }
+    // Sinon, essayer de parser et formater
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    } catch (e) {
+        return '';
+    }
+}
+
+/**
+ * Formate l'affichage d'une entreprise (groupe/site) pour éviter "()" si groupe vide
+ * @param {string|null|undefined} groupe - Nom du groupe
+ * @param {string|null|undefined} site - Nom du site
+ * @returns {string} Format: "Groupe (Site)" ou "Site" ou "—"
+ */
+function formatPushCompany(groupe, site) {
+    const g = safeStr(groupe).trim();
+    const s = safeStr(site).trim();
+    if (g && s) return `${g} (${s})`;
+    if (g) return g;
+    if (s) return s;
+    return '—';
+}
+
+/**
+ * Valide qu'un prospect existe dans les données
+ * @param {number} prospectId - ID du prospect
+ * @returns {boolean} true si le prospect existe
+ */
+function validateProspectExists(prospectId) {
+    if (!prospectId) return false;
+    return data.prospects && data.prospects.some(p => p.id === prospectId);
+}
+
+/**
+ * Valide qu'un candidat existe
+ * @param {number} candidateId - ID du candidat
+ * @returns {Promise<boolean>} true si le candidat existe
+ */
+async function validateCandidateExists(candidateId) {
+    if (!candidateId) return false;
+    try {
+        const res = await fetch(`/api/candidates/${candidateId}`);
+        if (res.ok) {
+            const data = await res.json();
+            return data.ok && data.candidate;
+        }
+    } catch (e) {
+        console.warn('Erreur validation candidat:', e);
+    }
+    return false;
+}
+
+/**
+ * Valide qu'une catégorie push existe et appartient à l'utilisateur
+ * @param {number} categoryId - ID de la catégorie
+ * @returns {Promise<boolean>} true si la catégorie existe et est valide
+ */
+async function validatePushCategory(categoryId) {
+    if (!categoryId) return false;
+    try {
+        const res = await fetch(`/api/push-categories/${categoryId}/files`);
+        if (res.ok) {
+            const data = await res.json();
+            return data.ok !== false; // Si la catégorie n'existe pas ou n'appartient pas à l'utilisateur, ok sera false
+        }
+    } catch (e) {
+        console.warn('Erreur validation catégorie:', e);
+    }
+    return false;
+}
 
 function escapeHtml(str) {
     return String(str ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -5370,27 +5492,32 @@ async function onPushCategoryChange(prospectId, value) {
         if (templateList) templateList.innerHTML = '<span class="muted">Chargement…</span>';
         try {
             const res = await fetch(`/api/push-categories/${v}/files`);
-            if (res.ok) {
-                const fdata = await res.json();
-                if (fdata.ok && fdata.files && fdata.files.length) {
-                    // Prendre le premier template disponible
-                    const firstTemplate = fdata.files[0];
-                    templateList.innerHTML = `
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <span>📧 ${escapeHtml(firstTemplate.name)}</span>
-                            <span class="muted" style="font-size:11px;">${(firstTemplate.size/1024).toFixed(0)} Ko</span>
-                        </div>
-                    `;
-                    // Stocker le nom du template pour generatePush
-                    window._currentPushTemplate = firstTemplate.name;
-                    // Mettre à jour le bouton
-                    updatePushGenerateButton(prospectId);
-                } else {
-                    templateList.innerHTML = '<span class="muted">Aucun template disponible. Utilisez "Gérer catégorie" pour en ajouter un.</span>';
-                    window._currentPushTemplate = null;
-                }
+            if (!res.ok) {
+                console.error(`Erreur chargement fichiers catégorie ${v}: HTTP ${res.status}`);
+                if (templateList) templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+                window._currentPushTemplate = null;
+                return;
+            }
+            const fdata = await res.json();
+            if (fdata.ok && fdata.files && fdata.files.length) {
+                // Prendre le premier template disponible
+                const firstTemplate = fdata.files[0];
+                templateList.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span>📧 ${escapeHtml(firstTemplate.name)}</span>
+                        <span class="muted" style="font-size:11px;">${(firstTemplate.size/1024).toFixed(0)} Ko</span>
+                    </div>
+                `;
+                // Stocker le nom du template pour generatePush
+                window._currentPushTemplate = firstTemplate.name;
+                // Mettre à jour le bouton
+                updatePushGenerateButton(prospectId);
+            } else {
+                templateList.innerHTML = '<span class="muted">Aucun template disponible. Utilisez "Gérer catégorie" pour en ajouter un.</span>';
+                window._currentPushTemplate = null;
             }
         } catch (e) {
+            console.error(`Erreur chargement fichiers catégorie ${v}:`, e);
             if (templateList) templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
             window._currentPushTemplate = null;
         }
@@ -5469,7 +5596,10 @@ async function updatePushCandidates(prospectId) {
         // Charger les candidats depuis l'API
         try {
             const res = await fetch('/api/candidates');
-            if (res.ok) {
+            if (!res.ok) {
+                console.warn(`Erreur chargement candidats: HTTP ${res.status}`);
+                // Continuer avec la liste vide plutôt que de bloquer
+            } else {
                 const apiData = await res.json();
                 // Gérer les deux formats : array direct ou {ok: true, candidates: [...]}
                 if (Array.isArray(apiData)) {
@@ -5485,6 +5615,7 @@ async function updatePushCandidates(prospectId) {
             }
         } catch (e) {
             console.warn('Erreur chargement candidats:', e);
+            // Continuer avec la liste vide plutôt que de bloquer
         }
     }
     allCandidates = allCandidates.filter(c => !c.is_archived);
@@ -5565,31 +5696,48 @@ async function generatePush(prospectId) {
             })
         });
         
-        if (res.ok) {
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `push_${prospect.name}_${Date.now()}.zip`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            // Copier l'email dans le presse-papier si disponible
-            if (prospect.email) {
+        if (!res.ok) {
+            let errorMsg = `Erreur HTTP ${res.status}`;
+            try {
+                const errorData = await res.json();
+                errorMsg = errorData.error || errorData.message || errorMsg;
+            } catch (e) {
+                errorMsg = res.statusText || errorMsg;
+            }
+            console.error('Erreur génération push:', errorMsg);
+            showToast(`❌ Erreur lors de la génération du push: ${errorMsg}`, 'error', 6000);
+            return;
+        }
+        
+        const blob = await res.blob();
+        if (!blob || blob.size === 0) {
+            showToast('❌ Le fichier généré est vide', 'error');
+            return;
+        }
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `push_${prospect.name}_${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        // Copier l'email dans le presse-papier si disponible
+        if (prospect.email) {
+            try {
                 await navigator.clipboard.writeText(prospect.email);
                 showToast('Push généré ! Email copié dans le presse-papier', 'success');
-            } else {
-                showToast('Push généré !', 'success');
+            } catch (e) {
+                showToast('Push généré ! (Erreur copie email)', 'success');
             }
         } else {
-            const data = await res.json();
-            showToast(data.error || 'Erreur lors de la génération', 'error');
+            showToast('Push généré !', 'success');
         }
     } catch (e) {
         console.error('Erreur génération push:', e);
-        showToast('Erreur lors de la génération du push', 'error');
+        showToast(`❌ Erreur lors de la génération du push: ${e.message || 'Erreur réseau ou serveur'}`, 'error', 6000);
     }
 }
 
@@ -5673,15 +5821,19 @@ async function loadPushCategoryFiles(catId) {
     
     try {
         const res = await fetch(`/api/push-categories/${catId}/files`);
-        if (res.ok) {
-            const data = await res.json();
-            if (data.ok && data.files && data.files.length) {
-                filesBox.innerHTML = `Templates: ${data.files.map(f => escapeHtml(f.name)).join(', ')}`;
-            } else {
-                filesBox.innerHTML = '<span class="muted">Aucun template</span>';
-            }
+        if (!res.ok) {
+            filesBox.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            console.error(`Erreur chargement fichiers catégorie ${catId}: HTTP ${res.status}`);
+            return;
+        }
+        const data = await res.json();
+        if (data.ok && data.files && data.files.length) {
+            filesBox.innerHTML = `Templates: ${data.files.map(f => escapeHtml(f.name)).join(', ')}`;
+        } else {
+            filesBox.innerHTML = '<span class="muted">Aucun template</span>';
         }
     } catch (e) {
+        console.error(`Erreur chargement fichiers catégorie ${catId}:`, e);
         filesBox.innerHTML = '<span class="muted">Erreur</span>';
     }
 }
@@ -5694,7 +5846,16 @@ function createNewPushCategory() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim() })
-    }).then(res => res.json()).then(data => {
+    })
+    .then(async res => {
+        if (!res.ok) {
+            const errorData = await handleApiError(res, 'Création catégorie push');
+            return null;
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (!data) return; // Erreur déjà gérée par handleApiError
         if (data.ok) {
             showToast('Catégorie créée', 'success');
             loadPushCategoryManager();
@@ -5714,6 +5875,10 @@ function createNewPushCategory() {
         } else {
             showToast(data.error || 'Erreur', 'error');
         }
+    })
+    .catch(err => {
+        console.error('Erreur création catégorie push:', err);
+        showToast(`❌ Erreur lors de la création: ${err.message || 'Erreur inconnue'}`, 'error');
     });
 }
 
@@ -5734,6 +5899,10 @@ function uploadPushTemplate(catId, catName) {
                 method: 'POST',
                 body: formData
             });
+            if (!res.ok) {
+                const errorData = await handleApiError(res, 'Upload template push');
+                return;
+            }
             const data = await res.json();
             if (data.ok) {
                 showToast('Template uploadé avec succès', 'success');
@@ -5742,7 +5911,8 @@ function uploadPushTemplate(catId, catName) {
                 showToast(data.error || 'Erreur upload', 'error');
             }
         } catch (e) {
-            showToast('Erreur upload', 'error');
+            console.error('Erreur upload template push:', e);
+            showToast(`❌ Erreur upload: ${e.message || 'Erreur réseau'}`, 'error');
         }
     };
     input.click();
@@ -5755,7 +5925,16 @@ function deletePushCategory(catId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: catId })
-    }).then(res => res.json()).then(data => {
+    })
+    .then(async res => {
+        if (!res.ok) {
+            const errorData = await handleApiError(res, 'Suppression catégorie push');
+            return null;
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (!data) return; // Erreur déjà gérée par handleApiError
         if (data.ok) {
             showToast('Catégorie supprimée', 'success');
             loadPushCategoryManager();
@@ -5763,6 +5942,10 @@ function deletePushCategory(catId) {
         } else {
             showToast(data.error || 'Erreur', 'error');
         }
+    })
+    .catch(err => {
+        console.error('Erreur suppression catégorie push:', err);
+        showToast(`❌ Erreur lors de la suppression: ${err.message || 'Erreur inconnue'}`, 'error');
     });
 }
 
@@ -6445,11 +6628,14 @@ Réponds UNIQUEMENT par le message ${variants > 1 ? '(variantes numérotées)' :
 
 async function confirmPushSend() {
     if (!_pushModalProspectId) return;
+    
+    // Validation 1: Vérifier que le prospect existe toujours
     const p = data.prospects.find(x => x.id === _pushModalProspectId);
-    if (!p) {
+    if (!p || (typeof validateProspectExists === 'function' && !validateProspectExists(_pushModalProspectId))) {
         showToast("⚠️ Prospect introuvable.", 'error');
         return;
     }
+    
     const channel = _pushModalChannel || 'email';
     if (channel === 'email' && !p.email) {
         showToast("⚠️ Aucun email renseigné.", 'error');
@@ -6465,6 +6651,31 @@ async function confirmPushSend() {
     const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
     const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
     const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+    
+    // Validation 2: Vérifier que la catégorie existe et appartient à l'utilisateur
+    if (catId) {
+        const catValid = typeof validatePushCategory === 'function' ? await validatePushCategory(parseInt(catId, 10)) : true;
+        if (!catValid) {
+            showToast("⚠️ Catégorie invalide ou inaccessible.", 'error');
+            return;
+        }
+    }
+    
+    // Validation 3: Valider que les candidats existent avant l'envoi
+    if (candidateId1) {
+        const cand1Valid = typeof validateCandidateExists === 'function' ? await validateCandidateExists(parseInt(candidateId1, 10)) : true;
+        if (!cand1Valid) {
+            showToast("⚠️ Candidat 1 introuvable.", 'error');
+            return;
+        }
+    }
+    if (candidateId2) {
+        const cand2Valid = typeof validateCandidateExists === 'function' ? await validateCandidateExists(parseInt(candidateId2, 10)) : true;
+        if (!cand2Valid) {
+            showToast("⚠️ Candidat 2 introuvable.", 'error');
+            return;
+        }
+    }
     
     // Phase 1: Récupérer le message personnalisé généré par IA
     const customMessage = document.getElementById('pushModalMessage')?.value?.trim() || '';
@@ -6593,31 +6804,24 @@ async function confirmPushSend() {
             }
         }
     }
-
-    // Mark push as sent
-    const sentAt = todayISO();
-    if (channel === 'email') {
-        p.pushEmailSentAt = sentAt;
-        try {
-            const el = document.getElementById('detailPushSent');
-            if (el) el.textContent = '✅ ' + sentAt;
-        } catch (e) {}
-    } else if (channel === 'linkedin') {
-        p.pushLinkedInSentAt = sentAt;
-        try {
-            const el = document.getElementById('detailPushLinkedInSent');
-            if (el) el.textContent = '✅ ' + sentAt;
-        } catch (e) {}
+    
+    // Vérifier à nouveau que le prospect existe avant de continuer (éviter race condition)
+    const pCheck = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!pCheck) {
+        showToast("⚠️ Prospect introuvable (données modifiées).", 'error');
+        return;
     }
 
-    try { await saveToServerAsync(); } catch (e) {}
-
-    // Log push avec candidats et consultants
+    // Préparer la date (vérifier le format avec todayISO())
+    const sentAt = todayISO(); // Format: YYYY-MM-DD
+    
+    // Log push avec candidats et consultants AVANT de mettre à jour l'UI
+    let logSuccess = false;
     try {
-        await fetch('/api/push-logs/add', {
+        const logRes = await fetch('/api/push-logs/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            body: JSON.stringify({
                 prospect_id: p.id, sentAt, channel: channel,
                 to_email: channel === 'email' ? p.email : null,
                 subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : (customMessage ? 'Push IA personnalisé' : 'Push manuel')) : null,
@@ -6631,8 +6835,43 @@ async function confirmPushSend() {
                 ai_generated: customMessage ? true : null  // Phase 1: marquer comme généré par IA
             })
         });
+        logSuccess = logRes.ok;
+        if (!logSuccess) {
+            const errorData = await logRes.json().catch(() => ({}));
+            console.warn('Error logging push:', errorData);
+        }
     } catch (e) {
         console.warn('Error logging push', e);
+    }
+    
+    // Ne mettre à jour l'UI et les données locales QUE si le log serveur a réussi
+    if (logSuccess) {
+        // Mettre à jour les données locales
+        if (channel === 'email') {
+            p.pushEmailSentAt = sentAt;
+        } else if (channel === 'linkedin') {
+            p.pushLinkedInSentAt = sentAt;
+        }
+        
+        // Sauvegarder sur le serveur
+        try { await saveToServerAsync(); } catch (e) {
+            console.warn('Erreur sauvegarde après push:', e);
+        }
+        
+        // Mettre à jour l'UI seulement après confirmation serveur
+        if (channel === 'email') {
+            try {
+                const el = document.getElementById('detailPushSent');
+                if (el) el.textContent = '✅ ' + sentAt;
+            } catch (e) {}
+        } else if (channel === 'linkedin') {
+            try {
+                const el = document.getElementById('detailPushLinkedInSent');
+                if (el) el.textContent = '✅ ' + sentAt;
+            } catch (e) {}
+        }
+    } else {
+        showToast("⚠️ Push enregistré localement mais erreur lors de l'enregistrement du log.", 'warning', 5000);
     }
 
     closePushSelectModal();
@@ -8671,6 +8910,15 @@ alert("❌ Le serveur local n'a pas pu sauvegarder. Vérifiez que Python est lan
 
     // Refresh modal pour retirer le bouton Annuler
     try { viewDetail(prospectId); } catch (e) {}
+    
+    // Recharger push logs si on est sur la page push
+    try {
+        if (typeof reloadPushLogs === 'function') {
+            await reloadPushLogs();
+        }
+    } catch (e) {
+        console.warn('Erreur rechargement push logs:', e);
+    }
 }
 
 
