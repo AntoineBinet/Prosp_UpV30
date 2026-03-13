@@ -8440,27 +8440,40 @@ def api_push_analytics():
         return jsonify(ok=False, error="Non authentifié"), 401
 
     prospect_id = request.args.get("prospect_id", type=int)
+    
+    # Validation prospect_id si fourni
+    prospect_id_validated = None
+    if prospect_id is not None:
+        try:
+            prospect_id_validated = _validate_positive_int(prospect_id, "prospect_id")
+        except ValueError:
+            return jsonify({"ok": False, "error": "prospect_id invalide"}), 400
 
     with _conn() as conn:
-        # Base query pour filtrer par owner_id
-        base_where = "l.prospect_id IN (SELECT id FROM prospects WHERE owner_id=?)"
-        params = [uid]
-        if prospect_id:
-            base_where += " AND l.prospect_id=?"
-            params.append(prospect_id)
+        # Base query pour filtrer par owner_id - construction sécurisée avec paramètres
+        # Toujours utiliser des paramètres, jamais de f-strings avec valeurs utilisateur
+        base_where_owner = "l.prospect_id IN (SELECT id FROM prospects WHERE owner_id=?)"
+        base_params = [uid]
+        
+        if prospect_id_validated is not None:
+            base_where_owner += " AND l.prospect_id=?"
+            base_params.append(prospect_id_validated)
 
         # 1. Meilleurs créneaux horaires (taux d'ouverture par heure)
         hour_stats = []
         for hour in range(24):
-            rows = conn.execute(
-                f"""
+            # Construction sécurisée : base_where_owner est une constante contrôlée, hour est un entier
+            query = f"""
                 SELECT 
                     COUNT(*) as total,
                     SUM(CASE WHEN opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened
                 FROM push_logs l
-                WHERE {base_where} AND l.sent_at_hour=? AND l.channel='email'
-                """,
-                params + [hour],
+                WHERE {base_where_owner} AND l.sent_at_hour=? AND l.channel='email'
+                """
+            # base_where_owner est sûr car construit uniquement avec des constantes et des paramètres
+            rows = conn.execute(
+                query,
+                base_params + [hour],
             ).fetchone()
             if rows["total"] > 0:
                 open_rate = (rows["opened"] / rows["total"]) * 100
