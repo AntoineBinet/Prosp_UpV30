@@ -1464,6 +1464,124 @@ table th, table td {
     transition: all 0.2s ease;
 }
 
+/* Styles compacts pour le tableau des entreprises */
+body[data-page="companies"] .table-wrapper th,
+body[data-page="companies"] .table-wrapper td {
+    padding: 2px 8px !important;
+    line-height: 1.15 !important;
+}
+
+body[data-page="companies"] .company-name-cell {
+    padding: 2px 8px !important;
+    line-height: 1.15;
+}
+
+body[data-page="companies"] .company-name-wrapper {
+    margin-bottom: 0;
+    gap: 3px;
+    line-height: 1.1;
+}
+
+body[data-page="companies"] .company-groupe {
+    font-size: 13px;
+    line-height: 1.1;
+}
+
+body[data-page="companies"] .company-site-cell {
+    font-size: 12px;
+    padding: 2px 8px !important;
+    line-height: 1.15;
+}
+
+body[data-page="companies"] .company-count-cell {
+    padding: 2px 8px !important;
+    line-height: 1;
+}
+
+body[data-page="companies"] .count-badge {
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    font-size: 11px;
+    line-height: 1;
+}
+
+body[data-page="companies"] .company-actions-cell {
+    padding: 2px 8px !important;
+    line-height: 1;
+}
+
+body[data-page="companies"] .company-actions-group {
+    gap: 3px;
+    max-width: 90px;
+}
+
+body[data-page="companies"] .btn-action {
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: 6px;
+    line-height: 1;
+}
+
+body[data-page="companies"] .btn-action-icon {
+    font-size: 13px;
+}
+
+body[data-page="companies"] .company-note-snippet {
+    margin-top: 0;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 11px;
+    gap: 3px;
+    line-height: 1.2;
+}
+
+body[data-page="companies"] .company-note-empty {
+    font-size: 10px;
+    line-height: 1.2;
+}
+
+body[data-page="companies"] .company-note-edit {
+    font-size: 11px;
+}
+
+body[data-page="companies"] .company-note-editor textarea {
+    min-height: 35px;
+    padding: 3px 6px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+body[data-page="companies"] .company-note-editor .note-actions {
+    gap: 3px;
+    margin-top: 3px;
+}
+
+body[data-page="companies"] .company-note-editor .note-actions .btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    line-height: 1.1;
+}
+
+body[data-page="companies"] .table-wrapper thead th {
+    padding: 4px 8px !important;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+body[data-page="companies"] .table-wrapper tbody tr {
+    height: auto;
+    min-height: auto;
+    line-height: 1.15;
+}
+
+body[data-page="companies"] .table-wrapper tbody td {
+    vertical-align: middle;
+}
+
 .count-badge.has-prospects {
     background: rgba(var(--color-primary-rgb), 0.15);
     color: var(--color-primary);
