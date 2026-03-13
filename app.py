@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.1"
+APP_VERSION = "27.2"
 import os
 import subprocess
 import traceback
@@ -1869,6 +1869,20 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity, entity_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
+
+-- v27.2: Assistant virtuel — historique des conversations
+CREATE TABLE IF NOT EXISTS assistant_history (
+    id        INTEGER PRIMARY KEY,
+    user_id   INTEGER NOT NULL,
+    session_id TEXT,
+    role      TEXT NOT NULL,
+    content   TEXT NOT NULL,
+    metadata  TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_assistant_history_user ON assistant_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_assistant_history_session ON assistant_history(session_id);
+CREATE INDEX IF NOT EXISTS idx_assistant_history_date ON assistant_history(createdAt);
 '''
         )
 
@@ -13862,9 +13876,27 @@ def api_dashboard_assistant():
     if not question:
         return jsonify(ok=False, error="question requise"), 400
     
+    # Session ID pour grouper les messages (optionnel, généré si absent)
+    session_id = body.get("session_id") or f"session_{uid}_{int(time.time())}"
+    
     # Contexte de la page (optionnel)
     page_context = body.get("page_context", "")
     page_description = body.get("page_description", "")
+    
+    # Récupérer l'historique de conversation (derniers 10 messages)
+    with _conn() as conn:
+        history_rows = conn.execute(
+            "SELECT role, content FROM assistant_history WHERE user_id=? AND session_id=? ORDER BY createdAt DESC LIMIT 10;",
+            (uid, session_id)
+        ).fetchall()
+        conversation_history = [{"role": r["role"], "content": r["content"]} for r in reversed(history_rows)]
+    
+    # Sauvegarder la question de l'utilisateur
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO assistant_history (user_id, session_id, role, content, createdAt) VALUES (?, ?, 'user', ?, datetime('now'));",
+            (uid, session_id, question)
+        )
     
     today = _today_iso()
     d_today = datetime.date.fromisoformat(today)
@@ -13933,25 +13965,42 @@ Statuts prospects: {', '.join(set(p.get('statut') or 'Inconnu' for p in prospect
     for p in overdue_prospects[:3]:
         context_summary += f"- {p['name']} (ID: {p['id']}, statut: {p.get('statut', 'N/A')}, relance: {p.get('nextFollowUp', 'N/A')})\n"
     
-    prompt = f"""Tu es un assistant virtuel pour un CRM de prospection B2B. L'utilisateur pose une question en langage naturel.
+    # Construire l'historique de conversation pour le prompt
+    history_text = ""
+    if conversation_history:
+        history_text = "\n\nHistorique de la conversation (référence-toi si nécessaire):\n"
+        for msg in conversation_history[-5:]:  # Derniers 5 messages
+            role_label = "Utilisateur" if msg["role"] == "user" else "Assistant"
+            history_text += f"{role_label}: {msg['content']}\n"
+    
+    prompt = f"""Tu es un assistant virtuel intelligent pour un CRM de prospection B2B. L'utilisateur pose une question en langage naturel.
 
-{context_summary}
+{context_summary}{history_text}
 
-Question de l'utilisateur: "{question}"
+Question actuelle de l'utilisateur: "{question}"
 
 Analyse la question et génère une réponse JSON avec:
-1. "answer": réponse textuelle claire et concise (max 200 caractères)
-2. "intent": intention détectée parmi ["filter", "create", "modify", "display", "action", "info"]
-3. "actions": liste d'actions possibles (chaque action = {{"type": "filter|open|navigate", "label": "...", "params": {{...}}}})
-   - type "filter": filtrer des prospects (params: {{"field": "statut|nextFollowUp|...", "value": "..."}})
-   - type "open": ouvrir une fiche (params: {{"id": prospect_id|candidate_id|company_id}})
-   - type "navigate": naviguer vers une page (params: {{"url": "/focus|/sourcing|/stats|..."}})
+1. "answer": réponse textuelle claire, concise et utile (max 300 caractères). Sois proactif et propose des actions concrètes.
+2. "intent": intention détectée parmi ["filter", "create", "modify", "display", "action", "info", "ia_function"]
+3. "actions": liste d'actions possibles (chaque action = {{"type": "...", "label": "...", "params": {{...}}}})
+   
+Types d'actions disponibles:
+- "filter": filtrer des prospects (params: {{"field": "statut|nextFollowUp|sector|...", "value": "..."}})
+- "open": ouvrir une fiche (params: {{"id": prospect_id|candidate_id|company_id, "type": "prospect|candidate|company"}})
+- "navigate": naviguer vers une page (params: {{"url": "/focus|/sourcing|/stats|/dashboard|..."}})
+- "create_prospect": créer un prospect (params: {{"name": "...", "company": "...", "fonction": "...", ...}})
+- "create_company": créer une entreprise (params: {{"groupe": "...", "site": "...", ...}})
+- "create_candidate": créer un candidat (params: {{"name": "...", "role": "...", "skills": [...], ...}})
+- "modify_prospect": modifier un prospect (params: {{"id": ..., "field": "...", "value": "..."}})
+- "ia_scrap": enrichir avec l'IA (params: {{"type": "prospect|candidate|company", "id": ...}})
+- "ia_avant_reunion": générer fiche préparation RDV (params: {{"prospect_id": ...}})
+- "ia_apres_reunion": générer compte-rendu après réunion (params: {{"prospect_id": ...}})
 
-Exemples d'actions:
+Exemples d'actions intelligentes:
 - Pour "prospects à relancer": {{"type": "navigate", "label": "Voir les relances en retard", "params": {{"url": "/focus"}}}}
-- Pour "prospects du secteur X": {{"type": "filter", "label": "Filtrer par secteur", "params": {{"field": "sector", "value": "X"}}}}
-- Pour "ouvrir prospect X": {{"type": "open", "label": "Ouvrir {question.split()[-1] if question.split() else ''}", "params": {{"id": null}}}}
-- Pour "candidats avec compétence Y": {{"type": "navigate", "label": "Voir les candidats", "params": {{"url": "/sourcing"}}}}
+- Pour "créer un prospect Jean Dupont": {{"type": "create_prospect", "label": "Créer le prospect", "params": {{"name": "Jean Dupont", "company": "..."}}}}
+- Pour "enrichis ce prospect avec l'IA": {{"type": "ia_scrap", "label": "Enrichir avec l'IA", "params": {{"type": "prospect", "id": ...}}}}
+- Pour "génère la fiche avant réunion": {{"type": "ia_avant_reunion", "label": "Générer fiche préparation", "params": {{"prospect_id": ...}}}}
 
 Réponds UNIQUEMENT avec le JSON, sans texte avant/après."""
     
@@ -13985,15 +14034,306 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant/après."""
                     "params": {"field": "statut", "value": "Rendez-vous"}
                 }]
         
+        # Sauvegarder la réponse de l'assistant
+        answer_text = assistant_data.get("answer", "")
+        with _conn() as conn:
+            conn.execute(
+                "INSERT INTO assistant_history (user_id, session_id, role, content, metadata, createdAt) VALUES (?, ?, 'assistant', ?, ?, datetime('now'));",
+                (uid, session_id, answer_text, json.dumps({"intent": assistant_data.get("intent"), "actions_count": len(assistant_data.get("actions", []))}))
+            )
+        
+        assistant_data["session_id"] = session_id
+        
     except Exception as e:
         logger.warning("Erreur assistant IA: %s", e)
         assistant_data = {
             "answer": "Désolé, je n'ai pas pu traiter votre question. Pouvez-vous reformuler ?",
             "intent": "info",
-            "actions": []
+            "actions": [],
+            "session_id": session_id
         }
     
     return jsonify(ok=True, data=assistant_data)
+
+
+@app.post("/api/dashboard/assistant-stream")
+def api_dashboard_assistant_stream():
+    """Assistant virtuel avec streaming SSE pour affichage progressif."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    body = request.get_json(force=True) or {}
+    question = body.get("question", "").strip()
+    if not question:
+        return jsonify(ok=False, error="question requise"), 400
+    
+    session_id = body.get("session_id") or f"session_{uid}_{int(time.time())}"
+    page_context = body.get("page_context", "")
+    page_description = body.get("page_description", "")
+    
+    # Récupérer l'historique
+    with _conn() as conn:
+        history_rows = conn.execute(
+            "SELECT role, content FROM assistant_history WHERE user_id=? AND session_id=? ORDER BY createdAt DESC LIMIT 10;",
+            (uid, session_id)
+        ).fetchall()
+        conversation_history = [{"role": r["role"], "content": r["content"]} for r in reversed(history_rows)]
+    
+    # Sauvegarder la question
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO assistant_history (user_id, session_id, role, content, createdAt) VALUES (?, ?, 'user', ?, datetime('now'));",
+            (uid, session_id, question)
+        )
+    
+    # Construire le prompt (simplifié pour streaming)
+    today = _today_iso()
+    with _conn() as conn:
+        prospects_count = conn.execute("SELECT COUNT(*) as c FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchone()["c"]
+        overdue_count = conn.execute("SELECT COUNT(*) as c FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND nextFollowUp < ?;", (uid, today)).fetchone()["c"]
+    
+    history_text = ""
+    if conversation_history:
+        history_text = "\n\nHistorique:\n" + "\n".join([f"{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in conversation_history[-5:]])
+    
+    prompt = f"""Tu es un assistant virtuel pour un CRM B2B. Contexte: {prospects_count} prospects, {overdue_count} relances en retard. Page: {page_description}.{history_text}\n\nQuestion: "{question}"\n\nRéponds de manière concise et utile."""
+    
+    def generate():
+        full_response = ""
+        try:
+            yield f"data: {json.dumps({'type': 'start', 'session_id': session_id}, ensure_ascii=False)}\n\n"
+            for event in _stream_ai_sse(prompt, None, 90):
+                if event.startswith("data: "):
+                    data_str = event[6:].strip()
+                    try:
+                        data = json.loads(data_str)
+                        if data.get("type") == "token":
+                            token = data.get("text", "")
+                            full_response += token
+                            yield f"data: {json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)}\n\n"
+                        elif data.get("type") == "end":
+                            # Sauvegarder la réponse complète
+                            with _conn() as conn:
+                                conn.execute(
+                                    "INSERT INTO assistant_history (user_id, session_id, role, content, createdAt) VALUES (?, ?, 'assistant', ?, datetime('now'));",
+                                    (uid, session_id, full_response)
+                                )
+                            yield f"data: {json.dumps({'type': 'end', 'session_id': session_id}, ensure_ascii=False)}\n\n"
+                            return
+                    except json.JSONDecodeError:
+                        continue
+                else:
+                    yield event
+        except Exception as e:
+            logger.error("Erreur streaming assistant: %s", e)
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+    
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+
+
+@app.get("/api/dashboard/assistant/history")
+def api_assistant_history():
+    """Récupère l'historique de conversation de l'assistant."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    session_id = request.args.get("session_id")
+    limit = int(request.args.get("limit", 50))
+    
+    with _conn() as conn:
+        if session_id:
+            rows = conn.execute(
+                "SELECT role, content, createdAt FROM assistant_history WHERE user_id=? AND session_id=? ORDER BY createdAt ASC LIMIT ?;",
+                (uid, session_id, limit)
+            ).fetchall()
+        else:
+            # Dernière session
+            last_session = conn.execute(
+                "SELECT session_id FROM assistant_history WHERE user_id=? ORDER BY createdAt DESC LIMIT 1;",
+                (uid,)
+            ).fetchone()
+            if not last_session:
+                return jsonify(ok=True, history=[], session_id=None)
+            session_id = last_session["session_id"]
+            rows = conn.execute(
+                "SELECT role, content, createdAt FROM assistant_history WHERE user_id=? AND session_id=? ORDER BY createdAt ASC LIMIT ?;",
+                (uid, session_id, limit)
+            ).fetchall()
+        
+        history = [{"role": r["role"], "content": r["content"], "createdAt": r["createdAt"]} for r in rows]
+    
+    return jsonify(ok=True, history=history, session_id=session_id)
+
+
+@app.get("/api/dashboard/assistant/suggestions")
+def api_assistant_suggestions():
+    """Génère des suggestions de questions intelligentes selon le contexte."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    page_context = request.args.get("page_context", "")
+    page_description = request.args.get("page_description", "")
+    
+    today = _today_iso()
+    with _conn() as conn:
+        overdue_count = conn.execute("SELECT COUNT(*) as c FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND nextFollowUp < ?;", (uid, today)).fetchone()["c"]
+        rdv_count = conn.execute("SELECT COUNT(*) as c FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND statut='Rendez-vous';", (uid,)).fetchone()["c"]
+    
+    prompt = f"""Génère 5 suggestions de questions pertinentes pour un assistant CRM B2B.
+Contexte: {page_description}. {overdue_count} relances en retard, {rdv_count} RDV.
+Retourne UNIQUEMENT un JSON array de strings: ["question 1", "question 2", ...]"""
+    
+    try:
+        ai_response = _call_ai(prompt, timeout=30)
+        ai_response = ai_response.strip()
+        if ai_response.startswith("```json"):
+            ai_response = ai_response[7:]
+        if ai_response.startswith("```"):
+            ai_response = ai_response[3:]
+        if ai_response.endswith("```"):
+            ai_response = ai_response[:-3]
+        suggestions = json.loads(ai_response)
+        if not isinstance(suggestions, list):
+            suggestions = []
+    except Exception as e:
+        logger.warning("Erreur suggestions IA: %s", e)
+        # Suggestions par défaut
+        suggestions = [
+            "Quels sont mes prospects à relancer ?",
+            "Combien de RDV cette semaine ?",
+            "Quelles sont mes priorités du jour ?",
+            "Montre-moi les prospects du secteur automobile",
+            "Quels candidats ont des compétences en C++ ?"
+        ]
+    
+    return jsonify(ok=True, suggestions=suggestions[:5])
+
+
+@app.post("/api/dashboard/assistant/action")
+def api_assistant_action():
+    """Exécute une action demandée par l'assistant (création, modification, fonctions IA, etc.)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    body = request.get_json(force=True) or {}
+    action_type = body.get("type")
+    params = body.get("params", {})
+    
+    if not action_type:
+        return jsonify(ok=False, error="type d'action requis"), 400
+    
+    try:
+        if action_type == "create_prospect":
+            # Créer un prospect
+            name = params.get("name", "").strip()
+            company_name = params.get("company", "").strip()
+            if not name:
+                return jsonify(ok=False, error="Nom du prospect requis"), 400
+            
+            # Trouver ou créer l'entreprise
+            with _conn() as conn:
+                if company_name:
+                    company = conn.execute("SELECT id FROM companies WHERE owner_id=? AND groupe=? AND deleted_at IS NULL LIMIT 1;", (uid, company_name)).fetchone()
+                    if not company:
+                        # Créer l'entreprise
+                        cursor = conn.execute(
+                            "INSERT INTO companies (groupe, site, owner_id) VALUES (?, ?, ?);",
+                            (company_name, params.get("site", ""), uid)
+                        )
+                        company_id = cursor.lastrowid
+                    else:
+                        company_id = company["id"]
+                else:
+                    company_id = params.get("company_id")
+                    if not company_id:
+                        return jsonify(ok=False, error="Entreprise requise"), 400
+                
+                # Créer le prospect
+                cursor = conn.execute(
+                    "INSERT INTO prospects (name, company_id, fonction, telephone, email, linkedin, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?);",
+                    (name, company_id, params.get("fonction"), params.get("telephone"), params.get("email"), params.get("linkedin"), uid)
+                )
+                prospect_id = cursor.lastrowid
+            
+            return jsonify(ok=True, message=f"Prospect '{name}' créé avec succès", data={"prospect_id": prospect_id})
+        
+        elif action_type == "create_company":
+            groupe = params.get("groupe", "").strip()
+            if not groupe:
+                return jsonify(ok=False, error="Nom de l'entreprise requis"), 400
+            
+            with _conn() as conn:
+                cursor = conn.execute(
+                    "INSERT INTO companies (groupe, site, website, industry, owner_id) VALUES (?, ?, ?, ?, ?);",
+                    (groupe, params.get("site"), params.get("website"), params.get("industry"), uid)
+                )
+                company_id = cursor.lastrowid
+            
+            return jsonify(ok=True, message=f"Entreprise '{groupe}' créée avec succès", data={"company_id": company_id})
+        
+        elif action_type == "create_candidate":
+            name = params.get("name", "").strip()
+            if not name:
+                return jsonify(ok=False, error="Nom du candidat requis"), 400
+            
+            skills_json = json.dumps(params.get("skills", []))
+            with _conn() as conn:
+                cursor = conn.execute(
+                    "INSERT INTO candidates (name, role, skills, phone, email, linkedin, owner_id, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'));",
+                    (name, params.get("role"), skills_json, params.get("phone"), params.get("email"), params.get("linkedin"), uid)
+                )
+                candidate_id = cursor.lastrowid
+            
+            return jsonify(ok=True, message=f"Candidat '{name}' créé avec succès", data={"candidate_id": candidate_id})
+        
+        elif action_type == "modify_prospect":
+            prospect_id = params.get("id")
+            field = params.get("field")
+            value = params.get("value")
+            
+            if not prospect_id or not field:
+                return jsonify(ok=False, error="ID et champ requis"), 400
+            
+            if not _prospect_owned(prospect_id):
+                return jsonify(ok=False, error="Prospect non trouvé ou accès refusé"), 404
+            
+            with _conn() as conn:
+                conn.execute(f"UPDATE prospects SET {field}=? WHERE id=? AND owner_id=?;", (value, prospect_id, uid))
+            
+            return jsonify(ok=True, message="Prospect modifié avec succès")
+        
+        elif action_type == "ia_scrap":
+            entity_type = params.get("type")
+            entity_id = params.get("id")
+            
+            if not entity_type or not entity_id:
+                return jsonify(ok=False, error="Type et ID requis"), 400
+            
+            # Retourner une instruction pour le frontend d'appeler la fonction IA appropriée
+            return jsonify(ok=True, message="Fonction IA déclenchée", data={"ia_function": "scrap", "type": entity_type, "id": entity_id})
+        
+        elif action_type == "ia_avant_reunion":
+            prospect_id = params.get("prospect_id")
+            if not prospect_id or not _prospect_owned(prospect_id):
+                return jsonify(ok=False, error="Prospect non trouvé"), 404
+            return jsonify(ok=True, message="Génération fiche préparation", data={"ia_function": "avant_reunion", "prospect_id": prospect_id})
+        
+        elif action_type == "ia_apres_reunion":
+            prospect_id = params.get("prospect_id")
+            if not prospect_id or not _prospect_owned(prospect_id):
+                return jsonify(ok=False, error="Prospect non trouvé"), 404
+            return jsonify(ok=True, message="Génération compte-rendu", data={"ia_function": "apres_reunion", "prospect_id": prospect_id})
+        
+        else:
+            return jsonify(ok=False, error=f"Type d'action non supporté: {action_type}"), 400
+    
+    except Exception as e:
+        logger.error("Erreur exécution action assistant: %s", e)
+        return jsonify(ok=False, error=str(e)), 500
 
 
 if __name__ == "__main__":

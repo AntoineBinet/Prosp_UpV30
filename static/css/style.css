@@ -6062,6 +6062,28 @@ body[data-page=""] #fabAdd {
   align-self: flex-start;
   background: var(--color-surface);
   color: var(--color-text);
+}
+
+.assistant-chat-message.assistant.streaming::after {
+  content: '▋';
+  animation: blink 1s infinite;
+  margin-left: 4px;
+  color: var(--color-primary);
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.assistant-suggestions {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--color-surface-2);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   border: 1px solid var(--color-border);
   border-bottom-left-radius: 4px;
 }

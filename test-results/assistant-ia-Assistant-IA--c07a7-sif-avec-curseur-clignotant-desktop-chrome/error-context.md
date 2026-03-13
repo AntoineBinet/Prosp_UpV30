@@ -1,0 +1,370 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - heading "Up Technologies Prosp'Up — Dashboard" [level=1] [ref=e5]:
+          - img "Up Technologies" [ref=e6]
+          - text: Prosp'Up — Dashboard
+        - paragraph [ref=e7]: Votre activité du jour
+      - generic:
+        - button "🔍" [ref=e8] [cursor=pointer]
+        - generic [ref=e9]:
+          - generic [ref=e10]: A
+          - generic [ref=e11]:
+            - generic [ref=e12]: Antoine (Admin)
+            - generic [ref=e13]: 🔑 Admin
+          - button "⏻" [ref=e14] [cursor=pointer]
+    - generic [ref=e15]:
+      - complementary [ref=e16]:
+        - button "«" [ref=e17] [cursor=pointer]
+        - heading "🧭 Navigation" [level=2] [ref=e18]:
+          - text: 🧭
+          - generic [ref=e19]: Navigation
+        - generic [ref=e20]: Prospection
+        - link "📊 Dashboard" [ref=e21] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e22]: 📊
+          - generic [ref=e23]: Dashboard
+        - link "👥 Prospects" [ref=e24] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e25]: 👥
+          - generic [ref=e26]: Prospects
+        - link "📍 Entreprises" [ref=e27] [cursor=pointer]:
+          - /url: /entreprises
+          - generic [ref=e28]: 📍
+          - generic [ref=e29]: Entreprises
+        - link "🎯 Focus" [ref=e30] [cursor=pointer]:
+          - /url: /focus
+          - generic [ref=e31]: 🎯
+          - generic [ref=e32]: Focus
+        - generic [ref=e33]: Actions
+        - link "🧲 Candidats" [ref=e34] [cursor=pointer]:
+          - /url: /sourcing
+          - generic [ref=e35]: 🧲
+          - generic [ref=e36]: Candidats
+        - link "📅 Calendrier" [ref=e37] [cursor=pointer]:
+          - /url: /calendrier
+          - generic [ref=e38]: 📅
+          - generic [ref=e39]: Calendrier
+        - link "👥 Collaboration" [ref=e40] [cursor=pointer]:
+          - /url: /collab
+          - generic [ref=e41]: 👥
+          - generic [ref=e42]: Collaboration
+        - generic [ref=e43]: Analyse
+        - link "📈 Stats" [ref=e44] [cursor=pointer]:
+          - /url: /stats
+          - generic [ref=e45]: 📈
+          - generic [ref=e46]: Stats
+        - link "📋 Rapport" [ref=e47] [cursor=pointer]:
+          - /url: /rapport
+          - generic [ref=e48]: 📋
+          - generic [ref=e49]: Rapport
+        - generic [ref=e50]: Outils
+        - link "⚙️ Paramètres" [ref=e51] [cursor=pointer]:
+          - /url: /parametres
+          - generic [ref=e52]: ⚙️
+          - generic [ref=e53]: Paramètres
+        - generic:
+          - link "🔀 Doublons" [ref=e54] [cursor=pointer]:
+            - /url: /duplicates
+            - generic [ref=e55]: 🔀
+            - generic [ref=e56]: Doublons
+          - link "💾 Snapshots" [ref=e57] [cursor=pointer]:
+            - /url: /snapshots
+            - generic [ref=e58]: 💾
+            - generic [ref=e59]: Snapshots
+          - link "🏗️ Métiers" [ref=e60] [cursor=pointer]:
+            - /url: /metiers
+            - generic [ref=e61]: 🏗️
+            - generic [ref=e62]: Métiers
+          - link "📂 Catégories Push" [ref=e63] [cursor=pointer]:
+            - /url: /templates
+            - generic [ref=e64]: 📂
+            - generic [ref=e65]: Catégories Push
+          - link "❓ Aide" [ref=e66] [cursor=pointer]:
+            - /url: /help
+            - generic [ref=e67]: ❓
+            - generic [ref=e68]: Aide
+        - link "📤 Push" [ref=e69] [cursor=pointer]:
+          - /url: /push
+          - generic [ref=e70]: 📤
+          - generic [ref=e71]: Push
+        - link "📁 Contacts" [ref=e72] [cursor=pointer]:
+          - /url: /?contacts=1
+          - generic [ref=e73]: 📁
+          - generic [ref=e74]: Contacts
+        - link "👥 Utilisateurs" [ref=e75] [cursor=pointer]:
+          - /url: /users
+          - generic [ref=e76]: 👥
+          - generic [ref=e77]: Utilisateurs
+        - link "🌙 Thème" [ref=e78] [cursor=pointer]:
+          - /url: javascript:void(0)
+          - generic [ref=e79]: 🌙
+          - generic [ref=e80]: Thème
+      - main [ref=e81]:
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - generic [ref=e84]: 📞
+            - generic [ref=e85]: "0"
+            - generic [ref=e86]: Contacts aujourd'hui
+            - generic [ref=e87]: 1 cette semaine
+          - generic [ref=e88]:
+            - generic [ref=e89]: 📝
+            - generic [ref=e90]: "0"
+            - generic [ref=e91]: Notes d'appel
+            - generic [ref=e92]: 0 cette semaine
+          - generic [ref=e93]:
+            - generic [ref=e94]: 📤
+            - generic [ref=e95]: "0"
+            - generic [ref=e96]: Push envoyés
+            - generic [ref=e97]: 0 cette semaine (✉️0 · in0)
+          - generic [ref=e98]:
+            - generic [ref=e99]: 🤝
+            - generic [ref=e100]: "0"
+            - generic [ref=e101]: RDV en cours
+            - generic [ref=e102]: sur 1 prospects
+          - generic [ref=e103]:
+            - generic [ref=e104]: ⚠️
+            - generic [ref=e105]: "0"
+            - generic [ref=e106]: Relances en retard
+            - generic [ref=e107]: 0 à faire aujourd'hui
+        - button "➕ Ajout KPI manuel" [ref=e109] [cursor=pointer]
+        - generic [ref=e110]:
+          - generic [ref=e111]: "Layout:"
+          - button "1" [ref=e112] [cursor=pointer]
+          - button "2" [ref=e113] [cursor=pointer]
+          - button "3" [ref=e114] [cursor=pointer]
+          - generic [ref=e115]: 💡 Glissez les widgets par la poignée ⋮⋮ pour réorganiser
+        - generic [ref=e116]:
+          - generic [ref=e117]:
+            - generic:
+              - generic "Glisser pour réorganiser" [ref=e118]: ⋮⋮
+              - generic "Redimensionner" [ref=e119]: ↘
+            - generic [ref=e120]:
+              - generic [ref=e121]: 👀 Premier coup d'œil
+              - generic [ref=e122]:
+                - link "📋 Rapport hebdo (cette semaine)" [ref=e123] [cursor=pointer]:
+                  - /url: /rapport
+                - button "📥 Ma journée" [ref=e124] [cursor=pointer]
+          - generic [ref=e125]:
+            - generic:
+              - generic "Glisser pour réorganiser" [ref=e126]: ⋮⋮
+              - generic "Redimensionner" [ref=e127]: ↘
+            - generic [ref=e128]:
+              - generic [ref=e129]:
+                - generic [ref=e130]:
+                  - generic [ref=e131]: 🎮 Objectifs (Jour & Semaine)
+                  - generic [ref=e132]: XP, progression & animation quand c'est validé
+                - link "⚙️" [ref=e133] [cursor=pointer]:
+                  - /url: /parametres#goals
+              - generic [ref=e134]:
+                - generic [ref=e135]:
+                  - generic [ref=e136]: 🥶
+                  - generic [ref=e137]:
+                    - generic [ref=e138]:
+                      - generic [ref=e139]:
+                        - text: Niveau semaine
+                        - generic [ref=e140]: Lv 1
+                      - generic [ref=e141]:
+                        - strong [ref=e142]: "0"
+                        - text: /720 XP
+                    - generic [ref=e144]: "🥶 Boost du jour : 0/220 XP"
+                - generic [ref=e145]:
+                  - generic [ref=e146]:
+                    - generic [ref=e147]:
+                      - generic [ref=e148]: Objectifs quotidiens
+                      - generic [ref=e149]: 🥶 0/3 objectifs · 0/220 XP
+                    - generic [ref=e150]: 🥶
+                  - generic [ref=e151]:
+                    - generic [ref=e152]:
+                      - generic "Progression" [ref=e153]: 🥶
+                      - generic [ref=e154]:
+                        - generic [ref=e155]:
+                          - generic [ref=e156]: 3 push
+                          - generic [ref=e157]:
+                            - strong [ref=e158]: "0"
+                            - text: /3
+                        - generic [ref=e160]: +0 XP / +60 XP
+                    - generic [ref=e161]:
+                      - generic "Progression" [ref=e162]: 🥶
+                      - generic [ref=e163]:
+                        - generic [ref=e164]:
+                          - generic [ref=e165]: Prendre 1 RDV Prosp
+                          - generic [ref=e166]:
+                            - strong [ref=e167]: "0"
+                            - text: /1
+                        - generic [ref=e169]: +0 XP / +120 XP
+                    - generic [ref=e170]:
+                      - generic "Progression" [ref=e171]: 🥶
+                      - generic [ref=e172]:
+                        - generic [ref=e173]:
+                          - generic [ref=e174]: "Sourcing : contacter 3 candidats qualifiés"
+                          - generic [ref=e175]:
+                            - strong [ref=e176]: "0"
+                            - text: /3
+                        - generic [ref=e178]: +0 XP / +40 XP
+                - generic [ref=e179]:
+                  - generic [ref=e180]:
+                    - generic [ref=e181]:
+                      - generic [ref=e182]: Objectifs hebdo
+                      - generic [ref=e183]: 🥶 0/4 objectifs · 0/720 XP
+                    - generic [ref=e184]: 🥶
+                  - generic [ref=e185]:
+                    - generic [ref=e186]:
+                      - generic "Progression" [ref=e187]: 🥶
+                      - generic [ref=e188]:
+                        - generic [ref=e189]:
+                          - generic [ref=e190]: 15 push
+                          - generic [ref=e191]:
+                            - strong [ref=e192]: "0"
+                            - text: /15
+                        - generic [ref=e194]: +0 XP / +180 XP
+                    - generic [ref=e195]:
+                      - generic "Progression" [ref=e196]: 🥶
+                      - generic [ref=e197]:
+                        - generic [ref=e198]:
+                          - generic [ref=e199]: Prendre 5 RDV Prosp
+                          - generic [ref=e200]:
+                            - strong [ref=e201]: "0"
+                            - text: /5
+                        - generic [ref=e203]: +0 XP / +300 XP
+                    - generic [ref=e204]:
+                      - generic "Progression" [ref=e205]: 🥶
+                      - generic [ref=e206]:
+                        - generic [ref=e207]:
+                          - generic [ref=e208]: "Sourcing : contacter 15 candidats qualifiés"
+                          - generic [ref=e209]:
+                            - strong [ref=e210]: "0"
+                            - text: /15
+                        - generic [ref=e212]: +0 XP / +120 XP
+                    - generic [ref=e213]:
+                      - generic "Progression" [ref=e214]: 🥶
+                      - generic [ref=e215]:
+                        - generic [ref=e216]:
+                          - generic [ref=e217]: "Sourcing : avoir trois profils solide dans dossiers candidats"
+                          - generic [ref=e218]:
+                            - strong [ref=e219]: "0"
+                            - text: /3
+                        - generic [ref=e221]: +0 XP / +120 XP
+          - generic [ref=e222]:
+            - generic:
+              - generic "Glisser pour réorganiser" [ref=e223]: ⋮⋮
+              - generic "Redimensionner" [ref=e224]: ↘
+            - generic [ref=e225]:
+              - generic [ref=e226]: 🕐 Activité du jour
+              - generic [ref=e228]:
+                - text: Aucune activité aujourd'hui.
+                - generic [ref=e229]: 🚀
+                - emphasis [ref=e230]: C'est le moment de passer des appels !
+          - generic [ref=e231]:
+            - generic:
+              - generic "Glisser pour réorganiser" [ref=e232]: ⋮⋮
+              - generic "Redimensionner" [ref=e233]: ↘
+            - generic [ref=e234]:
+              - generic [ref=e235]:
+                - generic [ref=e236]: ✅ Tâches
+                - link "➕ Ajouter" [ref=e237] [cursor=pointer]:
+                  - /url: /focus
+              - generic [ref=e239]:
+                - text: Aucune tâche en cours.
+                - link "Créer une tâche dans Focus" [ref=e240] [cursor=pointer]:
+                  - /url: /focus
+          - generic [ref=e241]:
+            - generic:
+              - generic "Glisser pour réorganiser" [ref=e242]: ⋮⋮
+              - generic "Redimensionner" [ref=e243]: ↘
+            - generic [ref=e244]:
+              - generic [ref=e245]: 📅 Activité de la semaine
+              - generic [ref=e246]:
+                - generic [ref=e247]:
+                  - generic "2026-03-09 📞 1 contacts 📝 0 notes 📤 0 push" [ref=e248]:
+                    - generic [ref=e252]: Lun
+                    - generic [ref=e253]: "1"
+                  - generic "2026-03-10 📞 0 contacts 📝 0 notes 📤 0 push" [ref=e254]:
+                    - generic [ref=e256]: Mar
+                    - generic [ref=e257]: "0"
+                  - generic "2026-03-11 📞 0 contacts 📝 0 notes 📤 0 push" [ref=e258]:
+                    - generic [ref=e260]: Mer
+                    - generic [ref=e261]: "0"
+                  - generic "2026-03-12 📞 0 contacts 📝 0 notes 📤 0 push" [ref=e262]:
+                    - generic [ref=e264]: Jeu
+                    - generic [ref=e265]: "0"
+                  - generic "2026-03-13 📞 0 contacts 📝 0 notes 📤 0 push" [ref=e266]:
+                    - generic [ref=e268]: Ven
+                    - generic [ref=e269]: "0"
+                - generic [ref=e270]:
+                  - generic [ref=e271]: Contacts
+                  - generic [ref=e273]: Notes
+                  - generic [ref=e275]: Push
+              - generic [ref=e277]: "Total semaine : 1 actions · 5 jours travaillés"
+          - generic [ref=e278]:
+            - generic:
+              - generic "Glisser pour réorganiser" [ref=e279]: ⋮⋮
+              - generic "Redimensionner" [ref=e280]: ↘
+            - generic [ref=e281]:
+              - generic [ref=e282]: ⚠️ Relances en retard
+              - generic [ref=e284]: ✅ Aucune relance en retard !
+          - generic [ref=e285]:
+            - generic:
+              - generic "Glisser pour réorganiser" [ref=e286]: ⋮⋮
+              - generic "Redimensionner" [ref=e287]: ↘
+            - generic [ref=e288]:
+              - generic [ref=e289]: 🤝 Prochains RDV
+              - generic [ref=e291]:
+                - text: Aucun RDV planifié.
+                - emphasis [ref=e292]: Définissez une date RDV dans la fiche prospect.
+          - generic [ref=e293]:
+            - generic:
+              - generic "Glisser pour réorganiser" [ref=e294]: ⋮⋮
+              - generic "Redimensionner" [ref=e295]: ↘
+            - generic [ref=e296]:
+              - generic [ref=e297]: 🎯 Pipeline
+              - generic [ref=e298]:
+                - 'generic "Pas d''actions: 1" [ref=e300]'
+                - generic [ref=e302]:
+                  - generic [ref=e304]: Pas d'actions
+                  - strong [ref=e305]: "1"
+                - generic [ref=e306]:
+                  - text: "Taux de conversion → RDV :"
+                  - strong [ref=e307]: 0%
+          - generic [ref=e308]:
+            - generic:
+              - generic "Glisser pour réorganiser" [ref=e309]: ⋮⋮
+              - generic "Redimensionner" [ref=e310]: ↘
+            - generic [ref=e311]:
+              - generic [ref=e312]: 🎯 Priorités du jour (IA)
+              - generic [ref=e313]:
+                - generic [ref=e315]:
+                  - generic [ref=e316]: 🔴
+                  - generic [ref=e317]: Aucune relance en retard
+                - generic [ref=e319]:
+                  - generic [ref=e320]: 🟡
+                  - generic [ref=e321]: Aucune relance prévue
+                - generic [ref=e323]:
+                  - generic [ref=e324]: 🟢
+                  - generic [ref=e325]: Aucun RDV cette semaine
+                - generic [ref=e326]: 💡 Analyse en cours...
+          - generic [ref=e327]:
+            - generic:
+              - generic "Glisser pour réorganiser" [ref=e328]: ⋮⋮
+              - generic "Redimensionner" [ref=e329]: ↘
+            - generic [ref=e330]:
+              - generic [ref=e331]: 📊 Analytics Mailing
+              - generic [ref=e334]: Pas encore de données d'analytics disponibles.
+  - button "🤖" [ref=e335] [cursor=pointer]:
+    - generic [ref=e336]: 🤖
+  - generic:
+    - generic:
+      - generic:
+        - generic: 🤖
+        - generic: Assistant virtuel
+      - button "×"
+    - generic:
+      - textbox "Posez une question…"
+      - button "Envoyer":
+        - img
+  - generic "Prosp'Up build 2026.03.06-01 (127.0.0.1)": build 2026.03.06-01 · local
+```

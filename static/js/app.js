@@ -9,6 +9,8 @@ window.onerror = function(msg, src, line) {
 
 // ═══ Assistant virtuel (disponible sur toutes les pages) ═══
 let assistantChatHistory = [];
+let assistantSessionId = null;
+let currentStreamingMessage = null;
 
 // Obtenir le contexte de la page actuelle
 function getPageContext() {
@@ -137,10 +139,14 @@ window.toggleAssistantChat = function() {
             if (input) input.focus();
         }, 300);
         
+        // Charger l'historique si disponible
+        loadAssistantHistory();
+        
         // Afficher un message de bienvenue adapté à la page si le chat est vide
         const chat = document.getElementById('dashAssistantChat');
         if (chat && chat.children.length === 0) {
             setTimeout(() => {
+                loadSuggestions();
                 const context = getPageContext();
                 const examplesText = context.examples.map(ex => `• "${ex}"`).join('\n');
                 addChatMessage('assistant', `${context.description}\n\nExemples de questions :\n${examplesText}`);
@@ -149,7 +155,7 @@ window.toggleAssistantChat = function() {
     }
 }
 
-window.sendAssistantMessage = function() {
+window.sendAssistantMessage = function(useStreaming = true) {
     const input = document.getElementById('dashAssistantInput');
     if (!input) return;
     const question = input.value.trim();
@@ -170,43 +176,233 @@ window.sendAssistantMessage = function() {
     // Obtenir le contexte de la page
     const context = getPageContext();
     
-    // Appeler l'API avec le contexte
-    fetch('/api/dashboard/assistant', {
+    if (useStreaming) {
+        // Mode streaming (SSE)
+        sendAssistantMessageStream(question, context);
+    } else {
+        // Mode non-streaming (fallback)
+        fetch('/api/dashboard/assistant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                question,
+                session_id: assistantSessionId,
+                page_context: context.name,
+                page_description: context.description
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok && data.data) {
+                const response = data.data;
+                if (response.session_id) assistantSessionId = response.session_id;
+                addChatMessage('assistant', response.answer || 'Désolé, je n\'ai pas de réponse.');
+                
+                // Afficher les actions si disponibles
+                if (response.actions && response.actions.length > 0) {
+                    renderAssistantActions(response.actions);
+                }
+            } else {
+                addChatMessage('assistant', 'Erreur: ' + (data.error || 'Réponse invalide'));
+            }
+        })
+        .catch(e => {
+            console.error('Assistant error:', e);
+            addChatMessage('assistant', 'Erreur de connexion. Vérifiez votre connexion.');
+        })
+        .finally(() => {
+            input.disabled = false;
+            if (sendBtn) {
+                sendBtn.disabled = false;
+                const svg = sendBtn.querySelector('svg');
+                if (svg) svg.style.opacity = '1';
+            }
+            input.focus();
+        });
+    }
+}
+
+function sendAssistantMessageStream(question, context) {
+    const chat = document.getElementById('dashAssistantChat');
+    if (!chat) return;
+    
+    // Créer un élément de message pour le streaming
+    const messageEl = document.createElement('div');
+    messageEl.className = 'assistant-chat-message assistant streaming';
+    messageEl.textContent = '';
+    chat.appendChild(messageEl);
+    currentStreamingMessage = messageEl;
+    
+    const input = document.getElementById('dashAssistantInput');
+    const sendBtn = document.getElementById('dashAssistantSend');
+    
+    fetch('/api/dashboard/assistant-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
             question,
+            session_id: assistantSessionId,
             page_context: context.name,
             page_description: context.description
         })
     })
-    .then(res => res.json())
-    .then(data => {
-        if (data.ok && data.data) {
-            const response = data.data;
-            addChatMessage('assistant', response.answer || 'Désolé, je n\'ai pas de réponse.');
-            
-            // Afficher les actions si disponibles
-            if (response.actions && response.actions.length > 0) {
-                renderAssistantActions(response.actions);
-            }
-        } else {
-            addChatMessage('assistant', 'Erreur: ' + (data.error || 'Réponse invalide'));
+    .then(res => {
+        if (!res.ok) throw new Error('Stream failed');
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        function readStream() {
+            reader.read().then(({ done, value }) => {
+                if (done) {
+                    messageEl.classList.remove('streaming');
+                    currentStreamingMessage = null;
+                    input.disabled = false;
+                    if (sendBtn) {
+                        sendBtn.disabled = false;
+                        const svg = sendBtn.querySelector('svg');
+                        if (svg) svg.style.opacity = '1';
+                    }
+                    input.focus();
+                    // Charger les actions après la réponse
+                    setTimeout(() => {
+                        fetch('/api/dashboard/assistant', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                question,
+                                session_id: assistantSessionId,
+                                page_context: context.name,
+                                page_description: context.description
+                            })
+                        })
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.ok && d.data && d.data.actions && d.data.actions.length > 0) {
+                                renderAssistantActions(d.data.actions);
+                            }
+                        })
+                        .catch(() => {});
+                    }, 500);
+                    return;
+                }
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.type === 'token' && messageEl) {
+                                messageEl.textContent += data.text;
+                                chat.scrollTop = chat.scrollHeight;
+                            } else if (data.type === 'start' && data.session_id) {
+                                assistantSessionId = data.session_id;
+                            } else if (data.type === 'end') {
+                                // Fin du stream
+                            } else if (data.type === 'error') {
+                                messageEl.textContent = 'Erreur: ' + (data.message || 'Erreur inconnue');
+                                messageEl.classList.remove('streaming');
+                            }
+                        } catch (e) {
+                            console.error('Parse SSE error:', e);
+                        }
+                    }
+                }
+                
+                readStream();
+            }).catch(e => {
+                console.error('Stream error:', e);
+                if (messageEl) {
+                    messageEl.textContent = 'Erreur de connexion. Vérifiez votre connexion.';
+                    messageEl.classList.remove('streaming');
+                }
+                currentStreamingMessage = null;
+                input.disabled = false;
+                if (sendBtn) {
+                    sendBtn.disabled = false;
+                    const svg = sendBtn.querySelector('svg');
+                    if (svg) svg.style.opacity = '1';
+                }
+            });
         }
+        
+        readStream();
     })
     .catch(e => {
-        console.error('Assistant error:', e);
-        addChatMessage('assistant', 'Erreur de connexion. Vérifiez votre connexion.');
-    })
-    .finally(() => {
+        console.error('Assistant stream error:', e);
+        if (messageEl) {
+            messageEl.textContent = 'Erreur de connexion. Vérifiez votre connexion.';
+            messageEl.classList.remove('streaming');
+        }
+        currentStreamingMessage = null;
         input.disabled = false;
         if (sendBtn) {
             sendBtn.disabled = false;
             const svg = sendBtn.querySelector('svg');
             if (svg) svg.style.opacity = '1';
         }
-        input.focus();
     });
+}
+
+function loadAssistantHistory() {
+    if (!assistantSessionId) return;
+    
+    fetch(`/api/dashboard/assistant/history?session_id=${assistantSessionId}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok && data.history && data.history.length > 0) {
+                const chat = document.getElementById('dashAssistantChat');
+                if (!chat) return;
+                
+                // Vider le chat
+                chat.innerHTML = '';
+                
+                // Charger l'historique
+                data.history.forEach(msg => {
+                    addChatMessage(msg.role, msg.content);
+                });
+                
+                chat.scrollTop = chat.scrollHeight;
+            }
+        })
+        .catch(e => console.error('Erreur chargement historique:', e));
+}
+
+function loadSuggestions() {
+    const context = getPageContext();
+    fetch(`/api/dashboard/assistant/suggestions?page_context=${encodeURIComponent(context.name)}&page_description=${encodeURIComponent(context.description)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok && data.suggestions && data.suggestions.length > 0) {
+                const chat = document.getElementById('dashAssistantChat');
+                if (!chat) return;
+                
+                const suggestionsEl = document.createElement('div');
+                suggestionsEl.className = 'assistant-suggestions';
+                suggestionsEl.innerHTML = '<div style="font-size: 12px; opacity: 0.7; margin-bottom: 8px;">Suggestions :</div>';
+                
+                data.suggestions.forEach(suggestion => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-secondary btn-sm';
+                    btn.style.margin = '4px';
+                    btn.textContent = suggestion;
+                    btn.onclick = () => {
+                        const input = document.getElementById('dashAssistantInput');
+                        if (input) {
+                            input.value = suggestion;
+                            sendAssistantMessage();
+                        }
+                    };
+                    suggestionsEl.appendChild(btn);
+                });
+                
+                chat.appendChild(suggestionsEl);
+            }
+        })
+        .catch(e => console.error('Erreur suggestions:', e));
 }
 
 function addChatMessage(role, text) {
@@ -267,13 +463,12 @@ function executeAssistantAction(action) {
             // Ouvrir une fiche (prospect, candidat, entreprise)
             if (action.params && action.params.id) {
                 const id = action.params.id;
-                const pageId = document.body.getAttribute('data-page') || '';
+                const type = action.params.type || 'prospect';
                 let url = '/';
                 
-                // Déterminer l'URL selon le type
-                if (pageId === 'candidate' || pageId === 'sourcing') {
+                if (type === 'candidate') {
                     url = `/candidate/${id}`;
-                } else if (pageId === 'company') {
+                } else if (type === 'company') {
                     url = `/company/${id}`;
                 } else {
                     url = `/?open=${id}`; // Prospect par défaut
@@ -287,6 +482,93 @@ function executeAssistantAction(action) {
                 window.location.href = action.params.url;
             }
             break;
+        case 'create_prospect':
+        case 'create_company':
+        case 'create_candidate':
+        case 'modify_prospect':
+        case 'ia_scrap':
+        case 'ia_avant_reunion':
+        case 'ia_apres_reunion':
+            // Actions nécessitant un appel API
+            fetch('/api/dashboard/assistant/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: action.type,
+                    params: action.params
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) {
+                    if (window.showToast) {
+                        window.showToast(data.message || 'Action exécutée avec succès', 'success');
+                    }
+                    
+                    // Gérer les fonctions IA spéciales
+                    if (data.data && data.data.ia_function) {
+                        const iaFunc = data.data.ia_function;
+                        if (iaFunc === 'scrap') {
+                            // Déclencher le scrapping IA
+                            const entityType = data.data.type;
+                            const entityId = data.data.id;
+                            if (entityType === 'prospect') {
+                                // Appeler la fonction de scrapping prospect
+                                if (window.scrapProspectWithAI) {
+                                    window.scrapProspectWithAI(entityId);
+                                } else {
+                                    window.location.href = `/?open=${entityId}`;
+                                }
+                            } else if (entityType === 'candidate') {
+                                window.location.href = `/candidate/${entityId}`;
+                            } else if (entityType === 'company') {
+                                window.location.href = `/company/${entityId}`;
+                            }
+                        } else if (iaFunc === 'avant_reunion') {
+                            const prospectId = data.data.prospect_id;
+                            // Déclencher la génération fiche avant réunion
+                            if (window.generateAvantReunionIA) {
+                                window.generateAvantReunionIA(prospectId);
+                            } else {
+                                window.location.href = `/?open=${prospectId}`;
+                            }
+                        } else if (iaFunc === 'apres_reunion') {
+                            const prospectId = data.data.prospect_id;
+                            // Déclencher la génération compte-rendu
+                            if (window.generateApresReunionIA) {
+                                window.generateApresReunionIA(prospectId);
+                            } else {
+                                window.location.href = `/?open=${prospectId}`;
+                            }
+                        }
+                    } else if (data.data && (data.data.prospect_id || data.data.company_id || data.data.candidate_id)) {
+                        // Rediriger vers l'élément créé
+                        if (data.data.prospect_id) {
+                            window.location.href = `/?open=${data.data.prospect_id}`;
+                        } else if (data.data.company_id) {
+                            window.location.href = `/company/${data.data.company_id}`;
+                        } else if (data.data.candidate_id) {
+                            window.location.href = `/candidate/${data.data.candidate_id}`;
+                        }
+                    } else {
+                        // Recharger la page pour voir les changements
+                        setTimeout(() => window.location.reload(), 1000);
+                    }
+                } else {
+                    if (window.showToast) {
+                        window.showToast(data.error || 'Erreur lors de l\'exécution', 'error');
+                    }
+                }
+            })
+            .catch(e => {
+                console.error('Erreur action:', e);
+                if (window.showToast) {
+                    window.showToast('Erreur de connexion', 'error');
+                }
+            });
+            break;
+        default:
+            console.warn('Action non supportée:', action.type);
     }
 }
 
