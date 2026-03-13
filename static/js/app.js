@@ -2682,6 +2682,46 @@ function getStatusMeta(statut) {
     return { icon: '•', slug: 'autre', label: (statut || '').slice(0, 12) };
 }
 
+// Formate une date RDV pour l'affichage dans le badge (format compact)
+function formatRdvDateForBadge(rdvDate) {
+    if (!rdvDate || typeof rdvDate !== 'string') return '';
+    const trimmed = rdvDate.trim();
+    if (!trimmed) return '';
+    
+    // Format attendu: "2026-03-19T16:00" ou "2026-03-19 16:00" ou "2026-03-19"
+    let dateStr = trimmed;
+    let timeStr = '';
+    
+    if (dateStr.includes('T')) {
+        const parts = dateStr.split('T');
+        dateStr = parts[0];
+        timeStr = parts[1] || '';
+    } else if (dateStr.includes(' ')) {
+        const parts = dateStr.split(' ');
+        dateStr = parts[0];
+        timeStr = parts[1] || '';
+    }
+    
+    // Parser la date: YYYY-MM-DD -> DD/MM
+    const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!dateMatch) return '';
+    
+    const day = dateMatch[3];
+    const month = dateMatch[2];
+    
+    // Parser l'heure si présente: HH:MM -> HHh
+    let timeDisplay = '';
+    if (timeStr) {
+        const timeMatch = timeStr.match(/^(\d{2}):(\d{2})/);
+        if (timeMatch) {
+            const hour = timeMatch[1];
+            timeDisplay = ' ' + hour + 'h';
+        }
+    }
+    
+    return day + '/' + month + timeDisplay;
+}
+
 function _statusSlugToBadgeClass(slug) {
     const map = { rappeler: 'badge-à-rappeler', appele: 'badge-appelé', rdv: 'badge-rdv', messagerie: 'badge-messagerie', 'pas-interesse': 'badge-pas-intéressé', 'pas-actions': 'badge-pas-d\'actions' };
     return map[slug] || '';
@@ -2861,7 +2901,14 @@ function _renderProspectsImpl() {
         if (followupMini) mobileMetaParts.push(followupMini);
         const mobileMeta = mobileMetaParts.join(' ');
         const displayName = (prospect.name && String(prospect.name).trim()) ? escapeHtml(prospect.name) : '—';
-        const statusLabel = (stMeta.label && stMeta.slug !== 'none') ? escapeHtml(stMeta.label) : '';
+        let statusLabel = (stMeta.label && stMeta.slug !== 'none') ? escapeHtml(stMeta.label) : '';
+        // Si statut "Rendez-vous" et date RDV présente, ajouter la date au label mobile
+        if (prospect.statut === 'Rendez-vous' && prospect.rdvDate) {
+            const formattedDate = formatRdvDateForBadge(prospect.rdvDate);
+            if (formattedDate) {
+                statusLabel = escapeHtml(stMeta.label) + ' <span style="opacity:0.85;font-size:0.9em;">' + escapeHtml(formattedDate) + '</span>';
+            }
+        }
         const pid = Number(prospect.id) || 0;
         const checked = selectedProspects.has(prospect.id) ? ' checked' : '';
 
@@ -2905,7 +2952,17 @@ function _renderProspectsImpl() {
             '<td>' + fonctionStr + '</td>' +
             '<td class="stars-cell" title="Pertinence">' + stars + '</td>' +
             '<td>' + score + '</td>' +
-            '<td class="table-statut-cell"><span class="table-statut-badge ' + (_statusSlugToBadgeClass(stMeta.slug)) + '">' + (stMeta.label ? escapeHtml(stMeta.label) : '—') + '</span></td>' +
+            '<td class="table-statut-cell">' + (() => {
+                let badgeText = stMeta.label ? escapeHtml(stMeta.label) : '—';
+                // Si statut "Rendez-vous" et date RDV présente, ajouter la date au badge
+                if (prospect.statut === 'Rendez-vous' && prospect.rdvDate) {
+                    const formattedDate = formatRdvDateForBadge(prospect.rdvDate);
+                    if (formattedDate) {
+                        badgeText = escapeHtml(stMeta.label) + ' <span style="opacity:0.85;font-size:0.9em;">' + escapeHtml(formattedDate) + '</span>';
+                    }
+                }
+                return '<span class="table-statut-badge ' + (_statusSlugToBadgeClass(stMeta.slug)) + '">' + badgeText + '</span>';
+            })() + '</td>' +
             '<td>' + lastContact + '</td>' +
             '<td>' + renderEmailCell(prospect) + '</td>' +
             '<td>' + renderPushCell(prospect) + '</td>' +
