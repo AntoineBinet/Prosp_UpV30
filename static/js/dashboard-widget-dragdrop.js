@@ -42,6 +42,9 @@ class DashboardWidgetDragDrop {
         this._boundHandleDragStart = this._handleDragStart.bind(this);
         this._boundHandleDragMove = this._handleDragMove.bind(this);
         this._boundHandleDragEnd = this._handleDragEnd.bind(this);
+        
+        // Sauvegarder la dernière position de la souris pour le scroll
+        this.lastMousePos = { x: 0, y: 0 };
     }
     
     /**
@@ -228,6 +231,8 @@ class DashboardWidgetDragDrop {
         } else {
             document.addEventListener('mousemove', this._boundHandleDragMove);
             document.addEventListener('mouseup', this._boundHandleDragEnd);
+            // Écouter aussi le scroll pour mettre à jour la position pendant le défilement
+            window.addEventListener('scroll', this._boundHandleDragMove, { passive: true });
         }
         
         // Haptic feedback (mobile)
@@ -290,6 +295,7 @@ class DashboardWidgetDragDrop {
     /**
      * Mettre à jour la position du widget (via requestAnimationFrame)
      * Utilise position: fixed pour suivre exactement la souris (comportement iOS-like)
+     * Prend en compte le défilement de la page pour que le widget reste sous la souris
      */
     _updatePosition() {
         if (!this.draggedWidget || !this.isDragging) {
@@ -300,6 +306,8 @@ class DashboardWidgetDragDrop {
         // Calculer la position exacte du widget pour qu'il suive le point de clic
         // Avec position: fixed, on utilise directement clientX/clientY (coordonnées viewport)
         // L'offset est calculé depuis le coin supérieur gauche du widget jusqu'au point de clic
+        // IMPORTANT: position: fixed est relatif au viewport, donc pas besoin d'ajouter le scroll
+        // Les coordonnées clientX/clientY sont déjà en coordonnées viewport
         const x = this.currentPos.x - this.offset.x;
         const y = this.currentPos.y - this.offset.y;
         
@@ -432,6 +440,10 @@ class DashboardWidgetDragDrop {
         document.removeEventListener('touchcancel', this._boundHandleDragEnd);
         document.removeEventListener('mousemove', this._boundHandleDragMove);
         document.removeEventListener('mouseup', this._boundHandleDragEnd);
+        window.removeEventListener('scroll', this._boundHandleDragMove);
+        
+        // Réinitialiser la dernière position
+        this.lastMousePos = { x: 0, y: 0 };
         
         // Si pas assez de mouvement, annuler
         if (!this.isDragging) {
