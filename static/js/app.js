@@ -7,6 +7,351 @@ window.onerror = function(msg, src, line) {
     console.error("[Prosp'Up] Error:", msg, "at", src + ":" + line);
 };
 
+// ═══ Assistant virtuel (disponible sur toutes les pages) ═══
+let assistantChatHistory = [];
+
+// Obtenir le contexte de la page actuelle
+function getPageContext() {
+    const pageId = document.body.getAttribute('data-page') || '';
+    const path = window.location.pathname;
+    
+    const contextMap = {
+        'prospects': {
+            name: 'Gestion des prospects',
+            description: 'Vous êtes sur la page de gestion des prospects. Vous pouvez poser des questions sur vos prospects, leurs statuts, les relances, les entreprises, etc.',
+            examples: [
+                'Quels sont mes prospects à relancer ?',
+                'Montre-moi les prospects du secteur automobile',
+                'Combien de prospects en RDV cette semaine ?',
+                'Quels prospects ont le plus haut score ?'
+            ]
+        },
+        'dashboard': {
+            name: 'Dashboard',
+            description: 'Vous êtes sur le dashboard. Vous pouvez poser des questions sur votre activité du jour, vos KPIs, votre pipeline, vos tâches, etc.',
+            examples: [
+                'Quels sont mes prospects à relancer ?',
+                'Montre-moi les prospects du secteur automobile',
+                'Combien de RDV cette semaine ?',
+                'Quelles sont mes priorités du jour ?'
+            ]
+        },
+        'company': {
+            name: 'Gestion des entreprises',
+            description: 'Vous êtes sur la page de gestion des entreprises. Vous pouvez poser des questions sur vos entreprises, leurs prospects associés, etc.',
+            examples: [
+                'Quelles sont mes entreprises les plus actives ?',
+                'Combien de prospects par entreprise ?',
+                'Quelles entreprises ont des relances en retard ?'
+            ]
+        },
+        'sourcing': {
+            name: 'Sourcing de candidats',
+            description: 'Vous êtes sur la page de sourcing de candidats. Vous pouvez poser des questions sur vos candidats, leurs compétences, leurs disponibilités, etc.',
+            examples: [
+                'Quels candidats ont des compétences en AUTOSAR ?',
+                'Combien de candidats disponibles cette semaine ?',
+                'Quels sont les meilleurs candidats pour un poste de développeur embarqué ?'
+            ]
+        },
+        'candidate': {
+            name: 'Fiche candidat',
+            description: 'Vous êtes sur une fiche candidat. Vous pouvez poser des questions sur ce candidat, ses compétences, son parcours, etc.',
+            examples: [
+                'Quelles sont les compétences principales de ce candidat ?',
+                'Quel est le parcours professionnel ?',
+                'Ce candidat correspond-il à un besoin spécifique ?'
+            ]
+        },
+        'stats': {
+            name: 'Statistiques',
+            description: 'Vous êtes sur la page des statistiques. Vous pouvez poser des questions sur vos performances, vos tendances, vos conversions, etc.',
+            examples: [
+                'Quel est mon taux de conversion ?',
+                'Quelles sont mes meilleures périodes ?',
+                'Comment évolue mon pipeline ?'
+            ]
+        },
+        'focus': {
+            name: 'Focus',
+            description: 'Vous êtes sur la page Focus. Vous pouvez poser des questions sur vos relances, vos tâches, vos priorités, etc.',
+            examples: [
+                'Quelles sont mes relances en retard ?',
+                'Quelles tâches sont prioritaires ?',
+                'Quels sont mes prochains RDV ?'
+            ]
+        },
+        'settings': {
+            name: 'Paramètres',
+            description: 'Vous êtes sur la page des paramètres. Vous pouvez poser des questions sur la configuration, les utilisateurs, etc.',
+            examples: [
+                'Comment configurer l\'IA ?',
+                'Quels utilisateurs sont actifs ?'
+            ]
+        }
+    };
+    
+    // Essayer d'abord avec page_id, puis avec le path
+    let context = contextMap[pageId];
+    if (!context) {
+        if (path.includes('/candidate/')) {
+            context = contextMap['candidate'];
+        } else if (path.includes('/company/')) {
+            context = contextMap['company'];
+        } else if (path === '/') {
+            context = contextMap['prospects'];
+        }
+    }
+    
+    // Fallback par défaut
+    return context || {
+        name: 'Application',
+        description: 'Vous êtes sur Prosp\'Up. Posez-moi une question sur vos prospects, votre pipeline, ou vos tâches.',
+        examples: [
+            'Quels sont mes prospects à relancer ?',
+            'Montre-moi les prospects du secteur automobile',
+            'Combien de RDV cette semaine ?'
+        ]
+    };
+}
+
+window.toggleAssistantChat = function() {
+    const chatWindow = document.getElementById('assistantChatWindow');
+    const fab = document.getElementById('dashAssistantFab');
+    if (!chatWindow || !fab) return;
+    
+    const isOpen = chatWindow.classList.contains('open');
+    
+    if (isOpen) {
+        // Fermer avec animation
+        chatWindow.classList.remove('open');
+        fab.style.transform = 'scale(1)';
+    } else {
+        // Ouvrir avec animation
+        chatWindow.classList.add('open');
+        fab.style.transform = 'scale(0.9)';
+        
+        // Focus sur l'input après l'animation
+        setTimeout(() => {
+            const input = document.getElementById('dashAssistantInput');
+            if (input) input.focus();
+        }, 300);
+        
+        // Afficher un message de bienvenue adapté à la page si le chat est vide
+        const chat = document.getElementById('dashAssistantChat');
+        if (chat && chat.children.length === 0) {
+            setTimeout(() => {
+                const context = getPageContext();
+                const examplesText = context.examples.map(ex => `• "${ex}"`).join('\n');
+                addChatMessage('assistant', `${context.description}\n\nExemples de questions :\n${examplesText}`);
+            }, 100);
+        }
+    }
+}
+
+window.sendAssistantMessage = function() {
+    const input = document.getElementById('dashAssistantInput');
+    if (!input) return;
+    const question = input.value.trim();
+    if (!question) return;
+    
+    // Ajouter la question au chat
+    addChatMessage('user', question);
+    input.value = '';
+    input.disabled = true;
+    
+    const sendBtn = document.getElementById('dashAssistantSend');
+    if (sendBtn) {
+        sendBtn.disabled = true;
+        const svg = sendBtn.querySelector('svg');
+        if (svg) svg.style.opacity = '0.5';
+    }
+    
+    // Obtenir le contexte de la page
+    const context = getPageContext();
+    
+    // Appeler l'API avec le contexte
+    fetch('/api/dashboard/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            question,
+            page_context: context.name,
+            page_description: context.description
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.ok && data.data) {
+            const response = data.data;
+            addChatMessage('assistant', response.answer || 'Désolé, je n\'ai pas de réponse.');
+            
+            // Afficher les actions si disponibles
+            if (response.actions && response.actions.length > 0) {
+                renderAssistantActions(response.actions);
+            }
+        } else {
+            addChatMessage('assistant', 'Erreur: ' + (data.error || 'Réponse invalide'));
+        }
+    })
+    .catch(e => {
+        console.error('Assistant error:', e);
+        addChatMessage('assistant', 'Erreur de connexion. Vérifiez votre connexion.');
+    })
+    .finally(() => {
+        input.disabled = false;
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            const svg = sendBtn.querySelector('svg');
+            if (svg) svg.style.opacity = '1';
+        }
+        input.focus();
+    });
+}
+
+function addChatMessage(role, text) {
+    const chat = document.getElementById('dashAssistantChat');
+    if (!chat) return;
+    
+    const messageEl = document.createElement('div');
+    messageEl.className = `assistant-chat-message ${role}`;
+    messageEl.textContent = text;
+    
+    chat.appendChild(messageEl);
+    chat.scrollTop = chat.scrollHeight;
+    
+    assistantChatHistory.push({ role, text });
+}
+
+function renderAssistantActions(actions) {
+    const chat = document.getElementById('dashAssistantChat');
+    if (!chat) return;
+    
+    const actionsEl = document.createElement('div');
+    actionsEl.className = 'assistant-chat-actions';
+    
+    actions.forEach(action => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-secondary btn-sm';
+        btn.textContent = action.label || 'Action';
+        btn.onclick = () => executeAssistantAction(action);
+        actionsEl.appendChild(btn);
+    });
+    
+    chat.appendChild(actionsEl);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function executeAssistantAction(action) {
+    if (!action || !action.type) return;
+    
+    switch (action.type) {
+        case 'filter':
+            // Filtrer les prospects
+            if (action.params && action.params.field) {
+                const field = action.params.field;
+                const value = action.params.value;
+                // Rediriger vers la page prospects avec filtre
+                let url = '/?';
+                if (field === 'statut') {
+                    url += `statut=${encodeURIComponent(value)}`;
+                } else if (field === 'nextFollowUp' && value === 'overdue') {
+                    url = '/focus'; // Page focus pour les relances
+                } else if (field === 'sector') {
+                    url += `sector=${encodeURIComponent(value)}`;
+                }
+                window.location.href = url;
+            }
+            break;
+        case 'open':
+            // Ouvrir une fiche (prospect, candidat, entreprise)
+            if (action.params && action.params.id) {
+                const id = action.params.id;
+                const pageId = document.body.getAttribute('data-page') || '';
+                let url = '/';
+                
+                // Déterminer l'URL selon le type
+                if (pageId === 'candidate' || pageId === 'sourcing') {
+                    url = `/candidate/${id}`;
+                } else if (pageId === 'company') {
+                    url = `/company/${id}`;
+                } else {
+                    url = `/?open=${id}`; // Prospect par défaut
+                }
+                window.location.href = url;
+            }
+            break;
+        case 'navigate':
+            // Naviguer vers une page
+            if (action.params && action.params.url) {
+                window.location.href = action.params.url;
+            }
+            break;
+    }
+}
+
+// ═══ Initialiser le bouton assistant sur toutes les pages ═══
+document.addEventListener('DOMContentLoaded', function() {
+    const fab = document.getElementById('dashAssistantFab');
+    if (fab) {
+        // Afficher le bouton si l'utilisateur est connecté (pas sur login)
+        const isLoginPage = window.location.pathname === '/login' || document.body.getAttribute('data-page') === 'login';
+        if (!isLoginPage) {
+            fab.style.display = 'flex';
+        }
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Mise à jour des boutons IA avec le nom du modèle configuré
+// ═══════════════════════════════════════════════════════════════════
+let _aiModelNameCache = null;
+
+async function updateAIButtonLabels() {
+    try {
+        const res = await fetch('/api/ai/config');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.ok || !data.config) return;
+        
+        const config = data.config;
+        const provider = config.provider || 'ollama';
+        const modelName = provider === 'sonar' 
+            ? (config.sonar_model || 'sonar')
+            : (config.ollama_model || 'llama3.2');
+        
+        _aiModelNameCache = modelName;
+        
+        // Mettre à jour tous les boutons "Générer avec l'IA" / "Générer avec Ollama"
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(function(btn) {
+            const text = btn.textContent || btn.innerText || '';
+            if (!text) return;
+            
+            // Patterns à remplacer
+            if (/Générer avec l'IA \(un seul\)/i.test(text)) {
+                btn.textContent = text.replace(/Générer avec l'IA \(un seul\)/i, 'Générer avec ' + modelName + ' (un seul)');
+            } else if (/Générer avec l'IA \(plusieurs\)/i.test(text)) {
+                btn.textContent = text.replace(/Générer avec l'IA \(plusieurs\)/i, 'Générer avec ' + modelName + ' (plusieurs)');
+            } else if (/Générer avec Ollama/i.test(text) && !/Générer avec Ollama \(/i.test(text)) {
+                btn.textContent = text.replace(/Générer avec Ollama/i, 'Générer avec ' + modelName);
+            } else if (/Générer avec l'IA/i.test(text) && !/Générer avec l'IA \(/i.test(text)) {
+                btn.textContent = text.replace(/Générer avec l'IA/i, 'Générer avec ' + modelName);
+            }
+        });
+    } catch (e) {
+        console.warn('Failed to update AI button labels:', e);
+    }
+}
+
+// Exposer la fonction pour mise à jour manuelle
+window.updateAIButtonLabels = updateAIButtonLabels;
+
+// Mettre à jour au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    updateAIButtonLabels();
+});
+
 // ═══════════════════════════════════════════════════════════════════
 // Auth & User Session Module (v15)
 // ═══════════════════════════════════════════════════════════════════
@@ -47,6 +392,16 @@ const AppAuth = {
             if (existingHeaderBadge) existingHeaderBadge.remove();
             if (headerCenter) {
                 headerCenter.insertAdjacentHTML('beforeend', badgeHtml);
+                // Ajouter le gestionnaire de clic sur le badge (mais pas sur le bouton logout)
+                const badge = headerCenter.querySelector('.user-session-badge');
+                if (badge) {
+                    badge.style.cursor = 'pointer';
+                    badge.addEventListener('click', function(e) {
+                        // Ne pas rediriger si on clique sur le bouton de déconnexion
+                        if (e.target.closest('.user-session-logout')) return;
+                        window.location.href = '/parametres';
+                    });
+                }
                 return true;
             }
             return false;
@@ -2672,7 +3027,6 @@ function getStatusMeta(statut) {
 
     if (s.includes('messagerie')) return { icon: '💬', slug: 'messagerie', label: 'Messagerie' };
     if (s.includes('rendez')) return { icon: '🤝', slug: 'rdv', label: 'RDV' };
-    if (s.includes('rencontr')) return { icon: '✅', slug: 'rencontre', label: 'Rencontré' };
     if (s.includes('prospecté') || s.includes('prospecte')) return { icon: '🎯', slug: 'prospecte', label: 'Prospecté' };
     if (s.includes('à rappeler') || s.includes('rappeler')) return { icon: '⏳', slug: 'rappeler', label: 'À rappeler' };
     if (s.includes('appel')) return { icon: '📞', slug: 'appele', label: 'Appelé' };
@@ -2683,8 +3037,48 @@ function getStatusMeta(statut) {
     return { icon: '•', slug: 'autre', label: (statut || '').slice(0, 12) };
 }
 
+// Formate une date RDV pour l'affichage dans le badge (format compact)
+function formatRdvDateForBadge(rdvDate) {
+    if (!rdvDate || typeof rdvDate !== 'string') return '';
+    const trimmed = rdvDate.trim();
+    if (!trimmed) return '';
+    
+    // Format attendu: "2026-03-19T16:00" ou "2026-03-19 16:00" ou "2026-03-19"
+    let dateStr = trimmed;
+    let timeStr = '';
+    
+    if (dateStr.includes('T')) {
+        const parts = dateStr.split('T');
+        dateStr = parts[0];
+        timeStr = parts[1] || '';
+    } else if (dateStr.includes(' ')) {
+        const parts = dateStr.split(' ');
+        dateStr = parts[0];
+        timeStr = parts[1] || '';
+    }
+    
+    // Parser la date: YYYY-MM-DD -> DD/MM
+    const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!dateMatch) return '';
+    
+    const day = dateMatch[3];
+    const month = dateMatch[2];
+    
+    // Parser l'heure si présente: HH:MM -> HHh
+    let timeDisplay = '';
+    if (timeStr) {
+        const timeMatch = timeStr.match(/^(\d{2}):(\d{2})/);
+        if (timeMatch) {
+            const hour = timeMatch[1];
+            timeDisplay = ' ' + hour + 'h';
+        }
+    }
+    
+    return day + '/' + month + timeDisplay;
+}
+
 function _statusSlugToBadgeClass(slug) {
-    const map = { rappeler: 'badge-à-rappeler', appele: 'badge-appelé', rdv: 'badge-rdv', messagerie: 'badge-messagerie', rencontre: 'badge-rencontre', 'pas-interesse': 'badge-pas-intéressé', 'pas-actions': 'badge-pas-d\'actions' };
+    const map = { rappeler: 'badge-à-rappeler', appele: 'badge-appelé', rdv: 'badge-rdv', messagerie: 'badge-messagerie', 'pas-interesse': 'badge-pas-intéressé', 'pas-actions': 'badge-pas-d\'actions' };
     return map[slug] || '';
 }
 
@@ -2862,7 +3256,14 @@ function _renderProspectsImpl() {
         if (followupMini) mobileMetaParts.push(followupMini);
         const mobileMeta = mobileMetaParts.join(' ');
         const displayName = (prospect.name && String(prospect.name).trim()) ? escapeHtml(prospect.name) : '—';
-        const statusLabel = (stMeta.label && stMeta.slug !== 'none') ? escapeHtml(stMeta.label) : '';
+        let statusLabel = (stMeta.label && stMeta.slug !== 'none') ? escapeHtml(stMeta.label) : '';
+        // Si statut "Rendez-vous" et date RDV présente, ajouter la date au label mobile
+        if (prospect.statut === 'Rendez-vous' && prospect.rdvDate) {
+            const formattedDate = formatRdvDateForBadge(prospect.rdvDate);
+            if (formattedDate) {
+                statusLabel = escapeHtml(stMeta.label) + ' <span style="opacity:0.85;font-size:0.9em;">' + escapeHtml(formattedDate) + '</span>';
+            }
+        }
         const pid = Number(prospect.id) || 0;
         const checked = selectedProspects.has(prospect.id) ? ' checked' : '';
 
@@ -2906,7 +3307,17 @@ function _renderProspectsImpl() {
             '<td>' + fonctionStr + '</td>' +
             '<td class="stars-cell" title="Pertinence">' + stars + '</td>' +
             '<td>' + score + '</td>' +
-            '<td class="table-statut-cell"><span class="table-statut-badge ' + (_statusSlugToBadgeClass(stMeta.slug)) + '">' + (stMeta.label ? escapeHtml(stMeta.label) : '—') + '</span></td>' +
+            '<td class="table-statut-cell">' + (() => {
+                let badgeText = stMeta.label ? escapeHtml(stMeta.label) : '—';
+                // Si statut "Rendez-vous" et date RDV présente, ajouter la date au badge
+                if (prospect.statut === 'Rendez-vous' && prospect.rdvDate) {
+                    const formattedDate = formatRdvDateForBadge(prospect.rdvDate);
+                    if (formattedDate) {
+                        badgeText = escapeHtml(stMeta.label) + ' <span style="opacity:0.85;font-size:0.9em;">' + escapeHtml(formattedDate) + '</span>';
+                    }
+                }
+                return '<span class="table-statut-badge ' + (_statusSlugToBadgeClass(stMeta.slug)) + '">' + badgeText + '</span>';
+            })() + '</td>' +
             '<td>' + lastContact + '</td>' +
             '<td>' + renderEmailCell(prospect) + '</td>' +
             '<td>' + renderPushCell(prospect) + '</td>' +
@@ -3012,9 +3423,9 @@ function updateStats(prospects) {
     // VERT : RDV — total brut
     const rdvEl = document.getElementById('rdvCount');
     if (rdvEl) rdvEl.textContent = allProspects.filter(p => p.statut === 'Rendez-vous').length;
-    // VIOLET : prospectés (statut Prospectés) — total brut
+    // VIOLET : prospectés (statut Prospecté) — total brut
     const prospectésEl = document.getElementById('prospectésCount');
-    if (prospectésEl) prospectésEl.textContent = allProspects.filter(p => p.statut === 'Prospectés').length;
+    if (prospectésEl) prospectésEl.textContent = allProspects.filter(p => p.statut === 'Prospecté').length;
 
     // Relances en retard : basé sur les prospects affichés (filtrés)
     updateOverdueAlerts(activeProspects);
@@ -3070,7 +3481,7 @@ function quickFilterStat(type) {
     } else if (type === 'rdv') {
         if (sf) sf.value = 'Rendez-vous';
     } else if (type === 'prospectés') {
-        if (sf) sf.value = 'Prospectés';
+        if (sf) sf.value = 'Prospecté';
     }
 
     filterProspects();
@@ -3082,7 +3493,6 @@ function getNextActionSuggestionsHtml(statut) {
         "À rappeler": ["Relancer dans 1 semaine", "Rappeler demain", "Envoyer email de relance"],
         "Appelé": ["Relancer dans 3 jours", "Envoyer email de suivi", "Planifier RDV"],
         "Rendez-vous": ["Envoyer 2 profils", "Préparer RT technique", "Relancer pour confirmation"],
-        "Rencontré": ["Envoyer proposition", "Relancer pour suite", "Demander retour"],
         "Prospecté": ["Planifier nouveau RDV", "Envoyer proposition commerciale", "Relancer pour suite"],
         "Messagerie": ["Relancer par message", "Proposer un appel", "Envoyer doc"],
         "Pas d'actions": ["Premier contact", "Qualifier le besoin", "Présenter Up Technologies"],
@@ -3199,7 +3609,7 @@ async function viewDetail(id) {
     // Status color map
     const statusColors = {
         "Pas d'actions": '#64748b', 'Appelé': '#f59e0b', 'Messagerie': '#3b82f6',
-        'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Rencontré': '#10b981', 'Prospecté': '#8b5cf6', 'Pas intéressé': '#94a3b8'
+        'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Prospecté': '#8b5cf6', 'Pas intéressé': '#94a3b8'
     };
     const heroColor = statusColors[prospect.statut] || '#64748b';
     const initials = (prospect.name || '??').split(/\s+/).map(w => w[0]).slice(0,2).join('');
@@ -3217,7 +3627,7 @@ async function viewDetail(id) {
         : '';
 
     // Status select options (for hero)
-    const statusOptions = ["Pas d'actions","Appelé","À rappeler","Rendez-vous","Rencontré","Prospecté","Messagerie","Pas intéressé"];
+    const statusOptions = ["Pas d'actions","Appelé","À rappeler","Rendez-vous","Prospecté","Messagerie","Pas intéressé"];
     const statusSelectHtml = statusOptions.map(s =>
         `<option value="${escapeHtml(s)}" ${prospect.statut === s ? 'selected' : ''}>${escapeHtml(s)}</option>`
     ).join('');
@@ -3278,7 +3688,7 @@ async function viewDetail(id) {
             ${showCandidats ? `<button class="detail-tab" onclick="var infosTab=this.parentElement.querySelector('.detail-tab'); switchDetailTab(infosTab,'tab-info'); setTimeout(function(){ document.getElementById('candidateMatchSection')?.scrollIntoView({behavior:'smooth',block:'start'}); }, 80);" title="Aller aux candidats recommandés">🎯 Candidats</button>` : ''}
             ${showTimeline ? '<button class="detail-tab" onclick="switchDetailTab(this,\'tab-timeline\')">Timeline</button>' : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-notes')">Notes (${(prospect.callNotes||[]).length})</button>
-            ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
+            ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-edit')">✏️ Modifier</button>
         </div>
         ${isProspMode ? `<div class="detail-prosp-progress">Mode Prosp · ${prospProgress.index}/${prospProgress.total}</div><div class="detail-prosp-hint">Swipe gauche: suivant · Swipe droite: fermer</div>` : ''}
@@ -3371,7 +3781,7 @@ async function viewDetail(id) {
             ${notesHtml || '<div class="muted" style="text-align:center;padding:20px;">Aucune note d\'appel</div>'}
         </div>
 
-        ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `
+        ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `
         <!-- TAB: RDV Checklist -->
         <div class="detail-tab-content" id="tab-rdv">
             <!-- Onglets des réunions précédentes -->
@@ -3393,6 +3803,7 @@ async function viewDetail(id) {
                         <span class="rdv-checklist-progress" id="rdvProgress">0 / 0</span>
                     </div>
                     <div class="rdv-checklist-actions">
+                        <button class="btn btn-primary btn-sm" id="btnPreMeetingIA_${prospect.id}" onclick="handlePreMeetingIA(${prospect.id})" title="Générer une fiche de préparation RDV avec IA" data-help-section="scrapping-ia" style="background:#2980B9;border-color:#2980B9;">📋 Avant réunion IA</button>
                         <button class="btn btn-primary btn-sm" id="btnPostMeetingIA_${prospect.id}" onclick="handlePostMeetingIA(${prospect.id})" title="Générer un compte-rendu IA et pré-remplir les champs" data-help-section="scrapping-ia">🤖 Après réunion IA</button>
                         <button class="btn btn-secondary btn-sm" onclick="copyRdvChecklist(${prospect.id})" title="Copier dans le presse-papier">📋 Copier</button>
                         <button class="btn btn-secondary btn-sm" onclick="resetRdvChecklist(${prospect.id})" title="Réinitialiser toutes les réponses">🔄 Reset</button>
@@ -3439,7 +3850,6 @@ async function viewDetail(id) {
                         <option value="Appelé" ${prospect.statut==='Appelé'?'selected':''}>Appelé</option>
                         <option value="À rappeler" ${prospect.statut==='À rappeler'?'selected':''}>À rappeler</option>
                         <option value="Rendez-vous" ${prospect.statut==='Rendez-vous'?'selected':''}>Rendez-vous</option>
-                        <option value="Rencontré" ${prospect.statut==='Rencontré'?'selected':''}>Rencontré</option>
                         <option value="Prospecté" ${prospect.statut==='Prospecté'?'selected':''}>Prospecté</option>
                         <option value="Messagerie" ${prospect.statut==='Messagerie'?'selected':''}>Messagerie</option>
                         <option value="Pas intéressé" ${prospect.statut==='Pas intéressé'?'selected':''}>Pas intéressé</option>
@@ -3473,7 +3883,7 @@ async function viewDetail(id) {
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-danger" onclick="deleteProspect(${id})" title="Supprimer définitivement">🗑️</button>
                 ${prospect.is_contact ? `<button class="btn btn-primary" onclick="restoreFromContacts(${id})" title="Restaurer dans les prospects" style="font-size:12px;">👥 Restaurer</button>` : `<button class="btn btn-secondary" onclick="moveToContacts(${id})" title="Déplacer vers le vivier de contacts" style="font-size:12px;">📁 Contacts</button>`}
-                ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
+                ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
             </div>
             <div style="display:flex;gap:8px;">
                 ${hasPrevInProsp ? `<button class="btn btn-secondary btn-prosp-prev" onclick="goToProspPrev(${id})" title="Prospect précédent">← Précédent</button>` : ''}
@@ -4080,11 +4490,11 @@ function renderKanban() {
     if (!board || _currentView !== 'kanban') return;
 
     const statuses = [
-"Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Rencontré", "Prospecté", "Pas intéressé"
+"Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Prospecté", "Pas intéressé"
     ];
     const statusEmoji = {
 "Pas d'actions": '📋', 'Appelé': '📞', 'Messagerie': '💬',
-'À rappeler': '🔁', 'Rendez-vous': '🤝', 'Rencontré': '✅', 'Prospecté': '🎯', 'Pas intéressé': '❌'
+'À rappeler': '🔁', 'Rendez-vous': '🤝', 'Prospecté': '🎯', 'Pas intéressé': '❌'
     };
 
     const grouped = {};
@@ -5570,6 +5980,10 @@ return '<span class="muted">Ajoutez des compétences pour obtenir des suggestion
                             const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
                             const fullPath = m.category + ' > ' + m.specialty;
                             const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                            // Phase 1: Afficher les matches sémantiques
+                            const semanticInfo = (m.semanticMatches && m.semanticMatches.length > 0)
+                                ? `<div style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🔗 Sémantique: ${m.semanticMatches.map(sm => escapeHtml(sm.tag + ' ≈ ' + sm.refTag)).join(', ')}</div>`
+                                : '';
                             return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
     <div class="metier-suggestion-header">
         <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
@@ -5578,6 +5992,7 @@ return '<span class="muted">Ajoutez des compétences pour obtenir des suggestion
         ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
     </div>
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
+    ${semanticInfo}
 </div>`;
                         }).join('');
                     }
@@ -5639,6 +6054,10 @@ async function refreshMetierSuggestions() {
                         const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
                         const fullPath = m.category + ' > ' + m.specialty;
                         const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                        // Phase 1: Afficher les matches sémantiques
+                        const semanticInfo = (m.semanticMatches && m.semanticMatches.length > 0)
+                            ? `<div style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🔗 Sémantique: ${m.semanticMatches.map(sm => escapeHtml(sm.tag + ' ≈ ' + sm.refTag)).join(', ')}</div>`
+                            : '';
                         return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
     <div class="metier-suggestion-header">
         <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
@@ -5647,6 +6066,7 @@ async function refreshMetierSuggestions() {
         ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
     </div>
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
+    ${semanticInfo}
 </div>`;
                     }).join('');
                 } else {
@@ -5749,6 +6169,14 @@ function _ensurePushModal() {
                 <select id="pushModalConsultant2" class="input" style="width:100%;">
                     <option value="">Aucun consultant</option>
                 </select>
+            </div>
+            <div style="margin-bottom:20px;padding:12px;background:var(--color-bg-secondary);border-radius:8px;border:1px solid var(--color-border);">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">💬 Message personnalisé (Phase 1: IA)</label>
+                <textarea id="pushModalMessage" rows="6" style="width:100%;border:1px solid var(--color-border);border-radius:6px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;" placeholder="Le message sera généré automatiquement par l'IA ou vous pouvez le saisir manuellement..."></textarea>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                    <button class="btn btn-secondary" onclick="generatePushMessageWithAI()" style="font-size:12px;padding:6px 12px;">🤖 Générer avec l'IA</button>
+                    <button class="btn btn-secondary" onclick="generatePushMessageVariants()" style="font-size:12px;padding:6px 12px;">🔄 Générer 3 variantes</button>
+                </div>
             </div>
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closePushSelectModal()">Annuler</button>
@@ -5863,6 +6291,158 @@ function closePushSelectModal() {
     _pushModalChannel = 'email';
 }
 
+// Phase 1: Génération de message personnalisé avec IA
+async function generatePushMessageWithAI() {
+    if (!_pushModalProspectId) return;
+    const p = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'error');
+        return;
+    }
+    
+    const channel = _pushModalChannel || 'email';
+    const catId = document.getElementById('pushModalCategory')?.value || null;
+    const candidateId1 = document.getElementById('pushModalCandidate1')?.value || null;
+    const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
+    const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
+    const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+    
+    const company = data.companies.find(c => c.id === p.company_id);
+    const candidates = [];
+    if (candidateId1) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId1);
+        if (cand) candidates.push(cand);
+    }
+    if (candidateId2) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId2);
+        if (cand) candidates.push(cand);
+    }
+    
+    const consultants = [];
+    if (consultantId1) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId1);
+        if (cons) consultants.push(cons);
+    }
+    if (consultantId2) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId2);
+        if (cons) consultants.push(cons);
+    }
+    
+    const messageEl = document.getElementById('pushModalMessage');
+    if (messageEl) messageEl.value = 'Génération en cours…';
+    
+    try {
+        const prompt = _buildPushMessagePrompt(p, company, candidates, consultants, catId, channel);
+        const text = await callOllama(prompt, { timeoutMs: 60000, stream: false });
+        if (messageEl && text) {
+            messageEl.value = text.trim();
+            showToast('✅ Message généré avec l\'IA !', 'success', 3000);
+        }
+    } catch (e) {
+        showToast('❌ Erreur génération IA : ' + (e.message || 'Erreur inconnue'), 'error', 5000);
+        if (messageEl) messageEl.value = '';
+    }
+}
+
+async function generatePushMessageVariants() {
+    if (!_pushModalProspectId) return;
+    const p = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'error');
+        return;
+    }
+    
+    const channel = _pushModalChannel || 'email';
+    const catId = document.getElementById('pushModalCategory')?.value || null;
+    const candidateId1 = document.getElementById('pushModalCandidate1')?.value || null;
+    const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
+    const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
+    const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+    
+    const company = data.companies.find(c => c.id === p.company_id);
+    const candidates = [];
+    if (candidateId1) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId1);
+        if (cand) candidates.push(cand);
+    }
+    if (candidateId2) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId2);
+        if (cand) candidates.push(cand);
+    }
+    
+    const consultants = [];
+    if (consultantId1) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId1);
+        if (cons) consultants.push(cons);
+    }
+    if (consultantId2) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId2);
+        if (cons) consultants.push(cons);
+    }
+    
+    const messageEl = document.getElementById('pushModalMessage');
+    if (messageEl) messageEl.value = 'Génération de 3 variantes en cours…';
+    
+    try {
+        const prompt = _buildPushMessagePrompt(p, company, candidates, consultants, catId, channel, variants=3);
+        const text = await callOllama(prompt, { timeoutMs: 90000, stream: false });
+        if (messageEl && text) {
+            // Parser les variantes (format: Variante 1: ... Variante 2: ... Variante 3: ...)
+            const variants = text.split(/Variante\s+\d+\s*:/i).filter(v => v.trim()).map(v => v.trim());
+            if (variants.length >= 3) {
+                messageEl.value = `=== VARIANTE 1 ===\n${variants[0]}\n\n=== VARIANTE 2 ===\n${variants[1]}\n\n=== VARIANTE 3 ===\n${variants[2]}`;
+            } else {
+                messageEl.value = text.trim();
+            }
+            showToast('✅ 3 variantes générées avec l\'IA !', 'success', 3000);
+        }
+    } catch (e) {
+        showToast('❌ Erreur génération IA : ' + (e.message || 'Erreur inconnue'), 'error', 5000);
+        if (messageEl) messageEl.value = '';
+    }
+}
+
+function _buildPushMessagePrompt(prospect, company, candidates, consultants, categoryId, channel, variants = 1) {
+    const prospectInfo = `Prospect: ${prospect.name || ''}
+Entreprise: ${company?.groupe || ''}
+Fonction: ${prospect.fonction || ''}
+Tags techniques: ${(prospect.tags || []).join(', ') || 'Aucun'}
+Notes: ${(prospect.notes || '').substring(0, 200) || 'Aucune'}`;
+    
+    let candidatesInfo = '';
+    if (candidates.length > 0) {
+        candidatesInfo = '\n\nCandidats à présenter:\n' + candidates.map(c => 
+            `- ${c.name || ''} (${c.role || ''}): ${(c.skills || []).slice(0, 5).join(', ')}`
+        ).join('\n');
+    }
+    
+    let consultantsInfo = '';
+    if (consultants.length > 0) {
+        consultantsInfo = '\n\nConsultants à mentionner:\n' + consultants.map(c => 
+            `- ${c.display_name || c.username || ''}`
+        ).join('\n');
+    }
+    
+    const channelType = channel === 'linkedin' ? 'message LinkedIn InMail' : 'email professionnel';
+    const variantsText = variants > 1 ? `Génère ${variants} variantes différentes du message, numérotées "Variante 1:", "Variante 2:", etc.` : '';
+    
+    return `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel).
+
+Je dois rédiger un ${channelType} personnalisé pour un prospect.
+
+${prospectInfo}${candidatesInfo}${consultantsInfo}
+
+Instructions:
+- Ton professionnel mais chaleureux
+- Mentionne les compétences techniques pertinentes si des candidats sont sélectionnés
+- Référence l'entreprise du prospect si possible
+- Longueur: ${channel === 'linkedin' ? '150-200 mots (InMail LinkedIn)' : '200-300 mots (email)'}
+- Structure: Salutation personnalisée, présentation brève de votre ESN, proposition de valeur, appel à l'action, signature
+${variantsText}
+
+Réponds UNIQUEMENT par le message ${variants > 1 ? '(variantes numérotées)' : ''}, sans texte avant ou après, sans markdown.`;
+}
+
 async function confirmPushSend() {
     if (!_pushModalProspectId) return;
     const p = data.prospects.find(x => x.id === _pushModalProspectId);
@@ -5885,6 +6465,9 @@ async function confirmPushSend() {
     const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
     const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
     const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+    
+    // Phase 1: Récupérer le message personnalisé généré par IA
+    const customMessage = document.getElementById('pushModalMessage')?.value?.trim() || '';
 
     const company = data.companies.find(c => c.id === p.company_id);
     const companyName = company?.groupe || '';
@@ -5903,25 +6486,30 @@ async function confirmPushSend() {
             document.body.removeChild(ta);
         }
     } else if (channel === 'linkedin') {
-        // Template choisi -> sinon défaut
-        let templateId = p.template_id;
-        const tpl = (templateId ? getTemplateById(templateId) : null) || getDefaultTemplate();
-        const vars = buildTemplateVars(p, company);
+        // Phase 1: Utiliser le message personnalisé IA si disponible
+        if (customMessage) {
+            text = customMessage;
+        } else {
+            // Template choisi -> sinon défaut
+            let templateId = p.template_id;
+            const tpl = (templateId ? getTemplateById(templateId) : null) || getDefaultTemplate();
+            const vars = buildTemplateVars(p, company);
 
-        // Check for custom InMail template in settings
-        try {
-            const settingsRes = await fetch('/api/settings');
-            const settings = await settingsRes.json();
-            if (settings && settings.linkedin_inmail_template && settings.linkedin_inmail_template.trim()) {
-                text = renderTemplateString(settings.linkedin_inmail_template, vars).trim();
-            }
-        } catch(e) {}
+            // Check for custom InMail template in settings
+            try {
+                const settingsRes = await fetch('/api/settings');
+                const settings = await settingsRes.json();
+                if (settings && settings.linkedin_inmail_template && settings.linkedin_inmail_template.trim()) {
+                    text = renderTemplateString(settings.linkedin_inmail_template, vars).trim();
+                }
+            } catch(e) {}
 
-        if (!text) {
-            text = `Bonjour ${vars.civilite ? (vars.civilite + ' ') : ''}${vars.nom || vars.nom_complet || ''},\n\nJe me permets de vous contacter concernant ${vars.entreprise || 'votre entreprise'}.\n\nBelle journée,`;
-            if (tpl) {
-                const b = renderTemplateString((tpl.linkedin_body || tpl.linkedinBody || tpl.body || ''), vars).trim();
-                if (b) text = b;
+            if (!text) {
+                text = `Bonjour ${vars.civilite ? (vars.civilite + ' ') : ''}${vars.nom || vars.nom_complet || ''},\n\nJe me permets de vous contacter concernant ${vars.entreprise || 'votre entreprise'}.\n\nBelle journée,`;
+                if (tpl) {
+                    const b = renderTemplateString((tpl.linkedin_body || tpl.linkedinBody || tpl.body || ''), vars).trim();
+                    if (b) text = b;
+                }
             }
         }
 
@@ -6029,17 +6617,18 @@ async function confirmPushSend() {
         await fetch('/api/push-logs/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+                body: JSON.stringify({
                 prospect_id: p.id, sentAt, channel: channel,
                 to_email: channel === 'email' ? p.email : null,
-                subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : 'Push manuel') : null,
-                body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : '') : text,
+                subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : (customMessage ? 'Push IA personnalisé' : 'Push manuel')) : null,
+                body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : (customMessage || '')) : (customMessage || text),
                 template_id: null,
                 template_name: templateName || null,
                 candidate_id1: candidateId1 ? parseInt(candidateId1, 10) : null,
                 candidate_id2: candidateId2 ? parseInt(candidateId2, 10) : null,
                 consultant1_id: consultantId1 ? parseInt(consultantId1, 10) : null,
-                consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null
+                consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null,
+                ai_generated: customMessage ? true : null  // Phase 1: marquer comme généré par IA
             })
         });
     } catch (e) {
@@ -6095,14 +6684,13 @@ function _showOllamaProgress(show, message, tokenCount) {
     }
 }
 
-/** Envoie le prompt à Ollama via le backend avec streaming, retourne le texte généré. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
+/** Envoie le prompt au provider IA configuré (Ollama/Groq) via le backend avec streaming. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
 async function callOllama(prompt, options) {
     options = options || {};
     const timeoutMs = options.timeoutMs != null ? Math.max(10000, Math.min(600000, options.timeoutMs)) : 180000;
-    const useStream = options.stream !== false; // Streaming par défaut, peut être désactivé
+    const useStream = options.stream !== false;
     
-    // Afficher l'indicateur visuel
-    _showOllamaProgress(true, 'Connexion à Ollama…', 0);
+    _showOllamaProgress(true, 'Connexion à l\'IA…', 0);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(function () { 
@@ -6113,6 +6701,7 @@ async function callOllama(prompt, options) {
     try {
         const body = { prompt };
         if (options.model) body.model = options.model;
+        if (options.webSearch) body.web_search = true;
         body.timeout = Math.min(600, Math.ceil(timeoutMs / 1000));
         
         let fullText = '';
@@ -6131,7 +6720,7 @@ async function callOllama(prompt, options) {
                 const data = await res.json().catch(() => ({}));
                 const msg = data.error || ('Erreur ' + res.status);
                 _showOllamaProgress(false);
-                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                if (typeof showToast === 'function') showToast('IA : ' + msg, 'error', 5000);
                 throw new Error(msg);
             }
             
@@ -6156,11 +6745,11 @@ async function callOllama(prompt, options) {
                             try {
                                 const data = JSON.parse(line.slice(6));
                                 if (data.type === 'start') {
-                                    _showOllamaProgress(true, data.message || 'Génération en cours…', 0);
+                                    _showOllamaProgress(true, data.message || 'Génération IA en cours…', 0);
                                 } else if (data.type === 'token') {
                                     fullText += data.text || '';
                                     tokenCount = fullText.length;
-                                    _showOllamaProgress(true, 'Génération en cours…', tokenCount);
+                                    _showOllamaProgress(true, 'Génération IA en cours…', tokenCount);
                                     if (data.done) {
                                         // Dernier token
                                         _showOllamaProgress(true, 'Finalisation…', tokenCount);
@@ -6169,7 +6758,7 @@ async function callOllama(prompt, options) {
                                     _showOllamaProgress(true, data.message || 'Terminé', tokenCount);
                                 } else if (data.type === 'error') {
                                     _showOllamaProgress(false);
-                                    if (typeof showToast === 'function') showToast('Ollama : ' + data.message, 'error', 5000);
+                                    if (typeof showToast === 'function') showToast('IA : ' + data.message, 'error', 5000);
                                     throw new Error(data.message);
                                 }
                             } catch (e) {
@@ -6185,10 +6774,9 @@ async function callOllama(prompt, options) {
             
             clearTimeout(timeoutId);
             _showOllamaProgress(false);
-            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            if (typeof showToast === 'function') showToast('IA : résultat reçu', 'success', 2500);
             return fullText;
         } else {
-            // Mode non-streaming (fallback)
             const res = await fetch('/api/ollama/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -6200,14 +6788,14 @@ async function callOllama(prompt, options) {
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 const msg = data.error || ('Erreur ' + res.status);
-                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                if (typeof showToast === 'function') showToast('IA : ' + msg, 'error', 5000);
                 throw new Error(msg);
             }
             if (!data.ok || data.text === undefined) {
-                if (typeof showToast === 'function') showToast('Réponse Ollama invalide', 'error', 4000);
+                if (typeof showToast === 'function') showToast('Réponse IA invalide', 'error', 4000);
                 throw new Error('Réponse invalide');
             }
-            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            if (typeof showToast === 'function') showToast('IA : résultat reçu', 'success', 2500);
             return data.text;
         }
     } catch (e) {
@@ -6218,7 +6806,7 @@ async function callOllama(prompt, options) {
             throw new Error('Timeout');
         }
         if (e.name === 'TypeError' && e.message.includes('fetch')) {
-            if (typeof showToast === 'function') showToast('Ollama indisponible (réseau ou serveur)', 'error', 5000);
+            if (typeof showToast === 'function') showToast('IA indisponible (réseau ou serveur)', 'error', 5000);
         }
         throw e;
     }
@@ -6539,11 +7127,11 @@ function handleIAButton(type, id) {
     }
     const btn = document.getElementById(`btnIA_${type}_${id}`);
     if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
-    callOllama(prompt).then(function (text) {
+    callOllama(prompt, { webSearch: true }).then(function (text) {
         openIAImportModalWithText(type, id, text);
     }).catch(function () {
         openIAImportModal(type, id);
-        showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+        showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
     }).finally(function () {
         if (btn) { btn.disabled = false; btn.textContent = '🤖 Scrapping IA'; }
     });
@@ -6562,11 +7150,11 @@ function handleScanIA(prospectId) {
         btn.disabled = true; 
         const originalText = btn.textContent;
         btn.textContent = '🔍 Recherche…';
-        callOllama(prompt).then(function (text) {
+        callOllama(prompt, { webSearch: true }).then(function (text) {
             openIAImportModalWithText('prospect', prospectId, text);
         }).catch(function () {
             openIAImportModal('prospect', prospectId);
-            showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+            showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
         }).finally(function () {
             if (btn) { 
                 btn.disabled = false; 
@@ -6575,11 +7163,11 @@ function handleScanIA(prospectId) {
         });
     } else {
         // Fallback si le bouton n'est pas trouvé
-        callOllama(prompt).then(function (text) {
+        callOllama(prompt, { webSearch: true }).then(function (text) {
             openIAImportModalWithText('prospect', prospectId, text);
         }).catch(function () {
             openIAImportModal('prospect', prospectId);
-            showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+            showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
         });
     }
 }
@@ -7276,7 +7864,7 @@ function _ensureBulkIAModal() {
                     <strong>Étape 1 :</strong> Générez avec Ollama (local) ou copiez le prompt pour une autre IA.
                 </p>
                 <div class="bulk-ia-prompt-box" id="bulkIAPromptBox">
-                    <button class="copy-prompt-btn" onclick="runBulkIAWithOllama()" id="bulkIAOllamaBtn">🤖 Générer avec Ollama</button>
+                    <button class="copy-prompt-btn" onclick="runBulkIAWithOllama()" id="bulkIAOllamaBtn">🤖 Générer avec l'IA</button>
                     <button class="copy-prompt-btn" onclick="copyBulkIAPrompt()">📋 Copier</button>
                     <pre id="bulkIAPromptText" style="margin:0;white-space:pre-wrap;font-size:12px;"></pre>
                 </div>
@@ -7399,6 +7987,11 @@ function openBulkIAModal(mode) {
     if (_bulkIAProspects.length === 0) {
         showToast('⚠️ Aucun prospect valide sélectionné.', 'warning');
         return;
+    }
+    
+    // Mettre à jour les labels des boutons IA avec le modèle configuré
+    if (typeof window.updateAIButtonLabels === 'function') {
+        window.updateAIButtonLabels();
     }
 
     // Update title
@@ -7525,20 +8118,20 @@ async function runBulkIAWithOllama() {
     const btn = document.getElementById('bulkIAOllamaBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
     try {
-        const text = await callOllama(prompt);
+        const text = await callOllama(prompt, { webSearch: true });
         document.getElementById('bulkIAResultTextarea').value = text;
         parseBulkIAResult();
     } catch (e) {
-        showToast('Génération Ollama échouée. Collez manuellement le retour ci-dessous.', 'warning', 5000);
+        showToast('Génération IA échouée. Collez manuellement le retour ci-dessous.', 'warning', 5000);
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Générer avec Ollama'; }
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 Générer avec l\'IA'; }
     }
 }
 
 function copyBulkIAPrompt() {
     const text = document.getElementById('bulkIAPromptText').textContent;
     navigator.clipboard.writeText(text).then(() => {
-        showToast('Prompt copié. Collez dans votre IA ou utilisez Générer avec Ollama.', 'success', 4000);
+        showToast('Prompt copié. Collez dans votre IA ou utilisez Générer avec l\'IA.', 'success', 4000);
     }).catch(() => {
         const ta = document.createElement('textarea');
         ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;';
@@ -9361,6 +9954,10 @@ function openImportListReformatModal(field) {
     const promptText = (_IMPORT_REFORMAT_PROMPTS[field] || 'Normalise les données suivantes (une valeur par ligne, même ordre). Données :') + '\n\n' + values.join('\n');
     document.getElementById('importListReformatPrompt').value = promptText;
     document.getElementById('importListReformatPaste').value = '';
+    // Mettre à jour les labels des boutons IA avec le modèle configuré
+    if (typeof window.updateAIButtonLabels === 'function') {
+        window.updateAIButtonLabels();
+    }
     const modal = document.getElementById('modalImportListReformat');
     if (modal) {
         if (window.openModal) {
@@ -9426,6 +10023,10 @@ function openImportListReformatAllModal() {
         const hasData = rows.some(r => r[c] && r[c].trim());
         return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" value="${c}" ${hasData ? 'checked' : ''} style="cursor:pointer;"> ${label}${hasData ? '' : ' <span class="muted">(vide)</span>'}</label>`;
     }).join('');
+    // Mettre à jour les labels des boutons IA avec le modèle configuré
+    if (typeof window.updateAIButtonLabels === 'function') {
+        window.updateAIButtonLabels();
+    }
     if (window.openModal) window.openModal(modal); else modal.classList.add('active');
 }
 
@@ -10036,8 +10637,11 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
     listBox.innerHTML = '<span class="muted">🔍 Recherche de candidats…</span>';
 
     try {
-        // Piste 5: one API call with tags + optional push_category_id (backend merges category keywords)
-        const qs = pushCategoryId ? `?push_category_id=${encodeURIComponent(pushCategoryId)}` : '';
+        // Phase 1: Ajouter paramètre pour activer explications IA
+        const qsParams = new URLSearchParams();
+        if (pushCategoryId) qsParams.set('push_category_id', pushCategoryId);
+        qsParams.set('ai_explanations', '1');  // Activer explications IA par défaut
+        const qs = qsParams.toString() ? '?' + qsParams.toString() : '';
         const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
         let tagCandidates = [];
         let prospectTags = [];
@@ -10081,6 +10685,17 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
             if (c.exp_score) scoreDetails.push(`XP: ${c.exp_score}`);
             if (c.geo_score) scoreDetails.push(`Géo: ${c.geo_score}`);
             if (c.relevance_pct != null) scoreDetails.push(`Pertinence globale: ${c.relevance_pct}%`);
+            
+            // Phase 1: Afficher les matches sémantiques
+            const semanticMatches = c.semantic_matches || [];
+            const semanticInfo = semanticMatches.length > 0 
+                ? `<div class="bestmatch-semantic" style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🤖 Sémantique: ${semanticMatches.map(m => escapeHtml(m)).join(', ')}</div>`
+                : '';
+            
+            // Phase 1: Afficher l'explication IA si disponible
+            const aiExplanation = c.ai_explanation 
+                ? `<div class="bestmatch-explanation" style="margin-top:8px;padding:8px;background:var(--color-bg-secondary);border-radius:6px;font-size:11px;line-height:1.4;color:var(--color-text-secondary);border-left:3px solid var(--color-primary);">🤖 <strong>Pourquoi ce match :</strong> ${escapeHtml(c.ai_explanation)}</div>`
+                : '';
 
             return `
                 <a href="${viewFicheUrl}" class="bestmatch-card bestmatch-card-link${idx === 0 ? ' bestmatch-top' : ''}" title="Ouvrir la fiche candidat">
@@ -10096,6 +10711,8 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
                     <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · 📍 ' + escapeHtml(c.location) : ''}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
                     <div class="bestmatch-skills">${skillsHtml || '<span class="muted">Aucune compétence renseignée</span>'}</div>
                     <div class="bestmatch-matched">${(c.matched_tags || []).length} compétence${(c.matched_tags || []).length > 1 ? 's' : ''} en commun : ${(c.matched_tags || []).map(t => escapeHtml(t)).join(', ')}</div>
+                    ${semanticInfo}
+                    ${aiExplanation}
                     <div class="bestmatch-actions"><span class="bestmatch-action-label">Voir la fiche →</span></div>
                 </a>`;
         }).join('');
@@ -10530,7 +11147,7 @@ ${checklistSummary || '(Aucune note saisie dans la grille)'}
   "compte_rendu": "[Résumé structuré de la réunion en 5-10 lignes : contexte, points clés discutés, besoins identifiés, opportunités]",
   "next_action": "[Prochaine action concrète : ex. 'Envoyer 2 profils C/C++ embarqué', 'Planifier RT technique', 'Relancer dans 2 semaines']",
   "next_follow_up": "[Date YYYY-MM-DD de la prochaine relance, basée sur ce qui a été convenu]",
-  "statut": "[Nouveau statut parmi : Appelé, À rappeler, Rendez-vous, Rencontré, Messagerie, Pas intéressé — ou null si inchangé]",
+  "statut": "[Nouveau statut parmi : Appelé, À rappeler, Rendez-vous, Messagerie, Pas intéressé — ou null si inchangé]",
   "tags": ["tag1", "tag2", "..."],
   "pertinence": [1-5 ou null],
   "notes_enrichies": "[Informations clés à ajouter aux notes : taille équipe, projets, technos, besoins, budget, process achat — en complément des notes existantes]",
@@ -10556,6 +11173,149 @@ async function copyPostMeetingPrompt(prospectId) {
 
 function handlePostMeetingIA(prospectId) {
     openPostMeetingImportModal(prospectId);
+}
+
+function handlePreMeetingIA(prospectId) {
+    openPreMeetingModal(prospectId);
+}
+
+// ─── Pre-meeting modal (Avant réunion IA) ───
+
+function _ensurePreMeetingModal() {
+    if (document.getElementById('modalPreMeetingIA')) return;
+    const div = document.createElement('div');
+    div.innerHTML = `
+    <div id="modalPreMeetingIA" class="modal">
+        <div class="modal-content">
+            <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>📋 Génération fiche préparation RDV</span>
+                <button class="btn btn-secondary" onclick="closePreMeetingModal()" style="font-size:14px;padding:4px 10px;">✕</button>
+            </div>
+            <div style="margin-top:16px;">
+                <div id="preMeetingProgressLog" class="progress-log" style="display:none;"></div>
+                <div id="preMeetingFallback" style="display:none;margin-top:16px;">
+                    <h4 style="color:var(--color-warning);margin-bottom:8px;">⚠️ Ollama n'a pas pu générer la fiche</h4>
+                    <p class="muted" style="font-size:12px;margin-bottom:8px;">Copie ce prompt dans une autre IA (ChatGPT, Claude, etc.) :</p>
+                    <textarea id="preMeetingPromptText" rows="20" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border:1px solid var(--color-border);border-radius:4px;background:var(--color-bg-secondary);color:var(--color-text);"></textarea>
+                    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="copyPreMeetingPrompt()">📋 Copier le prompt</button>
+                        <button class="btn btn-secondary" onclick="closePreMeetingModal()">Fermer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(div.firstElementChild);
+}
+
+function openPreMeetingModal(prospectId) {
+    _ensurePreMeetingModal();
+    const modal = document.getElementById('modalPreMeetingIA');
+    const logDiv = document.getElementById('preMeetingProgressLog');
+    const fallbackDiv = document.getElementById('preMeetingFallback');
+    
+    // Réinitialiser l'affichage
+    logDiv.style.display = 'block';
+    logDiv.innerHTML = '';
+    fallbackDiv.style.display = 'none';
+    
+    if (window.openModal) {
+        window.openModal(modal);
+    } else {
+        modal.classList.add('active');
+    }
+    
+    // Désactiver le bouton
+    const btn = document.getElementById(`btnPreMeetingIA_${prospectId}`);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Analyse en cours...';
+    }
+    
+    // Ouvrir la connexion EventSource
+    const evtSource = new EventSource(`/api/prospect/${prospectId}/infos-rdv-stream`);
+    
+    evtSource.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'start') {
+                logDiv.innerHTML += `<span style="color:#58a6ff;">${escapeHtml(data.message)}</span><br>`;
+                logDiv.scrollTop = logDiv.scrollHeight;
+            } else if (data.type === 'token') {
+                // Afficher les tokens au fur et à mesure
+                const content = data.content || '';
+                logDiv.innerHTML += escapeHtml(content).replace(/\n/g, '<br>');
+                logDiv.scrollTop = logDiv.scrollHeight;
+            } else if (data.type === 'done') {
+                evtSource.close();
+                logDiv.innerHTML += '<br><span style="color:#22c55e;">✅ Génération terminée. Téléchargement du PDF...</span>';
+                logDiv.scrollTop = logDiv.scrollHeight;
+                
+                // Déclencher le téléchargement
+                if (data.pdf_url) {
+                    window.location.href = data.pdf_url;
+                }
+                
+                // Réactiver le bouton après 3 secondes
+                setTimeout(() => {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = '📋 Avant réunion IA';
+                    }
+                    closePreMeetingModal();
+                }, 3000);
+            } else if (data.type === 'error') {
+                evtSource.close();
+                logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur : Ollama indisponible</span>';
+                logDiv.scrollTop = logDiv.scrollHeight;
+                
+                // Afficher le fallback
+                if (data.fallback_prompt) {
+                    document.getElementById('preMeetingPromptText').value = data.fallback_prompt;
+                    fallbackDiv.style.display = 'block';
+                }
+                
+                // Réactiver le bouton
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '📋 Avant réunion IA';
+                }
+            }
+        } catch (e) {
+            console.error('Erreur parsing SSE:', e);
+            logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur de parsing</span>';
+        }
+    };
+    
+    evtSource.onerror = function() {
+        evtSource.close();
+        logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur de connexion au serveur</span>';
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📋 Avant réunion IA';
+        }
+    };
+}
+
+function closePreMeetingModal() {
+    const modal = document.getElementById('modalPreMeetingIA');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
+}
+
+function copyPreMeetingPrompt() {
+    const textarea = document.getElementById('preMeetingPromptText');
+    if (textarea) {
+        textarea.select();
+        document.execCommand('copy');
+        showToast('Prompt copié dans le presse-papier !', 'success', 3000);
+    }
 }
 
 // ─── Post-meeting import modal ───

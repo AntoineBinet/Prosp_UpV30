@@ -372,7 +372,7 @@ function openVsaImportModal() {
     document.getElementById('vsaImportError').textContent = '';
     document.getElementById('btnVsaPreFillAnyway').style.display = 'none';
     const btn = document.getElementById('btnVsaExtractOllama');
-    if (btn) { btn.disabled = true; btn.textContent = '🤖 Extraire avec Ollama'; }
+    if (btn) { btn.disabled = true; btn.textContent = '🤖 Extraction IA…'; }
     _vsaImportToggleExtractButton();
     if (window.openModal) {
         window.openModal(modal, { focusElement: '#vsaImportTextarea' });
@@ -439,7 +439,7 @@ async function _vsaImportExtractWithOllama() {
 
     const prompt = typeof getVsaExtractionPrompt === 'function' ? getVsaExtractionPrompt(content) : '';
     if (!prompt) {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Extraire avec Ollama'; }
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 Extraire avec l\'IA'; }
         return;
     }
     try {
@@ -448,13 +448,13 @@ async function _vsaImportExtractWithOllama() {
         _vsaImportApplyParsed(parsed);
     } catch (e) {
         if (errEl) {
-            errEl.textContent = 'Ollama est indisponible. Vous pouvez coller manuellement un texte au format : NOM: … ROLE: … LOCALISATION: … (une ligne par champ).';
+            errEl.textContent = 'IA indisponible. Vous pouvez coller manuellement un texte au format : NOM: … ROLE: … LOCALISATION: … (une ligne par champ).';
             errEl.style.display = 'block';
         }
         if (prefillBtn) prefillBtn.style.display = 'inline-block';
-        if (typeof showToast === 'function') showToast('Ollama indisponible. Utilisez « Pré-remplir quand même » si le texte est au bon format.', 'warning', 6000);
+        if (typeof showToast === 'function') showToast('IA indisponible. Utilisez « Pré-remplir quand même » si le texte est au bon format.', 'warning', 6000);
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Extraire avec Ollama'; _vsaImportToggleExtractButton(); }
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 Extraire avec l\'IA'; _vsaImportToggleExtractButton(); }
     }
 }
 

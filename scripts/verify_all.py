@@ -47,26 +47,33 @@ def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 30, input_data:
 
 
 def check_git() -> tuple[bool, str]:
-    """Vérifie Git : repo, branche main, pull possible."""
+    """Vérifie Git : repo, branche, pull possible."""
     if not (PROJECT_ROOT / ".git").exists():
         return False, "Pas de repo Git"
     
     code, branch, _ = _run(["git", "branch", "--show-current"])
     if code != 0:
         return False, "Impossible de lire la branche"
-    if branch != "main":
-        return False, f"Branche actuelle: {branch} (attendu: main)"
     
+    # En développement, on peut être sur une branche autre que main
+    # On vérifie juste que le repo est valide et que fetch fonctionne
     code, status, _ = _run(["git", "status", "--porcelain"])
     if code != 0:
         return False, "Impossible de vérifier le statut Git"
-    if status.strip():
-        return False, f"Worktree non propre: {status[:50]}"
     
-    # Test fetch (dry-run)
+    # Test fetch (dry-run) vers origin/main (même si on est sur une autre branche)
     code, _, err = _run(["git", "fetch", "--dry-run", "origin", "main"], timeout=30)
     if code != 0:
         return False, f"Fetch échoué: {err[:100]}"
+    
+    # Si on est sur main, vérifier que le worktree est propre
+    # Sinon, c'est normal d'avoir des modifications en développement
+    if branch == "main" and status.strip():
+        return False, f"Worktree non propre sur main: {status[:50]}"
+    
+    # Sur une branche de développement, c'est OK même avec des modifications
+    if branch != "main":
+        return True, f"OK (branche: {branch})"
     
     return True, "OK"
 

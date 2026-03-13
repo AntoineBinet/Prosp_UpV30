@@ -1,7 +1,7 @@
 # ProspUp — CRM Prospection B2B (Up Technologies)
 
 ## Stack technique
-- **Backend** : Flask (app.py ~7000 lignes), SQLite, Waitress WSGI en prod
+- **Backend** : Flask (app.py ~10500 lignes), SQLite, Waitress WSGI en prod, ReportLab pour génération PDF
 - **Frontend** : Vanilla JS (pas de framework), 20 pages HTML standalone
 - **CSS** : Glassmorphism dark theme, `prefers-color-scheme` pour light mode
 - **PWA** : Service Worker (sw.js), manifest.json, offline.html
@@ -37,7 +37,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 - Multi-tenant : `owner_id` sur chaque enregistrement ; DB isolée par user dans `data/user_<id>/prospects.db` si elle existe
 
 ## Conventions
-- `APP_VERSION` dans app.py (actuellement "25.0") — incrementer a chaque release
+- `APP_VERSION` dans app.py (actuellement "26.5") — incrementer a chaque release
 - **Workflow git (IMPORTANT)** : TOUJOURS travailler directement sur `main`. Ne JAMAIS créer de branches. Après chaque demande avec modifications, vérifier qu'on est sur `main` (`git checkout main` si nécessaire), puis committer et pousser directement sur `main` (`git add`, `git commit`, `git push origin main`). Pour mettre à jour le serveur sur le PC hébergeur : utiliser le bouton « Mettre à jour et redémarrer » dans Paramètres (section admin). Le flux affiche la sortie git en direct puis recharge la page après redémarrage.
 - **Rappel fin de session** : À chaque fin de réponse où du code a été modifié, committer et pousser sur `main` pour que la session cloud et le pull (bouton Mettre à jour) soient à jour. Sinon les modifications ne seront pas sur Git donc pas dans le pull sur l'hébergeur.
 - Cache busters automatiques : app.py calcule les hash MD5 des fichiers statiques au demarrage et remplace `?v=XXXX` dans le HTML
@@ -47,10 +47,24 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 - Toast notifications via `window.showToast(msg, type, duration)` dans app.js
 - Haptic feedback via `window.haptic(ms)` dans v8-features.js
 
-## Ollama (IA locale)
-- Tous les flux IA passent par **Ollama** sur le PC (proxy backend) : le navigateur appelle Flask, Flask appelle `http://127.0.0.1:11434`. Aucun appel direct du front à Ollama (compatible « Expose Ollama to the network » désactivé).
-- Variables d'environnement : `OLLAMA_URL` (défaut `http://127.0.0.1:11434`), `OLLAMA_MODEL` (défaut `llama3.2`), `OLLAMA_TIMEOUT` (secondes, défaut 120).
-- Route backend : `POST /api/ollama/generate` avec `{ "prompt": "..." }` ; renvoie `{ "ok": true, "text": "..." }`. Helper front : `callOllama(prompt)` dans app.js.
+## IA — Ollama + Sonar (v26.5)
+- **Architecture simplifiée** : 2 providers — **Ollama** (local) et **Sonar** (Perplexity, cloud + web). Fallback automatique entre les deux.
+- **Providers** :
+  - **Ollama** (local, défaut) : gratuit, hors-ligne, requiert GPU. Proxy backend vers `http://127.0.0.1:11434`.
+  - **Perplexity Sonar** (cloud + recherche web) : enrichissement avec données web réelles. ~0.005$/requête. Clé API sur docs.perplexity.ai.
+- **Configuration** : Paramètres > Configuration IA (admin). Persisté dans `data/ai_config.json` (gitignored, jamais écrasé par MAJ).
+- **Variables d'environnement** (défauts, surchargés par la config UI) :
+  - `OLLAMA_URL` (défaut `http://127.0.0.1:11434`), `OLLAMA_MODEL` (défaut `llama3.2`), `OLLAMA_TIMEOUT` (secondes, défaut 120)
+  - `PERPLEXITY_API_KEY` (vide par défaut), `SONAR_MODEL` (défaut `sonar`)
+  - `AI_PROVIDER` (défaut `ollama`, peut être `sonar`)
+- **Routes API** :
+  - `POST /api/ollama/generate` — proxy IA unifié non-streaming, supporte `web_search: true`
+  - `POST /api/ollama/generate-stream` — proxy IA unifié streaming SSE, supporte `web_search: true`
+  - `GET /api/ai/config` — config IA courante (clés masquées)
+  - `POST /api/ai/config` — mise à jour config IA (admin)
+  - `POST /api/ai/test` — test de connexion au provider
+- **Routing web** : les boutons Scrapping/Scan/Bulk passent `web_search: true` → Sonar si clé configurée, sinon provider principal. Les autres fonctions (reformatage, mapping, après réunion) restent sur le provider principal.
+- **Frontend** : `callOllama(prompt, { webSearch: true })` dans app.js active le routing web.
 
 ### Entrées IA implémentées (boutons / flux)
 | Où | Bouton / action | Comportement |
@@ -58,6 +72,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 | Page Prospects (ligne) | « Scrapping IA » | Un clic : envoie le prompt enrichissement prospect à Ollama, ouvre la modale avec le texte généré, analyse (Accepter / Ignorer) puis applique. Fallback : modale vide pour collage manuel si Ollama indisponible. |
 | Fiche entreprise (index) | « Scrapping IA » | Même principe pour une entreprise (prompt + modale import). |
 | Page Candidats (fiche) | « Scrapping IA » | Même principe pour un candidat (page-candidate.js + app.js). |
+| Page Prospects (onglet RDV) | « Avant réunion IA » | Un clic : analyse profil LinkedIn via Ollama (streaming SSE) → génération PDF fiche préparation RDV → téléchargement automatique. Visible uniquement si statut = "Rendez-vous". Fallback : prompt pré-rempli si Ollama indisponible. |
 | Page Prospects (ligne) | « Après réunion IA » | Un clic : prompt compte-rendu RDV → Ollama → modale avec JSON, analyse puis applique. |
 | Page Prospects (barre d’actions) | « Email IA » / « Tel IA » | Ouvre la modale bulk ; bouton « Générer avec Ollama » remplit la zone résultat et lance l’analyse (email ou téléphone en masse). |
 | Page Prospects | « Ajout IA » | Modale Quick Add : choix type (Prospect / Entreprise / Candidat), puis « Générer avec Ollama (un seul) » ou « (plusieurs) » ; résultat pré-rempli, analyse puis création. Boutons « Copier » en secours. |

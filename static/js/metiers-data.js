@@ -560,18 +560,48 @@ async function computeMetierMatchesEnhanced(prospectTags, prospectContext = {}) 
       
       ptLower.forEach(pt => {
         const tagOriginal = prospectTags.find(t => t.toLowerCase().trim() === pt);
-        // Vérifier si dans le référentiel
+        // Vérifier si dans le référentiel (match exact)
         if (techSet.has(pt)) {
           matched++;
           refMatches++;
           matchedTags.push(tagOriginal || pt);
         } else {
-          // Vérifier si intégré via Ollama
-          const integration = integrations[pt];
-          if (integration && integration.category === metier.name && integration.specialty === spec.name) {
+          // Phase 1: Essayer d'abord la similarité sémantique avec les tags du référentiel
+          let semanticMatch = false;
+          let bestSimilarity = 0;
+          let bestRefTag = null;
+          
+          // Comparer avec tous les tags du référentiel pour cette spécialité
+          for (const refTag of allTech) {
+            // Similarité basique (mots communs)
+            const words1 = new Set(pt.split(/[\s\-_]+/));
+            const words2 = new Set(refTag.split(/[\s\-_]+/));
+            const intersection = new Set([...words1].filter(x => words2.has(x)));
+            const union = new Set([...words1, ...words2]);
+            const similarity = union.size > 0 ? intersection.size / union.size : 0;
+            
+            if (similarity > 0.6 && similarity > bestSimilarity) {  // Seuil 60%
+              bestSimilarity = similarity;
+              bestRefTag = refTag;
+              semanticMatch = true;
+            }
+          }
+          
+          if (semanticMatch && bestRefTag) {
             matched++;
             integratedMatches++;
             matchedTags.push(tagOriginal || pt);
+            // Marquer comme match sémantique (pour affichage)
+            if (!spec._semanticMatches) spec._semanticMatches = [];
+            spec._semanticMatches.push({ tag: tagOriginal || pt, refTag: bestRefTag, similarity: bestSimilarity });
+          } else {
+            // Vérifier si intégré via Ollama (fallback)
+            const integration = integrations[pt];
+            if (integration && integration.category === metier.name && integration.specialty === spec.name) {
+              matched++;
+              integratedMatches++;
+              matchedTags.push(tagOriginal || pt);
+            }
           }
         }
       });
@@ -591,7 +621,8 @@ async function computeMetierMatchesEnhanced(prospectTags, prospectContext = {}) 
           matched,
           total: ptLower.size,
           matchedTags,
-          hasIntegratedTags: integratedMatches > 0
+          hasIntegratedTags: integratedMatches > 0,
+          semanticMatches: spec._semanticMatches || []  // Phase 1: matches sémantiques
         });
       }
     });

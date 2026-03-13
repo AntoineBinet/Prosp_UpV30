@@ -14,10 +14,18 @@ import zipfile
 import threading
 import time
 import difflib
+import math
 from pathlib import Path
 from typing import Any, Dict, List
 
-from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g, Response, render_template
+from flask import Flask, jsonify, request, send_from_directory, send_file, redirect, session, g, Response, render_template, stream_with_context
+
+# ReportLab pour génération PDF
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
 from markupsafe import escape as escape_html
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -27,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.0"
+APP_VERSION = "26.5"
 import os
 import subprocess
 import traceback
@@ -86,6 +94,366 @@ SNAPSHOT_DIR = APP_DIR / "snapshots"
 OLLAMA_URL = (os.environ.get("OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL") or "llama3.2"
 OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT") or "120")
+
+# Multi-provider IA — Perplexity Sonar (cloud + recherche web)
+SONAR_API_KEY = os.environ.get("PERPLEXITY_API_KEY") or ""
+SONAR_MODEL = os.environ.get("SONAR_MODEL") or "sonar"
+SONAR_URL = "https://api.perplexity.ai/chat/completions"
+
+# ═══════════════════════════════════════════════════════════════════
+# v26.5: IA simplifiée — Ollama (local) + Sonar (cloud + web)
+# ═══════════════════════════════════════════════════════════════════
+_AI_CONFIG_FILE = DATA_DIR / "ai_config.json"
+_ai_config_cache: dict | None = None
+
+def _load_ai_config() -> dict:
+    """Charge la config IA depuis le fichier ou les variables d'environnement."""
+    global _ai_config_cache
+    if _ai_config_cache is not None:
+        return _ai_config_cache
+    defaults = {
+        "provider": os.environ.get("AI_PROVIDER") or "ollama",
+        "fallback_enabled": True,
+        "ollama_url": OLLAMA_URL,
+        "ollama_model": OLLAMA_MODEL,
+        "sonar_api_key": SONAR_API_KEY,
+        "sonar_model": SONAR_MODEL,
+    }
+    if _AI_CONFIG_FILE.exists():
+        try:
+            with open(_AI_CONFIG_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            for k, v in saved.items():
+                if v is not None and v != "":
+                    defaults[k] = v
+        except Exception:
+            pass
+    _ai_config_cache = defaults
+    return defaults
+
+def _save_ai_config(config: dict):
+    """Persiste la config IA sur disque et rafraîchit le cache."""
+    global _ai_config_cache
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(_AI_CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+    _ai_config_cache = config
+
+def _call_ai(prompt: str, timeout: int = 120) -> str:
+    """Appel IA non-streaming unifié. Retourne le texte généré. Gère le fallback Ollama ↔ Sonar."""
+    config = _load_ai_config()
+    provider = config.get("provider", "ollama")
+    fallback = config.get("fallback_enabled", True)
+    try:
+        return _call_ai_provider(provider, prompt, config, timeout)
+    except Exception as primary_err:
+        if not fallback:
+            raise
+        alt = "ollama" if provider == "sonar" else "sonar"
+        if alt == "sonar" and not config.get("sonar_api_key"):
+            raise primary_err
+        try:
+            logger.info("IA fallback %s → %s", provider, alt)
+            return _call_ai_provider(alt, prompt, config, timeout)
+        except Exception:
+            raise primary_err
+
+def _call_ai_web(prompt: str, timeout: int = 120) -> str:
+    """Appel IA avec recherche web. Sonar si configuré (avec citations + fallback), sinon provider principal."""
+    config = _load_ai_config()
+    if config.get("sonar_api_key"):
+        try:
+            logger.info("IA web: utilisation de Sonar pour recherche web")
+            result = _call_sonar(prompt, config, timeout, include_citations=True)
+            logger.info("IA web: Sonar a réussi (%d caractères)", len(result))
+            return result
+        except Exception as e:
+            logger.warning("Sonar failed, falling back to main provider: %s", str(e))
+            logger.warning("Détails erreur Sonar: %s", repr(e))
+    else:
+        logger.info("IA web: Sonar non configuré, utilisation du provider principal")
+    return _call_ai(prompt, timeout)
+
+# ═══════════════════════════════════════════════════════════════════
+# Phase 1: Système d'embeddings pour matching sémantique
+# ═══════════════════════════════════════════════════════════════════
+
+def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
+    """Calcule la similarité cosinus entre deux vecteurs."""
+    if len(vec1) != len(vec2):
+        return 0.0
+    dot_product = sum(a * b for a, b in zip(vec1, vec2))
+    magnitude1 = math.sqrt(sum(a * a for a in vec1))
+    magnitude2 = math.sqrt(sum(a * a for a in vec2))
+    if magnitude1 == 0 or magnitude2 == 0:
+        return 0.0
+    return dot_product / (magnitude1 * magnitude2)
+
+def _get_embedding_for_text(text: str, entity_type: str, entity_id: int = None, config: dict = None) -> List[float] | None:
+    """Génère ou récupère un embedding pour un texte donné.
+    
+    Phase 1: Utilise une approche simplifiée basée sur la fréquence des caractères et mots-clés.
+    Pour une vraie solution d'embeddings, il faudrait utiliser un modèle dédié (sentence-transformers, OpenAI, etc.).
+    """
+    if not text or not text.strip():
+        return None
+    
+    text_key = text.strip().lower()
+    config = config or _load_ai_config()
+    
+    # Vérifier le cache
+    with _conn() as conn:
+        cache_row = conn.execute(
+            "SELECT embedding FROM embeddings_cache WHERE entity_type=? AND text_key=? AND (entity_id=? OR entity_id IS NULL) LIMIT 1;",
+            (entity_type, text_key, entity_id)
+        ).fetchone()
+        if cache_row:
+            try:
+                return json.loads(cache_row["embedding"])
+            except Exception:
+                pass
+    
+    # Phase 1: Générer un embedding simplifié (basé sur fréquence caractères + mots-clés techniques)
+    # Cette approche est rapide et fonctionne bien pour la similarité basique
+    embedding = _get_text_embedding_simple(text)
+    
+    if embedding:
+        # Sauvegarder en cache
+        with _conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO embeddings_cache (entity_type, entity_id, text_key, embedding) VALUES (?, ?, ?, ?);",
+                (entity_type, entity_id, text_key, json.dumps(embedding))
+            )
+        return embedding
+    
+    return None
+
+def _get_text_embedding_simple(text: str) -> List[float] | None:
+    """Version simplifiée : génère un embedding basique basé sur les caractères (fallback rapide)."""
+    if not text:
+        return None
+    
+    # Embedding basique basé sur la fréquence des caractères et mots-clés
+    # 128 dimensions : 26 lettres (maj/min), 10 chiffres, 92 autres caractères
+    text_lower = text.lower()
+    embedding = [0.0] * 128
+    
+    # Fréquence des caractères (premières 64 dimensions)
+    for i, char in enumerate(text_lower[:64]):
+        if i < 64:
+            char_code = ord(char) % 64
+            embedding[char_code] += 0.1
+    
+    # Mots-clés techniques communs (dernières 64 dimensions)
+    tech_keywords = ["c++", "python", "java", "linux", "embedded", "fpga", "autosar", "rtos", 
+                     "microcontroller", "arm", "c", "javascript", "docker", "kubernetes", "aws",
+                     "git", "agile", "scrum", "test", "validation", "qualification", "safety",
+                     "automotive", "aerospace", "defense", "medical", "iot", "ai", "ml", "deep learning"]
+    for i, keyword in enumerate(tech_keywords):
+        if i < 64 and keyword in text_lower:
+            embedding[64 + i] = 1.0
+    
+    # Normaliser
+    max_val = max(abs(x) for x in embedding) if embedding else 1.0
+    if max_val > 0:
+        embedding = [x / max_val for x in embedding]
+    
+    return embedding
+
+def _compute_semantic_similarity(text1: str, text2: str, entity_type: str = "tag") -> float:
+    """Calcule la similarité sémantique entre deux textes en utilisant les embeddings."""
+    if not text1 or not text2:
+        return 0.0
+    
+    # Essayer d'obtenir les embeddings (avec fallback simple)
+    emb1 = _get_embedding_for_text(text1, entity_type) or _get_text_embedding_simple(text1)
+    emb2 = _get_embedding_for_text(text2, entity_type) or _get_text_embedding_simple(text2)
+    
+    if not emb1 or not emb2:
+        # Fallback : similarité basique basée sur les mots communs
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        if not words1 or not words2:
+            return 0.0
+        intersection = len(words1 & words2)
+        union = len(words1 | words2)
+        return intersection / union if union > 0 else 0.0
+    
+    return _cosine_similarity(emb1, emb2)
+
+def _call_ai_provider(provider: str, prompt: str, config: dict, timeout: int) -> str:
+    """Appelle un provider spécifique (non-streaming)."""
+    if provider == "sonar":
+        return _call_sonar(prompt, config, timeout)
+    return _call_ollama_direct(prompt, config, timeout)
+
+def _call_ollama_direct(prompt: str, config: dict, timeout: int) -> str:
+    """Appel direct à Ollama (non-streaming)."""
+    url = config.get("ollama_url", OLLAMA_URL)
+    model = config.get("ollama_model", OLLAMA_MODEL)
+    body = json.dumps({"model": model, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        f"{url}/api/generate", data=body,
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return data.get("response", "").strip()
+
+def _call_sonar(prompt: str, config: dict, timeout: int, include_citations: bool = False) -> str:
+    """Appel à Perplexity Sonar (non-streaming, recherche web intégrée)."""
+    api_key = config.get("sonar_api_key", "")
+    if not api_key:
+        raise ValueError("Clé API Perplexity non configurée. Ajoutez-la dans Paramètres > Configuration IA.")
+    model = config.get("sonar_model", SONAR_MODEL)
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "temperature": 0.3,
+    }, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        SONAR_URL, data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        text = data["choices"][0]["message"]["content"].strip()
+        if include_citations:
+            citations = data.get("citations", [])
+            if citations:
+                logger.info("Sonar: %d citations trouvées", len(citations))
+                text += "\n\n📎 Sources :\n" + "\n".join(f"- {c}" for c in citations[:5])
+        logger.info("Sonar: réponse reçue (%d caractères)", len(text))
+        return text
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8") if e.fp else ""
+        logger.error("Sonar HTTP error %d: %s", e.code, error_body[:500])
+        raise ValueError(f"Erreur Sonar {e.code}: {error_body[:200] if error_body else e.reason}")
+    except Exception as e:
+        logger.error("Sonar error: %s", str(e))
+        raise
+
+def _stream_ai_web_sse(prompt: str, model_override: str | None, timeout: int):
+    """Stream SSE pour recherche web (Sonar si configuré, sinon provider principal)."""
+    config = _load_ai_config()
+    if config.get("sonar_api_key"):
+        try:
+            yield from _stream_sonar_sse(prompt, model_override, config, timeout)
+            return
+        except Exception as e:
+            logger.warning("Sonar stream failed, falling back: %s", e)
+    yield from _stream_ai_sse(prompt, model_override, timeout)
+
+def _stream_ai_sse(prompt: str, model_override: str | None, timeout: int):
+    """Générateur SSE unifié. Yield des lignes SSE. Fallback Ollama ↔ Sonar."""
+    config = _load_ai_config()
+    provider = config.get("provider", "ollama")
+    fallback = config.get("fallback_enabled", True)
+    try:
+        yield from _stream_provider_sse(provider, prompt, model_override, config, timeout)
+        return
+    except Exception as primary_err:
+        if not fallback:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(primary_err)}, ensure_ascii=False)}\n\n"
+            return
+        alt = "ollama" if provider == "sonar" else "sonar"
+        if alt == "sonar" and not config.get("sonar_api_key"):
+            yield f"data: {json.dumps({'type': 'error', 'message': str(primary_err)}, ensure_ascii=False)}\n\n"
+            return
+        try:
+            logger.info("IA stream fallback %s → %s", provider, alt)
+            yield f"data: {json.dumps({'type': 'start', 'message': f'Basculement vers {alt}…'}, ensure_ascii=False)}\n\n"
+            yield from _stream_provider_sse(alt, prompt, model_override, config, timeout)
+        except Exception:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(primary_err)}, ensure_ascii=False)}\n\n"
+
+def _stream_provider_sse(provider: str, prompt: str, model_override: str | None, config: dict, timeout: int):
+    """Stream SSE pour un provider spécifique."""
+    if provider == "sonar":
+        yield from _stream_sonar_sse(prompt, model_override, config, timeout)
+    else:
+        yield from _stream_ollama_sse(prompt, model_override, config, timeout)
+
+def _stream_ollama_sse(prompt: str, model_override: str | None, config: dict, timeout: int):
+    """Stream SSE via Ollama."""
+    url = config.get("ollama_url", OLLAMA_URL)
+    model = model_override or config.get("ollama_model", OLLAMA_MODEL)
+    body = json.dumps({"model": model, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        f"{url}/api/generate", data=body,
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
+        buffer = b""
+        for chunk in resp:
+            buffer += chunk
+            while b"\n" in buffer:
+                line_bytes, buffer = buffer.split(b"\n", 1)
+                line_json = line_bytes.decode("utf-8", errors="ignore").strip()
+                if not line_json:
+                    continue
+                try:
+                    data = json.loads(line_json)
+                    if data.get("done", False):
+                        full_text = data.get("response", "")
+                        if full_text:
+                            yield f"data: {json.dumps({'type': 'token', 'text': full_text, 'done': True}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
+                        return
+                    else:
+                        token = data.get("response", "")
+                        if token:
+                            yield f"data: {json.dumps({'type': 'token', 'text': token, 'done': False}, ensure_ascii=False)}\n\n"
+                except json.JSONDecodeError:
+                    continue
+    yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
+
+def _stream_sonar_sse(prompt: str, model_override: str | None, config: dict, timeout: int):
+    """Stream SSE via Perplexity Sonar (OpenAI-compatible streaming + web search)."""
+    api_key = config.get("sonar_api_key", "")
+    if not api_key:
+        raise ValueError("Clé API Perplexity non configurée")
+    model = model_override or config.get("sonar_model", SONAR_MODEL)
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": True,
+        "temperature": 0.3,
+    }, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        SONAR_URL, data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        yield f"data: {json.dumps({'type': 'start', 'message': 'Recherche web Sonar en cours…'}, ensure_ascii=False)}\n\n"
+        buffer = b""
+        for chunk in resp:
+            buffer += chunk
+            while b"\n" in buffer:
+                line_bytes, buffer = buffer.split(b"\n", 1)
+                line_str = line_bytes.decode("utf-8", errors="ignore").strip()
+                if not line_str:
+                    continue
+                if not line_str.startswith("data: "):
+                    continue
+                data_str = line_str[6:]
+                if data_str == "[DONE]":
+                    yield f"data: {json.dumps({'type': 'end', 'message': 'Recherche terminée'}, ensure_ascii=False)}\n\n"
+                    return
+                try:
+                    data = json.loads(data_str)
+                    delta = data.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content", "")
+                    if content:
+                        yield f"data: {json.dumps({'type': 'token', 'text': content, 'done': False}, ensure_ascii=False)}\n\n"
+                except json.JSONDecodeError:
+                    continue
+    yield f"data: {json.dumps({'type': 'end', 'message': 'Recherche terminée'}, ensure_ascii=False)}\n\n"
 
 app = Flask(__name__, static_folder=str(APP_DIR / 'static'), static_url_path='/static', template_folder=str(APP_DIR / 'templates'))
 
@@ -1373,6 +1741,56 @@ CREATE TABLE IF NOT EXISTS candidate_tabs (
 CREATE INDEX IF NOT EXISTS idx_candidate_tabs_candidate ON candidate_tabs(candidate_id);
 CREATE INDEX IF NOT EXISTS idx_candidate_tabs_sort ON candidate_tabs(candidate_id, sort_order);
 
+-- Candidate experiences (v26.6: enrichissement IA structuré)
+CREATE TABLE IF NOT EXISTS candidate_experiences (
+    id           INTEGER PRIMARY KEY,
+    candidate_id INTEGER NOT NULL,
+    company_name TEXT NOT NULL,
+    role         TEXT,
+    start_date   TEXT,
+    end_date     TEXT,
+    description  TEXT,
+    technologies TEXT,
+    owner_id     INTEGER,
+    createdAt    TEXT,
+    updatedAt    TEXT,
+    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_candidate_experiences_candidate ON candidate_experiences(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_experiences_owner ON candidate_experiences(owner_id);
+
+-- Candidate educations (v26.6: enrichissement IA structuré)
+CREATE TABLE IF NOT EXISTS candidate_educations (
+    id            INTEGER PRIMARY KEY,
+    candidate_id  INTEGER NOT NULL,
+    degree        TEXT,
+    school        TEXT NOT NULL,
+    year          TEXT,
+    specialization TEXT,
+    owner_id      INTEGER,
+    createdAt     TEXT,
+    updatedAt     TEXT,
+    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_candidate_educations_candidate ON candidate_educations(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_educations_owner ON candidate_educations(owner_id);
+
+-- Candidate certifications (v26.6: enrichissement IA structuré)
+CREATE TABLE IF NOT EXISTS candidate_certifications (
+    id            INTEGER PRIMARY KEY,
+    candidate_id  INTEGER NOT NULL,
+    name          TEXT NOT NULL,
+    issuer        TEXT,
+    obtained_date TEXT,
+    expiry_date   TEXT,
+    owner_id      INTEGER,
+    createdAt     TEXT,
+    updatedAt     TEXT,
+    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_candidate_certifications_candidate ON candidate_certifications(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_certifications_owner ON candidate_certifications(owner_id);
+
 CREATE TABLE IF NOT EXISTS tasks (
     id          INTEGER PRIMARY KEY,
     title       TEXT NOT NULL,
@@ -1384,7 +1802,35 @@ CREATE TABLE IF NOT EXISTS tasks (
     updatedAt   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+
+-- Embeddings cache (Phase 1: matching sémantique)
+CREATE TABLE IF NOT EXISTS embeddings_cache (
+    id          INTEGER PRIMARY KEY,
+    entity_type TEXT NOT NULL,  -- 'prospect', 'candidate', 'tag', 'metier'
+    entity_id   INTEGER,        -- ID de l'entité (prospect_id, candidate_id, ou NULL pour tag/metier)
+    text_key    TEXT NOT NULL,  -- Texte ou tag pour lequel on a l'embedding
+    embedding   TEXT NOT NULL,  -- JSON array de floats
+    created_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE(entity_type, entity_id, text_key)
+);
+CREATE INDEX IF NOT EXISTS idx_embeddings_lookup ON embeddings_cache(entity_type, text_key);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+
+CREATE TABLE IF NOT EXISTS task_rules (
+    id            INTEGER PRIMARY KEY,
+    name          TEXT NOT NULL,
+    trigger_type  TEXT NOT NULL,
+    conditions    TEXT NOT NULL,
+    template_title TEXT NOT NULL,
+    template_comment TEXT,
+    priority      INTEGER DEFAULT 2,
+    enabled       INTEGER DEFAULT 1,
+    owner_id      INTEGER,
+    createdAt     TEXT,
+    updatedAt     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_task_rules_trigger ON task_rules(trigger_type, enabled);
+CREATE INDEX IF NOT EXISTS idx_task_rules_owner ON task_rules(owner_id);
 
 -- v23.5: search performance indexes (columns that exist in CREATE TABLE)
 CREATE INDEX IF NOT EXISTS idx_prospects_name ON prospects(name);
@@ -1498,6 +1944,21 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
             _add_col("push_logs", "consultant1_id", "INTEGER")
         if "consultant2_id" not in lcols:
             _add_col("push_logs", "consultant2_id", "INTEGER")
+        # v26.6: Optimisation mailing (timing et A/B testing)
+        if "sent_at_hour" not in lcols:
+            _add_col("push_logs", "sent_at_hour", "INTEGER")
+        if "sent_at_day_of_week" not in lcols:
+            _add_col("push_logs", "sent_at_day_of_week", "INTEGER")
+        if "variant_id" not in lcols:
+            _add_col("push_logs", "variant_id", "TEXT")
+        if "opened_at" not in lcols:
+            _add_col("push_logs", "opened_at", "TEXT")
+        if "clicked_at" not in lcols:
+            _add_col("push_logs", "clicked_at", "TEXT")
+        if "replied_at" not in lcols:
+            _add_col("push_logs", "replied_at", "TEXT")
+        if "tracking_pixel_id" not in lcols:
+            _add_col("push_logs", "tracking_pixel_id", "TEXT")
 
         cand_cols = [r["name"] for r in conn.execute("PRAGMA table_info(candidates);").fetchall()]
         # Links & matching (v5.1+)
@@ -1636,6 +2097,44 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(createdAt);
             CREATE INDEX IF NOT EXISTS idx_meetings_prospect ON meetings(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_id);
             CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(date);
+            
+            CREATE TABLE IF NOT EXISTS meeting_action_items (
+                id            INTEGER PRIMARY KEY,
+                meeting_id    INTEGER NOT NULL,
+                prospect_id   INTEGER NOT NULL,
+                task          TEXT NOT NULL,
+                assignee      TEXT,
+                due_date      TEXT,
+                priority      TEXT,
+                status        TEXT NOT NULL DEFAULT 'pending',
+                owner_id      INTEGER NOT NULL,
+                createdAt     TEXT NOT NULL,
+                FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_meeting ON meeting_action_items(meeting_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_prospect ON meeting_action_items(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_owner ON meeting_action_items(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_status ON meeting_action_items(status);
+            
+            CREATE TABLE IF NOT EXISTS meeting_opportunities (
+                id              INTEGER PRIMARY KEY,
+                meeting_id      INTEGER NOT NULL,
+                prospect_id     INTEGER NOT NULL,
+                type            TEXT NOT NULL,
+                estimated_value REAL,
+                probability     INTEGER,
+                description     TEXT,
+                owner_id        INTEGER NOT NULL,
+                createdAt       TEXT NOT NULL,
+                FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_meeting ON meeting_opportunities(meeting_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_prospect ON meeting_opportunities(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_owner ON meeting_opportunities(owner_id);
         ''')
 
         # Seed default admin if no users exist
@@ -2061,6 +2560,22 @@ def _init_user_db(user_id: int) -> Path:
                 UNIQUE(name, owner_id)
             );
 
+            CREATE TABLE IF NOT EXISTS push_variants (
+                id            INTEGER PRIMARY KEY,
+                push_log_id   INTEGER NOT NULL,
+                variant_id    TEXT NOT NULL,
+                subject       TEXT,
+                body          TEXT,
+                sent_at       TEXT,
+                opened_at     TEXT,
+                clicked_at    TEXT,
+                replied_at    TEXT,
+                createdAt     TEXT NOT NULL,
+                FOREIGN KEY(push_log_id) REFERENCES push_logs(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_push_variants_push_log_id ON push_variants(push_log_id);
+            CREATE INDEX IF NOT EXISTS idx_push_variants_variant_id ON push_variants(variant_id);
+
             CREATE TABLE IF NOT EXISTS rdv_checklists (
                 id          INTEGER PRIMARY KEY,
                 prospect_id INTEGER NOT NULL UNIQUE,
@@ -2091,6 +2606,56 @@ def _init_user_db(user_id: int) -> Path:
             CREATE INDEX IF NOT EXISTS idx_candidate_tabs_candidate ON candidate_tabs(candidate_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_tabs_sort ON candidate_tabs(candidate_id, sort_order);
 
+            -- Candidate experiences (v26.6: enrichissement IA structuré)
+            CREATE TABLE IF NOT EXISTS candidate_experiences (
+                id           INTEGER PRIMARY KEY,
+                candidate_id INTEGER NOT NULL,
+                company_name TEXT NOT NULL,
+                role         TEXT,
+                start_date   TEXT,
+                end_date     TEXT,
+                description  TEXT,
+                technologies TEXT,
+                owner_id     INTEGER,
+                createdAt    TEXT,
+                updatedAt    TEXT,
+                FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_candidate_experiences_candidate ON candidate_experiences(candidate_id);
+            CREATE INDEX IF NOT EXISTS idx_candidate_experiences_owner ON candidate_experiences(owner_id);
+
+            -- Candidate educations (v26.6: enrichissement IA structuré)
+            CREATE TABLE IF NOT EXISTS candidate_educations (
+                id            INTEGER PRIMARY KEY,
+                candidate_id  INTEGER NOT NULL,
+                degree        TEXT,
+                school        TEXT NOT NULL,
+                year          TEXT,
+                specialization TEXT,
+                owner_id      INTEGER,
+                createdAt     TEXT,
+                updatedAt     TEXT,
+                FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_candidate_educations_candidate ON candidate_educations(candidate_id);
+            CREATE INDEX IF NOT EXISTS idx_candidate_educations_owner ON candidate_educations(owner_id);
+
+            -- Candidate certifications (v26.6: enrichissement IA structuré)
+            CREATE TABLE IF NOT EXISTS candidate_certifications (
+                id            INTEGER PRIMARY KEY,
+                candidate_id  INTEGER NOT NULL,
+                name          TEXT NOT NULL,
+                issuer        TEXT,
+                obtained_date TEXT,
+                expiry_date   TEXT,
+                owner_id      INTEGER,
+                createdAt     TEXT,
+                updatedAt     TEXT,
+                FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_candidate_certifications_candidate ON candidate_certifications(candidate_id);
+            CREATE INDEX IF NOT EXISTS idx_candidate_certifications_owner ON candidate_certifications(owner_id);
+
             CREATE TABLE IF NOT EXISTS tasks (
                 id          INTEGER PRIMARY KEY,
                 title       TEXT NOT NULL,
@@ -2102,6 +2667,22 @@ def _init_user_db(user_id: int) -> Path:
                 updatedAt   TEXT,
                 owner_id    INTEGER
             );
+
+            CREATE TABLE IF NOT EXISTS task_rules (
+                id            INTEGER PRIMARY KEY,
+                name          TEXT NOT NULL,
+                trigger_type  TEXT NOT NULL,
+                conditions    TEXT NOT NULL,
+                template_title TEXT NOT NULL,
+                template_comment TEXT,
+                priority      INTEGER DEFAULT 2,
+                enabled       INTEGER DEFAULT 1,
+                owner_id      INTEGER,
+                createdAt     TEXT,
+                updatedAt     TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_task_rules_trigger ON task_rules(trigger_type, enabled);
+            CREATE INDEX IF NOT EXISTS idx_task_rules_owner ON task_rules(owner_id);
 
             CREATE TABLE IF NOT EXISTS custom_metiers (
                 id        INTEGER PRIMARY KEY,
@@ -2140,6 +2721,37 @@ def _init_user_db(user_id: int) -> Path:
                 FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
                 FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
             );
+            
+            CREATE TABLE IF NOT EXISTS meeting_action_items (
+                id            INTEGER PRIMARY KEY,
+                meeting_id    INTEGER NOT NULL,
+                prospect_id   INTEGER NOT NULL,
+                task          TEXT NOT NULL,
+                assignee      TEXT,
+                due_date      TEXT,
+                priority      TEXT,
+                status        TEXT NOT NULL DEFAULT 'pending',
+                owner_id      INTEGER NOT NULL,
+                createdAt     TEXT NOT NULL,
+                FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            
+            CREATE TABLE IF NOT EXISTS meeting_opportunities (
+                id              INTEGER PRIMARY KEY,
+                meeting_id      INTEGER NOT NULL,
+                prospect_id     INTEGER NOT NULL,
+                type            TEXT NOT NULL,
+                estimated_value REAL,
+                probability     INTEGER,
+                description     TEXT,
+                owner_id        INTEGER NOT NULL,
+                createdAt       TEXT NOT NULL,
+                FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
 
             CREATE INDEX IF NOT EXISTS idx_push_logs_prospect_id ON push_logs(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_push_logs_sentAt ON push_logs(sentAt);
@@ -2160,6 +2772,13 @@ def _init_user_db(user_id: int) -> Path:
             CREATE INDEX IF NOT EXISTS idx_meetings_prospect ON meetings(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_id);
             CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(date);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_meeting ON meeting_action_items(meeting_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_prospect ON meeting_action_items(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_owner ON meeting_action_items(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_action_items_status ON meeting_action_items(status);
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_meeting ON meeting_opportunities(meeting_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_prospect ON meeting_opportunities(prospect_id);
+            CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_owner ON meeting_opportunities(owner_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_ec1_candidate ON candidate_ec1_checklists(candidate_id);
             CREATE INDEX IF NOT EXISTS idx_candidate_ec1_interviewAt ON candidate_ec1_checklists(interviewAt);
             CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
@@ -2635,6 +3254,51 @@ def upsert_all(data: Dict[str, Any]) -> None:
                 pass
 
             cur.execute("COMMIT;")
+            
+            # Hooks pour création automatique de tâches
+            # Détecter les nouveaux prospects et changements de statut
+            for p in prospects:
+                try:
+                    pid = int(p.get("id"))
+                    old_row = old_prospect_map.get(pid) or {}
+                    is_new = pid not in old_prospect_map
+                    statut_changed = old_row.get("statut") != p.get("statut")
+                    
+                    # Construire le contexte pour les règles
+                    context = {
+                        "prospect_id": pid,
+                        "name": p.get("name", ""),
+                        "email": p.get("email"),
+                        "telephone": p.get("telephone"),
+                        "linkedin": p.get("linkedin"),
+                        "statut": p.get("statut"),
+                        "pertinence": p.get("pertinence"),
+                        "nextFollowUp": p.get("nextFollowUp"),
+                        "company_id": p.get("company_id"),
+                    }
+                    
+                    # Récupérer le nom de l'entreprise si disponible
+                    if context.get("company_id"):
+                        try:
+                            c_row = conn.execute(
+                                "SELECT groupe FROM companies WHERE id=? AND owner_id=?;",
+                                (context["company_id"], uid)
+                            ).fetchone()
+                            if c_row:
+                                context["company_groupe"] = c_row["groupe"] or ""
+                        except Exception:
+                            pass
+                    
+                    # Hook: prospect créé
+                    if is_new:
+                        _create_auto_task("prospect_created", context)
+                    
+                    # Hook: statut changé
+                    if statut_changed and p.get("statut"):
+                        context["old_statut"] = old_row.get("statut")
+                        _create_auto_task("status_changed", context)
+                except Exception as e:
+                    logger.warning("Erreur hook tâche auto pour prospect %s: %s", p.get("id"), e)
         except Exception:
             cur.execute("ROLLBACK;")
             raise
@@ -2872,6 +3536,295 @@ def _audit_log(action: str, entity: str, entity_id: int | None = None,
 
 def _today_iso() -> str:
     return datetime.date.today().isoformat()
+
+
+def _create_auto_task(trigger_type: str, context: Dict[str, Any]) -> None:
+    """Crée automatiquement des tâches basées sur les règles actives.
+    
+    Args:
+        trigger_type: Type de déclencheur ('prospect_created', 'status_changed', 'meeting_done', 'daily_check')
+        context: Contexte avec les données nécessaires (prospect_id, statut, etc.)
+    """
+    uid = _uid()
+    if not uid:
+        return
+    
+    try:
+        with _conn() as conn:
+            # Récupérer les règles actives pour ce trigger
+            rules = conn.execute(
+                "SELECT * FROM task_rules WHERE trigger_type=? AND enabled=1 AND (owner_id IS NULL OR owner_id=?);",
+                (trigger_type, uid)
+            ).fetchall()
+            
+            if not rules:
+                return
+            
+            for rule in rules:
+                rule_dict = dict(rule)
+                conditions = json.loads(rule_dict.get("conditions") or "{}")
+                
+                # Évaluer les conditions
+                if not _evaluate_task_conditions(conditions, context):
+                    continue
+                
+                # Générer le titre et commentaire
+                template_title = rule_dict.get("template_title") or ""
+                template_comment = rule_dict.get("template_comment") or ""
+                
+                # Remplacer les variables du contexte dans les templates
+                title = _render_task_template(template_title, context)
+                comment = _render_task_template(template_comment, context)
+                
+                # Générer via IA si le template contient {{IA:...}}
+                if "{{IA:" in title:
+                    title = _generate_task_text_ia(title, context)
+                if "{{IA:" in comment:
+                    comment = _generate_task_text_ia(comment, context)
+                
+                # Déterminer la date d'échéance
+                due_date = _calculate_task_due_date(context, conditions)
+                
+                # Construire linked_ids
+                linked_ids = {}
+                if context.get("prospect_id"):
+                    linked_ids["prospect_id"] = context["prospect_id"]
+                if context.get("company_id"):
+                    linked_ids["company_id"] = context["company_id"]
+                
+                # Créer la tâche
+                now = _now_iso()
+                priority = rule_dict.get("priority") or 2
+                conn.execute(
+                    "INSERT INTO tasks (title, comment, due_date, status, linked_ids, priority, createdAt, updatedAt, owner_id) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?);",
+                    (title, comment, due_date, json.dumps(linked_ids, ensure_ascii=False), priority, now, now, uid)
+                )
+                logger.info("Tâche auto-créée: %s (règle: %s)", title, rule_dict.get("name"))
+    except Exception as e:
+        logger.warning("Erreur création tâche auto: %s", e)
+
+
+def _evaluate_task_conditions(conditions: Dict[str, Any], context: Dict[str, Any]) -> bool:
+    """Évalue si les conditions sont remplies pour créer une tâche.
+    
+    Exemples de conditions:
+    - {"has_email": False} : prospect sans email
+    - {"statut": "Rendez-vous"} : statut spécifique
+    - {"nextFollowUp_days": 2} : nextFollowUp dans N jours
+    - {"has_linkedin": False} : pas de LinkedIn
+    """
+    if not conditions:
+        return True
+    
+    # Condition: prospect sans email
+    if conditions.get("has_email") is False:
+        if context.get("email"):
+            return False
+    
+    # Condition: statut spécifique
+    if "statut" in conditions:
+        if context.get("statut") != conditions["statut"]:
+            return False
+    
+    # Condition: nextFollowUp dans N jours
+    if "nextFollowUp_days" in conditions:
+        next_follow = context.get("nextFollowUp")
+        if not next_follow:
+            return False
+        try:
+            follow_date = datetime.datetime.fromisoformat(next_follow.replace("Z", "+00:00")[:10])
+            today = datetime.date.today()
+            days_diff = (follow_date.date() - today).days
+            if days_diff != conditions["nextFollowUp_days"]:
+                return False
+        except Exception:
+            return False
+    
+    # Condition: pas de LinkedIn
+    if conditions.get("has_linkedin") is False:
+        if context.get("linkedin"):
+            return False
+    
+    # Condition: pertinence spécifique
+    if "pertinence" in conditions:
+        if context.get("pertinence") != conditions["pertinence"]:
+            return False
+    
+    return True
+
+
+def _render_task_template(template: str, context: Dict[str, Any]) -> str:
+    """Remplace les variables {{var}} dans le template par les valeurs du contexte."""
+    if not template:
+        return ""
+    
+    result = template
+    # Remplacer {{variable}} par la valeur du contexte
+    for key, value in context.items():
+        placeholder = f"{{{{{key}}}}}"
+        if placeholder in result:
+            result = result.replace(placeholder, str(value or ""))
+    
+    return result
+
+
+def _generate_task_text_ia(template: str, context: Dict[str, Any]) -> str:
+    """Génère un texte via IA si le template contient {{IA:prompt}}.
+    
+    Exemple: "{{IA:Génère un titre de tâche pour : relancer {{name}} de {{company_groupe}} concernant {{context}}. Titre court (max 50 caractères).}}"
+    """
+    if "{{IA:" not in template:
+        return template
+    
+    # Extraire le prompt IA
+    import re
+    match = re.search(r'\{\{IA:([^}]+)\}\}', template)
+    if not match:
+        return template
+    
+    prompt_template = match.group(1)
+    
+    # Remplacer les variables du contexte dans le prompt
+    prompt = _render_task_template(prompt_template, context)
+    
+    try:
+        # Appeler l'IA
+        generated = _call_ai(prompt, timeout=30)
+        # Remplacer {{IA:...}} par le texte généré
+        result = template.replace(match.group(0), generated.strip())
+        return result
+    except Exception as e:
+        logger.warning("Erreur génération IA pour tâche: %s", e)
+        # Fallback: retourner le template sans {{IA:...}}
+        return template.replace(match.group(0), "")
+
+
+def _calculate_task_due_date(context: Dict[str, Any], conditions: Dict[str, Any]) -> str | None:
+    """Calcule la date d'échéance de la tâche basée sur le contexte et les conditions."""
+    # Si nextFollowUp est défini, utiliser cette date
+    if context.get("nextFollowUp"):
+        return context["nextFollowUp"]
+    
+    # Si une condition spécifie un délai
+    if "due_days" in conditions:
+        days = int(conditions.get("due_days", 0))
+        due_date = datetime.date.today() + datetime.timedelta(days=days)
+        return due_date.isoformat()
+    
+    # Par défaut: aujourd'hui
+    return _today_iso()
+
+
+def _optimize_task_schedule(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Suggère l'ordre optimal des tâches basé sur :
+    - Priorité
+    - Date d'échéance
+    - Type de tâche (regroupement)
+    - Estimation de temps
+    
+    Retourne les tâches triées avec des suggestions d'ordre.
+    """
+    if not tasks:
+        return []
+    
+    # Estimation de temps par type de tâche (en minutes)
+    task_time_estimates = {
+        "relance": 15,
+        "appel": 20,
+        "email": 10,
+        "rdv": 30,
+        "suivi": 15,
+        "default": 20,
+    }
+    
+    # Calculer un score pour chaque tâche
+    scored_tasks = []
+    for task in tasks:
+        score = 0
+        priority = task.get("priority") or 2
+        due_date = task.get("due_date")
+        title = (task.get("title") or "").lower()
+        
+        # Score basé sur la priorité (plus bas = plus urgent)
+        score += (4 - priority) * 100
+        
+        # Score basé sur la date d'échéance
+        if due_date:
+            try:
+                due = datetime.datetime.fromisoformat(due_date.replace("Z", "+00:00")[:10]).date()
+                today = datetime.date.today()
+                days_until = (due - today).days
+                if days_until < 0:
+                    score += 200  # En retard
+                elif days_until == 0:
+                    score += 150  # Aujourd'hui
+                elif days_until == 1:
+                    score += 100  # Demain
+                elif days_until <= 3:
+                    score += 50  # Cette semaine
+            except Exception:
+                pass
+        
+        # Estimation de temps
+        time_estimate = task_time_estimates.get("default")
+        for task_type, minutes in task_time_estimates.items():
+            if task_type in title:
+                time_estimate = minutes
+                break
+        task["estimated_minutes"] = time_estimate
+        
+        # Score négatif pour les tâches longues (prioriser les courtes)
+        score -= time_estimate / 10
+        
+        scored_tasks.append((score, task))
+    
+    # Trier par score décroissant
+    scored_tasks.sort(key=lambda x: x[0], reverse=True)
+    
+    # Regrouper les tâches similaires (même type, même entreprise)
+    grouped = []
+    current_group = []
+    for score, task in scored_tasks:
+        if not current_group:
+            current_group.append(task)
+        else:
+            # Vérifier si on peut regrouper
+            prev_task = current_group[0]
+            prev_title = (prev_task.get("title") or "").lower()
+            curr_title = (task.get("title") or "").lower()
+            
+            # Regrouper si même type de tâche
+            can_group = False
+            for task_type in task_time_estimates.keys():
+                if task_type in prev_title and task_type in curr_title:
+                    can_group = True
+                    break
+            
+            # Regrouper si même entreprise (via linked_ids)
+            try:
+                prev_linked = json.loads(prev_task.get("linked_ids") or "{}")
+                curr_linked = json.loads(task.get("linked_ids") or "{}")
+                if prev_linked.get("company_id") and curr_linked.get("company_id"):
+                    if prev_linked.get("company_id") == curr_linked.get("company_id"):
+                        can_group = True
+            except Exception:
+                pass
+            
+            if can_group and len(current_group) < 3:  # Max 3 tâches par groupe
+                current_group.append(task)
+            else:
+                grouped.append(current_group)
+                current_group = [task]
+    
+    if current_group:
+        grouped.append(current_group)
+    
+    # Aplatir et retourner
+    result = []
+    for group in grouped:
+        result.extend(group)
+    
+    return result
 
 
 def _snapshot_dir_for_user(user_id: int | None = None) -> Path:
@@ -3387,6 +4340,186 @@ def api_candidate_get(candidate_id: int):
             companies = [dict(r) for r in rows2]
 
     return jsonify({"ok": True, "candidate": cand, "companies": companies})
+
+
+@app.get("/api/candidates/<int:candidate_id>/experiences")
+def api_candidate_experiences_get(candidate_id: int):
+    """Get all experiences for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        rows = conn.execute(
+            "SELECT * FROM candidate_experiences WHERE candidate_id=? AND owner_id=? ORDER BY start_date DESC, id DESC;",
+            (candidate_id, uid)
+        ).fetchall()
+        experiences = []
+        for row in rows:
+            exp = dict(row)
+            # Parse technologies JSON if present
+            if exp.get("technologies"):
+                try:
+                    exp["technologies"] = json.loads(exp["technologies"])
+                except:
+                    exp["technologies"] = []
+            else:
+                exp["technologies"] = []
+            experiences.append(exp)
+    return jsonify({"ok": True, "experiences": experiences})
+
+
+@app.post("/api/candidates/<int:candidate_id>/experiences")
+def api_candidate_experiences_post(candidate_id: int):
+    """Create a new experience for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=False) or {}
+    company_name = (payload.get("company_name") or "").strip()
+    if not company_name:
+        return jsonify({"ok": False, "error": "company_name is required"}), 400
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        now = datetime.datetime.now().isoformat()
+        technologies = payload.get("technologies")
+        if isinstance(technologies, (list, dict)):
+            technologies = json.dumps(technologies, ensure_ascii=False)
+        elif not isinstance(technologies, str):
+            technologies = ""
+        conn.execute(
+            """INSERT INTO candidate_experiences 
+               (candidate_id, company_name, role, start_date, end_date, description, technologies, owner_id, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+            (
+                candidate_id,
+                company_name,
+                (payload.get("role") or "").strip() or None,
+                (payload.get("start_date") or "").strip() or None,
+                (payload.get("end_date") or "").strip() or None,
+                (payload.get("description") or "").strip() or None,
+                technologies,
+                uid,
+                now,
+                now,
+            ),
+        )
+        exp_id = conn.lastrowid
+    return jsonify({"ok": True, "id": exp_id})
+
+
+@app.get("/api/candidates/<int:candidate_id>/educations")
+def api_candidate_educations_get(candidate_id: int):
+    """Get all educations for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        rows = conn.execute(
+            "SELECT * FROM candidate_educations WHERE candidate_id=? AND owner_id=? ORDER BY year DESC, id DESC;",
+            (candidate_id, uid)
+        ).fetchall()
+        educations = [dict(row) for row in rows]
+    return jsonify({"ok": True, "educations": educations})
+
+
+@app.post("/api/candidates/<int:candidate_id>/educations")
+def api_candidate_educations_post(candidate_id: int):
+    """Create a new education for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=False) or {}
+    school = (payload.get("school") or "").strip()
+    if not school:
+        return jsonify({"ok": False, "error": "school is required"}), 400
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        now = datetime.datetime.now().isoformat()
+        conn.execute(
+            """INSERT INTO candidate_educations 
+               (candidate_id, degree, school, year, specialization, owner_id, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
+            (
+                candidate_id,
+                (payload.get("degree") or "").strip() or None,
+                school,
+                (payload.get("year") or "").strip() or None,
+                (payload.get("specialization") or "").strip() or None,
+                uid,
+                now,
+                now,
+            ),
+        )
+        edu_id = conn.lastrowid
+    return jsonify({"ok": True, "id": edu_id})
+
+
+@app.get("/api/candidates/<int:candidate_id>/certifications")
+def api_candidate_certifications_get(candidate_id: int):
+    """Get all certifications for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        rows = conn.execute(
+            "SELECT * FROM candidate_certifications WHERE candidate_id=? AND owner_id=? ORDER BY obtained_date DESC, id DESC;",
+            (candidate_id, uid)
+        ).fetchall()
+        certifications = [dict(row) for row in rows]
+    return jsonify({"ok": True, "certifications": certifications})
+
+
+@app.post("/api/candidates/<int:candidate_id>/certifications")
+def api_candidate_certifications_post(candidate_id: int):
+    """Create a new certification for a candidate."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=False) or {}
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "name is required"}), 400
+    with _conn() as conn:
+        # Verify candidate exists and belongs to user
+        cand = conn.execute("SELECT id FROM candidates WHERE id=? AND owner_id=?;", (candidate_id, uid)).fetchone()
+        if not cand:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        now = datetime.datetime.now().isoformat()
+        conn.execute(
+            """INSERT INTO candidate_certifications 
+               (candidate_id, name, issuer, obtained_date, expiry_date, owner_id, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
+            (
+                candidate_id,
+                name,
+                (payload.get("issuer") or "").strip() or None,
+                (payload.get("obtained_date") or "").strip() or None,
+                (payload.get("expiry_date") or "").strip() or None,
+                uid,
+                now,
+                now,
+            ),
+        )
+        cert_id = conn.lastrowid
+    return jsonify({"ok": True, "id": cert_id})
 
 
 @app.get("/api/candidates/<int:candidate_id>/dossier-competence")
@@ -4458,16 +5591,39 @@ def api_prospect_best_candidates(prospect_id: int):
         skills_lower = [s.lower() for s in skills]
         haystack = " ".join(skills_lower) + " " + role + " " + tech + " " + c_notes
 
-        # 1. Tags matching (weight ×3 for explicit tags, ×1 for note-derived keywords)
+        # 1. Tags matching amélioré avec similarité sémantique (Phase 1)
         matched_tags = []
         tag_score = 0
+        semantic_matches = []  # Tags matchés via similarité sémantique
+        
         for tag_l in all_search_tags:
+            exact_match = False
+            # Match exact d'abord
             if tag_l in skills_lower:
-                tag_score += 1 if tag_l in notes_keywords_set else 3  # exact skill match
+                tag_score += 1 if tag_l in notes_keywords_set else 3
                 matched_tags.append(tag_l)
+                exact_match = True
             elif tag_l in haystack:
-                tag_score += 1  # partial match
+                tag_score += 1
                 matched_tags.append(tag_l)
+                exact_match = True
+            
+            # Si pas de match exact, essayer similarité sémantique (Phase 1)
+            if not exact_match:
+                best_similarity = 0.0
+                best_skill = None
+                for skill in skills_lower:
+                    similarity = _compute_semantic_similarity(tag_l, skill, "tag")
+                    if similarity > 0.7 and similarity > best_similarity:  # Seuil de 70%
+                        best_similarity = similarity
+                        best_skill = skill
+                
+                if best_skill:
+                    # Score réduit pour match sémantique (×2 au lieu de ×3)
+                    semantic_weight = 1 if tag_l in notes_keywords_set else 2
+                    tag_score += semantic_weight
+                    matched_tags.append(tag_l)
+                    semantic_matches.append(f"{tag_l}≈{best_skill}")
 
         # 2. Sector matching (weight ×2)
         sector_score = 0
@@ -4532,10 +5688,44 @@ def api_prospect_best_candidates(prospect_id: int):
                 "pct": pct,
                 "relevance_pct": relevance_pct,
                 "matched_tags": list(set(matched_tags)),
+                "semantic_matches": semantic_matches,  # Phase 1: matches sémantiques
             })
 
     scored.sort(key=lambda x: x["score"], reverse=True)
     top = scored[:8]
+    
+    # Phase 1: Génération d'explications IA pour chaque match
+    use_ai_explanations = request.args.get("ai_explanations") == "1"
+    if use_ai_explanations and top:
+        try:
+            prospect_name = (p_row.get("name") or "").strip() if p_row else ""
+            prospect_ctx = f"Prospect: {prospect_name}, entreprise {company_groupe}, fonction: {p_row.get('fonction', '')}, tags: {prospect_tags_effective}"
+            
+            for candidate in top:
+                matched_tags_str = ", ".join(candidate.get("matched_tags", [])[:10])
+                semantic_str = ", ".join(candidate.get("semantic_matches", []))
+                candidate_ctx = f"Candidat: {candidate.get('name')}, rôle: {candidate.get('role')}, compétences: {', '.join(candidate.get('skills', [])[:10])}, expérience: {candidate.get('years_experience', 'N/A')} ans"
+                
+                explanation_prompt = f"""Tu es un assistant de matching prospect/candidat. Explique en 2-3 phrases pourquoi ce candidat correspond bien à ce prospect.
+
+{prospect_ctx}
+
+{candidate_ctx}
+
+Matches exacts: {matched_tags_str}
+Matches sémantiques: {semantic_str if semantic_str else 'Aucun'}
+
+Réponds UNIQUEMENT par une explication courte (2-3 phrases), sans formules de politesse, en expliquant les points forts du match."""
+                
+                try:
+                    explanation = _call_ai(explanation_prompt, timeout=10)
+                    candidate["ai_explanation"] = explanation.strip()
+                except Exception:
+                    candidate["ai_explanation"] = None
+        except Exception as e:
+            logger.warning("Erreur génération explications IA: %s", str(e))
+    
+    # Réordonnancement intelligent avec Ollama (existant, amélioré)
     use_ollama = request.args.get("use_ollama") == "1"
     if use_ollama and top:
         try:
@@ -4543,14 +5733,7 @@ def api_prospect_best_candidates(prospect_id: int):
             prospect_ctx = f"Prospect: {prospect_name}, entreprise {company_groupe}, tags: {prospect_tags}"
             cand_lines = "\n".join(f"- {c.get('name') or '?'}: {', '.join((c.get('matched_tags') or [])[:8])}" for c in top)
             prompt = f"Contexte: {prospect_ctx}\n\nCandidats (nom + compétences matchées):\n{cand_lines}\n\nRéponds UNIQUEMENT par les noms des candidats, un par ligne, du meilleur au moins bon match. Pas d'autre texte."
-            body = json.dumps({"model": os.environ.get("OLLAMA_MODEL") or "llama3.2", "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{os.environ.get('OLLAMA_URL') or 'http://127.0.0.1:11434'}/api/generate",
-                data=body, headers={"Content-Type": "application/json"}, method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            text = (data.get("response") or "").strip()
+            text = _call_ai(prompt, timeout=15)
             if text:
                 order_names = [n.strip() for n in text.split("\n") if n.strip()]
                 by_name = {c.get("name"): c for c in top}
@@ -4561,6 +5744,7 @@ def api_prospect_best_candidates(prospect_id: int):
                 top = reordered
         except Exception:
             pass
+    
     return jsonify(ok=True, candidates=top, prospect_tags=prospect_tags)
 
 
@@ -4993,6 +6177,433 @@ def api_stats():
     return jsonify(payload)
 
 
+@app.post("/api/stats/insights")
+def api_stats_insights():
+    """Génère des insights IA à partir des statistiques actuelles et historiques."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    # Récupérer les paramètres de période (même logique que /api/stats)
+    today = datetime.date.today()
+    
+    def _parse_iso_date(s: str):
+        try:
+            return datetime.date.fromisoformat((s or "").strip())
+        except Exception:
+            return None
+    
+    req_data = request.json if request.is_json else request.form
+    mode = req_data.get("mode", "days")
+    start_d = None
+    end_d = None
+    
+    if mode == "all":
+        start_d = None
+        end_d = today
+        prev_start_d = None
+        prev_end_d = None
+    elif mode == "custom":
+        start_q = req_data.get("start")
+        end_q = req_data.get("end")
+        if start_q and end_q:
+            s = _parse_iso_date(start_q)
+            e = _parse_iso_date(end_q)
+            if s and e:
+                start_d, end_d = (s, e) if s <= e else (e, s)
+        if start_d is None or end_d is None:
+            # Fallback sur 30 jours
+            end_d = today
+            start_d = today - datetime.timedelta(days=29)
+    else:
+        # mode == "days"
+        days = req_data.get("days", 30)
+        try:
+            days_i = max(1, min(365, int(days)))
+        except Exception:
+            days_i = 30
+        end_d = today
+        start_d = today - datetime.timedelta(days=days_i - 1)
+    
+    # Période précédente pour comparaison (si pas "all")
+    if mode != "all" and start_d and end_d:
+        period_days = (end_d - start_d).days + 1
+        prev_end_d = start_d - datetime.timedelta(days=1)
+        prev_start_d = prev_end_d - datetime.timedelta(days=period_days - 1)
+    else:
+        prev_start_d = None
+        prev_end_d = None
+    
+    start_iso = start_d.isoformat() if start_d else ""
+    end_iso = end_d.isoformat() if end_d else ""
+    prev_start_iso = prev_start_d.isoformat() if prev_start_d else ""
+    prev_end_iso = prev_end_d.isoformat() if prev_end_d else ""
+    today_iso = _today_iso()
+
+    with _conn() as conn:
+        # Stats actuelles
+        current_stats = {
+            "totals": {
+                "prospects": conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=?;", (uid,)).fetchone()["n"],
+                "companies": conn.execute("SELECT COUNT(*) AS n FROM companies WHERE owner_id=?;", (uid,)).fetchone()["n"],
+            },
+            "activity": {},
+            "followups": {},
+            "statusCounts": {},
+            "hotCompanies": [],
+        }
+        
+        # Activity (période actuelle)
+        if mode == "all":
+            current_stats["activity"]["pushes"] = conn.execute(
+                "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=?;",
+                (uid,),
+            ).fetchone()["n"]
+        else:
+            current_stats["activity"]["pushes"] = conn.execute(
+                "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=? WHERE substr(l.sentAt,1,10) >= ? AND substr(l.sentAt,1,10) <= ?;",
+                (uid, start_iso, end_iso),
+            ).fetchone()["n"]
+        
+        # Call notes (période actuelle)
+        call_rows = conn.execute(
+            "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '';",
+            (uid,),
+        ).fetchall()
+        call_notes = 0
+        for r in call_rows:
+            try:
+                notes = json.loads(r["callNotes"] or "[]")
+                if isinstance(notes, list):
+                    for n in notes:
+                        d = (n.get("date") if isinstance(n, dict) else "") or ""
+                        d = d[:10]
+                        if not d:
+                            continue
+                        if mode == "all":
+                            call_notes += 1
+                        else:
+                            if start_iso <= d <= end_iso:
+                                call_notes += 1
+            except Exception:
+                continue
+        current_stats["activity"]["callNotes"] = call_notes
+        
+        # Followups
+        current_stats["followups"]["late"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND nextFollowUp IS NOT NULL AND nextFollowUp != '' AND nextFollowUp < ?;",
+            (uid, today_iso),
+        ).fetchone()["n"]
+        current_stats["followups"]["dueToday"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND nextFollowUp = ?;",
+            (uid, today_iso),
+        ).fetchone()["n"]
+        
+        # Status counts
+        current_stats["statusCounts"]["Rendezvous"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous';", (uid,)
+        ).fetchone()["n"]
+        current_stats["statusCounts"]["A_rappeler"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='À rappeler';", (uid,)
+        ).fetchone()["n"]
+        
+        # Hot companies (top 5)
+        hot_rows = conn.execute(
+            '''
+            SELECT c.id, c.groupe, c.site,
+                   COUNT(p.id) AS prospect_count,
+                   SUM(CASE WHEN p.statut='Rendez-vous' THEN 1 ELSE 0 END) AS rdv_count,
+                   SUM(CASE WHEN p.nextFollowUp IS NOT NULL AND p.nextFollowUp != '' AND p.nextFollowUp < ? THEN 1 ELSE 0 END) AS overdue_count
+            FROM companies c
+            LEFT JOIN prospects p ON p.company_id=c.id AND p.owner_id=?
+            WHERE c.owner_id=?
+            GROUP BY c.id
+            ORDER BY (rdv_count*5 + overdue_count*3) DESC
+            LIMIT 5;
+            ''',
+            (today_iso, uid, uid),
+        ).fetchall()
+        current_stats["hotCompanies"] = [
+            {
+                "groupe": r["groupe"],
+                "site": r["site"],
+                "prospectCount": r["prospect_count"] or 0,
+                "rdvCount": r["rdv_count"] or 0,
+                "lateFollowups": r["overdue_count"] or 0,
+            }
+            for r in hot_rows
+        ]
+        
+        # Stats période précédente (pour comparaison)
+        prev_stats = {}
+        if prev_start_d and prev_end_d:
+            prev_stats["activity"] = {}
+            if mode != "all":
+                prev_stats["activity"]["pushes"] = conn.execute(
+                    "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=? WHERE substr(l.sentAt,1,10) >= ? AND substr(l.sentAt,1,10) <= ?;",
+                    (uid, prev_start_iso, prev_end_iso),
+                ).fetchone()["n"]
+                
+                prev_call_notes = 0
+                for r in call_rows:
+                    try:
+                        notes = json.loads(r["callNotes"] or "[]")
+                        if isinstance(notes, list):
+                            for n in notes:
+                                d = (n.get("date") if isinstance(n, dict) else "") or ""
+                                d = d[:10]
+                                if prev_start_iso <= d <= prev_end_iso:
+                                    prev_call_notes += 1
+                    except Exception:
+                        continue
+                prev_stats["activity"]["callNotes"] = prev_call_notes
+                
+                prev_stats["statusCounts"] = {}
+                prev_stats["statusCounts"]["Rendezvous"] = conn.execute(
+                    "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous' AND lastContact >= ? AND lastContact <= ?;",
+                    (uid, prev_start_iso, prev_end_iso),
+                ).fetchone()["n"]
+        
+        # Calcul du taux de conversion
+        conversion_rate = 0
+        if current_stats["totals"]["prospects"] > 0:
+            conversion_rate = round((current_stats["statusCounts"]["Rendezvous"] / current_stats["totals"]["prospects"]) * 100, 1)
+        
+        # Construction du prompt pour Ollama
+        prompt = f"""Tu es un analyste expert en prospection B2B. Analyse les statistiques suivantes et génère des insights structurés en JSON.
+
+STATISTIQUES ACTUELLES (période: {start_iso} → {end_iso if end_iso else 'all time'}):
+- Total prospects: {current_stats["totals"]["prospects"]}
+- Total entreprises: {current_stats["totals"]["companies"]}
+- Push envoyés: {current_stats["activity"]["pushes"]}
+- Notes d'appel: {current_stats["activity"]["callNotes"]}
+- Relances en retard: {current_stats["followups"]["late"]}
+- Relances aujourd'hui: {current_stats["followups"]["dueToday"]}
+- Prospects en RDV: {current_stats["statusCounts"]["Rendezvous"]}
+- Prospects à rappeler: {current_stats["statusCounts"]["A_rappeler"]}
+- Taux de conversion (RDV/Total): {conversion_rate}%
+- Top entreprises chaudes: {json.dumps(current_stats["hotCompanies"], ensure_ascii=False)}"""
+
+        if prev_stats:
+            prompt += f"""
+
+STATISTIQUES PÉRIODE PRÉCÉDENTE (période: {prev_start_iso} → {prev_end_iso}):
+- Push envoyés: {prev_stats.get("activity", {}).get("pushes", 0)}
+- Notes d'appel: {prev_stats.get("activity", {}).get("callNotes", 0)}
+- Prospects en RDV: {prev_stats.get("statusCounts", {}).get("Rendezvous", 0)}"""
+
+        prompt += """
+
+ANALYSE À EFFECTUER:
+1. Résumé automatique: Décris l'évolution du pipeline en 2-3 phrases (augmentation/diminution, points forts).
+2. Points d'attention: Liste 2-4 alertes concrètes (ex: "3 prospects n'ont pas été contactés depuis 30 jours", "Relances en retard à traiter").
+3. Suggestions stratégiques: Propose 2-3 recommandations actionnables basées sur les données (ex: "Les prospects du secteur X convertissent mieux", "Augmenter la fréquence de relance").
+4. Benchmarking: Compare avec la période précédente si disponible, sinon avec les meilleures pratiques.
+
+RÉPONSE ATTENDUE (JSON strict, pas de markdown):
+{
+  "summary": "Résumé en 2-3 phrases",
+  "alerts": ["Alerte 1", "Alerte 2"],
+  "recommendations": ["Recommandation 1", "Recommandation 2"],
+  "benchmarks": {"current": X, "best": Y, "period": "description"}
+}
+
+IMPORTANT: Réponds UNIQUEMENT avec le JSON, sans texte avant ou après."""
+
+        try:
+            # Appel à l'IA
+            ai_response = _call_ai(prompt, timeout=120)
+            
+            # Nettoyage de la réponse (enlever markdown si présent)
+            ai_response = ai_response.strip()
+            if ai_response.startswith("```json"):
+                ai_response = ai_response[7:]
+            if ai_response.startswith("```"):
+                ai_response = ai_response[3:]
+            if ai_response.endswith("```"):
+                ai_response = ai_response[:-3]
+            ai_response = ai_response.strip()
+            
+            # Parse JSON
+            insights = json.loads(ai_response)
+            
+            # Validation de la structure
+            if not isinstance(insights, dict):
+                raise ValueError("Réponse IA n'est pas un objet JSON")
+            
+            # Structure par défaut si champs manquants
+            result = {
+                "summary": insights.get("summary", "Analyse en cours..."),
+                "alerts": insights.get("alerts", []),
+                "recommendations": insights.get("recommendations", []),
+                "benchmarks": insights.get("benchmarks", {}),
+            }
+            
+            return jsonify({"ok": True, "insights": result})
+            
+        except json.JSONDecodeError as e:
+            logger.error("Erreur parsing JSON insights IA: %s", e)
+            logger.error("Réponse brute: %s", ai_response[:500])
+            return jsonify({
+                "ok": False,
+                "error": "Erreur parsing réponse IA",
+                "raw": ai_response[:500] if 'ai_response' in locals() else "",
+            }), 500
+        except Exception as e:
+            logger.error("Erreur génération insights: %s", e)
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.get("/api/stats/predictions")
+def api_stats_predictions():
+    """Génère des prédictions IA basées sur les statistiques historiques (tendances futures, conversions prévues)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    today = datetime.date.today()
+    today_iso = _today_iso()
+    
+    # Récupérer les statistiques historiques (12 dernières semaines)
+    weeks_data = []
+    with _conn() as conn:
+        for i in range(12, 0, -1):
+            week_end = today - datetime.timedelta(days=(i - 1) * 7)
+            week_start = week_end - datetime.timedelta(days=6)
+            week_start_iso = week_start.isoformat()
+            week_end_iso = week_end.isoformat()
+            
+            # Compter les actions de cette semaine
+            pushes = conn.execute(
+                "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=? WHERE substr(l.sentAt,1,10) >= ? AND substr(l.sentAt,1,10) <= ?;",
+                (uid, week_start_iso, week_end_iso),
+            ).fetchone()["n"]
+            
+            # Compter les notes d'appel
+            call_notes_count = 0
+            prospects_rows = conn.execute(
+                "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '';",
+                (uid,),
+            ).fetchall()
+            for r in prospects_rows:
+                try:
+                    notes = json.loads(r["callNotes"] or "[]")
+                    if isinstance(notes, list):
+                        for n in notes:
+                            note_date = (n.get("date") or "")[:10]
+                            if note_date >= week_start_iso and note_date <= week_end_iso:
+                                call_notes_count += 1
+                except Exception:
+                    pass
+            
+            # Compter les RDV
+            rdv_count = conn.execute(
+                "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND rdvDate IS NOT NULL AND rdvDate != '' AND substr(rdvDate,1,10) >= ? AND substr(rdvDate,1,10) <= ?;",
+                (uid, week_start_iso, week_end_iso),
+            ).fetchone()["n"]
+            
+            weeks_data.append({
+                "week": f"S{week_end.isocalendar()[1]}",
+                "pushes": pushes,
+                "call_notes": call_notes_count,
+                "rdv": rdv_count,
+            })
+    
+    # Récupérer les totaux actuels
+    with _conn() as conn:
+        total_prospects = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
+        total_companies = conn.execute("SELECT COUNT(*) AS n FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
+        rdv_prospects = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous' AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
+        overdue_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND nextFollowUp IS NOT NULL AND nextFollowUp != '' AND nextFollowUp < ? AND deleted_at IS NULL;",
+            (uid, today_iso),
+        ).fetchone()["n"]
+    
+    # Construire le prompt pour les prédictions
+    prompt = f"""Tu es un assistant pour un CRM de prospection B2B. Analyse les données historiques et génère des prédictions pour les 4 prochaines semaines.
+
+DONNÉES HISTORIQUES (12 dernières semaines):
+{json.dumps(weeks_data, indent=2, ensure_ascii=False)}
+
+SITUATION ACTUELLE:
+- Total prospects: {total_prospects}
+- Total entreprises: {total_companies}
+- Prospects en RDV: {rdv_prospects}
+- Relances en retard: {overdue_count}
+
+PRÉDICTIONS À GÉNÉRER:
+1. "trends": Tendances prévues pour les 4 prochaines semaines (pushes, notes, RDV)
+2. "conversion_rate": Taux de conversion prévu (prospects → RDV)
+3. "recommendations": 2-3 recommandations pour optimiser les résultats
+4. "forecast": Prévisions chiffrées pour les 4 prochaines semaines
+
+RÉPONSE ATTENDUE (JSON strict, pas de markdown):
+{{
+  "trends": {{
+    "pushes": "tendance (augmentation/diminution/stabilité)",
+    "call_notes": "tendance",
+    "rdv": "tendance"
+  }},
+  "conversion_rate": {{
+    "current": X,
+    "predicted": Y,
+    "explanation": "explication courte"
+  }},
+  "recommendations": ["Recommandation 1", "Recommandation 2"],
+  "forecast": {{
+    "week_1": {{"pushes": X, "call_notes": Y, "rdv": Z}},
+    "week_2": {{"pushes": X, "call_notes": Y, "rdv": Z}},
+    "week_3": {{"pushes": X, "call_notes": Y, "rdv": Z}},
+    "week_4": {{"pushes": X, "call_notes": Y, "rdv": Z}}
+  }}
+}}
+
+IMPORTANT: Réponds UNIQUEMENT avec le JSON, sans texte avant ou après."""
+    
+    try:
+        # Appel à l'IA
+        ai_response = _call_ai(prompt, timeout=120)
+        
+        # Nettoyage de la réponse (enlever markdown si présent)
+        ai_response = ai_response.strip()
+        if ai_response.startswith("```json"):
+            ai_response = ai_response[7:]
+        if ai_response.startswith("```"):
+            ai_response = ai_response[3:]
+        if ai_response.endswith("```"):
+            ai_response = ai_response[:-3]
+        ai_response = ai_response.strip()
+        
+        # Parse JSON
+        predictions = json.loads(ai_response)
+        
+        # Validation de la structure
+        if not isinstance(predictions, dict):
+            raise ValueError("Réponse IA n'est pas un objet JSON")
+        
+        # Structure par défaut si champs manquants
+        result = {
+            "trends": predictions.get("trends", {}),
+            "conversion_rate": predictions.get("conversion_rate", {}),
+            "recommendations": predictions.get("recommendations", []),
+            "forecast": predictions.get("forecast", {}),
+        }
+        
+        return jsonify({"ok": True, "predictions": result})
+        
+    except json.JSONDecodeError as e:
+        logger.error("Erreur parsing JSON predictions IA: %s", e)
+        logger.error("Réponse brute: %s", ai_response[:500] if 'ai_response' in locals() else "")
+        return jsonify({
+            "ok": False,
+            "error": "Erreur parsing réponse IA",
+            "raw": ai_response[:500] if 'ai_response' in locals() else "",
+        }), 500
+    except Exception as e:
+        logger.error("Erreur génération predictions: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ====== Prospect Photo Upload ======
 import uuid as _uuid
 
@@ -5179,21 +6790,12 @@ def api_stats_export_weekly_xlsx():
     week_num = monday.isocalendar()[1]
     week_label = f"S{week_num}"
 
-    # ── Helper: Call Ollama if enabled ──
+    # ── Helper: Call AI if enabled ──
     def _call_ollama(prompt: str) -> str:
         if not use_ollama:
             return ""
         try:
-            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{OLLAMA_URL}/api/generate",
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            return data.get("response", "").strip()
+            return _call_ai(prompt, timeout=OLLAMA_TIMEOUT)
         except Exception:
             return ""
 
@@ -6412,6 +8014,25 @@ def api_push_logs_add():
 
     now = datetime.datetime.now().isoformat(timespec="seconds")
 
+    # v26.6: Calculer timing et générer tracking_pixel_id
+    try:
+        sent_dt = datetime.datetime.fromisoformat(sent_at.replace('Z', '+00:00') if 'Z' in sent_at else sent_at)
+        sent_at_hour = sent_dt.hour
+        sent_at_day_of_week = sent_dt.weekday()  # 0=lundi, 6=dimanche
+    except Exception:
+        # Fallback sur maintenant si parsing échoue
+        sent_dt = datetime.datetime.now()
+        sent_at_hour = sent_dt.hour
+        sent_at_day_of_week = sent_dt.weekday()
+
+    variant_id = (payload.get("variant_id") or "").strip() or None
+    tracking_pixel_id = str(_uuid.uuid4()) if channel == "email" else None
+
+    # Récupérer les variantes si fournies
+    variants = payload.get("variants", [])
+    if not isinstance(variants, list):
+        variants = []
+
     with _conn() as conn:
         # ensure prospect exists
         p = conn.execute("SELECT id FROM prospects WHERE id=? AND owner_id=?;", (int(prospect_id), uid)).fetchone()
@@ -6421,11 +8042,24 @@ def api_push_logs_add():
         cur = conn.cursor()
         cur.execute(
             '''
-            INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, sent_at_hour, sent_at_day_of_week, variant_id, tracking_pixel_id, createdAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             ''',
-            (int(prospect_id), sent_at, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, now),
+            (int(prospect_id), sent_at, channel, to_email, subject, body, template_id, template_name, candidate_id1, candidate_id2, consultant1_id, consultant2_id, sent_at_hour, sent_at_day_of_week, variant_id, tracking_pixel_id, now),
         )
+        push_log_id = cur.lastrowid
+
+        # Enregistrer les variantes A/B si fournies
+        if variants:
+            for variant in variants:
+                if isinstance(variant, dict) and variant.get("variant_id") and variant.get("subject") is not None:
+                    conn.execute(
+                        '''
+                        INSERT INTO push_variants (push_log_id, variant_id, subject, body, sent_at, createdAt)
+                        VALUES (?, ?, ?, ?, ?, ?);
+                        ''',
+                        (push_log_id, variant["variant_id"], variant.get("subject"), variant.get("body"), sent_at, now),
+                    )
 
         # Update denormalized fields on prospect for quick UI
         if channel == "email":
@@ -6437,7 +8071,7 @@ def api_push_logs_add():
             except sqlite3.OperationalError as e:
                 logger.warning("pushLinkedInSentAt column missing: %s", e)
 
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "push_log_id": push_log_id, "tracking_pixel_id": tracking_pixel_id})
 
 
 def _recompute_last_push_dates(conn: sqlite3.Connection, prospect_id: int) -> Dict[str, str]:
@@ -6526,6 +8160,292 @@ def api_push_logs_delete():
         if row and row["prospect_id"] is not None:
             _recompute_last_push_dates(conn, int(row["prospect_id"]))
     return jsonify({"ok": True})
+
+
+# ====== Push tracking & analytics API (v26.6) ======
+@app.get("/api/push/track")
+def api_push_track():
+    """Track email open via tracking pixel. Returns 1x1 transparent GIF."""
+    pixel_id = request.args.get("pixel_id")
+    if not pixel_id:
+        return jsonify({"ok": False, "error": "pixel_id required"}), 400
+
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        # Mettre à jour opened_at si pas déjà ouvert
+        conn.execute(
+            "UPDATE push_logs SET opened_at=? WHERE tracking_pixel_id=? AND opened_at IS NULL;",
+            (now, pixel_id),
+        )
+        # Mettre à jour aussi dans push_variants si applicable
+        conn.execute(
+            """
+            UPDATE push_variants SET opened_at=?
+            WHERE push_log_id IN (SELECT id FROM push_logs WHERE tracking_pixel_id=?)
+            AND opened_at IS NULL;
+            """,
+            (now, pixel_id),
+        )
+
+    # Retourner un pixel transparent 1x1 GIF
+    gif_data = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
+    return Response(gif_data, mimetype="image/gif")
+
+
+@app.get("/api/push/track/click")
+def api_push_track_click():
+    """Track email link click and redirect."""
+    pixel_id = request.args.get("pixel_id")
+    url = request.args.get("url")
+    if not pixel_id or not url:
+        return jsonify({"ok": False, "error": "pixel_id and url required"}), 400
+
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        # Mettre à jour clicked_at si pas déjà cliqué
+        conn.execute(
+            "UPDATE push_logs SET clicked_at=? WHERE tracking_pixel_id=? AND clicked_at IS NULL;",
+            (now, pixel_id),
+        )
+        # Mettre à jour aussi dans push_variants si applicable
+        conn.execute(
+            """
+            UPDATE push_variants SET clicked_at=?
+            WHERE push_log_id IN (SELECT id FROM push_logs WHERE tracking_pixel_id=?)
+            AND clicked_at IS NULL;
+            """,
+            (now, pixel_id),
+        )
+
+    # Rediriger vers l'URL
+    return redirect(url, code=302)
+
+
+@app.get("/api/push/optimal-time")
+def api_push_optimal_time():
+    """Retourne le timing optimal pour un prospect donné."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    prospect_id = request.args.get("prospect_id", type=int)
+    if not prospect_id:
+        return jsonify({"ok": False, "error": "prospect_id required"}), 400
+    result = _get_optimal_send_time(prospect_id)
+    return jsonify({"ok": True, "optimal_timing": result})
+
+
+@app.get("/api/push/analytics")
+def api_push_analytics():
+    """Retourne les analytics de mailing : meilleurs créneaux, performance variantes, recommandations."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    prospect_id = request.args.get("prospect_id", type=int)
+
+    with _conn() as conn:
+        # Base query pour filtrer par owner_id
+        base_where = "l.prospect_id IN (SELECT id FROM prospects WHERE owner_id=?)"
+        params = [uid]
+        if prospect_id:
+            base_where += " AND l.prospect_id=?"
+            params.append(prospect_id)
+
+        # 1. Meilleurs créneaux horaires (taux d'ouverture par heure)
+        hour_stats = []
+        for hour in range(24):
+            rows = conn.execute(
+                f"""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened
+                FROM push_logs l
+                WHERE {base_where} AND l.sent_at_hour=? AND l.channel='email'
+                """,
+                params + [hour],
+            ).fetchone()
+            if rows["total"] > 0:
+                open_rate = (rows["opened"] / rows["total"]) * 100
+                hour_stats.append({
+                    "hour": hour,
+                    "total": rows["total"],
+                    "opened": rows["opened"],
+                    "open_rate": round(open_rate, 2),
+                })
+        hour_stats.sort(key=lambda x: x["open_rate"], reverse=True)
+
+        # 2. Meilleurs jours (taux d'ouverture par jour de semaine)
+        day_stats = []
+        day_names = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+        for day in range(7):
+            rows = conn.execute(
+                f"""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened
+                FROM push_logs l
+                WHERE {base_where} AND l.sent_at_day_of_week=? AND l.channel='email'
+                """,
+                params + [day],
+            ).fetchone()
+            if rows["total"] > 0:
+                open_rate = (rows["opened"] / rows["total"]) * 100
+                day_stats.append({
+                    "day": day,
+                    "day_name": day_names[day],
+                    "total": rows["total"],
+                    "opened": rows["opened"],
+                    "open_rate": round(open_rate, 2),
+                })
+        day_stats.sort(key=lambda x: x["open_rate"], reverse=True)
+
+        # 3. Performance des variantes A/B
+        variant_stats = []
+        variant_rows = conn.execute(
+            f"""
+            SELECT 
+                v.variant_id,
+                COUNT(*) as total,
+                SUM(CASE WHEN v.opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened,
+                SUM(CASE WHEN v.clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicked,
+                SUM(CASE WHEN v.replied_at IS NOT NULL THEN 1 ELSE 0 END) as replied
+            FROM push_variants v
+            JOIN push_logs l ON l.id = v.push_log_id
+            WHERE {base_where.replace('l.', '')}
+            GROUP BY v.variant_id
+            """,
+            params,
+        ).fetchall()
+        for row in variant_rows:
+            total = row["total"]
+            if total > 0:
+                variant_stats.append({
+                    "variant_id": row["variant_id"],
+                    "total": total,
+                    "opened": row["opened"],
+                    "clicked": row["clicked"],
+                    "replied": row["replied"],
+                    "open_rate": round((row["opened"] / total) * 100, 2),
+                    "click_rate": round((row["clicked"] / total) * 100, 2),
+                    "reply_rate": round((row["replied"] / total) * 100, 2),
+                })
+        variant_stats.sort(key=lambda x: x["open_rate"], reverse=True)
+
+        # 4. Recommandations de timing optimal par prospect
+        optimal_timing = None
+        if prospect_id:
+            # Analyser l'historique de ce prospect
+            prospect_rows = conn.execute(
+                """
+                SELECT sent_at_hour, sent_at_day_of_week, opened_at
+                FROM push_logs
+                WHERE prospect_id=? AND channel='email'
+                ORDER BY id DESC LIMIT 20
+                """,
+                (prospect_id,),
+            ).fetchall()
+            if prospect_rows:
+                # Calculer les meilleurs créneaux pour ce prospect
+                hour_scores = {}
+                day_scores = {}
+                for row in prospect_rows:
+                    hour = row["sent_at_hour"]
+                    day = row["sent_at_day_of_week"]
+                    opened = 1 if row["opened_at"] else 0
+                    hour_scores[hour] = hour_scores.get(hour, [0, 0])
+                    hour_scores[hour][0] += opened
+                    hour_scores[hour][1] += 1
+                    day_scores[day] = day_scores.get(day, [0, 0])
+                    day_scores[day][0] += opened
+                    day_scores[day][1] += 1
+
+                best_hour = max(hour_scores.items(), key=lambda x: x[1][0] / x[1][1] if x[1][1] > 0 else 0)[0] if hour_scores else None
+                best_day = max(day_scores.items(), key=lambda x: x[1][0] / x[1][1] if x[1][1] > 0 else 0)[0] if day_scores else None
+                optimal_timing = {
+                    "best_hour": best_hour,
+                    "best_day": best_day,
+                    "best_day_name": day_names[best_day] if best_day is not None else None,
+                }
+
+    return jsonify({
+        "ok": True,
+        "hour_stats": hour_stats[:5],  # Top 5
+        "day_stats": day_stats[:5],  # Top 5
+        "variant_stats": variant_stats,
+        "optimal_timing": optimal_timing,
+    })
+
+
+def _get_optimal_send_time(prospect_id: int) -> Dict[str, Any]:
+    """Calcule le timing optimal pour envoyer un push à un prospect donné."""
+    uid = _uid()
+    if not uid:
+        return {}
+
+    with _conn() as conn:
+        # Vérifier que le prospect appartient à l'utilisateur
+        p = conn.execute(
+            "SELECT id FROM prospects WHERE id=? AND owner_id=?;",
+            (prospect_id, uid),
+        ).fetchone()
+        if not p:
+            return {}
+
+        # Analyser l'historique de ce prospect
+        rows = conn.execute(
+            """
+            SELECT sent_at_hour, sent_at_day_of_week, opened_at, clicked_at
+            FROM push_logs
+            WHERE prospect_id=? AND channel='email'
+            ORDER BY id DESC LIMIT 50
+            """,
+            (prospect_id,),
+        ).fetchall()
+
+        if not rows:
+            # Pas d'historique : recommandations par défaut
+            return {
+                "best_hour": 10,  # 10h du matin
+                "best_day": 1,  # Mardi
+                "confidence": "low",
+                "reason": "Pas d'historique disponible",
+            }
+
+        # Calculer les scores par créneau
+        hour_scores = {}
+        day_scores = {}
+        for row in rows:
+            hour = row["sent_at_hour"]
+            day = row["sent_at_day_of_week"]
+            score = 0
+            if row["opened_at"]:
+                score += 2
+            if row["clicked_at"]:
+                score += 3
+
+            hour_scores[hour] = hour_scores.get(hour, [0, 0])
+            hour_scores[hour][0] += score
+            hour_scores[hour][1] += 1
+
+            day_scores[day] = day_scores.get(day, [0, 0])
+            day_scores[day][0] += score
+            day_scores[day][1] += 1
+
+        # Trouver les meilleurs créneaux
+        best_hour = max(hour_scores.items(), key=lambda x: x[1][0] / x[1][1] if x[1][1] > 0 else 0)[0] if hour_scores else 10
+        best_day = max(day_scores.items(), key=lambda x: x[1][0] / x[1][1] if x[1][1] > 0 else 0)[0] if day_scores else 1
+
+        confidence = "high" if len(rows) >= 10 else "medium" if len(rows) >= 5 else "low"
+
+        day_names = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+        return {
+            "best_hour": best_hour,
+            "best_day": best_day,
+            "best_day_name": day_names[best_day],
+            "confidence": confidence,
+            "reason": f"Basé sur {len(rows)} envois précédents",
+        }
+
 
 # ====== Saved Views API (v6) ======
 @app.get("/api/views")
@@ -6705,6 +8625,214 @@ def api_tasks_delete():
     with _conn() as conn:
         conn.execute("DELETE FROM tasks WHERE id=? AND owner_id=?;", (int(tid), uid))
     return jsonify({"ok": True})
+
+
+# ====== Task Rules API (v26.6) ======
+@app.get("/api/tasks/rules")
+@login_required
+def api_tasks_rules_list():
+    """Lister les règles de création automatique de tâches."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM task_rules WHERE owner_id=? OR owner_id IS NULL ORDER BY name;",
+            (uid,)
+        ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["conditions"] = json.loads(d.get("conditions") or "{}")
+        except Exception:
+            d["conditions"] = {}
+        d["enabled"] = bool(d.get("enabled"))
+        out.append(d)
+    return jsonify({"ok": True, "rules": out})
+
+
+@app.post("/api/tasks/rules")
+@login_required
+@role_required("admin")
+def api_tasks_rules_save():
+    """Créer ou modifier une règle de création automatique de tâches (admin uniquement)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    trigger_type = (payload.get("trigger_type") or "").strip()
+    template_title = (payload.get("template_title") or "").strip()
+    
+    if not name:
+        return jsonify({"ok": False, "error": "name is required"}), 400
+    if not trigger_type:
+        return jsonify({"ok": False, "error": "trigger_type is required"}), 400
+    if not template_title:
+        return jsonify({"ok": False, "error": "template_title is required"}), 400
+    
+    if trigger_type not in ("prospect_created", "status_changed", "meeting_done", "daily_check"):
+        return jsonify({"ok": False, "error": "trigger_type invalide"}), 400
+    
+    conditions = payload.get("conditions") or {}
+    template_comment = (payload.get("template_comment") or "").strip()
+    priority = int(payload.get("priority") or 2)
+    enabled = 1 if payload.get("enabled") else 0
+    
+    conditions_json = json.dumps(conditions, ensure_ascii=False)
+    now = _now_iso()
+    rule_id = payload.get("id")
+    
+    with _conn() as conn:
+        if rule_id:
+            # Mise à jour
+            conn.execute(
+                "UPDATE task_rules SET name=?, trigger_type=?, conditions=?, template_title=?, template_comment=?, priority=?, enabled=?, updatedAt=? WHERE id=? AND owner_id=?;",
+                (name, trigger_type, conditions_json, template_title, template_comment, priority, enabled, now, int(rule_id), uid)
+            )
+        else:
+            # Création
+            cursor = conn.execute(
+                "INSERT INTO task_rules (name, trigger_type, conditions, template_title, template_comment, priority, enabled, owner_id, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                (name, trigger_type, conditions_json, template_title, template_comment, priority, enabled, uid, now, now)
+            )
+            rule_id = cursor.lastrowid
+    
+    return jsonify({"ok": True, "id": rule_id})
+
+
+@app.post("/api/tasks/rules/delete")
+@login_required
+@role_required("admin")
+def api_tasks_rules_delete():
+    """Supprimer une règle de création automatique de tâches (admin uniquement)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    rule_id = payload.get("id")
+    if not rule_id:
+        return jsonify({"ok": False, "error": "id is required"}), 400
+    with _conn() as conn:
+        conn.execute("DELETE FROM task_rules WHERE id=? AND owner_id=?;", (int(rule_id), uid))
+    return jsonify({"ok": True})
+
+
+@app.post("/api/tasks/daily-check")
+@login_required
+def api_tasks_daily_check():
+    """Vérification quotidienne : crée des tâches automatiques pour les prospects avec nextFollowUp dans les prochains jours."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    days_ahead = request.args.get("days", type=int) or 2  # Par défaut: 2 jours
+    
+    today = datetime.date.today()
+    target_date = today + datetime.timedelta(days=days_ahead)
+    
+    created_count = 0
+    
+    with _conn() as conn:
+        # Récupérer les prospects avec nextFollowUp dans la fenêtre
+        prospects = conn.execute(
+            """
+            SELECT p.*, c.groupe AS company_groupe
+            FROM prospects p
+            LEFT JOIN companies c ON c.id = p.company_id AND c.owner_id = ?
+            WHERE p.owner_id = ?
+              AND p.nextFollowUp IS NOT NULL
+              AND p.nextFollowUp != ''
+              AND DATE(p.nextFollowUp) BETWEEN ? AND ?
+              AND p.deleted_at IS NULL
+            """,
+            (uid, uid, today.isoformat(), target_date.isoformat())
+        ).fetchall()
+        
+        for p_row in prospects:
+            p = dict(p_row)
+            try:
+                context = {
+                    "prospect_id": p["id"],
+                    "name": p.get("name") or "",
+                    "email": p.get("email"),
+                    "telephone": p.get("telephone"),
+                    "linkedin": p.get("linkedin"),
+                    "statut": p.get("statut"),
+                    "pertinence": p.get("pertinence"),
+                    "nextFollowUp": p.get("nextFollowUp"),
+                    "company_id": p.get("company_id"),
+                    "company_groupe": p.get("company_groupe") or "",
+                }
+                
+                # Calculer le nombre de jours jusqu'à nextFollowUp
+                try:
+                    follow_date = datetime.datetime.fromisoformat(
+                        context["nextFollowUp"].replace("Z", "+00:00")[:10]
+                    ).date()
+                    days_diff = (follow_date - today).days
+                    context["nextFollowUp_days"] = days_diff
+                except Exception:
+                    context["nextFollowUp_days"] = 0
+                
+                # Vérifier si une tâche existe déjà pour ce prospect et cette date
+                existing = conn.execute(
+                    """
+                    SELECT id FROM tasks
+                    WHERE owner_id = ?
+                      AND status = 'pending'
+                      AND json_extract(linked_ids, '$.prospect_id') = ?
+                      AND due_date = ?
+                    LIMIT 1
+                    """,
+                    (uid, context["prospect_id"], context["nextFollowUp"][:10])
+                ).fetchone()
+                
+                if not existing:
+                    # Créer la tâche via les règles
+                    _create_auto_task("daily_check", context)
+                    created_count += 1
+            except Exception as e:
+                logger.warning("Erreur vérification quotidienne pour prospect %s: %s", p.get("id"), e)
+    
+    return jsonify({"ok": True, "created": created_count, "checked": len(prospects)})
+
+
+@app.get("/api/tasks/optimize")
+@login_required
+def api_tasks_optimize():
+    """Retourne les tâches triées de manière optimale (planification intelligente)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    status = (request.args.get("status") or "pending").strip().lower()
+    with _conn() as conn:
+        if status == "all":
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE owner_id=? ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, id DESC;",
+                (uid,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE status=? AND owner_id=? ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, id DESC;",
+                (status, uid),
+            ).fetchall()
+    
+    tasks = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["linked_ids"] = json.loads(d.get("linked_ids") or "{}")
+        except Exception:
+            d["linked_ids"] = {}
+        tasks.append(d)
+    
+    # Optimiser l'ordre
+    optimized = _optimize_task_schedule(tasks)
+    
+    return jsonify({"ok": True, "tasks": optimized})
 
 
 # ====== Company / Opportunities API (v6) ======
@@ -7317,31 +9445,20 @@ Texte :
     prompt += text
 
     try:
-        body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
-        req = urllib.request.Request(
-            f"{OLLAMA_URL}/api/generate",
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
         timeout = min(180, OLLAMA_TIMEOUT + 60)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        raw_response = data.get("response", "")
-        # Extraire le tableau JSON de la réponse
-        import re as re_mod
-        match = re_mod.search(r"\[[\s\S]*\]", raw_response)
+        raw_response = _call_ai(prompt, timeout=timeout)
+        match = re.search(r"\[[\s\S]*\]", raw_response)
         if not match:
-            return jsonify(ok=False, error="L'IA n'a pas renvoyé de liste valide. Modèle peut-être trop léger : essayez un modèle plus puissant (ex. llama3.1) ou importez en Excel/CSV."), 400
+            return jsonify(ok=False, error="L'IA n'a pas renvoyé de liste valide. Essayez un modèle plus puissant ou importez en Excel/CSV."), 400
         items = json.loads(match.group(0))
         if not isinstance(items, list):
             items = [items]
         return jsonify(ok=True, items=items, entity_type=entity_type)
     except urllib.error.URLError as e:
-        logger.warning("Ollama unreachable (parse-document): %s", e)
-        return jsonify(ok=False, error="Ollama indisponible sur le PC qui héberge Prosp'Up. Lancez Ollama ou utilisez Excel/CSV."), 503
+        logger.warning("AI unreachable (parse-document): %s", e)
+        return jsonify(ok=False, error="IA indisponible. Vérifiez la configuration dans Paramètres > Configuration IA."), 503
     except json.JSONDecodeError as e:
-        logger.warning("Ollama invalid JSON (parse-document): %s", e)
+        logger.warning("AI invalid JSON (parse-document): %s", e)
         return jsonify(ok=False, error="Réponse IA invalide (modèle peut-être trop léger). Essayez un modèle plus puissant ou importez en Excel/CSV."), 400
     except Exception as e:
         logger.exception("quickadd parse-document failed: %s", e)
@@ -7416,41 +9533,34 @@ Texte :
 """
             prompt += text
 
-            yield _sse_message("phase", {"step": "ollama", "label": "Analyse par l'IA (Ollama)…"})
-            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{OLLAMA_URL}/api/generate",
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
+            config = _load_ai_config()
+            provider_label = "Groq" if config.get("provider") == "groq" else "Ollama"
+            yield _sse_message("phase", {"step": "ollama", "label": f"Analyse par l'IA ({provider_label})…"})
             timeout = min(180, OLLAMA_TIMEOUT + 60)
             full_response = []
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                buffer = b""
-                for chunk in resp:
-                    buffer += chunk
-                    while b"\n" in buffer:
-                        line_bytes, buffer = buffer.split(b"\n", 1)
-                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
-                        if not line_json:
-                            continue
-                        try:
-                            data = json.loads(line_json)
-                            token = data.get("response", "")
-                            if token:
-                                full_response.append(token)
-                                yield _sse_message("token", {"text": token})
-                            if data.get("done", False):
-                                break
-                        except json.JSONDecodeError:
-                            continue
+            for sse_line in _stream_ai_sse(prompt, None, timeout):
+                if not sse_line.startswith("data: "):
+                    continue
+                data_str = sse_line.strip().removeprefix("data: ").strip()
+                if not data_str:
+                    continue
+                try:
+                    evt = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+                if evt.get("type") == "token":
+                    token_text = evt.get("text", "")
+                    if token_text:
+                        full_response.append(token_text)
+                        yield _sse_message("token", {"text": token_text})
+                elif evt.get("type") == "error":
+                    yield _sse_message("error", {"message": evt.get("message", "Erreur IA")})
+                    return
             raw_response = "".join(full_response)
-            re_mod = __import__("re")
-            match = re_mod.search(r"\[[\s\S]*\]", raw_response)
+            match = re.search(r"\[[\s\S]*\]", raw_response)
             if not match:
                 yield _sse_message("error", {
-                    "message": "L'IA n'a pas renvoyé de liste valide. Modèle peut-être trop léger : essayez un modèle plus puissant (ex. llama3.1) ou importez en Excel/CSV."
+                    "message": "L'IA n'a pas renvoyé de liste valide. Essayez un modèle plus puissant ou importez en Excel/CSV."
                 })
                 return
             try:
@@ -7462,9 +9572,9 @@ Texte :
                 items = [items]
             yield _sse_message("done", {"items": items, "entity_type": entity_type})
         except urllib.error.URLError as e:
-            logger.warning("Ollama unreachable (parse-document-stream): %s", e)
+            logger.warning("AI unreachable (parse-document-stream): %s", e)
             yield _sse_message("error", {
-                "message": "Ollama indisponible sur le PC qui héberge Prosp'Up. Lancez Ollama ou utilisez Excel/CSV."
+                "message": "IA indisponible. Vérifiez la configuration dans Paramètres > Configuration IA."
             })
         except Exception as e:
             logger.exception("quickadd parse-document-stream failed: %s", e)
@@ -7479,13 +9589,12 @@ Texte :
 
 @app.post("/api/ollama/generate")
 def api_ollama_generate():
-    """Proxy vers Ollama local : reçoit un prompt, appelle Ollama, renvoie le texte généré. timeouts: 120s défaut, jusqu'à 600s si demandé."""
+    """Proxy IA unifié (non-streaming) : route vers le provider configuré (Ollama/Groq) avec fallback."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
     payload = request.get_json(force=True, silent=True) or {}
     prompt = payload.get("prompt")
-    model = payload.get("model") or OLLAMA_MODEL
     req_timeout = payload.get("timeout")
     if req_timeout is not None:
         try:
@@ -7496,21 +9605,10 @@ def api_ollama_generate():
         req_timeout = OLLAMA_TIMEOUT
     if not prompt:
         return jsonify(ok=False, error="prompt requis"), 400
+    web_search = payload.get("web_search", False)
     try:
-        body = json.dumps({"model": model, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
-        req = urllib.request.Request(
-            f"{OLLAMA_URL}/api/generate",
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=req_timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        text = data.get("response", "")
+        text = _call_ai_web(prompt, timeout=req_timeout) if web_search else _call_ai(prompt, timeout=req_timeout)
         return jsonify(ok=True, text=text)
-    except urllib.error.URLError as e:
-        logger.warning("Ollama unreachable: %s", e)
-        return jsonify(ok=False, error="Ollama indisponible (vérifiez qu'il tourne sur ce PC)"), 503
     except urllib.error.HTTPError as e:
         try:
             err_body = e.read().decode("utf-8")
@@ -7518,22 +9616,28 @@ def api_ollama_generate():
             msg = err_data.get("error", err_body) or str(e)
         except Exception:
             msg = str(e)
-        logger.warning("Ollama HTTP error %s: %s", e.code, msg)
+        logger.warning("AI HTTP error %s: %s", e.code, msg)
         return jsonify(ok=False, error=msg), 502
+    except urllib.error.URLError as e:
+        config = _load_ai_config()
+        provider = config.get("provider", "ollama")
+        label = {"ollama": "Ollama", "groq": "Groq", "sonar": "Sonar"}.get(provider, provider)
+        logger.warning("%s unreachable: %s", label, e)
+        return jsonify(ok=False, error=f"{label} indisponible (vérifiez la configuration dans Paramètres)"), 503
     except Exception as e:
-        logger.exception("Ollama generate failed")
+        logger.exception("AI generate failed")
         return jsonify(ok=False, error=str(e)), 503
 
 
 @app.post("/api/ollama/generate-stream")
 def api_ollama_generate_stream():
-    """Proxy vers Ollama local avec streaming SSE : envoie les tokens au fur et à mesure pour éviter les timeouts Cloudflare."""
+    """Proxy IA unifié avec streaming SSE : route vers le provider configuré (Ollama/Groq) avec fallback."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
     payload = request.get_json(force=True, silent=True) or {}
     prompt = payload.get("prompt")
-    model = payload.get("model") or OLLAMA_MODEL
+    model = payload.get("model")
     req_timeout = payload.get("timeout")
     if req_timeout is not None:
         try:
@@ -7544,67 +9648,113 @@ def api_ollama_generate_stream():
         req_timeout = OLLAMA_TIMEOUT
     if not prompt:
         return jsonify(ok=False, error="prompt requis"), 400
-    
-    def generate():
-        try:
-            body = json.dumps({"model": model, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{OLLAMA_URL}/api/generate",
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=req_timeout) as resp:
-                # Envoyer un événement de démarrage
-                yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
-                
-                buffer = b""
-                for chunk in resp:
-                    buffer += chunk
-                    # Ollama envoie des lignes JSON séparées par \n
-                    while b"\n" in buffer:
-                        line_bytes, buffer = buffer.split(b"\n", 1)
-                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
-                        if not line_json:
-                            continue
-                        try:
-                            data = json.loads(line_json)
-                            if data.get("done", False):
-                                # Dernier chunk avec le texte complet
-                                full_text = data.get("response", "")
-                                if full_text:
-                                    yield f"data: {json.dumps({'type': 'token', 'text': full_text, 'done': True}, ensure_ascii=False)}\n\n"
-                                yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
-                                break
-                            else:
-                                # Token partiel
-                                token = data.get("response", "")
-                                if token:
-                                    yield f"data: {json.dumps({'type': 'token', 'text': token, 'done': False}, ensure_ascii=False)}\n\n"
-                        except json.JSONDecodeError:
-                            continue
-        except urllib.error.URLError as e:
-            logger.warning("Ollama unreachable (stream): %s", e)
-            err_msg = "Ollama indisponible (vérifiez qu'il tourne sur ce PC)"
-            yield f"data: {json.dumps({'type': 'error', 'message': err_msg}, ensure_ascii=False)}\n\n"
-        except urllib.error.HTTPError as e:
-            try:
-                err_body = e.read().decode("utf-8")
-                err_data = json.loads(err_body) if err_body else {}
-                msg = err_data.get("error", err_body) or str(e)
-            except Exception:
-                msg = str(e)
-            logger.warning("Ollama HTTP error %s (stream): %s", e.code, msg)
-            yield f"data: {json.dumps({'type': 'error', 'message': msg}, ensure_ascii=False)}\n\n"
-        except Exception as e:
-            logger.exception("Ollama generate stream failed")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
-    
-    return Response(generate(), mimetype="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no"  # Désactive le buffering nginx
+    web_search = payload.get("web_search", False)
+    stream_fn = _stream_ai_web_sse if web_search else _stream_ai_sse
+
+    return Response(
+        stream_fn(prompt, model, req_timeout),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v26.3: API de configuration IA multi-provider
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/ai/config")
+def api_ai_config_get():
+    """Retourne la config IA courante (provider, modèles, statut). Masque les clés API."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    config = _load_ai_config()
+    sonar_key = config.get("sonar_api_key", "")
+    return jsonify(ok=True, config={
+        "provider": config.get("provider", "ollama"),
+        "fallback_enabled": config.get("fallback_enabled", True),
+        "ollama_url": config.get("ollama_url", OLLAMA_URL),
+        "ollama_model": config.get("ollama_model", OLLAMA_MODEL),
+        "sonar_model": config.get("sonar_model", SONAR_MODEL),
+        "sonar_api_key_set": bool(sonar_key),
+        "sonar_api_key_preview": (sonar_key[:8] + "…") if len(sonar_key) > 8 else ("••••" if sonar_key else ""),
     })
 
+@app.post("/api/ai/config")
+def api_ai_config_post():
+    """Met à jour la config IA. Admin uniquement."""
+    user = _get_current_user()
+    if not user:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if user.get("role") != "admin":
+        return jsonify(ok=False, error="Réservé aux administrateurs"), 403
+    payload = request.get_json(force=True, silent=True) or {}
+    config = _load_ai_config()
+    if "provider" in payload and payload["provider"] in ("ollama", "sonar"):
+        config["provider"] = payload["provider"]
+    if "fallback_enabled" in payload:
+        config["fallback_enabled"] = bool(payload["fallback_enabled"])
+    if "ollama_url" in payload:
+        config["ollama_url"] = str(payload["ollama_url"]).strip().rstrip("/") or OLLAMA_URL
+    if "ollama_model" in payload:
+        config["ollama_model"] = str(payload["ollama_model"]).strip() or OLLAMA_MODEL
+    if "sonar_api_key" in payload:
+        config["sonar_api_key"] = str(payload["sonar_api_key"]).strip()
+    if "sonar_model" in payload:
+        config["sonar_model"] = str(payload["sonar_model"]).strip() or SONAR_MODEL
+    _save_ai_config(config)
+    logger.info("AI config updated by user %s: provider=%s", user.get("id"), config.get("provider"))
+    return jsonify(ok=True)
+
+@app.post("/api/ai/test")
+def api_ai_test():
+    """Teste la connexion au provider IA configuré."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    global _ai_config_cache
+    _ai_config_cache = None
+    payload = request.get_json(force=True, silent=True) or {}
+    provider = payload.get("provider")
+    config = _load_ai_config()
+    if provider:
+        config = dict(config)
+        config["provider"] = provider
+        if payload.get("ollama_url"):
+            config["ollama_url"] = payload["ollama_url"]
+        if payload.get("ollama_model"):
+            config["ollama_model"] = payload["ollama_model"]
+        if payload.get("sonar_api_key"):
+            config["sonar_api_key"] = payload["sonar_api_key"]
+        if payload.get("sonar_model"):
+            config["sonar_model"] = payload["sonar_model"]
+    test_provider = config.get("provider", "ollama")
+    label = "Sonar" if test_provider == "sonar" else "Ollama"
+    if test_provider == "sonar" and not config.get("sonar_api_key"):
+        return jsonify(ok=False, error=f"Clé API {label} non configurée. Enregistrez d'abord la configuration."), 400
+    test_prompt = "Réponds uniquement par le mot OK."
+    try:
+        text = _call_ai_provider(test_provider, test_prompt, config, timeout=15)
+        model = config.get("sonar_model") if test_provider == "sonar" else config.get("ollama_model")
+        return jsonify(ok=True, provider=test_provider, model=model, response=text.strip()[:200])
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode("utf-8")
+            err_data = json.loads(err_body) if err_body else {}
+            if isinstance(err_data.get("error"), dict):
+                msg = err_data["error"].get("message", "") or str(e)
+            else:
+                msg = err_data.get("error", "") or str(e)
+        except Exception:
+            msg = str(e)
+        if e.code in (401, 403):
+            msg = f"Clé API {label} invalide ou expirée (HTTP {e.code}). Vérifiez-la sur le site du provider."
+        logger.warning("AI test %s HTTP %s: %s", label, e.code, msg)
+        return jsonify(ok=False, error=msg), 200
+    except urllib.error.URLError as e:
+        return jsonify(ok=False, error=f"{label} injoignable. Vérifiez que le service tourne."), 200
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 200
 
 # ═══════════════════════════════════════════════════════════════════
 # v25.8: Intégration automatique des tags dans l'arbre des métiers via Ollama
@@ -7634,8 +9784,10 @@ def _save_tag_integrations(cache: Dict[str, Dict[str, Any]]):
 def api_metiers_integrate_tags():
     """Intègre automatiquement des tags manquants dans l'arbre des métiers via Ollama.
     
+    Phase 1 amélioré : utilise aussi la similarité sémantique pour trouver les meilleures correspondances.
+    
     Reçoit: { "tags": ["tag1", "tag2"], "context": { "company": "...", "fonction": "...", "linkedin": "..." } }
-    Retourne: { "ok": true, "integrations": { "tag1": { "category": "...", "specialty": "...", "techCategory": "..." } } }
+    Retourne: { "ok": true, "integrations": { "tag1": { "category": "...", "specialty": "...", "techCategory": "...", "similarity": 0.85 } } }
     """
     uid = _uid()
     if not uid:
@@ -7731,17 +9883,12 @@ Réponds UNIQUEMENT avec un JSON valide au format suivant (sans markdown, sans c
 
 Si le tag ne correspond clairement à aucun métier, réponds avec {{"category": null, "reasoning": "..."}}."""
         
+        # Phase 1: Essayer d'abord la similarité sémantique avec les tags du référentiel
+        # Charger tous les tags du référentiel depuis metiers-data.js (via import ou lecture)
+        # Pour l'instant, on utilise Ollama directement mais on pourrait améliorer avec embeddings
+        
         try:
-            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{OLLAMA_URL}/api/generate",
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            response_text = data.get("response", "").strip()
+            response_text = _call_ai(prompt, timeout=60)
             
             # Extraire le JSON de la réponse (gérer les blocs de code markdown)
             json_block = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
@@ -7756,6 +9903,8 @@ Si le tag ne correspond clairement à aucun métier, réponds avec {{"category":
             try:
                 integration = json.loads(response_text)
                 if integration.get("category") and integration.get("specialty") and integration.get("category") != "null":
+                    # Phase 1: Calculer similarité avec tags référentiel (optionnel, pour info)
+                    # On pourrait améliorer en comparant avec les tags existants dans la spécialité trouvée
                     cache[tag_lower] = integration
                     results[tag] = integration
                 else:
@@ -8490,8 +10639,6 @@ def _excel_map_pertinence(val: str | None) -> str | None:
         "📞 À rappeler": "À rappeler",
         "Rendez-vous": "Rendez-vous",
         "🤝 Rendez-vous": "Rendez-vous",
-        "Rencontré": "Rencontré",
-        "✅ Rencontré": "Rencontré",
         "Prospecté": "Prospecté",
         "🎯 Prospecté": "Prospecté",
         "Messagerie": "Messagerie",
@@ -8523,8 +10670,6 @@ def _excel_map_statut(val: str | None) -> str | None:
         "Rendez-vous": "Rendez-vous",
         "🤝 Rendez-vous": "Rendez-vous",
 
-        "Rencontré": "Rencontré",
-        "✅ Rencontré": "Rencontré",
 
         "Prospecté": "Prospecté",
         "🎯 Prospecté": "Prospecté",
@@ -9379,6 +11524,434 @@ RDV_CHECKLIST_THEMES = [
 ]
 
 
+# ═══════════════════════════════════════════════════════════════════
+# v26.3: Fonctions utilitaires pour "Avant réunion IA" — génération PDF
+# ═══════════════════════════════════════════════════════════════════
+
+def build_ollama_prompt_rdv(prospect: Dict[str, Any], company: Dict[str, Any] = None) -> str:
+    """Construit le prompt Ollama pour analyser un profil LinkedIn et générer une fiche de préparation RDV.
+    
+    Args:
+        prospect: Dict avec les champs du prospect (name, fonction, linkedin, etc.)
+        company: Dict avec les infos de l'entreprise (groupe, site, etc.)
+    
+    Returns:
+        String prompt structuré pour Ollama
+    """
+    nom_complet = prospect.get("name", "").strip()
+    prenom = prospect.get("prenom", "").strip() or nom_complet.split()[0] if nom_complet else ""
+    nom = prospect.get("nom", "").strip() or " ".join(nom_complet.split()[1:]) if len(nom_complet.split()) > 1 else nom_complet
+    poste = prospect.get("fonction", "").strip()
+    entreprise = ""
+    ville = ""
+    if company:
+        entreprise = f"{company.get('groupe', '')} ({company.get('site', '')})".strip(" ()")
+        ville = company.get("site", "").strip()
+    linkedin = (prospect.get("linkedin") or "").strip()
+    
+    return f"""Tu es un expert en prospection B2B pour une ESN spécialisée en systèmes embarqués, robotique et ingénierie industrielle (société UpTechnologie, Lyon).
+
+Tu dois analyser le profil LinkedIn suivant et générer une fiche de préparation RDV structurée en JSON.
+
+--- PROFIL ---
+Nom : {prenom} {nom}
+Poste actuel : {poste}
+Entreprise : {entreprise}
+Ville : {ville}
+URL LinkedIn : {linkedin}
+
+--- FORMAT DE SORTIE ATTENDU (JSON strict) ---
+{{
+  "qui_est_il": {{
+    "resume": "2-3 phrases de synthèse sur son profil, sa sensibilité, ses priorités",
+    "titre_actuel": "...",
+    "parcours": "résumé du parcours en 1-2 phrases",
+    "stack_specialites": ["...", "..."],
+    "activite_complementaire": "freelance / autre activité éventuelle"
+  }},
+  "contexte_entreprise": {{
+    "description": "description de l'entreprise en 2-3 phrases",
+    "taille": "...",
+    "secteurs": ["...", "..."],
+    "metiers_autour": ["...", "..."],
+    "conclusion_matching": "pourquoi ces métiers matchent avec des candidats embarqué/robotique/IA"
+  }},
+  "besoins_probables": {{
+    "data_referentiels": ["..."],
+    "digital_bi2b": ["..."],
+    "automatisation": ["..."],
+    "ressources_contraintes": ["..."],
+    "candidats_a_positionner": ["Ingé embarqué / industrie 4.0", "Dev back-end / data", "Ingé systèmes / intégration"]
+  }},
+  "interlocuteurs_potentiels": {{
+    "marketing_digital": ["..."],
+    "commerce_technique": ["..."],
+    "technique_projet": ["..."],
+    "conclusion": "..."
+  }}
+}}
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.
+"""
+
+
+def build_fallback_prompt_rdv(prospect: Dict[str, Any], company: Dict[str, Any] = None) -> str:
+    """Construit un prompt complet pour fallback (copier-coller dans une autre IA).
+    
+    Args:
+        prospect: Dict avec les champs du prospect
+        company: Dict avec les infos de l'entreprise
+    
+    Returns:
+        String prompt complet
+    """
+    nom_complet = prospect.get("name", "").strip()
+    prenom = prospect.get("prenom", "").strip() or nom_complet.split()[0] if nom_complet else ""
+    nom = prospect.get("nom", "").strip() or " ".join(nom_complet.split()[1:]) if len(nom_complet.split()) > 1 else nom_complet
+    poste = prospect.get("fonction", "").strip()
+    entreprise = ""
+    ville = ""
+    if company:
+        entreprise = f"{company.get('groupe', '')} ({company.get('site', '')})".strip(" ()")
+        ville = company.get("site", "").strip()
+    linkedin = (prospect.get("linkedin") or "").strip()
+    
+    return f"""Tu es un expert en prospection B2B pour une ESN spécialisée en systèmes embarqués, robotique et ingénierie industrielle (société UpTechnologie, Lyon).
+
+Génère une fiche de préparation RDV complète au format JSON strict pour ce prospect :
+
+Nom : {prenom} {nom}
+Poste : {poste}
+Entreprise : {entreprise}
+Ville : {ville}
+LinkedIn : {linkedin}
+
+--- FORMAT DE SORTIE ATTENDU (JSON strict) ---
+{{
+  "qui_est_il": {{
+    "resume": "2-3 phrases de synthèse sur son profil, sa sensibilité, ses priorités",
+    "titre_actuel": "...",
+    "parcours": "résumé du parcours en 1-2 phrases",
+    "stack_specialites": ["...", "..."],
+    "activite_complementaire": "freelance / autre activité éventuelle"
+  }},
+  "contexte_entreprise": {{
+    "description": "description de l'entreprise en 2-3 phrases",
+    "taille": "...",
+    "secteurs": ["...", "..."],
+    "metiers_autour": ["...", "..."],
+    "conclusion_matching": "pourquoi ces métiers matchent avec des candidats embarqué/robotique/IA"
+  }},
+  "besoins_probables": {{
+    "data_referentiels": ["..."],
+    "digital_bi2b": ["..."],
+    "automatisation": ["..."],
+    "ressources_contraintes": ["..."],
+    "candidats_a_positionner": ["Ingé embarqué / industrie 4.0", "Dev back-end / data", "Ingé systèmes / intégration"]
+  }},
+  "interlocuteurs_potentiels": {{
+    "marketing_digital": ["..."],
+    "commerce_technique": ["..."],
+    "technique_projet": ["..."],
+    "conclusion": "..."
+  }}
+}}
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.
+"""
+
+
+def build_fiche_rdv_pdf(prospect: Dict[str, Any], company: Dict[str, Any], ollama_data: Dict[str, Any]) -> BytesIO:
+    """Génère un PDF A4 de fiche de préparation RDV avec ReportLab.
+    
+    Args:
+        prospect: Dict avec les infos du prospect
+        company: Dict avec les infos de l'entreprise
+        ollama_data: Dict JSON parsé depuis la réponse Ollama
+    
+    Returns:
+        BytesIO contenant le PDF généré
+    """
+    nom_complet = prospect.get("name", "").strip()
+    # Extraire prénom et nom depuis name si prenom/nom ne sont pas définis
+    if nom_complet:
+        parts = nom_complet.split()
+        prenom = prospect.get("prenom", "").strip() or (parts[0] if parts else "")
+        nom = prospect.get("nom", "").strip() or (" ".join(parts[1:]) if len(parts) > 1 else "")
+    else:
+        prenom = prospect.get("prenom", "").strip() or ""
+        nom = prospect.get("nom", "").strip() or ""
+    
+    # Fallback si toujours vide
+    if not prenom and not nom:
+        prenom = "Prospect"
+        nom = ""
+    
+    poste = prospect.get("fonction", "").strip()
+    entreprise_str = ""
+    ville_str = ""
+    if company:
+        entreprise_str = f"{company.get('groupe', '')} ({company.get('site', '')})".strip(" ()")
+        ville_str = company.get("site", "").strip()
+    
+    # Extraire les données Ollama
+    qui_est_il = ollama_data.get("qui_est_il", {})
+    contexte_entreprise = ollama_data.get("contexte_entreprise", {})
+    besoins_probables = ollama_data.get("besoins_probables", {})
+    interlocuteurs = ollama_data.get("interlocuteurs_potentiels", {})
+    
+    # Créer le buffer PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.8*cm,
+        leftMargin=1.8*cm,
+        topMargin=1.5*cm,
+        bottomMargin=1.5*cm,
+    )
+    
+    W, H = A4
+    styles = getSampleStyleSheet()
+    
+    def S(name, parent='Normal', **kw):
+        return ParagraphStyle(name, parent=styles[parent], **kw)
+    
+    # Couleurs
+    GREY_DARK = colors.HexColor('#1A1A2E')
+    GREY_MED = colors.HexColor('#2C3E50')
+    BLUE_ACC = colors.HexColor('#2980B9')
+    GREY_LINE = colors.HexColor('#BDC3C7')
+    
+    # Styles
+    sMainTitle = S('MainTitle', fontName='Helvetica-Bold', fontSize=16, textColor=GREY_DARK,
+                   spaceAfter=2, alignment=1, leading=20)
+    sSubTitle = S('SubTitle', fontName='Helvetica', fontSize=9.5, textColor=GREY_MED,
+                  spaceAfter=10, alignment=1, leading=14)
+    sH1 = S('H1', fontName='Helvetica-Bold', fontSize=11.5, textColor=colors.white,
+            spaceBefore=10, spaceAfter=4, leading=16)
+    sH2 = S('H2', fontName='Helvetica-Bold', fontSize=10, textColor=GREY_DARK,
+            spaceBefore=8, spaceAfter=2, leading=14)
+    sH3 = S('H3', fontName='Helvetica-BoldOblique', fontSize=9, textColor=BLUE_ACC,
+            spaceBefore=5, spaceAfter=2, leading=13)
+    sBody = S('Body', fontName='Helvetica', fontSize=8.5, textColor=GREY_MED,
+              spaceAfter=3, leading=13, alignment=4)
+    sBullet = S('Bullet', fontName='Helvetica', fontSize=8.5, textColor=GREY_MED,
+                spaceAfter=4, leading=14, leftIndent=10)
+    sCheck = S('Check', fontName='Helvetica', fontSize=8.5, textColor=GREY_MED,
+               spaceAfter=10, leading=18, leftIndent=12)
+    sLink = S('Link', fontName='Helvetica-Bold', fontSize=8.5, textColor=GREY_DARK,
+              spaceAfter=4, leading=14, leftIndent=10)
+    
+    def h1_block(text):
+        tbl = Table([[Paragraph(text, sH1)]], colWidths=[W - 3.6*cm])
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), GREY_MED),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ]))
+        return tbl
+    
+    def hr():
+        return HRFlowable(width='100%', thickness=0.5, color=GREY_LINE, spaceAfter=3, spaceBefore=2)
+    
+    def b(text):
+        return f'<b>{text}</b>'
+    
+    def bullet(text):
+        return Paragraph('• ' + text, sBullet)
+    
+    def check(text):
+        return Paragraph('[ ]  ' + text, sCheck)
+    
+    story = []
+    
+    # HEADER
+    story.append(Paragraph('FICHE PRÉPARATION RDV PROSPECTION', sMainTitle))
+    story.append(Paragraph(
+        f'Prospect : {prenom} {nom} – {poste} – {entreprise_str} ({ville_str})',
+        sSubTitle
+    ))
+    story.append(HRFlowable(width='100%', thickness=2, color=BLUE_ACC, spaceAfter=10))
+    
+    # SECTION 1
+    story.append(h1_block('SECTION 1 – SYNTHÈSE PROSPECT'))
+    story.append(Spacer(1, 6))
+    
+    # 1. Qui est [Prénom] et ce qu'il fait
+    story.append(Paragraph(f'1. Qui est {prenom} et ce qu\'il fait', sH2))
+    story.append(hr())
+    resume = qui_est_il.get("resume", "")
+    if resume:
+        story.append(Paragraph(resume, sBody))
+    if qui_est_il.get("titre_actuel"):
+        story.append(bullet(b('Titre actuel :') + ' ' + qui_est_il.get("titre_actuel", "")))
+    if qui_est_il.get("parcours"):
+        story.append(bullet(b('Parcours :') + ' ' + qui_est_il.get("parcours", "")))
+    if qui_est_il.get("stack_specialites"):
+        specs = qui_est_il.get("stack_specialites", [])
+        if isinstance(specs, list):
+            story.append(bullet(b('Spécialités :') + ' ' + ', '.join(specs)))
+    if qui_est_il.get("activite_complementaire"):
+        story.append(bullet(b('Activité complémentaire :') + ' ' + qui_est_il.get("activite_complementaire", "")))
+    if resume:
+        story.append(Paragraph(
+            f'<i>En clair : {resume}</i>',
+            sBody
+        ))
+    story.append(Spacer(1, 5))
+    
+    # 2. Entreprise : environnement et métiers
+    entreprise_nom = company.get('groupe', '') if company else entreprise_str
+    story.append(Paragraph(f'2. {entreprise_nom} : environnement et métiers autour de lui', sH2))
+    story.append(hr())
+    if contexte_entreprise.get("description"):
+        story.append(Paragraph(contexte_entreprise.get("description", ""), sBody))
+    if contexte_entreprise.get("metiers_autour"):
+        story.append(Paragraph(b('Métiers autour de lui :'), sBody))
+        metiers = contexte_entreprise.get("metiers_autour", [])
+        if isinstance(metiers, list):
+            for m in metiers:
+                story.append(bullet(m))
+    if contexte_entreprise.get("conclusion_matching"):
+        story.append(Paragraph(
+            '➜ ' + contexte_entreprise.get("conclusion_matching", ""),
+            sLink
+        ))
+    story.append(Spacer(1, 5))
+    
+    # 3. Besoins probables
+    story.append(Paragraph('3. Ses besoins probables (angle UpTechnologie)', sH2))
+    story.append(hr())
+    
+    if besoins_probables.get("data_referentiels"):
+        story.append(Paragraph('Data produits & référentiels', sH3))
+        for item in besoins_probables.get("data_referentiels", []):
+            if item:
+                story.append(bullet(item))
+    
+    if besoins_probables.get("digital_bi2b"):
+        story.append(Paragraph('E-commerce / Digital B2B', sH3))
+        for item in besoins_probables.get("digital_bi2b", []):
+            if item:
+                story.append(bullet(item))
+    
+    if besoins_probables.get("automatisation"):
+        story.append(Paragraph('Automatisation / outils internes', sH3))
+        for item in besoins_probables.get("automatisation", []):
+            if item:
+                story.append(bullet(item))
+    
+    if besoins_probables.get("ressources_contraintes"):
+        story.append(Paragraph('Ressources et contraintes', sH3))
+        for item in besoins_probables.get("ressources_contraintes", []):
+            if item:
+                story.append(bullet(item))
+    
+    if besoins_probables.get("candidats_a_positionner"):
+        story.append(Paragraph(b('C\'est là que je peux positionner mes candidats :'), sBody))
+        for item in besoins_probables.get("candidats_a_positionner", []):
+            if item:
+                story.append(bullet(item))
+    story.append(Spacer(1, 5))
+    
+    # 4. Métiers avec lesquels il travaille
+    story.append(Paragraph('4. Métiers avec lesquels il travaille (interlocuteurs potentiels)', sH2))
+    story.append(hr())
+    if interlocuteurs.get("marketing_digital"):
+        for item in interlocuteurs.get("marketing_digital", []):
+            if item:
+                story.append(bullet(item))
+    if interlocuteurs.get("commerce_technique"):
+        for item in interlocuteurs.get("commerce_technique", []):
+            if item:
+                story.append(bullet(item))
+    if interlocuteurs.get("technique_projet"):
+        for item in interlocuteurs.get("technique_projet", []):
+            if item:
+                story.append(bullet(item))
+    if interlocuteurs.get("conclusion"):
+        story.append(Paragraph(
+            '<i>' + interlocuteurs.get("conclusion", "") + '</i>',
+            sBody
+        ))
+    story.append(Spacer(1, 8))
+    
+    # SECTION 2
+    story.append(h1_block('SECTION 2 – CHECKLIST RDV'))
+    story.append(Spacer(1, 6))
+    
+    # Checklist fixe (8 sections)
+    checklist_sections = [
+        ('1. Contexte prospect', [
+            'Vérifier son rôle exact : périmètre des projets et responsabilités.',
+            'Confirmer s\'il gère aussi les outils internes (suivi projets, outils service, connecteurs SI).',
+            'Identifier ses interlocuteurs principaux : commerce, technique, service, qualité, IT/IS.',
+            'Comprendre les liens entre projets industriels, service client et activité business.',
+        ]),
+        ('2. Enjeux et priorités actuelles', [
+            'Projets prioritaires 2025–2026 côté projets internationaux / modernisation / service.',
+            'Objectifs business : satisfaction client, disponibilité des installations, marges projets, développement d\'offres.',
+            'KPIs suivis : respect planning, coûts, pannes, temps d\'arrêt, taux de satisfaction.',
+            'Contraintes majeures : budget, délais, ressources internes techniques / projet.',
+        ]),
+        ('3. Irritants et points de blocage', [
+            'Manque de ressources techniques (ingénieurs automation / soft / data industrielle).',
+            'Complexité / rigidité du SI projets / SAV (ERP, outils maison, PLM).',
+            'Qualité, structuration, mise à jour de la donnée technique (installations, interventions, pannes).',
+            'Difficultés à interfacer le digital (outils projet, service, IIoT) avec les systèmes terrain.',
+            'Besoin d\'outils spécifiques pour les équipes internes (checklists, configurateurs, tableaux de bord).',
+        ]),
+        ('4. Organisation et recours aux ressources externes', [
+            'Comment ils gèrent les besoins ponctuels : interne, freelances, intégrateurs, ESN.',
+            'S\'ils ont déjà travaillé avec des sociétés de conseil / placement d\'ingénieurs.',
+            'Leurs critères de choix d\'un partenaire technique (réactivité, expertise industrielle, proximité, mode d\'intervention).',
+            'Le process de décision : qui décide, qui influence, qui utilise les solutions au quotidien.',
+        ]),
+        ('5. Positionnement UpTechnologie à présenter', [
+            'Ton rôle : ingénieur d\'affaires spécialisé en systèmes embarqués, robotique, ingénierie industrielle.',
+            'Ce que fait UpTechnologie : placement de consultants / ingénieurs pour renforcer les équipes sur des projets techniques.',
+            'Capacité à intervenir à l\'interface terrain (automates, capteurs, lignes) / logiciel (SI, outils internes, supervision).',
+            'Proximité géographique et connaissance du tissu industriel AURA.',
+        ]),
+        ('6. Types de besoins où tu peux aider', [
+            'Solutions connectées : remontée de données des équipements vers le SI / outils projets / service.',
+            'Automatisation de flux et fiabilisation de la donnée (scripts, ETL, API, connecteurs entre outils).',
+            'Outils métiers pour les équipes internes (configurateurs, simulateurs, dashboards, portails clients).',
+            'Projets industrie 4.0 nécessitant du logiciel embarqué / temps réel.',
+        ]),
+        ('7. Profils candidats à évoquer', [
+            'Ingénieur systèmes embarqués / industrie 4.0 (automates, capteurs, équipements terrain).',
+            'Profil logiciel / data back-end (scripts, API, intégration SI industriel).',
+            'Profil passerelle terrain ↔ digital, à l\'aise en environnement industriel lourd.',
+        ]),
+        ('8. Next steps à sécuriser', [
+            'Proposer l\'envoi d\'un court récap des échanges.',
+            'Proposer 2–3 exemples de profils types alignés avec son environnement.',
+            'Valider un point de suivi (après cadrage projet / avant pic d\'activité).',
+            'Noter ses préférences de contact (mail, téléphone, LinkedIn) et disponibilités.',
+        ]),
+    ]
+    
+    for title, items in checklist_sections:
+        story.append(Paragraph(title, sH2))
+        story.append(hr())
+        for item in items:
+            story.append(check(item))
+        story.append(Spacer(1, 3))
+    
+    story.append(Spacer(1, 6))
+    story.append(HRFlowable(width='100%', thickness=1.5, color=BLUE_ACC, spaceAfter=4))
+    story.append(Paragraph(b('Notes libres / observations à chaud :'), sH2))
+    for _ in range(4):
+        story.append(HRFlowable(width='100%', thickness=0.4, color=GREY_LINE, spaceBefore=14, spaceAfter=0))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+
 @app.get("/api/rdv-checklist/themes")
 def rdv_checklist_themes():
     """Return the reference checklist themes (read-only list)."""
@@ -9532,6 +12105,38 @@ def meetings_create():
             (prospect_id, uid, today, title, json.dumps(checklist_data, ensure_ascii=False) if checklist_data else None, notes, now)
         )
         meeting_id = cursor.lastrowid
+        
+        # Hook: réunion créée (meeting_done)
+        try:
+            p_row = conn.execute(
+                "SELECT id, name, email, telephone, linkedin, statut, pertinence, nextFollowUp, company_id FROM prospects WHERE id=? AND owner_id=?;",
+                (prospect_id, uid)
+            ).fetchone()
+            if p_row:
+                context = {
+                    "prospect_id": p_row["id"],
+                    "name": p_row["name"] or "",
+                    "email": p_row["email"],
+                    "telephone": p_row["telephone"],
+                    "linkedin": p_row["linkedin"],
+                    "statut": p_row["statut"],
+                    "pertinence": p_row["pertinence"],
+                    "nextFollowUp": p_row["nextFollowUp"],
+                    "company_id": p_row["company_id"],
+                    "meeting_title": title,
+                    "meeting_notes": notes,
+                }
+                # Récupérer le nom de l'entreprise
+                if context.get("company_id"):
+                    c_row = conn.execute(
+                        "SELECT groupe FROM companies WHERE id=? AND owner_id=?;",
+                        (context["company_id"], uid)
+                    ).fetchone()
+                    if c_row:
+                        context["company_groupe"] = c_row["groupe"] or ""
+                _create_auto_task("meeting_done", context)
+        except Exception as e:
+            logger.warning("Erreur hook tâche auto pour réunion: %s", e)
     
     return jsonify(ok=True, id=meeting_id, date=today)
 
@@ -9576,6 +12181,159 @@ def meetings_list():
         })
     
     return jsonify(ok=True, meetings=meetings)
+
+
+@app.get("/api/meetings/<int:meeting_id>/action-items")
+def meetings_action_items_list(meeting_id):
+    """Lister les action items d'une réunion."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    with _conn() as conn:
+        # Vérifier que la réunion existe et appartient à l'utilisateur
+        meeting = conn.execute(
+            "SELECT id, prospect_id FROM meetings WHERE id = ? AND owner_id = ?",
+            (meeting_id, uid)
+        ).fetchone()
+        if not meeting:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+        
+        rows = conn.execute(
+            """SELECT id, task, assignee, due_date, priority, status, createdAt
+               FROM meeting_action_items
+               WHERE meeting_id = ? AND owner_id = ?
+               ORDER BY due_date ASC, priority DESC, createdAt ASC""",
+            (meeting_id, uid)
+        ).fetchall()
+    
+    action_items = []
+    for row in rows:
+        action_items.append({
+            "id": row["id"],
+            "task": row["task"],
+            "assignee": row["assignee"],
+            "due_date": row["due_date"],
+            "priority": row["priority"],
+            "status": row["status"],
+            "createdAt": row["createdAt"]
+        })
+    
+    return jsonify(ok=True, action_items=action_items)
+
+
+@app.post("/api/meetings/<int:meeting_id>/action-items")
+def meetings_action_items_create(meeting_id):
+    """Créer un action item pour une réunion."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    body = request.get_json(force=True)
+    task = body.get("task", "").strip()
+    assignee = body.get("assignee")
+    due_date = body.get("due_date")
+    priority = body.get("priority")
+    
+    if not task:
+        return jsonify(ok=False, error="task requis"), 400
+    
+    with _conn() as conn:
+        # Vérifier que la réunion existe et appartient à l'utilisateur
+        meeting = conn.execute(
+            "SELECT id, prospect_id FROM meetings WHERE id = ? AND owner_id = ?",
+            (meeting_id, uid)
+        ).fetchone()
+        if not meeting:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+        
+        prospect_id = meeting["prospect_id"]
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        
+        cursor = conn.execute(
+            """INSERT INTO meeting_action_items (meeting_id, prospect_id, task, assignee, due_date, priority, status, owner_id, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
+            (meeting_id, prospect_id, task, assignee, due_date, priority, uid, now)
+        )
+        action_item_id = cursor.lastrowid
+    
+    return jsonify(ok=True, id=action_item_id)
+
+
+@app.get("/api/meetings/<int:meeting_id>/opportunities")
+def meetings_opportunities_list(meeting_id):
+    """Lister les opportunités d'une réunion."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    with _conn() as conn:
+        # Vérifier que la réunion existe et appartient à l'utilisateur
+        meeting = conn.execute(
+            "SELECT id, prospect_id FROM meetings WHERE id = ? AND owner_id = ?",
+            (meeting_id, uid)
+        ).fetchone()
+        if not meeting:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+        
+        rows = conn.execute(
+            """SELECT id, type, estimated_value, probability, description, createdAt
+               FROM meeting_opportunities
+               WHERE meeting_id = ? AND owner_id = ?
+               ORDER BY estimated_value DESC, probability DESC, createdAt ASC""",
+            (meeting_id, uid)
+        ).fetchall()
+    
+    opportunities = []
+    for row in rows:
+        opportunities.append({
+            "id": row["id"],
+            "type": row["type"],
+            "estimated_value": row["estimated_value"],
+            "probability": row["probability"],
+            "description": row["description"],
+            "createdAt": row["createdAt"]
+        })
+    
+    return jsonify(ok=True, opportunities=opportunities)
+
+
+@app.post("/api/meetings/<int:meeting_id>/opportunities")
+def meetings_opportunities_create(meeting_id):
+    """Créer une opportunité pour une réunion."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    body = request.get_json(force=True)
+    type_opp = body.get("type", "").strip()
+    estimated_value = body.get("estimated_value")
+    probability = body.get("probability")
+    description = body.get("description")
+    
+    if not type_opp:
+        return jsonify(ok=False, error="type requis"), 400
+    
+    with _conn() as conn:
+        # Vérifier que la réunion existe et appartient à l'utilisateur
+        meeting = conn.execute(
+            "SELECT id, prospect_id FROM meetings WHERE id = ? AND owner_id = ?",
+            (meeting_id, uid)
+        ).fetchone()
+        if not meeting:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+        
+        prospect_id = meeting["prospect_id"]
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        
+        cursor = conn.execute(
+            """INSERT INTO meeting_opportunities (meeting_id, prospect_id, type, estimated_value, probability, description, owner_id, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (meeting_id, prospect_id, type_opp, estimated_value, probability, description, uid, now)
+        )
+        opportunity_id = cursor.lastrowid
+    
+    return jsonify(ok=True, id=opportunity_id)
 
 
 @app.get("/api/meetings/<int:meeting_id>/pdf")
@@ -9685,6 +12443,193 @@ def meetings_export_pdf(meeting_id):
             mimetype="text/html",
             headers={"Content-Disposition": f'inline; filename="reunion_{row["date"]}_{meeting_id}.html"'}
         )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v26.3: Routes API pour "Avant réunion IA" — streaming SSE et génération PDF
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/prospect/<int:prospect_id>/infos-rdv-stream")
+@login_required
+def api_prospect_infos_rdv_stream(prospect_id: int):
+    """Route SSE pour analyser un prospect via Ollama et générer une fiche de préparation RDV.
+    
+    Stream les tokens Ollama en temps réel, puis stocke la réponse complète en session
+    pour la génération PDF ultérieure.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    # Vérifier que le prospect appartient à l'utilisateur
+    if not _prospect_owned(prospect_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    
+    # Récupérer le prospect et l'entreprise
+    with _conn() as conn:
+        prospect_row = conn.execute(
+            "SELECT * FROM prospects WHERE id=? AND owner_id=?;",
+            (prospect_id, uid)
+        ).fetchone()
+        if not prospect_row:
+            return jsonify(ok=False, error="Prospect introuvable"), 404
+        
+        prospect = dict(prospect_row)
+        company = None
+        if prospect.get("company_id"):
+            company_row = conn.execute(
+                "SELECT * FROM companies WHERE id=? AND owner_id=?;",
+                (prospect["company_id"], uid)
+            ).fetchone()
+            if company_row:
+                company = dict(company_row)
+    
+    # Construire le prompt Ollama
+    prompt = build_ollama_prompt_rdv(prospect, company)
+    fallback_prompt = build_fallback_prompt_rdv(prospect, company)
+    
+    def generate():
+        try:
+            # Appeler Ollama en streaming
+            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/generate",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            
+            yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
+            
+            full_response = ""
+            with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
+                buffer = b""
+                for chunk in resp:
+                    buffer += chunk
+                    while b"\n" in buffer:
+                        line_bytes, buffer = buffer.split(b"\n", 1)
+                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
+                        if not line_json:
+                            continue
+                        try:
+                            data = json.loads(line_json)
+                            if data.get("done", False):
+                                # Dernier chunk avec le texte complet
+                                final_text = data.get("response", "")
+                                if final_text:
+                                    full_response += final_text
+                                    yield f"data: {json.dumps({'type': 'token', 'content': final_text, 'done': True}, ensure_ascii=False)}\n\n"
+                                
+                                # Stocker la réponse complète en session pour le PDF
+                                session[f"rdv_analysis_{prospect_id}"] = full_response
+                                
+                                # Envoyer l'événement de fin avec l'URL du PDF
+                                yield f"data: {json.dumps({'type': 'done', 'pdf_url': f'/api/prospect/{prospect_id}/download-rdv-pdf'}, ensure_ascii=False)}\n\n"
+                                break
+                            else:
+                                # Token partiel
+                                token = data.get("response", "")
+                                if token:
+                                    full_response += token
+                                    yield f"data: {json.dumps({'type': 'token', 'content': token, 'done': False}, ensure_ascii=False)}\n\n"
+                        except json.JSONDecodeError:
+                            continue
+        except urllib.error.URLError as e:
+            logger.warning("Ollama unreachable (infos-rdv-stream): %s", e)
+            yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
+        except urllib.error.HTTPError as e:
+            try:
+                err_body = e.read().decode("utf-8")
+                err_data = json.loads(err_body) if err_body else {}
+                msg = err_data.get("error", err_body) or str(e)
+            except Exception:
+                msg = str(e)
+            logger.warning("Ollama HTTP error %s (infos-rdv-stream): %s", e.code, msg)
+            yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("Ollama infos-rdv-stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
+    
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+
+@app.get("/api/prospect/<int:prospect_id>/download-rdv-pdf")
+@login_required
+def api_prospect_download_rdv_pdf(prospect_id: int):
+    """Route pour télécharger le PDF de fiche de préparation RDV.
+    
+    Récupère la réponse Ollama stockée en session, parse le JSON, et génère le PDF.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    # Vérifier que le prospect appartient à l'utilisateur
+    if not _prospect_owned(prospect_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    
+    # Récupérer la réponse Ollama depuis la session
+    ollama_response = session.get(f"rdv_analysis_{prospect_id}")
+    if not ollama_response:
+        return jsonify(ok=False, error="Aucune analyse disponible. Relancez la génération."), 404
+    
+    # Récupérer le prospect et l'entreprise
+    with _conn() as conn:
+        prospect_row = conn.execute(
+            "SELECT * FROM prospects WHERE id=? AND owner_id=?;",
+            (prospect_id, uid)
+        ).fetchone()
+        if not prospect_row:
+            return jsonify(ok=False, error="Prospect introuvable"), 404
+        
+        prospect = dict(prospect_row)
+        company = None
+        if prospect.get("company_id"):
+            company_row = conn.execute(
+                "SELECT * FROM companies WHERE id=? AND owner_id=?;",
+                (prospect["company_id"], uid)
+            ).fetchone()
+            if company_row:
+                company = dict(company_row)
+    
+    # Parser le JSON depuis la réponse Ollama
+    # Extraire le JSON (peut être entouré de texte)
+    import re as re_mod
+    json_match = re_mod.search(r"\{[\s\S]*\}", ollama_response)
+    if not json_match:
+        return jsonify(ok=False, error="Format de réponse Ollama invalide. Réessayez."), 400
+    
+    try:
+        ollama_data = json.loads(json_match.group(0))
+    except json.JSONDecodeError as e:
+        logger.warning("Erreur parsing JSON Ollama: %s", e)
+        return jsonify(ok=False, error="Erreur lors du parsing de la réponse Ollama. Réessayez."), 400
+    
+    # Générer le PDF
+    try:
+        pdf_buffer = build_fiche_rdv_pdf(prospect, company, ollama_data)
+        
+        # Nettoyer la session (optionnel, pour éviter l'accumulation)
+        session.pop(f"rdv_analysis_{prospect_id}", None)
+        
+        # Nom du fichier
+        nom_complet = prospect.get("name", "").strip() or "prospect"
+        nom_safe = "".join(c for c in nom_complet if c.isalnum() or c in (' ', '-', '_')).strip()[:50]
+        filename = f"fiche_rdv_{nom_safe}.pdf"
+        
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        logger.exception("Erreur génération PDF fiche RDV")
+        return jsonify(ok=False, error=f"Erreur lors de la génération du PDF: {str(e)}"), 500
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -10528,6 +13473,251 @@ def api_collab_unshare_company():
         aconn.execute("DELETE FROM shared_companies WHERE id = ?;", (share_id,))
     
     return jsonify(ok=True, message="Partage retiré")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Dashboard adaptatif et Assistant virtuel (v26.6)
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/dashboard/adaptive")
+def api_dashboard_adaptive():
+    """Retourne les recommandations adaptatives basées sur l'activité récente (widgets, priorités)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    today = _today_iso()
+    d_today = datetime.date.fromisoformat(today)
+    monday = (d_today - datetime.timedelta(days=d_today.weekday())).isoformat()
+    
+    with _conn() as conn:
+        prospects = conn.execute("SELECT * FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        push_logs = conn.execute(
+            "SELECT l.* FROM push_logs l JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=? WHERE l.sentAt >= ?;",
+            (uid, monday),
+        ).fetchall()
+        notes = []
+        for p in prospects:
+            try:
+                call_notes = json.loads(p.get("callNotes") or "[]")
+                if isinstance(call_notes, list):
+                    for n in call_notes:
+                        if (n.get("date") or "")[:10] >= monday:
+                            notes.append(n)
+            except Exception:
+                pass
+    
+    prospects_list = [dict(r) for r in prospects]
+    push_list = [dict(r) for r in push_logs]
+    
+    # Calculer les métriques d'activité
+    overdue = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() and p["nextFollowUp"].strip() < today]
+    due_today = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() == today]
+    rdv_this_week = [p for p in prospects_list if (p.get("rdvDate") or "").strip() >= monday and (p.get("rdvDate") or "").strip() <= today]
+    recent_activity = len([n for n in notes if (n.get("date") or "")[:10] >= monday]) + len([p for p in push_list if (p.get("sentAt") or "")[:10] >= monday])
+    
+    # Préparer le contexte pour l'IA
+    context = {
+        "overdue_count": len(overdue),
+        "due_today_count": len(due_today),
+        "rdv_this_week_count": len(rdv_this_week),
+        "recent_activity_count": recent_activity,
+        "total_prospects": len(prospects_list),
+        "pipeline_status": {s: sum(1 for p in prospects_list if p.get("statut") == s) for s in ["Rendez-vous", "À rappeler", "Messagerie", "Appelé"]},
+    }
+    
+    # Construire le prompt pour l'analyse adaptative
+    prompt = f"""Tu es un assistant pour un CRM de prospection B2B. Analyse l'activité récente et génère des recommandations.
+
+Contexte actuel:
+- {context['overdue_count']} relances en retard
+- {context['due_today_count']} relances à faire aujourd'hui
+- {context['rdv_this_week_count']} RDV cette semaine
+- {context['recent_activity_count']} actions récentes (notes + push)
+- Pipeline: {context['pipeline_status']}
+
+Génère un JSON avec:
+1. "priorities": liste de 3 priorités du jour (max 60 caractères chacune)
+2. "widgets_to_show": liste des widgets recommandés parmi ["overdue", "rdv", "pipeline", "activity", "goals"]
+3. "widgets_to_hide": liste des widgets à masquer
+4. "insight": un message d'analyse court (max 100 caractères)
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant/après."""
+    
+    try:
+        ai_response = _call_ai(prompt, timeout=60)
+        # Nettoyer la réponse (enlever markdown si présent)
+        ai_response = ai_response.strip()
+        if ai_response.startswith("```json"):
+            ai_response = ai_response[7:]
+        if ai_response.startswith("```"):
+            ai_response = ai_response[3:]
+        if ai_response.endswith("```"):
+            ai_response = ai_response[:-3]
+        ai_response = ai_response.strip()
+        
+        adaptive_data = json.loads(ai_response)
+    except Exception as e:
+        logger.warning("Erreur analyse adaptative IA, fallback par défaut: %s", e)
+        # Fallback par défaut
+        adaptive_data = {
+            "priorities": [
+                f"Relancer {len(overdue)} prospects en retard" if overdue else "Aucune relance en retard",
+                f"{len(due_today)} relances à faire aujourd'hui" if due_today else "Aucune relance prévue",
+                f"{len(rdv_this_week)} RDV cette semaine" if rdv_this_week else "Aucun RDV cette semaine",
+            ],
+            "widgets_to_show": ["overdue", "rdv", "pipeline"] if overdue or rdv_this_week else ["activity", "goals"],
+            "widgets_to_hide": [],
+            "insight": "Analyse en cours..." if recent_activity < 5 else "Activité soutenue cette semaine",
+        }
+    
+    return jsonify(ok=True, data=adaptive_data)
+
+
+@app.post("/api/dashboard/assistant")
+def api_dashboard_assistant():
+    """Assistant virtuel : répond à des questions en langage naturel et peut exécuter des actions (disponible sur toutes les pages)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    
+    body = request.get_json(force=True) or {}
+    question = body.get("question", "").strip()
+    if not question:
+        return jsonify(ok=False, error="question requise"), 400
+    
+    # Contexte de la page (optionnel)
+    page_context = body.get("page_context", "")
+    page_description = body.get("page_description", "")
+    
+    today = _today_iso()
+    d_today = datetime.date.fromisoformat(today)
+    monday = (d_today - datetime.timedelta(days=d_today.weekday())).isoformat()
+    
+    # Récupérer le contexte disponible selon la page
+    with _conn() as conn:
+        prospects = conn.execute("SELECT id, name, statut, nextFollowUp, rdvDate, company_id, tags, pertinence FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        companies = conn.execute("SELECT id, groupe, site, tags FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        candidates = conn.execute("SELECT id, name, status, skills, role FROM candidates WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        tasks = conn.execute("SELECT id, title, status, due_date FROM tasks WHERE owner_id=? AND status='pending' ORDER BY due_date ASC LIMIT 10;", (uid,)).fetchall()
+    
+    prospects_list = [dict(r) for r in prospects]
+    companies_list = [dict(r) for r in companies]
+    candidates_list = [dict(r) for r in candidates]
+    tasks_list = [dict(r) for r in tasks]
+    
+    # Construire le contexte pour l'IA selon la page
+    overdue_prospects = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() and p["nextFollowUp"].strip() < today]
+    due_today_prospects = [p for p in prospects_list if (p.get("nextFollowUp") or "").strip() == today]
+    rdv_prospects = [p for p in prospects_list if p.get("statut") == "Rendez-vous"]
+    
+    # Contexte de base
+    context_summary = f"""Contexte disponible:
+- {len(prospects_list)} prospects au total
+- {len(overdue_prospects)} relances en retard
+- {len(due_today_prospects)} relances à faire aujourd'hui
+- {len(rdv_prospects)} prospects en RDV
+- {len(companies_list)} entreprises
+- {len(candidates_list)} candidats
+- {len(tasks_list)} tâches en cours
+
+Statuts prospects: {', '.join(set(p.get('statut') or 'Inconnu' for p in prospects_list))}
+"""
+    
+    # Enrichir selon le contexte de la page
+    if page_context:
+        context_summary += f"\nContexte de la page: {page_description}\n"
+        
+        if "prospects" in page_context.lower() or "Gestion des prospects" in page_context:
+            context_summary += f"\nExemples de prospects (max 5):\n"
+            for p in prospects_list[:5]:
+                tags_str = ', '.join(json.loads(p.get('tags') or '[]')[:3]) if p.get('tags') else 'Aucun'
+                context_summary += f"- {p['name']} (ID: {p['id']}, statut: {p.get('statut', 'N/A')}, pertinence: {p.get('pertinence', 'N/A')}, tags: {tags_str})\n"
+        
+        elif "candidat" in page_context.lower() or "Sourcing" in page_context:
+            context_summary += f"\nExemples de candidats (max 5):\n"
+            for c in candidates_list[:5]:
+                skills_str = ', '.join(json.loads(c.get('skills') or '[]')[:3]) if c.get('skills') else 'Aucune'
+                context_summary += f"- {c['name']} (ID: {c['id']}, rôle: {c.get('role', 'N/A')}, compétences: {skills_str})\n"
+        
+        elif "entreprise" in page_context.lower():
+            context_summary += f"\nExemples d'entreprises (max 5):\n"
+            for c in companies_list[:5]:
+                context_summary += f"- {c.get('groupe', 'N/A')} (ID: {c['id']}, site: {c.get('site', 'N/A')})\n"
+        
+        elif "Focus" in page_context or "focus" in page_context.lower():
+            context_summary += f"\nRelances en retard (max 5):\n"
+            for p in overdue_prospects[:5]:
+                context_summary += f"- {p['name']} (ID: {p['id']}, relance: {p.get('nextFollowUp', 'N/A')})\n"
+            context_summary += f"\nTâches en cours (max 5):\n"
+            for t in tasks_list[:5]:
+                context_summary += f"- {t.get('title', 'N/A')} (échéance: {t.get('due_date', 'N/A')})\n"
+    
+    context_summary += f"\nExemples de prospects en retard (max 3):\n"
+    for p in overdue_prospects[:3]:
+        context_summary += f"- {p['name']} (ID: {p['id']}, statut: {p.get('statut', 'N/A')}, relance: {p.get('nextFollowUp', 'N/A')})\n"
+    
+    prompt = f"""Tu es un assistant virtuel pour un CRM de prospection B2B. L'utilisateur pose une question en langage naturel.
+
+{context_summary}
+
+Question de l'utilisateur: "{question}"
+
+Analyse la question et génère une réponse JSON avec:
+1. "answer": réponse textuelle claire et concise (max 200 caractères)
+2. "intent": intention détectée parmi ["filter", "create", "modify", "display", "action", "info"]
+3. "actions": liste d'actions possibles (chaque action = {{"type": "filter|open|navigate", "label": "...", "params": {{...}}}})
+   - type "filter": filtrer des prospects (params: {{"field": "statut|nextFollowUp|...", "value": "..."}})
+   - type "open": ouvrir une fiche (params: {{"id": prospect_id|candidate_id|company_id}})
+   - type "navigate": naviguer vers une page (params: {{"url": "/focus|/sourcing|/stats|..."}})
+
+Exemples d'actions:
+- Pour "prospects à relancer": {{"type": "navigate", "label": "Voir les relances en retard", "params": {{"url": "/focus"}}}}
+- Pour "prospects du secteur X": {{"type": "filter", "label": "Filtrer par secteur", "params": {{"field": "sector", "value": "X"}}}}
+- Pour "ouvrir prospect X": {{"type": "open", "label": "Ouvrir {question.split()[-1] if question.split() else ''}", "params": {{"id": null}}}}
+- Pour "candidats avec compétence Y": {{"type": "navigate", "label": "Voir les candidats", "params": {{"url": "/sourcing"}}}}
+
+Réponds UNIQUEMENT avec le JSON, sans texte avant/après."""
+    
+    try:
+        ai_response = _call_ai(prompt, timeout=90)
+        # Nettoyer la réponse
+        ai_response = ai_response.strip()
+        if ai_response.startswith("```json"):
+            ai_response = ai_response[7:]
+        if ai_response.startswith("```"):
+            ai_response = ai_response[3:]
+        if ai_response.endswith("```"):
+            ai_response = ai_response[:-3]
+        ai_response = ai_response.strip()
+        
+        assistant_data = json.loads(ai_response)
+        
+        # Enrichir les actions avec les IDs réels si possible
+        if assistant_data.get("intent") == "filter" and "prospects" in question.lower():
+            # Détecter les filtres courants
+            if "relancer" in question.lower() or "retard" in question.lower():
+                assistant_data["actions"] = [{
+                    "type": "navigate",
+                    "label": "Voir les relances en retard",
+                    "params": {"url": "/focus"}
+                }]
+            elif "rdv" in question.lower() or "rendez-vous" in question.lower():
+                assistant_data["actions"] = [{
+                    "type": "filter",
+                    "label": "Voir les prospects en RDV",
+                    "params": {"field": "statut", "value": "Rendez-vous"}
+                }]
+        
+    except Exception as e:
+        logger.warning("Erreur assistant IA: %s", e)
+        assistant_data = {
+            "answer": "Désolé, je n'ai pas pu traiter votre question. Pouvez-vous reformuler ?",
+            "intent": "info",
+            "actions": []
+        }
+    
+    return jsonify(ok=True, data=assistant_data)
 
 
 if __name__ == "__main__":

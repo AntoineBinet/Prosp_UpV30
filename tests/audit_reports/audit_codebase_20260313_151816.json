@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-03-13T15:18:16.233240",
+  "branch": "cursor/audit-tat-dossier-310d",
+  "status": "M scripts/verify_all.py\n?? scripts/audit_codebase.py\n?? tests/audit_reports/audit_codebase_20260313_151521.json",
+  "summary": {
+    "errors": 0,
+    "warnings": 2,
+    "infos": 4
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "category": "deploy",
+      "file": "app.py",
+      "line": null,
+      "message": "Route /api/deploy/pull-from-404 pourrait ne pas faire checkout main automatiquement",
+      "code": null
+    },
+    {
+      "severity": "warning",
+      "category": "git",
+      "file": ".",
+      "line": null,
+      "message": "Worktree non propre: M scripts/verify_all.py\n?? scripts/audit_codebase.py\n?? tests/audit_reports/audit_codebase_20260313_",
+      "code": null
+    },
+    {
+      "severity": "info",
+      "category": "api",
+      "file": "static/js/v8-features.js",
+      "line": null,
+      "message": "Appel API potentiellement non défini: /api/search?q=",
+      "code": null
+    },
+    {
+      "severity": "info",
+      "category": "api",
+      "file": "static/js/page-calendar.js",
+      "line": null,
+      "message": "Appel API potentiellement non défini: /api/calendar_events_external?url=",
+      "code": null
+    },
+    {
+      "severity": "info",
+      "category": "api",
+      "file": "static/js/app.js",
+      "line": null,
+      "message": "Appel API potentiellement non défini: /api/views?page=prospects",
+      "code": null
+    },
+    {
+      "severity": "info",
+      "category": "api",
+      "file": "static/js/page-dashboard.js",
+      "line": null,
+      "message": "Appel API potentiellement non défini: /api/tasks?status=pending",
+      "code": null
+    }
+  ]
+}
