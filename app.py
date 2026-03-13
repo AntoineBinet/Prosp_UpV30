@@ -10297,6 +10297,38 @@ def meetings_create():
             (prospect_id, uid, today, title, json.dumps(checklist_data, ensure_ascii=False) if checklist_data else None, notes, now)
         )
         meeting_id = cursor.lastrowid
+        
+        # Hook: réunion créée (meeting_done)
+        try:
+            p_row = conn.execute(
+                "SELECT id, name, email, telephone, linkedin, statut, pertinence, nextFollowUp, company_id FROM prospects WHERE id=? AND owner_id=?;",
+                (prospect_id, uid)
+            ).fetchone()
+            if p_row:
+                context = {
+                    "prospect_id": p_row["id"],
+                    "name": p_row["name"] or "",
+                    "email": p_row["email"],
+                    "telephone": p_row["telephone"],
+                    "linkedin": p_row["linkedin"],
+                    "statut": p_row["statut"],
+                    "pertinence": p_row["pertinence"],
+                    "nextFollowUp": p_row["nextFollowUp"],
+                    "company_id": p_row["company_id"],
+                    "meeting_title": title,
+                    "meeting_notes": notes,
+                }
+                # Récupérer le nom de l'entreprise
+                if context.get("company_id"):
+                    c_row = conn.execute(
+                        "SELECT groupe FROM companies WHERE id=? AND owner_id=?;",
+                        (context["company_id"], uid)
+                    ).fetchone()
+                    if c_row:
+                        context["company_groupe"] = c_row["groupe"] or ""
+                _create_auto_task("meeting_done", context)
+        except Exception as e:
+            logger.warning("Erreur hook tâche auto pour réunion: %s", e)
     
     return jsonify(ok=True, id=meeting_id, date=today)
 

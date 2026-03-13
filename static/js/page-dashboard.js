@@ -920,6 +920,232 @@ async function dashToggleTask(taskId, btn) {
 }
 window.dashToggleTask = dashToggleTask;
 
+// ═══ Dashboard adaptatif et Assistant virtuel ═══
+async function loadAdaptiveDashboard() {
+    try {
+        const res = await fetch('/api/dashboard/adaptive');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Error');
+        renderAdaptiveDashboard(json.data);
+    } catch (e) {
+        console.error('Adaptive dashboard error:', e);
+        // Fallback: afficher les widgets par défaut
+    }
+}
+
+function renderAdaptiveDashboard(adaptiveData) {
+    // Afficher les priorités du jour
+    renderPriorities(adaptiveData.priorities || []);
+    
+    // Gérer l'affichage/masquage des widgets selon les recommandations
+    const widgetsToShow = adaptiveData.widgets_to_show || [];
+    const widgetsToHide = adaptiveData.widgets_to_hide || [];
+    
+    const widgetMap = {
+        'overdue': 'dashOverdueCard',
+        'rdv': 'dashRdvCard',
+        'pipeline': 'dashPipelineCard',
+        'activity': 'dashFeedCard',
+        'goals': 'dashGoalsCard'
+    };
+    
+    // Masquer les widgets recommandés à masquer
+    widgetsToHide.forEach(widgetKey => {
+        const widgetId = widgetMap[widgetKey];
+        if (widgetId) {
+            const widget = document.querySelector(`[data-widget-id="${widgetId}"]`);
+            if (widget) widget.style.display = 'none';
+        }
+    });
+    
+    // Afficher les widgets recommandés (s'ils étaient masqués)
+    widgetsToShow.forEach(widgetKey => {
+        const widgetId = widgetMap[widgetKey];
+        if (widgetId) {
+            const widget = document.querySelector(`[data-widget-id="${widgetId}"]`);
+            if (widget) widget.style.display = '';
+        }
+    });
+    
+    // Afficher l'insight si disponible
+    if (adaptiveData.insight) {
+        const prioritiesEl = document.getElementById('dashPriorities');
+        if (prioritiesEl && !prioritiesEl.querySelector('.dash-priorities-insight')) {
+            const insightEl = document.createElement('div');
+            insightEl.className = 'dash-priorities-insight muted';
+            insightEl.style.cssText = 'font-size:11px;margin-top:8px;padding-top:8px;border-top:1px solid var(--color-border);';
+            insightEl.textContent = '💡 ' + adaptiveData.insight;
+            prioritiesEl.appendChild(insightEl);
+        }
+    }
+}
+
+function renderPriorities(priorities) {
+    const el = document.getElementById('dashPriorities');
+    if (!el) return;
+    
+    if (!priorities || !priorities.length) {
+        el.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">Aucune priorité générée.</div>';
+        return;
+    }
+    
+    el.innerHTML = priorities.map((p, idx) => `
+        <div class="dash-priority-item" style="padding:10px 12px;margin-bottom:8px;background:var(--color-surface);border-radius:6px;border-left:3px solid var(--color-primary);">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:16px;">${idx === 0 ? '🔴' : idx === 1 ? '🟡' : '🟢'}</span>
+                <span style="font-size:13px;font-weight:500;">${escapeHtml(p)}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ═══ Assistant virtuel ═══
+let assistantChatHistory = [];
+
+function sendAssistantMessage() {
+    const input = document.getElementById('dashAssistantInput');
+    if (!input) return;
+    const question = input.value.trim();
+    if (!question) return;
+    
+    // Ajouter la question au chat
+    addChatMessage('user', question);
+    input.value = '';
+    input.disabled = true;
+    
+    const sendBtn = document.getElementById('dashAssistantSend');
+    if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = '⏳';
+    }
+    
+    // Appeler l'API
+    fetch('/api/dashboard/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.ok && data.data) {
+            const response = data.data;
+            addChatMessage('assistant', response.answer || 'Désolé, je n\'ai pas de réponse.');
+            
+            // Afficher les actions si disponibles
+            if (response.actions && response.actions.length > 0) {
+                renderAssistantActions(response.actions);
+            }
+        } else {
+            addChatMessage('assistant', 'Erreur: ' + (data.error || 'Réponse invalide'));
+        }
+    })
+    .catch(e => {
+        console.error('Assistant error:', e);
+        addChatMessage('assistant', 'Erreur de connexion. Vérifiez votre connexion.');
+    })
+    .finally(() => {
+        input.disabled = false;
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Envoyer';
+        }
+        input.focus();
+    });
+}
+
+function addChatMessage(role, text) {
+    const chat = document.getElementById('dashAssistantChat');
+    if (!chat) return;
+    
+    const messageEl = document.createElement('div');
+    messageEl.className = `dash-assistant-message dash-assistant-message-${role}`;
+    messageEl.style.cssText = `
+        padding:10px 12px;
+        margin-bottom:8px;
+        border-radius:6px;
+        font-size:13px;
+        line-height:1.5;
+        ${role === 'user' 
+            ? 'background:var(--color-primary);color:white;margin-left:20%;text-align:right;' 
+            : 'background:var(--color-surface);color:var(--color-text);margin-right:20%;'}
+    `;
+    messageEl.textContent = text;
+    
+    chat.appendChild(messageEl);
+    chat.scrollTop = chat.scrollHeight;
+    
+    assistantChatHistory.push({ role, text });
+}
+
+function renderAssistantActions(actions) {
+    const chat = document.getElementById('dashAssistantChat');
+    if (!chat) return;
+    
+    const actionsEl = document.createElement('div');
+    actionsEl.className = 'dash-assistant-actions';
+    actionsEl.style.cssText = 'margin-top:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px;';
+    
+    actions.forEach(action => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-secondary btn-sm';
+        btn.style.cssText = 'font-size:12px;padding:6px 12px;text-align:left;';
+        btn.textContent = action.label || 'Action';
+        btn.onclick = () => executeAssistantAction(action);
+        actionsEl.appendChild(btn);
+    });
+    
+    chat.appendChild(actionsEl);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function executeAssistantAction(action) {
+    if (!action || !action.type) return;
+    
+    switch (action.type) {
+        case 'filter':
+            // Filtrer les prospects
+            if (action.params && action.params.field) {
+                const field = action.params.field;
+                const value = action.params.value;
+                // Rediriger vers la page prospects avec filtre
+                let url = '/?';
+                if (field === 'statut') {
+                    url += `statut=${encodeURIComponent(value)}`;
+                } else if (field === 'nextFollowUp' && value === 'overdue') {
+                    url = '/focus'; // Page focus pour les relances
+                }
+                window.location.href = url;
+            }
+            break;
+        case 'open':
+            // Ouvrir une fiche prospect
+            if (action.params && action.params.id) {
+                window.location.href = `/?open=${action.params.id}`;
+            }
+            break;
+        case 'navigate':
+            // Naviguer vers une page
+            if (action.params && action.params.url) {
+                window.location.href = action.params.url;
+            }
+            break;
+    }
+}
+
+// Permettre l'envoi avec Enter
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('dashAssistantInput');
+    if (input) {
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendAssistantMessage();
+            }
+        });
+    }
+});
+
 // ═══ Boot ═══
 document.addEventListener('DOMContentLoaded', async () => {
     if (typeof window.applyDashboardDisplayPrefs === 'function') window.applyDashboardDisplayPrefs();
@@ -928,8 +1154,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof fn === 'function') await fn('dashboard');
     } catch(e) {}
 
-    await Promise.all([loadDashboard(), loadDashTasks()]);
+    await Promise.all([loadDashboard(), loadDashTasks(), loadAdaptiveDashboard()]);
 });
+
+// Exposer la fonction globalement
+window.sendAssistantMessage = sendAssistantMessage;
 
 // ═══════════════════════════════════════════════════════════════
 // Manual KPI Entry (v16.5)
