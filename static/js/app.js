@@ -3117,9 +3117,17 @@ function filterProspects() {
 
     // Filter contacts vs prospects
     if (_showContacts) {
-        baseProspects = baseProspects.filter(p => Number(p.is_contact) === 1);
+        // Ne montrer que les prospects avec is_contact = 1 (ou "1" ou true)
+        baseProspects = baseProspects.filter(p => {
+            const isContact = Number(p.is_contact) === 1 || p.is_contact === true || p.is_contact === "1";
+            return isContact;
+        });
     } else {
-        baseProspects = baseProspects.filter(p => !p.is_contact || Number(p.is_contact) === 0);
+        // Ne pas montrer les contacts (is_contact = 0, null, undefined, false, "0")
+        baseProspects = baseProspects.filter(p => {
+            const isContact = Number(p.is_contact) === 1 || p.is_contact === true || p.is_contact === "1";
+            return !isContact;
+        });
     }
 
     if (currentView === 'actions') {
@@ -11156,6 +11164,12 @@ async function bootstrap(page) {
                     btn.classList.remove('active');
                 }
             });
+        }
+        
+        // Debug: vérifier le nombre de contacts
+        if (_showContacts) {
+            const contactsCount = data.prospects.filter(p => Number(p.is_contact) === 1 || p.is_contact === true || p.is_contact === "1").length;
+            console.log('[Contacts] Mode contacts activé, nombre de contacts trouvés:', contactsCount, 'sur', data.prospects.length, 'prospects totaux');
         }
 
         applySort();
