@@ -4252,7 +4252,7 @@ async function viewDetail(id) {
 
         <div class="detail-tabs">
             <button class="detail-tab active" onclick="switchDetailTab(this,'tab-info')">Infos</button>
-            ${showCandidats ? `<button class="detail-tab" onclick="var infosTab=this.parentElement.querySelector('.detail-tab'); switchDetailTab(infosTab,'tab-info'); setTimeout(function(){ document.getElementById('candidateMatchSection')?.scrollIntoView({behavior:'smooth',block:'start'}); }, 80);" title="Aller aux candidats recommandés">🎯 Candidats</button>` : ''}
+            ${showCandidats ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-candidats');loadCandidatsTab(${prospect.id})">🎯 Candidats</button>` : ''}
             ${showTimeline ? '<button class="detail-tab" onclick="switchDetailTab(this,\'tab-timeline\')">Timeline</button>' : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-notes')">Notes (${(prospect.callNotes||[]).length})</button>
             ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
@@ -4325,12 +4325,24 @@ async function viewDetail(id) {
                     }, 200);
                 })();
             </script>` : ''}
+        </div>
 
-            ${showCandidats ? `<div class="detail-section-card" id="candidateMatchSection" style="margin-top:14px;">
+        ${showCandidats ? `<!-- TAB: Candidats -->
+        <div class="detail-tab-content" id="tab-candidats">
+            <div class="detail-section-card" style="margin-bottom:16px;">
+                <div class="detail-section-title">✅ Candidats choisis</div>
+                <div id="selectedCandidatesList" style="min-height:60px;">
+                    <span class="muted">Aucun candidat sélectionné</span>
+                </div>
+                <div style="margin-top:12px;">
+                    <button class="btn btn-primary" onclick="openCandidateSelector(${prospect.id})" style="width:100%;">➕ Ajouter des candidats</button>
+                </div>
+            </div>
+            <div class="detail-section-card" id="candidateMatchSection">
                 <div class="detail-section-title">🎯 Candidats recommandés (4 maximum)</div>
                 <div id="unifiedCandidateList"><span class="muted">Analyse en cours…</span></div>
-            </div>` : ''}
-        </div>
+            </div>
+        </div>` : ''}
 
         ${showTimeline ? `<!-- TAB: Timeline -->
         <div class="detail-tab-content" id="tab-timeline">
@@ -4495,10 +4507,10 @@ async function viewDetail(id) {
         onPushCategoryChange(prospect.id, String(prospect.push_category_id));
     }
 
-    // Auto-load best-match candidates (unified section)
-    if (showCandidatsPref) {
-        loadUnifiedCandidates(prospect.id, prospect.tags, prospect.push_category_id);
-    }
+    // Auto-load best-match candidates (unified section) - maintenant chargé uniquement quand l'onglet candidats est ouvert
+    // if (showCandidatsPref) {
+    //     loadUnifiedCandidates(prospect.id, prospect.tags, prospect.push_category_id);
+    // }
 
     // load timeline (si module activé)
     const showTimelinePref = typeof window.getDisplayPref === 'function' ? window.getDisplayPref('display_prospect_timeline') : true;
@@ -11584,6 +11596,224 @@ async function loadBestMatchCandidates(prospectId) {
     const prospect = data.prospects.find(p => p.id === prospectId);
     if (prospect) {
         await loadUnifiedCandidates(prospectId, prospect.tags, prospect.push_category_id);
+    }
+}
+
+// ====== Candidats Tab ======
+async function loadCandidatsTab(prospectId) {
+    const prospect = data.prospects.find(p => p.id === prospectId);
+    if (!prospect) return;
+    
+    // Charger les candidats recommandés
+    await loadUnifiedCandidates(prospectId, prospect.tags, prospect.push_category_id);
+    
+    // Charger les candidats choisis
+    loadSelectedCandidates(prospectId);
+}
+
+function loadSelectedCandidates(prospectId) {
+    const listEl = document.getElementById('selectedCandidatesList');
+    if (!listEl) return;
+    
+    // Récupérer les candidats choisis depuis localStorage
+    const key = `prospect_${prospectId}_selected_candidates`;
+    const stored = localStorage.getItem(key);
+    let selectedIds = [];
+    if (stored) {
+        try {
+            selectedIds = JSON.parse(stored);
+        } catch (e) {
+            console.warn('Erreur parsing candidats choisis', e);
+        }
+    }
+    
+    if (selectedIds.length === 0) {
+        listEl.innerHTML = '<span class="muted">Aucun candidat sélectionné</span>';
+        return;
+    }
+    
+    // Charger les détails des candidats
+    const allCandidates = data.candidates || [];
+    const selectedCandidates = selectedIds.map(id => allCandidates.find(c => c.id === id)).filter(c => c);
+    
+    if (selectedCandidates.length === 0) {
+        listEl.innerHTML = '<span class="muted">Aucun candidat sélectionné</span>';
+        return;
+    }
+    
+    listEl.innerHTML = selectedCandidates.map(c => {
+        const linkedinBtn = c.linkedin ? `<a href="${escapeHtml(c.linkedin)}" target="_blank" class="bestmatch-link" title="Voir LinkedIn" onclick="event.stopPropagation()">🔗</a>` : '';
+        const phone = (c.phone || '').trim();
+        const telBtn = phone ? `<a href="tel:${escapeHtml(phone)}" class="bestmatch-tel" title="Appeler" onclick="event.stopPropagation()">📞</a>` : '';
+        const viewFicheUrl = `/candidate?id=${c.id}`;
+        
+        return `
+            <div class="bestmatch-card" style="margin-bottom:8px;">
+                <div class="bestmatch-header">
+                    <div class="bestmatch-name">
+                        <strong>${escapeHtml(c.name)}</strong>
+                        ${linkedinBtn}
+                        ${telBtn}
+                        <button class="btn btn-secondary btn-sm" onclick="removeSelectedCandidate(${prospectId}, ${c.id})" style="margin-left:8px;font-size:11px;padding:2px 8px;">✕ Retirer</button>
+                    </div>
+                </div>
+                <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · 📍 ' + escapeHtml(c.location) : ''}</div>
+                <div style="margin-top:4px;">
+                    <a href="${viewFicheUrl}" class="btn btn-secondary btn-sm" style="font-size:11px;padding:2px 8px;">Voir la fiche →</a>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function openCandidateSelector(prospectId) {
+    // Créer une modale pour sélectionner des candidats
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.zIndex = '10000';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:600px;max-height:80vh;overflow-y:auto;">
+            <div class="modal-header">
+                <h3>Parcourir et sélectionner des candidats</h3>
+                <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom:12px;">
+                    <input type="text" id="candidateSearchInput" placeholder="Rechercher un candidat..." style="width:100%;padding:8px;" oninput="filterCandidateSelector()">
+                </div>
+                <div id="candidateSelectorList" style="max-height:400px;overflow-y:auto;">
+                    <span class="muted">Chargement…</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
+                <button class="btn btn-primary" onclick="saveSelectedCandidates(${prospectId})">Enregistrer la sélection</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Charger la liste des candidats
+    loadCandidateSelectorList(prospectId);
+    
+    // Fermer au clic sur l'overlay
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+}
+
+let _candidateSelectorCheckboxes = {};
+
+async function loadCandidateSelectorList(prospectId) {
+    const listEl = document.getElementById('candidateSelectorList');
+    if (!listEl) return;
+    
+    // Récupérer les candidats déjà sélectionnés
+    const key = `prospect_${prospectId}_selected_candidates`;
+    const stored = localStorage.getItem(key);
+    let selectedIds = [];
+    if (stored) {
+        try {
+            selectedIds = JSON.parse(stored);
+        } catch (e) {}
+    }
+    
+    // Charger tous les candidats
+    let allCandidates = data.candidates || [];
+    if (allCandidates.length === 0) {
+        try {
+            const res = await fetch('/api/candidates');
+            if (res.ok) {
+                const apiData = await res.json();
+                if (Array.isArray(apiData)) {
+                    allCandidates = apiData;
+                } else if (apiData.ok && apiData.candidates) {
+                    allCandidates = apiData.candidates;
+                } else if (apiData.candidates) {
+                    allCandidates = apiData.candidates;
+                }
+                data.candidates = allCandidates;
+            }
+        } catch (e) {
+            console.warn('Erreur chargement candidats:', e);
+        }
+    }
+    
+    allCandidates = allCandidates.filter(c => !c.is_archived);
+    _candidateSelectorCheckboxes = {};
+    
+    if (allCandidates.length === 0) {
+        listEl.innerHTML = '<span class="muted">Aucun candidat disponible</span>';
+        return;
+    }
+    
+    listEl.innerHTML = allCandidates.map(c => {
+        const isSelected = selectedIds.includes(c.id);
+        const checkboxId = `cand_sel_${c.id}`;
+        _candidateSelectorCheckboxes[c.id] = isSelected;
+        
+        return `
+            <div class="candidate-selector-item" style="padding:10px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;gap:12px;">
+                <input type="checkbox" id="${checkboxId}" ${isSelected ? 'checked' : ''} onchange="_candidateSelectorCheckboxes[${c.id}] = this.checked">
+                <label for="${checkboxId}" style="flex:1;cursor:pointer;">
+                    <strong>${escapeHtml(c.name)}</strong>
+                    ${c.role ? `<div style="font-size:12px;color:var(--color-text-secondary);">${escapeHtml(c.role)}</div>` : ''}
+                    ${c.location ? `<div style="font-size:11px;color:var(--color-text-secondary);">📍 ${escapeHtml(c.location)}</div>` : ''}
+                </label>
+            </div>
+        `;
+    }).join('');
+}
+
+function filterCandidateSelector() {
+    const input = document.getElementById('candidateSearchInput');
+    const items = document.querySelectorAll('.candidate-selector-item');
+    if (!input) return;
+    
+    const search = input.value.toLowerCase().trim();
+    items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(search) ? '' : 'none';
+    });
+}
+
+function saveSelectedCandidates(prospectId) {
+    const selectedIds = Object.keys(_candidateSelectorCheckboxes)
+        .filter(id => _candidateSelectorCheckboxes[id])
+        .map(id => parseInt(id, 10));
+    
+    const key = `prospect_${prospectId}_selected_candidates`;
+    localStorage.setItem(key, JSON.stringify(selectedIds));
+    
+    // Recharger l'affichage
+    loadSelectedCandidates(prospectId);
+    
+    // Fermer la modale
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) modal.remove();
+    
+    if (typeof showToast === 'function') {
+        showToast(`✅ ${selectedIds.length} candidat${selectedIds.length > 1 ? 's' : ''} sélectionné${selectedIds.length > 1 ? 's' : ''}`, 'success');
+    }
+}
+
+function removeSelectedCandidate(prospectId, candidateId) {
+    const key = `prospect_${prospectId}_selected_candidates`;
+    const stored = localStorage.getItem(key);
+    let selectedIds = [];
+    if (stored) {
+        try {
+            selectedIds = JSON.parse(stored);
+        } catch (e) {}
+    }
+    
+    selectedIds = selectedIds.filter(id => id !== candidateId);
+    localStorage.setItem(key, JSON.stringify(selectedIds));
+    
+    loadSelectedCandidates(prospectId);
+    
+    if (typeof showToast === 'function') {
+        showToast('Candidat retiré', 'success');
     }
 }
 
