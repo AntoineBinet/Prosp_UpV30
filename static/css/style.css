@@ -6259,6 +6259,16 @@ body[data-page="candidate"] #fabAdd {
   display: flex !important;
 }
 
+/* Sur mobile, FAB à gauche pour candidate et sourcing (évite conflit avec assistant à droite) */
+@media (max-width: 900px) {
+  body[data-page="candidate"] #fabAdd,
+  body[data-page="sourcing"] #fabAdd {
+    left: 18px !important;
+    right: auto !important;
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; /* Au-dessus de la bottom nav */
+  }
+}
+
 /* Responsive: icon-only on small screens */
 @media (max-width: 600px) {
   .fab {
