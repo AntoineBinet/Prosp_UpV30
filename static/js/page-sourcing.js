@@ -978,34 +978,64 @@ async function scanCandidateFolder() {
 
 // Initialisation VSA (globale, accessible depuis partout)
 function _initVsaModal() {
+    console.log('[VSA] _initVsaModal appelée');
+    
     // Bouton sur page sourcing (optionnel)
     const btnAddViaVsa = document.getElementById('btnAddViaVsa');
     if (btnAddViaVsa) {
         console.log('[VSA] Bouton btnAddViaVsa trouvé, ajout event listener', btnAddViaVsa);
-        btnAddViaVsa.addEventListener('click', (e) => {
+        // Retirer l'ancien listener si présent (éviter doublons)
+        const newBtn = btnAddViaVsa.cloneNode(true);
+        btnAddViaVsa.parentNode.replaceChild(newBtn, btnAddViaVsa);
+        
+        newBtn.addEventListener('click', function(e) {
             console.log('[VSA] Clic sur btnAddViaVsa détecté', e);
             e.preventDefault();
             e.stopPropagation();
+            console.log('[VSA] window.openVsaImportModal existe?', typeof window.openVsaImportModal);
             if (typeof window.openVsaImportModal === 'function') {
                 window.openVsaImportModal();
+            } else {
+                console.error('[VSA] window.openVsaImportModal n\'existe pas!');
+                if (typeof showToast === 'function') {
+                    showToast('Erreur: fonction VSA non disponible. Rechargez la page.', 'error');
+                } else {
+                    alert('Erreur: fonction VSA non disponible. Rechargez la page.');
+                }
             }
         });
+        console.log('[VSA] Event listener attaché au bouton');
+    } else {
+        console.warn('[VSA] Bouton btnAddViaVsa introuvable (normal si on n\'est pas sur la page sourcing)');
     }
+    
     // Event listeners pour la modale VSA (disponible partout)
     const textarea = document.getElementById('vsaImportTextarea');
     const btnExtract = document.getElementById('btnVsaExtractOllama');
     const btnPreFill = document.getElementById('btnVsaPreFillAnyway');
+    
     if (textarea) {
         textarea.removeEventListener('input', _vsaImportToggleExtractButton); // Éviter doublons
         textarea.addEventListener('input', _vsaImportToggleExtractButton);
+        console.log('[VSA] Event listener textarea attaché');
     }
     if (btnExtract) {
         btnExtract.removeEventListener('click', _vsaImportExtractWithOllama); // Éviter doublons
         btnExtract.addEventListener('click', () => _vsaImportExtractWithOllama());
+        console.log('[VSA] Event listener btnExtract attaché');
     }
     if (btnPreFill) {
         btnPreFill.removeEventListener('click', _vsaImportPreFillAnyway); // Éviter doublons
         btnPreFill.addEventListener('click', _vsaImportPreFillAnyway);
+        console.log('[VSA] Event listener btnPreFill attaché');
+    }
+    
+    // Vérifier que la modale existe
+    const modal = document.getElementById('modalVsaImport');
+    if (modal) {
+        console.log('[VSA] Modale modalVsaImport trouvée dans le DOM');
+    } else {
+        console.error('[VSA] Modale modalVsaImport introuvable dans le DOM!');
     }
 }
 
@@ -1042,7 +1072,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Initialisation VSA
-    _initVsaModal();
+    console.log('[VSA] Initialisation VSA dans DOMContentLoaded');
+    try {
+        _initVsaModal();
+    } catch (e) {
+        console.error('[VSA] Erreur lors de l\'initialisation VSA:', e);
+    }
+    
+    // Retry après un court délai au cas où le DOM n'est pas complètement prêt
+    setTimeout(() => {
+        const btn = document.getElementById('btnAddViaVsa');
+        if (btn && !btn.hasAttribute('data-vsa-initialized')) {
+            console.log('[VSA] Retry initialisation VSA après délai');
+            btn.setAttribute('data-vsa-initialized', 'true');
+            _initVsaModal();
+        }
+    }, 500);
 
     // Tabs
     document.getElementById('tabPipeline')?.addEventListener('click', () => setTab('pipeline'));
@@ -1083,6 +1128,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Réinitialiser les event listeners VSA au cas où la modale serait ajoutée dynamiquement
     if (typeof _initVsaModal === 'function') {
-        _initVsaModal();
+        console.log('[VSA] Réinitialisation VSA après chargement candidats');
+        try {
+            _initVsaModal();
+        } catch (e) {
+            console.error('[VSA] Erreur réinitialisation VSA:', e);
+        }
     }
 });
