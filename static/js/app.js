@@ -717,7 +717,8 @@ const AppAuth = {
                     badge.addEventListener('click', function(e) {
                         // Ne pas rediriger si on clique sur le bouton de déconnexion
                         if (e.target.closest('.user-session-logout')) return;
-                        window.location.href = '/parametres';
+                        // Ouvrir le popup menu utilisateur au lieu de rediriger
+                        openUserMenu();
                     });
                 }
                 return true;
@@ -12873,4 +12874,465 @@ function resetProspectColumnWidths() {
     applyProspectColumnWidths();
     if (typeof showToast === 'function') showToast('Largeurs des colonnes réinitialisées.', 'success', 3000);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// User Menu Popup (s'ouvre depuis le badge utilisateur)
+// ═══════════════════════════════════════════════════════════════════
+function openUserMenu() {
+    const popup = document.getElementById('userMenuPopup');
+    if (!popup) return;
+    
+    // Mettre à jour les infos utilisateur dans le popup
+    if (window.AppAuth && AppAuth.user) {
+        const u = AppAuth.user;
+        const name = (typeof escapeHtml === 'function' ? escapeHtml(u.display_name || u.username) : String(u.display_name || u.username || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c)));
+        const initial = (u.display_name || u.username || '').charAt(0).toUpperCase();
+        const label = (AppAuth.ROLE_LABELS && AppAuth.ROLE_LABELS[u.role]) || u.role;
+        
+        const avatarEl = document.getElementById('userMenuAvatar');
+        const nameEl = document.getElementById('userMenuName');
+        const roleEl = document.getElementById('userMenuRole');
+        
+        if (avatarEl) avatarEl.textContent = initial;
+        if (nameEl) nameEl.textContent = name;
+        if (roleEl) roleEl.textContent = label;
+        
+        // Afficher/masquer les options admin
+        const adminItems = popup.querySelectorAll('.admin-only');
+        adminItems.forEach(item => {
+            item.style.display = (u.role === 'admin') ? '' : 'none';
+        });
+    }
+    
+    popup.classList.add('open');
+    
+    // Fermer si on clique en dehors
+    setTimeout(() => {
+        const closeOnOutside = (e) => {
+            if (!popup.contains(e.target) && !e.target.closest('.user-session-badge')) {
+                closeUserMenu();
+                document.removeEventListener('click', closeOnOutside);
+            }
+        };
+        document.addEventListener('click', closeOnOutside);
+    }, 100);
+}
+
+function closeUserMenu() {
+    const popup = document.getElementById('userMenuPopup');
+    if (popup) popup.classList.remove('open');
+}
+
+function openUserMenuOption(option) {
+    closeUserMenu();
+    
+    if (option === 'changePassword') {
+        const modal = document.getElementById('userMenuChangePasswordModal');
+        if (modal) {
+            // Réinitialiser les champs
+            document.getElementById('userMenuOldPw').value = '';
+            document.getElementById('userMenuNewPw').value = '';
+            document.getElementById('userMenuNewPw2').value = '';
+            document.getElementById('userMenuChangePwStatus').textContent = '';
+            modal.style.display = 'flex';
+        }
+    } else if (option === 'users') {
+        const modal = document.getElementById('userMenuUsersModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            // Charger la liste des utilisateurs
+            loadUsersFromAPI();
+        }
+    } else if (option === 'dashboardCustomization') {
+        const modal = document.getElementById('userMenuDashboardCustomizationModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            // Charger les préférences d'affichage
+            loadDisplayPrefsToUserMenu();
+        }
+    }
+}
+
+function closeUserMenuModal(option) {
+    if (option === 'changePassword') {
+        const modal = document.getElementById('userMenuChangePasswordModal');
+        if (modal) modal.style.display = 'none';
+    } else if (option === 'users') {
+        const modal = document.getElementById('userMenuUsersModal');
+        if (modal) modal.style.display = 'none';
+    } else if (option === 'dashboardCustomization') {
+        const modal = document.getElementById('userMenuDashboardCustomizationModal');
+        if (modal) modal.style.display = 'none';
+    }
+}
+
+async function userMenuChangePassword() {
+    const oldPw = document.getElementById('userMenuOldPw').value;
+    const newPw = document.getElementById('userMenuNewPw').value;
+    const newPw2 = document.getElementById('userMenuNewPw2').value;
+    const status = document.getElementById('userMenuChangePwStatus');
+    
+    status.textContent = '';
+    status.style.color = '';
+    
+    if (!oldPw || !newPw || !newPw2) {
+        status.style.color = '#ef4444';
+        status.textContent = '⚠️ Tous les champs sont requis.';
+        return;
+    }
+    
+    if (newPw !== newPw2) {
+        status.style.color = '#ef4444';
+        status.textContent = '⚠️ Les mots de passe ne correspondent pas.';
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+        });
+        const j = await res.json();
+        if (j.ok) {
+            status.style.color = '#22c55e';
+            status.textContent = '✅ Mot de passe changé avec succès !';
+            document.getElementById('userMenuOldPw').value = '';
+            document.getElementById('userMenuNewPw').value = '';
+            document.getElementById('userMenuNewPw2').value = '';
+            if (typeof showToast === 'function') showToast('✅ Mot de passe mis à jour', 'success');
+            setTimeout(() => {
+                closeUserMenuModal('changePassword');
+            }, 1500);
+        } else {
+            status.style.color = '#ef4444';
+            status.textContent = '⚠️ ' + (j.error || 'Erreur');
+        }
+    } catch(e) {
+        status.style.color = '#ef4444';
+        status.textContent = '⚠️ Erreur réseau';
+    }
+}
+
+async function loadUsersFromAPI() {
+    const listEl = document.getElementById('userMenuUsersList');
+    if (!listEl) return;
+    
+    try {
+        const resp = await fetch('/api/users', { cache: 'no-store' });
+        const payload = await resp.json();
+        const users = payload.users || [];
+        const isAdmin = payload.is_admin === true;
+        const currentUserId = Number(payload.current_user_id || 0) || null;
+        
+        const ROLE_LABELS = {admin:'🔑 Admin', editor:'✏️ Éditeur'};
+        const ROLE_COLORS = {admin:'#6366f1', editor:'#f59e0b'};
+        
+        // Stocker les données pour les fonctions editUser, deleteUser, etc.
+        window._usersCache = users;
+        window._isAdmin = isAdmin;
+        window._currentUserId = currentUserId;
+        
+        listEl.innerHTML = users.map(u => {
+            const escapedName = (u.display_name||u.username).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
+            const escapedUsername = (u.username||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
+            return `
+            <div style="background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:12px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:240px;">
+                    <div style="width:42px;height:42px;border-radius:50%;background:${ROLE_COLORS[u.role]||'#475569'};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;">${(u.display_name||u.username).charAt(0).toUpperCase()}</div>
+                    <div style="min-width:0;">
+                        <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            ${escapedName} ${!u.is_active?'<span style="color:#ef4444;font-size:12px;">(désactivé)</span>':''}
+                        </div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);">@${escapedUsername} · ${ROLE_LABELS[u.role]||u.role}</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    ${isAdmin ? `<button class="btn btn-secondary" onclick='userMenuEditUser(${JSON.stringify(u)})'>✏️ Modifier</button>` : ''}
+                    ${isAdmin && u.role!=='admin' ? `<button class="btn btn-secondary" onclick='userMenuViewUserData(${u.id})' title="Voir les données">👁️ Voir</button>` : ''}
+                    ${isAdmin && Number(u.id)!==Number(currentUserId) ? `<button class="btn btn-primary" onclick='userMenuReassignUserDataToMe(${u.id})' title="Réattribuer prospects + entreprises">↩️ Réattribuer à moi</button>` : ''}
+                    ${isAdmin && u.role!=='admin' ? `<button class="btn btn-danger" onclick='userMenuDeleteUser(${u.id},"${escapedUsername}")'>🗑️</button>` : ''}
+                </div>
+            </div>
+        `;
+        }).join('');
+    } catch(e) {
+        listEl.innerHTML = '<div style="padding:16px;color:var(--color-text-secondary);">Erreur lors du chargement des utilisateurs.</div>';
+    }
+}
+
+// Fonctions wrapper pour le popup utilisateurs (utilisent les fonctions globales si disponibles)
+function userMenuEditUser(u) {
+    // Ouvrir la modale utilisateur directement
+    const modal = document.getElementById('userModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        // Pré-remplir les champs
+        document.getElementById('editUserId').value = u.id;
+        document.getElementById('uUsername').value = u.username || '';
+        document.getElementById('uDisplayName').value = u.display_name || '';
+        document.getElementById('uPassword').value = '';
+        document.getElementById('uPasswordConfirm').value = '';
+        document.getElementById('uRole').value = u.role || 'editor';
+        document.getElementById('uActive').checked = !!u.is_active;
+        document.getElementById('modalTitle').textContent = 'Modifier utilisateur';
+        document.getElementById('pwHint').textContent = '(laisser vide pour ne pas changer)';
+        document.getElementById('pwConfirmRow').style.display = 'none';
+        // Utiliser les fonctions de users.html si disponibles, sinon implémentation simple
+        if (typeof editUser === 'function') {
+            editUser(u);
+        }
+    }
+}
+
+function userMenuOpenUserModal() {
+    const modal = document.getElementById('userModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        // Réinitialiser les champs
+        document.getElementById('editUserId').value = '';
+        document.getElementById('uUsername').value = '';
+        document.getElementById('uDisplayName').value = '';
+        document.getElementById('uPassword').value = '';
+        document.getElementById('uPasswordConfirm').value = '';
+        document.getElementById('uRole').value = 'editor';
+        document.getElementById('uActive').checked = true;
+        document.getElementById('modalTitle').textContent = 'Nouvel utilisateur';
+        document.getElementById('pwHint').textContent = '(requis)';
+        document.getElementById('pwConfirmRow').style.display = 'block';
+        // Utiliser les fonctions de users.html si disponibles
+        if (typeof openUserModal === 'function') {
+            openUserModal();
+        }
+    }
+}
+
+function userMenuCloseUserModal() {
+    const modal = document.getElementById('userModal');
+    if (modal) modal.style.display = 'none';
+    if (typeof closeUserModal === 'function') {
+        closeUserModal();
+    }
+}
+
+function userMenuSaveUser() {
+    if (typeof saveUser === 'function') {
+        saveUser();
+    } else {
+        // Implémentation simple
+        const id = document.getElementById('editUserId').value.trim();
+        const username = document.getElementById('uUsername').value.trim();
+        const displayName = document.getElementById('uDisplayName').value.trim();
+        const password = document.getElementById('uPassword').value;
+        const passwordConfirm = document.getElementById('uPasswordConfirm').value;
+        const role = document.getElementById('uRole').value;
+        const isActive = document.getElementById('uActive').checked;
+        
+        if (!username) {
+            alert('⚠️ Identifiant requis');
+            return;
+        }
+        
+        if (!id && !password) {
+            alert('⚠️ Mot de passe requis');
+            return;
+        }
+        
+        if (password && password !== passwordConfirm) {
+            alert('⚠️ Les deux mots de passe ne correspondent pas.');
+            return;
+        }
+        
+        const payload = {
+            username: username,
+            display_name: displayName,
+            password: password,
+            role: role,
+            is_active: isActive ? 1 : 0
+        };
+        if (id) payload.id = parseInt(id, 10);
+        
+        fetch('/api/users/save', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(j => {
+            if (j.ok) {
+                userMenuCloseUserModal();
+                loadUsersFromAPI();
+                if (typeof showToast === 'function') {
+                    showToast('✅ Utilisateur enregistré', 'success');
+                }
+            } else {
+                alert('❌ ' + (j.error || 'Erreur'));
+            }
+        })
+        .catch(e => alert('❌ Erreur réseau'));
+    }
+}
+
+// Exposer les fonctions globalement pour le popup
+window.openUserModal = userMenuOpenUserModal;
+window.closeUserModal = userMenuCloseUserModal;
+window.saveUser = userMenuSaveUser;
+
+function userMenuViewUserData(userId) {
+    if (typeof viewUserData === 'function') {
+        viewUserData(userId);
+    } else {
+        // Implémentation simple
+        fetch('/api/users/' + userId + '/data')
+            .then(resp => resp.json())
+            .then(data => {
+                if (data.ok) {
+                    const u = data.user;
+                    const s = data.stats;
+                    alert(
+                        '📊 Données de ' + (u.display_name || u.username) + '\n\n' +
+                        '• Prospects: ' + s.prospects + '\n' +
+                        '• Candidats: ' + s.candidates + '\n\n' +
+                        '(Consultation uniquement — vous voyez les données de cet utilisateur, sans pouvoir les modifier ici.)'
+                    );
+                }
+            })
+            .catch(e => alert('Erreur lors du chargement des données'));
+    }
+}
+
+function userMenuReassignUserDataToMe(fromUserId) {
+    if (typeof reassignUserDataToMe === 'function') {
+        reassignUserDataToMe(fromUserId);
+    } else {
+        // Implémentation simple
+        if (!window._isAdmin || !window._currentUserId) {
+            showToast('Action réservée aux administrateurs.', 'error');
+            return;
+        }
+        const fromId = parseInt(fromUserId, 10);
+        if (!Number.isFinite(fromId) || fromId <= 0) {
+            showToast('Utilisateur invalide.', 'error');
+            return;
+        }
+        if (fromId === Number(window._currentUserId)) {
+            showToast('Vous êtes déjà propriétaire de vos données.', 'warning');
+            return;
+        }
+        const u = (window._usersCache || []).find(x => Number(x.id) === fromId);
+        const label = u ? (u.display_name || u.username) : ('ID ' + fromId);
+        if (!confirm('Réattribuer tous les prospects et entreprises de "' + label + '" vers votre compte ?')) return;
+        
+        fetch('/api/admin/reassign-ownership', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                from_user_id: fromId,
+                to_user_id: Number(window._currentUserId)
+            })
+        })
+        .then(r => r.json())
+        .then(j => {
+            if (j.ok) {
+                const moved = j.moved || {};
+                showToast(`✅ ${moved.prospects || 0} prospect(s) et ${moved.companies || 0} entreprise(s) réattribués à vous.`, 'success', 6000);
+                loadUsersFromAPI();
+            } else {
+                showToast('❌ ' + (j.error || 'Erreur'), 'error');
+            }
+        })
+        .catch(e => showToast('❌ Erreur réseau', 'error'));
+    }
+}
+
+function userMenuDeleteUser(id, username) {
+    if (typeof deleteUser === 'function') {
+        deleteUser(id, username);
+    } else {
+        if (!confirm('Supprimer @' + username + ' ?')) return;
+        fetch('/api/users/delete', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ id: parseInt(id, 10) })
+        })
+        .then(r => r.json())
+        .then(j => {
+            if (j.ok) {
+                showToast('✅ Utilisateur supprimé', 'success');
+                loadUsersFromAPI();
+            } else {
+                showToast('❌ ' + (j.error || 'Erreur'), 'error');
+            }
+        })
+        .catch(e => showToast('❌ Erreur réseau', 'error'));
+    }
+}
+
+function loadDisplayPrefsToUserMenu() {
+    // Charger les préférences depuis localStorage et les appliquer aux checkboxes
+    const prefs = {};
+    try {
+        const stored = localStorage.getItem('display_prefs');
+        if (stored) {
+            Object.assign(prefs, JSON.parse(stored));
+        }
+    } catch(e) {}
+    
+    // Mapper les IDs des checkboxes de la page paramètres vers ceux du menu utilisateur
+    const prefMap = {
+        'display_dashboard': 'userMenu_display_dashboard',
+        'display_focus': 'userMenu_display_focus',
+        'display_calendrier': 'userMenu_display_calendrier',
+        'display_entreprises': 'userMenu_display_entreprises',
+        'display_sourcing': 'userMenu_display_sourcing',
+        'display_push': 'userMenu_display_push',
+        'display_templates': 'userMenu_display_templates',
+        'display_stats': 'userMenu_display_stats',
+        'display_rapport': 'userMenu_display_rapport',
+        'display_contacts': 'userMenu_display_contacts',
+        'display_relance_banner': 'userMenu_display_relance_banner',
+        'display_kpi_row': 'userMenu_display_kpi_row',
+        'display_first_glance': 'userMenu_display_first_glance',
+        'display_goals': 'userMenu_display_goals',
+        'display_dash_activity': 'userMenu_display_dash_activity',
+        'display_dash_week': 'userMenu_display_dash_week',
+        'display_dash_overdue': 'userMenu_display_dash_overdue',
+        'display_dash_rdv': 'userMenu_display_dash_rdv',
+        'display_dash_pipeline': 'userMenu_display_dash_pipeline',
+        'display_candidate_proposition': 'userMenu_display_candidate_proposition',
+        'display_prospect_timeline': 'userMenu_display_prospect_timeline',
+        'display_prospect_push_section': 'userMenu_display_prospect_push_section',
+        'display_prospect_metier': 'userMenu_display_prospect_metier'
+    };
+    
+    Object.keys(prefMap).forEach(key => {
+        const checkbox = document.getElementById(prefMap[key]);
+        if (checkbox) {
+            checkbox.checked = prefs[key] !== false; // true par défaut
+            // Ajouter un listener pour sauvegarder
+            checkbox.addEventListener('change', function() {
+                prefs[key] = checkbox.checked;
+                try {
+                    localStorage.setItem('display_prefs', JSON.stringify(prefs));
+                } catch(e) {}
+                // Recharger la page pour appliquer les changements
+                if (typeof window.location !== 'undefined') {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 300);
+                }
+            });
+        }
+    });
+}
+
+// Fermer le popup avec Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeUserMenu();
+        closeUserMenuModal('changePassword');
+        closeUserMenuModal('users');
+        closeUserMenuModal('dashboardCustomization');
+    }
+});
 
