@@ -725,16 +725,29 @@ const AppAuth = {
             
             // Le badge mobile est maintenant dans la bottom nav (sidebar.js)
             // Mettre à jour l'utilisateur dans sidebar.js et reconstruire la bottom nav
-            if (typeof window.setSidebarCurrentUser === 'function') {
-                window.setSidebarCurrentUser(this.user);
-            } else if (typeof buildMobileBottomNav === 'function') {
-                // Fallback si setSidebarCurrentUser n'est pas encore disponible
-                setTimeout(() => {
-                    if (typeof window.setSidebarCurrentUser === 'function') {
-                        window.setSidebarCurrentUser(this.user);
-                    }
-                }, 200);
-            }
+            const updateMobileNav = () => {
+                if (typeof window.setSidebarCurrentUser === 'function') {
+                    window.setSidebarCurrentUser(this.user);
+                } else if (typeof buildMobileBottomNav === 'function') {
+                    // Reconstruire directement si setSidebarCurrentUser n'est pas disponible
+                    buildMobileBottomNav();
+                }
+            };
+            
+            // Essayer immédiatement
+            updateMobileNav();
+            
+            // Écouter l'événement sidebar-ready pour réessayer
+            const sidebarReadyListener = () => {
+                updateMobileNav();
+                document.removeEventListener('sidebar-ready', sidebarReadyListener);
+            };
+            document.addEventListener('sidebar-ready', sidebarReadyListener);
+            
+            // Fallback avec timeout
+            setTimeout(() => {
+                updateMobileNav();
+            }, 500);
             
             return true;
         };
