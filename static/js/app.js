@@ -12090,6 +12090,15 @@ function removeSelectedCandidate(prospectId, candidateId) {
     }
 }
 
+// Exposer les fonctions globalement
+window.loadCandidatsTab = loadCandidatsTab;
+window.loadSelectedCandidates = loadSelectedCandidates;
+window.openCandidateSelector = openCandidateSelector;
+window.saveSelectedCandidates = saveSelectedCandidates;
+window.removeSelectedCandidate = removeSelectedCandidate;
+window.filterCandidateSelector = filterCandidateSelector;
+window.loadCandidateSelectorList = loadCandidateSelectorList;
+
 // ════════════════════════════════════════════════════════════════════
 // RDV Checklist – grille de qualification prospect
 // ════════════════════════════════════════════════════════════════════
