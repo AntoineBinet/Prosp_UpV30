@@ -34,7 +34,6 @@
             },
             { href: '/push',      icon: '\uD83D\uDCE4', label: 'Push',             page: 'push',      helpSection: 'push' },
             { href: '/?contacts=1', icon: '\uD83D\uDCC1', label: 'Contacts', id: 'sidebarContactsBtn', page: '_contacts', helpSection: 'contacts' },
-            { href: '/users',       icon: '\uD83D\uDC65', label: 'Utilisateurs', page: 'users' },
             { id: 'themeToggleBtn', icon: '\uD83C\uDF19', label: 'Th\u00e8me', page: null, action: 'toggleTheme' }
         ]}
     ];
@@ -280,7 +279,6 @@
                     // Remove admin-only items from NAV before building
                     NAV.forEach(function (group) {
                         group.items = group.items.filter(function (item) {
-                            return item.page !== 'users';
                         });
                     });
                 }
