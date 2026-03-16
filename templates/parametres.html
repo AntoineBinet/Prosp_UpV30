@@ -56,16 +56,11 @@
 
 <div class="settings-section" id="display-modules">
   <h3>🖥️ Personnalisation de l'affichage</h3>
-  <p class="muted" style="margin-bottom:10px;">Activez ou désactivez des modules et blocs. Glissez pour changer de catégorie.</p>
+  <p class="muted" style="margin-bottom:10px;">Activez ou désactivez des modules et blocs.</p>
 
-  <div class="display-prefs-tabs" role="tablist">
-    <button type="button" class="display-prefs-tab active" data-tab="nav" role="tab" aria-selected="true">🧭 Nav</button>
-    <button type="button" class="display-prefs-tab" data-tab="dashboard" role="tab" aria-selected="false">📊 Dashboard</button>
-    <button type="button" class="display-prefs-tab" data-tab="fiche" role="tab" aria-selected="false">👤 Fiche</button>
-  </div>
-
-  <div class="display-prefs-swipe" id="displayPrefsSwipe">
-    <div class="display-prefs-pane active" id="pane-nav" role="tabpanel">
+  <div class="display-prefs-columns" id="displayPrefsColumns">
+    <div class="display-prefs-pane" id="pane-nav" role="tabpanel">
+      <div class="display-prefs-col-title">🧭 Nav</div>
       <div class="display-prefs-scroll display-prefs-scroll-compact">
         <div class="settings-group display-prefs-group">
           <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dashboard">Dashboard</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dashboard" checked><span class="slider"></span></label></div>
@@ -82,6 +77,7 @@
       </div>
     </div>
     <div class="display-prefs-pane" id="pane-dashboard" role="tabpanel">
+      <div class="display-prefs-col-title">📊 Dashboard</div>
       <div class="display-prefs-scroll display-prefs-scroll-compact">
         <div class="settings-group display-prefs-group">
           <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_relance_banner">Bannière relances</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_relance_banner" checked><span class="slider"></span></label></div>
@@ -97,6 +93,7 @@
       </div>
     </div>
     <div class="display-prefs-pane" id="pane-fiche" role="tabpanel">
+      <div class="display-prefs-col-title">👤 Fiche</div>
       <div class="display-prefs-scroll display-prefs-scroll-compact">
         <div class="settings-group display-prefs-group">
           <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_candidate_proposition">Candidats recommandés</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_candidate_proposition" checked><span class="slider"></span></label></div>
@@ -500,42 +497,7 @@ Belle journée,"></textarea>
   });
 </script>
 <script>
-  // Onglets + swipe personnalisation affichage
-  (function() {
-    var tabs = document.querySelectorAll('.display-prefs-tab');
-    var panes = document.querySelectorAll('.display-prefs-pane');
-    var swipeEl = document.getElementById('displayPrefsSwipe');
-    var currentIndex = 0;
-    var touchStartX = 0, touchEndX = 0;
-
-    function showPane(index) {
-      index = Math.max(0, Math.min(index, panes.length - 1));
-      currentIndex = index;
-      panes.forEach(function(p, i) {
-        p.classList.toggle('active', i === index);
-      });
-      tabs.forEach(function(t, i) {
-        t.classList.toggle('active', i === index);
-        t.setAttribute('aria-selected', i === index ? 'true' : 'false');
-      });
-    }
-
-    tabs.forEach(function(tab, i) {
-      tab.addEventListener('click', function() { showPane(i); });
-    });
-
-    if (swipeEl) {
-      swipeEl.addEventListener('touchstart', function(e) { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
-      swipeEl.addEventListener('touchend', function(e) {
-        touchEndX = e.changedTouches[0].screenX;
-        var diff = touchStartX - touchEndX;
-        if (Math.abs(diff) > 50) {
-          if (diff > 0) showPane(currentIndex + 1);
-          else showPane(currentIndex - 1);
-        }
-      }, { passive: true });
-    }
-  })();
+  // Personnalisation affichage : 3 colonnes visibles (plus d’onglets)
 </script>
 <script>
 /* ── Import tags CSV ── */
