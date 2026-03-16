@@ -2340,12 +2340,16 @@ function setupListeners() {
         toggleBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
+            e.stopImmediatePropagation();
             if (isOpen()) closePanel(); else openPanel();
-        });
+        }, true); // Capture phase pour intercepter avant les autres handlers
     }
 
     // Prevent closing when clicking inside
-    panel?.addEventListener('click', (e) => e.stopPropagation());
+    panel?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+    });
 
     // Apply
     btnApply?.addEventListener('click', () => {
@@ -2364,8 +2368,12 @@ function setupListeners() {
         filterProspects();
     });
 
-    // Close on outside click
-    document.addEventListener('click', () => closePanel());
+    // Close on outside click (mais pas si le clic est sur le bouton toggle ou dans le panneau)
+    document.addEventListener('click', (e) => {
+        if (toggleBtn && (toggleBtn === e.target || toggleBtn.contains(e.target))) return;
+        if (panel && panel.contains(e.target)) return;
+        closePanel();
+    });
 
     // Tri prospects - délégation d'événements pour éviter les listeners multiples
     // Utiliser un seul listener sur le document qui détecte les clics sur th.sortable
