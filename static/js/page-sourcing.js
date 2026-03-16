@@ -610,7 +610,8 @@ function _renderVsaPreview() {
     
     let html = '';
     Object.values(fieldMap).forEach((field) => {
-        if (!field.value && field.key !== 'vsa_url') return; // Ne pas afficher les champs vides sauf vsa_url
+        // Afficher les champs importants même s'ils sont vides (pour permettre la saisie manuelle)
+        if (!field.value && field.key !== 'vsa_url' && field.key !== 'years_experience') return;
         
         const fieldId = `vsaField_${field.key}`;
         const isTextarea = field.isTextarea;
