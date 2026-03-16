@@ -49,7 +49,10 @@
         <div class="content-title" id="viewTitle">👥 Tous les prospects</div>
         
         <div class="controls" id="mainControls">
-            <input type="text" id="searchInput" placeholder="🔍 Rechercher (nom, entreprise…)" aria-label="Rechercher un prospect">
+            <div class="search-input-wrapper" style="position:relative;flex:1;">
+                <input type="text" id="searchInput" placeholder="🔍 Rechercher (nom, entreprise…)" aria-label="Rechercher un prospect" style="width:100%;padding-right:32px;">
+                <button type="button" id="btnClearSearch" class="search-clear-btn" onclick="clearSearchInput()" title="Effacer la recherche" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--color-text-secondary);cursor:pointer;font-size:18px;line-height:1;padding:4px;display:none;">×</button>
+            </div>
             <button class="btn btn-secondary filter-toggle-btn" id="btnToggleFilters" type="button" title="Afficher les filtres" data-help-section="prospects">⚙️ Filtres</button>
             <div id="activeFilterChips" class="filter-chips-bar"></div>
         </div>
@@ -184,9 +187,9 @@
             </div>
             <button class="btn btn-secondary" onclick="openImportListModal()" title="Importer Excel ou CSV" data-help-section="parametres">📥 Importer ma liste</button>
             <div class="view-toggle" id="viewToggle">
-                <button class="view-toggle-btn active" id="btnViewTable" onclick="switchTableKanban('table')" title="Vue tableau">☰</button>
-                <button class="view-toggle-btn" id="btnViewProsp" onclick="switchTableKanban('prosp')" title="Mode Prosp défilant">🃏</button>
-                <button class="view-toggle-btn" id="btnViewKanban" onclick="switchTableKanban('kanban')" title="Vue Kanban">▦</button>
+                <button class="view-toggle-btn active" id="btnViewTable" onclick="switchTableKanban('table')" title="Vue tableau">☰ <span class="view-count" id="viewCountTable">0</span></button>
+                <button class="view-toggle-btn" id="btnViewProsp" onclick="switchTableKanban('prosp')" title="Mode Prosp défilant">🃏 <span class="view-count" id="viewCountProsp">0</span></button>
+                <button class="view-toggle-btn" id="btnViewKanban" onclick="switchTableKanban('kanban')" title="Vue Kanban">▦ <span class="view-count" id="viewCountKanban">0</span></button>
             </div>
         </div>
 

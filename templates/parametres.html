@@ -32,79 +32,6 @@
   </div>
 </div>
 
-<div class="settings-section" id="changePwSection">
-  <h3>🔐 Changer mon mot de passe</h3>
-  <div class="settings-group" style="display:grid;gap:12px;max-width:380px;">
-    <div>
-      <label class="filter-label">Mot de passe actuel</label>
-      <input type="password" id="oldPw" class="filter-input" style="width:100%;" autocomplete="current-password" placeholder="••••••••">
-    </div>
-    <div>
-      <label class="filter-label">Nouveau mot de passe</label>
-      <input type="password" id="newPw" class="filter-input" style="width:100%;" autocomplete="new-password" placeholder="Min. 8 car., 1 lettre, 1 chiffre">
-    </div>
-    <div>
-      <label class="filter-label">Confirmer le nouveau mot de passe</label>
-      <input type="password" id="newPw2" class="filter-input" style="width:100%;" autocomplete="new-password" placeholder="••••••••">
-    </div>
-    <div>
-      <button class="btn btn-primary" onclick="changePassword()">Changer le mot de passe</button>
-      <span id="changePwStatus" style="margin-left:12px;font-size:13px;"></span>
-    </div>
-  </div>
-</div>
-
-<div class="settings-section" id="display-modules">
-  <h3>🖥️ Personnalisation de l'affichage</h3>
-  <p class="muted" style="margin-bottom:10px;">Activez ou désactivez des modules et blocs.</p>
-
-  <div class="display-prefs-columns" id="displayPrefsColumns">
-    <div class="display-prefs-pane" id="pane-nav" role="tabpanel">
-      <div class="display-prefs-col-title">🧭 Nav</div>
-      <div class="display-prefs-scroll display-prefs-scroll-compact">
-        <div class="settings-group display-prefs-group">
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dashboard">Dashboard</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dashboard" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_focus">Focus</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_focus" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_calendrier">Calendrier</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_calendrier" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_entreprises">Entreprises</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_entreprises" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_sourcing">Candidats</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_sourcing" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_push">Push</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_push" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_templates">Catégories Push</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_templates" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_stats">Stats</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_stats" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_rapport">Rapport</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_rapport" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_contacts">Contacts</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_contacts" checked><span class="slider"></span></label></div>
-        </div>
-      </div>
-    </div>
-    <div class="display-prefs-pane" id="pane-dashboard" role="tabpanel">
-      <div class="display-prefs-col-title">📊 Dashboard</div>
-      <div class="display-prefs-scroll display-prefs-scroll-compact">
-        <div class="settings-group display-prefs-group">
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_relance_banner">Bannière relances</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_relance_banner" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_kpi_row">Ligne KPI</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_kpi_row" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_first_glance">Premier coup d'œil</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_first_glance" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_goals">Objectifs</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_goals" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dash_activity">Activité du jour</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dash_activity" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dash_week">Activité de la semaine</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dash_week" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dash_overdue">Relances en retard</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dash_overdue" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dash_rdv">Prochains RDV</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dash_rdv" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_dash_pipeline">Pipeline</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_dash_pipeline" checked><span class="slider"></span></label></div>
-        </div>
-      </div>
-    </div>
-    <div class="display-prefs-pane" id="pane-fiche" role="tabpanel">
-      <div class="display-prefs-col-title">👤 Fiche</div>
-      <div class="display-prefs-scroll display-prefs-scroll-compact">
-        <div class="settings-group display-prefs-group">
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_candidate_proposition">Candidats recommandés</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_candidate_proposition" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_prospect_timeline">Onglet Timeline</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_prospect_timeline" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_prospect_push_section">Bloc Push &amp; catégorie</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_prospect_push_section" checked><span class="slider"></span></label></div>
-          <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="display_prospect_metier">Métier suggéré</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="display_prospect_metier" checked><span class="slider"></span></label></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <div class="settings-section" id="goals">
   <h3>🎮 Objectifs &amp; Gamification</h3>
@@ -764,46 +691,14 @@ function applyTagsImport() {
     var b = document.createElement('div');
     b.id = 'mustChangePwBanner';
     b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#f59e0b;color:#1c1917;padding:14px 20px;text-align:center;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3);';
-    b.innerHTML = '🔐 Sécurité : changez votre mot de passe avant de commencer. &nbsp;<button onclick="document.getElementById(\'changePwSection\').scrollIntoView({behavior:\'smooth\'});document.getElementById(\'oldPw\').focus();" style="background:#1c1917;color:#fef3c7;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600;">Changer maintenant</button>';
+    b.innerHTML = '🔐 Sécurité : changez votre mot de passe avant de commencer. &nbsp;<button onclick="if(typeof openUserMenu === \'function\') { openUserMenu(); setTimeout(function() { openUserMenuOption(\'changePassword\'); }, 300); }" style="background:#1c1917;color:#fef3c7;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600;">Changer maintenant</button>';
     document.body.prepend(b);
   }
   mkBanner();
   [200, 600, 1500].forEach(function(ms) { setTimeout(mkBanner, ms); });
 })();
 
-async function changePassword() {
-  const oldPw = document.getElementById('oldPw').value;
-  const newPw = document.getElementById('newPw').value;
-  const newPw2 = document.getElementById('newPw2').value;
-  const status = document.getElementById('changePwStatus');
-  status.textContent = '';
-  if (!oldPw || !newPw || !newPw2) { status.textContent = '⚠️ Tous les champs sont requis.'; return; }
-  if (newPw !== newPw2) { status.textContent = '⚠️ Les mots de passe ne correspondent pas.'; return; }
-  try {
-    const res = await fetch('/api/auth/change-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ old_password: oldPw, new_password: newPw })
-    });
-    const j = await res.json();
-    if (j.ok) {
-      status.style.color = '#22c55e';
-      status.textContent = '✅ Mot de passe changé avec succès !';
-      document.getElementById('oldPw').value = '';
-      document.getElementById('newPw').value = '';
-      document.getElementById('newPw2').value = '';
-      document.getElementById('mustChangePwBanner') && document.getElementById('mustChangePwBanner').remove();
-      if (typeof showToast === 'function') showToast('✅ Mot de passe mis à jour', 'success');
-    } else {
-      status.style.color = '#ef4444';
-      status.textContent = '⚠️ ' + (j.error || 'Erreur');
-    }
-  } catch(e) {
-    status.style.color = '#ef4444';
-    status.textContent = '⚠️ Erreur réseau';
-  }
-}
-window.changePassword = changePassword;
+// La fonction changePassword a été déplacée dans le popup menu utilisateur (app.js)
 </script>
 <script>
 (function() {

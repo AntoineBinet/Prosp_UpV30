@@ -717,7 +717,8 @@ const AppAuth = {
                     badge.addEventListener('click', function(e) {
                         // Ne pas rediriger si on clique sur le bouton de déconnexion
                         if (e.target.closest('.user-session-logout')) return;
-                        window.location.href = '/parametres';
+                        // Ouvrir le popup menu utilisateur au lieu de rediriger
+                        openUserMenu();
                     });
                 }
                 return true;
@@ -1259,7 +1260,8 @@ let _previousActiveElement = null;
 /**
  * Open a modal with animations, focus trap, and accessibility
  * @param {string|HTMLElement} modalIdOrElement - Modal ID or element
- * @param {Object} options - Options: { focusElement, onClose }
+ * @param {Object} options - Options: { focusElement, onClose, keepOpen }
+ *   - keepOpen: Array of modal IDs or elements to keep open (e.g., ['modalDetail'])
  */
 function openModal(modalIdOrElement, options = {}) {
     const modal = typeof modalIdOrElement === 'string' 
@@ -1271,9 +1273,16 @@ function openModal(modalIdOrElement, options = {}) {
         return;
     }
 
-    // Close any existing modal first
+    // Close any existing modal first, unless it's in the keepOpen list
     if (_activeModal && _activeModal !== modal) {
-        closeModal(_activeModal);
+        const keepOpen = options.keepOpen || [];
+        const shouldKeepOpen = keepOpen.some(keep => {
+            const keepEl = typeof keep === 'string' ? document.getElementById(keep) : keep;
+            return keepEl && keepEl === _activeModal;
+        });
+        if (!shouldKeepOpen) {
+            closeModal(_activeModal);
+        }
     }
 
     // Store previous active element for focus restoration
@@ -2245,6 +2254,17 @@ function setupListeners() {
         }, 150); // 150ms debounce pour input
     };
     on('searchInput', 'input', debouncedFilterProspects);
+    
+    // Afficher/masquer le bouton clear de la recherche
+    const searchInput = document.getElementById('searchInput');
+    const btnClearSearch = document.getElementById('btnClearSearch');
+    if (searchInput && btnClearSearch) {
+        const updateClearButton = () => {
+            btnClearSearch.style.display = searchInput.value.trim() ? 'block' : 'none';
+        };
+        searchInput.addEventListener('input', updateClearButton);
+        updateClearButton(); // État initial
+    }
     on('companyFilter', 'change', filterProspects);
     on('statusFilter', 'change', filterProspects);
     on('pertinenceFilter', 'change', filterProspects);
@@ -2259,19 +2279,39 @@ function setupListeners() {
 
     // Filter panel toggle
     const btnToggle = document.getElementById('btnToggleFilters');
-    if (btnToggle) btnToggle.addEventListener('click', () => {
-        const panel = document.getElementById('filterPanel');
-        if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    });
+    const filterPanel = document.getElementById('filterPanel');
+    
+    if (btnToggle && filterPanel) {
+        btnToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            
+            // Toggle direct sans délai
+            const currentDisplay = filterPanel.style.display;
+            if (currentDisplay === 'none' || currentDisplay === '') {
+                filterPanel.style.display = 'block';
+            } else {
+                filterPanel.style.display = 'none';
+            }
+            
+            return false;
+        }, true); // Capture phase pour intercepter avant les autres handlers
+    }
 
     // Close filter panel on click outside
     document.addEventListener('click', (e) => {
         const panel = document.getElementById('filterPanel');
-        if (!panel || panel.style.display === 'none') return;
+        if (!panel) return;
         const btn = document.getElementById('btnToggleFilters');
-        // If click is inside filter panel or on the toggle button, ignore
-        if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
-        panel.style.display = 'none';
+        // If click is on the toggle button, ignore (géré par le handler ci-dessus)
+        if (btn && (btn === e.target || btn.contains(e.target))) return;
+        // If click is inside filter panel, ignore
+        if (panel.contains(e.target)) return;
+        // Sinon, fermer le panneau s'il est ouvert
+        if (panel.style.display !== 'none') {
+            panel.style.display = 'none';
+        }
     });
 
     // Reset filters
@@ -2319,12 +2359,16 @@ function setupListeners() {
         toggleBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
+            e.stopImmediatePropagation();
             if (isOpen()) closePanel(); else openPanel();
-        });
+        }, true); // Capture phase pour intercepter avant les autres handlers
     }
 
     // Prevent closing when clicking inside
-    panel?.addEventListener('click', (e) => e.stopPropagation());
+    panel?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+    });
 
     // Apply
     btnApply?.addEventListener('click', () => {
@@ -2343,18 +2387,40 @@ function setupListeners() {
         filterProspects();
     });
 
-    // Close on outside click
-    document.addEventListener('click', () => closePanel());
-
-    // Tri prospects
-    document.querySelectorAll('th.sortable').forEach(th => {
-        th.addEventListener('click', () => setSort(th.dataset.sort));
+    // Close on outside click (mais pas si le clic est sur le bouton toggle ou dans le panneau)
+    document.addEventListener('click', (e) => {
+        if (toggleBtn && (toggleBtn === e.target || toggleBtn.contains(e.target))) return;
+        if (panel && panel.contains(e.target)) return;
+        closePanel();
     });
 
-    // Tri entreprises
-    document.querySelectorAll('th.company-sortable').forEach(th => {
-        th.addEventListener('click', () => setCompanySort(th.dataset.companySort));
-    });
+    // Tri prospects - délégation d'événements pour éviter les listeners multiples
+    // Utiliser un seul listener sur le document qui détecte les clics sur th.sortable
+    // Flag pour éviter d'attacher plusieurs fois (setupListeners peut être appelée plusieurs fois)
+    if (!window._prospectsSortListenerAttached) {
+        document.addEventListener('click', (e) => {
+            const th = e.target.closest('th.sortable');
+            if (th && th.dataset.sort) {
+                e.preventDefault();
+                e.stopPropagation();
+                setSort(th.dataset.sort);
+            }
+        });
+        window._prospectsSortListenerAttached = true;
+    }
+
+    // Tri entreprises - délégation d'événements
+    if (!window._companySortListenerAttached) {
+        document.addEventListener('click', (e) => {
+            const th = e.target.closest('th.company-sortable');
+            if (th && th.dataset.companySort) {
+                e.preventDefault();
+                e.stopPropagation();
+                setCompanySort(th.dataset.companySort);
+            }
+        });
+        window._companySortListenerAttached = true;
+    }
 
     // Recherche entreprises
     on('companySearchInput', 'input', renderCompanies);
@@ -3081,8 +3147,42 @@ function moveToContacts(id) {
     if (!confirm(`📁 Déplacer "${label}" vers le vivier de contacts ?`)) return;
     p.is_contact = 1;
     saveToServer();
-    closeDetail();
-    filterProspects();
+    
+    // En mode prosp, passer au prospect suivant au lieu de fermer
+    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
+    if (isProspMode) {
+        // Récupérer le prospect suivant AVANT de filtrer (car le prospect actuel sera retiré de la liste)
+        const nextId = getProspNextId(id);
+        filterProspects(); // Met à jour la liste filtrée et _prospSession.ids via syncProspSessionWithFilteredList
+        
+        // Vérifier que nextId est toujours dans la liste après filtrage
+        if (nextId && (_prospSession.ids || []).includes(nextId)) {
+            // Le suivant est toujours valide, naviguer vers lui
+            _prospSession.currentId = nextId;
+            _prospSession.currentIndex = (_prospSession.ids || []).indexOf(nextId);
+            if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
+            // Petit délai pour s'assurer que filterProspects a terminé
+            requestAnimationFrame(() => {
+                viewDetail(nextId).catch(() => {});
+            });
+        } else if ((_prospSession.ids || []).length > 0) {
+            // Le suivant n'est plus valide, prendre le premier de la liste
+            const firstId = _prospSession.ids[0];
+            _prospSession.currentId = firstId;
+            _prospSession.currentIndex = 0;
+            if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
+            requestAnimationFrame(() => {
+                viewDetail(firstId).catch(() => {});
+            });
+        } else {
+            // Plus de prospects dans la liste, terminer le mode prosp
+            closeDetail();
+        }
+    } else {
+        closeDetail();
+        filterProspects();
+    }
+    
     showToast(`📁 ${label} déplacé vers les contacts`, 'success');
 }
 
@@ -3181,6 +3281,7 @@ function filterProspects() {
     updateBulkBar();
     updateSelectAllState();
     renderActiveFilterChips();
+    updateViewToggleCounts(); // Mettre à jour les compteurs des boutons de mode
     if (_currentView === 'prosp') {
         syncProspSessionWithFilteredList();
     }
@@ -3245,9 +3346,15 @@ function applySort() {
 
 function setSort(key) {
     if (!key) return;
+    // Normaliser la clé (trim et conversion en string)
+    key = String(key).trim();
+    if (!key) return;
+    
+    // Si c'est la même colonne, basculer l'ordre
     if (sortKey === key) {
         sortDir = (sortDir === 'asc') ? 'desc' : 'asc';
     } else {
+        // Nouvelle colonne : définir la clé et l'ordre par défaut
         sortKey = key;
         // Par défaut : dates desc, le reste asc
         sortDir = (key === 'lastContact' || key === 'id') ? 'desc' : (key === 'nextFollowUp' ? 'asc' : (key === 'score' ? 'desc' : 'asc'));
@@ -4790,6 +4897,7 @@ function closeRelanceDatePicker(confirmed) {
 const PROSP_SESSION_STORAGE_KEY = 'prospup_last_prosp_session';
 let _currentView = 'table';
 let _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
+let _prospManuallyExited = false; // Flag pour éviter la reprise automatique si l'utilisateur a quitté volontairement
 
 function _setViewToggleButtons(mode) {
     const btnTable = document.getElementById('btnViewTable');
@@ -4798,6 +4906,25 @@ function _setViewToggleButtons(mode) {
     btnTable?.classList.toggle('active', mode === 'table');
     btnKanban?.classList.toggle('active', mode === 'kanban');
     btnProsp?.classList.toggle('active', mode === 'prosp');
+}
+
+function updateViewToggleCounts() {
+    const count = Array.isArray(filteredProspects) ? filteredProspects.length : 0;
+    const countTable = document.getElementById('viewCountTable');
+    const countProsp = document.getElementById('viewCountProsp');
+    const countKanban = document.getElementById('viewCountKanban');
+    if (countTable) countTable.textContent = count;
+    if (countProsp) countProsp.textContent = count;
+    if (countKanban) countKanban.textContent = count;
+}
+
+function clearSearchInput() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.value = '';
+        filterProspects();
+        searchInput.focus();
+    }
 }
 
 function _getCurrentProspIds() {
@@ -5046,13 +5173,17 @@ function switchTableKanban(mode) {
         return;
     }
 
+    // Capturer le scroll AVANT de masquer la table (Bug 5)
+    const scrollState = _captureProspectsScrollState(ids[0]);
+    
     _prospSession = {
         active: true,
         ids,
         currentId: ids[0],
         currentIndex: 0,
-        listScrollState: _captureProspectsScrollState(ids[0])
+        listScrollState: scrollState
     };
+    _prospManuallyExited = false; // Réinitialiser le flag quand on active le mode prosp
     if (typeof showToast === 'function') {
         showToast(`Mode Prosp activé · ${ids.length} prospect${ids.length > 1 ? 's' : ''} à traiter`, 'info');
     }
@@ -5256,9 +5387,13 @@ function saveDetail(id, options = {}) {
     if (refreshAfterSave) {
         filterProspects();
     }
-    if (closeAfterSave) {
+    
+    // En mode prosp, ne pas fermer la fiche même si closeAfterSave est true
+    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
+    if (closeAfterSave && !isProspMode) {
         closeDetail();
     }
+    
     return true;
 }
 
@@ -5272,7 +5407,15 @@ async function saveAndNext(id) {
     const saved = saveDetail(id, { closeAfterSave: false, refreshAfterSave: true });
     if (!saved) return;
 
-    _syncProspCurrent(id);
+    // Bug 2 : Vérifier que id est toujours dans _prospSession.ids avant de sync
+    // (car saveDetail peut avoir appelé filterProspects qui a modifié la liste)
+    if ((_prospSession.ids || []).includes(id)) {
+        _syncProspCurrent(id);
+    } else {
+        // Si id n'est plus dans la liste, syncProspSessionWithFilteredList a déjà été appelé
+        // par filterProspects, donc on utilise l'état actuel
+    }
+    
     let nextId = null;
     if (preferredNextId && (_prospSession.ids || []).includes(preferredNextId)) {
         nextId = preferredNextId;
@@ -5306,6 +5449,8 @@ function goToProspPrev(id) {
     if (!prevId) return;
     _prospSession.currentId = prevId;
     _prospSession.currentIndex = (_prospSession.ids || []).indexOf(prevId);
+    // Bug 6 : Sauvegarder la session après navigation
+    if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
     viewDetail(prevId).catch(function () {});
 }
 
@@ -5702,22 +5847,64 @@ function openCallChoice(phones, prospectId) {
         list.appendChild(btn);
     });
 
-    if (window.openModal) {
-        window.openModal(modal);
-    } else {
-        modal.classList.add('active');
+    // Ouvrir le popup de choix de numéro manuellement pour ne pas fermer la fiche prospect
+    // On n'utilise pas openModal() car elle ferme automatiquement les autres modales
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-hidden', 'false');
+    modal.classList.add('active');
+    
+    // Focus sur le premier bouton
+    const firstBtn = list.querySelector('button');
+    if (firstBtn) {
+        requestAnimationFrame(() => {
+            firstBtn.focus();
+        });
     }
+    
+    // Gérer Escape pour fermer uniquement ce popup
+    const escapeHandler = (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeCallChoice();
+        }
+    };
+    document.addEventListener('keydown', escapeHandler);
+    modal._escapeHandler = escapeHandler;
+    
+    // Fermer sur clic backdrop (mais pas sur le contenu)
+    const backdropHandler = (e) => {
+        if (e.target === modal) {
+            closeCallChoice();
+        }
+    };
+    modal.addEventListener('click', backdropHandler);
+    modal._backdropHandler = backdropHandler;
 }
 
 function closeCallChoice() {
     const modal = document.getElementById('modalCallChoice');
-    if (modal) {
-        if (window.closeModal) {
-            window.closeModal(modal);
-        } else {
-            modal.classList.remove('active');
-        }
+    if (!modal || !modal.classList.contains('active')) return;
+    
+    // Retirer les event listeners
+    if (modal._escapeHandler) {
+        document.removeEventListener('keydown', modal._escapeHandler);
+        modal._escapeHandler = null;
     }
+    if (modal._backdropHandler) {
+        modal.removeEventListener('click', modal._backdropHandler);
+        modal._backdropHandler = null;
+    }
+    
+    // Animation de fermeture
+    modal.classList.add('exiting');
+    modal.classList.remove('active');
+    
+    setTimeout(() => {
+        modal.classList.remove('exiting');
+        modal.setAttribute('aria-hidden', 'true');
+    }, 200);
 }
 
 function _stampProspectLastContact(prospect) {
@@ -9562,20 +9749,74 @@ function closeDetail(options = {}) {
         card.classList.remove('prosp-swipe-left');
     }
 
+    // Si on est en mode prosp mais qu'on ne sort pas du mode, réafficher la liste
+    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
+    if (isProspMode && options.keepProspMode) {
+        const tableEl = document.getElementById('tableView');
+        const kanbanEl = document.getElementById('kanbanView');
+        if (tableEl) tableEl.style.display = '';
+        if (kanbanEl) kanbanEl.style.display = 'none';
+        // Réafficher la liste filtrée
+        try {
+            if (typeof filterProspects === 'function') {
+                filterProspects();
+            } else if (typeof renderProspects === 'function') {
+                renderProspects();
+            }
+        } catch (e) {
+            console.warn('Erreur réaffichage liste en mode prosp:', e);
+        }
+        return; // Ne pas sortir du mode prosp
+    }
+
     const shouldExitProsp = (_currentView === 'prosp') && !options.keepProspMode;
     if (shouldExitProsp) {
         const exitScrollState = _prospSession.listScrollState || _captureProspectsScrollState(_prospSession.currentId);
         _saveProspSessionToStorage({ scrollState: exitScrollState, anchorId: _prospSession.currentId });
         _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
+        _prospManuallyExited = true; // Marquer comme sortie volontaire (Bug 4)
         _currentView = 'table';
         const tableEl = document.getElementById('tableView');
         const kanbanEl = document.getElementById('kanbanView');
         if (tableEl) tableEl.style.display = '';
         if (kanbanEl) kanbanEl.style.display = 'none';
         _setViewToggleButtons('table');
-        if (exitScrollState) {
-            _queueProspectsScrollRestore(exitScrollState);
-            _flushProspectsScrollRestore();
+        // Réafficher la liste filtrée après sortie du mode prosp (Bug 3 : avant restauration scroll)
+        try {
+            if (typeof filterProspects === 'function') {
+                filterProspects();
+                // Restaurer le scroll APRÈS filterProspects (Bug 3)
+                if (exitScrollState) {
+                    // Attendre que le rendu soit terminé avant de restaurer le scroll
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            _queueProspectsScrollRestore(exitScrollState);
+                            _flushProspectsScrollRestore();
+                        });
+                    });
+                }
+            } else if (typeof renderProspects === 'function') {
+                renderProspects();
+                // Restaurer le scroll APRÈS renderProspects (Bug 3)
+                if (exitScrollState) {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            _queueProspectsScrollRestore(exitScrollState);
+                            _flushProspectsScrollRestore();
+                        });
+                    });
+                }
+            } else if (exitScrollState) {
+                // Fallback si aucune fonction de rendu disponible
+                _queueProspectsScrollRestore(exitScrollState);
+                _flushProspectsScrollRestore();
+            }
+        } catch (e) {
+            console.warn('Erreur réaffichage liste après sortie mode prosp:', e);
+            if (exitScrollState) {
+                _queueProspectsScrollRestore(exitScrollState);
+                _flushProspectsScrollRestore();
+            }
         }
         showProspResumeBanner();
     }
@@ -9644,6 +9885,7 @@ function resumeProspSession() {
         currentIndex,
         listScrollState: saved.scrollState || _captureProspectsScrollState(currentId)
     };
+    _prospManuallyExited = false; // Réinitialiser le flag quand on reprend la session
     _currentView = 'prosp';
     const tableEl = document.getElementById('tableView');
     const kanbanEl = document.getElementById('kanbanView');
@@ -9682,8 +9924,9 @@ document.addEventListener('visibilitychange', function () {
         _saveProspSessionToStorage();
     } else if (document.visibilityState === 'visible') {
         // Reprendre si une session est en storage mais qu'on n'est plus en Mode Prosp (ex: perte de state en mémoire)
+        // Bug 4 : Ne pas reprendre automatiquement si l'utilisateur a quitté volontairement
         try {
-            if (window.__APP_PAGE__ === 'prospects' && _currentView !== 'prosp' && sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY)) {
+            if (window.__APP_PAGE__ === 'prospects' && _currentView !== 'prosp' && !_prospManuallyExited && sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY)) {
                 const raw = sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY);
                 if (raw) {
                     const saved = JSON.parse(raw);
@@ -11221,6 +11464,7 @@ async function bootstrap(page) {
         applySort();
         filterProspects();
         renderProspects();
+        updateViewToggleCounts(); // Initialiser les compteurs
         updateBulkBar();
         updateSelectAllState();
         try { initSavedViewsUI(); } catch(e) {}
@@ -11261,16 +11505,19 @@ async function bootstrap(page) {
         }
 
         // Reprendre automatiquement le Mode Prosp au bon index si session sauvegardée (ex: retour après appel)
-        try {
-            const raw = sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY);
-            if (raw) {
-                const saved = JSON.parse(raw);
-                if (saved && Array.isArray(saved.ids) && saved.ids.length > 0 && saved.currentId != null) {
-                    resumeProspSession();
-                    if (typeof showToast === 'function') showToast('Session Prosp reprise', 'info');
+        // Bug 1 : Ne pas reprendre si ?open= est présent (priorité à l'ouverture explicite)
+        if (!openId) {
+            try {
+                const raw = sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY);
+                if (raw) {
+                    const saved = JSON.parse(raw);
+                    if (saved && Array.isArray(saved.ids) && saved.ids.length > 0 && saved.currentId != null) {
+                        resumeProspSession();
+                        if (typeof showToast === 'function') showToast('Session Prosp reprise', 'info');
+                    }
                 }
-            }
-        } catch (e) {}
+            } catch (e) {}
+        }
 
     }
 
@@ -13059,4 +13306,465 @@ function resetProspectColumnWidths() {
     applyProspectColumnWidths();
     if (typeof showToast === 'function') showToast('Largeurs des colonnes réinitialisées.', 'success', 3000);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// User Menu Popup (s'ouvre depuis le badge utilisateur)
+// ═══════════════════════════════════════════════════════════════════
+function openUserMenu() {
+    const popup = document.getElementById('userMenuPopup');
+    if (!popup) return;
+    
+    // Mettre à jour les infos utilisateur dans le popup
+    if (window.AppAuth && AppAuth.user) {
+        const u = AppAuth.user;
+        const name = (typeof escapeHtml === 'function' ? escapeHtml(u.display_name || u.username) : String(u.display_name || u.username || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c)));
+        const initial = (u.display_name || u.username || '').charAt(0).toUpperCase();
+        const label = (AppAuth.ROLE_LABELS && AppAuth.ROLE_LABELS[u.role]) || u.role;
+        
+        const avatarEl = document.getElementById('userMenuAvatar');
+        const nameEl = document.getElementById('userMenuName');
+        const roleEl = document.getElementById('userMenuRole');
+        
+        if (avatarEl) avatarEl.textContent = initial;
+        if (nameEl) nameEl.textContent = name;
+        if (roleEl) roleEl.textContent = label;
+        
+        // Afficher/masquer les options admin
+        const adminItems = popup.querySelectorAll('.admin-only');
+        adminItems.forEach(item => {
+            item.style.display = (u.role === 'admin') ? '' : 'none';
+        });
+    }
+    
+    popup.classList.add('open');
+    
+    // Fermer si on clique en dehors
+    setTimeout(() => {
+        const closeOnOutside = (e) => {
+            if (!popup.contains(e.target) && !e.target.closest('.user-session-badge')) {
+                closeUserMenu();
+                document.removeEventListener('click', closeOnOutside);
+            }
+        };
+        document.addEventListener('click', closeOnOutside);
+    }, 100);
+}
+
+function closeUserMenu() {
+    const popup = document.getElementById('userMenuPopup');
+    if (popup) popup.classList.remove('open');
+}
+
+function openUserMenuOption(option) {
+    closeUserMenu();
+    
+    if (option === 'changePassword') {
+        const modal = document.getElementById('userMenuChangePasswordModal');
+        if (modal) {
+            // Réinitialiser les champs
+            document.getElementById('userMenuOldPw').value = '';
+            document.getElementById('userMenuNewPw').value = '';
+            document.getElementById('userMenuNewPw2').value = '';
+            document.getElementById('userMenuChangePwStatus').textContent = '';
+            modal.style.display = 'flex';
+        }
+    } else if (option === 'users') {
+        const modal = document.getElementById('userMenuUsersModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            // Charger la liste des utilisateurs
+            loadUsersFromAPI();
+        }
+    } else if (option === 'dashboardCustomization') {
+        const modal = document.getElementById('userMenuDashboardCustomizationModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            // Charger les préférences d'affichage
+            loadDisplayPrefsToUserMenu();
+        }
+    }
+}
+
+function closeUserMenuModal(option) {
+    if (option === 'changePassword') {
+        const modal = document.getElementById('userMenuChangePasswordModal');
+        if (modal) modal.style.display = 'none';
+    } else if (option === 'users') {
+        const modal = document.getElementById('userMenuUsersModal');
+        if (modal) modal.style.display = 'none';
+    } else if (option === 'dashboardCustomization') {
+        const modal = document.getElementById('userMenuDashboardCustomizationModal');
+        if (modal) modal.style.display = 'none';
+    }
+}
+
+async function userMenuChangePassword() {
+    const oldPw = document.getElementById('userMenuOldPw').value;
+    const newPw = document.getElementById('userMenuNewPw').value;
+    const newPw2 = document.getElementById('userMenuNewPw2').value;
+    const status = document.getElementById('userMenuChangePwStatus');
+    
+    status.textContent = '';
+    status.style.color = '';
+    
+    if (!oldPw || !newPw || !newPw2) {
+        status.style.color = '#ef4444';
+        status.textContent = '⚠️ Tous les champs sont requis.';
+        return;
+    }
+    
+    if (newPw !== newPw2) {
+        status.style.color = '#ef4444';
+        status.textContent = '⚠️ Les mots de passe ne correspondent pas.';
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+        });
+        const j = await res.json();
+        if (j.ok) {
+            status.style.color = '#22c55e';
+            status.textContent = '✅ Mot de passe changé avec succès !';
+            document.getElementById('userMenuOldPw').value = '';
+            document.getElementById('userMenuNewPw').value = '';
+            document.getElementById('userMenuNewPw2').value = '';
+            if (typeof showToast === 'function') showToast('✅ Mot de passe mis à jour', 'success');
+            setTimeout(() => {
+                closeUserMenuModal('changePassword');
+            }, 1500);
+        } else {
+            status.style.color = '#ef4444';
+            status.textContent = '⚠️ ' + (j.error || 'Erreur');
+        }
+    } catch(e) {
+        status.style.color = '#ef4444';
+        status.textContent = '⚠️ Erreur réseau';
+    }
+}
+
+async function loadUsersFromAPI() {
+    const listEl = document.getElementById('userMenuUsersList');
+    if (!listEl) return;
+    
+    try {
+        const resp = await fetch('/api/users', { cache: 'no-store' });
+        const payload = await resp.json();
+        const users = payload.users || [];
+        const isAdmin = payload.is_admin === true;
+        const currentUserId = Number(payload.current_user_id || 0) || null;
+        
+        const ROLE_LABELS = {admin:'🔑 Admin', editor:'✏️ Éditeur'};
+        const ROLE_COLORS = {admin:'#6366f1', editor:'#f59e0b'};
+        
+        // Stocker les données pour les fonctions editUser, deleteUser, etc.
+        window._usersCache = users;
+        window._isAdmin = isAdmin;
+        window._currentUserId = currentUserId;
+        
+        listEl.innerHTML = users.map(u => {
+            const escapedName = (u.display_name||u.username).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
+            const escapedUsername = (u.username||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
+            return `
+            <div style="background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:12px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:240px;">
+                    <div style="width:42px;height:42px;border-radius:50%;background:${ROLE_COLORS[u.role]||'#475569'};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;">${(u.display_name||u.username).charAt(0).toUpperCase()}</div>
+                    <div style="min-width:0;">
+                        <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            ${escapedName} ${!u.is_active?'<span style="color:#ef4444;font-size:12px;">(désactivé)</span>':''}
+                        </div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);">@${escapedUsername} · ${ROLE_LABELS[u.role]||u.role}</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    ${isAdmin ? `<button class="btn btn-secondary" onclick='userMenuEditUser(${JSON.stringify(u)})'>✏️ Modifier</button>` : ''}
+                    ${isAdmin && u.role!=='admin' ? `<button class="btn btn-secondary" onclick='userMenuViewUserData(${u.id})' title="Voir les données">👁️ Voir</button>` : ''}
+                    ${isAdmin && Number(u.id)!==Number(currentUserId) ? `<button class="btn btn-primary" onclick='userMenuReassignUserDataToMe(${u.id})' title="Réattribuer prospects + entreprises">↩️ Réattribuer à moi</button>` : ''}
+                    ${isAdmin && u.role!=='admin' ? `<button class="btn btn-danger" onclick='userMenuDeleteUser(${u.id},"${escapedUsername}")'>🗑️</button>` : ''}
+                </div>
+            </div>
+        `;
+        }).join('');
+    } catch(e) {
+        listEl.innerHTML = '<div style="padding:16px;color:var(--color-text-secondary);">Erreur lors du chargement des utilisateurs.</div>';
+    }
+}
+
+// Fonctions wrapper pour le popup utilisateurs (utilisent les fonctions globales si disponibles)
+function userMenuEditUser(u) {
+    // Ouvrir la modale utilisateur directement
+    const modal = document.getElementById('userModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        // Pré-remplir les champs
+        document.getElementById('editUserId').value = u.id;
+        document.getElementById('uUsername').value = u.username || '';
+        document.getElementById('uDisplayName').value = u.display_name || '';
+        document.getElementById('uPassword').value = '';
+        document.getElementById('uPasswordConfirm').value = '';
+        document.getElementById('uRole').value = u.role || 'editor';
+        document.getElementById('uActive').checked = !!u.is_active;
+        document.getElementById('modalTitle').textContent = 'Modifier utilisateur';
+        document.getElementById('pwHint').textContent = '(laisser vide pour ne pas changer)';
+        document.getElementById('pwConfirmRow').style.display = 'none';
+        // Utiliser les fonctions de users.html si disponibles, sinon implémentation simple
+        if (typeof editUser === 'function') {
+            editUser(u);
+        }
+    }
+}
+
+function userMenuOpenUserModal() {
+    const modal = document.getElementById('userModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        // Réinitialiser les champs
+        document.getElementById('editUserId').value = '';
+        document.getElementById('uUsername').value = '';
+        document.getElementById('uDisplayName').value = '';
+        document.getElementById('uPassword').value = '';
+        document.getElementById('uPasswordConfirm').value = '';
+        document.getElementById('uRole').value = 'editor';
+        document.getElementById('uActive').checked = true;
+        document.getElementById('modalTitle').textContent = 'Nouvel utilisateur';
+        document.getElementById('pwHint').textContent = '(requis)';
+        document.getElementById('pwConfirmRow').style.display = 'block';
+        // Utiliser les fonctions de users.html si disponibles
+        if (typeof openUserModal === 'function') {
+            openUserModal();
+        }
+    }
+}
+
+function userMenuCloseUserModal() {
+    const modal = document.getElementById('userModal');
+    if (modal) modal.style.display = 'none';
+    if (typeof closeUserModal === 'function') {
+        closeUserModal();
+    }
+}
+
+function userMenuSaveUser() {
+    if (typeof saveUser === 'function') {
+        saveUser();
+    } else {
+        // Implémentation simple
+        const id = document.getElementById('editUserId').value.trim();
+        const username = document.getElementById('uUsername').value.trim();
+        const displayName = document.getElementById('uDisplayName').value.trim();
+        const password = document.getElementById('uPassword').value;
+        const passwordConfirm = document.getElementById('uPasswordConfirm').value;
+        const role = document.getElementById('uRole').value;
+        const isActive = document.getElementById('uActive').checked;
+        
+        if (!username) {
+            alert('⚠️ Identifiant requis');
+            return;
+        }
+        
+        if (!id && !password) {
+            alert('⚠️ Mot de passe requis');
+            return;
+        }
+        
+        if (password && password !== passwordConfirm) {
+            alert('⚠️ Les deux mots de passe ne correspondent pas.');
+            return;
+        }
+        
+        const payload = {
+            username: username,
+            display_name: displayName,
+            password: password,
+            role: role,
+            is_active: isActive ? 1 : 0
+        };
+        if (id) payload.id = parseInt(id, 10);
+        
+        fetch('/api/users/save', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(j => {
+            if (j.ok) {
+                userMenuCloseUserModal();
+                loadUsersFromAPI();
+                if (typeof showToast === 'function') {
+                    showToast('✅ Utilisateur enregistré', 'success');
+                }
+            } else {
+                alert('❌ ' + (j.error || 'Erreur'));
+            }
+        })
+        .catch(e => alert('❌ Erreur réseau'));
+    }
+}
+
+// Exposer les fonctions globalement pour le popup
+window.openUserModal = userMenuOpenUserModal;
+window.closeUserModal = userMenuCloseUserModal;
+window.saveUser = userMenuSaveUser;
+
+function userMenuViewUserData(userId) {
+    if (typeof viewUserData === 'function') {
+        viewUserData(userId);
+    } else {
+        // Implémentation simple
+        fetch('/api/users/' + userId + '/data')
+            .then(resp => resp.json())
+            .then(data => {
+                if (data.ok) {
+                    const u = data.user;
+                    const s = data.stats;
+                    alert(
+                        '📊 Données de ' + (u.display_name || u.username) + '\n\n' +
+                        '• Prospects: ' + s.prospects + '\n' +
+                        '• Candidats: ' + s.candidates + '\n\n' +
+                        '(Consultation uniquement — vous voyez les données de cet utilisateur, sans pouvoir les modifier ici.)'
+                    );
+                }
+            })
+            .catch(e => alert('Erreur lors du chargement des données'));
+    }
+}
+
+function userMenuReassignUserDataToMe(fromUserId) {
+    if (typeof reassignUserDataToMe === 'function') {
+        reassignUserDataToMe(fromUserId);
+    } else {
+        // Implémentation simple
+        if (!window._isAdmin || !window._currentUserId) {
+            showToast('Action réservée aux administrateurs.', 'error');
+            return;
+        }
+        const fromId = parseInt(fromUserId, 10);
+        if (!Number.isFinite(fromId) || fromId <= 0) {
+            showToast('Utilisateur invalide.', 'error');
+            return;
+        }
+        if (fromId === Number(window._currentUserId)) {
+            showToast('Vous êtes déjà propriétaire de vos données.', 'warning');
+            return;
+        }
+        const u = (window._usersCache || []).find(x => Number(x.id) === fromId);
+        const label = u ? (u.display_name || u.username) : ('ID ' + fromId);
+        if (!confirm('Réattribuer tous les prospects et entreprises de "' + label + '" vers votre compte ?')) return;
+        
+        fetch('/api/admin/reassign-ownership', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                from_user_id: fromId,
+                to_user_id: Number(window._currentUserId)
+            })
+        })
+        .then(r => r.json())
+        .then(j => {
+            if (j.ok) {
+                const moved = j.moved || {};
+                showToast(`✅ ${moved.prospects || 0} prospect(s) et ${moved.companies || 0} entreprise(s) réattribués à vous.`, 'success', 6000);
+                loadUsersFromAPI();
+            } else {
+                showToast('❌ ' + (j.error || 'Erreur'), 'error');
+            }
+        })
+        .catch(e => showToast('❌ Erreur réseau', 'error'));
+    }
+}
+
+function userMenuDeleteUser(id, username) {
+    if (typeof deleteUser === 'function') {
+        deleteUser(id, username);
+    } else {
+        if (!confirm('Supprimer @' + username + ' ?')) return;
+        fetch('/api/users/delete', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ id: parseInt(id, 10) })
+        })
+        .then(r => r.json())
+        .then(j => {
+            if (j.ok) {
+                showToast('✅ Utilisateur supprimé', 'success');
+                loadUsersFromAPI();
+            } else {
+                showToast('❌ ' + (j.error || 'Erreur'), 'error');
+            }
+        })
+        .catch(e => showToast('❌ Erreur réseau', 'error'));
+    }
+}
+
+function loadDisplayPrefsToUserMenu() {
+    // Charger les préférences depuis localStorage et les appliquer aux checkboxes
+    const prefs = {};
+    try {
+        const stored = localStorage.getItem('display_prefs');
+        if (stored) {
+            Object.assign(prefs, JSON.parse(stored));
+        }
+    } catch(e) {}
+    
+    // Mapper les IDs des checkboxes de la page paramètres vers ceux du menu utilisateur
+    const prefMap = {
+        'display_dashboard': 'userMenu_display_dashboard',
+        'display_focus': 'userMenu_display_focus',
+        'display_calendrier': 'userMenu_display_calendrier',
+        'display_entreprises': 'userMenu_display_entreprises',
+        'display_sourcing': 'userMenu_display_sourcing',
+        'display_push': 'userMenu_display_push',
+        'display_templates': 'userMenu_display_templates',
+        'display_stats': 'userMenu_display_stats',
+        'display_rapport': 'userMenu_display_rapport',
+        'display_contacts': 'userMenu_display_contacts',
+        'display_relance_banner': 'userMenu_display_relance_banner',
+        'display_kpi_row': 'userMenu_display_kpi_row',
+        'display_first_glance': 'userMenu_display_first_glance',
+        'display_goals': 'userMenu_display_goals',
+        'display_dash_activity': 'userMenu_display_dash_activity',
+        'display_dash_week': 'userMenu_display_dash_week',
+        'display_dash_overdue': 'userMenu_display_dash_overdue',
+        'display_dash_rdv': 'userMenu_display_dash_rdv',
+        'display_dash_pipeline': 'userMenu_display_dash_pipeline',
+        'display_candidate_proposition': 'userMenu_display_candidate_proposition',
+        'display_prospect_timeline': 'userMenu_display_prospect_timeline',
+        'display_prospect_push_section': 'userMenu_display_prospect_push_section',
+        'display_prospect_metier': 'userMenu_display_prospect_metier'
+    };
+    
+    Object.keys(prefMap).forEach(key => {
+        const checkbox = document.getElementById(prefMap[key]);
+        if (checkbox) {
+            checkbox.checked = prefs[key] !== false; // true par défaut
+            // Ajouter un listener pour sauvegarder
+            checkbox.addEventListener('change', function() {
+                prefs[key] = checkbox.checked;
+                try {
+                    localStorage.setItem('display_prefs', JSON.stringify(prefs));
+                } catch(e) {}
+                // Recharger la page pour appliquer les changements
+                if (typeof window.location !== 'undefined') {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 300);
+                }
+            });
+        }
+    });
+}
+
+// Fermer le popup avec Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeUserMenu();
+        closeUserMenuModal('changePassword');
+        closeUserMenuModal('users');
+        closeUserMenuModal('dashboardCustomization');
+    }
+});
 

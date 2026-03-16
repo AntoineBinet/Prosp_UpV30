@@ -62,6 +62,194 @@
       </div>
     </div>
     
+    <!-- Popup menu utilisateur (s'ouvre depuis le badge) -->
+    <div id="userMenuPopup" class="user-menu-popup">
+      <div class="user-menu-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div id="userMenuAvatar" class="user-menu-avatar"></div>
+          <div>
+            <div id="userMenuName" class="user-menu-name"></div>
+            <div id="userMenuRole" class="user-menu-role"></div>
+          </div>
+        </div>
+        <button type="button" class="user-menu-close" onclick="closeUserMenu()" title="Fermer">×</button>
+      </div>
+      <div class="user-menu-content">
+        <div class="user-menu-item" onclick="openUserMenuOption('changePassword')">
+          <span class="user-menu-icon">🔐</span>
+          <span>Changer mon mot de passe</span>
+        </div>
+        <div class="user-menu-item" onclick="window.location.href='/parametres'">
+          <span class="user-menu-icon">⚙️</span>
+          <span>Paramètres</span>
+        </div>
+        <div class="user-menu-item admin-only" onclick="openUserMenuOption('users')" style="display:none;">
+          <span class="user-menu-icon">👥</span>
+          <span>Gestion utilisateurs</span>
+        </div>
+        <div class="user-menu-item" onclick="openUserMenuOption('dashboardCustomization')">
+          <span class="user-menu-icon">🖥️</span>
+          <span>Personnalisation dashboard</span>
+        </div>
+        <div class="user-menu-divider"></div>
+        <div class="user-menu-item" onclick="if(window.AppAuth) AppAuth.logout()">
+          <span class="user-menu-icon">⏻</span>
+          <span>Déconnexion</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Modales pour les options du menu utilisateur -->
+    <div id="userMenuChangePasswordModal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <button class="modal-close" onclick="closeUserMenuModal('changePassword')">×</button>
+        <h2>🔐 Changer mon mot de passe</h2>
+        <div style="display:grid;gap:12px;margin-top:16px;">
+          <div>
+            <label class="filter-label">Mot de passe actuel</label>
+            <input type="password" id="userMenuOldPw" class="filter-input" style="width:100%;" autocomplete="current-password" placeholder="••••••••">
+          </div>
+          <div>
+            <label class="filter-label">Nouveau mot de passe</label>
+            <input type="password" id="userMenuNewPw" class="filter-input" style="width:100%;" autocomplete="new-password" placeholder="Min. 8 car., 1 lettre, 1 chiffre">
+          </div>
+          <div>
+            <label class="filter-label">Confirmer le nouveau mot de passe</label>
+            <input type="password" id="userMenuNewPw2" class="filter-input" style="width:100%;" autocomplete="new-password" placeholder="••••••••">
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;">
+            <button class="btn btn-secondary" onclick="closeUserMenuModal('changePassword')">Annuler</button>
+            <button class="btn btn-primary" onclick="userMenuChangePassword()">Changer le mot de passe</button>
+          </div>
+          <div id="userMenuChangePwStatus" style="font-size:13px;text-align:center;"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="userMenuUsersModal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:800px;max-height:90vh;overflow-y:auto;">
+        <button class="modal-close" onclick="closeUserMenuModal('users')">×</button>
+        <h2>👥 Gestion des Utilisateurs</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;margin-bottom:16px;">
+          <div class="content-title">Gestion des Utilisateurs</div>
+          <button class="btn btn-primary" onclick="openUserModal()">+ Nouvel utilisateur</button>
+        </div>
+        <div id="userMenuUsersList" style="display:grid;gap:12px;"></div>
+      </div>
+    </div>
+    
+    <div id="userMenuDashboardCustomizationModal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:700px;max-height:90vh;overflow-y:auto;">
+        <button class="modal-close" onclick="closeUserMenuModal('dashboardCustomization')">×</button>
+        <h2>🖥️ Personnalisation de l'affichage</h2>
+        <p class="muted" style="margin-bottom:10px;margin-top:16px;">Activez ou désactivez des modules et blocs.</p>
+        <div class="display-prefs-columns" id="userMenuDisplayPrefsColumns">
+          <div class="display-prefs-pane" id="pane-nav" role="tabpanel">
+            <div class="display-prefs-col-title">🧭 Nav</div>
+            <div class="display-prefs-scroll display-prefs-scroll-compact">
+              <div class="settings-group display-prefs-group">
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_dashboard">Dashboard</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_dashboard" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_focus">Focus</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_focus" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_calendrier">Calendrier</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_calendrier" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_entreprises">Entreprises</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_entreprises" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_sourcing">Candidats</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_sourcing" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_push">Push</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_push" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_templates">Catégories Push</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_templates" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_stats">Stats</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_stats" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_rapport">Rapport</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_rapport" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_contacts">Contacts</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_contacts" checked><span class="slider"></span></label></div>
+              </div>
+            </div>
+          </div>
+          <div class="display-prefs-pane" id="pane-dashboard" role="tabpanel">
+            <div class="display-prefs-col-title">📊 Dashboard</div>
+            <div class="display-prefs-scroll display-prefs-scroll-compact">
+              <div class="settings-group display-prefs-group">
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_relance_banner">Bannière relances</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_relance_banner" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_kpi_row">Ligne KPI</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_kpi_row" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_first_glance">Premier coup d'œil</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_first_glance" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_goals">Objectifs</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_goals" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_dash_activity">Activité du jour</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_dash_activity" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_dash_week">Activité de la semaine</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_dash_week" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_dash_overdue">Relances en retard</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_dash_overdue" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_dash_rdv">Prochains RDV</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_dash_rdv" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_dash_pipeline">Pipeline</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_dash_pipeline" checked><span class="slider"></span></label></div>
+              </div>
+            </div>
+          </div>
+          <div class="display-prefs-pane" id="pane-fiche" role="tabpanel">
+            <div class="display-prefs-col-title">👤 Fiche</div>
+            <div class="display-prefs-scroll display-prefs-scroll-compact">
+              <div class="settings-group display-prefs-group">
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_candidate_proposition">Candidats recommandés</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_candidate_proposition" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_prospect_timeline">Onglet Timeline</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_prospect_timeline" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_prospect_push_section">Bloc Push &amp; catégorie</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_prospect_push_section" checked><span class="slider"></span></label></div>
+                <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_prospect_metier">Métier suggéré</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_prospect_metier" checked><span class="slider"></span></label></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+          <button class="btn btn-secondary" onclick="closeUserMenuModal('dashboardCustomization')">Fermer</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Modale utilisateur (pour le popup gestion utilisateurs) -->
+    <div id="userModal" class="modal user-modal" style="display:none;">
+      <div class="modal-content" style="max-width:540px;">
+        <button class="modal-close" onclick="closeUserModal()">×</button>
+        <h2 id="modalTitle">Nouvel utilisateur</h2>
+
+        <input type="hidden" id="editUserId">
+
+        <div class="form-grid" style="display:grid;gap:14px;margin-top:14px;">
+          <div class="form-group">
+            <label class="filter-label required" for="uUsername">Identifiant</label>
+            <input id="uUsername" name="username" type="text" placeholder="prenom.nom" class="filter-input" style="width:100%;" required aria-required="true">
+          </div>
+          <div class="form-group">
+            <label class="filter-label" for="uDisplayName">Nom affiché</label>
+            <input id="uDisplayName" name="display_name" type="text" placeholder="Prénom Nom" class="filter-input" style="width:100%;">
+          </div>
+          <div class="form-group full-width">
+            <label class="filter-label" for="uPassword">Mot de passe <span id="pwHint">(requis)</span></label>
+            <div class="input-with-toggle">
+              <input id="uPassword" name="password" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" minlength="8" pattern="^(?=.*[A-Za-z])(?=.*\d).{8,}$" oninput="updatePwConfirmVisibility(); validateUserPassword()">
+              <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Afficher / masquer">👁️</button>
+            </div>
+            <span id="pwReqHint" style="font-size:11px;color:var(--color-text-secondary,#94a3b8);margin-top:4px;display:block;">Min. 8 caractères, au moins 1 lettre et 1 chiffre.</span>
+          </div>
+          <div class="form-group full-width" id="pwConfirmRow">
+            <label class="filter-label" for="uPasswordConfirm">Confirmer le mot de passe</label>
+            <div class="input-with-toggle">
+              <input id="uPasswordConfirm" name="password_confirm" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" oninput="validateUserPassword()">
+              <button type="button" class="pw-toggle" id="pwConfirmToggleBtn" onclick="toggleConfirmVisibility()" title="Afficher / masquer">👁️</button>
+            </div>
+            <span id="pwMismatchMsg" style="display:none;font-size:12px;color:#ef4444;margin-top:4px;">Les deux mots de passe ne correspondent pas.</span>
+          </div>
+          <div>
+            <label class="filter-label">Rôle</label>
+            <select id="uRole" class="filter-select" style="width:100%;">
+              <option value="admin">🔑 Admin — accès total</option>
+              <option value="editor" selected>✏️ Éditeur — lecture + modification</option>
+            </select>
+          </div>
+          <div></div>
+
+          <label class="full-width" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--color-text-secondary);">
+            <input type="checkbox" id="uActive" checked style="accent-color: var(--color-primary); width:16px; height:16px;">
+            Compte actif
+          </label>
+
+          <div class="full-width" style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;">
+            <button class="btn btn-secondary" onclick="closeUserModal()">Annuler</button>
+            <button class="btn btn-primary" onclick="saveUser()">Enregistrer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
     {% block scripts %}
     <script defer src="/static/js/sidebar.js?v=2000"></script>
     <script defer src="/static/js/v8-features.js?v=2100"></script>
