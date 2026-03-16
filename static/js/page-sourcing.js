@@ -486,34 +486,195 @@ function _vsaImportToggleExtractButton() {
     btn.disabled = !ok;
 }
 
-function _vsaImportApplyParsed(parsed) {
-    const link = (document.getElementById('vsaImportLink')?.value || '').trim();
-    const techParts = [parsed.tech].filter(Boolean);
-    if (Array.isArray(parsed.skills) && parsed.skills.length) {
-        techParts.push(...parsed.skills);
+// Modale de validation VSA (similaire à celle des prospects)
+function _ensureVsaValidationModal() {
+    if (document.getElementById('modalVsaValidation')) return;
+    const div = document.createElement('div');
+    div.innerHTML = `
+    <div id="modalVsaValidation" class="modal">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size: 18px; font-weight: 600;">✅ Validation des données extraites</span>
+                <button class="btn btn-secondary" onclick="closeVsaValidationModal()" style="font-size:14px;padding:4px 10px;">✕</button>
+            </div>
+            <div style="margin-top:16px;">
+                <p class="muted" style="font-size:12px;margin-bottom:16px;">Vérifiez les champs extraits. Vous pouvez modifier chaque valeur avant de créer le candidat.</p>
+                <div id="vsaFieldsPreview"></div>
+                <div style="display:flex;gap:8px;margin-top:20px;justify-content:space-between;flex-wrap:wrap;">
+                    <button class="btn btn-secondary" onclick="closeVsaValidationModal()">Annuler</button>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-primary" onclick="applyVsaImport()">💾 Créer le candidat</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(div.firstElementChild);
+}
+
+function _openVsaValidationModal() {
+    _ensureVsaValidationModal();
+    _renderVsaPreview();
+    const modal = document.getElementById('modalVsaValidation');
+    if (modal) {
+        if (window.openModal) {
+            window.openModal(modal);
+        } else {
+            modal.classList.add('active');
+        }
+    }
+}
+
+window.closeVsaValidationModal = function() {
+    const modal = document.getElementById('modalVsaValidation');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
+    _vsaParsedData = null;
+    _vsaRawText = '';
+    _vsaUrl = '';
+};
+
+function _renderVsaPreview() {
+    const container = document.getElementById('vsaFieldsPreview');
+    if (!container || !_vsaParsedData) return;
+    
+    const data = _vsaParsedData;
+    const fields = [];
+    
+    // Mapping des champs candidat
+    const fieldMap = {
+        name: { key: 'name', label: 'Nom', value: data.name || '' },
+        role: { key: 'role', label: 'Rôle', value: data.role || '' },
+        location: { key: 'location', label: 'Localisation', value: data.location || '' },
+        seniority: { key: 'seniority', label: 'Seniorité', value: data.seniority || '' },
+        tech: { key: 'tech', label: 'Technologies', value: data.tech || '' },
+        skills: { key: 'skills', label: 'Compétences', value: Array.isArray(data.skills) ? data.skills.join(', ') : (data.skills || '') },
+        phone: { key: 'phone', label: 'Téléphone', value: data.phone || '' },
+        email: { key: 'email', label: 'Email', value: data.email || '' },
+        linkedin: { key: 'linkedin', label: 'LinkedIn', value: data.linkedin || '' },
+        sector: { key: 'sector', label: 'Secteur', value: data.sector || '' },
+        notes: { key: 'notes', label: 'Notes', value: data.notes || '', isTextarea: true },
+        vsa_url: { key: 'vsa_url', label: 'Lien VSA', value: _vsaUrl || data.vsa_url || '' }
+    };
+    
+    let html = '';
+    Object.values(fieldMap).forEach((field, i) => {
+        if (!field.value && field.key !== 'vsa_url') return; // Ne pas afficher les champs vides sauf vsa_url
+        
+        const fieldId = `vsaField_${i}`;
+        const isTextarea = field.isTextarea;
+        const inputTag = isTextarea ? 'textarea' : 'input';
+        const inputType = isTextarea ? '' : (field.key === 'email' ? 'type="email"' : field.key === 'phone' ? 'type="tel"' : 'type="text"');
+        const inputAttrs = isTextarea ? `rows="3"` : '';
+        
+        html += `
+        <div class="card" style="padding:14px;margin-bottom:12px;background:var(--color-surface-2, rgba(255,255,255,0.05));">
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--color-muted, #999);margin-bottom:6px;">${field.label}</label>
+            <${inputTag} 
+                id="${fieldId}" 
+                ${inputType} 
+                ${inputAttrs}
+                value="${escapeHtml(field.value)}" 
+                style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:13px;"
+                ${isTextarea ? '' : 'oninput="updateVsaField(' + i + ')"'}
+            >${isTextarea ? escapeHtml(field.value) : ''}</${inputTag}>
+        </div>`;
+    });
+    
+    container.innerHTML = html || '<p class="muted">Aucun champ extrait.</p>';
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+window.updateVsaField = function(index) {
+    // Les champs sont mis à jour directement dans le DOM, on les récupère lors de l'application
+};
+
+window.applyVsaImport = async function() {
+    if (!_vsaParsedData) return;
+    
+    // Récupérer les valeurs depuis les inputs
+    const fields = document.querySelectorAll('#vsaFieldsPreview input, #vsaFieldsPreview textarea');
+    const data = { ..._vsaParsedData };
+    
+    fields.forEach(input => {
+        const id = input.id;
+        if (id.startsWith('vsaField_')) {
+            const index = parseInt(id.replace('vsaField_', ''));
+            // Mapping inverse basé sur l'ordre dans _renderVsaPreview
+            const fieldKeys = ['name', 'role', 'location', 'seniority', 'tech', 'skills', 'phone', 'email', 'linkedin', 'sector', 'notes', 'vsa_url'];
+            if (fieldKeys[index]) {
+                const key = fieldKeys[index];
+                const value = input.value.trim();
+                if (key === 'skills') {
+                    data[key] = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+                } else {
+                    data[key] = value;
+                }
+            }
+        }
+    });
+    
+    // Préparer les données pour le formulaire
+    const techParts = [data.tech].filter(Boolean);
+    if (Array.isArray(data.skills) && data.skills.length) {
+        techParts.push(...data.skills);
     }
     const formData = {
-        name: parsed.name || '',
-        role: parsed.role || '',
-        location: parsed.location || '',
-        seniority: parsed.seniority || '',
-        tech: techParts.join(', ').trim() || parsed.tech || '',
-        linkedin: parsed.linkedin || '',
+        name: data.name || '',
+        role: data.role || '',
+        location: data.location || '',
+        seniority: data.seniority || '',
+        tech: techParts.join(', ').trim() || data.tech || '',
+        linkedin: data.linkedin || '',
         source: 'VSA',
         status: 'a_sourcer',
-        notes: parsed.notes || '',
-        vsa_url: link || parsed.vsa_url || ''
+        notes: data.notes || '',
+        vsa_url: data.vsa_url || _vsaUrl || '',
+        phone: data.phone || '',
+        email: data.email || '',
+        sector: data.sector || ''
     };
-    if (!formData.name && (parsed.role || parsed.location)) {
-        formData.name = [parsed.role, parsed.location].filter(Boolean).join(' — ').slice(0, 200);
+    
+    if (!formData.name && (formData.role || formData.location)) {
+        formData.name = [formData.role, formData.location].filter(Boolean).join(' — ').slice(0, 200);
     }
+    
+    // Fermer la modale de validation
+    closeVsaValidationModal();
+    
+    // Ouvrir le formulaire candidat avec les données pré-remplies
     __candEditing = null;
     document.getElementById('candForm')?.reset();
     fillCandidateForm(formData);
-    closeVsaImportModal();
     openCandidateModal(false);
-    if (typeof showToast === 'function') showToast('Données extraites. Vérifiez la fiche candidat puis enregistrez.', 'success', 5000);
+    
+    if (typeof showToast === 'function') {
+        showToast('Données extraites. Vérifiez la fiche candidat puis enregistrez.', 'success', 5000);
+    }
+};
+
+// Ancienne fonction conservée pour compatibilité
+function _vsaImportApplyParsed(parsed) {
+    _vsaParsedData = parsed;
+    _vsaUrl = (document.getElementById('vsaImportLink')?.value || '').trim();
+    _openVsaValidationModal();
 }
+
+// Variables pour la modale de validation VSA
+let _vsaParsedData = null;
+let _vsaRawText = '';
+let _vsaUrl = '';
 
 async function _vsaImportExtractWithOllama() {
     const ta = document.getElementById('vsaImportTextarea');
@@ -522,8 +683,16 @@ async function _vsaImportExtractWithOllama() {
     const btn = document.getElementById('btnVsaExtractOllama');
     const errEl = document.getElementById('vsaImportError');
     const prefillBtn = document.getElementById('btnVsaPreFillAnyway');
-    if (btn) { btn.disabled = true; btn.textContent = 'Extraction en cours…'; }
-    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+    const linkEl = document.getElementById('vsaImportLink');
+    
+    if (btn) { 
+        btn.disabled = true; 
+        btn.textContent = '⏳ Extraction en cours…';
+    }
+    if (errEl) { 
+        errEl.style.display = 'none'; 
+        errEl.textContent = ''; 
+    }
     if (prefillBtn) prefillBtn.style.display = 'none';
 
     const prompt = typeof getVsaExtractionPrompt === 'function' ? getVsaExtractionPrompt(content) : '';
@@ -531,20 +700,85 @@ async function _vsaImportExtractWithOllama() {
         if (btn) { btn.disabled = false; btn.textContent = '🤖 Extraire avec l\'IA'; }
         return;
     }
+    
     try {
-        const text = typeof callOllama === 'function' ? await callOllama(prompt) : '';
+        // Afficher un overlay de loading (comme pour les prospects)
+        _showVsaLoadingOverlay();
+        
+        // Appel Ollama avec timeout
+        const text = typeof callOllama === 'function' ? await callOllama(prompt, { timeoutMs: 180000 }) : '';
+        
+        _hideVsaLoadingOverlay();
+        
+        if (!text || !text.trim()) {
+            throw new Error('Réponse Ollama vide');
+        }
+        
+        // Parser le résultat
         const parsed = typeof parseVsaCandidateText === 'function' ? parseVsaCandidateText(text) : {};
-        _vsaImportApplyParsed(parsed);
+        
+        // Stocker les données pour la modale de validation
+        _vsaParsedData = parsed;
+        _vsaRawText = text;
+        _vsaUrl = (linkEl?.value || '').trim();
+        
+        // Fermer la modale VSA et ouvrir la modale de validation
+        closeVsaImportModal();
+        _openVsaValidationModal();
+        
     } catch (e) {
+        _hideVsaLoadingOverlay();
+        console.error('[VSA] Erreur extraction Ollama:', e);
         if (errEl) {
             errEl.textContent = 'IA indisponible. Vous pouvez coller manuellement un texte au format : NOM: … ROLE: … LOCALISATION: … (une ligne par champ).';
             errEl.style.display = 'block';
         }
         if (prefillBtn) prefillBtn.style.display = 'inline-block';
-        if (typeof showToast === 'function') showToast('IA indisponible. Utilisez « Pré-remplir quand même » si le texte est au bon format.', 'warning', 6000);
+        if (typeof showToast === 'function') {
+            showToast('IA indisponible. Utilisez « Pré-remplir quand même » si le texte est au bon format.', 'warning', 6000);
+        }
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Extraire avec l\'IA'; _vsaImportToggleExtractButton(); }
+        if (btn) { 
+            btn.disabled = false; 
+            btn.textContent = '🤖 Extraire avec l\'IA'; 
+            _vsaImportToggleExtractButton(); 
+        }
     }
+}
+
+// Overlay de loading pendant l'extraction
+function _showVsaLoadingOverlay() {
+    let overlay = document.getElementById('vsaLoadingOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'vsaLoadingOverlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 100000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--color-text, #fff);
+        `;
+        overlay.innerHTML = `
+            <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
+            <div style="font-weight: 600; margin-bottom: 8px; font-size: 18px;">Extraction en cours…</div>
+            <div style="font-size: 14px; opacity: 0.8;">L'IA analyse le contenu VSA. Cela peut prendre quelques instants.</div>
+        `;
+        document.body.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
+}
+
+function _hideVsaLoadingOverlay() {
+    const overlay = document.getElementById('vsaLoadingOverlay');
+    if (overlay) overlay.style.display = 'none';
 }
 
 function _vsaImportPreFillAnyway() {
