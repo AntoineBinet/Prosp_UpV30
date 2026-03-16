@@ -2258,26 +2258,64 @@ function setupListeners() {
     on('priorityFilter', 'change', filterProspects);
 
     // Filter panel toggle
+    let filterToggleJustClicked = false;
     const btnToggle = document.getElementById('btnToggleFilters');
-    if (btnToggle) btnToggle.addEventListener('click', (e) => {
-        e.stopPropagation(); // Empêcher la propagation pour éviter la fermeture immédiate
-        const panel = document.getElementById('filterPanel');
-        if (panel) {
-            const isVisible = panel.style.display !== 'none' && 
-                             (panel.style.display === 'block' || 
-                              window.getComputedStyle(panel).display !== 'none');
-            panel.style.display = isVisible ? 'none' : 'block';
-        }
-    });
+    const filterPanel = document.getElementById('filterPanel');
+    
+    if (btnToggle && filterPanel) {
+        // Utiliser onclick directement sur le bouton pour être sûr que ça fonctionne
+        btnToggle.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            
+            filterToggleJustClicked = true;
+            setTimeout(() => { filterToggleJustClicked = false; }, 300);
+            
+            // Toggle simple et direct
+            if (filterPanel.style.display === 'none' || filterPanel.style.display === '') {
+                filterPanel.style.display = 'block';
+            } else {
+                filterPanel.style.display = 'none';
+            }
+            
+            return false;
+        };
+        
+        // Aussi ajouter addEventListener en backup
+        btnToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (filterPanel.style.display === 'none' || filterPanel.style.display === '') {
+                filterPanel.style.display = 'block';
+            } else {
+                filterPanel.style.display = 'none';
+            }
+        }, true);
+    }
 
-    // Close filter panel on click outside
+    // Close filter panel on click outside (avec vérification pour éviter conflit avec le toggle)
     document.addEventListener('click', (e) => {
+        // Ignorer si on vient juste de cliquer sur le bouton toggle
+        if (filterToggleJustClicked) return;
+        
         const panel = document.getElementById('filterPanel');
-        if (!panel || panel.style.display === 'none') return;
+        if (!panel) return;
+        
         const btn = document.getElementById('btnToggleFilters');
-        // If click is inside filter panel or on the toggle button, ignore
-        if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
-        panel.style.display = 'none';
+        // Si le clic est sur le bouton toggle, on ne fait rien (géré par le handler ci-dessus)
+        if (btn && btn.contains(e.target)) return;
+        
+        // Si le clic est dans le panneau, on ne fait rien
+        if (panel.contains(e.target)) return;
+        
+        // Sinon, on ferme le panneau s'il est ouvert
+        const currentDisplay = panel.style.display;
+        const computedDisplay = window.getComputedStyle(panel).display;
+        if (currentDisplay !== 'none' && computedDisplay !== 'none') {
+            panel.style.display = 'none';
+        }
     });
 
     // Reset filters

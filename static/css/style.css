@@ -5602,7 +5602,7 @@ input[type="checkbox"]:hover {
   top: 100%;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: 1000;
   background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(24px) saturate(1.5);
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
