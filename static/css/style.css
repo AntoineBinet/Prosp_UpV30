@@ -6261,15 +6261,25 @@ body[data-page="candidate"] #fabAdd {
   opacity: 1 !important;
 }
 
-/* Sur mobile, FAB à gauche pour candidate et sourcing (évite conflit avec assistant à droite) */
+/* Sur mobile, FAB Ajouter en dessous de l'assistant IA (à droite) */
 @media (max-width: 900px) {
+  /* Remonter l'assistant IA pour laisser de la place */
+  body[data-page="candidate"] .fab-icon-only,
+  body[data-page="sourcing"] .fab-icon-only {
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important; /* Au-dessus de la bottom nav + FAB */
+    right: 18px !important;
+  }
+  
+  /* FAB Ajouter juste en dessous de l'assistant */
   body[data-page="candidate"] #fabAdd,
   body[data-page="sourcing"] #fabAdd {
     display: flex !important;
-    left: 18px !important;
-    right: auto !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    right: 18px !important;
+    left: auto !important;
     bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; /* Au-dessus de la bottom nav */
-    z-index: 997 !important; /* Juste en dessous de la bottom nav */
+    z-index: 997 !important;
   }
   
   /* Style icon-only sur mobile pour candidate/sourcing */
@@ -6282,6 +6292,7 @@ body[data-page="candidate"] #fabAdd {
   body[data-page="sourcing"] #fabAdd {
     padding: 0;
     width: 52px;
+    height: 52px;
     border-radius: 50%;
   }
 }
