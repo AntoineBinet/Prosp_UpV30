@@ -7810,13 +7810,23 @@ function getVsaExtractionPrompt(vsaContent) {
 NOM: [nom et prénom du candidat]
 ROLE: [titre de poste / rôle]
 LOCALISATION: [ville, région, mobilité si mentionnée]
-SENIORITE: [Junior, Confirmé, Senior, Expert si identifiable]
+ANNEES_EXPERIENCE: [nombre entier d'années d'expérience professionnelle calculé en additionnant les durées des CDI, contrats de travail et alternances mentionnés dans le parcours. N'inclus PAS les stages ni les études. Si plusieurs expériences sont mentionnées, additionne leurs durées. Exemple : CDI 2 ans + alternance 1 an = 3]
+SENIORITE: [Junior, Confirmé, Senior, Expert si identifiable - texte libre]
 TECH: [technologies principales, séparées par des virgules]
 SKILLS: [compétences, tags séparés par des virgules]
 TELEPHONE: [numéro si présent]
 EMAIL: [email si présent]
 LINKEDIN: [URL du profil LinkedIn si présente]
 NOTES: [résumé ou contexte utile en une ou deux lignes]
+
+IMPORTANT pour ANNEES_EXPERIENCE :
+- Analyse le parcours professionnel dans le contenu VSA
+- Additionne uniquement les durées des expériences en CDI, contrat de travail ou alternance
+- N'inclus PAS les stages (même rémunérés)
+- N'inclus PAS les études ou formations
+- Si une durée est mentionnée en mois, convertis en années (ex: 18 mois = 1.5 ans, arrondis à l'entier le plus proche)
+- Si seules des dates sont données (ex: "2020-2022"), calcule la différence en années
+- Retourne uniquement un nombre entier (ex: 3, 5, 8, 12)
 
 Si un champ est absent ou introuvable, ne l'écris pas. Réponds UNIQUEMENT avec les lignes CLÉ: valeur, sans introduction ni conclusion.
 
@@ -7826,7 +7836,7 @@ ${vsaContent}`;
 
 /** Parse un texte au format KEY: value et retourne un objet pour pré-remplir le formulaire candidat (name, role, location, etc.). */
 function parseVsaCandidateText(text) {
-    const out = { name: '', role: '', location: '', seniority: '', tech: '', linkedin: '', source: 'VSA', notes: '', phone: '', email: '', skills: [], vsa_url: '' };
+    const out = { name: '', role: '', location: '', seniority: '', tech: '', linkedin: '', source: 'VSA', notes: '', phone: '', email: '', skills: [], vsa_url: '', years_experience: null };
     if (!text || typeof text !== 'string') return out;
     const lines = text.split('\n');
     let currentKey = null;
@@ -7836,6 +7846,7 @@ function parseVsaCandidateText(text) {
         'NOM': 'name',
         'ROLE': 'role',
         'LOCALISATION': 'location',
+        'ANNEES_EXPERIENCE': 'years_experience',
         'SENIORITE': 'seniority',
         'TECH': 'tech',
         'LINKEDIN': 'linkedin',
@@ -7854,6 +7865,13 @@ function parseVsaCandidateText(text) {
         if (field === 'skills') {
             const list = val.split(/[,;]/).map(s => s.trim()).filter(Boolean);
             if (list.length) out.skills = list;
+        } else if (field === 'years_experience') {
+            // Parser le nombre d'années (peut être un nombre entier ou décimal)
+            const num = parseFloat(val);
+            if (!isNaN(num) && num >= 0) {
+                // Arrondir à l'entier le plus proche
+                out.years_experience = Math.round(num);
+            }
         } else {
             out[field] = val;
         }

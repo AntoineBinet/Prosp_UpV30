@@ -596,6 +596,7 @@ function _renderVsaPreview() {
         name: { key: 'name', label: 'Nom', value: data.name || '' },
         role: { key: 'role', label: 'Rôle', value: data.role || '' },
         location: { key: 'location', label: 'Localisation', value: data.location || '' },
+        years_experience: { key: 'years_experience', label: 'Années d\'expérience', value: data.years_experience != null ? String(data.years_experience) : '', isNumeric: true },
         seniority: { key: 'seniority', label: 'Seniorité', value: data.seniority || '' },
         tech: { key: 'tech', label: 'Technologies', value: data.tech || '' },
         skills: { key: 'skills', label: 'Compétences', value: Array.isArray(data.skills) ? data.skills.join(', ') : (data.skills || '') },
@@ -613,8 +614,15 @@ function _renderVsaPreview() {
         
         const fieldId = `vsaField_${field.key}`;
         const isTextarea = field.isTextarea;
+        const isNumeric = field.isNumeric;
         const inputTag = isTextarea ? 'textarea' : 'input';
-        const inputType = isTextarea ? '' : (field.key === 'email' ? 'type="email"' : field.key === 'phone' ? 'type="tel"' : 'type="text"');
+        let inputType = '';
+        if (!isTextarea) {
+            if (field.key === 'email') inputType = 'type="email"';
+            else if (field.key === 'phone') inputType = 'type="tel"';
+            else if (isNumeric) inputType = 'type="number" min="0" step="1"';
+            else inputType = 'type="text"';
+        }
         const inputAttrs = isTextarea ? `rows="3"` : '';
         const valueAttr = isTextarea ? '' : `value="${escapeHtml(field.value)}"`;
         const textareaContent = isTextarea ? escapeHtml(field.value) : '';
@@ -660,6 +668,10 @@ window.applyVsaImport = async function() {
             const value = input.value.trim();
             if (key === 'skills') {
                 data[key] = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+            } else if (key === 'years_experience') {
+                // Parser le nombre d'années
+                const num = parseInt(value);
+                data[key] = (!isNaN(num) && num >= 0) ? num : null;
             } else {
                 data[key] = value;
             }
@@ -676,6 +688,7 @@ window.applyVsaImport = async function() {
         role: data.role || '',
         location: data.location || '',
         seniority: data.seniority || '',
+        years_experience: data.years_experience != null ? data.years_experience : null,
         tech: techParts.join(', ').trim() || data.tech || '',
         linkedin: data.linkedin || '',
         source: 'VSA',
