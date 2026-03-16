@@ -10551,6 +10551,20 @@ def api_deploy_pull():
     )
 
 
+@app.post("/api/deploy/restart")
+@login_required
+@role_required('admin')
+def api_deploy_restart():
+    """Redémarre le serveur sans faire de pull (admin uniquement)."""
+    try:
+        logger.info("Restart demandé par admin (sans pull)")
+        _schedule_restart(delay=5.0)
+        return jsonify(ok=True, message="Redémarrage programmé dans 5 secondes")
+    except Exception as e:
+        logger.error("Erreur lors du redémarrage: %s", e)
+        return jsonify(ok=False, error=str(e)), 500
+
+
 @app.get("/api/deploy/health")
 def api_deploy_health():
     """Health check simple pour vérifier que l'app répond (accessible sans auth pour 404)."""

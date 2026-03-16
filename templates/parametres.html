@@ -266,8 +266,10 @@ Belle journée,"></textarea>
       <button class="btn btn-primary" id="btnSystemVerify" onclick="runSystemVerify()">🔍 Lancer la vérification</button>
       <button class="btn btn-secondary" id="btnSystemLogs" onclick="showSystemLogs()">📋 Voir les logs serveur</button>
       <button class="btn btn-secondary" id="btnCheckDeployment" onclick="checkDeployment()">🔎 Vérifier le déploiement</button>
+      <button class="btn btn-secondary" id="btnRestartServer" onclick="restartServer()" title="Redémarrer le serveur et l'application sur l'ordinateur hébergeur" style="background:#f59e0b;border-color:#f59e0b;color:#fff;">🔄 Redémarrer le serveur</button>
     </div>
     <div id="systemVerifyResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);"></div>
+    <div id="restartServerStatus" style="display:none;margin-top:12px;padding:12px;border-radius:10px;font-size:13px;"></div>
   </div>
 </div>
 

@@ -569,6 +569,73 @@ window.showSystemLogs = showSystemLogs;
 window.checkDeployment = checkDeployment;
 
 // ════════════════════════════════════════════════════════════════
+// Redémarrer le serveur
+// ════════════════════════════════════════════════════════════════
+async function restartServer() {
+    const btn = document.getElementById('btnRestartServer');
+    const statusEl = document.getElementById('restartServerStatus');
+    if (!btn || !statusEl) return;
+    
+    // Demander confirmation
+    if (!confirm('⚠️ Êtes-vous sûr de vouloir redémarrer le serveur ?\n\nL\'application sera temporairement indisponible pendant quelques secondes.')) {
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = '⏳ Redémarrage en cours...';
+    statusEl.style.display = 'block';
+    statusEl.style.background = 'var(--color-surface-2)';
+    statusEl.style.border = '1px solid var(--color-border)';
+    statusEl.innerHTML = '<div style="color:var(--color-text-secondary);">⏳ Redémarrage du serveur en cours... Veuillez patienter.</div>';
+    
+    try {
+        const res = await fetch('/api/deploy/restart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+            statusEl.style.background = 'rgba(239,68,68,.08)';
+            statusEl.style.border = '1px solid rgba(239,68,68,.3)';
+            statusEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur: ${data.error || 'Erreur inconnue'}</div>`;
+            btn.disabled = false;
+            btn.textContent = '🔄 Redémarrer le serveur';
+            if (typeof showToast === 'function') {
+                showToast('Erreur lors du redémarrage', 'error');
+            }
+            return;
+        }
+        
+        // Afficher le message de succès
+        statusEl.style.background = 'rgba(34,197,94,.08)';
+        statusEl.style.border = '1px solid rgba(34,197,94,.3)';
+        statusEl.innerHTML = '<div style="color:#22c55e;font-weight:600;">✅ Redémarrage programmé</div><div style="margin-top:8px;font-size:12px;color:var(--color-text-secondary);">Le serveur va redémarrer dans 5 secondes. La page va se recharger automatiquement...</div>';
+        
+        if (typeof showToast === 'function') {
+            showToast('Redémarrage programmé — rechargement dans 5 secondes', 'success');
+        }
+        
+        // Recharger la page après 6 secondes pour laisser le temps au serveur de redémarrer
+        setTimeout(() => {
+            window.location.reload();
+        }, 6000);
+        
+    } catch (e) {
+        statusEl.style.background = 'rgba(239,68,68,.08)';
+        statusEl.style.border = '1px solid rgba(239,68,68,.3)';
+        statusEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur réseau: ${e.message}</div>`;
+        btn.disabled = false;
+        btn.textContent = '🔄 Redémarrer le serveur';
+        if (typeof showToast === 'function') {
+            showToast('Erreur réseau lors du redémarrage', 'error');
+        }
+    }
+}
+
+window.restartServer = restartServer;
+
+// ════════════════════════════════════════════════════════════════
 // Déclencher le pull et redémarrage (flux SSE en direct)
 // ════════════════════════════════════════════════════════════════
 async function triggerDeployPull() {
