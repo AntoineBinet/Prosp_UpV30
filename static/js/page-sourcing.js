@@ -563,26 +563,28 @@ function _renderVsaPreview() {
     };
     
     let html = '';
-    Object.values(fieldMap).forEach((field, i) => {
+    Object.values(fieldMap).forEach((field) => {
         if (!field.value && field.key !== 'vsa_url') return; // Ne pas afficher les champs vides sauf vsa_url
         
-        const fieldId = `vsaField_${i}`;
+        const fieldId = `vsaField_${field.key}`;
         const isTextarea = field.isTextarea;
         const inputTag = isTextarea ? 'textarea' : 'input';
         const inputType = isTextarea ? '' : (field.key === 'email' ? 'type="email"' : field.key === 'phone' ? 'type="tel"' : 'type="text"');
         const inputAttrs = isTextarea ? `rows="3"` : '';
+        const valueAttr = isTextarea ? '' : `value="${escapeHtml(field.value)}"`;
+        const textareaContent = isTextarea ? escapeHtml(field.value) : '';
         
         html += `
         <div class="card" style="padding:14px;margin-bottom:12px;background:var(--color-surface-2, rgba(255,255,255,0.05));">
             <label style="display:block;font-size:12px;font-weight:600;color:var(--color-muted, #999);margin-bottom:6px;">${field.label}</label>
             <${inputTag} 
                 id="${fieldId}" 
+                data-field-key="${field.key}"
                 ${inputType} 
                 ${inputAttrs}
-                value="${escapeHtml(field.value)}" 
+                ${valueAttr}
                 style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:13px;"
-                ${isTextarea ? '' : 'oninput="updateVsaField(' + i + ')"'}
-            >${isTextarea ? escapeHtml(field.value) : ''}</${inputTag}>
+            >${textareaContent}</${inputTag}>
         </div>`;
     });
     
@@ -608,19 +610,13 @@ window.applyVsaImport = async function() {
     const data = { ..._vsaParsedData };
     
     fields.forEach(input => {
-        const id = input.id;
-        if (id.startsWith('vsaField_')) {
-            const index = parseInt(id.replace('vsaField_', ''));
-            // Mapping inverse basé sur l'ordre dans _renderVsaPreview
-            const fieldKeys = ['name', 'role', 'location', 'seniority', 'tech', 'skills', 'phone', 'email', 'linkedin', 'sector', 'notes', 'vsa_url'];
-            if (fieldKeys[index]) {
-                const key = fieldKeys[index];
-                const value = input.value.trim();
-                if (key === 'skills') {
-                    data[key] = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
-                } else {
-                    data[key] = value;
-                }
+        const key = input.getAttribute('data-field-key');
+        if (key) {
+            const value = input.value.trim();
+            if (key === 'skills') {
+                data[key] = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+            } else {
+                data[key] = value;
             }
         }
     });
