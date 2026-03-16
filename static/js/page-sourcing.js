@@ -364,28 +364,51 @@ async function deleteCandidate(id) {
 const VSA_MIN_LENGTH = 20;
 
 // Rendre les fonctions VSA globales pour accès depuis Quick Add
+// TOUT SE PASSE CÔTÉ CLIENT - aucune fenêtre ne s'ouvre sur le serveur
 window.openVsaImportModal = function openVsaImportModal() {
     console.log('[VSA] openVsaImportModal appelée');
     const modal = document.getElementById('modalVsaImport');
     if (!modal) {
         console.error('[VSA] Modal modalVsaImport introuvable');
+        if (typeof showToast === 'function') {
+            showToast('Modale VSA introuvable. Rechargez la page.', 'error');
+        }
         return;
     }
     console.log('[VSA] Modal trouvée, ouverture...');
-    document.getElementById('vsaImportLink').value = '';
-    document.getElementById('vsaImportTextarea').value = '';
-    document.getElementById('vsaImportError').style.display = 'none';
-    document.getElementById('vsaImportError').textContent = '';
-    document.getElementById('btnVsaPreFillAnyway').style.display = 'none';
-    const btn = document.getElementById('btnVsaExtractOllama');
-    if (btn) { btn.disabled = true; btn.textContent = '🤖 Extraction IA…'; }
-    _vsaImportToggleExtractButton();
+    // Réinitialiser les champs
+    const linkEl = document.getElementById('vsaImportLink');
+    const textareaEl = document.getElementById('vsaImportTextarea');
+    const errorEl = document.getElementById('vsaImportError');
+    const prefillBtn = document.getElementById('btnVsaPreFillAnyway');
+    const extractBtn = document.getElementById('btnVsaExtractOllama');
+    
+    if (linkEl) linkEl.value = '';
+    if (textareaEl) textareaEl.value = '';
+    if (errorEl) {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+    }
+    if (prefillBtn) prefillBtn.style.display = 'none';
+    if (extractBtn) {
+        extractBtn.disabled = true;
+        extractBtn.textContent = '🤖 Extraire avec Ollama';
+    }
+    if (typeof _vsaImportToggleExtractButton === 'function') {
+        _vsaImportToggleExtractButton();
+    }
+    
+    // Ouvrir la modale (tout se passe dans le navigateur de l'utilisateur)
     if (window.openModal) {
         console.log('[VSA] Utilisation de window.openModal');
         window.openModal(modal, { focusElement: '#vsaImportTextarea' });
     } else {
         console.log('[VSA] Utilisation de modal.classList.add');
         modal.classList.add('active');
+        // Focus sur le textarea
+        setTimeout(() => {
+            if (textareaEl) textareaEl.focus();
+        }, 100);
     }
 }
 
@@ -953,6 +976,39 @@ async function scanCandidateFolder() {
     }
 }
 
+// Initialisation VSA (globale, accessible depuis partout)
+function _initVsaModal() {
+    // Bouton sur page sourcing (optionnel)
+    const btnAddViaVsa = document.getElementById('btnAddViaVsa');
+    if (btnAddViaVsa) {
+        console.log('[VSA] Bouton btnAddViaVsa trouvé, ajout event listener', btnAddViaVsa);
+        btnAddViaVsa.addEventListener('click', (e) => {
+            console.log('[VSA] Clic sur btnAddViaVsa détecté', e);
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.openVsaImportModal === 'function') {
+                window.openVsaImportModal();
+            }
+        });
+    }
+    // Event listeners pour la modale VSA (disponible partout)
+    const textarea = document.getElementById('vsaImportTextarea');
+    const btnExtract = document.getElementById('btnVsaExtractOllama');
+    const btnPreFill = document.getElementById('btnVsaPreFillAnyway');
+    if (textarea) {
+        textarea.removeEventListener('input', _vsaImportToggleExtractButton); // Éviter doublons
+        textarea.addEventListener('input', _vsaImportToggleExtractButton);
+    }
+    if (btnExtract) {
+        btnExtract.removeEventListener('click', _vsaImportExtractWithOllama); // Éviter doublons
+        btnExtract.addEventListener('click', () => _vsaImportExtractWithOllama());
+    }
+    if (btnPreFill) {
+        btnPreFill.removeEventListener('click', _vsaImportPreFillAnyway); // Éviter doublons
+        btnPreFill.addEventListener('click', _vsaImportPreFillAnyway);
+    }
+}
+
 // Fonction d'initialisation VSA globale (appelable depuis n'importe où)
 window.initVsaModal = function() {
     _initVsaModal();
@@ -985,36 +1041,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         file.value = '';
     });
 
-    // Initialisation VSA (globale, accessible depuis partout)
-    function _initVsaModal() {
-        // Bouton sur page sourcing (optionnel)
-        const btnAddViaVsa = document.getElementById('btnAddViaVsa');
-        if (btnAddViaVsa) {
-            console.log('[VSA] Bouton btnAddViaVsa trouvé, ajout event listener', btnAddViaVsa);
-            btnAddViaVsa.addEventListener('click', (e) => {
-                console.log('[VSA] Clic sur btnAddViaVsa détecté', e);
-                e.preventDefault();
-                e.stopPropagation();
-                openVsaImportModal();
-            });
-        }
-        // Event listeners pour la modale VSA (disponible partout)
-        const textarea = document.getElementById('vsaImportTextarea');
-        const btnExtract = document.getElementById('btnVsaExtractOllama');
-        const btnPreFill = document.getElementById('btnVsaPreFillAnyway');
-        if (textarea) {
-            textarea.removeEventListener('input', _vsaImportToggleExtractButton); // Éviter doublons
-            textarea.addEventListener('input', _vsaImportToggleExtractButton);
-        }
-        if (btnExtract) {
-            btnExtract.removeEventListener('click', _vsaImportExtractWithOllama); // Éviter doublons
-            btnExtract.addEventListener('click', () => _vsaImportExtractWithOllama());
-        }
-        if (btnPreFill) {
-            btnPreFill.removeEventListener('click', _vsaImportPreFillAnyway); // Éviter doublons
-            btnPreFill.addEventListener('click', _vsaImportPreFillAnyway);
-        }
-    }
+    // Initialisation VSA
     _initVsaModal();
 
     // Tabs
@@ -1055,5 +1082,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch(e) {}
     
     // Réinitialiser les event listeners VSA au cas où la modale serait ajoutée dynamiquement
-    _initVsaModal();
+    if (typeof _initVsaModal === 'function') {
+        _initVsaModal();
+    }
 });

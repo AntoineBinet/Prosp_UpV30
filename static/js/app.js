@@ -1413,13 +1413,18 @@ window.openModal = openModal;
 window.closeModal = closeModal;
 
 // Initialiser la modale VSA partout (si disponible)
+// TOUT SE PASSE CÔTÉ CLIENT - aucune fenêtre ne s'ouvre sur le serveur
 document.addEventListener('DOMContentLoaded', function() {
     // Attendre que page-sourcing.js soit chargé si nécessaire
     setTimeout(() => {
         if (typeof window.initVsaModal === 'function') {
-            window.initVsaModal();
+            try {
+                window.initVsaModal();
+            } catch (e) {
+                console.warn('[VSA] Erreur init modale VSA:', e);
+            }
         }
-    }, 100);
+    }, 200);
 });
 
 // Auto-handle modal-close buttons

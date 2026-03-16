@@ -62,15 +62,20 @@
         if (method === 'vsa') {
             closeQuickAddModal();
             // Ouvrir la modale VSA (fonction globale depuis page-sourcing.js)
-            if (typeof openVsaImportModal === 'function') {
-                openVsaImportModal();
+            // TOUT SE PASSE CÔTÉ CLIENT - aucune fenêtre ne s'ouvre sur le serveur
+            if (typeof window.openVsaImportModal === 'function') {
+                window.openVsaImportModal();
             } else {
                 // Si page-sourcing.js n'est pas encore chargé, attendre un peu
                 setTimeout(() => {
-                    if (typeof openVsaImportModal === 'function') {
-                        openVsaImportModal();
+                    if (typeof window.openVsaImportModal === 'function') {
+                        window.openVsaImportModal();
                     } else {
-                        showToast('Fonction VSA non disponible. Rechargez la page.', 'error');
+                        if (typeof showToast === 'function') {
+                            showToast('Fonction VSA non disponible. Rechargez la page.', 'error');
+                        } else {
+                            alert('Fonction VSA non disponible. Rechargez la page.');
+                        }
                     }
                 }, 500);
             }
