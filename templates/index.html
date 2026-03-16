@@ -13,6 +13,32 @@
 {% endblock %}
 
 {% block content %}
+<script>
+// Masquer immédiatement les panneaux de prospection si on est en mode contacts (évite le flash)
+(function() {
+    if (window.location.search.includes('contacts=1')) {
+        document.addEventListener('DOMContentLoaded', function() {
+            const relanceBanner = document.getElementById('relanceAlertBannerProspects');
+            if (relanceBanner) relanceBanner.style.display = 'none';
+            const prospCta = document.getElementById('prospCtaMobile');
+            if (prospCta) prospCta.style.display = 'none';
+            const prospResume = document.getElementById('prospResumeBanner');
+            if (prospResume) prospResume.style.display = 'none';
+        });
+        // Exécuter immédiatement si DOM déjà chargé
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', arguments.callee);
+        } else {
+            const relanceBanner = document.getElementById('relanceAlertBannerProspects');
+            if (relanceBanner) relanceBanner.style.display = 'none';
+            const prospCta = document.getElementById('prospCtaMobile');
+            if (prospCta) prospCta.style.display = 'none';
+            const prospResume = document.getElementById('prospResumeBanner');
+            if (prospResume) prospResume.style.display = 'none';
+        }
+    }
+})();
+</script>
 <div id="viewProspects" style="display: block;">
     <div id="relanceAlertBannerProspects" class="relance-alert-banner" style="display:none; margin-bottom:12px;" aria-live="polite">
         <span id="relanceAlertBannerProspectsText"></span>
