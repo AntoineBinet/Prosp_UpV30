@@ -6247,40 +6247,10 @@ body[data-page=""] .fab-icon-only {
   right: 38px; /* Assistant à droite */
 }
 
-/* FAB Ajouter masqué sur desktop prospects (bouton dans toolbar) */
-@media (min-width: 901px) {
-  body[data-page="prospects"] #fabAdd,
-  body[data-page=""] #fabAdd {
-    display: none !important;
-  }
-}
-
-/* FAB visible sur mobile prospects (toolbar peut être scrollable) */
-@media (max-width: 900px) {
-  body[data-page="prospects"] #fabAdd,
-  body[data-page=""] #fabAdd {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    right: 18px !important;
-    left: auto !important;
-    bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; /* Au-dessus de la bottom nav */
-    z-index: 997 !important;
-    position: fixed !important;
-  }
-  
-  body[data-page="prospects"] #fabAdd .fab-label,
-  body[data-page=""] #fabAdd .fab-label {
-    display: none;
-  }
-  
-  body[data-page="prospects"] #fabAdd,
-  body[data-page=""] #fabAdd {
-    padding: 0;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-  }
+/* FAB Ajouter complètement masqué sur prospects (bouton dans toolbar) */
+body[data-page="prospects"] #fabAdd,
+body[data-page=""] #fabAdd {
+  display: none !important;
 }
 
 /* FAB visible sur sourcing et candidate (pour ajouter des candidats) */
@@ -6691,13 +6661,6 @@ body[data-page="candidate"] #fabAdd {
   body[data-page="prospects"] #fabAdd,
   body[data-page=""] #fabAdd {
     display: none !important; /* Masqué sur prospects (bouton dans toolbar) */
-  }
-  
-  /* Sur mobile, candidate et sourcing : assistant remonté, FAB en dessous */
-  body[data-page="candidate"] .fab-icon-only,
-  body[data-page="sourcing"] .fab-icon-only {
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
-    right: 18px !important;
   }
   
   .assistant-chat-window {
