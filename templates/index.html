@@ -589,8 +589,8 @@
 {% endblock %}
 
 {% block fab %}
-<!-- FAB: Ajouter - Masqué sur desktop, visible uniquement sur mobile si nécessaire -->
-<button class="fab fab-mobile-only" id="fabAdd" onclick="openQuickAddModal()" title="Ajouter (IA ou manuel)">
+<!-- FAB: Ajouter (visible sur mobile, masqué sur desktop où le bouton est dans toolbar) -->
+<button class="fab" id="fabAdd" onclick="openQuickAddModal()" title="Ajouter (IA ou manuel)">
     <span class="fab-icon">+</span>
     <span class="fab-label">Ajouter</span>
 </button>
