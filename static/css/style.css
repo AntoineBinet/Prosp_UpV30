@@ -6263,9 +6263,24 @@ body[data-page="candidate"] #fabAdd {
 @media (max-width: 900px) {
   body[data-page="candidate"] #fabAdd,
   body[data-page="sourcing"] #fabAdd {
+    display: flex !important;
     left: 18px !important;
     right: auto !important;
     bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; /* Au-dessus de la bottom nav */
+    z-index: 997 !important; /* Juste en dessous de la bottom nav */
+  }
+  
+  /* Style icon-only sur mobile pour candidate/sourcing */
+  body[data-page="candidate"] #fabAdd .fab-label,
+  body[data-page="sourcing"] #fabAdd .fab-label {
+    display: none;
+  }
+  
+  body[data-page="candidate"] #fabAdd,
+  body[data-page="sourcing"] #fabAdd {
+    padding: 0;
+    width: 52px;
+    border-radius: 50%;
   }
 }
 
