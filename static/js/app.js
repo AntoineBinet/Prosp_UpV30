@@ -2259,9 +2259,15 @@ function setupListeners() {
 
     // Filter panel toggle
     const btnToggle = document.getElementById('btnToggleFilters');
-    if (btnToggle) btnToggle.addEventListener('click', () => {
+    if (btnToggle) btnToggle.addEventListener('click', (e) => {
+        e.stopPropagation(); // Empêcher la propagation pour éviter la fermeture immédiate
         const panel = document.getElementById('filterPanel');
-        if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        if (panel) {
+            const isVisible = panel.style.display !== 'none' && 
+                             (panel.style.display === 'block' || 
+                              window.getComputedStyle(panel).display !== 'none');
+            panel.style.display = isVisible ? 'none' : 'block';
+        }
     });
 
     // Close filter panel on click outside
