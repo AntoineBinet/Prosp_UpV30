@@ -763,9 +763,15 @@ async function _vsaImportExtractWithOllama() {
         _vsaRawText = text;
         _vsaUrl = (linkEl?.value || '').trim();
         
-        // Fermer la modale VSA et ouvrir la modale de validation
+        // Fermer la modale VSA d'abord (forcé)
+        console.log('[VSA] Fermeture modale VSA avant ouverture validation');
         closeVsaImportModal();
-        _openVsaValidationModal();
+        
+        // Attendre un peu pour que la fermeture soit effective
+        setTimeout(() => {
+            // Ouvrir la modale de validation avec les données extraites
+            _openVsaValidationModal();
+        }, 150);
         
     } catch (e) {
         _hideVsaLoadingOverlay();
