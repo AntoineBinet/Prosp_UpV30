@@ -114,7 +114,7 @@ function renderFocus(items) {
                 <td class="focus-cell focus-cell-actions" data-label="Actions" style="text-align:right; white-space:nowrap;">
                   ${telBtn}
                   ${emailBtn}
-                  <a class="mini-action" href="/?open=${it.id}" title="Ouvrir fiche">👁️</a>
+                  <button class="mini-action" onclick="viewDetail(${it.id})" title="Voir la fiche">👁️</button>
                   <button class="mini-action" onclick="focusBump(${it.id}, 2)" title="Décaler +2j">+2j</button>
                   <button class="mini-action" onclick="focusDone(${it.id})" title="Marquer fait">✅</button>
                 </td>
