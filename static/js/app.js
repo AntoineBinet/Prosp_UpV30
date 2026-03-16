@@ -2367,15 +2367,33 @@ function setupListeners() {
     // Close on outside click
     document.addEventListener('click', () => closePanel());
 
-    // Tri prospects
-    document.querySelectorAll('th.sortable').forEach(th => {
-        th.addEventListener('click', () => setSort(th.dataset.sort));
-    });
+    // Tri prospects - délégation d'événements pour éviter les listeners multiples
+    // Utiliser un seul listener sur le document qui détecte les clics sur th.sortable
+    // Flag pour éviter d'attacher plusieurs fois (setupListeners peut être appelée plusieurs fois)
+    if (!window._prospectsSortListenerAttached) {
+        document.addEventListener('click', (e) => {
+            const th = e.target.closest('th.sortable');
+            if (th && th.dataset.sort) {
+                e.preventDefault();
+                e.stopPropagation();
+                setSort(th.dataset.sort);
+            }
+        });
+        window._prospectsSortListenerAttached = true;
+    }
 
-    // Tri entreprises
-    document.querySelectorAll('th.company-sortable').forEach(th => {
-        th.addEventListener('click', () => setCompanySort(th.dataset.companySort));
-    });
+    // Tri entreprises - délégation d'événements
+    if (!window._companySortListenerAttached) {
+        document.addEventListener('click', (e) => {
+            const th = e.target.closest('th.company-sortable');
+            if (th && th.dataset.companySort) {
+                e.preventDefault();
+                e.stopPropagation();
+                setCompanySort(th.dataset.companySort);
+            }
+        });
+        window._companySortListenerAttached = true;
+    }
 
     // Recherche entreprises
     on('companySearchInput', 'input', renderCompanies);
@@ -3266,9 +3284,15 @@ function applySort() {
 
 function setSort(key) {
     if (!key) return;
+    // Normaliser la clé (trim et conversion en string)
+    key = String(key).trim();
+    if (!key) return;
+    
+    // Si c'est la même colonne, basculer l'ordre
     if (sortKey === key) {
         sortDir = (sortDir === 'asc') ? 'desc' : 'asc';
     } else {
+        // Nouvelle colonne : définir la clé et l'ordre par défaut
         sortKey = key;
         // Par défaut : dates desc, le reste asc
         sortDir = (key === 'lastContact' || key === 'id') ? 'desc' : (key === 'nextFollowUp' ? 'asc' : (key === 'score' ? 'desc' : 'asc'));
