@@ -2117,6 +2117,8 @@ function initProspectsPage() {
             const sel = document.getElementById('inputCompany');
             sel.value = cid;
         }
+        // Réinitialiser _showContacts à false avant de vérifier le paramètre
+        _showContacts = false;
         if (params.get('contacts') === '1') {
             _showContacts = true;
             // Highlight Contacts in sidebar instead of Prospects
@@ -11143,6 +11145,8 @@ async function bootstrap(page) {
     } catch (e) {}
 
         // ═══ Contacts mode ═══
+        // Réinitialiser _showContacts à false avant de vérifier le paramètre
+        _showContacts = false;
         if (params.get('contacts') === '1') {
             _showContacts = true;
             const contactsBtn = document.getElementById('sidebarContactsBtn');
