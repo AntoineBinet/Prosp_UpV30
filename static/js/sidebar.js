@@ -289,6 +289,9 @@
         }
 
         document.body.appendChild(nav);
+        
+        // Ajouter une classe au body pour indiquer que la bottom nav est active
+        document.body.classList.add('mobile-bottom-nav-active');
     }
 
     // ── Public API ────────────────────────────────────────────────

@@ -7972,8 +7972,12 @@ body[data-page=""] #fabAdd {
   .hamburger-btn { display: flex; }
   
   /* Masquer le hamburger quand la bottom nav est visible (mobile) */
-  .mobile-bottom-nav ~ .hamburger-btn,
-  body:has(.mobile-bottom-nav) .hamburger-btn {
+  .mobile-bottom-nav ~ .hamburger-btn {
+    display: none !important;
+  }
+  
+  /* Si bottom nav existe, masquer hamburger */
+  body.mobile-bottom-nav-active .hamburger-btn {
     display: none !important;
   }
 
@@ -9808,7 +9812,7 @@ a.tel-link:hover { text-decoration: underline; }
 
     /* 8. HAMBURGER: ensure visible (sauf si bottom nav présente) */
     .hamburger-btn { display: flex !important; }
-    body:has(.mobile-bottom-nav) .hamburger-btn { display: none !important; }
+    body.mobile-bottom-nav-active .hamburger-btn { display: none !important; }
 
     /* 9. VIEWS TOOLBAR: scrollable */
     .views-bar, .saved-views-bar, .tab-bar {
