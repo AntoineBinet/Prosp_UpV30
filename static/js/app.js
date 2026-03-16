@@ -4839,6 +4839,7 @@ function closeRelanceDatePicker(confirmed) {
 const PROSP_SESSION_STORAGE_KEY = 'prospup_last_prosp_session';
 let _currentView = 'table';
 let _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
+let _prospManuallyExited = false; // Flag pour éviter la reprise automatique si l'utilisateur a quitté volontairement
 
 function _setViewToggleButtons(mode) {
     const btnTable = document.getElementById('btnViewTable');
@@ -5095,13 +5096,17 @@ function switchTableKanban(mode) {
         return;
     }
 
+    // Capturer le scroll AVANT de masquer la table (Bug 5)
+    const scrollState = _captureProspectsScrollState(ids[0]);
+    
     _prospSession = {
         active: true,
         ids,
         currentId: ids[0],
         currentIndex: 0,
-        listScrollState: _captureProspectsScrollState(ids[0])
+        listScrollState: scrollState
     };
+    _prospManuallyExited = false; // Réinitialiser le flag quand on active le mode prosp
     if (typeof showToast === 'function') {
         showToast(`Mode Prosp activé · ${ids.length} prospect${ids.length > 1 ? 's' : ''} à traiter`, 'info');
     }
@@ -5321,7 +5326,15 @@ async function saveAndNext(id) {
     const saved = saveDetail(id, { closeAfterSave: false, refreshAfterSave: true });
     if (!saved) return;
 
-    _syncProspCurrent(id);
+    // Bug 2 : Vérifier que id est toujours dans _prospSession.ids avant de sync
+    // (car saveDetail peut avoir appelé filterProspects qui a modifié la liste)
+    if ((_prospSession.ids || []).includes(id)) {
+        _syncProspCurrent(id);
+    } else {
+        // Si id n'est plus dans la liste, syncProspSessionWithFilteredList a déjà été appelé
+        // par filterProspects, donc on utilise l'état actuel
+    }
+    
     let nextId = null;
     if (preferredNextId && (_prospSession.ids || []).includes(preferredNextId)) {
         nextId = preferredNextId;
@@ -5355,6 +5368,8 @@ function goToProspPrev(id) {
     if (!prevId) return;
     _prospSession.currentId = prevId;
     _prospSession.currentIndex = (_prospSession.ids || []).indexOf(prevId);
+    // Bug 6 : Sauvegarder la session après navigation
+    if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
     viewDetail(prevId).catch(function () {});
 }
 
@@ -9678,25 +9693,49 @@ function closeDetail(options = {}) {
         const exitScrollState = _prospSession.listScrollState || _captureProspectsScrollState(_prospSession.currentId);
         _saveProspSessionToStorage({ scrollState: exitScrollState, anchorId: _prospSession.currentId });
         _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
+        _prospManuallyExited = true; // Marquer comme sortie volontaire (Bug 4)
         _currentView = 'table';
         const tableEl = document.getElementById('tableView');
         const kanbanEl = document.getElementById('kanbanView');
         if (tableEl) tableEl.style.display = '';
         if (kanbanEl) kanbanEl.style.display = 'none';
         _setViewToggleButtons('table');
-        if (exitScrollState) {
-            _queueProspectsScrollRestore(exitScrollState);
-            _flushProspectsScrollRestore();
-        }
-        // Réafficher la liste filtrée après sortie du mode prosp
+        // Réafficher la liste filtrée après sortie du mode prosp (Bug 3 : avant restauration scroll)
         try {
             if (typeof filterProspects === 'function') {
                 filterProspects();
+                // Restaurer le scroll APRÈS filterProspects (Bug 3)
+                if (exitScrollState) {
+                    // Attendre que le rendu soit terminé avant de restaurer le scroll
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            _queueProspectsScrollRestore(exitScrollState);
+                            _flushProspectsScrollRestore();
+                        });
+                    });
+                }
             } else if (typeof renderProspects === 'function') {
                 renderProspects();
+                // Restaurer le scroll APRÈS renderProspects (Bug 3)
+                if (exitScrollState) {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            _queueProspectsScrollRestore(exitScrollState);
+                            _flushProspectsScrollRestore();
+                        });
+                    });
+                }
+            } else if (exitScrollState) {
+                // Fallback si aucune fonction de rendu disponible
+                _queueProspectsScrollRestore(exitScrollState);
+                _flushProspectsScrollRestore();
             }
         } catch (e) {
             console.warn('Erreur réaffichage liste après sortie mode prosp:', e);
+            if (exitScrollState) {
+                _queueProspectsScrollRestore(exitScrollState);
+                _flushProspectsScrollRestore();
+            }
         }
         showProspResumeBanner();
     }
@@ -9765,6 +9804,7 @@ function resumeProspSession() {
         currentIndex,
         listScrollState: saved.scrollState || _captureProspectsScrollState(currentId)
     };
+    _prospManuallyExited = false; // Réinitialiser le flag quand on reprend la session
     _currentView = 'prosp';
     const tableEl = document.getElementById('tableView');
     const kanbanEl = document.getElementById('kanbanView');
@@ -9803,8 +9843,9 @@ document.addEventListener('visibilitychange', function () {
         _saveProspSessionToStorage();
     } else if (document.visibilityState === 'visible') {
         // Reprendre si une session est en storage mais qu'on n'est plus en Mode Prosp (ex: perte de state en mémoire)
+        // Bug 4 : Ne pas reprendre automatiquement si l'utilisateur a quitté volontairement
         try {
-            if (window.__APP_PAGE__ === 'prospects' && _currentView !== 'prosp' && sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY)) {
+            if (window.__APP_PAGE__ === 'prospects' && _currentView !== 'prosp' && !_prospManuallyExited && sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY)) {
                 const raw = sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY);
                 if (raw) {
                     const saved = JSON.parse(raw);
@@ -11382,16 +11423,19 @@ async function bootstrap(page) {
         }
 
         // Reprendre automatiquement le Mode Prosp au bon index si session sauvegardée (ex: retour après appel)
-        try {
-            const raw = sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY);
-            if (raw) {
-                const saved = JSON.parse(raw);
-                if (saved && Array.isArray(saved.ids) && saved.ids.length > 0 && saved.currentId != null) {
-                    resumeProspSession();
-                    if (typeof showToast === 'function') showToast('Session Prosp reprise', 'info');
+        // Bug 1 : Ne pas reprendre si ?open= est présent (priorité à l'ouverture explicite)
+        if (!openId) {
+            try {
+                const raw = sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY);
+                if (raw) {
+                    const saved = JSON.parse(raw);
+                    if (saved && Array.isArray(saved.ids) && saved.ids.length > 0 && saved.currentId != null) {
+                        resumeProspSession();
+                        if (typeof showToast === 'function') showToast('Session Prosp reprise', 'info');
+                    }
                 }
-            }
-        } catch (e) {}
+            } catch (e) {}
+        }
 
     }
 
