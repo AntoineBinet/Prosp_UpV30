@@ -6263,14 +6263,14 @@ body[data-page="candidate"] #fabAdd {
 
 /* Sur mobile, FAB Ajouter en dessous de l'assistant IA (à droite) */
 @media (max-width: 900px) {
-  /* Remonter l'assistant IA pour laisser de la place */
+  /* Remonter l'assistant IA pour laisser de la place au FAB Ajouter */
   body[data-page="candidate"] .fab-icon-only,
   body[data-page="sourcing"] .fab-icon-only {
     bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important; /* Au-dessus de la bottom nav + FAB */
     right: 18px !important;
   }
   
-  /* FAB Ajouter juste en dessous de l'assistant */
+  /* FAB Ajouter juste en dessous de l'assistant (à droite, aligné) */
   body[data-page="candidate"] #fabAdd,
   body[data-page="sourcing"] #fabAdd {
     display: flex !important;
@@ -6280,6 +6280,7 @@ body[data-page="candidate"] #fabAdd {
     left: auto !important;
     bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; /* Au-dessus de la bottom nav */
     z-index: 997 !important;
+    position: fixed !important;
   }
   
   /* Style icon-only sur mobile pour candidate/sourcing */
@@ -6650,7 +6651,7 @@ body[data-page="candidate"] #fabAdd {
     right: 16px;
   }
   
-  /* Sur mobile, page prospects : les deux boutons côte à côte à droite */
+  /* Sur mobile, page prospects : assistant reste en bas */
   body[data-page="prospects"] .fab-icon-only,
   body[data-page=""] .fab-icon-only {
     bottom: 70px;
@@ -6659,9 +6660,14 @@ body[data-page="candidate"] #fabAdd {
   
   body[data-page="prospects"] #fabAdd,
   body[data-page=""] #fabAdd {
-    bottom: 70px; /* Même niveau */
-    right: 78px; /* Juste à gauche de l'IA sur mobile (16px + 52px + 10px marge) */
-    left: auto;
+    display: none !important; /* Masqué sur prospects (bouton dans toolbar) */
+  }
+  
+  /* Sur mobile, candidate et sourcing : assistant remonté, FAB en dessous */
+  body[data-page="candidate"] .fab-icon-only,
+  body[data-page="sourcing"] .fab-icon-only {
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 18px !important;
   }
   
   .assistant-chat-window {
