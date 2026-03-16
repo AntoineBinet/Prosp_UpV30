@@ -294,6 +294,14 @@
 
 {% endblock %}
 
+{% block fab %}
+<!-- FAB: Ajouter candidat -->
+<button class="fab" id="fabAdd" onclick="if(typeof openQuickAddModal === 'function') { openQuickAddModal(); } else if(typeof openCandidateModal === 'function') { openCandidateModal(); }" title="Ajouter un candidat">
+    <span class="fab-icon">+</span>
+    <span class="fab-label">Ajouter</span>
+</button>
+{% endblock %}
+
 {% block page_scripts %}
 <script defer src="/static/js/page-candidate.js?v=2000"></script>
 {% endblock %}
