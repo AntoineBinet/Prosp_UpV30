@@ -67,17 +67,31 @@ function renderDashboard(d) {
     renderFeed(d.feed, d.today);
     renderUpcomingRdv(d.upcoming_rdv || []);
     renderPipeline(d.pipeline);
-    if (typeof window.applyDashboardDisplayPrefs === 'function') window.applyDashboardDisplayPrefs();
+    renderPushAnalytics();
     
-    // Réinitialiser le drag & drop après le rendu
-    setTimeout(function() {
-        initDashboardWidgetDragDrop();
-    }, 100);
+    // Appliquer les préférences d'affichage APRÈS le rendu de tous les widgets
+    if (typeof window.applyDashboardDisplayPrefs === 'function') {
+        window.applyDashboardDisplayPrefs();
+    }
+    // Réorganiser l'ordre après application des préférences
+    applyDashboardWidgetOrder();
+    
+    // Note: Le drag & drop sera initialisé UNE SEULE FOIS dans le DOMContentLoaded
+    // après le chargement complet pour éviter les conflits de timing
 }
 
 // Applique les préférences d'affichage des cartes du dashboard
 function applyDashboardDisplayPrefs() {
-    if (typeof window.getDisplayPref !== 'function') return;
+    if (typeof window.getDisplayPref !== 'function') {
+        // Si getDisplayPref n'est pas disponible, afficher tous les widgets par défaut
+        var container = document.getElementById('dashWidgetsContainer');
+        if (container) {
+            container.querySelectorAll('.dash-widget').forEach(function (w) {
+                w.style.display = '';
+            });
+        }
+        return;
+    }
     var map = [
         { pref: 'display_kpi_row', ids: ['dashKpiRow', 'dashKpiActionsRow'] },
         { pref: 'display_first_glance', ids: ['dashFirstGlance'] },
@@ -87,15 +101,24 @@ function applyDashboardDisplayPrefs() {
         { pref: 'display_dash_overdue', ids: ['dashOverdueCard'] },
         { pref: 'display_dash_rdv', ids: ['dashRdvCard'] },
         { pref: 'display_dash_tasks', ids: ['dashTasksCard'] },
+        { pref: 'display_dash_priorities', ids: ['dashPrioritiesCard'] },
+        { pref: 'display_dash_push_analytics', ids: ['dashPushAnalyticsCard'] },
         { pref: 'display_dash_pipeline', ids: ['dashPipelineCard'] }
     ];
     map.forEach(function (item) {
+        // Par défaut, afficher si la préférence n'existe pas (true par défaut)
         var on = window.getDisplayPref(item.pref);
+        if (on === undefined || on === null) on = true; // Par défaut visible
         item.ids.forEach(function (id) {
             var el = document.getElementById(id);
             if (el) {
                 var wrapper = el.closest('.dash-widget');
-                (wrapper || el).style.display = on ? '' : 'none';
+                var target = wrapper || el;
+                if (target) {
+                    // Utiliser data-display-pref pour marquer que c'est une préférence, pas un masquage adaptatif
+                    target.setAttribute('data-display-pref', on ? '1' : '0');
+                    target.style.display = on ? '' : 'none';
+                }
             }
         });
     });
@@ -105,7 +128,7 @@ window.applyDashboardDisplayPrefs = applyDashboardDisplayPrefs;
 // ═══ Widgets réorganisables (v25+) — ordre sauvegardé par utilisateur ─══
 var DASH_WIDGET_ORDER_KEY = 'dashboard_widget_order';
 var DASH_WIDGET_COLUMNS_KEY = 'dashboard_widget_columns';
-var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard'];
+var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard', 'dashPrioritiesCard', 'dashPushAnalyticsCard'];
 
 function getDashboardWidgetOrder() {
     try {
@@ -122,12 +145,20 @@ function saveDashboardWidgetOrder() {
     var container = document.getElementById('dashWidgetsContainer');
     if (!container) return;
     var order = [];
+    // Sauvegarder TOUS les widgets dans l'ordre, même ceux masqués par les préférences
+    // Cela permet de préserver l'ordre même si un widget est temporairement masqué
     container.querySelectorAll('.dash-widget').forEach(function (w) {
         var id = w.getAttribute('data-widget-id');
-        if (id && w.style.display !== 'none') order.push(id);
+        if (id) {
+            // Vérifier si le widget est masqué uniquement par les préférences (pas par l'adaptatif)
+            var isHiddenByPref = w.getAttribute('data-display-pref') === '0';
+            // Inclure dans l'ordre même si masqué par préférence (mais pas si complètement absent du DOM)
+            order.push(id);
+        }
     });
     try { localStorage.setItem(DASH_WIDGET_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
-    if (window.showToast) window.showToast('Ordre des widgets enregistré.', 'success', 2000);
+    // Ne pas afficher de toast à chaque drag & drop pour éviter le spam
+    // if (window.showToast) window.showToast('Ordre des widgets enregistré.', 'success', 2000);
 }
 
 function getDashboardColumns() {
@@ -197,121 +228,104 @@ function applyDashboardWidgetOrder() {
     if (!container) return;
     var order = getDashboardWidgetOrder();
     var byId = {};
+    // Collecter tous les widgets présents dans le DOM
     container.querySelectorAll('.dash-widget').forEach(function (w) {
         var id = w.getAttribute('data-widget-id');
         if (id) byId[id] = w;
     });
+    // Réorganiser selon l'ordre sauvegardé
     order.forEach(function (id) {
+        if (byId[id]) {
+            container.appendChild(byId[id]);
+            delete byId[id]; // Marquer comme traité
+        }
+    });
+    // Ajouter les widgets qui ne sont pas dans l'ordre sauvegardé (nouveaux widgets) à la fin
+    Object.keys(byId).forEach(function (id) {
         if (byId[id]) container.appendChild(byId[id]);
     });
 }
 
-// ═══ Système de glisser-déposer amélioré et modulaire ═══
-var _dashboardDragDropInitialized = false;
-var _dashboardDraggedWidget = null;
+// ═══ Système de glisser-déposer unifié (desktop + mobile) ═══
+// Utilise la classe DashboardWidgetDragDrop pour un système robuste et modulaire
 
 function initDashboardWidgetDragDrop() {
-    var container = document.getElementById('dashWidgetsContainer');
-    if (!container) return;
-    
-    // Nettoyer les anciens event listeners si déjà initialisé
-    if (_dashboardDragDropInitialized) {
-        container.querySelectorAll('.dash-widget-handle').forEach(function (handle) {
-            var newHandle = handle.cloneNode(true);
-            handle.parentNode.replaceChild(newHandle, handle);
-        });
-        container.querySelectorAll('.dash-widget').forEach(function (w) {
-            var newWidget = w.cloneNode(true);
-            w.parentNode.replaceChild(newWidget, w);
-        });
+    const container = document.getElementById('dashWidgetsContainer');
+    if (!container) {
+        console.warn('[Dashboard] dashWidgetsContainer non trouvé');
+        return;
     }
     
-    _dashboardDraggedWidget = null;
+    // Détruire l'ancienne instance si elle existe
+    if (window._dashboardDragDropInstance) {
+        window._dashboardDragDropInstance.destroy();
+        window._dashboardDragDropInstance = null;
+    }
     
-    // Attacher les événements sur les handles
-    container.querySelectorAll('.dash-widget-handle').forEach(function (handle) {
-        handle.setAttribute('draggable', 'true');
-        handle.addEventListener('dragstart', function (e) {
-            var w = handle.closest('.dash-widget');
-            if (!w) return;
-            _dashboardDraggedWidget = w;
-            e.dataTransfer.setData('text/plain', w.getAttribute('data-widget-id') || '');
-            e.dataTransfer.effectAllowed = 'move';
-            w.classList.add('dash-widget-dragging');
-            // Feedback haptique si disponible
-            if (typeof window.haptic === 'function') window.haptic(10);
-        });
-        handle.addEventListener('dragend', function (e) {
-            if (_dashboardDraggedWidget) {
-                _dashboardDraggedWidget.classList.remove('dash-widget-dragging');
-                _dashboardDraggedWidget = null;
-            }
-            container.querySelectorAll('.dash-widget').forEach(function (w) { 
-                w.classList.remove('dash-widget-drag-over'); 
-            });
-        });
+    // Vérifier que la classe est disponible
+    if (typeof DashboardWidgetDragDrop === 'undefined') {
+        console.error('[Dashboard] DashboardWidgetDragDrop non disponible. Vérifiez que dashboard-widget-dragdrop.js est chargé.');
+        return;
+    }
+    
+    // Créer nouvelle instance
+    window._dashboardDragDropInstance = new DashboardWidgetDragDrop('#dashWidgetsContainer', {
+        handleSelector: '.dash-widget-handle',
+        widgetSelector: '.dash-widget',
+        dragThreshold: 5,
+        animationDuration: 200
     });
-
-    // Attacher les événements sur les widgets (zones de drop)
-    container.querySelectorAll('.dash-widget').forEach(function (w) {
-        w.addEventListener('dragover', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.dataTransfer.dropEffect = 'move';
-            if (_dashboardDraggedWidget && _dashboardDraggedWidget !== w) {
-                w.classList.add('dash-widget-drag-over');
-            }
-        });
-        w.addEventListener('dragleave', function (e) {
-            // Ne retirer la classe que si on quitte vraiment le widget
-            var rect = w.getBoundingClientRect();
-            var x = e.clientX;
-            var y = e.clientY;
-            if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-                w.classList.remove('dash-widget-drag-over');
-            }
-        });
-        w.addEventListener('drop', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            w.classList.remove('dash-widget-drag-over');
-            if (!_dashboardDraggedWidget || _dashboardDraggedWidget === w) return;
-            
-            // Calculer la position d'insertion (avant ou après selon la position de la souris)
-            var rect = w.getBoundingClientRect();
-            var y = e.clientY;
-            var midY = rect.top + rect.height / 2;
-            
-            if (y < midY) {
-                // Insérer avant
-                container.insertBefore(_dashboardDraggedWidget, w);
-            } else {
-                // Insérer après
-                var next = w.nextElementSibling;
-                container.insertBefore(_dashboardDraggedWidget, next);
-            }
-            
+    
+    // Callback pour sauvegarder l'ordre
+    window._dashboardDragDropInstance.onOrderChange = function() {
+        if (typeof saveDashboardWidgetOrder === 'function') {
             saveDashboardWidgetOrder();
-            // Feedback haptique si disponible
-            if (typeof window.haptic === 'function') window.haptic(20);
-        });
-    });
+        }
+    };
     
-    _dashboardDragDropInitialized = true;
+    // Initialiser
+    window._dashboardDragDropInstance.init();
+    
+    console.log('[Dashboard] Drag & drop initialisé (nouveau système unifié)');
 }
 
-// Appliquer l’ordre sauvegardé au chargement de la page
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
-        applyDashboardColumns();
-        applyDashboardWidgetOrder();
-        initDashboardWidgetDragDrop();
+// ═══ Système de redimensionnement libre (style PowerPoint) ═══
+
+function initDashboardWidgetResize() {
+    const container = document.getElementById('dashWidgetsContainer');
+    if (!container) {
+        console.warn('[Dashboard] dashWidgetsContainer non trouvé pour resize');
+        return;
+    }
+    
+    // Détruire l'ancienne instance si elle existe
+    if (window._dashboardResizeInstance) {
+        window._dashboardResizeInstance.destroy();
+        window._dashboardResizeInstance = null;
+    }
+    
+    // Vérifier que la classe est disponible
+    if (typeof DashboardWidgetResize === 'undefined') {
+        console.error('[Dashboard] DashboardWidgetResize non disponible. Vérifiez que dashboard-widget-resize.js est chargé.');
+        return;
+    }
+    
+    // Créer nouvelle instance
+    window._dashboardResizeInstance = new DashboardWidgetResize('#dashWidgetsContainer', {
+        widgetSelector: '.dash-widget',
+        minWidth: 200,
+        minHeight: 150,
+        gridSnap: true
     });
-} else {
-    applyDashboardColumns();
-    applyDashboardWidgetOrder();
-    initDashboardWidgetDragDrop();
+    
+    // Initialiser
+    window._dashboardResizeInstance.init();
+    
+    console.log('[Dashboard] Resize initialisé (système libre)');
 }
+
+// Note: L'application de l'ordre et des colonnes est maintenant gérée dans le DOMContentLoaded
+// pour éviter les conflits de timing avec le chargement des données
 
 // Exposer les fonctions globalement pour les boutons de contrôle
 window.setDashboardColumns = setDashboardColumns;
@@ -580,7 +594,22 @@ function _maybeToast(msg) {
 
 function renderGoals(goalsPayload, week, todayObj) {
     const card = document.getElementById('dashGoalsCard');
-    if (!card) return;
+    if (!card) {
+        console.warn('[Dashboard] dashGoalsCard non trouvé dans le DOM');
+        return;
+    }
+    
+    // Vérifier que le widget parent existe et est visible selon les préférences
+    const widget = card.closest('.dash-widget');
+    if (widget) {
+        // Si le widget est masqué par les préférences, ne pas le rendre (mais ne pas le supprimer)
+        const isHiddenByPref = widget.getAttribute('data-display-pref') === '0';
+        if (isHiddenByPref) {
+            // Le widget est masqué intentionnellement par l'utilisateur, ne rien faire
+            return;
+        }
+    }
+    
     const body = card.querySelector('.dash-goals-body');
     const confetti = document.getElementById('dashGoalsConfetti') || card.querySelector('.dash-confetti-layer');
 
@@ -800,7 +829,7 @@ function renderPipeline(pipeline) {
     const el = document.getElementById('dashPipeline');
     if (!el) return;
 
-    const statusOrder = ["Pas d'actions", "Appelé", "À rappeler", "Messagerie", "Rendez-vous", "Rencontré", "Prospecté", "Pas intéressé"];
+    const statusOrder = ["Pas d'actions", "Appelé", "À rappeler", "Messagerie", "Rendez-vous", "Prospecté", "Pas intéressé"];
     const statusColors = {
         "Pas d'actions": '#64748b', 'Appelé': '#f59e0b', 'Messagerie': '#3b82f6',
         'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Pas intéressé': '#94a3b8'
@@ -920,16 +949,213 @@ async function dashToggleTask(taskId, btn) {
 }
 window.dashToggleTask = dashToggleTask;
 
+// ═══ Dashboard adaptatif et Assistant virtuel ═══
+async function loadAdaptiveDashboard() {
+    try {
+        const res = await fetch('/api/dashboard/adaptive');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Error');
+        renderAdaptiveDashboard(json.data);
+    } catch (e) {
+        console.error('Adaptive dashboard error:', e);
+        // Fallback: afficher les widgets par défaut
+    }
+}
+
+function renderAdaptiveDashboard(adaptiveData) {
+    // Afficher les priorités du jour
+    renderPriorities(adaptiveData.priorities || []);
+    
+    // NE PAS masquer/afficher les widgets selon les recommandations adaptatives
+    // Les préférences d'affichage utilisateur ont la priorité
+    // L'adaptatif ne doit que suggérer, pas forcer l'affichage/masquage
+    
+    // Afficher l'insight si disponible
+    if (adaptiveData.insight) {
+        const prioritiesEl = document.getElementById('dashPriorities');
+        if (prioritiesEl && !prioritiesEl.querySelector('.dash-priorities-insight')) {
+            const insightEl = document.createElement('div');
+            insightEl.className = 'dash-priorities-insight muted';
+            insightEl.style.cssText = 'font-size:11px;margin-top:8px;padding-top:8px;border-top:1px solid var(--color-border);';
+            insightEl.textContent = '💡 ' + adaptiveData.insight;
+            prioritiesEl.appendChild(insightEl);
+        }
+    }
+}
+
+function renderPriorities(priorities) {
+    const el = document.getElementById('dashPriorities');
+    if (!el) return;
+    
+    if (!priorities || !priorities.length) {
+        el.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">Aucune priorité générée.</div>';
+        return;
+    }
+    
+    el.innerHTML = priorities.map((p, idx) => `
+        <div class="dash-priority-item" style="padding:10px 12px;margin-bottom:8px;background:var(--color-surface);border-radius:6px;border-left:3px solid var(--color-primary);">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:16px;">${idx === 0 ? '🔴' : idx === 1 ? '🟡' : '🟢'}</span>
+                <span style="font-size:13px;font-weight:500;">${escapeHtml(p)}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ═══ Analytics Mailing (v26.6) ═══
+async function renderPushAnalytics() {
+    const el = document.getElementById('dashPushAnalytics');
+    if (!el) return;
+    
+    try {
+        const res = await fetch('/api/push/analytics');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Error');
+        
+        const analytics = data;
+        let html = '<div style="padding:12px;">';
+        
+        // Meilleurs créneaux horaires
+        if (analytics.hour_stats && analytics.hour_stats.length > 0) {
+            html += '<div style="margin-bottom:16px;">';
+            html += '<div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--color-text-secondary);">⏰ Meilleures heures</div>';
+            analytics.hour_stats.slice(0, 3).forEach(stat => {
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;">`;
+                html += `<span>${String(stat.hour).padStart(2, '0')}h</span>`;
+                html += `<span style="font-weight:600;color:var(--color-primary);">${stat.open_rate.toFixed(1)}%</span>`;
+                html += `</div>`;
+            });
+            html += '</div>';
+        }
+        
+        // Meilleurs jours
+        if (analytics.day_stats && analytics.day_stats.length > 0) {
+            html += '<div style="margin-bottom:16px;">';
+            html += '<div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--color-text-secondary);">📅 Meilleurs jours</div>';
+            analytics.day_stats.slice(0, 3).forEach(stat => {
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;">`;
+                html += `<span>${stat.day_name}</span>`;
+                html += `<span style="font-weight:600;color:var(--color-primary);">${stat.open_rate.toFixed(1)}%</span>`;
+                html += `</div>`;
+            });
+            html += '</div>';
+        }
+        
+        // Performance variantes A/B
+        if (analytics.variant_stats && analytics.variant_stats.length > 0) {
+            html += '<div style="margin-bottom:16px;">';
+            html += '<div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--color-text-secondary);">🧪 Variantes A/B</div>';
+            analytics.variant_stats.forEach(stat => {
+                html += `<div style="padding:8px;background:var(--color-surface);border-radius:6px;margin-bottom:6px;">`;
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">`;
+                html += `<span style="font-weight:600;">Variante ${stat.variant_id}</span>`;
+                html += `<span style="font-size:11px;color:var(--color-text-secondary);">${stat.total} envois</span>`;
+                html += `</div>`;
+                html += `<div style="display:flex;gap:12px;font-size:11px;">`;
+                html += `<span>Ouverture: <strong>${stat.open_rate.toFixed(1)}%</strong></span>`;
+                html += `<span>Clics: <strong>${stat.click_rate.toFixed(1)}%</strong></span>`;
+                html += `</div>`;
+                html += `</div>`;
+            });
+            html += '</div>';
+        }
+        
+        if (!analytics.hour_stats?.length && !analytics.day_stats?.length && !analytics.variant_stats?.length) {
+            html += '<div class="muted" style="text-align:center;padding:20px;">Pas encore de données d\'analytics disponibles.</div>';
+        }
+        
+        html += '</div>';
+        el.innerHTML = html;
+    } catch (e) {
+        console.error('Push analytics error:', e);
+        el.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">Erreur de chargement des analytics.</div>';
+    }
+}
+
+// Note: Les fonctions de l'assistant virtuel sont maintenant dans app.js pour être disponibles sur toutes les pages
+
+// Note: L'envoi avec Enter est géré directement dans le HTML via onkeypress
+
+// ═══ Afficher le bouton assistant sur toutes les pages ═══
+function initAssistantButton() {
+    const fab = document.getElementById('dashAssistantFab');
+    if (fab) {
+        // Afficher le bouton si l'utilisateur est connecté (pas sur login)
+        const isLoginPage = window.location.pathname === '/login' || document.body.getAttribute('data-page') === 'login';
+        if (!isLoginPage) {
+            fab.style.display = 'flex';
+        }
+    }
+}
+
+// ═══ Fonction de réinitialisation des widgets (pour debug/correction) ═══
+function resetDashboardWidgets() {
+    var container = document.getElementById('dashWidgetsContainer');
+    if (!container) return;
+    
+    // Réafficher tous les widgets
+    container.querySelectorAll('.dash-widget').forEach(function (w) {
+        w.style.display = '';
+        w.removeAttribute('data-display-pref');
+    });
+    
+    // Réappliquer les préférences
+    if (typeof window.applyDashboardDisplayPrefs === 'function') {
+        window.applyDashboardDisplayPrefs();
+    }
+    
+    // Réorganiser selon l'ordre par défaut
+    try {
+        localStorage.removeItem(DASH_WIDGET_ORDER_KEY);
+    } catch (e) {}
+    applyDashboardWidgetOrder();
+    
+    // Réinitialiser le drag & drop et resize
+    initDashboardWidgetDragDrop();
+    initDashboardWidgetResize();
+    
+    if (typeof showToast === 'function') {
+        showToast('✅ Widgets réinitialisés', 'success');
+    }
+}
+window.resetDashboardWidgets = resetDashboardWidgets;
+
 // ═══ Boot ═══
 document.addEventListener('DOMContentLoaded', async () => {
-    if (typeof window.applyDashboardDisplayPrefs === 'function') window.applyDashboardDisplayPrefs();
+    // Initialiser le bouton assistant
+    initAssistantButton();
+    
+    // Appliquer les colonnes et l'ordre AVANT le chargement des données
+    applyDashboardColumns();
+    applyDashboardWidgetOrder();
+    
     try {
         const fn = window.bootstrap || window.appBootstrap;
         if (typeof fn === 'function') await fn('dashboard');
     } catch(e) {}
 
-    await Promise.all([loadDashboard(), loadDashTasks()]);
+    // Charger les données et appliquer les préférences après
+    await Promise.all([loadDashboard(), loadDashTasks(), loadAdaptiveDashboard()]);
+    
+    // Appliquer les préférences d'affichage une dernière fois après tout le chargement
+    // et initialiser le drag & drop et resize une seule fois à la fin
+    setTimeout(function() {
+        if (typeof window.applyDashboardDisplayPrefs === 'function') {
+            window.applyDashboardDisplayPrefs();
+        }
+        // Réorganiser l'ordre après application des préférences
+        applyDashboardWidgetOrder();
+        // Initialiser le drag & drop UNE SEULE FOIS à la fin (après que tout soit stable)
+        initDashboardWidgetDragDrop();
+        // Initialiser le resize
+        initDashboardWidgetResize();
+    }, 350);
 });
+
+// Exposer la fonction globalement
+window.sendAssistantMessage = sendAssistantMessage;
 
 // ═══════════════════════════════════════════════════════════════
 // Manual KPI Entry (v16.5)

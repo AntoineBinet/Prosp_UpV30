@@ -7,6 +7,669 @@ window.onerror = function(msg, src, line) {
     console.error("[Prosp'Up] Error:", msg, "at", src + ":" + line);
 };
 
+// ═══ Assistant virtuel (disponible sur toutes les pages) ═══
+let assistantChatHistory = [];
+let assistantSessionId = localStorage.getItem('assistant_session_id') || null;
+let currentStreamingMessage = null;
+
+// Sauvegarder le session_id dans localStorage
+function saveAssistantSessionId(sessionId) {
+    if (sessionId) {
+        assistantSessionId = sessionId;
+        localStorage.setItem('assistant_session_id', sessionId);
+    }
+}
+
+// Obtenir le contexte de la page actuelle
+function getPageContext() {
+    const pageId = document.body.getAttribute('data-page') || '';
+    const path = window.location.pathname;
+    
+    const contextMap = {
+        'prospects': {
+            name: 'Gestion des prospects',
+            description: 'Vous êtes sur la page de gestion des prospects. Vous pouvez poser des questions sur vos prospects, leurs statuts, les relances, les entreprises, etc.',
+            examples: [
+                'Quels sont mes prospects à relancer ?',
+                'Montre-moi les prospects du secteur automobile',
+                'Combien de prospects en RDV cette semaine ?',
+                'Quels prospects ont le plus haut score ?'
+            ]
+        },
+        'dashboard': {
+            name: 'Dashboard',
+            description: 'Vous êtes sur le dashboard. Vous pouvez poser des questions sur votre activité du jour, vos KPIs, votre pipeline, vos tâches, etc.',
+            examples: [
+                'Quels sont mes prospects à relancer ?',
+                'Montre-moi les prospects du secteur automobile',
+                'Combien de RDV cette semaine ?',
+                'Quelles sont mes priorités du jour ?'
+            ]
+        },
+        'company': {
+            name: 'Gestion des entreprises',
+            description: 'Vous êtes sur la page de gestion des entreprises. Vous pouvez poser des questions sur vos entreprises, leurs prospects associés, etc.',
+            examples: [
+                'Quelles sont mes entreprises les plus actives ?',
+                'Combien de prospects par entreprise ?',
+                'Quelles entreprises ont des relances en retard ?'
+            ]
+        },
+        'sourcing': {
+            name: 'Sourcing de candidats',
+            description: 'Vous êtes sur la page de sourcing de candidats. Vous pouvez poser des questions sur vos candidats, leurs compétences, leurs disponibilités, etc.',
+            examples: [
+                'Quels candidats ont des compétences en AUTOSAR ?',
+                'Combien de candidats disponibles cette semaine ?',
+                'Quels sont les meilleurs candidats pour un poste de développeur embarqué ?'
+            ]
+        },
+        'candidate': {
+            name: 'Fiche candidat',
+            description: 'Vous êtes sur une fiche candidat. Vous pouvez poser des questions sur ce candidat, ses compétences, son parcours, etc.',
+            examples: [
+                'Quelles sont les compétences principales de ce candidat ?',
+                'Quel est le parcours professionnel ?',
+                'Ce candidat correspond-il à un besoin spécifique ?'
+            ]
+        },
+        'stats': {
+            name: 'Statistiques',
+            description: 'Vous êtes sur la page des statistiques. Vous pouvez poser des questions sur vos performances, vos tendances, vos conversions, etc.',
+            examples: [
+                'Quel est mon taux de conversion ?',
+                'Quelles sont mes meilleures périodes ?',
+                'Comment évolue mon pipeline ?'
+            ]
+        },
+        'focus': {
+            name: 'Focus',
+            description: 'Vous êtes sur la page Focus. Vous pouvez poser des questions sur vos relances, vos tâches, vos priorités, etc.',
+            examples: [
+                'Quelles sont mes relances en retard ?',
+                'Quelles tâches sont prioritaires ?',
+                'Quels sont mes prochains RDV ?'
+            ]
+        },
+        'settings': {
+            name: 'Paramètres',
+            description: 'Vous êtes sur la page des paramètres. Vous pouvez poser des questions sur la configuration, les utilisateurs, etc.',
+            examples: [
+                'Comment configurer l\'IA ?',
+                'Quels utilisateurs sont actifs ?'
+            ]
+        }
+    };
+    
+    // Essayer d'abord avec page_id, puis avec le path
+    let context = contextMap[pageId];
+    if (!context) {
+        if (path.includes('/candidate/')) {
+            context = contextMap['candidate'];
+        } else if (path.includes('/company/')) {
+            context = contextMap['company'];
+        } else if (path === '/') {
+            context = contextMap['prospects'];
+        }
+    }
+    
+    // Fallback par défaut
+    return context || {
+        name: 'Application',
+        description: 'Vous êtes sur Prosp\'Up. Posez-moi une question sur vos prospects, votre pipeline, ou vos tâches.',
+        examples: [
+            'Quels sont mes prospects à relancer ?',
+            'Montre-moi les prospects du secteur automobile',
+            'Combien de RDV cette semaine ?'
+        ]
+    };
+}
+
+window.toggleAssistantChat = function() {
+    const chatWindow = document.getElementById('assistantChatWindow');
+    const fab = document.getElementById('dashAssistantFab');
+    if (!chatWindow || !fab) return;
+    
+    const isOpen = chatWindow.classList.contains('open');
+    
+    if (isOpen) {
+        // Fermer avec animation
+        chatWindow.classList.remove('open');
+        fab.style.transform = 'scale(1)';
+    } else {
+        // Ouvrir avec animation
+        chatWindow.classList.add('open');
+        fab.style.transform = 'scale(0.9)';
+        
+        // Focus sur l'input après l'animation
+        setTimeout(() => {
+            const input = document.getElementById('dashAssistantInput');
+            if (input) input.focus();
+        }, 300);
+        
+        // Charger l'historique si disponible
+        if (assistantSessionId) {
+            loadAssistantHistory();
+        } else {
+            // Créer une nouvelle session si aucune n'existe
+            assistantSessionId = `session_${Date.now()}`;
+            saveAssistantSessionId(assistantSessionId);
+        }
+        
+        // Afficher un message de bienvenue adapté à la page si le chat est vide
+        const chat = document.getElementById('dashAssistantChat');
+        if (chat && chat.children.length === 0) {
+            setTimeout(() => {
+                loadSuggestions();
+                const context = getPageContext();
+                const examplesText = context.examples.map(ex => `• "${ex}"`).join('\n');
+                addChatMessage('assistant', `${context.description}\n\nExemples de questions :\n${examplesText}`);
+            }, 100);
+        }
+    }
+}
+
+window.sendAssistantMessage = function(useStreaming = true) {
+    const input = document.getElementById('dashAssistantInput');
+    if (!input) return;
+    const question = input.value.trim();
+    if (!question) return;
+    
+    // Ajouter la question au chat
+    addChatMessage('user', question);
+    input.value = '';
+    input.disabled = true;
+    
+    const sendBtn = document.getElementById('dashAssistantSend');
+    if (sendBtn) {
+        sendBtn.disabled = true;
+        const svg = sendBtn.querySelector('svg');
+        if (svg) svg.style.opacity = '0.5';
+    }
+    
+    // Obtenir le contexte de la page
+    const context = getPageContext();
+    
+    if (useStreaming) {
+        // Mode streaming (SSE)
+        sendAssistantMessageStream(question, context);
+    } else {
+        // Mode non-streaming (fallback)
+        fetch('/api/dashboard/assistant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                question,
+                session_id: assistantSessionId,
+                page_context: context.name,
+                page_description: context.description
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok && data.data) {
+                const response = data.data;
+                if (response.session_id) saveAssistantSessionId(response.session_id);
+                addChatMessage('assistant', response.answer || 'Désolé, je n\'ai pas de réponse.');
+                
+                // Afficher les actions si disponibles
+                if (response.actions && response.actions.length > 0) {
+                    renderAssistantActions(response.actions);
+                }
+            } else {
+                addChatMessage('assistant', 'Erreur: ' + (data.error || 'Réponse invalide'));
+            }
+        })
+        .catch(e => {
+            console.error('Assistant error:', e);
+            addChatMessage('assistant', 'Erreur de connexion. Vérifiez votre connexion.');
+        })
+        .finally(() => {
+            input.disabled = false;
+            if (sendBtn) {
+                sendBtn.disabled = false;
+                const svg = sendBtn.querySelector('svg');
+                if (svg) svg.style.opacity = '1';
+            }
+            input.focus();
+        });
+    }
+}
+
+function sendAssistantMessageStream(question, context) {
+    const chat = document.getElementById('dashAssistantChat');
+    if (!chat) return;
+    
+    // Créer un élément de message pour le streaming
+    const messageEl = document.createElement('div');
+    messageEl.className = 'assistant-chat-message assistant streaming';
+    messageEl.textContent = '';
+    chat.appendChild(messageEl);
+    currentStreamingMessage = messageEl;
+    
+    const input = document.getElementById('dashAssistantInput');
+    const sendBtn = document.getElementById('dashAssistantSend');
+    
+    fetch('/api/dashboard/assistant-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            question,
+            session_id: assistantSessionId,
+            page_context: context.name,
+            page_description: context.description
+        })
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('Stream failed');
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        function readStream() {
+            reader.read().then(({ done, value }) => {
+                if (done) {
+                    messageEl.classList.remove('streaming');
+                    currentStreamingMessage = null;
+                    input.disabled = false;
+                    if (sendBtn) {
+                        sendBtn.disabled = false;
+                        const svg = sendBtn.querySelector('svg');
+                        if (svg) svg.style.opacity = '1';
+                    }
+                    input.focus();
+                    // Charger les actions après la réponse
+                    setTimeout(() => {
+                        fetch('/api/dashboard/assistant', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                question,
+                                session_id: assistantSessionId,
+                                page_context: context.name,
+                                page_description: context.description
+                            })
+                        })
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.ok && d.data && d.data.actions && d.data.actions.length > 0) {
+                                renderAssistantActions(d.data.actions);
+                            }
+                        })
+                        .catch(() => {});
+                    }, 500);
+                    return;
+                }
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.type === 'token' && messageEl) {
+                                messageEl.textContent += data.text;
+                                chat.scrollTop = chat.scrollHeight;
+                            } else if (data.type === 'start' && data.session_id) {
+                                saveAssistantSessionId(data.session_id);
+                            } else if (data.type === 'end') {
+                                // Fin du stream
+                            } else if (data.type === 'error') {
+                                messageEl.textContent = 'Erreur: ' + (data.message || 'Erreur inconnue');
+                                messageEl.classList.remove('streaming');
+                            }
+                        } catch (e) {
+                            console.error('Parse SSE error:', e);
+                        }
+                    }
+                }
+                
+                readStream();
+            }).catch(e => {
+                console.error('Stream error:', e);
+                if (messageEl) {
+                    messageEl.textContent = 'Erreur de connexion. Vérifiez votre connexion.';
+                    messageEl.classList.remove('streaming');
+                }
+                currentStreamingMessage = null;
+                input.disabled = false;
+                if (sendBtn) {
+                    sendBtn.disabled = false;
+                    const svg = sendBtn.querySelector('svg');
+                    if (svg) svg.style.opacity = '1';
+                }
+            });
+        }
+        
+        readStream();
+    })
+    .catch(e => {
+        console.error('Assistant stream error:', e);
+        if (messageEl) {
+            messageEl.textContent = 'Erreur de connexion. Vérifiez votre connexion.';
+            messageEl.classList.remove('streaming');
+        }
+        currentStreamingMessage = null;
+        input.disabled = false;
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            const svg = sendBtn.querySelector('svg');
+            if (svg) svg.style.opacity = '1';
+        }
+    });
+}
+
+function loadAssistantHistory() {
+    if (!assistantSessionId) return;
+    
+    fetch(`/api/dashboard/assistant/history?session_id=${assistantSessionId}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok) {
+                if (data.session_id) {
+                    saveAssistantSessionId(data.session_id);
+                }
+                
+                if (data.history && data.history.length > 0) {
+                    const chat = document.getElementById('dashAssistantChat');
+                    if (!chat) return;
+                    
+                    // Vider le chat
+                    chat.innerHTML = '';
+                    
+                    // Charger l'historique
+                    data.history.forEach(msg => {
+                        addChatMessage(msg.role, msg.content);
+                    });
+                    
+                    chat.scrollTop = chat.scrollHeight;
+                }
+            }
+        })
+        .catch(e => console.error('Erreur chargement historique:', e));
+}
+
+function loadSuggestions() {
+    const context = getPageContext();
+    fetch(`/api/dashboard/assistant/suggestions?page_context=${encodeURIComponent(context.name)}&page_description=${encodeURIComponent(context.description)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok && data.suggestions && data.suggestions.length > 0) {
+                const chat = document.getElementById('dashAssistantChat');
+                if (!chat) return;
+                
+                const suggestionsEl = document.createElement('div');
+                suggestionsEl.className = 'assistant-suggestions';
+                suggestionsEl.innerHTML = '<div style="font-size: 12px; opacity: 0.7; margin-bottom: 8px;">Suggestions :</div>';
+                
+                data.suggestions.forEach(suggestion => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-secondary btn-sm';
+                    btn.style.margin = '4px';
+                    btn.textContent = suggestion;
+                    btn.onclick = () => {
+                        const input = document.getElementById('dashAssistantInput');
+                        if (input) {
+                            input.value = suggestion;
+                            sendAssistantMessage();
+                        }
+                    };
+                    suggestionsEl.appendChild(btn);
+                });
+                
+                chat.appendChild(suggestionsEl);
+            }
+        })
+        .catch(e => console.error('Erreur suggestions:', e));
+}
+
+function addChatMessage(role, text) {
+    const chat = document.getElementById('dashAssistantChat');
+    if (!chat) return;
+    
+    const messageEl = document.createElement('div');
+    messageEl.className = `assistant-chat-message ${role}`;
+    messageEl.textContent = text;
+    
+    chat.appendChild(messageEl);
+    chat.scrollTop = chat.scrollHeight;
+    
+    assistantChatHistory.push({ role, text });
+}
+
+function renderAssistantActions(actions) {
+    const chat = document.getElementById('dashAssistantChat');
+    if (!chat) return;
+    
+    const actionsEl = document.createElement('div');
+    actionsEl.className = 'assistant-chat-actions';
+    
+    actions.forEach(action => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-secondary btn-sm';
+        btn.textContent = action.label || 'Action';
+        btn.onclick = () => executeAssistantAction(action);
+        actionsEl.appendChild(btn);
+    });
+    
+    chat.appendChild(actionsEl);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function executeAssistantAction(action) {
+    if (!action || !action.type) return;
+    
+    switch (action.type) {
+        case 'filter':
+            // Filtrer les prospects
+            if (action.params && action.params.field) {
+                const field = action.params.field;
+                const value = action.params.value;
+                // Rediriger vers la page prospects avec filtre
+                let url = '/?';
+                if (field === 'statut') {
+                    url += `statut=${encodeURIComponent(value)}`;
+                } else if (field === 'nextFollowUp' && value === 'overdue') {
+                    url = '/focus'; // Page focus pour les relances
+                } else if (field === 'sector') {
+                    url += `sector=${encodeURIComponent(value)}`;
+                }
+                window.location.href = url;
+            }
+            break;
+        case 'open':
+            // Ouvrir une fiche (prospect, candidat, entreprise)
+            if (action.params && action.params.id) {
+                const id = action.params.id;
+                const type = action.params.type || 'prospect';
+                let url = '/';
+                
+                if (type === 'candidate') {
+                    url = `/candidate/${id}`;
+                } else if (type === 'company') {
+                    url = `/company/${id}`;
+                } else {
+                    url = `/?open=${id}`; // Prospect par défaut
+                }
+                window.location.href = url;
+            }
+            break;
+        case 'navigate':
+            // Naviguer vers une page
+            if (action.params && action.params.url) {
+                window.location.href = action.params.url;
+            }
+            break;
+        case 'create_prospect':
+        case 'create_company':
+        case 'create_candidate':
+        case 'modify_prospect':
+        case 'ia_scrap':
+        case 'ia_avant_reunion':
+        case 'ia_apres_reunion':
+            // Actions nécessitant un appel API
+            fetch('/api/dashboard/assistant/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: action.type,
+                    params: action.params
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) {
+                    if (window.showToast) {
+                        window.showToast(data.message || 'Action exécutée avec succès', 'success');
+                    }
+                    
+                    // Gérer les fonctions IA spéciales
+                    if (data.data && data.data.ia_function) {
+                        const iaFunc = data.data.ia_function;
+                        if (iaFunc === 'scrap') {
+                            // Déclencher le scrapping IA
+                            const entityType = data.data.type;
+                            const entityId = data.data.id;
+                            if (entityType === 'prospect') {
+                                // Appeler la fonction de scrapping prospect
+                                if (window.scrapProspectWithAI) {
+                                    window.scrapProspectWithAI(entityId);
+                                } else {
+                                    window.location.href = `/?open=${entityId}`;
+                                }
+                            } else if (entityType === 'candidate') {
+                                window.location.href = `/candidate/${entityId}`;
+                            } else if (entityType === 'company') {
+                                window.location.href = `/company/${entityId}`;
+                            }
+                        } else if (iaFunc === 'avant_reunion') {
+                            const prospectId = data.data.prospect_id;
+                            // Déclencher la génération fiche avant réunion
+                            if (window.generateAvantReunionIA) {
+                                window.generateAvantReunionIA(prospectId);
+                            } else {
+                                window.location.href = `/?open=${prospectId}`;
+                            }
+                        } else if (iaFunc === 'apres_reunion') {
+                            const prospectId = data.data.prospect_id;
+                            // Déclencher la génération compte-rendu
+                            if (window.generateApresReunionIA) {
+                                window.generateApresReunionIA(prospectId);
+                            } else {
+                                window.location.href = `/?open=${prospectId}`;
+                            }
+                        }
+                    } else if (data.data && (data.data.prospect_id || data.data.company_id || data.data.candidate_id)) {
+                        // Rediriger vers l'élément créé
+                        if (data.data.prospect_id) {
+                            window.location.href = `/?open=${data.data.prospect_id}`;
+                        } else if (data.data.company_id) {
+                            window.location.href = `/company/${data.data.company_id}`;
+                        } else if (data.data.candidate_id) {
+                            window.location.href = `/candidate/${data.data.candidate_id}`;
+                        }
+                    } else {
+                        // Recharger la page pour voir les changements
+                        setTimeout(() => window.location.reload(), 1000);
+                    }
+                } else {
+                    if (window.showToast) {
+                        window.showToast(data.error || 'Erreur lors de l\'exécution', 'error');
+                    }
+                }
+            })
+            .catch(e => {
+                console.error('Erreur action:', e);
+                if (window.showToast) {
+                    window.showToast('Erreur de connexion', 'error');
+                }
+            });
+            break;
+        default:
+            console.warn('Action non supportée:', action.type);
+    }
+}
+
+// ═══ Initialiser le bouton assistant sur toutes les pages ═══
+document.addEventListener('DOMContentLoaded', function() {
+    const fab = document.getElementById('dashAssistantFab');
+    if (fab) {
+        // Afficher le bouton si l'utilisateur est connecté (pas sur login)
+        const isLoginPage = window.location.pathname === '/login' || document.body.getAttribute('data-page') === 'login';
+        if (!isLoginPage) {
+            fab.style.display = 'flex';
+        }
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Mise à jour des boutons IA avec le nom du modèle configuré
+// ═══════════════════════════════════════════════════════════════════
+let _aiModelNameCache = null;
+
+async function updateAIButtonLabels() {
+    try {
+        const res = await fetch('/api/ai/config');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.ok || !data.config) return;
+        
+        const config = data.config;
+        const provider = config.provider || 'ollama';
+        const modelName = provider === 'sonar' 
+            ? (config.sonar_model || 'sonar')
+            : (config.ollama_model || 'llama3.2');
+        
+        _aiModelNameCache = modelName;
+        
+        // Mettre à jour tous les boutons "Générer avec l'IA" / "Générer avec Ollama"
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(function(btn) {
+            const text = btn.textContent || btn.innerText || '';
+            if (!text) return;
+            
+            // S'assurer que modelName est une chaîne valide et bien encodée
+            const safeModelName = String(modelName || 'IA').trim();
+            if (!safeModelName) return;
+            
+            let newText = text;
+            
+            // Patterns à remplacer - utiliser des remplacements plus sûrs
+            if (/Générer avec l'IA \(un seul\)/i.test(text)) {
+                newText = '🤖 Générer avec ' + safeModelName + ' (un seul)';
+            } else if (/Générer avec l'IA \(plusieurs\)/i.test(text)) {
+                newText = '🤖 Générer avec ' + safeModelName + ' (plusieurs)';
+            } else if (/Générer avec Ollama/i.test(text) && !/Générer avec Ollama \(/i.test(text)) {
+                newText = text.replace(/Générer avec Ollama/i, 'Générer avec ' + safeModelName);
+            } else if (/Générer avec l'IA/i.test(text) && !/Générer avec l'IA \(/i.test(text)) {
+                // Remplacer "l'IA" par le nom du modèle, en préservant l'emoji si présent
+                const hasEmoji = /🤖/.test(text);
+                newText = text.replace(/Générer avec l'IA/i, 'Générer avec ' + safeModelName);
+                if (hasEmoji && !/🤖/.test(newText)) {
+                    newText = '🤖 ' + newText.replace(/^🤖\s*/, '');
+                }
+            }
+            
+            // Ne mettre à jour que si le texte a changé et est valide
+            if (newText !== text && newText && newText.length > 0) {
+                btn.textContent = newText;
+            }
+        });
+    } catch (e) {
+        console.warn('Failed to update AI button labels:', e);
+    }
+}
+
+// Exposer la fonction pour mise à jour manuelle
+window.updateAIButtonLabels = updateAIButtonLabels;
+
+// Mettre à jour au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    updateAIButtonLabels();
+});
+
 // ═══════════════════════════════════════════════════════════════════
 // Auth & User Session Module (v15)
 // ═══════════════════════════════════════════════════════════════════
@@ -47,6 +710,16 @@ const AppAuth = {
             if (existingHeaderBadge) existingHeaderBadge.remove();
             if (headerCenter) {
                 headerCenter.insertAdjacentHTML('beforeend', badgeHtml);
+                // Ajouter le gestionnaire de clic sur le badge (mais pas sur le bouton logout)
+                const badge = headerCenter.querySelector('.user-session-badge');
+                if (badge) {
+                    badge.style.cursor = 'pointer';
+                    badge.addEventListener('click', function(e) {
+                        // Ne pas rediriger si on clique sur le bouton de déconnexion
+                        if (e.target.closest('.user-session-logout')) return;
+                        window.location.href = '/parametres';
+                    });
+                }
                 return true;
             }
             return false;
@@ -209,6 +882,40 @@ function saveToServer(opts) {
         console.error('Erreur sauvegarde serveur :', err);
         showToast(err && err.message ? err.message : "⚠ Erreur de sauvegarde — vérifiez que app.py est lancé", 'error');
     });
+}
+
+// ═══ Gestion d'erreurs API unifiée ═══
+/**
+ * Gère de manière cohérente les erreurs API
+ * @param {Response} res - La réponse fetch
+ * @param {string} context - Le contexte de l'opération (pour les logs)
+ * @returns {Promise<Object>} Les données JSON ou null si erreur
+ */
+async function handleApiError(res, context) {
+    if (!res.ok) {
+        let errorMsg = `Erreur HTTP ${res.status}`;
+        try {
+            const data = await res.json();
+            errorMsg = data.error || data.message || errorMsg;
+        } catch (e) {
+            // Si le JSON ne peut pas être parsé, utiliser le status text
+            errorMsg = res.statusText || errorMsg;
+        }
+        console.error(`[${context}] ${errorMsg} (HTTP ${res.status})`);
+        if (window.showToast) {
+            showToast(`❌ ${context}: ${errorMsg}`, 'error');
+        }
+        return null;
+    }
+    try {
+        return await res.json();
+    } catch (e) {
+        console.error(`[${context}] Erreur parsing JSON:`, e);
+        if (window.showToast) {
+            showToast(`❌ ${context}: Erreur de format de réponse`, 'error');
+        }
+        return null;
+    }
 }
 
 // Toast notification system (enhanced v8)
@@ -810,6 +1517,103 @@ function isUnassignedCompany(companyId) {
 }
 
 function safeStr(v) { return (v === null || v === undefined) ? '' : String(v); }
+
+// ═══ Utilitaires formatage Push ═══
+/**
+ * Formate une date de manière cohérente pour l'affichage push
+ * @param {string|null|undefined} dateStr - Date ISO (YYYY-MM-DD) ou null/undefined
+ * @returns {string} Date formatée ou chaîne vide
+ */
+function formatPushDate(dateStr) {
+    if (!dateStr) return '';
+    // Si c'est déjà une date ISO (YYYY-MM-DD), on la retourne telle quelle
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+        return dateStr;
+    }
+    // Sinon, essayer de parser et formater
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    } catch (e) {
+        return '';
+    }
+}
+
+/**
+ * Formate l'affichage d'une entreprise (groupe/site) pour éviter "()" si groupe vide
+ * @param {string|null|undefined} groupe - Nom du groupe
+ * @param {string|null|undefined} site - Nom du site
+ * @returns {string} Format: "Groupe (Site)" ou "Site" ou "—"
+ */
+function formatPushCompany(groupe, site) {
+    const g = safeStr(groupe).trim();
+    const s = safeStr(site).trim();
+    if (g && s) return `${g} (${s})`;
+    if (g) return g;
+    if (s) return s;
+    return '—';
+}
+
+/**
+ * Valide qu'un prospect existe dans les données
+ * @param {number} prospectId - ID du prospect
+ * @returns {boolean} true si le prospect existe
+ */
+function validateProspectExists(prospectId) {
+    if (!prospectId) return false;
+    return data.prospects && data.prospects.some(p => p.id === prospectId);
+}
+
+/**
+ * Valide qu'un candidat existe
+ * @param {number} candidateId - ID du candidat
+ * @returns {Promise<boolean>} true si le candidat existe
+ */
+async function validateCandidateExists(candidateId) {
+    if (!candidateId) return false;
+    try {
+        const res = await fetch(`/api/candidates/${candidateId}`);
+        if (res.ok) {
+            const data = await res.json();
+            return data.ok && data.candidate;
+        }
+    } catch (e) {
+        console.warn('Erreur validation candidat:', e);
+    }
+    return false;
+}
+
+/**
+ * Valide qu'une catégorie push existe et appartient à l'utilisateur
+ * @param {number} categoryId - ID de la catégorie
+ * @returns {Promise<boolean>} true si la catégorie existe et est valide
+ */
+async function validatePushCategory(categoryId) {
+    if (!categoryId) return false;
+    try {
+        const res = await fetch(`/api/push-categories/${categoryId}/files`);
+        if (res.ok) {
+            const data = await res.json();
+            return data.ok !== false; // Si la catégorie n'existe pas ou n'appartient pas à l'utilisateur, ok sera false
+        }
+    } catch (e) {
+        console.warn('Erreur validation catégorie:', e);
+    }
+    return false;
+}
+
+// Exposer les fonctions utilitaires dans le scope global pour page-push.js
+if (typeof window !== 'undefined') {
+    window.formatPushDate = formatPushDate;
+    window.formatPushCompany = formatPushCompany;
+    window.validateProspectExists = validateProspectExists;
+    window.validateCandidateExists = validateCandidateExists;
+    window.validatePushCategory = validatePushCategory;
+}
 
 function escapeHtml(str) {
     return String(str ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -2682,7 +3486,6 @@ function getStatusMeta(statut) {
 
     if (s.includes('messagerie')) return { icon: '💬', slug: 'messagerie', label: 'Messagerie' };
     if (s.includes('rendez')) return { icon: '🤝', slug: 'rdv', label: 'RDV' };
-    if (s.includes('rencontr')) return { icon: '✅', slug: 'rencontre', label: 'Rencontré' };
     if (s.includes('prospecté') || s.includes('prospecte')) return { icon: '🎯', slug: 'prospecte', label: 'Prospecté' };
     if (s.includes('à rappeler') || s.includes('rappeler')) return { icon: '⏳', slug: 'rappeler', label: 'À rappeler' };
     if (s.includes('appel')) return { icon: '📞', slug: 'appele', label: 'Appelé' };
@@ -2693,8 +3496,48 @@ function getStatusMeta(statut) {
     return { icon: '•', slug: 'autre', label: (statut || '').slice(0, 12) };
 }
 
+// Formate une date RDV pour l'affichage dans le badge (format compact)
+function formatRdvDateForBadge(rdvDate) {
+    if (!rdvDate || typeof rdvDate !== 'string') return '';
+    const trimmed = rdvDate.trim();
+    if (!trimmed) return '';
+    
+    // Format attendu: "2026-03-19T16:00" ou "2026-03-19 16:00" ou "2026-03-19"
+    let dateStr = trimmed;
+    let timeStr = '';
+    
+    if (dateStr.includes('T')) {
+        const parts = dateStr.split('T');
+        dateStr = parts[0];
+        timeStr = parts[1] || '';
+    } else if (dateStr.includes(' ')) {
+        const parts = dateStr.split(' ');
+        dateStr = parts[0];
+        timeStr = parts[1] || '';
+    }
+    
+    // Parser la date: YYYY-MM-DD -> DD/MM
+    const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!dateMatch) return '';
+    
+    const day = dateMatch[3];
+    const month = dateMatch[2];
+    
+    // Parser l'heure si présente: HH:MM -> HHh
+    let timeDisplay = '';
+    if (timeStr) {
+        const timeMatch = timeStr.match(/^(\d{2}):(\d{2})/);
+        if (timeMatch) {
+            const hour = timeMatch[1];
+            timeDisplay = ' ' + hour + 'h';
+        }
+    }
+    
+    return day + '/' + month + timeDisplay;
+}
+
 function _statusSlugToBadgeClass(slug) {
-    const map = { rappeler: 'badge-à-rappeler', appele: 'badge-appelé', rdv: 'badge-rdv', messagerie: 'badge-messagerie', rencontre: 'badge-rencontre', 'pas-interesse': 'badge-pas-intéressé', 'pas-actions': 'badge-pas-d\'actions' };
+    const map = { rappeler: 'badge-à-rappeler', appele: 'badge-appelé', rdv: 'badge-rdv', messagerie: 'badge-messagerie', 'pas-interesse': 'badge-pas-intéressé', 'pas-actions': 'badge-pas-d\'actions' };
     return map[slug] || '';
 }
 
@@ -2872,7 +3715,14 @@ function _renderProspectsImpl() {
         if (followupMini) mobileMetaParts.push(followupMini);
         const mobileMeta = mobileMetaParts.join(' ');
         const displayName = (prospect.name && String(prospect.name).trim()) ? escapeHtml(prospect.name) : '—';
-        const statusLabel = (stMeta.label && stMeta.slug !== 'none') ? escapeHtml(stMeta.label) : '';
+        let statusLabel = (stMeta.label && stMeta.slug !== 'none') ? escapeHtml(stMeta.label) : '';
+        // Si statut "Rendez-vous" et date RDV présente, ajouter la date au label mobile
+        if (prospect.statut === 'Rendez-vous' && prospect.rdvDate) {
+            const formattedDate = formatRdvDateForBadge(prospect.rdvDate);
+            if (formattedDate) {
+                statusLabel = escapeHtml(stMeta.label) + ' <span style="opacity:0.85;font-size:0.9em;">' + escapeHtml(formattedDate) + '</span>';
+            }
+        }
         const pid = Number(prospect.id) || 0;
         const checked = selectedProspects.has(prospect.id) ? ' checked' : '';
 
@@ -2916,7 +3766,17 @@ function _renderProspectsImpl() {
             '<td>' + fonctionStr + '</td>' +
             '<td class="stars-cell" title="Pertinence">' + stars + '</td>' +
             '<td>' + score + '</td>' +
-            '<td class="table-statut-cell"><span class="table-statut-badge ' + (_statusSlugToBadgeClass(stMeta.slug)) + '">' + (stMeta.label ? escapeHtml(stMeta.label) : '—') + '</span></td>' +
+            '<td class="table-statut-cell">' + (() => {
+                let badgeText = stMeta.label ? escapeHtml(stMeta.label) : '—';
+                // Si statut "Rendez-vous" et date RDV présente, ajouter la date au badge
+                if (prospect.statut === 'Rendez-vous' && prospect.rdvDate) {
+                    const formattedDate = formatRdvDateForBadge(prospect.rdvDate);
+                    if (formattedDate) {
+                        badgeText = escapeHtml(stMeta.label) + ' <span style="opacity:0.85;font-size:0.9em;">' + escapeHtml(formattedDate) + '</span>';
+                    }
+                }
+                return '<span class="table-statut-badge ' + (_statusSlugToBadgeClass(stMeta.slug)) + '">' + badgeText + '</span>';
+            })() + '</td>' +
             '<td>' + lastContact + '</td>' +
             '<td>' + renderEmailCell(prospect) + '</td>' +
             '<td>' + renderPushCell(prospect) + '</td>' +
@@ -3022,9 +3882,9 @@ function updateStats(prospects) {
     // VERT : RDV — total brut
     const rdvEl = document.getElementById('rdvCount');
     if (rdvEl) rdvEl.textContent = allProspects.filter(p => p.statut === 'Rendez-vous').length;
-    // VIOLET : prospectés (statut Prospectés) — total brut
+    // VIOLET : prospectés (statut Prospecté) — total brut
     const prospectésEl = document.getElementById('prospectésCount');
-    if (prospectésEl) prospectésEl.textContent = allProspects.filter(p => p.statut === 'Prospectés').length;
+    if (prospectésEl) prospectésEl.textContent = allProspects.filter(p => p.statut === 'Prospecté').length;
 
     // Relances en retard : basé sur les prospects affichés (filtrés)
     updateOverdueAlerts(activeProspects);
@@ -3080,7 +3940,7 @@ function quickFilterStat(type) {
     } else if (type === 'rdv') {
         if (sf) sf.value = 'Rendez-vous';
     } else if (type === 'prospectés') {
-        if (sf) sf.value = 'Prospectés';
+        if (sf) sf.value = 'Prospecté';
     }
 
     filterProspects();
@@ -3092,7 +3952,6 @@ function getNextActionSuggestionsHtml(statut) {
         "À rappeler": ["Relancer dans 1 semaine", "Rappeler demain", "Envoyer email de relance"],
         "Appelé": ["Relancer dans 3 jours", "Envoyer email de suivi", "Planifier RDV"],
         "Rendez-vous": ["Envoyer 2 profils", "Préparer RT technique", "Relancer pour confirmation"],
-        "Rencontré": ["Envoyer proposition", "Relancer pour suite", "Demander retour"],
         "Prospecté": ["Planifier nouveau RDV", "Envoyer proposition commerciale", "Relancer pour suite"],
         "Messagerie": ["Relancer par message", "Proposer un appel", "Envoyer doc"],
         "Pas d'actions": ["Premier contact", "Qualifier le besoin", "Présenter Up Technologies"],
@@ -3209,7 +4068,7 @@ async function viewDetail(id) {
     // Status color map
     const statusColors = {
         "Pas d'actions": '#64748b', 'Appelé': '#f59e0b', 'Messagerie': '#3b82f6',
-        'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Rencontré': '#10b981', 'Prospecté': '#8b5cf6', 'Pas intéressé': '#94a3b8'
+        'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Prospecté': '#8b5cf6', 'Pas intéressé': '#94a3b8'
     };
     const heroColor = statusColors[prospect.statut] || '#64748b';
     const initials = (prospect.name || '??').split(/\s+/).map(w => w[0]).slice(0,2).join('');
@@ -3227,7 +4086,7 @@ async function viewDetail(id) {
         : '';
 
     // Status select options (for hero)
-    const statusOptions = ["Pas d'actions","Appelé","À rappeler","Rendez-vous","Rencontré","Prospecté","Messagerie","Pas intéressé"];
+    const statusOptions = ["Pas d'actions","Appelé","À rappeler","Rendez-vous","Prospecté","Messagerie","Pas intéressé"];
     const statusSelectHtml = statusOptions.map(s =>
         `<option value="${escapeHtml(s)}" ${prospect.statut === s ? 'selected' : ''}>${escapeHtml(s)}</option>`
     ).join('');
@@ -3288,7 +4147,7 @@ async function viewDetail(id) {
             ${showCandidats ? `<button class="detail-tab" onclick="var infosTab=this.parentElement.querySelector('.detail-tab'); switchDetailTab(infosTab,'tab-info'); setTimeout(function(){ document.getElementById('candidateMatchSection')?.scrollIntoView({behavior:'smooth',block:'start'}); }, 80);" title="Aller aux candidats recommandés">🎯 Candidats</button>` : ''}
             ${showTimeline ? '<button class="detail-tab" onclick="switchDetailTab(this,\'tab-timeline\')">Timeline</button>' : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-notes')">Notes (${(prospect.callNotes||[]).length})</button>
-            ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
+            ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-edit')">✏️ Modifier</button>
         </div>
         ${isProspMode ? `<div class="detail-prosp-progress">Mode Prosp · ${prospProgress.index}/${prospProgress.total}</div><div class="detail-prosp-hint">Swipe gauche: suivant · Swipe droite: fermer</div>` : ''}
@@ -3381,7 +4240,7 @@ async function viewDetail(id) {
             ${notesHtml || '<div class="muted" style="text-align:center;padding:20px;">Aucune note d\'appel</div>'}
         </div>
 
-        ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `
+        ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `
         <!-- TAB: RDV Checklist -->
         <div class="detail-tab-content" id="tab-rdv">
             <!-- Onglets des réunions précédentes -->
@@ -3403,6 +4262,7 @@ async function viewDetail(id) {
                         <span class="rdv-checklist-progress" id="rdvProgress">0 / 0</span>
                     </div>
                     <div class="rdv-checklist-actions">
+                        <button class="btn btn-primary btn-sm" id="btnPreMeetingIA_${prospect.id}" onclick="handlePreMeetingIA(${prospect.id})" title="Générer une fiche de préparation RDV avec IA" data-help-section="scrapping-ia" style="background:#2980B9;border-color:#2980B9;">📋 Avant réunion IA</button>
                         <button class="btn btn-primary btn-sm" id="btnPostMeetingIA_${prospect.id}" onclick="handlePostMeetingIA(${prospect.id})" title="Générer un compte-rendu IA et pré-remplir les champs" data-help-section="scrapping-ia">🤖 Après réunion IA</button>
                         <button class="btn btn-secondary btn-sm" onclick="copyRdvChecklist(${prospect.id})" title="Copier dans le presse-papier">📋 Copier</button>
                         <button class="btn btn-secondary btn-sm" onclick="resetRdvChecklist(${prospect.id})" title="Réinitialiser toutes les réponses">🔄 Reset</button>
@@ -3449,7 +4309,6 @@ async function viewDetail(id) {
                         <option value="Appelé" ${prospect.statut==='Appelé'?'selected':''}>Appelé</option>
                         <option value="À rappeler" ${prospect.statut==='À rappeler'?'selected':''}>À rappeler</option>
                         <option value="Rendez-vous" ${prospect.statut==='Rendez-vous'?'selected':''}>Rendez-vous</option>
-                        <option value="Rencontré" ${prospect.statut==='Rencontré'?'selected':''}>Rencontré</option>
                         <option value="Prospecté" ${prospect.statut==='Prospecté'?'selected':''}>Prospecté</option>
                         <option value="Messagerie" ${prospect.statut==='Messagerie'?'selected':''}>Messagerie</option>
                         <option value="Pas intéressé" ${prospect.statut==='Pas intéressé'?'selected':''}>Pas intéressé</option>
@@ -3483,7 +4342,7 @@ async function viewDetail(id) {
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-danger" onclick="deleteProspect(${id})" title="Supprimer définitivement">🗑️</button>
                 ${prospect.is_contact ? `<button class="btn btn-primary" onclick="restoreFromContacts(${id})" title="Restaurer dans les prospects" style="font-size:12px;">👥 Restaurer</button>` : `<button class="btn btn-secondary" onclick="moveToContacts(${id})" title="Déplacer vers le vivier de contacts" style="font-size:12px;">📁 Contacts</button>`}
-                ${['Rendez-vous','Rencontré','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
+                ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
             </div>
             <div style="display:flex;gap:8px;">
                 ${hasPrevInProsp ? `<button class="btn btn-secondary btn-prosp-prev" onclick="goToProspPrev(${id})" title="Prospect précédent">← Précédent</button>` : ''}
@@ -4090,11 +4949,11 @@ function renderKanban() {
     if (!board || _currentView !== 'kanban') return;
 
     const statuses = [
-"Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Rencontré", "Prospecté", "Pas intéressé"
+"Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Prospecté", "Pas intéressé"
     ];
     const statusEmoji = {
 "Pas d'actions": '📋', 'Appelé': '📞', 'Messagerie': '💬',
-'À rappeler': '🔁', 'Rendez-vous': '🤝', 'Rencontré': '✅', 'Prospecté': '🎯', 'Pas intéressé': '❌'
+'À rappeler': '🔁', 'Rendez-vous': '🤝', 'Prospecté': '🎯', 'Pas intéressé': '❌'
     };
 
     const grouped = {};
@@ -4943,16 +5802,24 @@ return `<option value="${id}" ${sel}>${escapeHtml(c.name)}${kw}</option>`;
 }
 
 let __categorySaveTimer = null;
+let __categoryFetchController = null; // AbortController pour annuler les requêtes en cours
 async function onPushCategoryChange(prospectId, value) {
     const p = data.prospects.find(x => x.id === prospectId);
     if (!p) return;
     const v = String(value || '').trim();
     p.push_category_id = v ? Number(v) : null;
 
-    // Debounced save
+    // Annuler la requête fetch précédente si elle existe (éviter race conditions)
+    if (__categoryFetchController) {
+        __categoryFetchController.abort();
+        __categoryFetchController = null;
+    }
+
+    // Debounced save avec cancel du timer précédent
     if (__categorySaveTimer) clearTimeout(__categorySaveTimer);
     __categorySaveTimer = setTimeout(async () => {
         try { await saveToServerAsync(); } catch (e) {}
+        __categorySaveTimer = null;
     }, 700);
 
     // Load template files (v25.9: nouveau système)
@@ -4968,31 +5835,63 @@ async function onPushCategoryChange(prospectId, value) {
     if (v && templateBox) {
         templateBox.style.display = '';
         if (templateList) templateList.innerHTML = '<span class="muted">Chargement…</span>';
+        
+        // Créer un nouvel AbortController pour cette requête
+        __categoryFetchController = new AbortController();
+        const signal = __categoryFetchController.signal;
+        
         try {
-            const res = await fetch(`/api/push-categories/${v}/files`);
-            if (res.ok) {
-                const fdata = await res.json();
-                if (fdata.ok && fdata.files && fdata.files.length) {
-                    // Prendre le premier template disponible
-                    const firstTemplate = fdata.files[0];
-                    templateList.innerHTML = `
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <span>📧 ${escapeHtml(firstTemplate.name)}</span>
-                            <span class="muted" style="font-size:11px;">${(firstTemplate.size/1024).toFixed(0)} Ko</span>
-                        </div>
-                    `;
-                    // Stocker le nom du template pour generatePush
-                    window._currentPushTemplate = firstTemplate.name;
-                    // Mettre à jour le bouton
-                    updatePushGenerateButton(prospectId);
-                } else {
-                    templateList.innerHTML = '<span class="muted">Aucun template disponible. Utilisez "Gérer catégorie" pour en ajouter un.</span>';
-                    window._currentPushTemplate = null;
-                }
+            const res = await fetch(`/api/push-categories/${v}/files`, { signal });
+            // Vérifier que la requête n'a pas été annulée
+            if (signal.aborted) {
+                return; // Ignorer le résultat si annulé
+            }
+            
+            if (!res.ok) {
+                console.error(`Erreur chargement fichiers catégorie ${v}: HTTP ${res.status}`);
+                if (templateList) templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+                window._currentPushTemplate = null;
+                return;
+            }
+            const fdata = await res.json();
+            
+            // Vérifier à nouveau que la requête n'a pas été annulée pendant le parsing
+            if (signal.aborted) {
+                return;
+            }
+            
+            if (fdata.ok && fdata.files && fdata.files.length) {
+                // Prendre le premier template disponible
+                const firstTemplate = fdata.files[0];
+                templateList.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span>📧 ${escapeHtml(firstTemplate.name)}</span>
+                        <span class="muted" style="font-size:11px;">${(firstTemplate.size/1024).toFixed(0)} Ko</span>
+                    </div>
+                `;
+                // Stocker le nom du template pour generatePush
+                window._currentPushTemplate = firstTemplate.name;
+                // Mettre à jour le bouton
+                updatePushGenerateButton(prospectId);
+            } else {
+                templateList.innerHTML = '<span class="muted">Aucun template disponible. Utilisez "Gérer catégorie" pour en ajouter un.</span>';
+                window._currentPushTemplate = null;
             }
         } catch (e) {
-            if (templateList) templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            // Ignorer les erreurs d'annulation (AbortError)
+            if (e.name === 'AbortError') {
+                return; // Requête annulée, ignorer
+            }
+            console.error(`Erreur chargement fichiers catégorie ${v}:`, e);
+            if (templateList && !signal.aborted) {
+                templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            }
             window._currentPushTemplate = null;
+        } finally {
+            // Nettoyer le controller si c'était la dernière requête
+            if (__categoryFetchController && __categoryFetchController.signal === signal) {
+                __categoryFetchController = null;
+            }
         }
     }
 
@@ -5069,7 +5968,10 @@ async function updatePushCandidates(prospectId) {
         // Charger les candidats depuis l'API
         try {
             const res = await fetch('/api/candidates');
-            if (res.ok) {
+            if (!res.ok) {
+                console.warn(`Erreur chargement candidats: HTTP ${res.status}`);
+                // Continuer avec la liste vide plutôt que de bloquer
+            } else {
                 const apiData = await res.json();
                 // Gérer les deux formats : array direct ou {ok: true, candidates: [...]}
                 if (Array.isArray(apiData)) {
@@ -5085,6 +5987,7 @@ async function updatePushCandidates(prospectId) {
             }
         } catch (e) {
             console.warn('Erreur chargement candidats:', e);
+            // Continuer avec la liste vide plutôt que de bloquer
         }
     }
     allCandidates = allCandidates.filter(c => !c.is_archived);
@@ -5165,31 +6068,48 @@ async function generatePush(prospectId) {
             })
         });
         
-        if (res.ok) {
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `push_${prospect.name}_${Date.now()}.zip`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            // Copier l'email dans le presse-papier si disponible
-            if (prospect.email) {
+        if (!res.ok) {
+            let errorMsg = `Erreur HTTP ${res.status}`;
+            try {
+                const errorData = await res.json();
+                errorMsg = errorData.error || errorData.message || errorMsg;
+            } catch (e) {
+                errorMsg = res.statusText || errorMsg;
+            }
+            console.error('Erreur génération push:', errorMsg);
+            showToast(`❌ Erreur lors de la génération du push: ${errorMsg}`, 'error', 6000);
+            return;
+        }
+        
+        const blob = await res.blob();
+        if (!blob || blob.size === 0) {
+            showToast('❌ Le fichier généré est vide', 'error');
+            return;
+        }
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `push_${prospect.name}_${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        // Copier l'email dans le presse-papier si disponible
+        if (prospect.email) {
+            try {
                 await navigator.clipboard.writeText(prospect.email);
                 showToast('Push généré ! Email copié dans le presse-papier', 'success');
-            } else {
-                showToast('Push généré !', 'success');
+            } catch (e) {
+                showToast('Push généré ! (Erreur copie email)', 'success');
             }
         } else {
-            const data = await res.json();
-            showToast(data.error || 'Erreur lors de la génération', 'error');
+            showToast('Push généré !', 'success');
         }
     } catch (e) {
         console.error('Erreur génération push:', e);
-        showToast('Erreur lors de la génération du push', 'error');
+        showToast(`❌ Erreur lors de la génération du push: ${e.message || 'Erreur réseau ou serveur'}`, 'error', 6000);
     }
 }
 
@@ -5273,15 +6193,19 @@ async function loadPushCategoryFiles(catId) {
     
     try {
         const res = await fetch(`/api/push-categories/${catId}/files`);
-        if (res.ok) {
-            const data = await res.json();
-            if (data.ok && data.files && data.files.length) {
-                filesBox.innerHTML = `Templates: ${data.files.map(f => escapeHtml(f.name)).join(', ')}`;
-            } else {
-                filesBox.innerHTML = '<span class="muted">Aucun template</span>';
-            }
+        if (!res.ok) {
+            filesBox.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            console.error(`Erreur chargement fichiers catégorie ${catId}: HTTP ${res.status}`);
+            return;
+        }
+        const data = await res.json();
+        if (data.ok && data.files && data.files.length) {
+            filesBox.innerHTML = `Templates: ${data.files.map(f => escapeHtml(f.name)).join(', ')}`;
+        } else {
+            filesBox.innerHTML = '<span class="muted">Aucun template</span>';
         }
     } catch (e) {
+        console.error(`Erreur chargement fichiers catégorie ${catId}:`, e);
         filesBox.innerHTML = '<span class="muted">Erreur</span>';
     }
 }
@@ -5294,26 +6218,56 @@ function createNewPushCategory() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim() })
-    }).then(res => res.json()).then(data => {
+    })
+    .then(async res => {
+        if (!res.ok) {
+            const errorData = await handleApiError(res, 'Création catégorie push');
+            return null;
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (!data) return; // Erreur déjà gérée par handleApiError
         if (data.ok) {
             showToast('Catégorie créée', 'success');
             loadPushCategoryManager();
+            // Forcer le rechargement des catégories puis mettre à jour le select
             loadPushCategories().then(() => {
                 // Recharger le select dans la fiche prospect si ouvert
                 const select = document.getElementById('detailCategorySelect');
                 if (select) {
                     const prospectId = window._currentDetailProspectId;
                     if (prospectId) {
-                        const prospect = data.prospects.find(p => p.id === prospectId);
-                        if (prospect) {
-                            select.outerHTML = renderPushCategorySelect(prospectId, prospect.push_category_id);
+                        // Utiliser l'objet global data, pas le paramètre data de la fonction
+                        const prospect = (typeof data !== 'undefined' && data.prospects) 
+                            ? data.prospects.find(p => p.id === prospectId)
+                            : null;
+                        const categoryId = prospect ? prospect.push_category_id : null;
+                        // Forcer le rechargement même si prospect est null
+                        select.outerHTML = renderPushCategorySelect(prospectId, categoryId);
+                        // Réattacher l'événement onchange si nécessaire
+                        const newSelect = document.getElementById('detailCategorySelect');
+                        if (newSelect && typeof onPushCategoryChange === 'function') {
+                            newSelect.addEventListener('change', function() {
+                                onPushCategoryChange(prospectId, this.value);
+                            });
                         }
+                    } else {
+                        // Si pas de prospectId, recharger quand même le select avec la valeur actuelle
+                        const currentValue = select.value;
+                        select.outerHTML = renderPushCategorySelect(null, currentValue);
                     }
                 }
+            }).catch(e => {
+                console.warn('Erreur rechargement catégories:', e);
             });
         } else {
             showToast(data.error || 'Erreur', 'error');
         }
+    })
+    .catch(err => {
+        console.error('Erreur création catégorie push:', err);
+        showToast(`❌ Erreur lors de la création: ${err.message || 'Erreur inconnue'}`, 'error');
     });
 }
 
@@ -5334,6 +6288,10 @@ function uploadPushTemplate(catId, catName) {
                 method: 'POST',
                 body: formData
             });
+            if (!res.ok) {
+                const errorData = await handleApiError(res, 'Upload template push');
+                return;
+            }
             const data = await res.json();
             if (data.ok) {
                 showToast('Template uploadé avec succès', 'success');
@@ -5342,7 +6300,8 @@ function uploadPushTemplate(catId, catName) {
                 showToast(data.error || 'Erreur upload', 'error');
             }
         } catch (e) {
-            showToast('Erreur upload', 'error');
+            console.error('Erreur upload template push:', e);
+            showToast(`❌ Erreur upload: ${e.message || 'Erreur réseau'}`, 'error');
         }
     };
     input.click();
@@ -5355,7 +6314,16 @@ function deletePushCategory(catId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: catId })
-    }).then(res => res.json()).then(data => {
+    })
+    .then(async res => {
+        if (!res.ok) {
+            const errorData = await handleApiError(res, 'Suppression catégorie push');
+            return null;
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (!data) return; // Erreur déjà gérée par handleApiError
         if (data.ok) {
             showToast('Catégorie supprimée', 'success');
             loadPushCategoryManager();
@@ -5363,6 +6331,10 @@ function deletePushCategory(catId) {
         } else {
             showToast(data.error || 'Erreur', 'error');
         }
+    })
+    .catch(err => {
+        console.error('Erreur suppression catégorie push:', err);
+        showToast(`❌ Erreur lors de la suppression: ${err.message || 'Erreur inconnue'}`, 'error');
     });
 }
 
@@ -5580,6 +6552,10 @@ return '<span class="muted">Ajoutez des compétences pour obtenir des suggestion
                             const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
                             const fullPath = m.category + ' > ' + m.specialty;
                             const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                            // Phase 1: Afficher les matches sémantiques
+                            const semanticInfo = (m.semanticMatches && m.semanticMatches.length > 0)
+                                ? `<div style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🔗 Sémantique: ${m.semanticMatches.map(sm => escapeHtml(sm.tag + ' ≈ ' + sm.refTag)).join(', ')}</div>`
+                                : '';
                             return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
     <div class="metier-suggestion-header">
         <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
@@ -5588,6 +6564,7 @@ return '<span class="muted">Ajoutez des compétences pour obtenir des suggestion
         ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
     </div>
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
+    ${semanticInfo}
 </div>`;
                         }).join('');
                     }
@@ -5649,6 +6626,10 @@ async function refreshMetierSuggestions() {
                         const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
                         const fullPath = m.category + ' > ' + m.specialty;
                         const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                        // Phase 1: Afficher les matches sémantiques
+                        const semanticInfo = (m.semanticMatches && m.semanticMatches.length > 0)
+                            ? `<div style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🔗 Sémantique: ${m.semanticMatches.map(sm => escapeHtml(sm.tag + ' ≈ ' + sm.refTag)).join(', ')}</div>`
+                            : '';
                         return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
     <div class="metier-suggestion-header">
         <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
@@ -5657,6 +6638,7 @@ async function refreshMetierSuggestions() {
         ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
     </div>
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
+    ${semanticInfo}
 </div>`;
                     }).join('');
                 } else {
@@ -5760,6 +6742,14 @@ function _ensurePushModal() {
                     <option value="">Aucun consultant</option>
                 </select>
             </div>
+            <div style="margin-bottom:20px;padding:12px;background:var(--color-bg-secondary);border-radius:8px;border:1px solid var(--color-border);">
+                <label style="display:block;margin-bottom:8px;font-weight:600;">💬 Message personnalisé (Phase 1: IA)</label>
+                <textarea id="pushModalMessage" rows="6" style="width:100%;border:1px solid var(--color-border);border-radius:6px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;" placeholder="Le message sera généré automatiquement par l'IA ou vous pouvez le saisir manuellement..."></textarea>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                    <button class="btn btn-secondary" onclick="generatePushMessageWithAI()" style="font-size:12px;padding:6px 12px;">🤖 Générer avec l'IA</button>
+                    <button class="btn btn-secondary" onclick="generatePushMessageVariants()" style="font-size:12px;padding:6px 12px;">🔄 Générer 3 variantes</button>
+                </div>
+            </div>
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closePushSelectModal()">Annuler</button>
                 <button class="btn btn-primary" onclick="confirmPushSend()">📤 Envoyer</button>
@@ -5787,69 +6777,7 @@ async function openPushSelectModal(prospectId, channel = 'email') {
         return;
     }
 
-    // Charger les catégories push
-    const catSelect = document.getElementById('pushModalCategory');
-    if (catSelect) {
-        try {
-            const res = await fetch('/api/push-categories');
-            if (res.ok) {
-                const cats = await res.json();
-                catSelect.innerHTML = '<option value="">Aucune catégorie</option>' +
-                    (Array.isArray(cats) ? cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') : '');
-                if (p.push_category_id) {
-                    catSelect.value = String(p.push_category_id);
-                }
-            }
-        } catch (e) {
-            console.warn('Error loading push categories', e);
-        }
-    }
-
-    // Charger les candidats
-    _pushModalCandidates = [];
-    const cand1Select = document.getElementById('pushModalCandidate1');
-    const cand2Select = document.getElementById('pushModalCandidate2');
-    if (cand1Select && cand2Select) {
-        try {
-            const qs = p.push_category_id ? `?push_category_id=${encodeURIComponent(p.push_category_id)}` : '';
-            const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
-            if (res.ok) {
-                const j = await res.json();
-                if (j.ok && j.candidates) {
-                    _pushModalCandidates = j.candidates;
-                    const options = '<option value="">Aucun candidat</option>' +
-                        _pushModalCandidates.map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' - ' + escapeHtml(c.role) : ''}</option>`).join('');
-                    cand1Select.innerHTML = options;
-                    cand2Select.innerHTML = options;
-                }
-            }
-        } catch (e) {
-            console.warn('Error loading candidates', e);
-        }
-    }
-
-    // Charger les utilisateurs (consultants)
-    _pushModalUsers = [];
-    const cons1Select = document.getElementById('pushModalConsultant1');
-    const cons2Select = document.getElementById('pushModalConsultant2');
-    if (cons1Select && cons2Select) {
-        try {
-            const res = await fetch('/api/users');
-            if (res.ok) {
-                const users = await res.json();
-                if (Array.isArray(users)) {
-                    _pushModalUsers = users;
-                    const options = '<option value="">Aucun consultant</option>' +
-                        users.map(u => `<option value="${u.id}">${escapeHtml(u.display_name || u.username || 'Utilisateur ' + u.id)}</option>`).join('');
-                    cons1Select.innerHTML = options;
-                    cons2Select.innerHTML = options;
-                }
-            }
-        } catch (e) {
-            console.warn('Error loading users', e);
-        }
-    }
-
+    // Ouvrir la modale IMMÉDIATEMENT avec indicateur de chargement
     const modal = document.getElementById('pushSelectModal');
     if (modal) {
         if (window.openModal) {
@@ -5858,6 +6786,105 @@ async function openPushSelectModal(prospectId, channel = 'email') {
             modal.classList.add('active');
         }
     }
+
+    // Afficher des indicateurs de chargement dans les selects
+    const catSelect = document.getElementById('pushModalCategory');
+    const cand1Select = document.getElementById('pushModalCandidate1');
+    const cand2Select = document.getElementById('pushModalCandidate2');
+    const cons1Select = document.getElementById('pushModalConsultant1');
+    const cons2Select = document.getElementById('pushModalConsultant2');
+    
+    if (catSelect) catSelect.innerHTML = '<option value="">Chargement...</option>';
+    if (cand1Select) cand1Select.innerHTML = '<option value="">Chargement...</option>';
+    if (cand2Select) cand2Select.innerHTML = '<option value="">Chargement...</option>';
+    if (cons1Select) cons1Select.innerHTML = '<option value="">Chargement...</option>';
+    if (cons2Select) cons2Select.innerHTML = '<option value="">Chargement...</option>';
+
+    // Charger les données en parallèle (non-bloquant)
+    const loadPromises = [];
+
+    // Charger les catégories push
+    if (catSelect) {
+        loadPromises.push(
+            fetch('/api/push-categories')
+                .then(res => res.ok ? res.json() : [])
+                .then(cats => {
+                    catSelect.innerHTML = '<option value="">Aucune catégorie</option>' +
+                        (Array.isArray(cats) ? cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') : '');
+                    if (p.push_category_id) {
+                        catSelect.value = String(p.push_category_id);
+                    }
+                })
+                .catch(e => {
+                    console.warn('Error loading push categories', e);
+                    catSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+                })
+        );
+    }
+
+    // Charger les candidats (peut être long)
+    _pushModalCandidates = [];
+    if (cand1Select && cand2Select) {
+        loadPromises.push(
+            (async () => {
+                try {
+                    const qs = p.push_category_id ? `?push_category_id=${encodeURIComponent(p.push_category_id)}` : '';
+                    const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
+                    if (res.ok) {
+                        const j = await res.json();
+                        if (j.ok && j.candidates) {
+                            _pushModalCandidates = j.candidates;
+                            const options = '<option value="">Aucun candidat</option>' +
+                                _pushModalCandidates.map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' - ' + escapeHtml(c.role) : ''}</option>`).join('');
+                            cand1Select.innerHTML = options;
+                            cand2Select.innerHTML = options;
+                        } else {
+                            cand1Select.innerHTML = '<option value="">Aucun candidat</option>';
+                            cand2Select.innerHTML = '<option value="">Aucun candidat</option>';
+                        }
+                    } else {
+                        cand1Select.innerHTML = '<option value="">Aucun candidat</option>';
+                        cand2Select.innerHTML = '<option value="">Aucun candidat</option>';
+                    }
+                } catch (e) {
+                    console.warn('Error loading candidates', e);
+                    cand1Select.innerHTML = '<option value="">Erreur de chargement</option>';
+                    cand2Select.innerHTML = '<option value="">Erreur de chargement</option>';
+                }
+            })()
+        );
+    }
+
+    // Charger les utilisateurs (consultants)
+    _pushModalUsers = [];
+    if (cons1Select && cons2Select) {
+        loadPromises.push(
+            fetch('/api/users')
+                .then(res => res.ok ? res.json() : [])
+                .then(users => {
+                    if (Array.isArray(users)) {
+                        _pushModalUsers = users;
+                        const options = '<option value="">Aucun consultant</option>' +
+                            users.map(u => `<option value="${u.id}">${escapeHtml(u.display_name || u.username || 'Utilisateur ' + u.id)}</option>`).join('');
+                        cons1Select.innerHTML = options;
+                        cons2Select.innerHTML = options;
+                    } else {
+                        cons1Select.innerHTML = '<option value="">Aucun consultant</option>';
+                        cons2Select.innerHTML = '<option value="">Aucun consultant</option>';
+                    }
+                })
+                .catch(e => {
+                    console.warn('Error loading users', e);
+                    cons1Select.innerHTML = '<option value="">Erreur de chargement</option>';
+                    cons2Select.innerHTML = '<option value="">Erreur de chargement</option>';
+                })
+        );
+    }
+
+    // Attendre que tous les chargements soient terminés (en arrière-plan, sans bloquer)
+    Promise.all(loadPromises).catch(e => {
+        console.warn('Erreur lors du chargement des données push', e);
+    });
 }
 
 function closePushSelectModal() {
@@ -5873,13 +6900,168 @@ function closePushSelectModal() {
     _pushModalChannel = 'email';
 }
 
-async function confirmPushSend() {
+// Phase 1: Génération de message personnalisé avec IA
+async function generatePushMessageWithAI() {
     if (!_pushModalProspectId) return;
     const p = data.prospects.find(x => x.id === _pushModalProspectId);
     if (!p) {
         showToast("⚠️ Prospect introuvable.", 'error');
         return;
     }
+    
+    const channel = _pushModalChannel || 'email';
+    const catId = document.getElementById('pushModalCategory')?.value || null;
+    const candidateId1 = document.getElementById('pushModalCandidate1')?.value || null;
+    const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
+    const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
+    const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+    
+    const company = data.companies.find(c => c.id === p.company_id);
+    const candidates = [];
+    if (candidateId1) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId1);
+        if (cand) candidates.push(cand);
+    }
+    if (candidateId2) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId2);
+        if (cand) candidates.push(cand);
+    }
+    
+    const consultants = [];
+    if (consultantId1) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId1);
+        if (cons) consultants.push(cons);
+    }
+    if (consultantId2) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId2);
+        if (cons) consultants.push(cons);
+    }
+    
+    const messageEl = document.getElementById('pushModalMessage');
+    if (messageEl) messageEl.value = 'Génération en cours…';
+    
+    try {
+        const prompt = _buildPushMessagePrompt(p, company, candidates, consultants, catId, channel);
+        const text = await callOllama(prompt, { timeoutMs: 60000, stream: false });
+        if (messageEl && text) {
+            messageEl.value = text.trim();
+            showToast('✅ Message généré avec l\'IA !', 'success', 3000);
+        }
+    } catch (e) {
+        showToast('❌ Erreur génération IA : ' + (e.message || 'Erreur inconnue'), 'error', 5000);
+        if (messageEl) messageEl.value = '';
+    }
+}
+
+async function generatePushMessageVariants() {
+    if (!_pushModalProspectId) return;
+    const p = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!p) {
+        showToast("⚠️ Prospect introuvable.", 'error');
+        return;
+    }
+    
+    const channel = _pushModalChannel || 'email';
+    const catId = document.getElementById('pushModalCategory')?.value || null;
+    const candidateId1 = document.getElementById('pushModalCandidate1')?.value || null;
+    const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
+    const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
+    const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+    
+    const company = data.companies.find(c => c.id === p.company_id);
+    const candidates = [];
+    if (candidateId1) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId1);
+        if (cand) candidates.push(cand);
+    }
+    if (candidateId2) {
+        const cand = _pushModalCandidates.find(c => String(c.id) === candidateId2);
+        if (cand) candidates.push(cand);
+    }
+    
+    const consultants = [];
+    if (consultantId1) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId1);
+        if (cons) consultants.push(cons);
+    }
+    if (consultantId2) {
+        const cons = _pushModalUsers.find(u => String(u.id) === consultantId2);
+        if (cons) consultants.push(cons);
+    }
+    
+    const messageEl = document.getElementById('pushModalMessage');
+    if (messageEl) messageEl.value = 'Génération de 3 variantes en cours…';
+    
+    try {
+        const prompt = _buildPushMessagePrompt(p, company, candidates, consultants, catId, channel, variants=3);
+        const text = await callOllama(prompt, { timeoutMs: 90000, stream: false });
+        if (messageEl && text) {
+            // Parser les variantes (format: Variante 1: ... Variante 2: ... Variante 3: ...)
+            const variants = text.split(/Variante\s+\d+\s*:/i).filter(v => v.trim()).map(v => v.trim());
+            if (variants.length >= 3) {
+                messageEl.value = `=== VARIANTE 1 ===\n${variants[0]}\n\n=== VARIANTE 2 ===\n${variants[1]}\n\n=== VARIANTE 3 ===\n${variants[2]}`;
+            } else {
+                messageEl.value = text.trim();
+            }
+            showToast('✅ 3 variantes générées avec l\'IA !', 'success', 3000);
+        }
+    } catch (e) {
+        showToast('❌ Erreur génération IA : ' + (e.message || 'Erreur inconnue'), 'error', 5000);
+        if (messageEl) messageEl.value = '';
+    }
+}
+
+function _buildPushMessagePrompt(prospect, company, candidates, consultants, categoryId, channel, variants = 1) {
+    const prospectInfo = `Prospect: ${prospect.name || ''}
+Entreprise: ${company?.groupe || ''}
+Fonction: ${prospect.fonction || ''}
+Tags techniques: ${(prospect.tags || []).join(', ') || 'Aucun'}
+Notes: ${(prospect.notes || '').substring(0, 200) || 'Aucune'}`;
+    
+    let candidatesInfo = '';
+    if (candidates.length > 0) {
+        candidatesInfo = '\n\nCandidats à présenter:\n' + candidates.map(c => 
+            `- ${c.name || ''} (${c.role || ''}): ${(c.skills || []).slice(0, 5).join(', ')}`
+        ).join('\n');
+    }
+    
+    let consultantsInfo = '';
+    if (consultants.length > 0) {
+        consultantsInfo = '\n\nConsultants à mentionner:\n' + consultants.map(c => 
+            `- ${c.display_name || c.username || ''}`
+        ).join('\n');
+    }
+    
+    const channelType = channel === 'linkedin' ? 'message LinkedIn InMail' : 'email professionnel';
+    const variantsText = variants > 1 ? `Génère ${variants} variantes différentes du message, numérotées "Variante 1:", "Variante 2:", etc.` : '';
+    
+    return `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel).
+
+Je dois rédiger un ${channelType} personnalisé pour un prospect.
+
+${prospectInfo}${candidatesInfo}${consultantsInfo}
+
+Instructions:
+- Ton professionnel mais chaleureux
+- Mentionne les compétences techniques pertinentes si des candidats sont sélectionnés
+- Référence l'entreprise du prospect si possible
+- Longueur: ${channel === 'linkedin' ? '150-200 mots (InMail LinkedIn)' : '200-300 mots (email)'}
+- Structure: Salutation personnalisée, présentation brève de votre ESN, proposition de valeur, appel à l'action, signature
+${variantsText}
+
+Réponds UNIQUEMENT par le message ${variants > 1 ? '(variantes numérotées)' : ''}, sans texte avant ou après, sans markdown.`;
+}
+
+async function confirmPushSend() {
+    if (!_pushModalProspectId) return;
+    
+    // Validation 1: Vérifier que le prospect existe toujours
+    const p = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!p || (typeof validateProspectExists === 'function' && !validateProspectExists(_pushModalProspectId))) {
+        showToast("⚠️ Prospect introuvable.", 'error');
+        return;
+    }
+    
     const channel = _pushModalChannel || 'email';
     if (channel === 'email' && !p.email) {
         showToast("⚠️ Aucun email renseigné.", 'error');
@@ -5895,6 +7077,34 @@ async function confirmPushSend() {
     const candidateId2 = document.getElementById('pushModalCandidate2')?.value || null;
     const consultantId1 = document.getElementById('pushModalConsultant1')?.value || null;
     const consultantId2 = document.getElementById('pushModalConsultant2')?.value || null;
+    
+    // Validation 2: Vérifier que la catégorie existe et appartient à l'utilisateur
+    if (catId) {
+        const catValid = typeof validatePushCategory === 'function' ? await validatePushCategory(parseInt(catId, 10)) : true;
+        if (!catValid) {
+            showToast("⚠️ Catégorie invalide ou inaccessible.", 'error');
+            return;
+        }
+    }
+    
+    // Validation 3: Valider que les candidats existent avant l'envoi
+    if (candidateId1) {
+        const cand1Valid = typeof validateCandidateExists === 'function' ? await validateCandidateExists(parseInt(candidateId1, 10)) : true;
+        if (!cand1Valid) {
+            showToast("⚠️ Candidat 1 introuvable.", 'error');
+            return;
+        }
+    }
+    if (candidateId2) {
+        const cand2Valid = typeof validateCandidateExists === 'function' ? await validateCandidateExists(parseInt(candidateId2, 10)) : true;
+        if (!cand2Valid) {
+            showToast("⚠️ Candidat 2 introuvable.", 'error');
+            return;
+        }
+    }
+    
+    // Phase 1: Récupérer le message personnalisé généré par IA
+    const customMessage = document.getElementById('pushModalMessage')?.value?.trim() || '';
 
     const company = data.companies.find(c => c.id === p.company_id);
     const companyName = company?.groupe || '';
@@ -5913,25 +7123,30 @@ async function confirmPushSend() {
             document.body.removeChild(ta);
         }
     } else if (channel === 'linkedin') {
-        // Template choisi -> sinon défaut
-        let templateId = p.template_id;
-        const tpl = (templateId ? getTemplateById(templateId) : null) || getDefaultTemplate();
-        const vars = buildTemplateVars(p, company);
+        // Phase 1: Utiliser le message personnalisé IA si disponible
+        if (customMessage) {
+            text = customMessage;
+        } else {
+            // Template choisi -> sinon défaut
+            let templateId = p.template_id;
+            const tpl = (templateId ? getTemplateById(templateId) : null) || getDefaultTemplate();
+            const vars = buildTemplateVars(p, company);
 
-        // Check for custom InMail template in settings
-        try {
-            const settingsRes = await fetch('/api/settings');
-            const settings = await settingsRes.json();
-            if (settings && settings.linkedin_inmail_template && settings.linkedin_inmail_template.trim()) {
-                text = renderTemplateString(settings.linkedin_inmail_template, vars).trim();
-            }
-        } catch(e) {}
+            // Check for custom InMail template in settings
+            try {
+                const settingsRes = await fetch('/api/settings');
+                const settings = await settingsRes.json();
+                if (settings && settings.linkedin_inmail_template && settings.linkedin_inmail_template.trim()) {
+                    text = renderTemplateString(settings.linkedin_inmail_template, vars).trim();
+                }
+            } catch(e) {}
 
-        if (!text) {
-            text = `Bonjour ${vars.civilite ? (vars.civilite + ' ') : ''}${vars.nom || vars.nom_complet || ''},\n\nJe me permets de vous contacter concernant ${vars.entreprise || 'votre entreprise'}.\n\nBelle journée,`;
-            if (tpl) {
-                const b = renderTemplateString((tpl.linkedin_body || tpl.linkedinBody || tpl.body || ''), vars).trim();
-                if (b) text = b;
+            if (!text) {
+                text = `Bonjour ${vars.civilite ? (vars.civilite + ' ') : ''}${vars.nom || vars.nom_complet || ''},\n\nJe me permets de vous contacter concernant ${vars.entreprise || 'votre entreprise'}.\n\nBelle journée,`;
+                if (tpl) {
+                    const b = renderTemplateString((tpl.linkedin_body || tpl.linkedinBody || tpl.body || ''), vars).trim();
+                    if (b) text = b;
+                }
             }
         }
 
@@ -6015,45 +7230,74 @@ async function confirmPushSend() {
             }
         }
     }
-
-    // Mark push as sent
-    const sentAt = todayISO();
-    if (channel === 'email') {
-        p.pushEmailSentAt = sentAt;
-        try {
-            const el = document.getElementById('detailPushSent');
-            if (el) el.textContent = '✅ ' + sentAt;
-        } catch (e) {}
-    } else if (channel === 'linkedin') {
-        p.pushLinkedInSentAt = sentAt;
-        try {
-            const el = document.getElementById('detailPushLinkedInSent');
-            if (el) el.textContent = '✅ ' + sentAt;
-        } catch (e) {}
+    
+    // Vérifier à nouveau que le prospect existe avant de continuer (éviter race condition)
+    const pCheck = data.prospects.find(x => x.id === _pushModalProspectId);
+    if (!pCheck) {
+        showToast("⚠️ Prospect introuvable (données modifiées).", 'error');
+        return;
     }
 
-    try { await saveToServerAsync(); } catch (e) {}
-
-    // Log push avec candidats et consultants
+    // Préparer la date (vérifier le format avec todayISO())
+    const sentAt = todayISO(); // Format: YYYY-MM-DD
+    
+    // Log push avec candidats et consultants AVANT de mettre à jour l'UI
+    let logSuccess = false;
     try {
-        await fetch('/api/push-logs/add', {
+        const logRes = await fetch('/api/push-logs/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prospect_id: p.id, sentAt, channel: channel,
                 to_email: channel === 'email' ? p.email : null,
-                subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : 'Push manuel') : null,
-                body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : '') : text,
+                subject: channel === 'email' ? (templateOpened ? `Push ${companyName}` : (customMessage ? 'Push IA personnalisé' : 'Push manuel')) : null,
+                body: channel === 'email' ? (templateOpened ? `Template: ${templateName}` : (customMessage || '')) : (customMessage || text),
                 template_id: null,
                 template_name: templateName || null,
                 candidate_id1: candidateId1 ? parseInt(candidateId1, 10) : null,
                 candidate_id2: candidateId2 ? parseInt(candidateId2, 10) : null,
                 consultant1_id: consultantId1 ? parseInt(consultantId1, 10) : null,
-                consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null
+                consultant2_id: consultantId2 ? parseInt(consultantId2, 10) : null,
+                ai_generated: customMessage ? true : null  // Phase 1: marquer comme généré par IA
             })
         });
+        logSuccess = logRes.ok;
+        if (!logSuccess) {
+            const errorData = await logRes.json().catch(() => ({}));
+            console.warn('Error logging push:', errorData);
+        }
     } catch (e) {
         console.warn('Error logging push', e);
+    }
+    
+    // Ne mettre à jour l'UI et les données locales QUE si le log serveur a réussi
+    if (logSuccess) {
+        // Mettre à jour les données locales
+        if (channel === 'email') {
+            p.pushEmailSentAt = sentAt;
+        } else if (channel === 'linkedin') {
+            p.pushLinkedInSentAt = sentAt;
+        }
+        
+        // Sauvegarder sur le serveur
+        try { await saveToServerAsync(); } catch (e) {
+            console.warn('Erreur sauvegarde après push:', e);
+        }
+        
+        // Mettre à jour l'UI seulement après confirmation serveur
+        if (channel === 'email') {
+            try {
+                const el = document.getElementById('detailPushSent');
+                if (el) el.textContent = '✅ ' + sentAt;
+            } catch (e) {}
+        } else if (channel === 'linkedin') {
+            try {
+                const el = document.getElementById('detailPushLinkedInSent');
+                if (el) el.textContent = '✅ ' + sentAt;
+            } catch (e) {}
+        }
+    } else {
+        showToast("⚠️ Push enregistré localement mais erreur lors de l'enregistrement du log.", 'warning', 5000);
     }
 
     closePushSelectModal();
@@ -6071,8 +7315,41 @@ async function confirmPushSend() {
 }
 
 async function openEmailForProspect(prospectId) {
-    // v25.3: Ouvrir la modale de sélection candidats/consultants
-    await openPushSelectModal(prospectId);
+    // Feedback visuel immédiat : trouver et désactiver le bouton
+    const emailBtn = document.querySelector(`button[onclick*="openEmailForProspect(${prospectId})"]`) ||
+                     document.querySelector('.btn-secondary:has-text("Email")') ||
+                     document.activeElement?.closest('button');
+    const originalText = emailBtn?.textContent || emailBtn?.innerHTML || '';
+    const originalDisabled = emailBtn?.disabled;
+    
+    if (emailBtn) {
+        emailBtn.disabled = true;
+        emailBtn.style.opacity = '0.6';
+        emailBtn.style.cursor = 'wait';
+        const loadingText = emailBtn.textContent?.includes('Email') ? '⏳ Ouverture...' : '⏳';
+        if (emailBtn.textContent) emailBtn.textContent = loadingText;
+        else if (emailBtn.innerHTML) emailBtn.innerHTML = loadingText;
+    }
+    
+    try {
+        // v25.3: Ouvrir la modale de sélection candidats/consultants
+        // La modale s'ouvre maintenant immédiatement, les données se chargent en arrière-plan
+        await openPushSelectModal(prospectId);
+    } catch (e) {
+        console.error('Erreur ouverture modale email', e);
+        showToast('❌ Erreur lors de l\'ouverture de la modale email', 'error');
+    } finally {
+        // Restaurer le bouton après un court délai (pour que l'utilisateur voie le feedback)
+        setTimeout(() => {
+            if (emailBtn) {
+                emailBtn.disabled = originalDisabled || false;
+                emailBtn.style.opacity = '';
+                emailBtn.style.cursor = '';
+                if (emailBtn.textContent) emailBtn.textContent = originalText;
+                else if (emailBtn.innerHTML) emailBtn.innerHTML = originalText;
+            }
+        }, 300);
+    }
 }
 
 
@@ -6105,14 +7382,13 @@ function _showOllamaProgress(show, message, tokenCount) {
     }
 }
 
-/** Envoie le prompt à Ollama via le backend avec streaming, retourne le texte généré. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
+/** Envoie le prompt au provider IA configuré (Ollama/Groq) via le backend avec streaming. options.timeoutMs (ex. 300000 pour 5 min). Rejette en cas d'erreur. */
 async function callOllama(prompt, options) {
     options = options || {};
     const timeoutMs = options.timeoutMs != null ? Math.max(10000, Math.min(600000, options.timeoutMs)) : 180000;
-    const useStream = options.stream !== false; // Streaming par défaut, peut être désactivé
+    const useStream = options.stream !== false;
     
-    // Afficher l'indicateur visuel
-    _showOllamaProgress(true, 'Connexion à Ollama…', 0);
+    _showOllamaProgress(true, 'Connexion à l\'IA…', 0);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(function () { 
@@ -6123,6 +7399,7 @@ async function callOllama(prompt, options) {
     try {
         const body = { prompt };
         if (options.model) body.model = options.model;
+        if (options.webSearch) body.web_search = true;
         body.timeout = Math.min(600, Math.ceil(timeoutMs / 1000));
         
         let fullText = '';
@@ -6141,7 +7418,7 @@ async function callOllama(prompt, options) {
                 const data = await res.json().catch(() => ({}));
                 const msg = data.error || ('Erreur ' + res.status);
                 _showOllamaProgress(false);
-                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                if (typeof showToast === 'function') showToast('IA : ' + msg, 'error', 5000);
                 throw new Error(msg);
             }
             
@@ -6166,11 +7443,11 @@ async function callOllama(prompt, options) {
                             try {
                                 const data = JSON.parse(line.slice(6));
                                 if (data.type === 'start') {
-                                    _showOllamaProgress(true, data.message || 'Génération en cours…', 0);
+                                    _showOllamaProgress(true, data.message || 'Génération IA en cours…', 0);
                                 } else if (data.type === 'token') {
                                     fullText += data.text || '';
                                     tokenCount = fullText.length;
-                                    _showOllamaProgress(true, 'Génération en cours…', tokenCount);
+                                    _showOllamaProgress(true, 'Génération IA en cours…', tokenCount);
                                     if (data.done) {
                                         // Dernier token
                                         _showOllamaProgress(true, 'Finalisation…', tokenCount);
@@ -6179,7 +7456,7 @@ async function callOllama(prompt, options) {
                                     _showOllamaProgress(true, data.message || 'Terminé', tokenCount);
                                 } else if (data.type === 'error') {
                                     _showOllamaProgress(false);
-                                    if (typeof showToast === 'function') showToast('Ollama : ' + data.message, 'error', 5000);
+                                    if (typeof showToast === 'function') showToast('IA : ' + data.message, 'error', 5000);
                                     throw new Error(data.message);
                                 }
                             } catch (e) {
@@ -6195,10 +7472,9 @@ async function callOllama(prompt, options) {
             
             clearTimeout(timeoutId);
             _showOllamaProgress(false);
-            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            if (typeof showToast === 'function') showToast('IA : résultat reçu', 'success', 2500);
             return fullText;
         } else {
-            // Mode non-streaming (fallback)
             const res = await fetch('/api/ollama/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -6210,14 +7486,14 @@ async function callOllama(prompt, options) {
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 const msg = data.error || ('Erreur ' + res.status);
-                if (typeof showToast === 'function') showToast('Ollama : ' + msg, 'error', 5000);
+                if (typeof showToast === 'function') showToast('IA : ' + msg, 'error', 5000);
                 throw new Error(msg);
             }
             if (!data.ok || data.text === undefined) {
-                if (typeof showToast === 'function') showToast('Réponse Ollama invalide', 'error', 4000);
+                if (typeof showToast === 'function') showToast('Réponse IA invalide', 'error', 4000);
                 throw new Error('Réponse invalide');
             }
-            if (typeof showToast === 'function') showToast('Ollama : résultat reçu', 'success', 2500);
+            if (typeof showToast === 'function') showToast('IA : résultat reçu', 'success', 2500);
             return data.text;
         }
     } catch (e) {
@@ -6228,7 +7504,7 @@ async function callOllama(prompt, options) {
             throw new Error('Timeout');
         }
         if (e.name === 'TypeError' && e.message.includes('fetch')) {
-            if (typeof showToast === 'function') showToast('Ollama indisponible (réseau ou serveur)', 'error', 5000);
+            if (typeof showToast === 'function') showToast('IA indisponible (réseau ou serveur)', 'error', 5000);
         }
         throw e;
     }
@@ -6549,11 +7825,11 @@ function handleIAButton(type, id) {
     }
     const btn = document.getElementById(`btnIA_${type}_${id}`);
     if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
-    callOllama(prompt).then(function (text) {
+    callOllama(prompt, { webSearch: true }).then(function (text) {
         openIAImportModalWithText(type, id, text);
     }).catch(function () {
         openIAImportModal(type, id);
-        showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+        showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
     }).finally(function () {
         if (btn) { btn.disabled = false; btn.textContent = '🤖 Scrapping IA'; }
     });
@@ -6572,11 +7848,11 @@ function handleScanIA(prospectId) {
         btn.disabled = true; 
         const originalText = btn.textContent;
         btn.textContent = '🔍 Recherche…';
-        callOllama(prompt).then(function (text) {
+        callOllama(prompt, { webSearch: true }).then(function (text) {
             openIAImportModalWithText('prospect', prospectId, text);
         }).catch(function () {
             openIAImportModal('prospect', prospectId);
-            showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+            showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
         }).finally(function () {
             if (btn) { 
                 btn.disabled = false; 
@@ -6585,11 +7861,11 @@ function handleScanIA(prospectId) {
         });
     } else {
         // Fallback si le bouton n'est pas trouvé
-        callOllama(prompt).then(function (text) {
+        callOllama(prompt, { webSearch: true }).then(function (text) {
             openIAImportModalWithText('prospect', prospectId, text);
         }).catch(function () {
             openIAImportModal('prospect', prospectId);
-            showToast('Ollama indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
+            showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
         });
     }
 }
@@ -7286,7 +8562,7 @@ function _ensureBulkIAModal() {
                     <strong>Étape 1 :</strong> Générez avec Ollama (local) ou copiez le prompt pour une autre IA.
                 </p>
                 <div class="bulk-ia-prompt-box" id="bulkIAPromptBox">
-                    <button class="copy-prompt-btn" onclick="runBulkIAWithOllama()" id="bulkIAOllamaBtn">🤖 Générer avec Ollama</button>
+                    <button class="copy-prompt-btn" onclick="runBulkIAWithOllama()" id="bulkIAOllamaBtn">🤖 Générer avec l'IA</button>
                     <button class="copy-prompt-btn" onclick="copyBulkIAPrompt()">📋 Copier</button>
                     <pre id="bulkIAPromptText" style="margin:0;white-space:pre-wrap;font-size:12px;"></pre>
                 </div>
@@ -7409,6 +8685,11 @@ function openBulkIAModal(mode) {
     if (_bulkIAProspects.length === 0) {
         showToast('⚠️ Aucun prospect valide sélectionné.', 'warning');
         return;
+    }
+    
+    // Mettre à jour les labels des boutons IA avec le modèle configuré
+    if (typeof window.updateAIButtonLabels === 'function') {
+        window.updateAIButtonLabels();
     }
 
     // Update title
@@ -7535,20 +8816,20 @@ async function runBulkIAWithOllama() {
     const btn = document.getElementById('bulkIAOllamaBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
     try {
-        const text = await callOllama(prompt);
+        const text = await callOllama(prompt, { webSearch: true });
         document.getElementById('bulkIAResultTextarea').value = text;
         parseBulkIAResult();
     } catch (e) {
-        showToast('Génération Ollama échouée. Collez manuellement le retour ci-dessous.', 'warning', 5000);
+        showToast('Génération IA échouée. Collez manuellement le retour ci-dessous.', 'warning', 5000);
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Générer avec Ollama'; }
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 Générer avec l\'IA'; }
     }
 }
 
 function copyBulkIAPrompt() {
     const text = document.getElementById('bulkIAPromptText').textContent;
     navigator.clipboard.writeText(text).then(() => {
-        showToast('Prompt copié. Collez dans votre IA ou utilisez Générer avec Ollama.', 'success', 4000);
+        showToast('Prompt copié. Collez dans votre IA ou utilisez Générer avec l\'IA.', 'success', 4000);
     }).catch(() => {
         const ta = document.createElement('textarea');
         ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;';
@@ -8088,6 +9369,15 @@ alert("❌ Le serveur local n'a pas pu sauvegarder. Vérifiez que Python est lan
 
     // Refresh modal pour retirer le bouton Annuler
     try { viewDetail(prospectId); } catch (e) {}
+    
+    // Recharger push logs si on est sur la page push
+    try {
+        if (typeof reloadPushLogs === 'function') {
+            await reloadPushLogs();
+        }
+    } catch (e) {
+        console.warn('Erreur rechargement push logs:', e);
+    }
 }
 
 
@@ -9371,6 +10661,10 @@ function openImportListReformatModal(field) {
     const promptText = (_IMPORT_REFORMAT_PROMPTS[field] || 'Normalise les données suivantes (une valeur par ligne, même ordre). Données :') + '\n\n' + values.join('\n');
     document.getElementById('importListReformatPrompt').value = promptText;
     document.getElementById('importListReformatPaste').value = '';
+    // Mettre à jour les labels des boutons IA avec le modèle configuré
+    if (typeof window.updateAIButtonLabels === 'function') {
+        window.updateAIButtonLabels();
+    }
     const modal = document.getElementById('modalImportListReformat');
     if (modal) {
         if (window.openModal) {
@@ -9436,6 +10730,10 @@ function openImportListReformatAllModal() {
         const hasData = rows.some(r => r[c] && r[c].trim());
         return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" value="${c}" ${hasData ? 'checked' : ''} style="cursor:pointer;"> ${label}${hasData ? '' : ' <span class="muted">(vide)</span>'}</label>`;
     }).join('');
+    // Mettre à jour les labels des boutons IA avec le modèle configuré
+    if (typeof window.updateAIButtonLabels === 'function') {
+        window.updateAIButtonLabels();
+    }
     if (window.openModal) window.openModal(modal); else modal.classList.add('active');
 }
 
@@ -10046,8 +11344,11 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
     listBox.innerHTML = '<span class="muted">🔍 Recherche de candidats…</span>';
 
     try {
-        // Piste 5: one API call with tags + optional push_category_id (backend merges category keywords)
-        const qs = pushCategoryId ? `?push_category_id=${encodeURIComponent(pushCategoryId)}` : '';
+        // Phase 1: Ajouter paramètre pour activer explications IA
+        const qsParams = new URLSearchParams();
+        if (pushCategoryId) qsParams.set('push_category_id', pushCategoryId);
+        qsParams.set('ai_explanations', '1');  // Activer explications IA par défaut
+        const qs = qsParams.toString() ? '?' + qsParams.toString() : '';
         const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
         let tagCandidates = [];
         let prospectTags = [];
@@ -10091,6 +11392,17 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
             if (c.exp_score) scoreDetails.push(`XP: ${c.exp_score}`);
             if (c.geo_score) scoreDetails.push(`Géo: ${c.geo_score}`);
             if (c.relevance_pct != null) scoreDetails.push(`Pertinence globale: ${c.relevance_pct}%`);
+            
+            // Phase 1: Afficher les matches sémantiques
+            const semanticMatches = c.semantic_matches || [];
+            const semanticInfo = semanticMatches.length > 0 
+                ? `<div class="bestmatch-semantic" style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🤖 Sémantique: ${semanticMatches.map(m => escapeHtml(m)).join(', ')}</div>`
+                : '';
+            
+            // Phase 1: Afficher l'explication IA si disponible
+            const aiExplanation = c.ai_explanation 
+                ? `<div class="bestmatch-explanation" style="margin-top:8px;padding:8px;background:var(--color-bg-secondary);border-radius:6px;font-size:11px;line-height:1.4;color:var(--color-text-secondary);border-left:3px solid var(--color-primary);">🤖 <strong>Pourquoi ce match :</strong> ${escapeHtml(c.ai_explanation)}</div>`
+                : '';
 
             return `
                 <a href="${viewFicheUrl}" class="bestmatch-card bestmatch-card-link${idx === 0 ? ' bestmatch-top' : ''}" title="Ouvrir la fiche candidat">
@@ -10106,6 +11418,8 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
                     <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · 📍 ' + escapeHtml(c.location) : ''}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
                     <div class="bestmatch-skills">${skillsHtml || '<span class="muted">Aucune compétence renseignée</span>'}</div>
                     <div class="bestmatch-matched">${(c.matched_tags || []).length} compétence${(c.matched_tags || []).length > 1 ? 's' : ''} en commun : ${(c.matched_tags || []).map(t => escapeHtml(t)).join(', ')}</div>
+                    ${semanticInfo}
+                    ${aiExplanation}
                     <div class="bestmatch-actions"><span class="bestmatch-action-label">Voir la fiche →</span></div>
                 </a>`;
         }).join('');
@@ -10540,7 +11854,7 @@ ${checklistSummary || '(Aucune note saisie dans la grille)'}
   "compte_rendu": "[Résumé structuré de la réunion en 5-10 lignes : contexte, points clés discutés, besoins identifiés, opportunités]",
   "next_action": "[Prochaine action concrète : ex. 'Envoyer 2 profils C/C++ embarqué', 'Planifier RT technique', 'Relancer dans 2 semaines']",
   "next_follow_up": "[Date YYYY-MM-DD de la prochaine relance, basée sur ce qui a été convenu]",
-  "statut": "[Nouveau statut parmi : Appelé, À rappeler, Rendez-vous, Rencontré, Messagerie, Pas intéressé — ou null si inchangé]",
+  "statut": "[Nouveau statut parmi : Appelé, À rappeler, Rendez-vous, Messagerie, Pas intéressé — ou null si inchangé]",
   "tags": ["tag1", "tag2", "..."],
   "pertinence": [1-5 ou null],
   "notes_enrichies": "[Informations clés à ajouter aux notes : taille équipe, projets, technos, besoins, budget, process achat — en complément des notes existantes]",
@@ -10566,6 +11880,149 @@ async function copyPostMeetingPrompt(prospectId) {
 
 function handlePostMeetingIA(prospectId) {
     openPostMeetingImportModal(prospectId);
+}
+
+function handlePreMeetingIA(prospectId) {
+    openPreMeetingModal(prospectId);
+}
+
+// ─── Pre-meeting modal (Avant réunion IA) ───
+
+function _ensurePreMeetingModal() {
+    if (document.getElementById('modalPreMeetingIA')) return;
+    const div = document.createElement('div');
+    div.innerHTML = `
+    <div id="modalPreMeetingIA" class="modal">
+        <div class="modal-content">
+            <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>📋 Génération fiche préparation RDV</span>
+                <button class="btn btn-secondary" onclick="closePreMeetingModal()" style="font-size:14px;padding:4px 10px;">✕</button>
+            </div>
+            <div style="margin-top:16px;">
+                <div id="preMeetingProgressLog" class="progress-log" style="display:none;"></div>
+                <div id="preMeetingFallback" style="display:none;margin-top:16px;">
+                    <h4 style="color:var(--color-warning);margin-bottom:8px;">⚠️ Ollama n'a pas pu générer la fiche</h4>
+                    <p class="muted" style="font-size:12px;margin-bottom:8px;">Copie ce prompt dans une autre IA (ChatGPT, Claude, etc.) :</p>
+                    <textarea id="preMeetingPromptText" rows="20" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border:1px solid var(--color-border);border-radius:4px;background:var(--color-bg-secondary);color:var(--color-text);"></textarea>
+                    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="copyPreMeetingPrompt()">📋 Copier le prompt</button>
+                        <button class="btn btn-secondary" onclick="closePreMeetingModal()">Fermer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(div.firstElementChild);
+}
+
+function openPreMeetingModal(prospectId) {
+    _ensurePreMeetingModal();
+    const modal = document.getElementById('modalPreMeetingIA');
+    const logDiv = document.getElementById('preMeetingProgressLog');
+    const fallbackDiv = document.getElementById('preMeetingFallback');
+    
+    // Réinitialiser l'affichage
+    logDiv.style.display = 'block';
+    logDiv.innerHTML = '';
+    fallbackDiv.style.display = 'none';
+    
+    if (window.openModal) {
+        window.openModal(modal);
+    } else {
+        modal.classList.add('active');
+    }
+    
+    // Désactiver le bouton
+    const btn = document.getElementById(`btnPreMeetingIA_${prospectId}`);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Analyse en cours...';
+    }
+    
+    // Ouvrir la connexion EventSource
+    const evtSource = new EventSource(`/api/prospect/${prospectId}/infos-rdv-stream`);
+    
+    evtSource.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'start') {
+                logDiv.innerHTML += `<span style="color:#58a6ff;">${escapeHtml(data.message)}</span><br>`;
+                logDiv.scrollTop = logDiv.scrollHeight;
+            } else if (data.type === 'token') {
+                // Afficher les tokens au fur et à mesure
+                const content = data.content || '';
+                logDiv.innerHTML += escapeHtml(content).replace(/\n/g, '<br>');
+                logDiv.scrollTop = logDiv.scrollHeight;
+            } else if (data.type === 'done') {
+                evtSource.close();
+                logDiv.innerHTML += '<br><span style="color:#22c55e;">✅ Génération terminée. Téléchargement du PDF...</span>';
+                logDiv.scrollTop = logDiv.scrollHeight;
+                
+                // Déclencher le téléchargement
+                if (data.pdf_url) {
+                    window.location.href = data.pdf_url;
+                }
+                
+                // Réactiver le bouton après 3 secondes
+                setTimeout(() => {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = '📋 Avant réunion IA';
+                    }
+                    closePreMeetingModal();
+                }, 3000);
+            } else if (data.type === 'error') {
+                evtSource.close();
+                logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur : Ollama indisponible</span>';
+                logDiv.scrollTop = logDiv.scrollHeight;
+                
+                // Afficher le fallback
+                if (data.fallback_prompt) {
+                    document.getElementById('preMeetingPromptText').value = data.fallback_prompt;
+                    fallbackDiv.style.display = 'block';
+                }
+                
+                // Réactiver le bouton
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '📋 Avant réunion IA';
+                }
+            }
+        } catch (e) {
+            console.error('Erreur parsing SSE:', e);
+            logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur de parsing</span>';
+        }
+    };
+    
+    evtSource.onerror = function() {
+        evtSource.close();
+        logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur de connexion au serveur</span>';
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📋 Avant réunion IA';
+        }
+    };
+}
+
+function closePreMeetingModal() {
+    const modal = document.getElementById('modalPreMeetingIA');
+    if (modal) {
+        if (window.closeModal) {
+            window.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+        }
+    }
+}
+
+function copyPreMeetingPrompt() {
+    const textarea = document.getElementById('preMeetingPromptText');
+    if (textarea) {
+        textarea.select();
+        document.execCommand('copy');
+        showToast('Prompt copié dans le presse-papier !', 'success', 3000);
+    }
 }
 
 // ─── Post-meeting import modal ───

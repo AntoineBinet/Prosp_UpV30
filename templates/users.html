@@ -470,7 +470,11 @@ async function saveUser() {
 
   closeUserModal();
   await loadUsers();
-  alert('✅ Enregistré');
+  if (typeof showToast === 'function') {
+    showToast('✅ Utilisateur enregistré', 'success');
+  } else {
+    alert('✅ Enregistré');
+  }
 }
 
 async function deleteUser(id, username) {
@@ -479,7 +483,11 @@ async function deleteUser(id, username) {
   const j = await r.json().catch(()=>({ok:false,error:'Erreur serveur'}));
   if (!r.ok || !j.ok) { alert('❌ ' + (j.error || 'Erreur')); return; }
   await loadUsers();
-  alert('✅ Supprimé');
+  if (typeof showToast === 'function') {
+    showToast('✅ Utilisateur supprimé', 'success');
+  } else {
+    alert('✅ Supprimé');
+  }
 }
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeUserModal(); });

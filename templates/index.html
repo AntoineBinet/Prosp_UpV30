@@ -23,7 +23,7 @@
         <div class="content-title" id="viewTitle">👥 Tous les prospects</div>
         
         <div class="controls" id="mainControls">
-            <input type="text" id="searchInput" placeholder="🔍 Rechercher (nom, entreprise…)">
+            <input type="text" id="searchInput" placeholder="🔍 Rechercher (nom, entreprise…)" aria-label="Rechercher un prospect">
             <button class="btn btn-secondary filter-toggle-btn" id="btnToggleFilters" type="button" title="Afficher les filtres" data-help-section="prospects">⚙️ Filtres</button>
             <div id="activeFilterChips" class="filter-chips-bar"></div>
         </div>
@@ -40,7 +40,6 @@
                         <option value="">Tous</option>
                         <option value="Appelé">📞 Appelé</option>
                         <option value="Rendez-vous">🤝 Rendez-vous</option>
-                        <option value="Rencontré">✅ Rencontré</option>
                         <option value="Prospecté">🎯 Prospecté</option>
                         <option value="Messagerie">💬 Messagerie</option>
                         <option value="À rappeler">📞 À rappeler</option>
@@ -126,7 +125,6 @@
                         <div class="dropdown-title">Masquer les statuts</div>
                         <label class="dropdown-item"><input type="checkbox" value="Appelé"> 📞 Appelé</label>
                         <label class="dropdown-item"><input type="checkbox" value="Rendez-vous"> 🤝 Rendez-vous</label>
-                        <label class="dropdown-item"><input type="checkbox" value="Rencontré"> ✅ Rencontré</label>
                         <label class="dropdown-item"><input type="checkbox" value="Prospecté"> 🎯 Prospecté</label>
                         <label class="dropdown-item"><input type="checkbox" value="Messagerie"> 💬 Messagerie</label>
                         <label class="dropdown-item"><input type="checkbox" value="À rappeler"> 📞 À rappeler</label>
@@ -176,7 +174,6 @@
                     <option value="">Changer statut...</option>
                     <option value="Appelé">📞 Appelé</option>
                     <option value="Rendez-vous">🤝 Rendez-vous</option>
-                    <option value="Rencontré">✅ Rencontré</option>
                     <option value="Prospecté">🎯 Prospecté</option>
                     <option value="Messagerie">💬 Messagerie</option>
                     <option value="À rappeler">📞 À rappeler</option>
@@ -231,7 +228,7 @@
                 <div class="stat-number" id="rdvCount">0</div>
                 <div class="stat-label">RDV</div>
             </div>
-            <div class="stat-card prospectés" onclick="quickFilterStat('prospectés')" title="Filtrer les prospects au statut Prospectés">
+            <div class="stat-card prospectés" onclick="quickFilterStat('prospectés')" title="Filtrer les prospects au statut Prospecté">
                 <div class="stat-number" id="prospectésCount">0</div>
                 <div class="stat-label">PROSPECTÉS</div>
             </div>
@@ -270,6 +267,7 @@
                 </tr>
             </thead>
             <tbody id="tableBody">
+                <tr><td colspan="13" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
             </tbody>
         </table>
     </div>
@@ -328,7 +326,6 @@
                     <option value="Appelé">Appelé</option>
                     <option value="À rappeler">À rappeler</option>
                     <option value="Rendez-vous">Rendez-vous</option>
-                    <option value="Rencontré">Rencontré</option>
                     <option value="Prospecté">Prospecté</option>
                     <option value="Messagerie">Messagerie</option>
                     <option value="Pas intéressé">Pas intéressé</option>
@@ -398,7 +395,7 @@
             </div>
             <div class="btn-group">
                 <button type="button" class="btn btn-secondary" onclick="closeCompanyModal()">Annuler</button>
-                <button type="submit" id="companySubmitBtn" class="btn btn-primary">Ajouter</button>
+                <button type="submit" id="companySubmitBtn" class="btn btn-primary">Enregistrer</button>
             </div>
         </form>
     </div>
@@ -445,7 +442,7 @@
                 <div class="qa-card" data-method="ia" onclick="qaPickMethod('ia')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
                     <div style="font-size:28px;margin-bottom:6px;">🤖</div>
                     <div style="font-weight:700;font-size:13px;">Ajout via IA</div>
-                    <div class="muted" style="font-size:11px;margin-top:3px;">Ollama / ChatGPT</div>
+                    <div class="muted" style="font-size:11px;margin-top:3px;">IA locale ou cloud</div>
                 </div>
                 <div class="qa-card" data-method="file" onclick="qaPickMethod('file')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
                     <div style="font-size:28px;margin-bottom:6px;">📄</div>
@@ -481,7 +478,7 @@
             <input type="file" id="qaFileInput" accept=".xlsx,.xls,.csv,.pdf,.doc,.docx" style="display:none;">
             <button type="button" class="btn btn-primary" onclick="document.getElementById('qaFileInput').click()">📁 Choisir un fichier</button>
             <p id="qaFileChosen" class="muted" style="font-size:12px;margin-top:8px;display:none;"></p>
-            <p class="muted" style="font-size:11px;margin-top:10px;">Le fichier est envoyé au serveur (PC qui héberge Prosp'Up). PDF/Word : l’analyse IA (Ollama) se fait sur ce même PC — vous pouvez être sur un autre appareil.</p>
+            <p class="muted" style="font-size:11px;margin-top:10px;">Le fichier est envoyé au serveur (PC qui héberge Prosp'Up). PDF/Word : l’analyse IA se fait sur le serveurê— vous pouvez être sur un autre appareil.</p>
             <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
                 <button class="btn btn-secondary" onclick="qaBackFromFileToStep0()">← Retour</button>
             </div>
@@ -508,7 +505,10 @@
                 </div>
             </div>
             <p class="muted" style="font-size:12px;margin-bottom:6px;">2) Contexte pour l'IA (recommandé) — lien LinkedIn, nom + entreprise, ou texte. Sans contexte, l'IA génèrera un exemple :</p>
-            <textarea id="qaContextInput" rows="2" style="width:100%;border:1px solid var(--color-border);border-radius:8px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;margin-bottom:14px;" placeholder="https://linkedin.com/in/... ou Jean Dupont, Responsable R&amp;D chez Acme..."></textarea>
+            <textarea id="qaContextInput" rows="3" style="width:100%;border:1px solid var(--color-border);border-radius:8px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;margin-bottom:8px;" placeholder="Option 1 : Lien LinkedIn&#10;https://linkedin.com/in/nom-profil&#10;&#10;Option 2 : Nom + entreprise&#10;Jean Dupont, Responsable R&amp;D chez Acme&#10;&#10;Option 3 : Copiez-collez le contenu visible de la page LinkedIn (nom, poste, entreprise, etc.)"></textarea>
+            <p class="muted" style="font-size:11px;margin-top:0;margin-bottom:14px;color:var(--color-warning);">
+                ⚠️ <strong>LinkedIn bloque souvent l'accès direct via API.</strong> Si le lien ne fonctionne pas, copiez-collez le texte visible de la page LinkedIn (nom, poste, entreprise, localisation) dans le champ ci-dessus. L'IA utilisera ces infos pour compléter la fiche.
+            </p>
             <p class="muted" style="font-size:12px;margin-bottom:10px;">3) Générez avec Ollama (sur le PC qui héberge Prosp'Up) ou copiez le prompt pour une autre IA :</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;">
                 <button class="btn btn-secondary" onclick="qaBackToStep0()">← Retour</button>
@@ -516,8 +516,8 @@
                     <button class="btn btn-secondary" onclick="closeQuickAddModal()">Annuler</button>
                     <button class="btn btn-secondary" onclick="qaStartSingle()">📋 Copier (un seul)</button>
                     <button class="btn btn-secondary" onclick="qaStartMultiple()">📋 Copier (plusieurs)</button>
-                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(false)">🤖 Générer avec Ollama (un seul)</button>
-                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(true)">🤖 Générer avec Ollama (plusieurs)</button>
+                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(false)">🤖 Générer avec l’IA (un seul)</button>
+                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(true)">🤖 Générer avec l’IA (plusieurs)</button>
                 </div>
             </div>
         </div>

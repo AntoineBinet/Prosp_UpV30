@@ -28,6 +28,10 @@
         if (qaFileInput) { qaFileInput.value = ''; }
         const qaFileChosen = document.getElementById('qaFileChosen');
         if (qaFileChosen) { qaFileChosen.style.display = 'none'; qaFileChosen.textContent = ''; }
+        // Mettre à jour les labels des boutons IA avec le modèle configuré
+        if (typeof window.updateAIButtonLabels === 'function') {
+            window.updateAIButtonLabels();
+        }
         if (window.openModal) {
             window.openModal(m);
         } else {
@@ -234,7 +238,7 @@
         if (ext === '.pdf' || ext === '.doc' || ext === '.docx') {
             _qaOverlayShow({
                 title: 'Traitement du document',
-                detail: 'Le fichier est envoyé au serveur. Extraction puis analyse par l\'IA (Ollama sur le PC qui héberge). Ne fermez pas.',
+                detail: 'Le fichier est envoyé au serveur. Extraction puis analyse par l\'IA. Ne fermez pas.',
                 phase: 'Envoi du fichier…'
             });
             const fd = new FormData();
@@ -307,7 +311,7 @@
                 .then(function() {})
                 .catch(function(err) {
                     _qaOverlayHide();
-                    var msg = (err && err.message) || 'Erreur réseau ou serveur. Ollama peut être indisponible ou le modèle trop lent : essayez Excel/CSV ou un modèle plus léger.';
+                    var msg = (err && err.message) || 'Erreur réseau ou serveur. L\'IA peut être indisponible ou le modèle trop lent : essayez Excel/CSV ou un modèle plus léger.';
                     showToast(msg, 'error', 6000);
                 });
             return;
@@ -392,7 +396,7 @@
         document.getElementById('qaStep3Paste').style.display = '';
         document.getElementById('qaPasteTextarea').value = '';
         document.getElementById('qaPasteTextarea').focus();
-        showToast('Prompt copié. Collez-le dans Ollama ou une autre IA, puis collez le retour ci-dessous.', 'info', 5000);
+        showToast('Prompt copié. Collez-le dans votre IA, puis collez le retour ci-dessous.', 'info', 5000);
     };
 
     window.qaStartMultiple = function () {
@@ -403,7 +407,7 @@
         document.getElementById('qaStep3Paste').style.display = '';
         document.getElementById('qaPasteTextarea').value = '';
         document.getElementById('qaPasteTextarea').focus();
-        showToast('Prompt copié. Collez-le dans Ollama ou une autre IA, puis collez le retour ci-dessous.', 'info', 5000);
+        showToast('Prompt copié. Collez-le dans votre IA, puis collez le retour ci-dessous.', 'info', 5000);
     };
 
     window.qaGenerateWithOllama = function (multiple) {
@@ -415,20 +419,34 @@
             showToast('Sans contexte, l\'IA génère un exemple. Vous pourrez modifier le résultat puis cliquer Analyser.', 'info', 5000);
         }
         const prompt = multiple ? _buildMultiPrompt(_qaType, context) : _buildSinglePrompt(_qaType, context);
-        if (typeof window.callOllama !== 'function') { showToast('Ollama non disponible', 'error'); return; }
+        if (typeof window.callOllama !== 'function') { showToast('IA non disponible', 'error'); return; }
         _qaOverlayShow({
             title: 'Génération en cours…',
             detail: 'Cela peut prendre plusieurs minutes. Ne fermez pas la fenêtre.',
             phase: '',
             liveText: ''
         });
+        // Activer la recherche web si le contexte contient un lien LinkedIn ou une URL
+        const hasLinkedInUrl = context && /linkedin\.com\/in\/|linkedin\.com\/company\//i.test(context);
+        const hasUrl = context && /https?:\/\//i.test(context);
+        const useWebSearch = hasLinkedInUrl || hasUrl;
         // Désactiver le streaming pour tous les appels (proxy/tunnel peut mal gérer le streaming SSE → erreur 405)
-        const opts = multiple ? { timeoutMs: 300000, stream: false } : { timeoutMs: 180000, stream: false };
+        const opts = multiple 
+            ? { timeoutMs: 300000, stream: false, webSearch: useWebSearch } 
+            : { timeoutMs: 180000, stream: false, webSearch: useWebSearch };
         window.callOllama(prompt, opts).then(function (text) {
             _qaOverlayHide();
+            // Debug : afficher le retour brut de l'IA dans la console et dans un panneau debug
+            console.log('[Quick Add IA] Retour brut de l\'IA:', text);
+            _showIADebugPanel(text, prompt);
+            
             const result = _tryParseQARaw(text || '', _qaType);
             if (result.ok) {
                 _qaParsed = result.parsed;
+                // Nettoyer les données parsées (corriger email/LinkedIn)
+                _qaParsed = _qaParsed.map(function(item) {
+                    return _cleanParsedItem(item);
+                });
                 document.getElementById('qaStep1').style.display = 'none';
                 document.getElementById('qaStep3Paste').style.display = 'none';
                 document.getElementById('qaStep4Preview').style.display = '';
@@ -443,7 +461,7 @@
             }
         }).catch(function (err) {
             _qaOverlayHide();
-            const msg = (err && err.message) === 'Timeout' ? 'Génération trop longue. Utilisez « Copier » puis collez le retour manuellement.' : 'Ollama indisponible. Utilisez « Copier » puis collez le retour manuellement.';
+            const msg = (err && err.message) === 'Timeout' ? 'Génération trop longue. Utilisez « Copier » puis collez le retour manuellement.' : 'IA indisponible. Utilisez « Copier » puis collez le retour manuellement.';
             showToast(msg, 'warning', 6000);
         });
     };
@@ -655,6 +673,26 @@
         if (!parsed || (typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length === 0))
             return { ok: false };
         if (!Array.isArray(parsed)) parsed = [parsed];
+        
+        // Normaliser la pertinence : forcer entre 1 et 5, sinon vide
+        parsed = parsed.map(function(item) {
+            if (item && typeof item === 'object' && item.pertinence !== undefined) {
+                const pert = item.pertinence;
+                if (typeof pert === 'string' || typeof pert === 'number') {
+                    const n = parseInt(pert);
+                    item.pertinence = (n >= 1 && n <= 5) ? String(n) : '';
+                } else {
+                    item.pertinence = '';
+                }
+            }
+            return item;
+        });
+        
+        // Nettoyer les données (corriger email/LinkedIn)
+        parsed = parsed.map(function(item) {
+            return _cleanParsedItem(item);
+        });
+        
         return { ok: true, parsed: parsed };
     }
 
@@ -729,13 +767,112 @@
             obj[field] = isNaN(n) ? null : n;
         } else if (field === 'pertinence') {
             const n = parseInt(val);
-            obj[field] = (n >= 1 && n <= 5) ? String(n) : val;
+            // Forcer la pertinence entre 1 et 5, sinon vide
+            obj[field] = (n >= 1 && n <= 5) ? String(n) : '';
         } else if (field.startsWith('_')) {
             // Append to notes
             obj.notes = (obj.notes || '') + '\n' + rawKey + ': ' + val;
         } else {
             obj[field] = val;
         }
+    }
+
+    // ─── Nettoyer les données parsées (corriger erreurs courantes) ───
+    function _cleanParsedItem(item) {
+        if (!item || typeof item !== 'object') return item;
+        const cleaned = Object.assign({}, item);
+        
+        // Corriger email qui contient une URL LinkedIn
+        if (cleaned.email) {
+            const email = String(cleaned.email).trim();
+            // Si c'est une URL LinkedIn (même tronquée), vider le champ email
+            if (/linkedin\.com|https?:\/\/.*linkedin/i.test(email) || /^https?:\/\//.test(email)) {
+                console.warn('[Quick Add] Email contient une URL LinkedIn, champ vidé:', email);
+                cleaned.email = '';
+            }
+            // Si c'est un email valide mais contient des caractères bizarres, nettoyer
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                // Si ça ressemble à une URL ou contient des caractères encodés, vider
+                if (/https?:\/\/|%[0-9A-Fa-f]{2}/.test(email)) {
+                    console.warn('[Quick Add] Email invalide (URL ou encodé), champ vidé:', email);
+                    cleaned.email = '';
+                }
+            }
+        }
+        
+        // Corriger LinkedIn qui est tronqué ou mal formaté
+        if (cleaned.linkedin) {
+            const linkedin = String(cleaned.linkedin).trim();
+            // Si c'est une URL LinkedIn valide mais tronquée, essayer de la compléter
+            if (/linkedin\.com\/in\/[^\/]+$/.test(linkedin) && !linkedin.endsWith('/')) {
+                // URL valide mais peut-être tronquée, garder tel quel
+            }
+            // Si c'est une URL encodée ou malformée, nettoyer
+            else if (/linkedin\.com\/in\/.*%/.test(linkedin)) {
+                // Décoder l'URL
+                try {
+                    cleaned.linkedin = decodeURIComponent(linkedin);
+                } catch (e) {
+                    // Si le décodage échoue, garder tel quel
+                }
+            }
+            // Si ce n'est pas une URL LinkedIn valide, vider
+            else if (!/^https?:\/\/.*linkedin\.com\/in\/[^\/\s]+/.test(linkedin)) {
+                if (linkedin && !linkedin.startsWith('http')) {
+                    // Peut-être juste l'identifiant, construire l'URL
+                    const id = linkedin.replace(/[^a-zA-Z0-9-]/g, '');
+                    if (id.length > 3) {
+                        cleaned.linkedin = 'https://www.linkedin.com/in/' + id;
+                    } else {
+                        cleaned.linkedin = '';
+                    }
+                } else {
+                    cleaned.linkedin = '';
+                }
+            }
+        }
+        
+        return cleaned;
+    }
+
+    // ─── Panneau de debug pour voir le retour brut de l'IA ───
+    function _showIADebugPanel(rawText, prompt) {
+        // Créer ou récupérer le panneau debug
+        let panel = document.getElementById('qaIADebugPanel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'qaIADebugPanel';
+            panel.style.cssText = 'position:fixed;bottom:20px;right:20px;width:500px;max-height:400px;background:var(--color-surface);border:2px solid var(--color-primary);border-radius:8px;padding:12px;z-index:10000;box-shadow:0 4px 12px rgba(0,0,0,0.3);overflow:auto;font-size:11px;font-family:monospace;';
+            panel.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <strong style="color:var(--color-primary);">🔍 Debug IA — Retour brut</strong>
+                    <button onclick="document.getElementById('qaIADebugPanel').style.display='none'" style="background:none;border:none;color:var(--color-text);cursor:pointer;font-size:16px;padding:0 8px;">×</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="font-size:10px;padding:4px 8px;background:var(--color-bg-secondary);border:1px solid var(--color-border);border-radius:4px;cursor:pointer;">📋 Voir le prompt</button>
+                    <pre id="qaDebugPrompt" style="display:none;background:var(--color-bg-secondary);padding:8px;border-radius:4px;margin-top:4px;white-space:pre-wrap;word-wrap:break-word;max-height:150px;overflow:auto;font-size:10px;">${(prompt || '').substring(0, 1000)}${(prompt || '').length > 1000 ? '...' : ''}</pre>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <strong style="color:var(--color-text-secondary);font-size:10px;">Retour brut (${(rawText || '').length} caractères):</strong>
+                    <pre id="qaDebugRawText" style="background:var(--color-bg-secondary);padding:8px;border-radius:4px;margin-top:4px;white-space:pre-wrap;word-wrap:break-word;max-height:200px;overflow:auto;font-size:10px;border:1px solid var(--color-border);">${_escDebugText(rawText || '')}</pre>
+                </div>
+                <div style="font-size:10px;color:var(--color-muted);">
+                    💡 Ce panneau montre le retour brut de l'IA avant parsing. Vérifiez si l'IA a bien extrait les données.
+                </div>
+            `;
+            document.body.appendChild(panel);
+        } else {
+            // Mettre à jour le contenu
+            const rawEl = document.getElementById('qaDebugRawText');
+            const promptEl = document.getElementById('qaDebugPrompt');
+            if (rawEl) rawEl.textContent = rawText || '';
+            if (promptEl) promptEl.textContent = (prompt || '').substring(0, 1000) + ((prompt || '').length > 1000 ? '...' : '');
+            panel.style.display = 'block';
+        }
+    }
+
+    function _escDebugText(text) {
+        return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     // ─── Preview : formulaire de validation éditable ───
@@ -867,7 +1004,8 @@
                     item[field] = val ? val.split(',').map(s => s.trim()).filter(Boolean) : [];
                 } else if (field === 'pertinence') {
                     const n = parseInt(val);
-                    item[field] = (n >= 1 && n <= 5) ? String(n) : val;
+                    // Forcer la pertinence entre 1 et 5, sinon vide
+                    item[field] = (n >= 1 && n <= 5) ? String(n) : '';
                 } else {
                     item[field] = val;
                 }
@@ -1084,21 +1222,94 @@
             candidate: `un CANDIDAT (= ingénieur / consultant potentiel à recruter) pour une ESN spécialisée en systèmes embarqués, électronique et ingénierie`
         };
 
+        // Extraire le nom de l'URL LinkedIn si présent
+        let extractedName = '';
+        let extractedCompany = '';
+        if (context) {
+            const linkedinMatch = context.match(/linkedin\.com\/in\/([^\/\s\?]+)/i);
+            if (linkedinMatch) {
+                // Convertir "stephane-dalliet" en "Stéphane Dalliet" (approximation)
+                const slug = linkedinMatch[1];
+                extractedName = slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+            }
+            // Chercher une entreprise mentionnée dans le contexte
+            const companyMatch = context.match(/(?:chez|at|@|entreprise|company)\s+([A-Z][a-zA-Z\s&-]+)/i);
+            if (companyMatch) {
+                extractedCompany = companyMatch[1].trim();
+            }
+        }
+
         const contextBlock = (context && context.length > 0)
             ? `\n══════ INFORMATIONS DONT JE DISPOSE (utilise-les pour remplir la fiche) ══════\n${context}\n\n`
             : '';
 
+        const isLinkedInUrl = context && /linkedin\.com\/in\/|linkedin\.com\/company\//i.test(context);
+        let extractionInstructions = '';
+        
+        if (isLinkedInUrl) {
+            // Extraire le nom et l'entreprise du lien LinkedIn pour améliorer la recherche
+            const linkedinMatch = context.match(/linkedin\.com\/in\/([^\/\s]+)/i);
+            const profileId = linkedinMatch ? linkedinMatch[1] : '';
+            
+            // Construire une recherche optimisée
+            const searchTerms = [];
+            if (extractedName) searchTerms.push(`"${extractedName}"`);
+            if (extractedCompany) searchTerms.push(`"${extractedCompany}"`);
+            const searchQuery = searchTerms.length > 0 ? searchTerms.join(' ') : 'profil LinkedIn';
+            
+            extractionInstructions = `IMPORTANT : Le contexte contient un lien LinkedIn (${context}).
+
+⚠️ LinkedIn bloque souvent l'accès direct aux profils via API. Utilise ces stratégies :
+
+1. **Recherche web par nom + entreprise** : 
+   ${extractedName ? `- Nom extrait de l'URL : "${extractedName}"` : '- Nom à extraire de l\'URL LinkedIn'}
+   ${extractedCompany ? `- Entreprise mentionnée : "${extractedCompany}"` : ''}
+   - Cherche sur le web : "${searchQuery} LinkedIn" ou "${extractedName || 'nom'} ${extractedCompany || 'entreprise'} LinkedIn" pour trouver des informations publiques (articles, sites d'entreprise, communiqués de presse, etc.).
+
+2. **Recherche alternative** : Si le contexte contient du texte copié-collé de la page LinkedIn, utilise directement ces informations (nom, poste, entreprise, localisation).
+
+3. **Extraction depuis le lien** : ${extractedName ? `Le nom "${extractedName}" a été extrait de l'URL.` : 'Extrais le nom de l\'URL LinkedIn (ex: "linkedin.com/in/stephane-dalliet" → "Stéphane Dalliet").'} Utilise cette information pour ta recherche web.
+
+4. **Informations à extraire** : Nom complet, titre du poste actuel, entreprise actuelle, localisation, description/résumé, expériences professionnelles. NE PAS INVENTER d'informations qui ne sont pas trouvées. Si une information n'est pas visible (ex: téléphone, email), utilise "" (chaîne vide).
+
+5. **Si aucune info trouvée** : Retourne au moins le nom ${extractedName ? `"${extractedName}"` : '(déduit de l\'URL si possible)'} et l'URL LinkedIn complète "${context.match(/https?:\/\/[^\s]+/)?.[0] || context}", avec les autres champs vides plutôt que d'inventer.`;
+        } else if (contextBlock) {
+            extractionInstructions = 'Remplis la fiche à partir de ces informations. Extrais uniquement les données réellement présentes. Ne pas inventer d\'informations manquantes.';
+        } else {
+            extractionInstructions = 'Recherche toutes les informations disponibles sur cette personne/entité à partir des documents, liens ou informations que je te fournis. Extrais uniquement les données réellement trouvées.';
+        }
+
         return `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel).
 
 Je dois créer la fiche de ${contexts[type]} dans mon CRM.
-${contextBlock ? contextBlock + 'Remplis la fiche à partir de ces informations. Si c\'est un lien LinkedIn ou un profil, extrais nom, fonction, entreprise, etc.' : 'Recherche toutes les informations disponibles sur cette personne/entité à partir des documents, liens ou informations que je te fournis.'}
+${contextBlock}${extractionInstructions}
 
 ══════ TAGS TECHNIQUES STANDARDS ══════
 AUTOSAR, C/C++, RTOS, Linux embarqué, FPGA, VHDL, Verilog, Python, Java, C#, .NET, ARM, Microcontrôleur, PCB, Altium, KiCad, Yocto, QNX, FreeRTOS, VxWorks, CAN, LIN, Ethernet, TCP/IP, SPI, I2C, UART, JTAG, Modbus, ISO 26262, DO-178, IEC 61508, ADAS, Lidar, Radar, Vision, IA/ML, ROS, Matlab/Simulink, LabVIEW, Banc de test, Qualification, Validation, Electronique analogique, Electronique numérique, Puissance, RF, Mécatronique, CAO mécanique, Catia, SolidWorks, Gestion de projet, Agilité, V-cycle
 
+══════ PERTINENCE (OBLIGATOIRE : 1 à 5) ══════
+Le champ "pertinence" DOIT être une chaîne de caractères : "1", "2", "3", "4" ou "5" (jamais autre chose).
+- 5 = Décideur direct qui recrute des ingénieurs dans nos domaines (systèmes embarqués, électronique, robotique)
+- 4 = Manager/responsable avec influence sur les recrutements dans nos domaines
+- 3 = Contact dans une entreprise pertinente, rôle moins direct mais domaine aligné
+- 2 = Contact dans une entreprise pertinente mais rôle peu lié à nos métiers
+- 1 = Peu de lien avec nos domaines d'expertise
+Si tu ne peux pas évaluer à partir des informations disponibles, utilise "" (chaîne vide).
+
 ══════ FORMAT DE SORTIE (JSON strict) ══════
 Réponds UNIQUEMENT par un objet JSON valide, sans aucun texte avant ou après, sans \`\`\` ni markdown.
-Utilise exactement les clés de l'exemple. Pour un prospect : name, fonction, entreprise, telephone, email, linkedin, tags, metier, pertinence, secteur, notes. Limite "tags" à 12 éléments max.
+Utilise exactement les clés de l'exemple. Pour un prospect : name, fonction, entreprise, telephone, email, linkedin, tags, metier, pertinence, secteur, notes. Limite "tags" à 12 éléments max. IMPORTANT : "pertinence" doit être "1", "2", "3", "4" ou "5" (chaîne de caractères), jamais autre chose.
+
+⚠️ RÈGLES IMPORTANTES :
+- N'invente JAMAIS d'informations qui ne sont pas visibles dans le contexte fourni
+- Si une information n'est pas disponible (téléphone, email, etc.), utilise "" (chaîne vide) au lieu d'inventer
+- Pour les tags, utilise uniquement ceux qui correspondent réellement au profil (domaines techniques mentionnés)
+- Le champ "linkedin" doit être l'URL complète du profil si fournie dans le contexte (ex: "https://www.linkedin.com/in/nom-profil/")
+- Le champ "email" DOIT être une adresse email valide (format: nom@domaine.com). JAMAIS d'URL LinkedIn dans le champ email. Si l'email n'est pas visible, utilise "" (chaîne vide)
+- Le champ "entreprise" doit être le nom exact de l'entreprise visible sur le profil
+- Le champ "fonction" doit être le titre exact du poste actuel visible sur le profil
+- Le champ "pertinence" DOIT être un nombre entre 1 et 5 (chaîne de caractères : "1", "2", "3", "4" ou "5"). 5 = décideur direct qui recrute dans nos domaines, 1 = peu de lien. Si tu ne peux pas évaluer, utilise "" (chaîne vide). JAMAIS de valeur hors de cette plage.
+
 Exemple (une seule ligne si possible) :
 
 ${jsonFormats[type]}`;
@@ -1107,7 +1318,7 @@ ${jsonFormats[type]}`;
     function _buildMultiPrompt(type, context) {
         const jsonFormats = {
             prospect: `[
-  { "name": "...", "fonction": "...", "entreprise": "...", "telephone": "...", "email": "...", "linkedin": "...", "tags": [...], "metier": "...", "pertinence": "1-5", "notes": "..." },
+  { "name": "...", "fonction": "...", "entreprise": "...", "telephone": "...", "email": "...", "linkedin": "...", "tags": [...], "metier": "...", "pertinence": "5", "notes": "..." },
   ...
 ]`,
             company: `[
@@ -1130,17 +1341,59 @@ ${jsonFormats[type]}`;
             ? `\n══════ INFORMATIONS DONT JE DISPOSE (extrais les fiches à partir de cela) ══════\n${context}\n\n`
             : '';
 
+        const hasLinkedInUrls = context && /linkedin\.com\/in\/|linkedin\.com\/company\//i.test(context);
+        let extractionInstructions = '';
+        
+        if (hasLinkedInUrls) {
+            extractionInstructions = `IMPORTANT : Le contexte contient des liens LinkedIn.
+
+⚠️ LinkedIn bloque souvent l'accès direct aux profils via API. Utilise ces stratégies :
+
+1. **Recherche par nom + entreprise** : Pour chaque lien "linkedin.com/in/nom-profil", cherche sur le web "nom-profil LinkedIn [nom entreprise]" pour trouver des informations publiques.
+
+2. **Recherche alternative** : Cherche les noms + entreprises sur le web (sites d'entreprise, articles, etc.) pour trouver des informations publiques.
+
+3. **Extraction depuis les liens** : Les noms peuvent être déduits des URLs LinkedIn. Utilise ces informations pour ta recherche.
+
+4. **Si aucune info trouvée** : Retourne au moins les noms (déduits des URLs si possible) et les URLs LinkedIn complètes, avec les autres champs vides plutôt que d'inventer.`;
+        } else if (contextBlock) {
+            extractionInstructions = 'Extrais toutes les fiches possibles à partir de ces informations. Utilise uniquement les données réellement présentes.';
+        } else {
+            extractionInstructions = 'À partir des documents, liens ou informations que je te fournis, extrais toutes les fiches possibles. Utilise uniquement les données réellement trouvées.';
+        }
+
         return `Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel).
 
 Je dois créer les fiches de ${contexts[type]} dans mon CRM pour une ESN spécialisée en systèmes embarqués, électronique et ingénierie autour de Lyon.
-${contextBlock ? contextBlock + 'Extrais toutes les fiches possibles à partir de ces informations.' : 'À partir des documents, liens ou informations que je te fournis, extrais toutes les fiches possibles.'}
+${contextBlock}${extractionInstructions}
 
 ══════ TAGS TECHNIQUES STANDARDS ══════
 AUTOSAR, C/C++, RTOS, Linux embarqué, FPGA, VHDL, Verilog, Python, Java, C#, ARM, Microcontrôleur, PCB, Altium, KiCad, Yocto, QNX, FreeRTOS, VxWorks, CAN, LIN, Ethernet, TCP/IP, SPI, I2C, UART, ISO 26262, DO-178, ADAS, Lidar, Radar, Vision, IA/ML, ROS, Matlab/Simulink, LabVIEW, Banc de test, Validation, Electronique analogique, Electronique numérique, Puissance, RF, Mécatronique, CAO mécanique, Catia, SolidWorks, Gestion de projet, Agilité, V-cycle
 
+══════ PERTINENCE (OBLIGATOIRE : 1 à 5) ══════
+Le champ "pertinence" DOIT être une chaîne de caractères : "1", "2", "3", "4" ou "5" (jamais autre chose).
+- 5 = Décideur direct qui recrute des ingénieurs dans nos domaines (systèmes embarqués, électronique, robotique)
+- 4 = Manager/responsable avec influence sur les recrutements dans nos domaines
+- 3 = Contact dans une entreprise pertinente, rôle moins direct mais domaine aligné
+- 2 = Contact dans une entreprise pertinente mais rôle peu lié à nos métiers
+- 1 = Peu de lien avec nos domaines d'expertise
+Si tu ne peux pas évaluer à partir des informations disponibles, utilise "" (chaîne vide).
+
 ══════ FORMAT DE SORTIE (JSON array strict) ══════
 Réponds UNIQUEMENT par un array JSON valide, sans aucun texte avant ou après, sans \`\`\` ni markdown.
 Limite les tableaux "tags" / "skills" à 12 éléments par fiche pour éviter la troncature.
+IMPORTANT : "pertinence" doit être "1", "2", "3", "4" ou "5" (chaîne de caractères) pour chaque prospect, jamais autre chose.
+
+⚠️ RÈGLES IMPORTANTES :
+- N'invente JAMAIS d'informations qui ne sont pas visibles dans le contexte fourni
+- Si une information n'est pas disponible, utilise "" (chaîne vide) au lieu d'inventer
+- Pour les tags, utilise uniquement ceux qui correspondent réellement aux profils
+- Les champs "linkedin" doivent être les URLs complètes des profils si fournies (ex: "https://www.linkedin.com/in/nom-profil/")
+- Les champs "email" DOIVENT être des adresses email valides (format: nom@domaine.com). JAMAIS d'URL LinkedIn dans les champs email. Si l'email n'est pas visible, utilise "" (chaîne vide)
+- Les champs "entreprise" doivent être les noms exacts des entreprises visibles
+- Les champs "fonction" doivent être les titres exacts des postes actuels visibles
+- Les champs "pertinence" DOIVENT être des nombres entre 1 et 5 (chaînes : "1", "2", "3", "4" ou "5"). 5 = décideur direct qui recrute dans nos domaines, 1 = peu de lien. Si tu ne peux pas évaluer, utilise "" (chaîne vide). JAMAIS de valeur hors de cette plage.
+
 Exemple : ${jsonFormats[type]}`;
     }
 

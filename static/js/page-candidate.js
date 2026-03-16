@@ -484,7 +484,126 @@ function renderViewMode() {
             archiveBtn.onclick = archiveCandidate;
         }
     }
+
+    // Load structured data
+    loadCandidateStructuredData();
 }
+
+// ═══ Structured data (experiences, educations, certifications) ═══
+
+async function loadCandidateStructuredData() {
+    if (!__cand?.id) return;
+    await Promise.all([
+        loadCandidateExperiences(),
+        loadCandidateEducations(),
+        loadCandidateCertifications()
+    ]);
+}
+
+async function loadCandidateExperiences() {
+    const el = document.getElementById('viewExperiences');
+    if (!el || !__cand?.id) return;
+    try {
+        const res = await fetch(`/api/candidates/${__cand.id}/experiences`);
+        const j = await res.json();
+        if (!j?.ok || !Array.isArray(j.experiences)) {
+            el.innerHTML = '<div class="muted">Aucune expérience renseignée.</div>';
+            return;
+        }
+        if (j.experiences.length === 0) {
+            el.innerHTML = '<div class="muted">Aucune expérience renseignée.</div>';
+            return;
+        }
+        el.innerHTML = j.experiences.map(exp => {
+            const start = exp.start_date || '—';
+            const end = exp.end_date || 'En cours';
+            const role = escapeHtml(exp.role || '—');
+            const company = escapeHtml(exp.company_name || '—');
+            const desc = exp.description ? escapeHtml(exp.description) : '';
+            const techs = Array.isArray(exp.technologies) && exp.technologies.length > 0
+                ? `<div style="margin-top:6px;"><span class="muted" style="font-size:11px;">Technologies: </span>${exp.technologies.map(t => `<span class="chip" style="font-size:11px;padding:2px 6px;">${escapeHtml(t)}</span>`).join('')}</div>`
+                : '';
+            return `
+                <div style="padding:10px;border:1px solid var(--color-border);border-radius:8px;margin-bottom:8px;background:var(--color-surface-2);">
+                    <div style="font-weight:600;font-size:13px;">${role} — ${company}</div>
+                    <div class="muted" style="font-size:11px;margin-top:4px;">${start} → ${end}</div>
+                    ${desc ? `<div style="margin-top:6px;font-size:12px;line-height:1.4;">${desc}</div>` : ''}
+                    ${techs}
+                </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('Failed to load experiences', e);
+        el.innerHTML = '<div class="muted">Erreur au chargement.</div>';
+    }
+}
+
+async function loadCandidateEducations() {
+    const el = document.getElementById('viewEducations');
+    if (!el || !__cand?.id) return;
+    try {
+        const res = await fetch(`/api/candidates/${__cand.id}/educations`);
+        const j = await res.json();
+        if (!j?.ok || !Array.isArray(j.educations)) {
+            el.innerHTML = '<div class="muted">Aucune formation renseignée.</div>';
+            return;
+        }
+        if (j.educations.length === 0) {
+            el.innerHTML = '<div class="muted">Aucune formation renseignée.</div>';
+            return;
+        }
+        el.innerHTML = j.educations.map(edu => {
+            const degree = escapeHtml(edu.degree || '—');
+            const school = escapeHtml(edu.school || '—');
+            const year = edu.year || '—';
+            const spec = edu.specialization ? escapeHtml(edu.specialization) : '';
+            return `
+                <div style="padding:10px;border:1px solid var(--color-border);border-radius:8px;margin-bottom:8px;background:var(--color-surface-2);">
+                    <div style="font-weight:600;font-size:13px;">${degree}</div>
+                    <div style="font-size:12px;margin-top:4px;">${school}${year !== '—' ? ' (' + year + ')' : ''}</div>
+                    ${spec ? `<div class="muted" style="font-size:11px;margin-top:4px;">${spec}</div>` : ''}
+                </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('Failed to load educations', e);
+        el.innerHTML = '<div class="muted">Erreur au chargement.</div>';
+    }
+}
+
+async function loadCandidateCertifications() {
+    const el = document.getElementById('viewCertifications');
+    if (!el || !__cand?.id) return;
+    try {
+        const res = await fetch(`/api/candidates/${__cand.id}/certifications`);
+        const j = await res.json();
+        if (!j?.ok || !Array.isArray(j.certifications)) {
+            el.innerHTML = '<div class="muted">Aucune certification renseignée.</div>';
+            return;
+        }
+        if (j.certifications.length === 0) {
+            el.innerHTML = '<div class="muted">Aucune certification renseignée.</div>';
+            return;
+        }
+        el.innerHTML = j.certifications.map(cert => {
+            const name = escapeHtml(cert.name || '—');
+            const issuer = cert.issuer ? escapeHtml(cert.issuer) : '';
+            const obtained = cert.obtained_date || '—';
+            const expiry = cert.expiry_date || null;
+            const expiryText = expiry ? ` (Expire: ${expiry})` : ' (Sans expiration)';
+            return `
+                <div style="padding:10px;border:1px solid var(--color-border);border-radius:8px;margin-bottom:8px;background:var(--color-surface-2);">
+                    <div style="font-weight:600;font-size:13px;">${name}</div>
+                    ${issuer ? `<div style="font-size:12px;margin-top:4px;">${issuer}</div>` : ''}
+                    <div class="muted" style="font-size:11px;margin-top:4px;">Obtenu: ${obtained}${expiryText}</div>
+                </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('Failed to load certifications', e);
+        el.innerHTML = '<div class="muted">Erreur au chargement.</div>';
+    }
+}
+
+// Expose for IA import system
+window.loadCandidateStructuredData = loadCandidateStructuredData;
 
 // ═══ Mode switching ═══
 
@@ -925,14 +1044,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!prompt) return;
         const btn = document.getElementById('btnIA_candidate_0');
         if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
-        (typeof callOllama === 'function' ? callOllama(prompt) : Promise.reject(new Error('callOllama manquant')))
+        (typeof callOllama === 'function' ? callOllama(prompt, { webSearch: true }) : Promise.reject(new Error('callOllama manquant')))
             .then(function (text) {
                 if (typeof openIAImportModalWithText === 'function') openIAImportModalWithText('candidate', __cand.id, text);
                 else if (typeof openIAImportModal === 'function') { openIAImportModal('candidate', __cand.id); document.getElementById('iaImportTextarea').value = text; if (typeof parseIAImportModal === 'function') parseIAImportModal(); }
             })
             .catch(function () {
                 if (typeof openIAImportModal === 'function') openIAImportModal('candidate', __cand.id);
-                if (typeof showToast === 'function') showToast('Ollama indisponible. Collez manuellement le retour ci-dessous.', 'warning', 6000);
+                if (typeof showToast === 'function') showToast('IA indisponible. Collez manuellement le retour ci-dessous.', 'warning', 6000);
             })
             .finally(function () {
                 if (btn) { btn.disabled = false; btn.textContent = '🤖 Scrapping IA'; }

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}ProspUp — Entreprises{% endblock %}
+{% block title %}Prosp'Up — Entreprises{% endblock %}
 
 {% block page_id %}companies{% endblock %}
 
-{% block header_title %}ProspUp — Entreprises{% endblock %}
+{% block header_title %}Prosp'Up — Entreprises{% endblock %}
 
 {% block header_subtitle %}Sites et entreprises cibles — Prospection Embedded Systems & Robotique{% endblock %}
 
@@ -23,8 +23,8 @@
         <input type="text" id="companySearchInput" placeholder="Rechercher une entreprise..." class="companies-search" aria-label="Rechercher une entreprise">
         <button class="btn btn-primary" onclick="openAddCompanyModal()">Ajouter</button>
         <div class="view-toggle companies-view-toggle" role="group" aria-label="Vue cartes ou liste">
-            <button type="button" class="view-toggle-btn active" id="btnCompaniesViewCards" onclick="switchCompaniesView('cards')" title="Vue cartes">Cartes</button>
-            <button type="button" class="view-toggle-btn" id="btnCompaniesViewTable" onclick="switchCompaniesView('table')" title="Vue liste">Liste</button>
+            <button type="button" class="view-toggle-btn active" id="btnCompaniesViewCards" onclick="switchCompaniesView('cards')" title="Vue cartes">🃏 Cartes</button>
+            <button type="button" class="view-toggle-btn" id="btnCompaniesViewTable" onclick="switchCompaniesView('table')" title="Vue liste">☰ Liste</button>
         </div>
     </div>
 
@@ -67,11 +67,11 @@
         <form id="companyForm" onsubmit="saveCompany(event)">
             <input type="hidden" id="inputCompanyId">
             <div class="form-group">
-                <label>Nom Groupe *</label>
+                <label class="required">Nom Groupe</label>
                 <input type="text" id="inputCompanyName" required>
             </div>
             <div class="form-group">
-                <label>Site / Localisation *</label>
+                <label class="required">Site / Localisation</label>
                 <input type="text" id="inputCompanySite" required>
             </div>
             <div class="form-group">
@@ -89,7 +89,7 @@
             </div>
             <div class="btn-group">
                 <button type="button" class="btn btn-secondary" onclick="closeCompanyModal()">Annuler</button>
-                <button type="submit" id="companySubmitBtn" class="btn btn-primary">Ajouter</button>
+                <button type="submit" id="companySubmitBtn" class="btn btn-primary">Enregistrer</button>
             </div>
         </form>
     </div>
@@ -105,11 +105,11 @@
             <input type="hidden" id="companySheetId">
             <div class="form-grid company-sheet-grid">
                 <div>
-                    <label>Groupe *</label>
+                    <label class="required">Groupe</label>
                     <input type="text" id="cs_groupe" required>
                 </div>
                 <div>
-                    <label>Site / Localisation *</label>
+                    <label class="required">Site / Localisation</label>
                     <input type="text" id="cs_site" required>
                 </div>
                 <div>

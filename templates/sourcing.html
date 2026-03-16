@@ -40,7 +40,7 @@
 <!-- Pipeline -->
 <section id="panelPipeline">
   <div class="controls">
-    <input id="candSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech, notes...)" />
+    <input id="candSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech, notes...)" aria-label="Rechercher un candidat" />
     <select id="candStatusFilter">
       <option value="">Tous les statuts</option>
       <option value="a_sourcer">🧲 À sourcer</option>
@@ -77,7 +77,9 @@
           <th style="text-align:right;">Actions</th>
         </tr>
       </thead>
-      <tbody id="candTableBody"></tbody>
+      <tbody id="candTableBody">
+        <tr><td colspan="7" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
+      </tbody>
     </table>
   </div>
 
@@ -129,7 +131,7 @@
         <option value="en_cours">⏳ En cours</option>
         <option value="interesse">✅ Intéressé</option>
       </select>
-      <input id="matchSearch" type="text" placeholder="Filtrer (nom/tech...)" />
+      <input id="matchSearch" type="text" placeholder="Filtrer (nom/tech...)" aria-label="Filtrer les candidats matchés" />
       <button class="btn btn-secondary" id="btnRefreshMatch">🔄 Recalculer</button>
       <div class="muted" id="matchSummary" style="flex:999 1 auto; min-width: 220px;"></div>
     </div>
@@ -170,7 +172,7 @@
     <form id="candForm">
       <div class="form-row">
         <div class="form-group">
-          <label>Nom *</label>
+          <label class="required">Nom</label>
           <input id="candName" required>
         </div>
         <div class="form-group">
@@ -262,7 +264,7 @@
     <div id="vsaImportError" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:var(--color-surface-2);color:var(--color-danger);font-size:12px;"></div>
 
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;">
-      <button class="btn btn-primary" id="btnVsaExtractOllama" disabled>🤖 Extraire avec Ollama</button>
+      <button class="btn btn-primary" id="btnVsaExtractOllama" disabled>🤖 Extraire avec l'IA</button>
       <button class="btn btn-secondary" id="btnVsaPreFillAnyway" style="display:none;">Pré-remplir quand même</button>
     </div>
     <p class="muted" style="font-size:11px;">

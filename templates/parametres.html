@@ -253,6 +253,87 @@ Belle journée,"></textarea>
   </div>
 </div>
 
+<div class="settings-section admin-only-section" id="aiConfigSection">
+  <h3>🤖 Configuration IA</h3>
+  <div class="about-section">
+    <p class="muted" style="margin-bottom:14px;">Choisissez le provider IA. Sonar (Perplexity) inclut la recherche web pour enrichir vos prospects avec de vraies données. Ollama reste disponible en local comme fallback.</p>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+      <label class="ai-provider-card" id="aiCardOllama" style="flex:1;min-width:200px;cursor:pointer;padding:14px 18px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface-2);transition:all .2s;">
+        <input type="radio" name="ai_provider" value="ollama" style="display:none;" id="aiProviderOllama">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-size:22px;">🏠</span>
+          <strong style="font-size:15px;">Ollama (local)</strong>
+        </div>
+        <div style="font-size:12px;color:var(--color-text-secondary);">Gratuit · Fonctionne hors-ligne · Requiert GPU · Pas de recherche web</div>
+      </label>
+      <label class="ai-provider-card" id="aiCardSonar" style="flex:1;min-width:200px;cursor:pointer;padding:14px 18px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface-2);transition:all .2s;">
+        <input type="radio" name="ai_provider" value="sonar" style="display:none;" id="aiProviderSonar">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-size:22px;">🔍</span>
+          <strong style="font-size:15px;">Sonar (Perplexity)</strong>
+        </div>
+        <div style="font-size:12px;color:var(--color-text-secondary);">Cloud · Recherche web intégrée · ~0.005$/requête · Enrichissement réel</div>
+      </label>
+    </div>
+
+    <div id="aiOllamaConfig" style="margin-bottom:14px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);">
+      <h4 style="margin:0 0 10px 0;font-size:14px;">🏠 Configuration Ollama</h4>
+      <div style="display:grid;gap:10px;max-width:450px;">
+        <div>
+          <label class="filter-label">URL Ollama</label>
+          <input type="text" id="aiOllamaUrl" class="filter-input" style="width:100%;" placeholder="http://127.0.0.1:11434">
+        </div>
+        <div>
+          <label class="filter-label">Modèle</label>
+          <input type="text" id="aiOllamaModel" class="filter-input" style="width:100%;" placeholder="llama3.2">
+        </div>
+      </div>
+    </div>
+
+    <div id="aiSonarConfig" style="margin-bottom:14px;padding:14px;border-radius:10px;background:linear-gradient(135deg, rgba(59,130,246,.06), rgba(139,92,246,.06));border:1px solid rgba(59,130,246,.2);">
+      <h4 style="margin:0 0 10px 0;font-size:14px;">🔍 Configuration Sonar (Perplexity)</h4>
+      <div style="display:grid;gap:10px;max-width:450px;">
+        <div>
+          <label class="filter-label">Clé API Perplexity</label>
+          <div style="display:flex;gap:8px;">
+            <input type="password" id="aiSonarApiKey" class="filter-input" style="flex:1;" placeholder="pplx-..." autocomplete="off">
+            <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="var el=document.getElementById('aiSonarApiKey');el.type=el.type==='password'?'text':'password';">👁️</button>
+          </div>
+          <div class="muted" style="font-size:11px;margin-top:4px;">Obtenez une clé sur <a href="https://docs.perplexity.ai/guides/getting-started" target="_blank" style="color:var(--color-accent);">docs.perplexity.ai</a></div>
+        </div>
+        <div>
+          <label class="filter-label">Modèle</label>
+          <select id="aiSonarModel" class="filter-input" style="width:100%;">
+            <option value="sonar">Sonar (rapide, économique)</option>
+            <option value="sonar-pro">Sonar Pro (meilleur, plus cher)</option>
+            <option value="sonar-reasoning-pro">Sonar Reasoning Pro (raisonnement avancé)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="aiFallbackEnabled" checked>
+        <span>Activer le fallback automatique (si le provider principal échoue, tenter l'autre)</span>
+      </label>
+    </div>
+
+    <div style="margin-bottom:10px;padding:8px 12px;border-radius:8px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);font-size:11px;color:var(--color-text-secondary);">
+      🔒 Vos clés API sont stockées localement dans <code>data/ai_config.json</code> et <strong>ne sont jamais écrasées</strong> par les mises à jour Git.
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-primary" id="btnAiSave" onclick="saveAiConfig()">💾 Enregistrer</button>
+      <button class="btn btn-secondary" id="btnAiTest" onclick="testAiConnection()">🔌 Tester la connexion</button>
+      <span id="aiConfigStatus" style="font-size:13px;"></span>
+    </div>
+
+    <div id="aiTestResult" style="display:none;margin-top:12px;padding:12px;border-radius:10px;font-size:13px;"></div>
+  </div>
+</div>
+
 <div class="settings-section admin-only-section" id="systemVerifySection">
   <h3>🔍 Vérification système</h3>
   <div class="about-section">
@@ -287,10 +368,10 @@ Belle journée,"></textarea>
     <div style="margin-top: 12px; margin-bottom: 16px; padding: 12px 16px; border-radius: 10px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.08)); border: 2px solid rgba(34, 197, 94, 0.3);">
       <div style="display: flex; align-items: center; gap: 10px; font-weight: 600; color: #22c55e; font-size: 14px;">
         <span style="font-size: 20px;">✅</span>
-        <span>Dernière version active — Uniformisation header/sidebar complétée (v25.4)</span>
+        <span>Dernière version active — Cohérence textes, UX et fonctionnalités (v27.0)</span>
       </div>
       <p style="margin-top: 8px; margin-bottom: 0; font-size: 12px; color: var(--color-text-secondary);">
-        Toutes les pages utilisent maintenant le template de base avec header et sidebar uniformisés. Bouton "Réeffectuer MAJ" disponible sur la page 404.
+        Toutes les incohérences identifiées dans l'audit de mars 2026 ont été corrigées : uniformisation du nom de l'application, standardisation des messages utilisateur, amélioration de l'accessibilité et cohérence des libellés.
       </p>
     </div>
     
@@ -761,5 +842,138 @@ async function changePassword() {
   }
 }
 window.changePassword = changePassword;
+</script>
+<script>
+(function() {
+  var cards = document.querySelectorAll('.ai-provider-card');
+  var radios = document.querySelectorAll('input[name="ai_provider"]');
+
+  function updateCardStyles() {
+    var selected = document.querySelector('input[name="ai_provider"]:checked');
+    cards.forEach(function(card) {
+      var radio = card.querySelector('input[type="radio"]');
+      if (radio && radio === selected) {
+        card.style.borderColor = 'var(--color-accent)';
+        card.style.background = 'rgba(59,130,246,.08)';
+      } else {
+        card.style.borderColor = 'var(--color-border)';
+        card.style.background = 'var(--color-surface-2)';
+      }
+    });
+  }
+
+  cards.forEach(function(card) {
+    card.addEventListener('click', function() {
+      var radio = card.querySelector('input[type="radio"]');
+      if (radio) { radio.checked = true; updateCardStyles(); }
+    });
+  });
+  radios.forEach(function(r) { r.addEventListener('change', updateCardStyles); });
+
+  async function loadAiConfig() {
+    try {
+      var res = await fetch('/api/ai/config');
+      var j = await res.json();
+      if (!j || !j.ok) return;
+      var c = j.config;
+      var radio = document.getElementById(c.provider === 'sonar' ? 'aiProviderSonar' : 'aiProviderOllama');
+      if (radio) radio.checked = true;
+      var urlEl = document.getElementById('aiOllamaUrl');
+      if (urlEl) urlEl.value = c.ollama_url || '';
+      var modelEl = document.getElementById('aiOllamaModel');
+      if (modelEl) modelEl.value = c.ollama_model || '';
+      var fbEl = document.getElementById('aiFallbackEnabled');
+      if (fbEl) fbEl.checked = c.fallback_enabled !== false;
+      var sonarKeyEl = document.getElementById('aiSonarApiKey');
+      if (sonarKeyEl) sonarKeyEl.placeholder = c.sonar_api_key_set ? (c.sonar_api_key_preview + ' (configurée)') : 'pplx-...';
+      var sonarModelEl = document.getElementById('aiSonarModel');
+      if (sonarModelEl && c.sonar_model) sonarModelEl.value = c.sonar_model;
+      updateCardStyles();
+    } catch(e) { console.warn('AI config load error:', e); }
+  }
+
+  window.saveAiConfig = async function() {
+    var statusEl = document.getElementById('aiConfigStatus');
+    statusEl.textContent = '⏳ Enregistrement…';
+    statusEl.style.color = 'var(--color-text-secondary)';
+    var provider = (document.querySelector('input[name="ai_provider"]:checked') || {}).value || 'ollama';
+    var payload = {
+      provider: provider,
+      fallback_enabled: document.getElementById('aiFallbackEnabled').checked,
+      ollama_url: (document.getElementById('aiOllamaUrl').value || '').trim(),
+      ollama_model: (document.getElementById('aiOllamaModel').value || '').trim(),
+      sonar_model: document.getElementById('aiSonarModel').value
+    };
+    var sonarKey = (document.getElementById('aiSonarApiKey').value || '').trim();
+    if (sonarKey) payload.sonar_api_key = sonarKey;
+    try {
+      var res = await fetch('/api/ai/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      var j = await res.json();
+      if (j.ok) {
+        statusEl.style.color = '#22c55e';
+        statusEl.textContent = '✅ Configuration sauvegardée';
+        if (typeof showToast === 'function') showToast('Configuration IA enregistrée', 'success');
+        // Mettre à jour les labels des boutons IA avec le nouveau modèle
+        if (typeof window.updateAIButtonLabels === 'function') {
+          window.updateAIButtonLabels();
+        }
+        loadAiConfig();
+      } else {
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = '❌ ' + (j.error || 'Erreur');
+      }
+    } catch(e) {
+      statusEl.style.color = '#ef4444';
+      statusEl.textContent = '❌ Erreur réseau';
+    }
+  };
+
+  window.testAiConnection = async function() {
+    var resultEl = document.getElementById('aiTestResult');
+    resultEl.style.display = 'block';
+    resultEl.style.background = 'var(--color-surface-2)';
+    resultEl.style.border = '1px solid var(--color-border)';
+    resultEl.innerHTML = '⏳ Test en cours…';
+    var provider = (document.querySelector('input[name="ai_provider"]:checked') || {}).value || 'ollama';
+    var payload = { provider: provider };
+    if (provider === 'sonar') {
+      var skey = (document.getElementById('aiSonarApiKey').value || '').trim();
+      if (skey) payload.sonar_api_key = skey;
+      payload.sonar_model = document.getElementById('aiSonarModel').value;
+    } else {
+      payload.ollama_url = (document.getElementById('aiOllamaUrl').value || '').trim();
+      payload.ollama_model = (document.getElementById('aiOllamaModel').value || '').trim();
+    }
+    try {
+      var res = await fetch('/api/ai/test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      var j = await res.json();
+      if (j.ok) {
+        var label = j.provider === 'sonar' ? 'Sonar' : 'Ollama';
+        resultEl.style.background = 'rgba(34,197,94,.08)';
+        resultEl.style.border = '1px solid rgba(34,197,94,.3)';
+        resultEl.innerHTML = '✅ <strong>' + label + '</strong> connecté · Modèle : <code>' + (j.model || '?') + '</code><br><span style="color:var(--color-text-secondary);font-size:12px;">Réponse : ' + (j.response || '').substring(0, 100) + '</span>';
+        if (typeof showToast === 'function') showToast('Connexion IA OK', 'success');
+      } else {
+        resultEl.style.background = 'rgba(239,68,68,.08)';
+        resultEl.style.border = '1px solid rgba(239,68,68,.3)';
+        resultEl.innerHTML = '❌ Échec de connexion<br><span style="font-size:12px;">' + (j.error || 'Erreur inconnue') + '</span>';
+      }
+    } catch(e) {
+      resultEl.style.background = 'rgba(239,68,68,.08)';
+      resultEl.style.border = '1px solid rgba(239,68,68,.3)';
+      resultEl.innerHTML = '❌ Erreur réseau';
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', loadAiConfig);
+})();
 </script>
 {% endblock %}

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}ProspUp — dashboard{% endblock %}
+{% block title %}Prosp'Up — Dashboard{% endblock %}
 
 {% block page_id %}dashboard{% endblock %}
 
-{% block header_title %}ProspUp — dashboard{% endblock %}
+{% block header_title %}Prosp'Up — Dashboard{% endblock %}
 
 {% block header_subtitle %}Votre activité du jour{% endblock %}
 
@@ -128,6 +128,28 @@
       <div id="dashPipeline"></div>
     </div>
   </div>
+  <div class="dash-widget" data-widget-id="dashPrioritiesCard">
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
+    <div class="card dash-card" id="dashPrioritiesCard">
+      <div class="dash-card-title">🎯 Priorités du jour (IA)</div>
+      <div id="dashPriorities">
+        <div class="muted" style="padding:12px;text-align:center;">Chargement des priorités…</div>
+      </div>
+    </div>
+  </div>
+  <div class="dash-widget" data-widget-id="dashPushAnalyticsCard">
+    <div class="dash-widget-header">
+      <span class="dash-widget-handle" draggable="true" title="Glisser pour réorganiser">⋮⋮</span>
+    </div>
+    <div class="card dash-card" id="dashPushAnalyticsCard">
+      <div class="dash-card-title">📊 Analytics Mailing</div>
+      <div id="dashPushAnalytics">
+        <div class="muted" style="padding:12px;text-align:center;">Chargement des analytics…</div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -174,5 +196,7 @@
 {% endblock %}
 
 {% block page_scripts %}
+<script defer src="/static/js/dashboard-widget-dragdrop.js?v=2000"></script>
+<script defer src="/static/js/dashboard-widget-resize.js?v=2000"></script>
 <script defer src="/static/js/page-dashboard.js?v=2000"></script>
 {% endblock %}

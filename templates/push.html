@@ -15,7 +15,7 @@
 </div>
 
 <div class="controls">
-    <input id="pushSearch" type="text" placeholder="🔍 Rechercher (prospect, entreprise, email, sujet)...">
+    <input id="pushSearch" type="text" placeholder="🔍 Rechercher (prospect, entreprise, email, sujet)..." aria-label="Rechercher dans les push">
     <select id="pushChannelFilter">
         <option value="">Tous les canaux</option>
         <option value="email">✉️ Email</option>
@@ -38,7 +38,9 @@
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody id="pushTableBody"></tbody>
+        <tbody id="pushTableBody">
+          <tr><td colspan="7" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
+        </tbody>
     </table>
 </div>
 
