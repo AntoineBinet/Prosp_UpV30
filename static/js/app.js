@@ -9653,6 +9653,26 @@ function closeDetail(options = {}) {
         card.classList.remove('prosp-swipe-left');
     }
 
+    // Si on est en mode prosp mais qu'on ne sort pas du mode, réafficher la liste
+    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
+    if (isProspMode && options.keepProspMode) {
+        const tableEl = document.getElementById('tableView');
+        const kanbanEl = document.getElementById('kanbanView');
+        if (tableEl) tableEl.style.display = '';
+        if (kanbanEl) kanbanEl.style.display = 'none';
+        // Réafficher la liste filtrée
+        try {
+            if (typeof filterProspects === 'function') {
+                filterProspects();
+            } else if (typeof renderProspects === 'function') {
+                renderProspects();
+            }
+        } catch (e) {
+            console.warn('Erreur réaffichage liste en mode prosp:', e);
+        }
+        return; // Ne pas sortir du mode prosp
+    }
+
     const shouldExitProsp = (_currentView === 'prosp') && !options.keepProspMode;
     if (shouldExitProsp) {
         const exitScrollState = _prospSession.listScrollState || _captureProspectsScrollState(_prospSession.currentId);
@@ -9667,6 +9687,16 @@ function closeDetail(options = {}) {
         if (exitScrollState) {
             _queueProspectsScrollRestore(exitScrollState);
             _flushProspectsScrollRestore();
+        }
+        // Réafficher la liste filtrée après sortie du mode prosp
+        try {
+            if (typeof filterProspects === 'function') {
+                filterProspects();
+            } else if (typeof renderProspects === 'function') {
+                renderProspects();
+            }
+        } catch (e) {
+            console.warn('Erreur réaffichage liste après sortie mode prosp:', e);
         }
         showProspResumeBanner();
     }
