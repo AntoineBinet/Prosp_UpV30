@@ -9080,7 +9080,8 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
 }
 /* Very small screens: smaller labels so "Push" etc. fit */
 @media (max-width: 380px) {
-  .mobile-bottom-nav a .bn-label {
+  .mobile-bottom-nav a .bn-label,
+  .mobile-bottom-nav button .bn-label {
     font-size: 9px;
   }
 }
