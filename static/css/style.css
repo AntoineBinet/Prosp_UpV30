@@ -344,9 +344,10 @@ body.header-scrolled .header-center .user-session-badge {
     }
     
     /* Ajuster la position du bouton recherche si le badge est présent */
-    .header-center .floating-search-btn {
+    .header-center .floating-search-btn,
+    .floating-search-btn {
         right: 12px;
-        top: 60px; /* Positionner sous le badge utilisateur */
+        top: 60px; /* Positionner sous le badge utilisateur (12px + 40px badge + 8px gap) */
     }
 }
 
