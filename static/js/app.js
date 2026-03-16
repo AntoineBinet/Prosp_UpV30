@@ -2260,22 +2260,22 @@ function setupListeners() {
 
     // Filter panel toggle
     const btnToggle = document.getElementById('btnToggleFilters');
-    if (btnToggle) {
+    const filterPanel = document.getElementById('filterPanel');
+    
+    if (btnToggle && filterPanel) {
         btnToggle.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
-            const panel = document.getElementById('filterPanel');
-            if (panel) {
-                // Utiliser setTimeout pour éviter le conflit avec le gestionnaire de clic extérieur
-                setTimeout(() => {
-                    if (panel.style.display === 'none' || panel.style.display === '') {
-                        panel.style.display = 'block';
-                    } else {
-                        panel.style.display = 'none';
-                    }
-                }, 10);
+            
+            // Toggle direct sans délai
+            const currentDisplay = filterPanel.style.display;
+            if (currentDisplay === 'none' || currentDisplay === '') {
+                filterPanel.style.display = 'block';
+            } else {
+                filterPanel.style.display = 'none';
             }
+            
             return false;
         }, true); // Capture phase pour intercepter avant les autres handlers
     }
