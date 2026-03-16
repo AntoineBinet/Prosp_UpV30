@@ -917,13 +917,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Ajouter via VSA
     const btnAddViaVsa = document.getElementById('btnAddViaVsa');
     if (btnAddViaVsa) {
-        console.log('[VSA] Bouton btnAddViaVsa trouvé, ajout event listener');
+        console.log('[VSA] Bouton btnAddViaVsa trouvé, ajout event listener', btnAddViaVsa);
+        console.log('[VSA] Bouton disabled?', btnAddViaVsa.disabled);
+        console.log('[VSA] Bouton style.display?', window.getComputedStyle(btnAddViaVsa).display);
+        console.log('[VSA] Bouton style.pointerEvents?', window.getComputedStyle(btnAddViaVsa).pointerEvents);
         btnAddViaVsa.addEventListener('click', (e) => {
             console.log('[VSA] Clic sur btnAddViaVsa détecté', e);
+            e.preventDefault();
+            e.stopPropagation();
             openVsaImportModal();
         });
     } else {
-        console.error('[VSA] Bouton btnAddViaVsa introuvable');
+        console.error('[VSA] Bouton btnAddViaVsa introuvable au chargement');
+        // Retry après un court délai au cas où le DOM n'est pas encore prêt
+        setTimeout(() => {
+            const retryBtn = document.getElementById('btnAddViaVsa');
+            if (retryBtn) {
+                console.log('[VSA] Bouton trouvé après retry, ajout event listener');
+                retryBtn.addEventListener('click', (e) => {
+                    console.log('[VSA] Clic sur btnAddViaVsa détecté (retry)', e);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openVsaImportModal();
+                });
+            } else {
+                console.error('[VSA] Bouton btnAddViaVsa toujours introuvable après retry');
+            }
+        }, 100);
     }
     document.getElementById('vsaImportTextarea')?.addEventListener('input', _vsaImportToggleExtractButton);
     document.getElementById('btnVsaExtractOllama')?.addEventListener('click', () => _vsaImportExtractWithOllama());
