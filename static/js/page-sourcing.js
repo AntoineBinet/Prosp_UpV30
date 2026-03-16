@@ -504,30 +504,21 @@ function _openVsaValidationModal() {
         _renderVsaPreview();
         const modal = document.getElementById('modalVsaValidation');
         if (modal) {
-            // Forcer l'affichage avec un z-index élevé
-            modal.style.cssText = `
-                display: flex !important;
-                position: fixed !important;
-                top: 0 !important;
-                left: 0 !important;
-                right: 0 !important;
-                bottom: 0 !important;
-                z-index: 100000 !important;
-                background: rgba(0, 0, 0, 0.5) !important;
-                align-items: center !important;
-                justify-content: center !important;
-                visibility: visible !important;
-                opacity: 1 !important;
-            `;
-            modal.classList.add('active');
-            // Corriger aria-hidden pour éviter le warning d'accessibilité
-            modal.setAttribute('aria-hidden', 'false');
-            modal.setAttribute('aria-modal', 'true');
-            
+            // Utiliser openModal si disponible (gère correctement aria-hidden)
             if (window.openModal) {
                 try {
                     window.openModal(modal);
-                } catch (e) {}
+                } catch (e) {
+                    // Fallback si openModal échoue
+                    modal.classList.add('active');
+                    modal.setAttribute('aria-hidden', 'false');
+                    modal.setAttribute('aria-modal', 'true');
+                }
+            } else {
+                // Fallback manuel
+                modal.classList.add('active');
+                modal.setAttribute('aria-hidden', 'false');
+                modal.setAttribute('aria-modal', 'true');
             }
         }
     }, 100);
@@ -536,13 +527,18 @@ function _openVsaValidationModal() {
 window.closeVsaValidationModal = function() {
     const modal = document.getElementById('modalVsaValidation');
     if (modal) {
-        modal.classList.remove('active');
-        modal.style.cssText = '';
-        modal.setAttribute('aria-hidden', 'true');
+        // Utiliser closeModal si disponible (gère correctement aria-hidden)
         if (window.closeModal) {
             try {
                 window.closeModal(modal);
-            } catch (e) {}
+            } catch (e) {
+                // Fallback si closeModal échoue
+                modal.classList.remove('active');
+                modal.setAttribute('aria-hidden', 'true');
+            }
+        } else {
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
         }
     }
     _vsaParsedData = null;
@@ -623,65 +619,87 @@ window.updateVsaField = function(index) {
 };
 
 window.applyVsaImport = async function() {
-    if (!_vsaParsedData) return;
-    
-    // Récupérer les valeurs depuis les inputs
-    const fields = document.querySelectorAll('#vsaFieldsPreview input, #vsaFieldsPreview textarea');
-    const data = { ..._vsaParsedData };
-    
-    fields.forEach(input => {
-        const key = input.getAttribute('data-field-key');
-        if (key) {
-            const value = input.value.trim();
-            if (key === 'skills') {
-                data[key] = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
-            } else if (key === 'years_experience') {
-                // Parser le nombre d'années
-                const num = parseInt(value);
-                data[key] = (!isNaN(num) && num >= 0) ? num : null;
-            } else {
-                data[key] = value;
-            }
+    if (!_vsaParsedData) {
+        if (typeof showToast === 'function') {
+            showToast('Aucune donnée à appliquer.', 'warning');
         }
-    });
-    
-    // Préparer les données pour le formulaire
-    const techParts = [data.tech].filter(Boolean);
-    if (Array.isArray(data.skills) && data.skills.length) {
-        techParts.push(...data.skills);
-    }
-    const formData = {
-        name: data.name || '',
-        role: data.role || '',
-        location: data.location || '',
-        seniority: data.seniority || '',
-        years_experience: data.years_experience != null ? data.years_experience : null,
-        tech: techParts.join(', ').trim() || data.tech || '',
-        linkedin: data.linkedin || '',
-        source: 'VSA',
-        status: 'a_sourcer',
-        notes: data.notes || '',
-        vsa_url: data.vsa_url || _vsaUrl || '',
-        phone: data.phone || '',
-        email: data.email || '',
-        sector: data.sector || ''
-    };
-    
-    if (!formData.name && (formData.role || formData.location)) {
-        formData.name = [formData.role, formData.location].filter(Boolean).join(' — ').slice(0, 200);
+        return;
     }
     
-    // Fermer la modale de validation
-    closeVsaValidationModal();
-    
-    // Ouvrir le formulaire candidat avec les données pré-remplies
-    __candEditing = null;
-    document.getElementById('candForm')?.reset();
-    fillCandidateForm(formData);
-    openCandidateModal(false);
-    
-    if (typeof showToast === 'function') {
-        showToast('Données extraites. Vérifiez la fiche candidat puis enregistrez.', 'success', 5000);
+    try {
+        // Récupérer les valeurs depuis les inputs
+        const fields = document.querySelectorAll('#vsaFieldsPreview input, #vsaFieldsPreview textarea');
+        const data = { ..._vsaParsedData };
+        
+        fields.forEach(input => {
+            const key = input.getAttribute('data-field-key');
+            if (key) {
+                const value = input.value.trim();
+                if (key === 'skills') {
+                    data[key] = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+                } else if (key === 'years_experience') {
+                    const num = parseInt(value);
+                    data[key] = (!isNaN(num) && num >= 0) ? num : null;
+                } else {
+                    data[key] = value;
+                }
+            }
+        });
+        
+        // Préparer les données pour le formulaire
+        const techParts = [data.tech].filter(Boolean);
+        if (Array.isArray(data.skills) && data.skills.length) {
+            techParts.push(...data.skills);
+        }
+        const formData = {
+            name: data.name || '',
+            role: data.role || '',
+            location: data.location || '',
+            seniority: data.seniority || '',
+            years_experience: data.years_experience != null ? data.years_experience : null,
+            tech: techParts.join(', ').trim() || data.tech || '',
+            linkedin: data.linkedin || '',
+            source: 'VSA',
+            status: 'a_sourcer',
+            notes: data.notes || '',
+            vsa_url: data.vsa_url || _vsaUrl || '',
+            phone: data.phone || '',
+            email: data.email || '',
+            sector: data.sector || ''
+        };
+        
+        if (!formData.name && (formData.role || formData.location)) {
+            formData.name = [formData.role, formData.location].filter(Boolean).join(' — ').slice(0, 200);
+        }
+        
+        // Fermer la modale de validation d'abord
+        closeVsaValidationModal();
+        
+        // Attendre un peu pour que la fermeture soit effective
+        setTimeout(() => {
+            // Ouvrir le formulaire candidat avec les données pré-remplies
+            __candEditing = null;
+            const candForm = document.getElementById('candForm');
+            if (candForm) candForm.reset();
+            
+            if (typeof fillCandidateForm === 'function') {
+                fillCandidateForm(formData);
+            }
+            
+            if (typeof openCandidateModal === 'function') {
+                openCandidateModal(false);
+            }
+            
+            if (typeof showToast === 'function') {
+                showToast('Données extraites. Vérifiez la fiche candidat puis enregistrez.', 'success', 5000);
+            }
+        }, 100);
+        
+    } catch (e) {
+        console.error('[VSA] Erreur lors de l\'application des données:', e);
+        if (typeof showToast === 'function') {
+            showToast('Erreur lors de l\'application des données.', 'error');
+        }
     }
 };
 
