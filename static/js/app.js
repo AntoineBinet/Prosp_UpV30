@@ -703,15 +703,6 @@ const AppAuth = {
                 <button onclick="AppAuth.logout()" title="Déconnexion" class="user-session-logout">⏻</button>
             </div>`;
         
-        const mobileBadgeHtml = `
-            <div class="header-mobile-user-badge">
-                <div class="user-session-avatar">${initial}</div>
-                <div class="user-session-info">
-                    <div class="user-session-name">${name}</div>
-                    <div class="user-session-role">${typeof escapeHtml === 'function' ? escapeHtml(label) : label}</div>
-                </div>
-            </div>`;
-        
         // v25: badge utilisateur uniquement dans le header (plus dans la sidebar)
         const _doInject = () => {
             const headerCenter = document.querySelector('.header-center');
@@ -732,17 +723,17 @@ const AppAuth = {
                 }
             }
             
-            // Badge mobile : injecter dans le body (position fixe en haut à droite)
-            const existingMobileBadge = document.querySelector('.header-mobile-user-badge');
-            if (existingMobileBadge) existingMobileBadge.remove();
-            document.body.insertAdjacentHTML('beforeend', mobileBadgeHtml);
-            const mobileBadge = document.querySelector('.header-mobile-user-badge');
-            if (mobileBadge) {
-                mobileBadge.style.cursor = 'pointer';
-                mobileBadge.addEventListener('click', function(e) {
-                    // Ouvrir le popup menu utilisateur
-                    if (typeof openUserMenu === 'function') openUserMenu();
-                });
+            // Le badge mobile est maintenant dans la bottom nav (sidebar.js)
+            // Mettre à jour l'utilisateur dans sidebar.js et reconstruire la bottom nav
+            if (typeof window.setSidebarCurrentUser === 'function') {
+                window.setSidebarCurrentUser(this.user);
+            } else if (typeof buildMobileBottomNav === 'function') {
+                // Fallback si setSidebarCurrentUser n'est pas encore disponible
+                setTimeout(() => {
+                    if (typeof window.setSidebarCurrentUser === 'function') {
+                        window.setSidebarCurrentUser(this.user);
+                    }
+                }, 200);
             }
             
             return true;

@@ -123,6 +123,14 @@
 
     // ── State ─────────────────────────────────────────────────────
     var _currentUser = null;  // user from /api/auth/me (for badge)
+    
+    // Fonction pour mettre à jour l'utilisateur depuis app.js
+    window.setSidebarCurrentUser = function(user) {
+        _currentUser = user;
+        if (typeof buildMobileBottomNav === 'function') {
+            buildMobileBottomNav();
+        }
+    };
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();
     var effectivePage = PAGE_PARENT_MAP[currentPage] || currentPage;
     var currentPath = window.location.pathname;
@@ -259,6 +267,21 @@
             a.innerHTML = '<span class="bn-icon">' + item.icon + '</span>' + item.label;
             nav.appendChild(a);
         });
+        
+        // Ajouter le badge utilisateur à la fin de la barre de navigation mobile
+        if (_currentUser) {
+            var userBtn = document.createElement('button');
+            userBtn.className = 'mobile-bottom-nav-user';
+            userBtn.type = 'button';
+            var initial = ((_currentUser.display_name || _currentUser.username || '').charAt(0) || 'U').toUpperCase();
+            userBtn.innerHTML = '<span class="bn-icon bn-user-avatar">' + initial + '</span><span class="bn-label">Profil</span>';
+            userBtn.onclick = function() {
+                if (typeof openUserMenu === 'function') {
+                    openUserMenu();
+                }
+            };
+            nav.appendChild(userBtn);
+        }
 
         document.body.appendChild(nav);
     }
@@ -266,6 +289,9 @@
     // ── Public API ────────────────────────────────────────────────
     window.buildSidebar = buildSidebar;
     window.buildMobileBottomNav = buildMobileBottomNav;
+    
+    // Exposer _currentUser pour que app.js puisse déclencher la reconstruction
+    window._sidebarCurrentUser = function() { return _currentUser; };
 
     // ── Auto-init (role-aware) ─────────────────────────────────────
     function _init() {
