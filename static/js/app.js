@@ -5375,9 +5375,13 @@ function saveDetail(id, options = {}) {
     if (refreshAfterSave) {
         filterProspects();
     }
-    if (closeAfterSave) {
+    
+    // En mode prosp, ne pas fermer la fiche même si closeAfterSave est true
+    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
+    if (closeAfterSave && !isProspMode) {
         closeDetail();
     }
+    
     return true;
 }
 
