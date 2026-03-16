@@ -396,6 +396,58 @@ function escapeHtml(text) {
 window.runSystemVerify = runSystemVerify;
 
 // ════════════════════════════════════════════════════════════════
+// Copier les logs serveur
+// ════════════════════════════════════════════════════════════════
+function copySystemLogs() {
+    const logsText = window._systemLogsText;
+    if (!logsText) {
+        if (typeof showToast === 'function') {
+            showToast('Aucun log chargé. Cliquez d\'abord sur "Voir les logs serveur"', 'warning');
+        }
+        return;
+    }
+    
+    // Copier dans le presse-papier
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(logsText).then(() => {
+            if (typeof showToast === 'function') {
+                showToast('✅ Logs copiés dans le presse-papier', 'success');
+            }
+        }).catch(err => {
+            console.error('Erreur copie presse-papier:', err);
+            // Fallback : sélection de texte
+            fallbackCopy(logsText);
+        });
+    } else {
+        // Fallback pour navigateurs sans Clipboard API
+        fallbackCopy(logsText);
+    }
+}
+
+function fallbackCopy(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand('copy');
+        if (typeof showToast === 'function') {
+            showToast('✅ Logs copiés dans le presse-papier', 'success');
+        }
+    } catch (err) {
+        console.error('Erreur copie fallback:', err);
+        if (typeof showToast === 'function') {
+            showToast('❌ Erreur lors de la copie', 'error');
+        }
+    }
+    document.body.removeChild(textarea);
+}
+
+window.copySystemLogs = copySystemLogs;
+
+// ════════════════════════════════════════════════════════════════
 // Afficher les logs serveur
 // ════════════════════════════════════════════════════════════════
 async function showSystemLogs() {
@@ -422,12 +474,18 @@ async function showSystemLogs() {
             return;
         }
         
+        // Préparer le texte brut pour la copie
+        const logsText = data.lines.map(line => (line || '').trim()).filter(l => l).join('\n');
+        
         let html = '<div style="display:grid;gap:12px;">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">';
+        html += '<div style="display:flex;align-items:center;gap:8px;">';
         html += '<h4 style="margin:0;font-size:15px;font-weight:600;">📋 Logs serveur (dernières ' + data.lines.length + ' lignes)</h4>';
+        html += '<button class="btn btn-secondary btn-sm" onclick="copySystemLogs()" style="font-size:11px;padding:4px 10px;" title="Copier les logs dans le presse-papier">📋 Copier</button>';
+        html += '</div>';
         html += '<div style="font-size:12px;color:var(--color-text-secondary);">Total: ' + data.total_lines + ' lignes • Taille: ' + Math.round(data.file_size / 1024) + ' KB</div>';
         html += '</div>';
-        html += '<div style="max-height:500px;overflow-y:auto;padding:12px;background:#1e293b;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.5;">';
+        html += '<div id="systemLogsContent" style="max-height:500px;overflow-y:auto;padding:12px;background:#1e293b;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.5;">';
         
         // Afficher les lignes (les plus récentes en bas)
         data.lines.forEach(line => {
@@ -449,6 +507,9 @@ async function showSystemLogs() {
         html += '</div>';
         html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px;">💡 Les logs sont mis à jour en temps réel. Rechargez pour voir les dernières entrées.</div>';
         html += '</div>';
+        
+        // Stocker le texte brut pour la copie
+        window._systemLogsText = logsText;
         
         resultsEl.innerHTML = html;
         
