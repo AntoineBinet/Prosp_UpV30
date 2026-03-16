@@ -323,15 +323,21 @@ body.header-scrolled .header-center .user-session-badge {
     }
     
     .settings-section-summary {
-        display: none;
+        display: none !important;
     }
     
     .settings-section-content {
         display: block !important;
-        padding: 0;
-        background: transparent;
-        border: none;
-        margin-top: 0;
+        padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        margin-top: 0 !important;
+        border-radius: 0 !important;
+    }
+    
+    /* Sur desktop, restaurer le h3 normal si nécessaire */
+    .settings-section-mobile-collapsible > .settings-section-content > * {
+        margin: 0;
     }
 }
 
