@@ -1953,6 +1953,8 @@ const COMPANIES_VIEW_STORAGE_KEY = 'prospup_companies_view';
 let companiesViewMode = (typeof localStorage !== 'undefined' && localStorage.getItem(COMPANIES_VIEW_STORAGE_KEY)) || 'cards';
 if (companiesViewMode !== 'table' && companiesViewMode !== 'cards') companiesViewMode = 'cards';
 let inlineCompanyNotesEditingId = null;
+/** Édition inline Groupe/Site : { companyId, field: 'groupe'|'site' } ou null */
+let inlineCompanyFieldEditing = null;
 let sortDir = 'desc'; // 'asc' ou 'desc'
 let pendingCompanyFocusId = null;
 let companySheetState = { companyId: null, mode: 'view' };
@@ -2558,6 +2560,35 @@ function saveCompanyNotesInline(companyId) {
     refreshCompaniesUI();
 }
 
+function beginCompanyFieldInline(companyId, field) {
+    if (isUnassignedCompany(companyId)) {
+        showToast('⚠️ Cette entreprise ne peut pas être modifiée.', 'warning');
+        return;
+    }
+    if (inlineCompanyFieldEditing) return;
+    inlineCompanyFieldEditing = { companyId, field };
+    renderCompanies();
+}
+
+function cancelCompanyFieldInline() {
+    inlineCompanyFieldEditing = null;
+    renderCompanies();
+}
+
+function saveCompanyFieldInline(companyId, field) {
+    const inputId = field === 'groupe' ? 'companyInlineGroupeInput' : 'companyInlineSiteInput';
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const company = data.companies.find(c => c.id === companyId);
+    if (!company) return;
+    const value = (input.value || '').trim();
+    if (field === 'groupe') company.groupe = value || company.groupe || '';
+    if (field === 'site') company.site = value || company.site || '';
+    inlineCompanyFieldEditing = null;
+    saveToServer();
+    refreshCompaniesUI();
+}
+
 function updateCompanySummary(summary) {
     const set = (id, v) => {
         const el = document.getElementById(id);
@@ -2758,6 +2789,46 @@ function _renderCompaniesInternal(tbody, q) {
                 </div>
             `;
         }
+
+        const isEditingGroupe = inlineCompanyFieldEditing && inlineCompanyFieldEditing.companyId === company.id && inlineCompanyFieldEditing.field === 'groupe';
+        const isEditingSite = inlineCompanyFieldEditing && inlineCompanyFieldEditing.companyId === company.id && inlineCompanyFieldEditing.field === 'site';
+        let groupeCellContent = '';
+        if (isEditingGroupe) {
+            groupeCellContent = `
+                <div class="company-groupe-editor" onclick="event.stopPropagation();">
+                    <input type="text" id="companyInlineGroupeInput" value="${escapeHtml(company.groupe || '')}" placeholder="Nom du groupe">
+                    <div class="note-actions">
+                        <button class="btn btn-secondary" onclick="event.stopPropagation(); cancelCompanyFieldInline();">Annuler</button>
+                        <button class="btn btn-primary" onclick="event.stopPropagation(); saveCompanyFieldInline(${company.id}, 'groupe');">Enregistrer</button>
+                    </div>
+                </div>
+            `;
+        } else {
+            groupeCellContent = `
+                <div class="company-name-wrapper">
+                    <span class="company-groupe-editable" title="Cliquer pour modifier" onclick="event.stopPropagation(); beginCompanyFieldInline(${company.id}, 'groupe');">
+                        <strong class="company-groupe">${escapeHtml(company.groupe || '')}</strong>
+                    </span>
+                    ${company.id === unassignedId ? '<span class="company-default-badge">(défaut)</span>' : ''}
+                </div>
+                ${notesSnippet}
+            `;
+        }
+
+        let siteCellContent = '';
+        if (isEditingSite) {
+            siteCellContent = `
+                <div class="company-site-editor" onclick="event.stopPropagation();">
+                    <input type="text" id="companyInlineSiteInput" value="${escapeHtml(company.site || '')}" placeholder="Site / localisation">
+                    <div class="note-actions">
+                        <button class="btn btn-secondary" onclick="event.stopPropagation(); cancelCompanyFieldInline();">Annuler</button>
+                        <button class="btn btn-primary" onclick="event.stopPropagation(); saveCompanyFieldInline(${company.id}, 'site');">Enregistrer</button>
+                    </div>
+                </div>
+            `;
+        } else {
+            siteCellContent = `<span class="company-site-editable" title="Cliquer pour modifier" onclick="event.stopPropagation(); beginCompanyFieldInline(${company.id}, 'site');">${escapeHtml(company.site || '')}</span>`;
+        }
         
         const tr = document.createElement('tr');
         tr.className = 'company-row';
@@ -2774,13 +2845,9 @@ function _renderCompaniesInternal(tbody, q) {
 
         tr.innerHTML = `
             <td class="company-name-cell">
-                <div class="company-name-wrapper">
-                    <strong class="company-groupe">${escapeHtml(company.groupe || '')}</strong>
-                    ${company.id === unassignedId ? '<span class="company-default-badge">(défaut)</span>' : ''}
-                </div>
-                ${notesSnippet}
+                ${groupeCellContent}
             </td>
-            <td class="company-site-cell">${escapeHtml(company.site || '')}</td>
+            <td class="company-site-cell">${siteCellContent}</td>
             <td class="center company-count-cell">
                 <span class="count-badge ${c.prospects > 0 ? 'has-prospects' : ''}">${c.prospects}</span>
             </td>
@@ -2824,6 +2891,12 @@ function _renderCompaniesInternal(tbody, q) {
     // Un seul reflow pour remplacer tout le contenu
     tbody.innerHTML = '';
     tbody.appendChild(fragment);
+
+    if (inlineCompanyFieldEditing) {
+        const id = inlineCompanyFieldEditing.field === 'groupe' ? 'companyInlineGroupeInput' : 'companyInlineSiteInput';
+        const input = document.getElementById(id);
+        if (input) { input.focus(); if (input.select) input.select(); }
+    }
 
     updateCompanySummary(summary);
     updateCompanySortIndicators();
