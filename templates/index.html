@@ -186,6 +186,7 @@
             </div>
             </div>
             <button class="btn btn-secondary" onclick="openImportListModal()" title="Importer Excel ou CSV" data-help-section="parametres">📥 Importer ma liste</button>
+            <button class="btn btn-primary" onclick="openQuickAddModal()" title="Ajouter un prospect, entreprise ou candidat (IA ou manuel)" data-help-section="scrapping-ia">➕ Ajouter</button>
             <div class="view-toggle" id="viewToggle">
                 <button class="view-toggle-btn active" id="btnViewTable" onclick="switchTableKanban('table')" title="Vue tableau">☰ <span class="view-count" id="viewCountTable">0</span></button>
                 <button class="view-toggle-btn" id="btnViewProsp" onclick="switchTableKanban('prosp')" title="Mode Prosp défilant">🃏 <span class="view-count" id="viewCountProsp">0</span></button>
@@ -580,8 +581,8 @@
 {% endblock %}
 
 {% block fab %}
-<!-- FAB: Ajouter -->
-<button class="fab" id="fabAdd" onclick="openQuickAddModal()" title="Ajouter (IA ou manuel)">
+<!-- FAB: Ajouter - Masqué sur desktop, visible uniquement sur mobile si nécessaire -->
+<button class="fab fab-mobile-only" id="fabAdd" onclick="openQuickAddModal()" title="Ajouter (IA ou manuel)">
     <span class="fab-icon">+</span>
     <span class="fab-label">Ajouter</span>
 </button>
