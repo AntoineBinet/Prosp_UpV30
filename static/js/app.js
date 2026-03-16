@@ -2254,6 +2254,17 @@ function setupListeners() {
         }, 150); // 150ms debounce pour input
     };
     on('searchInput', 'input', debouncedFilterProspects);
+    
+    // Afficher/masquer le bouton clear de la recherche
+    const searchInput = document.getElementById('searchInput');
+    const btnClearSearch = document.getElementById('btnClearSearch');
+    if (searchInput && btnClearSearch) {
+        const updateClearButton = () => {
+            btnClearSearch.style.display = searchInput.value.trim() ? 'block' : 'none';
+        };
+        searchInput.addEventListener('input', updateClearButton);
+        updateClearButton(); // État initial
+    }
     on('companyFilter', 'change', filterProspects);
     on('statusFilter', 'change', filterProspects);
     on('pertinenceFilter', 'change', filterProspects);
@@ -3236,6 +3247,7 @@ function filterProspects() {
     updateBulkBar();
     updateSelectAllState();
     renderActiveFilterChips();
+    updateViewToggleCounts(); // Mettre à jour les compteurs des boutons de mode
     if (_currentView === 'prosp') {
         syncProspSessionWithFilteredList();
     }
@@ -4848,6 +4860,25 @@ function _setViewToggleButtons(mode) {
     btnTable?.classList.toggle('active', mode === 'table');
     btnKanban?.classList.toggle('active', mode === 'kanban');
     btnProsp?.classList.toggle('active', mode === 'prosp');
+}
+
+function updateViewToggleCounts() {
+    const count = Array.isArray(filteredProspects) ? filteredProspects.length : 0;
+    const countTable = document.getElementById('viewCountTable');
+    const countProsp = document.getElementById('viewCountProsp');
+    const countKanban = document.getElementById('viewCountKanban');
+    if (countTable) countTable.textContent = count;
+    if (countProsp) countProsp.textContent = count;
+    if (countKanban) countKanban.textContent = count;
+}
+
+function clearSearchInput() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.value = '';
+        filterProspects();
+        searchInput.focus();
+    }
 }
 
 function _getCurrentProspIds() {
@@ -11383,6 +11414,7 @@ async function bootstrap(page) {
         applySort();
         filterProspects();
         renderProspects();
+        updateViewToggleCounts(); // Initialiser les compteurs
         updateBulkBar();
         updateSelectAllState();
         try { initSavedViewsUI(); } catch(e) {}
