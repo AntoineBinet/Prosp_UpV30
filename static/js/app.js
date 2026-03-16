@@ -705,6 +705,16 @@ function closeModal(modalIdOrElement, onClose) {
 window.openModal = openModal;
 window.closeModal = closeModal;
 
+// Initialiser la modale VSA partout (si disponible)
+document.addEventListener('DOMContentLoaded', function() {
+    // Attendre que page-sourcing.js soit chargé si nécessaire
+    setTimeout(() => {
+        if (typeof window.initVsaModal === 'function') {
+            window.initVsaModal();
+        }
+    }, 100);
+});
+
 // Auto-handle modal-close buttons
 document.addEventListener('DOMContentLoaded', function() {
     // Delegate click events to modal-close buttons

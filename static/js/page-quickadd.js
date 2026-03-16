@@ -46,12 +46,29 @@
         }
     };
 
-    // ─── Step 0: pick method (manual or IA or file) ───
+    // ─── Step 0: pick method (manual or IA or file or VSA) ───
     window.qaPickMethod = function (method) {
         if (method === 'manual') {
             closeQuickAddModal();
             if (typeof openAddModal === 'function') {
                 openAddModal();
+            }
+            return;
+        }
+        if (method === 'vsa') {
+            closeQuickAddModal();
+            // Ouvrir la modale VSA (fonction globale depuis page-sourcing.js)
+            if (typeof openVsaImportModal === 'function') {
+                openVsaImportModal();
+            } else {
+                // Si page-sourcing.js n'est pas encore chargé, attendre un peu
+                setTimeout(() => {
+                    if (typeof openVsaImportModal === 'function') {
+                        openVsaImportModal();
+                    } else {
+                        showToast('Fonction VSA non disponible. Rechargez la page.', 'error');
+                    }
+                }, 500);
             }
             return;
         }

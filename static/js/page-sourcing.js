@@ -347,7 +347,8 @@ async function deleteCandidate(id) {
 // ===== Ajouter via VSA =====
 const VSA_MIN_LENGTH = 20;
 
-function openVsaImportModal() {
+// Rendre les fonctions VSA globales pour accès depuis Quick Add
+window.openVsaImportModal = function openVsaImportModal() {
     console.log('[VSA] openVsaImportModal appelée');
     const modal = document.getElementById('modalVsaImport');
     if (!modal) {
@@ -372,7 +373,7 @@ function openVsaImportModal() {
     }
 }
 
-function closeVsaImportModal() {
+window.closeVsaImportModal = function closeVsaImportModal() {
     const modal = document.getElementById('modalVsaImport');
     if (modal) {
         if (window.closeModal) window.closeModal(modal);
@@ -887,6 +888,11 @@ async function scanCandidateFolder() {
     }
 }
 
+// Fonction d'initialisation VSA globale (appelable depuis n'importe où)
+window.initVsaModal = function() {
+    _initVsaModal();
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const fn = window.bootstrap || window.appBootstrap;
@@ -914,40 +920,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         file.value = '';
     });
 
-    // Ajouter via VSA
-    const btnAddViaVsa = document.getElementById('btnAddViaVsa');
-    if (btnAddViaVsa) {
-        console.log('[VSA] Bouton btnAddViaVsa trouvé, ajout event listener', btnAddViaVsa);
-        console.log('[VSA] Bouton disabled?', btnAddViaVsa.disabled);
-        console.log('[VSA] Bouton style.display?', window.getComputedStyle(btnAddViaVsa).display);
-        console.log('[VSA] Bouton style.pointerEvents?', window.getComputedStyle(btnAddViaVsa).pointerEvents);
-        btnAddViaVsa.addEventListener('click', (e) => {
-            console.log('[VSA] Clic sur btnAddViaVsa détecté', e);
-            e.preventDefault();
-            e.stopPropagation();
-            openVsaImportModal();
-        });
-    } else {
-        console.error('[VSA] Bouton btnAddViaVsa introuvable au chargement');
-        // Retry après un court délai au cas où le DOM n'est pas encore prêt
-        setTimeout(() => {
-            const retryBtn = document.getElementById('btnAddViaVsa');
-            if (retryBtn) {
-                console.log('[VSA] Bouton trouvé après retry, ajout event listener');
-                retryBtn.addEventListener('click', (e) => {
-                    console.log('[VSA] Clic sur btnAddViaVsa détecté (retry)', e);
-                    e.preventDefault();
-                    e.stopPropagation();
-                    openVsaImportModal();
-                });
-            } else {
-                console.error('[VSA] Bouton btnAddViaVsa toujours introuvable après retry');
-            }
-        }, 100);
+    // Initialisation VSA (globale, accessible depuis partout)
+    function _initVsaModal() {
+        // Bouton sur page sourcing (optionnel)
+        const btnAddViaVsa = document.getElementById('btnAddViaVsa');
+        if (btnAddViaVsa) {
+            console.log('[VSA] Bouton btnAddViaVsa trouvé, ajout event listener', btnAddViaVsa);
+            btnAddViaVsa.addEventListener('click', (e) => {
+                console.log('[VSA] Clic sur btnAddViaVsa détecté', e);
+                e.preventDefault();
+                e.stopPropagation();
+                openVsaImportModal();
+            });
+        }
+        // Event listeners pour la modale VSA (disponible partout)
+        const textarea = document.getElementById('vsaImportTextarea');
+        const btnExtract = document.getElementById('btnVsaExtractOllama');
+        const btnPreFill = document.getElementById('btnVsaPreFillAnyway');
+        if (textarea) {
+            textarea.removeEventListener('input', _vsaImportToggleExtractButton); // Éviter doublons
+            textarea.addEventListener('input', _vsaImportToggleExtractButton);
+        }
+        if (btnExtract) {
+            btnExtract.removeEventListener('click', _vsaImportExtractWithOllama); // Éviter doublons
+            btnExtract.addEventListener('click', () => _vsaImportExtractWithOllama());
+        }
+        if (btnPreFill) {
+            btnPreFill.removeEventListener('click', _vsaImportPreFillAnyway); // Éviter doublons
+            btnPreFill.addEventListener('click', _vsaImportPreFillAnyway);
+        }
     }
-    document.getElementById('vsaImportTextarea')?.addEventListener('input', _vsaImportToggleExtractButton);
-    document.getElementById('btnVsaExtractOllama')?.addEventListener('click', () => _vsaImportExtractWithOllama());
-    document.getElementById('btnVsaPreFillAnyway')?.addEventListener('click', _vsaImportPreFillAnyway);
+    _initVsaModal();
 
     // Tabs
     document.getElementById('tabPipeline')?.addEventListener('click', () => setTab('pipeline'));
@@ -981,4 +984,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     } catch(e) {}
+    
+    // Réinitialiser les event listeners VSA au cas où la modale serait ajoutée dynamiquement
+    _initVsaModal();
 });
