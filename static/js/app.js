@@ -2108,7 +2108,6 @@ async function deleteSelectedView() {
 
 
 function initProspectsPage() {
-    filteredProspects = [...data.prospects];
     populateCompanySelects();
     try {
         const params = new URLSearchParams(window.location.search);
@@ -2133,6 +2132,7 @@ function initProspectsPage() {
         }
     } catch (e) {}
 
+    // Initialiser filteredProspects APRÈS avoir défini _showContacts
     filterProspects();
     setupListeners();
     updateBulkBar();
@@ -11135,8 +11135,7 @@ async function bootstrap(page) {
     try { await loadTemplatesFromServer(); } catch(e) { console.warn("[Prosp'Up] Templates load failed:", e); }
     try { await loadPushCategories(); } catch(e) { console.warn("[Prosp'Up] Push categories load failed:", e); }
     normalizeData();
-    filteredProspects = [...data.prospects];
-
+    
     // Init listeners (safe, will bind only what exists on the page)
     setupListeners();
 
@@ -11172,6 +11171,7 @@ async function bootstrap(page) {
             console.log('[Contacts] Mode contacts activé, nombre de contacts trouvés:', contactsCount, 'sur', data.prospects.length, 'prospects totaux');
         }
 
+        // Initialiser filteredProspects APRÈS avoir défini _showContacts
         applySort();
         filterProspects();
         renderProspects();
