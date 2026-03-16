@@ -473,8 +473,26 @@ window.openVsaImportModal = function openVsaImportModal() {
 window.closeVsaImportModal = function closeVsaImportModal() {
     const modal = document.getElementById('modalVsaImport');
     if (modal) {
-        if (window.closeModal) window.closeModal(modal);
-        else modal.classList.remove('active');
+        // Retirer la classe active
+        modal.classList.remove('active');
+        
+        // Forcer la fermeture en retirant tous les styles inline (car on les a forcés avec !important)
+        modal.style.cssText = '';
+        
+        // Utiliser closeModal si disponible
+        if (window.closeModal) {
+            try {
+                window.closeModal(modal);
+            } catch (e) {
+                console.warn('[VSA] Erreur closeModal:', e);
+            }
+        }
+        
+        // S'assurer que la modale est bien cachée
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+        
+        console.log('[VSA] Modale VSA fermée');
     }
 }
 
@@ -513,16 +531,43 @@ function _ensureVsaValidationModal() {
 }
 
 function _openVsaValidationModal() {
-    _ensureVsaValidationModal();
-    _renderVsaPreview();
-    const modal = document.getElementById('modalVsaValidation');
-    if (modal) {
-        if (window.openModal) {
-            window.openModal(modal);
-        } else {
+    // S'assurer que la première modale est bien fermée
+    closeVsaImportModal();
+    
+    // Attendre un peu pour que la fermeture soit effective
+    setTimeout(() => {
+        _ensureVsaValidationModal();
+        _renderVsaPreview();
+        const modal = document.getElementById('modalVsaValidation');
+        if (modal) {
+            // Forcer l'affichage avec un z-index élevé pour être au-dessus
+            modal.style.cssText = `
+                display: flex !important;
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                z-index: 100000 !important;
+                background: rgba(0, 0, 0, 0.5) !important;
+                align-items: center !important;
+                justify-content: center !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+            `;
             modal.classList.add('active');
+            
+            if (window.openModal) {
+                try {
+                    window.openModal(modal);
+                } catch (e) {
+                    console.warn('[VSA] Erreur openModal validation:', e);
+                }
+            }
+            
+            console.log('[VSA] Modale de validation ouverte');
         }
-    }
+    }, 100);
 }
 
 window.closeVsaValidationModal = function() {
