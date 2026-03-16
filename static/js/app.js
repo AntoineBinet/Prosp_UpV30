@@ -3953,9 +3953,10 @@ function updateStats(prospects) {
     // Totaux bruts (toujours sur tous les prospects, sans filtre) pour les 4 panneaux
     const allProspects = Array.isArray(data.prospects) ? data.prospects : [];
     const totalEl = document.getElementById('totalCount');
-    if (totalEl) totalEl.textContent = allProspects.length;
-
+    
     if (_showContacts) {
+        // En mode contacts, afficher le nombre de contacts filtrés
+        if (totalEl) totalEl.textContent = filteredProspects.length;
         const calledEl = document.getElementById('appeléCount');
         const rdvEl = document.getElementById('rdvCount');
         const prospectésEl = document.getElementById('prospectésCount');
@@ -3965,16 +3966,28 @@ function updateStats(prospects) {
         updateOverdueAlerts([]);
         return;
     }
+    
+    // En mode prospects normal, afficher le total (sans les contacts)
+    if (totalEl) totalEl.textContent = allProspects.filter(p => {
+        const isContact = Number(p.is_contact) === 1 || p.is_contact === true || p.is_contact === "1";
+        return !isContact;
+    }).length;
 
-    // ORANGE : appelables (avec téléphone) — total brut
+    // Filtrer les contacts pour les calculs (ne pas les inclure dans les stats de prospection)
+    const prospectsOnly = allProspects.filter(p => {
+        const isContact = Number(p.is_contact) === 1 || p.is_contact === true || p.is_contact === "1";
+        return !isContact;
+    });
+    
+    // ORANGE : appelables (avec téléphone) — total brut (sans contacts)
     const appeléEl = document.getElementById('appeléCount');
-    if (appeléEl) appeléEl.textContent = allProspects.filter(p => isProspectCallable(p)).length;
-    // VERT : RDV — total brut
+    if (appeléEl) appeléEl.textContent = prospectsOnly.filter(p => isProspectCallable(p)).length;
+    // VERT : RDV — total brut (sans contacts)
     const rdvEl = document.getElementById('rdvCount');
-    if (rdvEl) rdvEl.textContent = allProspects.filter(p => p.statut === 'Rendez-vous').length;
-    // VIOLET : prospectés (statut Prospecté) — total brut
+    if (rdvEl) rdvEl.textContent = prospectsOnly.filter(p => p.statut === 'Rendez-vous').length;
+    // VIOLET : prospectés (statut Prospecté) — total brut (sans contacts)
     const prospectésEl = document.getElementById('prospectésCount');
-    if (prospectésEl) prospectésEl.textContent = allProspects.filter(p => p.statut === 'Prospecté').length;
+    if (prospectésEl) prospectésEl.textContent = prospectsOnly.filter(p => p.statut === 'Prospecté').length;
 
     // Relances en retard : basé sur les prospects affichés (filtrés)
     updateOverdueAlerts(activeProspects);
@@ -4084,10 +4097,15 @@ function updateOverdueAlerts(prospects) {
     // 2. Badge on sidebar Focus nav-button (works on ALL pages)
     _injectSidebarBadge(overdueCount, dueTodayCount);
 
-    // 3. Bannière alerte relances sur la page prospects (P1)
+    // 3. Bannière alerte relances sur la page prospects (P1) - masquer en mode contacts
     const bannerEl = document.getElementById('relanceAlertBannerProspects');
     const bannerTextEl = document.getElementById('relanceAlertBannerProspectsText');
     if (bannerEl && bannerTextEl) {
+        // Ne pas afficher la bannière en mode contacts
+        if (_showContacts) {
+            bannerEl.style.display = 'none';
+            return;
+        }
         if (typeof window.getDisplayPref === 'function' && !window.getDisplayPref('display_relance_banner')) {
             bannerEl.style.display = 'none';
             return;
@@ -11163,6 +11181,22 @@ async function bootstrap(page) {
                     btn.classList.remove('active');
                 }
             });
+            
+            // Masquer les panneaux/bannières spécifiques à la prospection
+            const relanceBanner = document.getElementById('relanceAlertBannerProspects');
+            if (relanceBanner) relanceBanner.style.display = 'none';
+            const prospCta = document.getElementById('prospCtaMobile');
+            if (prospCta) prospCta.style.display = 'none';
+            const prospResume = document.getElementById('prospResumeBanner');
+            if (prospResume) prospResume.style.display = 'none';
+        } else {
+            // Afficher les panneaux/bannières en mode prospects normal
+            const relanceBanner = document.getElementById('relanceAlertBannerProspects');
+            if (relanceBanner && relanceBanner.style.display === 'none') relanceBanner.style.display = '';
+            const prospCta = document.getElementById('prospCtaMobile');
+            if (prospCta && prospCta.style.display === 'none') prospCta.style.display = '';
+            const prospResume = document.getElementById('prospResumeBanner');
+            if (prospResume && prospResume.style.display === 'none') prospResume.style.display = '';
         }
         
         // Debug: vérifier le nombre de contacts
