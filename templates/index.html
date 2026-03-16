@@ -585,15 +585,11 @@
     .qa-card:hover, .qa-card.active { border-color: var(--color-primary) !important; background: rgba(var(--color-primary-rgb),.08) !important; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(var(--color-primary-rgb),.15); }
     .qa-card.active::after { content: '✓'; position: absolute; top: 6px; right: 8px; color: var(--color-primary); font-weight: 800; font-size: 16px; }
     .qa-card[data-method] { cursor: pointer; }
-</style>
+    </style>
 {% endblock %}
 
 {% block fab %}
-<!-- FAB: Ajouter (visible sur mobile, masqué sur desktop où le bouton est dans toolbar) -->
-<button class="fab" id="fabAdd" onclick="openQuickAddModal()" title="Ajouter (IA ou manuel)">
-    <span class="fab-icon">+</span>
-    <span class="fab-label">Ajouter</span>
-</button>
+<!-- FAB: Ajouter - Masqué sur prospects (bouton dans toolbar-row), visible sur autres pages -->
 {% endblock %}
 
 <!-- Modal Ajouter via VSA (accessible depuis partout) -->
