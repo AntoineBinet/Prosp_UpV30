@@ -6240,31 +6240,17 @@ body:not([data-page="prospects"]) .table-wrapper td:nth-child(13) {
   display: none;
 }
 
-/* Sur la page prospects : les deux boutons côte à côte à droite (IA à droite, Ajouter juste à gauche) */
+/* Sur la page prospects : assistant reste en bas à droite */
 body[data-page="prospects"] .fab-icon-only,
 body[data-page=""] .fab-icon-only {
   bottom: 28px;
-  right: 38px; /* IA à droite */
+  right: 38px; /* Assistant à droite */
 }
 
-/* FAB masqué sur desktop pour prospects (bouton dans toolbar) */
-@media (min-width: 901px) {
-  body[data-page="prospects"] #fabAdd,
-  body[data-page=""] #fabAdd {
-    display: none !important;
-  }
-}
-
-/* FAB visible uniquement sur mobile pour prospects (au-dessus de bottom nav) */
-@media (max-width: 900px) {
-  body[data-page="prospects"] #fabAdd,
-  body[data-page=""] #fabAdd {
-    display: flex;
-    bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; /* Au-dessus de la bottom nav */
-    right: 18px !important;
-    z-index: 997; /* Juste en dessous de la bottom nav */
-    left: auto !important;
-  }
+/* FAB Ajouter complètement masqué sur prospects (bouton dans toolbar) */
+body[data-page="prospects"] #fabAdd,
+body[data-page=""] #fabAdd {
+  display: none !important;
 }
 
 /* Responsive: icon-only on small screens */
