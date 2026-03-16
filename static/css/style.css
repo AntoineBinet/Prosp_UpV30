@@ -6253,6 +6253,12 @@ body[data-page=""] #fabAdd {
   display: none !important;
 }
 
+/* FAB visible sur sourcing et candidate (pour ajouter des candidats) */
+body[data-page="sourcing"] #fabAdd,
+body[data-page="candidate"] #fabAdd {
+  display: flex !important;
+}
+
 /* Responsive: icon-only on small screens */
 @media (max-width: 600px) {
   .fab {
