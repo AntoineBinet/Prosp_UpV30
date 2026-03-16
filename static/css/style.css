@@ -6247,11 +6247,24 @@ body[data-page=""] .fab-icon-only {
   right: 38px; /* IA à droite */
 }
 
-body[data-page="prospects"] #fabAdd,
-body[data-page=""] #fabAdd {
-  bottom: 28px !important; /* Même niveau */
-  right: 100px !important; /* Juste à gauche de l'IA (38px + 52px + 10px marge) */
-  left: auto !important;
+/* FAB masqué sur desktop pour prospects (bouton dans toolbar) */
+@media (min-width: 901px) {
+  body[data-page="prospects"] #fabAdd,
+  body[data-page=""] #fabAdd {
+    display: none !important;
+  }
+}
+
+/* FAB visible uniquement sur mobile pour prospects (au-dessus de bottom nav) */
+@media (max-width: 900px) {
+  body[data-page="prospects"] #fabAdd,
+  body[data-page=""] #fabAdd {
+    display: flex;
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; /* Au-dessus de la bottom nav */
+    right: 18px !important;
+    z-index: 997; /* Juste en dessous de la bottom nav */
+    left: auto !important;
+  }
 }
 
 /* Responsive: icon-only on small screens */
