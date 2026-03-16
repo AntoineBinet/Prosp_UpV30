@@ -318,6 +318,65 @@ Belle journée,"></textarea>
 <script defer src="/static/js/notifications.js?v=2000"></script>
 <script defer src="/static/js/page-settings.js?v=2000"></script>
 <script>
+  // Sections rétractables sur mobile uniquement
+  (function() {
+    function makeSectionsCollapsible() {
+      // Vérifier si on est sur mobile
+      if (window.matchMedia && !window.matchMedia('(max-width: 900px)').matches) {
+        return; // Desktop : ne rien faire
+      }
+      
+      const sections = document.querySelectorAll('.settings-section');
+      sections.forEach(function(section) {
+        // Vérifier si déjà transformée
+        if (section.classList.contains('mobile-collapsible-processed')) {
+          return;
+        }
+        
+        const h3 = section.querySelector('h3');
+        if (!h3) return;
+        
+        // Créer un wrapper details/summary
+        const details = document.createElement('details');
+        details.className = 'settings-section-mobile-collapsible';
+        details.open = true; // Ouvert par défaut
+        
+        const summary = document.createElement('summary');
+        summary.className = 'settings-section-summary';
+        summary.innerHTML = h3.innerHTML;
+        
+        // Déplacer le contenu (sauf le h3) dans details
+        const content = document.createElement('div');
+        content.className = 'settings-section-content';
+        
+        Array.from(section.childNodes).forEach(function(node) {
+          if (node !== h3 && node.nodeType === 1) {
+            content.appendChild(node.cloneNode(true));
+            node.remove();
+          }
+        });
+        
+        // Reconstruire la structure
+        details.appendChild(summary);
+        details.appendChild(content);
+        section.innerHTML = '';
+        section.appendChild(details);
+        section.classList.add('mobile-collapsible-processed');
+      });
+    }
+    
+    // Exécuter au chargement et après un délai (au cas où le DOM n'est pas prêt)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', makeSectionsCollapsible);
+    } else {
+      makeSectionsCollapsible();
+    }
+    
+    // Réexécuter après un délai pour s'assurer que tout est chargé
+    setTimeout(makeSectionsCollapsible, 500);
+  })();
+</script>
+<script>
   // ════════════════════════════════════════════════════════════════
   // Badge version / commit (indicateur mise à jour prospup.work)
   // ════════════════════════════════════════════════════════════════
