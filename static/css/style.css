@@ -264,21 +264,28 @@ body.header-scrolled .header-center .user-session-badge {
         display: none !important;
     }
     
-    /* Badge utilisateur dans la bottom nav mobile */
+    /* Badge utilisateur dans la bottom nav mobile - style cohérent avec les autres items */
     .mobile-bottom-nav-user {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 4px;
-        padding: 8px 4px;
+        gap: 2px;
+        padding: 4px 8px;
         background: transparent;
         border: none;
         color: var(--color-text-secondary);
         cursor: pointer;
-        transition: color .2s ease, transform .1s ease;
+        transition: all .15s;
         flex: 1;
         min-width: 0;
+        font-size: 10px;
+    }
+    
+    .mobile-bottom-nav-user:hover,
+    .mobile-bottom-nav-user.active {
+        color: var(--color-primary);
+        background: rgba(var(--color-primary-rgb),.08);
     }
     
     .mobile-bottom-nav-user:active {
@@ -286,15 +293,15 @@ body.header-scrolled .header-center .user-session-badge {
     }
     
     .mobile-bottom-nav-user .bn-user-avatar {
-        width: 32px;
-        height: 32px;
+        width: 20px;
+        height: 20px;
         border-radius: 50%;
         background: var(--color-primary);
         color: #fff;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 600;
         margin: 0 auto;
     }
@@ -303,12 +310,6 @@ body.header-scrolled .header-center .user-session-badge {
         font-size: 10px;
         line-height: 1.2;
         text-align: center;
-    }
-    
-    /* Style actif quand le menu utilisateur est ouvert */
-    .mobile-bottom-nav-user.active,
-    .mobile-bottom-nav-user:active {
-        color: var(--color-primary);
     }
 }
 
@@ -8041,7 +8042,8 @@ body[data-page=""] #fabAdd {
   }
   /* Sub-menu: reduce indent on mobile drawer */
   .sidebar .nav-submenu { padding-left: 4px; }
-  .mobile-bottom-nav a {
+  .mobile-bottom-nav a,
+  .mobile-bottom-nav button {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -8052,13 +8054,20 @@ body[data-page=""] #fabAdd {
     padding: 4px 8px;
     border-radius: 8px;
     transition: all .15s;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
   }
   .mobile-bottom-nav a:hover,
-  .mobile-bottom-nav a.active {
+  .mobile-bottom-nav a.active,
+  .mobile-bottom-nav button:hover,
+  .mobile-bottom-nav button.active {
     color: var(--color-primary);
     background: rgba(var(--color-primary-rgb),.08);
   }
-  .mobile-bottom-nav a span.bn-icon { font-size: 20px; }
+  .mobile-bottom-nav a span.bn-icon,
+  .mobile-bottom-nav button span.bn-icon { font-size: 20px; }
 
   .content-header { flex-direction: column; align-items: stretch !important; }
   .fab { bottom: 70px; }
@@ -10995,12 +11004,20 @@ body[data-page=""] .content {
   .mobile-bottom-nav {
     padding: 4px 0 calc(4px + env(safe-area-inset-bottom, 0px)) !important;
   }
-  .mobile-bottom-nav a {
+  .mobile-bottom-nav a,
+  .mobile-bottom-nav button {
     padding: 4px 2px !important;
     gap: 1px !important;
   }
-  .mobile-bottom-nav a .bn-icon { font-size: 18px !important; }
-  .mobile-bottom-nav a .bn-label { font-size: 9px !important; }
+  .mobile-bottom-nav a .bn-icon,
+  .mobile-bottom-nav button .bn-icon { font-size: 18px !important; }
+  .mobile-bottom-nav a .bn-label,
+  .mobile-bottom-nav button .bn-label { font-size: 9px !important; }
+  .mobile-bottom-nav-user .bn-user-avatar {
+    width: 18px !important;
+    height: 18px !important;
+    font-size: 11px !important;
+  }
 
   /* Extra compact stat cards */
   .stats .stat-card {
