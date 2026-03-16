@@ -274,6 +274,22 @@
         if (!user && window.AppAuth && window.AppAuth.user) {
             user = window.AppAuth.user;
         }
+        // Si toujours pas d'utilisateur, essayer de récupérer depuis le badge desktop
+        if (!user) {
+            var desktopBadge = document.querySelector('.user-session-badge');
+            if (desktopBadge) {
+                var nameEl = desktopBadge.querySelector('.user-session-name');
+                var roleEl = desktopBadge.querySelector('.user-session-role');
+                if (nameEl && roleEl) {
+                    // Créer un objet user minimal depuis le badge existant
+                    user = {
+                        display_name: nameEl.textContent.trim(),
+                        username: nameEl.textContent.trim(),
+                        role: roleEl.textContent.trim().toLowerCase()
+                    };
+                }
+            }
+        }
         if (user) {
             var userBtn = document.createElement('button');
             userBtn.className = 'mobile-bottom-nav-user';
@@ -286,6 +302,8 @@
                 }
             };
             nav.appendChild(userBtn);
+        } else {
+            console.warn('buildMobileBottomNav: aucun utilisateur trouvé pour le badge');
         }
 
         document.body.appendChild(nav);
