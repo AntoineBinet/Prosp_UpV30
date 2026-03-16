@@ -1259,7 +1259,8 @@ let _previousActiveElement = null;
 /**
  * Open a modal with animations, focus trap, and accessibility
  * @param {string|HTMLElement} modalIdOrElement - Modal ID or element
- * @param {Object} options - Options: { focusElement, onClose }
+ * @param {Object} options - Options: { focusElement, onClose, keepOpen }
+ *   - keepOpen: Array of modal IDs or elements to keep open (e.g., ['modalDetail'])
  */
 function openModal(modalIdOrElement, options = {}) {
     const modal = typeof modalIdOrElement === 'string' 
@@ -1271,9 +1272,16 @@ function openModal(modalIdOrElement, options = {}) {
         return;
     }
 
-    // Close any existing modal first
+    // Close any existing modal first, unless it's in the keepOpen list
     if (_activeModal && _activeModal !== modal) {
-        closeModal(_activeModal);
+        const keepOpen = options.keepOpen || [];
+        const shouldKeepOpen = keepOpen.some(keep => {
+            const keepEl = typeof keep === 'string' ? document.getElementById(keep) : keep;
+            return keepEl && keepEl === _activeModal;
+        });
+        if (!shouldKeepOpen) {
+            closeModal(_activeModal);
+        }
     }
 
     // Store previous active element for focus restoration
@@ -5690,22 +5698,64 @@ function openCallChoice(phones, prospectId) {
         list.appendChild(btn);
     });
 
-    if (window.openModal) {
-        window.openModal(modal);
-    } else {
-        modal.classList.add('active');
+    // Ouvrir le popup de choix de numéro manuellement pour ne pas fermer la fiche prospect
+    // On n'utilise pas openModal() car elle ferme automatiquement les autres modales
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-hidden', 'false');
+    modal.classList.add('active');
+    
+    // Focus sur le premier bouton
+    const firstBtn = list.querySelector('button');
+    if (firstBtn) {
+        requestAnimationFrame(() => {
+            firstBtn.focus();
+        });
     }
+    
+    // Gérer Escape pour fermer uniquement ce popup
+    const escapeHandler = (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeCallChoice();
+        }
+    };
+    document.addEventListener('keydown', escapeHandler);
+    modal._escapeHandler = escapeHandler;
+    
+    // Fermer sur clic backdrop (mais pas sur le contenu)
+    const backdropHandler = (e) => {
+        if (e.target === modal) {
+            closeCallChoice();
+        }
+    };
+    modal.addEventListener('click', backdropHandler);
+    modal._backdropHandler = backdropHandler;
 }
 
 function closeCallChoice() {
     const modal = document.getElementById('modalCallChoice');
-    if (modal) {
-        if (window.closeModal) {
-            window.closeModal(modal);
-        } else {
-            modal.classList.remove('active');
-        }
+    if (!modal || !modal.classList.contains('active')) return;
+    
+    // Retirer les event listeners
+    if (modal._escapeHandler) {
+        document.removeEventListener('keydown', modal._escapeHandler);
+        modal._escapeHandler = null;
     }
+    if (modal._backdropHandler) {
+        modal.removeEventListener('click', modal._backdropHandler);
+        modal._backdropHandler = null;
+    }
+    
+    // Animation de fermeture
+    modal.classList.add('exiting');
+    modal.classList.remove('active');
+    
+    setTimeout(() => {
+        modal.classList.remove('exiting');
+        modal.setAttribute('aria-hidden', 'true');
+    }, 200);
 }
 
 function _stampProspectLastContact(prospect) {
