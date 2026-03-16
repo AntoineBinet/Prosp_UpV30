@@ -11198,17 +11198,17 @@ body[data-page=""] .content {
   }
   .mobile-bottom-nav a,
   .mobile-bottom-nav button {
-    padding: 4px 2px !important;
-    gap: 1px !important;
+    padding: 6px 8px !important;
+    gap: 3px !important;
   }
   .mobile-bottom-nav a .bn-icon,
-  .mobile-bottom-nav button .bn-icon { font-size: 18px !important; }
+  .mobile-bottom-nav button .bn-icon { font-size: 22px !important; }
   .mobile-bottom-nav a .bn-label,
-  .mobile-bottom-nav button .bn-label { font-size: 9px !important; }
+  .mobile-bottom-nav button .bn-label { font-size: 10px !important; }
   .mobile-bottom-nav-user .bn-user-avatar {
-    width: 18px !important;
-    height: 18px !important;
-    font-size: 11px !important;
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 12px !important;
   }
 
   /* Extra compact stat cards */

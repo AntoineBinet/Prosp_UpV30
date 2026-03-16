@@ -326,13 +326,8 @@ Belle journée,"></textarea>
         return; // Desktop : ne rien faire
       }
       
-      const sections = document.querySelectorAll('.settings-section');
+      const sections = document.querySelectorAll('.settings-section:not(.mobile-collapsible-processed)');
       sections.forEach(function(section) {
-        // Vérifier si déjà transformée
-        if (section.classList.contains('mobile-collapsible-processed')) {
-          return;
-        }
-        
         const h3 = section.querySelector('h3');
         if (!h3) return;
         
@@ -345,14 +340,15 @@ Belle journée,"></textarea>
         summary.className = 'settings-section-summary';
         summary.innerHTML = h3.innerHTML;
         
-        // Déplacer le contenu (sauf le h3) dans details
+        // Créer le conteneur pour le contenu
         const content = document.createElement('div');
         content.className = 'settings-section-content';
         
-        Array.from(section.childNodes).forEach(function(node) {
+        // Déplacer tous les enfants sauf le h3 dans content
+        const children = Array.from(section.childNodes);
+        children.forEach(function(node) {
           if (node !== h3 && node.nodeType === 1) {
-            content.appendChild(node.cloneNode(true));
-            node.remove();
+            content.appendChild(node);
           }
         });
         
@@ -374,6 +370,23 @@ Belle journée,"></textarea>
     
     // Réexécuter après un délai pour s'assurer que tout est chargé
     setTimeout(makeSectionsCollapsible, 500);
+    
+    // Réexécuter si la taille de la fenêtre change
+    let resizeTimer;
+    window.addEventListener('resize', function() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function() {
+        // Réinitialiser si on passe de mobile à desktop ou vice versa
+        const wasMobile = document.querySelector('.settings-section-mobile-collapsible');
+        const isMobile = window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
+        if ((wasMobile && !isMobile) || (!wasMobile && isMobile)) {
+          document.querySelectorAll('.settings-section').forEach(function(s) {
+            s.classList.remove('mobile-collapsible-processed');
+          });
+          makeSectionsCollapsible();
+        }
+      }, 250);
+    });
   })();
 </script>
 <script>
