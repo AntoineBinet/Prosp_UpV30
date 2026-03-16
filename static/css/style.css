@@ -9045,7 +9045,8 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
     padding: 6px max(8px, env(safe-area-inset-right, 0)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0));
     box-shadow: 0 -4px 20px rgba(0,0,0,.2);
   }
-  .mobile-bottom-nav a {
+  .mobile-bottom-nav a,
+  .mobile-bottom-nav button {
     flex: 1;
     min-width: 0;
     display: flex;

@@ -269,11 +269,16 @@
         });
         
         // Ajouter le badge utilisateur à la fin de la barre de navigation mobile
-        if (_currentUser) {
+        // Utiliser _currentUser ou essayer de le récupérer depuis window.AppAuth
+        var user = _currentUser;
+        if (!user && window.AppAuth && window.AppAuth.user) {
+            user = window.AppAuth.user;
+        }
+        if (user) {
             var userBtn = document.createElement('button');
             userBtn.className = 'mobile-bottom-nav-user';
             userBtn.type = 'button';
-            var initial = ((_currentUser.display_name || _currentUser.username || '').charAt(0) || 'U').toUpperCase();
+            var initial = ((user.display_name || user.username || '').charAt(0) || 'U').toUpperCase();
             userBtn.innerHTML = '<span class="bn-icon bn-user-avatar">' + initial + '</span><span class="bn-label">Profil</span>';
             userBtn.onclick = function() {
                 if (typeof openUserMenu === 'function') {
@@ -312,7 +317,8 @@
                 buildMobileBottomNav();
                 document.dispatchEvent(new CustomEvent('sidebar-ready'));
             })
-            .catch(function () {
+            .catch(function (e) {
+                console.warn('Sidebar init error:', e);
                 buildSidebar();
                 buildMobileBottomNav();
                 document.dispatchEvent(new CustomEvent('sidebar-ready'));
