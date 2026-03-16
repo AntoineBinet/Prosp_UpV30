@@ -348,8 +348,13 @@ async function deleteCandidate(id) {
 const VSA_MIN_LENGTH = 20;
 
 function openVsaImportModal() {
+    console.log('[VSA] openVsaImportModal appelée');
     const modal = document.getElementById('modalVsaImport');
-    if (!modal) return;
+    if (!modal) {
+        console.error('[VSA] Modal modalVsaImport introuvable');
+        return;
+    }
+    console.log('[VSA] Modal trouvée, ouverture...');
     document.getElementById('vsaImportLink').value = '';
     document.getElementById('vsaImportTextarea').value = '';
     document.getElementById('vsaImportError').style.display = 'none';
@@ -359,8 +364,10 @@ function openVsaImportModal() {
     if (btn) { btn.disabled = true; btn.textContent = '🤖 Extraire avec Ollama'; }
     _vsaImportToggleExtractButton();
     if (window.openModal) {
+        console.log('[VSA] Utilisation de window.openModal');
         window.openModal(modal, { focusElement: '#vsaImportTextarea' });
     } else {
+        console.log('[VSA] Utilisation de modal.classList.add');
         modal.classList.add('active');
     }
 }
@@ -908,7 +915,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Ajouter via VSA
-    document.getElementById('btnAddViaVsa')?.addEventListener('click', openVsaImportModal);
+    const btnAddViaVsa = document.getElementById('btnAddViaVsa');
+    if (btnAddViaVsa) {
+        console.log('[VSA] Bouton btnAddViaVsa trouvé, ajout event listener');
+        btnAddViaVsa.addEventListener('click', (e) => {
+            console.log('[VSA] Clic sur btnAddViaVsa détecté', e);
+            openVsaImportModal();
+        });
+    } else {
+        console.error('[VSA] Bouton btnAddViaVsa introuvable');
+    }
     document.getElementById('vsaImportTextarea')?.addEventListener('input', _vsaImportToggleExtractButton);
     document.getElementById('btnVsaExtractOllama')?.addEventListener('click', () => _vsaImportExtractWithOllama());
     document.getElementById('btnVsaPreFillAnyway')?.addEventListener('click', _vsaImportPreFillAnyway);
