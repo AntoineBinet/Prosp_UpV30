@@ -12869,11 +12869,8 @@ def api_prospect_infos_rdv_stream(prospect_id: int):
         except urllib.error.HTTPError as e:
             try:
                 err_body = ""
-            try:
                 if e.fp:
                     err_body = e.read().decode("utf-8")
-            except Exception:
-                pass
                 err_data = json.loads(err_body) if err_body else {}
                 msg = err_data.get("error", err_body) or str(e)
             except Exception:
