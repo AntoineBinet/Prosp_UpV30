@@ -399,69 +399,75 @@ window.openVsaImportModal = function openVsaImportModal() {
     }
     
     // Ouvrir la modale (tout se passe dans le navigateur de l'utilisateur)
+    // S'assurer que la modale est dans le body (pas dans un conteneur caché)
+    if (modal.parentElement !== document.body) {
+        console.log('[VSA] Déplacement de la modale dans le body');
+        document.body.appendChild(modal);
+    }
+    
+    // Forcer l'affichage de manière directe et agressive
+    console.log('[VSA] Ouverture forcée de la modale');
+    modal.classList.add('active');
+    
+    // Appliquer les styles inline pour garantir l'affichage
+    modal.style.cssText = `
+        display: flex !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        z-index: 99999 !important;
+        background: rgba(0, 0, 0, 0.5) !important;
+        align-items: center !important;
+        justify-content: center !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    `;
+    
+    // S'assurer que le modal-content est visible
+    const modalContent = modal.querySelector('.modal-content');
+    if (modalContent) {
+        modalContent.style.cssText = `
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: relative !important;
+            z-index: 100000 !important;
+        `;
+    }
+    
+    // Utiliser openModal si disponible (pour la gestion du focus et des événements)
     if (window.openModal) {
-        console.log('[VSA] Utilisation de window.openModal');
+        console.log('[VSA] Utilisation de window.openModal pour la gestion des événements');
         try {
             window.openModal(modal, { focusElement: '#vsaImportTextarea' });
-            // Vérifier que la modale est bien visible après ouverture
-            setTimeout(() => {
-                const isVisible = modal.classList.contains('active') && 
-                                 (modal.offsetWidth > 0 || modal.offsetHeight > 0);
-                console.log('[VSA] Modale visible après openModal?', isVisible, {
-                    hasActive: modal.classList.contains('active'),
-                    offsetWidth: modal.offsetWidth,
-                    offsetHeight: modal.offsetHeight,
-                    display: window.getComputedStyle(modal).display,
-                    visibility: window.getComputedStyle(modal).visibility,
-                    zIndex: window.getComputedStyle(modal).zIndex
-                });
-                if (!isVisible) {
-                    console.warn('[VSA] Modale non visible, forçage de l\'affichage');
-                    modal.style.display = 'flex';
-                    modal.style.position = 'fixed';
-                    modal.style.top = '0';
-                    modal.style.left = '0';
-                    modal.style.right = '0';
-                    modal.style.bottom = '0';
-                    modal.style.zIndex = '9999';
-                    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
-                    modal.style.alignItems = 'center';
-                    modal.style.justifyContent = 'center';
-                }
-            }, 100);
         } catch (e) {
-            console.error('[VSA] Erreur lors de l\'ouverture de la modale:', e);
-            // Fallback: forcer l'affichage manuellement
-            modal.classList.add('active');
-            modal.style.display = 'flex';
-            modal.style.position = 'fixed';
-            modal.style.top = '0';
-            modal.style.left = '0';
-            modal.style.right = '0';
-            modal.style.bottom = '0';
-            modal.style.zIndex = '9999';
-            modal.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
-            modal.style.alignItems = 'center';
-            modal.style.justifyContent = 'center';
+            console.warn('[VSA] Erreur openModal (non bloquant):', e);
         }
-    } else {
-        console.log('[VSA] Utilisation de modal.classList.add (fallback)');
-        modal.classList.add('active');
-        modal.style.display = 'flex';
-        modal.style.position = 'fixed';
-        modal.style.top = '0';
-        modal.style.left = '0';
-        modal.style.right = '0';
-        modal.style.bottom = '0';
-        modal.style.zIndex = '9999';
-        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
-        modal.style.alignItems = 'center';
-        modal.style.justifyContent = 'center';
-        // Focus sur le textarea
-        setTimeout(() => {
-            if (textareaEl) textareaEl.focus();
-        }, 100);
     }
+    
+    // Focus sur le textarea après un court délai
+    setTimeout(() => {
+        if (textareaEl) {
+            textareaEl.focus();
+            console.log('[VSA] Focus sur textarea');
+        }
+        // Vérification finale
+        const finalCheck = {
+            hasActive: modal.classList.contains('active'),
+            offsetWidth: modal.offsetWidth,
+            offsetHeight: modal.offsetHeight,
+            display: window.getComputedStyle(modal).display,
+            visibility: window.getComputedStyle(modal).visibility,
+            zIndex: window.getComputedStyle(modal).zIndex,
+            parentElement: modal.parentElement.tagName
+        };
+        console.log('[VSA] État final de la modale:', finalCheck);
+        if (modal.offsetWidth === 0 || modal.offsetHeight === 0) {
+            console.error('[VSA] PROBLÈME: Modale toujours sans dimensions!', finalCheck);
+        }
+    }, 150);
 }
 
 window.closeVsaImportModal = function closeVsaImportModal() {
