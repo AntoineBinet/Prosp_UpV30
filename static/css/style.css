@@ -1391,6 +1391,48 @@ th.company-sortable:hover {
     justify-content: flex-end;
 }
 
+/* Édition inline Groupe / Site (tableau entreprises) */
+.company-groupe-editable,
+.company-site-editable {
+    cursor: pointer;
+    padding: 4px 6px;
+    margin: -4px -6px;
+    border-radius: 8px;
+    transition: background-color 0.15s ease;
+}
+.company-groupe-editable:hover,
+.company-site-editable:hover {
+    background: rgba(var(--color-primary-rgb), 0.08);
+}
+.company-groupe-editor,
+.company-site-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.company-groupe-editor input,
+.company-site-editor input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font-size: inherit;
+    outline: none;
+}
+.company-groupe-editor input:focus,
+.company-site-editor input:focus {
+    border-color: var(--color-primary);
+}
+.company-groupe-editor .note-actions,
+.company-site-editor .note-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 0;
+}
+
 /* Table container modern */
 .table-container {
     border-radius: var(--radius);
@@ -2312,6 +2354,23 @@ form.has-invalid-fields input[type="submit"] {
 /* Page Entreprises — vue cartes moderne */
 .companies-table-wrap {
     margin-top: 0;
+}
+/* Alignement titres colonnes avec contenu (Groupe/Site à gauche, Prospects/RDV/Appelables/Actions centrés) */
+.companies-table-wrap .table-container th,
+.companies-table-wrap .table-container td {
+    vertical-align: middle;
+}
+.companies-table-wrap .table-container th.center,
+.companies-table-wrap .table-container td.center {
+    text-align: center;
+}
+.companies-table-wrap .table-container th:not(.center),
+.companies-table-wrap .table-container td:not(.center) {
+    text-align: left;
+}
+.companies-table-wrap .table-container .company-count-cell,
+.companies-table-wrap .table-container .company-actions-cell {
+    text-align: center;
 }
 .companies-cards-grid {
     margin-top: 0;
