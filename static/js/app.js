@@ -3147,8 +3147,42 @@ function moveToContacts(id) {
     if (!confirm(`📁 Déplacer "${label}" vers le vivier de contacts ?`)) return;
     p.is_contact = 1;
     saveToServer();
-    closeDetail();
-    filterProspects();
+    
+    // En mode prosp, passer au prospect suivant au lieu de fermer
+    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
+    if (isProspMode) {
+        // Récupérer le prospect suivant AVANT de filtrer (car le prospect actuel sera retiré de la liste)
+        const nextId = getProspNextId(id);
+        filterProspects(); // Met à jour la liste filtrée et _prospSession.ids via syncProspSessionWithFilteredList
+        
+        // Vérifier que nextId est toujours dans la liste après filtrage
+        if (nextId && (_prospSession.ids || []).includes(nextId)) {
+            // Le suivant est toujours valide, naviguer vers lui
+            _prospSession.currentId = nextId;
+            _prospSession.currentIndex = (_prospSession.ids || []).indexOf(nextId);
+            if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
+            // Petit délai pour s'assurer que filterProspects a terminé
+            requestAnimationFrame(() => {
+                viewDetail(nextId).catch(() => {});
+            });
+        } else if ((_prospSession.ids || []).length > 0) {
+            // Le suivant n'est plus valide, prendre le premier de la liste
+            const firstId = _prospSession.ids[0];
+            _prospSession.currentId = firstId;
+            _prospSession.currentIndex = 0;
+            if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
+            requestAnimationFrame(() => {
+                viewDetail(firstId).catch(() => {});
+            });
+        } else {
+            // Plus de prospects dans la liste, terminer le mode prosp
+            closeDetail();
+        }
+    } else {
+        closeDetail();
+        filterProspects();
+    }
+    
     showToast(`📁 ${label} déplacé vers les contacts`, 'success');
 }
 
