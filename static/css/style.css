@@ -6257,6 +6257,8 @@ body[data-page=""] #fabAdd {
 body[data-page="sourcing"] #fabAdd,
 body[data-page="candidate"] #fabAdd {
   display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* Sur mobile, FAB à gauche pour candidate et sourcing (évite conflit avec assistant à droite) */
