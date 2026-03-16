@@ -1352,9 +1352,11 @@ function _initVsaModal() {
     _vsaInitialized = true;
 }
 
-// Fonction d'initialisation VSA globale (appelable depuis n'importe où)
+// Fonction d'initialisation VSA globale (appelable depuis n'importe où) - optimisée
 window.initVsaModal = function() {
-    _initVsaModal();
+    if (!_vsaInitialized) {
+        _initVsaModal();
+    }
 };
 
 document.addEventListener('DOMContentLoaded', async () => {

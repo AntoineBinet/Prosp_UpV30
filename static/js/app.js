@@ -1412,17 +1412,19 @@ function closeModal(modalIdOrElement, onClose) {
 window.openModal = openModal;
 window.closeModal = closeModal;
 
-// Initialiser la modale VSA partout (si disponible)
+// Initialiser la modale VSA partout (si disponible) - une seule fois
 // TOUT SE PASSE CÔTÉ CLIENT - aucune fenêtre ne s'ouvre sur le serveur
+let _vsaGlobalInitDone = false;
 document.addEventListener('DOMContentLoaded', function() {
+    if (_vsaGlobalInitDone) return;
+    _vsaGlobalInitDone = true;
+    
     // Attendre que page-sourcing.js soit chargé si nécessaire
     setTimeout(() => {
         if (typeof window.initVsaModal === 'function') {
             try {
                 window.initVsaModal();
-            } catch (e) {
-                console.warn('[VSA] Erreur init modale VSA:', e);
-            }
+            } catch (e) {}
         }
     }, 200);
 });
