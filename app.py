@@ -10268,6 +10268,7 @@ def _schedule_restart(delay: float = 10.0):
 
     - If launched via PROSPUP.bat (or _run_serveur.bat), it will restart on exit code 42.
     - If launched directly (python app.py), it spawns a new process then exits.
+    - On Windows, the new process is detached to survive terminal closure (Cursor, etc.).
 
     Le délai permet aux clients (Cloudflare, navigateurs) de recevoir la réponse HTTP
     avant que le serveur ne redémarre, évitant les erreurs 502.
@@ -10282,9 +10283,28 @@ def _schedule_restart(delay: float = 10.0):
             import sys as _sys
             args = [_sys.executable] + _sys.argv
             logger.info("Restart: lancement nouveau processus: %s", " ".join(args))
-            proc = subprocess.Popen(args, cwd=str(APP_DIR))
+            
+            # Sur Windows, détacher le processus pour qu'il survive à la fermeture du terminal
+            # (utile quand lancé depuis Cursor ou un terminal qui peut être fermé)
+            creation_flags = 0
+            if sys.platform == "win32":
+                # CREATE_NEW_PROCESS_GROUP + DETACHED_PROCESS pour indépendance du terminal
+                # Note: DETACHED_PROCESS peut ne pas être disponible sur toutes les versions
+                try:
+                    creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+                except AttributeError:
+                    # Fallback si DETACHED_PROCESS n'existe pas (anciennes versions Python)
+                    creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+            
+            proc = subprocess.Popen(
+                args,
+                cwd=str(APP_DIR),
+                creationflags=creation_flags if sys.platform == "win32" else 0,
+                # Sur Unix, utiliser start_new_session pour détacher du terminal
+                start_new_session=(sys.platform != "win32")
+            )
             time.sleep(2.0)
-            logger.info("Restart: nouveau processus lancé, arrêt de l'ancien serveur")
+            logger.info("Restart: nouveau processus lancé (PID %d), arrêt de l'ancien serveur", proc.pid)
         except Exception as e:
             logger.error("Restart: erreur lors du lancement du nouveau processus: %s", e)
         os._exit(0)
@@ -12869,11 +12889,8 @@ def api_prospect_infos_rdv_stream(prospect_id: int):
         except urllib.error.HTTPError as e:
             try:
                 err_body = ""
-            try:
                 if e.fp:
                     err_body = e.read().decode("utf-8")
-            except Exception:
-                pass
                 err_data = json.loads(err_body) if err_body else {}
                 msg = err_data.get("error", err_body) or str(e)
             except Exception:
