@@ -553,6 +553,7 @@ h1 {
 
 /* ── Sub-menu (indented children) ── */
 .nav-submenu {
+    display: block !important; /* jamais display:none — animation via max-height uniquement */
     max-height: 0;
     overflow: hidden;
     opacity: 0;
@@ -561,7 +562,7 @@ h1 {
                 opacity .2s ease;
 }
 .nav-submenu.expanded {
-    max-height: 300px;
+    max-height: 400px;
     opacity: 1;
 }
 .nav-sub-item {
@@ -8787,13 +8788,21 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     z-index: 100;
   }
 
-  /* Sidebar collapsed — garder la même position fixe */
+  /* Main layout : sidebar fixed est hors flux → padding-left au lieu d'une 2e colonne grid */
+  .main-layout {
+    display: block;
+    padding-left: 220px;
+    min-height: calc(100vh - var(--header-h));
+    transition: padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Sidebar collapsed */
   .sidebar-collapsed .sidebar {
     width: 52px !important;
     min-width: 52px !important;
   }
   .sidebar-collapsed .main-layout {
-    grid-template-columns: 52px 1fr !important;
+    padding-left: 52px !important;
   }
 
   /* Chevron accordion dans la sidebar */
