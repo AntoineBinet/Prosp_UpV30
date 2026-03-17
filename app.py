@@ -6731,8 +6731,21 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON, sans texte avant ou après."""
 # ====== Prospect Photo Upload ======
 import uuid as _uuid
 
-PHOTOS_DIR = os.path.join(APP_DIR, "static", "photos")
+PHOTOS_DIR = DATA_DIR / "photos"
 os.makedirs(PHOTOS_DIR, exist_ok=True)
+
+# Migration: déplacer les photos existantes de static/photos/ vers data/photos/
+_old_photos_dir = APP_DIR / "static" / "photos"
+if _old_photos_dir.exists():
+    for _f in _old_photos_dir.iterdir():
+        if _f.is_file():
+            _dest = PHOTOS_DIR / _f.name
+            if not _dest.exists():
+                _f.rename(_dest)
+    try:
+        _old_photos_dir.rmdir()
+    except OSError:
+        pass
 
 # ====== Utilitaires validation et sécurité pour routes push ======
 def _validate_positive_int(value: Any, param_name: str = "id") -> int:
@@ -6841,7 +6854,7 @@ def api_prospect_photo():
         logger.error("Photo save failed for prospect %s: %s", pid, e)
         return jsonify({"ok": False, "error": "Erreur sauvegarde fichier"}), 500
 
-    photo_url = f"/static/photos/{fname}"
+    photo_url = f"/api/photos/prospect/{pid}"
 
     with _conn() as conn:
         conn.execute("UPDATE prospects SET photo_url = ? WHERE id = ? AND owner_id=?;", (photo_url, pid, uid))
@@ -6873,12 +6886,12 @@ def api_prospect_photo_delete():
     if not _prospect_owned(pid):
         return jsonify({"ok": False, "error": "Accès refusé"}), 403
 
+    for _ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        _old_path = PHOTOS_DIR / f"prospect_{pid}{_ext}"
+        if _old_path.is_file():
+            _old_path.unlink()
+            break
     with _conn() as conn:
-        row = conn.execute("SELECT photo_url FROM prospects WHERE id = ? AND owner_id=?;", (pid, uid)).fetchone()
-        if row and row["photo_url"]:
-            old_path = os.path.join(APP_DIR, row["photo_url"].lstrip("/"))
-            if os.path.exists(old_path):
-                os.remove(old_path)
         conn.execute("UPDATE prospects SET photo_url = NULL WHERE id = ? AND owner_id=?;", (pid, uid))
 
     return jsonify({"ok": True})
