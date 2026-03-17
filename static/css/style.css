@@ -6577,12 +6577,76 @@ body[data-page="candidate"] #fabAdd {
   margin: 4px 8px;
 }
 
+/* Username sous le nom dans le header du popup */
+.user-menu-username {
+  font-size: 11px;
+  color: var(--color-text-secondary, #94a3b8);
+  margin-top: 1px;
+  margin-bottom: 2px;
+  opacity: 0.8;
+}
+
 @media (max-width: 900px) {
   .user-menu-popup {
     top: 60px;
     right: 12px;
     width: calc(100vw - 24px);
     max-width: 320px;
+  }
+}
+
+/* ── Popup utilisateur en bottom-sheet sur mobile ─────────────── */
+@media (max-width: 768px) {
+  .user-menu-popup {
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    transform: translateY(100%) !important;
+    transform-origin: bottom center !important;
+    transition: transform 0.3s cubic-bezier(0.34, 1.1, 0.64, 1), opacity 0.2s ease !important;
+    opacity: 1 !important;
+    z-index: 10000 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .user-menu-popup.open {
+    transform: translateY(0) !important;
+  }
+  /* Poignée visuelle en haut du sheet */
+  .user-menu-popup::before {
+    content: '';
+    display: block;
+    width: 36px; height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    margin: 10px auto 0;
+  }
+  /* Agrandir avatar + items pour touch */
+  .user-menu-avatar { width: 48px !important; height: 48px !important; font-size: 20px !important; }
+  .user-menu-name   { font-size: 16px !important; }
+  .user-menu-item   { padding: 14px 16px !important; font-size: 15px !important; }
+}
+
+/* Backdrop du menu utilisateur (mobile uniquement) */
+.user-menu-backdrop {
+  display: none;
+}
+@media (max-width: 768px) {
+  .user-menu-backdrop {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    z-index: 9999;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .user-menu-backdrop.open {
+    opacity: 1; pointer-events: auto;
   }
 }
 
