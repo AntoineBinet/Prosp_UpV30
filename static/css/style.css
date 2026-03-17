@@ -3402,7 +3402,9 @@ header a, header button {
 }
 /* Désactiver le tooltip global sur les boutons de la sidebar (évite dédoublement du texte au survol ; le mode réduit a son propre tooltip) */
 .sidebar .nav-button[data-tooltip]:hover::before,
-.sidebar .nav-button[data-tooltip]:hover::after {
+.sidebar .nav-button[data-tooltip]:hover::after,
+.sidebar .nav-split-link[data-tooltip]:hover::before,
+.sidebar .nav-split-link[data-tooltip]:hover::after {
   content: none !important;
   display: none !important;
 }
