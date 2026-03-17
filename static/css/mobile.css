@@ -265,6 +265,13 @@
     pointer-events: auto;
   }
 
+  .fab-options.is-open .fab-option:nth-child(5) {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition-delay: 0.25s;
+    pointer-events: auto;
+  }
+
   .fab-option-label {
     background: rgba(20, 20, 30, 0.88);
     backdrop-filter: blur(10px);
@@ -374,5 +381,71 @@
 @media (max-width: 768px) {
   #dashAssistantFab {
     display: none !important;
+  }
+}
+
+/* ── Transitions slide horizontal — style iOS natif ─────────────
+   Uniquement sur mobile (≤ 768px). Anime .container au changement
+   de page pour simuler le slide natif iPhone.
+   ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Évite le débordement horizontal pendant l'animation */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* ── Animations entrée ── */
+  .page-enter-from-right {
+    animation: slideInFromRight 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  }
+
+  .page-enter-from-left {
+    animation: slideInFromLeft 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  }
+
+  /* ── Animations sortie ── */
+  .page-exit-to-left {
+    animation: slideOutToLeft 0.22s cubic-bezier(0.55, 0, 1, 0.45) both;
+    pointer-events: none;
+  }
+
+  .page-exit-to-right {
+    animation: slideOutToRight 0.22s cubic-bezier(0.55, 0, 1, 0.45) both;
+    pointer-events: none;
+  }
+
+  /* ── Keyframes ── */
+  @keyframes slideInFromRight {
+    from { transform: translateX(100%); opacity: 0.7; }
+    to   { transform: translateX(0);    opacity: 1;   }
+  }
+
+  @keyframes slideInFromLeft {
+    from { transform: translateX(-100%); opacity: 0.7; }
+    to   { transform: translateX(0);     opacity: 1;   }
+  }
+
+  @keyframes slideOutToLeft {
+    from { transform: translateX(0);    opacity: 1; }
+    to   { transform: translateX(-28%); opacity: 0; }
+  }
+
+  @keyframes slideOutToRight {
+    from { transform: translateX(0);   opacity: 1; }
+    to   { transform: translateX(28%); opacity: 0; }
+  }
+
+  /* ── Overlay léger pendant la transition (évite le flash blanc) ── */
+  .nav-transition-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0);
+    z-index: 8999; /* Sous le footer (9000) et le FAB (9999) */
+    pointer-events: none;
+    transition: background 0.12s ease;
+  }
+
+  .nav-transition-overlay.active {
+    background: rgba(0, 0, 0, 0.06);
   }
 }

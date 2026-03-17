@@ -118,6 +118,12 @@
               window.location.href = '/?view=prosp';
             }
             break;
+
+          case 'assistant-ia':
+            if (typeof window.toggleAssistantChat === 'function') {
+              window.toggleAssistantChat();
+            }
+            break;
         }
       });
     });
@@ -154,11 +160,123 @@
     setTimeout(trySync, 1000);
   }
 
+  // ── Transitions slide horizontal iOS ──────────────────────────
+  // Ordre des onglets dans le footer flottant (index = position)
+  var PAGE_ORDER = {
+    '/dashboard': 0,
+    '/':          1,
+    '/focus':     2,
+    '/calendrier':3,
+  };
+
+  // Durée animation sortie en ms (avant navigation)
+  var EXIT_DURATION = 200;
+
+  function getPageIndex(pathname) {
+    if (PAGE_ORDER[pathname] !== undefined) return PAGE_ORDER[pathname];
+    // Correspondance partielle (ex: /focus/xxx → 2)
+    for (var key in PAGE_ORDER) {
+      if (key !== '/' && pathname.indexOf(key) === 0) return PAGE_ORDER[key];
+    }
+    return -1;
+  }
+
+  function getPageWrapper() {
+    return document.querySelector('.container') || document.body;
+  }
+
+  function createNavOverlay() {
+    if (document.getElementById('nav-transition-overlay')) return;
+    var el = document.createElement('div');
+    el.className = 'nav-transition-overlay';
+    el.id = 'nav-transition-overlay';
+    document.body.appendChild(el);
+  }
+
+  function animatePageEntrance() {
+    var direction = sessionStorage.getItem('prospup_nav_direction');
+    if (!direction) return;
+    sessionStorage.removeItem('prospup_nav_direction');
+
+    var wrapper = getPageWrapper();
+    var cls = direction === 'forward' ? 'page-enter-from-right' : 'page-enter-from-left';
+    wrapper.classList.add(cls);
+    wrapper.addEventListener('animationend', function () {
+      wrapper.classList.remove(cls);
+    }, { once: true });
+  }
+
+  function handleNavClick(event) {
+    var link = event.currentTarget;
+    var href = link.getAttribute('href');
+    if (!href || href.charAt(0) === '#' || href.indexOf('javascript') === 0) return;
+
+    var targetPath;
+    try {
+      targetPath = new URL(href, window.location.origin).pathname;
+    } catch (e) {
+      return;
+    }
+
+    // Même page → pas d'animation
+    if (targetPath === window.location.pathname) {
+      event.preventDefault();
+      return;
+    }
+
+    var currentIdx = getPageIndex(window.location.pathname);
+    var targetIdx  = getPageIndex(targetPath);
+    var direction  = 'forward';
+    if (currentIdx !== -1 && targetIdx !== -1) {
+      direction = targetIdx >= currentIdx ? 'forward' : 'backward';
+    }
+
+    sessionStorage.setItem('prospup_nav_direction', direction);
+    event.preventDefault();
+
+    var wrapper = getPageWrapper();
+    var overlay = document.getElementById('nav-transition-overlay');
+    var exitCls = direction === 'forward' ? 'page-exit-to-left' : 'page-exit-to-right';
+
+    wrapper.classList.add(exitCls);
+    if (overlay) overlay.classList.add('active');
+
+    setTimeout(function () {
+      window.location.href = href;
+    }, EXIT_DURATION);
+  }
+
+  function initSlideTransitions() {
+    createNavOverlay();
+    animatePageEntrance();
+
+    // Liens du footer flottant
+    document.querySelectorAll('.mobile-footer-float .mf-item[href]').forEach(function (link) {
+      link.addEventListener('click', handleNavClick);
+    });
+
+    // Autres liens internes hors footer (ex: liens dans les cartes, sidebar)
+    document.querySelectorAll('a[href^="/"]').forEach(function (link) {
+      if (!link.closest('.mobile-footer-float')) {
+        link.addEventListener('click', handleNavClick);
+      }
+    });
+  }
+
+  // Gestion du bouton retour iOS (swipe bord gauche → bfcache)
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted) {
+      sessionStorage.setItem('prospup_nav_direction', 'backward');
+      animatePageEntrance();
+    }
+  });
+
   // ── Init au chargement du DOM ──────────────────────────────────
   function init() {
     initMobileFooterActive();
     initFABSpeedDial();
     syncFooterAvatar();
+    initSlideTransitions();
   }
 
   if (document.readyState === 'loading') {
