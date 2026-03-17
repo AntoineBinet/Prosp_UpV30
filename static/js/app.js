@@ -13561,36 +13561,58 @@ function openUserMenu() {
         
         const avatarEl = document.getElementById('userMenuAvatar');
         const nameEl = document.getElementById('userMenuName');
+        const usernameEl = document.getElementById('userMenuUsername');
         const roleEl = document.getElementById('userMenuRole');
-        
+
         if (avatarEl) avatarEl.textContent = initial;
         if (nameEl) nameEl.textContent = name;
+        if (usernameEl) usernameEl.textContent = u.username || '';
         if (roleEl) roleEl.textContent = label;
-        
+
+        // Mettre à jour aussi l'avatar dans le footer mobile flottant
+        const mfAvatar = document.getElementById('mf-avatar-initial');
+        if (mfAvatar) mfAvatar.textContent = initial;
+
         // Afficher/masquer les options admin
         const adminItems = popup.querySelectorAll('.admin-only');
         adminItems.forEach(item => {
             item.style.display = (u.role === 'admin') ? '' : 'none';
         });
     }
-    
+
     popup.classList.add('open');
-    
-    // Fermer si on clique en dehors
-    setTimeout(() => {
-        const closeOnOutside = (e) => {
-            if (!popup.contains(e.target) && !e.target.closest('.user-session-badge')) {
-                closeUserMenu();
-                document.removeEventListener('click', closeOnOutside);
-            }
-        };
-        document.addEventListener('click', closeOnOutside);
-    }, 100);
+
+    // Sur mobile : backdrop + fermer au touch extérieur
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    if (isMobile) {
+        let backdrop = document.getElementById('userMenuBackdrop');
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.id = 'userMenuBackdrop';
+            backdrop.className = 'user-menu-backdrop';
+            backdrop.addEventListener('click', closeUserMenu);
+            document.body.appendChild(backdrop);
+        }
+        requestAnimationFrame(() => backdrop.classList.add('open'));
+    } else {
+        // Fermer si on clique en dehors (desktop)
+        setTimeout(() => {
+            const closeOnOutside = (e) => {
+                if (!popup.contains(e.target) && !e.target.closest('.user-session-badge')) {
+                    closeUserMenu();
+                    document.removeEventListener('click', closeOnOutside);
+                }
+            };
+            document.addEventListener('click', closeOnOutside);
+        }, 100);
+    }
 }
 
 function closeUserMenu() {
     const popup = document.getElementById('userMenuPopup');
     if (popup) popup.classList.remove('open');
+    const backdrop = document.getElementById('userMenuBackdrop');
+    if (backdrop) backdrop.classList.remove('open');
 }
 
 function openUserMenuOption(option) {
