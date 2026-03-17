@@ -517,7 +517,7 @@
             const bar = document.createElement('div');
             bar.id = 'mobileQuickActionsBar';
             bar.className = 'mobile-quick-actions-bar';
-            bar.innerHTML = '<a href="/focus" class="mobile-qa-item" title="Focus">🎯 Focus</a>' +
+            bar.innerHTML = '<button type="button" class="mobile-qa-item mobile-qa-pile" onclick="typeof startStackMode === \'function\' && startStackMode()" title="Mode pile (swipe)">🃏 Pile</button>' +
                 '<button type="button" class="mobile-qa-item" onclick="window.openGlobalSearch && window.openGlobalSearch()" title="Recherche">🔍 Recherche</button>' +
                 '<a href="/?add=1" class="mobile-qa-item" title="Ajouter prospect">➕ Ajouter</a>';
             document.body.appendChild(bar);
