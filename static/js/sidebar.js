@@ -262,12 +262,15 @@
 
                     sidebar.appendChild(sub);
 
-                    // Accordion : le clic sur le parent toggle TOUJOURS le sous-menu
+                    // Accordion : si fermé → ouvrir ; si ouvert → naviguer vers le parent
                     a.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        var opened = sub.classList.toggle('expanded');
-                        chevron.textContent = opened ? ' ▾' : ' ▸';
-                        _setAccordionState(item.page, opened);
+                        if (!sub.classList.contains('expanded')) {
+                            e.preventDefault();
+                            sub.classList.add('expanded');
+                            chevron.textContent = ' ▾';
+                            _setAccordionState(item.page, true);
+                        }
+                        // sinon : navigation normale vers item.href
                     });
                 }
             });
