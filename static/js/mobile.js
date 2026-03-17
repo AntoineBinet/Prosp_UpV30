@@ -118,6 +118,12 @@
               window.location.href = '/?view=prosp';
             }
             break;
+
+          case 'assistant-ia':
+            if (typeof window.toggleAssistantChat === 'function') {
+              window.toggleAssistantChat();
+            }
+            break;
         }
       });
     });

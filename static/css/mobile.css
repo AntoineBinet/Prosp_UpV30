@@ -265,6 +265,13 @@
     pointer-events: auto;
   }
 
+  .fab-options.is-open .fab-option:nth-child(5) {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition-delay: 0.25s;
+    pointer-events: auto;
+  }
+
   .fab-option-label {
     background: rgba(20, 20, 30, 0.88);
     backdrop-filter: blur(10px);
