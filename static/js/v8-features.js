@@ -378,14 +378,16 @@
         if (!sidebar) return;
         if (document.getElementById('sidebarCollapseBtn')) return;
 
-        // Create toggle button
+        // Create toggle button — pastille flottante sur le bord droit de la sidebar
         const toggle = document.createElement('button');
         toggle.className = 'sidebar-collapse-btn';
         toggle.id = 'sidebarCollapseBtn';
         toggle.title = 'Réduire / Agrandir le menu';
-        toggle.textContent = '«';
+        toggle.setAttribute('aria-label', 'Réduire / Agrandir le menu');
+        toggle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
         toggle.onclick = function () { _toggleSidebar(); };
-        sidebar.prepend(toggle);
+        // Injecté dans <body> (pas dans .sidebar) pour éviter overflow-x: hidden
+        document.body.appendChild(toggle);
 
         // Wrap emoji and text in spans for CSS control (seulement si pas déjà wrappé)
         sidebar.querySelectorAll('.nav-button:not(:has(.nav-icon))').forEach(function (btn) {
@@ -410,15 +412,13 @@
         const collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
         if (collapsed) {
             document.body.classList.add('sidebar-collapsed');
-            toggle.textContent = '»';
         }
     }
 
     function _toggleSidebar() {
         const collapsed = document.body.classList.toggle('sidebar-collapsed');
         localStorage.setItem('sidebar-collapsed', collapsed);
-        const btn = document.getElementById('sidebarCollapseBtn');
-        if (btn) btn.textContent = collapsed ? '»' : '«';
+        // Le SVG tourne via CSS — pas de changement de textContent
     }
 
     window.toggleSidebar = _toggleSidebar;

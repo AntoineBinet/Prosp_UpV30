@@ -3394,7 +3394,7 @@ header, header *, .header-left, .header-center, .header-subtitle, header h1, hea
 header a, header button {
   cursor: pointer !important;
 }
-.sidebar, .sidebar *, .sidebar .nav-button, .sidebar .nav-group-label, .sidebar h2, .sidebar-footer, .sidebar-collapse-btn {
+.sidebar, .sidebar *, .sidebar .nav-button, .sidebar .nav-group-label, .sidebar h2, .sidebar-footer {
   cursor: default !important;
 }
 .sidebar a, .sidebar .nav-button, .sidebar button {
@@ -8805,6 +8805,47 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     padding-left: 52px !important;
   }
 
+  /* Pastille collapse sidebar — flottante sur le bord droit */
+  .sidebar-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    /* bord droit de la sidebar (220px) centré sur son épaisseur (24px → -12px) */
+    left: calc(220px - 12px);
+    /* centre vertical de la sidebar : elle commence à header-h + spacing-sm */
+    top: calc(50vh + (var(--header-h) + var(--spacing-sm)) / 2);
+    transform: translateY(-50%);
+    z-index: 150;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-2);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.15s,
+                background 0.15s;
+  }
+  .sidebar-collapse-btn:hover {
+    background: var(--color-surface);
+    box-shadow: 0 0 0 4px rgba(var(--color-primary-rgb), 0.4);
+    color: var(--color-primary);
+  }
+  .sidebar-collapse-btn svg {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+  }
+  /* Collapsed : repositionne la pastille sur le bord droit de la sidebar réduite */
+  .sidebar-collapsed .sidebar-collapse-btn {
+    left: calc(52px - 12px);
+  }
+  .sidebar-collapsed .sidebar-collapse-btn svg {
+    transform: rotate(180deg);
+  }
+
   /* Chevron accordion — bouton indépendant (clic = toggle, sans naviguer) */
   .nav-chevron-btn {
     margin-left: auto;
@@ -8844,24 +8885,9 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Sidebar Collapse Button ── */
+/* ── Sidebar collapse — pastille flottante sur le bord droit (desktop uniquement) ── */
 .sidebar-collapse-btn {
-  display: block;
-  width: 100%;
-  padding: 4px 0;
-  margin-bottom: 6px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface-2);
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  cursor: pointer;
-  transition: all .2s;
-  text-align: center;
-  font-weight: 700;
-}
-.sidebar-collapse-btn:hover {
-  background: rgba(var(--color-primary-rgb),.1);
-  color: var(--color-primary);
+  display: none; /* masqué par défaut, affiché via media query desktop */
 }
 
 /* ── Collapsed Sidebar State ── */
@@ -8880,10 +8906,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 .sidebar-collapsed .sidebar .theme-toggle-btn {
   display: none !important;
 }
-.sidebar-collapsed .sidebar .sidebar-collapse-btn {
-  font-size: 12px;
-  padding: 4px;
-}
+/* .sidebar-collapse-btn est maintenant dans <body> — plus de règle .sidebar > .sidebar-collapse-btn */
 .sidebar-collapsed .sidebar .nav-button {
   padding: 8px 0 !important;
   text-align: center;
