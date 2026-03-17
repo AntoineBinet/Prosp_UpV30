@@ -8699,18 +8699,20 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 
   /* ══ Swipe iOS sur les cartes prospects ══════════════════════════════════════ */
 
-  /* Wrapper : clip du slide + radius identique à pmc-content */
+  /* Wrapper : clip + isolation stacking context pour que z-index fonctionne */
   body[data-page="prospects"] .pmc-swipe-wrap {
     position: relative;
     overflow: hidden;
     border-radius: 14px;
+    width: 100%;
+    isolation: isolate;
   }
 
-  /* Boutons d'action absolus derrière la carte */
+  /* Boutons d'action : z-index 0 — strictement DERRIÈRE la carte */
   body[data-page="prospects"] .pmc-actions-left,
   body[data-page="prospects"] .pmc-actions-right {
     position: absolute;
-    top: 0; bottom: 0;
+    top: 0; bottom: 0; z-index: 0;
     display: flex;
     align-items: stretch;
   }
@@ -8737,14 +8739,20 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     text-transform: uppercase; white-space: nowrap;
   }
 
-  /* La carte glisse par-dessus — transition uniquement sur snap (pas pendant le drag) */
+  /* La carte glisse par-dessus : z-index 1 + fond OPAQUE pour masquer les boutons derrière */
   body[data-page="prospects"] .pmc-content {
     position: relative; z-index: 1;
     transition: transform 0.2s ease;
-  }
-  /* Retire le border-radius du pmc-content (le wrapper s'en charge) */
-  body[data-page="prospects"] .table-wrapper .pmc-content {
     border-radius: 0;
+    /* Fond solide équivalent à rgba(255,255,255,0.045) sur #0f172a */
+    background: #191f2e !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+  }
+  @media (prefers-color-scheme: light) {
+    body[data-page="prospects"] .pmc-content {
+      background: #ffffff !important;
+      border-color: rgba(0,0,0,0.07) !important;
+    }
   }
 
   /* ══ Mini-sheet de changement de statut (swipe gauche → Statut) ═════════════ */
