@@ -3956,18 +3956,26 @@ function _renderProspectsImpl() {
         const nextFollowUpStr = (prospect.nextFollowUp && String(prospect.nextFollowUp).trim()) ? escapeHtml(String(prospect.nextFollowUp).slice(0, 10)) : '—';
         const fonctionStr = (prospect.fonction && String(prospect.fonction).trim()) ? escapeHtml(prospect.fonction) : '—';
 
-        // iOS 2026 card — nouveau design avec accent couleur + pill statut
+        // Carte compacte 2 lignes — ligne 1 : nom + pill, ligne 2 : méta tout-en-un
         const pmcSlugClass = 'pmc-s-' + stMeta.slug;
         const pmcPillHtml = (stMeta.slug !== 'none' && stMeta.slug !== 'autre' && stMeta.label)
             ? '<span class="pmc-pill">' + escapeHtml(stMeta.label) + '</span>' : '';
-        const pmcStars = pert > 0 ? '<span class="pmc-stars">' + '★'.repeat(pert) + '☆'.repeat(5 - pert) + '</span>' : '';
-        const pmcTelChip = telShort ? '<span class="pmc-chip pmc-chip-tel">📞 ' + escapeHtml(telShort) + '</span>' : '';
-        const pmcFollowupChip = followupMini ? '<span class="pmc-chip pmc-chip-followup">' + followupMini + '</span>' : '';
-        const pmcRdvChip = (prospect.statut === 'Rendez-vous' && prospect.rdvDate)
-            ? '<span class="pmc-chip pmc-chip-rdv">📅 ' + escapeHtml(formatRdvDateForBadge(prospect.rdvDate) || '') + '</span>' : '';
         const fonctionMobile = (prospect.fonction && String(prospect.fonction).trim()) ? escapeHtml(String(prospect.fonction).trim()) : '';
-        const pmcSub = companyName ? (fonctionMobile ? escapeHtml(companyName) + ' · ' + fonctionMobile : escapeHtml(companyName)) : (fonctionMobile || '—');
-        const pmcFooter = pmcStars + pmcTelChip + pmcRdvChip + pmcFollowupChip;
+
+        // Ligne méta : tout en une seule ligne (ellipsis), séparé par ·
+        const metaBits = [];
+        if (companyName) metaBits.push(escapeHtml(companyName));
+        if (fonctionMobile) metaBits.push(fonctionMobile);
+        if (pert > 0) metaBits.push('<span class="pmc-stars">' + '★'.repeat(pert) + '</span>');
+        if (telShort) metaBits.push('<span class="pmc-tel">📞 ' + escapeHtml(telShort) + '</span>');
+        // Date RDV ou relance urgente — au plus un indicateur
+        if (prospect.statut === 'Rendez-vous' && prospect.rdvDate) {
+            const rdvFmt = formatRdvDateForBadge(prospect.rdvDate);
+            if (rdvFmt) metaBits.push('<span class="pmc-rdv">📅 ' + escapeHtml(rdvFmt) + '</span>');
+        } else if (followupMini) {
+            metaBits.push(followupMini);
+        }
+        const pmcMetaHtml = metaBits.length ? metaBits.join('<span class="pmc-sep"> · </span>') : '';
 
         const mobileCardHtml =
             '<div class="prospect-card-mobile mobile-only ' + pmcSlugClass + '">' +
@@ -3975,12 +3983,8 @@ function _renderProspectsImpl() {
             '<div class="pmc-accent"></div>' +
             '<span class="pmc-check"><input type="checkbox" class="row-select" title="Sélectionner"' + checked + ' onclick="event.stopPropagation();toggleSelect(' + pid + ',this.checked)"></span>' +
             '<div class="pmc-body">' +
-            '<div class="pmc-header-row">' +
-            '<div class="pmc-name">' + displayName + '</div>' +
-            pmcPillHtml +
-            '</div>' +
-            '<div class="pmc-sub">' + pmcSub + '</div>' +
-            (pmcFooter ? '<div class="pmc-footer-row">' + pmcFooter + '</div>' : '') +
+            '<div class="pmc-row1"><span class="pmc-name">' + displayName + '</span>' + pmcPillHtml + '</div>' +
+            (pmcMetaHtml ? '<div class="pmc-row2">' + pmcMetaHtml + '</div>' : '') +
             '</div>' +
             '<span class="pmc-chevron">›</span>' +
             '</div></div>';

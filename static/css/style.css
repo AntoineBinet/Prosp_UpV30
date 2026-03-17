@@ -8551,10 +8551,10 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   .status-mini { display: inline-flex; }
   .row-chevron { display: inline-block; }
 
-  /* ══ Prospects iOS 2026 — liste en cartes sur mobile ══════════ */
+  /* ══ Prospects — liste compacte 2 lignes, mobile ══════════════ */
   body[data-page="prospects"] .table-wrapper thead { display: none !important; }
   body[data-page="prospects"] .table-wrapper { overflow-x: hidden; width: 100%; }
-  body[data-page="prospects"] .table-wrapper table { width: 100% !important; min-width: 0 !important; border-collapse: separate; border-spacing: 0 8px; }
+  body[data-page="prospects"] .table-wrapper table { width: 100% !important; min-width: 0 !important; border-collapse: separate; border-spacing: 0 3px; }
   body[data-page="prospects"] .table-wrapper tbody { display: block; }
   body[data-page="prospects"] .table-wrapper tbody tr.prospect-row { display: block; width: 100%; background: none !important; border: none !important; }
   body[data-page="prospects"] .table-wrapper tr.prospect-row .prospect-td-check { display: block !important; width: 100%; padding: 0; border: none; background: none; }
@@ -8562,37 +8562,29 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   body[data-page="prospects"] .table-wrapper tr.prospect-row .prospect-td-check .mobile-only { display: block !important; }
   body[data-page="prospects"] .table-wrapper tr.prospect-row td:not(.prospect-td-check) { display: none !important; }
 
-  /* Carte — conteneur principal */
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile.mobile-only {
-    padding: 0; border: none; background: none; border-radius: 0; margin-bottom: 8px;
-  }
+  /* Carte — wrapper */
+  body[data-page="prospects"] .table-wrapper .prospect-card-mobile.mobile-only { padding: 0; border: none; background: none; border-radius: 0; }
+
+  /* Carte — contenu */
   body[data-page="prospects"] .table-wrapper .pmc-content {
     position: relative;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 14px 14px 20px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 20px;
-    overflow: hidden;
-    box-sizing: border-box;
-    transition: background 0.15s ease, transform 0.1s ease;
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 10px 9px 16px;
+    background: rgba(255,255,255,0.045);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px; overflow: hidden; box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s ease, transform 0.08s ease;
     will-change: transform;
   }
   body[data-page="prospects"] .table-wrapper .prospect-card-mobile:active .pmc-content {
-    transform: scale(0.985);
-    background: rgba(255,255,255,0.08);
+    transform: scale(0.982); background: rgba(255,255,255,0.075);
   }
 
-  /* Accent coloré gauche */
+  /* Accent gauche */
   body[data-page="prospects"] .table-wrapper .pmc-accent {
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 4px;
-    border-radius: 20px 0 0 20px;
-    background: rgba(255,255,255,0.15);
+    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    border-radius: 14px 0 0 14px; background: rgba(255,255,255,0.12);
   }
   body[data-page="prospects"] .table-wrapper .pmc-s-appele      .pmc-accent { background: #3B82F6; }
   body[data-page="prospects"] .table-wrapper .pmc-s-rdv         .pmc-accent { background: #22C55E; }
@@ -8600,80 +8592,71 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   body[data-page="prospects"] .table-wrapper .pmc-s-messagerie  .pmc-accent { background: #F59E0B; }
   body[data-page="prospects"] .table-wrapper .pmc-s-rappeler    .pmc-accent { background: #F97316; }
   body[data-page="prospects"] .table-wrapper .pmc-s-pas-interesse .pmc-accent { background: #EF4444; }
-  body[data-page="prospects"] .table-wrapper .pmc-s-pas-actions .pmc-accent { background: #6B7280; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-pas-actions .pmc-accent { background: #475569; }
 
   /* Checkbox */
   body[data-page="prospects"] .table-wrapper .pmc-check { flex-shrink: 0; }
-  body[data-page="prospects"] .table-wrapper .pmc-check input { width: 20px; height: 20px; margin: 0; }
+  body[data-page="prospects"] .table-wrapper .pmc-check input { width: 18px; height: 18px; margin: 0; }
 
-  /* Corps */
-  body[data-page="prospects"] .table-wrapper .pmc-body { flex: 1; min-width: 0; }
+  /* Corps — 2 lignes */
+  body[data-page="prospects"] .table-wrapper .pmc-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 
-  /* Ligne nom + pill statut */
-  body[data-page="prospects"] .table-wrapper .pmc-header-row {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 3px;
+  /* Ligne 1 : nom + pill */
+  body[data-page="prospects"] .table-wrapper .pmc-row1 {
+    display: flex; align-items: baseline; gap: 6px; min-width: 0;
   }
   body[data-page="prospects"] .table-wrapper .pmc-name {
-    font-size: 16px; font-weight: 700; color: #f1f5f9;
-    line-height: 1.25; flex: 1; min-width: 0;
+    font-size: 14px; font-weight: 600; color: #f1f5f9;
+    line-height: 1.3; flex: 1; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
-  /* Pill statut */
+  /* Pill statut — très compact */
   body[data-page="prospects"] .table-wrapper .pmc-pill {
-    font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
-    padding: 3px 9px; border-radius: 20px; white-space: nowrap;
-    flex-shrink: 0; text-transform: uppercase;
-    background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.55);
+    font-size: 9px; font-weight: 700; letter-spacing: 0.4px;
+    padding: 2px 7px; border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+    text-transform: uppercase; line-height: 1.4;
+    background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.45);
   }
-  body[data-page="prospects"] .table-wrapper .pmc-s-appele      .pmc-pill { background: rgba(59,130,246,.18);  color: #7CB9FA; }
-  body[data-page="prospects"] .table-wrapper .pmc-s-rdv         .pmc-pill { background: rgba(34,197,94,.18);   color: #4ADE80; }
-  body[data-page="prospects"] .table-wrapper .pmc-s-prospecte   .pmc-pill { background: rgba(168,85,247,.18);  color: #C084FC; }
-  body[data-page="prospects"] .table-wrapper .pmc-s-messagerie  .pmc-pill { background: rgba(245,158,11,.18);  color: #FCD34D; }
-  body[data-page="prospects"] .table-wrapper .pmc-s-rappeler    .pmc-pill { background: rgba(249,115,22,.18);  color: #FB923C; }
-  body[data-page="prospects"] .table-wrapper .pmc-s-pas-interesse .pmc-pill { background: rgba(239,68,68,.15); color: #FCA5A5; }
-  body[data-page="prospects"] .table-wrapper .pmc-s-pas-actions .pmc-pill { background: rgba(107,114,128,.2);  color: #9CA3AF; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-appele      .pmc-pill { background: rgba(59,130,246,.16);  color: #93C5FD; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-rdv         .pmc-pill { background: rgba(34,197,94,.16);   color: #6EE7B7; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-prospecte   .pmc-pill { background: rgba(168,85,247,.16);  color: #D8B4FE; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-messagerie  .pmc-pill { background: rgba(245,158,11,.16);  color: #FDE68A; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-rappeler    .pmc-pill { background: rgba(249,115,22,.16);  color: #FDBA74; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-pas-interesse .pmc-pill { background: rgba(239,68,68,.13); color: #FCA5A5; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-pas-actions .pmc-pill { background: rgba(71,85,105,.3);    color: #94A3B8; }
   body[data-page="prospects"] .table-wrapper .pmc-s-none .pmc-pill,
   body[data-page="prospects"] .table-wrapper .pmc-s-autre .pmc-pill { display: none; }
 
-  /* Entreprise · Fonction */
-  body[data-page="prospects"] .table-wrapper .pmc-sub {
-    font-size: 13px; color: #94a3b8; margin-bottom: 6px;
+  /* Ligne 2 : méta tout-en-un, ellipsis */
+  body[data-page="prospects"] .table-wrapper .pmc-row2 {
+    font-size: 11px; color: #64748b;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    line-height: 1.3;
   }
-
-  /* Footer : étoiles + chips */
-  body[data-page="prospects"] .table-wrapper .pmc-footer-row {
-    display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
-  }
-  body[data-page="prospects"] .table-wrapper .pmc-stars {
-    font-size: 11px; color: #FBBF24; letter-spacing: 0.5px; margin-right: 2px;
-  }
-  body[data-page="prospects"] .table-wrapper .pmc-chip {
-    font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 10px;
-    background: rgba(255,255,255,0.07); color: #94a3b8; white-space: nowrap;
-  }
-  body[data-page="prospects"] .table-wrapper .pmc-chip-tel     { background: rgba(59,130,246,.12); color: #7DD3FC; }
-  body[data-page="prospects"] .table-wrapper .pmc-chip-rdv     { background: rgba(34,197,94,.12);  color: #86EFAC; }
-  body[data-page="prospects"] .table-wrapper .pmc-chip-followup { background: rgba(249,115,22,.12); color: #FB923C; }
+  body[data-page="prospects"] .table-wrapper .pmc-sep  { color: #334155; }
+  body[data-page="prospects"] .table-wrapper .pmc-stars { color: #FBBF24; font-size: 10px; letter-spacing: 0; }
+  body[data-page="prospects"] .table-wrapper .pmc-tel   { color: #7DD3FC; }
+  body[data-page="prospects"] .table-wrapper .pmc-rdv   { color: #6EE7B7; }
+  body[data-page="prospects"] .table-wrapper .followup-mini.due { color: #F87171; }
+  body[data-page="prospects"] .table-wrapper .followup-mini.ok  { color: #94A3B8; }
 
   /* Chevron */
   body[data-page="prospects"] .table-wrapper .pmc-chevron {
-    flex-shrink: 0; font-size: 20px; color: rgba(255,255,255,0.2); line-height: 1;
+    flex-shrink: 0; font-size: 18px; color: rgba(255,255,255,0.18); line-height: 1;
   }
 
   /* Light mode */
   @media (prefers-color-scheme: light) {
     body[data-page="prospects"] .table-wrapper .pmc-content {
-      background: #ffffff;
-      border-color: rgba(0,0,0,0.07);
-      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      background: #fff; border-color: rgba(0,0,0,0.07);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
     body[data-page="prospects"] .table-wrapper .pmc-name    { color: #0f172a; }
-    body[data-page="prospects"] .table-wrapper .pmc-sub     { color: #64748b; }
-    body[data-page="prospects"] .table-wrapper .pmc-chevron { color: rgba(0,0,0,0.18); }
-    body[data-page="prospects"] .table-wrapper .pmc-chip    { background: rgba(0,0,0,0.06); color: #64748b; }
+    body[data-page="prospects"] .table-wrapper .pmc-row2    { color: #94a3b8; }
+    body[data-page="prospects"] .table-wrapper .pmc-sep     { color: #cbd5e1; }
     body[data-page="prospects"] .table-wrapper .pmc-stars   { color: #D97706; }
+    body[data-page="prospects"] .table-wrapper .pmc-chevron { color: rgba(0,0,0,0.15); }
   }
 
   /* Avoid iOS zoom in inputs */
