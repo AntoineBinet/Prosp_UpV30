@@ -196,52 +196,49 @@
                 var parentActive = hasChildren && _isParentOfActive(item);
                 var selfActive = _isActive(item);
 
-                // Nav button
-                var a = document.createElement('a');
-                a.className = 'nav-button';
-                if (item.id) a.id = item.id;
-
-                if (item.action) {
-                    a.href = 'javascript:void(0)';
-                    a.setAttribute('data-action', item.action);
-                    a.onclick = function () {
-                        if (window[item.action]) window[item.action]();
-                    };
-                } else {
-                    a.href = item.href;
-                    _attachPrefetch(a, item.href);
-                    _attachNavLoading(a, item.href);
-                }
-                if (item.helpSection) a.setAttribute('data-help-section', item.helpSection);
-
-                if (selfActive && !parentActive) {
-                    a.classList.add('active');
-                }
-                if (parentActive) {
-                    a.classList.add('active-parent');
-                }
-
-                a.textContent = item.icon + ' ' + item.label;
-
-                // Chevron — bouton indépendant pour toggler le sous-menu sans naviguer
                 if (hasChildren) {
+                    // ── Split button : wrapper + lien nav + chevron toggle ──────────
+                    var wrapper = document.createElement('div');
+                    wrapper.className = 'nav-split';
+                    if (item.id) wrapper.id = item.id;
+                    if (selfActive && !parentActive) wrapper.classList.add('active');
+                    if (parentActive) wrapper.classList.add('active-parent');
+
+                    // Partie gauche : lien de navigation
+                    var splitLink = document.createElement('a');
+                    splitLink.className = 'nav-split-link';
+                    splitLink.href = item.href;
+                    _attachPrefetch(splitLink, item.href);
+                    _attachNavLoading(splitLink, item.href);
+                    if (item.helpSection) splitLink.setAttribute('data-help-section', item.helpSection);
+                    splitLink.setAttribute('data-tooltip', item.label);
+                    // Icône + label wrappés pour le mode sidebar collapsed
+                    var iconSpan = document.createElement('span');
+                    iconSpan.className = 'nav-icon';
+                    iconSpan.textContent = item.icon;
+                    var labelSpan = document.createElement('span');
+                    labelSpan.className = 'nav-label';
+                    labelSpan.textContent = '\u00a0' + item.label;
+                    splitLink.appendChild(iconSpan);
+                    splitLink.appendChild(labelSpan);
+
+                    // Partie droite : chevron toggle (ne navigue pas)
                     var chevron = document.createElement('button');
                     chevron.type = 'button';
-                    chevron.className = 'nav-chevron-btn';
+                    chevron.className = 'nav-split-chevron';
                     chevron.setAttribute('aria-label', 'Déplier / Replier');
-                    a.appendChild(chevron);
-                }
+                    chevron.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
 
-                sidebar.appendChild(a);
+                    wrapper.appendChild(splitLink);
+                    wrapper.appendChild(chevron);
+                    sidebar.appendChild(wrapper);
 
-                // Sub-menu
-                if (hasChildren) {
+                    // Sous-menu
                     var sub = document.createElement('div');
                     sub.className = 'nav-submenu';
-
                     var isOpen = _isAccordionOpen(item.page);
                     sub.classList.toggle('expanded', isOpen);
-                    chevron.textContent = isOpen ? '▾' : '▸';
+                    chevron.classList.toggle('expanded', isOpen);
 
                     item.children.forEach(function (child) {
                         var ca = document.createElement('a');
@@ -257,15 +254,36 @@
 
                     sidebar.appendChild(sub);
 
-                    // Chevron toggle — stopPropagation pour ne pas déclencher le <a>
                     chevron.addEventListener('click', function (e) {
                         e.preventDefault();
                         e.stopPropagation();
                         var opened = sub.classList.toggle('expanded');
-                        chevron.textContent = opened ? '▾' : '▸';
+                        chevron.classList.toggle('expanded', opened);
                         _setAccordionState(item.page, opened);
                     });
-                    // Le <a> navigue normalement — aucun handler supplémentaire
+
+                } else {
+                    // ── Bouton simple (pas de sous-menu) ────────────────────────────
+                    var a = document.createElement('a');
+                    a.className = 'nav-button';
+                    if (item.id) a.id = item.id;
+
+                    if (item.action) {
+                        a.href = 'javascript:void(0)';
+                        a.setAttribute('data-action', item.action);
+                        a.onclick = function () {
+                            if (window[item.action]) window[item.action]();
+                        };
+                    } else {
+                        a.href = item.href;
+                        _attachPrefetch(a, item.href);
+                        _attachNavLoading(a, item.href);
+                    }
+                    if (item.helpSection) a.setAttribute('data-help-section', item.helpSection);
+                    if (selfActive) a.classList.add('active');
+
+                    a.textContent = item.icon + ' ' + item.label;
+                    sidebar.appendChild(a);
                 }
             });
         });

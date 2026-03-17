@@ -8846,27 +8846,103 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     transform: rotate(180deg);
   }
 
-  /* Chevron accordion — bouton indépendant (clic = toggle, sans naviguer) */
-  .nav-chevron-btn {
-    margin-left: auto;
-    flex-shrink: 0;
-    width: 22px;
-    height: 22px;
+  /* ── Split button (items avec sous-menu) ── */
+  .nav-split {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    margin-bottom: 2px;
+    border-radius: 10px;
+    overflow: hidden;
+    transition: background .2s cubic-bezier(.4,0,.2,1), box-shadow .2s;
+    animation: navSlideIn .25s var(--transition-smooth) both;
+    position: relative;
+  }
+  .nav-split:hover {
+    background: var(--glass-bg);
+  }
+  .nav-split-link {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) 0 var(--spacing-sm) calc(var(--spacing-sm) + var(--spacing-xs));
     border: none;
     background: transparent;
-    color: var(--color-text-secondary);
-    font-size: 11px;
-    border-radius: 6px;
+    color: var(--color-text);
+    font-size: 12.5px;
+    font-weight: 500;
     cursor: pointer;
+    text-decoration: none;
+    transition: color .15s, transform .2s cubic-bezier(.4,0,.2,1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nav-split:hover .nav-split-link {
+    transform: translateX(2px);
+  }
+  .nav-split-link.nav-loading {
+    opacity: 0.8;
+    pointer-events: none;
+  }
+  /* Séparateur vertical */
+  .nav-split-chevron {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s, color 0.15s;
-    line-height: 1;
+    width: 28px;
+    flex-shrink: 0;
+    border: none;
+    border-left: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 0;
+    transition: background .15s, color .15s;
   }
-  .nav-chevron-btn:hover {
-    background: rgba(var(--color-primary-rgb), 0.12);
+  .nav-split-chevron:hover {
+    background: rgba(var(--color-primary-rgb), 0.10);
     color: var(--color-primary);
+  }
+  .nav-split-chevron svg {
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+    pointer-events: none;
+  }
+  /* Chevron ouvert : pointe vers le haut */
+  .nav-split-chevron.expanded svg {
+    transform: rotate(180deg);
+  }
+
+  /* État active-parent (sous-page active) */
+  .nav-split.active-parent {
+    background: rgba(var(--color-primary-rgb), 0.10);
+  }
+  .nav-split.active-parent .nav-split-link {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+  .nav-split.active-parent .nav-split-chevron {
+    color: var(--color-primary);
+    border-left-color: rgba(var(--color-primary-rgb), 0.20);
+  }
+  /* État active (on /parametres lui-même) */
+  .nav-split.active {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+    box-shadow: 0 4px 15px rgba(var(--color-primary-rgb), 0.3);
+  }
+  .nav-split.active .nav-split-link {
+    color: #fff;
+    font-weight: 600;
+  }
+  .nav-split.active .nav-split-chevron {
+    color: rgba(255,255,255,0.85);
+    border-left-color: rgba(255,255,255,0.20);
+  }
+  .nav-split.active .nav-split-chevron:hover {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
   }
 }
 
@@ -8973,7 +9049,20 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
   background: rgba(var(--color-primary-rgb), 0.15) !important;
 }
 .sidebar-collapsed .sidebar .nav-submenu { display: none !important; }
-.sidebar-collapsed .sidebar .nav-chevron-btn { display: none !important; }
+/* Split button en mode collapsed : seule l'icône reste, chevron masqué */
+.sidebar-collapsed .sidebar .nav-split {
+  justify-content: center;
+  border-radius: 10px;
+}
+.sidebar-collapsed .sidebar .nav-split-link {
+  flex: 0 0 auto;
+  padding: 8px 0;
+  justify-content: center;
+  overflow: visible;
+}
+.sidebar-collapsed .sidebar .nav-split-link .nav-label { display: none; }
+.sidebar-collapsed .sidebar .nav-split-link .nav-icon  { font-size: 16px; }
+.sidebar-collapsed .sidebar .nav-split-chevron { display: none !important; }
 
 /* ── Floating Search Button (aligné avec le titre Prosp'Up du header) ── */
 .floating-search-btn {
