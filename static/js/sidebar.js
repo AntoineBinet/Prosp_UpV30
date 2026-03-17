@@ -355,9 +355,43 @@
         }
 
         document.body.appendChild(nav);
-        
+
         // Ajouter une classe au body pour indiquer que la bottom nav est active
         document.body.classList.add('mobile-bottom-nav-active');
+
+        // Badge relances sur le bouton Profil
+        _refreshProfileBadge();
+    }
+
+    /** Récupère le nombre de relances urgentes et met à jour le badge sur le bouton Profil. */
+    function _refreshProfileBadge() {
+        fetch('/api/dashboard', { credentials: 'same-origin' })
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(d) {
+                if (!d || !d.ok) return;
+                var overdue   = (d.pipeline && d.pipeline.overdue)    || 0;
+                var dueToday  = (d.pipeline && d.pipeline.due_today)  || 0;
+                var count = overdue + dueToday;
+                var btn = document.querySelector('.mobile-bottom-nav-user');
+                if (!btn) return;
+                var badge = btn.querySelector('.bn-notif-badge');
+                if (count > 0) {
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.className = 'bn-notif-badge';
+                        btn.appendChild(badge);
+                    }
+                    badge.textContent = count > 9 ? '9+' : String(count);
+                } else if (badge) {
+                    badge.remove();
+                }
+            })
+            .catch(function() {});
+    }
+
+    window._refreshProfileBadge = _refreshProfileBadge;
+
+    function _noop() {
     }
 
     // ── Public API ────────────────────────────────────────────────
