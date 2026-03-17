@@ -8551,41 +8551,129 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   .status-mini { display: inline-flex; }
   .row-chevron { display: inline-block; }
 
-  /* Prospects : liste en cartes sur mobile uniquement */
+  /* ══ Prospects iOS 2026 — liste en cartes sur mobile ══════════ */
   body[data-page="prospects"] .table-wrapper thead { display: none !important; }
   body[data-page="prospects"] .table-wrapper { overflow-x: hidden; width: 100%; }
-  body[data-page="prospects"] .table-wrapper table { width: 100% !important; min-width: 0 !important; border-collapse: separate; border-spacing: 0 10px; }
+  body[data-page="prospects"] .table-wrapper table { width: 100% !important; min-width: 0 !important; border-collapse: separate; border-spacing: 0 8px; }
   body[data-page="prospects"] .table-wrapper tbody { display: block; }
   body[data-page="prospects"] .table-wrapper tbody tr.prospect-row { display: block; width: 100%; background: none !important; border: none !important; }
   body[data-page="prospects"] .table-wrapper tr.prospect-row .prospect-td-check { display: block !important; width: 100%; padding: 0; border: none; background: none; }
   body[data-page="prospects"] .table-wrapper tr.prospect-row .prospect-td-check .desktop-checkbox { display: none !important; }
   body[data-page="prospects"] .table-wrapper tr.prospect-row .prospect-td-check .mobile-only { display: block !important; }
   body[data-page="prospects"] .table-wrapper tr.prospect-row td:not(.prospect-td-check) { display: none !important; }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile.mobile-only { padding: 0; border: none; background: none; border-radius: 0; }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile-inner {
-    display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; margin-bottom: 10px;
-    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;
-    min-height: 44px; box-sizing: border-box;
+
+  /* Carte — conteneur principal */
+  body[data-page="prospects"] .table-wrapper .prospect-card-mobile.mobile-only {
+    padding: 0; border: none; background: none; border-radius: 0; margin-bottom: 8px;
   }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile-check { flex-shrink: 0; padding-top: 2px; }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile-check input { width: 20px; height: 20px; }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile-body { flex: 1; min-width: 0; }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile-name {
-    font-size: 16px; font-weight: 700; color: #e2e8f0; line-height: 1.3; margin-bottom: 4px; word-break: break-word;
+  body[data-page="prospects"] .table-wrapper .pmc-content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 14px 14px 20px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    overflow: hidden;
+    box-sizing: border-box;
+    transition: background 0.15s ease, transform 0.1s ease;
+    -webkit-tap-highlight-color: transparent;
+    will-change: transform;
   }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile-company {
-    font-size: 13px; color: #94a3b8; line-height: 1.3; margin-bottom: 4px; word-break: break-word;
+  body[data-page="prospects"] .table-wrapper .prospect-card-mobile:active .pmc-content {
+    transform: scale(0.985);
+    background: rgba(255,255,255,0.08);
   }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile-meta { font-size: 12px; color: #94a3b8; line-height: 1.4; word-break: break-word; }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile-status { font-size: 11px; color: #94a3b8; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile-chevron { flex-shrink: 0; font-size: 22px; color: #94a3b8; line-height: 1; padding-top: 2px; }
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile-tel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+  /* Accent coloré gauche */
+  body[data-page="prospects"] .table-wrapper .pmc-accent {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    border-radius: 20px 0 0 20px;
+    background: rgba(255,255,255,0.15);
+  }
+  body[data-page="prospects"] .table-wrapper .pmc-s-appele      .pmc-accent { background: #3B82F6; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-rdv         .pmc-accent { background: #22C55E; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-prospecte   .pmc-accent { background: #A855F7; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-messagerie  .pmc-accent { background: #F59E0B; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-rappeler    .pmc-accent { background: #F97316; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-pas-interesse .pmc-accent { background: #EF4444; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-pas-actions .pmc-accent { background: #6B7280; }
+
+  /* Checkbox */
+  body[data-page="prospects"] .table-wrapper .pmc-check { flex-shrink: 0; }
+  body[data-page="prospects"] .table-wrapper .pmc-check input { width: 20px; height: 20px; margin: 0; }
+
+  /* Corps */
+  body[data-page="prospects"] .table-wrapper .pmc-body { flex: 1; min-width: 0; }
+
+  /* Ligne nom + pill statut */
+  body[data-page="prospects"] .table-wrapper .pmc-header-row {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 3px;
+  }
+  body[data-page="prospects"] .table-wrapper .pmc-name {
+    font-size: 16px; font-weight: 700; color: #f1f5f9;
+    line-height: 1.25; flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* Pill statut */
+  body[data-page="prospects"] .table-wrapper .pmc-pill {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+    padding: 3px 9px; border-radius: 20px; white-space: nowrap;
+    flex-shrink: 0; text-transform: uppercase;
+    background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.55);
+  }
+  body[data-page="prospects"] .table-wrapper .pmc-s-appele      .pmc-pill { background: rgba(59,130,246,.18);  color: #7CB9FA; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-rdv         .pmc-pill { background: rgba(34,197,94,.18);   color: #4ADE80; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-prospecte   .pmc-pill { background: rgba(168,85,247,.18);  color: #C084FC; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-messagerie  .pmc-pill { background: rgba(245,158,11,.18);  color: #FCD34D; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-rappeler    .pmc-pill { background: rgba(249,115,22,.18);  color: #FB923C; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-pas-interesse .pmc-pill { background: rgba(239,68,68,.15); color: #FCA5A5; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-pas-actions .pmc-pill { background: rgba(107,114,128,.2);  color: #9CA3AF; }
+  body[data-page="prospects"] .table-wrapper .pmc-s-none .pmc-pill,
+  body[data-page="prospects"] .table-wrapper .pmc-s-autre .pmc-pill { display: none; }
+
+  /* Entreprise · Fonction */
+  body[data-page="prospects"] .table-wrapper .pmc-sub {
+    font-size: 13px; color: #94a3b8; margin-bottom: 6px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* Footer : étoiles + chips */
+  body[data-page="prospects"] .table-wrapper .pmc-footer-row {
+    display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  }
+  body[data-page="prospects"] .table-wrapper .pmc-stars {
+    font-size: 11px; color: #FBBF24; letter-spacing: 0.5px; margin-right: 2px;
+  }
+  body[data-page="prospects"] .table-wrapper .pmc-chip {
+    font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 10px;
+    background: rgba(255,255,255,0.07); color: #94a3b8; white-space: nowrap;
+  }
+  body[data-page="prospects"] .table-wrapper .pmc-chip-tel     { background: rgba(59,130,246,.12); color: #7DD3FC; }
+  body[data-page="prospects"] .table-wrapper .pmc-chip-rdv     { background: rgba(34,197,94,.12);  color: #86EFAC; }
+  body[data-page="prospects"] .table-wrapper .pmc-chip-followup { background: rgba(249,115,22,.12); color: #FB923C; }
+
+  /* Chevron */
+  body[data-page="prospects"] .table-wrapper .pmc-chevron {
+    flex-shrink: 0; font-size: 20px; color: rgba(255,255,255,0.2); line-height: 1;
+  }
+
+  /* Light mode */
   @media (prefers-color-scheme: light) {
-    body[data-page="prospects"] .table-wrapper .prospect-card-mobile-name { color: #0f172a; }
-    body[data-page="prospects"] .table-wrapper .prospect-card-mobile-company,
-    body[data-page="prospects"] .table-wrapper .prospect-card-mobile-meta,
-    body[data-page="prospects"] .table-wrapper .prospect-card-mobile-status,
-    body[data-page="prospects"] .table-wrapper .prospect-card-mobile-chevron { color: #64748b; }
+    body[data-page="prospects"] .table-wrapper .pmc-content {
+      background: #ffffff;
+      border-color: rgba(0,0,0,0.07);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+    }
+    body[data-page="prospects"] .table-wrapper .pmc-name    { color: #0f172a; }
+    body[data-page="prospects"] .table-wrapper .pmc-sub     { color: #64748b; }
+    body[data-page="prospects"] .table-wrapper .pmc-chevron { color: rgba(0,0,0,0.18); }
+    body[data-page="prospects"] .table-wrapper .pmc-chip    { background: rgba(0,0,0,0.06); color: #64748b; }
+    body[data-page="prospects"] .table-wrapper .pmc-stars   { color: #D97706; }
   }
 
   /* Avoid iOS zoom in inputs */
@@ -8602,36 +8690,6 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   .fab {
     bottom: 78px !important;
     right: 18px !important;
-  }
-
-  /* Prospects: déjà en cartes ci-dessus, rien de plus */
-  body[data-page="prospects"] .table-wrapper { overflow-x: hidden; }
-  body[data-page="prospects"] .table-wrapper table { min-width: 0 !important; width: 100%; }
-
-  /* Make the mobile list feel less "table" and more like cards */
-  body[data-page="prospects"] .table-wrapper table {
-    border-collapse: separate;
-    border-spacing: 0 10px;
-  }
-  body[data-page="prospects"] .table-wrapper tbody tr {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-  }
-  body[data-page="prospects"] .table-wrapper td {
-    border-bottom: none;
-    padding-top: 12px;
-    padding-bottom: 12px;
-  }
-  body[data-page="prospects"] .table-wrapper td:first-child {
-    border-top-left-radius: 16px;
-    border-bottom-left-radius: 16px;
-  }
-  body[data-page="prospects"] .table-wrapper td:last-child {
-    border-top-right-radius: 16px;
-    border-bottom-right-radius: 16px;
-  }
-  body[data-page="prospects"] .table-wrapper tbody tr:hover {
-    background: rgba(var(--color-primary-rgb), 0.06);
   }
   /* Focus: résumé (Total · En retard · Aujourd'hui) pleine largeur */
   body[data-page="focus"] #focusSummary { min-width: 0; width: 100%; font-size: 12px; }

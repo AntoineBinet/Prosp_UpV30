@@ -3956,17 +3956,33 @@ function _renderProspectsImpl() {
         const nextFollowUpStr = (prospect.nextFollowUp && String(prospect.nextFollowUp).trim()) ? escapeHtml(String(prospect.nextFollowUp).slice(0, 10)) : '—';
         const fonctionStr = (prospect.fonction && String(prospect.fonction).trim()) ? escapeHtml(prospect.fonction) : '—';
 
+        // iOS 2026 card — nouveau design avec accent couleur + pill statut
+        const pmcSlugClass = 'pmc-s-' + stMeta.slug;
+        const pmcPillHtml = (stMeta.slug !== 'none' && stMeta.slug !== 'autre' && stMeta.label)
+            ? '<span class="pmc-pill">' + escapeHtml(stMeta.label) + '</span>' : '';
+        const pmcStars = pert > 0 ? '<span class="pmc-stars">' + '★'.repeat(pert) + '☆'.repeat(5 - pert) + '</span>' : '';
+        const pmcTelChip = telShort ? '<span class="pmc-chip pmc-chip-tel">📞 ' + escapeHtml(telShort) + '</span>' : '';
+        const pmcFollowupChip = followupMini ? '<span class="pmc-chip pmc-chip-followup">' + followupMini + '</span>' : '';
+        const pmcRdvChip = (prospect.statut === 'Rendez-vous' && prospect.rdvDate)
+            ? '<span class="pmc-chip pmc-chip-rdv">📅 ' + escapeHtml(formatRdvDateForBadge(prospect.rdvDate) || '') + '</span>' : '';
+        const fonctionMobile = (prospect.fonction && String(prospect.fonction).trim()) ? escapeHtml(String(prospect.fonction).trim()) : '';
+        const pmcSub = companyName ? (fonctionMobile ? escapeHtml(companyName) + ' · ' + fonctionMobile : escapeHtml(companyName)) : (fonctionMobile || '—');
+        const pmcFooter = pmcStars + pmcTelChip + pmcRdvChip + pmcFollowupChip;
+
         const mobileCardHtml =
-            '<div class="prospect-card-mobile mobile-only">' +
-            '<div class="prospect-card-mobile-inner">' +
-            '<span class="prospect-card-mobile-check"><input type="checkbox" class="row-select" title="Sélectionner"' + checked + ' onclick="event.stopPropagation();toggleSelect(' + pid + ',this.checked)"></span>' +
-            '<div class="prospect-card-mobile-body">' +
-            '<div class="prospect-card-mobile-name">' + displayName + '</div>' +
-            '<div class="prospect-card-mobile-company">' + mobileSub + '</div>' +
-            (mobileMeta ? '<div class="prospect-card-mobile-meta">' + mobileMeta + '</div>' : '') +
-            (statusLabel ? '<div class="prospect-card-mobile-status">' + statusLabel + '</div>' : '') +
+            '<div class="prospect-card-mobile mobile-only ' + pmcSlugClass + '">' +
+            '<div class="pmc-content">' +
+            '<div class="pmc-accent"></div>' +
+            '<span class="pmc-check"><input type="checkbox" class="row-select" title="Sélectionner"' + checked + ' onclick="event.stopPropagation();toggleSelect(' + pid + ',this.checked)"></span>' +
+            '<div class="pmc-body">' +
+            '<div class="pmc-header-row">' +
+            '<div class="pmc-name">' + displayName + '</div>' +
+            pmcPillHtml +
             '</div>' +
-            '<span class="prospect-card-mobile-chevron">›</span>' +
+            '<div class="pmc-sub">' + pmcSub + '</div>' +
+            (pmcFooter ? '<div class="pmc-footer-row">' + pmcFooter + '</div>' : '') +
+            '</div>' +
+            '<span class="pmc-chevron">›</span>' +
             '</div></div>';
 
         const row = document.createElement('tr');
@@ -3974,7 +3990,7 @@ function _renderProspectsImpl() {
         row.className = 'prospect-row';
         row.style.cursor = 'pointer';
         row.addEventListener('click', function (e) {
-            if (e.target.tagName === 'INPUT' || e.target.closest('.prospect-card-mobile-check') || e.target.closest('button')) return;
+            if (e.target.tagName === 'INPUT' || e.target.closest('.pmc-check') || e.target.closest('button')) return;
             viewDetail(prospect.id);
         });
         row.innerHTML =
