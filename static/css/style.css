@@ -9459,23 +9459,34 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
   }
   /* P4: inputs ≥16px to avoid zoom on focus */
   input, select, textarea { font-size: 16px !important; }
-  /* P4: Barre d'actions rapides mobile */
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   BARRE D'ACTIONS RAPIDES MOBILE — position fixe au-dessus de la nav
+   ══════════════════════════════════════════════════════════════════ */
+/* Hide on desktop */
+.mobile-quick-actions-bar { display: none; }
+
+/* Show + fix position on mobile */
+@media (max-width: 768px) {
   .mobile-quick-actions-bar {
     display: flex !important;
+    position: fixed !important;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    left: 0; right: 0; top: auto !important;
+    z-index: 200;
     justify-content: center;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     background: var(--color-surface);
-    border-bottom: 1px solid var(--color-border);
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.18);
   }
   .mobile-qa-item {
     flex: 1;
-    max-width: 120px;
-    padding: 10px 12px;
-    font-size: 13px;
+    max-width: 110px;
+    padding: 8px 10px;
+    font-size: 12px;
     font-weight: 600;
     text-align: center;
     border-radius: 10px;
@@ -9484,7 +9495,7 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
     text-decoration: none;
     border: none;
     cursor: pointer;
-    min-height: 44px;
+    min-height: 40px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -9494,65 +9505,66 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
     background: rgba(var(--color-primary-rgb), 0.22);
   }
 }
-/* Hide quick actions bar on desktop */
-.mobile-quick-actions-bar {
-  display: none;
-}
 
 /* Bouton Pile — visible uniquement sur la page prospects */
 body:not([data-page="prospects"]) .mobile-qa-pile {
   display: none !important;
 }
 
-/* ── Hero fiche prospect compact sur mobile ── */
+/* ══════════════════════════════════════════════════════════════════
+   HERO FICHE PROSPECT — compact sur mobile (v27.9)
+   ══════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .detail-hero {
-    padding: 12px 14px 8px;
-  }
-  .detail-hero-content {
-    gap: 10px;
-  }
-  .detail-avatar {
-    width: 46px;
-    height: 46px;
-    font-size: 16px;
-    border-radius: 11px;
-  }
-  .detail-avatar-img {
-    width: 46px;
-    height: 46px;
-    border-radius: 11px;
-  }
-  .detail-avatar-wrap {
-    flex-shrink: 0;
-  }
-  .detail-hero-name {
-    font-size: 15px;
-    margin-bottom: 2px;
-  }
-  .detail-hero-sub {
+  /* Supprimer la poignée du bottom-sheet dans #modalDetail (handle déjà intégré) */
+  #modalDetail .modal-content::before { display: none !important; }
+
+  /* Hero compact */
+  .detail-hero { padding: 10px 12px 8px; }
+  .detail-hero-content { gap: 10px; align-items: flex-start; padding-top: 2px; }
+
+  /* Avatar plus petit */
+  .detail-avatar { width: 44px; height: 44px; font-size: 15px; border-radius: 10px; }
+  .detail-avatar-img { width: 44px; height: 44px; border-radius: 10px; }
+  .detail-avatar-wrap { flex-shrink: 0; }
+
+  /* Nom tronqué sur 1 ligne */
+  .detail-hero-info { min-width: 0; }
+  .detail-hero-name { font-size: 15px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+  /* Ligne méta (fonction + entreprise) : 1 ligne, tronquée */
+  .detail-hero-meta {
+    display: block !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100%;
     font-size: 11px;
-    gap: 5px;
     margin-top: 1px;
   }
-  .detail-hero-close {
-    top: 10px;
-    right: 12px;
-    width: 28px;
-    height: 28px;
-    font-size: 15px;
+  .detail-hero-meta-span { white-space: nowrap; }
+
+  /* Ligne contrôles (status + étoiles) : compact */
+  .detail-hero-controls {
+    display: flex !important;
+    align-items: center;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    margin-top: 4px !important;
   }
-  .detail-quick-actions {
-    padding: 4px 12px 10px;
-    gap: 6px;
-  }
-  .detail-quick-actions .btn {
-    font-size: 12px;
-    padding: 6px 10px;
-  }
-  .detail-tabs {
-    padding: 0 8px;
-  }
+  .detail-status-select { font-size: 11px; padding: 3px 6px; }
+
+  /* Bouton fermer */
+  .detail-hero-close { top: 8px; right: 10px; width: 26px; height: 26px; font-size: 14px; }
+
+  /* Actions rapides : scroll horizontal, compact */
+  .detail-quick-actions { padding: 4px 10px 8px; gap: 6px; }
+  .detail-quick-actions .btn { font-size: 11px; padding: 5px 8px; }
+
+  /* Tabs : padding compact */
+  .detail-tabs { padding: 0 6px; }
+
+  /* Éviter le double scroll : tab-content remplit la hauteur restante */
+  .detail-tab-content { padding: 12px; }
 }
 
 /* Badge in collapsed sidebar */

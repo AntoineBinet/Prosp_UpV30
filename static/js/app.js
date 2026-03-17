@@ -4403,6 +4403,18 @@ function _stackDetail() {
     if (typeof viewDetail === 'function') viewDetail(p.id);
 }
 
+// ── Changement statut direct depuis le hero (select) ─────────────────────────
+function _heroChangeStatus(prospectId, newStatus) {
+    var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
+    if (!prospect || !newStatus) return;
+    prospect.statut = newStatus;
+    prospect.lastContact = new Date().toISOString().slice(0, 10);
+    saveToServer();
+    filterProspects();
+    if (window.haptic) haptic(20);
+    if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
+}
+
 // ── Actions rapides v27.8 ─────────────────────────────────────────────────────
 
 /** Ouvrir l'email du prospect depuis le swipe. */
@@ -4893,12 +4905,12 @@ async function viewDetail(id) {
                 ${avatarHtml}
                 <div class="detail-hero-info">
                     <div class="detail-hero-name">${escapeHtml(prospect.name)}</div>
-                    <div class="detail-hero-sub">
-                        ${prospect.fonction ? `<span>${escapeHtml(prospect.fonction)}</span>` : ''}
-                        ${companyLink ? `<span>· ${companyLink}</span>` : ''}
+                    <div class="detail-hero-sub detail-hero-meta">
+                        ${prospect.fonction ? `<span class="detail-hero-meta-span">${escapeHtml(prospect.fonction)}</span>` : ''}
+                        ${companyLink ? `<span class="detail-hero-meta-span">· ${companyLink}</span>` : ''}
                     </div>
-                    <div class="detail-hero-sub" style="margin-top:6px;gap:10px;">
-                        <select class="detail-status-select" id="heroStatusSelect" onchange="quickChangeStatus(${prospect.id}, this.value)">
+                    <div class="detail-hero-sub detail-hero-controls" style="margin-top:6px;gap:10px;">
+                        <select class="detail-status-select" id="heroStatusSelect" onchange="_heroChangeStatus(${prospect.id}, this.value)">
                             ${statusSelectHtml}
                         </select>
                         <span style="color:#fff;opacity:.85;font-size:13px;letter-spacing:-1px;">${stars}</span>
