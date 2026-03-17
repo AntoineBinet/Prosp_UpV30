@@ -8697,6 +8697,121 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   /* Focus: résumé (Total · En retard · Aujourd'hui) pleine largeur */
   body[data-page="focus"] #focusSummary { min-width: 0; width: 100%; font-size: 12px; }
 
+  /* ══ Swipe iOS sur les cartes prospects ══════════════════════════════════════ */
+
+  /* Wrapper : clip du slide + radius identique à pmc-content */
+  body[data-page="prospects"] .pmc-swipe-wrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 14px;
+  }
+
+  /* Boutons d'action absolus derrière la carte */
+  body[data-page="prospects"] .pmc-actions-left,
+  body[data-page="prospects"] .pmc-actions-right {
+    position: absolute;
+    top: 0; bottom: 0;
+    display: flex;
+    align-items: stretch;
+  }
+  body[data-page="prospects"] .pmc-actions-left  { left: 0; }
+  body[data-page="prospects"] .pmc-actions-right { right: 0; }
+
+  body[data-page="prospects"] .pmc-action {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 4px; padding: 0 18px;
+    border: none; color: #fff; cursor: pointer;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    min-width: 72px;
+  }
+  body[data-page="prospects"] .pmc-action:active { filter: brightness(0.88); }
+  body[data-page="prospects"] .pmc-action-call   { background: #22C55E; }
+  body[data-page="prospects"] .pmc-action-log    { background: #3B82F6; }
+  body[data-page="prospects"] .pmc-action-status { background: #A855F7; }
+
+  body[data-page="prospects"] .pmc-action-icon  { font-size: 22px; line-height: 1; }
+  body[data-page="prospects"] .pmc-action-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.4px;
+    text-transform: uppercase; white-space: nowrap;
+  }
+
+  /* La carte glisse par-dessus — transition uniquement sur snap (pas pendant le drag) */
+  body[data-page="prospects"] .pmc-content {
+    position: relative; z-index: 1;
+    transition: transform 0.2s ease;
+  }
+  /* Retire le border-radius du pmc-content (le wrapper s'en charge) */
+  body[data-page="prospects"] .table-wrapper .pmc-content {
+    border-radius: 0;
+  }
+
+  /* ══ Mini-sheet de changement de statut (swipe gauche → Statut) ═════════════ */
+  .swipe-status-sheet {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9500;
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; transition: opacity 0.22s ease;
+    pointer-events: none;
+  }
+  .swipe-status-sheet.is-open { opacity: 1; pointer-events: auto; }
+
+  .swipe-status-sheet-inner {
+    width: 100%; max-width: 480px;
+    background: #1e293b;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px 20px 0 0;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.34, 1.1, 0.64, 1);
+  }
+  .swipe-status-sheet.is-open .swipe-status-sheet-inner { transform: translateY(0); }
+
+  .swipe-status-title {
+    text-align: center; font-size: 13px; font-weight: 600;
+    color: rgba(255,255,255,0.45); letter-spacing: 0.5px;
+    text-transform: uppercase; padding: 4px 0 12px;
+  }
+
+  .swipe-status-btn {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; padding: 13px 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px; margin-bottom: 6px;
+    color: #f1f5f9; font-size: 15px; font-weight: 500;
+    font-family: inherit; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s ease;
+  }
+  .swipe-status-btn:active { background: rgba(255,255,255,0.1); }
+  .swipe-status-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    background: var(--status-color, #64748b);
+  }
+
+  .swipe-status-cancel {
+    display: block; width: 100%; padding: 14px;
+    background: rgba(255,255,255,0.06);
+    border: none; border-radius: 12px; margin-top: 4px;
+    color: rgba(255,255,255,0.55); font-size: 15px; font-weight: 600;
+    font-family: inherit; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .swipe-status-cancel:active { background: rgba(255,255,255,0.1); }
+
+  /* Light mode overrides pour la sheet */
+  @media (prefers-color-scheme: light) {
+    .swipe-status-sheet-inner { background: #f8fafc; border-color: rgba(0,0,0,0.08); }
+    .swipe-status-btn { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.07); color: #0f172a; }
+    .swipe-status-cancel { background: rgba(0,0,0,0.05); color: #64748b; }
+    .swipe-status-title { color: rgba(0,0,0,0.4); }
+  }
+
   /* ═══ Focus page: relances en cartes sur mobile (nom, entreprise, date visibles) ═══ */
   body[data-page="focus"] .focus-table-wrapper { overflow: visible; }
   body[data-page="focus"] .focus-table { display: block; }
