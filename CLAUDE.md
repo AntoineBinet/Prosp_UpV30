@@ -36,8 +36,30 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 - Roles : **admin** (accès total) et **editor** (lecture + modification) uniquement
 - Multi-tenant : `owner_id` sur chaque enregistrement ; DB isolée par user dans `data/user_<id>/prospects.db` si elle existe
 
+## Moyens de travailler (workflow développement)
+- **Cursor Cloud Agent** : développement via agent cloud Cursor avec accès au workspace distant. Les modifications sont faites directement sur le workspace, puis commitées et poussées sur `main`.
+- **Workflow Git simplifié** :
+  - Travail direct sur `main` (pas de branches feature)
+  - Après chaque modification : `git add`, `git commit -m "message"`, `git push origin main`
+  - Mise à jour sur le PC hébergeur via le bouton "Mettre à jour et redémarrer" dans l'app (admin)
+  - Le flux de mise à jour gère automatiquement les divergences (fallback `git reset --hard origin/main`)
+- **Requêtes typiques** :
+  - **Mise à jour auto depuis l'app** : utiliser le bouton "Mettre à jour et redémarrer" dans Paramètres (section admin). Le flux affiche les logs git en direct (SSE) puis recharge la page après redémarrage.
+  - **Gestion Git** : toutes les opérations git (pull, rollback) sont gérées depuis l'app via les routes `/api/deploy/*`. Pas besoin d'accès SSH au serveur.
+  - **Version mobile vs desktop** : l'app détecte automatiquement le device et adapte l'UI (sidebar desktop vs bottom nav mobile, tableaux vs cartes, etc.). Pas de configuration nécessaire.
+  - **Règles multi-user** : les permissions sont gérées via les rôles (admin/editor) et le décorateur `@role_required()`. Les données sont isolées par `owner_id` (multi-tenant).
+- **Tests et vérifications** :
+  - Tests E2E : `npx playwright test` (38 tests desktop + mobile)
+  - Vérification système : bouton "Vérifier le déploiement" dans Paramètres (admin)
+  - Logs serveur : bouton "Voir les logs serveur" dans Paramètres (admin)
+- **Déploiement** :
+  - Les modifications sont poussées sur `main` depuis Cursor Cloud Agent
+  - Sur le PC hébergeur : utiliser le bouton "Mettre à jour et redémarrer" dans l'app
+  - Le superviseur (`scripts/supervise_prospup.py`) peut aussi faire un pull automatique et redémarrer
+  - En cas de problème : rollback possible via le bouton "Rollback" dans Paramètres ou depuis la page 404
+
 ## Conventions
-- `APP_VERSION` dans app.py (actuellement "27.0") — incrementer a chaque release
+- `APP_VERSION` dans app.py (actuellement "27.2") — incrementer a chaque release
 - **Workflow git (IMPORTANT)** : TOUJOURS travailler directement sur `main`. Ne JAMAIS créer de branches. Après chaque demande avec modifications, vérifier qu'on est sur `main` (`git checkout main` si nécessaire), puis committer et pousser directement sur `main` (`git add`, `git commit`, `git push origin main`). Pour mettre à jour le serveur sur le PC hébergeur : utiliser le bouton « Mettre à jour et redémarrer » dans Paramètres (section admin). Le flux affiche la sortie git en direct puis recharge la page après redémarrage.
 - **Rappel fin de session** : À chaque fin de réponse où du code a été modifié, committer et pousser sur `main` pour que la session cloud et le pull (bouton Mettre à jour) soient à jour. Sinon les modifications ne seront pas sur Git donc pas dans le pull sur l'hébergeur.
 - Cache busters automatiques : app.py calcule les hash MD5 des fichiers statiques au demarrage et remplace `?v=XXXX` dans le HTML
@@ -46,6 +68,55 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 - Service Worker : network-first pour HTML/API, cache-first pour static assets
 - Toast notifications via `window.showToast(msg, type, duration)` dans app.js
 - Haptic feedback via `window.haptic(ms)` dans v8-features.js
+
+## Mise à jour automatique depuis l'app (gestion Git)
+- **Bouton "Mettre à jour et redémarrer"** : Paramètres > Mise à jour du serveur (admin uniquement). Déclenche un flux SSE en direct avec logs git.
+- **Routes API deploy** :
+  - `POST /api/deploy/pull` — streaming git pull depuis origin/main puis redémarrage automatique (SSE)
+  - `POST /api/deploy/pull-from-404` — pull depuis la page 404 (accessible sans auth)
+  - `POST /api/deploy/rollback` — rollback vers le commit précédent (sauvegardé dans `.last_commit_hash`)
+  - `GET /api/deploy/health` — health check simple (accessible sans auth)
+- **Flux de mise à jour** :
+  1. Vérification que le repo est sur `main` (auto-checkout si nécessaire)
+  2. `git fetch --prune origin main`
+  3. Sauvegarde du commit actuel dans `.last_commit_hash` pour rollback possible
+  4. Création snapshot DB automatique (`before_update`)
+  5. Stash des modifications locales si présentes
+  6. `git pull --ff-only origin main` (fallback vers `git reset --hard origin/main` si divergence)
+  7. Redémarrage automatique via `_schedule_restart(delay=10.0)`
+  8. Rechargement de la page après redémarrage
+- **Badge version/commit** : Paramètres > À propos affiche `v{version} · {branch} · {commit_hash}` avec mise à jour automatique toutes les 30 s. Indicateur visuel si nouvelle version détectée.
+- **Page 404 améliorée** : retry automatique avec countdown, boutons MAJ + Rollback avec restart intégré.
+- **Sécurité** : toutes les routes deploy vérifient l'origine (CSRF), nécessitent le rôle admin (sauf pull-from-404 et rollback depuis 404), et sauvegardent le commit actuel avant toute modification.
+
+## Versions mobile et desktop
+- **Détection device** : `window.matchMedia('(max-width: 900px)')` pour mobile, sinon desktop.
+- **Navigation** :
+  - **Desktop** : sidebar fixe à gauche (`sidebar.js` génère depuis données déclaratives)
+  - **Mobile** : bottom nav fixe en bas (`mobile-bottom-nav`), sidebar masquée par défaut (hamburger menu)
+  - Pages mobiles : `dashboard`, `prospects`, `focus`, `calendar`, `push` (défini dans `MOBILE_NAV`)
+- **Rendu adaptatif** :
+  - **Prospects** : tableau desktop (13 colonnes triables) vs cartes compactes mobile (`prospect-card-mobile`)
+  - **Entreprises** : vue liste desktop vs cartes mobile
+  - **Dashboard** : widgets en grille desktop vs colonne mobile
+- **Interactions** :
+  - **Drag & drop** : système unifié desktop (mousedown) + mobile (touchstart) — widgets dashboard, réorganisation tâches
+  - **Swipe gestures** : mobile uniquement — swipe-to-action sur cartes prospects, swipe pour fermer modales
+  - **Pull-to-refresh** : mobile uniquement (détection via `matchMedia`)
+  - **Haptic feedback** : mobile uniquement via `window.haptic(ms)`
+- **Barre d'actions rapides mobile** : `mobile-quick-actions-bar` avec Focus, Recherche, Ajouter prospect (visible uniquement sur mobile).
+- **CSS responsive** : media queries `@media (max-width: 900px)` pour adapter layout, tailles de police, espacements. Classes `.mobile-only` et `.desktop-only` pour affichage conditionnel.
+
+## Gestion des règles multi-user
+- **Rôles** : `ROLE_LEVELS = {'admin': 3, 'editor': 2}` — admin (accès total) et editor (lecture + modification) uniquement.
+- **Décorateur `@role_required(min_role)`** : vérifie que l'utilisateur a le niveau requis. Exemple : `@role_required('admin')` pour les routes sensibles (deploy, config IA, gestion utilisateurs).
+- **Multi-tenant** : chaque enregistrement (prospect, entreprise, candidat) a un `owner_id` qui correspond à `session['user_id']`. Les requêtes filtrent automatiquement par `owner_id`.
+- **DB isolée par user** : si `data/user_<id>/prospects.db` existe, elle est utilisée à la place de la DB principale. Sinon, utilisation de la DB principale avec filtrage par `owner_id`.
+- **Permissions** :
+  - **Admin** : accès à toutes les routes (deploy, config IA, gestion utilisateurs, snapshots, stats globales)
+  - **Editor** : accès aux routes de lecture/écriture (prospects, entreprises, candidats, focus, calendrier, push), mais pas aux routes admin
+- **Vérifications** : `_prospect_owned()`, `_company_owned()`, `_candidate_owned()` pour s'assurer qu'un utilisateur ne peut modifier que ses propres données.
+- **Migration rôles** : au démarrage, migration automatique `UPDATE users SET role='editor' WHERE role='reader'` (rôle reader supprimé).
 
 ## IA — Ollama + Sonar (v27.0)
 - **Architecture simplifiée** : 2 providers — **Ollama** (local) et **Sonar** (Perplexity, cloud + web). Fallback automatique entre les deux.
@@ -125,8 +196,20 @@ python scripts/watch-prospup.py --loop   # Surveillance en continu sur le PC hé
 - **Sécurité** : `docs/AUDIT_SECURITE.md` — correctifs XSS sidebar, erreurs 500 génériques en prod, path traversal pushs, recommandations (CORS, rate limit, CSP).
 - **UI / navigation** : `docs/AUDIT_UI_NAVIGATION.md` — lien Aide unifié (/help), boutons modales sourcing (modal-close), cohérence sidebar/bottom nav.
 
+## Efficacité de production (mars 2026)
+- **Audit de cohérence** : `docs/AUDIT_COHERENCE_MARS_2026.md` — 47 incohérences identifiées et corrigées (textes, UX, fonctionnalités). Uniformisation du nom de l'application (`Prosp'Up`), standardisation des messages utilisateur (`showToast()` au lieu de `alert()`), cohérence des libellés de boutons.
+- **Patterns UX standardisés** :
+  - Messages utilisateur : `showToast()` pour info/erreur/warning, `alert()` uniquement pour confirmations critiques
+  - Libellés boutons : `Enregistrer` pour sauvegarde, `Ajouter` uniquement pour ouvrir une modale
+  - Champs obligatoires : classe CSS `required` plutôt que `*` en dur
+  - États de chargement : skeletons ou messages "Chargement…" partout
+  - Messages d'état vide : "Aucun {élément} pour ces filtres" partout
+- **Accessibilité** : attributs ARIA sur modales (`role="dialog"`, `aria-modal="true"`), `aria-label` sur boutons sans label visible, navigation clavier (Escape pour fermer modales).
+- **Performance** : skeletons loaders pour feedback visuel, Service Worker pour cache, cache busters automatiques via hash MD5.
+
 ## Points d'attention
 - Le dossier est sur OneDrive — les chemins contiennent des espaces, toujours quoter
 - Python sur ce PC : Python 3.14, encodage console cp1252 → utiliser PYTHONIOENCODING=utf-8 pour Playwright
 - Les identifiants de test par defaut sont admin/admin (configurable via PROSPUP_USER/PROSPUP_PASS)
 - Ne jamais ajouter `cache: 'no-store'` aux fetch — le SW et les headers Cache-Control gerent le cache
+- **Cursor Cloud Agent** : travailler directement sur `main`, committer et pousser après chaque modification pour que le bouton "Mettre à jour et redémarrer" fonctionne
