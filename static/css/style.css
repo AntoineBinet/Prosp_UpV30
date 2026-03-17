@@ -8553,7 +8553,11 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 
   /* ══ Prospects — liste compacte 2 lignes, mobile ══════════════ */
   body[data-page="prospects"] .table-wrapper thead { display: none !important; }
-  body[data-page="prospects"] .table-wrapper { overflow-x: hidden; width: 100%; max-width: 100%; }
+  body[data-page="prospects"] .table-wrapper {
+    overflow-x: hidden; width: 100%; max-width: 100%; box-sizing: border-box;
+    border: none !important; border-radius: 0 !important; box-shadow: none !important;
+    background: transparent !important; padding: 0 !important; margin: 0 !important;
+  }
   body[data-page="prospects"] .table-wrapper table { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; border-collapse: collapse !important; box-sizing: border-box; }
   /* Tbody en flex-column : c'est LUI qui gère le gap (4px) — plus besoin de margin ni de border-spacing */
   body[data-page="prospects"] .table-wrapper tbody { display: flex !important; flex-direction: column; gap: 4px; width: 100%; }
@@ -8572,8 +8576,13 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   body[data-page="prospects"] .table-wrapper tr.prospect-row .prospect-td-check .mobile-only { display: block !important; }
   body[data-page="prospects"] .table-wrapper tr.prospect-row td:not(.prospect-td-check) { display: none !important; }
 
-  /* Carte — wrapper */
-  body[data-page="prospects"] .table-wrapper .prospect-card-mobile.mobile-only { display: block; width: 100%; max-width: 100%; padding: 0; border: none; background: none; border-radius: 0; box-sizing: border-box; }
+  /* Carte — wrapper : annule les padding/margin/min-height de mobile.css (!important nécessaire car mobile.css est chargé après et utilise !important) */
+  body[data-page="prospects"] .table-wrapper .prospect-card-mobile.mobile-only {
+    display: block !important; width: 100% !important; max-width: 100% !important;
+    padding: 0 !important; margin: 0 !important; border: none !important;
+    background: none !important; border-radius: 0 !important; min-height: 0 !important;
+    box-sizing: border-box;
+  }
 
   /* Carte — contenu */
   body[data-page="prospects"] .table-wrapper .pmc-content {
