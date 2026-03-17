@@ -1,0 +1,378 @@
+/* ═══════════════════════════════════════════════════════════════
+   ProspUp — Mobile CSS Layer (iPhone iOS 17+)
+   Chargé APRÈS style.css — uniquement des @media (max-width: 768px)
+   NE JAMAIS modifier le comportement desktop (> 768px)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Masquer les éléments mobile sur desktop (> 768px) ─────────
+   Garantit que le footer flottant et le FAB n'apparaissent PAS
+   sur desktop, peu importe le CSS du navigateur.
+   ─────────────────────────────────────────────────────────────── */
+@media (min-width: 769px) {
+  .mobile-footer-float,
+  .fab-speed-dial,
+  .fab-backdrop {
+    display: none !important;
+  }
+}
+
+/* ── BUG 1 : Barre d'actions horizontale scrollable ─────────────
+   Les boutons de la toolbar-row sont coupés sur mobile.
+   Fix : scroll horizontal sans scrollbar visible.
+   ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .toolbar-row,
+  .action-bar,
+  .toolbar,
+  [class*="btn-group"],
+  .filter-bar {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    gap: 8px;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  .toolbar-row::-webkit-scrollbar,
+  .action-bar::-webkit-scrollbar,
+  .toolbar::-webkit-scrollbar,
+  .filter-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar-row > *,
+  .action-bar > *,
+  .filter-bar > * {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+}
+
+/* ── BUG 2 : Footer doublé / contenu en bas de page ─────────────
+   Masquer footer inline sur mobile (le footer flottant le remplace).
+   Ajouter padding-bottom pour ne pas passer sous la nav mobile.
+   ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  footer:not(.mobile-footer-float),
+  .footer:not(.mobile-footer-float),
+  #footer:not(.mobile-footer-float) {
+    display: none !important;
+  }
+
+  body,
+  main,
+  .main-content,
+  #main,
+  .content {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* ── Footer mobile flottant glassmorphism ────────────────────────
+   Remplace le .mobile-bottom-nav existant sur 768px uniquement.
+   ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Masquer la bottom nav générée par sidebar.js — le footer flottant la remplace */
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+
+  .mobile-footer-float {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    left: 12px;
+    right: 12px;
+    height: 70px;
+    background: rgba(18, 18, 28, 0.88);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 9000;
+    box-shadow: 0 -2px 30px rgba(0, 0, 0, 0.4),
+                0 0 0 0.5px rgba(255, 255, 255, 0.05);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .mf-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    text-decoration: none;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    padding: 8px 10px;
+    border-radius: 16px;
+    transition: color 0.2s ease, background 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    min-width: 48px;
+    text-align: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    position: relative;
+  }
+
+  .mf-item.active {
+    color: #FF6B35;
+    background: rgba(255, 107, 53, 0.12);
+  }
+
+  .mf-item:active {
+    background: rgba(255, 255, 255, 0.08);
+    transform: scale(0.92);
+    transition: transform 0.1s ease;
+  }
+
+  .mf-icon {
+    font-size: 22px;
+    line-height: 1;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .mf-item.active .mf-icon {
+    transform: scale(1.15) translateY(-2px);
+  }
+
+  .mf-avatar {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, #FF6B35, #FF8C42);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+    font-style: normal;
+  }
+
+  /* Point indicateur sous l'item actif */
+  .mf-item.active::after {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 4px;
+    background: #FF6B35;
+    border-radius: 50%;
+    margin-top: 1px;
+  }
+}
+
+/* ── FAB Speed Dial ─────────────────────────────────────────────
+   Bouton circulaire flottant bas-droite, s'ouvre en cascade.
+   ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .fab-speed-dial {
+    position: fixed;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  .fab-main {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF6B35, #FF8C42);
+    border: none;
+    box-shadow: 0 4px 20px rgba(255, 107, 53, 0.5);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: white;
+    font-weight: 300;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.3s ease;
+    -webkit-tap-highlight-color: transparent;
+    line-height: 1;
+  }
+
+  .fab-main:active {
+    transform: scale(0.93);
+  }
+
+  .fab-main.is-open {
+    transform: rotate(45deg);
+    background: linear-gradient(135deg, #2C3E50, #34495E);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Options cachées par défaut */
+  .fab-options {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .fab-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+    transition: opacity 0.25s ease,
+                transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+
+  /* Animation en cascade */
+  .fab-options.is-open .fab-option:nth-child(1) {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition-delay: 0.05s;
+    pointer-events: auto;
+  }
+
+  .fab-options.is-open .fab-option:nth-child(2) {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition-delay: 0.1s;
+    pointer-events: auto;
+  }
+
+  .fab-options.is-open .fab-option:nth-child(3) {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition-delay: 0.15s;
+    pointer-events: auto;
+  }
+
+  .fab-options.is-open .fab-option:nth-child(4) {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition-delay: 0.2s;
+    pointer-events: auto;
+  }
+
+  .fab-option-label {
+    background: rgba(20, 20, 30, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: white;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+
+  .fab-option-btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: none;
+    color: white;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease;
+    line-height: 1;
+  }
+
+  .fab-option-btn:active {
+    transform: scale(0.9);
+  }
+
+  /* Backdrop sombre quand ouvert */
+  .fab-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 9998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .fab-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* ── Améliorations UX cartes prospects ───────────────────────── */
+@media (max-width: 768px) {
+  /* Cartes plus spacieuses */
+  .prospect-card-mobile,
+  .card {
+    padding: 14px 16px !important;
+    border-radius: 16px !important;
+    margin-bottom: 8px !important;
+    min-height: 72px;
+  }
+
+  /* Zone de tap links tel: — Apple HIG minimum 44px */
+  a[href^="tel:"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    min-height: 44px;
+  }
+
+  /* Status badge visible */
+  .status-badge,
+  [class*="statut-badge"] {
+    font-size: 10px !important;
+    padding: 3px 8px !important;
+    border-radius: 10px !important;
+  }
+
+  /* KPI stats cards */
+  .kpi-card,
+  .stat-card {
+    border-radius: 20px !important;
+    padding: 14px !important;
+  }
+
+  /* Notification banners */
+  .alert-banner,
+  [class*="alert-bar"],
+  [class*="warning-bar"] {
+    border-radius: 16px !important;
+    padding: 12px 16px !important;
+    font-size: 13px !important;
+    margin: 8px 0 !important;
+  }
+
+  /* Pull-to-refresh hint */
+  .prospects-list-container,
+  .prospect-cards-mobile {
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* ── Masquer le FAB assistant virtuel sur mobile (remplacé par Speed Dial) ── */
+@media (max-width: 768px) {
+  #dashAssistantFab {
+    display: none !important;
+  }
+}

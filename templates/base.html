@@ -12,6 +12,7 @@
 <link rel="icon" href="/static/favicon.ico">
     <title>{% block title %}Prosp'Up{% endblock %}</title>
 <link rel="stylesheet" href="/static/css/style.css?v={{ static_hash('css/style.css') }}">
+<link rel="stylesheet" href="/static/css/mobile.css?v={{ static_hash('css/mobile.css') }}">
     {% block extra_head %}{% endblock %}
 </head>
 <body data-page="{% block page_id %}{% endblock %}">
@@ -250,12 +251,65 @@
       </div>
     </div>
     
+    <!-- Footer flottant mobile (visible uniquement sur ≤ 768px via mobile.css) -->
+    <nav class="mobile-footer-float" id="mobile-footer-float" aria-label="Navigation mobile">
+      <a href="/dashboard" class="mf-item" data-page="dashboard">
+        <div class="mf-icon">📊</div>
+        <span>Stats</span>
+      </a>
+      <a href="/" class="mf-item" data-page="prospects">
+        <div class="mf-icon">👥</div>
+        <span>Prospects</span>
+      </a>
+      <a href="/focus" class="mf-item" data-page="focus">
+        <div class="mf-icon">🎯</div>
+        <span>Focus</span>
+      </a>
+      <a href="/calendrier" class="mf-item" data-page="calendar">
+        <div class="mf-icon">📅</div>
+        <span>Agenda</span>
+      </a>
+      <button type="button" class="mf-item" onclick="if(typeof openUserMenu==='function') openUserMenu()">
+        <div class="mf-icon mf-avatar" id="mf-avatar-initial">A</div>
+        <span>Profil</span>
+      </button>
+    </nav>
+
+    <!-- Backdrop FAB Speed Dial -->
+    <div class="fab-backdrop" id="fab-backdrop"></div>
+
+    <!-- FAB Speed Dial (visible uniquement sur ≤ 768px via mobile.css) -->
+    <div id="fab-speed-dial" class="fab-speed-dial">
+      <div class="fab-options" id="fab-options">
+        <div class="fab-option" data-action="add-prospect">
+          <span class="fab-option-label">Prospect</span>
+          <button class="fab-option-btn" style="background: #FF6B35;" aria-label="Ajouter un prospect">👤+</button>
+        </div>
+        <div class="fab-option" data-action="add-candidate">
+          <span class="fab-option-label">Candidat</span>
+          <button class="fab-option-btn" style="background: #4ECDC4;" aria-label="Ajouter un candidat">💼+</button>
+        </div>
+        <div class="fab-option" data-action="quick-note">
+          <span class="fab-option-label">Focus</span>
+          <button class="fab-option-btn" style="background: #9B59B6;" aria-label="Ouvrir Focus">🎯</button>
+        </div>
+        <div class="fab-option" data-action="mode-prosp">
+          <span class="fab-option-label">Mode Prosp</span>
+          <button class="fab-option-btn" style="background: #F39C12;" aria-label="Mode Prosp">🃏</button>
+        </div>
+      </div>
+      <button class="fab-main" id="fab-main-btn" aria-label="Actions rapides" aria-expanded="false">
+        <span class="fab-icon">+</span>
+      </button>
+    </div>
+
     {% block scripts %}
     <script defer src="/static/js/sidebar.js?v=2000"></script>
     <script defer src="/static/js/v8-features.js?v=2100"></script>
     <script defer src="/static/js/help-shortcut.js?v=2000"></script>
     <script defer src="/static/js/notifications.js?v=2000"></script>
     <script defer src="/static/js/app.js?v={{ static_hash('js/app.js') }}"></script>
+    <script defer src="/static/js/mobile.js?v={{ static_hash('js/mobile.js') }}"></script>
     {% endblock %}
     {% block page_scripts %}{% endblock %}
 </body>
