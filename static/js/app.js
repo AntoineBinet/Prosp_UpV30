@@ -4315,9 +4315,9 @@ async function viewDetail(id) {
     const initials = (prospect.name || '??').split(/\s+/).map(w => w[0]).slice(0,2).join('');
 
     // Avatar: photo or initials — clickable to upload
-    const photoUrl = prospect.photo_url ? String(prospect.photo_url).trim() : '';
+    const photoUrl = prospect.photo_url ? `/api/photos/prospect/${prospect.id}` : '';
     const avatarInner = photoUrl
-        ? `<img class="detail-avatar-img" src="${escapeHtml(photoUrl)}?t=${Date.now()}" alt="${escapeHtml(initials)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="detail-avatar" style="background:${heroColor};display:none;">${escapeHtml(initials)}</div>`
+        ? `<img class="detail-avatar-img" src="${photoUrl}?t=${Date.now()}" alt="${escapeHtml(initials)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="detail-avatar" style="background:${heroColor};display:none;">${escapeHtml(initials)}</div>`
         : `<div class="detail-avatar" style="background:${heroColor};">${escapeHtml(initials)}</div>`;
     const avatarHtml = `<div class="detail-avatar-wrap" onclick="triggerPhotoUpload(${prospect.id})" title="Cliquer pour changer la photo">${avatarInner}<div class="detail-avatar-overlay">📷</div></div>`;
 

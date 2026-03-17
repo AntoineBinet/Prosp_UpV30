@@ -6848,6 +6848,18 @@ def api_prospect_photo():
 
     return jsonify({"ok": True, "photo_url": photo_url})
 
+@app.get("/api/photos/prospect/<int:prospect_id>")
+def api_prospect_photo_serve(prospect_id):
+    """Serve a prospect photo with ownership check (authenticated route)."""
+    if not _prospect_owned(prospect_id):
+        return jsonify({"error": "Accès non autorisé"}), 403
+    _mimetypes = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
+    for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        fpath = os.path.join(PHOTOS_DIR, f"prospect_{prospect_id}{ext}")
+        if os.path.isfile(fpath):
+            return send_file(fpath, mimetype=_mimetypes[ext])
+    return jsonify({"error": "Photo non trouvée"}), 404
+
 @app.delete("/api/prospect/photo")
 def api_prospect_photo_delete():
     """Remove a prospect's photo."""
@@ -7804,6 +7816,11 @@ def api_companies_merge():
     merge_id = int(payload.get("merge_id") or 0)
     if not keep_id or not merge_id or keep_id == merge_id:
         return jsonify({"ok": False, "error": "keep_id and merge_id are required"}), 400
+
+    if not _company_owned(keep_id):
+        return jsonify({"error": "Accès non autorisé à cette entreprise"}), 403
+    if not _company_owned(merge_id):
+        return jsonify({"error": "Accès non autorisé à cette entreprise"}), 403
 
     with _conn() as conn:
         keep = conn.execute("SELECT * FROM companies WHERE id=? AND owner_id=?;", (keep_id, uid)).fetchone()
