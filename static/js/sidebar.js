@@ -223,10 +223,12 @@
 
                 a.textContent = item.icon + ' ' + item.label;
 
-                // Chevron pour les items avec sous-menu
+                // Chevron — bouton indépendant pour toggler le sous-menu sans naviguer
                 if (hasChildren) {
-                    var chevron = document.createElement('span');
-                    chevron.className = 'nav-chevron';
+                    var chevron = document.createElement('button');
+                    chevron.type = 'button';
+                    chevron.className = 'nav-chevron-btn';
+                    chevron.setAttribute('aria-label', 'Déplier / Replier');
                     a.appendChild(chevron);
                 }
 
@@ -237,14 +239,9 @@
                     var sub = document.createElement('div');
                     sub.className = 'nav-submenu';
 
-                    // État initial depuis localStorage (ou auto-ouvrir si dans la section)
                     var isOpen = _isAccordionOpen(item.page);
-                    if (isOpen) {
-                        sub.classList.add('expanded');
-                        chevron.textContent = ' ▾';
-                    } else {
-                        chevron.textContent = ' ▸';
-                    }
+                    sub.classList.toggle('expanded', isOpen);
+                    chevron.textContent = isOpen ? '▾' : '▸';
 
                     item.children.forEach(function (child) {
                         var ca = document.createElement('a');
@@ -253,25 +250,22 @@
                         _attachPrefetch(ca, child.href);
                         _attachNavLoading(ca, child.href);
                         if (child.helpSection) ca.setAttribute('data-help-section', child.helpSection);
-                        if (child.page === currentPage) {
-                            ca.classList.add('active');
-                        }
+                        if (child.page === currentPage) ca.classList.add('active');
                         ca.textContent = child.icon + ' ' + child.label;
                         sub.appendChild(ca);
                     });
 
                     sidebar.appendChild(sub);
 
-                    // Accordion : si fermé → ouvrir ; si ouvert → naviguer vers le parent
-                    a.addEventListener('click', function (e) {
-                        if (!sub.classList.contains('expanded')) {
-                            e.preventDefault();
-                            sub.classList.add('expanded');
-                            chevron.textContent = ' ▾';
-                            _setAccordionState(item.page, true);
-                        }
-                        // sinon : navigation normale vers item.href
+                    // Chevron toggle — stopPropagation pour ne pas déclencher le <a>
+                    chevron.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        var opened = sub.classList.toggle('expanded');
+                        chevron.textContent = opened ? '▾' : '▸';
+                        _setAccordionState(item.page, opened);
                     });
+                    // Le <a> navigue normalement — aucun handler supplémentaire
                 }
             });
         });

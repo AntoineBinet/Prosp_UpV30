@@ -8805,14 +8805,27 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     padding-left: 52px !important;
   }
 
-  /* Chevron accordion dans la sidebar */
-  .nav-chevron {
+  /* Chevron accordion — bouton indépendant (clic = toggle, sans naviguer) */
+  .nav-chevron-btn {
     margin-left: auto;
-    font-size: 11px;
-    opacity: 0.6;
-    pointer-events: none;
     flex-shrink: 0;
-    transition: none;
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    line-height: 1;
+  }
+  .nav-chevron-btn:hover {
+    background: rgba(var(--color-primary-rgb), 0.12);
+    color: var(--color-primary);
   }
 }
 
@@ -8937,6 +8950,7 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
   background: rgba(var(--color-primary-rgb), 0.15) !important;
 }
 .sidebar-collapsed .sidebar .nav-submenu { display: none !important; }
+.sidebar-collapsed .sidebar .nav-chevron-btn { display: none !important; }
 
 /* ── Floating Search Button (aligné avec le titre Prosp'Up du header) ── */
 .floating-search-btn {
