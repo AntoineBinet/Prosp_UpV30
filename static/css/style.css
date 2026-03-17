@@ -8554,11 +8554,20 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   /* ══ Prospects — liste compacte 2 lignes, mobile ══════════════ */
   body[data-page="prospects"] .table-wrapper thead { display: none !important; }
   body[data-page="prospects"] .table-wrapper { overflow-x: hidden; width: 100%; max-width: 100%; }
-  /* border-collapse:collapse + pas de border-spacing — ça ne marche pas sur display:block */
-  body[data-page="prospects"] .table-wrapper table { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; border-collapse: collapse; box-sizing: border-box; }
-  body[data-page="prospects"] .table-wrapper tbody { display: block; width: 100%; }
-  body[data-page="prospects"] .table-wrapper tbody tr.prospect-row { display: block; width: 100%; max-width: 100%; background: none !important; border: none !important; box-sizing: border-box; }
-  body[data-page="prospects"] .table-wrapper tr.prospect-row .prospect-td-check { display: block !important; width: 100%; max-width: 100%; padding: 0; margin-bottom: 4px; border: none; background: none; box-sizing: border-box; }
+  body[data-page="prospects"] .table-wrapper table { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; border-collapse: collapse !important; box-sizing: border-box; }
+  /* Tbody en flex-column : c'est LUI qui gère le gap (4px) — plus besoin de margin ni de border-spacing */
+  body[data-page="prospects"] .table-wrapper tbody { display: flex !important; flex-direction: column; gap: 4px; width: 100%; }
+  /* Neutralisation totale des règles globales tr (border-bottom, animation, transition, padding) */
+  body[data-page="prospects"] .table-wrapper tbody tr.prospect-row {
+    display: block !important; width: 100% !important; max-width: 100% !important; box-sizing: border-box;
+    padding: 0 !important; margin: 0 !important; border: none !important;
+    background: none !important; animation: none !important; transition: none !important;
+    height: auto !important; min-height: 0 !important;
+  }
+  body[data-page="prospects"] .table-wrapper tr.prospect-row .prospect-td-check {
+    display: block !important; width: 100% !important; max-width: 100% !important; box-sizing: border-box;
+    padding: 0 !important; margin: 0 !important; border: none !important; background: none !important;
+  }
   body[data-page="prospects"] .table-wrapper tr.prospect-row .prospect-td-check .desktop-checkbox { display: none !important; }
   body[data-page="prospects"] .table-wrapper tr.prospect-row .prospect-td-check .mobile-only { display: block !important; }
   body[data-page="prospects"] .table-wrapper tr.prospect-row td:not(.prospect-td-check) { display: none !important; }
