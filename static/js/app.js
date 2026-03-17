@@ -3977,8 +3977,17 @@ function _renderProspectsImpl() {
         }
         const pmcMetaHtml = metaBits.length ? metaBits.join('<span class="pmc-sep"> · </span>') : '';
 
+        const swipeLeftHtml = telRaw
+            ? '<div class="pmc-actions-left"><button class="pmc-action pmc-action-call" type="button" onclick="event.stopPropagation();callNumberById(' + pid + ')"><span class="pmc-action-icon">📞</span><span class="pmc-action-label">Appeler</span></button></div>'
+            : '<div class="pmc-actions-left pmc-no-phone"></div>';
         const mobileCardHtml =
-            '<div class="prospect-card-mobile mobile-only ' + pmcSlugClass + '">' +
+            '<div class="prospect-card-mobile mobile-only ' + pmcSlugClass + '" data-pid="' + pid + '">' +
+            '<div class="pmc-swipe-wrap">' +
+            swipeLeftHtml +
+            '<div class="pmc-actions-right">' +
+            '<button class="pmc-action pmc-action-log" type="button" onclick="event.stopPropagation();quickLogCall(' + pid + ')"><span class="pmc-action-icon">✓</span><span class="pmc-action-label">Appelé</span></button>' +
+            '<button class="pmc-action pmc-action-status" type="button" onclick="event.stopPropagation();quickChangeStatus(' + pid + ',this)"><span class="pmc-action-icon">☰</span><span class="pmc-action-label">Statut</span></button>' +
+            '</div>' +
             '<div class="pmc-content">' +
             '<div class="pmc-accent"></div>' +
             '<span class="pmc-check"><input type="checkbox" class="row-select" title="Sélectionner"' + checked + ' onclick="event.stopPropagation();toggleSelect(' + pid + ',this.checked)"></span>' +
@@ -3987,6 +3996,7 @@ function _renderProspectsImpl() {
             (pmcMetaHtml ? '<div class="pmc-row2">' + pmcMetaHtml + '</div>' : '') +
             '</div>' +
             '<span class="pmc-chevron">›</span>' +
+            '</div>' +
             '</div></div>';
 
         const row = document.createElement('tr');
@@ -3995,6 +4005,9 @@ function _renderProspectsImpl() {
         row.style.cursor = 'pointer';
         row.addEventListener('click', function (e) {
             if (e.target.tagName === 'INPUT' || e.target.closest('.pmc-check') || e.target.closest('button')) return;
+            // Don't open detail if a swipe is currently open
+            const openContent = e.currentTarget.querySelector('.pmc-content[data-swipe-open]');
+            if (openContent) { _closeAllSwipes(); return; }
             viewDetail(prospect.id);
         });
         row.innerHTML =
@@ -4038,6 +4051,176 @@ function _renderProspectsImpl() {
     _renderPagination();
     if (typeof renderKanban === 'function') renderKanban();
     _flushProspectsScrollRestore();
+    _initProspectSwipe();
+}
+
+// ── Swipe iOS-style sur les cartes prospects (mobile uniquement) ──────────────
+
+var _swipeState = null;
+var _swipeListenerAttached = false;
+
+function _closeAllSwipes(except) {
+    document.querySelectorAll('.pmc-content[data-swipe-open]').forEach(function(el) {
+        if (el === except) return;
+        el.style.transition = 'transform 0.2s ease';
+        el.style.transform = '';
+        el.removeAttribute('data-swipe-open');
+    });
+}
+
+function _initProspectSwipe() {
+    if (window.matchMedia('(min-width: 601px)').matches) return;
+    if (_swipeListenerAttached) return;
+    _swipeListenerAttached = true;
+
+    var tbody = document.getElementById('tableBody');
+    if (!tbody) return;
+
+    var SNAP_THRESHOLD = 55;  // px minimum pour déclencher le snap
+    var MAX_REVEAL = 160;      // px max révélé
+
+    tbody.addEventListener('touchstart', function(e) {
+        var wrap = e.target.closest('.pmc-swipe-wrap');
+        if (!wrap) return;
+        var content = wrap.querySelector('.pmc-content');
+        if (!content) return;
+        _swipeState = {
+            wrap: wrap,
+            content: content,
+            startX: e.touches[0].clientX,
+            startY: e.touches[0].clientY,
+            moved: false,
+            aborted: false
+        };
+    }, { passive: true });
+
+    tbody.addEventListener('touchmove', function(e) {
+        if (!_swipeState || _swipeState.aborted) return;
+        var dx = e.touches[0].clientX - _swipeState.startX;
+        var dy = e.touches[0].clientY - _swipeState.startY;
+
+        if (!_swipeState.moved) {
+            // Abort if primarily vertical scroll
+            if (Math.abs(dy) > Math.abs(dx) + 4) { _swipeState.aborted = true; return; }
+            if (Math.abs(dx) < 6) return;
+            _swipeState.moved = true;
+            _swipeState.content.style.transition = 'none';
+            // Close other open swipes
+            _closeAllSwipes(_swipeState.content);
+        }
+
+        e.preventDefault();
+        var hasPhone = !_swipeState.wrap.querySelector('.pmc-no-phone');
+        var clamped = Math.max(-MAX_REVEAL, Math.min(MAX_REVEAL, dx));
+        if (dx > 0 && !hasPhone) clamped = 0;
+        _swipeState.content.style.transform = 'translateX(' + clamped + 'px)';
+    }, { passive: false });
+
+    tbody.addEventListener('touchend', function(e) {
+        if (!_swipeState) return;
+        var state = _swipeState;
+        _swipeState = null;
+
+        if (!state.moved || state.aborted) {
+            state.content.style.transform = '';
+            return;
+        }
+
+        var dx = e.changedTouches[0].clientX - state.startX;
+        var hasPhone = !state.wrap.querySelector('.pmc-no-phone');
+        state.content.style.transition = 'transform 0.2s ease';
+
+        if (dx > SNAP_THRESHOLD && hasPhone) {
+            var leftW = state.wrap.querySelector('.pmc-actions-left').offsetWidth;
+            state.content.style.transform = 'translateX(' + leftW + 'px)';
+            state.content.setAttribute('data-swipe-open', 'left');
+            if (window.haptic) window.haptic(8);
+        } else if (dx < -SNAP_THRESHOLD) {
+            var rightW = state.wrap.querySelector('.pmc-actions-right').offsetWidth;
+            state.content.style.transform = 'translateX(-' + rightW + 'px)';
+            state.content.setAttribute('data-swipe-open', 'right');
+            if (window.haptic) window.haptic(8);
+        } else {
+            state.content.style.transform = '';
+            state.content.removeAttribute('data-swipe-open');
+        }
+    }, { passive: true });
+
+    // Tap anywhere outside closes open swipes
+    document.addEventListener('touchstart', function(e) {
+        if (!e.target.closest('.pmc-swipe-wrap')) _closeAllSwipes();
+    }, { passive: true });
+}
+
+// Marquer le prospect comme "Appelé" depuis le swipe
+function quickLogCall(prospectId) {
+    var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
+    if (!prospect) return;
+    _closeAllSwipes();
+    prospect.statut = 'Appelé';
+    prospect.lastContact = new Date().toISOString().slice(0, 10);
+    saveToServer();
+    filterProspects();
+    if (window.haptic) window.haptic(40);
+    if (window.showToast) window.showToast('Statut → Appelé ✓', 'success', 2500);
+}
+
+// Mini-sheet de changement de statut depuis le swipe
+var STATUS_SWIPE_OPTIONS = [
+    { label: "Appelé",          slug: "appele",        color: "#3B82F6" },
+    { label: "Messagerie",      slug: "messagerie",    color: "#F59E0B" },
+    { label: "À rappeler",      slug: "rappeler",      color: "#F97316" },
+    { label: "Rendez-vous",     slug: "rdv",           color: "#22C55E" },
+    { label: "Prospecté",       slug: "prospecte",     color: "#A855F7" },
+    { label: "Pas intéressé",   slug: "pas-interesse", color: "#EF4444" },
+    { label: "Pas d'actions",   slug: "pas-actions",   color: "#475569" }
+];
+var STATUS_SWIPE_VALUE_MAP = {
+    "appele": "Appelé", "messagerie": "Messagerie", "rappeler": "À rappeler",
+    "rdv": "Rendez-vous", "prospecte": "Prospecté", "pas-interesse": "Pas intéressé",
+    "pas-actions": "Pas d'actions"
+};
+
+function quickChangeStatus(prospectId, triggerEl) {
+    _closeAllSwipes();
+    // Remove existing sheet if any
+    var existing = document.getElementById('swipeStatusSheet');
+    if (existing) { existing.remove(); return; }
+
+    var sheet = document.createElement('div');
+    sheet.id = 'swipeStatusSheet';
+    sheet.className = 'swipe-status-sheet';
+    sheet.innerHTML = '<div class="swipe-status-sheet-inner">' +
+        '<div class="swipe-status-title">Changer le statut</div>' +
+        STATUS_SWIPE_OPTIONS.map(function(s) {
+            return '<button class="swipe-status-btn" style="--status-color:' + s.color + '" ' +
+                'onclick="applySwipeStatus(' + prospectId + ',\'' + s.slug + '\')" type="button">' +
+                '<span class="swipe-status-dot"></span>' + s.label + '</button>';
+        }).join('') +
+        '<button class="swipe-status-cancel" onclick="document.getElementById(\'swipeStatusSheet\').remove()" type="button">Annuler</button>' +
+        '</div>';
+
+    document.body.appendChild(sheet);
+    requestAnimationFrame(function() { sheet.classList.add('is-open'); });
+
+    // Close on backdrop tap
+    sheet.addEventListener('click', function(e) {
+        if (e.target === sheet) sheet.remove();
+    });
+}
+
+function applySwipeStatus(prospectId, slug) {
+    var sheet = document.getElementById('swipeStatusSheet');
+    if (sheet) sheet.remove();
+    var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
+    if (!prospect) return;
+    var newStatus = STATUS_SWIPE_VALUE_MAP[slug] || slug;
+    prospect.statut = newStatus;
+    prospect.lastContact = new Date().toISOString().slice(0, 10);
+    saveToServer();
+    filterProspects();
+    if (window.haptic) window.haptic(40);
+    if (window.showToast) window.showToast('Statut → ' + newStatus + ' ✓', 'success', 2500);
 }
 
 // v26: Alias pour compatibilité (anciens appels directs)
