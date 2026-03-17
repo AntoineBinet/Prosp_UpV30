@@ -9499,6 +9499,62 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
   display: none;
 }
 
+/* Bouton Pile — visible uniquement sur la page prospects */
+body:not([data-page="prospects"]) .mobile-qa-pile {
+  display: none !important;
+}
+
+/* ── Hero fiche prospect compact sur mobile ── */
+@media (max-width: 768px) {
+  .detail-hero {
+    padding: 12px 14px 8px;
+  }
+  .detail-hero-content {
+    gap: 10px;
+  }
+  .detail-avatar {
+    width: 46px;
+    height: 46px;
+    font-size: 16px;
+    border-radius: 11px;
+  }
+  .detail-avatar-img {
+    width: 46px;
+    height: 46px;
+    border-radius: 11px;
+  }
+  .detail-avatar-wrap {
+    flex-shrink: 0;
+  }
+  .detail-hero-name {
+    font-size: 15px;
+    margin-bottom: 2px;
+  }
+  .detail-hero-sub {
+    font-size: 11px;
+    gap: 5px;
+    margin-top: 1px;
+  }
+  .detail-hero-close {
+    top: 10px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    font-size: 15px;
+  }
+  .detail-quick-actions {
+    padding: 4px 12px 10px;
+    gap: 6px;
+  }
+  .detail-quick-actions .btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  .detail-tabs {
+    padding: 0 8px;
+  }
+}
+
 /* Badge in collapsed sidebar */
 .sidebar-collapsed .sidebar .nav-button .sidebar-alert-badge {
   position: absolute;
