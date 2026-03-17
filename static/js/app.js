@@ -3284,6 +3284,12 @@ function filterProspects() {
             okTags = filterTags.every(ft => prospectTags.has(ft.toLowerCase()) || haystack.includes(ft.toLowerCase()));
         }
 
+        // Chip urgents (relances en retard ou aujourd'hui)
+        var urgentMode = document.getElementById('prospectStatusChips') && document.getElementById('prospectStatusChips').dataset.urgentMode === '1';
+        if (urgentMode) {
+            var nfuU = (p.nextFollowUp && String(p.nextFollowUp).trim()) ? String(p.nextFollowUp).slice(0, 10) : '';
+            if (!nfuU || nfuU > new Date().toISOString().slice(0, 10)) return false;
+        }
         return (!search || haystack.includes(search)) &&
                (!company || p.company_id == company) &&
                (!excludedStatuses || excludedStatuses.size === 0 || !excludedStatuses.has(p.statut)) &&
@@ -3925,7 +3931,38 @@ function _renderProspectsImpl() {
     data.companies.forEach(c => companyMap.set(c.id, c));
 
     // Desktop : tableau avec 13 colonnes triables + bouton Voir. Mobile : carte (premier td) via CSS.
-    pageProspects.forEach((prospect, pageIdx) => {
+    // Groupement par statut (feature 8)
+    var _STATUS_ORDER = ['rappeler','rdv','messagerie','appele','prospecte','pas-interesse','pas-actions','none'];
+    var displayedProspects = pageProspects;
+    if (_groupByStatus) {
+        displayedProspects = pageProspects.slice().sort(function(a, b) {
+            var sA = _STATUS_ORDER.indexOf(getStatusMeta(a.statut).slug);
+            var sB = _STATUS_ORDER.indexOf(getStatusMeta(b.statut).slug);
+            return (sA < 0 ? 99 : sA) - (sB < 0 ? 99 : sB);
+        });
+    }
+    var _currentGroupSlug = null;
+    displayedProspects.forEach((prospect, pageIdx) => {
+        // Inject group header row (mobile + desktop)
+        if (_groupByStatus) {
+            const gSlug = getStatusMeta(prospect.statut).slug;
+            if (gSlug !== _currentGroupSlug) {
+                _currentGroupSlug = gSlug;
+                const gMeta = getStatusMeta(prospect.statut);
+                const gCount = displayedProspects.filter(p => getStatusMeta(p.statut).slug === gSlug).length;
+                const _GC = {'rappeler':'#F97316','rdv':'#22C55E','messagerie':'#F59E0B','appele':'#3B82F6','prospecte':'#A855F7','pas-interesse':'#EF4444','pas-actions':'#475569'};
+                const gColor = _GC[gSlug] || '#64748b';
+                const gRow = document.createElement('tr');
+                gRow.className = 'pmc-group-header-row';
+                gRow.innerHTML = '<td class="pmc-group-header-cell" colspan="13">' +
+                    '<div class="pmc-group-header" style="--group-color:' + gColor + '">' +
+                    '<span class="pmc-group-dot"></span>' +
+                    '<span class="pmc-group-label">' + escapeHtml(gMeta.label || 'Autres') + '</span>' +
+                    '<span class="pmc-group-count">' + gCount + '</span>' +
+                    '</div></td>';
+                fragment.appendChild(gRow);
+            }
+        }
         const company = companyMap.get(prospect.company_id);
         const stMeta = getStatusMeta(prospect.statut);
         const companyName = (company && company.groupe) ? String(company.groupe).trim() : '';
@@ -3977,23 +4014,66 @@ function _renderProspectsImpl() {
         }
         const pmcMetaHtml = metaBits.length ? metaBits.join('<span class="pmc-sep"> · </span>') : '';
 
-        const swipeLeftHtml = telRaw
-            ? '<div class="pmc-actions-left"><button class="pmc-action pmc-action-call" type="button" onclick="event.stopPropagation();callNumberById(' + pid + ')"><span class="pmc-action-icon">📞</span><span class="pmc-action-label">Appeler</span></button></div>'
-            : '<div class="pmc-actions-left pmc-no-phone"></div>';
+        // v27.8 — Carte redesignée : 3 lignes + avatar entreprise + 4 actions swipe ──────
+        const emailRaw = (prospect.email && String(prospect.email).trim()) ? String(prospect.email).trim() : '';
+        const hasContact = !!(telRaw || emailRaw);
+
+        // Actions swipe droite (révèle gauche) : Appeler + Email
+        let swipeLeftBtns = '';
+        if (telRaw) swipeLeftBtns += '<button class="pmc-action pmc-action-call" type="button" onclick="event.stopPropagation();callNumberById(' + pid + ')"><span class="pmc-action-icon">📞</span><span class="pmc-action-label">Appeler</span></button>';
+        if (emailRaw) swipeLeftBtns += '<button class="pmc-action pmc-action-email" type="button" onclick="event.stopPropagation();quickEmailProspect(' + pid + ')"><span class="pmc-action-icon">📧</span><span class="pmc-action-label">Email</span></button>';
+        const swipeLeftHtml = hasContact
+            ? '<div class="pmc-actions-left">' + swipeLeftBtns + '</div>'
+            : '<div class="pmc-actions-left pmc-no-contact"></div>';
+
+        // Avatar entreprise coloré (6 couleurs déterministes)
+        const coInitial = companyName ? companyName.charAt(0).toUpperCase() : '?';
+        const coColorIdx = companyName ? companyName.charCodeAt(0) % 6 : 0;
+        const coAvatarHtml = '<div class="pmc-co-avatar pmc-co-c' + coColorIdx + '" aria-hidden="true">' + coInitial + '</div>';
+
+        // Ligne 2 : Entreprise · Fonction (épurée, sans téléphone)
+        const row2Parts = [];
+        if (companyName) row2Parts.push('<span class="pmc-company">' + escapeHtml(companyName) + '</span>');
+        if (fonctionMobile) row2Parts.push('<span class="pmc-fonction">' + fonctionMobile + '</span>');
+        const row2Html = row2Parts.length ? '<div class="pmc-row2">' + row2Parts.join('<span class="pmc-sep"> · </span>') + '</div>' : '';
+
+        // Ligne 3 : Badge relance contextuel coloré (feature 7) + étoiles pertinence
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const row3Parts = [];
+        const nfu = (prospect.nextFollowUp && String(prospect.nextFollowUp).trim()) ? String(prospect.nextFollowUp).trim() : '';
+        if (nfu) {
+            if (nfu < todayStr) {
+                row3Parts.push('<span class="pmc-relance pmc-relance-overdue">● En retard</span>');
+            } else if (nfu === todayStr) {
+                row3Parts.push('<span class="pmc-relance pmc-relance-today">● Aujourd\'hui</span>');
+            } else {
+                const diffDays = Math.ceil((new Date(nfu) - new Date(todayStr)) / 86400000);
+                if (diffDays <= 3) {
+                    row3Parts.push('<span class="pmc-relance pmc-relance-soon">● +' + diffDays + 'j</span>');
+                } else {
+                    row3Parts.push('<span class="pmc-relance pmc-relance-ok">📅 ' + nfu.slice(5).replace('-', '/') + '</span>');
+                }
+            }
+        }
+        if (pert > 0) row3Parts.push('<span class="pmc-pert-stars">' + '★'.repeat(pert) + '☆'.repeat(5 - pert) + '</span>');
+        const row3Html = row3Parts.length ? '<div class="pmc-row3">' + row3Parts.join('<span class="pmc-sep"> · </span>') + '</div>' : '';
+
         const mobileCardHtml =
-            '<div class="prospect-card-mobile mobile-only ' + pmcSlugClass + '" data-pid="' + pid + '">' +
+            '<div class="prospect-card-mobile mobile-only ' + pmcSlugClass + '" data-pid="' + pid + '" style="--enter-delay:' + Math.min(pageIdx * 28, 280) + 'ms">' +
             '<div class="pmc-swipe-wrap">' +
             swipeLeftHtml +
             '<div class="pmc-actions-right">' +
             '<button class="pmc-action pmc-action-log" type="button" onclick="event.stopPropagation();quickLogCall(' + pid + ')"><span class="pmc-action-icon">✓</span><span class="pmc-action-label">Appelé</span></button>' +
-            '<button class="pmc-action pmc-action-status" type="button" onclick="event.stopPropagation();quickChangeStatus(' + pid + ',this)"><span class="pmc-action-icon">☰</span><span class="pmc-action-label">Statut</span></button>' +
+            '<button class="pmc-action pmc-action-relance" type="button" onclick="event.stopPropagation();quickScheduleFollowup(' + pid + ')"><span class="pmc-action-icon">📅</span><span class="pmc-action-label">Relance</span></button>' +
             '</div>' +
-            '<div class="pmc-content">' +
+            '<div class="pmc-content pmc-enter">' +
             '<div class="pmc-accent"></div>' +
             '<span class="pmc-check"><input type="checkbox" class="row-select" title="Sélectionner"' + checked + ' onclick="event.stopPropagation();toggleSelect(' + pid + ',this.checked)"></span>' +
+            coAvatarHtml +
             '<div class="pmc-body">' +
             '<div class="pmc-row1"><span class="pmc-name">' + displayName + '</span>' + pmcPillHtml + '</div>' +
-            (pmcMetaHtml ? '<div class="pmc-row2">' + pmcMetaHtml + '</div>' : '') +
+            row2Html +
+            row3Html +
             '</div>' +
             '<span class="pmc-chevron">›</span>' +
             '</div>' +
@@ -4110,9 +4190,9 @@ function _initProspectSwipe() {
         }
 
         e.preventDefault();
-        var hasPhone = !_swipeState.wrap.querySelector('.pmc-no-phone');
+        var hasContact = !_swipeState.wrap.querySelector('.pmc-no-contact');
         var clamped = Math.max(-MAX_REVEAL, Math.min(MAX_REVEAL, dx));
-        if (dx > 0 && !hasPhone) clamped = 0;
+        if (dx > 0 && !hasContact) clamped = 0;
         _swipeState.content.style.transform = 'translateX(' + clamped + 'px)';
     }, { passive: false });
 
@@ -4127,10 +4207,10 @@ function _initProspectSwipe() {
         }
 
         var dx = e.changedTouches[0].clientX - state.startX;
-        var hasPhone = !state.wrap.querySelector('.pmc-no-phone');
+        var hasContact = !state.wrap.querySelector('.pmc-no-contact');
         state.content.style.transition = 'transform 0.2s ease';
 
-        if (dx > SNAP_THRESHOLD && hasPhone) {
+        if (dx > SNAP_THRESHOLD && hasContact) {
             var leftW = state.wrap.querySelector('.pmc-actions-left').offsetWidth;
             state.content.style.transform = 'translateX(' + leftW + 'px)';
             state.content.setAttribute('data-swipe-open', 'left');
@@ -4150,6 +4230,257 @@ function _initProspectSwipe() {
     document.addEventListener('touchstart', function(e) {
         if (!e.target.closest('.pmc-swipe-wrap')) _closeAllSwipes();
     }, { passive: true });
+}
+
+// ── Mode Stack Tinder (v27.8) ─────────────────────────────────────────────────
+var _stackMode = {
+    active: false,
+    queue: [],
+    idx: 0,
+    dragState: null
+};
+
+function startStackMode() {
+    if (!filteredProspects || filteredProspects.length === 0) {
+        if (window.showToast) showToast('Aucun prospect à afficher', 'info');
+        return;
+    }
+    _stackMode.queue = filteredProspects.slice();
+    _stackMode.idx = 0;
+    _stackMode.active = true;
+
+    var sv = document.getElementById('stackView');
+    if (!sv) {
+        sv = document.createElement('div');
+        sv.id = 'stackView';
+        sv.className = 'stack-view';
+        sv.innerHTML =
+            '<div class="stack-header">' +
+            '<button class="stack-back-btn" onclick="stopStackMode()">← Retour</button>' +
+            '<span id="stackCounter" class="stack-counter"></span>' +
+            '<div class="stack-hints"><span>← Passer</span><span>Appeler →</span></div>' +
+            '</div>' +
+            '<div id="stackDeck" class="stack-deck"></div>' +
+            '<div class="stack-footer-actions">' +
+            '<button class="stack-btn stack-btn-skip" onclick="_stackSkip()">✕<span>Passer</span></button>' +
+            '<button class="stack-btn stack-btn-detail" onclick="_stackDetail()">👁<span>Fiche</span></button>' +
+            '<button class="stack-btn stack-btn-call" onclick="_stackCall()">📞<span>Appeler</span></button>' +
+            '</div>';
+        document.body.appendChild(sv);
+    }
+    sv.style.display = 'flex';
+    document.body.classList.add('stack-mode-active');
+    _renderStackDeck();
+    _initStackDrag();
+}
+
+function stopStackMode() {
+    _stackMode.active = false;
+    var sv = document.getElementById('stackView');
+    if (sv) sv.style.display = 'none';
+    document.body.classList.remove('stack-mode-active');
+}
+
+function _renderStackDeck() {
+    var deck = document.getElementById('stackDeck');
+    var counter = document.getElementById('stackCounter');
+    if (!deck) return;
+    deck.innerHTML = '';
+    var total = _stackMode.queue.length;
+    var remaining = total - _stackMode.idx;
+    if (counter) counter.textContent = remaining + ' / ' + total;
+    if (remaining <= 0) {
+        deck.innerHTML = '<div class="stack-done"><div style="font-size:48px">🎉</div><div>Tous les prospects vus !</div><button class="btn btn-primary" onclick="stopStackMode()" style="margin-top:16px">Fermer</button></div>';
+        return;
+    }
+    // Afficher jusqu'à 3 cartes (du bas vers le haut)
+    for (var i = Math.min(2, remaining - 1); i >= 0; i--) {
+        var p = _stackMode.queue[_stackMode.idx + i];
+        if (!p) continue;
+        var c = (data.companies || []).find(function(co) { return co.id === p.company_id; });
+        var compNm = (c && c.groupe) ? c.groupe : '';
+        var stM = getStatusMeta(p.statut);
+        var initial = (p.name || '').charAt(0).toUpperCase();
+        var coInit = compNm ? compNm.charAt(0).toUpperCase() : '?';
+        var coColorI = compNm ? compNm.charCodeAt(0) % 6 : 0;
+        var pert2 = Math.min(5, Math.max(0, parseInt(p.pertinence || '3', 10) || 0));
+        var card = document.createElement('div');
+        card.className = 'stack-card' + (i === 0 ? ' stack-card-top' : '');
+        card.style.setProperty('--stack-offset', i);
+        card.dataset.pid = String(p.id);
+        var nfuBadge = '';
+        var todayS = new Date().toISOString().slice(0, 10);
+        if (p.nextFollowUp) {
+            var nf = String(p.nextFollowUp).slice(0, 10);
+            if (nf < todayS) nfuBadge = '<span class="pmc-relance pmc-relance-overdue">● En retard</span>';
+            else if (nf === todayS) nfuBadge = '<span class="pmc-relance pmc-relance-today">● Aujourd\'hui</span>';
+        }
+        card.innerHTML =
+            '<div class="stack-card-avatar pmc-co-c' + coColorI + '">' + coInit + '</div>' +
+            '<div class="stack-card-name">' + escapeHtml(p.name || '') + '</div>' +
+            '<div class="stack-card-company">' + escapeHtml(compNm) + (p.fonction ? ' · ' + escapeHtml(p.fonction) : '') + '</div>' +
+            '<div class="stack-card-status"><span class="pmc-pill ' + 'pmc-s-' + stM.slug + '">' + escapeHtml(stM.label || '') + '</span>' + nfuBadge + '</div>' +
+            '<div class="stack-card-stars">' + '★'.repeat(pert2) + '☆'.repeat(5 - pert2) + '</div>' +
+            (p.telephone ? '<div class="stack-card-meta">📞 ' + escapeHtml(String(p.telephone).slice(0, 20)) + '</div>' : '') +
+            (p.email ? '<div class="stack-card-meta">📧 ' + escapeHtml(p.email) + '</div>' : '');
+        deck.appendChild(card);
+    }
+    if (remaining > 0) _bindStackTopCard();
+}
+
+function _initStackDrag() {
+    var deck = document.getElementById('stackDeck');
+    if (!deck || deck._stackDragInit) return;
+    deck._stackDragInit = true;
+    deck.addEventListener('touchstart', function(e) {
+        var card = e.target.closest('.stack-card-top');
+        if (!card) return;
+        _stackMode.dragState = { card: card, startX: e.touches[0].clientX, startY: e.touches[0].clientY, moved: false };
+    }, { passive: true });
+    deck.addEventListener('touchmove', function(e) {
+        if (!_stackMode.dragState) return;
+        e.preventDefault();
+        var ds = _stackMode.dragState;
+        var dx = e.touches[0].clientX - ds.startX;
+        var dy = e.touches[0].clientY - ds.startY;
+        ds.moved = true;
+        ds.card.style.transition = 'none';
+        ds.card.style.transform = 'translateX(' + dx + 'px) translateY(' + dy * 0.3 + 'px) rotate(' + (dx * 0.08) + 'deg)';
+        // Indicateur visuel gauche/droite
+        var overlay = ds.card.querySelector('.stack-card-overlay');
+        if (!overlay) { overlay = document.createElement('div'); overlay.className = 'stack-card-overlay'; ds.card.appendChild(overlay); }
+        if (dx > 40)  { overlay.textContent = '📞'; overlay.className = 'stack-card-overlay stack-card-overlay-right'; }
+        else if (dx < -40) { overlay.textContent = '✕'; overlay.className = 'stack-card-overlay stack-card-overlay-left'; }
+        else           { overlay.className = 'stack-card-overlay'; overlay.textContent = ''; }
+    }, { passive: false });
+    deck.addEventListener('touchend', function(e) {
+        if (!_stackMode.dragState) return;
+        var ds = _stackMode.dragState;
+        _stackMode.dragState = null;
+        if (!ds.moved) { ds.card.style.transform = ''; return; }
+        var dx = e.changedTouches[0].clientX - ds.startX;
+        ds.card.style.transition = 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.35s ease';
+        if (dx > 70) {
+            // Swipe droite → appeler
+            ds.card.style.transform = 'translateX(120vw) rotate(30deg)';
+            ds.card.style.opacity = '0';
+            setTimeout(function() { _stackCall(Number(ds.card.dataset.pid)); }, 200);
+        } else if (dx < -70) {
+            // Swipe gauche → passer
+            ds.card.style.transform = 'translateX(-120vw) rotate(-30deg)';
+            ds.card.style.opacity = '0';
+            setTimeout(function() { _stackSkip(); }, 200);
+        } else {
+            // Snap back
+            ds.card.style.transform = '';
+        }
+    }, { passive: true });
+}
+
+function _bindStackTopCard() {} // placeholder (drag via deck listener)
+
+function _stackSkip() {
+    if (window.haptic) haptic(12);
+    _stackMode.idx++;
+    _renderStackDeck();
+}
+
+function _stackCall(pid) {
+    var p = _stackMode.queue[_stackMode.idx];
+    if (!p && pid) p = _stackMode.queue.find(function(pr) { return pr.id === pid; });
+    if (p && p.telephone) {
+        window.location.href = 'tel:' + p.telephone.replace(/\s/g, '');
+        if (window.haptic) haptic(30);
+    }
+    _stackMode.idx++;
+    setTimeout(_renderStackDeck, 400);
+}
+
+function _stackDetail() {
+    var p = _stackMode.queue[_stackMode.idx];
+    if (!p) return;
+    stopStackMode();
+    if (typeof viewDetail === 'function') viewDetail(p.id);
+}
+
+// ── Actions rapides v27.8 ─────────────────────────────────────────────────────
+
+/** Ouvrir l'email du prospect depuis le swipe. */
+function quickEmailProspect(prospectId) {
+    var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
+    if (!prospect || !prospect.email) return;
+    _closeAllSwipes();
+    window.location.href = 'mailto:' + encodeURIComponent(prospect.email);
+}
+
+/** Ouvre la mini-sheet pour planifier une relance rapide. */
+function quickScheduleFollowup(prospectId) {
+    _closeAllSwipes();
+    var existing = document.getElementById('quickRelanceSheet');
+    if (existing) { existing.remove(); return; }
+    var today = new Date();
+    var fmt = function(d) { return d.toISOString().slice(0, 10); };
+    var d1 = new Date(today); d1.setDate(today.getDate() + 1);
+    var d3 = new Date(today); d3.setDate(today.getDate() + 3);
+    var d7 = new Date(today); d7.setDate(today.getDate() + 7);
+    var sheet = document.createElement('div');
+    sheet.id = 'quickRelanceSheet';
+    sheet.className = 'swipe-status-sheet';
+    sheet.innerHTML = '<div class="swipe-status-sheet-inner">' +
+        '<div class="swipe-status-title">📅 Planifier une relance</div>' +
+        '<button class="swipe-status-btn" style="--status-color:#F97316" onclick="applyQuickRelance(' + prospectId + ',\'' + fmt(d1) + '\')" type="button">Demain — ' + fmt(d1) + '</button>' +
+        '<button class="swipe-status-btn" style="--status-color:#F59E0B" onclick="applyQuickRelance(' + prospectId + ',\'' + fmt(d3) + '\')" type="button">Dans 3 jours — ' + fmt(d3) + '</button>' +
+        '<button class="swipe-status-btn" style="--status-color:#3B82F6" onclick="applyQuickRelance(' + prospectId + ',\'' + fmt(d7) + '\')" type="button">Dans 1 semaine — ' + fmt(d7) + '</button>' +
+        '<button class="swipe-status-cancel" onclick="document.getElementById(\'quickRelanceSheet\').remove()" type="button">Annuler</button>' +
+        '</div>';
+    document.body.appendChild(sheet);
+    requestAnimationFrame(function() { sheet.classList.add('is-open'); });
+    sheet.addEventListener('click', function(e) { if (e.target === sheet) sheet.remove(); });
+}
+
+function applyQuickRelance(prospectId, date) {
+    var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
+    if (!prospect) return;
+    var sheet = document.getElementById('quickRelanceSheet');
+    if (sheet) sheet.remove();
+    prospect.nextFollowUp = date;
+    saveToServer();
+    filterProspects();
+    if (window.haptic) window.haptic(30);
+    if (window.showToast) window.showToast('Relance planifiée : ' + date, 'success', 2500);
+}
+
+// ── Groupement par statut ─────────────────────────────────────────────────────
+var _groupByStatus = false;
+
+function toggleGroupByStatus() {
+    _groupByStatus = !_groupByStatus;
+    var btn = document.getElementById('btnGroupByStatus');
+    if (btn) {
+        btn.classList.toggle('active', _groupByStatus);
+        btn.title = _groupByStatus ? 'Désactiver le groupement' : 'Grouper par statut';
+    }
+    filterProspects();
+}
+
+/** Filtre rapide via les chips de statut mobile. */
+function _setStatusChip(chipEl, statusValue) {
+    // Mettre à jour les chips actives
+    document.querySelectorAll('.psc-chip').forEach(function(c) { c.classList.remove('psc-chip-active'); });
+    chipEl.classList.add('psc-chip-active');
+
+    if (statusValue === 'urgent') {
+        // Mode urgents : prospects avec nextFollowUp <= aujourd'hui
+        var todayStr2 = new Date().toISOString().slice(0, 10);
+        document.getElementById('statusFilter') && (document.getElementById('statusFilter').value = '');
+        // Filtre via un attribut data temporaire
+        document.getElementById('prospectStatusChips').dataset.urgentMode = '1';
+        filterProspects();
+    } else {
+        document.getElementById('prospectStatusChips') && delete document.getElementById('prospectStatusChips').dataset.urgentMode;
+        var sf = document.getElementById('statusFilter');
+        if (sf) { sf.value = statusValue; filterProspects(); }
+    }
 }
 
 // Marquer le prospect comme "Appelé" depuis le swipe
