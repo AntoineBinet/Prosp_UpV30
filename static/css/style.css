@@ -6788,17 +6788,17 @@ body[data-page="candidate"] #fabAdd {
   grid-auto-rows: min-content;
   grid-auto-flow: row dense;
   align-items: start;
-  gap: 16px;
+  gap: 12px;
 }
 .dash-widget {
   position: relative;
   min-height: min-content;
   min-width: 0;
   height: fit-content;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 16px;
+  transition: transform 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
   display: flex;
   flex-direction: column;
-  /* Permettre au widget de s'étendre sur plusieurs colonnes */
   grid-column: span 1;
 }
 .dash-widget > .card {
@@ -6810,14 +6810,11 @@ body[data-page="candidate"] #fabAdd {
 }
 .dash-widget-header {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 10;
-  padding: 8px;
   pointer-events: none;
-}
-.dash-widget-header > * {
-  pointer-events: auto;
 }
 @media (max-width: 768px) {
   .dash-widgets-container {
@@ -6825,41 +6822,36 @@ body[data-page="candidate"] #fabAdd {
   }
 }
 
-/* ─── Handle de glisser-déposer ─── */
+/* ─── Handle de glisser-déposer (pill iOS) ─── */
 .dash-widget-handle {
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-text-secondary, #94a3b8);
+  opacity: 0.3;
   cursor: grab;
-  font-size: 16px;
-  line-height: 1;
-  color: var(--color-text-secondary, #94a3b8);
-  padding: 6px 8px;
-  border-radius: 6px;
+  transition: opacity 0.2s;
+  pointer-events: auto;
   user-select: none;
-  opacity: 0.6;
-  transition: all 0.2s;
-  display: inline-block;
-  background: rgba(var(--color-background-rgb, 255, 255, 255), 0.5);
-  backdrop-filter: blur(4px);
 }
-.dash-widget-handle:hover {
-  color: var(--color-primary);
-  opacity: 1;
-  background: rgba(var(--color-primary-rgb, 59, 130, 246), 0.1);
-  transform: scale(1.1);
+.dash-widget:hover .dash-widget-handle {
+  opacity: 0.7;
 }
 .dash-widget-handle:active {
   cursor: grabbing;
-  transform: scale(0.95);
+  opacity: 0.9;
 }
 
 /* ─── États de drag & drop ─── */
 .dash-widget.dash-widget-dragging {
-  opacity: 0.9;
-  transform: scale(1.02) rotate(0.5deg);
-  box-shadow: 0 20px 50px rgba(0,0,0,0.4), 0 0 0 3px var(--color-primary);
-  z-index: 1000;
+  opacity: 0.95;
+  transform: scale(1.02);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.45), 0 0 0 2px var(--color-primary);
+  z-index: 10000;
   transition: none !important;
   cursor: grabbing !important;
-  border-radius: 12px;
+  border-radius: 16px;
   will-change: transform;
 }
 .dash-widget.dash-widget-drag-over {
@@ -6880,6 +6872,12 @@ body[data-page="candidate"] #fabAdd {
   padding: 10px 18px;
   border-radius: 10px;
   font-size: 13px;
+  font-weight: 700;
+  z-index: 100;
+  pointer-events: none;
+  animation: dashWidgetDropHint 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  letter-spacing: 0.5px;
 }
 
 /* ─── Placeholder pour drag & drop ─── */
@@ -6895,35 +6893,39 @@ body[data-page="candidate"] #fabAdd {
   min-height: 100px;
 }
 
-/* ─── Poignée de redimensionnement ─── */
+/* ─── Poignée de redimensionnement (discrète) ─── */
 .dash-widget-resize-handle {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 20px;
-  height: 20px;
+  width: 14px;
+  height: 14px;
   cursor: nwse-resize;
   z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: var(--color-text-secondary, #94a3b8);
-  opacity: 0.6;
-  transition: opacity 0.2s, transform 0.2s;
+  opacity: 0;
+  transition: opacity 0.2s;
   user-select: none;
-  background: rgba(var(--color-surface-rgb, 30, 41, 59), 0.8);
-  border-radius: 6px 0 12px 0;
-  border: 1px solid var(--color-border);
+  border-radius: 0 0 16px 0;
+}
+.dash-widget-resize-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--color-text-secondary, #94a3b8);
+  border-bottom: 2px solid var(--color-text-secondary, #94a3b8);
+  border-radius: 0 0 2px 0;
+}
+.dash-widget:hover .dash-widget-resize-handle {
+  opacity: 0.2;
 }
 .dash-widget-resize-handle:hover {
-  opacity: 1;
-  transform: scale(1.1);
-  color: var(--color-primary);
-  background: rgba(var(--color-primary-rgb, 59, 130, 246), 0.1);
+  opacity: 0.8 !important;
 }
 .dash-widget-resize-handle:active {
-  transform: scale(0.95);
+  opacity: 1 !important;
 }
 
 .dash-widget.dash-widget-resizing {
@@ -6932,13 +6934,6 @@ body[data-page="candidate"] #fabAdd {
 }
 .dash-widget.dash-widget-resizing * {
   pointer-events: none;
-}
-  font-weight: 700;
-  z-index: 100;
-  pointer-events: none;
-  animation: dashWidgetDropHint 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-  letter-spacing: 0.5px;
 }
 @keyframes dashWidgetPulse {
   0%, 100% { outline-color: var(--color-primary); }

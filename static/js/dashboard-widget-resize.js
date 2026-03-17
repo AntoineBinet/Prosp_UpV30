@@ -97,16 +97,11 @@ class DashboardWidgetResize {
             const handle = document.createElement('div');
             handle.className = 'dash-widget-resize-handle';
             handle.setAttribute('title', 'Redimensionner');
-            handle.innerHTML = '↘'; // Icône de resize
-            
-            // Ajouter au header du widget
-            let header = widget.querySelector('.dash-widget-header');
-            if (!header) {
-                header = document.createElement('div');
-                header.className = 'dash-widget-header';
-                widget.insertBefore(header, widget.firstChild);
-            }
-            header.appendChild(handle);
+            // Pas d'icône texte — visuel géré par CSS
+
+            // Appendre directement au widget (pas au header)
+            // Ainsi position:absolute bottom:0 right:0 sera relatif au widget (position:relative)
+            widget.appendChild(handle);
             
             // Attacher les événements
             handle.addEventListener('mousedown', this._boundHandleResizeStart, { passive: false });

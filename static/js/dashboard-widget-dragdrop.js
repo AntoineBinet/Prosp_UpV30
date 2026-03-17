@@ -27,6 +27,8 @@ class DashboardWidgetDragDrop {
         this.currentPos = { x: 0, y: 0 };
         this.offset = { x: 0, y: 0 };
         this.originalRect = null; // Position originale du widget avant le drag
+        this._dragParent = null;
+        this._dragNextSibling = null;
         this.placeholder = null;
         this.targetWidget = null;
         this.animationFrameId = null;
@@ -208,7 +210,18 @@ class DashboardWidgetDragDrop {
         // Préparer widget
         this.draggedWidget = widget;
         this.isDragging = false; // Sera activé après le seuil
-        
+
+        // Stocker la position originale dans le DOM pour restauration
+        this._dragParent = this.container;
+        this._dragNextSibling = widget.nextElementSibling;
+
+        // Créer placeholder EN PREMIER (avant de déplacer le widget)
+        this._createPlaceholder(widget);
+
+        // "Portaler" le widget vers document.body pour échapper à tout contexte
+        // CSS transform/filter/will-change qui ferait dériver position:fixed
+        document.body.appendChild(widget);
+
         // Préparer visuellement le widget avec position fixed pour suivre exactement la souris
         widget.classList.add('dash-widget-dragging');
         widget.style.transition = 'none';
@@ -216,12 +229,9 @@ class DashboardWidgetDragDrop {
         widget.style.left = rect.left + 'px';
         widget.style.top = rect.top + 'px';
         widget.style.width = rect.width + 'px';
-        widget.style.zIndex = '1000';
+        widget.style.zIndex = '10000';
         widget.style.cursor = 'grabbing';
         widget.style.margin = '0';
-        
-        // Créer placeholder
-        this._createPlaceholder(widget);
         
         // Attacher listeners globaux
         if (inputType === 'touch') {
@@ -503,6 +513,15 @@ class DashboardWidgetDragDrop {
      */
     _cleanup() {
         if (this.draggedWidget) {
+            // Si le widget est encore dans document.body (drag annulé ou aucun target),
+            // le remettre à sa position originale avant le placeholder
+            if (this.draggedWidget.parentElement === document.body) {
+                if (this.placeholder && this.placeholder.parentElement) {
+                    this._dragParent.insertBefore(this.draggedWidget, this.placeholder);
+                } else if (this._dragParent) {
+                    this._dragParent.appendChild(this.draggedWidget);
+                }
+            }
             this.draggedWidget.classList.remove('dash-widget-dragging');
             // Réinitialiser les styles (retour à la position normale)
             this.draggedWidget.style.transition = '';
@@ -532,5 +551,7 @@ class DashboardWidgetDragDrop {
         this.currentPos = { x: 0, y: 0 };
         this.offset = { x: 0, y: 0 };
         this.originalRect = null;
+        this._dragParent = null;
+        this._dragNextSibling = null;
     }
 }
