@@ -127,7 +127,6 @@ window.applyDashboardDisplayPrefs = applyDashboardDisplayPrefs;
 
 // ═══ Widgets réorganisables (v25+) — ordre sauvegardé par utilisateur ─══
 var DASH_WIDGET_ORDER_KEY = 'dashboard_widget_order';
-var DASH_WIDGET_COLUMNS_KEY = 'dashboard_widget_columns';
 var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard', 'dashPrioritiesCard', 'dashPushAnalyticsCard'];
 
 function getDashboardWidgetOrder() {
@@ -159,68 +158,6 @@ function saveDashboardWidgetOrder() {
     try { localStorage.setItem(DASH_WIDGET_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
     // Ne pas afficher de toast à chaque drag & drop pour éviter le spam
     // if (window.showToast) window.showToast('Ordre des widgets enregistré.', 'success', 2000);
-}
-
-function getDashboardColumns() {
-    try {
-        var cols = parseInt(localStorage.getItem(DASH_WIDGET_COLUMNS_KEY) || '2', 10);
-        return Math.max(1, Math.min(3, cols));
-    } catch (e) {
-        return 2;
-    }
-}
-
-function setDashboardColumns(cols) {
-    var container = document.getElementById('dashWidgetsContainer');
-    if (!container) return;
-    cols = Math.max(1, Math.min(3, parseInt(cols, 10) || 2));
-    try { localStorage.setItem(DASH_WIDGET_COLUMNS_KEY, String(cols)); } catch (e) {}
-    container.style.gridTemplateColumns = cols === 1 ? '1fr' : (cols === 2 ? '1fr 1fr' : '1fr 1fr 1fr');
-    
-    // Mettre à jour l'état visuel des boutons
-    var controls = document.getElementById('dashWidgetsControls');
-    if (controls) {
-        controls.querySelectorAll('.dash-layout-btn').forEach(function (btn, idx) {
-            var btnCols = idx + 1;
-            if (btnCols === cols) {
-                btn.style.background = 'var(--color-primary)';
-                btn.style.color = 'white';
-                btn.style.borderColor = 'var(--color-primary)';
-            } else {
-                btn.style.background = 'var(--color-background)';
-                btn.style.color = 'var(--color-text)';
-                btn.style.borderColor = 'var(--color-border)';
-            }
-        });
-    }
-    
-    if (window.showToast) window.showToast('Layout mis à jour : ' + cols + ' colonne' + (cols > 1 ? 's' : ''), 'success', 2000);
-    // Feedback haptique si disponible
-    if (typeof window.haptic === 'function') window.haptic(15);
-}
-
-function applyDashboardColumns() {
-    var container = document.getElementById('dashWidgetsContainer');
-    if (!container) return;
-    var cols = getDashboardColumns();
-    container.style.gridTemplateColumns = cols === 1 ? '1fr' : (cols === 2 ? '1fr 1fr' : '1fr 1fr 1fr');
-    
-    // Mettre à jour l'état visuel des boutons
-    var controls = document.getElementById('dashWidgetsControls');
-    if (controls) {
-        controls.querySelectorAll('.dash-layout-btn').forEach(function (btn, idx) {
-            var btnCols = idx + 1;
-            if (btnCols === cols) {
-                btn.style.background = 'var(--color-primary)';
-                btn.style.color = 'white';
-                btn.style.borderColor = 'var(--color-primary)';
-            } else {
-                btn.style.background = 'var(--color-background)';
-                btn.style.color = 'var(--color-text)';
-                btn.style.borderColor = 'var(--color-border)';
-            }
-        });
-    }
 }
 
 function applyDashboardWidgetOrder() {
@@ -326,10 +263,6 @@ function initDashboardWidgetResize() {
 
 // Note: L'application de l'ordre et des colonnes est maintenant gérée dans le DOMContentLoaded
 // pour éviter les conflits de timing avec le chargement des données
-
-// Exposer les fonctions globalement pour les boutons de contrôle
-window.setDashboardColumns = setDashboardColumns;
-window.getDashboardColumns = getDashboardColumns;
 
 // ═══ Bannière alerte relances (P1) ═══
 function renderRelanceAlertBanner(pipeline) {
@@ -1127,8 +1060,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialiser le bouton assistant
     initAssistantButton();
     
-    // Appliquer les colonnes et l'ordre AVANT le chargement des données
-    applyDashboardColumns();
+    // Appliquer l'ordre AVANT le chargement des données
     applyDashboardWidgetOrder();
     
     try {

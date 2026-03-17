@@ -6781,46 +6781,14 @@ body[data-page="candidate"] #fabAdd {
 .dash-col { display: flex; flex-direction: column; gap: 14px; }
 /* Zone widgets dashboard réorganisables (v25) — 2 colonnes côte à côte */
 /* ─── Contrôles de modularité ─── */
-.dash-widgets-controls {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin: 16px 0 12px;
-  padding: 10px 14px;
-  background: var(--color-surface);
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  backdrop-filter: blur(8px);
-}
-.dash-layout-btn {
-  padding: 6px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.dash-layout-btn:hover {
-  background: var(--color-surface);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-.dash-layout-btn:active {
-  transform: scale(0.95);
-}
-
 /* ─── Container widgets modulaire ─── */
 .dash-widgets-container {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   grid-auto-rows: min-content;
   grid-auto-flow: row dense;
   align-items: start;
-  gap: 14px;
-  transition: grid-template-columns 0.3s ease;
+  gap: 16px;
 }
 .dash-widget {
   position: relative;
@@ -6853,13 +6821,7 @@ body[data-page="candidate"] #fabAdd {
 }
 @media (max-width: 768px) {
   .dash-widgets-container {
-    grid-template-columns: 1fr !important;
-  }
-  .dash-widgets-controls {
-    flex-wrap: wrap;
-  }
-  .dash-widgets-controls > span:last-child {
-    display: none;
+    grid-template-columns: 1fr;
   }
 }
 

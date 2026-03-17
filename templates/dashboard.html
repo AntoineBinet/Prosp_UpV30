@@ -27,15 +27,6 @@
   <button class="kpi-manual-btn" onclick="openManualKpiModal()" title="Ajouter manuellement une action KPI">➕ Ajout KPI manuel</button>
 </div>
 
-<!-- Barre de contrôle de la modularité -->
-<div class="dash-widgets-controls" id="dashWidgetsControls" style="display:flex;gap:8px;align-items:center;margin:16px 0 12px;padding:10px 14px;background:var(--color-surface);border-radius:10px;border:1px solid var(--color-border);">
-  <span style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-right:4px;">Layout:</span>
-  <button class="dash-layout-btn" onclick="setDashboardColumns(1)" title="1 colonne" style="padding:6px 10px;font-size:11px;">1</button>
-  <button class="dash-layout-btn" onclick="setDashboardColumns(2)" title="2 colonnes" style="padding:6px 10px;font-size:11px;">2</button>
-  <button class="dash-layout-btn" onclick="setDashboardColumns(3)" title="3 colonnes" style="padding:6px 10px;font-size:11px;">3</button>
-  <div style="flex:1;"></div>
-  <span style="font-size:11px;color:var(--color-text-secondary);">💡 Glissez les widgets par la poignée ⋮⋮ pour réorganiser</span>
-</div>
 
 <!-- Zone widgets réorganisables (ordre sauvegardé par utilisateur) -->
 <div id="dashWidgetsContainer" class="dash-widgets-container">
