@@ -16,6 +16,7 @@
 }
 
 :root {
+    --header-h: 78px; /* Hauteur du header fixe desktop */
     --color-primary: #f36f21;
     --color-primary-hover: #d85f1c;
     --color-primary-rgb: 243, 111, 33;
@@ -8751,6 +8752,60 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   Desktop — Header fixe + Sidebar fixe (min-width: 901px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (min-width: 901px) {
+  /* Header fixe en haut de page */
+  header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    border-radius: 0 0 16px 16px;
+    margin-bottom: 0;
+  }
+
+  /* Compensation : réserver la place du header fixe */
+  .container {
+    padding-top: calc(var(--header-h) + var(--spacing-sm));
+  }
+
+  /* Sidebar fixe sous le header */
+  .sidebar {
+    position: fixed !important;
+    top: var(--header-h);
+    left: 0;
+    width: 220px;
+    height: calc(100vh - var(--header-h));
+    max-height: none;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-radius: 0 18px 18px 0;
+    z-index: 100;
+  }
+
+  /* Sidebar collapsed — garder la même position fixe */
+  .sidebar-collapsed .sidebar {
+    width: 52px !important;
+    min-width: 52px !important;
+  }
+  .sidebar-collapsed .main-layout {
+    grid-template-columns: 52px 1fr !important;
+  }
+
+  /* Chevron accordion dans la sidebar */
+  .nav-chevron {
+    margin-left: auto;
+    font-size: 11px;
+    opacity: 0.6;
+    pointer-events: none;
+    flex-shrink: 0;
+    transition: none;
+  }
+}
 
 @media print {
   .sidebar, .toast-container, .gsearch-overlay, .hamburger-btn,

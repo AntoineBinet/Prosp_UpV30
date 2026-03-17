@@ -121,6 +121,26 @@
         });
     }
 
+    // ── Accordion state (persistent via localStorage) ─────────────
+    var ACCORDION_KEY = 'sidebar_accordion_state';
+
+    function _getAccordionState() {
+        try { return JSON.parse(localStorage.getItem(ACCORDION_KEY) || '{}'); } catch (e) { return {}; }
+    }
+
+    function _setAccordionState(key, value) {
+        var state = _getAccordionState();
+        state[key] = value;
+        try { localStorage.setItem(ACCORDION_KEY, JSON.stringify(state)); } catch (e) {}
+    }
+
+    function _isAccordionOpen(itemPage) {
+        // Auto-ouvrir si on est déjà dans cette section
+        if (itemPage === 'settings' && isInSettingsSection) return true;
+        var state = _getAccordionState();
+        return state[itemPage] === true;
+    }
+
     // ── State ─────────────────────────────────────────────────────
     var _currentUser = null;  // user from /api/auth/me (for badge)
     
@@ -203,14 +223,27 @@
 
                 a.textContent = item.icon + ' ' + item.label;
 
+                // Chevron pour les items avec sous-menu
+                if (hasChildren) {
+                    var chevron = document.createElement('span');
+                    chevron.className = 'nav-chevron';
+                    a.appendChild(chevron);
+                }
+
                 sidebar.appendChild(a);
 
                 // Sub-menu
                 if (hasChildren) {
                     var sub = document.createElement('div');
                     sub.className = 'nav-submenu';
-                    if (isInSettingsSection) {
+
+                    // État initial depuis localStorage (ou auto-ouvrir si dans la section)
+                    var isOpen = _isAccordionOpen(item.page);
+                    if (isOpen) {
                         sub.classList.add('expanded');
+                        chevron.textContent = ' ▾';
+                    } else {
+                        chevron.textContent = ' ▸';
                     }
 
                     item.children.forEach(function (child) {
@@ -229,12 +262,12 @@
 
                     sidebar.appendChild(sub);
 
-                    // Toggle submenu when already in this section
+                    // Accordion : le clic sur le parent toggle TOUJOURS le sous-menu
                     a.addEventListener('click', function (e) {
-                        if (selfActive || parentActive) {
-                            e.preventDefault();
-                            sub.classList.toggle('expanded');
-                        }
+                        e.preventDefault();
+                        var opened = sub.classList.toggle('expanded');
+                        chevron.textContent = opened ? ' ▾' : ' ▸';
+                        _setAccordionState(item.page, opened);
                     });
                 }
             });
