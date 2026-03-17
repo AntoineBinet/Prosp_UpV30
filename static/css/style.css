@@ -8774,13 +8774,13 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     padding-top: calc(var(--header-h) + var(--spacing-sm));
   }
 
-  /* Sidebar fixe sous le header */
+  /* Sidebar fixe sous le header — top aligné sur le padding-top du container */
   .sidebar {
     position: fixed !important;
-    top: var(--header-h);
+    top: calc(var(--header-h) + var(--spacing-sm));
     left: 0;
     width: 220px;
-    height: calc(100vh - var(--header-h));
+    height: calc(100vh - var(--header-h) - var(--spacing-sm));
     max-height: none;
     overflow-y: auto;
     overflow-x: hidden;
