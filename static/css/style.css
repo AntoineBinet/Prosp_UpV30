@@ -8809,7 +8809,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 
   /* Pastille collapse sidebar — flottante sur le bord droit */
   .sidebar-collapse-btn {
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: center;
     position: fixed;
