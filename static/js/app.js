@@ -13551,38 +13551,78 @@ function resetProspectColumnWidths() {
 function openUserMenu() {
     const popup = document.getElementById('userMenuPopup');
     if (!popup) return;
-    
-    // Mettre à jour les infos utilisateur dans le popup
+
+    // ── Remplir les infos utilisateur ────────────────────────────
     if (window.AppAuth && AppAuth.user) {
         const u = AppAuth.user;
-        const name = (typeof escapeHtml === 'function' ? escapeHtml(u.display_name || u.username) : String(u.display_name || u.username || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c)));
+        const esc = typeof escapeHtml === 'function' ? escapeHtml : (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
         const initial = (u.display_name || u.username || '').charAt(0).toUpperCase();
         const label = (AppAuth.ROLE_LABELS && AppAuth.ROLE_LABELS[u.role]) || u.role;
-        
+
+        // Avatar : image si dispo, sinon initiale
         const avatarEl = document.getElementById('userMenuAvatar');
+        if (avatarEl) {
+            const existingImg = avatarEl.querySelector('img.user-menu-avatar-img');
+            if (u.avatar_url) {
+                if (!existingImg) {
+                    const img = document.createElement('img');
+                    img.className = 'user-menu-avatar-img';
+                    img.alt = initial;
+                    img.src = u.avatar_url + '?t=' + Date.now();
+                    // input + overlay déjà dans le DOM, on insère l'img avant
+                    avatarEl.insertBefore(img, avatarEl.firstChild);
+                } else {
+                    existingImg.src = u.avatar_url + '?t=' + Date.now();
+                }
+                avatarEl.dataset.initial = '';
+            } else {
+                if (existingImg) existingImg.remove();
+                avatarEl.dataset.initial = initial;
+            }
+        }
+
+        // Textes
         const nameEl = document.getElementById('userMenuName');
         const usernameEl = document.getElementById('userMenuUsername');
+        const emailEl = document.getElementById('userMenuEmail');
+        const phoneEl = document.getElementById('userMenuPhone');
         const roleEl = document.getElementById('userMenuRole');
 
-        if (avatarEl) avatarEl.textContent = initial;
-        if (nameEl) nameEl.textContent = name;
+        if (nameEl) nameEl.textContent = u.display_name || u.username || '';
         if (usernameEl) usernameEl.textContent = u.username || '';
+        if (emailEl) { emailEl.textContent = u.email || ''; emailEl.style.display = u.email ? '' : 'none'; }
+        if (phoneEl) { phoneEl.textContent = u.phone || ''; phoneEl.style.display = u.phone ? '' : 'none'; }
         if (roleEl) roleEl.textContent = label;
 
-        // Mettre à jour aussi l'avatar dans le footer mobile flottant
+        // Pré-remplir le formulaire d'édition
+        const editName  = document.getElementById('userMenuEditName');
+        const editEmail = document.getElementById('userMenuEditEmail');
+        const editPhone = document.getElementById('userMenuEditPhone');
+        if (editName)  editName.value  = u.display_name || '';
+        if (editEmail) editEmail.value = u.email || '';
+        if (editPhone) editPhone.value = u.phone || '';
+
+        // Footer mobile flottant
         const mfAvatar = document.getElementById('mf-avatar-initial');
         if (mfAvatar) mfAvatar.textContent = initial;
 
-        // Afficher/masquer les options admin
-        const adminItems = popup.querySelectorAll('.admin-only');
-        adminItems.forEach(item => {
+        // Admin items
+        popup.querySelectorAll('.admin-only').forEach(item => {
             item.style.display = (u.role === 'admin') ? '' : 'none';
         });
     }
 
+    // ── Toggle thème : icône + label ─────────────────────────────
+    _updateUserMenuThemeLabel();
+
+    // ── Haptic feedback ──────────────────────────────────────────
+    if (window.haptic) haptic(12);
+
+    // ── Ouvrir ───────────────────────────────────────────────────
+    _toggleProfileEdit(false); // reset form
     popup.classList.add('open');
 
-    // Sur mobile : backdrop + fermer au touch extérieur
+    // ── Mobile : backdrop + swipe bas pour fermer ─────────────────
     const isMobile = window.matchMedia('(max-width: 768px)').matches;
     if (isMobile) {
         let backdrop = document.getElementById('userMenuBackdrop');
@@ -13594,8 +13634,30 @@ function openUserMenu() {
             document.body.appendChild(backdrop);
         }
         requestAnimationFrame(() => backdrop.classList.add('open'));
+
+        // Swipe bas pour fermer (init une seule fois)
+        if (!popup._swipeInited) {
+            popup._swipeInited = true;
+            let startY = 0;
+            popup.addEventListener('touchstart', (e) => {
+                startY = e.touches[0].clientY;
+            }, { passive: true });
+            popup.addEventListener('touchmove', (e) => {
+                const dy = e.touches[0].clientY - startY;
+                if (dy > 0) {
+                    popup.style.transition = 'none';
+                    popup.style.transform = `translateY(${dy}px)`;
+                }
+            }, { passive: true });
+            popup.addEventListener('touchend', (e) => {
+                const dy = e.changedTouches[0].clientY - startY;
+                popup.style.transition = '';
+                popup.style.transform = '';
+                if (dy > 80) closeUserMenu();
+            });
+        }
     } else {
-        // Fermer si on clique en dehors (desktop)
+        // Desktop : fermer au clic extérieur
         setTimeout(() => {
             const closeOnOutside = (e) => {
                 if (!popup.contains(e.target) && !e.target.closest('.user-session-badge')) {
@@ -13610,9 +13672,135 @@ function openUserMenu() {
 
 function closeUserMenu() {
     const popup = document.getElementById('userMenuPopup');
-    if (popup) popup.classList.remove('open');
+    if (popup) { popup.classList.remove('open'); popup.style.transform = ''; }
     const backdrop = document.getElementById('userMenuBackdrop');
     if (backdrop) backdrop.classList.remove('open');
+}
+
+/** Met à jour l'icône et le libellé du toggle thème dans le panel. */
+function _updateUserMenuThemeLabel() {
+    const isDark = !document.documentElement.getAttribute('data-theme') ||
+                    document.documentElement.getAttribute('data-theme') === 'dark';
+    const icon  = document.getElementById('userMenuThemeIcon');
+    const label = document.getElementById('userMenuThemeLabel');
+    if (icon)  icon.textContent  = isDark ? '☀️' : '🌙';
+    if (label) label.textContent = isDark ? 'Passer en mode clair' : 'Passer en mode sombre';
+}
+
+/** Bascule entre affichage des infos et formulaire d'édition inline. */
+function _toggleProfileEdit(show) {
+    const display = document.getElementById('userMenuNameDisplay');
+    const form    = document.getElementById('userMenuEditForm');
+    const infoEls = ['userMenuUsername','userMenuEmail','userMenuPhone','userMenuRole'];
+    if (!display || !form) return;
+    if (show) {
+        display.style.display = 'none';
+        form.style.display = '';
+        infoEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+        document.getElementById('userMenuEditName') && document.getElementById('userMenuEditName').focus();
+    } else {
+        display.style.display = '';
+        form.style.display = 'none';
+        // Ré-afficher les champs renseignés
+        if (window.AppAuth && AppAuth.user) {
+            const u = AppAuth.user;
+            const emailEl = document.getElementById('userMenuEmail');
+            const phoneEl = document.getElementById('userMenuPhone');
+            if (emailEl) emailEl.style.display = u.email ? '' : 'none';
+            if (phoneEl) phoneEl.style.display = u.phone ? '' : 'none';
+            ['userMenuUsername','userMenuRole'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = '';
+            });
+        }
+    }
+}
+
+/** Sauvegarde le profil (display_name, email, phone) via PATCH /api/auth/profile. */
+async function _saveUserProfile() {
+    const name  = (document.getElementById('userMenuEditName')  || {}).value || '';
+    const email = (document.getElementById('userMenuEditEmail') || {}).value || '';
+    const phone = (document.getElementById('userMenuEditPhone') || {}).value || '';
+    const btn   = document.querySelector('.user-menu-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try {
+        const r = await fetch('/api/auth/profile', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ display_name: name, email, phone }),
+        });
+        const d = await r.json();
+        if (d.ok) {
+            // Mettre à jour AppAuth.user en mémoire
+            if (window.AppAuth && AppAuth.user) {
+                AppAuth.user.display_name = d.display_name || name;
+                AppAuth.user.email = d.email || email;
+                AppAuth.user.phone = d.phone || phone;
+            }
+            _toggleProfileEdit(false);
+            // Rafraîchir l'affichage
+            const nameEl = document.getElementById('userMenuName');
+            if (nameEl) nameEl.textContent = d.display_name || name;
+            const emailEl = document.getElementById('userMenuEmail');
+            if (emailEl) { emailEl.textContent = d.email || email; emailEl.style.display = (d.email || email) ? '' : 'none'; }
+            const phoneEl = document.getElementById('userMenuPhone');
+            if (phoneEl) { phoneEl.textContent = d.phone || phone; phoneEl.style.display = (d.phone || phone) ? '' : 'none'; }
+            // Badge desktop
+            const badgeName = document.querySelector('.user-session-name');
+            if (badgeName) badgeName.textContent = d.display_name || name;
+            if (window.showToast) showToast('Profil mis à jour', 'success');
+        } else {
+            if (window.showToast) showToast(d.error || 'Erreur', 'error');
+        }
+    } catch(e) {
+        if (window.showToast) showToast('Erreur réseau', 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer'; }
+    }
+}
+
+/** Ouvre le sélecteur de fichier pour l'avatar. */
+function _openAvatarUpload() {
+    const input = document.getElementById('userMenuAvatarInput');
+    if (input) input.click();
+}
+
+/** Upload l'avatar sélectionné via POST /api/auth/avatar. */
+async function _uploadUserAvatar(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const fd = new FormData();
+    fd.append('avatar', file);
+    const avatarEl = document.getElementById('userMenuAvatar');
+    if (avatarEl) avatarEl.classList.add('user-menu-avatar-loading');
+    try {
+        const r = await fetch('/api/auth/avatar', { method: 'POST', credentials: 'same-origin', body: fd });
+        const d = await r.json();
+        if (d.ok) {
+            if (window.AppAuth && AppAuth.user) AppAuth.user.avatar_url = d.avatar_url;
+            // Afficher la nouvelle image
+            if (avatarEl) {
+                let img = avatarEl.querySelector('img.user-menu-avatar-img');
+                if (!img) {
+                    img = document.createElement('img');
+                    img.className = 'user-menu-avatar-img';
+                    img.alt = '';
+                    avatarEl.insertBefore(img, avatarEl.firstChild);
+                }
+                img.src = d.avatar_url + '?t=' + Date.now();
+                avatarEl.dataset.initial = '';
+            }
+            if (window.showToast) showToast('Photo mise à jour', 'success');
+        } else {
+            if (window.showToast) showToast(d.error || 'Erreur upload', 'error');
+        }
+    } catch(e) {
+        if (window.showToast) showToast('Erreur réseau', 'error');
+    } finally {
+        if (avatarEl) avatarEl.classList.remove('user-menu-avatar-loading');
+        input.value = '';
+    }
 }
 
 function openUserMenuOption(option) {

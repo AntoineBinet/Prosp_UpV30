@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.6"
+APP_VERSION = "27.7"
 import os
 import subprocess
 import traceback
@@ -1117,7 +1117,69 @@ def api_auth_me():
         payload["onboarding_seen"] = 1
     else:
         payload["onboarding_seen"] = 0
+    payload["email"] = user.get("email") or ""
+    payload["phone"] = user.get("phone") or ""
+    avatar = user.get("avatar") or ""
+    payload["avatar_url"] = f"/api/auth/avatar/{user['id']}" if avatar else ""
     return jsonify(ok=True, user=payload, version=APP_VERSION)
+
+
+@app.patch("/api/auth/profile")
+@login_required
+def api_auth_profile_update():
+    """Mise à jour du profil utilisateur : display_name, email, phone (v27.7)."""
+    uid = session.get("user_id")
+    data = request.get_json(force=True, silent=True) or {}
+    display_name = (data.get("display_name") or "").strip()
+    email = (data.get("email") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    if not display_name:
+        return jsonify(ok=False, error="Le nom affiché ne peut pas être vide"), 400
+    with _auth_conn() as conn:
+        conn.execute(
+            "UPDATE users SET display_name=?, email=?, phone=? WHERE id=?",
+            (display_name, email, phone, uid),
+        )
+    return jsonify(ok=True, display_name=display_name, email=email, phone=phone)
+
+
+@app.post("/api/auth/avatar")
+@login_required
+def api_auth_avatar_upload():
+    """Upload de la photo de profil utilisateur (v27.7)."""
+    uid = session.get("user_id")
+    f = request.files.get("avatar")
+    if not f or not f.filename:
+        return jsonify(ok=False, error="Aucun fichier fourni"), 400
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        return jsonify(ok=False, error="Format non supporté (jpg, png, webp, gif)"), 400
+    # Supprimer l'ancien avatar si présent
+    for old_ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        old_path = AVATARS_DIR / f"avatar_{uid}{old_ext}"
+        if old_path.exists():
+            try:
+                old_path.unlink()
+            except Exception:
+                pass
+    fname = f"avatar_{uid}{ext}"
+    fpath = AVATARS_DIR / fname
+    f.save(str(fpath))
+    with _auth_conn() as conn:
+        conn.execute("UPDATE users SET avatar=? WHERE id=?", (fname, uid))
+    return jsonify(ok=True, avatar_url=f"/api/auth/avatar/{uid}")
+
+
+@app.get("/api/auth/avatar/<int:user_id>")
+@login_required
+def api_auth_avatar_serve(user_id):
+    """Sert la photo de profil d'un utilisateur (v27.7)."""
+    from flask import send_file as _send_file
+    for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        fpath = AVATARS_DIR / f"avatar_{user_id}{ext}"
+        if fpath.exists():
+            return _send_file(str(fpath))
+    return jsonify(ok=False, error="Aucun avatar"), 404
 
 
 @app.post("/api/auth/onboarding-seen")
@@ -2405,6 +2467,18 @@ def _migrate_all_user_dbs() -> None:
                     print(f"[WARN] Impossible de supprimer {p}: {e}")
             else:
                 _migrate_user_db_schema(user_db)
+
+
+def _migrate_users_schema() -> None:
+    """Ajoute les colonnes email, phone, avatar à la table users si absentes (v27.7)."""
+    with _auth_conn() as conn:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(users);")}
+        if "email" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN email TEXT;")
+        if "phone" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN phone TEXT;")
+        if "avatar" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN avatar TEXT;")
 
 
 def _init_user_db(user_id: int) -> Path:
@@ -6733,6 +6807,9 @@ import uuid as _uuid
 
 PHOTOS_DIR = DATA_DIR / "photos"
 os.makedirs(PHOTOS_DIR, exist_ok=True)
+
+AVATARS_DIR = DATA_DIR / "avatars"
+os.makedirs(AVATARS_DIR, exist_ok=True)
 
 # Migration: déplacer les photos existantes de static/photos/ vers data/photos/
 _old_photos_dir = APP_DIR / "static" / "photos"
@@ -14453,6 +14530,7 @@ def api_assistant_action():
 if __name__ == "__main__":
     DATA_DIR.mkdir(exist_ok=True)
     init_db()
+    _migrate_users_schema()
     _migrate_all_user_dbs()
     load_initial_data_if_needed()
 

@@ -65,18 +65,45 @@
     
     <!-- Popup menu utilisateur (s'ouvre depuis le badge) -->
     <div id="userMenuPopup" class="user-menu-popup">
+      <!-- Poignée swipe (mobile) -->
+      <div class="user-menu-drag-handle" aria-hidden="true"></div>
       <div class="user-menu-header">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div id="userMenuAvatar" class="user-menu-avatar"></div>
-          <div>
-            <div id="userMenuName" class="user-menu-name"></div>
-            <div id="userMenuUsername" class="user-menu-username"></div>
-            <div id="userMenuRole" class="user-menu-role"></div>
-          </div>
+        <!-- Avatar cliquable pour upload -->
+        <div id="userMenuAvatar" class="user-menu-avatar" onclick="_openAvatarUpload()" title="Changer la photo" role="button" tabindex="0">
+          <input type="file" id="userMenuAvatarInput" accept=".jpg,.jpeg,.png,.webp" style="display:none" onchange="_uploadUserAvatar(this)">
+          <div class="user-menu-avatar-overlay"><span>📷</span></div>
         </div>
-        <button type="button" class="user-menu-close" onclick="closeUserMenu()" title="Fermer">×</button>
+        <!-- Infos utilisateur -->
+        <div class="user-menu-info">
+          <!-- Affichage normal -->
+          <div id="userMenuNameDisplay" class="user-menu-name-row">
+            <div id="userMenuName" class="user-menu-name"></div>
+            <button type="button" class="user-menu-edit-btn" onclick="_toggleProfileEdit(true)" title="Modifier le profil" aria-label="Modifier le profil">✏️</button>
+          </div>
+          <!-- Formulaire d'édition inline -->
+          <div id="userMenuEditForm" class="user-menu-edit-form" style="display:none;" role="form" aria-label="Modifier le profil">
+            <input id="userMenuEditName"  type="text"  class="user-menu-edit-input" placeholder="Nom affiché" autocomplete="name">
+            <input id="userMenuEditEmail" type="email" class="user-menu-edit-input" placeholder="Email" autocomplete="email">
+            <input id="userMenuEditPhone" type="tel"   class="user-menu-edit-input" placeholder="Téléphone" autocomplete="tel">
+            <div class="user-menu-edit-actions">
+              <button type="button" class="user-menu-save-btn" onclick="_saveUserProfile()">Enregistrer</button>
+              <button type="button" class="user-menu-cancel-btn" onclick="_toggleProfileEdit(false)">Annuler</button>
+            </div>
+          </div>
+          <div id="userMenuUsername" class="user-menu-username"></div>
+          <div id="userMenuEmail"    class="user-menu-contact" style="display:none;"></div>
+          <div id="userMenuPhone"    class="user-menu-contact" style="display:none;"></div>
+          <div id="userMenuRole"     class="user-menu-role"></div>
+        </div>
+        <button type="button" class="user-menu-close" onclick="closeUserMenu()" title="Fermer" aria-label="Fermer">×</button>
       </div>
       <div class="user-menu-content">
+        <!-- Toggle thème -->
+        <div class="user-menu-item" id="userMenuThemeToggle" onclick="window.toggleTheme && toggleTheme(); _updateUserMenuThemeLabel();">
+          <span class="user-menu-icon" id="userMenuThemeIcon">🌙</span>
+          <span id="userMenuThemeLabel">Mode clair</span>
+        </div>
+        <div class="user-menu-divider"></div>
         <div class="user-menu-item" onclick="openUserMenuOption('changePassword')">
           <span class="user-menu-icon">🔐</span>
           <span>Changer mon mot de passe</span>
