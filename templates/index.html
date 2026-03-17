@@ -54,7 +54,21 @@
                 <button type="button" id="btnClearSearch" class="search-clear-btn" onclick="clearSearchInput()" title="Effacer la recherche" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--color-text-secondary);cursor:pointer;font-size:18px;line-height:1;padding:4px;display:none;">×</button>
             </div>
             <button class="btn btn-secondary filter-toggle-btn" id="btnToggleFilters" type="button" title="Afficher les filtres" data-help-section="prospects">⚙️ Filtres</button>
+            <!-- Boutons mobile uniquement -->
+            <button class="btn btn-secondary mobile-only prospect-tool-btn" id="btnStackMode" type="button" title="Mode Tinder (cartes)" onclick="startStackMode()" aria-label="Mode Stack Tinder">🃏</button>
+            <button class="btn btn-secondary mobile-only prospect-tool-btn" id="btnGroupByStatus" type="button" title="Grouper par statut" onclick="toggleGroupByStatus()" aria-label="Grouper par statut">⊞</button>
             <div id="activeFilterChips" class="filter-chips-bar"></div>
+        </div>
+
+        <!-- Barre de filtres rapides par statut (mobile uniquement) — v27.8 -->
+        <div class="prospect-status-chips mobile-only" id="prospectStatusChips" role="group" aria-label="Filtres rapides statut">
+            <button class="psc-chip psc-chip-active" data-status="" onclick="_setStatusChip(this,'')">Tous</button>
+            <button class="psc-chip psc-chip-urgent" data-status="urgent" onclick="_setStatusChip(this,'urgent')">🔴 Urgents</button>
+            <button class="psc-chip" data-status="À rappeler" onclick="_setStatusChip(this,'À rappeler')">⏳ Rappeler</button>
+            <button class="psc-chip" data-status="Rendez-vous" onclick="_setStatusChip(this,'Rendez-vous')">🤝 RDV</button>
+            <button class="psc-chip" data-status="Appelé" onclick="_setStatusChip(this,'Appelé')">📞 Appelé</button>
+            <button class="psc-chip" data-status="Messagerie" onclick="_setStatusChip(this,'Messagerie')">💬 Messagerie</button>
+            <button class="psc-chip" data-status="Pas intéressé" onclick="_setStatusChip(this,'Pas intéressé')">❌ Pas intéressé</button>
         </div>
 
         <div id="filterPanel" class="filter-panel" style="display:none;">

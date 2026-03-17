@@ -8759,7 +8759,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
 
   /* Accent gauche */
   body[data-page="prospects"] .table-wrapper .pmc-accent {
-    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
     border-radius: 14px 0 0 14px; background: rgba(255,255,255,0.12);
   }
   body[data-page="prospects"] .table-wrapper .pmc-s-appele      .pmc-accent { background: #3B82F6; }
@@ -8885,9 +8885,11 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     min-width: 72px;
   }
   body[data-page="prospects"] .pmc-action:active { filter: brightness(0.88); }
-  body[data-page="prospects"] .pmc-action-call   { background: #22C55E; }
-  body[data-page="prospects"] .pmc-action-log    { background: #3B82F6; }
-  body[data-page="prospects"] .pmc-action-status { background: #A855F7; }
+  body[data-page="prospects"] .pmc-action-call    { background: #22C55E; }
+  body[data-page="prospects"] .pmc-action-email   { background: #F97316; }
+  body[data-page="prospects"] .pmc-action-log     { background: #3B82F6; }
+  body[data-page="prospects"] .pmc-action-relance { background: #0EA5E9; }
+  body[data-page="prospects"] .pmc-action-status  { background: #A855F7; }
 
   body[data-page="prospects"] .pmc-action-icon  { font-size: 22px; line-height: 1; }
   body[data-page="prospects"] .pmc-action-label {
@@ -12259,4 +12261,301 @@ body[data-page=""] .content {
     margin: 0 auto 12px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PROSPECTS MOBILE — Refonte v27.8 (carte 3 lignes, avatar, stack)
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Avatar entreprise coloré ──────────────────────────────────── */
+@media (max-width: 600px) {
+  body[data-page="prospects"] .pmc-content {
+    /* Accentuation du padding gauche pour l'accent 6px */
+    padding-left: 18px;
+  }
+  body[data-page="prospects"] .pmc-co-avatar {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff;
+    letter-spacing: -0.3px;
+  }
+  .pmc-co-c0 { background: linear-gradient(135deg,#6366f1,#8b5cf6); }
+  .pmc-co-c1 { background: linear-gradient(135deg,#0ea5e9,#06b6d4); }
+  .pmc-co-c2 { background: linear-gradient(135deg,#10b981,#059669); }
+  .pmc-co-c3 { background: linear-gradient(135deg,#f97316,#ef4444); }
+  .pmc-co-c4 { background: linear-gradient(135deg,#a855f7,#ec4899); }
+  .pmc-co-c5 { background: linear-gradient(135deg,#f59e0b,#d97706); }
+
+  /* ── Ligne 2 : company · fonction ─────────────────────────────── */
+  body[data-page="prospects"] .table-wrapper .pmc-row2 {
+    font-size: 11.5px;
+    color: var(--color-text-secondary, #94a3b8);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body[data-page="prospects"] .table-wrapper .pmc-company { font-weight: 500; }
+  body[data-page="prospects"] .table-wrapper .pmc-fonction { opacity: 0.8; }
+
+  /* ── Ligne 3 : badge relance + étoiles ────────────────────────── */
+  body[data-page="prospects"] .table-wrapper .pmc-row3 {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 10px; margin-top: 1px;
+  }
+  .pmc-relance {
+    font-size: 10px; font-weight: 700; border-radius: 6px;
+    padding: 1px 5px; letter-spacing: 0.2px;
+  }
+  .pmc-relance-overdue { background: rgba(239,68,68,0.18); color: #f87171; }
+  .pmc-relance-today   { background: rgba(234,179,8,0.18);  color: #fbbf24; }
+  .pmc-relance-soon    { background: rgba(249,115,22,0.18); color: #fb923c; }
+  .pmc-relance-ok      { background: rgba(100,116,139,0.12); color: #94a3b8; }
+  .pmc-pert-stars      { color: #fbbf24; font-size: 10px; letter-spacing: -1px; }
+
+  /* ── Animation d'entrée staggerée ─────────────────────────────── */
+  .pmc-enter {
+    animation: pmc-card-enter 0.38s cubic-bezier(0.22,1,0.36,1) both;
+    animation-delay: var(--enter-delay, 0ms);
+  }
+  @keyframes pmc-card-enter {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Flash success après action rapide */
+  .pmc-content.pmc-flash-success {
+    animation: pmc-flash 0.6s ease-out;
+  }
+  @keyframes pmc-flash {
+    0%   { background: #191f2e !important; }
+    25%  { background: rgba(34,197,94,0.22) !important; }
+    100% { background: #191f2e !important; }
+  }
+
+  /* ── Boutons outils mobile (Stack + Group) ─────────────────────── */
+  .prospect-tool-btn {
+    padding: 8px 10px !important;
+    font-size: 16px !important;
+    min-width: 0 !important;
+    flex-shrink: 0;
+  }
+  .prospect-tool-btn.active {
+    background: var(--color-primary, #6366f1) !important;
+    color: #fff !important;
+    border-color: transparent !important;
+  }
+
+  /* ── Chips de statut rapide ───────────────────────────────────── */
+  .prospect-status-chips {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 6px 0 2px;
+    margin: 0 -2px;
+  }
+  .prospect-status-chips::-webkit-scrollbar { display: none; }
+  .psc-chip {
+    flex-shrink: 0;
+    border: 1px solid var(--color-border, rgba(255,255,255,0.1));
+    background: rgba(255,255,255,0.04);
+    color: var(--color-text-secondary, #94a3b8);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 12px; font-weight: 500;
+    cursor: pointer; white-space: nowrap;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .psc-chip:active { transform: scale(0.96); }
+  .psc-chip-active {
+    background: rgba(99,102,241,0.18);
+    border-color: #6366f1;
+    color: #a5b4fc;
+  }
+  .psc-chip-urgent.psc-chip-active {
+    background: rgba(239,68,68,0.15);
+    border-color: #ef4444;
+    color: #f87171;
+  }
+
+  /* ── Groupement par statut — headers sticky ─────────────────────── */
+  body[data-page="prospects"] .table-wrapper tbody .pmc-group-header-row {
+    display: block !important; width: 100% !important;
+  }
+  body[data-page="prospects"] .table-wrapper .pmc-group-header-cell {
+    display: block !important; padding: 0 !important; border: none !important;
+    background: none !important;
+  }
+  .pmc-group-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 4px 4px;
+    position: sticky; top: 0; z-index: 10;
+    background: var(--color-bg, #0f0f17);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .pmc-group-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--group-color, #64748b);
+    flex-shrink: 0;
+  }
+  .pmc-group-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase; color: var(--group-color, #64748b);
+    flex: 1;
+  }
+  .pmc-group-count {
+    font-size: 11px; font-weight: 600;
+    background: rgba(255,255,255,0.06);
+    color: var(--color-text-secondary, #94a3b8);
+    border-radius: 10px; padding: 1px 7px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MODE STACK TINDER — v27.8
+   ══════════════════════════════════════════════════════════════════ */
+.stack-view {
+  position: fixed; inset: 0;
+  background: var(--color-bg, #0f0f17);
+  z-index: 8000;
+  display: none;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+body.stack-mode-active .stack-view { display: flex !important; }
+
+.stack-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.07));
+  flex-shrink: 0;
+}
+.stack-back-btn {
+  background: none; border: none; color: var(--color-text, #e2e8f0);
+  font-size: 14px; cursor: pointer; padding: 6px 0;
+}
+.stack-counter { font-size: 13px; color: var(--color-text-secondary, #94a3b8); }
+.stack-hints { display: flex; gap: 16px; font-size: 11px; color: var(--color-text-secondary, #94a3b8); opacity: 0.7; }
+
+.stack-deck {
+  flex: 1;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  perspective: 800px;
+}
+
+/* Chaque carte empilée */
+.stack-card {
+  position: absolute;
+  width: calc(100% - 48px);
+  max-width: 380px;
+  background: var(--color-surface, rgba(255,255,255,0.05));
+  border: 1px solid var(--color-border, rgba(255,255,255,0.08));
+  border-radius: 20px;
+  padding: 24px 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  transform:
+    translateY(calc(var(--stack-offset, 0) * 12px))
+    scale(calc(1 - var(--stack-offset, 0) * 0.04));
+  opacity: calc(1 - var(--stack-offset, 0) * 0.2);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  user-select: none;
+  will-change: transform;
+  cursor: grab;
+}
+.stack-card-top {
+  z-index: 3;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.55);
+}
+
+.stack-card-avatar {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 700; color: #fff;
+  margin-bottom: 14px;
+}
+.stack-card-name {
+  font-size: 22px; font-weight: 700;
+  color: var(--color-text, #e2e8f0);
+  margin-bottom: 4px;
+}
+.stack-card-company {
+  font-size: 14px; color: var(--color-text-secondary, #94a3b8);
+  margin-bottom: 12px;
+}
+.stack-card-status {
+  display: flex; gap: 8px; align-items: center;
+  margin-bottom: 10px;
+}
+.stack-card-stars { font-size: 18px; color: #fbbf24; margin-bottom: 8px; }
+.stack-card-meta { font-size: 13px; color: var(--color-text-secondary, #94a3b8); margin-top: 4px; }
+
+/* Overlay directionnel */
+.stack-card-overlay {
+  position: absolute; top: 16px;
+  font-size: 36px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.stack-card-overlay-left  { left: 20px;  opacity: 1; }
+.stack-card-overlay-right { right: 20px; opacity: 1; }
+
+/* Boutons du bas */
+.stack-footer-actions {
+  display: flex; justify-content: center; gap: 20px;
+  padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--color-border, rgba(255,255,255,0.07));
+  flex-shrink: 0;
+}
+.stack-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  border: none; border-radius: 50%; cursor: pointer;
+  width: 64px; height: 64px;
+  font-size: 22px; font-weight: 700;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.stack-btn:active { transform: scale(0.92); }
+.stack-btn span { font-size: 9px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; display: none; }
+.stack-btn-skip   { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+.stack-btn-detail { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+.stack-btn-call   { background: rgba(34,197,94,0.15);  color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+
+.stack-done {
+  text-align: center; color: var(--color-text-secondary, #94a3b8);
+  font-size: 16px; padding: 32px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SAFE AREA iPhone 17 / Dynamic Island — v27.8
+   ══════════════════════════════════════════════════════════════════ */
+@supports (padding-top: env(safe-area-inset-top)) {
+  /* Bottom nav mobile */
+  .mobile-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Barre d'actions rapides mobile flottante */
+  .mobile-quick-actions-bar {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  /* FAB */
+  .fab {
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  /* Header (Dynamic Island top) */
+  .main-header, .content-header {
+    padding-top: max(var(--header-pt, 0px), env(safe-area-inset-top, 0px));
+  }
+  /* Chips de statut (collent sous la barre de recherche) */
+  .prospect-status-chips {
+    padding-bottom: 0;
+  }
+}
+
 
