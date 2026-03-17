@@ -18,22 +18,37 @@
 
 /* ── BUG 1 : Barre d'actions horizontale scrollable ─────────────
    Les boutons de la toolbar-row sont coupés sur mobile.
-   Fix : scroll horizontal sans scrollbar visible.
+   Root cause : le parent flex-column (content-header) laisse la
+   toolbar-row s'étendre sans limite → l'overflow interne ne se
+   déclenche jamais. Fix : contraindre le parent + forcer scroll.
    ─────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
+  /* Empêche le content-header d'élargir la page */
+  .content-header {
+    overflow: hidden;
+    max-width: 100%;
+  }
+
   .toolbar-row,
   .action-bar,
   .toolbar,
   [class*="btn-group"],
   .filter-bar {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: scroll !important;  /* scroll = toujours scrollable, même si contenu = largeur */
+    overflow-y: visible;
     -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
     gap: 8px;
     padding-bottom: 4px;
+    padding-right: 20px; /* hint visuel : item suivant visible */
     scrollbar-width: none;
+    width: 100%;
+    box-sizing: border-box;
+    /* Isolation : force un contexte de scroll indépendant du parent */
+    isolation: isolate;
   }
 
   .toolbar-row::-webkit-scrollbar,
@@ -46,7 +61,7 @@
   .toolbar-row > *,
   .action-bar > *,
   .filter-bar > * {
-    flex-shrink: 0;
+    flex-shrink: 0 !important;
     scroll-snap-align: start;
   }
 }
