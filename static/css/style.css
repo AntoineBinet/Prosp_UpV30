@@ -6844,11 +6844,39 @@ body[data-page="candidate"] #fabAdd {
   .assistant-chat-window.open {
     transform: scale(1) translateY(0);
   }
-  
+
   /* Padding réduit sur mobile */
   body[data-page="prospects"] .content,
   body[data-page=""] .content {
     padding-bottom: 90px;
+  }
+}
+
+/* ── BUG 2 FIX — Assistant virtuel panneau latéral desktop (≥ 769px) ─────
+   Remplace la bulle flottante par un panneau qui glisse depuis la droite.
+   Évite le débordement et la coupure du bas sur grand écran.
+   ─────────────────────────────────────────────────────────────────────── */
+@media (min-width: 769px) {
+  .assistant-chat-window {
+    top: 60px;                              /* sous le header */
+    right: 0;
+    bottom: auto;
+    width: min(420px, calc(100vw - 180px)); /* respecte la largeur de la sidebar */
+    height: calc(100vh - 80px);
+    max-height: none;
+    border-radius: 12px 0 0 12px;          /* arrondi côté gauche uniquement */
+    border-right: none;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.3), -2px 0 8px rgba(0,0,0,0.15);
+    z-index: 800;
+    transform: translateX(30px) scale(0.95);
+    transform-origin: top right;
+  }
+  .assistant-chat-window.open {
+    transform: translateX(0) scale(1);
+  }
+  /* Masquer le bouton 🤖 flottant sur desktop — accessible via Speed Dial "Assistant IA" */
+  #dashAssistantFab {
+    display: none !important;
   }
 }
 
@@ -12708,4 +12736,130 @@ body.stack-mode-active .stack-view { display: flex !important; }
   }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   BUG 1 FIX — FAB Speed Dial Desktop (≥ 769px)
+   Affiche le même FAB animé que sur mobile, adapté au desktop.
+   Technique : ID selector (#fab-speed-dial, spécificité 1-0-0) >
+   class selector (.fab-speed-dial, spécificité 0-1-0) → surcharge
+   le "display: none !important" de mobile.css sans modifier ce fichier.
+   ══════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) {
+  /* Afficher le conteneur — ID > class, surcharge mobile.css */
+  #fab-speed-dial {
+    display: flex !important;
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    z-index: 900;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  /* Backdrop — masqué par défaut, visible via .is-open */
+  #fab-backdrop {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 899;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  #fab-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Bouton principal */
+  #fab-speed-dial .fab-main {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF6B35, #FF8C42);
+    border: none;
+    box-shadow: 0 4px 20px rgba(255, 107, 53, 0.5);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    color: white;
+    font-weight: 300;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.3s ease;
+    line-height: 1;
+  }
+  #fab-speed-dial .fab-main:hover {
+    box-shadow: 0 6px 28px rgba(255, 107, 53, 0.65);
+    transform: scale(1.06);
+  }
+  #fab-speed-dial .fab-main:active {
+    transform: scale(0.93);
+  }
+  #fab-speed-dial .fab-main.is-open {
+    transform: rotate(45deg);
+    background: linear-gradient(135deg, #2C3E50, #34495E);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Options (cachées par défaut, cascade à l'ouverture) */
+  #fab-speed-dial .fab-options {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  #fab-speed-dial .fab-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+    transition: opacity 0.25s ease,
+                transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+  #fab-speed-dial .fab-options.is-open .fab-option:nth-child(1) { opacity: 1; transform: translateY(0) scale(1); transition-delay: 0.05s; pointer-events: auto; }
+  #fab-speed-dial .fab-options.is-open .fab-option:nth-child(2) { opacity: 1; transform: translateY(0) scale(1); transition-delay: 0.10s; pointer-events: auto; }
+  #fab-speed-dial .fab-options.is-open .fab-option:nth-child(3) { opacity: 1; transform: translateY(0) scale(1); transition-delay: 0.15s; pointer-events: auto; }
+  #fab-speed-dial .fab-options.is-open .fab-option:nth-child(4) { opacity: 1; transform: translateY(0) scale(1); transition-delay: 0.20s; pointer-events: auto; }
+  #fab-speed-dial .fab-options.is-open .fab-option:nth-child(5) { opacity: 1; transform: translateY(0) scale(1); transition-delay: 0.25s; pointer-events: auto; }
+
+  /* Labels des options */
+  #fab-speed-dial .fab-option-label {
+    background: rgba(20, 20, 30, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: white;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+
+  /* Boutons d'option */
+  #fab-speed-dial .fab-option-btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: none;
+    color: white;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    line-height: 1;
+  }
+  #fab-speed-dial .fab-option-btn:hover  { transform: scale(1.12); }
+  #fab-speed-dial .fab-option-btn:active { transform: scale(0.9);  }
+}
 

@@ -1164,4 +1164,60 @@
         // _initBreadcrumbs();
     });
 
+    // ── FAB Speed Dial Desktop (≥ 769px) ──────────────────────────
+    // mobile.js retourne immédiatement sur desktop (guard innerWidth ≤ 768).
+    // On réplique ici la même logique pour activer le FAB sur grand écran.
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.innerWidth <= 768) return;
+
+        var fabMain  = document.getElementById('fab-main-btn');
+        var fabOpts  = document.getElementById('fab-options');
+        var backdrop = document.getElementById('fab-backdrop');
+        if (!fabMain || !fabOpts || !backdrop) return;
+
+        var _isOpen = false;
+
+        function _openFAB() {
+            _isOpen = true;
+            fabMain.classList.add('is-open');
+            fabOpts.classList.add('is-open');
+            backdrop.classList.add('is-open');
+            fabMain.setAttribute('aria-expanded', 'true');
+        }
+        function _closeFAB() {
+            _isOpen = false;
+            fabMain.classList.remove('is-open');
+            fabOpts.classList.remove('is-open');
+            backdrop.classList.remove('is-open');
+            fabMain.setAttribute('aria-expanded', 'false');
+        }
+
+        fabMain.addEventListener('click', function () { _isOpen ? _closeFAB() : _openFAB(); });
+        backdrop.addEventListener('click', _closeFAB);
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && _isOpen) _closeFAB(); });
+
+        document.querySelectorAll('.fab-option').forEach(function (opt) {
+            opt.addEventListener('click', function () {
+                var action = opt.getAttribute('data-action');
+                _closeFAB();
+                switch (action) {
+                    case 'add-prospect':
+                        if (typeof window.openQuickAddModal === 'function') window.openQuickAddModal();
+                        else if (typeof window.openAddModal === 'function') window.openAddModal();
+                        else window.location.href = '/';
+                        break;
+                    case 'add-candidate': window.location.href = '/sourcing'; break;
+                    case 'quick-note':    window.location.href = '/focus';    break;
+                    case 'mode-prosp':
+                        if (typeof window.switchTableKanban === 'function') window.switchTableKanban('prosp');
+                        else window.location.href = '/?view=prosp';
+                        break;
+                    case 'assistant-ia':
+                        if (typeof window.toggleAssistantChat === 'function') window.toggleAssistantChat();
+                        break;
+                }
+            });
+        });
+    });
+
 })();
