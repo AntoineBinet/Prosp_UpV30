@@ -12477,7 +12477,7 @@ body[data-page=""] .content {
 
   /* ── Ligne 3 : badge relance + étoiles ────────────────────────── */
   body[data-page="prospects"] .table-wrapper .pmc-row3 {
-    display: flex; align-items: center; justify-content: center; gap: 4px;
+    display: flex; align-items: center; gap: 4px;
     font-size: 10px; margin-top: 1px;
   }
   .pmc-relance {
@@ -12525,11 +12525,10 @@ body[data-page=""] .content {
 
   /* ── Chips de statut rapide ───────────────────────────────────── */
   .prospect-status-chips {
-    display: flex;
+    display: flex !important;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 6px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
     padding: 6px 0 2px;
     margin: 0 -2px;
   }
