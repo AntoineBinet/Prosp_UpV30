@@ -1057,6 +1057,9 @@ window.resetDashboardWidgets = resetDashboardWidgets;
 
 // ═══ Boot ═══
 document.addEventListener('DOMContentLoaded', async () => {
+    // Guard : ne s'exécute que sur la page dashboard
+    if (document.body.dataset.page !== 'dashboard') return;
+
     // Initialiser le bouton assistant
     initAssistantButton();
     

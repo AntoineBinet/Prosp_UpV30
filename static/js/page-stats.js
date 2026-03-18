@@ -465,10 +465,11 @@ async function loadCharts() {
         return;
     }
 
+    let d;
     try {
         const res = await fetch('/api/stats/charts');
         if (!res.ok) return;
-        const d = await res.json();
+        d = await res.json();
         if (!d.ok) return;
 
         const colors = chartColors();

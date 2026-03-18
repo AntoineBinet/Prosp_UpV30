@@ -179,8 +179,8 @@ let __userCompanies = [];
 
 async function loadUserCompanies() {
     try {
-        // Charger les entreprises de l'utilisateur depuis l'API (GET /api/save)
-        const res = await fetch('/api/save');
+        // Charger les entreprises de l'utilisateur depuis l'API (GET /api/data)
+        const res = await fetch('/api/data');
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const json = await res.json();
         __userCompanies = Array.isArray(json.companies) ? json.companies : [];

@@ -903,8 +903,12 @@
     };
 
     // ── v22: Haptic feedback helper ──
+    // Vibrate uniquement après un geste utilisateur (exigence Chrome/PWA)
+    var _hapticUserInteracted = false;
+    document.addEventListener('click', function () { _hapticUserInteracted = true; }, { once: true, capture: true });
+    document.addEventListener('touchstart', function () { _hapticUserInteracted = true; }, { once: true, capture: true });
     window.haptic = function (ms) {
-        if (navigator.vibrate) navigator.vibrate(ms || 10);
+        if ('vibrate' in navigator && _hapticUserInteracted) navigator.vibrate(ms || 10);
     };
 
     function _showStartupAlerts() {
