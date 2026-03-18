@@ -5215,7 +5215,7 @@ async function viewDetail(id) {
     const showTimelinePref = typeof window.getDisplayPref === 'function' ? window.getDisplayPref('display_prospect_timeline') : true;
     if (showTimelinePref) {
         try {
-            const res = await fetch(`/api/prospect/timeline?id=${prospect.id}`);
+            const res = await fetch(`/api/prospect/timeline?id=${prospect.id}`, { credentials: 'include' });
             if (res.ok) {
                 const payload = await res.json();
                 if (payload && payload.ok) {
@@ -8328,6 +8328,7 @@ async function callOllama(prompt, options) {
             // Mode streaming avec SSE
             const res = await fetch('/api/ollama/generate-stream', {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
                 signal: controller.signal
@@ -8396,6 +8397,7 @@ async function callOllama(prompt, options) {
         } else {
             const res = await fetch('/api/ollama/generate', {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
                 signal: controller.signal
@@ -12714,7 +12716,7 @@ let _rdvSaveTimer = null;     // debounce save
 async function _ensureRdvThemes() {
     if (_rdvThemes) return _rdvThemes;
     try {
-const res = await fetch('/api/rdv-checklist/themes');
+const res = await fetch('/api/rdv-checklist/themes', { credentials: 'include' });
 const j = await res.json();
 if (j.ok) _rdvThemes = j.themes;
     } catch (e) { console.error('rdv themes error', e); }
@@ -12725,7 +12727,7 @@ async function loadRdvChecklist(prospectId) {
     _rdvProspectId = prospectId;
     const themes = await _ensureRdvThemes();
     try {
-const res = await fetch(`/api/rdv-checklist?prospect_id=${prospectId}`);
+const res = await fetch(`/api/rdv-checklist?prospect_id=${prospectId}`, { credentials: 'include' });
 const j = await res.json();
 if (j.ok) _rdvData = j.data || {};
     } catch (e) {
@@ -12801,6 +12803,7 @@ async function saveRdvChecklist() {
     try {
 await fetch('/api/rdv-checklist', {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prospect_id: _rdvProspectId, data: _rdvData })
 });
@@ -12867,7 +12870,7 @@ let _currentMeetingId = null;
 
 async function loadMeetings(prospectId) {
     try {
-        const res = await fetch(`/api/meetings?prospect_id=${prospectId}`);
+        const res = await fetch(`/api/meetings?prospect_id=${prospectId}`, { credentials: 'include' });
         const j = await res.json();
         if (j.ok) {
             _meetingsList = j.meetings || [];
@@ -13012,6 +13015,7 @@ async function saveMeeting(prospectId) {
     try {
         const res = await fetch('/api/meetings', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prospect_id: prospectId,
@@ -13445,6 +13449,7 @@ async function handlePostMeetingFile(event) {
     try {
         const res = await fetch('/api/rdv-checklist/parse-file', {
             method: 'POST',
+            credentials: 'include',
             body: formData
         });
         const json = await res.json();
@@ -13855,6 +13860,7 @@ async function applyPostMeetingImport() {
         // Log as event in timeline
         await fetch('/api/ia-enrichment-log', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 type: 'prospect',
