@@ -27,12 +27,12 @@ async function loadDashboard() {
         if (!json.ok) throw new Error(json.error || 'Error');
         renderDashboard(json.data);
     } catch (e) {
-        console.error('Dashboard error:', e);
+        console.warn('[Dashboard] loadDashboard skipped:', e.message);
         if (window.showErrorState) {
             window.showErrorState('dashKpiRow', 'Impossible de charger le dashboard.', loadDashboard);
         } else {
-            document.getElementById('dashKpiRow').innerHTML =
-                '<div class="card"><div class="muted">Impossible de charger le dashboard.</div></div>';
+            const el = document.getElementById('dashKpiRow');
+            if (el) el.innerHTML = '<div class="card"><div class="muted">Impossible de charger le dashboard.</div></div>';
         }
     }
 }
@@ -897,7 +897,7 @@ async function loadAdaptiveDashboard() {
         if (!json.ok) throw new Error(json.error || 'Error');
         renderAdaptiveDashboard(json.data);
     } catch (e) {
-        console.error('Adaptive dashboard error:', e);
+        console.warn('[Dashboard] loadAdaptiveDashboard skipped:', e.message);
         // Fallback: afficher les widgets par défaut
     }
 }
@@ -1008,8 +1008,8 @@ async function renderPushAnalytics() {
         html += '</div>';
         el.innerHTML = html;
     } catch (e) {
-        console.error('Push analytics error:', e);
-        el.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">Erreur de chargement des analytics.</div>';
+        console.warn('[Dashboard] renderPushAnalytics skipped:', e.message);
+        if (el) el.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">Erreur de chargement des analytics.</div>';
     }
 }
 
@@ -1078,7 +1078,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch(e) {}
 
     // Charger les données et appliquer les préférences après
-    await Promise.all([loadDashboard(), loadDashTasks(), loadAdaptiveDashboard()]);
+    try {
+        await Promise.all([loadDashboard(), loadDashTasks(), loadAdaptiveDashboard()]);
+    } catch(e) { console.warn('[Dashboard] chargement partiel:', e.message); }
     
     // Appliquer les préférences d'affichage une dernière fois après tout le chargement
     // et initialiser le drag & drop et resize une seule fois à la fin
