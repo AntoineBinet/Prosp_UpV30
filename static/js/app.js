@@ -908,6 +908,7 @@ function saveToServerAsync(opts) {
 function saveToServer(opts) {
     saveToServerAsync(opts).catch(err => {
         console.error('Erreur sauvegarde serveur :', err);
+        if (window.showToast) showToast('❌ Sauvegarde échouée : ' + (err.message || err), 'error', 5000);
         showToast(err && err.message ? err.message : "⚠ Erreur de sauvegarde — vérifiez que app.py est lancé", 'error');
     });
 }
@@ -1961,7 +1962,7 @@ function normalizeData() {
         if (p.template_id === undefined) p.template_id = null;
         if (p.push_category_id === undefined) p.push_category_id = null;
         if (p.rdvDate === undefined || p.rdvDate === null) p.rdvDate = '';
-        if (p.is_contact === undefined || p.is_contact === null) p.is_contact = 0;
+        if (p.is_archived === undefined || p.is_archived === null) p.is_archived = 0;
         if (!p.statut) p.statut = "Pas d'actions";
         if (!p.pertinence && p.pertinence !== 0) p.pertinence = '3';
         if (!p.name) p.name = '(Sans nom)';
@@ -2152,23 +2153,23 @@ function initProspectsPage() {
             const sel = document.getElementById('inputCompany');
             sel.value = cid;
         }
-        // Réinitialiser _showContacts à false avant de vérifier le paramètre
-        _showContacts = false;
-        if (params.get('contacts') === '1') {
-            _showContacts = true;
-            // Highlight Contacts in sidebar instead of Prospects
-            const contactsBtn = document.getElementById('sidebarContactsBtn');
-            if (contactsBtn) contactsBtn.classList.add('active');
+        // Réinitialiser _showArchived à false avant de vérifier le paramètre
+        _showArchived = false;
+        if (params.get('archived') === '1') {
+            _showArchived = true;
+            // Highlight Archivés in sidebar instead of Prospects
+            const archivedBtn = document.getElementById('sidebarArchivedBtn');
+            if (archivedBtn) archivedBtn.classList.add('active');
             // Un-highlight Prospects
             document.querySelectorAll('.sidebar .nav-button').forEach(btn => {
-                if (btn.getAttribute('href') === '/' && btn.id !== 'sidebarContactsBtn') {
+                if (btn.getAttribute('href') === '/' && btn.id !== 'sidebarArchivedBtn') {
                     btn.classList.remove('active');
                 }
             });
         }
     } catch (e) {}
 
-    // Initialiser filteredProspects APRÈS avoir défini _showContacts
+    // Initialiser filteredProspects APRÈS avoir défini _showArchived
     filterProspects();
     setupListeners();
     updateBulkBar();
@@ -2510,7 +2511,7 @@ function switchView(view) {
         if (vp) vp.style.display = 'block';
         currentView = view;
 
-        // Title is set by filterProspects() which respects _showContacts mode
+        // Title is set by filterProspects() which respects _showArchived mode
 
         // Pré-configurer les filtres selon la vue
         const follow = document.getElementById('followupFilter');
@@ -3180,19 +3181,20 @@ function matchWithWithout(filterVal, fieldVal) {
     return true;
 }
 
-let _showContacts = false;
+let _showArchived = false;
 
-// toggleContactsView kept for backward compat (old pages)
-function toggleContactsView() {
-    window.location.href = '/?contacts=1';
+function toggleArchivedView() {
+    window.location.href = '/?archived=1';
 }
+// Alias pour compatibilité
+const toggleContactsView = toggleArchivedView;
 
-function moveToContacts(id) {
+function archiveProspect(id) {
     const p = data.prospects.find(x => x.id === id);
     if (!p) return;
     const label = p.name || 'Ce prospect';
-    if (!confirm(`📁 Déplacer "${label}" vers le vivier de contacts ?`)) return;
-    p.is_contact = 1;
+    if (!confirm(`📁 Archiver "${label}" ?`)) return;
+    p.is_archived = 1;
     saveToServer();
     
     // En mode prosp, passer au prospect suivant au lieu de fermer
@@ -3230,18 +3232,22 @@ function moveToContacts(id) {
         filterProspects();
     }
     
-    showToast(`📁 ${label} déplacé vers les contacts`, 'success');
+    showToast(`📁 ${label} archivé`, 'success');
 }
+// Alias pour compatibilité
+const moveToContacts = archiveProspect;
 
-function restoreFromContacts(id) {
+function unarchiveProspect(id) {
     const p = data.prospects.find(x => x.id === id);
     if (!p) return;
-    p.is_contact = 0;
+    p.is_archived = 0;
     saveToServer();
     closeDetail();
     filterProspects();
     showToast(`👥 ${p.name} restauré dans les prospects`, 'success');
 }
+// Alias pour compatibilité
+const restoreFromContacts = unarchiveProspect;
 
 function filterProspects() {
     const shouldPreserveProspScroll = (_currentView === 'prosp' && _prospSession.active);
@@ -3262,18 +3268,18 @@ function filterProspects() {
 
     let baseProspects = data.prospects;
 
-    // Filter contacts vs prospects
-    if (_showContacts) {
-        // Ne montrer que les prospects avec is_contact = 1 (ou "1" ou true)
+    // Filter archivés vs prospects
+    if (_showArchived) {
+        // Ne montrer que les prospects avec is_archived = 1 (ou "1" ou true)
         baseProspects = baseProspects.filter(p => {
-            const isContact = Number(p.is_contact) === 1 || p.is_contact === true || p.is_contact === "1";
-            return isContact;
+            const isArchived = Number(p.is_archived) === 1 || p.is_archived === true || p.is_archived === "1";
+            return isArchived;
         });
     } else {
-        // Ne pas montrer les contacts (is_contact = 0, null, undefined, false, "0")
+        // Ne pas montrer les archivés (is_archived = 0, null, undefined, false, "0")
         baseProspects = baseProspects.filter(p => {
-            const isContact = Number(p.is_contact) === 1 || p.is_contact === true || p.is_contact === "1";
-            return !isContact;
+            const isArchived = Number(p.is_archived) === 1 || p.is_archived === true || p.is_archived === "1";
+            return !isArchived;
         });
     }
 
@@ -3281,7 +3287,7 @@ function filterProspects() {
         baseProspects = baseProspects.filter(p => ['À rappeler', 'Rendez-vous', 'Messagerie'].includes(p.statut));
         document.getElementById('viewTitle').textContent = '⏰ Actions à faire';
     } else {
-        document.getElementById('viewTitle').textContent = _showContacts ? '📁 Vivier de contacts' : '👥 Tous les prospects';
+        document.getElementById('viewTitle').textContent = _showArchived ? '📁 Archivés' : '👥 Tous les prospects';
     }
     syncStatsCardsMode();
 
@@ -3344,7 +3350,7 @@ function syncStatsCardsMode() {
     const cards = document.querySelectorAll('.stats .stat-card');
     if (!cards || cards.length === 0) return;
     cards.forEach((card, idx) => {
-        const keepVisible = !_showContacts || idx === 0;
+        const keepVisible = !_showArchived || idx === 0;
         card.style.display = keepVisible ? '' : 'none';
     });
 }
@@ -4432,6 +4438,7 @@ function _heroChangeStatus(prospectId, newStatus) {
     prospect.lastContact = new Date().toISOString().slice(0, 10);
     saveToServer();
     filterProspects();
+    viewDetail(prospectId); // Re-render modal: met à jour la couleur hero + synchro #editStatut
     if (window.haptic) haptic(20);
     if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
 }
@@ -4654,8 +4661,8 @@ function updateStats(prospects) {
     const allProspects = Array.isArray(data.prospects) ? data.prospects : [];
     const totalEl = document.getElementById('totalCount');
     
-    if (_showContacts) {
-        // En mode contacts, afficher le nombre de contacts filtrés
+    if (_showArchived) {
+        // En mode archivés, afficher le nombre d'archivés filtrés
         if (totalEl) totalEl.textContent = filteredProspects.length;
         const calledEl = document.getElementById('appeléCount');
         const rdvEl = document.getElementById('rdvCount');
@@ -4666,17 +4673,17 @@ function updateStats(prospects) {
         updateOverdueAlerts([]);
         return;
     }
-    
-    // En mode prospects normal, afficher le total (sans les contacts)
+
+    // En mode prospects normal, afficher le total (sans les archivés)
     if (totalEl) totalEl.textContent = allProspects.filter(p => {
-        const isContact = Number(p.is_contact) === 1 || p.is_contact === true || p.is_contact === "1";
-        return !isContact;
+        const isArchived = Number(p.is_archived) === 1 || p.is_archived === true || p.is_archived === "1";
+        return !isArchived;
     }).length;
 
-    // Filtrer les contacts pour les calculs (ne pas les inclure dans les stats de prospection)
+    // Filtrer les archivés pour les calculs (ne pas les inclure dans les stats de prospection)
     const prospectsOnly = allProspects.filter(p => {
-        const isContact = Number(p.is_contact) === 1 || p.is_contact === true || p.is_contact === "1";
-        return !isContact;
+        const isArchived = Number(p.is_archived) === 1 || p.is_archived === true || p.is_archived === "1";
+        return !isArchived;
     });
     
     // ORANGE : appelables (avec téléphone) — total brut (sans contacts)
@@ -4801,8 +4808,8 @@ function updateOverdueAlerts(prospects) {
     const bannerEl = document.getElementById('relanceAlertBannerProspects');
     const bannerTextEl = document.getElementById('relanceAlertBannerProspectsText');
     if (bannerEl && bannerTextEl) {
-        // Ne pas afficher la bannière en mode contacts
-        if (_showContacts) {
+        // Ne pas afficher la bannière en mode archivés
+        if (_showArchived) {
             bannerEl.style.display = 'none';
             return;
         }
@@ -5161,7 +5168,7 @@ async function viewDetail(id) {
         <div class="detail-footer">
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-danger" onclick="deleteProspect(${id})" title="Supprimer définitivement">🗑️</button>
-                ${prospect.is_contact ? `<button class="btn btn-primary" onclick="restoreFromContacts(${id})" title="Restaurer dans les prospects" style="font-size:12px;">👥 Restaurer</button>` : `<button class="btn btn-secondary" onclick="moveToContacts(${id})" title="Déplacer vers le vivier de contacts" style="font-size:12px;">📁 Contacts</button>`}
+                ${prospect.is_archived ? `<button class="btn btn-primary" onclick="unarchiveProspect(${id})" title="Désarchiver" style="font-size:12px;">👥 Désarchiver</button>` : `<button class="btn btn-secondary" onclick="archiveProspect(${id})" title="Archiver ce prospect" style="font-size:12px;">📁 Archiver</button>`}
                 ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
             </div>
             <div style="display:flex;gap:8px;">
@@ -6391,6 +6398,7 @@ async function deleteProspect(id) {
     try {
         const res = await fetch('/api/prospects/delete', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
         });
@@ -9400,7 +9408,7 @@ async function iaCreateProspectFromManager(index) {
         pushEmailSentAt: '',
         tags: [],
         template_id: null,
-        is_contact: 0,
+        is_archived: 0,
     };
 
     data.prospects.push(prospect);
@@ -11844,7 +11852,7 @@ function applyImportList() {
             push_category_id: null,
             fixedMetier: '',
             rdvDate: '',
-            is_contact: 0,
+            is_archived: 0,
         };
         data.prospects.push(p);
         created++;
@@ -12056,15 +12064,15 @@ async function bootstrap(page) {
         }
     } catch (e) {}
 
-        // ═══ Contacts mode ═══
-        // Réinitialiser _showContacts à false avant de vérifier le paramètre
-        _showContacts = false;
-        if (params.get('contacts') === '1') {
-            _showContacts = true;
-            const contactsBtn = document.getElementById('sidebarContactsBtn');
-            if (contactsBtn) contactsBtn.classList.add('active');
+        // ═══ Archivés mode ═══
+        // Réinitialiser _showArchived à false avant de vérifier le paramètre
+        _showArchived = false;
+        if (params.get('archived') === '1') {
+            _showArchived = true;
+            const archivedBtn = document.getElementById('sidebarArchivedBtn');
+            if (archivedBtn) archivedBtn.classList.add('active');
             document.querySelectorAll('.sidebar .nav-button').forEach(btn => {
-                if (btn.getAttribute('href') === '/' && btn.id !== 'sidebarContactsBtn') {
+                if (btn.getAttribute('href') === '/' && btn.id !== 'sidebarArchivedBtn') {
                     btn.classList.remove('active');
                 }
             });
@@ -12086,13 +12094,13 @@ async function bootstrap(page) {
             if (prospResume && prospResume.style.display === 'none') prospResume.style.display = '';
         }
         
-        // Debug: vérifier le nombre de contacts
-        if (_showContacts) {
-            const contactsCount = data.prospects.filter(p => Number(p.is_contact) === 1 || p.is_contact === true || p.is_contact === "1").length;
-            console.log('[Contacts] Mode contacts activé, nombre de contacts trouvés:', contactsCount, 'sur', data.prospects.length, 'prospects totaux');
+        // Debug: vérifier le nombre d'archivés
+        if (_showArchived) {
+            const archivedCount = data.prospects.filter(p => Number(p.is_archived) === 1 || p.is_archived === true || p.is_archived === "1").length;
+            console.log('[Archivés] Mode archivés activé, nombre d\'archivés trouvés:', archivedCount, 'sur', data.prospects.length, 'prospects totaux');
         }
 
-        // Initialiser filteredProspects APRÈS avoir défini _showContacts
+        // Initialiser filteredProspects APRÈS avoir défini _showArchived
         applySort();
         filterProspects();
         renderProspects();

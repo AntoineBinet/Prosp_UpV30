@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.13"
+APP_VERSION = "27.14"
 import os
 import subprocess
 import traceback
@@ -2076,8 +2076,12 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             _add_col("prospects", "fixedMetier", "TEXT")
         if "rdvDate" not in cols:
             _add_col("prospects", "rdvDate", "TEXT")
-        if "is_contact" not in cols:
-            _add_col("prospects", "is_contact", "INTEGER")
+        # Migration: renommer is_contact en is_archived
+        if "is_contact" in cols and "is_archived" not in cols:
+            cur.execute("ALTER TABLE prospects ADD COLUMN is_archived INTEGER")
+            cur.execute("UPDATE prospects SET is_archived = is_contact")
+        if "is_archived" not in cols:
+            _add_col("prospects", "is_archived", "INTEGER")
         if "owner_id" not in cols:
             _add_col("prospects", "owner_id", "INTEGER")
 
@@ -2619,7 +2623,7 @@ def _init_user_db(user_id: int) -> Path:
                 push_category_id INTEGER,
                 fixedMetier   TEXT,
                 rdvDate       TEXT,
-                is_contact    INTEGER,
+                is_archived   INTEGER,
                 owner_id      INTEGER,
                 deleted_at    TEXT,
                 FOREIGN KEY(company_id) REFERENCES companies(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
@@ -3045,7 +3049,7 @@ def read_all(owner_id: int | None = None) -> Dict[str, Any]:
         except Exception:
             d["callNotes"] = []
         d["tags"] = _parse_tags(d.get("tags"))
-        d["is_contact"] = int(d.get("is_contact") or 0)
+        d["is_archived"] = int(d.get("is_archived") or 0)
         prospects.append(d)
 
     return {"companies": companies, "prospects": prospects}
@@ -3362,7 +3366,7 @@ def upsert_all(data: Dict[str, Any]) -> None:
             cur.executemany(
                 '''
                 INSERT INTO prospects
-                (id, name, company_id, fonction, telephone, email, linkedin, pertinence, statut, lastContact, nextFollowUp, priority, notes, callNotes, pushEmailSentAt, tags, template_id, nextAction, pushLinkedInSentAt, photo_url, push_category_id, fixedMetier, rdvDate, is_contact, owner_id)
+                (id, name, company_id, fonction, telephone, email, linkedin, pertinence, statut, lastContact, nextFollowUp, priority, notes, callNotes, pushEmailSentAt, tags, template_id, nextAction, pushLinkedInSentAt, photo_url, push_category_id, fixedMetier, rdvDate, is_archived, owner_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
@@ -3387,7 +3391,7 @@ def upsert_all(data: Dict[str, Any]) -> None:
                     push_category_id=excluded.push_category_id,
                     fixedMetier=excluded.fixedMetier,
                     rdvDate=excluded.rdvDate,
-                    is_contact=excluded.is_contact,
+                    is_archived=excluded.is_archived,
                     owner_id=excluded.owner_id
                 ;
                 ''',
@@ -3416,7 +3420,7 @@ def upsert_all(data: Dict[str, Any]) -> None:
                         p.get("push_category_id"),
                         p.get("fixedMetier"),
                         p.get("rdvDate"),
-                        p.get("is_contact", 0),
+                        p.get("is_archived", 0),
                         int(p.get("owner_id", uid)),
                     )
                     for p in prospects
@@ -3626,7 +3630,7 @@ def replace_all(data: Dict[str, Any]) -> None:
             cur.executemany(
                 '''
                 INSERT INTO prospects
-                (id, name, company_id, fonction, telephone, email, linkedin, pertinence, statut, lastContact, nextFollowUp, priority, notes, callNotes, pushEmailSentAt, tags, template_id, nextAction, pushLinkedInSentAt, photo_url, push_category_id, fixedMetier, rdvDate, is_contact, owner_id)
+                (id, name, company_id, fonction, telephone, email, linkedin, pertinence, statut, lastContact, nextFollowUp, priority, notes, callNotes, pushEmailSentAt, tags, template_id, nextAction, pushLinkedInSentAt, photo_url, push_category_id, fixedMetier, rdvDate, is_archived, owner_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 ''',
                 [
@@ -3654,7 +3658,7 @@ def replace_all(data: Dict[str, Any]) -> None:
                         p.get("push_category_id"),
                         p.get("fixedMetier"),
                         p.get("rdvDate"),
-                        p.get("is_contact", 0),
+                        p.get("is_archived", 0),
                         seed_owner_id,
                     )
                     for p in prospects
@@ -7705,11 +7709,11 @@ def api_duplicates():
         min_score = 0.7
     with _conn() as conn:
         pros = [dict(r) for r in conn.execute(
-            "SELECT id, name, email, telephone, linkedin, company_id, COALESCE(is_contact,0) AS is_contact FROM prospects WHERE owner_id=?;", (uid,)
+            "SELECT id, name, email, telephone, linkedin, company_id, COALESCE(is_archived,0) AS is_archived FROM prospects WHERE owner_id=?;", (uid,)
         ).fetchall()]
         comps = {r["id"]: dict(r) for r in conn.execute("SELECT id, groupe, site FROM companies WHERE owner_id=?;", (uid,)).fetchall()}
 
-    pros_for_dup = [p for p in pros if not p.get("is_contact")]
+    pros_for_dup = [p for p in pros if not p.get("is_archived")]
     groups = []
 
     def add_group(kind: str, key: str, ids: List[int], score: float | None = None):
@@ -11357,7 +11361,7 @@ def api_data():
                     d["tags"] = [x.strip() for x in t.split(",") if x.strip()]
             elif not t:
                 d["tags"] = []
-            d["is_contact"] = int(d.get("is_contact") or 0)
+            d["is_archived"] = int(d.get("is_archived") or 0)
             prospects.append(d)
         return jsonify({
             "companies": companies,
@@ -11681,8 +11685,8 @@ def api_export_day():
 
     recap = {
         "date": date_str,
-        "contacts_count": len(contacts_today),
-        "contacts": [{"id": p["id"], "name": p.get("name"), "company_id": p.get("company_id")} for p in contacts_today],
+        "relances_count": len(contacts_today),
+        "relances": [{"id": p["id"], "name": p.get("name"), "company_id": p.get("company_id")} for p in contacts_today],
         "notes_count": len(notes_today),
         "notes": [{"prospect_id": n.get("_pid"), "prospect_name": n.get("_name"), "date": n.get("date"), "content": (n.get("content") or "")[:200]} for n in notes_today],
         "push_count": len(push_today),
@@ -11758,7 +11762,7 @@ def api_rapport_hebdo():
 
     week_notes = [n for n in all_notes if start <= (n.get("date") or "")[:10] <= end]
     week_push = [pl for pl in push_logs if start <= (pl.get("sentAt") or "")[:10] <= end]
-    week_contacts = [p for p in prospects if start <= (p.get("lastContact") or "") <= end]
+    week_relances = [p for p in prospects if start <= (p.get("lastContact") or "") <= end]
 
     push_email = sum(1 for pl in week_push if pl.get("channel") == "email")
     push_linkedin = sum(1 for pl in week_push if pl.get("channel") == "linkedin")
@@ -11776,7 +11780,7 @@ def api_rapport_hebdo():
     overdue = [p for p in prospects if (p.get("nextFollowUp") or "").strip() and p["nextFollowUp"].strip() < today]
 
     # New contacts this week (lastContact in range AND not before)
-    new_contacts_count = len(week_contacts)
+    new_relances_count = len(week_relances)
 
     # Companies touched this week
     week_company_ids = set()
@@ -11817,7 +11821,7 @@ def api_rapport_hebdo():
         "start": start,
         "end": end,
         "kpi": {
-            "contacts": new_contacts_count,
+            "relances": new_relances_count,
             "notes": len(week_notes),
             "push_total": len(week_push),
             "push_email": push_email,
@@ -12129,10 +12133,10 @@ def api_dashboard():
         except Exception:
             pass
 
-    def count_contacts(date_str):
+    def count_relances(date_str):
         return sum(1 for p in prospects_list if (p.get("lastContact") or "") == date_str)
 
-    def count_contacts_range(start, end):
+    def count_relances_range(start, end):
         return sum(1 for p in prospects_list if start <= (p.get("lastContact") or "") <= end)
 
     def count_notes(date_str):
@@ -12184,7 +12188,7 @@ def api_dashboard():
             break
         week_days.append({
             "date": d,
-            "contacts": count_contacts(d),
+            "relances": count_relances(d),
             "notes": count_notes(d),
             "push": count_push(d),
         })
@@ -12210,7 +12214,7 @@ def api_dashboard():
     return jsonify(ok=True, data={
         "today": {
             "date": today,
-            "contacts": count_contacts(today),
+            "relances": count_relances(today),
             "notes": count_notes(today),
             "push_total": count_push(today),
             "push_email": count_push_channel(today, today, "email"),
@@ -12220,7 +12224,7 @@ def api_dashboard():
         "week": {
             "start": monday,
             "end": today,
-            "contacts": count_contacts_range(monday, today),
+            "relances": count_relances_range(monday, today),
             "notes": count_notes_range(monday, today),
             "push_total": count_push_range(monday, today),
             "push_email": count_push_channel(monday, today, "email"),
@@ -12228,7 +12232,7 @@ def api_dashboard():
             "days": week_days,
         },
         "prev_week": {
-            "contacts": count_contacts_range(prev_monday, prev_sunday),
+            "relances": count_relances_range(prev_monday, prev_sunday),
             "notes": count_notes_range(prev_monday, prev_sunday),
             "push_total": count_push_range(prev_monday, prev_sunday),
         },
@@ -14147,7 +14151,7 @@ def _sync_shared_company_to_collaborator(company_id: int, from_user_id: int, to_
                     (id, name, company_id, fonction, telephone, email, linkedin, pertinence, statut,
                      lastContact, nextFollowUp, priority, notes, callNotes, pushEmailSentAt, tags,
                      template_id, nextAction, pushLinkedInSentAt, photo_url, push_category_id,
-                     fixedMetier, rdvDate, is_contact, owner_id, deleted_at)
+                     fixedMetier, rdvDate, is_archived, owner_id, deleted_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL);
                     """,
                     (
@@ -14157,7 +14161,7 @@ def _sync_shared_company_to_collaborator(company_id: int, from_user_id: int, to_
                         p.get("notes"), p.get("callNotes"), p.get("pushEmailSentAt"), p.get("tags"),
                         p.get("template_id"), p.get("nextAction"), p.get("pushLinkedInSentAt"),
                         p.get("photo_url"), p.get("push_category_id"), p.get("fixedMetier"),
-                        p.get("rdvDate"), p.get("is_contact"), to_user_id
+                        p.get("rdvDate"), p.get("is_archived"), to_user_id
                     )
                 )
         finally:
@@ -14204,7 +14208,7 @@ def api_collab_shared_company_prospects(company_id: int):
         except:
             d["callNotes"] = []
         d["tags"] = _parse_tags(d.get("tags"))
-        d["is_contact"] = int(d.get("is_contact") or 0)
+        d["is_archived"] = int(d.get("is_archived") or 0)
         result.append(d)
     
     return jsonify(ok=True, prospects=result)
