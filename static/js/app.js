@@ -4178,10 +4178,10 @@ function _closeAllSwipes(except) {
 function _initProspectSwipe() {
     if (window.matchMedia('(min-width: 901px)').matches) return;
     if (_swipeListenerAttached) return;
-    _swipeListenerAttached = true;
 
     var tbody = document.getElementById('tableBody');
     if (!tbody) return;
+    _swipeListenerAttached = true;
 
     var SNAP_THRESHOLD = 55;  // px minimum pour déclencher le snap
     var MAX_REVEAL = 160;      // px max révélé

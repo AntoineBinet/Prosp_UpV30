@@ -8972,6 +8972,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     border-radius: 14px;
     width: 100%;
     isolation: isolate;
+    touch-action: pan-y;
   }
 
   /* Boutons d'action : z-index 0 — strictement DERRIÈRE la carte */
