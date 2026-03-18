@@ -4176,7 +4176,7 @@ function _closeAllSwipes(except) {
 }
 
 function _initProspectSwipe() {
-    if (window.matchMedia('(min-width: 601px)').matches) return;
+    if (window.matchMedia('(min-width: 901px)').matches) return;
     if (_swipeListenerAttached) return;
     _swipeListenerAttached = true;
 
