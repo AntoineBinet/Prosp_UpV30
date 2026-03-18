@@ -29,6 +29,7 @@
                   { href: '/snapshots',  icon: '\uD83D\uDCBE', label: 'Snapshots', page: 'snapshots',  helpSection: 'snapshots' },
                   { href: '/metiers',    icon: '\uD83C\uDFD7\uFE0F', label: 'M\u00e9tiers',  page: 'metiers',  helpSection: 'metiers' },
                   { href: '/templates', icon: '\uD83D\uDCC2', label: 'Cat\u00e9gories Push', page: 'templates', helpSection: 'categories-push' },
+                  { href: '/activity',   icon: '\uD83D\uDCCB', label: 'Journal',   page: 'activity',   helpSection: 'activity', adminOnly: true },
                   { href: '/help',       icon: '\u2753',       label: 'Aide',      page: 'help',       helpSection: 'raccourcis' }
               ]
             },
@@ -48,7 +49,7 @@
     };
 
     // Sub-pages that belong to Paramètres
-    var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'kpi', 'metiers', 'templates', 'help'];
+    var SETTINGS_CHILDREN = ['duplicates', 'snapshots', 'kpi', 'metiers', 'templates', 'activity', 'help'];
 
     // ── Prefetch (navigation fluidity) ────────────────────────────
     var PREFETCH_DELAY_MS = 120;
@@ -413,6 +414,11 @@
                     // Remove admin-only items from NAV before building
                     NAV.forEach(function (group) {
                         group.items = group.items.filter(function (item) {
+                            if (item.adminOnly) return false;
+                            if (item.children) {
+                                item.children = item.children.filter(function (c) { return !c.adminOnly; });
+                            }
+                            return true;
                         });
                     });
                 }

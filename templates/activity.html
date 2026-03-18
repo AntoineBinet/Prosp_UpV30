@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Prosp'Up — Journal d'activité{% endblock %}
+
+{% block page_id %}activity{% endblock %}
+
+{% block header_title %}Prosp'Up — Journal{% endblock %}
+
+{% block header_subtitle %}Historique des actions utilisateurs (admin).{% endblock %}
+
+{% block content %}
+<div class="content-header">
+  <div class="content-title">Journal d'activité</div>
+  <div class="controls">
+    <select id="actFilterUser" class="filter-select" aria-label="Filtrer par utilisateur">
+      <option value="">Tous les utilisateurs</option>
+    </select>
+    <select id="actFilterAction" class="filter-select" aria-label="Filtrer par action">
+      <option value="">Toutes les actions</option>
+    </select>
+    <button class="btn btn-secondary" id="actBtnRefresh" title="Actualiser">&#x1F504; Actualiser</button>
+  </div>
+</div>
+
+<div class="card" id="actTableWrap">
+  <div id="actLoading" class="muted" style="padding: 24px; text-align: center;">Chargement&hellip;</div>
+
+  <div id="actTableContainer" style="display:none;">
+    <div style="overflow-x: auto;">
+      <table class="data-table" id="actTable" style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="white-space:nowrap;">Date / Heure</th>
+            <th>Utilisateur</th>
+            <th>Action</th>
+            <th>Entit&eacute;</th>
+            <th>D&eacute;tails</th>
+          </tr>
+        </thead>
+        <tbody id="actTableBody"></tbody>
+      </table>
+    </div>
+    <div id="actPagination"></div>
+  </div>
+
+  <div id="actEmpty" class="empty-state" style="display:none;">Aucun log pour ces filtres.</div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script defer src="/static/js/page-activity.js?v=2800"></script>
+{% endblock %}

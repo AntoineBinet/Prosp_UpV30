@@ -3191,11 +3191,11 @@ def upsert_all(data: Dict[str, Any]) -> None:
         company_ids = [int(c["id"]) for c in companies if c.get("id") is not None]
         prospect_ids = [int(p["id"]) for p in prospects if p.get("id") is not None]
 
-        # Guard: comptage des données de l'utilisateur courant uniquement
+        # Guard: comptage des données de l'utilisateur courant uniquement (hors soft-deleted)
         try:
-            existing_companies_n = int(conn.execute("SELECT COUNT(*) AS n FROM companies WHERE owner_id=?;", (uid,)).fetchone()["n"])
+            existing_companies_n = int(conn.execute("SELECT COUNT(*) AS n FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchone()["n"])
             existing_prospects_n = int(conn.execute(
-                "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=?;", (uid,)
+                "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)
             ).fetchone()["n"])
         except Exception:
             existing_companies_n = 0
@@ -3253,34 +3253,35 @@ def upsert_all(data: Dict[str, Any]) -> None:
                 _deleted_prospects_for_log = []
 
             # 1) Supprimer d'abord les prospects qui référencent des entreprises qu'on va supprimer (évite FK RESTRICT au commit)
+            # v27.10: AND deleted_at IS NULL — ne pas toucher aux enregistrements soft-deleted (fenêtre d'annulation)
             if company_ids:
                 q_marks = ",".join("?" for _ in company_ids)
                 cur.execute(
-                    f"DELETE FROM prospects WHERE owner_id=? AND company_id IN (SELECT id FROM companies WHERE owner_id=? AND id NOT IN ({q_marks}));",
+                    f"DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND company_id IN (SELECT id FROM companies WHERE owner_id=? AND id NOT IN ({q_marks}));",
                     [uid, uid] + company_ids,
                 )
             else:
-                cur.execute("DELETE FROM prospects WHERE owner_id=?;", (uid,))
+                cur.execute("DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,))
 
             # 2) Supprimer les prospects de l'utilisateur courant qui ne sont plus dans le payload
             if prospect_ids:
                 q_marks = ",".join("?" for _ in prospect_ids)
                 cur.execute(
-                    f"DELETE FROM prospects WHERE owner_id=? AND id NOT IN ({q_marks});",
+                    f"DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND id NOT IN ({q_marks});",
                     [uid] + prospect_ids,
                 )
             else:
-                cur.execute("DELETE FROM prospects WHERE owner_id=?;", (uid,))
+                cur.execute("DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,))
 
             # 3) Supprimer les entreprises de l'utilisateur courant absentes du payload
             if company_ids:
                 q_marks = ",".join("?" for _ in company_ids)
                 cur.execute(
-                    f"DELETE FROM companies WHERE owner_id=? AND id NOT IN ({q_marks});",
+                    f"DELETE FROM companies WHERE owner_id=? AND deleted_at IS NULL AND id NOT IN ({q_marks});",
                     [uid] + company_ids,
                 )
             else:
-                cur.execute("DELETE FROM companies WHERE owner_id=?;", (uid,))
+                cur.execute("DELETE FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,))
 
             # Upsert companies (owner_id forcé à l'utilisateur connecté)
             cur.executemany(
@@ -3452,7 +3453,18 @@ def upsert_all(data: Dict[str, Any]) -> None:
                 pass
 
             cur.execute("COMMIT;")
-            
+
+            # Journal d'activité — suppressions et créations de prospects
+            try:
+                for (_dp_id, _dp_name) in _deleted_prospects_for_log:
+                    log_activity('delete', 'prospect', _dp_id, _dp_name)
+                for _p in prospects:
+                    _pid = int(_p.get("id"))
+                    if _pid not in old_prospect_map:
+                        log_activity('create', 'prospect', _pid, _p.get("name"))
+            except Exception:
+                pass
+
             # Hooks pour création automatique de tâches
             # Détecter les nouveaux prospects et changements de statut
             for p in prospects:
@@ -4253,6 +4265,14 @@ def page_snapshots():
     return render_template("snapshots.html", static_hashes=_static_hashes)
 
 
+@app.get("/activity")
+@login_required
+@role_required('admin')
+def page_activity():
+    """Journal d'activité multi-utilisateurs — admin only (v27.10)."""
+    return render_template("activity.html", static_hashes=_static_hashes)
+
+
 @app.get("/help")
 def page_help():
     return render_template("help.html", static_hashes=_static_hashes)
@@ -4810,6 +4830,7 @@ def api_candidates_save():
         return (str(v).strip() if v is not None else None) or None
 
     cid = payload.get("id")
+    _candidate_action = 'update' if cid else 'create'
     template_id = payload.get("template_id")
     template_name = (payload.get("template_name") or "").strip() or None
     try:
@@ -4926,6 +4947,7 @@ def api_candidates_save():
         except Exception:
             pass
 
+    log_activity(_candidate_action, 'candidat', cid, name)
     return jsonify({"ok": True, "id": cid})
 
 
@@ -4938,11 +4960,56 @@ def api_candidates_delete():
     cid = payload.get("id")
     if not cid:
         return jsonify({"ok": False, "error": "id is required"}), 400
+    _cand_name = None
     with _conn() as conn:
+        _cand_row = conn.execute("SELECT name FROM candidates WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
+        _cand_name = _cand_row["name"] if _cand_row else None
         # v23.5: soft delete instead of hard delete
         conn.execute("UPDATE candidates SET deleted_at=? WHERE id=? AND owner_id=?;", (_now_iso(), int(cid), uid))
     _audit_log("soft_delete", "candidate", int(cid))
+    log_activity('delete', 'candidat', int(cid), _cand_name)
     return jsonify({"ok": True})
+
+
+@app.post("/api/prospects/delete")
+def api_prospects_delete():
+    """v27.10: Soft delete a prospect (fenêtre d'annulation 10s via /api/soft-deleted/restore)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    pid = payload.get("id")
+    if not pid:
+        return jsonify(ok=False, error="id is required"), 400
+    _name = None
+    with _conn() as conn:
+        _row = conn.execute("SELECT name FROM prospects WHERE id=? AND owner_id=?;", (int(pid), uid)).fetchone()
+        _name = _row["name"] if _row else None
+        conn.execute("UPDATE prospects SET deleted_at=? WHERE id=? AND owner_id=?;", (_now_iso(), int(pid), uid))
+    _audit_log("soft_delete", "prospect", int(pid))
+    log_activity('delete', 'prospect', int(pid), _name)
+    return jsonify(ok=True)
+
+
+@app.post("/api/companies/delete")
+def api_companies_delete():
+    """v27.10: Soft delete a company (fenêtre d'annulation 10s via /api/soft-deleted/restore)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    cid = payload.get("id")
+    if not cid:
+        return jsonify(ok=False, error="id is required"), 400
+    _name = None
+    with _conn() as conn:
+        _row = conn.execute("SELECT groupe FROM companies WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
+        _name = _row["groupe"] if _row else None
+        conn.execute("UPDATE companies SET deleted_at=? WHERE id=? AND owner_id=?;", (_now_iso(), int(cid), uid))
+    _audit_log("soft_delete", "company", int(cid))
+    log_activity('delete', 'entreprise', int(cid), _name)
+    return jsonify(ok=True)
+
 
 @app.post("/api/candidates/status")
 def api_candidates_set_status():
@@ -8485,7 +8552,7 @@ def api_push_logs_add():
             return jsonify({"ok": False, "error": str(e)}), 400
         
         # ensure prospect exists
-        p = conn.execute("SELECT id FROM prospects WHERE id=? AND owner_id=?;", (prospect_id_int, uid)).fetchone()
+        p = conn.execute("SELECT id, name FROM prospects WHERE id=? AND owner_id=?;", (prospect_id_int, uid)).fetchone()
         if not p:
             return jsonify({"ok": False, "error": "prospect not found"}), 404
 
@@ -8534,6 +8601,7 @@ def api_push_logs_add():
             except sqlite3.OperationalError as e:
                 logger.warning("pushLinkedInSentAt column missing: %s", e)
 
+    log_activity('send_push', 'prospect', int(prospect_id), p["name"] if p else None, {'channel': channel})
     return jsonify({"ok": True, "push_log_id": push_log_id, "tracking_pixel_id": tracking_pixel_id})
 
 
@@ -9536,6 +9604,7 @@ def api_company_update():
     _sync_shared_company_if_needed(cid_i, uid)
     
     _audit_log("update", "company", cid_i, new_value=json.dumps(fields, ensure_ascii=False))
+    log_activity('update', 'entreprise', cid_i, row["groupe"] if row else None)
     return jsonify({"ok": True, "company": dict(row) if row else None})
 
 
@@ -9592,6 +9661,60 @@ def api_audit_log():
             total = int(conn.execute("SELECT COUNT(*) FROM audit_log;").fetchone()[0])
     from math import ceil
     return jsonify(ok=True, logs=[dict(r) for r in rows], pagination={"page": page, "limit": limit, "total": total, "pages": ceil(total / limit) if limit else 1})
+
+
+@app.get("/api/activity")
+@login_required
+@role_required('admin')
+def api_activity_logs():
+    """v27.10: Journal d'activité multi-utilisateurs — admin only."""
+    try:
+        page = max(1, int(request.args.get("page") or 1))
+    except (TypeError, ValueError):
+        page = 1
+    per_page = 50
+    user_id_filter = request.args.get("user_id")
+    action_filter = (request.args.get("action") or "").strip()
+
+    where_clauses = []
+    params = []
+    if user_id_filter:
+        try:
+            where_clauses.append("user_id = ?")
+            params.append(int(user_id_filter))
+        except (TypeError, ValueError):
+            pass
+    if action_filter:
+        where_clauses.append("action = ?")
+        params.append(action_filter)
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    with _auth_conn() as conn:
+        total = int(conn.execute(
+            f"SELECT COUNT(*) AS n FROM activity_logs {where_sql};", params
+        ).fetchone()["n"])
+        offset = (page - 1) * per_page
+        rows = conn.execute(
+            f"SELECT * FROM activity_logs {where_sql} ORDER BY created_at DESC LIMIT ? OFFSET ?;",
+            params + [per_page, offset]
+        ).fetchall()
+        users = conn.execute(
+            "SELECT DISTINCT user_id, username FROM activity_logs ORDER BY username;"
+        ).fetchall()
+        action_rows = conn.execute(
+            "SELECT DISTINCT action FROM activity_logs ORDER BY action;"
+        ).fetchall()
+
+    return jsonify(
+        ok=True,
+        logs=[dict(r) for r in rows],
+        total=total,
+        page=page,
+        pages=max(1, math.ceil(total / per_page)),
+        users=[dict(u) for u in users],
+        actions=[a["action"] for a in action_rows]
+    )
 
 
 @app.post("/api/soft-deleted/restore")
