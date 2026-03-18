@@ -33,11 +33,32 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LAST_COMMIT_FILE = PROJECT_ROOT / ".last_commit_hash"
 ROLLBACK_DONE_FILE = PROJECT_ROOT / ".rollback_done"
+PID_FILE = PROJECT_ROOT / ".supervisor_pid"
+
+_log_file: Path | None = None
+
+
+def _init_log() -> None:
+    global _log_file
+    log_path_str = os.environ.get("PROSPUP_SUPERVISOR_LOG", str(PROJECT_ROOT / "logs" / "supervisor.log"))
+    log_path = Path(log_path_str)
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        _log_file = log_path
+    except Exception:
+        pass
 
 
 def _log(message: str) -> None:
     stamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{stamp}] {message}", flush=True)
+    line = f"[{stamp}] {message}"
+    print(line, flush=True)
+    if _log_file:
+        try:
+            with _log_file.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception:
+            pass
 
 
 def _run(cmd: list[str], *, check: bool = False, timeout: int = 15) -> subprocess.CompletedProcess:
@@ -174,9 +195,18 @@ def main() -> int:
     health_timeout = int(os.environ.get("PROSPUP_HEALTH_TIMEOUT", "30"))
     grace_period = float(os.environ.get("PROSPUP_GRACE_PERIOD", "8"))
 
+    _init_log()
+
+    # Écriture du PID du superviseur pour que watch-prospup.py puisse le trouver
+    try:
+        PID_FILE.write_text(str(os.getpid()), encoding="utf-8")
+    except Exception:
+        pass
+
     _log("╔═══════════════════════════════════════════════════════════╗")
     _log("║  SUPERVISEUR ProspUp v2 — avec protection crash loop     ║")
     _log("╚═══════════════════════════════════════════════════════════╝")
+    _log(f"  PID superviseur: {os.getpid()}")
     _log(f"  Crash loop: {crash_threshold} crashs en {crash_window}s → rollback auto")
     _log(f"  Health check: localhost:{health_port} (timeout {health_timeout}s, grâce {grace_period}s)")
 
@@ -253,6 +283,10 @@ def main() -> int:
     except KeyboardInterrupt:
         _log("[SUPERVISEUR] Arrêt demandé (CTRL+C).")
         _stop_server(server, timeout_s=10)
+        try:
+            PID_FILE.unlink(missing_ok=True)
+        except Exception:
+            pass
         return 0
 
 
