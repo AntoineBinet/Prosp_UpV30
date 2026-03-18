@@ -3237,6 +3237,21 @@ def upsert_all(data: Dict[str, Any]) -> None:
         except Exception:
             old_prospect_map = {}
         try:
+            # Capturer les prospects qui seront supprimés pour le journal d'activité
+            _deleted_prospects_for_log = []
+            try:
+                if prospect_ids:
+                    _dm = ",".join("?" for _ in prospect_ids)
+                    _del_rows = cur.execute(
+                        f"SELECT id, name FROM prospects WHERE owner_id=? AND id NOT IN ({_dm});",
+                        [uid] + prospect_ids
+                    ).fetchall()
+                else:
+                    _del_rows = cur.execute("SELECT id, name FROM prospects WHERE owner_id=?;", (uid,)).fetchall()
+                _deleted_prospects_for_log = [(int(r["id"]), r["name"]) for r in _del_rows]
+            except Exception:
+                _deleted_prospects_for_log = []
+
             # 1) Supprimer d'abord les prospects qui référencent des entreprises qu'on va supprimer (évite FK RESTRICT au commit)
             if company_ids:
                 q_marks = ",".join("?" for _ in company_ids)
