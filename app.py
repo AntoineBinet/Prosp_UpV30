@@ -2078,8 +2078,8 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             _add_col("prospects", "rdvDate", "TEXT")
         # Migration: renommer is_contact en is_archived
         if "is_contact" in cols and "is_archived" not in cols:
-            cur.execute("ALTER TABLE prospects ADD COLUMN is_archived INTEGER")
-            cur.execute("UPDATE prospects SET is_archived = is_contact")
+            conn.execute("ALTER TABLE prospects ADD COLUMN is_archived INTEGER")
+            conn.execute("UPDATE prospects SET is_archived = is_contact")
         if "is_archived" not in cols:
             _add_col("prospects", "is_archived", "INTEGER")
         if "owner_id" not in cols:
