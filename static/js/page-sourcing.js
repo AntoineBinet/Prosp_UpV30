@@ -351,7 +351,7 @@ async function deleteCandidate(id) {
     });
 
     if (!res.ok) {
-        const txt = await res.text().catch(()=> '');
+        const txt = await res.text().catch(() => '');
         if (typeof showToast === 'function') {
             showToast('❌ Suppression impossible: ' + (txt || ('HTTP ' + res.status)), 'error');
         } else {
@@ -360,9 +360,28 @@ async function deleteCandidate(id) {
         return;
     }
 
+    // Mise à jour UI immédiate
     await loadCandidates();
     applyCandidateFilters();
     refreshProductivityMatching();
+
+    // Toast avec bouton Annuler (10 secondes)
+    if (typeof showUndoToast === 'function') {
+        showUndoToast(`Candidat supprimé\u00a0: ${label}`, 'candidate', id, async () => {
+            const r = await fetch('/api/soft-deleted/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entity: 'candidate', id })
+            });
+            if ((await r.json()).ok) {
+                await loadCandidates();
+                applyCandidateFilters();
+                showToast('↩️ Candidat restauré', 'success', 2500);
+            } else {
+                showToast('❌ Impossible d\'annuler', 'error');
+            }
+        });
+    }
 }
 
 // ===== Ajouter via VSA =====

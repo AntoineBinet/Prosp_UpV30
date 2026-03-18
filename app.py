@@ -3243,11 +3243,11 @@ def upsert_all(data: Dict[str, Any]) -> None:
                 if prospect_ids:
                     _dm = ",".join("?" for _ in prospect_ids)
                     _del_rows = cur.execute(
-                        f"SELECT id, name FROM prospects WHERE owner_id=? AND id NOT IN ({_dm});",
+                        f"SELECT id, name FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND id NOT IN ({_dm});",
                         [uid] + prospect_ids
                     ).fetchall()
                 else:
-                    _del_rows = cur.execute("SELECT id, name FROM prospects WHERE owner_id=?;", (uid,)).fetchall()
+                    _del_rows = cur.execute("SELECT id, name FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
                 _deleted_prospects_for_log = [(int(r["id"]), r["name"]) for r in _del_rows]
             except Exception:
                 _deleted_prospects_for_log = []
@@ -14810,13 +14810,30 @@ if __name__ == "__main__":
     logger.info("Prosp'Up v%s starting (mode=%s, host=%s, port=%d)",
                 APP_VERSION, "production" if use_waitress else "dev", host, port)
 
-    # Scheduler backup journalier (3h00 chaque nuit)
+    # Scheduler backup journalier (3h00 chaque nuit) + purge soft-deleted (dimanche 4h00)
     # Ignoré dans le processus watcher de Werkzeug pour éviter le double démarrage
     if use_waitress or os.environ.get('WERKZEUG_RUN_MAIN'):
         try:
             from apscheduler.schedulers.background import BackgroundScheduler
             from backup import create_backup as _backup_create
             import atexit
+
+            def _purge_old_soft_deletes():
+                """v27.10: Supprime définitivement les enregistrements soft-deleted depuis plus de 30 jours."""
+                cutoff = (datetime.datetime.now() - datetime.timedelta(days=30)).isoformat(timespec="seconds")
+                try:
+                    with _conn() as conn:
+                        purged = {}
+                        for tbl in ("prospects", "companies", "candidates"):
+                            cur = conn.execute(f"DELETE FROM {tbl} WHERE deleted_at IS NOT NULL AND deleted_at < ?;", (cutoff,))
+                            purged[tbl] = cur.rowcount
+                    total = sum(purged.values())
+                    if total:
+                        logger.info("Purge soft-deleted: %s enregistrements supprimés (%s)", total, purged)
+                    _audit_log("purge", "system", new_value=json.dumps(purged))
+                except Exception as exc:
+                    logger.error("Erreur purge soft-deleted: %s", exc)
+
             _scheduler = BackgroundScheduler()
             _scheduler.add_job(
                 func=_backup_create,
@@ -14825,11 +14842,18 @@ if __name__ == "__main__":
                 id='daily_backup',
                 replace_existing=True,
             )
+            _scheduler.add_job(
+                func=_purge_old_soft_deletes,
+                trigger='cron',
+                day_of_week='sun', hour=4, minute=0,
+                id='weekly_purge_soft_deleted',
+                replace_existing=True,
+            )
             _scheduler.start()
             atexit.register(lambda: _scheduler.shutdown())
-            logger.info("Scheduler backup journalier démarré (3h00 chaque nuit)")
+            logger.info("Scheduler démarré — backup 3h00, purge soft-deleted dim. 4h00")
         except ImportError:
-            logger.warning("apscheduler non installé — backup automatique désactivé. Installer : pip install apscheduler")
+            logger.warning("apscheduler non installé — backup/purge automatique désactivés. Installer : pip install apscheduler")
 
     if use_waitress:
         try:

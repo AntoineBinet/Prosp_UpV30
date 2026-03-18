@@ -8007,6 +8007,80 @@ body[data-page="candidate"] #fabAdd {
   to   { width: 0%; }
 }
 
+/* ────── UNDO TOAST — v27.10 ────── */
+
+.undo-toast {
+  position: fixed;
+  bottom: 88px;
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  z-index: 11000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px 14px;
+  min-width: 260px;
+  max-width: 440px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, .95);
+  border: 1px solid rgba(255,255,255,.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0,0,0,.45);
+  color: #e2e8f0;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity .28s ease, transform .28s ease;
+  overflow: hidden;
+}
+.undo-toast-enter {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.undo-toast-exit {
+  opacity: 0;
+  transform: translateX(-50%) translateY(16px);
+  transition: opacity .28s ease, transform .28s ease;
+}
+.undo-toast-msg  { flex: 1; line-height: 1.4; }
+.undo-toast-btn  {
+  background: var(--accent, #00d4b8);
+  color: #0a1628;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 13px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity .15s;
+  white-space: nowrap;
+}
+.undo-toast-btn:hover { opacity: .82; }
+.undo-toast-progress {
+  position: absolute;
+  bottom: 0; left: 0; right: 0; height: 3px;
+  background: rgba(255,255,255,.08);
+}
+.undo-toast-progress-bar {
+  height: 100%;
+  width: 100%;
+  background: #ef4444;
+  animation: toastProgress linear forwards;
+  border-radius: 0 3px 3px 0;
+}
+@media (max-width: 900px) {
+  .undo-toast {
+    bottom: 72px;
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    transform: translateY(16px);
+  }
+  .undo-toast-enter { transform: translateY(0); }
+  .undo-toast-exit  { transform: translateY(16px); }
+}
+
 /* ────── GLOBAL SEARCH OVERLAY (Ctrl+K) ────── */
 
 .gsearch-overlay {

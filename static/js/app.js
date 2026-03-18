@@ -2576,23 +2576,43 @@ function deleteCompany(companyId) {
         : `Supprimer "${company.groupe} (${company.site})" ?`;
     if (!confirm(msg)) return;
 
-    // Déplacer les prospects vers "Sans entreprise"
+    const companyLabel = company.groupe;
+
+    // Mise à jour UI immédiate
     data.prospects.forEach(p => {
         if (p.company_id === companyId) p.company_id = unassignedId;
     });
-
-    // Supprimer l'entreprise
     data.companies = data.companies.filter(c => c.id !== companyId);
-
-    // Si un filtre était positionné sur cette entreprise, le basculer sur "Sans entreprise"
     const companyFilter = document.getElementById('companyFilter');
     if (companyFilter && String(companyFilter.value) === String(companyId)) {
         companyFilter.value = String(unassignedId);
     }
-
-    saveToServer();
     refreshCompaniesUI();
-    showToast('✅ Entreprise supprimée', 'success');
+
+    // Soft delete côté serveur
+    fetch('/api/companies/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: companyId })
+    }).then(r => { if (!r.ok) showToast('❌ Suppression impossible', 'error'); })
+      .catch(() => showToast('❌ Erreur réseau', 'error'));
+
+    // Toast avec bouton Annuler (10 secondes)
+    showUndoToast(`Entreprise supprimée\u00a0: ${companyLabel}`, 'company', companyId, async () => {
+        const r = await fetch('/api/soft-deleted/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entity: 'company', id: companyId })
+        });
+        if ((await r.json()).ok) {
+            await loadData();
+            refreshCompaniesUI();
+            filterProspects();
+            showToast('↩️ Entreprise restaurée', 'success', 2500);
+        } else {
+            showToast('❌ Impossible d\'annuler', 'error');
+        }
+    });
 }
 
 
@@ -6358,21 +6378,41 @@ async function deleteProspect(id) {
     const company = data.companies.find(c => c.id === prospect.company_id);
     const label = `${prospect.name} (${company?.groupe || 'Entreprise inconnue'})`;
 
-    if (!confirm(`⚠️ Supprimer définitivement ce prospect ?\n\n${label}`)) return;
+    if (!confirm(`⚠️ Supprimer ce prospect ?\n\n${label}`)) return;
 
-    // Find delete button if in modal
-    const deleteBtn = document.querySelector('[onclick*="deleteProspect(' + id + ')"]') || 
-                      document.querySelector('.btn-danger[onclick*="deleteProspect"]');
-    
-    await withButtonFeedback(deleteBtn, async () => {
-        data.prospects = data.prospects.filter(p => p.id !== id);
-        await saveToServerAsync();
-        markUnsaved();
-        closeDetail();
-        filterProspects();
-        showToast('🗑️ Prospect supprimé', 'success', 3000);
-    }, {
-        haptic: true
+    // Mise à jour UI immédiate
+    data.prospects = data.prospects.filter(p => p.id !== id);
+    closeDetail();
+    filterProspects();
+    if (typeof haptic === 'function') haptic(30);
+
+    // Soft delete côté serveur
+    try {
+        const res = await fetch('/api/prospects/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        if (!res.ok) { showToast('❌ Suppression impossible', 'error'); return; }
+    } catch (e) {
+        showToast('❌ Erreur réseau', 'error');
+        return;
+    }
+
+    // Toast avec bouton Annuler (10 secondes)
+    showUndoToast(`Prospect supprimé\u00a0: ${prospect.name}`, 'prospect', id, async () => {
+        const r = await fetch('/api/soft-deleted/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entity: 'prospect', id })
+        });
+        if ((await r.json()).ok) {
+            await loadData();
+            filterProspects();
+            showToast('↩️ Prospect restauré', 'success', 2500);
+        } else {
+            showToast('❌ Impossible d\'annuler', 'error');
+        }
     });
 }
 
@@ -14575,4 +14615,87 @@ document.addEventListener('keydown', function(e) {
         closeUserMenuModal('dashboardCustomization');
     }
 });
+
+
+// ──────────────────────────────────────────────────────────
+// UNDO TOAST — v27.10
+// Composant toast réutilisable avec bouton "Annuler" (10 s)
+// ──────────────────────────────────────────────────────────
+(function () {
+    'use strict';
+
+    let _el = null;
+    let _timer = null;
+
+    /**
+     * Affiche un toast en bas de l'écran avec un bouton "Annuler".
+     * @param {string} message - Texte à afficher
+     * @param {string} entityType - 'prospect' | 'company' | 'candidate'
+     * @param {number} entityId - ID de l'entité supprimée
+     * @param {Function} [onUndo] - Callback async appelé sur clic Annuler (optionnel)
+     */
+    function showUndoToast(message, entityType, entityId, onUndo) {
+        _dismiss(true);
+
+        const el = document.createElement('div');
+        el.className = 'undo-toast';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        el.innerHTML =
+            '<span class="undo-toast-msg">' + _escHtml(message) + '</span>' +
+            '<button class="undo-toast-btn" type="button">Annuler</button>' +
+            '<div class="undo-toast-progress"><div class="undo-toast-progress-bar" style="animation-duration:10s"></div></div>';
+
+        document.body.appendChild(el);
+        _el = el;
+
+        requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('undo-toast-enter')));
+
+        el.querySelector('.undo-toast-btn').addEventListener('click', async () => {
+            _dismiss(true);
+            try {
+                if (typeof onUndo === 'function') {
+                    await onUndo();
+                } else {
+                    const r = await fetch('/api/soft-deleted/restore', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ entity: entityType, id: entityId })
+                    });
+                    if ((await r.json()).ok) {
+                        if (typeof loadData === 'function') await loadData();
+                        if (typeof filterProspects === 'function') filterProspects();
+                        if (typeof refreshCompaniesUI === 'function') refreshCompaniesUI();
+                        showToast('↩️ Annulé', 'success', 2500);
+                    } else {
+                        showToast('❌ Impossible d\'annuler', 'error');
+                    }
+                }
+            } catch (_e) {
+                showToast('❌ Erreur réseau', 'error');
+            }
+        });
+
+        _timer = setTimeout(() => _dismiss(false), 10000);
+    }
+
+    function _dismiss(immediate) {
+        if (_timer) { clearTimeout(_timer); _timer = null; }
+        if (!_el) return;
+        const el = _el;
+        _el = null;
+        if (immediate) {
+            el.remove();
+        } else {
+            el.classList.add('undo-toast-exit');
+            setTimeout(() => el.remove(), 350);
+        }
+    }
+
+    function _escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    window.showUndoToast = showUndoToast;
+})();
 
