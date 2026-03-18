@@ -12477,7 +12477,7 @@ body[data-page=""] .content {
 
   /* ── Ligne 3 : badge relance + étoiles ────────────────────────── */
   body[data-page="prospects"] .table-wrapper .pmc-row3 {
-    display: flex; align-items: center; gap: 4px;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
     font-size: 10px; margin-top: 1px;
   }
   .pmc-relance {
