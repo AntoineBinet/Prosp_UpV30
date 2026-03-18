@@ -13185,70 +13185,70 @@ function openPreMeetingModal(prospectId) {
     const modal = document.getElementById('modalPreMeetingIA');
     const logDiv = document.getElementById('preMeetingProgressLog');
     const fallbackDiv = document.getElementById('preMeetingFallback');
-    
-    // Réinitialiser l'affichage
+
     logDiv.style.display = 'block';
-    logDiv.innerHTML = '';
+    logDiv.innerHTML = '<span style="color:#58a6ff;">⏳ Analyse IA en cours…</span>';
     fallbackDiv.style.display = 'none';
-    
+
     if (window.openModal) {
         window.openModal(modal);
     } else {
         modal.classList.add('active');
     }
-    
-    // Désactiver le bouton
+
     const btn = document.getElementById(`btnPreMeetingIA_${prospectId}`);
     if (btn) {
         btn.disabled = true;
         btn.textContent = '⏳ Analyse en cours...';
     }
-    
-    // Ouvrir la connexion EventSource
+
     const evtSource = new EventSource(`/api/prospect/${prospectId}/infos-rdv-stream`);
-    
+    let fullResponse = '';
+
     evtSource.onmessage = function(event) {
         try {
             const data = JSON.parse(event.data);
-            
+
             if (data.type === 'start') {
-                logDiv.innerHTML += `<span style="color:#58a6ff;">${escapeHtml(data.message)}</span><br>`;
-                logDiv.scrollTop = logDiv.scrollHeight;
+                logDiv.innerHTML = `<span style="color:#58a6ff;">${escapeHtml(data.message || 'Analyse en cours…')}</span>`;
             } else if (data.type === 'token') {
-                // Afficher les tokens au fur et à mesure
-                const content = data.content || '';
-                logDiv.innerHTML += escapeHtml(content).replace(/\n/g, '<br>');
-                logDiv.scrollTop = logDiv.scrollHeight;
+                fullResponse += (data.content || '');
             } else if (data.type === 'done') {
                 evtSource.close();
-                logDiv.innerHTML += '<br><span style="color:#22c55e;">✅ Génération terminée. Téléchargement du PDF...</span>';
-                logDiv.scrollTop = logDiv.scrollHeight;
-                
-                // Déclencher le téléchargement
-                if (data.pdf_url) {
-                    window.location.href = data.pdf_url;
-                }
-                
-                // Réactiver le bouton après 3 secondes
-                setTimeout(() => {
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.textContent = '📋 Avant réunion IA';
+
+                // Parser et afficher la fiche formatée
+                let ficheHtml = '';
+                try {
+                    const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        const parsed = JSON.parse(jsonMatch[0]);
+                        ficheHtml = formatRdvFiche(parsed, prospectId, data.pdf_url);
                     }
-                    closePreMeetingModal();
-                }, 3000);
+                } catch(e) { console.warn('Parsing fiche RDV:', e); }
+
+                if (ficheHtml) {
+                    logDiv.innerHTML = ficheHtml;
+                } else {
+                    logDiv.innerHTML = '<span style="color:#22c55e;">✅ Génération terminée. Téléchargement du PDF…</span>';
+                }
+
+                // Déclencher le téléchargement PDF
+                if (data.pdf_url) {
+                    setTimeout(() => { window.location.href = data.pdf_url; }, 600);
+                }
+
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '📋 Avant réunion IA';
+                }
             } else if (data.type === 'error') {
                 evtSource.close();
-                logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur : Ollama indisponible</span>';
-                logDiv.scrollTop = logDiv.scrollHeight;
-                
-                // Afficher le fallback
+                logDiv.innerHTML = '<span style="color:#ef4444;">❌ IA indisponible</span>';
+
                 if (data.fallback_prompt) {
                     document.getElementById('preMeetingPromptText').value = data.fallback_prompt;
                     fallbackDiv.style.display = 'block';
                 }
-                
-                // Réactiver le bouton
                 if (btn) {
                     btn.disabled = false;
                     btn.textContent = '📋 Avant réunion IA';
@@ -13256,18 +13256,79 @@ function openPreMeetingModal(prospectId) {
             }
         } catch (e) {
             console.error('Erreur parsing SSE:', e);
-            logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur de parsing</span>';
         }
     };
-    
+
     evtSource.onerror = function() {
         evtSource.close();
-        logDiv.innerHTML += '<br><span style="color:#ef4444;">❌ Erreur de connexion au serveur</span>';
+        logDiv.innerHTML = '<span style="color:#ef4444;">❌ Erreur de connexion au serveur</span>';
         if (btn) {
             btn.disabled = false;
             btn.textContent = '📋 Avant réunion IA';
         }
     };
+}
+
+function formatRdvFiche(data, prospectId, pdfUrl) {
+    // data = JSON parsé depuis la réponse IA (clés selon le prompt build_ollama_prompt_rdv)
+    const quiEstIl = data.qui_est_il || {};
+    const ctx = data.contexte_entreprise || {};
+    const besoins = data.besoins_probables || {};
+    const interlo = data.interlocuteurs_potentiels || {};
+
+    function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+    function listItems(arr) {
+        if (!Array.isArray(arr) || !arr.length) return '<li style="color:#6b7280">—</li>';
+        return arr.filter(Boolean).map(i => `<li>${esc(i)}</li>`).join('');
+    }
+    function section(title, content) {
+        return `<div style="margin-bottom:16px">
+            <h4 style="color:#f36f21;margin:0 0 6px;font-size:13px;border-bottom:1px solid #333;padding-bottom:4px">${title}</h4>
+            ${content}
+        </div>`;
+    }
+
+    const downloadBtn = pdfUrl
+        ? `<a href="${pdfUrl}" style="display:inline-block;margin-top:12px;padding:8px 16px;background:#f36f21;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:bold">⬇ Télécharger le PDF</a>`
+        : '';
+
+    return `<div style="font-family:sans-serif;line-height:1.6;color:#e5e7eb;padding:4px 8px;font-size:13px">
+        <h3 style="color:#f36f21;margin:0 0 4px">FICHE PRÉPARATION RDV</h3>
+        <p style="color:#9ca3af;margin:0 0 16px;font-size:12px">${esc(quiEstIl.titre_actuel || '')}${ctx.description ? ' — ' + esc(ctx.description).substring(0, 60) + '…' : ''}</p>
+
+        <h3 style="color:#f36f21;margin:0 0 10px;font-size:14px">SECTION 1 – SYNTHÈSE PROSPECT</h3>
+
+        ${section('1. Profil', `
+            <p>${esc(quiEstIl.resume || '—')}</p>
+            ${quiEstIl.parcours ? `<p><strong>Parcours :</strong> ${esc(quiEstIl.parcours)}</p>` : ''}
+            ${Array.isArray(quiEstIl.stack_specialites) && quiEstIl.stack_specialites.length
+                ? `<p><strong>Spécialités :</strong> ${quiEstIl.stack_specialites.map(esc).join(', ')}</p>` : ''}
+        `)}
+
+        ${section('2. Entreprise &amp; contexte', `
+            <p>${esc(ctx.description || '—')}</p>
+            ${Array.isArray(ctx.metiers_autour) && ctx.metiers_autour.length
+                ? `<p><strong>Métiers autour :</strong></p><ul style="margin:0 0 6px;padding-left:18px">${listItems(ctx.metiers_autour)}</ul>` : ''}
+            ${ctx.conclusion_matching ? `<p style="color:#f36f21">➜ ${esc(ctx.conclusion_matching)}</p>` : ''}
+        `)}
+
+        ${section('3. Besoins probables (angle UpTechnologie)', `
+            ${besoins.candidats_a_positionner ? `<p><strong>Candidats à positionner :</strong></p><ul style="margin:0 0 6px;padding-left:18px">${listItems(besoins.candidats_a_positionner)}</ul>` : ''}
+            ${besoins.automatisation ? `<p><strong>Automatisation :</strong></p><ul style="margin:0;padding-left:18px">${listItems(besoins.automatisation)}</ul>` : ''}
+        `)}
+
+        ${section('4. Interlocuteurs potentiels', `
+            <ul style="margin:0;padding-left:18px">
+                ${listItems([...(interlo.marketing_digital||[]), ...(interlo.commerce_technique||[]), ...(interlo.technique_projet||[])])}
+            </ul>
+            ${interlo.conclusion ? `<p style="color:#9ca3af;font-style:italic;margin-top:6px">${esc(interlo.conclusion)}</p>` : ''}
+        `)}
+
+        <h3 style="color:#f36f21;margin:16px 0 8px;font-size:14px">SECTION 2 – CHECKLIST RDV</h3>
+        <p style="color:#9ca3af;font-size:12px">✓ Checklist complète incluse dans le PDF</p>
+
+        ${downloadBtn}
+    </div>`;
 }
 
 function closePreMeetingModal() {

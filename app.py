@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.11"
+APP_VERSION = "27.12"
 import os
 import subprocess
 import traceback
@@ -460,6 +460,10 @@ def _stream_sonar_sse(prompt: str, model_override: str | None, config: dict, tim
                     continue
     yield f"data: {json.dumps({'type': 'end', 'message': 'Recherche terminée'}, ensure_ascii=False)}\n\n"
 
+# Cache temporaire en mémoire pour les analyses RDV (clé: "{uid}_{prospect_id}")
+# Utilisé à la place de session[] car la session n'est pas persistée dans les réponses SSE streaming
+_rdv_analysis_cache: Dict[str, str] = {}
+
 app = Flask(__name__, static_folder=str(APP_DIR / 'static'), static_url_path='/static', template_folder=str(APP_DIR / 'templates'))
 
 # ═══════════════════════════════════════════════════════════════════
@@ -476,6 +480,7 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = True   # v23.4: requires HTTPS (Cloudflare Tunnel)
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=8)  # v23.4: reduced from 30d for security
+app.json.ensure_ascii = False  # v27.12: caractères Unicode non échappés dans les réponses JSON
 
 # v22: Compute content hashes for static assets (auto cache busters)
 _static_hashes: Dict[str, str] = {}
@@ -13218,20 +13223,19 @@ def meetings_export_pdf(meeting_id):
 @app.get("/api/prospect/<int:prospect_id>/infos-rdv-stream")
 @login_required
 def api_prospect_infos_rdv_stream(prospect_id: int):
-    """Route SSE pour analyser un prospect via Ollama et générer une fiche de préparation RDV.
-    
-    Stream les tokens Ollama en temps réel, puis stocke la réponse complète en session
-    pour la génération PDF ultérieure.
+    """Route SSE pour analyser un prospect via IA (Sonar si configuré, sinon Ollama).
+
+    Stream les tokens en temps réel, puis stocke la réponse complète dans
+    _rdv_analysis_cache (et non en session, car la session n'est pas persistée
+    dans les réponses SSE streaming) pour la génération PDF ultérieure.
     """
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    
-    # Vérifier que le prospect appartient à l'utilisateur
+
     if not _prospect_owned(prospect_id):
         return jsonify(ok=False, error="Accès refusé"), 403
-    
-    # Récupérer le prospect et l'entreprise
+
     with _conn() as conn:
         prospect_row = conn.execute(
             "SELECT * FROM prospects WHERE id=? AND owner_id=?;",
@@ -13239,7 +13243,7 @@ def api_prospect_infos_rdv_stream(prospect_id: int):
         ).fetchone()
         if not prospect_row:
             return jsonify(ok=False, error="Prospect introuvable"), 404
-        
+
         prospect = dict(prospect_row)
         company = None
         if prospect.get("company_id"):
@@ -13249,75 +13253,50 @@ def api_prospect_infos_rdv_stream(prospect_id: int):
             ).fetchone()
             if company_row:
                 company = dict(company_row)
-    
-    # Construire le prompt Ollama
+
     prompt = build_ollama_prompt_rdv(prospect, company)
     fallback_prompt = build_fallback_prompt_rdv(prospect, company)
-    
+    cache_key = f"{uid}_{prospect_id}"
+
     def generate():
+        full_response_parts: list[str] = []
         try:
-            # Appeler Ollama en streaming
-            body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                f"{OLLAMA_URL}/api/generate",
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            
-            yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
-            
-            full_response = ""
-            with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
-                buffer = b""
-                for chunk in resp:
-                    buffer += chunk
-                    while b"\n" in buffer:
-                        line_bytes, buffer = buffer.split(b"\n", 1)
-                        line_json = line_bytes.decode("utf-8", errors="ignore").strip()
-                        if not line_json:
-                            continue
-                        try:
-                            data = json.loads(line_json)
-                            if data.get("done", False):
-                                # Dernier chunk avec le texte complet
-                                final_text = data.get("response", "")
-                                if final_text:
-                                    full_response += final_text
-                                    yield f"data: {json.dumps({'type': 'token', 'content': final_text, 'done': True}, ensure_ascii=False)}\n\n"
-                                
-                                # Stocker la réponse complète en session pour le PDF
-                                session[f"rdv_analysis_{prospect_id}"] = full_response
-                                
-                                # Envoyer l'événement de fin avec l'URL du PDF
-                                yield f"data: {json.dumps({'type': 'done', 'pdf_url': f'/api/prospect/{prospect_id}/download-rdv-pdf'}, ensure_ascii=False)}\n\n"
-                                break
-                            else:
-                                # Token partiel
-                                token = data.get("response", "")
-                                if token:
-                                    full_response += token
-                                    yield f"data: {json.dumps({'type': 'token', 'content': token, 'done': False}, ensure_ascii=False)}\n\n"
-                        except json.JSONDecodeError:
-                            continue
-        except urllib.error.URLError as e:
-            logger.warning("Ollama unreachable (infos-rdv-stream): %s", e)
+            for sse_line in _stream_ai_web_sse(prompt, None, OLLAMA_TIMEOUT):
+                if not sse_line.startswith("data: "):
+                    yield sse_line
+                    continue
+                raw = sse_line[6:].strip()
+                if not raw:
+                    continue
+                try:
+                    evt = json.loads(raw)
+                except json.JSONDecodeError:
+                    yield sse_line
+                    continue
+
+                evt_type = evt.get("type")
+                if evt_type == "token":
+                    # Normalise la clé 'text' (Sonar/Ollama générique) → 'content' (frontend rdv)
+                    token = evt.get("text") or evt.get("content") or ""
+                    if token:
+                        full_response_parts.append(token)
+                    yield f"data: {json.dumps({'type': 'token', 'content': token}, ensure_ascii=False)}\n\n"
+                elif evt_type == "end":
+                    # Fin du stream : sauvegarder dans le cache et envoyer 'done'
+                    full_text = "".join(full_response_parts)
+                    if full_text:
+                        _rdv_analysis_cache[cache_key] = full_text
+                    yield f"data: {json.dumps({'type': 'done', 'pdf_url': f'/api/prospect/{prospect_id}/download-rdv-pdf'}, ensure_ascii=False)}\n\n"
+                elif evt_type == "start":
+                    yield sse_line
+                elif evt_type == "error":
+                    yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
+                else:
+                    yield sse_line
+        except Exception:
+            logger.exception("infos-rdv-stream failed")
             yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
-        except urllib.error.HTTPError as e:
-            try:
-                err_body = ""
-                if e.fp:
-                    err_body = e.read().decode("utf-8")
-                err_data = json.loads(err_body) if err_body else {}
-                msg = err_data.get("error", err_body) or str(e)
-            except Exception:
-                msg = str(e)
-            logger.warning("Ollama HTTP error %s (infos-rdv-stream): %s", e.code, msg)
-            yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
-        except Exception as e:
-            logger.exception("Ollama infos-rdv-stream failed")
-            yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"
-    
+
     return Response(
         stream_with_context(generate()),
         mimetype="text/event-stream",
@@ -13340,8 +13319,9 @@ def api_prospect_download_rdv_pdf(prospect_id: int):
     if not _prospect_owned(prospect_id):
         return jsonify(ok=False, error="Accès refusé"), 403
     
-    # Récupérer la réponse Ollama depuis la session
-    ollama_response = session.get(f"rdv_analysis_{prospect_id}")
+    # Récupérer la réponse IA depuis le cache en mémoire (session inutilisable en SSE)
+    cache_key = f"{uid}_{prospect_id}"
+    ollama_response = _rdv_analysis_cache.pop(cache_key, None)
     if not ollama_response:
         return jsonify(ok=False, error="Aucune analyse disponible. Relancez la génération."), 404
     
@@ -13380,10 +13360,7 @@ def api_prospect_download_rdv_pdf(prospect_id: int):
     # Générer le PDF
     try:
         pdf_buffer = build_fiche_rdv_pdf(prospect, company, ollama_data)
-        
-        # Nettoyer la session (optionnel, pour éviter l'accumulation)
-        session.pop(f"rdv_analysis_{prospect_id}", None)
-        
+
         # Nom du fichier
         nom_complet = prospect.get("name", "").strip() or "prospect"
         nom_safe = "".join(c for c in nom_complet if c.isalnum() or c in (' ', '-', '_')).strip()[:50]
