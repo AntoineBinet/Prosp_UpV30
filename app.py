@@ -10906,6 +10906,34 @@ def api_deploy_pull():
                 except Exception:
                     pass
 
+            # ═══════════════════════════════════════════════════════════════════
+            # SAFETY: Installer les nouvelles dépendances avant le redémarrage
+            # ═══════════════════════════════════════════════════════════════════
+            req_file = APP_DIR / "requirements.txt"
+            if req_file.exists():
+                yield f"data: {json.dumps({'step': 'log', 'line': '📦 Installation des dépendances (pip install)...'}, ensure_ascii=False)}\n\n"
+                try:
+                    pip_result = subprocess.run(
+                        [sys.executable, "-m", "pip", "install", "-r", str(req_file),
+                         "--quiet", "--no-warn-script-location"],
+                        cwd=str(APP_DIR),
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
+                    )
+                    if pip_result.returncode == 0:
+                        yield f"data: {json.dumps({'step': 'log', 'line': '✅ Dépendances à jour'}, ensure_ascii=False)}\n\n"
+                    else:
+                        err_pip = (pip_result.stderr or pip_result.stdout or "").strip()[:300]
+                        yield f"data: {json.dumps({'step': 'log', 'line': f'⚠️ pip install partiel (app redémarre quand même): {err_pip}'}, ensure_ascii=False)}\n\n"
+                        logger.warning("Deploy pull: pip install partiel: %s", err_pip)
+                except subprocess.TimeoutExpired:
+                    yield f"data: {json.dumps({'step': 'log', 'line': '⚠️ pip install timeout — redémarrage quand même'}, ensure_ascii=False)}\n\n"
+                    logger.warning("Deploy pull: pip install timeout")
+                except Exception as e_pip:
+                    yield f"data: {json.dumps({'step': 'log', 'line': f'⚠️ pip install erreur: {e_pip}'}, ensure_ascii=False)}\n\n"
+                    logger.warning("Deploy pull: pip install erreur: %s", e_pip)
+
             logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
             _schedule_restart(delay=10.0)
             yield f"data: {json.dumps({'step': 'done', 'updated': True, 'restarting': True, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Mise à jour appliquée, redémarrage dans 10 s', 'restart_delay_s': 10}, ensure_ascii=False)}\n\n"
