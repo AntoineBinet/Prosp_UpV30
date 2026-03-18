@@ -830,3 +830,85 @@ async function triggerDeployPull() {
 }
 
 window.triggerDeployPull = triggerDeployPull;
+
+// ════════════════════════════════════════════════════════════════
+// Sauvegardes automatiques
+// ════════════════════════════════════════════════════════════════
+function _fmtBytes(bytes) {
+    if (bytes < 1024) return bytes + ' o';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' Ko';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' Mo';
+}
+
+function _fmtDate(iso) {
+    try {
+        return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+    } catch (_) { return iso; }
+}
+
+async function loadBackupInfo() {
+    const summaryEl = document.getElementById('backupSummary');
+    const listEl = document.getElementById('backupList');
+    const listItemsEl = document.getElementById('backupListItems');
+    if (!summaryEl) return;
+
+    try {
+        const res = await fetch('/api/admin/backups');
+        if (!res.ok) { summaryEl.textContent = 'Accès refusé ou erreur serveur.'; return; }
+        const data = await res.json();
+        const backups = data.backups || [];
+
+        if (backups.length === 0) {
+            summaryEl.textContent = 'Aucun backup disponible — le premier sera créé à 3h00.';
+            return;
+        }
+        const last = backups[0];
+        summaryEl.innerHTML = `<strong>Dernier backup :</strong> ${_fmtDate(last.date)} — ${_fmtBytes(last.size)} &nbsp;|&nbsp; <strong>${backups.length}</strong> backup(s) disponible(s)`;
+
+        // Liste des 5 derniers
+        const top5 = backups.slice(0, 5);
+        listItemsEl.innerHTML = top5.map(b =>
+            `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:6px;background:var(--color-surface-1);">
+                <span style="font-family:monospace;font-size:12px;">${b.name}</span>
+                <span style="color:var(--color-text-secondary);white-space:nowrap;margin-left:12px;">${_fmtDate(b.date)} · ${_fmtBytes(b.size)}</span>
+             </div>`
+        ).join('');
+        listEl.style.display = 'block';
+    } catch (e) {
+        if (summaryEl) summaryEl.textContent = 'Impossible de charger les infos de backup.';
+    }
+}
+
+async function triggerBackup() {
+    const btn = document.getElementById('btnTriggerBackup');
+    const statusEl = document.getElementById('backupTriggerStatus');
+    if (!btn) return;
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Backup en cours…';
+    if (statusEl) statusEl.textContent = '';
+
+    try {
+        const res = await fetch('/api/admin/backup/trigger', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const data = await res.json();
+        if (data.ok) {
+            if (statusEl) { statusEl.textContent = '✅ Backup créé'; statusEl.style.color = '#22c55e'; }
+            if (typeof showToast === 'function') showToast('Backup créé avec succès', 'success');
+            await loadBackupInfo();
+        } else {
+            if (statusEl) { statusEl.textContent = '❌ ' + (data.error || 'Erreur'); statusEl.style.color = '#ef4444'; }
+            if (typeof showToast === 'function') showToast('Erreur lors du backup', 'error');
+        }
+    } catch (e) {
+        if (statusEl) { statusEl.textContent = '❌ Erreur réseau'; statusEl.style.color = '#ef4444'; }
+        if (typeof showToast === 'function') showToast('Erreur réseau', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 Déclencher un backup maintenant';
+    }
+}
+
+window.triggerBackup = triggerBackup;
+
+// Charger les infos backup au chargement de la page
+document.addEventListener('DOMContentLoaded', () => { loadBackupInfo(); });

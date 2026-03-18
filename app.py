@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.9"
+APP_VERSION = "27.10"
 import os
 import subprocess
 import traceback
@@ -1127,6 +1127,7 @@ def api_auth_login():
         conn.execute("UPDATE users SET lastLoginAt=? WHERE id=?;",
                      (datetime.datetime.now().isoformat(timespec="seconds"), user['id']))
         must_change = bool(user['must_change_password']) if 'must_change_password' in user.keys() else False
+    log_activity('login')
     return jsonify(ok=True, role=user['role'], name=user['display_name'] or user['username'],
                    must_change_password=must_change)
 
@@ -1236,6 +1237,7 @@ def api_auth_onboarding_seen():
 
 @app.post("/api/auth/logout")
 def api_auth_logout():
+    log_activity('logout')
     session.clear()
     return jsonify(ok=True)
 
@@ -1993,6 +1995,23 @@ CREATE TABLE IF NOT EXISTS assistant_history (
 CREATE INDEX IF NOT EXISTS idx_assistant_history_user ON assistant_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_assistant_history_session ON assistant_history(session_id);
 CREATE INDEX IF NOT EXISTS idx_assistant_history_date ON assistant_history(createdAt);
+
+-- v27.10: journal d'activité multi-utilisateurs
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL,
+    username     TEXT NOT NULL,
+    action       TEXT NOT NULL,
+    entity_type  TEXT,
+    entity_id    INTEGER,
+    entity_label TEXT,
+    details      TEXT,
+    ip_address   TEXT,
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_user   ON activity_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at);
 '''
         )
 
@@ -3696,6 +3715,26 @@ def _audit_log(action: str, entity: str, entity_id: int | None = None,
             )
     except Exception as e:
         logger.warning("audit_log failed: %s", e)  # Never break the main flow
+
+
+def log_activity(action: str, entity_type: str = None, entity_id: int = None,
+                 entity_label: str = None, details: dict = None):
+    """v27.10: Enregistre une action dans activity_logs. Non-bloquant, toujours en DB principale."""
+    try:
+        uid = _uid()
+        if not uid:
+            return
+        username = session.get('user_name', 'inconnu')
+        ip = request.remote_addr or 'unknown'
+        details_json = json.dumps(details, ensure_ascii=False) if details else None
+        with _auth_conn() as conn:
+            conn.execute(
+                "INSERT INTO activity_logs (user_id, username, action, entity_type, entity_id, entity_label, details, ip_address) "
+                "VALUES (?,?,?,?,?,?,?,?);",
+                (uid, username, action, entity_type, entity_id, entity_label, details_json, ip)
+            )
+    except Exception as e:
+        logger.warning("log_activity failed: %s", e)
 
 
 def _today_iso() -> str:
