@@ -38,7 +38,7 @@ function renderRapport(d) {
     const el = document.getElementById('rapportContent');
 
     const kpis = [
-        { value: kpi.contacts, label: 'Contacts', color: '#f59e0b' },
+        { value: kpi.relances, label: 'Relances', color: '#f59e0b' },
         { value: kpi.notes, label: "Notes d'appel", color: '#3b82f6' },
         { value: kpi.push_total, label: 'Push envoyés', color: '#8b5cf6' },
         { value: kpi.push_email, label: '✉️ Email', color: '#6366f1' },
@@ -154,7 +154,7 @@ function generateMarkdown() {
 
     md += `### 📊 KPIs\n\n`;
     md += `| Indicateur | Valeur |\n|---|---|\n`;
-    md += `| Contacts | ${kpi.contacts} |\n`;
+    md += `| Relances | ${kpi.relances} |\n`;
     md += `| Notes d'appel | ${kpi.notes} |\n`;
     md += `| Push envoyés | ${kpi.push_total} (✉️ ${kpi.push_email} / 💼 ${kpi.push_linkedin}) |\n`;
     md += `| RDV | ${kpi.rdv} |\n`;

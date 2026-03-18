@@ -14,9 +14,9 @@
 
 {% block content %}
 <script>
-// Masquer immédiatement les panneaux de prospection si on est en mode contacts (évite le flash)
+// Masquer immédiatement les panneaux de prospection si on est en mode archivés (évite le flash)
 (function() {
-    if (window.location.search.includes('contacts=1')) {
+    if (window.location.search.includes('archived=1')) {
         document.addEventListener('DOMContentLoaded', function() {
             const relanceBanner = document.getElementById('relanceAlertBannerProspects');
             if (relanceBanner) relanceBanner.style.display = 'none';

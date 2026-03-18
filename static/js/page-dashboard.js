@@ -355,9 +355,9 @@ function renderKpiCards(d) {
 
     const cards = [
         {
-            icon: '📞', label: "Contacts aujourd'hui", value: t.contacts,
-            sub: `${w.contacts} cette semaine`,
-            trend: _trendIcon(w.contacts, pw.contacts),
+            icon: '📞', label: "Relances", value: t.relances,
+            sub: `${w.relances} cette semaine`,
+            trend: _trendIcon(w.relances, pw.relances),
             color: '#f59e0b',
         },
         {
@@ -410,13 +410,13 @@ function renderWeekChart(w) {
         return;
     }
 
-    const totals = days.map(d => (d.contacts || 0) + (d.notes || 0) + (d.push || 0));
+    const totals = days.map(d => (d.relances || 0) + (d.notes || 0) + (d.push || 0));
     const maxTotal = Math.max(1, ...totals);
 
     container.innerHTML = `
         <div class="dash-bars">
             ${days.map(d => {
-                const c = d.contacts || 0;
+                const c = d.relances || 0;
                 const n = d.notes || 0;
                 const p = d.push || 0;
                 const total = c + n + p;
@@ -447,10 +447,10 @@ function renderWeekChart(w) {
                     }
                 }
                 return `
-                    <div class="dash-bar-col${isToday ? ' today' : ''}" title="${d.date}\n📞 ${c} contacts\n📝 ${n} notes\n📤 ${p} push">
+                    <div class="dash-bar-col${isToday ? ' today' : ''}" title="${d.date}\n📞 ${c} relances\n📝 ${n} notes\n📤 ${p} push">
                         <div class="dash-bar-stack">
                           <div class="dash-bar-fill" style="height:${barH}%;">
-                            <div class="dash-bar-seg contacts" style="height:${pc}%"></div>
+                            <div class="dash-bar-seg relances" style="height:${pc}%"></div>
                             <div class="dash-bar-seg notes" style="height:${pn}%"></div>
                             <div class="dash-bar-seg push" style="height:${pp}%"></div>
                           </div>
@@ -461,13 +461,13 @@ function renderWeekChart(w) {
             }).join('')}
         </div>
         <div class="dash-legend">
-            <span class="dash-legend-item"><span class="dash-legend-dot contacts"></span> Contacts</span>
+            <span class="dash-legend-item"><span class="dash-legend-dot relances"></span> Relances</span>
             <span class="dash-legend-item"><span class="dash-legend-dot notes"></span> Notes</span>
             <span class="dash-legend-item"><span class="dash-legend-dot push"></span> Push</span>
         </div>
     `;
 
-    const totalW = days.reduce((s, d) => s + d.contacts + d.notes + d.push, 0);
+    const totalW = days.reduce((s, d) => s + d.relances + d.notes + d.push, 0);
     if (summary) summary.textContent = `Total semaine : ${totalW} actions · ${days.length} jours travaillés`;
 }
 

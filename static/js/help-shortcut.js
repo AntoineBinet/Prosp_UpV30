@@ -33,7 +33,7 @@
         'mises-a-jour': 'Mises à jour',
         'raccourcis': 'Raccourcis',
         'bonnes-pratiques': 'Bonnes pratiques',
-        'contacts': 'Contacts'
+        'archived': 'Archivés'
     };
 
     var HELP_HINT = "Aide: Ctrl+Shift+H ouvre l'aide (section pointée)";
