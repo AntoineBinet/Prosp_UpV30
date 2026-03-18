@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.7"
+APP_VERSION = "27.9"
 import os
 import subprocess
 import traceback
@@ -676,6 +676,30 @@ def _require_same_origin():
     except Exception:
         return jsonify(ok=False, error="Origine non autorisée"), 403
 
+def validate_payload(required_fields: dict):
+    """Helper de validation légère des payloads JSON (v27.8).
+
+    required_fields = {'nom': str, 'email': str} — type peut être un tuple ex. (str, int).
+    Retourne (data, None) si valide, (None, response_erreur) sinon.
+    """
+    data = request.get_json(silent=True)
+    if data is None:
+        return None, (jsonify({'error': 'Payload JSON manquant ou invalide'}), 400)
+    errors = []
+    for field, ftype in required_fields.items():
+        if field not in data:
+            errors.append(f"Champ requis manquant : '{field}'")
+        elif data[field] is not None and not isinstance(data[field], ftype):
+            if isinstance(ftype, tuple):
+                type_name = '/'.join(t.__name__ for t in ftype)
+            else:
+                type_name = ftype.__name__ if hasattr(ftype, '__name__') else str(ftype)
+            errors.append(f"'{field}' doit être de type {type_name}")
+    if errors:
+        return None, (jsonify({'error': 'Validation échouée', 'details': errors}), 422)
+    return data, None
+
+
 @app.before_request
 def _require_auth():
     """Protect all routes except login, static, and favicon.
@@ -926,6 +950,21 @@ def page_not_found(e):
         return jsonify(ok=False, error="Endpoint introuvable"), 404
     return send_from_directory(APP_DIR, "404.html"), 404
 
+
+@app.errorhandler(400)
+def bad_request(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Requête invalide', 'detail': str(e)}), 400
+    return send_from_directory(APP_DIR, "400.html"), 400
+
+
+@app.errorhandler(500)
+def server_error(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Erreur serveur interne'}), 500
+    return send_from_directory(APP_DIR, "500.html"), 500
+
+
 # ═══════════════════════════════════════════════════════════════════
 # Auth routes
 # ═══════════════════════════════════════════════════════════════════
@@ -1062,7 +1101,9 @@ def api_auth_login():
     if _check_login_rate_limit():
         return jsonify(ok=False, error="Trop de tentatives. Réessayez dans quelques minutes."), 429
 
-    payload = request.get_json(force=True, silent=True) or {}
+    payload, err = validate_payload({'username': str, 'password': str})
+    if err:
+        return err
     username = (payload.get("username") or "").strip().lower()
     password = payload.get("password") or ""
     if not username or not password:
@@ -1313,7 +1354,9 @@ def api_users_list():
 @login_required
 @role_required('admin')
 def api_users_save():
-    payload = request.get_json(force=True, silent=True) or {}
+    payload, err = validate_payload({'username': str})
+    if err:
+        return err
     uid = payload.get("id")
     username = (payload.get("username") or "").strip().lower()
     display_name = (payload.get("display_name") or "").strip()
@@ -2097,6 +2140,18 @@ CREATE INDEX IF NOT EXISTS idx_assistant_history_date ON assistant_history(creat
             CREATE INDEX IF NOT EXISTS idx_prospects_owner_statut ON prospects(owner_id, statut);
             CREATE INDEX IF NOT EXISTS idx_companies_owner ON companies(owner_id);
             CREATE INDEX IF NOT EXISTS idx_candidates_owner ON candidates(owner_id);
+        ''')
+
+        # v27.9: indexes on high-frequency filter/join columns (added after deleted_at migration)
+        conn.executescript('''
+            CREATE INDEX IF NOT EXISTS idx_prospects_company_id ON prospects(company_id);
+            CREATE INDEX IF NOT EXISTS idx_prospects_next_followup ON prospects(nextFollowUp);
+            CREATE INDEX IF NOT EXISTS idx_prospects_last_contact ON prospects(lastContact);
+            CREATE INDEX IF NOT EXISTS idx_prospects_owner_deleted ON prospects(owner_id, deleted_at);
+            CREATE INDEX IF NOT EXISTS idx_companies_owner_deleted ON companies(owner_id, deleted_at);
+            CREATE INDEX IF NOT EXISTS idx_candidates_status ON candidates(status);
+            CREATE INDEX IF NOT EXISTS idx_candidates_owner_deleted ON candidates(owner_id, deleted_at);
+            CREATE INDEX IF NOT EXISTS idx_push_logs_prospect_sentAt ON push_logs(prospect_id, sentAt);
         ''')
         
         # v25.9: Add owner_id to push_categories for per-user categories
@@ -4688,7 +4743,9 @@ def api_candidates_save():
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    payload = request.get_json(force=True, silent=False) or {}
+    payload, err = validate_payload({'name': str})
+    if err:
+        return err
     name = (payload.get("name") or "").strip()
     if not name:
         return jsonify({"ok": False, "error": "name is required"}), 400
@@ -5000,7 +5057,9 @@ def api_templates_list():
 
 @app.post("/api/templates/save")
 def api_templates_save():
-    payload = request.get_json(force=True, silent=False) or {}
+    payload, err = validate_payload({'name': str})
+    if err:
+        return err
     name = (payload.get("name") or "").strip()
     if not name:
         return jsonify({"ok": False, "error": "name is required"}), 400
@@ -8059,6 +8118,30 @@ def api_snapshots_delete():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ====== Backups automatiques API ======
+@app.get("/api/admin/backups")
+@login_required
+@role_required('admin')
+def api_admin_backups_list():
+    from backup import list_backups
+    return jsonify(ok=True, backups=list_backups())
+
+
+@app.post("/api/admin/backup/trigger")
+@login_required
+@role_required('admin')
+def api_admin_backup_trigger():
+    chk = _require_same_origin()
+    if chk:
+        return chk
+    from backup import create_backup
+    path = create_backup()
+    if path:
+        logger.info("Backup manuel déclenché par %s : %s", session.get('user_id'), path)
+        return jsonify(ok=True, path=path)
+    return jsonify(ok=False, error="Échec du backup — voir les logs serveur"), 500
+
+
 # ====== Reset (factory) API ======
 @app.post("/api/reset")
 @login_required
@@ -8978,7 +9061,9 @@ def api_tasks_save():
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    payload = request.get_json(force=True, silent=True) or {}
+    payload, err = validate_payload({'title': str})
+    if err:
+        return err
     title = (payload.get("title") or "").strip()
     if not title:
         return jsonify({"ok": False, "error": "title is required"}), 400
@@ -9355,7 +9440,9 @@ def api_company_full():
 
 @app.post("/api/company/update")
 def api_company_update():
-    payload = request.get_json(force=True, silent=False) or {}
+    payload, err = validate_payload({'id': (str, int)})
+    if err:
+        return err
     cid = payload.get("id")
     if not cid:
         return jsonify({"ok": False, "error": "id is required"}), 400
@@ -11076,7 +11163,9 @@ def api_save():
     chk = _require_same_origin()
     if chk:
         return chk
-    data = request.get_json(force=True, silent=False)
+    data, err = validate_payload({})
+    if err:
+        return err
     try:
         upsert_all(data)
     except ValueError as e:
@@ -12551,13 +12640,15 @@ def meetings_create():
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    
-    body = request.get_json(force=True)
+
+    body, err = validate_payload({'prospect_id': (int, str), 'title': str})
+    if err:
+        return err
     prospect_id = body.get("prospect_id")
     title = body.get("title", "").strip()
     checklist_data = body.get("checklist_data")
     notes = body.get("notes", "").strip()
-    
+
     if not prospect_id:
         return jsonify(ok=False, error="prospect_id requis"), 400
     if not title:
@@ -14541,6 +14632,27 @@ if __name__ == "__main__":
 
     logger.info("Prosp'Up v%s starting (mode=%s, host=%s, port=%d)",
                 APP_VERSION, "production" if use_waitress else "dev", host, port)
+
+    # Scheduler backup journalier (3h00 chaque nuit)
+    # Ignoré dans le processus watcher de Werkzeug pour éviter le double démarrage
+    if use_waitress or os.environ.get('WERKZEUG_RUN_MAIN'):
+        try:
+            from apscheduler.schedulers.background import BackgroundScheduler
+            from backup import create_backup as _backup_create
+            import atexit
+            _scheduler = BackgroundScheduler()
+            _scheduler.add_job(
+                func=_backup_create,
+                trigger='cron',
+                hour=3, minute=0,
+                id='daily_backup',
+                replace_existing=True,
+            )
+            _scheduler.start()
+            atexit.register(lambda: _scheduler.shutdown())
+            logger.info("Scheduler backup journalier démarré (3h00 chaque nuit)")
+        except ImportError:
+            logger.warning("apscheduler non installé — backup automatique désactivé. Installer : pip install apscheduler")
 
     if use_waitress:
         try:
