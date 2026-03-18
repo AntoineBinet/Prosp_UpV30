@@ -890,6 +890,7 @@ function saveToServerAsync(opts) {
     if (opts.confirmMassDelete) payload.confirm_mass_delete = true;
     return fetch('/api/save', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     }).then(res => {
@@ -13872,6 +13873,7 @@ async function applyPostMeetingImport() {
 
         closePostMeetingModal();
         showToast('✅ Compte-rendu appliqué ! Fiche mise à jour.', 'success', 5000);
+        filterProspects(); // rafraîchir la liste (statut peut avoir changé)
         viewDetail(_pmProspectId); // refresh the detail modal
     } catch(e) {
         console.error(e);

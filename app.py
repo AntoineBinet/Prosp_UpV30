@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.12"
+APP_VERSION = "27.13"
 import os
 import subprocess
 import traceback
@@ -3422,6 +3422,23 @@ def upsert_all(data: Dict[str, Any]) -> None:
                     for p in prospects
                 ],
             )
+
+            # Log statut changes for debugging persistence issues
+            for p in prospects:
+                try:
+                    pid = int(p.get("id"))
+                    old_row = old_prospect_map.get(pid) or {}
+                    old_s = str(old_row.get("statut") or "").strip()
+                    new_s = str(p.get("statut") or "").strip()
+                    if old_s != new_s:
+                        logger.info("[upsert_all] prospect %d statut: %r → %r", pid, old_s, new_s)
+                        row = cur.execute("SELECT statut FROM prospects WHERE id=?", (pid,)).fetchone()
+                        if row:
+                            saved_s = str(row[0] or "").strip()
+                            if saved_s != new_s:
+                                logger.warning("[upsert_all] statut DB mismatch pour prospect %d : attendu %r, trouvé %r", pid, new_s, saved_s)
+                except Exception as _log_err:
+                    logger.debug("[upsert_all] erreur log statut: %s", _log_err)
 
             # Log "RDV pris" events for gamified goals (deduped by unique index)
             try:
