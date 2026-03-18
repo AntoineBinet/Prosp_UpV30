@@ -11969,12 +11969,29 @@ function ensureBuildIndicator() {
     } catch (e) {}
 }
 
+function generateSkeleton(count, type) {
+    type = type || 'row';
+    return Array(count).fill(0).map(function() {
+        return '<div class="skeleton skeleton-' + type + '"></div>';
+    }).join('');
+}
+
 async function bootstrap(page) {
     window.__APP_PAGE__ = page;
     ensureBuildIndicator();
 
     // Auth init (v15)
     await AppAuth.init();
+
+    // Skeleton loaders pendant le chargement
+    if (page === 'prospects') {
+        var _skTb = document.getElementById('tableBody');
+        if (_skTb) _skTb.innerHTML = '<tr><td colspan="13" style="padding:8px 0;">' + generateSkeleton(8, 'row') + '</td></tr>';
+    }
+    if (page === 'companies') {
+        var _skCo = document.getElementById('companyTableBody');
+        if (_skCo) _skCo.innerHTML = '<tr><td colspan="6" style="padding:8px 0;">' + generateSkeleton(8, 'row') + '</td></tr>';
+    }
 
     await loadFromServer();
     try { await loadTemplatesFromServer(); } catch(e) { console.warn("[Prosp'Up] Templates load failed:", e); }

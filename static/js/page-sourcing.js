@@ -173,6 +173,11 @@ function uniq(arr) {
 }
 
 async function loadCandidates() {
+    const _skTb = document.getElementById('candTableBody');
+    if (_skTb) {
+        const sk = Array(7).fill('<div class="skeleton skeleton-row"></div>').join('');
+        _skTb.innerHTML = '<tr><td colspan="7" style="padding:8px 0;">' + sk + '</td></tr>';
+    }
     const res = await fetch('/api/candidates');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     __candidates = await res.json();

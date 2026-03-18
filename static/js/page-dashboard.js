@@ -14,6 +14,12 @@ function _dayName(iso) {
 }
 
 async function loadDashboard() {
+    const _skKpi = document.getElementById('dashKpiRow');
+    if (_skKpi && !_skKpi.querySelector('.dash-kpi-card')) {
+        _skKpi.innerHTML = '<div style="display:flex;gap:12px;width:100%;">' +
+            Array(4).fill('<div class="skeleton skeleton-kpi" style="flex:1;"></div>').join('') +
+            '</div>';
+    }
     try {
         const res = await fetch('/api/dashboard');
         if (!res.ok) throw new Error('HTTP ' + res.status);

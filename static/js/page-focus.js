@@ -45,7 +45,9 @@ async function reloadFocus() {
     const container = document.getElementById('focusContainer');
     if (!container) return;
 
-    container.innerHTML = '<div class="card"><div class="muted">Chargement…</div></div>';
+    container.innerHTML = '<div class="card" style="padding:12px 16px;">' +
+        Array(5).fill('<div class="skeleton skeleton-row"></div>').join('') +
+        '</div>';
 
     const res = await fetch('/api/focus_queue');
     if (!res.ok) throw new Error('HTTP ' + res.status);

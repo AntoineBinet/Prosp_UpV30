@@ -3571,9 +3571,17 @@ table tr.removing,
 }
 .skeleton-text { height: 14px; margin-bottom: 8px; width: 80%; border-radius: 4px; }
 .skeleton-text.short { width: 40%; }
-.skeleton-card { height: 80px; margin-bottom: 12px; }
+.skeleton-text.w80 { width: 80%; }
+.skeleton-text.w60 { width: 60%; }
+.skeleton-text.w40 { width: 40%; }
+.skeleton-card { height: 80px; margin-bottom: 12px; width: 100%; border-radius: 12px; }
 .skeleton-kpi { height: 72px; border-radius: 12px; }
-.skeleton-row { height: 44px; margin-bottom: 4px; border-radius: 6px; }
+.skeleton-row { height: 44px; margin-bottom: 8px; width: 100%; border-radius: 6px; }
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 
 /* ── Error states ──────────────────────────────────── */
 .error-state {
