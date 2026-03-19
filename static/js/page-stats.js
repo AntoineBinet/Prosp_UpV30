@@ -325,7 +325,7 @@ async function loadStats() {
     const cards = document.getElementById('statsCards');
     const tbody = document.getElementById('hotCompaniesBody');
 
-    if (cards) cards.innerHTML = '';
+    if (cards) cards.innerHTML = '<div class="skeleton skeleton-kpi" style="margin:4px 0"></div><div class="skeleton skeleton-kpi" style="margin:4px 0"></div><div class="skeleton skeleton-kpi" style="margin:4px 0"></div>';
     if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>';
 
     const buildQuery = () => {
@@ -465,12 +465,23 @@ async function loadCharts() {
         return;
     }
 
+    const _chartsArea = document.getElementById('chartsArea');
+    const _chartsMsg = document.createElement('div');
+    _chartsMsg.id = '_chartsLoadingMsg';
+    _chartsMsg.className = 'muted';
+    _chartsMsg.style.cssText = 'text-align:center;padding:30px;font-size:13px;';
+    _chartsMsg.textContent = '⏳ Chargement des graphiques…';
+    if (_chartsArea) {
+        _chartsArea.style.display = 'none';
+        _chartsArea.insertAdjacentElement('beforebegin', _chartsMsg);
+    }
+
     let d;
     try {
         const res = await fetch('/api/stats/charts');
-        if (!res.ok) return;
+        if (!res.ok) { document.getElementById('_chartsLoadingMsg')?.remove(); if (_chartsArea) _chartsArea.style.display = ''; return; }
         d = await res.json();
-        if (!d.ok) return;
+        if (!d.ok) { document.getElementById('_chartsLoadingMsg')?.remove(); if (_chartsArea) _chartsArea.style.display = ''; return; }
 
         const colors = chartColors();
         const defaults = Chart.defaults;
@@ -750,6 +761,9 @@ async function loadCharts() {
         }
     } catch (err) {
         console.error('Extra charts error:', err);
+    } finally {
+        document.getElementById('_chartsLoadingMsg')?.remove();
+        if (_chartsArea) _chartsArea.style.display = '';
     }
 }
 

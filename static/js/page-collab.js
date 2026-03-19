@@ -160,6 +160,8 @@ async function loadAllSharedProspects() {
     const container = document.getElementById('sharedProspectsContainer');
     if (!container) return;
 
+    container.innerHTML = '<div class="skeleton skeleton-row" style="margin:8px 0"></div><div class="skeleton skeleton-row" style="margin:8px 0"></div>';
+
     try {
         const res = await fetch('/api/collab/shared-prospects');
         if (!res.ok) throw new Error('HTTP ' + res.status);
