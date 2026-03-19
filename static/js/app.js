@@ -14300,7 +14300,7 @@ function openUserMenu() {
     popup.classList.add('open');
 
     // ── Mobile : backdrop + swipe bas pour fermer ─────────────────
-    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const isMobile = window.matchMedia('(max-width: 900px)').matches;
     if (isMobile) {
         let backdrop = document.getElementById('userMenuBackdrop');
         if (!backdrop) {
