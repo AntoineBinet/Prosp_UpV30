@@ -73,7 +73,7 @@ function renderCollaborators() {
                             <div class="muted" style="font-size: 11px; margin-top: 4px;">Partagé le ${formatDate(share.shared_at)}</div>
                         </div>
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary btn-sm" onclick="viewSharedCompanyProspects(${share.company_id}, '${escapeHtml(companyName)}', null, null)" title="Voir les prospects">👁️ Prospects</button>
+                            <button class="btn btn-secondary btn-sm js-view-prospects" data-company-id="${share.company_id}" data-company-name="${escapeHtml(companyName)}" data-from-user-id="" data-sharer-name="" title="Voir les prospects">👁️ Prospects</button>
                             <button class="btn btn-danger btn-sm" onclick="unshareCompany(${share.id}, '${escapeHtml(companyName)}')" title="Retirer le partage">🗑️</button>
                         </div>
                     </div>
@@ -120,7 +120,7 @@ function renderReceivedCompanies() {
                             Partagé par <strong>${escapeHtml(sharerName)}</strong> le ${formatDate(share.shared_at)}
                         </div>
                     </div>
-                    <button class="btn btn-secondary btn-sm" onclick="viewSharedCompanyProspects(${share.company_id}, '${escapeHtml(companyName)}', ${share.from_user_id}, '${escapeHtml(sharerName)}')" title="Voir les prospects">👁️ Prospects</button>
+                    <button class="btn btn-secondary btn-sm js-view-prospects" data-company-id="${share.company_id}" data-company-name="${escapeHtml(companyName)}" data-from-user-id="${share.from_user_id || ''}" data-sharer-name="${escapeHtml(sharerName)}" title="Voir les prospects">👁️ Prospects</button>
                 </div>
             </div>
         `;
@@ -156,6 +156,82 @@ async function loadUserCompanies() {
     }
 }
 
+async function loadAllSharedProspects() {
+    const container = document.getElementById('sharedProspectsContainer');
+    if (!container) return;
+
+    try {
+        const res = await fetch('/api/collab/shared-prospects');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Erreur');
+
+        const prospects = Array.isArray(json.prospects) ? json.prospects : [];
+
+        if (prospects.length === 0) {
+            container.innerHTML = '<div class="card"><div class="muted">Aucun prospect dans les entreprises partagées avec vous.</div></div>';
+            return;
+        }
+
+        // Group by company
+        const byCompany = {};
+        for (const p of prospects) {
+            const key = `${p.shared_company_id}-${p.shared_from_user_id}`;
+            if (!byCompany[key]) {
+                byCompany[key] = {
+                    companyName: p.shared_company_name || `Entreprise #${p.shared_company_id}`,
+                    sharerName: p.shared_from || '',
+                    companyId: p.shared_company_id,
+                    fromUserId: p.shared_from_user_id,
+                    prospects: []
+                };
+            }
+            byCompany[key].prospects.push(p);
+        }
+
+        container.innerHTML = Object.values(byCompany).map(group => {
+            const prospectsHtml = group.prospects.map(p => {
+                const sharerBadge = `<span class="badge" style="background:rgba(120,80,255,0.25);color:#a78bfa;margin-left:6px;font-size:10px;">${escapeHtml(group.sharerName)}</span>`;
+                const statutBadge = p.statut ? `<span class="badge" style="margin-left:6px;">${escapeHtml(p.statut)}</span>` : '';
+                const prospectDataJson = JSON.stringify({statut: p.statut, notes: p.notes, lastContact: p.lastContact, nextFollowUp: p.nextFollowUp, pertinence: p.pertinence, nextAction: p.nextAction});
+                return `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
+                        <div style="flex:1;">
+                            <span style="font-weight:600;">${escapeHtml(p.name || '')}${sharerBadge}</span>${statutBadge}
+                            ${p.fonction ? `<span class="muted" style="font-size:11px;margin-left:8px;">${escapeHtml(p.fonction)}</span>` : ''}
+                            ${p.telephone ? `<span class="muted" style="font-size:11px;margin-left:8px;">📞 ${escapeHtml(p.telephone)}</span>` : ''}
+                            ${p.email ? `<span class="muted" style="font-size:11px;margin-left:8px;">✉️ ${escapeHtml(p.email)}</span>` : ''}
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                            ${p.telephone ? `<a href="tel:${escapeHtml(p.telephone)}" class="mini-action" title="Appeler">📞</a>` : ''}
+                            ${p.email ? `<a href="mailto:${escapeHtml(p.email)}" class="mini-action" title="Email">✉️</a>` : ''}
+                            ${p.linkedin ? `<a href="${escapeHtml(p.linkedin)}" target="_blank" class="mini-action" title="LinkedIn">💼</a>` : ''}
+                            <button class="btn btn-secondary btn-sm js-edit-shared-prospect"
+                                data-prospect-id="${p.id}"
+                                data-company-id="${p.shared_company_id}"
+                                data-prospect-json="${escapeHtml(prospectDataJson)}"
+                                title="Modifier">✏️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="card" style="margin-bottom:16px;">
+                    <div style="font-weight:700;font-size:15px;margin-bottom:12px;">
+                        ${escapeHtml(group.companyName)}
+                        <span class="badge" style="background:rgba(120,80,255,0.2);color:#a78bfa;font-size:11px;margin-left:8px;">partagé par ${escapeHtml(group.sharerName)}</span>
+                    </div>
+                    ${prospectsHtml}
+                </div>
+            `;
+        }).join('');
+    } catch(e) {
+        console.error(e);
+        container.innerHTML = '<div class="card"><div class="muted">Erreur lors du chargement des prospects partagés.</div></div>';
+    }
+}
+
 async function reloadCollab() {
     const container = document.getElementById('collabContainer');
     if (container) {
@@ -170,6 +246,7 @@ async function reloadCollab() {
 
     renderCollaborators();
     renderReceivedCompanies();
+    await loadAllSharedProspects();
 }
 
 function openAddCollaboratorModal(preselectedUserId = null) {
@@ -411,10 +488,15 @@ async function saveSharedProspect() {
         if (!json.ok) throw new Error(json.error || 'Erreur');
         showToast('Prospect mis à jour.', 'success');
         closeEditSharedProspectModal();
-        // Refresh the prospects list
+        // Refresh the prospects list modal if open
         const titleEl = document.getElementById('sharedCompanyProspectsTitle');
         const companyName = titleEl ? titleEl.textContent.replace('Prospects — ', '') : '';
-        await viewSharedCompanyProspects(__currentSharedCompanyId, companyName, __currentSharedFromUserId, __currentSharedSharerName);
+        const modalVisible = document.getElementById('sharedCompanyProspectsModal')?.style.display !== 'none';
+        if (modalVisible && __currentSharedCompanyId) {
+            await viewSharedCompanyProspects(__currentSharedCompanyId, companyName, __currentSharedFromUserId, __currentSharedSharerName);
+        }
+        // Also refresh the shared prospects section
+        await loadAllSharedProspects();
     } catch (e) {
         console.error(e);
         showToast('Erreur lors de la mise à jour: ' + (e.message || 'Erreur inconnue'), 'error');
@@ -442,6 +524,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     document.getElementById('editSharedProspectModal')?.addEventListener('click', (e) => {
         if (e.target.id === 'editSharedProspectModal') closeEditSharedProspectModal();
+    });
+
+    // Event delegation for prospects buttons (avoids onclick escaping issues)
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.js-view-prospects');
+        if (btn) {
+            const companyId = parseInt(btn.dataset.companyId);
+            const companyName = btn.dataset.companyName || '';
+            const fromUserId = btn.dataset.fromUserId ? parseInt(btn.dataset.fromUserId) : null;
+            const sharerName = btn.dataset.sharerName || null;
+            viewSharedCompanyProspects(companyId, companyName, fromUserId, sharerName);
+        }
+    });
+
+    // Event delegation for edit buttons in shared prospects section
+    document.getElementById('sharedProspectsContainer')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.js-edit-shared-prospect');
+        if (btn) {
+            const prospectId = parseInt(btn.dataset.prospectId);
+            const companyId = parseInt(btn.dataset.companyId);
+            __currentSharedCompanyId = companyId;
+            try {
+                const prospectData = JSON.parse(btn.dataset.prospectJson);
+                openEditSharedProspectModal(prospectId, prospectData);
+            } catch(e2) {
+                console.error('Error parsing prospect data:', e2);
+            }
+        }
     });
 
     try {

@@ -14479,6 +14479,67 @@ def api_collab_shared_company_prospect_update(company_id: int, prospect_id: int)
     return jsonify(ok=True)
 
 
+@app.get("/api/collab/shared-prospects")
+@login_required
+def api_collab_shared_prospects():
+    """Retourne tous les prospects des entreprises partagées avec l'utilisateur courant."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _auth_conn() as aconn:
+        shares = aconn.execute(
+            """SELECT sc.company_id, sc.from_user_id, u.display_name, u.username
+               FROM shared_companies sc
+               JOIN users u ON u.id = sc.from_user_id
+               WHERE sc.to_user_id = ?
+               ORDER BY sc.shared_at DESC;""",
+            (uid,)
+        ).fetchall()
+
+    def _parse_tags(v):
+        if not v:
+            return []
+        try:
+            return json.loads(v) if isinstance(v, str) else v
+        except Exception:
+            return [t.strip() for t in str(v).split(",") if t.strip()]
+
+    all_prospects = []
+    for share in shares:
+        from_user_id = share["from_user_id"]
+        company_id = share["company_id"]
+        sharer_name = share["display_name"] or share["username"] or "?"
+        try:
+            with _conn_for_user(from_user_id) as conn:
+                company = conn.execute(
+                    "SELECT id, groupe, site FROM companies WHERE id = ? AND owner_id = ? AND deleted_at IS NULL;",
+                    (company_id, from_user_id)
+                ).fetchone()
+                prospects = conn.execute(
+                    "SELECT * FROM prospects WHERE company_id = ? AND owner_id = ? AND deleted_at IS NULL ORDER BY id;",
+                    (company_id, from_user_id)
+                ).fetchall()
+            company_name = (company["groupe"] or company["site"] or f"Entreprise #{company_id}") if company else f"Entreprise #{company_id}"
+            for p in prospects:
+                d = dict(p)
+                try:
+                    d["callNotes"] = json.loads(d.get("callNotes") or "[]")
+                except Exception:
+                    d["callNotes"] = []
+                d["tags"] = _parse_tags(d.get("tags"))
+                d["is_archived"] = int(d.get("is_archived") or 0)
+                d["shared_from"] = sharer_name
+                d["shared_from_user_id"] = from_user_id
+                d["shared_company_id"] = company_id
+                d["shared_company_name"] = company_name
+                all_prospects.append(d)
+        except Exception:
+            continue
+
+    return jsonify(ok=True, prospects=all_prospects)
+
+
 @app.post("/api/collab/unshare-company")
 @login_required
 def api_collab_unshare_company():
