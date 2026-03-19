@@ -3421,7 +3421,7 @@ def upsert_all(data: Dict[str, Any]) -> None:
                     (
                         int(p["id"]),
                         str(p.get("name", "")),
-                        int(p.get("company_id")),
+                        _safe_int(p.get("company_id"), 0),
                         p.get("fonction"),
                         p.get("telephone"),
                         p.get("email"),
@@ -3659,7 +3659,7 @@ def replace_all(data: Dict[str, Any]) -> None:
                     (
                         int(p["id"]),
                         str(p.get("name", "")),
-                        int(p.get("company_id")),
+                        _safe_int(p.get("company_id"), 0),
                         p.get("fonction"),
                         p.get("telephone"),
                         p.get("email"),

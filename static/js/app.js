@@ -8898,6 +8898,13 @@ function closeIAImportModal() {
             modal.classList.remove('active');
         }
     }
+    // En mode prosp, rouvrir la fiche du prospect courant après fermeture de la modale IA
+    if (_iaCurrentId && typeof viewDetail === 'function' &&
+        typeof _currentView !== 'undefined' && _currentView === 'prosp' &&
+        typeof _prospSession !== 'undefined' && _prospSession && _prospSession.active) {
+        const idToReopen = _iaCurrentId;
+        setTimeout(() => viewDetail(idToReopen), 220);
+    }
 }
 
 function iaBackToStep1() {
