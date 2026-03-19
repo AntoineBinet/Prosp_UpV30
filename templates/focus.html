@@ -97,6 +97,22 @@
     </div>
   </div>
 </div>
+<!-- Modal choix numéro d'appel -->
+<div class="modal" role="dialog" aria-modal="true" id="modalCallChoice">
+    <div class="modal-content" style="max-width: 420px;">
+        <div class="modal-header">
+            <span>Choisir un numéro</span>
+            <button class="modal-close" onclick="closeCallChoice()">×</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 12px; color: var(--color-muted);">Plusieurs numéros sont disponibles pour ce prospect.</p>
+            <div id="callChoiceList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            <div class="btn-group" style="margin-top: 16px;">
+                <button class="btn btn-secondary" onclick="closeCallChoice()">Annuler</button>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Prospect Detail Modal -->
 <div class="modal" role="dialog" aria-modal="true" id="modalDetail">
     <div class="modal-content">
