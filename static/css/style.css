@@ -2428,6 +2428,19 @@ body[data-page="companies"] .btn-action:disabled {
     animation: formErrorSlideIn 0.2s ease-out;
 }
 
+/* Quand l'erreur est injectée dans un flex container (ex: input-with-toggle),
+   la forcer à passer en dessous du champ sur une ligne complète */
+.input-with-toggle {
+    flex-wrap: wrap;
+}
+.input-with-toggle .form-error {
+    flex-basis: 100%;
+    margin-top: 0;
+    border-radius: 0 0 10px 10px;
+    padding: 4px 10px 6px;
+    font-size: 11px;
+}
+
 @keyframes formErrorSlideIn {
     from {
         opacity: 0;
