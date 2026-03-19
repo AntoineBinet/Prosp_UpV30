@@ -14457,77 +14457,55 @@ function userMenuOpenUserModal() {
         document.getElementById('modalTitle').textContent = 'Nouvel utilisateur';
         document.getElementById('pwHint').textContent = '(requis)';
         document.getElementById('pwConfirmRow').style.display = 'block';
-        // Utiliser les fonctions de users.html si disponibles
-        if (typeof openUserModal === 'function') {
-            openUserModal();
-        }
     }
 }
 
 function userMenuCloseUserModal() {
     const modal = document.getElementById('userModal');
     if (modal) modal.style.display = 'none';
-    if (typeof closeUserModal === 'function') {
-        closeUserModal();
-    }
 }
 
 function userMenuSaveUser() {
-    if (typeof saveUser === 'function') {
-        saveUser();
-    } else {
-        // Implémentation simple
-        const id = document.getElementById('editUserId').value.trim();
-        const username = document.getElementById('uUsername').value.trim();
-        const displayName = document.getElementById('uDisplayName').value.trim();
-        const password = document.getElementById('uPassword').value;
-        const passwordConfirm = document.getElementById('uPasswordConfirm').value;
-        const role = document.getElementById('uRole').value;
-        const isActive = document.getElementById('uActive').checked;
-        
-        if (!username) {
-            alert('⚠️ Identifiant requis');
-            return;
-        }
-        
-        if (!id && !password) {
-            alert('⚠️ Mot de passe requis');
-            return;
-        }
-        
-        if (password && password !== passwordConfirm) {
-            alert('⚠️ Les deux mots de passe ne correspondent pas.');
-            return;
-        }
-        
-        const payload = {
-            username: username,
-            display_name: displayName,
-            password: password,
-            role: role,
-            is_active: isActive ? 1 : 0
-        };
-        if (id) payload.id = parseInt(id, 10);
-        
-        fetch('/api/users/save', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify(payload)
-        })
-        .then(r => r.json())
-        .then(j => {
-            if (j.ok) {
-                userMenuCloseUserModal();
-                loadUsersFromAPI();
-                if (typeof showToast === 'function') {
-                    showToast('✅ Utilisateur enregistré', 'success');
-                }
-            } else {
-                alert('❌ ' + (j.error || 'Erreur'));
-            }
-        })
-        .catch(e => alert('❌ Erreur réseau'));
+    const id = document.getElementById('editUserId').value.trim();
+    const username = document.getElementById('uUsername').value.trim();
+    const displayName = document.getElementById('uDisplayName').value.trim();
+    const password = document.getElementById('uPassword').value;
+    const passwordConfirm = document.getElementById('uPasswordConfirm').value;
+    const role = document.getElementById('uRole').value;
+    const isActive = document.getElementById('uActive').checked;
+
+    if (!username) {
+        showToast('⚠️ Identifiant requis', 'warning');
+        return;
     }
+    if (!id && !password) {
+        showToast('⚠️ Mot de passe requis', 'warning');
+        return;
+    }
+    if (password && password !== passwordConfirm) {
+        showToast('⚠️ Les deux mots de passe ne correspondent pas', 'warning');
+        return;
+    }
+
+    const payload = { username, display_name: displayName, password, role, is_active: isActive ? 1 : 0 };
+    if (id) payload.id = parseInt(id, 10);
+
+    fetch('/api/users/save', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(j => {
+        if (j.ok) {
+            userMenuCloseUserModal();
+            if (typeof loadUsersFromAPI === 'function') loadUsersFromAPI();
+            showToast('✅ Utilisateur enregistré', 'success');
+        } else {
+            showToast('❌ ' + (j.error || 'Erreur'), 'error');
+        }
+    })
+    .catch(() => showToast('❌ Erreur réseau', 'error'));
 }
 
 // Exposer les fonctions globalement pour le popup
