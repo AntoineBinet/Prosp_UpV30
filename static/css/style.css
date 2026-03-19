@@ -10173,6 +10173,9 @@ body:not([data-page="prospects"]) .mobile-qa-pile {
     font-size: 13px;
 }
 .ia-field-row:last-child { border-bottom: none; }
+.ia-row-ignored .ia-field-label,
+.ia-row-ignored .ia-field-values { opacity: 0.4; transition: opacity 0.15s; }
+.ia-row-ignored .ia-field-actions { opacity: 1; }
 .ia-field-label {
     flex: 0 0 110px;
     font-weight: 700;
@@ -10187,6 +10190,7 @@ body:not([data-page="prospects"]) .mobile-qa-pile {
 .ia-field-status { font-size: 11px; margin-top: 2px; }
 .ia-field-status.new-field { color: var(--color-success); }
 .ia-field-status.conflict { color: var(--color-warning); }
+.ia-field-status.add-field { color: var(--color-primary); }
 .ia-field-actions { flex: 0 0 auto; display: flex; gap: 6px; padding-top: 1px; }
 .ia-field-actions button {
     font-size: 11px;
@@ -10200,7 +10204,7 @@ body:not([data-page="prospects"]) .mobile-qa-pile {
 }
 .ia-field-actions button:hover { opacity: 0.8; }
 .ia-field-actions button.ia-accept.active { background: var(--color-success); color: #fff; border-color: var(--color-success); }
-.ia-field-actions button.ia-ignore.active { opacity: 0.4; }
+.ia-field-actions button.ia-ignore.active { background: var(--color-danger); color: #fff; border-color: var(--color-danger); opacity: 1; }
 .ia-manager-row {
     display: flex;
     align-items: center;
