@@ -1287,7 +1287,7 @@ async function loadCandidatePushHistory() {
         const res = await fetch(`/api/candidate-push?candidate_id=${__cand.id}`);
         const j = await res.json();
         if (!j.ok || !j.pushes || j.pushes.length === 0) {
-            box.innerHTML = '';
+            box.innerHTML = '<div class="muted" style="font-size:12px;padding:8px 0;">Aucune proposition enregistrée.</div>';
             return;
         }
         box.innerHTML = `

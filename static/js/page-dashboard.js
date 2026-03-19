@@ -318,12 +318,16 @@ function renderFirstGlance(d) {
     if (rdvThisWeek > 0) {
         items.push({ label: rdvThisWeek + ' RDV à venir', href: '/calendrier', icon: '🤝' });
     }
-    itemsEl.innerHTML = items.map(function (it) {
-        return '<a class="dash-first-glance-item" href="' + (it.href || '#') + '">' +
-            '<span class="dash-first-glance-icon">' + (it.icon || '•') + '</span>' +
-            '<span class="dash-first-glance-label">' + (it.label || '') + '</span>' +
-            '</a>';
-    }).join('');
+    if (items.length === 0) {
+        itemsEl.innerHTML = '<span class="muted" style="font-size:13px;">✅ Tout est à jour !</span>';
+    } else {
+        itemsEl.innerHTML = items.map(function (it) {
+            return '<a class="dash-first-glance-item" href="' + (it.href || '#') + '">' +
+                '<span class="dash-first-glance-icon">' + (it.icon || '•') + '</span>' +
+                '<span class="dash-first-glance-label">' + (it.label || '') + '</span>' +
+                '</a>';
+        }).join('');
+    }
 }
 
 // P7: Export "Ma journée"
@@ -773,6 +777,11 @@ function renderPipeline(pipeline) {
         "Pas d'actions": '#64748b', 'Appelé': '#f59e0b', 'Messagerie': '#3b82f6',
         'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Pas intéressé': '#94a3b8'
     };
+
+    if (!pipeline.total) {
+        el.innerHTML = '<div class="muted" style="text-align:center;padding:20px;font-size:13px;">Aucun prospect pour l\'instant.</div>';
+        return;
+    }
 
     const total = pipeline.total || 1;
 
