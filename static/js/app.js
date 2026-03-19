@@ -4437,10 +4437,17 @@ function _heroChangeStatus(prospectId, newStatus) {
     prospect.statut = newStatus;
     prospect.lastContact = new Date().toISOString().slice(0, 10);
     saveToServer();
-    filterProspects();
-    viewDetail(prospectId); // Re-render modal: met à jour la couleur hero + synchro #editStatut
     if (window.haptic) haptic(20);
     if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
+    // En Mode Prosp : avancer au prospect suivant (comme quickChangeStatus)
+    if (_currentView === 'prosp' && _prospSession.active) {
+        var nextId = getProspNextId(prospectId);
+        filterProspects();
+        _prospGoToNextAfterStatusChange(prospectId, nextId);
+    } else {
+        filterProspects();
+        viewDetail(prospectId);
+    }
 }
 
 // ── Actions rapides v27.8 ─────────────────────────────────────────────────────
