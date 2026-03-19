@@ -14275,7 +14275,7 @@ function openUserMenu() {
         const editName  = document.getElementById('userMenuEditName');
         const editEmail = document.getElementById('userMenuEditEmail');
         const editPhone = document.getElementById('userMenuEditPhone');
-        if (editName)  editName.value  = u.display_name || '';
+        if (editName)  editName.value  = u.display_name || u.username || '';
         if (editEmail) editEmail.value = u.email || '';
         if (editPhone) editPhone.value = u.phone || '';
 
