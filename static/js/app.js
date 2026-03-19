@@ -2772,6 +2772,10 @@ function renderCompaniesCards(companiesSorted, counts) {
     if (!container) return;
     const unassignedId = ensureUnassignedCompany();
     container.innerHTML = '';
+    if (companiesSorted.length === 0) {
+        container.innerHTML = '<div class="muted" style="text-align:center;padding:40px;grid-column:1/-1;">Aucune entreprise pour ces filtres.</div>';
+        return;
+    }
     companiesSorted.forEach(company => {
         const c = counts[company.id] || { prospects: 0, rdv: 0, callable: 0 };
         const card = document.createElement('div');
@@ -3016,7 +3020,13 @@ function _renderCompaniesInternal(tbody, q) {
 
     // Un seul reflow pour remplacer tout le contenu
     tbody.innerHTML = '';
-    tbody.appendChild(fragment);
+    if (companiesSorted.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="7" style="text-align:center;padding:40px;color:var(--color-text-secondary);">Aucune entreprise pour ces filtres.</td>';
+        tbody.appendChild(tr);
+    } else {
+        tbody.appendChild(fragment);
+    }
 
     if (inlineCompanyFieldEditing) {
         const id = inlineCompanyFieldEditing.field === 'groupe' ? 'companyInlineGroupeInput' : 'companyInlineSiteInput';
