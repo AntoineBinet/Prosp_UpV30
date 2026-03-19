@@ -4434,6 +4434,49 @@ function _stackDetail() {
 function _heroChangeStatus(prospectId, newStatus) {
     var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
     if (!prospect || !newStatus) return;
+
+    // Popup date RDV
+    if (newStatus === 'Rendez-vous') {
+        showRdvDatePicker(prospectId, function(selectedDate) {
+            prospect.statut = newStatus;
+            if (selectedDate) prospect.rdvDate = selectedDate;
+            prospect.lastContact = new Date().toISOString().slice(0, 10);
+            saveToServer();
+            if (window.haptic) haptic(20);
+            if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
+            if (_currentView === 'prosp' && _prospSession.active) {
+                var nextId = getProspNextId(prospectId);
+                filterProspects();
+                _prospGoToNextAfterStatusChange(prospectId, nextId);
+            } else {
+                filterProspects();
+                viewDetail(prospectId);
+            }
+        });
+        return;
+    }
+
+    // Popup date de relance
+    if (newStatus === 'À rappeler') {
+        showRelanceDatePicker(prospectId, function(selectedDate) {
+            prospect.statut = newStatus;
+            if (selectedDate) prospect.nextFollowUp = selectedDate;
+            prospect.lastContact = new Date().toISOString().slice(0, 10);
+            saveToServer();
+            if (window.haptic) haptic(20);
+            if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
+            if (_currentView === 'prosp' && _prospSession.active) {
+                var nextId = getProspNextId(prospectId);
+                filterProspects();
+                _prospGoToNextAfterStatusChange(prospectId, nextId);
+            } else {
+                filterProspects();
+                viewDetail(prospectId);
+            }
+        });
+        return;
+    }
+
     prospect.statut = newStatus;
     prospect.lastContact = new Date().toISOString().slice(0, 10);
     saveToServer();
