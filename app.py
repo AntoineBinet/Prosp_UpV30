@@ -2522,6 +2522,18 @@ def _migrate_user_db_schema(db_path: Path) -> None:
         except Exception:
             pass
         _migrate_candidate_tabs(conn)
+        # Migration: renommer is_contact en is_archived dans les DB per-user
+        try:
+            pros_cols = [r["name"] for r in conn.execute("PRAGMA table_info(prospects);").fetchall()]
+            if "is_contact" in pros_cols and "is_archived" not in pros_cols:
+                conn.execute("ALTER TABLE prospects ADD COLUMN is_archived INTEGER")
+                conn.execute("UPDATE prospects SET is_archived = is_contact")
+                conn.commit()
+            elif "is_archived" not in pros_cols:
+                conn.execute("ALTER TABLE prospects ADD COLUMN is_archived INTEGER")
+                conn.commit()
+        except Exception:
+            pass
     finally:
         conn.close()
 
