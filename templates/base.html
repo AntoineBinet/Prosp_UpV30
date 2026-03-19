@@ -244,7 +244,7 @@
           <div class="form-group full-width">
             <label class="filter-label" for="uPassword">Mot de passe <span id="pwHint">(requis)</span></label>
             <div class="input-with-toggle">
-              <input id="uPassword" name="password" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" minlength="8" pattern="^(?=.*[A-Za-z])(?=.*\d).{8,}$" oninput="updatePwConfirmVisibility(); validateUserPassword()">
+              <input id="uPassword" name="password" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" minlength="8" pattern="^(?=.*[A-Za-z])(?=.*\d).{8,}$" oninput="updatePwConfirmVisibility()" onblur="validateUserPassword()">
               <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Afficher / masquer">👁️</button>
             </div>
             <span id="pwReqHint" style="font-size:11px;color:var(--color-text-secondary,#94a3b8);margin-top:4px;display:block;">Min. 8 caractères, au moins 1 lettre et 1 chiffre.</span>
