@@ -546,7 +546,7 @@ function findTagColumnIndex(header, names) {
 
 function parseAndPreviewTags(csvText) {
   const lines = csvText.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) { alert('CSV vide ou invalide.'); return; }
+  if (lines.length < 2) { showToast('CSV vide ou invalide.', 'warning'); return; }
 
   const sep = detectCsvSeparator(lines[0]);
   const header = lines[0].split(sep).map(h => (h || '').trim().toLowerCase());
@@ -554,7 +554,7 @@ function parseAndPreviewTags(csvText) {
   const compIdx = findTagColumnIndex(header, ['company', 'company name', 'entreprise', 'societe', 'société', 'groupe', 'organisation']);
   const tagsIdx = findTagColumnIndex(header, ['tags', 'tag', 'competences', 'compétences', 'skills', 'compétences / tags']);
   if (nameIdx < 0 || tagsIdx < 0) {
-    alert('Le CSV doit contenir au moins une colonne Nom (name/nom) et une colonne Tags (tags/tag/compétences). Séparateur détecté : ' + (sep === '\t' ? 'tabulation' : sep));
+    showToast('Le CSV doit contenir au moins une colonne Nom et une colonne Tags. Séparateur : ' + (sep === '\t' ? 'tabulation' : sep), 'warning');
     return;
   }
 
@@ -568,23 +568,23 @@ function parseAndPreviewTags(csvText) {
     if (name && tags.length) csvRows.push({ name, company, tags });
   }
 
-  if (!csvRows.length) { alert('Aucune ligne avec des tags dans le fichier.'); return; }
+  if (!csvRows.length) { showToast('Aucune ligne avec des tags dans le fichier.', 'warning'); return; }
   runTagsMatching(csvRows);
 }
 
 function parseAndPreviewTagsFromExcel(buf) {
-  if (typeof XLSX === 'undefined') { alert('Bibliothèque Excel non chargée.'); return; }
+  if (typeof XLSX === 'undefined') { showToast('Bibliothèque Excel non chargée.', 'error'); return; }
   try {
     const wb = XLSX.read(buf, { type: 'array' });
     const sh = wb.Sheets[wb.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(sh, { header: 1, defval: '' });
-    if (!data.length) { alert('Feuille vide.'); return; }
+    if (!data.length) { showToast('Feuille vide.', 'warning'); return; }
     const header = (data[0] || []).map(h => String(h || '').trim().toLowerCase());
     const nameIdx = findTagColumnIndex(header, ['name', 'nom', 'contact', 'full name', 'nom complet']);
     const compIdx = findTagColumnIndex(header, ['company', 'company name', 'entreprise', 'societe', 'société', 'groupe', 'organisation']);
     const tagsIdx = findTagColumnIndex(header, ['tags', 'tag', 'competences', 'compétences', 'skills', 'compétences / tags']);
     if (nameIdx < 0 || tagsIdx < 0) {
-      alert('Le fichier doit contenir au moins une colonne Nom (name/nom) et une colonne Tags (tags/tag/compétences).');
+      showToast('Le fichier doit contenir au moins une colonne Nom et une colonne Tags.', 'warning');
       return;
     }
     const csvRows = [];
@@ -596,10 +596,10 @@ function parseAndPreviewTagsFromExcel(buf) {
       const tags = tagStr.split(/[,;|]/).map(t => t.trim()).filter(Boolean);
       if (name && tags.length) csvRows.push({ name, company, tags });
     }
-    if (!csvRows.length) { alert('Aucune ligne avec des tags dans la feuille.'); return; }
+    if (!csvRows.length) { showToast('Aucune ligne avec des tags dans la feuille.', 'warning'); return; }
     runTagsMatching(csvRows);
   } catch (err) {
-    alert('Erreur lecture Excel: ' + (err.message || err));
+    showToast('Erreur lecture Excel: ' + (err.message || err), 'error');
   }
 }
 

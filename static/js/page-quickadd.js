@@ -71,11 +71,7 @@
                     if (typeof window.openVsaImportModal === 'function') {
                         window.openVsaImportModal();
                     } else {
-                        if (typeof showToast === 'function') {
-                            showToast('Fonction VSA non disponible. Rechargez la page.', 'error');
-                        } else {
-                            alert('Fonction VSA non disponible. Rechargez la page.');
-                        }
+                        showToast('Fonction VSA non disponible. Rechargez la page.', 'warning');
                     }
                 }, 500);
             }

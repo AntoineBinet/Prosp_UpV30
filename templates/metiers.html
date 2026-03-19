@@ -402,7 +402,7 @@ async function deleteCustomMetier(id) {
   try {
     await fetch('/api/custom_metiers/' + id, { method: 'DELETE' });
     await loadCustomMetiers();
-  } catch(e) { alert('Erreur'); }
+  } catch(e) { showToast('Erreur lors de la suppression', 'error'); }
 }
 
 async function loadCustomMetiers() {

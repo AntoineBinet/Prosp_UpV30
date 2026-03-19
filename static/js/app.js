@@ -2120,7 +2120,7 @@ async function saveCurrentView() {
         renderSavedViewsSelect();
     } catch (e) {
         console.error(e);
-        alert('❌ Impossible d\'enregistrer la vue: ' + (e && e.message ? e.message : e));
+        showToast('Impossible d\'enregistrer la vue: ' + (e && e.message ? e.message : e), 'error');
     }
 }
 
@@ -2140,7 +2140,7 @@ async function deleteSelectedView() {
         renderSavedViewsSelect();
     } catch (e) {
         console.error(e);
-        alert('❌ Impossible de supprimer la vue: ' + (e && e.message ? e.message : e));
+        showToast('Impossible de supprimer la vue: ' + (e && e.message ? e.message : e), 'error');
     }
 }
 
@@ -2487,10 +2487,10 @@ function setupListeners() {
                     }
                     showToast('✅ Données importées et fusionnées !', 'success');
                 } else {
-                    alert('❌ JSON invalide : attendu {companies:[...], prospects:[...]}');
+                    showToast('JSON invalide : attendu {companies:[...], prospects:[...]}', 'error');
                 }
             } catch (err) {
-                alert('❌ Erreur de lecture : ' + (err && err.message ? err.message : err));
+                showToast('Erreur de lecture : ' + (err && err.message ? err.message : err), 'error');
             } finally {
                 e.target.value = '';
             }
@@ -5482,10 +5482,10 @@ async function uploadProspectPhoto(prospectId, fileInput) {
             if (p) p.photo_url = json.photo_url;
             viewDetail(prospectId);
         } else {
-            alert('❌ Erreur upload: ' + (json.error || 'inconnue'));
+            showToast('Erreur upload: ' + (json.error || 'inconnue'), 'error');
         }
     } catch (e) {
-        alert('❌ Erreur réseau lors de l\'upload');
+        showToast('Erreur réseau lors de l\'upload', 'error');
         console.error(e);
     }
 }
@@ -6756,7 +6756,7 @@ async function touchLastContact(prospectId) {
         await saveToServerAsync();
     } catch (err) {
         console.error('Erreur sauvegarde serveur :', err);
-        alert("❌ Le serveur local n'a pas pu sauvegarder. Vérifiez que Python est lancé (app.py).");
+        showToast("Le serveur local n'a pas pu sauvegarder. Vérifiez que Python est lancé (app.py).", 'error');
     }
 }
 
@@ -6776,7 +6776,7 @@ async function callNumber(tel, prospectId) {
 function callNumberById(prospectId) {
     const p = data.prospects.find(x => x.id === prospectId);
     if (!p || !p.telephone) {
-        alert("⚠️ Aucun numéro de téléphone renseigné pour ce prospect.");
+        showToast("Aucun numéro de téléphone renseigné pour ce prospect.", 'warning');
         return;
     }
     callNumber(p.telephone, prospectId);
@@ -10358,7 +10358,7 @@ async function copyLinkedInForProspect(prospectId) {
     // Code legacy (ne devrait plus être atteint)
     const p = data.prospects.find(x => x.id === prospectId);
     if (!p || !p.linkedin) {
-        alert("⚠️ Aucun LinkedIn renseigné.");
+        showToast("Aucun LinkedIn renseigné.", 'warning');
         return;
     }
     const company = data.companies.find(c => c.id === p.company_id);
@@ -10452,7 +10452,7 @@ if (!res.ok) {
     console.warn('push-logs/add (linkedin) failed', txt);
     p.pushLinkedInSentAt = prev;
     try { await saveToServerAsync(); } catch (e) {}
-    alert("❌ Impossible d'enregistrer le push LinkedIn dans le suivi.");
+    showToast("Impossible d'enregistrer le push LinkedIn dans le suivi.", 'error');
 }
     } catch (e) {
 console.warn("push-logs/add (linkedin) error", e);
@@ -10491,12 +10491,12 @@ const res = await fetch('/api/push-logs/undo_last', {
 if (!res.ok) {
     const msg = await res.text().catch(() => '');
     console.warn('Undo push failed:', msg);
-    alert("❌ Impossible d'annuler le push (serveur). Vérifiez que le serveur Python est lancé et que la base est accessible.");
+    showToast("Impossible d'annuler le push (serveur). Vérifiez que le serveur Python est lancé.", 'error');
     return;
 }
     } catch (e) {
 console.warn("Undo push: API error", e);
-alert("❌ Impossible d'annuler le push (réseau/serveur).");
+showToast("Impossible d'annuler le push (réseau/serveur).", 'error');
 return;
     }
 
@@ -10519,7 +10519,7 @@ if (channel === 'linkedin') {
 await saveToServerAsync();
     } catch (err) {
 console.error('Erreur sauvegarde serveur :', err);
-alert("❌ Le serveur local n'a pas pu sauvegarder. Vérifiez que Python est lancé (app.py).");
+showToast("Le serveur local n'a pas pu sauvegarder. Vérifiez que Python est lancé (app.py).", 'error');
     }
 
     // Refresh modal pour retirer le bouton Annuler
@@ -11078,7 +11078,7 @@ function saveCompany(e) {
     if (idRaw) {
         const companyId = parseInt(idRaw, 10);
         if (isUnassignedCompany(companyId)) {
-            alert('⚠️ L\'entreprise "Sans entreprise" ne peut pas être modifiée.');
+            showToast('L\'entreprise "Sans entreprise" ne peut pas être modifiée.', 'warning');
             return;
         }
         const existing = data.companies.find(c => c.id === companyId);
@@ -11092,7 +11092,7 @@ function saveCompany(e) {
                 saveToServer();
                 closeCompanyModal();
                 refreshCompaniesUI();
-                alert('✅ Entreprises fusionnées');
+                showToast('Entreprises fusionnées', 'success');
                 return;
             }
         }
@@ -11104,7 +11104,7 @@ function saveCompany(e) {
         saveToServer();
         closeCompanyModal();
         refreshCompaniesUI();
-        alert('✅ Entreprise modifiée');
+        showToast('Entreprise modifiée', 'success');
     } else {
         const dup = data.companies.find(c => normalizeCompanyKey(c.groupe, c.site) === key);
         if (dup) {
@@ -11117,7 +11117,7 @@ function saveCompany(e) {
                 saveToServer();
                 closeCompanyModal();
                 refreshCompaniesUI();
-                alert('✅ Informations ajoutées à l\'entreprise existante');
+                showToast('Informations ajoutées à l\'entreprise existante', 'success');
                 return;
             }
         }
@@ -11134,7 +11134,7 @@ function saveCompany(e) {
         saveToServer();
         closeCompanyModal();
         refreshCompaniesUI();
-        alert('✅ Entreprise ajoutée');
+        showToast('Entreprise ajoutée', 'success');
     }
 }
 
@@ -12407,7 +12407,7 @@ function closeStatsModal() {}
 
 function exportSelectedJSON() {
     if (!selectedProspects || selectedProspects.size === 0) {
-        alert("ℹ️ Aucun prospect sélectionné.");
+        showToast("Aucun prospect sélectionné.", 'info');
         return;
     }
     const selected = data.prospects.filter(p => selectedProspects.has(p.id));
@@ -12425,7 +12425,7 @@ function exportSelectedJSON() {
 
 function exportSelectedCSV() {
     if (!selectedProspects || selectedProspects.size === 0) {
-        alert("ℹ️ Aucun prospect sélectionné.");
+        showToast("Aucun prospect sélectionné.", 'info');
         return;
     }
     const selected = data.prospects.filter(p => selectedProspects.has(p.id));
@@ -12531,7 +12531,7 @@ function downloadVcf(prospectId) {
 
 function exportSelectedVCF() {
     if (!selectedProspects || selectedProspects.size === 0) {
-        alert("ℹ️ Aucun prospect sélectionné.");
+        showToast("Aucun prospect sélectionné.", 'info');
         return;
     }
     const selected = data.prospects.filter(p => selectedProspects.has(p.id));
@@ -12557,19 +12557,19 @@ async function resetAllData() {
         const res = await fetch('/api/reset', { method: 'POST' });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
-            alert('❌ Reset impossible: ' + (body.error || ('HTTP ' + res.status)));
+            showToast('Reset impossible: ' + (body.error || ('HTTP ' + res.status)), 'error');
             return;
         }
         const seed = body.seed || {};
         if (seed.seeded) {
-            alert(`✅ Reset effectué.\n\nSource : ${seed.source}\nDate du fichier : ${seed.source_date}\nEntreprises : ${seed.companies}\nProspects : ${seed.prospects}\n\n⚠️ Un snapshot "before_reset" a été créé.`);
+            showToast(`Reset effectué — ${seed.companies} entreprises, ${seed.prospects} prospects. Snapshot "before_reset" créé.`, 'success', 5000);
         } else {
-            alert('✅ Reset effectué (base vide — aucun fichier source trouvé).\n\n⚠️ Un snapshot "before_reset" a été créé si tu veux revenir en arrière.');
+            showToast('Reset effectué (base vide). Snapshot "before_reset" créé.', 'success', 5000);
         }
         window.location.reload();
     } catch (e) {
         console.error(e);
-        alert("❌ Reset impossible (réseau/serveur).");
+        showToast("Reset impossible (réseau/serveur).", 'error');
     }
 }
 
@@ -14724,15 +14724,10 @@ function userMenuViewUserData(userId) {
                 if (data.ok) {
                     const u = data.user;
                     const s = data.stats;
-                    alert(
-                        '📊 Données de ' + (u.display_name || u.username) + '\n\n' +
-                        '• Prospects: ' + s.prospects + '\n' +
-                        '• Candidats: ' + s.candidates + '\n\n' +
-                        '(Consultation uniquement — vous voyez les données de cet utilisateur, sans pouvoir les modifier ici.)'
-                    );
+                    showToast('Données de ' + (u.display_name || u.username) + ' — Prospects: ' + s.prospects + ', Candidats: ' + s.candidates, 'info', 5000);
                 }
             })
-            .catch(e => alert('Erreur lors du chargement des données'));
+            .catch(e => showToast('Erreur lors du chargement des données', 'error'));
     }
 }
 

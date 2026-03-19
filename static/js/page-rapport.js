@@ -206,10 +206,10 @@ function generateMarkdown() {
 
 async function copyMarkdown() {
     const md = generateMarkdown();
-    if (!md) { alert('Générez d\'abord un rapport.'); return; }
+    if (!md) { showToast('Générez d\'abord un rapport.', 'warning'); return; }
     try {
         await navigator.clipboard.writeText(md);
-        alert('✅ Markdown copié dans le presse-papier !\nCollez-le dans OneNote, Notion, ou un email.');
+        showToast('Markdown copié dans le presse-papier !', 'success');
     } catch (e) {
         // Fallback
         const ta = document.createElement('textarea');
@@ -218,7 +218,7 @@ async function copyMarkdown() {
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-        alert('✅ Markdown copié !');
+        showToast('Markdown copié !', 'success');
     }
 }
 

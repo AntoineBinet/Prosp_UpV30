@@ -1065,7 +1065,7 @@ function _checkThursdayExportAlert() {
 
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
-        alert('Erreur export KPI: ' + (txt || res.status));
+        showToast('Erreur export KPI: ' + (txt || res.status), 'error');
         return;
       }
 
@@ -1079,7 +1079,7 @@ function _checkThursdayExportAlert() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert('Erreur export KPI: ' + (e && e.message ? e.message : e));
+      showToast('Erreur export KPI: ' + (e && e.message ? e.message : e), 'error');
     }
   }
 
