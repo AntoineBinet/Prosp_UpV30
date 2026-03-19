@@ -11671,11 +11671,11 @@ function openImportListReformatModal(field) {
     }
     const modal = document.getElementById('modalImportListReformat');
     if (modal) {
-        if (window.openModal) {
-            window.openModal(modal, { focusElement: 'textarea' });
-        } else {
-            modal.classList.add('active');
-        }
+        // Ne pas utiliser openModal() : ce modal est imbriqué dans le modal import,
+        // openModal fermerait le parent. On ajoute juste la classe active directement.
+        modal.classList.add('active');
+        const ta = modal.querySelector('textarea');
+        if (ta) setTimeout(() => ta.focus(), 50);
     }
 }
 
@@ -11696,13 +11696,7 @@ async function runImportListReformatWithOllama() {
 
 function closeImportListReformatModal() {
     const modal = document.getElementById('modalImportListReformat');
-    if (modal) {
-        if (window.closeModal) {
-            window.closeModal(modal);
-        } else {
-            modal.classList.remove('active');
-        }
-    }
+    if (modal) modal.classList.remove('active');
     window._importListReformatField = null;
 }
 
@@ -11738,14 +11732,13 @@ function openImportListReformatAllModal() {
     if (typeof window.updateAIButtonLabels === 'function') {
         window.updateAIButtonLabels();
     }
-    if (window.openModal) window.openModal(modal); else modal.classList.add('active');
+    // Modal imbriqué — ne pas passer par openModal() pour ne pas fermer le parent
+    modal.classList.add('active');
 }
 
 function closeImportListReformatAllModal() {
     const modal = document.getElementById('modalImportListReformatAll');
-    if (modal) {
-        if (window.closeModal) window.closeModal(modal); else modal.classList.remove('active');
-    }
+    if (modal) modal.classList.remove('active');
 }
 
 async function runImportListReformatAllWithOllama() {
