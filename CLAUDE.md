@@ -37,7 +37,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 - Multi-tenant : `owner_id` sur chaque enregistrement ; DB isolée par user dans `data/user_<id>/prospects.db` si elle existe
 
 ## Moyens de travailler (workflow développement)
-- **Cursor Cloud Agent** : développement via agent cloud Cursor avec accès au workspace distant. Les modifications sont faites directement sur le workspace, puis commitées et poussées sur `main`.
+- **Claude Code CLI** : développement via Claude Code CLI (outil Anthropic) exécuté dans le répertoire du projet. Les modifications sont faites directement sur les fichiers locaux, puis commitées et poussées sur `main`.
 - **Workflow Git simplifié** :
   - Travail direct sur `main` (pas de branches feature)
   - Après chaque modification : `git add`, `git commit -m "message"`, `git push origin main`
@@ -53,7 +53,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
   - Vérification système : bouton "Vérifier le déploiement" dans Paramètres (admin)
   - Logs serveur : bouton "Voir les logs serveur" dans Paramètres (admin)
 - **Déploiement** :
-  - Les modifications sont poussées sur `main` depuis Cursor Cloud Agent
+  - Les modifications sont poussées sur `main` depuis Claude Code CLI
   - Sur le PC hébergeur : utiliser le bouton "Mettre à jour et redémarrer" dans l'app
   - Le superviseur (`scripts/supervise_prospup.py`) peut aussi faire un pull automatique et redémarrer
   - En cas de problème : rollback possible via le bouton "Rollback" dans Paramètres ou depuis la page 404
@@ -169,7 +169,7 @@ python scripts/watch-prospup.py --loop   # Surveillance en continu sur le PC hé
 - **Surveillance ProspUp** : `scripts/watch-prospup.py` vérifie que l’app répond (GET sur l’URL configurée). Si échec (timeout 10 s ou status ≠ 200), lance la commande de relance. Variables d’environnement : `PROSPUP_WATCH_URL` (défaut https://prospup.work), `PROSPUP_WATCH_CMD` (défaut `python app.py --prod`), `PROSPUP_WATCH_DIR` (répertoire de travail), `PROSPUP_WATCH_INTERVAL` (900), `PROSPUP_WATCH_TIMEOUT` (10). Sous Windows : tâche planifiée toutes les 15 min ou exécuter en arrière-plan avec `--loop`.
 
 ## Fiabilité des mises à jour (mars 2026)
-- **Problème** : quand deux modifications sont poussées simultanément sur `main` (ex: deux agents Cursor), le `git pull --ff-only` échoue sur le serveur car les branches divergent → le serveur crashe → 502 Bad Gateway via Cloudflare.
+- **Problème** : quand deux modifications sont poussées simultanément sur `main` (ex: deux sessions Claude Code CLI), le `git pull --ff-only` échoue sur le serveur car les branches divergent → le serveur crashe → 502 Bad Gateway via Cloudflare.
 - **Solution multi-couches** :
   1. **Git pull résilient** (`app.py`) : toutes les routes deploy (`/api/deploy/pull`, `/api/deploy/pull-from-404`, `/api/deploy/rollback`) essaient d'abord `git pull --ff-only`. Si ça échoue (divergence), fallback automatique vers `git reset --hard origin/main` pour forcer la synchronisation.
   2. **Auto-checkout main** : avant tout pull, les routes vérifient que le repo est sur `main` et font un `checkout main` si nécessaire.
@@ -212,4 +212,4 @@ python scripts/watch-prospup.py --loop   # Surveillance en continu sur le PC hé
 - Python sur ce PC : Python 3.14, encodage console cp1252 → utiliser PYTHONIOENCODING=utf-8 pour Playwright
 - Les identifiants de test par defaut sont admin/admin (configurable via PROSPUP_USER/PROSPUP_PASS)
 - Ne jamais ajouter `cache: 'no-store'` aux fetch — le SW et les headers Cache-Control gerent le cache
-- **Cursor Cloud Agent** : travailler directement sur `main`, committer et pousser après chaque modification pour que le bouton "Mettre à jour et redémarrer" fonctionne
+- **Claude Code CLI** : travailler directement sur `main`, committer et pousser après chaque modification pour que le bouton "Mettre à jour et redémarrer" fonctionne
