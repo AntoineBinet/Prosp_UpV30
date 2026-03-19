@@ -1429,7 +1429,7 @@ function closeModal(modalIdOrElement, onClose) {
     setTimeout(() => {
         modal.classList.remove('exiting');
         modal.setAttribute('aria-hidden', 'true');
-        _activeModal = null;
+        if (_activeModal === modal) _activeModal = null;
         modal._modalOptions = null;
 
         // Restore focus to previous element
@@ -8851,6 +8851,7 @@ function _ensureIAModal() {
                 <div style="display:flex;gap:8px;margin-top:16px;justify-content:space-between;">
                     <button class="btn btn-secondary" onclick="iaBackToStep1()">← Modifier le texte</button>
                     <div style="display:flex;gap:8px;">
+                        <button class="btn btn-secondary" onclick="iaToggleAll(false)">❌ Tout ignorer</button>
                         <button class="btn btn-secondary" onclick="iaToggleAll(true)">✅ Tout accepter</button>
                         <button class="btn btn-primary" onclick="applyIAImport()">💾 Appliquer</button>
                     </div>
@@ -9113,7 +9114,7 @@ function _renderIAPreview() {
     let html = '';
 
     _iaParsedFields.forEach((f, i) => {
-        const statusClass = f.isNew ? 'new-field' : (f.isConflict ? 'conflict' : 'new-field');
+        const statusClass = f.isNew ? 'new-field' : (f.isConflict ? 'conflict' : 'add-field');
         const statusText = f.isNew ? '✨ Nouveau' : (f.isConflict ? '⚡ Conflit' : '➕ Ajout');
         html += `<div class="ia-field-row" id="iaRow_${i}">
             <div class="ia-field-label">${f.mapping.label}</div>
@@ -9166,7 +9167,7 @@ function iaToggleField(index, accept) {
     btns.forEach(b => b.classList.remove('active'));
     if (accept) btns[0]?.classList.add('active');
     else if (btns[1]) btns[1].classList.add('active');
-    row.style.opacity = accept ? '1' : '0.4';
+    row.classList.toggle('ia-row-ignored', !accept);
 }
 
 function iaToggleAll(accept) {
@@ -9187,6 +9188,7 @@ async function applyIAImport() {
         const fieldNames = accepted.map(f => f.mapping.label).join(', ');
         await fetch('/api/ia-enrichment-log', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 type: _iaCurrentType,
@@ -9199,6 +9201,10 @@ async function applyIAImport() {
 
     closeIAImportModal();
     showToast(`✅ ${accepted.length} champ(s) importé(s) depuis l'IA !`, 'success', 4000);
+    // Rafraîchir la vue si des prospects ont été mis à jour
+    if (_iaCurrentType === 'prospect' && typeof renderProspects === 'function') {
+        try { renderProspects(); } catch(e) {}
+    }
 }
 
 function _applyProspectIA(fields) {
