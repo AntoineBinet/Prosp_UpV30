@@ -1181,13 +1181,20 @@ def api_auth_profile_update():
     display_name = (data.get("display_name") or "").strip()
     email = (data.get("email") or "").strip()
     phone = (data.get("phone") or "").strip()
-    if not display_name:
-        return jsonify(ok=False, error="Le nom affiché ne peut pas être vide"), 400
     with _auth_conn() as conn:
-        conn.execute(
-            "UPDATE users SET display_name=?, email=?, phone=? WHERE id=?",
-            (display_name, email, phone, uid),
-        )
+        if display_name:
+            conn.execute(
+                "UPDATE users SET display_name=?, email=?, phone=? WHERE id=?",
+                (display_name, email, phone, uid),
+            )
+        else:
+            # Garder le display_name existant, mettre à jour seulement email et phone
+            conn.execute(
+                "UPDATE users SET email=?, phone=? WHERE id=?",
+                (email, phone, uid),
+            )
+            user = conn.execute("SELECT display_name, username FROM users WHERE id=?", (uid,)).fetchone()
+            display_name = (user["display_name"] or user["username"] or "") if user else ""
     return jsonify(ok=True, display_name=display_name, email=email, phone=phone)
 
 
