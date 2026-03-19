@@ -123,6 +123,8 @@ let _currentUserId = null;
 let _usersCache = [];
 
 async function loadUsers() {
+  const el = document.getElementById('usersList');
+  if (el) el.innerHTML = '<div class="muted" style="padding:20px;text-align:center;">Chargement…</div>';
   const resp = await fetch('/api/users', { cache: 'no-store' });
   const payload = await resp.json();
   _isAdmin = payload.is_admin === true;

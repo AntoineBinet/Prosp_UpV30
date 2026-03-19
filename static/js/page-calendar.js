@@ -12,6 +12,8 @@ function _isoDate(d) {
 }
 
 async function loadCalendar() {
+    const grid = document.getElementById('calGrid');
+    if (grid) grid.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">⏳ Chargement du calendrier…</div>';
     try {
         const res = await fetch('/api/calendar_events');
         const json = await res.json();
