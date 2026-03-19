@@ -3255,7 +3255,7 @@ function filterProspects() {
         ? _captureProspectsScrollState(_prospSession.currentId)
         : null;
 
-    const search = document.getElementById('searchInput').value.toLowerCase();
+    const search = (document.getElementById('searchInput') || {value: ''}).value.toLowerCase();
     const company = getFilterVal('companyFilter');
     const status = getFilterVal('statusFilter');
     const pertinence = getFilterVal('pertinenceFilter');
