@@ -715,7 +715,8 @@ def _require_auth():
         return
 
     allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment', '/api/system/logs',
-               '/api/deploy/health', '/api/deploy/pull-from-404', '/api/deploy/rollback')
+               '/api/deploy/health', '/api/deploy/pull-from-404', '/api/deploy/rollback',
+               '/api/deploy/validation-status', '/api/deploy/confirm-validation')
     if any(request.path.startswith(p) for p in allowed):
         return
 
