@@ -4349,18 +4349,24 @@ function _initProspectSwipe() {
         if (!_swipeState || _swipeState.aborted) return;
         var dx = e.touches[0].clientX - _swipeState.startX;
         var dy = e.touches[0].clientY - _swipeState.startY;
+        var ax = Math.abs(dx), ay = Math.abs(dy);
 
         if (!_swipeState.moved) {
-            // Abort if primarily vertical scroll
-            if (Math.abs(dy) > Math.abs(dx) + 4) { _swipeState.aborted = true; return; }
-            if (Math.abs(dx) < 6) return;
+            if (ax < 3 && ay < 3) return; // sub-3px: too small to classify
+            // Abort if clearly vertical (dy notably exceeds dx)
+            if (ay > ax + 4) { _swipeState.aborted = true; return; }
+            // Horizontal gesture confirmed: prevent browser from starting
+            // native vertical scroll immediately (before the visual deadzone ends)
+            e.preventDefault();
+            if (ax < 6) return; // visual deadzone: don't apply transform yet
             _swipeState.moved = true;
             _swipeState.content.style.transition = 'none';
             // Close other open swipes
             _closeAllSwipes(_swipeState.content);
+        } else {
+            e.preventDefault();
         }
 
-        e.preventDefault();
         var hasContact = !_swipeState.wrap.querySelector('.pmc-no-contact');
         var clamped = Math.max(-MAX_REVEAL, Math.min(MAX_REVEAL, dx));
         if (dx > 0 && !hasContact) clamped = 0;
@@ -4395,6 +4401,14 @@ function _initProspectSwipe() {
             state.content.style.transform = '';
             state.content.removeAttribute('data-swipe-open');
         }
+    }, { passive: true });
+
+    // Cancel swipe on system interrupt (incoming call, notification, etc.)
+    tbody.addEventListener('touchcancel', function() {
+        if (!_swipeState) return;
+        _swipeState.content.style.transition = 'transform 0.2s ease';
+        _swipeState.content.style.transform = '';
+        _swipeState = null;
     }, { passive: true });
 
     // Tap anywhere outside closes open swipes

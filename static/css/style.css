@@ -8967,7 +8967,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     will-change: transform;
   }
   body[data-page="prospects"] .table-wrapper .prospect-card-mobile:active .pmc-content {
-    transform: scale(0.982); background: rgba(255,255,255,0.075);
+    background: rgba(255,255,255,0.075);
   }
 
   /* Accent gauche */
@@ -9302,12 +9302,16 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   }
 }
 
-/* Mid screens (mobile landscape / tablets): search en haut à droite */
+/* Mid screens (mobile landscape / tablets): search en haut à droite + swipe cards */
 @media (max-width: 900px) and (min-width: 601px) {
   .floating-search-btn {
     top: calc(14px + env(safe-area-inset-top, 0px)) !important;
     right: 16px !important;
     bottom: auto !important;
+  }
+  /* touch-action: pan-y for swipe-to-reveal on prospect cards (601-900px) */
+  body[data-page="prospects"] .pmc-swipe-wrap {
+    touch-action: pan-y;
   }
 }
 

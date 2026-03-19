@@ -1,5 +1,5 @@
-// Prosp'Up Service Worker v26 — enhanced caching + offline fallback + HTML stale-while-revalidate
-const CACHE = 'prospup-v26';
+// Prosp'Up Service Worker v27 — enhanced caching + offline fallback + HTML stale-while-revalidate
+const CACHE = 'prospup-v27';
 const API_CACHE = 'prospup-api-v23.4';
 const API_TTL = 5 * 60 * 1000; // 5 minutes
 
