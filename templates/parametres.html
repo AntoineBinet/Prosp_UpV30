@@ -177,7 +177,8 @@ Belle journée,"></textarea>
   </div>
 </div>
 
-<div class="settings-section admin-only-section" id="aiConfigSection">
+{% if current_user and current_user.role == 'admin' %}
+<div class="settings-section" id="aiConfigSection">
   <h3>🤖 Configuration IA</h3>
   <div class="about-section">
     <p class="muted" style="margin-bottom:14px;">Choisissez le provider IA. Sonar (Perplexity) inclut la recherche web pour enrichir vos prospects avec de vraies données. Ollama reste disponible en local comme fallback.</p>
@@ -258,7 +259,7 @@ Belle journée,"></textarea>
   </div>
 </div>
 
-<div class="settings-section admin-only-section" id="systemVerifySection">
+<div class="settings-section" id="systemVerifySection">
   <h3>🔍 Vérification système</h3>
   <div class="about-section">
     <p class="muted" style="margin-bottom:10px;">Vérifie que tous les composants nécessaires au travail à distance avec Cursor fonctionnent correctement (Git, Ollama, Flask, API, scripts).</p>
@@ -273,7 +274,7 @@ Belle journée,"></textarea>
   </div>
 </div>
 
-<div class="settings-section admin-only-section" id="deployUpdateSection">
+<div class="settings-section" id="deployUpdateSection">
   <h3>🔄 Mise à jour du serveur</h3>
   <div class="about-section">
     <p class="muted" style="margin-bottom:10px;">Récupère les dernières modifications depuis Git (origin/main) et redémarre automatiquement le serveur. Cette action est irréversible.</p>
@@ -285,7 +286,7 @@ Belle journée,"></textarea>
   </div>
 </div>
 
-<div class="settings-section admin-only-section" id="backupSection">
+<div class="settings-section" id="backupSection">
   <h3>💾 Sauvegardes automatiques</h3>
   <div class="about-section">
     <p class="muted" style="margin-bottom:10px;">Sauvegarde compressée de la base SQLite, effectuée automatiquement chaque nuit à 3h00. Rétention : 14 jours.</p>
@@ -304,7 +305,7 @@ Belle journée,"></textarea>
   </div>
 </div>
 
-<div class="settings-section admin-only-section">
+<div class="settings-section">
   <h3>ℹ️ À propos</h3>
   <div class="about-section">
     <h4>Prosp'Up</h4>
@@ -331,6 +332,7 @@ Belle journée,"></textarea>
     <p style="font-size: 13px;">🧷 Sauvegardes : snapshots automatiques + manuels</p>
   </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block page_scripts %}
@@ -494,27 +496,6 @@ Belle journée,"></textarea>
       if (checkInterval) clearInterval(checkInterval);
     });
   })();
-</script>
-<script>
-  // v16.5: Hide admin-only sections for non-admin users
-  document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(function() {
-      if (window.AppAuth && AppAuth.user && AppAuth.user.role !== 'admin') {
-        document.querySelectorAll('.settings-section h3').forEach(function(h3) {
-          if (h3.textContent.includes('Gestion des données')) {
-            h3.closest('.settings-section').style.display = 'none';
-          }
-        });
-        document.querySelectorAll('.admin-only-section').forEach(function(el) {
-          el.style.display = 'none';
-        });
-      }
-      const verifySection = document.getElementById('systemVerifySection');
-      if (!verifySection && window.AppAuth && AppAuth.user && AppAuth.user.role === 'admin') {
-        console.warn('Section vérification système non trouvée — le code n\'est peut-être pas à jour sur le serveur');
-      }
-    }, 300);
-  });
 </script>
 <script>
   // Personnalisation affichage : 3 colonnes visibles (plus d’onglets)
