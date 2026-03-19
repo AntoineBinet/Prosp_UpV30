@@ -508,6 +508,108 @@ app.jinja_env.globals['static_hash'] = _get_static_hash
 # Regex to match ?v=XXXX in /static/ paths
 _CACHE_BUSTER_RE = re.compile(r'(/static/[^"\'?]+)\?v=\d+')
 
+# ═══════════════════════════════════════════════════════════════════
+# Validation centralisée des uploads (B4 — sécurité)
+# ═══════════════════════════════════════════════════════════════════
+_UPLOAD_RULES: Dict[str, Dict] = {
+    "image": {
+        "extensions": {".jpg", ".jpeg", ".png", ".webp", ".gif"},
+        "mimes": {"image/jpeg", "image/png", "image/webp", "image/gif"},
+        "max_bytes": 5 * 1024 * 1024,   # 5 Mo
+        "label": "jpg, png, webp, gif",
+    },
+    "document": {
+        "extensions": {".pdf", ".doc", ".docx"},
+        "mimes": {
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
+        "max_bytes": 20 * 1024 * 1024,  # 20 Mo
+        "label": "pdf, doc, docx",
+    },
+    "document_or_excel": {
+        "extensions": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt"},
+        "mimes": {
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "text/plain",
+        },
+        "max_bytes": 20 * 1024 * 1024,  # 20 Mo
+        "label": "pdf, doc, docx, xls, xlsx, txt",
+    },
+    "csv": {
+        "extensions": {".csv"},
+        "mimes": {"text/csv", "text/plain", "application/csv", "application/octet-stream"},
+        "max_bytes": 10 * 1024 * 1024,  # 10 Mo
+        "label": "csv",
+    },
+    "mail_template": {
+        "extensions": {".msg", ".eml", ".oft", ".htm", ".html"},
+        "mimes": {
+            "application/vnd.ms-outlook",
+            "message/rfc822",
+            "text/html",
+            "text/plain",
+            "application/octet-stream",
+        },
+        "max_bytes": 10 * 1024 * 1024,  # 10 Mo
+        "label": "msg, eml, oft, htm, html",
+    },
+}
+
+# Magic bytes (premiers octets) pour vérification MIME indépendante du Content-Type déclaré
+_MAGIC_BYTES: list = [
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"RIFF", "image/webp"),   # WebP : RIFF....WEBP
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+    (b"%PDF-", "application/pdf"),
+    (b"PK\x03\x04", None),     # ZIP container → docx / xlsx / odt (None = accepté si ext valide)
+    (b"\xd0\xcf\x11\xe0", None),  # OLE2 compound → doc / xls / msg / oft
+]
+
+
+def _sniff_mime(header: bytes) -> str | None:
+    """Retourne le MIME détecté à partir des magic bytes (premier 8 octets)."""
+    for magic, mime in _MAGIC_BYTES:
+        if header[:len(magic)] == magic:
+            return mime  # peut être None pour les containers ZIP/OLE
+    return None
+
+
+def _validate_upload(file_storage, rule_name: str):
+    """Valide un FileStorage Werkzeug (extension, MIME, taille).
+
+    Retourne (True, None) si tout est OK, (False, (message, http_code)) sinon.
+    Lit les premiers octets puis seek(0) pour ne pas consommer le flux.
+    """
+    rules = _UPLOAD_RULES[rule_name]
+
+    # 1. Extension
+    ext = os.path.splitext(file_storage.filename or "")[1].lower()
+    if ext not in rules["extensions"]:
+        return False, (f"Extension non autorisée. Formats acceptés : {rules['label']}", 400)
+
+    # 2. Taille : lit le fichier complet en mémoire pour mesurer, puis rembobine
+    data = file_storage.read()
+    file_storage.seek(0)
+    if len(data) > rules["max_bytes"]:
+        limit_mb = rules["max_bytes"] // (1024 * 1024)
+        return False, (f"Fichier trop volumineux (max {limit_mb} Mo)", 413)
+
+    # 3. MIME réel via magic bytes
+    sniffed = _sniff_mime(data[:8])
+    # sniffed == None → container ZIP ou OLE valide selon extension, on laisse passer
+    if sniffed is not None and sniffed not in rules["mimes"]:
+        return False, ("Type de fichier non autorisé (contenu invalide)", 415)
+
+    return True, None
+
 
 @app.after_request
 def _after_request(response):
@@ -1206,9 +1308,10 @@ def api_auth_avatar_upload():
     f = request.files.get("avatar")
     if not f or not f.filename:
         return jsonify(ok=False, error="Aucun fichier fourni"), 400
+    ok_upload, err_upload = _validate_upload(f, "image")
+    if not ok_upload:
+        return jsonify(ok=False, error=err_upload[0]), err_upload[1]
     ext = os.path.splitext(f.filename)[1].lower()
-    if ext not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
-        return jsonify(ok=False, error="Format non supporté (jpg, png, webp, gif)"), 400
     # Supprimer l'ancien avatar si présent
     for old_ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
         old_path = AVATARS_DIR / f"avatar_{uid}{old_ext}"
@@ -5727,13 +5830,11 @@ def api_push_category_upload_template(cat_id: int):
     file = request.files['file']
     if file.filename == '':
         return jsonify(ok=False, error="Nom de fichier vide"), 400
-    
-    # Vérifier l'extension
-    allowed_extensions = {'.msg', '.eml', '.oft', '.htm', '.html'}
-    file_ext = Path(file.filename).suffix.lower()
-    if file_ext not in allowed_extensions:
-        return jsonify(ok=False, error=f"Extension non autorisée. Autorisées: {', '.join(allowed_extensions)}"), 400
-    
+
+    ok_upload, err_upload = _validate_upload(file, "mail_template")
+    if not ok_upload:
+        return jsonify(ok=False, error=err_upload[0]), err_upload[1]
+
     # Créer le dossier de la catégorie
     cat_name = cat_row["name"]
     user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
@@ -7152,10 +7253,10 @@ def api_prospect_photo():
     if not f or not f.filename:
         return jsonify({"ok": False, "error": "No file uploaded"}), 400
 
-    # Validate extension
+    ok_upload, err_upload = _validate_upload(f, "image")
+    if not ok_upload:
+        return jsonify(ok=False, error=err_upload[0]), err_upload[1]
     ext = os.path.splitext(f.filename)[1].lower()
-    if ext not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
-        return jsonify({"ok": False, "error": "Invalid file type"}), 400
 
     # Save with unique name
     fname = f"prospect_{pid}{ext}"
@@ -8432,6 +8533,11 @@ def api_import_linkedin_csv():
     if "file" not in request.files:
         return jsonify({"ok": False, "error": "file is required"}), 400
     f = request.files["file"]
+    if not f.filename:
+        return jsonify({"ok": False, "error": "Nom de fichier vide"}), 400
+    ok_upload, err_upload = _validate_upload(f, "csv")
+    if not ok_upload:
+        return jsonify(ok=False, error=err_upload[0]), err_upload[1]
     content = f.read()
     try:
         text = content.decode("utf-8-sig")
@@ -10136,9 +10242,10 @@ def api_quickadd_parse_document():
     f = request.files["file"]
     if not f or not f.filename:
         return jsonify(ok=False, error="Aucun fichier"), 400
+    ok_upload, err_upload = _validate_upload(f, "document")
+    if not ok_upload:
+        return jsonify(ok=False, error=err_upload[0]), err_upload[1]
     ext = os.path.splitext(f.filename)[1].lower()
-    if ext not in (".pdf", ".doc", ".docx"):
-        return jsonify(ok=False, error="Format non supporté. Utilisez PDF ou Word (.doc/.docx)."), 400
 
     raw = f.read()
     text = ""
@@ -10231,9 +10338,10 @@ def api_quickadd_parse_document_stream():
     f = request.files["file"]
     if not f or not f.filename:
         return Response(_sse_message("error", {"message": "Aucun fichier"}), status=400, mimetype="text/event-stream")
+    ok_upload, err_upload = _validate_upload(f, "document")
+    if not ok_upload:
+        return Response(_sse_message("error", {"message": err_upload[0]}), status=err_upload[1], mimetype="text/event-stream")
     ext = os.path.splitext(f.filename)[1].lower()
-    if ext not in (".pdf", ".doc", ".docx"):
-        return Response(_sse_message("error", {"message": "Format non supporté. Utilisez PDF ou Word."}), status=400, mimetype="text/event-stream")
 
     def generate():
         try:
@@ -12998,10 +13106,14 @@ def rdv_checklist_parse_file():
     file = request.files['file']
     if file.filename == '':
         return jsonify(ok=False, error="Fichier vide"), 400
-    
+
+    ok_upload, err_upload = _validate_upload(file, "document_or_excel")
+    if not ok_upload:
+        return jsonify(ok=False, error=err_upload[0]), err_upload[1]
+
     filename = file.filename.lower()
     text = None
-    
+
     try:
         if filename.endswith('.pdf'):
             from pypdf import PdfReader
