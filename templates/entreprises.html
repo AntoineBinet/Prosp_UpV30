@@ -69,10 +69,10 @@
 {% endblock %}
 
 {% block modals %}
-<div class="modal" role="dialog" aria-modal="true" id="modalMergeCompanies">
+<div class="modal" role="dialog" aria-modal="true" id="modalMergeCompanies" aria-labelledby="modalMergeCompaniesTitle">
     <div class="modal-content" style="max-width:480px;">
         <div class="modal-header">
-            <span>Fusionner des entreprises</span>
+            <span id="modalMergeCompaniesTitle">Fusionner des entreprises</span>
             <button class="modal-close" aria-label="Fermer" onclick="this.closest('.modal').classList.remove('active')">&times;</button>
         </div>
         <p style="margin:0 0 12px; color:var(--color-text-secondary); font-size:13px;">
@@ -86,7 +86,7 @@
     </div>
 </div>
 
-<div class="modal" role="dialog" aria-modal="true" id="modalCompany">
+<div class="modal" role="dialog" aria-modal="true" id="modalCompany" aria-labelledby="companyModalTitle">
     <div class="modal-content">
         <div class="modal-header">
             <span id="companyModalTitle">Ajouter Entreprise</span>
@@ -122,7 +122,7 @@
         </form>
     </div>
 </div>
-<div class="modal" role="dialog" aria-modal="true" id="modalCompanySheet">
+<div class="modal" role="dialog" aria-modal="true" id="modalCompanySheet" aria-labelledby="companySheetTitle">
     <div class="modal-content company-sheet-modal-content">
         <div class="modal-header">
             <span id="companySheetTitle">Fiche entreprise</span>

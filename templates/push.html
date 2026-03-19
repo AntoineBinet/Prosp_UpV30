@@ -50,10 +50,10 @@
 {% endblock %}
 
 {% block modals %}
-<div class="modal" role="dialog" aria-modal="true" id="modalPushDetail">
+<div class="modal" role="dialog" aria-modal="true" id="modalPushDetail" aria-labelledby="modalPushDetailTitle">
     <div class="modal-content">
         <div class="modal-header">
-            <span>Détail du push</span>
+            <span id="modalPushDetailTitle">Détail du push</span>
             <button class="modal-close" aria-label="Fermer" onclick="closePushDetail()">&times;</button>
         </div>
         <div class="modal-body" id="pushDetailBody"></div>

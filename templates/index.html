@@ -327,7 +327,7 @@
 {% endblock %}
 
 {% block modals %}
-<div class="modal" role="dialog" aria-modal="true" id="modalProspect">
+<div class="modal" role="dialog" aria-modal="true" id="modalProspect" aria-labelledby="modalTitle">
     <div class="modal-content">
         <div class="modal-header">
             <span id="modalTitle">Ajouter Prospect</span>
@@ -391,29 +391,29 @@
         </form>
     </div>
 </div>
-<div class="modal" role="dialog" aria-modal="true" id="modalDetail">
+<div class="modal" role="dialog" aria-modal="true" id="modalDetail" aria-labelledby="modalDetailTitle">
     <div class="modal-content">
         <div class="modal-header">
-            <span>Détail du Prospect</span>
-            <button class="modal-close" onclick="closeDetail()">&times;</button>
+            <span id="modalDetailTitle">Détail du Prospect</span>
+            <button class="modal-close" onclick="closeDetail()" aria-label="Fermer">&times;</button>
         </div>
         <div id="detailContent"></div>
     </div>
 </div>
-<div class="modal" role="dialog" aria-modal="true" id="modalStats">
+<div class="modal" role="dialog" aria-modal="true" id="modalStats" aria-labelledby="modalStatsTitle">
     <div class="modal-content">
         <div class="modal-header">
-            <span>📊 Statistiques</span>
-            <button class="modal-close" onclick="closeStatsModal()">&times;</button>
+            <span id="modalStatsTitle">📊 Statistiques</span>
+            <button class="modal-close" onclick="closeStatsModal()" aria-label="Fermer">&times;</button>
         </div>
         <div id="statsContent"></div>
     </div>
 </div>
-<div class="modal" role="dialog" aria-modal="true" id="modalCompany">
+<div class="modal" role="dialog" aria-modal="true" id="modalCompany" aria-labelledby="companyModalTitle">
     <div class="modal-content">
         <div class="modal-header">
             <span id="companyModalTitle">Ajouter Entreprise</span>
-            <button class="modal-close" onclick="closeCompanyModal()">&times;</button>
+            <button class="modal-close" onclick="closeCompanyModal()" aria-label="Fermer">&times;</button>
         </div>
         <form id="companyForm" onsubmit="saveCompany(event)">
             <input type="hidden" id="inputCompanyId" name="company_id">
@@ -449,11 +449,11 @@
         </form>
     </div>
 </div>
-<div class="modal" role="dialog" aria-modal="true" id="modalCallChoice">
+<div class="modal" role="dialog" aria-modal="true" id="modalCallChoice" aria-labelledby="modalCallChoiceTitle">
     <div class="modal-content" style="max-width: 420px;">
         <div class="modal-header">
-            <span>Choisir un numéro</span>
-            <button class="modal-close" onclick="closeCallChoice()">×</button>
+            <span id="modalCallChoiceTitle">Choisir un numéro</span>
+            <button class="modal-close" onclick="closeCallChoice()" aria-label="Fermer">×</button>
         </div>
         <div class="modal-body">
             <p style="margin-bottom: 12px; color: var(--color-muted);">Plusieurs numéros sont disponibles pour ce prospect.</p>
@@ -465,7 +465,7 @@
     </div>
 </div>
 <!-- Modal Quick Add IA -->
-<div class="modal" role="dialog" aria-modal="true" id="modalQuickAdd">
+<div class="modal" role="dialog" aria-modal="true" id="modalQuickAdd" aria-labelledby="modalQuickAddTitle">
     <div class="modal-content" style="max-width:560px;position:relative;">
         <div id="qaOllamaOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.7);border-radius:12px;z-index:10;flex-direction:column;align-items:center;justify-content:center;color:var(--color-text);padding:20px;text-align:center;">
             <div style="font-size:32px;margin-bottom:12px;">⏳</div>
@@ -475,8 +475,8 @@
             <pre id="qaOllamaLiveText" style="display:none;max-height:120px;overflow:auto;font-size:10px;text-align:left;background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;width:100%;max-width:480px;white-space:pre-wrap;word-break:break-all;"></pre>
         </div>
         <div class="modal-header">
-            <span>➕ Ajouter</span>
-            <button class="modal-close" onclick="closeQuickAddModal()">&times;</button>
+            <span id="modalQuickAddTitle">➕ Ajouter</span>
+            <button class="modal-close" onclick="closeQuickAddModal()" aria-label="Fermer">&times;</button>
         </div>
 
         <!-- Étape 0 : Choix méthode (Manuel ou IA) -->
@@ -604,10 +604,10 @@
 {% endblock %}
 
 <!-- Modal Ajouter via VSA (accessible depuis partout) -->
-<div id="modalVsaImport" class="modal">
+<div id="modalVsaImport" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalVsaImportTitle">
   <div class="modal-content" style="max-width: 560px;">
     <div class="modal-header">
-      <h2 style="margin:0;">🔗 Ajouter un candidat depuis VSA</h2>
+      <h2 id="modalVsaImportTitle" style="margin:0;">🔗 Ajouter un candidat depuis VSA</h2>
       <button class="modal-close" onclick="closeVsaImportModal()" aria-label="Fermer">×</button>
     </div>
     <p class="muted" style="font-size:12px;margin-bottom:14px;">Collez le contenu de la fiche VSA pour pré-remplir la fiche candidat.</p>

@@ -134,10 +134,10 @@
     </div>
     
     <!-- Modales pour les options du menu utilisateur -->
-    <div id="userMenuChangePasswordModal" class="modal" style="display:none;">
+    <div id="userMenuChangePasswordModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="userMenuChangePwTitle" style="display:none;">
       <div class="modal-content" style="max-width:480px;">
-        <button class="modal-close" onclick="closeUserMenuModal('changePassword')">×</button>
-        <h2>🔐 Changer mon mot de passe</h2>
+        <button class="modal-close" onclick="closeUserMenuModal('changePassword')" aria-label="Fermer">×</button>
+        <h2 id="userMenuChangePwTitle">🔐 Changer mon mot de passe</h2>
         <div style="display:grid;gap:12px;margin-top:16px;">
           <div>
             <label class="filter-label">Mot de passe actuel</label>
@@ -160,10 +160,10 @@
       </div>
     </div>
     
-    <div id="userMenuUsersModal" class="modal" style="display:none;">
+    <div id="userMenuUsersModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="userMenuUsersTitle" style="display:none;">
       <div class="modal-content" style="max-width:800px;max-height:90vh;overflow-y:auto;">
-        <button class="modal-close" onclick="closeUserMenuModal('users')">×</button>
-        <h2>👥 Gestion des Utilisateurs</h2>
+        <button class="modal-close" onclick="closeUserMenuModal('users')" aria-label="Fermer">×</button>
+        <h2 id="userMenuUsersTitle">👥 Gestion des Utilisateurs</h2>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;margin-bottom:16px;">
           <div class="content-title">Gestion des Utilisateurs</div>
           <button class="btn btn-primary" onclick="openUserModal()">+ Nouvel utilisateur</button>
@@ -172,10 +172,10 @@
       </div>
     </div>
     
-    <div id="userMenuDashboardCustomizationModal" class="modal" style="display:none;">
+    <div id="userMenuDashboardCustomizationModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="userMenuDashCustomTitle" style="display:none;">
       <div class="modal-content" style="max-width:700px;max-height:90vh;overflow-y:auto;">
-        <button class="modal-close" onclick="closeUserMenuModal('dashboardCustomization')">×</button>
-        <h2>🖥️ Personnalisation de l'affichage</h2>
+        <button class="modal-close" onclick="closeUserMenuModal('dashboardCustomization')" aria-label="Fermer">×</button>
+        <h2 id="userMenuDashCustomTitle">🖥️ Personnalisation de l'affichage</h2>
         <p class="muted" style="margin-bottom:10px;margin-top:16px;">Activez ou désactivez des modules et blocs.</p>
         <div class="display-prefs-columns" id="userMenuDisplayPrefsColumns">
           <div class="display-prefs-pane" id="pane-nav" role="tabpanel">
@@ -230,10 +230,10 @@
     </div>
     
     <!-- Modale utilisateur (pour le popup gestion utilisateurs) -->
-    <div id="userModal" class="modal user-modal" style="display:none;">
+    <div id="userModal" class="modal user-modal" role="dialog" aria-modal="true" aria-labelledby="baseUserModalTitle" style="display:none;">
       <div class="modal-content" style="max-width:540px;">
-        <button class="modal-close" onclick="closeUserModal()">×</button>
-        <h2 id="modalTitle">Nouvel utilisateur</h2>
+        <button class="modal-close" onclick="closeUserModal()" aria-label="Fermer">×</button>
+        <h2 id="baseUserModalTitle">Nouvel utilisateur</h2>
 
         <input type="hidden" id="editUserId">
 

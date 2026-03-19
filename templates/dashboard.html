@@ -146,11 +146,11 @@
 
 {% block modals %}
 <!-- Manual KPI Modal -->
-<div class="modal" role="dialog" aria-modal="true" id="manualKpiModal" style="display:none;">
+<div class="modal" role="dialog" aria-modal="true" id="manualKpiModal" aria-labelledby="manualKpiModalTitle" style="display:none;">
   <div class="modal-content" style="max-width:440px;">
     <div class="modal-header">
-      <span>➕ Ajouter une action KPI manuellement</span>
-      <button class="modal-close" onclick="closeManualKpiModal()">×</button>
+      <span id="manualKpiModalTitle">➕ Ajouter une action KPI manuellement</span>
+      <button class="modal-close" onclick="closeManualKpiModal()" aria-label="Fermer">×</button>
     </div>
     <div style="padding:16px 0;">
       <p class="muted" style="font-size:13px;margin-bottom:14px;">Enregistrer une action effectuée hors de l'application.</p>
