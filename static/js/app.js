@@ -3285,9 +3285,11 @@ function filterProspects() {
 
     if (currentView === 'actions') {
         baseProspects = baseProspects.filter(p => ['À rappeler', 'Rendez-vous', 'Messagerie'].includes(p.statut));
-        document.getElementById('viewTitle').textContent = '⏰ Actions à faire';
+        const viewTitleEl = document.getElementById('viewTitle');
+        if (viewTitleEl) viewTitleEl.textContent = '⏰ Actions à faire';
     } else {
-        document.getElementById('viewTitle').textContent = _showArchived ? '📁 Archivés' : '👥 Tous les prospects';
+        const viewTitleEl = document.getElementById('viewTitle');
+        if (viewTitleEl) viewTitleEl.textContent = _showArchived ? '📁 Archivés' : '👥 Tous les prospects';
     }
     syncStatsCardsMode();
 
