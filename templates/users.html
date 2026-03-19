@@ -492,6 +492,12 @@ async function deleteUser(id, username) {
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeUserModal(); });
 
+// Écraser les fonctions globales définies par app.js avec les implémentations
+// complètes de cette page (évite la récursion infinie via window.openUserModal)
+window.openUserModal  = openUserModal;
+window.closeUserModal = closeUserModal;
+window.saveUser       = saveUser;
+
 // Bootstrap minimal for this page: auth badge + sidebar features
 (async function(){
   if (window.AppAuth && AppAuth.init) await AppAuth.init();
