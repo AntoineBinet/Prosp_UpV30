@@ -28,6 +28,16 @@
         </div>
     </div>
 
+    <div class="bulk-actions company-bulk-actions" id="companyBulkBar" style="display:none;">
+        <div class="bulk-left">
+            <strong id="companyBulkCount">0</strong> sélectionnée(s)
+            <button class="btn btn-secondary" onclick="clearCompanySelection()">Tout désélectionner</button>
+        </div>
+        <div class="bulk-right">
+            <button class="btn btn-primary" onclick="openMergeCompaniesModal()">🔀 Fusionner</button>
+        </div>
+    </div>
+
     <div class="company-summary company-summary--compact" id="companySummary">
         <span class="summary-chip summary-chip--compact"><span class="chip-label">Entreprises</span> <span class="chip-value" id="companySummaryCompanies">0</span></span>
         <span class="summary-chip summary-chip--compact"><span class="chip-label">Prospects</span> <span class="chip-value" id="companySummaryProspects">0</span></span>
@@ -40,6 +50,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th style="width:36px;"></th>
                         <th class="company-sortable" data-company-sort="groupe"><span class="th-inner">Groupe <span class="sort-indicator" aria-hidden="true"></span></span></th>
                         <th class="company-sortable" data-company-sort="site"><span class="th-inner">Site <span class="sort-indicator" aria-hidden="true"></span></span></th>
                         <th class="center company-sortable" data-company-sort="prospects"><span class="th-inner">Prospects <span class="sort-indicator" aria-hidden="true"></span></span></th>
@@ -58,6 +69,23 @@
 {% endblock %}
 
 {% block modals %}
+<div class="modal" role="dialog" aria-modal="true" id="modalMergeCompanies">
+    <div class="modal-content" style="max-width:480px;">
+        <div class="modal-header">
+            <span>Fusionner des entreprises</span>
+            <button class="modal-close" aria-label="Fermer" onclick="this.closest('.modal').classList.remove('active')">&times;</button>
+        </div>
+        <p style="margin:0 0 12px; color:var(--color-text-secondary); font-size:13px;">
+            Choisissez l'entreprise à <strong>conserver</strong>. Les prospects des autres seront réassignés vers elle, et les doublons supprimés.
+        </p>
+        <div id="mergeCompaniesRadioList" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;"></div>
+        <div class="btn-group">
+            <button class="btn btn-secondary" onclick="this.closest('.modal').classList.remove('active')">Annuler</button>
+            <button class="btn btn-primary" onclick="confirmMergeCompanies()">🔀 Fusionner</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal" role="dialog" aria-modal="true" id="modalCompany">
     <div class="modal-content">
         <div class="modal-header">

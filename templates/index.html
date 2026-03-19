@@ -236,6 +236,11 @@
                 </select>
                 <button class="btn btn-primary" onclick="applyBulkPertinence()">Appliquer</button>
 
+                <select id="bulkCompany">
+                    <option value="">Changer entreprise...</option>
+                </select>
+                <button class="btn btn-primary" onclick="applyBulkCompany()">Appliquer</button>
+
                 <select id="bulkRelance" onchange="var d=document.getElementById('bulkRelanceDate'); if(d) d.style.display=this.value==='date'?'inline-block':'none';">
                     <option value="">Relance...</option>
                     <option value="+3">+3j</option>

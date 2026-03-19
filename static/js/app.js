@@ -1980,6 +1980,7 @@ let currentView = 'all';
 let filteredProspects = [];
 let editingId = null;
 let selectedProspects = new Set();
+let selectedCompanies = new Set();
 // Pagination state
 let _pageSize = parseInt(localStorage.getItem('prospup_pageSize') || '50', 10);
 let _currentPage = 1;
@@ -2554,6 +2555,7 @@ function refreshCompaniesUI() {
     if (document.getElementById('viewProspects')?.style.display !== 'none') {
         filterProspects();
     }
+    updateCompanyBulkBar();
 }
 
 function deleteCompany(companyId) {
@@ -2773,14 +2775,16 @@ function renderCompaniesCards(companiesSorted, counts) {
     companiesSorted.forEach(company => {
         const c = counts[company.id] || { prospects: 0, rdv: 0, callable: 0 };
         const card = document.createElement('div');
-        card.className = 'company-card company-card-modern';
+        card.className = 'company-card company-card-modern' + (selectedCompanies.has(company.id) ? ' company-selected' : '');
         card.setAttribute('role', 'button');
         card.tabIndex = 0;
+        card.dataset.companyId = company.id;
         card.setAttribute('aria-label', `Entreprise ${escapeHtml(company.groupe || '')} ${escapeHtml(company.site || '')}`);
         const notesRaw = (company.notes || '').trim();
         const noteSnippet = notesRaw ? (escapeHtml(notesRaw).slice(0, 80) + (notesRaw.length > 80 ? '…' : '')) : '';
         card.innerHTML = `
             <div class="company-card-header">
+                <input type="checkbox" class="company-select-cb" title="Sélectionner pour fusionner" ${selectedCompanies.has(company.id) ? 'checked' : ''} onclick="toggleCompanySelection(${company.id}, event)">
                 <span class="company-card-name">${escapeHtml(company.groupe || '')}</span>
                 ${company.id === unassignedId ? '<span class="company-default-badge">(défaut)</span>' : ''}
             </div>
@@ -2949,8 +2953,9 @@ function _renderCompaniesInternal(tbody, q) {
         }
         
         const tr = document.createElement('tr');
-        tr.className = 'company-row';
+        tr.className = 'company-row' + (selectedCompanies.has(company.id) ? ' company-selected' : '');
         tr.style.cursor = 'pointer';
+        tr.dataset.companyId = company.id;
         
         // Focus visuel (ex: depuis une fiche prospect)
         if (pendingCompanyFocusId && company.id === pendingCompanyFocusId) {
@@ -2962,6 +2967,9 @@ function _renderCompaniesInternal(tbody, q) {
         }
 
         tr.innerHTML = `
+            <td class="company-cb-cell" onclick="event.stopPropagation();">
+                <input type="checkbox" class="company-select-cb" title="Sélectionner pour fusionner" ${selectedCompanies.has(company.id) ? 'checked' : ''} onclick="toggleCompanySelection(${company.id}, event)">
+            </td>
             <td class="company-name-cell">
                 ${groupeCellContent}
             </td>
@@ -3483,6 +3491,112 @@ function updateBulkBar() {
     const count = selectedProspects.size;
     countEl.textContent = count;
     bulk.style.display = count > 0 ? 'flex' : 'none';
+
+    // Populate bulkCompany dropdown
+    const bulkCompany = document.getElementById('bulkCompany');
+    if (bulkCompany && count > 0) {
+        const prev = bulkCompany.value;
+        bulkCompany.innerHTML = '<option value="">Changer entreprise...</option>';
+        const unassignedId = ensureUnassignedCompany();
+        [...data.companies].sort((a, b) => {
+            if (a.id === unassignedId) return -1;
+            if (b.id === unassignedId) return 1;
+            return (a.groupe || '').localeCompare(b.groupe || '', 'fr');
+        }).forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${c.groupe} (${c.site})`;
+            bulkCompany.appendChild(opt);
+        });
+        if (prev) bulkCompany.value = prev;
+    }
+}
+
+// ---- Company selection & merge ----
+function toggleCompanySelection(id, ev) {
+    if (ev) ev.stopPropagation();
+    if (selectedCompanies.has(id)) {
+        selectedCompanies.delete(id);
+    } else {
+        selectedCompanies.add(id);
+    }
+    // Update visual state without full re-render
+    document.querySelectorAll(`[data-company-id="${id}"]`).forEach(el => {
+        el.classList.toggle('company-selected', selectedCompanies.has(id));
+        const cb = el.querySelector('.company-select-cb');
+        if (cb) cb.checked = selectedCompanies.has(id);
+    });
+    updateCompanyBulkBar();
+}
+
+function updateCompanyBulkBar() {
+    const bar = document.getElementById('companyBulkBar');
+    if (!bar) return;
+    const count = selectedCompanies.size;
+    const countEl = document.getElementById('companyBulkCount');
+    if (countEl) countEl.textContent = count;
+    bar.style.display = count >= 2 ? 'flex' : 'none';
+}
+
+function clearCompanySelection() {
+    selectedCompanies.clear();
+    updateCompanyBulkBar();
+    document.querySelectorAll('.company-selected').forEach(el => {
+        el.classList.remove('company-selected');
+        const cb = el.querySelector('.company-select-cb');
+        if (cb) cb.checked = false;
+    });
+}
+
+function openMergeCompaniesModal() {
+    const ids = Array.from(selectedCompanies);
+    const companies = ids.map(id => data.companies.find(c => c.id === id)).filter(Boolean);
+    if (companies.length < 2) return;
+
+    const list = document.getElementById('mergeCompaniesRadioList');
+    if (!list) return;
+
+    const counts = {};
+    data.prospects.forEach(p => {
+        if (p.company_id) counts[p.company_id] = (counts[p.company_id] || 0) + 1;
+    });
+
+    // Default: keep the one with most prospects
+    const bestId = companies.reduce((best, c) => (counts[c.id] || 0) > (counts[best.id] || 0) ? c : best, companies[0]).id;
+
+    list.innerHTML = companies.map(c => `
+        <label class="merge-radio-label">
+            <input type="radio" name="mergeTarget" value="${c.id}" ${c.id === bestId ? 'checked' : ''}>
+            <span><strong>${escapeHtml(c.groupe || '')}</strong> — ${escapeHtml(c.site || '')} <span class="merge-count">(${counts[c.id] || 0} prospect(s))</span></span>
+        </label>
+    `).join('');
+
+    document.getElementById('modalMergeCompanies')?.classList.add('active');
+}
+
+function confirmMergeCompanies() {
+    const sel = document.querySelector('#mergeCompaniesRadioList input[name="mergeTarget"]:checked');
+    if (!sel) return;
+    const targetId = parseInt(sel.value);
+    const sourceIds = Array.from(selectedCompanies).filter(id => id !== targetId);
+
+    let moved = 0;
+    data.prospects.forEach(p => {
+        if (sourceIds.includes(p.company_id)) {
+            p.company_id = targetId;
+            moved++;
+        }
+    });
+
+    data.companies = data.companies.filter(c => !sourceIds.includes(c.id));
+
+    document.getElementById('modalMergeCompanies')?.classList.remove('active');
+    selectedCompanies.clear();
+
+    saveToServerAsync().then(() => {
+        refreshCompaniesUI();
+        showToast(`✅ Entreprises fusionnées (${moved} prospect(s) réassigné(s))`, 'success');
+    });
 }
 
 async function applyBulkStatus() {
@@ -3543,6 +3657,34 @@ async function applyBulkPertinence() {
     selectedProspects.clear();
     updateBulkBar();
     showToast(`✅ ${updated} prospect(s) mis à jour`, 'success');
+}
+
+async function applyBulkCompany() {
+    const select = document.getElementById('bulkCompany');
+    if (!select || !select.value) return;
+    const newCompanyId = parseInt(select.value);
+
+    const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    if (total === 0) return;
+
+    let updated = 0;
+    for (const id of ids) {
+        const p = data.prospects.find(x => x.id === id);
+        if (p) {
+            p.company_id = newCompanyId;
+            updated++;
+            showBulkProgress(updated, total, 'prospects mis à jour...');
+            flashRowSuccess(id);
+            if (total > 10) await new Promise(resolve => setTimeout(resolve, 50));
+        }
+    }
+
+    await saveToServerAsync();
+    filterProspects();
+    selectedProspects.clear();
+    updateBulkBar();
+    showToast(`✅ ${updated} prospect(s) déplacé(s)`, 'success');
 }
 
 async function applyBulkRelance() {
