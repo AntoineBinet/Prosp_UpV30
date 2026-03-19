@@ -40,7 +40,7 @@
 
 {% block modals %}
 <!-- Modal fusion prospect : choix par champ -->
-<div id="mergeProspectModal" class="modal" role="dialog" aria-labelledby="mergeModalTitle" onclick="if(event.target===this) closeMergeModal()">
+<div id="mergeProspectModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="mergeModalTitle" onclick="if(event.target===this) closeMergeModal()">
   <div class="modal-content" style="max-width: 900px;" onclick="event.stopPropagation()">
     <div class="modal-header">
       <span id="mergeModalTitle">Fusionner deux prospects — choisir les données à garder</span>

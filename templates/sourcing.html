@@ -163,7 +163,7 @@
 
 {% block modals %}
 <!-- Modal candidate -->
-<div id="modalCandidate" class="modal">
+<div id="modalCandidate" class="modal" role="dialog" aria-modal="true" aria-labelledby="candModalTitle">
   <div class="modal-content" style="max-width: 820px;">
     <div class="modal-header">
       <h2 id="candModalTitle">Ajouter candidat</h2>
@@ -235,10 +235,10 @@
   </div>
 
 <!-- Modal Ajouter via VSA -->
-<div id="modalVsaImport" class="modal">
+<div id="modalVsaImport" class="modal" role="dialog" aria-modal="true" aria-labelledby="sourcingVsaImportTitle">
   <div class="modal-content" style="max-width: 560px;">
     <div class="modal-header">
-      <h2 style="margin:0;">🔗 Ajouter un candidat depuis VSA</h2>
+      <h2 id="sourcingVsaImportTitle" style="margin:0;">🔗 Ajouter un candidat depuis VSA</h2>
       <button class="modal-close" onclick="closeVsaImportModal()" aria-label="Fermer">×</button>
     </div>
     <p class="muted" style="font-size:12px;margin-bottom:14px;">Collez le contenu de la fiche VSA pour pré-remplir la fiche candidat.</p>
@@ -274,10 +274,10 @@
 </div>
 
 <!-- Modal EC1 -->
-<div id="modalEC1" class="modal">
+<div id="modalEC1" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalEC1Title">
   <div class="modal-content" style="max-width: 520px;">
     <div class="modal-header">
-      <h2 style="margin:0;">📞 Planifier EC1</h2>
+      <h2 id="modalEC1Title" style="margin:0;">📞 Planifier EC1</h2>
       <button class="modal-close" onclick="closeEC1Modal()" aria-label="Fermer">×</button>
     </div>
     <div class="muted" style="margin-bottom:10px;">Choisissez la date/heure de l'entretien. L'événement apparaîtra dans le calendrier.</div>

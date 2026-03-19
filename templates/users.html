@@ -59,10 +59,10 @@
 
 {% block modals %}
 <!-- Modal -->
-<div id="userModal" class="modal user-modal" style="display:none;">
+<div id="userModal" class="modal user-modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle" style="display:none;">
   <div class="modal-content" style="max-width:540px;">
-    <button class="modal-close" onclick="closeUserModal()">×</button>
-    <h2 id="modalTitle">Nouvel utilisateur</h2>
+    <button class="modal-close" onclick="closeUserModal()" aria-label="Fermer">×</button>
+    <h2 id="userModalTitle">Nouvel utilisateur</h2>
 
     <input type="hidden" id="editUserId">
 
@@ -331,7 +331,7 @@ function openUserModal() {
   document.getElementById('pwMismatchMsg').style.display = 'none';
   document.getElementById('uRole').value = 'editor';
   document.getElementById('uActive').checked = true;
-  document.getElementById('modalTitle').textContent = 'Nouvel utilisateur';
+  document.getElementById('userModalTitle').textContent = 'Nouvel utilisateur';
   document.getElementById('pwHint').textContent = '(requis)';
   document.getElementById('pwConfirmRow').style.display = 'block';
   
@@ -371,7 +371,7 @@ function editUser(u) {
   document.getElementById('pwMismatchMsg').style.display = 'none';
   document.getElementById('uRole').value = u.role || 'editor';
   document.getElementById('uActive').checked = !!u.is_active;
-  document.getElementById('modalTitle').textContent = 'Modifier utilisateur';
+  document.getElementById('userModalTitle').textContent = 'Modifier utilisateur';
   document.getElementById('pwHint').textContent = '(laisser vide pour ne pas changer)';
   document.getElementById('pwConfirmRow').style.display = 'none';
   

@@ -58,11 +58,11 @@
 
 {% block modals %}
 <!-- Task Modal -->
-<div class="modal" role="dialog" aria-modal="true" id="taskModal" style="display:none;">
+<div class="modal" role="dialog" aria-modal="true" id="taskModal" aria-labelledby="taskModalTitle" style="display:none;">
   <div class="modal-content" style="max-width:520px;">
     <div class="modal-header">
       <span id="taskModalTitle">Nouvelle tâche</span>
-      <button class="modal-close" onclick="closeTaskModal()">×</button>
+      <button class="modal-close" onclick="closeTaskModal()" aria-label="Fermer">×</button>
     </div>
     <div style="padding:16px 0;">
       <div class="form-group" style="margin-bottom:12px;">
@@ -98,11 +98,11 @@
   </div>
 </div>
 <!-- Modal choix numéro d'appel -->
-<div class="modal" role="dialog" aria-modal="true" id="modalCallChoice">
+<div class="modal" role="dialog" aria-modal="true" id="modalCallChoice" aria-labelledby="focusCallChoiceTitle">
     <div class="modal-content" style="max-width: 420px;">
         <div class="modal-header">
-            <span>Choisir un numéro</span>
-            <button class="modal-close" onclick="closeCallChoice()">×</button>
+            <span id="focusCallChoiceTitle">Choisir un numéro</span>
+            <button class="modal-close" onclick="closeCallChoice()" aria-label="Fermer">×</button>
         </div>
         <div class="modal-body">
             <p style="margin-bottom: 12px; color: var(--color-muted);">Plusieurs numéros sont disponibles pour ce prospect.</p>
@@ -114,11 +114,11 @@
     </div>
 </div>
 <!-- Prospect Detail Modal -->
-<div class="modal" role="dialog" aria-modal="true" id="modalDetail">
+<div class="modal" role="dialog" aria-modal="true" id="modalDetail" aria-labelledby="focusDetailTitle">
     <div class="modal-content">
         <div class="modal-header">
-            <span>Détail du Prospect</span>
-            <button class="modal-close" onclick="closeDetail()">&times;</button>
+            <span id="focusDetailTitle">Détail du Prospect</span>
+            <button class="modal-close" onclick="closeDetail()" aria-label="Fermer">&times;</button>
         </div>
         <div id="detailContent"></div>
     </div>

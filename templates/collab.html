@@ -43,11 +43,11 @@
 
 {% block modals %}
 <!-- Modal Ajouter collaborateur -->
-<div class="modal" role="dialog" aria-modal="true" id="addCollaboratorModal" style="display:none;">
+<div class="modal" role="dialog" aria-modal="true" id="addCollaboratorModal" aria-labelledby="addCollaboratorModalTitle" style="display:none;">
   <div class="modal-content" style="max-width:520px;">
     <div class="modal-header">
-      <span>➕ Partager une entreprise</span>
-      <button class="modal-close" onclick="closeAddCollaboratorModal()">×</button>
+      <span id="addCollaboratorModalTitle">➕ Partager une entreprise</span>
+      <button class="modal-close" onclick="closeAddCollaboratorModal()" aria-label="Fermer">×</button>
     </div>
     <div style="padding:16px 0;">
       <div class="form-group" style="margin-bottom:12px;">
@@ -72,11 +72,11 @@
 </div>
 
 <!-- Modal Prospects d'une entreprise partagée -->
-<div class="modal" role="dialog" aria-modal="true" id="sharedCompanyProspectsModal" style="display:none;">
+<div class="modal" role="dialog" aria-modal="true" id="sharedCompanyProspectsModal" aria-labelledby="sharedCompanyProspectsTitle" style="display:none;">
   <div class="modal-content" style="max-width:800px;max-height:80vh;overflow-y:auto;">
     <div class="modal-header">
       <span id="sharedCompanyProspectsTitle">Prospects</span>
-      <button class="modal-close" onclick="closeSharedCompanyProspectsModal()">×</button>
+      <button class="modal-close" onclick="closeSharedCompanyProspectsModal()" aria-label="Fermer">×</button>
     </div>
     <div style="padding:16px 0;">
       <div id="sharedCompanyProspectsList"></div>
@@ -85,11 +85,11 @@
 </div>
 
 <!-- Modal Édition prospect partagé -->
-<div class="modal" role="dialog" aria-modal="true" id="editSharedProspectModal" style="display:none;">
+<div class="modal" role="dialog" aria-modal="true" id="editSharedProspectModal" aria-labelledby="editSharedProspectModalTitle" style="display:none;">
   <div class="modal-content" style="max-width:520px;">
     <div class="modal-header">
-      <span>✏️ Modifier le prospect</span>
-      <button class="modal-close" onclick="closeEditSharedProspectModal()">×</button>
+      <span id="editSharedProspectModalTitle">✏️ Modifier le prospect</span>
+      <button class="modal-close" onclick="closeEditSharedProspectModal()" aria-label="Fermer">×</button>
     </div>
     <div style="padding:16px 0;">
       <div class="form-group" style="margin-bottom:12px;">
