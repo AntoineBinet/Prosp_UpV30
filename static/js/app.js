@@ -15066,6 +15066,7 @@ document.addEventListener('keydown', function(e) {
 
     function _check() {
         if (window.location.pathname === '/login') return;
+        if (window.AppAuth && window.AppAuth.user && window.AppAuth.user.role !== 'admin') return;
         fetch('/api/deploy/validation-status', { cache: 'no-store' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
