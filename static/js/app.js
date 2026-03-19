@@ -14499,7 +14499,7 @@ function userMenuSaveUser() {
     .then(j => {
         if (j.ok) {
             userMenuCloseUserModal();
-            if (typeof loadUsersFromAPI === 'function') loadUsersFromAPI();
+            if (typeof loadUsers === 'function') loadUsers();
             showToast('✅ Utilisateur enregistré', 'success');
         } else {
             showToast('❌ ' + (j.error || 'Erreur'), 'error');
