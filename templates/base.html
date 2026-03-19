@@ -99,9 +99,14 @@
       </div>
       <div class="user-menu-content">
         <!-- Toggle thème -->
-        <div class="user-menu-item" id="userMenuThemeToggle" onclick="window.toggleTheme && toggleTheme(); _updateUserMenuThemeLabel();">
-          <span class="user-menu-icon" id="userMenuThemeIcon">🌙</span>
-          <span id="userMenuThemeLabel">Mode clair</span>
+        <div class="user-menu-item user-menu-theme-row" id="userMenuThemeToggle" onclick="window.toggleTheme && toggleTheme(); _updateUserMenuThemeLabel();">
+          <span class="user-menu-icon" id="userMenuThemeIcon">☀️</span>
+          <span id="userMenuThemeLabel" class="user-menu-theme-label">Mode sombre</span>
+          <span class="user-menu-theme-switch" aria-hidden="true">
+            <span class="user-menu-theme-track">
+              <span class="user-menu-theme-thumb"></span>
+            </span>
+          </span>
         </div>
         <div class="user-menu-divider"></div>
         <div class="user-menu-item" onclick="openUserMenuOption('changePassword')">

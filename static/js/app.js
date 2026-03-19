@@ -14219,7 +14219,7 @@ function _updateUserMenuThemeLabel() {
     const icon  = document.getElementById('userMenuThemeIcon');
     const label = document.getElementById('userMenuThemeLabel');
     if (icon)  icon.textContent  = isDark ? '☀️' : '🌙';
-    if (label) label.textContent = isDark ? 'Passer en mode clair' : 'Passer en mode sombre';
+    if (label) label.textContent = isDark ? 'Mode clair' : 'Mode sombre';
 }
 
 /** Bascule entre affichage des infos et formulaire d'édition inline. */

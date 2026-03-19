@@ -35,8 +35,7 @@
               ]
             },
             { href: '/push',      icon: '\uD83D\uDCE4', label: 'Push',             page: 'push',      helpSection: 'push' },
-            { href: '/?archived=1', icon: '\uD83D\uDCC1', label: 'Archiv\u00e9s', id: 'sidebarArchivedBtn', page: '_archived', helpSection: 'archived' },
-            { id: 'themeToggleBtn', icon: '\uD83C\uDF19', label: 'Th\u00e8me', page: null, action: 'toggleTheme' }
+            { href: '/?archived=1', icon: '\uD83D\uDCC1', label: 'Archiv\u00e9s', id: 'sidebarArchivedBtn', page: '_archived', helpSection: 'archived' }
         ]}
     ];
 
