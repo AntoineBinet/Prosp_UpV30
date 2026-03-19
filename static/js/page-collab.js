@@ -1,37 +1,21 @@
-// Collaboration page (v25.5)
+// Collaboration page (v25.6)
 
 let __collaborators = [];
 let __sharedCompanies = { sent: [], received: [] };
+let __currentSharedCompanyId = null;
+let __currentSharedFromUserId = null;
+let __currentSharedSharerName = '';
 
 async function loadCollaborators() {
     try {
         const res = await fetch('/api/collab/collaborators');
-        if (!res.ok) {
-            // Ne pas afficher d'erreur si c'est juste qu'il n'y a pas de collaborateurs (liste vide = normal)
-            if (res.status === 200) {
-                __collaborators = [];
-                return __collaborators;
-            }
-            throw new Error('HTTP ' + res.status);
-        }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const json = await res.json();
-        if (!json.ok) {
-            // Si l'erreur est juste qu'il n'y a pas de données, ne pas afficher d'erreur
-            if (json.error && json.error.includes('Non authentifié')) {
-                throw new Error(json.error);
-            }
-            // Pour les autres cas, retourner une liste vide sans erreur
-            __collaborators = [];
-            return __collaborators;
-        }
         __collaborators = Array.isArray(json.collaborators) ? json.collaborators : [];
         return __collaborators;
     } catch (e) {
         console.error('Error loading collaborators:', e);
-        // Ne pas afficher d'erreur si c'est juste qu'il n'y a pas de collaborateurs
-        // (cas normal pour un utilisateur seul)
-        if (e.message && !e.message.includes('HTTP') && !e.message.includes('Non authentifié')) {
-            // Erreur réseau ou autre erreur réelle
+        if (e.message && e.message.includes('HTTP')) {
             showToast('Erreur lors du chargement des collaborateurs.', 'error');
         }
         return [];
@@ -41,24 +25,8 @@ async function loadCollaborators() {
 async function loadSharedCompanies() {
     try {
         const res = await fetch('/api/collab/shared-companies');
-        if (!res.ok) {
-            // Ne pas afficher d'erreur si c'est juste qu'il n'y a pas d'entreprises partagées (liste vide = normal)
-            if (res.status === 200) {
-                __sharedCompanies = { sent: [], received: [] };
-                return __sharedCompanies;
-            }
-            throw new Error('HTTP ' + res.status);
-        }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const json = await res.json();
-        if (!json.ok) {
-            // Si l'erreur est juste qu'il n'y a pas de données, ne pas afficher d'erreur
-            if (json.error && json.error.includes('Non authentifié')) {
-                throw new Error(json.error);
-            }
-            // Pour les autres cas, retourner des listes vides sans erreur
-            __sharedCompanies = { sent: [], received: [] };
-            return __sharedCompanies;
-        }
         __sharedCompanies = {
             sent: Array.isArray(json.sent) ? json.sent : [],
             received: Array.isArray(json.received) ? json.received : []
@@ -66,12 +34,6 @@ async function loadSharedCompanies() {
         return __sharedCompanies;
     } catch (e) {
         console.error('Error loading shared companies:', e);
-        // Ne pas afficher d'erreur si c'est juste qu'il n'y a pas d'entreprises partagées
-        // (cas normal pour un utilisateur seul)
-        if (e.message && !e.message.includes('HTTP') && !e.message.includes('Non authentifié')) {
-            // Erreur réseau ou autre erreur réelle
-            showToast('Erreur lors du chargement des entreprises partagées.', 'error');
-        }
         return { sent: [], received: [] };
     }
 }
@@ -80,7 +42,6 @@ function renderCollaborators() {
     const container = document.getElementById('collabContainer');
     if (!container) return;
 
-    // Grouper les entreprises partagées par collaborateur
     const byCollaborator = {};
     for (const share of __sharedCompanies.sent) {
         const userId = share.to_user_id;
@@ -108,11 +69,11 @@ function renderCollaborators() {
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                         <div style="flex: 1;">
                             <div style="font-weight: 600;">${escapeHtml(companyName)}</div>
-                            ${share.site ? `<div class="muted" style="font-size: 12px;">${escapeHtml(share.site)}</div>` : ''}
+                            ${share.site && share.groupe ? `<div class="muted" style="font-size: 12px;">${escapeHtml(share.site)}</div>` : ''}
                             <div class="muted" style="font-size: 11px; margin-top: 4px;">Partagé le ${formatDate(share.shared_at)}</div>
                         </div>
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary btn-sm" onclick="viewSharedCompanyProspects(${share.company_id}, '${escapeHtml(companyName)}')" title="Voir les prospects">👁️ Prospects</button>
+                            <button class="btn btn-secondary btn-sm" onclick="viewSharedCompanyProspects(${share.company_id}, '${escapeHtml(companyName)}', null, null)" title="Voir les prospects">👁️ Prospects</button>
                             <button class="btn btn-danger btn-sm" onclick="unshareCompany(${share.id}, '${escapeHtml(companyName)}')" title="Retirer le partage">🗑️</button>
                         </div>
                     </div>
@@ -148,17 +109,18 @@ function renderReceivedCompanies() {
 
     container.innerHTML = __sharedCompanies.received.map(share => {
         const companyName = share.groupe || share.site || `Entreprise #${share.company_id}`;
+        const sharerName = share.display_name || share.username || 'Inconnu';
         return `
             <div class="card" style="margin-bottom: 8px; padding: 12px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="flex: 1;">
                         <div style="font-weight: 600;">${escapeHtml(companyName)}</div>
-                        ${share.site ? `<div class="muted" style="font-size: 12px;">${escapeHtml(share.site)}</div>` : ''}
+                        ${share.site && share.groupe ? `<div class="muted" style="font-size: 12px;">${escapeHtml(share.site)}</div>` : ''}
                         <div class="muted" style="font-size: 11px; margin-top: 4px;">
-                            Partagé par ${escapeHtml(share.display_name || share.username || 'Inconnu')} le ${formatDate(share.shared_at)}
+                            Partagé par <strong>${escapeHtml(sharerName)}</strong> le ${formatDate(share.shared_at)}
                         </div>
                     </div>
-                    <button class="btn btn-secondary btn-sm" onclick="viewSharedCompanyProspects(${share.company_id}, '${escapeHtml(companyName)}')" title="Voir les prospects">👁️ Prospects</button>
+                    <button class="btn btn-secondary btn-sm" onclick="viewSharedCompanyProspects(${share.company_id}, '${escapeHtml(companyName)}', ${share.from_user_id}, '${escapeHtml(sharerName)}')" title="Voir les prospects">👁️ Prospects</button>
                 </div>
             </div>
         `;
@@ -179,7 +141,6 @@ let __userCompanies = [];
 
 async function loadUserCompanies() {
     try {
-        // Charger les entreprises de l'utilisateur depuis l'API (GET /api/data)
         const res = await fetch('/api/data');
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const json = await res.json();
@@ -187,7 +148,6 @@ async function loadUserCompanies() {
         return __userCompanies;
     } catch (e) {
         console.error('Error loading user companies:', e);
-        // Fallback: utiliser data global si disponible
         if (typeof data !== 'undefined' && data.companies) {
             __userCompanies = data.companies;
             return __userCompanies;
@@ -201,13 +161,13 @@ async function reloadCollab() {
     if (container) {
         container.innerHTML = '<div class="skeleton skeleton-row" style="margin:8px 0"></div><div class="skeleton skeleton-row" style="margin:8px 0"></div>';
     }
-    
+
     await Promise.all([
         loadCollaborators(),
         loadSharedCompanies(),
         loadUserCompanies()
     ]);
-    
+
     renderCollaborators();
     renderReceivedCompanies();
 }
@@ -219,7 +179,7 @@ function openAddCollaboratorModal(preselectedUserId = null) {
     const collaboratorSelect = document.getElementById('collaboratorSelect');
     const companySelect = document.getElementById('companySelect');
     const companySearchInput = document.getElementById('companySearchInput');
-    
+
     if (collaboratorSelect) {
         collaboratorSelect.innerHTML = '<option value="">-- Sélectionner un collaborateur --</option>';
         __collaborators.forEach(c => {
@@ -262,7 +222,7 @@ function _filterCompanyOptions() {
     const sel = document.getElementById('companySelect');
     if (!sel) return;
     for (const opt of sel.options) {
-        if (opt.value === '') continue; // Keep the placeholder
+        if (opt.value === '') continue;
         const text = (opt.textContent || '').toLowerCase();
         opt.style.display = (!q || text.includes(q)) ? '' : 'none';
     }
@@ -299,7 +259,7 @@ async function shareCompany() {
 
 async function unshareCompany(shareId, companyName) {
     if (!confirm(`Retirer le partage de "${companyName}" ?`)) return;
-    
+
     try {
         const res = await fetch('/api/collab/unshare-company', {
             method: 'POST',
@@ -316,12 +276,19 @@ async function unshareCompany(shareId, companyName) {
     }
 }
 
-async function viewSharedCompanyProspects(companyId, companyName) {
+// Prospect data for edit modal
+let __editingProspect = null;
+
+async function viewSharedCompanyProspects(companyId, companyName, fromUserId, sharerName) {
     const modal = document.getElementById('sharedCompanyProspectsModal');
     const titleEl = document.getElementById('sharedCompanyProspectsTitle');
     const listEl = document.getElementById('sharedCompanyProspectsList');
-    
+
     if (!modal || !listEl) return;
+
+    __currentSharedCompanyId = companyId;
+    __currentSharedFromUserId = fromUserId;
+    __currentSharedSharerName = sharerName || '';
 
     if (titleEl) {
         titleEl.textContent = `Prospects — ${companyName}`;
@@ -335,26 +302,33 @@ async function viewSharedCompanyProspects(companyId, companyName) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Erreur');
-        
+
+        // Use sharer name from API response if not passed
+        const displaySharerName = sharerName || json.sharer_name || '';
+        __currentSharedFromUserId = fromUserId || json.from_user_id || null;
+        __currentSharedSharerName = displaySharerName;
+
         const prospects = Array.isArray(json.prospects) ? json.prospects : [];
-        
+
         if (prospects.length === 0) {
             listEl.innerHTML = '<div class="muted">Aucun prospect pour cette entreprise.</div>';
             return;
         }
 
+        const isReceived = !!displaySharerName; // if we have a sharer name, it's a received share
+
         listEl.innerHTML = prospects.map(p => {
             const tags = Array.isArray(p.tags) ? p.tags : [];
             const tagsHtml = tags.length > 0 ? `<div style="margin-top: 4px;">${tags.map(t => `<span class="badge" style="margin-right: 4px;">${escapeHtml(t)}</span>`).join('')}</div>` : '';
-            const emailLink = p.email ? `<a href="mailto:${escapeHtml(p.email)}" class="mini-action" title="Envoyer un email">✉️</a>` : '';
-            const telLink = p.telephone ? `<a href="tel:${escapeHtml(p.telephone)}" class="mini-action" title="Appeler">📞</a>` : '';
-            const linkedinLink = p.linkedin ? `<a href="${escapeHtml(p.linkedin)}" target="_blank" class="mini-action" title="LinkedIn">💼</a>` : '';
+            const sharerBadge = displaySharerName ? `<span class="badge" style="background: rgba(120,80,255,0.25); color: #a78bfa; margin-left: 8px; font-size: 10px;">${escapeHtml(displaySharerName)}</span>` : '';
+            const prospectDataJson = JSON.stringify({statut: p.statut, notes: p.notes, lastContact: p.lastContact, nextFollowUp: p.nextFollowUp, pertinence: p.pertinence, nextAction: p.nextAction});
+            const editBtn = isReceived ? `<button class="btn btn-secondary btn-sm" onclick='openEditSharedProspectModal(${p.id}, ${escapeHtml(prospectDataJson)})' title="Modifier">✏️</button>` : '';
 
             return `
-                <div class="card" style="margin-bottom: 12px; padding: 12px;">
+                <div class="card" style="margin-bottom: 12px; padding: 12px;" id="shared-prospect-${p.id}">
                     <div style="display: flex; align-items: start; justify-content: space-between; gap: 10px;">
                         <div style="flex: 1;">
-                            <div style="font-weight: 600;">${escapeHtml(p.name || '')}</div>
+                            <div style="font-weight: 600;">${escapeHtml(p.name || '')}${sharerBadge}</div>
                             ${p.fonction ? `<div class="muted" style="font-size: 12px;">${escapeHtml(p.fonction)}</div>` : ''}
                             ${p.email ? `<div class="muted" style="font-size: 11px; margin-top: 4px;">✉️ ${escapeHtml(p.email)}</div>` : ''}
                             ${p.telephone ? `<div class="muted" style="font-size: 11px;">📞 ${escapeHtml(p.telephone)}</div>` : ''}
@@ -362,10 +336,11 @@ async function viewSharedCompanyProspects(companyId, companyName) {
                             ${tagsHtml}
                             ${p.notes ? `<div class="muted" style="font-size: 11px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">${escapeHtml(p.notes)}</div>` : ''}
                         </div>
-                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                            ${emailLink}
-                            ${telLink}
-                            ${linkedinLink}
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap; align-items: flex-start;">
+                            ${p.email ? `<a href="mailto:${escapeHtml(p.email)}" class="mini-action" title="Envoyer un email">✉️</a>` : ''}
+                            ${p.telephone ? `<a href="tel:${escapeHtml(p.telephone)}" class="mini-action" title="Appeler">📞</a>` : ''}
+                            ${p.linkedin ? `<a href="${escapeHtml(p.linkedin)}" target="_blank" class="mini-action" title="LinkedIn">💼</a>` : ''}
+                            ${editBtn}
                         </div>
                     </div>
                 </div>
@@ -380,6 +355,70 @@ async function viewSharedCompanyProspects(companyId, companyName) {
 function closeSharedCompanyProspectsModal() {
     const modal = document.getElementById('sharedCompanyProspectsModal');
     if (modal) modal.style.display = 'none';
+}
+
+function openEditSharedProspectModal(prospectId, prospectData) {
+    __editingProspect = { id: prospectId, ...prospectData };
+
+    const modal = document.getElementById('editSharedProspectModal');
+    if (!modal) return;
+
+    const statuts = ['', 'À contacter', 'Contacté', 'Intéressé', 'Rendez-vous', 'Proposition', 'Client', 'Non pertinent'];
+    const statutSel = document.getElementById('editSharedStatut');
+    if (statutSel) {
+        statutSel.innerHTML = statuts.map(s => `<option value="${s}" ${prospectData.statut === s ? 'selected' : ''}>${s || '— Statut —'}</option>`).join('');
+    }
+
+    const notesEl = document.getElementById('editSharedNotes');
+    if (notesEl) notesEl.value = prospectData.notes || '';
+
+    const lastContactEl = document.getElementById('editSharedLastContact');
+    if (lastContactEl) lastContactEl.value = prospectData.lastContact || '';
+
+    const nextFollowUpEl = document.getElementById('editSharedNextFollowUp');
+    if (nextFollowUpEl) nextFollowUpEl.value = prospectData.nextFollowUp || '';
+
+    const nextActionEl = document.getElementById('editSharedNextAction');
+    if (nextActionEl) nextActionEl.value = prospectData.nextAction || '';
+
+    modal.style.display = 'flex';
+}
+
+function closeEditSharedProspectModal() {
+    const modal = document.getElementById('editSharedProspectModal');
+    if (modal) modal.style.display = 'none';
+    __editingProspect = null;
+}
+
+async function saveSharedProspect() {
+    if (!__editingProspect || !__currentSharedCompanyId) return;
+
+    const updates = {
+        statut: document.getElementById('editSharedStatut')?.value || '',
+        notes: document.getElementById('editSharedNotes')?.value || '',
+        lastContact: document.getElementById('editSharedLastContact')?.value || '',
+        nextFollowUp: document.getElementById('editSharedNextFollowUp')?.value || '',
+        nextAction: document.getElementById('editSharedNextAction')?.value || ''
+    };
+
+    try {
+        const res = await fetch(`/api/collab/shared-company/${__currentSharedCompanyId}/prospect/${__editingProspect.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Erreur');
+        showToast('Prospect mis à jour.', 'success');
+        closeEditSharedProspectModal();
+        // Refresh the prospects list
+        const titleEl = document.getElementById('sharedCompanyProspectsTitle');
+        const companyName = titleEl ? titleEl.textContent.replace('Prospects — ', '') : '';
+        await viewSharedCompanyProspects(__currentSharedCompanyId, companyName, __currentSharedFromUserId, __currentSharedSharerName);
+    } catch (e) {
+        console.error(e);
+        showToast('Erreur lors de la mise à jour: ' + (e.message || 'Erreur inconnue'), 'error');
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -400,6 +439,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     document.getElementById('sharedCompanyProspectsModal')?.addEventListener('click', (e) => {
         if (e.target.id === 'sharedCompanyProspectsModal') closeSharedCompanyProspectsModal();
+    });
+    document.getElementById('editSharedProspectModal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'editSharedProspectModal') closeEditSharedProspectModal();
     });
 
     try {
