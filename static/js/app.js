@@ -14747,3 +14747,135 @@ document.addEventListener('keydown', function(e) {
     window.showUndoToast = showUndoToast;
 })();
 
+// ═══════════════════════════════════════════════════════════════════
+// Post-update validation banner — rollback automatique si non confirmé
+// ═══════════════════════════════════════════════════════════════════
+(function () {
+    'use strict';
+
+    var _pollInterval = null;
+    var _countdownInterval = null;
+    var _bannerShown = false;
+    var POLL_MS = 5000;
+
+    function _injectStyles() {
+        if (document.getElementById('vb-styles')) return;
+        var s = document.createElement('style');
+        s.id = 'vb-styles';
+        s.textContent = [
+            '#vb-banner{position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(135deg,#0d2b1a 0%,#071a0f 100%);border-bottom:2px solid #22c55e;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:14px;box-shadow:0 4px 24px rgba(0,0,0,.5);animation:vb-slide .4s ease-out}',
+            '@keyframes vb-slide{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}',
+            '#vb-banner .vb-row{display:flex;align-items:center;gap:12px;padding:12px 20px;flex-wrap:wrap}',
+            '#vb-banner .vb-text{flex:1;min-width:180px}',
+            '#vb-banner .vb-title{font-weight:600;color:#86efac;margin-bottom:2px}',
+            '#vb-banner .vb-sub{color:#94a3b8;font-size:12px}',
+            '#vb-banner .vb-cd{font-size:26px;font-weight:700;color:#fbbf24;font-variant-numeric:tabular-nums;min-width:58px;text-align:center;flex-shrink:0}',
+            '#vb-banner .vb-cd.urgent{color:#f87171;animation:vb-pulse 1s infinite}',
+            '@keyframes vb-pulse{0%,100%{opacity:1}50%{opacity:.45}}',
+            '#vb-banner .vb-ok{background:#22c55e;color:#fff;border:none;border-radius:8px;padding:10px 22px;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s,transform .1s;flex-shrink:0;white-space:nowrap}',
+            '#vb-banner .vb-ok:hover{background:#16a34a;transform:translateY(-1px)}',
+            '#vb-banner .vb-ok:active{transform:translateY(0)}',
+            '#vb-banner .vb-log{background:transparent;color:#94a3b8;border:1px solid #475569;border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer;transition:color .2s,border-color .2s;flex-shrink:0}',
+            '#vb-banner .vb-log:hover{color:#e2e8f0;border-color:#94a3b8}',
+            '#vb-banner .vb-err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:12px 16px;margin:0 20px 12px;font-size:12px;display:none}',
+            '#vb-banner .vb-err pre{color:#fca5a5;font-size:11px;margin:8px 0 0;white-space:pre-wrap;word-break:break-all;max-height:160px;overflow-y:auto}',
+            '#vb-banner.rollback{background:linear-gradient(135deg,#2d0a0a 0%,#180505 100%);border-bottom-color:#ef4444}'
+        ].join('');
+        document.head.appendChild(s);
+    }
+
+    function _fmt(sec) {
+        var m = Math.floor(sec / 60), s = sec % 60;
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function _createBanner(data) {
+        _injectStyles();
+        document.body.style.paddingTop = '64px';
+
+        var hasErr = data.last_error ? true : false;
+        var el = document.createElement('div');
+        el.id = 'vb-banner';
+        el.innerHTML =
+            '<div class="vb-row">' +
+            '<span style="font-size:20px;flex-shrink:0">🔄</span>' +
+            '<div class="vb-text">' +
+            '<div class="vb-title">Mise à jour appliquée — confirmation requise</div>' +
+            '<div class="vb-sub">Rollback automatique si non confirmée dans le délai imparti</div>' +
+            '</div>' +
+            '<div class="vb-cd" id="vb-cd">' + _fmt(data.remaining_seconds) + '</div>' +
+            '<button class="vb-ok" id="vb-ok">✓ L\'app fonctionne</button>' +
+            (hasErr ? '<button class="vb-log" id="vb-log">⚠ Erreur précédente</button>' : '') +
+            '</div>' +
+            (hasErr ? '<div class="vb-err" id="vb-err"><strong style="color:#f87171">Dernière erreur de validation :</strong><pre>' + JSON.stringify(data.last_error, null, 2).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre></div>' : '');
+
+        document.body.insertBefore(el, document.body.firstChild);
+
+        // Countdown
+        var rem = data.remaining_seconds;
+        var cdEl = document.getElementById('vb-cd');
+        _countdownInterval = setInterval(function () {
+            rem--;
+            if (rem <= 0) {
+                clearInterval(_countdownInterval);
+                _countdownInterval = null;
+                cdEl.textContent = '0:00';
+                cdEl.classList.add('urgent');
+                el.classList.add('rollback');
+                el.querySelector('.vb-title').textContent = '⚠ Rollback automatique en cours…';
+                return;
+            }
+            cdEl.textContent = _fmt(rem);
+            if (rem <= 30) cdEl.classList.add('urgent');
+        }, 1000);
+
+        // Confirm button
+        document.getElementById('vb-ok').addEventListener('click', function () {
+            fetch('/api/deploy/confirm-validation', { method: 'POST' })
+                .then(function () { _removeBanner(); if (window.showToast) window.showToast('✅ Mise à jour confirmée !', 'success', 4000); })
+                .catch(function () { if (window.showToast) window.showToast('Erreur de confirmation', 'error'); });
+        });
+
+        // Error log toggle
+        var logBtn = document.getElementById('vb-log');
+        if (logBtn) {
+            logBtn.addEventListener('click', function () {
+                var panel = document.getElementById('vb-err');
+                if (!panel) return;
+                var open = panel.style.display !== 'none' && panel.style.display !== '';
+                panel.style.display = open ? 'none' : 'block';
+                document.body.style.paddingTop = (!open) ? '180px' : '64px';
+            });
+        }
+    }
+
+    function _removeBanner() {
+        var el = document.getElementById('vb-banner');
+        if (el) { el.remove(); document.body.style.paddingTop = ''; }
+        if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
+        if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
+        _bannerShown = false;
+    }
+
+    function _check() {
+        if (window.location.pathname === '/login') return;
+        fetch('/api/deploy/validation-status', { cache: 'no-store' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data) return;
+                if (data.pending && !_bannerShown) {
+                    _bannerShown = true;
+                    _createBanner(data);
+                } else if (!data.pending && _bannerShown) {
+                    _removeBanner();
+                }
+            })
+            .catch(function () { /* silencieux — app peut redémarrer */ });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        _check();
+        _pollInterval = setInterval(_check, POLL_MS);
+    });
+}());
+

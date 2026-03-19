@@ -10660,6 +10660,115 @@ def api_metiers_integrations_cache():
     return jsonify(ok=True, integrations=cache)
 
 
+# ═══════════════════════════════════════════════════════════════════
+# Post-update validation — rollback automatique si non confirmé en 3 min
+# ═══════════════════════════════════════════════════════════════════
+_VALIDATION_TIMER: threading.Timer | None = None
+_VALIDATION_LOCK = threading.Lock()
+_VALIDATION_TIMEOUT_SECONDS = 180  # 3 minutes
+
+
+def _write_pending_validation(previous_commit_full: str) -> None:
+    """Écrit .pending_validation avant le restart post-pull."""
+    data = {
+        "triggered_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "previous_commit": previous_commit_full,
+        "timeout_seconds": _VALIDATION_TIMEOUT_SECONDS,
+    }
+    try:
+        (APP_DIR / ".pending_validation").write_text(
+            json.dumps(data, ensure_ascii=False), encoding="utf-8"
+        )
+        logger.info("Pending validation écrit (rollback vers %s si non confirmé dans %ds)",
+                    previous_commit_full[:7], _VALIDATION_TIMEOUT_SECONDS)
+    except Exception as e:
+        logger.warning("Impossible d'écrire .pending_validation: %s", e)
+
+
+def _auto_rollback_on_timeout() -> None:
+    """Déclenché après 3 min sans confirmation — rollback automatique vers le commit précédent."""
+    pv_file = APP_DIR / ".pending_validation"
+    if not pv_file.exists():
+        return  # Déjà confirmé ou annulé
+
+    logger.warning("Validation timeout — rollback automatique déclenché")
+
+    previous_commit = ""
+    triggered_at = ""
+    try:
+        pv_data = json.loads(pv_file.read_text(encoding="utf-8"))
+        previous_commit = pv_data.get("previous_commit", "")
+        triggered_at = pv_data.get("triggered_at", "")
+    except Exception:
+        pass
+
+    # Journal d'erreur détaillé
+    error_log: dict = {
+        "reason": "timeout",
+        "message": "Aucune confirmation reçue dans les 3 minutes — rollback automatique",
+        "triggered_at": triggered_at,
+        "rollback_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "previous_commit": previous_commit[:7] if previous_commit else "unknown",
+        "git_log": "",
+    }
+    try:
+        cp_log = subprocess.run(
+            ["git", "log", "--oneline", "-10"],
+            cwd=str(APP_DIR), capture_output=True, text=True, timeout=5,
+        )
+        error_log["git_log"] = cp_log.stdout.strip()
+    except Exception:
+        pass
+
+    try:
+        (APP_DIR / ".validation_error_log").write_text(
+            json.dumps(error_log, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error("Impossible d'écrire .validation_error_log: %s", e)
+
+    try:
+        pv_file.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    # Rollback git vers le commit précédent
+    if previous_commit:
+        try:
+            result = subprocess.run(
+                ["git", "reset", "--hard", previous_commit],
+                cwd=str(APP_DIR), capture_output=True, text=True, timeout=30,
+            )
+            logger.info("Rollback auto: git reset --hard %s → returncode=%d",
+                        previous_commit[:7], result.returncode)
+        except Exception as e:
+            logger.error("Rollback auto git échoué: %s", e)
+
+    _schedule_restart(delay=3.0)
+
+
+def _start_validation_timer() -> None:
+    """Lance le timer de validation (3 min avant rollback automatique)."""
+    global _VALIDATION_TIMER
+    with _VALIDATION_LOCK:
+        if _VALIDATION_TIMER is not None:
+            _VALIDATION_TIMER.cancel()
+        _VALIDATION_TIMER = threading.Timer(_VALIDATION_TIMEOUT_SECONDS, _auto_rollback_on_timeout)
+        _VALIDATION_TIMER.daemon = True
+        _VALIDATION_TIMER.start()
+    logger.info("Timer de validation démarré (%ds)", _VALIDATION_TIMEOUT_SECONDS)
+
+
+def _cancel_validation_timer() -> None:
+    """Annule le timer de validation (appelé quand l'utilisateur confirme)."""
+    global _VALIDATION_TIMER
+    with _VALIDATION_LOCK:
+        if _VALIDATION_TIMER is not None:
+            _VALIDATION_TIMER.cancel()
+            _VALIDATION_TIMER = None
+    logger.info("Timer de validation annulé (confirmation reçue)")
+
+
 def _schedule_restart(delay: float = 10.0):
     """Restart after responding.
 
@@ -10961,8 +11070,10 @@ def api_deploy_pull():
                     logger.warning("Deploy pull: pip install erreur: %s", e_pip)
 
             logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
+            _write_pending_validation(local_hash_full)
+            _start_validation_timer()
             _schedule_restart(delay=10.0)
-            yield f"data: {json.dumps({'step': 'done', 'updated': True, 'restarting': True, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Mise à jour appliquée, redémarrage dans 10 s', 'restart_delay_s': 10}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'step': 'done', 'updated': True, 'restarting': True, 'local_hash': local_hash, 'remote_hash': remote_hash, 'message': 'Mise à jour appliquée, redémarrage dans 10 s', 'restart_delay_s': 10, 'validation_required': True, 'validation_timeout_s': _VALIDATION_TIMEOUT_SECONDS}, ensure_ascii=False)}\n\n"
         except subprocess.TimeoutExpired:
             yield f"data: {json.dumps({'step': 'error', 'error': 'Timeout lors du pull'}, ensure_ascii=False)}\n\n"
         except Exception as e:
@@ -11017,6 +11128,56 @@ def api_deploy_health():
         return jsonify(ok=True, current_hash=current_hash, can_rollback=can_rollback, rollback_hash=rollback_hash)
     except Exception as e:
         return jsonify(ok=False, error=str(e)), 500
+
+
+@app.get("/api/deploy/validation-status")
+def api_deploy_validation_status():
+    """Statut de validation post-mise à jour (sans auth — accessible juste après un restart)."""
+    pv_file = APP_DIR / ".pending_validation"
+    error_log_file = APP_DIR / ".validation_error_log"
+
+    result: dict = {"pending": False}
+
+    if pv_file.exists():
+        try:
+            pv_data = json.loads(pv_file.read_text(encoding="utf-8"))
+            triggered_at = datetime.datetime.fromisoformat(pv_data["triggered_at"])
+            timeout_s = int(pv_data.get("timeout_seconds", _VALIDATION_TIMEOUT_SECONDS))
+            elapsed = (datetime.datetime.now() - triggered_at).total_seconds()
+            remaining = max(0, timeout_s - int(elapsed))
+            result = {
+                "pending": True,
+                "triggered_at": pv_data["triggered_at"],
+                "timeout_seconds": timeout_s,
+                "remaining_seconds": remaining,
+                "previous_commit": (pv_data.get("previous_commit") or "")[:7],
+            }
+        except Exception as e:
+            result = {"pending": False, "error": str(e)}
+
+    if error_log_file.exists():
+        try:
+            result["last_error"] = json.loads(error_log_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    return jsonify(result)
+
+
+@app.post("/api/deploy/confirm-validation")
+def api_deploy_confirm_validation():
+    """Confirme que l'app fonctionne correctement après une mise à jour (sans auth requis)."""
+    _cancel_validation_timer()
+    try:
+        (APP_DIR / ".pending_validation").unlink(missing_ok=True)
+    except Exception:
+        pass
+    try:
+        (APP_DIR / ".validation_error_log").unlink(missing_ok=True)
+    except Exception:
+        pass
+    logger.info("Mise à jour post-pull validée par l'utilisateur")
+    return jsonify(ok=True, message="Mise à jour validée ✓")
 
 
 @app.route("/api/system/check-deployment", methods=["GET"])
@@ -14827,6 +14988,12 @@ if __name__ == "__main__":
     _migrate_users_schema()
     _migrate_all_user_dbs()
     load_initial_data_if_needed()
+
+    # Vérifier si une validation post-update est en attente (app redémarrée après un pull)
+    if (APP_DIR / ".pending_validation").exists():
+        _start_validation_timer()
+        logger.info("Validation post-mise à jour en attente — rollback automatique dans %ds si non confirmée",
+                    _VALIDATION_TIMEOUT_SECONDS)
 
     # Production mode with waitress (HTTPS via Cloudflare Tunnel)
     use_waitress = '--production' in sys.argv or '--prod' in sys.argv
