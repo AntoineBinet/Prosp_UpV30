@@ -938,7 +938,7 @@
     // ────────────── v23.5: SWIPE-TO-ACTION (mobile) ──────────────
 
     function _initSwipeActions() {
-        if (!window.matchMedia('(max-width: 768px)').matches) return;
+        if (!window.matchMedia('(max-width: 900px)').matches) return;
         var swipeStartX = 0, swipeStartY = 0, swipeRow = null, swipeOverlay = null;
         var THRESHOLD = 70;
 
@@ -1164,11 +1164,11 @@
         // _initBreadcrumbs();
     });
 
-    // ── FAB Speed Dial Desktop (≥ 769px) ──────────────────────────
-    // mobile.js retourne immédiatement sur desktop (guard innerWidth ≤ 768).
+    // ── FAB Speed Dial Desktop (≥ 901px) ──────────────────────────
+    // mobile.js retourne immédiatement sur desktop (guard innerWidth ≤ 900).
     // On réplique ici la même logique pour activer le FAB sur grand écran.
     document.addEventListener('DOMContentLoaded', function () {
-        if (window.innerWidth <= 768) return;
+        if (window.innerWidth <= 900) return;
 
         var fabMain  = document.getElementById('fab-main-btn');
         var fabOpts  = document.getElementById('fab-options');

@@ -873,7 +873,7 @@ input[type="file"]::file-selector-button:hover{
 }
 
 /* Mobile: fallback visuel (évite le gris terne du glassmorphism) */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .display-prefs-scroll {
     background: rgba(15, 23, 35, 0.86);
     border-color: rgba(var(--color-primary-rgb), 0.28);
@@ -1981,7 +1981,7 @@ body[data-page="companies"] .btn-action:disabled {
 }
 
 /* Responsive - ajustements pour petits écrans */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     body[data-page="companies"] .table-wrapper thead th,
     body[data-page="companies"] .table-wrapper tbody td {
         padding: 10px 12px !important;
@@ -2843,7 +2843,7 @@ form.has-invalid-fields input[type="submit"] {
     color: var(--color-text);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     .main-layout {
         grid-template-columns: 1fr;
     }
@@ -6601,7 +6601,7 @@ body[data-page="candidate"] #fabAdd {
 .user-menu-drag-handle {
   display: none;
 }
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .user-menu-drag-handle {
     display: block;
     width: 36px; height: 4px;
@@ -6799,7 +6799,7 @@ body[data-page="candidate"] #fabAdd {
 }
 
 /* ── Popup utilisateur en bottom-sheet sur mobile ─────────────── */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .user-menu-popup {
     top: auto !important;
     bottom: 0 !important;
@@ -6837,7 +6837,7 @@ body[data-page="candidate"] #fabAdd {
 .user-menu-backdrop {
   display: none;
 }
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .user-menu-backdrop {
     display: block;
     position: fixed; inset: 0;
@@ -6955,11 +6955,11 @@ body[data-page="candidate"] #fabAdd {
   }
 }
 
-/* ── BUG 2 FIX — Assistant virtuel panneau latéral desktop (≥ 769px) ─────
+/* ── BUG 2 FIX — Assistant virtuel panneau latéral desktop (≥ 901px) ─────
    Remplace la bulle flottante par un panneau qui glisse depuis la droite.
    Évite le débordement et la coupure du bas sur grand écran.
    ─────────────────────────────────────────────────────────────────────── */
-@media (min-width: 769px) {
+@media (min-width: 901px) {
   .assistant-chat-window {
     top: 60px;                              /* sous le header */
     right: 0;
@@ -7126,7 +7126,7 @@ body[data-page="candidate"] #fabAdd {
     grid-template-columns: repeat(3, 1fr);
   }
 }
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .dash-widgets-container {
     grid-template-columns: 1fr;
   }
@@ -9660,7 +9660,7 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
   cursor: pointer;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .floating-search-btn,
   .header-search-btn,
   .header-center .floating-search-btn {
@@ -9686,7 +9686,7 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
 .mobile-quick-actions-bar { display: none; }
 
 /* Show + fix position on mobile */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .mobile-quick-actions-bar {
     display: flex !important;
     position: fixed !important;
@@ -9732,7 +9732,7 @@ body:not([data-page="prospects"]) .mobile-qa-pile {
 /* ══════════════════════════════════════════════════════════════════
    HERO FICHE PROSPECT — compact sur mobile (v27.9)
    ══════════════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   /* Supprimer la poignée du bottom-sheet dans #modalDetail (handle déjà intégré) */
   #modalDetail .modal-content::before { display: none !important; }
 
@@ -10020,7 +10020,7 @@ body:not([data-page="prospects"]) .mobile-qa-pile {
 }
 
 /* ── Mobile bottom nav improvements ── */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .mobile-bottom-nav {
     display: flex !important;
     position: fixed;
@@ -10113,7 +10113,7 @@ body:not([data-page="prospects"]) .mobile-qa-pile {
     font-size: 9px;
   }
 }
-@media (min-width: 769px) {
+@media (min-width: 901px) {
   .mobile-bottom-nav {
     display: none !important;
   }
@@ -12528,7 +12528,7 @@ body[data-page=""] .content {
    Les modales glissent depuis le bas (plus naturel sur tactile).
    On exclut les modales qui ont déjà leur propre positionnement.
    ══════════════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .modal:not(.modal-no-sheet) {
     align-items: flex-end !important;
   }
@@ -12848,13 +12848,13 @@ body.stack-mode-active .stack-view { display: flex !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════
-   BUG 1 FIX — FAB Speed Dial Desktop (≥ 769px)
+   BUG 1 FIX — FAB Speed Dial Desktop (≥ 901px)
    Affiche le même FAB animé que sur mobile, adapté au desktop.
    Technique : ID selector (#fab-speed-dial, spécificité 1-0-0) >
    class selector (.fab-speed-dial, spécificité 0-1-0) → surcharge
    le "display: none !important" de mobile.css sans modifier ce fichier.
    ══════════════════════════════════════════════════════════════ */
-@media (min-width: 769px) {
+@media (min-width: 901px) {
   /* Afficher le conteneur — ID > class, surcharge mobile.css */
   #fab-speed-dial {
     display: flex !important;

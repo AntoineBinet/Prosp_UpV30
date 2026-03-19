@@ -1,14 +1,14 @@
 /* ═══════════════════════════════════════════════════════════════
    ProspUp — Mobile CSS Layer (iPhone iOS 17+)
-   Chargé APRÈS style.css — uniquement des @media (max-width: 768px)
-   NE JAMAIS modifier le comportement desktop (> 768px)
+   Chargé APRÈS style.css — uniquement des @media (max-width: 900px)
+   NE JAMAIS modifier le comportement desktop (> 900px)
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Masquer les éléments mobile sur desktop (> 768px) ─────────
+/* ── Masquer les éléments mobile sur desktop (> 900px) ─────────
    Garantit que le footer flottant et le FAB n'apparaissent PAS
    sur desktop, peu importe le CSS du navigateur.
    ─────────────────────────────────────────────────────────────── */
-@media (min-width: 769px) {
+@media (min-width: 901px) {
   .mobile-footer-float,
   .fab-speed-dial,
   .fab-backdrop {
@@ -22,7 +22,7 @@
    toolbar-row s'étendre sans limite → l'overflow interne ne se
    déclenche jamais. Fix : contraindre le parent + forcer scroll.
    ─────────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   /* Empêche le content-header d'élargir la page */
   .content-header {
     overflow: hidden;
@@ -70,7 +70,7 @@
    Masquer footer inline sur mobile (le footer flottant le remplace).
    Ajouter padding-bottom pour ne pas passer sous la nav mobile.
    ─────────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   footer:not(.mobile-footer-float),
   .footer:not(.mobile-footer-float),
   #footer:not(.mobile-footer-float) {
@@ -87,9 +87,9 @@
 }
 
 /* ── Footer mobile flottant glassmorphism ────────────────────────
-   Remplace le .mobile-bottom-nav existant sur 768px uniquement.
+   Remplace le .mobile-bottom-nav existant sur 900px uniquement.
    ─────────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   /* Masquer la bottom nav générée par sidebar.js — le footer flottant la remplace */
   .mobile-bottom-nav {
     display: none !important;
@@ -190,7 +190,7 @@
 /* ── FAB Speed Dial ─────────────────────────────────────────────
    Bouton circulaire flottant bas-droite, s'ouvre en cascade.
    ─────────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .fab-speed-dial {
     position: fixed;
     bottom: calc(100px + env(safe-area-inset-bottom, 0px));
@@ -341,7 +341,7 @@
 }
 
 /* ── Améliorations UX cartes prospects ───────────────────────── */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   /* Cartes plus spacieuses */
   .prospect-card-mobile,
   .card {
@@ -393,17 +393,17 @@
 }
 
 /* ── Masquer le FAB assistant virtuel sur mobile (remplacé par Speed Dial) ── */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   #dashAssistantFab {
     display: none !important;
   }
 }
 
 /* ── Transitions slide horizontal — style iOS natif ─────────────
-   Uniquement sur mobile (≤ 768px). Anime .container au changement
+   Uniquement sur mobile (≤ 900px). Anime .container au changement
    de page pour simuler le slide natif iPhone.
    ─────────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   /* Évite le débordement horizontal pendant l'animation */
   body {
     overflow-x: hidden;

@@ -1,13 +1,13 @@
 /* ═══════════════════════════════════════════════════════════════
    ProspUp — Mobile JS Layer (iPhone iOS 17+)
-   Chargé en dernier, s'exécute uniquement sur mobile (≤ 768px).
+   Chargé en dernier, s'exécute uniquement sur mobile (≤ 900px).
    ═══════════════════════════════════════════════════════════════ */
 
 (function () {
   'use strict';
 
   // Sécurité : ne rien faire sur desktop
-  if (window.innerWidth > 768) return;
+  if (window.innerWidth > 900) return;
 
   // ── Active state footer flottant ───────────────────────────────
   // Lit data-page du body pour activer le bon item du footer mobile
