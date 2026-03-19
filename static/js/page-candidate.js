@@ -885,20 +885,20 @@ async function unarchiveCandidate() {
 async function loadCandidate() {
   const id = getCandidateId();
   if (!id) {
-    alert('❌ ID candidat manquant. Ouvrez cette page avec ?id=123');
+    showToast('ID candidat manquant. Ouvrez cette page avec ?id=123', 'error');
     return;
   }
 
   const res = await fetch(`/api/candidates/${id}`);
   if (!res.ok) {
     const txt = await res.text().catch(()=> '');
-    alert('❌ Impossible de charger le candidat: ' + (txt || ('HTTP ' + res.status)));
+    showToast('Impossible de charger le candidat: ' + (txt || ('HTTP ' + res.status)), 'error');
     return;
   }
 
   const j = await res.json();
   if (!j?.ok) {
-    alert('❌ Impossible de charger le candidat.');
+    showToast('Impossible de charger le candidat.', 'error');
     return;
   }
 
@@ -960,12 +960,11 @@ async function saveCandidate(e) {
 
   if (!res.ok) {
     const txt = await res.text().catch(()=> '');
-    alert('❌ Enregistrement impossible: ' + (txt || ('HTTP ' + res.status)));
+    showToast('Enregistrement impossible: ' + (txt || ('HTTP ' + res.status)), 'error');
     return;
   }
 
-  if (typeof showToast === 'function') showToast('✅ Candidat enregistré', 'success');
-  else alert('✅ Candidat enregistré.');
+  showToast('Candidat enregistré', 'success');
   await loadCandidate();
 }
 
@@ -1022,7 +1021,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ═══ Scrapping IA button (Ollama en 1 clic) ═══
     window.handleCandidateIAButton = function() {
-        if (!__cand) { alert('Aucun candidat chargé'); return; }
+        if (!__cand) { showToast('Aucun candidat chargé', 'warning'); return; }
         const byId = new Map((__companies || []).map(c => [Number(c.id), c]));
         const companyNames = (Array.isArray(__cand.company_ids) ? __cand.company_ids : [])
             .map(id => byId.get(Number(id)))
@@ -1084,7 +1083,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   } catch (e) {
     console.error(e);
-    alert('❌ Erreur au chargement. Vérifiez que le serveur Python est lancé (app.py).');
+    showToast('Erreur au chargement. Vérifiez que le serveur Python est lancé (app.py).', 'error');
   }
 });
 

@@ -161,22 +161,14 @@ async function deletePushLog(id) {
             } catch (e) {
                 errorMsg = res.statusText || errorMsg;
             }
-            if (window.showToast) {
-                showToast(`❌ Impossible de supprimer: ${errorMsg}`, 'error');
-            } else {
-                alert(`❌ Impossible de supprimer: ${errorMsg}`);
-            }
+            showToast(`Impossible de supprimer: ${errorMsg}`, 'error');
             return; // Retourner early si échec, ne pas appeler reloadPushLogs()
         }
         // Recharger seulement si la suppression a réussi
         await reloadPushLogs();
     } catch (err) {
         console.error('Erreur suppression push log:', err);
-        if (window.showToast) {
-            showToast(`❌ Erreur lors de la suppression: ${err.message}`, 'error');
-        } else {
-            alert(`❌ Erreur lors de la suppression: ${err.message}`);
-        }
+        showToast(`Erreur lors de la suppression: ${err.message}`, 'error');
     }
 }
 
@@ -226,6 +218,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         await reloadPushLogs();
     } catch (err) {
         console.error(err);
-        alert("❌ Impossible de charger l'historique des push. Vérifiez que le serveur Python est lancé (app.py).");
+        showToast("Impossible de charger l'historique des push. Vérifiez que le serveur Python est lancé (app.py).", 'error');
     }
 });

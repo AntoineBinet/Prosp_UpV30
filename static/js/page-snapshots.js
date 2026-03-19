@@ -55,18 +55,10 @@ async function createSnapshot() {
     });
     if (!res.ok) {
         const t = await res.text().catch(()=> '');
-        if (typeof showToast === 'function') {
-            showToast('❌ Création impossible: ' + (t || ('HTTP ' + res.status)), 'error');
-        } else {
-            alert('❌ Création impossible: ' + (t || ('HTTP ' + res.status)));
-        }
+        showToast('Création impossible: ' + (t || ('HTTP ' + res.status)), 'error');
         return;
     }
-    if (typeof showToast === 'function') {
-        showToast('✅ Snapshot créé', 'success');
-    } else {
-        alert('✅ Snapshot créé.');
-    }
+    showToast('Snapshot créé.', 'success');
     document.getElementById('snapshotLabel').value = '';
     await listSnapshots();
 }
@@ -82,18 +74,10 @@ async function restoreSnapshot(filename) {
     });
     if (!res.ok) {
         const t = await res.text().catch(()=> '');
-        if (typeof showToast === 'function') {
-            showToast('❌ Restauration impossible: ' + (t || ('HTTP ' + res.status)), 'error');
-        } else {
-            alert('❌ Restauration impossible: ' + (t || ('HTTP ' + res.status)));
-        }
+        showToast('Restauration impossible: ' + (t || ('HTTP ' + res.status)), 'error');
         return;
     }
-    if (typeof showToast === 'function') {
-        showToast('✅ Snapshot restauré. Rechargement…', 'success', 3000);
-    } else {
-        alert('✅ Snapshot restauré. Rechargement…');
-    }
+    showToast('Snapshot restauré. Rechargement…', 'success', 3000);
     window.location.href = '/';
 }
 
@@ -108,11 +92,7 @@ async function deleteSnapshot(filename) {
     });
     if (!res.ok) {
         const t = await res.text().catch(()=> '');
-        if (typeof showToast === 'function') {
-            showToast('❌ Suppression impossible: ' + (t || ('HTTP ' + res.status)), 'error');
-        } else {
-            alert('❌ Suppression impossible: ' + (t || ('HTTP ' + res.status)));
-        }
+        showToast('Suppression impossible: ' + (t || ('HTTP ' + res.status)), 'error');
         return;
     }
     if (typeof showToast === 'function') {
@@ -134,10 +114,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         await listSnapshots();
     } catch(err) {
         console.error(err);
-        if (typeof showToast === 'function') {
-            showToast("❌ Impossible de charger les snapshots. Vérifiez que le serveur Python est lancé (app.py).", 'error');
-        } else {
-            alert("❌ Impossible de charger les snapshots. Vérifiez que le serveur Python est lancé (app.py).");
-        }
+        showToast("Impossible de charger les snapshots. Vérifiez que le serveur Python est lancé (app.py).", 'error');
     }
 });

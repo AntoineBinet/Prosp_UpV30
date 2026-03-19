@@ -162,15 +162,10 @@ async function viewUserData(userId) {
     if (data.ok) {
       const u = data.user;
       const s = data.stats;
-      alert(
-        '📊 Données de ' + (u.display_name || u.username) + '\n\n' +
-        '• Prospects: ' + s.prospects + '\n' +
-        '• Candidats: ' + s.candidates + '\n\n' +
-        '(Consultation uniquement — vous voyez les données de cet utilisateur, sans pouvoir les modifier ici.)'
-      );
+      showToast('📊 ' + (u.display_name || u.username) + ' — Prospects: ' + s.prospects + ', Candidats: ' + s.candidates, 'info', 5000);
     }
   } catch(e) {
-    alert('Erreur lors du chargement des données');
+    showToast('Erreur lors du chargement des données', 'error');
   }
 }
 
@@ -417,7 +412,7 @@ async function saveUser() {
       return;
     }
   } else if (!usernameField.value.trim()) {
-    alert('⚠️ Identifiant requis');
+    showToast('Identifiant requis', 'warning');
     usernameField.focus();
     return;
   }
@@ -433,7 +428,7 @@ async function saveUser() {
         return;
       }
     } else if (!password) {
-      alert('⚠️ Mot de passe requis');
+      showToast('Mot de passe requis', 'warning');
       passwordField.focus();
       return;
     }
@@ -448,8 +443,7 @@ async function saveUser() {
       document.getElementById('uPassword').closest('.input-with-toggle').classList.add('pw-mismatch');
       document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.add('pw-mismatch');
       document.getElementById('pwMismatchMsg').style.display = 'block';
-      if (typeof showToast === 'function') showToast('Les deux mots de passe ne correspondent pas.', 'error');
-      else alert('⚠️ Les deux mots de passe ne correspondent pas.');
+      showToast('Les deux mots de passe ne correspondent pas.', 'error');
       passwordConfirmField.focus();
       return;
     }
@@ -466,28 +460,20 @@ async function saveUser() {
 
   const r = await fetch('/api/users/save', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
   const j = await r.json().catch(()=>({ok:false,error:'Erreur serveur'}));
-  if (!r.ok || !j.ok) { alert('❌ ' + (j.error || 'Erreur')); return; }
+  if (!r.ok || !j.ok) { showToast('❌ ' + (j.error || 'Erreur'), 'error'); return; }
 
   closeUserModal();
   await loadUsers();
-  if (typeof showToast === 'function') {
-    showToast('✅ Utilisateur enregistré', 'success');
-  } else {
-    alert('✅ Enregistré');
-  }
+  showToast('✅ Utilisateur enregistré', 'success');
 }
 
 async function deleteUser(id, username) {
   if (!confirm('Supprimer @' + username + ' ?')) return;
   const r = await fetch('/api/users/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id: parseInt(id, 10) }) });
   const j = await r.json().catch(()=>({ok:false,error:'Erreur serveur'}));
-  if (!r.ok || !j.ok) { alert('❌ ' + (j.error || 'Erreur')); return; }
+  if (!r.ok || !j.ok) { showToast('❌ ' + (j.error || 'Erreur'), 'error'); return; }
   await loadUsers();
-  if (typeof showToast === 'function') {
-    showToast('✅ Utilisateur supprimé', 'success');
-  } else {
-    alert('✅ Supprimé');
-  }
+  showToast('✅ Utilisateur supprimé', 'success');
 }
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeUserModal(); });

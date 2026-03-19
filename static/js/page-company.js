@@ -308,18 +308,10 @@
       if (!out.ok) throw new Error(out.error || 'Erreur');
       // also keep local caches
       await loadAll();
-      if (typeof showToast === 'function') {
-        showToast("✅ Entreprise enregistrée", 'success');
-      } else {
-        alert("✅ Entreprise enregistrée.");
-      }
+      showToast("Entreprise enregistrée", 'success');
     } catch(e){
       console.error(e);
-      if (typeof showToast === 'function') {
-        showToast("❌ Impossible d'enregistrer l'entreprise", 'error');
-      } else {
-        alert("❌ Impossible d'enregistrer l'entreprise.");
-      }
+      showToast("Impossible d'enregistrer l'entreprise.", 'error');
     }
   }
 
@@ -341,11 +333,7 @@
     if (!cid) return;
     const payload = getOppPayload(id);
     if (!payload || !payload.title) {
-      if (typeof showToast === 'function') {
-        showToast("⚠️ Titre requis", 'warning');
-      } else {
-        alert("⚠️ Titre requis.");
-      }
+      showToast("Titre requis.", 'warning');
       return;
     }
     try{
@@ -360,11 +348,7 @@
       await loadAll();
     }catch(e){
       console.error(e);
-      if (typeof showToast === 'function') {
-        showToast("❌ Impossible d'enregistrer l'opportunité", 'error');
-      } else {
-        alert("❌ Impossible d'enregistrer l'opportunité.");
-      }
+      showToast("Impossible d'enregistrer l'opportunité.", 'error');
     }
   };
 
@@ -384,11 +368,7 @@
       await loadAll();
     }catch(e){
       console.error(e);
-      if (typeof showToast === 'function') {
-        showToast("❌ Suppression impossible", 'error');
-      } else {
-        alert("❌ Suppression impossible.");
-      }
+      showToast("Suppression impossible.", 'error');
     }
   };
 
@@ -423,11 +403,7 @@
       await loadAll();
     }catch(e){
       console.error(e);
-      if (typeof showToast === 'function') {
-        showToast("❌ Impossible d'ajouter la note", 'error');
-      } else {
-        alert("❌ Impossible d'ajouter la note.");
-      }
+      showToast("Impossible d'ajouter la note.", 'error');
     }
   }
 

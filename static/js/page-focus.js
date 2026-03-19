@@ -157,11 +157,7 @@ async function focusBump(prospectId, days) {
         await reloadFocus();
     } catch(e) {
         console.error(e);
-        if (typeof showToast === 'function') {
-            showToast("❌ Impossible de sauvegarder", 'error');
-        } else {
-            alert("❌ Impossible de sauvegarder.");
-        }
+        showToast("Impossible de sauvegarder.", 'error');
     }
 }
 
@@ -213,11 +209,7 @@ async function focusDone(prospectId) {
         await reloadFocus();
     } catch (e) {
         console.error(e);
-        if (typeof showToast === 'function') {
-            showToast("❌ Impossible de marquer fait", 'error');
-        } else {
-            alert("❌ Impossible de marquer fait.");
-        }
+        showToast("Impossible de marquer fait.", 'error');
     }
 }
 
@@ -534,11 +526,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await reloadFocus();
     } catch(err) {
         console.error(err);
-        if (typeof showToast === 'function') {
-            showToast("❌ Impossible de charger Focus. Vérifiez que le serveur Python est lancé (app.py).", 'error');
-        } else {
-            alert("❌ Impossible de charger Focus. Vérifiez que le serveur Python est lancé (app.py).");
-        }
+        showToast("Impossible de charger Focus. Vérifiez que le serveur Python est lancé (app.py).", 'error');
     }
 
     // ── Thursday export alert ──

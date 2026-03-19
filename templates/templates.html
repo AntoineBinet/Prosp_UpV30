@@ -150,7 +150,7 @@ async function deleteCat(id) {
 
 async function saveCat() {
     const name = el('catName').value.trim();
-    if (!name) { alert('Nom requis'); return; }
+    if (!name) { showToast('Nom requis', 'warning'); return; }
     const keywords = el('catKeywords').value.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
     const payload = {
         id: el('catId').value ? Number(el('catId').value) : null,
@@ -173,12 +173,12 @@ async function scanPushs() {
         const res = await fetch('/api/push-categories/scan', { method: 'POST' });
         const data = await res.json();
         if (data.ok) {
-            alert('✅ Scan terminé !\n\nDossiers trouvés : ' + (data.found?.join(', ') || 'aucun') + '\nNouvelles catégories : ' + (data.created || 0));
+            showToast('Scan terminé ! Dossiers : ' + (data.found?.join(', ') || 'aucun') + ' — Nouvelles catégories : ' + (data.created || 0), 'success', 5000);
         } else {
-            alert('❌ ' + (data.error || 'Erreur'));
+            showToast('❌ ' + (data.error || 'Erreur'), 'error');
         }
     } catch (e) {
-        alert('❌ Erreur: ' + e.message);
+        showToast('❌ Erreur: ' + e.message, 'error');
     }
     el('btnScanPushs').textContent = '🔄 Scanner pushs/';
     await loadCategories();

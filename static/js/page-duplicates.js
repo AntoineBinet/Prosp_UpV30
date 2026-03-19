@@ -80,8 +80,7 @@ function mergeProspectIntoSelected(groupIdx, mergeId) {
   if (!radio) return;
   const keepId = parseInt(radio.value, 10);
   if (keepId === mergeId) {
-    if (typeof showToast === 'function') showToast('Choisissez une autre fiche à garder.', 'warning');
-    else alert('Choisissez une autre fiche à garder.');
+    showToast('Choisissez une autre fiche à garder.', 'warning');
     return;
   }
   openMergeModal(keepId, mergeId);
@@ -96,8 +95,7 @@ function mergeSelectedInGroup(groupIdx) {
   const checkboxes = card.querySelectorAll(`input[name="dup_merge_${groupIdx}"]:checked`);
   const mergeIds = Array.from(checkboxes).map(cb => parseInt(cb.value, 10)).filter(id => id !== keepId);
   if (mergeIds.length === 0) {
-    if (typeof showToast === 'function') showToast('Sélectionnez au moins une fiche à fusionner (cochez « Inclure »).', 'warning');
-    else alert('Sélectionnez au moins une fiche à fusionner (cochez « Inclure »).');
+    showToast('Sélectionnez au moins une fiche à fusionner (cochez « Inclure »).', 'warning');
     return;
   }
   openMergeModal(keepId, mergeIds[0], mergeIds.slice(1));
@@ -168,8 +166,7 @@ function mergeCompanyIntoSelected(groupIdx, mergeId) {
   if (!radio) return;
   const keepId = parseInt(radio.value, 10);
   if (keepId === mergeId) {
-    if (typeof showToast === 'function') showToast('Choisissez une autre entreprise à garder.', 'warning');
-    else alert('Choisissez une autre entreprise à garder.');
+    showToast('Choisissez une autre entreprise à garder.', 'warning');
     return;
   }
   mergeCompany(keepId, mergeId);
@@ -379,18 +376,17 @@ async function openMergeModal(keepId, mergeId, nextMergeIds) {
       });
       if (!res.ok) {
         const t = await res.text().catch(() => '');
-        alert('Fusion impossible: ' + (t || ('HTTP ' + res.status)));
+        showToast('Fusion impossible: ' + (t || ('HTTP ' + res.status)), 'error');
         return;
       }
       const remaining = _mergeNextIds.slice();
       closeMergeModal();
       if (remaining.length > 0) {
         openMergeModal(keepId, remaining[0], remaining.slice(1));
-        if (typeof showToast === 'function') showToast('Fiche fusionnée. Choix pour la suivante…', 'success');
+        showToast('Fiche fusionnée. Choix pour la suivante…', 'success');
       } else {
         await loadDuplicates();
-        if (typeof showToast === 'function') showToast('Prospects fusionnés.', 'success');
-        else alert('Prospects fusionnés.');
+        showToast('Prospects fusionnés.', 'success');
       }
     } finally {
       btn.disabled = false;
@@ -411,7 +407,7 @@ async function mergeCompany(keepId, mergeId) {
   });
   if (!res.ok) {
     const t = await res.text().catch(()=> '');
-    alert('❌ Fusion impossible: ' + (t || ('HTTP ' + res.status)));
+    showToast('Fusion impossible: ' + (t || ('HTTP ' + res.status)), 'error');
     return;
   }
   await loadDuplicates();
@@ -429,6 +425,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadDuplicates();
   } catch(err) {
     console.error(err);
-    alert("❌ Impossible de charger les doublons. Vérifiez que le serveur Python est lancé (app.py)." );
+    showToast("Impossible de charger les doublons. Vérifiez que le serveur Python est lancé (app.py).", 'error');
   }
 });
