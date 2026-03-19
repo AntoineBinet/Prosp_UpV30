@@ -2499,7 +2499,8 @@ def _migrate_candidate_tabs(conn: sqlite3.Connection) -> None:
 def _migrate_user_db_schema(db_path: Path) -> None:
     """Ajoute deleted_at aux tables companies, prospects, candidates si absent (v23.5).
     Ajoute aussi dossier_competence_pdf à la table candidates si absent.
-    v25: candidate_tabs + migration depuis candidate_ec1_checklists."""
+    v25: candidate_tabs + migration depuis candidate_ec1_checklists.
+    v27: migration is_contact → is_archived pour les DBs per-user."""
     if not db_path.exists():
         return
     conn = sqlite3.connect(db_path)
@@ -2513,6 +2514,19 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             if "deleted_at" not in cols:
                 conn.execute(f"ALTER TABLE {tbl} ADD COLUMN deleted_at TEXT;")
                 conn.commit()
+        # Migration: renommer is_contact en is_archived pour prospects (per-user DBs)
+        try:
+            pros_cols = [r["name"] for r in conn.execute("PRAGMA table_info(prospects);").fetchall()]
+            if "is_contact" in pros_cols and "is_archived" not in pros_cols:
+                conn.execute("ALTER TABLE prospects ADD COLUMN is_archived INTEGER;")
+                conn.execute("UPDATE prospects SET is_archived = is_contact;")
+                conn.commit()
+                print(f"[OK] Migration is_contact -> is_archived appliquée sur {db_path}")
+            elif "is_archived" not in pros_cols:
+                conn.execute("ALTER TABLE prospects ADD COLUMN is_archived INTEGER;")
+                conn.commit()
+        except Exception as e:
+            print(f"[WARN] Migration is_archived prospects ({db_path}): {e}")
         # Migration: ajouter dossier_competence_pdf à candidates
         try:
             cand_cols = [r["name"] for r in conn.execute("PRAGMA table_info(candidates);").fetchall()]
