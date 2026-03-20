@@ -14319,8 +14319,15 @@ def api_assistant_action():
 
 
 # ── Blueprints ────────────────────────────────────────────────────
-# Importés ici (en bas de fichier) pour que tous les helpers soient
-# déjà définis au moment où les blueprints importent depuis app.
+# Importés en bas de fichier pour que tous les helpers soient déjà
+# définis. Quand app.py est lancé comme script (__name__ == '__main__'),
+# Python l'enregistre sous '__main__' et non 'app'. Les blueprints qui
+# font `from app import ...` déclencheraient alors un import circulaire.
+# Solution : on enregistre ce module sous le nom 'app' dans sys.modules
+# avant les imports, ce qui évite un second chargement.
+import sys as _sys  # noqa: E402
+_sys.modules.setdefault('app', _sys.modules[__name__])
+
 from routes.auth import auth_bp    # noqa: E402
 from routes.deploy import deploy_bp  # noqa: E402
 from routes.ai import ai_bp          # noqa: E402
