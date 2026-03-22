@@ -1,5 +1,5 @@
 tunnel: prospup
-credentials-file: C:\Users\AntoineBINET\.cloudflared\585f2818-8073-48ac-b44f-b9c757ef6971.json
+credentials-file: C:\Users\binet\.cloudflared\73a32dfa-e4e2-4bf1-a345-b811cd2a9666.json
 
 ingress:
   - hostname: prospup.work
