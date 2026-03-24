@@ -5820,12 +5820,12 @@ header {
   .detail-info-grid {
     grid-template-columns: 1fr;
   }
-  /* Detail modal: safe-area so content is not clipped by notches / system UI */
+  /* Detail modal: safe-area + leave room above quick-actions-bar */
   #modalDetail .modal-content {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
-    max-height: min(90vh, calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    max-height: min(93vh, calc(100dvh - env(safe-area-inset-top)));
   }
   .detail-quick-actions {
     flex-wrap: nowrap;
@@ -8929,7 +8929,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   }
   body[data-page="prospects"] .table-wrapper table { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; border-collapse: collapse !important; box-sizing: border-box; }
   /* Tbody en flex-column : c'est LUI qui gère le gap (4px) — plus besoin de margin ni de border-spacing */
-  body[data-page="prospects"] .table-wrapper tbody { display: flex !important; flex-direction: column; gap: 4px; width: 100%; }
+  body[data-page="prospects"] .table-wrapper tbody { display: flex !important; flex-direction: column; gap: 5px; width: 100%; padding: 0 2px; }
   /* Neutralisation totale des règles globales tr (border-bottom, animation, transition, padding) */
   body[data-page="prospects"] .table-wrapper tbody tr.prospect-row {
     display: block !important; width: 100% !important; max-width: 100% !important; box-sizing: border-box;
@@ -8953,27 +8953,29 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     box-sizing: border-box;
   }
 
-  /* Carte — contenu */
+  /* Carte — contenu (iPhone 17 style) */
   body[data-page="prospects"] .table-wrapper .pmc-content {
     position: relative;
     display: flex; align-items: center; gap: 8px;
-    padding: 9px 10px 9px 16px;
+    padding: 10px 10px 10px 18px;
     width: 100%; max-width: 100%; box-sizing: border-box;
-    background: rgba(255,255,255,0.045);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 14px; overflow: hidden;
+    background: rgba(255,255,255,0.048);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; overflow: hidden;
     -webkit-tap-highlight-color: transparent;
-    transition: background 0.12s ease, transform 0.08s ease;
+    transition: background 0.1s ease, transform 0.08s ease;
     will-change: transform;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
   }
   body[data-page="prospects"] .table-wrapper .prospect-card-mobile:active .pmc-content {
-    background: rgba(255,255,255,0.075);
+    background: rgba(255,255,255,0.09);
+    transform: scale(0.985);
   }
 
   /* Accent gauche */
   body[data-page="prospects"] .table-wrapper .pmc-accent {
-    position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
-    border-radius: 14px 0 0 14px; background: rgba(255,255,255,0.12);
+    position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    border-radius: 16px 0 0 16px; background: rgba(255,255,255,0.12);
   }
   body[data-page="prospects"] .table-wrapper .pmc-s-appele      .pmc-accent { background: #3B82F6; }
   body[data-page="prospects"] .table-wrapper .pmc-s-rdv         .pmc-accent { background: #22C55E; }
@@ -8983,9 +8985,13 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   body[data-page="prospects"] .table-wrapper .pmc-s-pas-interesse .pmc-accent { background: #EF4444; }
   body[data-page="prospects"] .table-wrapper .pmc-s-pas-actions .pmc-accent { background: #475569; }
 
-  /* Checkbox */
-  body[data-page="prospects"] .table-wrapper .pmc-check { flex-shrink: 0; }
-  body[data-page="prospects"] .table-wrapper .pmc-check input { width: 18px; height: 18px; margin: 0; }
+  /* Checkbox — touch target min 44×44px (Apple HIG) */
+  body[data-page="prospects"] .table-wrapper .pmc-check {
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; min-height: 44px; cursor: pointer;
+  }
+  body[data-page="prospects"] .table-wrapper .pmc-check input { width: 20px; height: 20px; margin: 0; }
 
   /* Corps — 2 lignes */
   body[data-page="prospects"] .table-wrapper .pmc-body { flex: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
@@ -9072,7 +9078,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   body[data-page="prospects"] .pmc-swipe-wrap {
     position: relative;
     overflow: hidden;
-    border-radius: 14px;
+    border-radius: 16px;
     width: 100%;
     isolation: isolate;
     touch-action: pan-y;
@@ -9092,11 +9098,12 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   body[data-page="prospects"] .pmc-action {
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    gap: 4px; padding: 0 18px;
+    gap: 4px; padding: 0 16px;
     border: none; color: #fff; cursor: pointer;
     font-family: inherit;
     -webkit-tap-highlight-color: transparent;
-    min-width: 72px;
+    min-width: 68px;
+    transition: filter 0.1s ease;
   }
   body[data-page="prospects"] .pmc-action:active { filter: brightness(0.88); }
   body[data-page="prospects"] .pmc-action-call    { background: #22C55E; }
@@ -9127,6 +9134,13 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     }
   }
 
+  /* Compact sur petits écrans (iPhone SE, ≤390px) */
+  @media (max-width: 390px) {
+    body[data-page="prospects"] .pmc-action { min-width: 56px; padding: 0 10px; }
+    body[data-page="prospects"] .pmc-action-icon { font-size: 19px; }
+    body[data-page="prospects"] .pmc-action-label { font-size: 9px; }
+  }
+
   /* ══ Mini-sheet de changement de statut (swipe gauche → Statut) ═════════════ */
   .swipe-status-sheet {
     position: fixed; inset: 0;
@@ -9144,10 +9158,19 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
     width: 100%; max-width: 480px;
     background: #1e293b;
     border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 20px 20px 0 0;
-    padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    border-radius: 24px 24px 0 0;
+    padding: 0 16px calc(20px + env(safe-area-inset-bottom, 0px));
     transform: translateY(100%);
-    transition: transform 0.28s cubic-bezier(0.34, 1.1, 0.64, 1);
+    transition: transform 0.3s cubic-bezier(0.32, 1.08, 0.62, 1);
+  }
+  /* Handle bar iOS 18 style */
+  .swipe-status-sheet-inner::before {
+    content: '';
+    display: block;
+    width: 36px; height: 5px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 3px;
+    margin: 10px auto 6px;
   }
   .swipe-status-sheet.is-open .swipe-status-sheet-inner { transform: translateY(0); }
 
@@ -9187,6 +9210,7 @@ body[data-page="prospects"] .table-wrapper tbody td.prospect-actions-cell .prosp
   /* Light mode overrides pour la sheet */
   @media (prefers-color-scheme: light) {
     .swipe-status-sheet-inner { background: #f8fafc; border-color: rgba(0,0,0,0.08); }
+    .swipe-status-sheet-inner::before { background: rgba(0,0,0,0.15); }
     .swipe-status-btn { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.07); color: #0f172a; }
     .swipe-status-cancel { background: rgba(0,0,0,0.05); color: #64748b; }
     .swipe-status-title { color: rgba(0,0,0,0.4); }
@@ -9702,25 +9726,28 @@ body:not(.sidebar-collapsed) .sidebar .nav-button::after {
   }
   .mobile-qa-item {
     flex: 1;
-    max-width: 110px;
-    padding: 8px 10px;
+    max-width: 120px;
+    padding: 9px 10px;
     font-size: 12px;
     font-weight: 600;
     text-align: center;
-    border-radius: 10px;
+    border-radius: 12px;
     background: rgba(var(--color-primary-rgb), 0.12);
     color: var(--color-primary);
     text-decoration: none;
     border: none;
     cursor: pointer;
-    min-height: 40px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 4px;
+    transition: background 0.12s ease, transform 0.08s ease;
+    -webkit-tap-highlight-color: transparent;
   }
-  .mobile-qa-item:hover, .mobile-qa-item:active {
-    background: rgba(var(--color-primary-rgb), 0.22);
+  .mobile-qa-item:active {
+    background: rgba(var(--color-primary-rgb), 0.26);
+    transform: scale(0.95);
   }
 }
 
