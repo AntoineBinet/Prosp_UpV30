@@ -503,6 +503,11 @@
                     <div style="font-weight:700;font-size:13px;">Depuis VSA</div>
                     <div class="muted" style="font-size:11px;margin-top:3px;">Import candidat VSA</div>
                 </div>
+                <div class="qa-card" data-method="contacts" onclick="qaPickMethod('contacts')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
+                    <div style="font-size:28px;margin-bottom:6px;">📲</div>
+                    <div style="font-weight:700;font-size:13px;">Enrichir contacts</div>
+                    <div class="muted" style="font-size:11px;margin-top:3px;">Importer tél / emails</div>
+                </div>
             </div>
         </div>
 
@@ -578,6 +583,36 @@
             <div style="display:flex;gap:10px;margin-top:14px;justify-content:space-between;">
                 <button class="btn btn-secondary" onclick="qaBackToStep1()">← Retour</button>
                 <button class="btn btn-primary" onclick="qaParse()">🔍 Analyser</button>
+            </div>
+        </div>
+
+        <!-- Étape Contacts : Import tél/emails depuis Excel -->
+        <div id="qaStepContacts" style="display:none;padding:16px 0 0;">
+            <p class="muted" style="font-size:12px;margin-bottom:12px;">Importez un fichier Excel contenant <strong>Nom</strong>, <strong>Téléphone</strong> et/ou <strong>Email</strong>. Les prospects existants seront enrichis sans créer de doublons.</p>
+            <div id="qaContactsFileZone" style="">
+                <input type="file" id="qaContactsFileInput" accept=".xlsx,.xls" style="display:none;">
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('qaContactsFileInput').click()">📁 Choisir un fichier Excel</button>
+                <p id="qaContactsFileChosen" class="muted" style="font-size:12px;margin-top:8px;display:none;"></p>
+            </div>
+            <div id="qaContactsMapping" style="display:none;margin-top:14px;">
+                <p class="muted" style="font-size:12px;margin-bottom:8px;">Associez les colonnes du fichier aux champs :</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;" id="qaContactsMappingGrid"></div>
+                <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+                    <button class="btn btn-secondary" onclick="qaContactsBackToFile()">← Retour</button>
+                    <button class="btn btn-primary" onclick="qaContactsAnalyse()">🔍 Analyser</button>
+                </div>
+            </div>
+            <div id="qaContactsPreview" style="display:none;margin-top:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <p class="muted" style="font-size:12px;margin:0;"><span id="qaContactsMatchCount">0</span> prospect(s) trouvé(s) sur <span id="qaContactsTotalCount">0</span> lignes</p>
+                    <label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="qaContactsOverwrite" checked style="margin-right:4px;">Écraser les valeurs existantes</label>
+                </div>
+                <div id="qaContactsTable" style="max-height:320px;overflow-y:auto;font-size:12px;"></div>
+                <div id="qaContactsUnmatched" style="display:none;margin-top:10px;padding:8px 12px;border-radius:8px;background:var(--color-surface-2);font-size:11px;"></div>
+                <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+                    <button class="btn btn-secondary" onclick="qaContactsBackToMapping()">← Retour</button>
+                    <button class="btn btn-primary" onclick="qaContactsApply()" id="qaContactsApplyBtn">✅ Appliquer les mises à jour</button>
+                </div>
             </div>
         </div>
 

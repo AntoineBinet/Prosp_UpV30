@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.15"
+APP_VERSION = "27.16"
 import os
 import subprocess
 import traceback
@@ -9766,6 +9766,53 @@ def api_prospects_bulk_status_tags():
             conn.execute(f"UPDATE prospects SET {', '.join(sets)} WHERE id=? AND owner_id=?;", vals)
             updated += 1
     _audit_log("bulk_status_tags", "prospect", new_value=json.dumps({"ids": ids[:20], "statut": new_statut, "add_tags": add_tags, "remove_tags": remove_tags}, ensure_ascii=False))
+    return jsonify(ok=True, updated=updated)
+
+
+@app.post("/api/prospects/update-contacts")
+def api_prospects_update_contacts():
+    """Bulk update telephone/email for existing prospects from Excel import.
+
+    Body: { updates: [{id, telephone, email}] }
+    Only updates fields that are provided and non-empty.
+    """
+    chk = _require_same_origin()
+    if chk:
+        return chk
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    updates = payload.get("updates")
+    if not updates or not isinstance(updates, list):
+        return jsonify(ok=False, error="updates (array) required"), 400
+    updated = 0
+    with _conn() as conn:
+        for item in updates:
+            try:
+                pid = int(item.get("id"))
+            except (TypeError, ValueError):
+                continue
+            tel = str(item.get("telephone") or "").strip()
+            mail = str(item.get("email") or "").strip()
+            if not tel and not mail:
+                continue
+            row = conn.execute(
+                "SELECT id FROM prospects WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+                (pid, uid)
+            ).fetchone()
+            if not row:
+                continue
+            sets, vals = [], []
+            if tel:
+                sets.append("telephone=?")
+                vals.append(tel)
+            if mail:
+                sets.append("email=?")
+                vals.append(mail)
+            vals.extend([pid, uid])
+            conn.execute(f"UPDATE prospects SET {', '.join(sets)} WHERE id=? AND owner_id=?;", vals)
+            updated += 1
     return jsonify(ok=True, updated=updated)
 
 
