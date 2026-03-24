@@ -341,7 +341,10 @@
             </div>
             <div class="form-group">
                 <label class="required" for="inputCompany">Entreprise</label>
-                <select id="inputCompany" name="company" required aria-required="true"></select>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <select id="inputCompany" name="company" required aria-required="true" style="flex:1;"></select>
+                    <button type="button" class="btn btn-secondary" style="white-space:nowrap;font-size:12px;padding:6px 10px;" onclick="openNewCompanyInlineModal()" title="Créer une nouvelle entreprise">＋ Entreprise</button>
+                </div>
             </div>
             <div class="form-group">
                 <label for="inputFonction">Fonction</label>
@@ -349,16 +352,17 @@
             </div>
             <div class="form-group">
                 <label for="inputTel">Téléphone</label>
-                <input type="tel" id="inputTel" name="tel">
+                <input type="tel" id="inputTel" name="tel" oninput="debouncedCheckAddDuplicate()">
             </div>
             <div class="form-group">
                 <label for="inputEmail">Email</label>
-                <input type="email" id="inputEmail" name="email">
+                <input type="email" id="inputEmail" name="email" oninput="debouncedCheckAddDuplicate()">
             </div>
             <div class="form-group">
                 <label for="inputLinkedin">LinkedIn</label>
-                <input type="url" id="inputLinkedin" name="linkedin" placeholder="https://linkedin.com/in/...">
+                <input type="url" id="inputLinkedin" name="linkedin" placeholder="https://linkedin.com/in/..." oninput="debouncedCheckAddDuplicate()">
             </div>
+            <div id="addDuplicateWarning" style="display:none;margin:-6px 0 10px;padding:8px 12px;background:rgba(var(--color-warning-rgb,220,150,0),.12);border:1px solid var(--color-warning,#dc9600);border-radius:8px;font-size:12px;color:var(--color-warning,#dc9600);"></div>
             <div class="form-group">
                 <label>Pertinence</label>
                 <select id="inputPertinence">
@@ -382,14 +386,43 @@
                 </select>
             </div>
             <div class="form-group">
+                <label for="inputTags">Compétences / Tags</label>
+                <input type="text" id="inputTags" name="tags" placeholder="ex: C/C++, FPGA, Linux embarqué" autocomplete="off" oninput="updateTagsPreview()">
+                <div id="inputTagsPreview" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;"></div>
+            </div>
+            <div class="form-group">
                 <label>Notes</label>
                 <textarea id="inputNotes"></textarea>
             </div>
             <div class="btn-group">
                 <button type="button" class="btn btn-secondary" onclick="closeProspectModal()">Annuler</button>
-                <button type="submit" class="btn btn-primary">Enregistrer</button>
+                <button type="submit" class="btn btn-primary" id="btnSaveProspect">Enregistrer</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Mini-modale inline : Créer nouvelle entreprise -->
+<div class="modal" role="dialog" aria-modal="true" id="modalNewCompanyInline" aria-label="Nouvelle entreprise" style="z-index:1100;">
+    <div class="modal-content" style="max-width:400px;">
+        <div class="modal-header">
+            <span>🏢 Nouvelle entreprise</span>
+            <button class="modal-close" onclick="closeNewCompanyInlineModal()" aria-label="Fermer">&times;</button>
+        </div>
+        <div style="padding:16px 0 0;">
+            <div class="form-group">
+                <label class="required" for="newCoGroupe">Nom / Groupe</label>
+                <input type="text" id="newCoGroupe" placeholder="ex: Acme Corp" required>
+            </div>
+            <div class="form-group">
+                <label for="newCoSite">Site / Ville</label>
+                <input type="text" id="newCoSite" placeholder="ex: Lyon">
+            </div>
+            <div class="btn-group" style="margin-top:16px;">
+                <button type="button" class="btn btn-secondary" onclick="closeNewCompanyInlineModal()">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="saveNewCompanyInline()">Créer &amp; Sélectionner</button>
+            </div>
+        </div>
     </div>
 </div>
 <div class="modal" role="dialog" aria-modal="true" id="modalDetail" aria-labelledby="modalDetailTitle">
@@ -468,12 +501,14 @@
 <!-- Modal Quick Add IA -->
 <div class="modal" role="dialog" aria-modal="true" id="modalQuickAdd" aria-labelledby="modalQuickAddTitle">
     <div class="modal-content" style="max-width:560px;position:relative;">
-        <div id="qaOllamaOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.7);border-radius:12px;z-index:10;flex-direction:column;align-items:center;justify-content:center;color:var(--color-text);padding:20px;text-align:center;">
+        <div id="qaOllamaOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.75);border-radius:12px;z-index:10;flex-direction:column;align-items:center;justify-content:center;color:var(--color-text);padding:20px;text-align:center;">
             <div style="font-size:32px;margin-bottom:12px;">⏳</div>
             <div id="qaOllamaOverlayTitle" style="font-weight:600;margin-bottom:6px;">Génération en cours…</div>
             <div id="qaOllamaOverlayDetail" class="muted" style="font-size:12px;margin-bottom:8px;">Cela peut prendre plusieurs minutes. Ne fermez pas la fenêtre.</div>
-            <div id="qaOllamaLivePhase" style="font-size:11px;color:var(--color-primary);margin-bottom:6px;"></div>
+            <div id="qaOllamaWebBadge" style="display:none;font-size:11px;background:rgba(var(--color-primary-rgb,124,58,237),.2);border:1px solid var(--color-primary,#7c3aed);border-radius:20px;padding:2px 10px;margin-bottom:8px;">🌐 Recherche web activée</div>
+            <div id="qaOllamaLivePhase" style="font-size:11px;color:var(--color-primary);margin-bottom:10px;"></div>
             <pre id="qaOllamaLiveText" style="display:none;max-height:120px;overflow:auto;font-size:10px;text-align:left;background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;width:100%;max-width:480px;white-space:pre-wrap;word-break:break-all;"></pre>
+            <button id="qaOverlayCancelBtn" class="btn btn-secondary" style="margin-top:14px;font-size:12px;" onclick="qaOverlayCancel()">Annuler</button>
         </div>
         <div class="modal-header">
             <span id="modalQuickAddTitle">➕ Ajouter</span>
@@ -564,15 +599,13 @@
             <p class="muted" style="font-size:11px;margin-top:0;margin-bottom:14px;color:var(--color-warning);">
                 ⚠️ <strong>LinkedIn bloque souvent l'accès direct via API.</strong> Si le lien ne fonctionne pas, copiez-collez le texte visible de la page LinkedIn (nom, poste, entreprise, localisation) dans le champ ci-dessus. L'IA utilisera ces infos pour compléter la fiche.
             </p>
-            <p class="muted" style="font-size:12px;margin-bottom:10px;">3) Générez avec Ollama (sur le PC qui héberge Prosp'Up) ou copiez le prompt pour une autre IA :</p>
+            <p class="muted" style="font-size:12px;margin-bottom:10px;">3) Générez avec l’IA (Ollama local ou Sonar/Perplexity si configuré) :</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;">
                 <button class="btn btn-secondary" onclick="qaBackToStep0()">← Retour</button>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button class="btn btn-secondary" onclick="closeQuickAddModal()">Annuler</button>
-                    <button class="btn btn-secondary" onclick="qaStartSingle()">📋 Copier (un seul)</button>
-                    <button class="btn btn-secondary" onclick="qaStartMultiple()">📋 Copier (plusieurs)</button>
-                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(false)">🤖 Générer avec l’IA (un seul)</button>
-                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(true)">🤖 Générer avec l’IA (plusieurs)</button>
+                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(false)">🤖 Générer (un seul)</button>
+                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(true)">🤖 Générer (plusieurs)</button>
                 </div>
             </div>
         </div>
@@ -619,7 +652,13 @@
 
         <!-- Étape 3 : Aperçu et création -->
         <div id="qaStep4Preview" style="display:none;padding:16px 0 0;">
-            <div id="qaPreviewTitle" style="font-weight:700;font-size:14px;margin-bottom:12px;"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                <div id="qaPreviewTitle" style="font-weight:700;font-size:14px;"></div>
+                <div style="display:flex;gap:6px;">
+                    <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="qaCheckAll(true)">Tout cocher</button>
+                    <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="qaCheckAll(false)">Tout décocher</button>
+                </div>
+            </div>
             <div id="qaPreviewList" style="max-height:350px;overflow-y:auto;"></div>
             <div style="display:flex;gap:10px;margin-top:14px;justify-content:space-between;">
                 <button class="btn btn-secondary" onclick="qaBackToStep1()">← Retour</button>
@@ -682,5 +721,6 @@
 <script defer src="/static/js/metiers-data.js?v=2000"></script>
 <script defer src="/static/js/page-prospects.js?v=2100"></script>
 <script defer src="/static/js/page-quickadd.js?v=2000"></script>
+<script defer src="/static/js/page-import.js?v=1000"></script>
 <script defer src="/static/js/page-sourcing.js?v=2102"></script>
 {% endblock %}
