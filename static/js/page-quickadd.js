@@ -23,6 +23,8 @@
         if (stepFile) stepFile.style.display = 'none';
         document.getElementById('qaStep3Paste').style.display = 'none';
         document.getElementById('qaStep4Preview').style.display = 'none';
+        const stepContacts = document.getElementById('qaStepContacts');
+        if (stepContacts) stepContacts.style.display = 'none';
         document.querySelectorAll('.qa-card').forEach(c => c.classList.remove('active'));
         const qaFileInput = document.getElementById('qaFileInput');
         if (qaFileInput) { qaFileInput.value = ''; }
@@ -79,6 +81,24 @@
         }
         const step0 = document.getElementById('qaStep0');
         if (step0) step0.style.display = 'none';
+        if (method === 'contacts') {
+            document.getElementById('qaStep1').style.display = 'none';
+            const sf2 = document.getElementById('qaStepFile');
+            if (sf2) sf2.style.display = 'none';
+            const sc = document.getElementById('qaStepContacts');
+            if (sc) {
+                // reset sub-steps
+                document.getElementById('qaContactsFileZone').style.display = '';
+                document.getElementById('qaContactsMapping').style.display = 'none';
+                document.getElementById('qaContactsPreview').style.display = 'none';
+                const fi = document.getElementById('qaContactsFileInput');
+                if (fi) fi.value = '';
+                const fc = document.getElementById('qaContactsFileChosen');
+                if (fc) { fc.style.display = 'none'; fc.textContent = ''; }
+                sc.style.display = '';
+            }
+            return;
+        }
         if (method === 'file') {
             document.getElementById('qaStep1').style.display = 'none';
             const stepFile = document.getElementById('qaStepFile');
@@ -1397,6 +1417,284 @@ IMPORTANT : "pertinence" doit être "1", "2", "3", "4" ou "5" (chaîne de caract
 
 Exemple : ${jsonFormats[type]}`;
     }
+
+    // ─── Contacts Import: enrich tel/email from Excel without duplicates ───
+    let _contactsRaw = null;   // {headers, rows}
+    let _contactsMatches = []; // [{rowIdx, prospectId, name, company, currentTel, currentEmail, newTel, newEmail}]
+
+    /** Normalize a string for comparison: lowercase, no accents, collapse spaces */
+    function _normStr(s) {
+        s = (s || '').toLowerCase().trim();
+        try {
+            s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        } catch (e) { /* ignore */ }
+        return s.replace(/\s+/g, ' ');
+    }
+
+    /** Return true if normStr(a) equals normStr(b) */
+    function _namesMatch(a, b) {
+        if (!a || !b) return false;
+        const na = _normStr(a), nb = _normStr(b);
+        if (na === nb) return true;
+        // Also try reversing word order (Prénom Nom vs Nom Prénom)
+        const partsA = na.split(' '), partsB = nb.split(' ');
+        if (partsA.length === 2 && partsB.length === 2) {
+            return (partsA[0] === partsB[1] && partsA[1] === partsB[0]);
+        }
+        return false;
+    }
+
+    /** Setup file input listener for contacts */
+    document.addEventListener('DOMContentLoaded', function () {
+        const fi = document.getElementById('qaContactsFileInput');
+        if (!fi) return;
+        fi.addEventListener('change', function () {
+            const file = fi.files[0];
+            if (!file) return;
+            const fc = document.getElementById('qaContactsFileChosen');
+            if (fc) { fc.textContent = file.name; fc.style.display = ''; }
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const wb = XLSX.read(e.target.result, { type: 'array' });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                    if (!rows.length) { showToast('Fichier vide ou illisible', 'error'); return; }
+                    _contactsRaw = { headers: rows[0].map(String), rows: rows.slice(1) };
+                    _qaContactsBuildMapping();
+                } catch (err) {
+                    showToast('Impossible de lire le fichier Excel : ' + err.message, 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    });
+
+    /** Build column mapping selectors */
+    function _qaContactsBuildMapping() {
+        const headers = _contactsRaw.headers;
+        const grid = document.getElementById('qaContactsMappingGrid');
+        if (!grid) return;
+
+        // Auto-detect columns
+        function detectCol(keywords) {
+            const idx = headers.findIndex(h => {
+                const hn = _normStr(h);
+                return keywords.some(k => hn.includes(k));
+            });
+            return idx >= 0 ? idx : '';
+        }
+        const defaultNom = detectCol(['nom', 'name', 'contact', 'prenom', 'prénom']);
+        const defaultTel = detectCol(['tel', 'téléphone', 'telephone', 'phone', 'portable', 'mobile']);
+        const defaultEmail = detectCol(['email', 'mail', 'courriel', 'e-mail']);
+
+        function buildSelect(id, label, defaultIdx) {
+            const opts = ['<option value="">— Ne pas utiliser —</option>',
+                ...headers.map((h, i) => `<option value="${i}"${i === defaultIdx ? ' selected' : ''}>${escapeHtml(h) || 'Colonne ' + (i + 1)}</option>`)
+            ].join('');
+            return `<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px;">${label}</label>
+                <select id="${id}" style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);width:100%;">${opts}</select></div>`;
+        }
+
+        grid.innerHTML = buildSelect('qaContactsColNom', 'Nom complet', defaultNom) +
+            buildSelect('qaContactsColTel', 'Téléphone', defaultTel) +
+            buildSelect('qaContactsColEmail', 'Email', defaultEmail);
+
+        document.getElementById('qaContactsMapping').style.display = '';
+        document.getElementById('qaContactsFileZone').style.display = 'none';
+    }
+
+    window.qaContactsBackToFile = function () {
+        document.getElementById('qaContactsMapping').style.display = 'none';
+        document.getElementById('qaContactsFileZone').style.display = '';
+        const fi = document.getElementById('qaContactsFileInput');
+        if (fi) fi.value = '';
+        const fc = document.getElementById('qaContactsFileChosen');
+        if (fc) { fc.style.display = 'none'; fc.textContent = ''; }
+        _contactsRaw = null;
+    };
+
+    window.qaContactsBackToMapping = function () {
+        document.getElementById('qaContactsPreview').style.display = 'none';
+        document.getElementById('qaContactsMapping').style.display = '';
+    };
+
+    /** Match rows from Excel against existing prospects (using global data object) */
+    window.qaContactsAnalyse = function () {
+        const colNom = parseInt(document.getElementById('qaContactsColNom').value);
+        const colTel = parseInt(document.getElementById('qaContactsColTel').value);
+        const colEmail = parseInt(document.getElementById('qaContactsColEmail').value);
+
+        if (isNaN(colNom)) { showToast('Veuillez sélectionner au moins la colonne Nom', 'warning'); return; }
+        if (isNaN(colTel) && isNaN(colEmail)) { showToast('Veuillez sélectionner au moins Téléphone ou Email', 'warning'); return; }
+
+        // Use global data.prospects
+        const prospects = (typeof data !== 'undefined' && data.prospects) ? data.prospects : [];
+        if (!prospects.length) { showToast('Aucun prospect chargé dans l\'application', 'warning'); return; }
+
+        // Build a lookup by normalized name
+        const byName = {};
+        prospects.forEach(p => {
+            const key = _normStr(p.name || '');
+            if (key) {
+                if (!byName[key]) byName[key] = [];
+                byName[key].push(p);
+            }
+        });
+
+        _contactsMatches = [];
+        const unmatched = [];
+        const { rows } = _contactsRaw;
+
+        rows.forEach((row, idx) => {
+            const nomRaw = String(row[colNom] || '').trim();
+            const telRaw = isNaN(colTel) ? '' : String(row[colTel] || '').trim();
+            const emailRaw = isNaN(colEmail) ? '' : String(row[colEmail] || '').trim();
+
+            if (!nomRaw) return;  // skip empty rows
+            if (!telRaw && !emailRaw) return;  // nothing to enrich
+
+            // Try exact match
+            let matched = byName[_normStr(nomRaw)] || null;
+
+            // Try reversed name (Nom Prénom → Prénom Nom)
+            if (!matched) {
+                const parts = _normStr(nomRaw).split(' ');
+                if (parts.length === 2) {
+                    const reversed = parts[1] + ' ' + parts[0];
+                    matched = byName[reversed] || null;
+                }
+            }
+
+            if (matched) {
+                // If multiple matches, use the first
+                matched.forEach(p => {
+                    _contactsMatches.push({
+                        rowIdx: idx,
+                        prospectId: p.id,
+                        name: p.name,
+                        company: p.groupe || '',
+                        currentTel: p.telephone || '',
+                        currentEmail: p.email || '',
+                        newTel: telRaw,
+                        newEmail: emailRaw,
+                        selected: true
+                    });
+                });
+            } else {
+                unmatched.push(nomRaw);
+            }
+        });
+
+        _qaContactsRenderPreview(unmatched);
+    };
+
+    function _qaContactsRenderPreview(unmatched) {
+        const matchCount = document.getElementById('qaContactsMatchCount');
+        const totalCount = document.getElementById('qaContactsTotalCount');
+        const tableEl = document.getElementById('qaContactsTable');
+        const unmatchedEl = document.getElementById('qaContactsUnmatched');
+
+        const totalRows = _contactsRaw.rows.filter((r, i) => {
+            const colNom = parseInt(document.getElementById('qaContactsColNom').value);
+            return String(r[colNom] || '').trim();
+        }).length;
+
+        if (matchCount) matchCount.textContent = _contactsMatches.length;
+        if (totalCount) totalCount.textContent = totalRows;
+
+        // Render table
+        if (!_contactsMatches.length) {
+            tableEl.innerHTML = '<p class="muted" style="font-size:12px;padding:10px 0;">Aucun prospect correspondant trouvé. Vérifiez que les noms dans le fichier correspondent exactement aux noms dans Prosp\'Up.</p>';
+        } else {
+            let html = '<table style="width:100%;border-collapse:collapse;">';
+            html += '<thead><tr style="position:sticky;top:0;background:var(--color-surface-2);font-size:11px;">' +
+                '<th style="padding:5px 6px;text-align:left;font-weight:600;">✓</th>' +
+                '<th style="padding:5px 6px;text-align:left;font-weight:600;">Prospect</th>' +
+                '<th style="padding:5px 6px;text-align:left;font-weight:600;">Téléphone actuel → nouveau</th>' +
+                '<th style="padding:5px 6px;text-align:left;font-weight:600;">Email actuel → nouveau</th>' +
+                '</tr></thead><tbody>';
+            _contactsMatches.forEach((m, i) => {
+                const rowBg = i % 2 === 0 ? '' : 'background:var(--color-surface-2);';
+                const telChange = m.newTel && m.newTel !== m.currentTel;
+                const emailChange = m.newEmail && m.newEmail !== m.currentEmail;
+                const telHtml = m.newTel
+                    ? (telChange ? `<span style="color:var(--color-muted);text-decoration:line-through;">${escapeHtml(m.currentTel) || '—'}</span> → <span style="color:var(--color-success);">${escapeHtml(m.newTel)}</span>`
+                        : `<span style="color:var(--color-muted);">${escapeHtml(m.newTel)} (identique)</span>`)
+                    : `<span style="color:var(--color-muted);">—</span>`;
+                const emailHtml = m.newEmail
+                    ? (emailChange ? `<span style="color:var(--color-muted);text-decoration:line-through;">${escapeHtml(m.currentEmail) || '—'}</span> → <span style="color:var(--color-success);">${escapeHtml(m.newEmail)}</span>`
+                        : `<span style="color:var(--color-muted);">${escapeHtml(m.newEmail)} (identique)</span>`)
+                    : `<span style="color:var(--color-muted);">—</span>`;
+                html += `<tr style="${rowBg}">
+                    <td style="padding:5px 6px;"><input type="checkbox" data-ci="${i}" ${m.selected ? 'checked' : ''} onchange="_contactsMatches[${i}].selected=this.checked;_qaContactsUpdateApplyBtn();"></td>
+                    <td style="padding:5px 6px;font-weight:500;">${escapeHtml(m.name)}<br><span style="color:var(--color-muted);font-size:10px;">${escapeHtml(m.company)}</span></td>
+                    <td style="padding:5px 6px;">${telHtml}</td>
+                    <td style="padding:5px 6px;">${emailHtml}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            tableEl.innerHTML = html;
+        }
+
+        // Unmatched
+        if (unmatched.length) {
+            unmatchedEl.innerHTML = `<strong>${unmatched.length} ligne(s) sans correspondance :</strong> ${unmatched.map(n => escapeHtml(n)).join(', ')}`;
+            unmatchedEl.style.display = '';
+        } else {
+            unmatchedEl.style.display = 'none';
+        }
+
+        _qaContactsUpdateApplyBtn();
+        document.getElementById('qaContactsMapping').style.display = 'none';
+        document.getElementById('qaContactsPreview').style.display = '';
+    }
+
+    function _qaContactsUpdateApplyBtn() {
+        const btn = document.getElementById('qaContactsApplyBtn');
+        if (!btn) return;
+        const count = _contactsMatches.filter(m => m.selected).length;
+        btn.textContent = count > 0 ? `✅ Appliquer (${count} prospect${count > 1 ? 's' : ''})` : '✅ Appliquer les mises à jour';
+        btn.disabled = count === 0;
+    }
+
+    window.qaContactsApply = async function () {
+        const overwrite = document.getElementById('qaContactsOverwrite').checked;
+        const selected = _contactsMatches.filter(m => m.selected);
+        if (!selected.length) { showToast('Aucun prospect sélectionné', 'warning'); return; }
+
+        const updates = selected.map(m => {
+            const item = { id: m.prospectId };
+            // Respect overwrite setting
+            if (m.newTel && (overwrite || !m.currentTel)) item.telephone = m.newTel;
+            if (m.newEmail && (overwrite || !m.currentEmail)) item.email = m.newEmail;
+            return item;
+        }).filter(item => item.telephone || item.email);
+
+        if (!updates.length) { showToast('Aucune valeur à mettre à jour (tous les champs sont déjà renseignés et "Écraser" est désactivé)', 'info'); return; }
+
+        const btn = document.getElementById('qaContactsApplyBtn');
+        if (btn) btn.disabled = true;
+        try {
+            const res = await fetch('/api/prospects/update-contacts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ updates })
+            });
+            const json = await res.json();
+            if (json.ok) {
+                showToast(`${json.updated} prospect(s) mis à jour`, 'success');
+                closeQuickAddModal();
+                if (typeof loadData === 'function') loadData();
+            } else {
+                showToast('Erreur : ' + (json.error || 'Inconnue'), 'error');
+                if (btn) btn.disabled = false;
+            }
+        } catch (e) {
+            showToast('Erreur réseau : ' + e.message, 'error');
+            if (btn) btn.disabled = false;
+        }
+    };
 
     // ─── Auto-open candidate modal if ?add=1 on sourcing page ───
     if (window.location.pathname === '/sourcing' && new URLSearchParams(window.location.search).get('add') === '1') {
