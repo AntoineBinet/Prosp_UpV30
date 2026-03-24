@@ -2973,49 +2973,52 @@ def upsert_all(data: Dict[str, Any]) -> None:
         try:
             # Capturer les prospects qui seront supprimés pour le journal d'activité
             _deleted_prospects_for_log = []
-            try:
-                if prospect_ids:
-                    _dm = ",".join("?" for _ in prospect_ids)
-                    _del_rows = cur.execute(
-                        f"SELECT id, name FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND id NOT IN ({_dm});",
-                        [uid] + prospect_ids
-                    ).fetchall()
+            # Les suppressions par omission ne se font que si confirm_mass_delete=true (suppression explicite en masse).
+            # Cela évite qu'un onglet en mode prospection efface les prospects ajoutés depuis un autre onglet.
+            if force:
+                try:
+                    if prospect_ids:
+                        _dm = ",".join("?" for _ in prospect_ids)
+                        _del_rows = cur.execute(
+                            f"SELECT id, name FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND id NOT IN ({_dm});",
+                            [uid] + prospect_ids
+                        ).fetchall()
+                    else:
+                        _del_rows = cur.execute("SELECT id, name FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+                    _deleted_prospects_for_log = [(int(r["id"]), r["name"]) for r in _del_rows]
+                except Exception:
+                    _deleted_prospects_for_log = []
+
+                # 1) Supprimer d'abord les prospects qui référencent des entreprises qu'on va supprimer (évite FK RESTRICT au commit)
+                # v27.10: AND deleted_at IS NULL — ne pas toucher aux enregistrements soft-deleted (fenêtre d'annulation)
+                if company_ids:
+                    q_marks = ",".join("?" for _ in company_ids)
+                    cur.execute(
+                        f"DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND company_id IN (SELECT id FROM companies WHERE owner_id=? AND id NOT IN ({q_marks}));",
+                        [uid, uid] + company_ids,
+                    )
                 else:
-                    _del_rows = cur.execute("SELECT id, name FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
-                _deleted_prospects_for_log = [(int(r["id"]), r["name"]) for r in _del_rows]
-            except Exception:
-                _deleted_prospects_for_log = []
+                    cur.execute("DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,))
 
-            # 1) Supprimer d'abord les prospects qui référencent des entreprises qu'on va supprimer (évite FK RESTRICT au commit)
-            # v27.10: AND deleted_at IS NULL — ne pas toucher aux enregistrements soft-deleted (fenêtre d'annulation)
-            if company_ids:
-                q_marks = ",".join("?" for _ in company_ids)
-                cur.execute(
-                    f"DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND company_id IN (SELECT id FROM companies WHERE owner_id=? AND id NOT IN ({q_marks}));",
-                    [uid, uid] + company_ids,
-                )
-            else:
-                cur.execute("DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,))
+                # 2) Supprimer les prospects de l'utilisateur courant qui ne sont plus dans le payload
+                if prospect_ids:
+                    q_marks = ",".join("?" for _ in prospect_ids)
+                    cur.execute(
+                        f"DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND id NOT IN ({q_marks});",
+                        [uid] + prospect_ids,
+                    )
+                else:
+                    cur.execute("DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,))
 
-            # 2) Supprimer les prospects de l'utilisateur courant qui ne sont plus dans le payload
-            if prospect_ids:
-                q_marks = ",".join("?" for _ in prospect_ids)
-                cur.execute(
-                    f"DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND id NOT IN ({q_marks});",
-                    [uid] + prospect_ids,
-                )
-            else:
-                cur.execute("DELETE FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,))
-
-            # 3) Supprimer les entreprises de l'utilisateur courant absentes du payload
-            if company_ids:
-                q_marks = ",".join("?" for _ in company_ids)
-                cur.execute(
-                    f"DELETE FROM companies WHERE owner_id=? AND deleted_at IS NULL AND id NOT IN ({q_marks});",
-                    [uid] + company_ids,
-                )
-            else:
-                cur.execute("DELETE FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,))
+                # 3) Supprimer les entreprises de l'utilisateur courant absentes du payload
+                if company_ids:
+                    q_marks = ",".join("?" for _ in company_ids)
+                    cur.execute(
+                        f"DELETE FROM companies WHERE owner_id=? AND deleted_at IS NULL AND id NOT IN ({q_marks});",
+                        [uid] + company_ids,
+                    )
+                else:
+                    cur.execute("DELETE FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,))
 
             # Upsert companies (owner_id forcé à l'utilisateur connecté)
             cur.executemany(
@@ -3067,9 +3070,9 @@ def upsert_all(data: Dict[str, Any]) -> None:
                 ],
             )
 
-            # Quand un statut change via /api/save sans lastContact explicite, forcer la date du jour.
+            # Quand un statut change via /api/save sans lastContact explicite, forcer le datetime courant.
             # Cela permet une reprise mobile plus robuste basée sur le "dernier contact".
-            today_iso = _today_iso()
+            now_iso = _now_iso()
             for p in prospects:
                 try:
                     pid = int(p.get("id"))
@@ -3082,10 +3085,10 @@ def upsert_all(data: Dict[str, Any]) -> None:
                 incoming_last = str(p.get("lastContact") or "").strip()
 
                 if not incoming_last:
-                    p["lastContact"] = today_iso
+                    p["lastContact"] = now_iso
                     continue
                 if old_statut and new_statut and old_statut != new_statut and incoming_last == old_last:
-                    p["lastContact"] = today_iso
+                    p["lastContact"] = now_iso
 
             # Upsert prospects (owner_id forcé à l'utilisateur connecté)
             cur.executemany(
@@ -9608,7 +9611,7 @@ def api_prospect_mark_done():
     note = (payload.get("note") or "").rstrip()
     next_action = (payload.get("nextAction") or "").strip() or None
     next_follow = (payload.get("nextFollowUp") or "").strip()
-    last_contact = (payload.get("lastContact") or _today_iso()).strip()
+    last_contact = (payload.get("lastContact") or _now_iso()).strip()
     date = payload.get("date") or _now_iso()
     now = _now_iso()
 

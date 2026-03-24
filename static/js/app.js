@@ -1936,6 +1936,35 @@ function todayISO() {
     return `${y}-${m}-${day}`;
 }
 
+function nowISO() {
+    // Returns current datetime in ISO format YYYY-MM-DDTHH:MM:SS (local time)
+    const d = new Date();
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    const s = String(d.getSeconds()).padStart(2, '0');
+    return `${y}-${mo}-${day}T${h}:${mi}:${s}`;
+}
+
+/** Formate une valeur lastContact (ISO date ou datetime) en JJ/MM/AAAA HH:MM ou JJ/MM/AAAA */
+function formatLastContact(val) {
+    if (!val || !String(val).trim()) return '—';
+    const s = String(val).trim();
+    // Tente de parser date ou datetime ISO
+    const datePart = s.slice(0, 10); // YYYY-MM-DD
+    const [y, mo, d] = datePart.split('-');
+    if (!y || !mo || !d) return s;
+    const formatted = `${d}/${mo}/${y}`;
+    // Si l'heure est présente (YYYY-MM-DDTHH:MM...)
+    if (s.length > 10 && (s[10] === 'T' || s[10] === ' ')) {
+        const timePart = s.slice(11, 16); // HH:MM
+        if (timePart && timePart.includes(':')) return `${formatted} ${timePart}`;
+    }
+    return formatted;
+}
+
 function normalizeData() {
     if (!Array.isArray(data.companies)) data.companies = [];
     if (!Array.isArray(data.prospects)) data.prospects = [];
@@ -1952,7 +1981,7 @@ function normalizeData() {
     const companyIds = new Set(data.companies.map(c => c.id));
     data.prospects.forEach(p => {
         if (!Array.isArray(p.callNotes)) p.callNotes = [];
-        if (!p.lastContact) p.lastContact = todayISO();
+        if (!p.lastContact) p.lastContact = nowISO();
         if (p.nextFollowUp === undefined) p.nextFollowUp = '';
         if (p.priority === undefined) p.priority = 2;
         if (p.pushEmailSentAt === undefined) p.pushEmailSentAt = '';
@@ -4170,7 +4199,7 @@ function _renderProspectsImpl() {
         const pert = Math.min(5, Math.max(0, parseInt(prospect.pertinence || '3', 10) || 0));
         const stars = '★'.repeat(pert) + '☆'.repeat(5 - pert);
         const score = typeof computeProspectScore === 'function' ? computeProspectScore(prospect) : '—';
-        const lastContact = (prospect.lastContact && String(prospect.lastContact).trim()) ? escapeHtml(String(prospect.lastContact).slice(0, 10)) : '—';
+        const lastContact = escapeHtml(formatLastContact(prospect.lastContact));
         const nextFollowUpStr = (prospect.nextFollowUp && String(prospect.nextFollowUp).trim()) ? escapeHtml(String(prospect.nextFollowUp).slice(0, 10)) : '—';
         const fonctionStr = (prospect.fonction && String(prospect.fonction).trim()) ? escapeHtml(prospect.fonction) : '—';
 
@@ -4608,7 +4637,7 @@ function _heroChangeStatus(prospectId, newStatus) {
         showRdvDatePicker(prospectId, function(selectedDate) {
             prospect.statut = newStatus;
             if (selectedDate) prospect.rdvDate = selectedDate;
-            prospect.lastContact = new Date().toISOString().slice(0, 10);
+            prospect.lastContact = nowISO();
             saveToServer();
             if (window.haptic) haptic(20);
             if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
@@ -4629,7 +4658,7 @@ function _heroChangeStatus(prospectId, newStatus) {
         showRelanceDatePicker(prospectId, function(selectedDate) {
             prospect.statut = newStatus;
             if (selectedDate) prospect.nextFollowUp = selectedDate;
-            prospect.lastContact = new Date().toISOString().slice(0, 10);
+            prospect.lastContact = nowISO();
             saveToServer();
             if (window.haptic) haptic(20);
             if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
@@ -4646,7 +4675,7 @@ function _heroChangeStatus(prospectId, newStatus) {
     }
 
     prospect.statut = newStatus;
-    prospect.lastContact = new Date().toISOString().slice(0, 10);
+    prospect.lastContact = nowISO();
     saveToServer();
     if (window.haptic) haptic(20);
     if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
@@ -4747,7 +4776,7 @@ function quickLogCall(prospectId) {
     if (!prospect) return;
     _closeAllSwipes();
     prospect.statut = 'Appelé';
-    prospect.lastContact = new Date().toISOString().slice(0, 10);
+    prospect.lastContact = nowISO();
     saveToServer();
     filterProspects();
     if (window.haptic) window.haptic(40);
@@ -4805,7 +4834,7 @@ function applySwipeStatus(prospectId, slug) {
     if (!prospect) return;
     var newStatus = STATUS_SWIPE_VALUE_MAP[slug] || slug;
     prospect.statut = newStatus;
-    prospect.lastContact = new Date().toISOString().slice(0, 10);
+    prospect.lastContact = nowISO();
     saveToServer();
     filterProspects();
     if (window.haptic) window.haptic(40);
@@ -5191,7 +5220,7 @@ async function viewDetail(id) {
                 <div class="detail-info-item"><div class="detail-info-label">Téléphone</div><div class="detail-info-value">${prospect.telephone ? telLink(prospect.telephone) : '—'}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Email</div><div class="detail-info-value">${prospect.email ? `<a href="javascript:void(0)" onclick="copyEmailToClipboard('${escapeHtml(prospect.email)}')" title="Cliquer pour copier l'email" style="cursor:pointer;">${escapeHtml(prospect.email)}</a>` : '—'}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">LinkedIn</div><div class="detail-info-value">${prospect.linkedin ? `<a href="${escapeHtml(prospect.linkedin)}" target="_blank">Voir le profil</a>` : '—'}</div></div>
-                <div class="detail-info-item"><div class="detail-info-label">Dernier contact</div><div class="detail-info-value"><span id="detailLastContact">${escapeHtml(prospect.lastContact || '—')}</span></div></div>
+                <div class="detail-info-item"><div class="detail-info-label">Dernier contact</div><div class="detail-info-value"><span id="detailLastContact">${escapeHtml(formatLastContact(prospect.lastContact))}</span></div></div>
                 <div class="detail-info-item" id="detailRelanceRow"><div class="detail-info-label">Relance</div><div class="detail-info-value" id="detailRelanceValue">${(prospect.nextFollowUp || '').trim() ? escapeHtml(prospect.nextFollowUp) : '<div class="relance-shortcuts"><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 3)" title="Aujourd\'hui + 3 jours">+3j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 7)" title="Aujourd\'hui + 7 jours">+7j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 30)" title="Aujourd\'hui + 30 jours">+30j</button></div><span class="muted">—</span>'}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Next action</div><div class="detail-info-value">${escapeHtml(prospect.nextAction || '—')}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Priorité</div><div class="detail-info-value">P${prospect.priority ?? 2}</div></div>
@@ -5332,7 +5361,7 @@ async function viewDetail(id) {
                     <div class="detail-info-item"><label class="detail-info-label">Email</label><input id="editEmail" type="email" value="${escapeHtml(prospect.email || '')}" class="detail-edit-input"></div>
                     <div class="detail-info-item"><label class="detail-info-label">LinkedIn</label><input id="editLinkedin" type="text" value="${escapeHtml(prospect.linkedin || '')}" class="detail-edit-input"></div>
                     <div class="detail-info-item"><label class="detail-info-label">Photo</label><div style="display:flex;gap:8px;align-items:center;margin-top:4px;"><button type="button" class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="triggerPhotoUpload(${prospect.id})">📷 ${photoUrl ? 'Changer' : 'Ajouter'}</button>${photoUrl ? `<button type="button" class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="deleteProspectPhoto(${prospect.id})">🗑️ Supprimer</button>` : ''}</div></div>
-                    <div class="detail-info-item"><label class="detail-info-label">Dernier contact</label><input id="editLastContact" type="date" value="${prospect.lastContact || todayISO()}" class="detail-edit-input"></div>
+                    <div class="detail-info-item"><label class="detail-info-label">Dernier contact</label><input id="editLastContact" type="datetime-local" value="${(() => { const v = prospect.lastContact || nowISO(); return v.length === 10 ? v + 'T00:00' : v.slice(0, 16); })()}" class="detail-edit-input"></div>
                     <div class="detail-info-item">
                         <label class="detail-info-label">Relance</label>
                         <div class="relance-shortcuts">
@@ -9835,6 +9864,124 @@ function _ensureBulkIAModal() {
 let _bulkIACurrentTab = 'ollama';
 let _bulkIACsvData = null; // {headers, rows}
 
+// ─── Enrichissement IA en masse ───────────────────────────────────────────────
+async function bulkEnrichWithIA() {
+    if (selectedProspects.size === 0) {
+        showToast('⚠️ Sélectionnez des prospects d\'abord.', 'warning');
+        return;
+    }
+    const ids = Array.from(selectedProspects);
+    const total = ids.length;
+
+    if (!confirm(`Enrichir ${total} prospect(s) via Perplexity Sonar ?\n\nPour chaque prospect, l'IA recherchera sur internet les informations manquantes (poste, entreprise, téléphone, email, LinkedIn, compétences).\n\nCela peut prendre quelques secondes par prospect.`)) return;
+
+    let done = 0, successCount = 0, failCount = 0;
+    const summary = [];
+
+    showBulkProgress(0, total, 'enrichissement IA en cours…');
+
+    for (const id of ids) {
+        const p = data.prospects.find(x => x.id === id);
+        if (!p) { failCount++; continue; }
+
+        const prompt = getScanIAPromptProspect(id);
+        if (!prompt) { failCount++; continue; }
+
+        try {
+            const text = await callOllama(prompt, { webSearch: true });
+            if (!text) throw new Error('Réponse vide');
+
+            // Parse using existing field map + engine
+            const fieldMap = _getFieldMap('prospect');
+            const existing = { ...p };
+            const fields = [];
+            const lines = text.split('\n');
+            let currentKey = null, currentValue = '';
+            for (const line of lines) {
+                const match = line.match(/^([A-ZÀ-Ü_]+)\s*:\s*(.*)$/);
+                if (match) {
+                    if (currentKey) _processField(currentKey, currentValue, fieldMap, existing, fields, []);
+                    currentKey = match[1].trim();
+                    currentValue = match[2].trim();
+                } else if (currentKey) {
+                    currentValue += '\n' + line;
+                }
+            }
+            if (currentKey) _processField(currentKey, currentValue, fieldMap, existing, fields, []);
+
+            // Auto-apply: only fill empty fields or append notes (no conflict overwrite in bulk mode)
+            const applied = [];
+            for (const f of fields) {
+                if (f.mapping.key === '_company_notes') continue; // skip company notes in bulk
+                if (f.isConflict) continue; // skip conflicts — do not overwrite existing data in bulk
+                const key = f.mapping.key;
+                if (key === 'tags') {
+                    const oldTags = Array.isArray(p.tags) ? p.tags : [];
+                    const oldSet = new Set(oldTags.map(t => t.toLowerCase()));
+                    const merged = [...oldTags, ...f.newValue.filter(t => !oldSet.has(t.toLowerCase()))];
+                    if (merged.length > oldTags.length) { p.tags = merged; applied.push('Compétences'); }
+                } else if (f.mapping.append) {
+                    const old = p[key] || '';
+                    p[key] = old ? old + '\n--- IA ' + todayISO() + ' ---\n' + f.newValue : f.newValue;
+                    applied.push(f.mapping.label);
+                } else if (f.isNew) {
+                    p[key] = f.newValue;
+                    applied.push(f.mapping.label);
+                }
+            }
+
+            if (applied.length > 0) {
+                successCount++;
+                summary.push(`✅ ${p.name} : ${applied.join(', ')}`);
+            } else {
+                summary.push(`ℹ️ ${p.name} : aucun champ nouveau`);
+            }
+        } catch (e) {
+            failCount++;
+            summary.push(`❌ ${p.name} : ${e.message || 'Erreur IA'}`);
+        }
+
+        done++;
+        showBulkProgress(done, total, 'enrichissement IA en cours…');
+        // Small delay to avoid rate limiting
+        if (done < total) await new Promise(r => setTimeout(r, 300));
+    }
+
+    hideBulkProgress();
+
+    // Save all changes at once
+    if (successCount > 0) {
+        try { await saveToServerAsync(); } catch(e) {}
+        filterProspects();
+    }
+
+    // Show summary modal
+    const modalId = 'modalBulkEnrichSummary';
+    let modal = document.getElementById(modalId);
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = modalId;
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+    }
+    modal.innerHTML = `<div class="modal-content" style="max-width:520px;">
+        <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>🤖 Résumé enrichissement IA</span>
+            <button class="btn btn-secondary" onclick="this.closest('.modal').classList.remove('active')" style="font-size:14px;padding:4px 10px;">✕</button>
+        </div>
+        <div style="margin-top:14px;font-size:13px;">
+            <p><strong>${successCount}</strong> prospect(s) enrichi(s) · <strong>${failCount}</strong> échec(s)</p>
+            <div style="max-height:300px;overflow-y:auto;margin-top:10px;border:1px solid var(--color-border);border-radius:8px;padding:10px;">
+                ${summary.map(s => `<div style="padding:3px 0;border-bottom:1px solid var(--color-border);">${escapeHtml(s)}</div>`).join('')}
+            </div>
+        </div>
+        <div style="margin-top:14px;text-align:right;">
+            <button class="btn btn-primary" onclick="this.closest('.modal').classList.remove('active')">Fermer</button>
+        </div>
+    </div>`;
+    modal.classList.add('active');
+}
+
 function openBulkIAModal(mode) {
     if (selectedProspects.size === 0) {
         showToast('⚠️ Sélectionnez des prospects d\'abord.', 'warning');
@@ -10926,7 +11073,7 @@ function saveProspect(e) {
         linkedin: document.getElementById('inputLinkedin').value.trim(),
         pertinence: document.getElementById('inputPertinence').value,
         statut: document.getElementById('inputStatut').value,
-        lastContact: todayISO(),
+        lastContact: nowISO(),
         notes: document.getElementById('inputNotes').value.trim(),
         callNotes: [],
         nextFollowUp: '',
@@ -11309,7 +11456,7 @@ function mergeImportedData(imported) {
                 if (ip.nextFollowUp === undefined) ip.nextFollowUp = '';
                 if (ip.priority === undefined) ip.priority = 2;
                 if (!ip.callNotes) ip.callNotes = [];
-                if (!ip.lastContact) ip.lastContact = todayISO();
+                if (!ip.lastContact) ip.lastContact = nowISO();
                 data.prospects.push(ip);
                 created += 1;
             }
@@ -14084,8 +14231,8 @@ async function applyPostMeetingImport() {
         p.callNotes.push({ date: todayISO(), content: `[Réunion IA] ${d.compte_rendu}` });
     }
 
-    // Update lastContact to today
-    p.lastContact = todayISO();
+    // Update lastContact to now
+    p.lastContact = nowISO();
 
     try {
         await saveToServerAsync();
@@ -14145,7 +14292,7 @@ function bumpFollowup(id, days) {
     d.setDate(d.getDate() + (days || 2));
     const newDate = d.toISOString().slice(0, 10);
     p.nextFollowUp = newDate;
-    p.lastContact = new Date().toISOString().slice(0, 10);
+    p.lastContact = nowISO();
 
     // Undo support
     if (typeof window.pushUndo === 'function') {

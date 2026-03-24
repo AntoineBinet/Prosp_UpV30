@@ -400,11 +400,14 @@
     window.qaPickType = function (type) {
         _qaType = type;
         const stepFile = document.getElementById('qaStepFile');
+        const step1 = document.getElementById('qaStep1');
         if (stepFile && stepFile.style.display !== 'none') {
-            stepFile.querySelectorAll('.qa-card').forEach(c => c.classList.toggle('active', c.dataset.type === type));
+            stepFile.querySelectorAll('.qa-card[data-type]').forEach(c => c.classList.toggle('active', c.dataset.type === type));
         } else {
-            document.querySelectorAll('.qa-card').forEach(c => c.classList.remove('active'));
-            document.querySelector(`.qa-card[data-type="${type}"]`)?.classList.add('active');
+            // Scope to the visible step to avoid targeting hidden duplicate cards
+            const container = (step1 && step1.style.display !== 'none') ? step1 : document;
+            container.querySelectorAll('.qa-card[data-type]').forEach(c => c.classList.remove('active'));
+            container.querySelector(`.qa-card[data-type="${type}"]`)?.classList.add('active');
         }
     };
 
@@ -1146,7 +1149,7 @@
             linkedin: item.linkedin || '',
             pertinence: item.pertinence || '',
             statut: item.statut || '',
-            lastContact: new Date().toISOString().slice(0, 10),
+            lastContact: nowISO(),
             notes: (item.notes || '').trim(),
             callNotes: [],
             nextFollowUp: '',

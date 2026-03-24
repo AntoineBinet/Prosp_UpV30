@@ -168,8 +168,8 @@ async function focusDone(prospectId) {
     const note = (prompt("Note de contact (optionnel)\n(ex: appel, msg, résumé, next step)") || '').trim();
     const nextAction = (prompt("Next action (optionnel)\n(ex: relancer, envoyer CV, planifier RT)") || '').trim();
 
-    const today = todayISO();
-    const defaultNext = addDaysISO(today, 7);
+    const today = nowISO();
+    const defaultNext = addDaysISO(todayISO(), 7);
     const nf = (prompt(`Prochaine relance (YYYY-MM-DD)\nLaissez vide pour aucune.\nPar défaut: ${defaultNext}`, defaultNext) || '').trim();
 
     try {
