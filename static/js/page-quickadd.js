@@ -411,27 +411,13 @@
         }
     };
 
-    // ─── Step 2: copy prompt or generate with Ollama ───
-    window.qaStartSingle = function () {
-        if (!_qaType) { showToast('⚠️ Sélectionnez un type d\'abord', 'warning'); return; }
-        _qaMode = 'single';
-        _copyPrompt(_qaType, false);
-        document.getElementById('qaStep1').style.display = 'none';
-        document.getElementById('qaStep3Paste').style.display = '';
-        document.getElementById('qaPasteTextarea').value = '';
-        document.getElementById('qaPasteTextarea').focus();
-        showToast('Prompt copié. Collez-le dans votre IA, puis collez le retour ci-dessous.', 'info', 5000);
-    };
+    // ─── Step 2: generate with Ollama/Sonar ───
+    let _qaAbortController = null;
 
-    window.qaStartMultiple = function () {
-        if (!_qaType) { showToast('⚠️ Sélectionnez un type d\'abord', 'warning'); return; }
-        _qaMode = 'multiple';
-        _copyPrompt(_qaType, true);
-        document.getElementById('qaStep1').style.display = 'none';
-        document.getElementById('qaStep3Paste').style.display = '';
-        document.getElementById('qaPasteTextarea').value = '';
-        document.getElementById('qaPasteTextarea').focus();
-        showToast('Prompt copié. Collez-le dans votre IA, puis collez le retour ci-dessous.', 'info', 5000);
+    window.qaOverlayCancel = function () {
+        if (_qaAbortController) { _qaAbortController.abort(); _qaAbortController = null; }
+        _qaOverlayHide();
+        showToast('Génération annulée.', 'info');
     };
 
     window.qaGenerateWithOllama = function (multiple) {
@@ -444,33 +430,58 @@
         }
         const prompt = multiple ? _buildMultiPrompt(_qaType, context) : _buildSinglePrompt(_qaType, context);
         if (typeof window.callOllama !== 'function') { showToast('IA non disponible', 'error'); return; }
+
+        // Activer la recherche web si le contexte contient un lien LinkedIn ou une URL
+        const hasLinkedIn = context && /linkedin\.com\/in\/|linkedin\.com\/company\//i.test(context);
+        const hasUrl = context && /https?:\/\//i.test(context);
+        const useWebSearch = hasLinkedIn || hasUrl;
+
+        // Auto-sélectionner le type "company" si URL de page entreprise LinkedIn
+        if (hasLinkedIn && /linkedin\.com\/company\//i.test(context) && _qaType !== 'company') {
+            _qaType = 'company';
+            window.qaPickType('company');
+        }
+
         _qaOverlayShow({
             title: 'Génération en cours…',
             detail: 'Cela peut prendre plusieurs minutes. Ne fermez pas la fenêtre.',
-            phase: '',
+            phase: 'Envoi de la requête…',
             liveText: ''
         });
-        // Activer la recherche web si le contexte contient un lien LinkedIn ou une URL
-        const hasLinkedInUrl = context && /linkedin\.com\/in\/|linkedin\.com\/company\//i.test(context);
-        const hasUrl = context && /https?:\/\//i.test(context);
-        const useWebSearch = hasLinkedInUrl || hasUrl;
-        // Désactiver le streaming pour tous les appels (proxy/tunnel peut mal gérer le streaming SSE → erreur 405)
-        const opts = multiple 
-            ? { timeoutMs: 300000, stream: false, webSearch: useWebSearch } 
+
+        // Badge recherche web
+        const webBadge = document.getElementById('qaOllamaWebBadge');
+        if (webBadge) webBadge.style.display = useWebSearch ? '' : 'none';
+
+        // Phases progressives simulées
+        const phaseEl = document.getElementById('qaOllamaLivePhase');
+        const phaseTimers = [];
+        const phases = [
+            [400, 'Requête envoyée…'],
+            [3000, 'Analyse en cours…'],
+            [8000, useWebSearch ? 'Recherche web + analyse…' : 'Génération de la réponse…'],
+            [20000, 'Traitement avancé, encore un moment…']
+        ];
+        phases.forEach(([delay, text]) => {
+            phaseTimers.push(setTimeout(() => { if (phaseEl) phaseEl.textContent = text; }, delay));
+        });
+
+        _qaAbortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const opts = multiple
+            ? { timeoutMs: 300000, stream: false, webSearch: useWebSearch }
             : { timeoutMs: 180000, stream: false, webSearch: useWebSearch };
+
         window.callOllama(prompt, opts).then(function (text) {
+            phaseTimers.forEach(clearTimeout);
+            _qaAbortController = null;
             _qaOverlayHide();
-            // Debug : afficher le retour brut de l'IA dans la console et dans un panneau debug
             console.log('[Quick Add IA] Retour brut de l\'IA:', text);
             _showIADebugPanel(text, prompt);
-            
+
             const result = _tryParseQARaw(text || '', _qaType);
             if (result.ok) {
                 _qaParsed = result.parsed;
-                // Nettoyer les données parsées (corriger email/LinkedIn)
-                _qaParsed = _qaParsed.map(function(item) {
-                    return _cleanParsedItem(item);
-                });
+                _qaParsed = _qaParsed.map(function(item) { return _cleanParsedItem(item); });
                 document.getElementById('qaStep1').style.display = 'none';
                 document.getElementById('qaStep3Paste').style.display = 'none';
                 document.getElementById('qaStep4Preview').style.display = '';
@@ -484,8 +495,13 @@
                 showToast('Format non reconnu. Modifiez le JSON ci-dessous puis cliquez Analyser.', 'warning', 6000);
             }
         }).catch(function (err) {
+            phaseTimers.forEach(clearTimeout);
+            _qaAbortController = null;
             _qaOverlayHide();
-            const msg = (err && err.message) === 'Timeout' ? 'Génération trop longue. Utilisez « Copier » puis collez le retour manuellement.' : 'IA indisponible. Utilisez « Copier » puis collez le retour manuellement.';
+            if (err && err.name === 'AbortError') return;
+            const msg = (err && err.message) === 'Timeout'
+                ? 'Génération trop longue. Collez le retour manuellement dans l\'étape suivante.'
+                : 'IA indisponible. Vérifiez la configuration IA dans Paramètres.';
             showToast(msg, 'warning', 6000);
         });
     };
@@ -936,6 +952,19 @@
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    function _isDuplicateInData(item) {
+        if (typeof data === 'undefined') return false;
+        const email = (item.email || '').trim().toLowerCase();
+        const tel = (item.telephone || item.phone || '').trim();
+        const li = (item.linkedin || '').trim().toLowerCase();
+        return data.prospects.some(p => {
+            if (email && p.email && p.email.trim().toLowerCase() === email) return true;
+            if (tel && p.telephone && p.telephone.trim() === tel) return true;
+            if (li && p.linkedin && p.linkedin.trim().toLowerCase() === li) return true;
+            return false;
+        });
+    }
+
     function _renderPreview(items) {
         document.getElementById('qaStep3Paste').style.display = 'none';
         document.getElementById('qaStep4Preview').style.display = '';
@@ -947,9 +976,16 @@
         container.innerHTML = items.map((item, i) => {
             if (_qaType === 'prospect') {
                 const tagsVal = Array.isArray(item.tags) ? item.tags.join(', ') : (item.tags || '');
-                return `<div class="card qa-preview-item" data-index="${i}" style="padding:14px;margin-bottom:12px;">
+                const isDup = _isDuplicateInData(item);
+                const dupBadge = isDup ? `<span style="background:rgba(220,38,38,.15);color:#ef4444;border:1px solid #ef4444;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;">⚠️ Doublon probable</span>` : '';
+                const missingName = !(item.name || item.nom);
+                const cardBorder = missingName ? 'border:2px solid #ef4444;' : '';
+                return `<div class="card qa-preview-item" data-index="${i}" style="padding:14px;margin-bottom:12px;${cardBorder}">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-                        <strong style="font-size:14px;">${_esc(item.name || item.nom || `Prospect #${i + 1}`)}</strong>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <strong style="font-size:14px;">${_esc(item.name || item.nom || `Prospect #${i + 1}`)}</strong>
+                            ${dupBadge}
+                        </div>
                         <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;">
                             <input type="checkbox" class="qa-item-check" data-index="${i}" checked> Créer ce prospect
                         </label>
@@ -1051,6 +1087,10 @@
         return found ? found.id : 0;
     }
 
+    window.qaCheckAll = function (checked) {
+        document.querySelectorAll('.qa-item-check').forEach(cb => { cb.checked = checked; });
+    };
+
     // ─── Create all (lit les valeurs depuis le formulaire de validation) ───
     window.qaCreateAll = async function () {
         const items = _getPreviewItemsFromDOM();
@@ -1089,13 +1129,18 @@
             }
         }
 
-        let created = 0, errors = 0;
+        let created = 0, errors = 0, firstCreatedId = null;
 
         for (const item of items) {
             try {
-                if (_qaType === 'prospect') await _createProspect(item);
-                else if (_qaType === 'company') await _createCompany(item);
-                else if (_qaType === 'candidate') await _createCandidate(item);
+                if (_qaType === 'prospect') {
+                    const newP = await _createProspect(item);
+                    if (newP && newP.id && firstCreatedId === null) firstCreatedId = newP.id;
+                } else if (_qaType === 'company') {
+                    await _createCompany(item);
+                } else if (_qaType === 'candidate') {
+                    await _createCandidate(item);
+                }
                 created++;
             } catch (e) {
                 console.error('QA create error:', e);
@@ -1103,8 +1148,19 @@
             }
         }
 
-        showToast(`✅ ${created} créé(s)${errors > 0 ? ` — ${errors} erreur(s)` : ''}`, created > 0 ? 'success' : 'warning');
         closeQuickAddModal();
+
+        // Toast avec lien cliquable vers le premier prospect créé
+        if (_qaType === 'prospect' && created > 0 && firstCreatedId !== null && typeof viewDetail === 'function') {
+            const label = created === 1 ? '1 prospect créé' : `${created} prospects créés`;
+            const errPart = errors > 0 ? ` — ${errors} erreur(s)` : '';
+            showToast(
+                `✅ ${label}${errPart} — <a href="#" onclick="viewDetail(${firstCreatedId});return false;" style="color:inherit;text-decoration:underline;">Voir le premier</a>`,
+                'success', 5000
+            );
+        } else {
+            showToast(`✅ ${created} créé(s)${errors > 0 ? ` — ${errors} erreur(s)` : ''}`, created > 0 ? 'success' : 'warning');
+        }
 
         // Refresh data
         if (_qaType === 'prospect' || _qaType === 'company') {
@@ -1160,6 +1216,7 @@
             fixedMetier: item.fixedMetier || item.metier || '',
         };
         data.prospects.push(newP);
+        return newP;
     }
 
     async function _createCompany(item) {

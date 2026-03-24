@@ -7670,6 +7670,98 @@ def api_prospects_check_duplicates():
     return jsonify({"ok": True, "duplicate_indexes": duplicate_indexes})
 
 
+@app.post("/api/prospects/create")
+@role_required('editor')
+def api_prospect_create():
+    """Crée un seul prospect. Retourne l'ID assigné côté serveur.
+    Utilise le prochain id disponible côté serveur (MAX(id)+1) pour éviter les collisions
+    entre sessions simultanées."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return jsonify(ok=False, error="name est requis"), 400
+
+    def _dump_tags(v):
+        if v is None:
+            return "[]"
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return "[]"
+            if s.startswith("["):
+                return s
+            parts = [t.strip() for t in s.split(",") if t.strip()]
+            return json.dumps(parts, ensure_ascii=False)
+        if isinstance(v, list):
+            return json.dumps([str(t).strip() for t in v if str(t).strip()], ensure_ascii=False)
+        return "[]"
+
+    company_id = 0
+    company_groupe = (payload.get("company_groupe") or "").strip()
+    company_site = (payload.get("company_site") or "").strip()
+
+    with _conn() as conn:
+        # Résoudre ou créer l'entreprise si fournie
+        if payload.get("company_id"):
+            try:
+                cid = int(payload["company_id"])
+                row = conn.execute("SELECT id FROM companies WHERE id=? AND owner_id=?;", (cid, uid)).fetchone()
+                if row:
+                    company_id = cid
+            except Exception:
+                pass
+
+        if not company_id and company_groupe:
+            row = conn.execute(
+                "SELECT id FROM companies WHERE owner_id=? AND LOWER(groupe)=LOWER(?) AND LOWER(COALESCE(site,''))=LOWER(?);",
+                (uid, company_groupe, company_site or "")
+            ).fetchone()
+            if row:
+                company_id = int(row["id"])
+            else:
+                max_co = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM companies WHERE owner_id=?;", (uid,)).fetchone()["m"]
+                new_co_id = int(max_co) + 1
+                conn.execute(
+                    "INSERT INTO companies (id, groupe, site, owner_id) VALUES (?,?,?,?);",
+                    (new_co_id, company_groupe, company_site or "", uid)
+                )
+                company_id = new_co_id
+
+        # Générer l'ID côté serveur
+        max_p = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM prospects WHERE owner_id=?;", (uid,)).fetchone()["m"]
+        new_id = int(max_p) + 1
+        now = _now_iso()
+
+        conn.execute(
+            """INSERT INTO prospects
+            (id, name, company_id, fonction, telephone, email, linkedin, pertinence, statut,
+             lastContact, notes, callNotes, tags, priority, owner_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);""",
+            (
+                new_id,
+                name,
+                company_id,
+                (payload.get("fonction") or ""),
+                (payload.get("telephone") or ""),
+                (payload.get("email") or ""),
+                (payload.get("linkedin") or ""),
+                payload.get("pertinence") or "",
+                payload.get("statut") or "Pas d'actions",
+                payload.get("lastContact") or now,
+                (payload.get("notes") or ""),
+                "[]",
+                _dump_tags(payload.get("tags")),
+                2,
+                uid,
+            )
+        )
+
+    return jsonify({"ok": True, "id": new_id, "company_id": company_id})
+
+
 # Champs prospect fusionnables (pour prévisualisation et choix utilisateur)
 MERGEABLE_PROSPECT_FIELDS = [
     "name", "company_id", "fonction", "telephone", "email", "linkedin",
