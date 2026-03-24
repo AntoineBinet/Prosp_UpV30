@@ -517,9 +517,11 @@
             const bar = document.createElement('div');
             bar.id = 'mobileQuickActionsBar';
             bar.className = 'mobile-quick-actions-bar';
-            bar.innerHTML = '<button type="button" class="mobile-qa-item mobile-qa-pile" onclick="typeof startStackMode === \'function\' && startStackMode()" title="Mode pile (swipe)">🃏 Pile</button>' +
-                '<button type="button" class="mobile-qa-item" onclick="window.openGlobalSearch && window.openGlobalSearch()" title="Recherche">🔍 Recherche</button>' +
-                '<a href="/?add=1" class="mobile-qa-item" title="Ajouter prospect">➕ Ajouter</a>';
+            bar.setAttribute('role', 'toolbar');
+            bar.setAttribute('aria-label', 'Actions rapides');
+            bar.innerHTML = '<button type="button" class="mobile-qa-item mobile-qa-pile" onclick="typeof startStackMode === \'function\' && startStackMode()" aria-label="Mode pile" title="Mode pile (swipe)">🃏 Pile</button>' +
+                '<button type="button" class="mobile-qa-item" onclick="window.openGlobalSearch && window.openGlobalSearch()" aria-label="Recherche globale" title="Recherche">🔍 Recherche</button>' +
+                '<button type="button" class="mobile-qa-item" aria-label="Ajouter un prospect" title="Ajouter un prospect" onclick="(typeof openAddModal===\'function\'?openAddModal():window.location.href=\'/?add=1\')">➕ Ajouter</button>';
             document.body.appendChild(bar);
         }
     }

@@ -4122,7 +4122,13 @@ function _renderProspectsImpl() {
                 </div>
             </td></tr>`;
         } else {
-            tbody.innerHTML = '<tr><td colspan="13" style="text-align: center; padding: 40px; color: var(--color-text-secondary,#94a3b8);">Aucun prospect ne correspond aux filtres actifs.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="13">' +
+                '<div style="text-align:center;padding:48px 20px;">' +
+                '<div style="font-size:40px;margin-bottom:12px;">🔍</div>' +
+                '<div style="font-size:16px;font-weight:600;margin-bottom:6px;color:var(--color-text,#e2e8f0)">Aucun résultat</div>' +
+                '<div style="color:var(--color-text-secondary,#94a3b8);font-size:13px;margin-bottom:16px;">Aucun prospect ne correspond aux filtres actifs.</div>' +
+                '<button class="btn btn-secondary" style="min-height:44px;font-size:14px;" onclick="resetFilters && resetFilters()">Réinitialiser les filtres</button>' +
+                '</div></td></tr>';
         }
         updateStats([]);
         _renderPagination();
@@ -4366,8 +4372,8 @@ function _initProspectSwipe() {
     if (!tbody) return;
     _swipeListenerAttached = true;
 
-    var SNAP_THRESHOLD = 55;  // px minimum pour déclencher le snap
-    var MAX_REVEAL = 160;      // px max révélé
+    var SNAP_THRESHOLD = 50;  // px minimum pour déclencher le snap
+    var MAX_REVEAL = Math.min(160, Math.floor(window.innerWidth * 0.42)); // adaptatif (42% max)
 
     tbody.addEventListener('touchstart', function(e) {
         var wrap = e.target.closest('.pmc-swipe-wrap');
@@ -4697,6 +4703,7 @@ function quickEmailProspect(prospectId) {
     var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
     if (!prospect || !prospect.email) return;
     _closeAllSwipes();
+    if (window.haptic) window.haptic(15);
     window.location.href = 'mailto:' + encodeURIComponent(prospect.email);
 }
 
@@ -4774,13 +4781,16 @@ function _setStatusChip(chipEl, statusValue) {
 function quickLogCall(prospectId) {
     var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
     if (!prospect) return;
+    // Flash the card before closing
+    var cardEl = document.querySelector('.prospect-card-mobile[data-pid="' + prospectId + '"]');
+    if (cardEl) { var c = cardEl.querySelector('.pmc-content'); if (c) { c.classList.remove('pmc-flash-success'); void c.offsetWidth; c.classList.add('pmc-flash-success'); } }
     _closeAllSwipes();
     prospect.statut = 'Appelé';
     prospect.lastContact = nowISO();
     saveToServer();
-    filterProspects();
     if (window.haptic) window.haptic(40);
     if (window.showToast) window.showToast('Statut → Appelé ✓', 'success', 2500);
+    setTimeout(filterProspects, 350); // re-render after flash
 }
 
 // Mini-sheet de changement de statut depuis le swipe
@@ -4829,16 +4839,16 @@ function quickChangeStatus(prospectId, triggerEl) {
 
 function applySwipeStatus(prospectId, slug) {
     var sheet = document.getElementById('swipeStatusSheet');
-    if (sheet) sheet.remove();
+    if (sheet) { sheet.classList.remove('is-open'); setTimeout(function() { sheet.remove(); }, 250); }
     var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
     if (!prospect) return;
     var newStatus = STATUS_SWIPE_VALUE_MAP[slug] || slug;
     prospect.statut = newStatus;
     prospect.lastContact = nowISO();
     saveToServer();
-    filterProspects();
     if (window.haptic) window.haptic(40);
     if (window.showToast) window.showToast('Statut → ' + newStatus + ' ✓', 'success', 2500);
+    setTimeout(filterProspects, 260); // wait for sheet close animation
 }
 
 // v26: Alias pour compatibilité (anciens appels directs)
@@ -5772,6 +5782,20 @@ function clearSearchInput() {
         filterProspects();
         searchInput.focus();
     }
+}
+
+function resetFilters() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.value = '';
+    const statusFilter = document.getElementById('statusFilter');
+    if (statusFilter) statusFilter.value = '';
+    const companyFilter = document.getElementById('companyFilter');
+    if (companyFilter) companyFilter.value = '';
+    const pertinenceFilter = document.getElementById('pertinenceFilter');
+    if (pertinenceFilter) pertinenceFilter.value = '';
+    const prospectStatusChips = document.getElementById('prospectStatusChips');
+    if (prospectStatusChips) delete prospectStatusChips.dataset.urgentMode;
+    filterProspects();
 }
 
 function _getCurrentProspIds() {
@@ -6832,6 +6856,8 @@ function callNumberById(prospectId) {
         showToast("Aucun numéro de téléphone renseigné pour ce prospect.", 'warning');
         return;
     }
+    if (window.haptic) window.haptic(20);
+    _closeAllSwipes();
     callNumber(p.telephone, prospectId);
 }
 
