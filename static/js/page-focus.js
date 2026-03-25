@@ -450,9 +450,19 @@ async function saveTask() {
         });
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Erreur');
+        const savedId = json.id || (editId ? Number(editId) : null);
         showToast(editId ? 'Tâche modifiée.' : 'Tâche créée.', 'success');
         closeTaskModal();
         await loadTasks();
+        if (savedId) {
+            const el = document.querySelector(`.todo-item[data-task-id="${savedId}"]`);
+            if (el) {
+                el.classList.remove('flash-success');
+                void el.offsetWidth;
+                el.classList.add('flash-success');
+                setTimeout(() => el.classList.remove('flash-success'), 800);
+            }
+        }
     } catch (e) {
         console.error(e);
         showToast('Erreur lors de la sauvegarde.', 'error');
@@ -470,6 +480,14 @@ async function toggleTaskDone(taskId, checked) {
         if (!json.ok) throw new Error(json.error || 'Erreur');
         showToast(checked ? 'Tâche archivée.' : 'Tâche réactivée.', 'success');
         await loadTasks();
+        // Flash the task if still visible (reactivated tasks appear in pending list)
+        const el = document.querySelector(`.todo-item[data-task-id="${taskId}"]`);
+        if (el) {
+            el.classList.remove('flash-success');
+            void el.offsetWidth;
+            el.classList.add('flash-success');
+            setTimeout(() => el.classList.remove('flash-success'), 800);
+        }
     } catch (e) {
         console.error(e);
         showToast('Erreur.', 'error');
@@ -477,20 +495,54 @@ async function toggleTaskDone(taskId, checked) {
 }
 
 async function deleteTask(taskId) {
-    if (!confirm('Supprimer cette tâche ?')) return;
-    try {
-        const res = await fetch('/api/tasks/delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: taskId }),
+    // Optimistically hide the task element immediately
+    const el = document.querySelector(`.todo-item[data-task-id="${taskId}"]`);
+    const taskLabel = el?.querySelector('.todo-title')?.textContent?.trim() || 'Tâche';
+    if (el) el.style.display = 'none';
+
+    let deleteTimer = null;
+
+    const doDelete = async () => {
+        try {
+            const res = await fetch('/api/tasks/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: taskId }),
+            });
+            const json = await res.json();
+            if (!json.ok) {
+                if (el) el.style.display = '';
+                showToast('Erreur lors de la suppression.', 'error');
+            } else {
+                await loadTasks();
+            }
+        } catch (e) {
+            console.error(e);
+            if (el) el.style.display = '';
+            showToast('Erreur réseau.', 'error');
+        }
+    };
+
+    // Schedule actual delete after 10 seconds (matches undo toast duration)
+    deleteTimer = setTimeout(doDelete, 10000);
+
+    // Show undo toast — clicking "Annuler" restores the task
+    if (typeof window.showUndoToast === 'function') {
+        window.showUndoToast(`Tâche supprimée\u00a0: ${taskLabel}`, 'task', taskId, async () => {
+            clearTimeout(deleteTimer);
+            if (el) {
+                el.style.display = '';
+                el.classList.remove('flash-success');
+                void el.offsetWidth;
+                el.classList.add('flash-success');
+                setTimeout(() => el.classList.remove('flash-success'), 800);
+            }
+            showToast('↩\ufe0f Annulé', 'success', 2500);
         });
-        const json = await res.json();
-        if (!json.ok) throw new Error(json.error || 'Erreur');
-        showToast('Tâche supprimée.', 'success');
-        await loadTasks();
-    } catch (e) {
-        console.error(e);
-        showToast('Erreur.', 'error');
+    } else {
+        // Fallback if showUndoToast not available: delete immediately
+        clearTimeout(deleteTimer);
+        doDelete();
     }
 }
 

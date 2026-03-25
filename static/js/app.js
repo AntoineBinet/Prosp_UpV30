@@ -1265,11 +1265,25 @@ function flashRowSuccess(prospectId) {
 function animateRowUpdated(prospectId) {
     const row = document.querySelector(`tr[data-prospect-id="${prospectId}"]`);
     if (!row) return;
-    
     row.classList.add('row-updated');
     setTimeout(() => {
         row.classList.remove('row-updated');
     }, 2000);
+}
+
+// Animation flash vert générique pour n'importe quel élément DOM
+function flashElementSuccess(el) {
+    if (!el) return;
+    el.classList.remove('flash-success');
+    // Force reflow so animation restarts if called twice quickly
+    void el.offsetWidth;
+    el.classList.add('flash-success');
+    setTimeout(() => el.classList.remove('flash-success'), 800);
+}
+
+// Animation flash vert pour une card entreprise par ID
+function flashCompanyCard(companyId) {
+    flashElementSuccess(document.querySelector(`.company-card[data-company-id="${companyId}"]`));
 }
 
 // Auto-sauvegarde activée (SQLite) : on garde markUnsaved comme no-op pour compatibilité.
@@ -2707,6 +2721,7 @@ function saveCompanyNotesInline(companyId) {
     inlineCompanyNotesEditingId = null;
     saveToServer();
     refreshCompaniesUI();
+    setTimeout(() => flashCompanyCard(companyId), 60);
 }
 
 function beginCompanyFieldInline(companyId, field) {
@@ -2736,6 +2751,7 @@ function saveCompanyFieldInline(companyId, field) {
     inlineCompanyFieldEditing = null;
     saveToServer();
     refreshCompaniesUI();
+    setTimeout(() => flashCompanyCard(companyId), 60);
 }
 
 function updateCompanySummary(summary) {
