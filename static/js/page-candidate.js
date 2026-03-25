@@ -441,14 +441,17 @@ function renderViewMode() {
         ).join('');
     }
 
-    // Skills
+    // Skills / Tags
     if (viewSkills) {
         if (__skills.length === 0) {
-            viewSkills.innerHTML = '<div class="muted">Aucune compétence renseignée.</div>';
+            viewSkills.innerHTML = '<div class="muted" style="font-size:12px;">Aucun tag renseigné — analysez un DC pour les extraire automatiquement.</div>';
         } else {
             viewSkills.innerHTML = __skills.map(s => `<span class="chip">${escapeHtml(s)}</span>`).join('');
         }
     }
+
+    // DC indicator (async, non-bloquant)
+    loadCandidateDcStatus();
 
     // Companies
     if (viewCompanies) {
@@ -487,6 +490,103 @@ function renderViewMode() {
 
     // Load structured data
     loadCandidateStructuredData();
+}
+
+// ═══ DC (Dossier de Compétences) status + upload ═══
+
+async function loadCandidateDcStatus() {
+    const el = document.getElementById('viewDcIndicator');
+    if (!el || !__cand?.id) return;
+    try {
+        const res = await fetch(`/api/candidates/${__cand.id}/dc-status`);
+        const j = await res.json();
+        if (!j?.ok) { el.innerHTML = '<span class="muted">Statut DC indisponible.</span>'; return; }
+        if (j.has_dc) {
+            const fileLinks = (j.files || []).map(f => {
+                const url = `/api/candidates/${__cand.id}/dossier-competence`;
+                return `<a href="${url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;">⬇️ Télécharger${j.files.length > 1 ? ' (' + escapeHtml(f) + ')' : ''}</a>`;
+            }).join('');
+            el.innerHTML = `<span class="badge badge-success" style="font-size:12px;">✅ DC disponible</span>${fileLinks}`;
+        } else {
+            el.innerHTML = `<span class="badge" style="background:rgba(245,158,11,.15);color:#f59e0b;font-size:12px;">⚠ DC manquant</span>
+                <button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcUploadModal()">➕ Ajouter le DC</button>`;
+        }
+    } catch (e) {
+        el.innerHTML = '<span class="muted">Statut DC indisponible.</span>';
+    }
+}
+
+let __dcUploadFile = null;
+
+function openDcUploadModal() {
+    __dcUploadFile = null;
+    const fn = document.getElementById('dcUploadFileName');
+    const inp = document.getElementById('dcUploadFile');
+    const btn = document.getElementById('dcUploadBtnSave');
+    if (fn) { fn.style.display = 'none'; fn.textContent = ''; }
+    if (inp) inp.value = '';
+    if (btn) btn.disabled = true;
+    const modal = document.getElementById('modalUploadDc');
+    if (!modal) return;
+    if (window.openModal) window.openModal(modal);
+    else modal.classList.add('active');
+}
+
+function closeDcUploadModal() {
+    const modal = document.getElementById('modalUploadDc');
+    if (!modal) return;
+    if (window.closeModal) window.closeModal(modal);
+    else modal.classList.remove('active');
+    __dcUploadFile = null;
+}
+
+function dcUploadOnFileChange(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    __dcUploadFile = file;
+    const fn = document.getElementById('dcUploadFileName');
+    if (fn) { fn.textContent = '📄 ' + file.name; fn.style.display = 'block'; }
+    const btn = document.getElementById('dcUploadBtnSave');
+    if (btn) btn.disabled = false;
+}
+
+function dcUploadHandleDrop(event) {
+    event.preventDefault();
+    document.getElementById('dcUploadDrop')?.classList.remove('dragging');
+    const file = event.dataTransfer?.files?.[0];
+    if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+        if (typeof showToast === 'function') showToast('Veuillez déposer un fichier PDF', 'warning');
+        return;
+    }
+    __dcUploadFile = file;
+    const fn = document.getElementById('dcUploadFileName');
+    if (fn) { fn.textContent = '📄 ' + file.name; fn.style.display = 'block'; }
+    const btn = document.getElementById('dcUploadBtnSave');
+    if (btn) btn.disabled = false;
+}
+
+async function saveDcUpload() {
+    if (!__dcUploadFile || !__cand?.id) return;
+    const btn = document.getElementById('dcUploadBtnSave');
+    const orig = btn?.innerHTML; if (btn) { btn.disabled = true; btn.innerHTML = 'Envoi…'; }
+    try {
+        const fd = new FormData();
+        fd.append('dc', __dcUploadFile);
+        fd.append('candidate_id', __cand.id);
+        const res = await fetch('/api/candidates/upload-dc', { method: 'POST', body: fd });
+        if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            if (typeof showToast === 'function') showToast('Erreur : ' + (j.error || res.status), 'error');
+            return;
+        }
+        if (typeof showToast === 'function') showToast('✅ DC enregistré', 'success');
+        closeDcUploadModal();
+        loadCandidateDcStatus();
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('Erreur réseau : ' + e.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    }
 }
 
 // ═══ Structured data (experiences, educations, certifications) ═══
