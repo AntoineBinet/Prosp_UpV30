@@ -1171,25 +1171,6 @@ function wireProductivityEvents() {
     document.getElementById('btnSaveCompanyTags')?.addEventListener('click', saveCompanyTagsFromKeywords);
 }
 
-// ===== Import LinkedIn CSV =====
-async function importLinkedInCsv(file) {
-    if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
-
-    const res = await fetch('/api/candidates/import_linkedin_csv', { method: 'POST', body: fd });
-    if (!res.ok) {
-        const txt = await res.text().catch(()=> '');
-        showToast('❌ Import impossible: ' + (txt || ('HTTP ' + res.status)), 'error');
-        return;
-    }
-    const j = await res.json().catch(()=> ({}));
-    showToast(`✅ Import LinkedIn terminé : ${j.inserted || 0} ajouté(s), ${j.skipped || 0} ignoré(s)`, 'success', 5000);
-    await loadCandidates();
-    applyCandidateFilters();
-    refreshProductivityMatching();
-}
-
 // ===== Tabs =====
 function setTab(tab) {
     const p1 = document.getElementById('panelPipeline');
@@ -1279,53 +1260,6 @@ async function scanCandidateFolder() {
     }
 }
 
-// Initialisation VSA (globale, accessible depuis partout) - optimisée pour éviter les doublons
-let _vsaInitialized = false;
-
-function _initVsaModal() {
-    // Éviter les initialisations multiples
-    if (_vsaInitialized) return;
-    
-    // Bouton sur page sourcing (optionnel)
-    const btnAddViaVsa = document.getElementById('btnAddViaVsa');
-    if (btnAddViaVsa && !btnAddViaVsa.hasAttribute('data-vsa-wired')) {
-        btnAddViaVsa.setAttribute('data-vsa-wired', 'true');
-        btnAddViaVsa.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof window.openVsaImportModal === 'function') {
-                window.openVsaImportModal();
-            }
-        });
-    }
-    
-    // Event listeners pour la modale VSA (disponible partout) - une seule fois
-    const textarea = document.getElementById('vsaImportTextarea');
-    const btnExtract = document.getElementById('btnVsaExtractOllama');
-    const btnPreFill = document.getElementById('btnVsaPreFillAnyway');
-    
-    if (textarea && !textarea.hasAttribute('data-vsa-wired')) {
-        textarea.setAttribute('data-vsa-wired', 'true');
-        textarea.addEventListener('input', _vsaImportToggleExtractButton);
-    }
-    if (btnExtract && !btnExtract.hasAttribute('data-vsa-wired')) {
-        btnExtract.setAttribute('data-vsa-wired', 'true');
-        btnExtract.addEventListener('click', () => _vsaImportExtractWithOllama());
-    }
-    if (btnPreFill && !btnPreFill.hasAttribute('data-vsa-wired')) {
-        btnPreFill.setAttribute('data-vsa-wired', 'true');
-        btnPreFill.addEventListener('click', _vsaImportPreFillAnyway);
-    }
-    
-    _vsaInitialized = true;
-}
-
-// Fonction d'initialisation VSA globale (appelable depuis n'importe où) - optimisée
-window.initVsaModal = function() {
-    if (!_vsaInitialized) {
-        _initVsaModal();
-    }
-};
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -1345,18 +1279,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // v27.x PARTIE 3: nouveau wizard 2 étapes pour ajouter un candidat
     document.getElementById('btnAddCandidate')?.addEventListener('click', openWizardCandModal);
     document.getElementById('candForm')?.addEventListener('submit', saveCandidate);
-
-    // import LinkedIn CSV
-    const file = document.getElementById('candImportFile');
-    document.getElementById('btnImportLinkedin')?.addEventListener('click', () => file && file.click());
-    file && file.addEventListener('change', async () => {
-        const f = file.files && file.files[0];
-        await importLinkedInCsv(f);
-        file.value = '';
-    });
-
-    // Initialisation VSA (une seule fois)
-    _initVsaModal();
 
     // Tabs
     document.getElementById('tabPipeline')?.addEventListener('click', () => setTab('pipeline'));

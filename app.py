@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.17"
+APP_VERSION = "27.18"
 import os
 import subprocess
 import traceback
@@ -4922,6 +4922,29 @@ def api_candidates_upload_dc():
         return jsonify(ok=False, error=str(e)), 500
 
 
+@app.get("/api/candidates/<int:cid>/dc-status")
+def api_candidate_dc_status(cid):
+    """Vérifie si un DC est présent pour le candidat (nouveau stockage + ancien champ).
+    Retourne: { ok, has_dc, files: [filename, ...] }
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT dossier_competence_pdf FROM candidates WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (cid, uid)
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+    dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cid)
+    files = sorted([f.name for f in dc_dir.glob("*.pdf")]) if dc_dir.is_dir() else []
+    # Fallback: ancien champ texte
+    if not files and row["dossier_competence_pdf"]:
+        files = [Path(row["dossier_competence_pdf"]).name]
+    return jsonify(ok=True, has_dc=bool(files), files=files)
+
+
 @app.post("/api/prospects/delete")
 def api_prospects_delete():
     """v27.10: Soft delete a prospect (fenêtre d'annulation 10s via /api/soft-deleted/restore)."""
@@ -8677,78 +8700,6 @@ def api_export_candidates_csv():
     filename = f"Candidates_{_today_iso()}.csv"
     return send_file(output, as_attachment=True, download_name=filename, mimetype="text/csv")
 
-
-@app.post("/api/candidates/import_linkedin_csv")
-def api_import_linkedin_csv():
-    if "file" not in request.files:
-        return jsonify({"ok": False, "error": "file is required"}), 400
-    f = request.files["file"]
-    if not f.filename:
-        return jsonify({"ok": False, "error": "Nom de fichier vide"}), 400
-    ok_upload, err_upload = _validate_upload(f, "csv")
-    if not ok_upload:
-        return jsonify(ok=False, error=err_upload[0]), err_upload[1]
-    content = f.read()
-    try:
-        text = content.decode("utf-8-sig")
-    except Exception:
-        text = content.decode("latin-1", errors="ignore")
-
-    import io
-    reader = csv.DictReader(io.StringIO(text))
-    now = _now_iso()
-    inserted = 0
-
-    def get_any(row, keys):
-        for k in keys:
-            if k in row and row[k]:
-                return str(row[k]).strip()
-        return ""
-
-    uid = _uid()
-    if not uid:
-        return jsonify(ok=False, error="Non authentifié"), 401
-    with _conn() as conn:
-        cur = conn.cursor()
-        for row in reader:
-            first = get_any(row, ["First Name", "FirstName", "Prénom", "Prenom"])
-            last = get_any(row, ["Last Name", "LastName", "Nom"])
-            name = (first + " " + last).strip() or get_any(row, ["Name", "Full Name", "Nom complet"])
-            if not name:
-                continue
-            role = get_any(row, ["Position", "Title", "Rôle", "Role"])
-            location = get_any(row, ["Location", "Localisation", "City"])
-            linkedin = get_any(row, ["URL", "LinkedIn URL", "LinkedIn", "Profil", "Profile URL"])
-            company = get_any(row, ["Company", "Entreprise"])
-            notes = get_any(row, ["Notes", "Comment", "Commentaires"])
-            if company and notes:
-                notes = f"{company}\n{notes}"
-            elif company and not notes:
-                notes = company
-
-            cur.execute(
-                '''
-                INSERT INTO candidates (name, role, location, seniority, tech, linkedin, source, status, notes, createdAt, updatedAt, owner_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                ''',
-                (
-                    name,
-                    role or None,
-                    location or None,
-                    None,
-                    None,
-                    linkedin or None,
-                    "linkedin_csv",
-                    "a_sourcer",
-                    notes or None,
-                    now,
-                    now,
-                    uid,
-                ),
-            )
-            inserted += 1
-
-    return jsonify({"ok": True, "inserted": inserted})
 
 # ====== Push logs API ======
 @app.get("/api/push-logs")
