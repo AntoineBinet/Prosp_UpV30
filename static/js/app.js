@@ -3897,10 +3897,26 @@ function setRelanceFromInfo(prospectId, days) {
     saveToServer();
     const valEl = document.getElementById('detailRelanceValue');
     if (valEl) {
-        valEl.innerHTML = escapeHtml(p.nextFollowUp);
+        valEl.innerHTML = '<span class="relance-date-row">' + escapeHtml(p.nextFollowUp) + '<button type="button" class="relance-check-btn" onclick="clearRelanceFromInfo(' + prospectId + ')" title="Marquer comme relancé (supprime la date)">✓</button></span>';
     }
     try { filterProspects(); } catch (e) {}
     if (typeof showToast === 'function') showToast('Relance programmée : ' + p.nextFollowUp, 'success');
+}
+
+// Depuis l'onglet Infos : marque la relance comme effectuée (supprime la date).
+function clearRelanceFromInfo(prospectId) {
+    const p = data.prospects.find(x => x.id === prospectId);
+    if (!p) return;
+    p.nextFollowUp = '';
+    saveToServer();
+    const valEl = document.getElementById('detailRelanceValue');
+    if (valEl) {
+        valEl.innerHTML = '<div class="relance-shortcuts"><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + prospectId + ', 3)" title="Aujourd\'hui + 3 jours">+3j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + prospectId + ', 7)" title="Aujourd\'hui + 7 jours">+7j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + prospectId + ', 30)" title="Aujourd\'hui + 30 jours">+30j</button></div><span class="muted">—</span>';
+    }
+    const editInput = document.getElementById('editNextFollowUp');
+    if (editInput) editInput.value = '';
+    try { filterProspects(); } catch (e) {}
+    if (typeof showToast === 'function') showToast('Relance supprimée', 'success');
 }
 
 function setFollowup(prospectId, days) {
@@ -5247,7 +5263,7 @@ async function viewDetail(id) {
                 <div class="detail-info-item"><div class="detail-info-label">Email</div><div class="detail-info-value">${prospect.email ? `<a href="javascript:void(0)" onclick="copyEmailToClipboard('${escapeHtml(prospect.email)}')" title="Cliquer pour copier l'email" style="cursor:pointer;">${escapeHtml(prospect.email)}</a>` : '—'}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">LinkedIn</div><div class="detail-info-value">${prospect.linkedin ? `<a href="${escapeHtml(prospect.linkedin)}" target="_blank">Voir le profil</a>` : '—'}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Dernier contact</div><div class="detail-info-value"><span id="detailLastContact">${escapeHtml(formatLastContact(prospect.lastContact))}</span></div></div>
-                <div class="detail-info-item" id="detailRelanceRow"><div class="detail-info-label">Relance</div><div class="detail-info-value" id="detailRelanceValue">${(prospect.nextFollowUp || '').trim() ? escapeHtml(prospect.nextFollowUp) : '<div class="relance-shortcuts"><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 3)" title="Aujourd\'hui + 3 jours">+3j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 7)" title="Aujourd\'hui + 7 jours">+7j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 30)" title="Aujourd\'hui + 30 jours">+30j</button></div><span class="muted">—</span>'}</div></div>
+                <div class="detail-info-item" id="detailRelanceRow"><div class="detail-info-label">Relance</div><div class="detail-info-value" id="detailRelanceValue">${(prospect.nextFollowUp || '').trim() ? '<span class="relance-date-row">' + escapeHtml(prospect.nextFollowUp) + '<button type="button" class="relance-check-btn" onclick="clearRelanceFromInfo(' + id + ')" title="Marquer comme relancé (supprime la date)">✓</button></span>' : '<div class="relance-shortcuts"><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 3)" title="Aujourd\'hui + 3 jours">+3j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 7)" title="Aujourd\'hui + 7 jours">+7j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 30)" title="Aujourd\'hui + 30 jours">+30j</button></div><span class="muted">—</span>'}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Next action</div><div class="detail-info-value">${escapeHtml(prospect.nextAction || '—')}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Priorité</div><div class="detail-info-value">P${prospect.priority ?? 2}</div></div>
                 ${prospect.rdvDate ? `<div class="detail-info-item"><div class="detail-info-label">📅 Date RDV</div><div class="detail-info-value">${escapeHtml(prospect.rdvDate)} <button class="mini-action" onclick="copyRdvForTeams(${prospect.id})" title="Copier RDV pour Teams" style="margin-left:6px;font-size:11px;">📋 Teams</button></div></div>` : ''}
