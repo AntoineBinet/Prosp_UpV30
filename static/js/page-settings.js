@@ -306,8 +306,19 @@ async function runSystemVerify() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
         });
-        const data = await res.json();
-        
+
+        let data;
+        try {
+            data = await res.json();
+        } catch (_) {
+            // La réponse n'est pas du JSON (ex: page HTML 504 du proxy)
+            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur réseau (HTTP ${res.status}) — le serveur n'a pas répondu correctement. Réessayez dans quelques secondes.</div>`;
+            resultsEl.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = '🔍 Lancer la vérification';
+            return;
+        }
+
         if (!res.ok) {
             resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur: ${data.error || 'Erreur inconnue'}</div>`;
             resultsEl.style.display = 'block';
