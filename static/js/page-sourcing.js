@@ -1342,7 +1342,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('candSearch')?.addEventListener('input', applyCandidateFilters);
     document.getElementById('candStatusFilter')?.addEventListener('change', applyCandidateFilters);
     document.getElementById('candSkillsFilter')?.addEventListener('input', applyCandidateFilters);
-    document.getElementById('btnAddCandidate')?.addEventListener('click', () => { __candEditing = null; document.getElementById('candForm')?.reset(); openCandidateModal(false); });
+    // v27.x PARTIE 3: nouveau wizard 2 étapes pour ajouter un candidat
+    document.getElementById('btnAddCandidate')?.addEventListener('click', openWizardCandModal);
     document.getElementById('candForm')?.addEventListener('submit', saveCandidate);
 
     // import LinkedIn CSV
@@ -1390,3 +1391,179 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch(e) {}
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v27.x PARTIE 3 — Wizard ajout candidat (2 étapes)
+// Étape 1 : Import DC PDF + VSA URL + statut
+// Étape 2 : Validation champs extraits par Ollama
+// ─────────────────────────────────────────────────────────────────────────────
+
+let __wizardDcFile = null;
+
+function openWizardCandModal() {
+    __wizardDcFile = null;
+    document.getElementById('wizardDcFileName').style.display = 'none';
+    document.getElementById('wizardDcFileName').textContent = '';
+    document.getElementById('wizardDcFile').value = '';
+    document.getElementById('wizardVsaUrl').value = '';
+    document.getElementById('wizardStatus').value = 'a_sourcer';
+    document.getElementById('wizardBtnAnalyze').disabled = true;
+    document.getElementById('wizardStep1').style.display = '';
+    document.getElementById('wizardStep2').style.display = 'none';
+    const modal = document.getElementById('modalAddCandidateWizard');
+    if (window.openModal) window.openModal(modal);
+    else modal.classList.add('active');
+}
+
+function closeWizardCandModal() {
+    const modal = document.getElementById('modalAddCandidateWizard');
+    if (window.closeModal) window.closeModal(modal);
+    else modal.classList.remove('active');
+    __wizardDcFile = null;
+}
+
+function wizardOnFileChange(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    __wizardDcFile = file;
+    const fn = document.getElementById('wizardDcFileName');
+    fn.textContent = '📄 ' + file.name;
+    fn.style.display = 'block';
+    document.getElementById('wizardBtnAnalyze').disabled = false;
+}
+
+function wizardHandleDrop(event) {
+    event.preventDefault();
+    document.getElementById('wizardDcDrop').classList.remove('dragging');
+    const file = event.dataTransfer.files && event.dataTransfer.files[0];
+    if (!file || !file.name.endsWith('.pdf')) {
+        if (typeof showToast === 'function') showToast('Veuillez déposer un fichier PDF', 'warning');
+        return;
+    }
+    __wizardDcFile = file;
+    const fn = document.getElementById('wizardDcFileName');
+    fn.textContent = '📄 ' + file.name;
+    fn.style.display = 'block';
+    document.getElementById('wizardBtnAnalyze').disabled = false;
+}
+
+async function wizardAnalyzeDC() {
+    const btn = document.getElementById('wizardBtnAnalyze');
+    const origLabel = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="pt-spinner"></span> Extraction IA…';
+
+    // Si pas de DC, passer directement à l'étape 2 avec champs vides
+    if (!__wizardDcFile) {
+        _wizardShowStep2({}, false, 'Saisie manuelle (pas de DC fourni)');
+        btn.disabled = false; btn.innerHTML = origLabel;
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('dc', __wizardDcFile);
+        const res = await fetch('/api/candidates/extract-dc', { method: 'POST', body: formData });
+        if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            const msg = e.error || `HTTP ${res.status}`;
+            _wizardShowStep2({}, false, 'Extraction IA indisponible — saisie manuelle (' + msg + ')');
+        } else {
+            const payload = await res.json();
+            _wizardShowStep2(payload.fields || {}, true, null);
+        }
+    } catch (_) {
+        _wizardShowStep2({}, false, 'Extraction IA indisponible — saisie manuelle');
+    } finally {
+        btn.disabled = false; btn.innerHTML = origLabel;
+    }
+}
+
+function _wizardShowStep2(fields, aiOk, message) {
+    document.getElementById('wizardStep1').style.display = 'none';
+    document.getElementById('wizardStep2').style.display = '';
+
+    const msgEl = document.getElementById('wizardAiMessage');
+    if (message) {
+        msgEl.textContent = message;
+        msgEl.style.display = 'block';
+    } else {
+        msgEl.style.display = 'none';
+    }
+
+    // Pré-remplir les champs
+    _wizardSetField('wizardName',   fields.name   || '');
+    _wizardSetField('wizardPrenom', fields.prenom || '', aiOk && !!fields.prenom);
+    _wizardSetField('wizardTitre',  fields.titre  || '', aiOk && !!fields.titre);
+    _wizardSetField('wizardAnnees', fields.annees_experience != null ? String(fields.annees_experience) : '', aiOk && fields.annees_experience != null);
+    _wizardSetField('wizardDomaine',fields.domaine_principal || '', aiOk && !!fields.domaine_principal);
+    _wizardSetField('wizardRole',   fields.role   || '', false);
+    _wizardSetField('wizardTags',   Array.isArray(fields.tags) ? fields.tags.join(', ') : (fields.tags || ''), aiOk && !!fields.tags);
+}
+
+function _wizardSetField(id, value, showBadge = false) {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+    const badge = document.getElementById(id + '_badge');
+    if (badge) badge.style.display = showBadge ? 'inline-block' : 'none';
+}
+
+function wizardGoBack() {
+    document.getElementById('wizardStep1').style.display = '';
+    document.getElementById('wizardStep2').style.display = 'none';
+}
+
+async function wizardCreateCandidate() {
+    const name = document.getElementById('wizardName').value.trim();
+    if (!name) {
+        if (typeof showToast === 'function') showToast('Le nom est obligatoire', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('wizardBtnCreate');
+    const orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Création…';
+
+    const payload = {
+        name,
+        prenom: document.getElementById('wizardPrenom').value.trim() || null,
+        titre:  document.getElementById('wizardTitre').value.trim()  || null,
+        annees_experience: parseInt(document.getElementById('wizardAnnees').value) || null,
+        domaine_principal: document.getElementById('wizardDomaine').value.trim() || null,
+        role:   document.getElementById('wizardRole').value.trim()   || null,
+        vsa_url: document.getElementById('wizardVsaUrl').value.trim() || null,
+        status: document.getElementById('wizardStatus').value,
+        skills: document.getElementById('wizardTags').value.split(',').map(s => s.trim()).filter(Boolean),
+    };
+
+    try {
+        const res = await fetch('/api/candidates/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const txt = await res.text().catch(() => '');
+            if (typeof showToast === 'function') showToast('Erreur création : ' + (txt || res.status), 'error');
+            return;
+        }
+        const data = await res.json();
+        const candidateId = data.id;
+
+        // Upload DC si présent
+        if (__wizardDcFile && candidateId) {
+            const fd = new FormData();
+            fd.append('dc', __wizardDcFile);
+            fd.append('candidate_id', candidateId);
+            await fetch('/api/candidates/upload-dc', { method: 'POST', body: fd }).catch(() => {});
+        }
+
+        if (typeof showToast === 'function') showToast('Candidat créé !', 'success');
+        closeWizardCandModal();
+        if (typeof loadCandidates === 'function') await loadCandidates();
+        if (typeof applyCandidateFilters === 'function') applyCandidateFilters();
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('Erreur réseau : ' + e.message, 'error');
+    } finally {
+        btn.disabled = false; btn.innerHTML = orig;
+    }
+}

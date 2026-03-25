@@ -9,26 +9,6 @@
 {% block header_subtitle %}Pipeline + mode productivité (matching avec vos entreprises prospects).{% endblock %}
 
 {% block content %}
-<div class="card" style="margin-bottom:16px;">
-  <h3 style="font-size:14px;margin-bottom:10px;">📂 Dossier candidats</h3>
-  <p class="muted" style="font-size:12px;margin-bottom:10px;">Chemin racine des dossiers candidats (format NOM Prénom). Utilisez « Scanner le dossier » pour détecter les nouveaux noms.</p>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex-wrap:wrap;">
-    <div>
-      <label class="muted" style="font-size:11px;">Chemin de base</label>
-      <input type="text" id="settingCandidateFolderBase" placeholder="C:\...\02 Candidats" style="width:100%;font-size:12px;padding:6px 10px;margin-top:4px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);" />
-    </div>
-    <div>
-      <label class="muted" style="font-size:11px;">Format du nom (ex: {NOM} {Prenom})</label>
-      <input type="text" id="settingCandidateFolderFormat" placeholder="{NOM} {Prenom}" style="width:100%;font-size:12px;padding:6px 10px;margin-top:4px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);" />
-    </div>
-  </div>
-  <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">
-    <button class="btn btn-primary" id="btnSaveCandidateFolder">💾 Enregistrer</button>
-    <button class="btn btn-secondary" id="btnScanCandidateFolder">🔍 Scanner le dossier</button>
-    <span id="folderSettingsStatus" class="muted" style="font-size:12px;"></span>
-  </div>
-  <div id="sourceFromFolderResult" style="margin-top:12px;display:none;"></div>
-</div>
 <div class="content-header">
   <div class="content-title">Sourcing</div>
   <div class="tabbar">
@@ -233,6 +213,113 @@
       </div>
     </form>
   </div>
+
+<!-- Modal Ajouter candidat — 2 étapes (v27.x PARTIE 3) -->
+<div id="modalAddCandidateWizard" class="modal" role="dialog" aria-modal="true" aria-labelledby="wizardCandTitle">
+  <div class="modal-content" style="max-width:560px;">
+    <div class="modal-header">
+      <h2 id="wizardCandTitle">Ajouter un candidat</h2>
+      <button class="modal-close" onclick="closeWizardCandModal()" aria-label="Fermer">×</button>
+    </div>
+
+    <!-- Étape 1 -->
+    <div id="wizardStep1">
+      <p class="muted" style="font-size:12px;margin-bottom:14px;">Étape 1 / 2 — Import du dossier de compétences</p>
+      <div class="wizard-dc-drop" id="wizardDcDrop"
+           ondragover="event.preventDefault();this.classList.add('dragging')"
+           ondragleave="this.classList.remove('dragging')"
+           ondrop="wizardHandleDrop(event)">
+        <div class="wizard-dc-drop-inner">
+          <span style="font-size:28px;">📄</span>
+          <div>Glisser-déposer un PDF ici</div>
+          <div class="muted" style="font-size:11px;">ou</div>
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer;">
+            Parcourir
+            <input type="file" id="wizardDcFile" accept=".pdf" style="display:none;" onchange="wizardOnFileChange(this)">
+          </label>
+        </div>
+        <div id="wizardDcFileName" class="muted" style="font-size:12px;margin-top:8px;display:none;"></div>
+      </div>
+
+      <div class="form-row" style="margin-top:14px;">
+        <div class="form-group">
+          <label>URL fiche VSA (optionnel)</label>
+          <input id="wizardVsaUrl" type="url" placeholder="https://...vsactivity.com/...">
+        </div>
+        <div class="form-group">
+          <label>Statut initial</label>
+          <select id="wizardStatus">
+            <option value="a_sourcer">🧲 À sourcer</option>
+            <option value="a_contacter">📨 À contacter</option>
+            <option value="en_cours">⏳ En cours</option>
+            <option value="interesse">✅ Intéressé</option>
+            <option value="mission">🚀 Mission</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
+        <button type="button" class="btn btn-secondary" onclick="closeWizardCandModal()">Annuler</button>
+        <button type="button" class="btn btn-primary" id="wizardBtnAnalyze" onclick="wizardAnalyzeDC()" disabled>
+          🤖 Analyser le DC
+        </button>
+      </div>
+    </div>
+
+    <!-- Étape 2 -->
+    <div id="wizardStep2" style="display:none;">
+      <p class="muted" style="font-size:12px;margin-bottom:14px;">Étape 2 / 2 — Validation et correction des champs extraits</p>
+      <div id="wizardAiMessage" style="display:none;" class="muted" style="font-size:12px;margin-bottom:10px;"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="required">Nom complet</label>
+          <input id="wizardName" required placeholder="Jean Dupont">
+        </div>
+        <div class="form-group">
+          <label>Prénom</label>
+          <input id="wizardPrenom" placeholder="Jean">
+          <span id="wizardPrenom_badge" class="ai-extracted-badge" style="display:none;">✨ Extrait automatiquement</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Titre / Rôle</label>
+          <input id="wizardTitre" placeholder="Ingénieur Logiciel Embarqué">
+          <span id="wizardTitre_badge" class="ai-extracted-badge" style="display:none;">✨ Extrait automatiquement</span>
+        </div>
+        <div class="form-group">
+          <label>Années d'expérience</label>
+          <input id="wizardAnnees" type="number" min="0" max="50" placeholder="5">
+          <span id="wizardAnnees_badge" class="ai-extracted-badge" style="display:none;">✨ Extrait automatiquement</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Domaine principal</label>
+          <input id="wizardDomaine" placeholder="Systèmes embarqués, automobile...">
+          <span id="wizardDomaine_badge" class="ai-extracted-badge" style="display:none;">✨ Extrait automatiquement</span>
+        </div>
+        <div class="form-group">
+          <label>Rôle (liste candidats)</label>
+          <input id="wizardRole" placeholder="Embedded Software Engineer">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Tags compétences (séparés par virgule)</label>
+        <input id="wizardTags" placeholder="C/C++, RTOS, AUTOSAR, Linux...">
+        <span id="wizardTags_badge" class="ai-extracted-badge" style="display:none;">✨ Extrait automatiquement</span>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
+        <button type="button" class="btn btn-secondary" onclick="wizardGoBack()">← Retour</button>
+        <button type="button" class="btn btn-primary" id="wizardBtnCreate" onclick="wizardCreateCandidate()">
+          ✅ Créer la fiche
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modal Ajouter via VSA -->
 <div id="modalVsaImport" class="modal" role="dialog" aria-modal="true" aria-labelledby="sourcingVsaImportTitle">

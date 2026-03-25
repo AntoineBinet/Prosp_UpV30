@@ -5238,7 +5238,9 @@ async function viewDetail(id) {
 
         <div class="detail-quick-actions">
             <button class="btn btn-success" onclick="callNumberById(${prospect.id})" ${prospect.telephone ? '' : 'disabled'} title="Appeler le prospect (ouvre l'application téléphone)">📞 Appeler</button>
-            ${prospect.email ? `<button class="btn btn-secondary" onclick="openEmailForProspect(${prospect.id})" title="Copier l'email et ouvrir le template Outlook si une catégorie push est définie">✉️ Email</button>` : `<button class="btn btn-secondary" disabled title="Email non renseigné">✉️ Email</button>`}
+            ${prospect.email
+                ? `<button class="btn btn-secondary push-email-btn" id="btnEmailProspect_${prospect.id}" onclick="handleEmailProspect(${prospect.id})" title="Cliquer pour envoyer un push email (onglet Push)">✉️ Email</button>`
+                : `<button class="btn btn-secondary" disabled title="Email non renseigné">✉️ Email</button>`}
             <button class="btn btn-primary" onclick="openTeamsInvite(${prospect.id})" title="Copier le profil formaté pour une invitation Teams">📅 Teams</button>
             ${prospect.linkedin ? `<button class="btn btn-secondary" onclick="copyLinkedInForProspect(${prospect.id})" title="Copier le lien LinkedIn dans le presse-papier">📋 LinkedIn</button>` : ''}
             <button class="btn btn-secondary" onclick="downloadVcf(${prospect.id})" title="Télécharger la fiche contact (.vcf)">📇 vCard</button>
@@ -5249,8 +5251,7 @@ async function viewDetail(id) {
         <div class="detail-tabs">
             <button class="detail-tab active" onclick="switchDetailTab(this,'tab-info')">Infos</button>
             ${showCandidats ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-candidats');loadCandidatsTab(${prospect.id})">🎯 Candidats</button>` : ''}
-            ${showTimeline ? '<button class="detail-tab" onclick="switchDetailTab(this,\'tab-timeline\')">Timeline</button>' : ''}
-            <button class="detail-tab" onclick="switchDetailTab(this,'tab-notes')">Notes (${(prospect.callNotes||[]).length})</button>
+            <button class="detail-tab" onclick="switchDetailTab(this,'tab-push')">📤 Push</button>
             ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-edit')">✏️ Modifier</button>
         </div>
@@ -5272,55 +5273,11 @@ async function viewDetail(id) {
                 <div class="detail-info-item full"><div class="detail-info-label">Notes</div><div class="detail-info-value" style="white-space:pre-wrap;">${escapeHtml(prospect.notes || '—')}</div></div>
             </div>
 
-            ${showPushSection ? `<div class="detail-section-card" style="margin-top:14px;">
-                <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-                    <span>📤 Push & Catégorie</span>
-                    <button class="btn btn-secondary btn-sm" onclick="openPushCategoryManager()" style="font-size:12px;padding:4px 10px;">⚙️ Gérer catégorie</button>
-                </div>
-                <div class="detail-info-grid">
-                    <div class="detail-info-item full">
-                        <div class="detail-info-label">Catégorie push</div>
-                        <div class="detail-info-value">${renderPushCategorySelect(id, prospect.push_category_id)}</div>
-                    </div>
-                    <div class="detail-info-item full" id="detailPushTemplate" style="display:none;">
-                        <div class="detail-info-label">📧 Template disponible</div>
-                        <div class="detail-info-value" id="detailPushTemplateList"><span class="muted">Chargement…</span></div>
-                    </div>
-                    <div class="detail-info-item full">
-                        <div class="detail-info-label">Dossiers de compétences</div>
-                        <div class="detail-info-value" style="display:flex;gap:12px;">
-                            <div style="flex:1;">
-                                <select id="detailPushCandidate1" class="template-select" style="width:100%;" onchange="updatePushGenerateButton(${id})">
-                                    <option value="">— Aucun —</option>
-                                </select>
-                            </div>
-                            <div style="flex:1;">
-                                <select id="detailPushCandidate2" class="template-select" style="width:100%;" onchange="updatePushGenerateButton(${id})">
-                                    <option value="">— Aucun —</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="detail-info-item full" style="margin-top:10px;">
-                        <button class="btn btn-primary" id="btnGeneratePush" onclick="generatePush(${id})" disabled style="width:100%;">📧 Générer et télécharger le push</button>
-                    </div>
-                    <div class="detail-info-item"><div class="detail-info-label">Push email</div><div class="detail-info-value"><span id="detailPushSent">${prospect.email ? (prospect.pushEmailSentAt ? ('✅ ' + prospect.pushEmailSentAt) : '🕒 Non envoyé') : '—'}</span>${(prospect.email && prospect.pushEmailSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${id},'email')">↩️</button>` : ''}</div></div>
-                    <div class="detail-info-item"><div class="detail-info-label">Push LinkedIn</div><div class="detail-info-value"><span id="detailPushLinkedInSent">${prospect.linkedin ? (prospect.pushLinkedInSentAt ? ('✅ ' + prospect.pushLinkedInSentAt) : '🕒 Non envoyé') : '—'}</span>${(prospect.linkedin && prospect.pushLinkedInSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${id},'linkedin')">↩️</button>` : ''}</div></div>
-                </div>
+            <!-- Notes / Suivi — composant NotesTimeline (v27.x PARTIE 1) -->
+            <div class="nt-section detail-section-card" style="margin-top:14px;">
+                <div class="detail-section-title">📝 Notes / Suivi</div>
+                <div id="ntBox_${id}"></div>
             </div>
-            <script>
-                // v25.9: Initialiser les dropdowns de candidats après chargement de la fiche
-                (function() {
-                    setTimeout(() => {
-                        if (typeof updatePushCandidates === 'function') {
-                            updatePushCandidates(${id});
-                        }
-                        if (${prospect.push_category_id ? 'true' : 'false'} && typeof onPushCategoryChange === 'function') {
-                            onPushCategoryChange(${id}, ${prospect.push_category_id});
-                        }
-                    }, 200);
-                })();
-            </script>` : ''}
         </div>
 
         ${showCandidats ? `<!-- TAB: Candidats -->
@@ -5340,20 +5297,9 @@ async function viewDetail(id) {
             </div>
         </div>` : ''}
 
-        ${showTimeline ? `<!-- TAB: Timeline -->
-        <div class="detail-tab-content" id="tab-timeline">
-            <div id="timelineBox" class="detail-timeline">
-                <div class="muted" style="text-align:center;padding:14px;">Chargement…</div>
-            </div>
-        </div>` : ''}
-
-        <!-- TAB: Notes -->
-        <div class="detail-tab-content" id="tab-notes">
-            <div class="detail-notes-input">
-                <textarea id="newNote" placeholder="Ajouter une note d'appel…"></textarea>
-                <button type="button" class="btn btn-primary" onclick="addNote(${id})" style="align-self:flex-end;">➕</button>
-            </div>
-            ${notesHtml || '<div class="muted" style="text-align:center;padding:20px;">Aucune note d\'appel</div>'}
+        <!-- TAB: Push (v27.x PARTIE 2) -->
+        <div class="detail-tab-content" id="tab-push">
+            <div id="pushTabContent_${id}"></div>
         </div>
 
         ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `
@@ -5496,45 +5442,19 @@ async function viewDetail(id) {
     // init tags editor (edit mode)
     try { initTagsEditor('editTagsEditor', 'editTagsValue', prospect.tags || []); } catch (e) {}
 
-    // Auto-load candidate suggestions if push category is already set (et modules activés)
-    const showCandidatsPref = typeof window.getDisplayPref === 'function' ? window.getDisplayPref('display_candidate_proposition') : true;
-    const showPushSectionPref = typeof window.getDisplayPref === 'function' ? window.getDisplayPref('display_prospect_push_section') : true;
-    if (showPushSectionPref && prospect.push_category_id) {
-        onPushCategoryChange(prospect.id, String(prospect.push_category_id));
-    }
+    // v27.x PARTIE 1: Initialiser Notes/Suivi (composant NotesTimeline) dans l'onglet Infos
+    setTimeout(() => {
+        if (typeof initNotesTimeline === 'function') {
+            initNotesTimeline(`ntBox_${prospect.id}`, { entityType: 'prospect', entityId: prospect.id });
+        }
+    }, 80);
 
-    // Auto-load best-match candidates (unified section) - maintenant chargé uniquement quand l'onglet candidats est ouvert
-    // if (showCandidatsPref) {
-    //     loadUnifiedCandidates(prospect.id, prospect.tags, prospect.push_category_id);
-    // }
-
-    // load timeline (si module activé)
-    const showTimelinePref = typeof window.getDisplayPref === 'function' ? window.getDisplayPref('display_prospect_timeline') : true;
-    if (showTimelinePref) {
-        try {
-            const res = await fetch(`/api/prospect/timeline?id=${prospect.id}`, { credentials: 'include' });
-            if (res.ok) {
-                const payload = await res.json();
-                if (payload && payload.ok) {
-                    const box = document.getElementById('timelineBox');
-                    if (box) {
-                        const ev = Array.isArray(payload.events) ? payload.events : [];
-                        if (ev.length === 0) {
-                            box.innerHTML = '<div class="muted" style="text-align:center; padding: 14px;">Aucun événement</div>';
-                        } else {
-                            box.innerHTML = ev.map(e => {
-                                const date = escapeHtml((e.date || '').slice(0, 19));
-                                const title = escapeHtml(e.title || e.type || '');
-                                const content = escapeHtml(e.content || '').split('\n').join('<br>');
-                                const dotClass = (e.type === 'push') ? 'push' : (e.type === 'call_note') ? 'call' : (e.type === 'done') ? 'done' : '';
-                                return `<div class="detail-tl-item"><div class="detail-tl-dot ${dotClass}"></div><div class="detail-tl-date">${date}</div><div class="detail-tl-title">${title}</div><div class="detail-tl-content">${content}</div></div>`;
-                            }).join('');
-                        }
-                    }
-                }
-            }
-        } catch (e) {}
-    }
+    // v27.x PARTIE 2: Initialiser l'onglet Push
+    setTimeout(() => {
+        if (typeof initPushTab === 'function') {
+            initPushTab(prospect.id, prospect);
+        }
+    }, 120);
 }
 
 // ====== Detail tabs switching ======
@@ -7344,6 +7264,390 @@ async function generatePush(prospectId) {
         console.error('Erreur génération push:', e);
         showToast(`❌ Erreur lors de la génération du push: ${e.message || 'Erreur réseau ou serveur'}`, 'error', 6000);
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v27.x PARTIE 2 — Onglet Push dans la fiche prospect
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Initialise l'onglet Push dans la fiche prospect.
+ * Appelé automatiquement à l'ouverture de la fiche.
+ */
+async function initPushTab(prospectId, prospect) {
+    const container = document.getElementById(`pushTabContent_${prospectId}`);
+    if (!container) return;
+
+    // Charger les catégories si nécessaire
+    if (!pushCategories || pushCategories.length === 0) {
+        await loadPushCategories();
+    }
+
+    // Générer le HTML de l'onglet Push
+    container.innerHTML = _buildPushTabHtml(prospectId, prospect);
+
+    // Si une catégorie est déjà sélectionnée, charger les templates et candidats
+    if (prospect.push_category_id) {
+        await onPushCategoryChange(prospectId, String(prospect.push_category_id));
+    }
+    _updateEmailBtnState(prospectId, prospect);
+}
+
+/**
+ * Construit le HTML de l'onglet Push.
+ */
+function _buildPushTabHtml(prospectId, prospect) {
+    const catSelect = renderPushCategorySelect(prospectId, prospect.push_category_id);
+    const noEmail   = !prospect.email;
+
+    return `
+    <div class="detail-section-card" style="margin-bottom:14px;">
+        <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>🏷️ Catégorie push</span>
+            <button class="btn btn-secondary btn-sm" onclick="openPushCategoryManager()" style="font-size:12px;padding:4px 10px;">⚙️ Gérer</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <div style="flex:1;min-width:180px;">${catSelect}</div>
+            <button class="btn btn-secondary btn-sm" id="btnSonarSuggestCat_${prospectId}"
+                    onclick="sonarSuggestCategory(${prospectId})"
+                    title="Sonar (Perplexity) suggère une catégorie selon l'entreprise et le poste">
+                💡 Suggestion IA
+            </button>
+        </div>
+        <div id="sonarCatSuggestion_${prospectId}" style="margin-top:8px;display:none;"></div>
+    </div>
+
+    <div class="detail-section-card" style="margin-bottom:14px;" id="ptTemplateSection_${prospectId}" style="display:none;">
+        <div class="detail-section-title">📧 Template email (.msg)</div>
+        <div id="ptTemplateBox_${prospectId}">
+            <div class="muted">Sélectionnez une catégorie pour voir les templates disponibles.</div>
+        </div>
+        <div style="margin-top:10px;">
+            <label class="pt-upload-label" for="ptTemplateInput_${prospectId}" title="Importer un fichier .msg Outlook">
+                📂 Importer un template .msg
+                <input type="file" id="ptTemplateInput_${prospectId}" accept=".msg,.eml,.oft" style="display:none;"
+                       onchange="uploadPushTemplate(${prospectId}, this)">
+            </label>
+        </div>
+    </div>
+
+    <div class="detail-section-card" style="margin-bottom:14px;" id="ptCandidatesSection_${prospectId}">
+        <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>👤 Dossiers de compétences</span>
+            <button class="btn btn-secondary btn-sm" onclick="ollamaPreselectCandidates(${prospectId})"
+                    title="Ollama présélectionne les 2 meilleurs candidats selon le profil prospect">
+                🤖 IA
+            </button>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+                <select id="detailPushCandidate1" class="template-select" style="width:100%;" onchange="_updateEmailBtnState(${prospectId})">
+                    <option value="">— Aucun —</option>
+                </select>
+            </div>
+            <div style="flex:1;min-width:140px;">
+                <select id="detailPushCandidate2" class="template-select" style="width:100%;" onchange="_updateEmailBtnState(${prospectId})">
+                    <option value="">— Aucun —</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+        ${noEmail ? '<div class="pt-warning">⚠️ Email prospect non renseigné — le fichier .msg sera généré avec le champ To vide.</div>' : ''}
+        <button class="btn btn-primary" id="btnGeneratePush" onclick="generatePushFromTab(${prospectId})" disabled style="width:100%;">
+            📧 Générer et télécharger le push (ZIP)
+        </button>
+    </div>
+
+    <div class="detail-section-card">
+        <div class="detail-section-title">📊 Historique push</div>
+        <div class="detail-info-grid">
+            <div class="detail-info-item">
+                <div class="detail-info-label">Push email</div>
+                <div class="detail-info-value">
+                    <span id="detailPushSent">${prospect.email ? (prospect.pushEmailSentAt ? ('✅ ' + prospect.pushEmailSentAt) : '🕒 Non envoyé') : '—'}</span>
+                    ${(prospect.email && prospect.pushEmailSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${prospectId},'email')">↩️</button>` : ''}
+                </div>
+            </div>
+            <div class="detail-info-item">
+                <div class="detail-info-label">Push LinkedIn</div>
+                <div class="detail-info-value">
+                    <span id="detailPushLinkedInSent">${prospect.linkedin ? (prospect.pushLinkedInSentAt ? ('✅ ' + prospect.pushLinkedInSentAt) : '🕒 Non envoyé') : '—'}</span>
+                    ${(prospect.linkedin && prospect.pushLinkedInSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${prospectId},'linkedin')">↩️</button>` : ''}
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
+/**
+ * Gestion du clic sur le bouton Email dans l'en-tête de la fiche.
+ * Cas 1 — tout configuré : spinner + génération ZIP
+ * Cas 2 — catégorie manquante : redirect Push tab + highlight + suggestion Sonar
+ */
+async function handleEmailProspect(prospectId) {
+    const prospect = data.prospects.find(p => p.id === prospectId);
+    if (!prospect) return;
+
+    const hasCat      = !!prospect.push_category_id;
+    const hasTemplate = !!window._currentPushTemplate;
+    const select1     = document.getElementById('detailPushCandidate1');
+    const select2     = document.getElementById('detailPushCandidate2');
+    const hasCandidate = (select1 && select1.value) || (select2 && select2.value);
+
+    if (hasCat && hasTemplate && hasCandidate) {
+        // Cas 1 — push prêt : générer le ZIP avec animation
+        await generatePushFromTab(prospectId);
+    } else {
+        // Cas 2 — configuration incomplète : aller à l'onglet Push
+        const pushTabBtn = document.querySelector('.detail-tab[onclick*="tab-push"]');
+        if (pushTabBtn) {
+            pushTabBtn.click();
+            // Highlight la section manquante
+            setTimeout(() => {
+                const target = !hasCat
+                    ? document.querySelector(`[id^="pushTabContent_"] .detail-section-card`)
+                    : document.getElementById(`ptTemplateSection_${prospectId}`) || document.getElementById(`ptCandidatesSection_${prospectId}`);
+                if (target) {
+                    target.classList.add('pt-highlight');
+                    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    setTimeout(() => target.classList.remove('pt-highlight'), 2000);
+                }
+                // Déclencher la suggestion Sonar si catégorie manquante
+                if (!hasCat) {
+                    sonarSuggestCategory(prospectId);
+                }
+            }, 200);
+        }
+    }
+}
+
+/**
+ * Génère le push depuis l'onglet Push (avec animation sur le bouton Email en-tête).
+ */
+async function generatePushFromTab(prospectId) {
+    const prospect = data.prospects.find(x => x.id === prospectId);
+    if (!prospect || !prospect.push_category_id) {
+        showToast('Sélectionnez d\'abord une catégorie', 'error');
+        return;
+    }
+    const templateName = window._currentPushTemplate;
+    if (!templateName) {
+        showToast('Aucun template disponible pour cette catégorie', 'error');
+        return;
+    }
+    const select1 = document.getElementById('detailPushCandidate1');
+    const select2 = document.getElementById('detailPushCandidate2');
+    const candidateId1 = select1 ? parseInt(select1.value) || null : null;
+    const candidateId2 = select2 ? parseInt(select2.value) || null : null;
+    if (!candidateId1 && !candidateId2) {
+        showToast('Sélectionnez au moins un candidat', 'error');
+        return;
+    }
+
+    // Désactiver le bouton + spinner
+    const btnGenerate  = document.getElementById('btnGeneratePush');
+    const btnEmailHdr  = document.getElementById(`btnEmailProspect_${prospectId}`);
+    const origGenLabel = btnGenerate ? btnGenerate.innerHTML : '';
+    const origEmailLabel = btnEmailHdr ? btnEmailHdr.innerHTML : '';
+    if (btnGenerate)  { btnGenerate.disabled = true; btnGenerate.innerHTML = '<span class="pt-spinner"></span> Personnalisation en cours…'; }
+    if (btnEmailHdr)  { btnEmailHdr.disabled = true; btnEmailHdr.classList.add('push-email-loading'); btnEmailHdr.innerHTML = '<span class="pt-spinner"></span>'; }
+
+    try {
+        const res = await fetch('/api/push/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prospect_id: prospectId,
+                category_id: prospect.push_category_id,
+                template_filename: templateName,
+                candidate_id1: candidateId1,
+                candidate_id2: candidateId2,
+                format: 'zip'
+            })
+        });
+
+        if (!res.ok) {
+            let msg = `Erreur HTTP ${res.status}`;
+            try { const e = await res.json(); msg = e.error || msg; } catch (_) {}
+            showToast(`❌ ${msg}`, 'error', 6000);
+            return;
+        }
+
+        const blob = await res.blob();
+        if (!blob || blob.size === 0) { showToast('❌ Fichier généré vide', 'error'); return; }
+
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href = url; a.download = `push_${prospect.name}_${Date.now()}.zip`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        // Feedback succès sur le bouton Email de l'en-tête
+        if (btnEmailHdr) {
+            btnEmailHdr.classList.remove('push-email-loading');
+            btnEmailHdr.classList.add('push-email-success');
+            btnEmailHdr.innerHTML = '✓ Envoyé';
+            setTimeout(() => {
+                btnEmailHdr.classList.remove('push-email-success');
+                btnEmailHdr.innerHTML = origEmailLabel;
+                btnEmailHdr.disabled = false;
+            }, 3000);
+        }
+        showToast('Push généré et téléchargé !', 'success');
+    } catch (e) {
+        showToast(`❌ Erreur: ${e.message || 'Erreur réseau'}`, 'error', 6000);
+    } finally {
+        if (btnGenerate)  { btnGenerate.disabled = false; btnGenerate.innerHTML = origGenLabel; }
+        if (btnEmailHdr && btnEmailHdr.classList.contains('push-email-loading')) {
+            btnEmailHdr.classList.remove('push-email-loading');
+            btnEmailHdr.innerHTML = origEmailLabel;
+            btnEmailHdr.disabled = false;
+        }
+    }
+}
+
+/**
+ * Met à jour l'état visuel du bouton Email en-tête selon la configuration push.
+ */
+function _updateEmailBtnState(prospectId) {
+    const prospect    = data.prospects.find(p => p.id === prospectId);
+    const btn         = document.getElementById(`btnEmailProspect_${prospectId}`);
+    const btnGenerate = document.getElementById('btnGeneratePush');
+    if (!btn || !prospect) return;
+
+    const hasCat      = !!prospect.push_category_id;
+    const hasTemplate = !!window._currentPushTemplate;
+    const select1     = document.getElementById('detailPushCandidate1');
+    const select2     = document.getElementById('detailPushCandidate2');
+    const hasCandidate = (select1 && select1.value) || (select2 && select2.value);
+    const pushReady   = hasCat && hasTemplate && hasCandidate;
+
+    if (pushReady) {
+        btn.classList.add('push-email-ready');
+        btn.title = `Push prêt — Template : ${window._currentPushTemplate}`;
+        btn.innerHTML = '✉️ Email ✓';
+    } else {
+        btn.classList.remove('push-email-ready');
+        btn.title = 'Configurer le push dans l\'onglet Push';
+        btn.innerHTML = '✉️ Email';
+    }
+    if (btnGenerate) btnGenerate.disabled = !pushReady;
+}
+
+/**
+ * Suggestion de catégorie push via Sonar (données non-sensibles : société + poste seulement).
+ */
+async function sonarSuggestCategory(prospectId) {
+    const prospect = data.prospects.find(p => p.id === prospectId);
+    if (!prospect) return;
+    const suggBox = document.getElementById(`sonarCatSuggestion_${prospectId}`);
+    if (!suggBox) return;
+
+    const company = (data.companies || []).find(c => c.id === prospect.company_id);
+    const societeName = company ? (company.groupe || company.site || '') : '';
+    const poste = prospect.fonction || '';
+
+    if (!societeName && !poste) {
+        suggBox.style.display = 'block';
+        suggBox.innerHTML = '<span class="muted">Renseignez l\'entreprise et le poste pour une suggestion IA.</span>';
+        return;
+    }
+
+    suggBox.style.display = 'block';
+    suggBox.innerHTML = '<span class="muted">💡 Analyse en cours…</span>';
+
+    try {
+        const prompt = `Société : "${societeName}", Poste : "${poste}". Parmi les catégories suivantes : ${(pushCategories || []).map(c => c.name).join(', ')}. Quelle catégorie de push email est la plus pertinente ? Réponds uniquement avec le nom de catégorie exact, sans explication.`;
+
+        const res = await fetch('/api/ollama/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, web_search: true }) // routing Sonar si disponible
+        });
+
+        const payload = await res.json();
+        const suggestion = (payload.response || '').trim();
+
+        if (!suggestion) { suggBox.innerHTML = '<span class="muted">Pas de suggestion disponible.</span>'; return; }
+
+        const matchedCat = (pushCategories || []).find(c =>
+            suggestion.toLowerCase().includes(c.name.toLowerCase()) ||
+            c.name.toLowerCase().includes(suggestion.toLowerCase())
+        );
+
+        if (matchedCat) {
+            suggBox.innerHTML = `
+                <button class="btn btn-secondary btn-sm pt-sonar-badge"
+                        onclick="applySonarCatSuggestion(${prospectId}, ${matchedCat.id}, '${escapeHtml(matchedCat.name)}')">
+                    💡 Suggestion IA : <strong>${escapeHtml(matchedCat.name)}</strong> — cliquer pour sélectionner
+                </button>`;
+        } else {
+            suggBox.innerHTML = `<span class="muted">Suggestion : « ${escapeHtml(suggestion)} » (catégorie non trouvée)</span>`;
+        }
+    } catch (_) {
+        suggBox.innerHTML = '<span class="muted">IA indisponible pour la suggestion.</span>';
+    }
+}
+
+/**
+ * Applique la suggestion de catégorie Sonar.
+ */
+function applySonarCatSuggestion(prospectId, catId, catName) {
+    const select = document.getElementById('detailCategorySelect');
+    if (select) {
+        select.value = catId;
+        onPushCategoryChange(prospectId, String(catId));
+    }
+    const suggBox = document.getElementById(`sonarCatSuggestion_${prospectId}`);
+    if (suggBox) suggBox.style.display = 'none';
+    showToast(`Catégorie « ${catName} » sélectionnée`, 'success');
+}
+
+/**
+ * Upload d'un template .msg pour une catégorie push.
+ */
+async function uploadPushTemplate(prospectId, input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const prospect = data.prospects.find(p => p.id === prospectId);
+    if (!prospect || !prospect.push_category_id) {
+        showToast('Sélectionnez d\'abord une catégorie avant d\'importer un template', 'warning');
+        input.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('template', file);
+    formData.append('category_id', prospect.push_category_id);
+
+    try {
+        showToast('Upload du template en cours…', 'info');
+        const res = await fetch('/api/push/templates/upload', { method: 'POST', body: formData });
+        if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            showToast(`❌ Erreur upload : ${e.error || res.status}`, 'error');
+            return;
+        }
+        showToast('Template importé avec succès !', 'success');
+        // Recharger les templates
+        onPushCategoryChange(prospectId, String(prospect.push_category_id));
+    } catch (e) {
+        showToast(`❌ Erreur réseau : ${e.message}`, 'error');
+    } finally {
+        input.value = '';
+    }
+}
+
+/**
+ * Présélection de 2 candidats via Ollama (données internes, pas Sonar).
+ */
+async function ollamaPreselectCandidates(prospectId) {
+    await updatePushCandidates(prospectId);
+    showToast('Candidats présélectionnés par l\'IA', 'info');
+    _updateEmailBtnState(prospectId);
 }
 
 // v25.9: Ouvrir la modale de gestion des catégories push
