@@ -941,9 +941,16 @@ async function loadCandidate() {
   // Render view mode
   renderViewMode();
 
-  // Onglets (EC1 / note libre) + Timeline
+  // Onglets (EC1 / note libre)
   await loadCandidateTabs();
-  await loadCandidateTimeline();
+
+  // v27.x PARTIE 3: Notes/Suivi via composant NotesTimeline (remplace loadCandidateTimeline)
+  if (typeof initNotesTimeline === 'function' && __cand?.id) {
+    initNotesTimeline('candidateNtBox', { entityType: 'candidate', entityId: __cand.id });
+  } else {
+    // Fallback : timeline classique
+    await loadCandidateTimeline();
+  }
 }
 
 

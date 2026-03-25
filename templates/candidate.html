@@ -237,22 +237,16 @@
     <div class="candidate-tabs-bar" id="candidateTabsBar">
       <!-- onglets injectés par JS -->
     </div>
-    <button type="button" class="btn btn-secondary candidate-tab-add" id="btnAddCandidateTab" title="Nouvel onglet">+</button>
   </div>
   <div class="candidate-tabs-panels" id="candidateTabsPanels">
     <!-- panneaux (EC1 ou note libre) injectés par JS -->
   </div>
 </section>
 
-<!-- ═══ Timeline ═══ -->
-<section class="card" style="margin-top:14px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <div style="font-weight:800;font-size:15px;">📅 Timeline</div>
-    <button type="button" class="btn btn-secondary" id="btnAddTimelineEvent" style="font-size:12px;">➕ Ajouter un événement</button>
-  </div>
-  <div id="candidateTimelineList" class="timeline-box candidate-timeline">
-    <div class="muted" style="text-align:center;padding:14px;">Chargement…</div>
-  </div>
+<!-- ═══ Notes / Suivi (composant NotesTimeline v27.x) ═══ -->
+<section class="card nt-section" id="candidateNtSection" style="margin-top:14px;">
+  <div style="font-weight:800;font-size:15px;margin-bottom:12px;">📝 Notes / Suivi</div>
+  <div id="candidateNtBox"></div>
 </section>
 
 <div class="card" style="margin-top:14px;">

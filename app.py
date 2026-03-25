@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.16"
+APP_VERSION = "27.17"
 import os
 import subprocess
 import traceback
@@ -99,6 +99,25 @@ OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT") or "120")
 SONAR_API_KEY = os.environ.get("PERPLEXITY_API_KEY") or ""
 SONAR_MODEL = os.environ.get("SONAR_MODEL") or "sonar"
 SONAR_URL = "https://api.perplexity.ai/chat/completions"
+
+# ═══════════════════════════════════════════════════════════════════
+# v27.x PARTIE 2: Détection Outlook (win32com) au démarrage
+# Méthode principale: win32com.client.Dispatch pour générer .msg
+# Méthode fallback: génération .eml (RFC 2822) si Outlook absent
+# ═══════════════════════════════════════════════════════════════════
+def _detect_outlook() -> bool:
+    """Tente d'importer win32com.client pour détecter la présence d'Outlook."""
+    try:
+        import win32com.client  # type: ignore
+        # Vérification supplémentaire: essayer d'accéder à l'objet Outlook
+        app = win32com.client.Dispatch("Outlook.Application")
+        del app
+        return True
+    except Exception:
+        return False
+
+OUTLOOK_AVAILABLE: bool = _detect_outlook()
+logger.info("Outlook disponible (win32com): %s", OUTLOOK_AVAILABLE)
 
 # ═══════════════════════════════════════════════════════════════════
 # v26.5: IA simplifiée — Ollama (local) + Sonar (cloud + web)
@@ -1862,6 +1881,15 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             _add_col("candidates", "dossier_competence_pdf", "TEXT")
         if "owner_id" not in cand_cols:
             _add_col("candidates", "owner_id", "INTEGER")
+        # v27.x PARTIE 3: champs pour extraction DC + génération push .msg
+        if "prenom" not in cand_cols:
+            _add_col("candidates", "prenom", "TEXT")
+        if "titre" not in cand_cols:
+            _add_col("candidates", "titre", "TEXT")
+        if "annees_experience" not in cand_cols:
+            _add_col("candidates", "annees_experience", "INTEGER")
+        if "domaine_principal" not in cand_cols:
+            _add_col("candidates", "domaine_principal", "TEXT")
 
         # v23.5: Soft delete — add deleted_at column to main tables
         for tbl in ("prospects", "companies", "candidates"):
@@ -4620,6 +4648,14 @@ def api_candidates_save():
                 old_status = r0["status"] if r0 else None
             except Exception:
                 old_status = None
+        # v27.x: champs prenom, titre, annees_experience, domaine_principal
+        annees_exp_v = None
+        try:
+            ae = payload.get("annees_experience")
+            annees_exp_v = int(ae) if ae not in (None, "", "null") else None
+        except Exception:
+            annees_exp_v = None
+
         if cid:
             cur.execute(
                 '''
@@ -4627,6 +4663,7 @@ def api_candidates_save():
                 SET name=?, role=?, location=?, seniority=?, tech=?, linkedin=?, source=?, status=?, notes=?,
                     onenote_url=?, vsa_url=?, skills=?, company_ids=?, is_archived=?,
                     years_experience=?, sector=?, phone=?, email=?, dossier_competence_pdf=?,
+                    prenom=?, titre=?, annees_experience=?, domaine_principal=?,
                     updatedAt=?
                 WHERE id=? AND owner_id=?;
                 ''',
@@ -4650,6 +4687,10 @@ def api_candidates_save():
                     _t("phone"),
                     _t("email"),
                     _t("dossier_competence_pdf"),
+                    _t("prenom"),
+                    _t("titre"),
+                    annees_exp_v,
+                    _t("domaine_principal"),
                     now,
                     int(cid),
                     uid,
@@ -4664,9 +4705,10 @@ def api_candidates_save():
                     name, role, location, seniority, tech, linkedin, source, status, notes,
                     onenote_url, vsa_url, skills, company_ids, is_archived,
                     years_experience, sector, phone, email, dossier_competence_pdf,
+                    prenom, titre, annees_experience, domaine_principal,
                     createdAt, updatedAt, owner_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 ''',
                 (
                     name,
@@ -4688,6 +4730,10 @@ def api_candidates_save():
                     _t("phone"),
                     _t("email"),
                     _t("dossier_competence_pdf"),
+                    _t("prenom"),
+                    _t("titre"),
+                    annees_exp_v,
+                    _t("domaine_principal"),
                     now,
                     now,
                     uid,
@@ -4723,6 +4769,157 @@ def api_candidates_delete():
     _audit_log("soft_delete", "candidate", int(cid))
     log_activity('delete', 'candidat', int(cid), _cand_name)
     return jsonify({"ok": True})
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v27.x PARTIE 3: Extraction DC PDF + upload DC
+# ═══════════════════════════════════════════════════════════════════
+
+@app.post("/api/candidates/extract-dc")
+def api_candidates_extract_dc():
+    """Extrait les champs d'un DC PDF via Ollama (local, données confidentielles).
+    Retourne: { ok, fields: { name, prenom, titre, annees_experience, domaine_principal, tags, role } }
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    if 'dc' not in request.files:
+        return jsonify(ok=False, error="Champ 'dc' manquant"), 400
+
+    pdf_file = request.files['dc']
+    if not pdf_file.filename:
+        return jsonify(ok=False, error="Nom de fichier vide"), 400
+
+    # Lire le PDF et extraire le texte
+    pdf_text = ""
+    try:
+        import io
+        pdf_bytes = pdf_file.read()
+
+        # Tenter avec pdfminer (souvent disponible)
+        try:
+            from pdfminer.high_level import extract_text as _extract_pdf  # type: ignore
+            pdf_text = _extract_pdf(io.BytesIO(pdf_bytes), maxpages=5) or ""
+        except ImportError:
+            pass
+
+        # Fallback: pypdf
+        if not pdf_text:
+            try:
+                import pypdf  # type: ignore
+                reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+                for page in reader.pages[:5]:
+                    pdf_text += page.extract_text() or ""
+            except ImportError:
+                pass
+
+        if not pdf_text.strip():
+            return jsonify(ok=False, error="Impossible d'extraire le texte du PDF (bibliothèque PDF manquante)"), 422
+    except Exception as e:
+        return jsonify(ok=False, error=f"Erreur lecture PDF: {e}"), 500
+
+    # Limiter le texte pour Ollama
+    pdf_text_short = pdf_text[:4000]
+
+    prompt = f"""Tu es un assistant qui extrait des informations d'un dossier de compétences (CV) d'un ingénieur.
+Dossier de compétences (extrait) :
+{pdf_text_short}
+
+Extrait les informations suivantes au format JSON strict (sans commentaire, sans markdown) :
+{{
+  "name": "Prénom NOM",
+  "prenom": "Prénom",
+  "titre": "Titre ou poste principal",
+  "annees_experience": <nombre entier d'années d'expérience ou null>,
+  "domaine_principal": "domaine principal (ex: Systèmes embarqués, Automotive, Défense...)",
+  "tags": ["tag1", "tag2", ...],
+  "role": "rôle court pour la liste (ex: Embedded Software Engineer)"
+}}
+Réponds uniquement avec le JSON, sans aucun texte autour."""
+
+    try:
+        result_text = _call_ai(prompt, timeout=60)
+        # Parser le JSON
+        # Nettoyer les éventuels marqueurs markdown
+        clean = result_text.strip()
+        if clean.startswith("```"):
+            clean = re.sub(r'^```[^\n]*\n?', '', clean)
+            clean = re.sub(r'\n?```$', '', clean)
+        fields = json.loads(clean)
+        return jsonify(ok=True, fields=fields)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning("DC extraction JSON parse error: %s — response: %s", e, result_text[:200] if 'result_text' in dir() else '')
+        return jsonify(ok=False, error="L'IA n'a pas retourné un JSON valide"), 422
+    except Exception as e:
+        logger.warning("DC extraction error: %s", e)
+        return jsonify(ok=False, error=f"IA indisponible: {e}"), 503
+
+
+@app.post("/api/candidates/upload-dc")
+def api_candidates_upload_dc():
+    """Sauvegarde le DC PDF d'un candidat dans data/dossiers_candidats/{uid}/{cid}/.
+    Attend multipart/form-data: 'dc' (PDF) + 'candidate_id' (int).
+    Sécurisé : un user ne peut uploader que pour ses propres candidats.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    if 'dc' not in request.files:
+        return jsonify(ok=False, error="Champ 'dc' manquant"), 400
+
+    candidate_id = request.form.get("candidate_id")
+    if not candidate_id:
+        return jsonify(ok=False, error="candidate_id manquant"), 400
+
+    try:
+        cid_int = int(candidate_id)
+    except ValueError:
+        return jsonify(ok=False, error="candidate_id invalide"), 400
+
+    # Vérifier que le candidat appartient à l'utilisateur
+    with _conn() as conn:
+        cand_row = conn.execute(
+            "SELECT id, name FROM candidates WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (cid_int, uid)
+        ).fetchone()
+    if not cand_row:
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+
+    pdf_file = request.files['dc']
+    if not pdf_file.filename:
+        return jsonify(ok=False, error="Nom de fichier vide"), 400
+
+    filename = "".join(c for c in pdf_file.filename if c.isalnum() or c in "._- ")
+    if not filename.lower().endswith('.pdf'):
+        return jsonify(ok=False, error="Seuls les fichiers PDF sont acceptés"), 400
+
+    # Dossier sécurisé par user + candidat
+    dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cid_int)
+    dc_dir.mkdir(parents=True, exist_ok=True)
+    target = dc_dir / filename
+
+    # Vérification path traversal
+    try:
+        if not str(target.resolve()).startswith(str((DATA_DIR / "dossiers_candidats" / str(uid)).resolve())):
+            return jsonify(ok=False, error="Chemin invalide"), 403
+    except Exception:
+        return jsonify(ok=False, error="Chemin invalide"), 403
+
+    try:
+        pdf_file.save(str(target))
+        # Mettre à jour le champ dossier_competence_pdf du candidat
+        with _conn() as conn:
+            conn.execute(
+                "UPDATE candidates SET dossier_competence_pdf=?, updatedAt=? WHERE id=? AND owner_id=?;",
+                (str(target), _now_iso(), cid_int, uid)
+            )
+        logger.info("DC uploadé: user=%s cand=%s file=%s", uid, cid_int, filename)
+        return jsonify(ok=True, filename=filename, path=str(target))
+    except Exception as e:
+        logger.error("Erreur upload DC: %s", e)
+        return jsonify(ok=False, error=str(e)), 500
 
 
 @app.post("/api/prospects/delete")
@@ -5511,7 +5708,7 @@ def api_push_generate():
                 continue
             try:
                 cand = conn.execute(
-                    "SELECT id, name, dossier_competence_pdf FROM candidates WHERE id=? AND owner_id=?;",
+                    "SELECT id, name, dossier_competence_pdf, prenom, titre, annees_experience, domaine_principal, role, years_experience, sector FROM candidates WHERE id=? AND owner_id=?;",
                     (cand_id, uid)
                 ).fetchone()
                 if cand:
@@ -5537,39 +5734,46 @@ def api_push_generate():
         return jsonify(ok=False, error="Template introuvable"), 404
     
     try:
+        # v27.x: Personnalisation du template .msg (win32com ou .eml fallback)
+        email_bytes, email_filename = _generate_personalized_email(
+            template_path, prospect_dict, candidates_data
+        )
+        # Avertissement si email prospect absent
+        missing_email = not prospect_dict.get("email", "").strip()
+
         if format_type == "filled":
-            # Essayer de remplir le template (pour .msg, .eml, .oft)
-            # Pour l'instant, on retourne le template tel quel
-            # TODO: Implémenter le remplissage avec python-docx, extract_msg, etc.
+            import io
             return send_file(
-                str(template_path),
+                io.BytesIO(email_bytes),
                 mimetype='application/octet-stream',
                 as_attachment=True,
-                download_name=f"push_{prospect_dict['name']}_{template_filename}"
+                download_name=email_filename
             )
         else:  # format == "zip"
-            # Créer un ZIP avec template + DC
             import tempfile
             with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_zip:
                 zip_path = Path(tmp_zip.name)
-            
+
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # Ajouter le template
-                zipf.write(template_path, template_filename)
-                
-                # Ajouter les dossiers de compétences
-                for i, cand in enumerate(candidates_data, 1):
+                # Ajouter le .msg personnalisé (ou .eml fallback)
+                zipf.writestr(email_filename, email_bytes)
+
+                # Ajouter les dossiers de compétences (PDF)
+                for cand in candidates_data:
                     if cand.get("dossier_competence_pdf"):
                         dc_path_str = cand["dossier_competence_pdf"]
-                        # Gérer les chemins relatifs et absolus
                         if not os.path.isabs(dc_path_str):
-                            # Chemin relatif : chercher dans dossiers_competence
                             dc_path = APP_DIR / "dossiers_competence" / dc_path_str
                         else:
                             dc_path = Path(dc_path_str)
-                        
+                        # Chercher aussi dans data/dossiers_candidats/{uid}/{cand_id}/
+                        if not dc_path.is_file():
+                            cand_id = cand.get("id")
+                            if cand_id:
+                                alt_path = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id) / Path(dc_path_str).name
+                                if alt_path.is_file():
+                                    dc_path = alt_path
                         if dc_path.is_file():
-                            # Vérifier que le fichier est dans un répertoire autorisé
                             try:
                                 dc_resolved = dc_path.resolve()
                                 allowed_dirs = [
@@ -5577,33 +5781,291 @@ def api_push_generate():
                                     str(DATA_DIR.resolve())
                                 ]
                                 if any(str(dc_resolved).startswith(d.rstrip(os.sep) + os.sep) for d in allowed_dirs):
-                                    # Nettoyer le nom du fichier pour le ZIP
                                     safe_name = "".join(c for c in cand['name'] if c.isalnum() or c in "._- ")
                                     zipf.write(dc_path, f"DC_{safe_name}_{dc_path.name}")
                             except Exception as e:
                                 logger.warning("Erreur ajout DC %s: %s", dc_path, e)
-            
-            # Envoyer le ZIP
+
             response = send_file(
                 str(zip_path),
                 mimetype='application/zip',
                 as_attachment=True,
                 download_name=f"push_{prospect_dict['name']}.zip"
             )
-            # Nettoyer le fichier temporaire après envoi (en arrière-plan)
-            import threading
-            def cleanup():
-                time.sleep(5)  # Attendre que le fichier soit envoyé
+            # En-tête informatif si email manquant
+            if missing_email:
+                response.headers['X-Warning'] = 'prospect-email-missing'
+            # Nettoyer le zip temporaire
+            def _cleanup_zip():
+                time.sleep(5)
                 try:
                     if zip_path.exists():
                         zip_path.unlink()
                 except Exception:
                     pass
-            threading.Thread(target=cleanup, daemon=True).start()
+            threading.Thread(target=_cleanup_zip, daemon=True).start()
             return response
     except Exception as e:
         logger.exception("Erreur génération push")
         return jsonify(ok=False, error=str(e)), 500
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v27.x PARTIE 2: Route upload template (alias simple)
+# ═══════════════════════════════════════════════════════════════════
+@app.post("/api/push/templates/upload")
+def api_push_templates_upload():
+    """Upload un template .msg/eml pour une catégorie push.
+    Attend multipart/form-data avec: 'template' (fichier) + 'category_id' (int).
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    if 'template' not in request.files:
+        return jsonify(ok=False, error="Champ 'template' manquant"), 400
+
+    category_id = request.form.get("category_id")
+    if not category_id:
+        return jsonify(ok=False, error="category_id manquant"), 400
+
+    try:
+        cat_id_int = int(category_id)
+    except ValueError:
+        return jsonify(ok=False, error="category_id invalide"), 400
+
+    with _conn() as conn:
+        cat_row = conn.execute(
+            "SELECT name FROM push_categories WHERE id=? AND owner_id=?;", (cat_id_int, uid)
+        ).fetchone()
+    if not cat_row:
+        return jsonify(ok=False, error="Catégorie introuvable"), 404
+
+    file = request.files['template']
+    if not file.filename:
+        return jsonify(ok=False, error="Nom de fichier vide"), 400
+
+    # Sécuriser le nom de fichier
+    filename = "".join(c for c in file.filename if c.isalnum() or c in "._- ")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in ('.msg', '.eml', '.oft'):
+        return jsonify(ok=False, error="Format non supporté (accepté: .msg, .eml, .oft)"), 400
+
+    cat_name = cat_row["name"]
+    user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
+    user_push_dir.mkdir(parents=True, exist_ok=True)
+    target_path = user_push_dir / filename
+
+    try:
+        file.save(str(target_path))
+        logger.info("Template push uploadé: user=%s cat=%s file=%s", uid, cat_name, filename)
+        return jsonify(ok=True, filename=filename)
+    except Exception as e:
+        logger.error("Erreur upload template push: %s", e)
+        return jsonify(ok=False, error=str(e)), 500
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v27.x PARTIE 2: Personnalisation .msg (win32com) ou .eml (fallback)
+# OUTLOOK_AVAILABLE détecté au démarrage de l'app
+# ═══════════════════════════════════════════════════════════════════
+
+def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidates_data: list) -> bytes:
+    """
+    Méthode principale (si Outlook installé) :
+    Lit le .msg source avec extract-msg, fait les substitutions HTML,
+    puis crée un nouveau MailItem Outlook via win32com.
+    """
+    import win32com.client  # type: ignore
+    import tempfile
+
+    nom_complet = prospect_data.get("name", "")
+    parts = nom_complet.split()
+    civilite = prospect_data.get("civilite", "M.")
+    nom = parts[-1] if parts else nom_complet
+    to_email = prospect_data.get("email", "")
+
+    # Lire le corps HTML du template .msg via extract-msg
+    try:
+        import extract_msg  # type: ignore
+        with extract_msg.Message(str(template_path)) as msg_obj:
+            html_body = msg_obj.htmlBody or ""
+            if isinstance(html_body, bytes):
+                html_body = html_body.decode("utf-8", errors="replace")
+            subject = msg_obj.subject or ""
+    except Exception as e:
+        logger.warning("extract-msg indisponible (%s), utilisation du fallback .eml", e)
+        return _personalize_eml(template_path, prospect_data, candidates_data)
+
+    # Substitution de la salutation
+    import re
+    salutation_pattern = re.compile(
+        r'Bonjour\s+(M\.|Mme\.|Dr\.?|Mme|M)?\s*\[?[Nn]om\s*prospect\]?',
+        re.IGNORECASE
+    )
+    new_salutation = f"Bonjour {civilite} {nom},"
+    if salutation_pattern.search(html_body):
+        html_body = salutation_pattern.sub(new_salutation, html_body, count=1)
+    else:
+        # Fallback: chercher pattern générique
+        html_body = re.sub(
+            r'Bonjour\s+M\.\s+\[.*?\]',
+            new_salutation,
+            html_body, count=1, flags=re.IGNORECASE
+        )
+
+    # Substitution du bloc candidats
+    if candidates_data:
+        cand_lines = []
+        for cand in candidates_data:
+            prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
+            titre  = cand.get("titre") or cand.get("role", "")
+            annees = cand.get("annees_experience") or cand.get("years_experience") or ""
+            domaine = cand.get("domaine_principal") or cand.get("sector", "")
+            line = f"- {prenom}, {titre}"
+            if annees:
+                line += f" avec {annees} ans d'expérience"
+            if domaine:
+                line += f" en {domaine}"
+            line += "."
+            cand_lines.append(line)
+        # Chercher et remplacer les lignes candidats placeholder
+        cand_block_pattern = re.compile(
+            r'(<li>|•\s*|\*\s*|-\s*)\[Prénom candidat \d+\][^<\n]*(<\/li>|\n|$)',
+            re.IGNORECASE
+        )
+        if cand_block_pattern.search(html_body):
+            # Remplacer chaque ligne placeholder
+            for i, cand_line in enumerate(cand_lines):
+                html_body = cand_block_pattern.sub(
+                    lambda m, cl=cand_line: m.group(1) + cl + m.group(2),
+                    html_body, count=1
+                )
+        else:
+            # Fallback: insérer avant la signature si pattern non trouvé
+            sig_pattern = re.compile(r'(Cordialement|Bien cordialement|Antoine Binet)', re.IGNORECASE)
+            if sig_pattern.search(html_body):
+                cand_block_html = "<br>".join(f"<p>• {l}</p>" for l in cand_lines)
+                html_body = sig_pattern.sub(
+                    f"{cand_block_html}<br>\\1", html_body, count=1
+                )
+
+    # Créer le .msg via win32com
+    outlook = win32com.client.Dispatch("Outlook.Application")
+    mail = outlook.CreateItem(0)  # olMailItem = 0
+    mail.To = to_email
+    mail.Subject = subject
+    mail.HTMLBody = html_body
+
+    with tempfile.NamedTemporaryFile(suffix='.msg', delete=False) as tmp:
+        out_path = Path(tmp.name)
+
+    mail.SaveAs(str(out_path), 3)  # 3 = olMSG
+    mail_bytes = out_path.read_bytes()
+
+    try:
+        out_path.unlink()
+    except Exception:
+        pass
+
+    return mail_bytes
+
+
+def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: list) -> bytes:
+    """
+    Méthode fallback (.eml RFC 2822) si Outlook n'est pas installé.
+    S'ouvre dans Outlook, Thunderbird et la plupart des clients mail.
+    """
+    import email as email_lib
+    import email.mime.multipart
+    import email.mime.text
+    import re
+
+    nom_complet = prospect_data.get("name", "")
+    parts = nom_complet.split()
+    civilite = prospect_data.get("civilite", "M.")
+    nom = parts[-1] if parts else nom_complet
+    to_email = prospect_data.get("email", "")
+
+    # Lire le corps du template
+    html_body = ""
+    subject = "Candidats disponibles"
+    try:
+        import extract_msg  # type: ignore
+        with extract_msg.Message(str(template_path)) as msg_obj:
+            html_body = msg_obj.htmlBody or ""
+            if isinstance(html_body, bytes):
+                html_body = html_body.decode("utf-8", errors="replace")
+            subject = msg_obj.subject or subject
+    except Exception:
+        # Si extract-msg non disponible, lire comme texte brut
+        try:
+            html_body = template_path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            html_body = "<p>Corps du message</p>"
+
+    # Substitution salutation
+    new_salutation = f"Bonjour {civilite} {nom},"
+    html_body = re.sub(
+        r'Bonjour\s+(M\.|Mme\.|Dr\.?|Mme|M)?\s*\[?[Nn]om\s*prospect\]?',
+        new_salutation, html_body, count=1, flags=re.IGNORECASE
+    )
+    html_body = re.sub(
+        r'Bonjour\s+M\.\s+\[.*?\]',
+        new_salutation, html_body, count=1, flags=re.IGNORECASE
+    )
+
+    # Substitution bloc candidats
+    if candidates_data:
+        cand_lines = []
+        for cand in candidates_data:
+            prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
+            titre  = cand.get("titre") or cand.get("role", "")
+            annees = cand.get("annees_experience") or cand.get("years_experience") or ""
+            domaine = cand.get("domaine_principal") or cand.get("sector", "")
+            line = f"- {prenom}, {titre}"
+            if annees:
+                line += f" avec {annees} ans d'expérience"
+            if domaine:
+                line += f" en {domaine}"
+            line += "."
+            cand_lines.append(line)
+        cand_block_pattern = re.compile(
+            r'(<li>|•\s*|\*\s*|-\s*)\[Prénom candidat \d+\][^<\n]*(<\/li>|\n|$)',
+            re.IGNORECASE
+        )
+        for i, cand_line in enumerate(cand_lines):
+            html_body = cand_block_pattern.sub(
+                lambda m, cl=cand_line: m.group(1) + cl + m.group(2),
+                html_body, count=1
+            )
+
+    # Construire le .eml
+    msg_eml = email_lib.mime.multipart.MIMEMultipart("alternative")
+    msg_eml["From"] = ""
+    msg_eml["To"] = to_email
+    msg_eml["Subject"] = subject
+    msg_eml.attach(email_lib.mime.text.MIMEText(html_body, "html", "utf-8"))
+
+    return msg_eml.as_bytes()
+
+
+def _generate_personalized_email(template_path: Path, prospect_data: dict, candidates_data: list) -> tuple[bytes, str]:
+    """
+    Dispatche vers la méthode win32com (OUTLOOK_AVAILABLE=True) ou .eml (fallback).
+    Retourne (contenu_bytes, nom_fichier_avec_extension).
+    """
+    if OUTLOOK_AVAILABLE:
+        try:
+            content = _personalize_msg_outlook(template_path, prospect_data, candidates_data)
+            filename = template_path.stem + "_personnalise.msg"
+            return content, filename
+        except Exception as e:
+            logger.warning("Échec personnalisation win32com (%s), fallback .eml", e)
+
+    content = _personalize_eml(template_path, prospect_data, candidates_data)
+    filename = template_path.stem + "_personnalise.eml"
+    return content, filename
 
 
 # ────────────────────────────────────────────────────────────────────
