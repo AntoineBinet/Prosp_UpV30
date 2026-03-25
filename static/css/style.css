@@ -5025,6 +5025,27 @@ textarea.detail-edit-input {
   border-color: var(--color-primary);
   color: #fff;
 }
+.relance-date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.relance-check-btn {
+  font-size: 13px;
+  padding: 2px 9px;
+  border-radius: 8px;
+  border: 1.5px solid #22c55e;
+  background: transparent;
+  color: #22c55e;
+  cursor: pointer;
+  font-weight: 700;
+  line-height: 1.6;
+  transition: background 0.15s, color 0.15s;
+}
+.relance-check-btn:hover {
+  background: #22c55e;
+  color: #fff;
+}
 
 /* ========== STATS CHARTS (v7) ========== */
 
