@@ -12474,7 +12474,9 @@ body[data-page=""] .content {
 }
 
 /* Animation flash vert pour les lignes modifiées */
-.prospect-row.flash-success {
+.prospect-row.flash-success,
+.company-card.flash-success,
+.todo-item.flash-success {
     animation: flashGreen 0.8s ease-out;
 }
 
@@ -12498,15 +12500,17 @@ body[data-page=""] .content {
         background: var(--color-surface);
         border-color: var(--color-border);
     }
-    
+
     .bulk-progress-bar {
         background: var(--color-surface-2);
     }
-    
-    .prospect-row.flash-success {
+
+    .prospect-row.flash-success,
+    .company-card.flash-success,
+    .todo-item.flash-success {
         animation: flashGreenDark 0.8s ease-out;
     }
-    
+
     @keyframes flashGreenDark {
         0% {
             background-color: transparent;
