@@ -38,6 +38,7 @@ function _ensureImportListModal() {
                         <button type="button" class="import-list-tab" data-tab="csv">📄 Fichier CSV</button>
                         <button type="button" class="import-list-tab" data-tab="paste">📋 Coller (CSV)</button>
                         <button type="button" class="import-list-tab" data-tab="ia">🤖 Retour IA</button>
+                        <button type="button" class="import-list-tab" data-tab="lusha">🔵 Enrichment Lusha</button>
                     </div>
                     <div id="importListPaneExcel" class="import-list-pane active">
                         <input type="file" id="importListFileExcel" accept=".xlsx,.xls" style="display:none;">
@@ -74,6 +75,11 @@ function _ensureImportListModal() {
                     <div id="importListPaneIa" class="import-list-pane" style="display:none;">
                         <p class="muted" style="margin-bottom:12px;">Utilisez l’outil « Ajout IA » pour coller un retour Ollama local ou copier-coller (JSON ou texte).</p>
                         <button type="button" class="btn btn-primary" onclick="closeImportListModal(); openQuickAddModal();">Ouvrir Ajout IA</button>
+                    </div>
+                    <div id="importListPaneLusha" class="import-list-pane" style="display:none;">
+                        <p class="muted" style="font-size:12px;margin-bottom:10px;">Fichier CSV exporté depuis Lusha — colonnes Phone 1/2/3 et Email 1/2 consolidées automatiquement. Aucune étape de mapping requise.</p>
+                        <input type="file" id="importListFileLusha" accept=".csv" style="display:none;">
+                        <button type="button" class="btn btn-primary" onclick="document.getElementById(‘importListFileLusha’).click()">Choisir un fichier .csv Lusha</button>
                     </div>
                 </div>
                 <div id="importListStepMapping" style="display:none;">
@@ -149,6 +155,11 @@ function _ensureImportListModal() {
         if (f) parseImportListCsvFile(f);
         e.target.value = '';
     });
+    document.getElementById('importListFileLusha').addEventListener('change', function(e) {
+        const f = e.target.files && e.target.files[0];
+        if (f) parseLushaFile(f);
+        e.target.value = '';
+    });
     document.querySelectorAll('.import-list-tab').forEach(tab => {
         tab.addEventListener('click', function() {
             document.querySelectorAll('.import-list-tab').forEach(t => t.classList.remove('active'));
@@ -157,7 +168,7 @@ function _ensureImportListModal() {
             const tabName = this.getAttribute('data-tab');
             const pane = document.getElementById('importListPane' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
             if (pane) { pane.style.display = ''; pane.classList.add('active'); }
-            ['importListPaneExcel','importListPaneCsv','importListPanePaste','importListPaneIa'].forEach(id => {
+            ['importListPaneExcel','importListPaneCsv','importListPanePaste','importListPaneIa','importListPaneLusha'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el && !el.classList.contains('active')) el.style.display = 'none';
             });
@@ -769,5 +780,167 @@ function applyImportList() {
         populateCompanySelects();
         showToast(`✅ ${created} prospect(s) importé(s). Retrouvez votre liste ci-dessous.`, 'success', 6000);
     }).catch(err => showToast('Erreur sauvegarde: ' + (err && err.message), 'error'));
+}
+
+
+// ====== Import Lusha Enrichment ======
+
+/**
+ * Correspondance colonnes Lusha → champs internes.
+ * Les clés sont en minuscules pour une comparaison insensible à la casse.
+ * Les valeurs préfixées "_lusha" sont des champs intermédiaires (combinés plus bas).
+ */
+const LUSHA_COLUMN_MAP = {
+    // Colonnes exactes de l'export Lusha (insensibles a la casse)
+    'url':                          '_lushaLinkedinSrc',   // URL LinkedIn source (colonne 1)
+    '(lusha) full name':            '_lushaFullName',      // Nom complet deja assemble
+    '(lusha) linkedin url':         'linkedin',
+    '(lusha) phone number 1':       '_lushaPhone1',
+    '(lusha) phone number 2':       '_lushaPhone2',
+    '(lusha) work email':           '_lushaWorkEmail',     // Email pro (prioritaire)
+    '(lusha) direct email':         '_lushaDirectEmail',   // Email perso (fallback)
+    '(lusha) job title':            'fonction',
+    '(lusha) seniority':            '_lushaSeniority',     // non-manager / manager / director / c-suite
+    '(lusha) company name':         'groupe',
+    '(lusha) company city':         'site',                // Ville siege entreprise
+    '(lusha) city':                 '_lushaCity',          // Ville de la personne -> notes
+    '(lusha) country':              '_lushaCountry',
+};
+
+/** Verifie qu'une adresse email a un format valide. */
+function _lushaIsValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || '').trim());
+}
+
+/**
+ * Lit un fichier CSV Lusha, mappe les colonnes automatiquement
+ * et affiche directement l'etape apercu (sans etape de mapping manuel).
+ */
+function parseLushaFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        // Supprimer le BOM UTF-8 si present (export Lusha en UTF-8 BOM)
+        const text = (e.target.result || '').replace(/^\uFEFF/, '');
+
+        // Lusha exporte toujours en CSV separe par virgule
+        const raw = _parseCsvText(text, { separator: ',' });
+        if (!raw || !raw.headers.length) {
+            showToast('Fichier Lusha vide ou illisible.', 'error');
+            return;
+        }
+
+        // Construire l'index : champ interne -> index de colonne (insensible a la casse)
+        const colIndex = {};
+        raw.headers.forEach((h, i) => {
+            const key = h.toLowerCase().trim();
+            const field = LUSHA_COLUMN_MAP[key];
+            // Conserver le premier index trouve pour chaque champ (evite les doublons)
+            if (field && !(field in colIndex)) colIndex[field] = i;
+        });
+
+        // Compteurs pour le rapport de parsing
+        const totalLignes = raw.rows.length;
+        let prosValid = 0, avecTel = 0, avecEmail = 0, ignores = 0;
+
+        // Helper : valeur de colonne pour une ligne donnee
+        const get = (row, field) => {
+            const idx = colIndex[field];
+            return (idx !== undefined && row[idx] != null) ? String(row[idx]).trim() : '';
+        };
+
+        // Mapper chaque ligne vers un objet prospect ProspUp
+        const mappedRows = [];
+        raw.rows.forEach(row => {
+            // Nom complet directement dans "(Lusha) Full name"
+            const name = get(row, '_lushaFullName');
+
+            // Ignorer les lignes non enrichies (nom vide = pas de donnees Lusha)
+            if (!name) { ignores++; return; }
+
+            // Telephones : consolider Phone number 1 et 2 avec " / "
+            const phones = [get(row, '_lushaPhone1'), get(row, '_lushaPhone2')].filter(v => v);
+            const telephone = phones.join(' / ');
+
+            // Email : work email (pro) en priorite, direct email (perso) en fallback
+            const emailCandidates = [get(row, '_lushaWorkEmail'), get(row, '_lushaDirectEmail')].filter(Boolean);
+            const email = emailCandidates.find(v => _lushaIsValidEmail(v)) || emailCandidates[0] || '';
+
+            // LinkedIn : URL enrichie par Lusha, sinon URL source de la liste
+            const linkedin = get(row, 'linkedin') || get(row, '_lushaLinkedinSrc') || '';
+
+            // Notes : ville de la personne + pays + niveau hierarchique
+            const city      = get(row, '_lushaCity');
+            const country   = get(row, '_lushaCountry');
+            const seniority = get(row, '_lushaSeniority');
+            const noteParts = [];
+            if (city && country) noteParts.push(city + ', ' + country);
+            else if (city)       noteParts.push(city);
+            else if (country)    noteParts.push(country);
+            if (seniority)       noteParts.push('Niveau : ' + seniority);
+            const notes = noteParts.join(' — ');
+
+            mappedRows.push({
+                name,
+                fonction:    get(row, 'fonction'),
+                groupe:      get(row, 'groupe'),
+                site:        get(row, 'site'),   // ville siege entreprise
+                linkedin,
+                telephone,
+                email,
+                notes,
+                pertinence:  '3',
+                statut:      "Pas d'actions",
+                tags:        '',
+                lastContact: '',
+            });
+            prosValid++;
+            if (telephone) avecTel++;
+            if (email)     avecEmail++;
+        });
+
+        if (!mappedRows.length) {
+            showToast('Aucun prospect valide — verifiez que le fichier est bien un export Lusha.', 'warning', 6000);
+            return;
+        }
+
+        _lushaShowPreview(mappedRows, { totalLignes, prosValid, avecTel, avecEmail, ignores });
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+/**
+ * Affiche l'etape apercu avec les donnees deja mappees par parseLushaFile().
+ * Saute completement l'etape de mapping manuel.
+ */
+function _lushaShowPreview(mappedRows, stats) {
+    // Injecter les donnees dans la variable partagee avec applyImportList()
+    window._importListPreviewRows = mappedRows;
+
+    // Bandeau recapitulatif affiche au-dessus du tableau de preview
+    const btns = document.getElementById('importListReformatButtons');
+    const ignoresHtml = stats.ignores
+        ? `&nbsp;&middot;&nbsp; <span style="color:var(--color-warning);">&#9888;&#65039; <strong>${stats.ignores}</strong> ignor&eacute;(s) (nom vide)</span>`
+        : '';
+    btns.innerHTML = `
+        <div style="background:var(--color-bg-secondary);border:1px solid var(--color-border);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;line-height:2;">
+            <strong>&#128309; Colonnes Lusha d&eacute;tect&eacute;es automatiquement</strong><br>
+            &#9989; <strong>${stats.prosValid}</strong> prospect(s) valide(s) sur <strong>${stats.totalLignes}</strong> ligne(s)
+            ${ignoresHtml}
+            &nbsp;&middot;&nbsp; &#128222; <strong>${stats.avecTel}</strong> avec t&eacute;l&eacute;phone
+            &nbsp;&middot;&nbsp; &#9993;&#65039; <strong>${stats.avecEmail}</strong> avec email
+        </div>`;
+
+    // Masquer le bouton "Reformater plusieurs colonnes" (non pertinent pour Lusha)
+    const reformatAllBtn = document.getElementById('importListReformatAllBtn');
+    if (reformatAllBtn) reformatAllBtn.style.display = 'none';
+
+    // Mettre a jour le compteur et le tableau de preview
+    document.getElementById('importListPreviewCount').textContent = mappedRows.length;
+    _renderImportListPreviewTable();
+
+    // Passer directement a l'etape apercu (sauter le mapping)
+    document.getElementById('importListStepChoice').style.display = 'none';
+    document.getElementById('importListStepMapping').style.display = 'none';
+    document.getElementById('importListStepPreview').style.display = '';
 }
 
