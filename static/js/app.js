@@ -3687,11 +3687,11 @@ async function applyBulkStatus() {
 async function applyBulkPertinence() {
     const per = document.getElementById('bulkPertinence').value;
     if (!per) return;
-    
+
     const ids = Array.from(selectedProspects);
     const total = ids.length;
     if (total === 0) return;
-    
+
     let updated = 0;
     for (const id of ids) {
         const p = data.prospects.find(x => x.id === id);
@@ -3706,11 +3706,103 @@ async function applyBulkPertinence() {
             }
         }
     }
-    
+
     await saveToServerAsync();
     filterProspects();
     selectedProspects.clear();
     updateBulkBar();
+    showToast(`✅ ${updated} prospect(s) mis à jour`, 'success');
+}
+
+function openBulkEditModal() {
+    const count = selectedProspects.size;
+    if (count === 0) return;
+    const infoEl = document.getElementById('bulkEditInfo');
+    const countEl = document.getElementById('bulkEditApplyCount');
+    if (infoEl) infoEl.textContent = `${count} prospect${count > 1 ? 's' : ''} sélectionné${count > 1 ? 's' : ''}`;
+    if (countEl) countEl.textContent = count;
+    const fieldEl = document.getElementById('bulkEditField');
+    if (fieldEl) fieldEl.value = '';
+    const wrap = document.getElementById('bulkEditValueWrap');
+    if (wrap) wrap.innerHTML = '';
+    const modal = document.getElementById('modalBulkEdit');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeBulkEditModal() {
+    const modal = document.getElementById('modalBulkEdit');
+    if (modal) modal.style.display = 'none';
+}
+
+function bulkEditUpdateValueInput() {
+    const field = document.getElementById('bulkEditField').value;
+    const wrap = document.getElementById('bulkEditValueWrap');
+    if (!field || !wrap) { if (wrap) wrap.innerHTML = ''; return; }
+
+    let html = '<label style="display:block;margin-bottom:6px;font-weight:500;">Nouvelle valeur</label>';
+    if (field === 'statut') {
+        html += `<select id="bulkEditValue" style="width:100%;">
+            <option value="">-- Choisir --</option>
+            <option value="Appelé">📞 Appelé</option>
+            <option value="Rendez-vous">🤝 Rendez-vous</option>
+            <option value="Prospecté">🎯 Prospecté</option>
+            <option value="Messagerie">💬 Messagerie</option>
+            <option value="À rappeler">📞 À rappeler</option>
+            <option value="Pas d'actions">✓ Pas d'actions</option>
+            <option value="Pas intéressé">❌ Pas intéressé</option>
+        </select>`;
+    } else if (field === 'pertinence') {
+        html += `<select id="bulkEditValue" style="width:100%;">
+            <option value="">-- Choisir --</option>
+            <option value="5">⭐⭐⭐⭐⭐</option>
+            <option value="4">⭐⭐⭐⭐</option>
+            <option value="3">⭐⭐⭐</option>
+            <option value="2">⭐⭐</option>
+            <option value="1">⭐</option>
+        </select>`;
+    } else if (field === 'fixedMetier') {
+        html += `<select id="bulkEditValue" style="width:100%;">
+            <option value="">-- Choisir --</option>
+            ${(typeof buildMetierOptionsHtml === 'function') ? buildMetierOptionsHtml('') : ''}
+        </select>`;
+    } else {
+        html += `<input type="text" id="bulkEditValue" style="width:100%;box-sizing:border-box;" placeholder="Nouvelle valeur…">`;
+    }
+    wrap.innerHTML = html;
+}
+
+async function applyBulkEdit() {
+    const field = document.getElementById('bulkEditField').value;
+    const valueEl = document.getElementById('bulkEditValue');
+    if (!field) { showToast('Choisissez un champ', 'warning'); return; }
+    if (!valueEl) { showToast('Choisissez une valeur', 'warning'); return; }
+    const value = valueEl.value.trim();
+    if (!value) { showToast('La valeur ne peut pas être vide', 'warning'); return; }
+
+    const ALLOWED_FIELDS = ['fonction', 'statut', 'pertinence', 'fixedMetier'];
+    if (!ALLOWED_FIELDS.includes(field)) return;
+
+    const ids = Array.from(selectedProspects);
+    const total = ids.length;
+    if (total === 0) return;
+
+    let updated = 0;
+    for (const id of ids) {
+        const p = data.prospects.find(x => x.id === id);
+        if (p) {
+            p[field] = value;
+            updated++;
+            showBulkProgress(updated, total, 'prospects mis à jour...');
+            flashRowSuccess(id);
+            if (total > 10) await new Promise(r => setTimeout(r, 50));
+        }
+    }
+
+    await saveToServerAsync();
+    filterProspects();
+    selectedProspects.clear();
+    updateBulkBar();
+    closeBulkEditModal();
     showToast(`✅ ${updated} prospect(s) mis à jour`, 'success');
 }
 

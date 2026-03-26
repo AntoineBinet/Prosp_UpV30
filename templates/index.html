@@ -260,6 +260,7 @@
                 <button class="btn btn-ia-bulk" onclick="openBulkIAModal('tel')" title="Trouver les téléphones via IA pour les prospects sélectionnés" data-help-section="scrapping-ia">📞 Tel IA</button>
                 <button class="btn btn-ia-bulk" onclick="bulkEnrichWithIA()" title="Enrichir les fiches sélectionnées via Perplexity Sonar (recherche web IA)" data-help-section="scrapping-ia">🌐 Enrichir IA</button>
 
+                <button class="btn btn-primary" onclick="openBulkEditModal()">✏️ Modifier en masse</button>
                 <button class="btn btn-danger" onclick="deleteSelectedProspects()">🗑️ Supprimer</button>
             </div>
         </div>
@@ -498,6 +499,30 @@
         </div>
     </div>
 </div>
+<!-- Modal Modifier en masse -->
+<div class="modal" role="dialog" aria-modal="true" id="modalBulkEdit" aria-labelledby="modalBulkEditTitle">
+    <div class="modal-content" style="max-width:460px;position:relative;">
+        <button class="modal-close" onclick="closeBulkEditModal()" aria-label="Fermer">✕</button>
+        <h2 id="modalBulkEditTitle">✏️ Modifier en masse</h2>
+        <p id="bulkEditInfo" style="color:var(--color-text-secondary);margin-bottom:16px;"></p>
+        <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:6px;font-weight:500;">Champ à modifier</label>
+            <select id="bulkEditField" onchange="bulkEditUpdateValueInput()" style="width:100%;">
+                <option value="">-- Choisir un champ --</option>
+                <option value="fonction">Fonction</option>
+                <option value="statut">Statut</option>
+                <option value="pertinence">Pertinence</option>
+                <option value="fixedMetier">Métier</option>
+            </select>
+        </div>
+        <div id="bulkEditValueWrap" style="margin-bottom:16px;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button class="btn btn-secondary" onclick="closeBulkEditModal()">Annuler</button>
+            <button class="btn btn-primary" onclick="applyBulkEdit()">Appliquer à <span id="bulkEditApplyCount">0</span> prospect(s)</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Quick Add IA -->
 <div class="modal" role="dialog" aria-modal="true" id="modalQuickAdd" aria-labelledby="modalQuickAddTitle">
     <div class="modal-content" style="max-width:560px;position:relative;">

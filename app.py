@@ -10226,6 +10226,45 @@ def api_prospects_bulk_field_update():
     return jsonify(ok=True, updated=updated)
 
 
+@app.post("/api/prospects/bulk-edit")
+def api_prospects_bulk_edit():
+    """Bulk update a whitelisted field for selected prospects."""
+    chk = _require_same_origin()
+    if chk:
+        return chk
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    ids = payload.get("ids")
+    field = payload.get("field", "")
+    value = payload.get("value")
+    ALLOWED_FIELDS = ["fonction", "statut", "pertinence", "fixedMetier"]
+    if not ids or not isinstance(ids, list):
+        return jsonify(ok=False, error="ids (array) required"), 400
+    if field not in ALLOWED_FIELDS:
+        return jsonify(ok=False, error=f"field must be one of {ALLOWED_FIELDS}"), 400
+    if value is None or str(value).strip() == "":
+        return jsonify(ok=False, error="value required"), 400
+    value = str(value).strip()
+    updated = 0
+    errors = []
+    with _conn() as conn:
+        for pid in ids:
+            try:
+                pid = int(pid)
+            except (TypeError, ValueError):
+                errors.append(str(pid))
+                continue
+            row = conn.execute("SELECT id FROM prospects WHERE id=? AND owner_id=?;", (pid, uid)).fetchone()
+            if row:
+                conn.execute(f"UPDATE prospects SET {field}=? WHERE id=? AND owner_id=?;", (value, pid, uid))
+                updated += 1
+            else:
+                errors.append(str(pid))
+    return jsonify(ok=True, updated=updated, errors=errors)
+
+
 @app.post("/api/prospects/bulk-status-tags")
 def api_prospects_bulk_status_tags():
     """v23.5: Bulk update statut and/or tags for selected prospects."""
