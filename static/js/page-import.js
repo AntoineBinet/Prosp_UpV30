@@ -791,35 +791,20 @@ function applyImportList() {
  * Les valeurs préfixées "_lusha" sont des champs intermédiaires (combinés plus bas).
  */
 const LUSHA_COLUMN_MAP = {
-    'first name':        '_lushaFirstName',
-    'firstname':         '_lushaFirstName',
-    'last name':         '_lushaLastName',
-    'lastname':          '_lushaLastName',
-    'job title':         'fonction',
-    'title':             'fonction',
-    'position':          'fonction',
-    'company name':      'groupe',
-    'company':           'groupe',
-    'organization':      'groupe',
-    'linkedin url':      'linkedin',
-    'linkedin profile':  'linkedin',
-    'linkedin':          'linkedin',
-    'phone 1':           '_lushaPhone1',
-    'phone1':            '_lushaPhone1',
-    'mobile phone':      '_lushaPhone1',
-    'phone 2':           '_lushaPhone2',
-    'phone2':            '_lushaPhone2',
-    'phone 3':           '_lushaPhone3',
-    'phone3':            '_lushaPhone3',
-    'email 1':           '_lushaEmail1',
-    'email1':            '_lushaEmail1',
-    'email':             '_lushaEmail1',
-    'email 2':           '_lushaEmail2',
-    'email2':            '_lushaEmail2',
-    'location':          '_lushaLocation',
-    'city':              '_lushaLocation',
-    'country':           '_lushaCountry',
-    'region':            '_lushaLocation',
+    // Colonnes exactes de l'export Lusha (insensibles a la casse)
+    'url':                          '_lushaLinkedinSrc',   // URL LinkedIn source (colonne 1)
+    '(lusha) full name':            '_lushaFullName',      // Nom complet deja assemble
+    '(lusha) linkedin url':         'linkedin',
+    '(lusha) phone number 1':       '_lushaPhone1',
+    '(lusha) phone number 2':       '_lushaPhone2',
+    '(lusha) work email':           '_lushaWorkEmail',     // Email pro (prioritaire)
+    '(lusha) direct email':         '_lushaDirectEmail',   // Email perso (fallback)
+    '(lusha) job title':            'fonction',
+    '(lusha) seniority':            '_lushaSeniority',     // non-manager / manager / director / c-suite
+    '(lusha) company name':         'groupe',
+    '(lusha) company city':         'site',                // Ville siege entreprise
+    '(lusha) city':                 '_lushaCity',          // Ville de la personne -> notes
+    '(lusha) country':              '_lushaCountry',
 };
 
 /** Verifie qu'une adresse email a un format valide. */
@@ -866,47 +851,43 @@ function parseLushaFile(file) {
         // Mapper chaque ligne vers un objet prospect ProspUp
         const mappedRows = [];
         raw.rows.forEach(row => {
-            // Nom complet = Prenom + Nom
-            const firstName = get(row, '_lushaFirstName');
-            const lastName  = get(row, '_lushaLastName');
-            const name = [firstName, lastName].filter(Boolean).join(' ').trim();
+            // Nom complet directement dans "(Lusha) Full name"
+            const name = get(row, '_lushaFullName');
 
-            // Ignorer les lignes sans nom
+            // Ignorer les lignes non enrichies (nom vide = pas de donnees Lusha)
             if (!name) { ignores++; return; }
 
-            // Telephones : consolider Phone 1, 2, 3 avec " / " comme separateur
-            const phones = [
-                get(row, '_lushaPhone1'),
-                get(row, '_lushaPhone2'),
-                get(row, '_lushaPhone3'),
-            ].filter(v => v);
+            // Telephones : consolider Phone number 1 et 2 avec " / "
+            const phones = [get(row, '_lushaPhone1'), get(row, '_lushaPhone2')].filter(v => v);
             const telephone = phones.join(' / ');
 
-            // Email : prendre le premier email valide parmi Email 1, Email 2
-            const emailCandidates = [get(row, '_lushaEmail1'), get(row, '_lushaEmail2')].filter(Boolean);
+            // Email : work email (pro) en priorite, direct email (perso) en fallback
+            const emailCandidates = [get(row, '_lushaWorkEmail'), get(row, '_lushaDirectEmail')].filter(Boolean);
             const email = emailCandidates.find(v => _lushaIsValidEmail(v)) || emailCandidates[0] || '';
 
-            // Localisation -> note prefixee avec une epingle
-            const location = get(row, '_lushaLocation');
-            const country  = get(row, '_lushaCountry');
-            let notes = '';
-            if (location && country && location.toLowerCase() !== country.toLowerCase()) {
-                notes = location + ', ' + country;
-            } else if (location) {
-                notes = location;
-            } else if (country) {
-                notes = country;
-            }
+            // LinkedIn : URL enrichie par Lusha, sinon URL source de la liste
+            const linkedin = get(row, 'linkedin') || get(row, '_lushaLinkedinSrc') || '';
+
+            // Notes : ville de la personne + pays + niveau hierarchique
+            const city      = get(row, '_lushaCity');
+            const country   = get(row, '_lushaCountry');
+            const seniority = get(row, '_lushaSeniority');
+            const noteParts = [];
+            if (city && country) noteParts.push(city + ', ' + country);
+            else if (city)       noteParts.push(city);
+            else if (country)    noteParts.push(country);
+            if (seniority)       noteParts.push('Niveau : ' + seniority);
+            const notes = noteParts.join(' — ');
 
             mappedRows.push({
                 name,
                 fonction:    get(row, 'fonction'),
                 groupe:      get(row, 'groupe'),
-                linkedin:    get(row, 'linkedin'),
+                site:        get(row, 'site'),   // ville siege entreprise
+                linkedin,
                 telephone,
                 email,
                 notes,
-                site:        '',
                 pertinence:  '3',
                 statut:      "Pas d'actions",
                 tags:        '',
@@ -918,7 +899,7 @@ function parseLushaFile(file) {
         });
 
         if (!mappedRows.length) {
-            showToast('Aucun prospect valide (colonnes "First Name"/"Last Name" absentes ou vides).', 'warning', 6000);
+            showToast('Aucun prospect valide — verifiez que le fichier est bien un export Lusha.', 'warning', 6000);
             return;
         }
 
