@@ -13247,8 +13247,7 @@ body.stack-mode-active .stack-view { display: flex !important; }
 .wizard-dc-drop-inner { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 
 /* BUG 3: Sur la page sourcing, masquer les FABs globaux (le btnAddCandidate dans la barre suffit) */
-body[data-page="sourcing"] #fab-speed-dial,
-body[data-page="sourcing"] .mobile-quick-actions-bar { display: none !important; }
+body[data-page="sourcing"] #fab-speed-dial { display: none !important; }
 
 .ai-extracted-badge {
   display: inline-block;
