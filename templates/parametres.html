@@ -759,7 +759,11 @@ function applyTagsImport() {
 }
 // ═══ Change password banner (redirected from first login) ═══
 ;(function() {
-  if (new URLSearchParams(window.location.search).get('change_password') !== '1') return;
+  var needsBanner = new URLSearchParams(window.location.search).get('change_password') === '1'
+                  || sessionStorage.getItem('pending_password_change') === '1';
+  if (!needsBanner) return;
+  // Persister le flag pour survivre aux redirections internes (ex: fermeture de l'onboarding)
+  sessionStorage.setItem('pending_password_change', '1');
   function mkBanner() {
     if (document.getElementById('mustChangePwBanner')) return;
     var b = document.createElement('div');

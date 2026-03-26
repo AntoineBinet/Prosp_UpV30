@@ -1078,7 +1078,12 @@ def api_users_list():
         rows = conn.execute("SELECT id, username, display_name, role, is_active, createdAt, lastLoginAt FROM users ORDER BY id;").fetchall()
     is_admin = user and user.get('role') == 'admin'
     current_user_id = int(user["id"]) if user and user.get("id") is not None else None
-    return jsonify(ok=True, users=[dict(r) for r in rows], is_admin=is_admin, current_user_id=current_user_id)
+    users_list = []
+    for r in rows:
+        u = dict(r)
+        u['lastLoginAt'] = u.get('lastLoginAt') or ''
+        users_list.append(u)
+    return jsonify(ok=True, users=users_list, is_admin=is_admin, current_user_id=current_user_id)
 
 @app.post("/api/users/save")
 @login_required

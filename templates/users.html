@@ -130,7 +130,6 @@ async function loadUsers() {
   _isAdmin = payload.is_admin === true;
   _currentUserId = Number(payload.current_user_id || 0) || null;
   _usersCache = payload.users || [];
-  const el = document.getElementById('usersList');
   
   // Show/hide admin-only elements
   const newUserBtn = document.querySelector('[onclick="openUserModal()"]');
