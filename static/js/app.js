@@ -13382,11 +13382,12 @@ function openPreMeetingModal(prospectId) {
                 evtSource.close();
 
                 // Parser et afficher la fiche formatée
+                // extractJSONFromText (ligne ~13792) gère les sources Sonar après le JSON
                 let ficheHtml = '';
                 try {
-                    const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        const parsed = JSON.parse(jsonMatch[0]);
+                    const jsonStr = (typeof extractJSONFromText === 'function') ? extractJSONFromText(fullResponse) : null;
+                    if (jsonStr) {
+                        const parsed = JSON.parse(jsonStr);
                         ficheHtml = formatRdvFiche(parsed, prospectId, data.pdf_url);
                     }
                 } catch(e) { console.warn('Parsing fiche RDV:', e); }

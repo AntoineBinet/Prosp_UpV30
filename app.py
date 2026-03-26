@@ -12298,7 +12298,7 @@ URL LinkedIn : {linkedin}
   }}
 }}
 
-Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.
+Réponds UNIQUEMENT avec le JSON valide. Aucune source, aucun commentaire, aucune URL après le JSON. Commence directement par {{ et termine par }}.
 """
 
 
@@ -13287,17 +13287,37 @@ def api_prospect_download_rdv_pdf(prospect_id: int):
                 company = dict(company_row)
     
     # Parser le JSON depuis la réponse Ollama
-    # Extraire le JSON (peut être entouré de texte)
-    import re as re_mod
-    json_match = re_mod.search(r"\{[\s\S]*\}", ollama_response)
-    if not json_match:
-        return jsonify(ok=False, error="Format de réponse Ollama invalide. Réessayez."), 400
-    
+    # Extraction robuste : équilibrage des accolades pour ignorer le texte
+    # autour du JSON (📎 Sources, commentaires…) que Sonar peut ajouter.
+    def _extract_json_from_text(text):
+        """Extrait le premier objet JSON complet depuis un texte potentiellement pollué."""
+        import re as _re
+        # 1. Tenter un bloc markdown ```json ... ```
+        m = _re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, _re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group(1))
+            except Exception:
+                pass
+        # 2. Équilibrage des accolades : premier { ... } fermant correctement
+        start = text.find('{')
+        if start == -1:
+            raise ValueError("Aucun JSON trouvé dans la réponse IA")
+        depth = 0
+        for i, c in enumerate(text[start:], start):
+            if c == '{':
+                depth += 1
+            elif c == '}':
+                depth -= 1
+                if depth == 0:
+                    return json.loads(text[start:i + 1])
+        raise ValueError("JSON incomplet dans la réponse IA")
+
     try:
-        ollama_data = json.loads(json_match.group(0))
-    except json.JSONDecodeError as e:
-        logger.warning("Erreur parsing JSON Ollama: %s", e)
-        return jsonify(ok=False, error="Erreur lors du parsing de la réponse Ollama. Réessayez."), 400
+        ollama_data = _extract_json_from_text(ollama_response)
+    except (ValueError, json.JSONDecodeError) as e:
+        logger.warning("Erreur parsing JSON Ollama RDV: %s — réponse brute: %s", e, ollama_response[:300])
+        return jsonify(ok=False, error="Format de réponse IA invalide. Réessayez."), 400
     
     # Générer le PDF
     try:
