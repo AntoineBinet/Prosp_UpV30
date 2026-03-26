@@ -4050,6 +4050,8 @@ function goToPage(p) {
     var tbl = document.getElementById('tableBody');
     if (tbl) tbl.closest('.table-container')?.scrollTo({top: 0, behavior: 'smooth'});
 }
+// Exposition explicite pour les onclick inline générés dynamiquement
+window.goToPage = goToPage;
 
 function changePageSize(val) {
     var n = parseInt(val, 10);
@@ -4060,6 +4062,7 @@ function changePageSize(val) {
         renderProspects();
     }
 }
+window.changePageSize = changePageSize;
 
 function _renderPagination() {
     var container = document.getElementById('paginationControls');
@@ -9627,13 +9630,20 @@ function parseIAImportModal() {
     _renderIAPreview();
 }
 
+// Détecte les valeurs "non trouvé" renvoyées par les IA (Sonar, Ollama…).
+// Centralise la logique partagée entre _processField (bulk Sonar) et parseBulkIAResult (Email/Tel IA).
+function _isNotFoundValue(value) {
+    if (!value) return true;
+    return /non\s*trouv|introuvable|inconnu|n\/a|pas\s*trouv|not\s*found|aucun|\[non|à\s*trouver|\[vide\]|\[inconnue?\]|\[aucune?\]/i.test(value.trim());
+}
+
 function _processField(rawKey, rawValue, fieldMap, existing, fields, managers) {
     const key = rawKey.toUpperCase().replace(/\s+/g, '_');
     const mapping = fieldMap[key];
     if (!mapping) return; // Unknown field, skip
 
     const value = rawValue.trim();
-    if (!value || value === '[À TROUVER]' || value === '[INCONNU]' || value === '[VIDE]' || value === '[INCONNUE]' || value === '[AUCUNE]') return;
+    if (_isNotFoundValue(value)) return;
 
     if (mapping.isManagers) {
         // Parse manager list: "Nom - Fonction" or "Nom (Fonction)" per line or comma-separated
@@ -10546,8 +10556,7 @@ function parseBulkIAResult() {
         if (match) {
             const idx = parseInt(match[1]) - 1;
             let value = match[2].trim();
-            const notFound = /non\s*trouv|introuvable|inconnu|n\/a|pas\s*trouv|not\s*found|aucun/i.test(value);
-            if (notFound) value = '';
+            if (_isNotFoundValue(value)) value = '';
             results[idx] = value;
         }
     }
