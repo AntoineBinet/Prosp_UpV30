@@ -12107,6 +12107,9 @@ function onboardingDoneThenRedirect(url) {
 
 function showOnboardingIfNeeded() {
     if (!AppAuth.user || AppAuth.user.onboarding_seen !== 0) return;
+    // Ne pas déclencher l'onboarding si l'utilisateur doit d'abord changer son mot de passe
+    if (new URLSearchParams(window.location.search).get('change_password') === '1') return;
+    if (sessionStorage.getItem('pending_password_change') === '1') return;
     _ensureOnboardingModal();
     _renderOnboardingStep(0);
     document.getElementById('onboardingModal').classList.add('active');
@@ -12314,6 +12317,18 @@ async function bootstrap(page) {
 
     // === Global: sidebar badge pour relances en retard (toutes pages) ===
     try { updateOverdueAlerts(data.prospects || []); } catch (e) {}
+
+    // === Bandeau changement de mot de passe obligatoire (toutes pages) ===
+    if (sessionStorage.getItem('pending_password_change') === '1') {
+        setTimeout(function() {
+            if (document.getElementById('mustChangePwBanner')) return;
+            var b = document.createElement('div');
+            b.id = 'mustChangePwBanner';
+            b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#f59e0b;color:#1c1917;padding:14px 20px;text-align:center;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+            b.innerHTML = '🔐 Sécurité : changez votre mot de passe avant de commencer. &nbsp;<button onclick="if(typeof openUserMenu === \'function\') { openUserMenu(); setTimeout(function() { openUserMenuOption(\'changePassword\'); }, 300); }" style="background:#1c1917;color:#fef3c7;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600;">Changer maintenant</button>';
+            document.body.prepend(b);
+        }, 200);
+    }
 
     // === Popup bienvenue + visite guidée pour nouveaux utilisateurs (onboarding_seen = 0) ===
     setTimeout(function() { showOnboardingIfNeeded(); }, 450);
@@ -14486,6 +14501,10 @@ async function userMenuChangePassword() {
             document.getElementById('userMenuNewPw').value = '';
             document.getElementById('userMenuNewPw2').value = '';
             if (typeof showToast === 'function') showToast('✅ Mot de passe mis à jour', 'success');
+            // Effacer le flag de changement de mdp obligatoire et retirer le bandeau
+            sessionStorage.removeItem('pending_password_change');
+            var banner = document.getElementById('mustChangePwBanner');
+            if (banner) banner.remove();
             setTimeout(() => {
                 closeUserMenuModal('changePassword');
             }, 1500);
