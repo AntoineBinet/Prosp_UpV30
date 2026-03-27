@@ -67,10 +67,24 @@ function updateDupSummary() {
   summary.textContent = `Prospects: ${prospectCount} groupes · Entreprises: ${companyCount} groupes`;
 }
 
-function excludeProspectFromGroup(groupIdx, prospectId) {
+async function excludeProspectFromGroup(groupIdx, prospectId) {
+  // Exclure localement (immédiat)
   if (!excludedFromProspectGroup.has(groupIdx)) excludedFromProspectGroup.set(groupIdx, new Set());
   excludedFromProspectGroup.get(groupIdx).add(prospectId);
   renderProspectGroups();
+  // Persister : marquer ce prospect comme "pas un doublon" avec tous les autres du groupe
+  const group = prospectGroupsData[groupIdx];
+  if (!group) return;
+  const otherIds = (group.items || []).map(p => p.id).filter(id => id !== prospectId);
+  for (const otherId of otherIds) {
+    try {
+      await fetch('/api/duplicates/ignore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_a: prospectId, id_b: otherId })
+      });
+    } catch (e) { /* silencieux — l'exclusion locale est déjà faite */ }
+  }
 }
 
 function mergeProspectIntoSelected(groupIdx, mergeId) {
@@ -101,21 +115,34 @@ function mergeSelectedInGroup(groupIdx) {
   openMergeModal(keepId, mergeIds[0], mergeIds.slice(1));
 }
 
+function getTypeLabel(g) {
+  if (g.type === 'email') return { label: 'Email identique', priority: 0 };
+  if (g.type === 'linkedin') return { label: 'LinkedIn identique', priority: 0 };
+  if (g.type === 'telephone') return { label: 'Téléphone identique', priority: 0 };
+  if (g.type === 'name_company') {
+    const pct = g.score != null ? Math.round(g.score * 100) + ' %' : '';
+    return { label: `Nom similaire · ${pct}`, priority: 1 };
+  }
+  return { label: g.type || '', priority: 2 };
+}
+
 function renderProspectGroups() {
   const outPros = document.getElementById('dupProspects');
   outPros.innerHTML = '';
   let visibleCount = 0;
-  prospectGroupsData.forEach((g, idx) => {
+  // Trier : matches exacts (email/linkedin/téléphone) en premier, fuzzy ensuite
+  const sorted = prospectGroupsData
+    .map((g, origIdx) => ({ g, origIdx }))
+    .sort((a, b) => getTypeLabel(a.g).priority - getTypeLabel(b.g).priority);
+  sorted.forEach(({ g, origIdx: idx }) => {
     const items = (Array.isArray(g.items) ? g.items : []).filter(
       p => !(excludedFromProspectGroup.get(idx) || new Set()).has(p.id)
     );
     if (items.length < 2) return;
     visibleCount++;
-    const typeLabel = (g.type === 'name_company' && g.score != null)
-      ? `Similarité nom + même entreprise · ${g.score}`
-      : (g.type || '');
+    const { label: typeLabel } = getTypeLabel(g);
     const itemsHtml = `
-      <div class="muted" style="margin-bottom:10px;">Clé: <code>${escapeHtml(g.key||'')}</code> · Type: ${badge(typeLabel)}</div>
+      <div class="muted" style="margin-bottom:10px;">Type: ${badge(typeLabel)} · Clé: <code>${escapeHtml(g.key||'')}</code></div>
       <div class="table-wrapper">
         <table>
           <thead>
@@ -218,7 +245,7 @@ function renderCompanyGroups() {
 }
 
 async function loadDuplicates() {
-  const minScore = parseFloat(document.getElementById('dupMinScore')?.value || '0.7');
+  const minScore = parseFloat(document.getElementById('dupMinScore')?.value || '0.85');
   const summary = document.getElementById('dupSummary');
   const outPros = document.getElementById('dupProspects');
   const outComps = document.getElementById('dupCompanies');

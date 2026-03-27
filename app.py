@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.18"
+APP_VERSION = "27.19"
 import os
 import subprocess
 import traceback
@@ -1969,6 +1969,19 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
                 createdAt  TEXT NOT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             );
+        ''')
+
+        # Paires de prospects marquées "pas un doublon" (v27.3)
+        conn.executescript('''
+            CREATE TABLE IF NOT EXISTS duplicate_ignores (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_id       INTEGER NOT NULL,
+                prospect_id_a  INTEGER NOT NULL,
+                prospect_id_b  INTEGER NOT NULL,
+                created_at     TEXT DEFAULT (datetime(\'now\')),
+                UNIQUE(owner_id, prospect_id_a, prospect_id_b)
+            );
+            CREATE INDEX IF NOT EXISTS idx_dup_ignores_owner ON duplicate_ignores(owner_id);
         ''')
 
         # Shared companies for collaboration (v25.5+)
@@ -7915,6 +7928,27 @@ def _name_key_for_duplicate(name: str) -> str:
     return f"{initials_str} {lastname.upper()}".strip()
 
 
+def _split_name_for_dup(name: str) -> tuple[str, str]:
+    """Retourne (lastname_norm, firstname_norm) pour comparaison doublons stricte.
+
+    Sépare explicitement le nom de famille (dernière partie) du prénom (reste).
+    Exemple : "Jean-Pierre DUPONT" → ("dupont", "jean pierre")
+    Utilisé pour éviter les faux positifs : exige même nom ET même initiale prénom.
+    """
+    s = _normalize(name or "")
+    parts = [x for x in re.split(r"[\s,;]+", s) if x]
+    if not parts:
+        return ("", "")
+    if len(parts) == 1:
+        return (parts[0], "")
+    lastname = parts[-1]
+    firstname = " ".join(parts[:-1])
+    # Normaliser tirets/points dans le prénom → "jean-pierre" devient "jean pierre"
+    firstname = re.sub(r"[\.\-]+", " ", firstname).strip()
+    firstname = re.sub(r"\s+", " ", firstname)
+    return (lastname, firstname)
+
+
 @app.get("/api/duplicates")
 def api_duplicates():
     uid = _uid()
@@ -7922,12 +7956,18 @@ def api_duplicates():
         return jsonify(ok=False, error="Non authentifié"), 401
     min_score = request.args.get("min_score", type=float)
     if min_score is None or min_score < 0 or min_score > 1:
-        min_score = 0.7
+        min_score = 0.85
     with _conn() as conn:
         pros = [dict(r) for r in conn.execute(
             "SELECT id, name, email, telephone, linkedin, company_id, COALESCE(is_archived,0) AS is_archived FROM prospects WHERE owner_id=?;", (uid,)
         ).fetchall()]
         comps = {r["id"]: dict(r) for r in conn.execute("SELECT id, groupe, site FROM companies WHERE owner_id=?;", (uid,)).fetchall()}
+        ignored_pairs: set[frozenset] = {
+            frozenset([r["prospect_id_a"], r["prospect_id_b"]])
+            for r in conn.execute(
+                "SELECT prospect_id_a, prospect_id_b FROM duplicate_ignores WHERE owner_id=?;", (uid,)
+            ).fetchall()
+        }
 
     pros_for_dup = [p for p in pros if not p.get("is_archived")]
     groups = []
@@ -7935,8 +7975,20 @@ def api_duplicates():
     def add_group(kind: str, key: str, ids: List[int], score: float | None = None):
         if len(ids) < 2:
             return
-        items = []
+        # Filtrer les paires où TOUTES les combinaisons de 2 sont ignorées
+        active_ids = []
         for pid in ids:
+            # Garder ce prospect si au moins un autre prospect du groupe n'est pas ignoré avec lui
+            has_active_pair = any(
+                frozenset([pid, other]) not in ignored_pairs
+                for other in ids if other != pid
+            )
+            if has_active_pair:
+                active_ids.append(pid)
+        if len(active_ids) < 2:
+            return
+        items = []
+        for pid in active_ids:
             p = next((x for x in pros if x["id"] == pid), None)
             if not p:
                 continue
@@ -7951,6 +8003,8 @@ def api_duplicates():
                     "company": f"{(c.get('groupe') if c else '')} {(c.get('site') if c else '')}".strip(),
                 }
             )
+        if len(items) < 2:
+            return
         g = {"type": kind, "key": key, "items": items}
         if score is not None:
             g["score"] = round(score, 2)
@@ -7998,17 +8052,28 @@ def api_duplicates():
         if len(company_pros) < 2:
             continue
         for i, p1 in enumerate(company_pros):
-            n1 = _name_key_for_duplicate(p1.get("name") or "")
-            if not n1:
+            ln1, fn1 = _split_name_for_dup(p1.get("name") or "")
+            if not ln1:
                 continue
             for p2 in company_pros[i + 1 :]:
-                n2 = _name_key_for_duplicate(p2.get("name") or "")
-                if not n2:
+                ln2, fn2 = _split_name_for_dup(p2.get("name") or "")
+                if not ln2:
                     continue
-                ratio = difflib.SequenceMatcher(None, n1, n2).ratio()
-                if ratio >= min_score:
-                    ids = sorted([p1["id"], p2["id"]])
-                    name_pairs.append((ids, ratio))
+                # Même nom de famille requis (exact, normalisé)
+                if ln1 != ln2:
+                    continue
+                # Même première initiale du prénom requise (si les deux ont un prénom)
+                if fn1 and fn2 and fn1[0] != fn2[0]:
+                    continue
+                # Comparaison complète des prénoms
+                if fn1 and fn2:
+                    ratio = difflib.SequenceMatcher(None, fn1, fn2).ratio()
+                    if ratio < min_score:
+                        continue
+                else:
+                    ratio = 1.0  # Même nom de famille sans prénom → doublon probable
+                ids = sorted([p1["id"], p2["id"]])
+                name_pairs.append((ids, ratio))
     # Fusionner les paires qui se chevauchent (A-B et B-C → A-B-C)
     merged: Dict[frozenset, float] = {}
     for ids, score in name_pairs:
@@ -8071,6 +8136,35 @@ def api_duplicates():
     return jsonify({"ok": True, "prospect_groups": groups, "company_groups": company_groups})
 
 
+@app.post("/api/duplicates/ignore")
+@role_required('editor')
+def api_duplicates_ignore():
+    """Marque une paire de prospects comme 'pas un doublon' (persistant).
+
+    Body JSON : { "id_a": int, "id_b": int }
+    Les IDs sont triés avant insertion pour garantir l'unicité.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    try:
+        id_a = int(payload["id_a"])
+        id_b = int(payload["id_b"])
+    except (KeyError, TypeError, ValueError):
+        return jsonify(ok=False, error="id_a et id_b requis (entiers)"), 400
+    if id_a == id_b:
+        return jsonify(ok=False, error="Les deux IDs doivent être différents"), 400
+    # Toujours stocker dans l'ordre croissant pour garantir l'unicité
+    a, b = sorted([id_a, id_b])
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO duplicate_ignores (owner_id, prospect_id_a, prospect_id_b) VALUES (?,?,?);",
+            (uid, a, b)
+        )
+    return jsonify(ok=True)
+
+
 @app.post("/api/prospects/check-duplicates")
 def api_prospects_check_duplicates():
     """Compare une liste de prospects (à ajouter) aux prospects déjà en base.
@@ -8087,11 +8181,11 @@ def api_prospects_check_duplicates():
         try:
             min_score = float(min_score)
             if min_score < 0 or min_score > 1:
-                min_score = 0.7
+                min_score = 0.85
         except (TypeError, ValueError):
-            min_score = 0.7
+            min_score = 0.85
     else:
-        min_score = 0.7
+        min_score = 0.85
 
     with _conn() as conn:
         existing = [dict(r) for r in conn.execute(
@@ -8146,14 +8240,20 @@ def api_prospects_check_duplicates():
         if not reason and min_score and inc.get("name") and inc.get("company_id") is not None:
             cid = int(inc["company_id"]) if inc["company_id"] is not None else None
             if cid is not None and cid in by_company:
-                n1 = _name_key_for_duplicate(inc.get("name") or "")
-                if n1:
+                ln1, fn1 = _split_name_for_dup(inc.get("name") or "")
+                if ln1:
                     for p in by_company[cid]:
-                        n2 = _name_key_for_duplicate(p.get("name") or "")
-                        if n2 and difflib.SequenceMatcher(None, n1, n2).ratio() >= min_score:
-                            existing_id = p["id"]
-                            reason = "name_company"
-                            break
+                        ln2, fn2 = _split_name_for_dup(p.get("name") or "")
+                        if not ln2 or ln1 != ln2:
+                            continue
+                        if fn1 and fn2 and fn1[0] != fn2[0]:
+                            continue
+                        if fn1 and fn2:
+                            if difflib.SequenceMatcher(None, fn1, fn2).ratio() < min_score:
+                                continue
+                        existing_id = p["id"]
+                        reason = "name_company"
+                        break
         if existing_id is not None and reason:
             duplicate_indexes.append({"index": idx, "existing_id": existing_id, "reason": reason})
 
