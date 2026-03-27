@@ -79,7 +79,7 @@ function _ensureImportListModal() {
                     <div id="importListPaneLusha" class="import-list-pane" style="display:none;">
                         <p class="muted" style="font-size:12px;margin-bottom:10px;">Fichier CSV exporté depuis Lusha — Phone number 1/2 et Work/Direct email consolidés automatiquement. Aucune étape de mapping requise.</p>
                         <input type="file" id="importListFileLusha" accept=".csv" style="display:none;">
-                        <button type="button" class="btn btn-primary" onclick="document.getElementById(‘importListFileLusha’).click()">Choisir un fichier .csv Lusha</button>
+                        <button type="button" class="btn btn-primary" onclick="document.getElementById('importListFileLusha').click()">Choisir un fichier .csv Lusha</button>
                     </div>
                 </div>
                 <div id="importListStepMapping" style="display:none;">
