@@ -2254,6 +2254,7 @@ function populateCompanySelects() {
     });
 
     data.prospects.forEach(p => {
+        if (Number(p.is_archived) === 1) return;
         if (!counts[p.company_id]) counts[p.company_id] = { prospects: 0, rdv: 0, callable: 0 };
         counts[p.company_id].prospects += 1;
         if (p.statut === 'Rendez-vous') counts[p.company_id].rdv += 1;
@@ -2871,8 +2872,9 @@ function _renderCompaniesInternal(tbody, q) {
         counts[c.id] = { prospects: 0, rdv: 0, callable: 0 };
     });
 
-    // Une seule passe sur les prospects
+    // Une seule passe sur les prospects (hors archivés pour cohérence avec la vue prospects)
     data.prospects.forEach(p => {
+        if (Number(p.is_archived) === 1) return;
         if (p.company_id && counts[p.company_id]) {
             counts[p.company_id].prospects += 1;
             if (p.statut === 'Rendez-vous') counts[p.company_id].rdv += 1;
