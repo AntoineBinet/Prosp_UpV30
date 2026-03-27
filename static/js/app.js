@@ -3261,6 +3261,16 @@ function archiveProspect(id) {
     if (!confirm(`📁 Archiver "${label}" ?`)) return;
     p.is_archived = 1;
     saveToServer();
+    if (typeof window.pushUndo === 'function') {
+        const _id = id, _label = label;
+        window.pushUndo('Archive ' + _label, function () {
+            var pp = data.prospects.find(function (x) { return x.id === _id; });
+            if (!pp) return;
+            pp.is_archived = 0;
+            saveToServer();
+            if (typeof filterProspects === 'function') filterProspects();
+        });
+    }
     
     // En mode prosp, passer au prospect suivant au lieu de fermer
     const isProspMode = (_currentView === 'prosp' && _prospSession.active);
@@ -3305,11 +3315,22 @@ const moveToContacts = archiveProspect;
 function unarchiveProspect(id) {
     const p = data.prospects.find(x => x.id === id);
     if (!p) return;
+    const _name = p.name || '';
     p.is_archived = 0;
     saveToServer();
+    if (typeof window.pushUndo === 'function') {
+        const _id = id;
+        window.pushUndo('Désarchive ' + _name, function () {
+            var pp = data.prospects.find(function (x) { return x.id === _id; });
+            if (!pp) return;
+            pp.is_archived = 1;
+            saveToServer();
+            if (typeof filterProspects === 'function') filterProspects();
+        });
+    }
     closeDetail();
     filterProspects();
-    showToast(`👥 ${p.name} restauré dans les prospects`, 'success');
+    showToast(`👥 ${_name} restauré dans les prospects`, 'success');
 }
 // Alias pour compatibilité
 const restoreFromContacts = unarchiveProspect;
@@ -5670,10 +5691,26 @@ function quickChangeStatus(prospectId, newStatus) {
         return;
     }
     
+    const _oldStatut = prospect.statut;
+    const _prospName = prospect.name || '';
     prospect.statut = newStatus;
     _stampProspectLastContact(prospect);
     saveToServer();
     markUnsaved();
+    if (typeof window.pushUndo === 'function') {
+        window.pushUndo('Statut ' + _prospName, function () {
+            var pp = data.prospects.find(function (x) { return x.id === prospectId; });
+            if (!pp) return;
+            pp.statut = _oldStatut;
+            fetch('/api/prospects/bulk-status-tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: [prospectId], statut: _oldStatut })
+            });
+            if (typeof filterProspects === 'function') filterProspects();
+            if (typeof viewDetail === 'function') viewDetail(prospectId);
+        });
+    }
     if (_currentView === 'prosp' && _prospSession.active) {
         const nextId = getProspNextId(prospectId);
         if (typeof filterProspects === 'function') filterProspects();
@@ -14982,6 +15019,33 @@ document.addEventListener('keydown', function(e) {
                 showToast('❌ Erreur réseau', 'error');
             }
         });
+
+        // Enregistrer aussi dans le stack Ctrl+Z (silent = le callback affiche son propre toast)
+        if (typeof window.pushUndo === 'function') {
+            var _capturedOnUndo = onUndo;
+            var _capturedType = entityType;
+            var _capturedId = entityId;
+            window.pushUndo(message, async function () {
+                _dismiss(true);
+                if (typeof _capturedOnUndo === 'function') {
+                    await _capturedOnUndo();
+                } else {
+                    var r = await fetch('/api/soft-deleted/restore', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ entity: _capturedType, id: _capturedId })
+                    });
+                    if ((await r.json()).ok) {
+                        if (typeof loadData === 'function') await loadData();
+                        if (typeof filterProspects === 'function') filterProspects();
+                        if (typeof refreshCompaniesUI === 'function') refreshCompaniesUI();
+                        showToast('↩️ Annulé', 'success', 2500);
+                    } else {
+                        showToast('❌ Impossible d\'annuler', 'error');
+                    }
+                }
+            }, { silent: true });
+        }
 
         _timer = setTimeout(() => _dismiss(false), 10000);
     }

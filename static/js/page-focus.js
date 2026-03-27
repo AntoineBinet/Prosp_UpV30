@@ -479,6 +479,18 @@ async function toggleTaskDone(taskId, checked) {
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Erreur');
         showToast(checked ? 'Tâche archivée.' : 'Tâche réactivée.', 'success');
+        if (typeof window.pushUndo === 'function') {
+            const _taskId = taskId;
+            const _wasChecked = checked;
+            window.pushUndo(_wasChecked ? 'Tâche terminée' : 'Tâche réactivée', async function () {
+                await fetch('/api/tasks/done', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: _taskId, status: _wasChecked ? 'pending' : 'done' })
+                });
+                if (typeof loadTasks === 'function') await loadTasks();
+            });
+        }
         await loadTasks();
         // Flash the task if still visible (reactivated tasks appear in pending list)
         const el = document.querySelector(`.todo-item[data-task-id="${taskId}"]`);
