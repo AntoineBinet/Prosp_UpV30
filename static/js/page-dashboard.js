@@ -1,4 +1,4 @@
-// Dashboard page (v8)
+// Dashboard page (v9 — stabilisé)
 
 function _trendIcon(current, previous) {
     if (!previous || previous === 0) return '';
@@ -65,25 +65,17 @@ function renderDashboard(d) {
     }
 
     renderRelanceAlertBanner(d.pipeline);
-    renderFirstGlance(d);
     renderKpiCards(d);
-    renderWeekChart(d.week);
-    renderGoals(d.goals, d.week, d.today);
     renderOverdue(d.overdue_list, d.pipeline);
-    renderFeed(d.feed, d.today);
     renderUpcomingRdv(d.upcoming_rdv || []);
+    renderGoals(d.goals, d.week, d.today);
+    renderFeed(d.feed, d.today);
+    renderWeekChart(d.week);
     renderPipeline(d.pipeline);
     renderPushAnalytics();
-    
-    // Appliquer les préférences d'affichage APRÈS le rendu de tous les widgets
-    if (typeof window.applyDashboardDisplayPrefs === 'function') {
-        window.applyDashboardDisplayPrefs();
-    }
-    // Réorganiser l'ordre après application des préférences
-    applyDashboardWidgetOrder();
-    
-    // Note: Le drag & drop sera initialisé UNE SEULE FOIS dans le DOMContentLoaded
-    // après le chargement complet pour éviter les conflits de timing
+
+    // Appliquer les préférences d'affichage après le rendu
+    applyDashboardDisplayPrefs();
 }
 
 // Applique les préférences d'affichage des cartes du dashboard
@@ -100,16 +92,15 @@ function applyDashboardDisplayPrefs() {
     }
     var map = [
         { pref: 'display_kpi_row', ids: ['dashKpiRow', 'dashKpiActionsRow'] },
-        { pref: 'display_first_glance', ids: ['dashFirstGlance'] },
+        { pref: 'display_dash_overdue', ids: ['dashOverdueCard'] },
+        { pref: 'display_dash_tasks', ids: ['dashTasksCard'] },
+        { pref: 'display_dash_rdv', ids: ['dashRdvCard'] },
         { pref: 'display_goals', ids: ['dashGoalsCard'] },
         { pref: 'display_dash_activity', ids: ['dashFeedCard'] },
         { pref: 'display_dash_week', ids: ['dashWeekChartCard'] },
-        { pref: 'display_dash_overdue', ids: ['dashOverdueCard'] },
-        { pref: 'display_dash_rdv', ids: ['dashRdvCard'] },
-        { pref: 'display_dash_tasks', ids: ['dashTasksCard'] },
+        { pref: 'display_dash_pipeline', ids: ['dashPipelineCard'] },
         { pref: 'display_dash_priorities', ids: ['dashPrioritiesCard'] },
-        { pref: 'display_dash_push_analytics', ids: ['dashPushAnalyticsCard'] },
-        { pref: 'display_dash_pipeline', ids: ['dashPipelineCard'] }
+        { pref: 'display_dash_push_analytics', ids: ['dashPushAnalyticsCard'] }
     ];
     map.forEach(function (item) {
         // Par défaut, afficher si la préférence n'existe pas (true par défaut)
@@ -131,144 +122,6 @@ function applyDashboardDisplayPrefs() {
 }
 window.applyDashboardDisplayPrefs = applyDashboardDisplayPrefs;
 
-// ═══ Widgets réorganisables (v25+) — ordre sauvegardé par utilisateur ─══
-var DASH_WIDGET_ORDER_KEY = 'dashboard_widget_order';
-var DASH_WIDGET_IDS = ['dashFirstGlance', 'dashGoalsCard', 'dashFeedCard', 'dashTasksCard', 'dashWeekChartCard', 'dashOverdueCard', 'dashRdvCard', 'dashPipelineCard', 'dashPrioritiesCard', 'dashPushAnalyticsCard'];
-
-function getDashboardWidgetOrder() {
-    try {
-        var raw = localStorage.getItem(DASH_WIDGET_ORDER_KEY);
-        if (raw) {
-            var order = JSON.parse(raw);
-            if (Array.isArray(order) && order.length) return order;
-        }
-    } catch (e) {}
-    return DASH_WIDGET_IDS.slice();
-}
-
-function saveDashboardWidgetOrder() {
-    var container = document.getElementById('dashWidgetsContainer');
-    if (!container) return;
-    var order = [];
-    // Sauvegarder TOUS les widgets dans l'ordre, même ceux masqués par les préférences
-    // Cela permet de préserver l'ordre même si un widget est temporairement masqué
-    container.querySelectorAll('.dash-widget').forEach(function (w) {
-        var id = w.getAttribute('data-widget-id');
-        if (id) {
-            // Vérifier si le widget est masqué uniquement par les préférences (pas par l'adaptatif)
-            var isHiddenByPref = w.getAttribute('data-display-pref') === '0';
-            // Inclure dans l'ordre même si masqué par préférence (mais pas si complètement absent du DOM)
-            order.push(id);
-        }
-    });
-    try { localStorage.setItem(DASH_WIDGET_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
-    // Ne pas afficher de toast à chaque drag & drop pour éviter le spam
-    // if (window.showToast) window.showToast('Ordre des widgets enregistré.', 'success', 2000);
-}
-
-function applyDashboardWidgetOrder() {
-    var container = document.getElementById('dashWidgetsContainer');
-    if (!container) return;
-    var order = getDashboardWidgetOrder();
-    var byId = {};
-    // Collecter tous les widgets présents dans le DOM
-    container.querySelectorAll('.dash-widget').forEach(function (w) {
-        var id = w.getAttribute('data-widget-id');
-        if (id) byId[id] = w;
-    });
-    // Réorganiser selon l'ordre sauvegardé
-    order.forEach(function (id) {
-        if (byId[id]) {
-            container.appendChild(byId[id]);
-            delete byId[id]; // Marquer comme traité
-        }
-    });
-    // Ajouter les widgets qui ne sont pas dans l'ordre sauvegardé (nouveaux widgets) à la fin
-    Object.keys(byId).forEach(function (id) {
-        if (byId[id]) container.appendChild(byId[id]);
-    });
-}
-
-// ═══ Système de glisser-déposer unifié (desktop + mobile) ═══
-// Utilise la classe DashboardWidgetDragDrop pour un système robuste et modulaire
-
-function initDashboardWidgetDragDrop() {
-    const container = document.getElementById('dashWidgetsContainer');
-    if (!container) {
-        console.warn('[Dashboard] dashWidgetsContainer non trouvé');
-        return;
-    }
-    
-    // Détruire l'ancienne instance si elle existe
-    if (window._dashboardDragDropInstance) {
-        window._dashboardDragDropInstance.destroy();
-        window._dashboardDragDropInstance = null;
-    }
-    
-    // Vérifier que la classe est disponible
-    if (typeof DashboardWidgetDragDrop === 'undefined') {
-        console.error('[Dashboard] DashboardWidgetDragDrop non disponible. Vérifiez que dashboard-widget-dragdrop.js est chargé.');
-        return;
-    }
-    
-    // Créer nouvelle instance
-    window._dashboardDragDropInstance = new DashboardWidgetDragDrop('#dashWidgetsContainer', {
-        handleSelector: '.dash-widget-handle',
-        widgetSelector: '.dash-widget',
-        dragThreshold: 5,
-        animationDuration: 200
-    });
-    
-    // Callback pour sauvegarder l'ordre
-    window._dashboardDragDropInstance.onOrderChange = function() {
-        if (typeof saveDashboardWidgetOrder === 'function') {
-            saveDashboardWidgetOrder();
-        }
-    };
-    
-    // Initialiser
-    window._dashboardDragDropInstance.init();
-    
-    console.log('[Dashboard] Drag & drop initialisé (nouveau système unifié)');
-}
-
-// ═══ Système de redimensionnement libre (style PowerPoint) ═══
-
-function initDashboardWidgetResize() {
-    const container = document.getElementById('dashWidgetsContainer');
-    if (!container) {
-        console.warn('[Dashboard] dashWidgetsContainer non trouvé pour resize');
-        return;
-    }
-    
-    // Détruire l'ancienne instance si elle existe
-    if (window._dashboardResizeInstance) {
-        window._dashboardResizeInstance.destroy();
-        window._dashboardResizeInstance = null;
-    }
-    
-    // Vérifier que la classe est disponible
-    if (typeof DashboardWidgetResize === 'undefined') {
-        console.error('[Dashboard] DashboardWidgetResize non disponible. Vérifiez que dashboard-widget-resize.js est chargé.');
-        return;
-    }
-    
-    // Créer nouvelle instance
-    window._dashboardResizeInstance = new DashboardWidgetResize('#dashWidgetsContainer', {
-        widgetSelector: '.dash-widget',
-        minWidth: 200,
-        minHeight: 150,
-        gridSnap: true
-    });
-    
-    // Initialiser
-    window._dashboardResizeInstance.init();
-    
-    console.log('[Dashboard] Resize initialisé (système libre)');
-}
-
-// Note: L'application de l'ordre et des colonnes est maintenant gérée dans le DOMContentLoaded
-// pour éviter les conflits de timing avec le chargement des données
 
 // ═══ Bannière alerte relances (P1) ═══
 function renderRelanceAlertBanner(pipeline) {
@@ -298,39 +151,7 @@ function renderRelanceAlertBanner(pipeline) {
     container.style.display = 'flex';
 }
 
-// ═══ Premier coup d'œil (P3) ═══
-function renderFirstGlance(d) {
-    const container = document.getElementById('dashFirstGlance');
-    const itemsEl = document.getElementById('dashFirstGlanceItems');
-    if (!container || !itemsEl) return;
-    const pipeline = d.pipeline || {};
-    const overdue = pipeline.overdue || 0;
-    const dueToday = pipeline.due_today || 0;
-    const upcomingRdv = d.upcoming_rdv || [];
-    const rdvThisWeek = upcomingRdv.length;
-    const items = [];
-    if (overdue > 0) {
-        items.push({ label: overdue + ' relance' + (overdue > 1 ? 's' : '') + ' en retard', href: '/focus', icon: '⚠️' });
-    }
-    if (dueToday > 0) {
-        items.push({ label: dueToday + ' à faire aujourd\'hui', href: '/focus', icon: '📌' });
-    }
-    if (rdvThisWeek > 0) {
-        items.push({ label: rdvThisWeek + ' RDV à venir', href: '/calendrier', icon: '🤝' });
-    }
-    if (items.length === 0) {
-        itemsEl.innerHTML = '<span class="muted" style="font-size:13px;">✅ Tout est à jour !</span>';
-    } else {
-        itemsEl.innerHTML = items.map(function (it) {
-            return '<a class="dash-first-glance-item" href="' + (it.href || '#') + '">' +
-                '<span class="dash-first-glance-icon">' + (it.icon || '•') + '</span>' +
-                '<span class="dash-first-glance-label">' + (it.label || '') + '</span>' +
-                '</a>';
-        }).join('');
-    }
-}
-
-// P7: Export "Ma journée"
+// Export "Ma journée"
 async function exportDayRecap() {
     try {
         const res = await fetch('/api/export/day');
@@ -897,17 +718,21 @@ async function dashToggleTask(taskId, btn) {
 }
 window.dashToggleTask = dashToggleTask;
 
-// ═══ Dashboard adaptatif et Assistant virtuel ═══
+// ═══ Dashboard adaptatif (priorités IA) ═══
 async function loadAdaptiveDashboard() {
+    const el = document.getElementById('dashPriorities');
     try {
-        const res = await fetch('/api/dashboard/adaptive');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch('/api/dashboard/adaptive', { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Error');
         renderAdaptiveDashboard(json.data);
     } catch (e) {
         console.warn('[Dashboard] loadAdaptiveDashboard skipped:', e.message);
-        // Fallback: afficher les widgets par défaut
+        if (el) el.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">Priorités IA indisponibles.</div>';
     }
 }
 
@@ -1038,76 +863,25 @@ function initAssistantButton() {
     }
 }
 
-// ═══ Fonction de réinitialisation des widgets (pour debug/correction) ═══
-function resetDashboardWidgets() {
-    var container = document.getElementById('dashWidgetsContainer');
-    if (!container) return;
-    
-    // Réafficher tous les widgets
-    container.querySelectorAll('.dash-widget').forEach(function (w) {
-        w.style.display = '';
-        w.removeAttribute('data-display-pref');
-    });
-    
-    // Réappliquer les préférences
-    if (typeof window.applyDashboardDisplayPrefs === 'function') {
-        window.applyDashboardDisplayPrefs();
-    }
-    
-    // Réorganiser selon l'ordre par défaut
-    try {
-        localStorage.removeItem(DASH_WIDGET_ORDER_KEY);
-    } catch (e) {}
-    applyDashboardWidgetOrder();
-    
-    // Réinitialiser le drag & drop et resize
-    initDashboardWidgetDragDrop();
-    initDashboardWidgetResize();
-    
-    if (typeof showToast === 'function') {
-        showToast('✅ Widgets réinitialisés', 'success');
-    }
-}
-window.resetDashboardWidgets = resetDashboardWidgets;
-
 // ═══ Boot ═══
 document.addEventListener('DOMContentLoaded', async () => {
     // Guard : ne s'exécute que sur la page dashboard
     if (document.body.dataset.page !== 'dashboard') return;
 
-    // Initialiser le bouton assistant
     initAssistantButton();
-    
-    // Appliquer l'ordre AVANT le chargement des données
-    applyDashboardWidgetOrder();
-    
+
     try {
         const fn = window.bootstrap || window.appBootstrap;
         if (typeof fn === 'function') await fn('dashboard');
     } catch(e) {}
 
-    // Charger les données et appliquer les préférences après
+    // Charger les données principales en parallèle
+    // loadAdaptiveDashboard est lancé indépendamment (timeout 8s intégré) sans bloquer le reste
+    loadAdaptiveDashboard();
     try {
-        await Promise.all([loadDashboard(), loadDashTasks(), loadAdaptiveDashboard()]);
+        await Promise.all([loadDashboard(), loadDashTasks()]);
     } catch(e) { console.warn('[Dashboard] chargement partiel:', e.message); }
-    
-    // Appliquer les préférences d'affichage une dernière fois après tout le chargement
-    // et initialiser le drag & drop et resize une seule fois à la fin
-    setTimeout(function() {
-        if (typeof window.applyDashboardDisplayPrefs === 'function') {
-            window.applyDashboardDisplayPrefs();
-        }
-        // Réorganiser l'ordre après application des préférences
-        applyDashboardWidgetOrder();
-        // Initialiser le drag & drop UNE SEULE FOIS à la fin (après que tout soit stable)
-        initDashboardWidgetDragDrop();
-        // Initialiser le resize
-        initDashboardWidgetResize();
-    }, 350);
 });
-
-// Exposer la fonction globalement
-window.sendAssistantMessage = sendAssistantMessage;
 
 // ═══════════════════════════════════════════════════════════════
 // Manual KPI Entry (v16.5)

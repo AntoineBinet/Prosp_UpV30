@@ -25,28 +25,37 @@
 </div>
 <div class="dash-kpi-actions" id="dashKpiActionsRow">
   <button class="kpi-manual-btn" onclick="openManualKpiModal()" title="Ajouter manuellement une action KPI">➕ Ajout KPI manuel</button>
+  <button class="kpi-manual-btn" onclick="exportDayRecap()" title="Télécharger le récap du jour (JSON)">📥 Ma journée</button>
 </div>
 
-
-<!-- Zone widgets réorganisables (ordre sauvegardé par utilisateur) -->
+<!-- Zone widgets (ordre fixe, priorité quotidienne) -->
 <div id="dashWidgetsContainer" class="dash-widgets-container">
-  <div class="dash-widget" data-widget-id="dashFirstGlance">
-    <div class="dash-widget-header">
-      <div class="dash-widget-handle" title="Glisser pour réorganiser"></div>
-    </div>
-    <div class="card dash-first-glance" id="dashFirstGlance" style="margin-bottom:0;">
-      <div class="dash-first-glance-title">👀 Premier coup d'œil</div>
-      <div id="dashFirstGlanceItems" class="dash-first-glance-items"></div>
-      <div class="dash-first-glance-links">
-        <a href="/rapport" class="dash-first-glance-link">📋 Rapport hebdo (cette semaine)</a>
-        <button type="button" class="btn btn-secondary btn-sm" id="btnExportDay" onclick="exportDayRecap()" title="Télécharger le récap du jour (JSON)">📥 Ma journée</button>
-      </div>
+
+  <div class="dash-widget" data-widget-id="dashOverdueCard">
+    <div class="card dash-card" id="dashOverdueCard">
+      <div class="dash-card-title">⚠️ Relances en retard</div>
+      <div id="dashOverdue"></div>
     </div>
   </div>
-  <div class="dash-widget" data-widget-id="dashGoalsCard">
-    <div class="dash-widget-header">
-      <div class="dash-widget-handle" title="Glisser pour réorganiser"></div>
+
+  <div class="dash-widget" data-widget-id="dashTasksCard">
+    <div class="card dash-card" id="dashTasksCard">
+      <div class="dash-card-head-row">
+        <div class="dash-card-title">&#x2705; T&acirc;ches</div>
+        <a href="/focus" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:11px;">&#x2795; Ajouter</a>
+      </div>
+      <div id="dashTasks"><div class="muted" style="padding:12px;text-align:center;">Chargement&hellip;</div></div>
     </div>
+  </div>
+
+  <div class="dash-widget" data-widget-id="dashRdvCard">
+    <div class="card dash-card" id="dashRdvCard">
+      <div class="dash-card-title">🤝 Prochains RDV</div>
+      <div id="dashUpcomingRdv"></div>
+    </div>
+  </div>
+
+  <div class="dash-widget" data-widget-id="dashGoalsCard">
     <div class="card dash-card dash-goals-card" id="dashGoalsCard">
       <div class="dash-confetti-layer" id="dashGoalsConfetti"></div>
       <div class="dash-goals-head">
@@ -61,68 +70,30 @@
       </div>
     </div>
   </div>
+
   <div class="dash-widget" data-widget-id="dashFeedCard">
-    <div class="dash-widget-header">
-      <div class="dash-widget-handle" title="Glisser pour réorganiser"></div>
-    </div>
     <div class="card dash-card" id="dashFeedCard">
       <div class="dash-card-title">🕐 Activité du jour</div>
       <div id="dashFeed"></div>
     </div>
   </div>
-  <div class="dash-widget" data-widget-id="dashTasksCard">
-    <div class="dash-widget-header">
-      <div class="dash-widget-handle" title="Glisser pour réorganiser"></div>
-    </div>
-    <div class="card dash-card" id="dashTasksCard">
-      <div class="dash-card-head-row">
-        <div class="dash-card-title">&#x2705; T&acirc;ches</div>
-        <a href="/focus" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:11px;">&#x2795; Ajouter</a>
-      </div>
-      <div id="dashTasks"><div class="muted" style="padding:12px;text-align:center;">Chargement&hellip;</div></div>
-    </div>
-  </div>
+
   <div class="dash-widget" data-widget-id="dashWeekChartCard">
-    <div class="dash-widget-header">
-      <div class="dash-widget-handle" title="Glisser pour réorganiser"></div>
-    </div>
     <div class="card dash-card" id="dashWeekChartCard">
       <div class="dash-card-title">📅 Activité de la semaine</div>
       <div id="dashWeekChart" class="dash-week-chart"></div>
       <div id="dashWeekSummary" class="dash-week-summary muted"></div>
     </div>
   </div>
-  <div class="dash-widget" data-widget-id="dashOverdueCard">
-    <div class="dash-widget-header">
-      <div class="dash-widget-handle" title="Glisser pour réorganiser"></div>
-    </div>
-    <div class="card dash-card" id="dashOverdueCard">
-      <div class="dash-card-title">⚠️ Relances en retard</div>
-      <div id="dashOverdue"></div>
-    </div>
-  </div>
-  <div class="dash-widget" data-widget-id="dashRdvCard">
-    <div class="dash-widget-header">
-      <div class="dash-widget-handle" title="Glisser pour réorganiser"></div>
-    </div>
-    <div class="card dash-card" id="dashRdvCard">
-      <div class="dash-card-title">🤝 Prochains RDV</div>
-      <div id="dashUpcomingRdv"></div>
-    </div>
-  </div>
+
   <div class="dash-widget" data-widget-id="dashPipelineCard">
-    <div class="dash-widget-header">
-      <div class="dash-widget-handle" title="Glisser pour réorganiser"></div>
-    </div>
     <div class="card dash-card" id="dashPipelineCard">
       <div class="dash-card-title">🎯 Pipeline</div>
       <div id="dashPipeline"></div>
     </div>
   </div>
+
   <div class="dash-widget" data-widget-id="dashPrioritiesCard">
-    <div class="dash-widget-header">
-      <div class="dash-widget-handle" title="Glisser pour réorganiser"></div>
-    </div>
     <div class="card dash-card" id="dashPrioritiesCard">
       <div class="dash-card-title">🎯 Priorités du jour (IA)</div>
       <div id="dashPriorities">
@@ -130,10 +101,8 @@
       </div>
     </div>
   </div>
+
   <div class="dash-widget" data-widget-id="dashPushAnalyticsCard">
-    <div class="dash-widget-header">
-      <div class="dash-widget-handle" title="Glisser pour réorganiser"></div>
-    </div>
     <div class="card dash-card" id="dashPushAnalyticsCard">
       <div class="dash-card-title">📊 Analytics Mailing</div>
       <div id="dashPushAnalytics">
@@ -141,6 +110,7 @@
       </div>
     </div>
   </div>
+
 </div>
 {% endblock %}
 
@@ -187,7 +157,5 @@
 {% endblock %}
 
 {% block page_scripts %}
-<script defer src="/static/js/dashboard-widget-dragdrop.js?v=2000"></script>
-<script defer src="/static/js/dashboard-widget-resize.js?v=2000"></script>
-<script defer src="/static/js/page-dashboard.js?v=2102"></script>
+<script defer src="/static/js/page-dashboard.js?v=2200"></script>
 {% endblock %}
