@@ -3629,29 +3629,33 @@ function openMergeCompaniesModal() {
     document.getElementById('modalMergeCompanies')?.classList.add('active');
 }
 
-function confirmMergeCompanies() {
+async function confirmMergeCompanies() {
     const sel = document.querySelector('#mergeCompaniesRadioList input[name="mergeTarget"]:checked');
     if (!sel) return;
     const targetId = parseInt(sel.value);
     const sourceIds = Array.from(selectedCompanies).filter(id => id !== targetId);
 
-    let moved = 0;
-    data.prospects.forEach(p => {
-        if (sourceIds.includes(p.company_id)) {
-            p.company_id = targetId;
-            moved++;
-        }
-    });
-
-    data.companies = data.companies.filter(c => !sourceIds.includes(c.id));
-
     document.getElementById('modalMergeCompanies')?.classList.remove('active');
     selectedCompanies.clear();
 
-    saveToServerAsync().then(() => {
+    try {
+        for (const srcId of sourceIds) {
+            const res = await fetch('/api/companies/merge', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keep_id: targetId, merge_id: srcId })
+            });
+            const json = await res.json();
+            if (!json.ok) throw new Error(json.error || 'Erreur fusion');
+        }
+        await loadFromServer();
         refreshCompaniesUI();
-        showToast(`✅ Entreprises fusionnées (${moved} prospect(s) réassigné(s))`, 'success');
-    });
+        filterProspects();
+        showToast(`✅ Entreprise(s) fusionnée(s)`, 'success');
+    } catch (err) {
+        showToast('❌ Erreur lors de la fusion : ' + (err.message || err), 'error');
+    }
 }
 
 async function applyBulkStatus() {
