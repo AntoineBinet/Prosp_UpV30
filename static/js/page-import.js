@@ -77,7 +77,7 @@ function _ensureImportListModal() {
                         <button type="button" class="btn btn-primary" onclick="closeImportListModal(); openQuickAddModal();">Ouvrir Ajout IA</button>
                     </div>
                     <div id="importListPaneLusha" class="import-list-pane" style="display:none;">
-                        <p class="muted" style="font-size:12px;margin-bottom:10px;">Fichier CSV exporté depuis Lusha — colonnes Phone 1/2/3 et Email 1/2 consolidées automatiquement. Aucune étape de mapping requise.</p>
+                        <p class="muted" style="font-size:12px;margin-bottom:10px;">Fichier CSV exporté depuis Lusha — Phone number 1/2 et Work/Direct email consolidés automatiquement. Aucune étape de mapping requise.</p>
                         <input type="file" id="importListFileLusha" accept=".csv" style="display:none;">
                         <button type="button" class="btn btn-primary" onclick="document.getElementById(‘importListFileLusha’).click()">Choisir un fichier .csv Lusha</button>
                     </div>
@@ -818,7 +818,11 @@ function _lushaIsValidEmail(email) {
  */
 function parseLushaFile(file) {
     const reader = new FileReader();
+    reader.onerror = function() {
+        showToast('Impossible de lire le fichier. Verifiez que ce fichier CSV est accessible.', 'error');
+    };
     reader.onload = function(e) {
+        try {
         // Supprimer le BOM UTF-8 si present (export Lusha en UTF-8 BOM)
         const text = (e.target.result || '').replace(/^\uFEFF/, '');
 
@@ -904,6 +908,10 @@ function parseLushaFile(file) {
         }
 
         _lushaShowPreview(mappedRows, { totalLignes, prosValid, avecTel, avecEmail, ignores });
+        } catch (err) {
+            console.error('[Lusha import] Erreur parsing:', err);
+            showToast('Erreur lors du parsing Lusha : ' + (err && err.message ? err.message : String(err)), 'error', 8000);
+        }
     };
     reader.readAsText(file, 'UTF-8');
 }
