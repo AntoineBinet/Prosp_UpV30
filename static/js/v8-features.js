@@ -577,23 +577,32 @@
     const MAX_UNDO = 30;
 
     /**
-     * pushUndo(description, undoFn)
+     * pushUndo(description, undoFn, options)
      * Records an undoable action.
+     * options.silent = true → performUndo ne montre pas son propre toast
+     *   (utile quand le callback affiche déjà son propre toast).
      */
-    window.pushUndo = function (description, undoFn) {
-        _undoStack.push({ description: description, fn: undoFn, time: Date.now() });
+    window.pushUndo = function (description, undoFn, options) {
+        _undoStack.push({
+            description: description,
+            fn: undoFn,
+            silent: !!(options && options.silent),
+            time: Date.now()
+        });
         if (_undoStack.length > MAX_UNDO) _undoStack.shift();
     };
 
-    window.performUndo = function () {
+    window.performUndo = async function () {
         if (_undoStack.length === 0) {
             window.showToast('Rien à annuler', 'warning', 2000);
             return;
         }
         const action = _undoStack.pop();
         try {
-            action.fn();
-            window.showToast('↩️ Annulé : ' + action.description, 'success', 3000);
+            await action.fn();
+            if (!action.silent) {
+                window.showToast('↩️ Annulé : ' + action.description, 'success', 3000);
+            }
         } catch (e) {
             window.showToast('Erreur lors de l\'annulation', 'error');
             console.error('Undo failed:', e);
