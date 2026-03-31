@@ -11954,11 +11954,13 @@ def api_prospects_tags_count():
     Retourne: { "ok": true, "tags": [{"tag": "Python", "count": 12}, ...] }
     """
     uid = _uid()
-    db = _get_db(uid)
-    rows = db.execute(
-        "SELECT tags FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='')",
-        (uid,)
-    ).fetchall()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT tags FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='')",
+            (uid,)
+        ).fetchall()
     counts: Dict[str, int] = {}
     for row in rows:
         for tag in _parse_tags(row["tags"]):
