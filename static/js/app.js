@@ -7488,13 +7488,6 @@ function _buildPushTabHtml(prospectId, prospect) {
         <div id="ptTemplateBox_${prospectId}">
             <div class="muted">Sélectionnez une catégorie pour voir les templates disponibles.</div>
         </div>
-        <div style="margin-top:10px;">
-            <label class="pt-upload-label" for="ptTemplateInput_${prospectId}" title="Importer un fichier .msg Outlook">
-                📂 Importer un template .msg
-                <input type="file" id="ptTemplateInput_${prospectId}" accept=".msg,.eml,.oft" style="display:none;"
-                       onchange="uploadPushTemplate(${prospectId}, this)">
-            </label>
-        </div>
     </div>
 
     <div class="detail-section-card" style="margin-bottom:14px;" id="ptCandidatesSection_${prospectId}">
@@ -7769,42 +7762,6 @@ function applySonarCatSuggestion(prospectId, catId, catName) {
     const suggBox = document.getElementById(`sonarCatSuggestion_${prospectId}`);
     if (suggBox) suggBox.style.display = 'none';
     showToast(`Catégorie « ${catName} » sélectionnée`, 'success');
-}
-
-/**
- * Upload d'un template .msg pour une catégorie push.
- */
-async function uploadPushTemplate(prospectId, input) {
-    const file = input.files && input.files[0];
-    if (!file) return;
-
-    const prospect = data.prospects.find(p => p.id === prospectId);
-    if (!prospect || !prospect.push_category_id) {
-        showToast('Sélectionnez d\'abord une catégorie avant d\'importer un template', 'warning');
-        input.value = '';
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('template', file);
-    formData.append('category_id', prospect.push_category_id);
-
-    try {
-        showToast('Upload du template en cours…', 'info');
-        const res = await fetch('/api/push/templates/upload', { method: 'POST', body: formData });
-        if (!res.ok) {
-            const e = await res.json().catch(() => ({}));
-            showToast(`❌ Erreur upload : ${e.error || res.status}`, 'error');
-            return;
-        }
-        showToast('Template importé avec succès !', 'success');
-        // Recharger les templates
-        onPushCategoryChange(prospectId, String(prospect.push_category_id));
-    } catch (e) {
-        showToast(`❌ Erreur réseau : ${e.message}`, 'error');
-    } finally {
-        input.value = '';
-    }
 }
 
 /**
