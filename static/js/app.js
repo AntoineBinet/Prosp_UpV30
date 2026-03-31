@@ -12947,7 +12947,9 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
         // Phase 1: Ajouter paramètre pour activer explications IA
         const qsParams = new URLSearchParams();
         if (pushCategoryId) qsParams.set('push_category_id', pushCategoryId);
-        qsParams.set('ai_explanations', '1');  // Activer explications IA par défaut
+        // ai_explanations désactivé par défaut — appels Ollama bloquants (timeout Cloudflare 524)
+        // Activer uniquement à la demande via un bouton dédié
+        // qsParams.set('ai_explanations', '1');
         const qs = qsParams.toString() ? '?' + qsParams.toString() : '';
         const res = await fetch(`/api/prospect/${prospectId}/best-candidates${qs}`);
         let tagCandidates = [];
