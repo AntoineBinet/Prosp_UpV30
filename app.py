@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.19"
+APP_VERSION = "27.20"
 import os
 import subprocess
 import traceback
@@ -3088,7 +3088,8 @@ def upsert_all(data: Dict[str, Any]) -> None:
                     pain_points=excluded.pain_points,
                     budget=excluded.budget,
                     urgency=excluded.urgency,
-                    owner_id=excluded.owner_id
+                    owner_id=excluded.owner_id,
+                    deleted_at=NULL
                 ;
                 ''',
                 [
@@ -3166,7 +3167,8 @@ def upsert_all(data: Dict[str, Any]) -> None:
                     fixedMetier=excluded.fixedMetier,
                     rdvDate=excluded.rdvDate,
                     is_archived=excluded.is_archived,
-                    owner_id=excluded.owner_id
+                    owner_id=excluded.owner_id,
+                    deleted_at=NULL
                 ;
                 ''',
                 [

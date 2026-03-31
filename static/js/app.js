@@ -11682,7 +11682,7 @@ function saveProspect(e) {
     const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
 
     const newProspect = {
-        id: Math.max(...data.prospects.map(p => p.id), 0) + 1,
+        id: Math.max(_globalMaxProspectId || 0, ...data.prospects.map(p => p.id), 0) + 1,
         name: document.getElementById('inputName').value.trim(),
         company_id: parseInt(document.getElementById('inputCompany').value),
         fonction: document.getElementById('inputFonction').value.trim(),
@@ -11735,6 +11735,7 @@ function saveProspect(e) {
 
 function _doSaveProspect(newProspect) {
     data.prospects.push(newProspect);
+    _globalMaxProspectId = newProspect.id;
     closeProspectModal();
     filterProspects();
     saveToServerAsync().then(() => {
@@ -11967,7 +11968,7 @@ function saveCompany(e) {
         }
 
         const newCompany = {
-            id: Math.max(...data.companies.map(c => c.id), 0) + 1,
+            id: Math.max(_globalMaxCompanyId || 0, ...data.companies.map(c => c.id), 0) + 1,
             groupe,
             site,
             phone: phoneVal,
@@ -11975,6 +11976,7 @@ function saveCompany(e) {
             tags: tagsVal
         };
         data.companies.push(newCompany);
+        _globalMaxCompanyId = newCompany.id;
         saveToServer();
         closeCompanyModal();
         refreshCompaniesUI();
