@@ -5351,6 +5351,38 @@ body[data-page="prospects"] .table-wrapper td:nth-child(3) {
   color: #fff !important;
 }
 
+/* v27.4: Textarea description IA candidat push */
+.push-desc-textarea {
+  width: 100%;
+  min-height: 60px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color .2s;
+}
+.push-desc-textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary, #6366f1);
+}
+.push-desc-textarea::placeholder {
+  color: rgba(255,255,255,.3);
+  font-style: italic;
+}
+@media (prefers-color-scheme: light) {
+  .push-desc-textarea {
+    background: rgba(0,0,0,.04);
+    border-color: rgba(0,0,0,.15);
+    color: var(--text-primary, #1e293b);
+  }
+  .push-desc-textarea::placeholder { color: rgba(0,0,0,.35); }
+}
+
 /* Spinner CSS inline */
 .pt-spinner {
   display: inline-block;

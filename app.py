@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.25"
+APP_VERSION = "27.26"
 import os
 import subprocess
 import traceback
@@ -1897,6 +1897,9 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             _add_col("candidates", "annees_experience", "INTEGER")
         if "domaine_principal" not in cand_cols:
             _add_col("candidates", "domaine_principal", "TEXT")
+        # v27.4: description push IA (cache Ollama)
+        if "description_push" not in cand_cols:
+            _add_col("candidates", "description_push", "TEXT")
 
         # v23.5: Soft delete — add deleted_at column to main tables
         for tbl in ("prospects", "companies", "candidates"):
@@ -2290,11 +2293,14 @@ def _migrate_user_db_schema(db_path: Path) -> None:
                 conn.commit()
         except Exception as e:
             print(f"[WARN] Migration is_archived prospects ({db_path}): {e}")
-        # Migration: ajouter dossier_competence_pdf à candidates
+        # Migration: ajouter colonnes candidates (dossier_competence_pdf, description_push, etc.)
         try:
             cand_cols = [r["name"] for r in conn.execute("PRAGMA table_info(candidates);").fetchall()]
             if "dossier_competence_pdf" not in cand_cols:
                 conn.execute("ALTER TABLE candidates ADD COLUMN dossier_competence_pdf TEXT;")
+                conn.commit()
+            if "description_push" not in cand_cols:
+                conn.execute("ALTER TABLE candidates ADD COLUMN description_push TEXT;")
                 conn.commit()
         except Exception:
             pass
@@ -4807,6 +4813,39 @@ def api_candidates_delete():
 
 
 # ═══════════════════════════════════════════════════════════════════
+# v27.4: Helper extraction texte PDF depuis fichier disque
+# ═══════════════════════════════════════════════════════════════════
+
+def _extract_pdf_text(pdf_path: Path, max_chars: int = 6000) -> str:
+    """Extrait le texte d'un fichier PDF sur disque. Retourne chaîne vide en cas d'échec."""
+    if not pdf_path.is_file():
+        return ""
+    try:
+        import io as _io
+        pdf_bytes = pdf_path.read_bytes()
+        pdf_text = ""
+        # Tenter avec pdfminer
+        try:
+            from pdfminer.high_level import extract_text as _pdfminer_extract  # type: ignore
+            pdf_text = _pdfminer_extract(_io.BytesIO(pdf_bytes), maxpages=8) or ""
+        except ImportError:
+            pass
+        # Fallback: pypdf
+        if not pdf_text.strip():
+            try:
+                import pypdf  # type: ignore
+                reader = pypdf.PdfReader(_io.BytesIO(pdf_bytes))
+                for page in reader.pages[:8]:
+                    pdf_text += page.extract_text() or ""
+            except ImportError:
+                pass
+        return pdf_text[:max_chars].strip()
+    except Exception as e:
+        logger.warning("_extract_pdf_text(%s) error: %s", pdf_path, e)
+        return ""
+
+
+# ═══════════════════════════════════════════════════════════════════
 # v27.x PARTIE 3: Extraction DC PDF + upload DC
 # ═══════════════════════════════════════════════════════════════════
 
@@ -5832,7 +5871,7 @@ def api_push_generate():
                 continue
             try:
                 cand = conn.execute(
-                    "SELECT id, name, dossier_competence_pdf, prenom, titre, annees_experience, domaine_principal, role, years_experience, sector FROM candidates WHERE id=? AND owner_id=?;",
+                    "SELECT id, name, dossier_competence_pdf, prenom, titre, annees_experience, domaine_principal, role, years_experience, sector, description_push FROM candidates WHERE id=? AND owner_id=?;",
                     (cand_id, uid)
                 ).fetchone()
                 if cand:
@@ -5857,6 +5896,26 @@ def api_push_generate():
     if not template_path.is_file():
         return jsonify(ok=False, error="Template introuvable"), 404
     
+    # v27.4: Descriptions IA des candidats (Ollama analyse le DC PDF)
+    ai_descriptions = payload.get("ai_descriptions", False)
+    if ai_descriptions and candidates_data:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        def _enrich_cand(cand):
+            # Utiliser le cache description_push si disponible
+            desc = (cand.get("description_push") or "").strip()
+            if not desc:
+                desc = _generate_candidate_description_ai(cand, uid)
+            if desc:
+                cand["description_ai"] = desc
+        # Paralléliser pour 2 candidats (~15s au lieu de ~30s)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(_enrich_cand, c) for c in candidates_data]
+            for f in as_completed(futures):
+                try:
+                    f.result()
+                except Exception as e:
+                    logger.warning("Erreur enrichissement IA candidat: %s", e)
+
     try:
         # v27.x: Personnalisation du template .msg (win32com ou .eml fallback)
         email_bytes, email_filename = _generate_personalized_email(
@@ -5990,6 +6049,131 @@ def api_push_templates_upload():
 
 
 # ═══════════════════════════════════════════════════════════════════
+# v27.4: Génération description IA candidat pour push emails
+# ═══════════════════════════════════════════════════════════════════
+
+def _resolve_dc_pdf_path(candidate: dict, uid: int) -> Path | None:
+    """Résout le chemin du DC PDF d'un candidat. Retourne None si introuvable."""
+    dc_path_str = candidate.get("dossier_competence_pdf", "")
+    if not dc_path_str:
+        # Chercher dans le dossier par convention
+        cand_id = candidate.get("id")
+        if cand_id:
+            dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id)
+            if dc_dir.is_dir():
+                pdfs = list(dc_dir.glob("*.pdf"))
+                if pdfs:
+                    return pdfs[0]
+        return None
+
+    if not os.path.isabs(dc_path_str):
+        dc_path = APP_DIR / "dossiers_competence" / dc_path_str
+    else:
+        dc_path = Path(dc_path_str)
+
+    if not dc_path.is_file():
+        cand_id = candidate.get("id")
+        if cand_id:
+            alt_path = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id) / Path(dc_path_str).name
+            if alt_path.is_file():
+                return alt_path
+    return dc_path if dc_path.is_file() else None
+
+
+def _generate_candidate_description_ai(candidate: dict, uid: int) -> str:
+    """Génère une description riche d'un candidat via Ollama en analysant son DC PDF.
+    Retourne la description HTML ou chaîne vide en cas d'échec.
+    Cache le résultat dans la colonne description_push de la table candidates.
+    """
+    dc_path = _resolve_dc_pdf_path(candidate, uid)
+    if not dc_path:
+        logger.info("Pas de DC PDF pour le candidat %s (id=%s)", candidate.get("name"), candidate.get("id"))
+        return ""
+
+    pdf_text = _extract_pdf_text(dc_path, max_chars=6000)
+    if not pdf_text:
+        logger.warning("Impossible d'extraire le texte du DC PDF: %s", dc_path)
+        return ""
+
+    prenom = candidate.get("prenom") or (candidate.get("name", "").split()[0] if candidate.get("name") else "Candidat")
+
+    prompt = f"""Tu es un assistant spécialisé en recrutement B2B pour une société de conseil en ingénierie.
+À partir du dossier de compétences ci-dessous, rédige UNE SEULE description concise (2-3 phrases, 50-80 mots max) du candidat pour un email de prospection commerciale.
+
+La description doit :
+- Commencer par le prénom en gras HTML : <b>{prenom}</b>
+- Mentionner le titre/poste et les années d'expérience
+- Détailler les domaines d'intervention spécifiques, technologies et compétences clés
+- Être fluide, professionnelle et convaincante
+- Être en français
+
+Exemple de style attendu :
+"<b>Baptiste</b>, consultant en ingénierie système avec 5 ans d'expérience, intervenu notamment sur des systèmes embarqués, de télécommunications et des projets IoT, avec une forte expertise en rédaction d'exigences, définition d'architecture et activités IVVQ."
+
+Dossier de compétences :
+{pdf_text}
+
+Réponds UNIQUEMENT avec la description, sans guillemets, sans tiret au début, sans texte autour."""
+
+    try:
+        result = _call_ai(prompt, timeout=90)
+        desc = result.strip()
+        # Nettoyer éventuels guillemets ou tirets en début
+        desc = re.sub(r'^[\s"\'\\-–—•]+', '', desc)
+        desc = re.sub(r'[\s"\']+$', '', desc)
+        # Vérification minimale
+        if len(desc) < 20:
+            logger.warning("Description IA trop courte pour candidat %s: %s", candidate.get("id"), desc)
+            return ""
+
+        # Cacher en DB
+        try:
+            cand_id = candidate.get("id")
+            if cand_id:
+                with _conn() as conn:
+                    conn.execute(
+                        "UPDATE candidates SET description_push=? WHERE id=? AND owner_id=?;",
+                        (desc, cand_id, uid)
+                    )
+                    conn.commit()
+        except Exception as cache_err:
+            logger.warning("Erreur cache description_push: %s", cache_err)
+
+        return desc
+    except Exception as e:
+        logger.warning("Erreur génération description IA pour candidat %s: %s", candidate.get("id"), e)
+        return ""
+
+
+@app.post("/api/candidates/<int:cand_id>/generate-description")
+def api_candidate_generate_description(cand_id):
+    """Génère ou régénère la description push IA d'un candidat.
+    Retourne: { ok, description }
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        cand = conn.execute(
+            "SELECT id, name, dossier_competence_pdf, prenom, titre, annees_experience, domaine_principal, role, years_experience, sector FROM candidates WHERE id=? AND owner_id=?;",
+            (cand_id, uid)
+        ).fetchone()
+    if not cand:
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+
+    cand_dict = _safe_row_to_dict(cand) or {}
+    if not cand_dict:
+        return jsonify(ok=False, error="Erreur données candidat"), 500
+
+    desc = _generate_candidate_description_ai(cand_dict, uid)
+    if not desc:
+        return jsonify(ok=False, error="Impossible de générer la description (pas de DC PDF ou IA indisponible)"), 422
+
+    return jsonify(ok=True, description=desc)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # v27.x PARTIE 2: Personnalisation .msg (win32com) ou .eml (fallback)
 # OUTLOOK_AVAILABLE détecté au démarrage de l'app
 # ═══════════════════════════════════════════════════════════════════
@@ -6042,16 +6226,21 @@ def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidate
     if candidates_data:
         cand_lines = []
         for cand in candidates_data:
-            prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
-            titre  = cand.get("titre") or cand.get("role", "")
-            annees = cand.get("annees_experience") or cand.get("years_experience") or ""
-            domaine = cand.get("domaine_principal") or cand.get("sector", "")
-            line = f"- {prenom}, {titre}"
-            if annees:
-                line += f" avec {annees} ans d'expérience"
-            if domaine:
-                line += f" en {domaine}"
-            line += "."
+            # v27.4: Utiliser la description IA si disponible
+            if cand.get("description_ai"):
+                line = cand["description_ai"]
+            else:
+                # Format statique (fallback)
+                prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
+                titre  = cand.get("titre") or cand.get("role", "")
+                annees = cand.get("annees_experience") or cand.get("years_experience") or ""
+                domaine = cand.get("domaine_principal") or cand.get("sector", "")
+                line = f"- {prenom}, {titre}"
+                if annees:
+                    line += f" avec {annees} ans d'expérience"
+                if domaine:
+                    line += f" en {domaine}"
+                line += "."
             cand_lines.append(line)
         # Chercher et remplacer les lignes candidats placeholder
         cand_block_pattern = re.compile(
@@ -6143,16 +6332,21 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
     if candidates_data:
         cand_lines = []
         for cand in candidates_data:
-            prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
-            titre  = cand.get("titre") or cand.get("role", "")
-            annees = cand.get("annees_experience") or cand.get("years_experience") or ""
-            domaine = cand.get("domaine_principal") or cand.get("sector", "")
-            line = f"- {prenom}, {titre}"
-            if annees:
-                line += f" avec {annees} ans d'expérience"
-            if domaine:
-                line += f" en {domaine}"
-            line += "."
+            # v27.4: Utiliser la description IA si disponible
+            if cand.get("description_ai"):
+                line = cand["description_ai"]
+            else:
+                # Format statique (fallback)
+                prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
+                titre  = cand.get("titre") or cand.get("role", "")
+                annees = cand.get("annees_experience") or cand.get("years_experience") or ""
+                domaine = cand.get("domaine_principal") or cand.get("sector", "")
+                line = f"- {prenom}, {titre}"
+                if annees:
+                    line += f" avec {annees} ans d'expérience"
+                if domaine:
+                    line += f" en {domaine}"
+                line += "."
             cand_lines.append(line)
         cand_block_pattern = re.compile(
             r'(<li>|•\s*|\*\s*|-\s*)\[Prénom candidat \d+\][^<\n]*(<\/li>|\n|$)',

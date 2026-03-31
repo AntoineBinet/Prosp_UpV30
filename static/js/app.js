@@ -7508,7 +7508,7 @@ async function generatePush(prospectId) {
     }
     
     try {
-        showToast('Génération du push en cours...', 'info');
+        showToast('Génération du push en cours (descriptions IA)...', 'info');
         const res = await fetch('/api/push/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7518,7 +7518,8 @@ async function generatePush(prospectId) {
                 template_filename: templateName,
                 candidate_id1: candidateId1,
                 candidate_id2: candidateId2,
-                format: 'zip' // Pour l'instant, toujours ZIP (template + DC)
+                format: 'zip',
+                ai_descriptions: true
             })
         });
         
@@ -7629,14 +7630,34 @@ function _buildPushTabHtml(prospectId, prospect) {
         <div class="detail-section-title">👤 Dossiers de compétences</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
             <div style="flex:1;min-width:140px;">
-                <select id="detailPushCandidate1" class="template-select" style="width:100%;" onchange="_updateEmailBtnState(${prospectId})">
+                <select id="detailPushCandidate1" class="template-select" style="width:100%;" onchange="_updateEmailBtnState(${prospectId}); _onCandidateSelectChange(1)">
                     <option value="">— Aucun —</option>
                 </select>
             </div>
             <div style="flex:1;min-width:140px;">
-                <select id="detailPushCandidate2" class="template-select" style="width:100%;" onchange="_updateEmailBtnState(${prospectId})">
+                <select id="detailPushCandidate2" class="template-select" style="width:100%;" onchange="_updateEmailBtnState(${prospectId}); _onCandidateSelectChange(2)">
                     <option value="">— Aucun —</option>
                 </select>
+            </div>
+        </div>
+        <div id="pushDescriptionsAI" style="margin-top:10px;">
+            <div id="pushDescAI_1" style="display:none;margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span class="muted" style="font-size:12px;">Description IA — Candidat 1</span>
+                    <button class="btn btn-secondary btn-sm" onclick="_generateDescriptionAI(1)" style="font-size:11px;padding:2px 8px;" title="Générer / régénérer via Ollama">
+                        🤖 Générer IA
+                    </button>
+                </div>
+                <textarea id="pushDescText_1" class="push-desc-textarea" rows="3" placeholder="La description IA sera générée automatiquement lors du push, ou cliquez 'Générer IA' pour prévisualiser..."></textarea>
+            </div>
+            <div id="pushDescAI_2" style="display:none;margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span class="muted" style="font-size:12px;">Description IA — Candidat 2</span>
+                    <button class="btn btn-secondary btn-sm" onclick="_generateDescriptionAI(2)" style="font-size:11px;padding:2px 8px;" title="Générer / régénérer via Ollama">
+                        🤖 Générer IA
+                    </button>
+                </div>
+                <textarea id="pushDescText_2" class="push-desc-textarea" rows="3" placeholder="La description IA sera générée automatiquement lors du push, ou cliquez 'Générer IA' pour prévisualiser..."></textarea>
             </div>
         </div>
     </div>
@@ -7667,6 +7688,72 @@ function _buildPushTabHtml(prospectId, prospect) {
             </div>
         </div>
     </div>`;
+}
+
+/**
+ * v27.4: Appelé quand on change de candidat dans un sélecteur push.
+ * Affiche/masque la zone description IA et charge le cache si disponible.
+ */
+function _onCandidateSelectChange(slot) {
+    const select = document.getElementById(`detailPushCandidate${slot}`);
+    const descDiv = document.getElementById(`pushDescAI_${slot}`);
+    const textarea = document.getElementById(`pushDescText_${slot}`);
+    if (!select || !descDiv || !textarea) return;
+
+    const candId = parseInt(select.value) || 0;
+    if (!candId) {
+        descDiv.style.display = 'none';
+        textarea.value = '';
+        return;
+    }
+    descDiv.style.display = 'block';
+    // Charger la description en cache depuis les données candidats
+    const cand = (data.candidates || []).find(c => c.id === candId);
+    if (cand && cand.description_push) {
+        textarea.value = cand.description_push;
+    } else {
+        textarea.value = '';
+    }
+}
+
+/**
+ * v27.4: Génère / régénère la description IA d'un candidat via Ollama.
+ */
+async function _generateDescriptionAI(slot) {
+    const select = document.getElementById(`detailPushCandidate${slot}`);
+    const textarea = document.getElementById(`pushDescText_${slot}`);
+    if (!select || !textarea) return;
+
+    const candId = parseInt(select.value) || 0;
+    if (!candId) { showToast('Sélectionnez d\'abord un candidat', 'error'); return; }
+
+    const btn = textarea.parentElement?.querySelector('.btn');
+    const origLabel = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="pt-spinner"></span> Analyse DC...'; }
+    textarea.value = 'Analyse du dossier de compétences en cours...';
+
+    try {
+        const res = await fetch(`/api/candidates/${candId}/generate-description`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const json = await res.json();
+        if (json.ok && json.description) {
+            textarea.value = json.description;
+            // Mettre à jour le cache local
+            const cand = (data.candidates || []).find(c => c.id === candId);
+            if (cand) cand.description_push = json.description;
+            showToast('Description IA générée !', 'success');
+        } else {
+            textarea.value = '';
+            showToast(json.error || 'Erreur génération description', 'error');
+        }
+    } catch (e) {
+        textarea.value = '';
+        showToast(`Erreur: ${e.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = origLabel; }
+    }
 }
 
 /**
@@ -7739,7 +7826,7 @@ async function generatePushFromTab(prospectId) {
     const btnEmailHdr  = document.getElementById(`btnEmailProspect_${prospectId}`);
     const origGenLabel = btnGenerate ? btnGenerate.innerHTML : '';
     const origEmailLabel = btnEmailHdr ? btnEmailHdr.innerHTML : '';
-    if (btnGenerate)  { btnGenerate.disabled = true; btnGenerate.innerHTML = '<span class="pt-spinner"></span> Personnalisation en cours…'; }
+    if (btnGenerate)  { btnGenerate.disabled = true; btnGenerate.innerHTML = '<span class="pt-spinner"></span> Génération IA en cours…'; }
     if (btnEmailHdr)  { btnEmailHdr.disabled = true; btnEmailHdr.classList.add('push-email-loading'); btnEmailHdr.innerHTML = '<span class="pt-spinner"></span>'; }
 
     try {
@@ -7752,7 +7839,8 @@ async function generatePushFromTab(prospectId) {
                 template_filename: templateName,
                 candidate_id1: candidateId1,
                 candidate_id2: candidateId2,
-                format: 'zip'
+                format: 'zip',
+                ai_descriptions: true
             })
         });
 
