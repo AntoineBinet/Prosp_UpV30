@@ -11956,18 +11956,23 @@ def api_prospects_tags_count():
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    with _conn() as conn:
-        rows = conn.execute(
-            "SELECT tags FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='')",
-            (uid,)
-        ).fetchall()
-    counts: Dict[str, int] = {}
-    for row in rows:
-        for tag in _parse_tags(row["tags"]):
-            key = tag.strip()
-            if key:
-                counts[key] = counts.get(key, 0) + 1
-    sorted_tags = [{"tag": t, "count": c} for t, c in sorted(counts.items(), key=lambda x: -x[1])]
+    counts = {}
+    try:
+        with _conn() as conn:
+            rows = conn.execute(
+                "SELECT tags FROM prospects WHERE owner_id=?",
+                (uid,)
+            ).fetchall()
+        for row in rows:
+            for tag in _parse_tags(row["tags"]):
+                key = tag.strip()
+                if key:
+                    counts[key] = counts.get(key, 0) + 1
+    except Exception as exc:
+        logger.exception("Erreur api_prospects_tags_count")
+        return jsonify(ok=False, error=str(exc)), 500
+    sorted_tags = [{"tag": t, "count": c}
+                   for t, c in sorted(counts.items(), key=lambda x: -x[1])]
     return jsonify(ok=True, tags=sorted_tags)
 
 
