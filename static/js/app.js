@@ -5552,6 +5552,7 @@ async function viewDetail(id) {
                 ${hasPrevInProsp ? `<button class="btn btn-secondary btn-prosp-prev" onclick="goToProspPrev(${id})" title="Prospect précédent">← Précédent</button>` : ''}
                 <button class="btn btn-secondary" onclick="closeDetail()">Fermer</button>
                 <button class="btn btn-primary" onclick="saveDetail(${id})">💾 Enregistrer</button>
+                ${!isProspMode ? `<button class="btn btn-primary" onclick="saveDetail(${id}, { closeAfterSave: true })" title="Enregistrer et fermer la fiche">💾 Enregistrer et fermer</button>` : ''}
                 ${isProspMode ? `<button class="btn btn-primary btn-prosp-next ${hasNextInProsp ? '' : 'is-last'}" onclick="saveAndNext(${id})" title="${hasNextInProsp ? 'Enregistrer puis prospect suivant' : 'Enregistrer puis quitter le mode Prosp'}">${hasNextInProsp ? 'Suivant →' : 'Terminer ✓'}</button>` : ''}
             </div>
         </div>
