@@ -2830,25 +2830,25 @@ function getProspectsForCompany(companyId) {
 function _renderCompanyExpandContent(companyId) {
     const prospects = getProspectsForCompany(companyId);
     if (prospects.length === 0) {
-        return '<div class="company-prospect-mini-list"><span class="muted" style="font-size:0.85rem;">Aucun prospect dans cette entreprise.</span></div>';
+        return '<div class="cpi-empty">Aucun prospect dans cette entreprise.</div>';
     }
     const items = prospects.map(p => {
         const stMeta = getStatusMeta(p.statut);
-        const badgeClass = _statusSlugToBadgeClass(stMeta.slug);
-        const firstName = (p.prenom || '').trim();
-        const lastName = (p.nom || '').trim();
-        const name = escapeHtml(firstName ? firstName + ' ' + lastName : lastName);
+        const name = escapeHtml((p.name && String(p.name).trim()) ? p.name : '—');
         const fonction = p.fonction ? escapeHtml(p.fonction) : '';
         const tel = p.telephone ? String(p.telephone).trim() : '';
         const pert = Number(p.pertinence) || 0;
-        const stars = pert > 0 ? '★'.repeat(Math.min(5, pert)) : '';
-        return `<div class="company-prospect-mini-item" onclick="viewDetail(${p.id})">
-            <span class="table-statut-badge ${badgeClass}" style="font-size:0.75rem;padding:2px 7px;flex-shrink:0;">${escapeHtml(stMeta.label || p.statut || '')}</span>
+        const stars = pert > 0 ? '<span class="cpi-stars">' + '★'.repeat(Math.min(5, pert)) + '</span>' : '';
+        const telHtml = tel
+            ? `<a href="tel:${escapeHtml(tel)}" onclick="event.stopPropagation();" class="cpi-tel">${escapeHtml(tel)}</a>`
+            : '';
+        return `<div class="cpi-row" onclick="viewDetail(${p.id})">
+            <span class="cpi-dot cpi-dot--${escapeHtml(stMeta.slug)}" title="${escapeHtml(stMeta.label || p.statut || '')}"></span>
             <span class="cpi-name">${name}</span>
-            ${fonction ? `<span class="cpi-fonction">${fonction}</span>` : ''}
-            ${tel ? `<span class="cpi-phone"><a href="tel:${escapeHtml(tel)}" onclick="event.stopPropagation();" class="cpi-phone-link">${escapeHtml(tel)}</a></span>` : ''}
-            ${stars ? `<span class="cpi-stars">${stars}</span>` : ''}
-            <button class="btn btn-secondary cpi-btn-voir" onclick="event.stopPropagation(); viewDetail(${p.id});">Voir</button>
+            ${fonction ? `<span class="cpi-fonction">${fonction}</span>` : '<span class="cpi-fonction"></span>'}
+            <span class="cpi-meta">${stars}${telHtml}</span>
+            <span class="cpi-status-label">${escapeHtml(stMeta.label || p.statut || '')}</span>
+            <button class="cpi-voir" onclick="event.stopPropagation(); viewDetail(${p.id});" title="Voir la fiche">→</button>
         </div>`;
     }).join('');
     return `<div class="company-prospect-mini-list">${items}</div>`;
@@ -2861,14 +2861,15 @@ function _renderCompanyCardProspectsContent(companyId) {
     }
     return prospects.map(p => {
         const stMeta = getStatusMeta(p.statut);
-        const badgeClass = _statusSlugToBadgeClass(stMeta.slug);
-        const firstName = (p.prenom || '').trim();
-        const lastName = (p.nom || '').trim();
-        const name = escapeHtml(firstName ? firstName + ' ' + lastName : lastName);
-        const fonction = p.fonction ? ` · ${escapeHtml(p.fonction)}` : '';
+        const name = escapeHtml((p.name && String(p.name).trim()) ? p.name : '—');
+        const fonction = p.fonction ? escapeHtml(p.fonction) : '';
+        const pert = Number(p.pertinence) || 0;
+        const stars = pert > 0 ? '★'.repeat(Math.min(5, pert)) : '';
         return `<div class="ccp-item" onclick="viewDetail(${p.id})">
-            <span class="table-statut-badge ${badgeClass}" style="font-size:0.72rem;padding:2px 5px;flex-shrink:0;">${escapeHtml(stMeta.label || p.statut || '')}</span>
-            <span class="ccp-name">${name}${fonction}</span>
+            <span class="cpi-dot cpi-dot--${escapeHtml(stMeta.slug)}"></span>
+            <span class="ccp-name">${name}</span>
+            ${fonction ? `<span class="ccp-fonction">${fonction}</span>` : ''}
+            ${stars ? `<span class="ccp-stars">${stars}</span>` : ''}
         </div>`;
     }).join('');
 }
