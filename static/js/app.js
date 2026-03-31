@@ -2046,6 +2046,7 @@ let sortKey = 'lastContact';
 let companySortKey = 'groupe';
 let companySortDir = 'asc';
 const COMPANIES_VIEW_STORAGE_KEY = 'prospup_companies_view';
+let expandedCompanyIds = new Set(); // entreprises dépliées inline
 let companiesViewMode = (typeof localStorage !== 'undefined' && localStorage.getItem(COMPANIES_VIEW_STORAGE_KEY)) || 'cards';
 if (companiesViewMode !== 'table' && companiesViewMode !== 'cards') companiesViewMode = 'cards';
 let inlineCompanyNotesEditingId = null;
@@ -2818,6 +2819,111 @@ function applyCompaniesViewVisibility() {
     }
 }
 
+// ─── Entreprises : expand inline des prospects ────────────────
+function getProspectsForCompany(companyId) {
+    const id = Number(companyId);
+    return (data.prospects || []).filter(p =>
+        Number(p.company_id) === id && Number(p.is_archived) !== 1
+    );
+}
+
+function _renderCompanyExpandContent(companyId) {
+    const prospects = getProspectsForCompany(companyId);
+    if (prospects.length === 0) {
+        return '<div class="company-prospect-mini-list"><span class="muted" style="font-size:0.85rem;">Aucun prospect dans cette entreprise.</span></div>';
+    }
+    const items = prospects.map(p => {
+        const stMeta = getStatusMeta(p.statut);
+        const badgeClass = _statusSlugToBadgeClass(stMeta.slug);
+        const firstName = (p.prenom || '').trim();
+        const lastName = (p.nom || '').trim();
+        const name = escapeHtml(firstName ? firstName + ' ' + lastName : lastName);
+        const fonction = p.fonction ? escapeHtml(p.fonction) : '';
+        const tel = p.telephone ? String(p.telephone).trim() : '';
+        const pert = Number(p.pertinence) || 0;
+        const stars = pert > 0 ? '★'.repeat(Math.min(5, pert)) : '';
+        return `<div class="company-prospect-mini-item" onclick="viewDetail(${p.id})">
+            <span class="table-statut-badge ${badgeClass}" style="font-size:0.75rem;padding:2px 7px;flex-shrink:0;">${escapeHtml(stMeta.label || p.statut || '')}</span>
+            <span class="cpi-name">${name}</span>
+            ${fonction ? `<span class="cpi-fonction">${fonction}</span>` : ''}
+            ${tel ? `<span class="cpi-phone"><a href="tel:${escapeHtml(tel)}" onclick="event.stopPropagation();" class="cpi-phone-link">${escapeHtml(tel)}</a></span>` : ''}
+            ${stars ? `<span class="cpi-stars">${stars}</span>` : ''}
+            <button class="btn btn-secondary cpi-btn-voir" onclick="event.stopPropagation(); viewDetail(${p.id});">Voir</button>
+        </div>`;
+    }).join('');
+    return `<div class="company-prospect-mini-list">${items}</div>`;
+}
+
+function _renderCompanyCardProspectsContent(companyId) {
+    const prospects = getProspectsForCompany(companyId);
+    if (prospects.length === 0) {
+        return '<div class="ccp-empty">Aucun prospect dans cette entreprise.</div>';
+    }
+    return prospects.map(p => {
+        const stMeta = getStatusMeta(p.statut);
+        const badgeClass = _statusSlugToBadgeClass(stMeta.slug);
+        const firstName = (p.prenom || '').trim();
+        const lastName = (p.nom || '').trim();
+        const name = escapeHtml(firstName ? firstName + ' ' + lastName : lastName);
+        const fonction = p.fonction ? ` · ${escapeHtml(p.fonction)}` : '';
+        return `<div class="ccp-item" onclick="viewDetail(${p.id})">
+            <span class="table-statut-badge ${badgeClass}" style="font-size:0.72rem;padding:2px 5px;flex-shrink:0;">${escapeHtml(stMeta.label || p.statut || '')}</span>
+            <span class="ccp-name">${name}${fonction}</span>
+        </div>`;
+    }).join('');
+}
+
+function toggleCompanyTableExpand(companyId) {
+    const id = Number(companyId);
+    const tbody = document.getElementById('companyTableBody');
+    if (!tbody) return;
+    const expandRow = tbody.querySelector(`.company-expand-row[data-expand-for="${id}"]`);
+    if (!expandRow) return;
+    const body = expandRow.querySelector('.company-expand-body');
+    if (!body) return;
+    const companyRow = tbody.querySelector(`.company-row[data-company-id="${id}"]`);
+    const chevron = companyRow ? companyRow.querySelector('.company-expand-chevron') : null;
+
+    if (expandedCompanyIds.has(id)) {
+        expandedCompanyIds.delete(id);
+        body.classList.remove('open');
+        if (chevron) chevron.classList.remove('expanded');
+    } else {
+        expandedCompanyIds.add(id);
+        if (!body.dataset.rendered) {
+            body.innerHTML = _renderCompanyExpandContent(id);
+            body.dataset.rendered = '1';
+        }
+        body.classList.add('open');
+        if (chevron) chevron.classList.add('expanded');
+    }
+}
+
+function toggleCompanyCardExpand(companyId) {
+    const id = Number(companyId);
+    const container = document.getElementById('companiesCardsView');
+    if (!container) return;
+    const card = container.querySelector(`[data-company-id="${id}"]`);
+    if (!card) return;
+    const prospectsDiv = card.querySelector('.company-card-prospects');
+    if (!prospectsDiv) return;
+
+    if (expandedCompanyIds.has(id)) {
+        expandedCompanyIds.delete(id);
+        card.classList.remove('company-card--expanded');
+        prospectsDiv.classList.remove('open');
+    } else {
+        expandedCompanyIds.add(id);
+        if (!prospectsDiv.dataset.rendered) {
+            prospectsDiv.innerHTML = _renderCompanyCardProspectsContent(id);
+            prospectsDiv.dataset.rendered = '1';
+        }
+        card.classList.add('company-card--expanded');
+        prospectsDiv.classList.add('open');
+    }
+}
+// ─────────────────────────────────────────────────────────────
+
 function switchCompaniesView(mode) {
     if (mode !== 'table' && mode !== 'cards') return;
     companiesViewMode = mode;
@@ -2845,6 +2951,7 @@ function renderCompaniesCards(companiesSorted, counts) {
         card.setAttribute('aria-label', `Entreprise ${escapeHtml(company.groupe || '')} ${escapeHtml(company.site || '')}`);
         const notesRaw = (company.notes || '').trim();
         const noteSnippet = notesRaw ? (escapeHtml(notesRaw).slice(0, 80) + (notesRaw.length > 80 ? '…' : '')) : '';
+        const isExpanded = expandedCompanyIds.has(company.id);
         card.innerHTML = `
             <div class="company-card-header">
                 <input type="checkbox" class="company-select-cb" title="Sélectionner pour fusionner" ${selectedCompanies.has(company.id) ? 'checked' : ''} onclick="toggleCompanySelection(${company.id}, event)">
@@ -2864,10 +2971,16 @@ function renderCompaniesCards(companiesSorted, counts) {
                 <button type="button" class="btn-action btn-action-edit" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});"><span class="btn-action-icon">&#x270F;&#xFE0F;</span></button>
                 <button type="button" class="btn-action btn-action-delete" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}><span class="btn-action-icon">&#x1F5D1;</span></button>
             </div>
+            <div class="company-card-prospects${isExpanded ? ' open' : ''}" data-ccp-for="${company.id}">${isExpanded ? _renderCompanyCardProspectsContent(company.id) : ''}</div>
         `;
+        if (isExpanded) {
+            card.classList.add('company-card--expanded');
+            const prospectsDiv = card.querySelector('.company-card-prospects');
+            if (prospectsDiv) prospectsDiv.dataset.rendered = '1';
+        }
         card.onclick = () => {
             if (window.__APP_PAGE__ === 'companies') {
-                window.location.href = `/?company=${company.id}`;
+                toggleCompanyCardExpand(company.id);
                 return;
             }
             const companyFilter = document.getElementById('companyFilter');
@@ -2992,6 +3105,7 @@ function _renderCompaniesInternal(tbody, q) {
         } else {
             groupeCellContent = `
                 <div class="company-name-wrapper">
+                    <span class="company-expand-chevron ${expandedCompanyIds.has(company.id) ? 'expanded' : ''}" title="Déplier les prospects">▶</span>
                     <span class="company-groupe-editable" title="Cliquer pour modifier" onclick="event.stopPropagation(); beginCompanyFieldInline(${company.id}, 'groupe');">
                         <strong class="company-groupe">${escapeHtml(company.groupe || '')}</strong>
                     </span>
@@ -3067,7 +3181,7 @@ function _renderCompaniesInternal(tbody, q) {
 
         tr.onclick = () => {
             if (window.__APP_PAGE__ === 'companies') {
-                window.location.href = `/?company=${company.id}`;
+                toggleCompanyTableExpand(company.id);
                 return;
             }
             const companyFilter = document.getElementById('companyFilter');
@@ -3076,6 +3190,23 @@ function _renderCompaniesInternal(tbody, q) {
         };
 
         fragment.appendChild(tr);
+
+        // Ligne expand inline des prospects
+        const expandTr = document.createElement('tr');
+        expandTr.className = 'company-expand-row';
+        expandTr.dataset.expandFor = String(company.id);
+        const expandTd = document.createElement('td');
+        expandTd.colSpan = 7;
+        expandTd.style.padding = '0';
+        const expandBody = document.createElement('div');
+        expandBody.className = 'company-expand-body' + (expandedCompanyIds.has(company.id) ? ' open' : '');
+        if (expandedCompanyIds.has(company.id)) {
+            expandBody.innerHTML = _renderCompanyExpandContent(company.id);
+            expandBody.dataset.rendered = '1';
+        }
+        expandTd.appendChild(expandBody);
+        expandTr.appendChild(expandTd);
+        fragment.appendChild(expandTr);
     });
 
     // Un seul reflow pour remplacer tout le contenu
