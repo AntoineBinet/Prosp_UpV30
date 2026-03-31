@@ -4792,6 +4792,16 @@ function _heroChangeStatus(prospectId, newStatus) {
     var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
     if (!prospect || !newStatus) return;
 
+    // En mode Prosp : mettre à jour le statut sans naviguer vers le prospect suivant,
+    // pour ne pas perdre les modifications en cours dans le formulaire d'édition.
+    var isProspModeHero = (_currentView === 'prosp' && _prospSession.active);
+
+    // Helper : synchronise le select editStatut du formulaire avec le nouveau statut
+    function _syncEditStatut(val) {
+        var editStatutEl = document.getElementById('editStatut');
+        if (editStatutEl) editStatutEl.value = val;
+    }
+
     // Popup date RDV
     if (newStatus === 'Rendez-vous') {
         showRdvDatePicker(prospectId, function(selectedDate) {
@@ -4801,10 +4811,9 @@ function _heroChangeStatus(prospectId, newStatus) {
             saveToServer();
             if (window.haptic) haptic(20);
             if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
-            if (_currentView === 'prosp' && _prospSession.active) {
-                var nextId = getProspNextId(prospectId);
-                filterProspects();
-                _prospGoToNextAfterStatusChange(prospectId, nextId);
+            if (isProspModeHero) {
+                // Rester sur la fiche en cours, synchroniser le formulaire
+                _syncEditStatut(newStatus);
             } else {
                 filterProspects();
                 viewDetail(prospectId);
@@ -4822,10 +4831,9 @@ function _heroChangeStatus(prospectId, newStatus) {
             saveToServer();
             if (window.haptic) haptic(20);
             if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
-            if (_currentView === 'prosp' && _prospSession.active) {
-                var nextId = getProspNextId(prospectId);
-                filterProspects();
-                _prospGoToNextAfterStatusChange(prospectId, nextId);
+            if (isProspModeHero) {
+                // Rester sur la fiche en cours, synchroniser le formulaire
+                _syncEditStatut(newStatus);
             } else {
                 filterProspects();
                 viewDetail(prospectId);
@@ -4839,11 +4847,10 @@ function _heroChangeStatus(prospectId, newStatus) {
     saveToServer();
     if (window.haptic) haptic(20);
     if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
-    // En Mode Prosp : avancer au prospect suivant (comme quickChangeStatus)
-    if (_currentView === 'prosp' && _prospSession.active) {
-        var nextId = getProspNextId(prospectId);
-        filterProspects();
-        _prospGoToNextAfterStatusChange(prospectId, nextId);
+    if (isProspModeHero) {
+        // En mode Prosp : rester sur la fiche courante et synchroniser le formulaire.
+        // L'utilisateur utilise "Enregistrer" ou "Suivant →" pour sauvegarder/avancer.
+        _syncEditStatut(newStatus);
     } else {
         filterProspects();
         viewDetail(prospectId);
@@ -6345,16 +6352,19 @@ function saveDetail(id, options = {}) {
     saveToServer();
     markUnsaved();
 
-    if (refreshAfterSave) {
+    // En mode prosp, ne pas appeler filterProspects() : la table est masquée et
+    // syncProspSessionWithFilteredList() pourrait naviguer vers un autre prospect
+    // si le nouveau statut est exclu par un filtre actif, ce qui ferait croire à
+    // l'utilisateur que l'enregistrement n'a pas fonctionné.
+    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
+    if (refreshAfterSave && !isProspMode) {
         filterProspects();
     }
-    
-    // En mode prosp, ne pas fermer la fiche même si closeAfterSave est true
-    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
+
     if (closeAfterSave && !isProspMode) {
         closeDetail();
     }
-    
+
     return true;
 }
 
@@ -11331,7 +11341,10 @@ function closeDetail(options = {}) {
 
 function showProspResumeBanner() {
     const el = document.getElementById('prospResumeBanner');
-    if (el) el.classList.add('visible');
+    if (!el) return;
+    // Effacer l'éventuel style inline (posé par le mode archivés) avant d'ajouter la classe
+    el.style.display = '';
+    el.classList.add('visible');
 }
 
 function dismissProspResumeBanner() {
@@ -11361,8 +11374,12 @@ function resumeProspSession() {
         return;
     }
 
-    const liveProspectIds = new Set((Array.isArray(data.prospects) ? data.prospects : []).map(p => p.id));
-    const savedIds = saved.ids.filter(id => liveProspectIds.has(id));
+    const liveProspects = Array.isArray(data.prospects) ? data.prospects : [];
+    const liveProspectIds = new Set(liveProspects.map(p => p.id));
+    // Si data.prospects n'est pas encore chargé, utiliser les ids sauvegardés tels quels
+    const savedIds = liveProspects.length > 0
+        ? saved.ids.filter(id => liveProspectIds.has(id))
+        : saved.ids.slice();
     if (savedIds.length === 0) {
         dismissProspResumeBanner();
         return;
