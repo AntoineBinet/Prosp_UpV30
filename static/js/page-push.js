@@ -240,6 +240,7 @@ function switchPushTab(tab) {
 
 let __categories = [];
 let __categoriesLoaded = false;
+let __allCandidates = null; // cache pour le sélecteur de candidats par défaut
 
 function __catEl(id) { return document.getElementById(id); }
 
@@ -328,6 +329,24 @@ async function deleteCatTemplate(catId, filename) {
     }
 }
 
+function _catCandidateSlotHtml(cat, slot) {
+    const cid  = cat[`candidate${slot}_id`];
+    const name = cat[`candidate${slot}_name`];
+    const role = cat[`candidate${slot}_role`];
+    const label = cid
+        ? `<span style="font-size:12px;">${escapeHtml(name || '')}${role ? ' · <span style="color:var(--color-text-secondary);">' + escapeHtml(role) + '</span>' : ''}</span>`
+        : `<span class="muted" style="font-size:12px;">Non défini</span>`;
+    const clearBtn = cid
+        ? `<button onclick="clearCatCandidate(${cat.id},${slot})" style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:11px;padding:2px 4px;" title="Effacer">✕</button>`
+        : '';
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <span style="font-size:11px;color:var(--color-text-secondary);min-width:72px;flex-shrink:0;">Candidat ${slot} :</span>
+        <span style="flex:1;">${label}</span>
+        <button onclick="editCatCandidate(${cat.id},${slot})" style="background:none;border:none;cursor:pointer;font-size:11px;padding:2px 6px;" title="Modifier">✏️</button>
+        ${clearBtn}
+    </div>`;
+}
+
 function catCard(cat) {
     const kw = Array.isArray(cat.keywords) ? cat.keywords : [];
     const kwHtml = kw.length
@@ -346,7 +365,17 @@ function catCard(cat) {
                     <button class="btn btn-danger" style="padding:5px 10px;font-size:11px;" onclick="deleteCat(${cat.id})">🗑️</button>
                 </div>
             </div>
-            <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--color-border);">
+            <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--color-border);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-weight:600; font-size:12px; color:var(--color-text-secondary);">👤 Candidats par défaut</span>
+                    <button onclick="autoSuggestCandidates(${cat.id})" style="font-size:11px;padding:3px 10px;background:var(--color-surface-2,rgba(255,255,255,0.06));border:1px solid var(--color-border);border-radius:8px;cursor:pointer;" title="Suggérer automatiquement les 2 meilleurs candidats">🔁 Auto</button>
+                </div>
+                <div id="catCandidateSlots_${cat.id}">
+                    ${_catCandidateSlotHtml(cat, 1)}
+                    ${_catCandidateSlotHtml(cat, 2)}
+                </div>
+            </div>
+            <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--color-border);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                     <span style="font-weight:600; font-size:12px; color:var(--color-text-secondary);">📧 Templates email (.msg)</span>
                     <label style="cursor:pointer; font-size:11px; padding:4px 10px; background:var(--color-surface-2,rgba(255,255,255,0.06)); border:1px solid var(--color-border); border-radius:8px; display:flex; align-items:center; gap:4px;" title="Ajouter un template .msg pour cette catégorie">
@@ -360,6 +389,117 @@ function catCard(cat) {
             </div>
         </div>
     `;
+}
+
+async function _loadAllCandidatesCache() {
+    if (__allCandidates) return;
+    try {
+        const res = await fetch('/api/candidates');
+        const data = await res.json();
+        __allCandidates = (data.candidates || data || []).filter(c => !c.is_archived);
+        __allCandidates.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } catch (e) {
+        __allCandidates = [];
+    }
+}
+
+async function saveCatCandidates(catId, c1Id, c2Id) {
+    await fetch(`/api/push-categories/${catId}/set-candidates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate1_id: c1Id || null, candidate2_id: c2Id || null })
+    });
+}
+
+async function autoSuggestCandidates(catId) {
+    try {
+        showToast('Recherche des meilleurs candidats…', 'info', 2000);
+        const res = await fetch(`/api/push-categories/${catId}/match-candidates`);
+        const data = await res.json();
+        if (!data.ok) { showToast('❌ ' + (data.error || 'Erreur'), 'error'); return; }
+        const top2 = (data.candidates || []).slice(0, 2);
+        await saveCatCandidates(catId, top2[0]?.id || null, top2[1]?.id || null);
+        // Mettre à jour __categories et re-render les slots
+        const cat = __categories.find(c => c.id === catId);
+        if (cat) {
+            cat.candidate1_id = top2[0]?.id || null;
+            cat.candidate1_name = top2[0]?.name || null;
+            cat.candidate1_role = top2[0]?.role || null;
+            cat.candidate2_id = top2[1]?.id || null;
+            cat.candidate2_name = top2[1]?.name || null;
+            cat.candidate2_role = top2[1]?.role || null;
+            const box = document.getElementById(`catCandidateSlots_${catId}`);
+            if (box) box.innerHTML = _catCandidateSlotHtml(cat, 1) + _catCandidateSlotHtml(cat, 2);
+        }
+        if (top2.length === 0) showToast('Aucun candidat trouvé pour ces mots-clés', 'warning');
+        else showToast(`${top2.length} candidat(s) suggéré(s) automatiquement`, 'success');
+    } catch (e) {
+        showToast('❌ Erreur : ' + e.message, 'error');
+    }
+}
+
+async function editCatCandidate(catId, slot) {
+    await _loadAllCandidatesCache();
+    const cat = __categories.find(c => c.id === catId);
+    const currentId = cat?.[`candidate${slot}_id`] || '';
+    const otherSlot = slot === 1 ? 2 : 1;
+    const otherId = cat?.[`candidate${otherSlot}_id`] || null;
+    const box = document.getElementById(`catCandidateSlots_${catId}`);
+    if (!box) return;
+    const options = __allCandidates.map(c =>
+        `<option value="${c.id}" ${c.id == currentId ? 'selected' : ''}>${escapeHtml(c.name || '')}${c.role ? ' · ' + escapeHtml(c.role) : ''}</option>`
+    ).join('');
+    box.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+            <span style="font-size:11px;color:var(--color-text-secondary);min-width:72px;flex-shrink:0;">Candidat ${slot} :</span>
+            <select id="catCandSlot_${catId}_${slot}" style="flex:1;min-width:0;font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-surface-2,rgba(255,255,255,0.08));color:inherit;">
+                <option value="">— Aucun —</option>
+                ${options}
+            </select>
+            <button onclick="confirmCatCandidate(${catId},${slot},${otherId})" style="font-size:12px;padding:3px 10px;border-radius:6px;border:none;background:var(--color-primary,#f97316);color:#fff;cursor:pointer;">✔</button>
+            <button onclick="cancelEditCatCandidate(${catId})" style="font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid var(--color-border);background:none;cursor:pointer;">✕</button>
+        </div>`;
+}
+
+async function confirmCatCandidate(catId, slot, otherId) {
+    const sel = document.getElementById(`catCandSlot_${catId}_${slot}`);
+    const newId = sel?.value ? Number(sel.value) : null;
+    const c1 = slot === 1 ? newId : otherId;
+    const c2 = slot === 2 ? newId : otherId;
+    await saveCatCandidates(catId, c1, c2);
+    // Mettre à jour le cache local et re-render
+    const cat = __categories.find(c => c.id === catId);
+    if (cat) {
+        const picked = newId ? __allCandidates?.find(c => c.id === newId) : null;
+        cat[`candidate${slot}_id`]   = newId;
+        cat[`candidate${slot}_name`] = picked?.name || null;
+        cat[`candidate${slot}_role`] = picked?.role || null;
+        const box = document.getElementById(`catCandidateSlots_${catId}`);
+        if (box) box.innerHTML = _catCandidateSlotHtml(cat, 1) + _catCandidateSlotHtml(cat, 2);
+    }
+    showToast('Candidat enregistré', 'success', 2000);
+}
+
+function cancelEditCatCandidate(catId) {
+    const cat = __categories.find(c => c.id === catId);
+    if (!cat) return;
+    const box = document.getElementById(`catCandidateSlots_${catId}`);
+    if (box) box.innerHTML = _catCandidateSlotHtml(cat, 1) + _catCandidateSlotHtml(cat, 2);
+}
+
+async function clearCatCandidate(catId, slot) {
+    const cat = __categories.find(c => c.id === catId);
+    const c1 = slot === 1 ? null : (cat?.candidate1_id || null);
+    const c2 = slot === 2 ? null : (cat?.candidate2_id || null);
+    await saveCatCandidates(catId, c1, c2);
+    if (cat) {
+        cat[`candidate${slot}_id`]   = null;
+        cat[`candidate${slot}_name`] = null;
+        cat[`candidate${slot}_role`] = null;
+        const box = document.getElementById(`catCandidateSlots_${catId}`);
+        if (box) box.innerHTML = _catCandidateSlotHtml(cat, 1) + _catCandidateSlotHtml(cat, 2);
+    }
+    showToast('Candidat effacé', 'info', 2000);
 }
 
 function showCatEditor(show) {
