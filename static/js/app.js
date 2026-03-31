@@ -6303,7 +6303,7 @@ function saveDetail(id, options = {}) {
     if (!prospect) return false;
     const previousStatus = prospect.statut;
     const previousLastContact = prospect.lastContact;
-    const closeAfterSave = options.closeAfterSave !== false;
+    const closeAfterSave = options.closeAfterSave === true;
     const refreshAfterSave = options.refreshAfterSave !== false;
 
     // Champs fiche prospect (édition)
@@ -6357,6 +6357,11 @@ function saveDetail(id, options = {}) {
     // si le nouveau statut est exclu par un filtre actif, ce qui ferait croire à
     // l'utilisateur que l'enregistrement n'a pas fonctionné.
     const isProspMode = (_currentView === 'prosp' && _prospSession.active);
+
+    if (!closeAfterSave && !isProspMode) {
+        showToast('✓ Fiche enregistrée', 'success');
+    }
+
     if (refreshAfterSave && !isProspMode) {
         filterProspects();
     }
@@ -6370,7 +6375,7 @@ function saveDetail(id, options = {}) {
 
 async function saveAndNext(id) {
     if (!(_currentView === 'prosp' && _prospSession.active)) {
-        saveDetail(id);
+        saveDetail(id, { closeAfterSave: true });
         return;
     }
 
