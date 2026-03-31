@@ -160,7 +160,10 @@
   .prop-ignore-btn { padding: 3px 9px; border-radius: 6px; border: 1px solid var(--color-border); background: none; color: var(--color-text-secondary); cursor: pointer; font-size: 11px; transition: all .15s; }
   .prop-ignore-btn:hover { background: rgba(239,68,68,.1); color: #ef4444; border-color: #ef4444; }
   .unclass-save-area { margin-top: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .scan-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--color-text-secondary); padding: 8px 0; }
+  .scan-progress { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--color-text-secondary); padding: 8px 0; }
+  .scan-progress-header { display: flex; align-items: center; gap: 10px; }
+  .scan-progress-bar-wrap { height: 6px; background: var(--color-border); border-radius: 3px; overflow: hidden; }
+  .scan-progress-bar { height: 100%; background: var(--color-primary); border-radius: 3px; transition: width 0.3s ease; min-width: 2px; }
   .scan-spinner { width: 18px; height: 18px; border: 2px solid var(--color-border); border-top-color: var(--color-primary); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (max-width: 900px) {
@@ -244,8 +247,15 @@
       <span class="unclass-status" id="unclassStatus"></span>
     </div>
     <div id="scanProgressArea" style="display:none;" class="scan-progress">
-      <div class="scan-spinner"></div>
-      <span id="scanProgressMsg">Classification en cours…</span>
+      <div class="scan-progress-header">
+        <div class="scan-spinner"></div>
+        <span id="scanProgressMsg">Classification en cours…</span>
+        <span id="scanProgressPct" style="font-weight:600;color:var(--color-primary);margin-left:auto;"></span>
+      </div>
+      <div class="scan-progress-bar-wrap">
+        <div class="scan-progress-bar" id="scanProgressBar" style="width:0%"></div>
+      </div>
+      <div id="scanProgressDetail" style="font-size:11px;opacity:.7;"></div>
     </div>
     <div id="aiProposalsArea" style="display:none;">
       <div style="overflow-x:auto;">
@@ -663,6 +673,9 @@ async function scanTagsWithAI() {
   var btnManual = document.getElementById('btnManualClassify');
   var progressArea = document.getElementById('scanProgressArea');
   var progressMsg = document.getElementById('scanProgressMsg');
+  var progressPct = document.getElementById('scanProgressPct');
+  var progressBar = document.getElementById('scanProgressBar');
+  var progressDetail = document.getElementById('scanProgressDetail');
   var status = document.getElementById('unclassStatus');
   var proposalsArea = document.getElementById('aiProposalsArea');
 
@@ -671,18 +684,28 @@ async function scanTagsWithAI() {
   progressArea.style.display = 'flex';
   proposalsArea.style.display = 'none';
   status.textContent = '';
+  progressBar.style.width = '0%';
+  progressPct.textContent = '0%';
+  progressDetail.textContent = '';
 
   var tags = _unclassifiedTags.map(function(t) { return t.tag; });
   var BATCH = 5;
   var total = Math.ceil(tags.length / BATCH);
   var allResults = [];
   var aborted = false;
+  var startTime = Date.now();
 
   try {
     for (var i = 0; i < tags.length; i += BATCH) {
       var batch = tags.slice(i, i + BATCH);
       var lotNum = Math.floor(i / BATCH) + 1;
-      progressMsg.textContent = 'Lot ' + lotNum + '/' + total + ' — ' + batch.join(', ') + '…';
+      var pct = Math.round((i / tags.length) * 100);
+      progressMsg.textContent = 'Lot ' + lotNum + '/' + total;
+      progressPct.textContent = pct + '%';
+      progressBar.style.width = pct + '%';
+      var elapsed = Math.round((Date.now() - startTime) / 1000);
+      var eta = lotNum > 1 ? Math.round((elapsed / (lotNum - 1)) * (total - lotNum + 1)) : '…';
+      progressDetail.textContent = allResults.length + ' tags classifiés · ' + batch.slice(0,3).map(function(t){return '"'+t+'"';}).join(', ') + (batch.length > 3 ? '…' : '') + (lotNum > 1 ? ' · ~' + eta + 's restant' : '');
 
       var res = await fetch('/api/metiers/classify-tags-batch', {
         method: 'POST',
@@ -709,12 +732,14 @@ async function scanTagsWithAI() {
     aborted = true;
   }
 
+  progressBar.style.width = '100%';
+  progressPct.textContent = '100%';
   progressArea.style.display = 'none';
   btnScan.disabled = false;
   btnManual.disabled = false;
 
   if (!aborted && !status.textContent) {
-    status.textContent = '✅ ' + allResults.length + ' tag' + (allResults.length > 1 ? 's' : '') + ' classifiés';
+    status.textContent = '✅ ' + allResults.length + ' tag' + (allResults.length > 1 ? 's' : '') + ' classifiés en ' + Math.round((Date.now() - startTime) / 1000) + 's';
   }
   buildProposalsTable(allResults);
 }
