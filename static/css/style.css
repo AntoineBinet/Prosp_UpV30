@@ -2719,6 +2719,156 @@ form.has-invalid-fields input[type="submit"] {
     margin-left: 4px;
 }
 
+/* ─────────────────────────────────────────────
+   Entreprises — expand inline des prospects
+   ───────────────────────────────────────────── */
+
+/* Chevron dans la colonne Groupe (mode liste) */
+.company-expand-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    color: var(--color-text-secondary);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s;
+    margin-right: 6px;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+.company-expand-chevron.expanded {
+    transform: rotate(90deg);
+    color: var(--color-primary);
+}
+
+/* Ligne expand (mode liste) */
+.company-expand-row > td {
+    padding: 0 !important;
+    border-top: none !important;
+}
+.company-expand-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--color-bg-secondary, var(--color-surface));
+    border-left: 3px solid var(--color-primary);
+}
+.company-expand-body.open {
+    max-height: 1400px;
+}
+
+/* Liste mini-prospects dans l'expand (mode liste) */
+.company-prospect-mini-list {
+    padding: 6px 12px 10px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.company-prospect-mini-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+}
+.company-prospect-mini-item:hover {
+    background: rgba(var(--color-primary-rgb), 0.07);
+}
+.cpi-name {
+    font-weight: 500;
+    color: var(--color-text-primary);
+    min-width: 130px;
+}
+.cpi-fonction {
+    color: var(--color-text-secondary);
+    font-size: 0.82rem;
+}
+.cpi-phone-link {
+    color: var(--color-text-secondary);
+    font-size: 0.82rem;
+    text-decoration: none;
+}
+.cpi-phone-link:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+}
+.cpi-stars {
+    color: var(--color-warning, #f59e0b);
+    font-size: 0.78rem;
+    letter-spacing: -2px;
+}
+.cpi-btn-voir {
+    margin-left: auto;
+    padding: 2px 10px !important;
+    font-size: 0.78rem !important;
+    flex-shrink: 0;
+}
+
+/* ─── Mode Carte — zoom expand ─── */
+.company-card-modern {
+    position: relative;
+    z-index: 1;
+}
+.company-card--expanded {
+    transform: scale(1.025) !important;
+    box-shadow: 0 10px 36px rgba(var(--color-primary-rgb), 0.28) !important;
+    border-color: rgba(var(--color-primary-rgb), 0.55) !important;
+    z-index: 3;
+}
+/* Annuler le hover translateY quand expanded */
+.company-card--expanded:hover {
+    transform: scale(1.025) !important;
+}
+.company-card-prospects {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+    border-top: 0 solid var(--color-border);
+}
+.company-card--expanded .company-card-prospects {
+    max-height: 700px;
+    border-top-width: 1px;
+}
+/* Items dans la carte */
+.ccp-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    transition: background 0.13s;
+    border-bottom: 1px solid var(--color-border);
+    flex-wrap: wrap;
+}
+.ccp-item:last-child {
+    border-bottom: none;
+}
+.ccp-item:hover {
+    background: rgba(var(--color-primary-rgb), 0.07);
+}
+.ccp-name {
+    font-weight: 500;
+    color: var(--color-text-primary);
+    flex: 1;
+    min-width: 100px;
+}
+.ccp-empty {
+    padding: 10px 12px;
+    font-size: 0.82rem;
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+/* Indicateur visuel : cliquer pour voir les prospects */
+.company-card-modern:not(.company-card--expanded) .company-card-counts {
+    cursor: pointer;
+}
+
 /* Page Entreprises — responsive */
 @media (max-width: 600px) {
   body[data-page="companies"] .companies-cards-grid {
