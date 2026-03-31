@@ -6906,13 +6906,13 @@ function closeCallChoice() {
 
 function _stampProspectLastContact(prospect) {
     if (!prospect) return;
-    const nowIso = todayISO();
+    const nowIso = nowISO();
     prospect.lastContact = nowIso;
     try {
         const last = document.getElementById('detailLastContact');
-        if (last) last.textContent = nowIso;
+        if (last) last.textContent = formatLastContact(nowIso);
         const edit = document.getElementById('editLastContact');
-        if (edit) edit.value = nowIso;
+        if (edit) edit.value = nowIso.slice(0, 16);
     } catch (e) {}
 }
 
