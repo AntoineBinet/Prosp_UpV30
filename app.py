@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.23"
+APP_VERSION = "27.24"
 import os
 import subprocess
 import traceback
@@ -5701,6 +5701,39 @@ def api_push_category_upload_template(cat_id: int):
         return jsonify(ok=True, filename=filename, url=f"/api/pushs/user/{uid}/{cat_id}/{filename}")
     except Exception as e:
         logger.error("Erreur upload template: %s", e)
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.post("/api/push-categories/<int:cat_id>/delete-template")
+def api_push_category_delete_template(cat_id: int):
+    """Supprime un fichier template d'une catégorie push (per-user)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        cat_row = conn.execute("SELECT name FROM push_categories WHERE id=? AND owner_id=?;", (cat_id, uid)).fetchone()
+    if not cat_row:
+        return jsonify(ok=False, error="Catégorie introuvable"), 404
+
+    payload = request.get_json(force=True, silent=True) or {}
+    filename = payload.get("filename", "")
+    if not filename:
+        return jsonify(ok=False, error="Nom de fichier manquant"), 400
+
+    # Sécuriser le nom de fichier (pas de path traversal)
+    safe_filename = "".join(c for c in filename if c.isalnum() or c in "._- ")
+    if safe_filename != filename or ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify(ok=False, error="Nom de fichier invalide"), 400
+
+    cat_name = cat_row["name"]
+    target_path = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name / safe_filename
+    try:
+        if target_path.exists():
+            target_path.unlink()
+        return jsonify(ok=True)
+    except Exception as e:
+        logger.error("Erreur suppression template: %s", e)
         return jsonify(ok=False, error=str(e)), 500
 
 
