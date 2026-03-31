@@ -4821,13 +4821,10 @@ function _heroChangeStatus(prospectId, newStatus) {
             prospect.statut = newStatus;
             if (selectedDate) prospect.rdvDate = selectedDate;
             prospect.lastContact = nowISO();
-            saveToServer();
+            // Pas de sauvegarde automatique — l'utilisateur clique "Enregistrer"
             if (window.haptic) haptic(20);
-            if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
-            if (isProspModeHero) {
-                // Rester sur la fiche en cours, synchroniser le formulaire
-                _syncEditStatut(newStatus);
-            } else {
+            _syncEditStatut(newStatus);
+            if (!isProspModeHero) {
                 filterProspects();
                 viewDetail(prospectId);
             }
@@ -4841,13 +4838,10 @@ function _heroChangeStatus(prospectId, newStatus) {
             prospect.statut = newStatus;
             if (selectedDate) prospect.nextFollowUp = selectedDate;
             prospect.lastContact = nowISO();
-            saveToServer();
+            // Pas de sauvegarde automatique — l'utilisateur clique "Enregistrer"
             if (window.haptic) haptic(20);
-            if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
-            if (isProspModeHero) {
-                // Rester sur la fiche en cours, synchroniser le formulaire
-                _syncEditStatut(newStatus);
-            } else {
+            _syncEditStatut(newStatus);
+            if (!isProspModeHero) {
                 filterProspects();
                 viewDetail(prospectId);
             }
@@ -4857,13 +4851,11 @@ function _heroChangeStatus(prospectId, newStatus) {
 
     prospect.statut = newStatus;
     prospect.lastContact = nowISO();
-    saveToServer();
+    // Pas de sauvegarde automatique — l'utilisateur clique "Enregistrer"
     if (window.haptic) haptic(20);
-    if (window.showToast) showToast('Statut → ' + newStatus + ' ✓', 'success', 2000);
+    _syncEditStatut(newStatus);
     if (isProspModeHero) {
-        // En mode Prosp : rester sur la fiche courante et synchroniser le formulaire.
-        // L'utilisateur utilise "Enregistrer" ou "Suivant →" pour sauvegarder/avancer.
-        _syncEditStatut(newStatus);
+        // En mode Prosp : rester sur la fiche courante, formulaire déjà synchronisé.
     } else {
         filterProspects();
         viewDetail(prospectId);
