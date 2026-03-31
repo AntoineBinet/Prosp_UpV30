@@ -207,6 +207,17 @@
         </form>
     </div>
 </div>
+
+<!-- Modal fiche prospect (ouverture depuis la page Entreprises) -->
+<div class="modal" role="dialog" aria-modal="true" id="modalDetail" aria-labelledby="modalDetailTitle">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span id="modalDetailTitle">Fiche Prospect</span>
+            <button class="modal-close" onclick="closeDetail()" aria-label="Fermer">&times;</button>
+        </div>
+        <div id="detailContent"></div>
+    </div>
+</div>
 {% endblock %}
 
 {% block page_scripts %}

@@ -2842,13 +2842,13 @@ function _renderCompanyExpandContent(companyId) {
         const telHtml = tel
             ? `<a href="tel:${escapeHtml(tel)}" onclick="event.stopPropagation();" class="cpi-tel">${escapeHtml(tel)}</a>`
             : '';
-        return `<div class="cpi-row" onclick="viewDetail(${p.id})">
+        return `<div class="cpi-row" data-slug="${escapeHtml(stMeta.slug)}" onclick="viewDetail(${p.id})">
             <span class="cpi-dot cpi-dot--${escapeHtml(stMeta.slug)}" title="${escapeHtml(stMeta.label || p.statut || '')}"></span>
             <span class="cpi-name">${name}</span>
             ${fonction ? `<span class="cpi-fonction">${fonction}</span>` : '<span class="cpi-fonction"></span>'}
             <span class="cpi-meta">${stars}${telHtml}</span>
             <span class="cpi-status-label">${escapeHtml(stMeta.label || p.statut || '')}</span>
-            <button class="cpi-voir" onclick="event.stopPropagation(); viewDetail(${p.id});" title="Voir la fiche">→</button>
+            <button class="cpi-voir" onclick="event.stopPropagation(); viewDetail(${p.id});" title="Voir la fiche">Voir</button>
         </div>`;
     }).join('');
     return `<div class="company-prospect-mini-list">${items}</div>`;
