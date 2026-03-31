@@ -11948,7 +11948,6 @@ def api_custom_metiers_delete(item_id):
 # ═══════════════════════════════════════════════════════════════════
 
 @app.get("/api/prospects/tags-count")
-@login_required
 def api_prospects_tags_count():
     """Retourne tous les tags utilisés dans les prospects avec leur nombre d'occurrences.
     Triés par count décroissant.
@@ -11971,7 +11970,6 @@ def api_prospects_tags_count():
 
 
 @app.post("/api/metiers/classify-tags-batch")
-@login_required
 def api_metiers_classify_tags_batch():
     """Classifie une liste de tags non référencés via Ollama en un seul prompt batch.
 
@@ -12066,7 +12064,6 @@ Si un tag ne correspond à aucune catégorie connue, mets category null."""
 
 
 @app.post("/api/metiers/batch-confirm-tags")
-@login_required
 def api_metiers_batch_confirm_tags():
     """Enregistre en lot les tags confirmés dans custom_metiers.
 
