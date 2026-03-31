@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.24"
+APP_VERSION = "27.25"
 import os
 import subprocess
 import traceback
@@ -1556,13 +1556,15 @@ CREATE INDEX IF NOT EXISTS idx_candidate_events_date ON candidate_events(date);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_candidate_events_unique ON candidate_events(candidate_id, type, date);
 
 CREATE TABLE IF NOT EXISTS push_categories (
-    id            INTEGER PRIMARY KEY,
-    name          TEXT NOT NULL,
-    keywords      TEXT,
-    auto_detected INTEGER DEFAULT 0,
-    owner_id      INTEGER,
-    createdAt     TEXT,
-    updatedAt     TEXT,
+    id             INTEGER PRIMARY KEY,
+    name           TEXT NOT NULL,
+    keywords       TEXT,
+    auto_detected  INTEGER DEFAULT 0,
+    owner_id       INTEGER,
+    candidate1_id  INTEGER,
+    candidate2_id  INTEGER,
+    createdAt      TEXT,
+    updatedAt      TEXT,
     UNIQUE(name, owner_id)
 );
 CREATE INDEX IF NOT EXISTS idx_push_categories_name ON push_categories(name);
@@ -1934,6 +1936,11 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             conn.executescript('''
                 CREATE INDEX IF NOT EXISTS idx_push_categories_owner ON push_categories(owner_id);
             ''')
+        # v27.3: Add default candidate slots to push categories
+        if "candidate1_id" not in pc_cols:
+            _add_col("push_categories", "candidate1_id", "INTEGER")
+        if "candidate2_id" not in pc_cols:
+            _add_col("push_categories", "candidate2_id", "INTEGER")
 
         # App settings (v11) — key/value config store
         conn.executescript('''
@@ -5257,7 +5264,15 @@ def api_push_categories_list():
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
     with _conn() as conn:
-        rows = conn.execute("SELECT * FROM push_categories WHERE owner_id=? ORDER BY name;", (uid,)).fetchall()
+        rows = conn.execute("""
+            SELECT pc.*,
+                   c1.name AS candidate1_name, c1.role AS candidate1_role,
+                   c2.name AS candidate2_name, c2.role AS candidate2_role
+            FROM push_categories pc
+            LEFT JOIN candidates c1 ON pc.candidate1_id = c1.id AND c1.owner_id = pc.owner_id
+            LEFT JOIN candidates c2 ON pc.candidate2_id = c2.id AND c2.owner_id = pc.owner_id
+            WHERE pc.owner_id=? ORDER BY pc.name;
+        """, (uid,)).fetchall()
     out = []
     for r in rows:
         d = dict(r)
@@ -5463,6 +5478,31 @@ def api_push_categories_match(cat_id: int):
     # Sort by score desc, return top 3
     scored.sort(key=lambda x: x["score"], reverse=True)
     return jsonify({"ok": True, "candidates": scored[:3], "keywords": keywords})
+
+
+@app.post("/api/push-categories/<int:cat_id>/set-candidates")
+def api_push_categories_set_candidates(cat_id: int):
+    """Enregistre les deux candidats par défaut d'une catégorie push. v27.3."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    c1 = payload.get("candidate1_id")
+    c2 = payload.get("candidate2_id")
+    # Accepter None ou int, rejeter autres types
+    c1 = int(c1) if c1 else None
+    c2 = int(c2) if c2 else None
+    with _conn() as conn:
+        existing = conn.execute(
+            "SELECT id FROM push_categories WHERE id=? AND owner_id=?;", (cat_id, uid)
+        ).fetchone()
+        if not existing:
+            return jsonify(ok=False, error="Catégorie introuvable"), 404
+        conn.execute(
+            "UPDATE push_categories SET candidate1_id=?, candidate2_id=?, updatedAt=? WHERE id=? AND owner_id=?;",
+            (c1, c2, _now_iso(), cat_id, uid)
+        )
+    return jsonify(ok=True)
 
 
 @app.get("/api/push-categories/<int:cat_id>/files")
