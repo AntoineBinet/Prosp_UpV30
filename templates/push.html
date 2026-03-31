@@ -1,51 +1,106 @@
 {% extends "base.html" %}
 
-{% block title %}Prosp'Up — Suivi des push{% endblock %}
+{% block title %}Prosp'Up — Push{% endblock %}
 
 {% block page_id %}push{% endblock %}
 
-{% block header_title %}Prosp'Up — Suivi des push{% endblock %}
+{% block header_title %}Prosp'Up — Push{% endblock %}
 
-{% block header_subtitle %}Historique des emails / messages envoyés depuis la fiche prospect{% endblock %}
+{% block header_subtitle %}Historique des emails / messages envoyés et gestion des catégories{% endblock %}
 
 {% block content %}
-<div class="content-header">
-    <div class="content-title">📤 Historique</div>
-    <p style="color: var(--color-text-secondary);">Filtrez et retrouvez rapidement à qui, quand, et quel contenu a été envoyé.</p>
+<div style="display:flex; gap:8px; margin-bottom: 20px; border-bottom: 1px solid var(--color-border); padding-bottom: 0;">
+    <button id="tabBtnHistorique" onclick="switchPushTab('historique')" style="padding: 8px 18px; border:none; background:none; cursor:pointer; font-size:14px; font-weight:700; color:var(--color-primary); border-bottom: 2px solid var(--color-primary); margin-bottom:-1px;">📤 Historique</button>
+    <button id="tabBtnCategories" onclick="switchPushTab('categories')" style="padding: 8px 18px; border:none; background:none; cursor:pointer; font-size:14px; font-weight:600; color:var(--color-text-secondary); border-bottom: 2px solid transparent; margin-bottom:-1px;">📋 Catégories</button>
 </div>
 
-<div class="controls">
-    <input id="pushSearch" type="text" placeholder="🔍 Rechercher (prospect, entreprise, email, sujet)..." aria-label="Rechercher dans les push">
-    <select id="pushChannelFilter">
-        <option value="">Tous les canaux</option>
-        <option value="email">✉️ Email</option>
-        <option value="linkedin">🔗 LinkedIn</option>
-        <option value="other">📨 Autre</option>
-    </select>
-    <button class="btn btn-secondary" onclick="reloadPushLogs()">🔄 Rafraîchir</button>
+<!-- Onglet Historique -->
+<div id="tab-historique">
+    <div class="content-header">
+        <div class="content-title">📤 Historique</div>
+        <p style="color: var(--color-text-secondary);">Filtrez et retrouvez rapidement à qui, quand, et quel contenu a été envoyé.</p>
+    </div>
+
+    <div class="controls">
+        <input id="pushSearch" type="text" placeholder="🔍 Rechercher (prospect, entreprise, email, sujet)..." aria-label="Rechercher dans les push">
+        <select id="pushChannelFilter">
+            <option value="">Tous les canaux</option>
+            <option value="email">✉️ Email</option>
+            <option value="linkedin">🔗 LinkedIn</option>
+            <option value="other">📨 Autre</option>
+        </select>
+        <button class="btn btn-secondary" onclick="reloadPushLogs()">🔄 Rafraîchir</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Prospect</th>
+                    <th>Entreprise</th>
+                    <th>Email</th>
+                    <th>Sujet</th>
+                    <th>Canal</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="pushTableBody">
+              <tr><td colspan="7" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="pushEmptyState" style="display:none; text-align:center; padding: 30px; color: var(--color-text-secondary);">
+        Aucun push enregistré pour le moment.
+    </div>
 </div>
 
-<div class="table-wrapper">
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Prospect</th>
-                <th>Entreprise</th>
-                <th>Email</th>
-                <th>Sujet</th>
-                <th>Canal</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="pushTableBody">
-          <tr><td colspan="7" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
-        </tbody>
-    </table>
-</div>
+<!-- Onglet Catégories -->
+<div id="tab-categories" style="display:none;">
+    <div class="content-header">
+        <div class="content-title">Catégories de push</div>
+        <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end;">
+            <button class="btn btn-primary" id="btnScanPushs">🔄 Scanner pushs/</button>
+            <button class="btn btn-secondary" id="btnNewCat">➕ Nouvelle catégorie</button>
+        </div>
+    </div>
 
-<div id="pushEmptyState" style="display:none; text-align:center; padding: 30px; color: var(--color-text-secondary);">
-    Aucun push enregistré pour le moment.
+    <div class="card" style="margin-bottom: 16px;">
+        <div style="font-weight:700; margin-bottom: 6px;">Comment ça marche</div>
+        <div class="muted" style="line-height: 1.6; font-size: 12px;">
+            Chaque sous-dossier dans <code>pushs/</code> (ex: <code>Logiciels/</code>, <code>Embarqué/</code>) crée automatiquement une catégorie.<br>
+            Depuis la fiche prospect, sélectionnez une catégorie pour voir les <strong>candidats les plus compatibles</strong> (matching sur skills, rôle, tech).<br>
+            Ajoutez des <strong>mots-clés</strong> à chaque catégorie pour affiner le matching.
+        </div>
+    </div>
+
+    <div id="catEditor" class="card" style="display:none; margin-bottom: 18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-weight:800;" id="catEditorTitle">Nouvelle catégorie</div>
+        </div>
+        <input type="hidden" id="catId">
+        <div class="form-grid" style="margin-top: 12px;">
+            <div style="grid-column: 1 / -1;">
+                <label style="font-weight:600;">Nom</label>
+                <input id="catName" type="text" placeholder="Ex: Logiciels, Embarqué, Mécatronique..." style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:12px; margin-top:6px; background:var(--color-surface); color:var(--color-text);">
+            </div>
+            <div style="grid-column: 1 / -1;">
+                <label style="font-weight:600;">Mots-clés de matching <span class="muted">(séparés par virgule)</span></label>
+                <input id="catKeywords" type="text" placeholder="Ex: c++, logiciel, software, firmware..." style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:12px; margin-top:6px; background:var(--color-surface); color:var(--color-text);">
+            </div>
+        </div>
+        <div class="btn-group" style="margin-top: 12px;">
+            <button class="btn btn-primary" id="btnSaveCat">💾 Enregistrer</button>
+            <button class="btn btn-secondary" id="btnCancelCat">Annuler</button>
+        </div>
+    </div>
+
+    <div id="catList" class="grid-cards"></div>
+
+    <div id="catEmpty" style="display:none; text-align:center; padding: 30px; color: var(--color-text-secondary);">
+        Aucune catégorie. Cliquez <strong>Scanner pushs/</strong> pour détecter les dossiers existants ou ajoutez-en manuellement.
+    </div>
 </div>
 {% endblock %}
 
@@ -65,5 +120,5 @@
 {% endblock %}
 
 {% block page_scripts %}
-<script defer src="/static/js/page-push.js?v=2101"></script>
+<script defer src="/static/js/page-push.js?v=2200"></script>
 {% endblock %}

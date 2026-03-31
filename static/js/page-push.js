@@ -63,7 +63,7 @@ function renderPushTable() {
     if (empty) empty.style.display = 'none';
 
     __pushFiltered.forEach(l => {
-        const company = typeof formatPushCompany === 'function' 
+        const company = typeof formatPushCompany === 'function'
             ? formatPushCompany(l.company_groupe, l.company_site)
             : ((l.company_groupe || l.company_site) ? `${safeStr(l.company_groupe)} (${safeStr(l.company_site || '-')})` : '—');
         const dateFormatted = typeof formatPushDate === 'function'
@@ -202,8 +202,240 @@ function exportPushCSV() {
     setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
+// ── Onglets ────────────────────────────────────────────────────────────────
+
+function switchPushTab(tab) {
+    const tabH = document.getElementById('tab-historique');
+    const tabC = document.getElementById('tab-categories');
+    const btnH = document.getElementById('tabBtnHistorique');
+    const btnC = document.getElementById('tabBtnCategories');
+    if (!tabH || !tabC) return;
+
+    if (tab === 'historique') {
+        tabH.style.display = '';
+        tabC.style.display = 'none';
+        btnH.style.color = 'var(--color-primary)';
+        btnH.style.fontWeight = '700';
+        btnH.style.borderBottom = '2px solid var(--color-primary)';
+        btnC.style.color = 'var(--color-text-secondary)';
+        btnC.style.fontWeight = '600';
+        btnC.style.borderBottom = '2px solid transparent';
+    } else {
+        tabH.style.display = 'none';
+        tabC.style.display = '';
+        btnC.style.color = 'var(--color-primary)';
+        btnC.style.fontWeight = '700';
+        btnC.style.borderBottom = '2px solid var(--color-primary)';
+        btnH.style.color = 'var(--color-text-secondary)';
+        btnH.style.fontWeight = '600';
+        btnH.style.borderBottom = '2px solid transparent';
+        if (!__categoriesLoaded) {
+            loadCategories();
+            __categoriesLoaded = true;
+        }
+    }
+}
+
+// ── Catégories Push ────────────────────────────────────────────────────────
+
+let __categories = [];
+let __categoriesLoaded = false;
+
+function __catEl(id) { return document.getElementById(id); }
+
+async function loadCategories() {
+    try {
+        const res = await fetch('/api/push-categories');
+        if (res.ok) __categories = await res.json();
+    } catch (e) {}
+    renderCategories();
+}
+
+function renderCategories() {
+    const list = __catEl('catList');
+    const empty = __catEl('catEmpty');
+    if (!__categories.length) {
+        if (list) list.innerHTML = '';
+        if (empty) empty.style.display = 'block';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    list.innerHTML = __categories.map(catCard).join('');
+    __categories.forEach(cat => loadCatFiles(cat.id));
+}
+
+async function loadCatFiles(catId) {
+    const box = __catEl(`catFiles_${catId}`);
+    if (!box) return;
+    try {
+        const res = await fetch(`/api/push-categories/${catId}/files`);
+        if (!res.ok) { box.innerHTML = '<span class="muted">Erreur de chargement</span>'; return; }
+        const data = await res.json();
+        if (data.ok && data.files && data.files.length) {
+            box.innerHTML = data.files.map(f => `
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--color-border);">
+                    <span>📄 ${escapeHtml(f.name)} <span class="muted" style="font-size:10px;">${(f.size/1024).toFixed(0)} Ko</span></span>
+                    <button onclick="deleteCatTemplate(${catId}, '${escapeHtml(f.name)}')" style="background:none;border:none;cursor:pointer;color:var(--color-danger,#ef4444);font-size:13px;padding:2px 6px;" title="Supprimer ce template">🗑️</button>
+                </div>
+            `).join('');
+        } else {
+            box.innerHTML = '<span class="muted">Aucun template — cliquez "Ajouter" pour en importer un.</span>';
+        }
+    } catch (e) {
+        box.innerHTML = '<span class="muted">Erreur</span>';
+    }
+}
+
+async function uploadCatTemplate(catId, input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        showToast('Upload en cours…', 'info');
+        const res = await fetch(`/api/push-categories/${catId}/upload-template`, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.ok) {
+            showToast('Template ajouté !', 'success');
+            loadCatFiles(catId);
+        } else {
+            showToast('❌ ' + (data.error || 'Erreur upload'), 'error');
+        }
+    } catch (e) {
+        showToast('❌ Erreur réseau : ' + e.message, 'error');
+    } finally {
+        input.value = '';
+    }
+}
+
+async function deleteCatTemplate(catId, filename) {
+    if (!confirm(`Supprimer le template "${filename}" ?`)) return;
+    try {
+        const res = await fetch(`/api/push-categories/${catId}/delete-template`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            showToast('Template supprimé', 'success');
+            loadCatFiles(catId);
+        } else {
+            showToast('❌ ' + (data.error || 'Erreur'), 'error');
+        }
+    } catch (e) {
+        showToast('❌ Erreur réseau : ' + e.message, 'error');
+    }
+}
+
+function catCard(cat) {
+    const kw = Array.isArray(cat.keywords) ? cat.keywords : [];
+    const kwHtml = kw.length
+        ? kw.map(k => `<span class="tag-pill" style="font-size:10px;padding:2px 8px;">${escapeHtml(k)}</span>`).join(' ')
+        : '<span class="muted">Aucun mot-clé</span>';
+    const auto = cat.auto_detected ? '<span class="tag-pill" style="font-size:9px;padding:1px 6px;background:rgba(34,197,94,0.1);color:#22c55e;border-color:rgba(34,197,94,0.2);">auto</span>' : '';
+    return `
+        <div class="card" style="margin-bottom: 10px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:800; font-size:15px;">${escapeHtml(cat.name)} ${auto}</div>
+                    <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:4px;">${kwHtml}</div>
+                </div>
+                <div style="display:flex; gap:6px; flex-shrink:0;">
+                    <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="editCat(${cat.id})">✏️</button>
+                    <button class="btn btn-danger" style="padding:5px 10px;font-size:11px;" onclick="deleteCat(${cat.id})">🗑️</button>
+                </div>
+            </div>
+            <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--color-border);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-weight:600; font-size:12px; color:var(--color-text-secondary);">📧 Templates email (.msg)</span>
+                    <label style="cursor:pointer; font-size:11px; padding:4px 10px; background:var(--color-surface-2,rgba(255,255,255,0.06)); border:1px solid var(--color-border); border-radius:8px; display:flex; align-items:center; gap:4px;" title="Ajouter un template .msg pour cette catégorie">
+                        📤 Ajouter
+                        <input type="file" accept=".msg,.eml,.oft" style="display:none;" onchange="uploadCatTemplate(${cat.id}, this)">
+                    </label>
+                </div>
+                <div id="catFiles_${cat.id}" style="font-size:12px; color:var(--color-text-secondary);">
+                    <span class="muted">Chargement…</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function showCatEditor(show) {
+    const el = __catEl('catEditor');
+    if (el) el.style.display = show ? 'block' : 'none';
+}
+
+function resetCatEditor() {
+    __catEl('catEditorTitle').textContent = 'Nouvelle catégorie';
+    __catEl('catId').value = '';
+    __catEl('catName').value = '';
+    __catEl('catKeywords').value = '';
+}
+
+function editCat(id) {
+    const cat = __categories.find(c => c.id === id);
+    if (!cat) return;
+    __catEl('catEditorTitle').textContent = 'Modifier: ' + cat.name;
+    __catEl('catId').value = cat.id;
+    __catEl('catName').value = cat.name;
+    __catEl('catKeywords').value = (Array.isArray(cat.keywords) ? cat.keywords : []).join(', ');
+    showCatEditor(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function deleteCat(id) {
+    const cat = __categories.find(c => c.id === id);
+    if (!confirm('Supprimer "' + (cat?.name || id) + '" ?')) return;
+    await fetch('/api/push-categories/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+    });
+    await loadCategories();
+}
+
+async function saveCat() {
+    const name = __catEl('catName').value.trim();
+    if (!name) { showToast('Nom requis', 'warning'); return; }
+    const keywords = __catEl('catKeywords').value.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+    const payload = {
+        id: __catEl('catId').value ? Number(__catEl('catId').value) : null,
+        name,
+        keywords
+    };
+    await fetch('/api/push-categories/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    showCatEditor(false);
+    resetCatEditor();
+    await loadCategories();
+}
+
+async function scanPushs() {
+    const btn = __catEl('btnScanPushs');
+    if (btn) btn.textContent = '⏳ Scan en cours...';
+    try {
+        const res = await fetch('/api/push-categories/scan', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+            showToast('Scan terminé ! Dossiers : ' + (data.found?.join(', ') || 'aucun') + ' — Nouvelles catégories : ' + (data.created || 0), 'success', 5000);
+        } else {
+            showToast('❌ ' + (data.error || 'Erreur'), 'error');
+        }
+    } catch (e) {
+        showToast('❌ Erreur: ' + e.message, 'error');
+    }
+    if (btn) btn.textContent = '🔄 Scanner pushs/';
+    await loadCategories();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', async () => {
-    // On charge d'abord l'app (pour avoir escapeHtml, etc.) et les données prospects (pas obligatoire, mais cohérent)
     try {
         const fn = window.bootstrap || window.appBootstrap;
         if (typeof fn === 'function') await fn('push');
@@ -213,6 +445,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const f = document.getElementById('pushChannelFilter');
     q && q.addEventListener('input', applyPushFilters);
     f && f.addEventListener('change', applyPushFilters);
+
+    // Boutons catégories
+    const btnNew = document.getElementById('btnNewCat');
+    const btnScan = document.getElementById('btnScanPushs');
+    const btnCancel = document.getElementById('btnCancelCat');
+    const btnSave = document.getElementById('btnSaveCat');
+    if (btnNew) btnNew.addEventListener('click', () => { resetCatEditor(); showCatEditor(true); });
+    if (btnScan) btnScan.addEventListener('click', scanPushs);
+    if (btnCancel) btnCancel.addEventListener('click', () => { showCatEditor(false); resetCatEditor(); });
+    if (btnSave) btnSave.addEventListener('click', saveCat);
 
     try {
         await reloadPushLogs();

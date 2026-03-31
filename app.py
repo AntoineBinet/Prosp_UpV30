@@ -4055,12 +4055,6 @@ def page_candidat():
 def page_push():
     return render_template("push.html", static_hashes=_static_hashes)
 
-@app.get("/templates")
-def page_templates():
-    return render_template("templates.html", static_hashes=_static_hashes)
-
-
-
 @app.get("/stats")
 def page_stats():
     return render_template("stats.html", static_hashes=_static_hashes)
