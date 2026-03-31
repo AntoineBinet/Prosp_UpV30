@@ -239,6 +239,7 @@
     </div>
     <div class="unclass-actions">
       <button class="unclass-btn primary" id="btnScanAI" onclick="scanTagsWithAI()" style="display:none;">🤖 Scanner avec l'IA</button>
+      <button class="unclass-btn" id="btnManualClassify" onclick="buildProposalsTable([])" style="display:none;">✏️ Classifier manuellement</button>
       <button class="unclass-btn" id="btnReloadTags" onclick="loadUnclassifiedTags()">🔄 Actualiser</button>
       <span class="unclass-status" id="unclassStatus"></span>
     </div>
@@ -631,10 +632,12 @@ async function loadUnclassifiedTags() {
       badge.textContent = _unclassifiedTags.length + ' tag' + (_unclassifiedTags.length > 1 ? 's' : '');
       badge.style.display = '';
       btnScan.style.display = '';
+      document.getElementById('btnManualClassify').style.display = '';
       status.textContent = _unclassifiedTags.length + ' tag' + (_unclassifiedTags.length > 1 ? 's' : '') + ' hors référentiel';
     } else {
       badge.style.display = 'none';
       btnScan.style.display = 'none';
+      document.getElementById('btnManualClassify').style.display = 'none';
       status.textContent = '✅ Tous les tags sont référencés';
     }
   } catch(e) {
@@ -657,47 +660,63 @@ function renderUnclassifiedCloud() {
 async function scanTagsWithAI() {
   if (!_unclassifiedTags.length) return;
   var btnScan = document.getElementById('btnScanAI');
+  var btnManual = document.getElementById('btnManualClassify');
   var progressArea = document.getElementById('scanProgressArea');
   var progressMsg = document.getElementById('scanProgressMsg');
   var status = document.getElementById('unclassStatus');
   var proposalsArea = document.getElementById('aiProposalsArea');
 
   btnScan.disabled = true;
+  btnManual.disabled = true;
   progressArea.style.display = 'flex';
   proposalsArea.style.display = 'none';
-  progressMsg.textContent = 'Envoi à l\'IA (' + _unclassifiedTags.length + ' tags)…';
   status.textContent = '';
 
+  var tags = _unclassifiedTags.map(function(t) { return t.tag; });
+  var BATCH = 5;
+  var total = Math.ceil(tags.length / BATCH);
+  var allResults = [];
+  var aborted = false;
+
   try {
-    var tags = _unclassifiedTags.map(function(t) { return t.tag; });
-    var res = await fetch('/api/metiers/classify-tags-batch', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({tags: tags})
-    });
-    var data = await res.json();
+    for (var i = 0; i < tags.length; i += BATCH) {
+      var batch = tags.slice(i, i + BATCH);
+      var lotNum = Math.floor(i / BATCH) + 1;
+      progressMsg.textContent = 'Lot ' + lotNum + '/' + total + ' — ' + batch.join(', ') + '…';
 
-    progressArea.style.display = 'none';
-    btnScan.disabled = false;
+      var res = await fetch('/api/metiers/classify-tags-batch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tags: batch})
+      });
+      var data = await res.json();
 
-    if (!data.ok) {
-      if (data.error === 'ollama_unavailable') {
-        status.textContent = '⚠️ Ollama indisponible — classification manuelle uniquement';
-        showToast('Ollama indisponible. Vous pouvez classifier les tags manuellement.', 'warning');
-      } else {
-        status.textContent = '❌ Erreur : ' + data.error;
+      if (!data.ok) {
+        if (data.error === 'ollama_unavailable') {
+          status.textContent = '⚠️ Ollama indisponible — résultats partiels (' + allResults.length + ' classifiés)';
+          showToast('Ollama indisponible. Le tableau affiche les résultats partiels.', 'warning');
+        } else {
+          status.textContent = '⚠️ Erreur lot ' + lotNum + ' : ' + data.error;
+        }
+        aborted = true;
+        break;
       }
-      // Afficher le tableau sans pré-remplissage IA pour permettre la classification manuelle
-      buildProposalsTable([]);
-    } else {
-      buildProposalsTable(data.results || []);
+      (data.results || []).forEach(function(r) { allResults.push(r); });
     }
   } catch(e) {
-    progressArea.style.display = 'none';
-    btnScan.disabled = false;
-    status.textContent = '❌ Erreur réseau';
+    status.textContent = '❌ Erreur réseau : ' + e.message;
     showToast('Erreur lors du scan IA', 'error');
+    aborted = true;
   }
+
+  progressArea.style.display = 'none';
+  btnScan.disabled = false;
+  btnManual.disabled = false;
+
+  if (!aborted && !status.textContent) {
+    status.textContent = '✅ ' + allResults.length + ' tag' + (allResults.length > 1 ? 's' : '') + ' classifiés';
+  }
+  buildProposalsTable(allResults);
 }
 
 function buildProposalsTable(aiResults) {
