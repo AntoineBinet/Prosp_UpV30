@@ -127,6 +127,49 @@
   }
   .tree-node.search-hidden { display: none; }
   .spec-row.search-match { background: rgba(var(--color-primary-rgb),.08); }
+
+  /* ── Section tags non référencés ── */
+  .unclass-section { margin-top: 28px; border-radius: 14px; overflow: hidden; border: 1px solid var(--color-border); background: var(--color-surface); backdrop-filter: blur(12px); box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+  .unclass-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; cursor: pointer; user-select: none; transition: background .2s; border-bottom: 1px solid transparent; }
+  .unclass-header:hover { background: rgba(var(--color-primary-rgb),.04); }
+  .unclass-header.open { border-bottom-color: var(--color-border); }
+  .unclass-title { flex: 1; font-size: 15px; font-weight: 700; }
+  .unclass-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: rgba(var(--color-warning-rgb, 245,158,11),.15); color: var(--color-warning, #f59e0b); border: 1px solid rgba(var(--color-warning-rgb, 245,158,11),.3); }
+  .unclass-chevron { font-size: 12px; transition: transform .3s cubic-bezier(.4,0,.2,1); width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--color-surface-2); }
+  .unclass-header.open .unclass-chevron { transform: rotate(90deg); background: var(--color-primary); color: #fff; }
+  .unclass-body { display: none; padding: 16px 18px; }
+  .unclass-tags-cloud { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .unclass-tag-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; border: 1px dashed var(--color-border); background: var(--color-surface-2); font-size: 12px; }
+  .unclass-tag-count { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; background: rgba(var(--color-primary-rgb),.12); color: var(--color-primary); }
+  .unclass-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  .unclass-btn { padding: 8px 18px; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: 13px; font-weight: 600; transition: all .2s; }
+  .unclass-btn:hover { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+  .unclass-btn.primary { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+  .unclass-btn.primary:hover { opacity: .88; }
+  .unclass-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .unclass-status { font-size: 12px; color: var(--color-text-secondary); }
+  .proposals-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .proposals-table th { padding: 8px 10px; text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--color-text-secondary); border-bottom: 1px solid var(--color-border); }
+  .proposals-table td { padding: 8px 10px; vertical-align: middle; border-bottom: 1px solid rgba(128,128,128,.06); }
+  .proposals-table tr:last-child td { border-bottom: none; }
+  .proposals-table tr.ignored { opacity: .4; }
+  .proposals-table tr.confirmed td:first-child { border-left: 3px solid var(--color-success, #22c55e); }
+  .prop-select { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 12px; max-width: 200px; width: 100%; }
+  .prop-input { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 12px; width: 130px; }
+  .prop-check { width: 16px; height: 16px; cursor: pointer; accent-color: var(--color-primary); }
+  .prop-ignore-btn { padding: 3px 9px; border-radius: 6px; border: 1px solid var(--color-border); background: none; color: var(--color-text-secondary); cursor: pointer; font-size: 11px; transition: all .15s; }
+  .prop-ignore-btn:hover { background: rgba(239,68,68,.1); color: #ef4444; border-color: #ef4444; }
+  .unclass-save-area { margin-top: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .scan-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--color-text-secondary); padding: 8px 0; }
+  .scan-spinner { width: 18px; height: 18px; border: 2px solid var(--color-border); border-top-color: var(--color-primary); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 900px) {
+    .proposals-table thead { display: none; }
+    .proposals-table tr { display: block; border: 1px solid var(--color-border); border-radius: 10px; margin-bottom: 8px; padding: 8px; }
+    .proposals-table td { display: flex; align-items: center; gap: 8px; border: none; padding: 4px 0; }
+    .proposals-table td::before { content: attr(data-label); font-size: 10px; font-weight: 700; color: var(--color-text-secondary); min-width: 80px; flex-shrink: 0; }
+    .prop-select, .prop-input { max-width: 100%; width: 100%; }
+  }
 </style>
 {% endblock %}
 
@@ -181,6 +224,54 @@
   <div class="legend-item"><span class="certif-badge" style="font-size:9px;padding:1px 5px;">cert</span> Certification</div>
 </div>
 <ul class="tree-root" id="treeRoot"></ul>
+
+<!-- ═══ Section : Nouveaux tags à classifier ═══ -->
+<div class="unclass-section" id="unclassifiedSection">
+  <div class="unclass-header" id="unclassHeader" onclick="toggleUnclassifiedSection()">
+    <span style="font-size:20px;">🏷️</span>
+    <span class="unclass-title">Nouveaux tags à classifier</span>
+    <span class="unclass-badge" id="unclassBadge" style="display:none;"></span>
+    <span class="unclass-chevron" id="unclassChevron">▶</span>
+  </div>
+  <div class="unclass-body" id="unclassBody">
+    <div id="unclassTagsCloud" class="unclass-tags-cloud">
+      <span class="muted" style="font-size:12px;">Chargement…</span>
+    </div>
+    <div class="unclass-actions">
+      <button class="unclass-btn primary" id="btnScanAI" onclick="scanTagsWithAI()" style="display:none;">🤖 Scanner avec l'IA</button>
+      <button class="unclass-btn" id="btnReloadTags" onclick="loadUnclassifiedTags()">🔄 Actualiser</button>
+      <span class="unclass-status" id="unclassStatus"></span>
+    </div>
+    <div id="scanProgressArea" style="display:none;" class="scan-progress">
+      <div class="scan-spinner"></div>
+      <span id="scanProgressMsg">Classification en cours…</span>
+    </div>
+    <div id="aiProposalsArea" style="display:none;">
+      <div style="overflow-x:auto;">
+        <table class="proposals-table">
+          <thead>
+            <tr>
+              <th>Confirmer</th>
+              <th>Tag</th>
+              <th>Occurrences</th>
+              <th>Catégorie</th>
+              <th>Spécialité</th>
+              <th>Groupe tech</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="proposalsBody"></tbody>
+        </table>
+      </div>
+      <div class="unclass-save-area" id="unclassSaveArea">
+        <button class="unclass-btn primary" onclick="saveConfirmedTags()">💾 Enregistrer les tags confirmés</button>
+        <button class="unclass-btn" onclick="selectAllProposals()">✅ Tout sélectionner</button>
+        <button class="unclass-btn" onclick="deselectAllProposals()">☐ Tout désélectionner</button>
+        <span class="unclass-status" id="saveStatus"></span>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block page_scripts %}
@@ -410,6 +501,10 @@ async function loadCustomMetiers() {
     var res = await fetch('/api/custom_metiers');
     var json = await res.json();
     _customMetiers = json.items || [];
+    // Mettre à jour le Set global pour buildReferentialTagSet()
+    window._customMetiersTagSet = new Set(
+      _customMetiers.filter(function(m){ return m.type === 'tech'; }).map(function(m){ return m.value.toLowerCase(); })
+    );
     renderCustomList();
     mergeCustomIntoTree();
   } catch(e) { console.error(e); }
@@ -470,6 +565,307 @@ if (typeof loadCustomMetiers === 'function') {
 document.querySelectorAll('.nav-button').forEach(function(btn) {
   btn.classList.remove('active');
   if (btn.getAttribute('href') === '/metiers') btn.classList.add('active');
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Section "Nouveaux tags à classifier"
+// ═══════════════════════════════════════════════════════════════
+
+var _unclassifiedTags = []; // [{tag, count}] tags non référencés courants
+var _proposalRows = [];     // état des lignes du tableau de propositions
+
+function toggleUnclassifiedSection() {
+  var header = document.getElementById('unclassHeader');
+  var body = document.getElementById('unclassBody');
+  var isOpen = header.classList.contains('open');
+  if (isOpen) {
+    header.classList.remove('open');
+    body.style.display = 'none';
+  } else {
+    header.classList.add('open');
+    body.style.display = 'block';
+    if (_unclassifiedTags.length === 0) loadUnclassifiedTags();
+  }
+}
+
+async function loadUnclassifiedTags() {
+  var cloud = document.getElementById('unclassTagsCloud');
+  var status = document.getElementById('unclassStatus');
+  var badge = document.getElementById('unclassBadge');
+  var btnScan = document.getElementById('btnScanAI');
+  cloud.innerHTML = '<span class="muted" style="font-size:12px;">Chargement…</span>';
+  status.textContent = '';
+  try {
+    var res = await fetch('/api/prospects/tags-count');
+    var data = await res.json();
+    if (!data.ok) { cloud.innerHTML = '<span class="muted">Erreur lors du chargement</span>'; return; }
+    // Construire le référentiel courant (statique + custom déjà en base)
+    var refSet = (typeof buildReferentialTagSet === 'function') ? buildReferentialTagSet() : new Set();
+    // Mettre à jour _customMetiersTagSet depuis _customMetiers chargés sur cette page
+    if (typeof _customMetiers !== 'undefined' && _customMetiers.length) {
+      window._customMetiersTagSet = new Set(_customMetiers.filter(function(m){ return m.type === 'tech'; }).map(function(m){ return m.value.toLowerCase(); }));
+      if (typeof buildReferentialTagSet === 'function') refSet = buildReferentialTagSet();
+    }
+    _unclassifiedTags = data.tags.filter(function(t) { return !refSet.has(t.tag.toLowerCase()); });
+    renderUnclassifiedCloud();
+    if (_unclassifiedTags.length > 0) {
+      badge.textContent = _unclassifiedTags.length + ' tag' + (_unclassifiedTags.length > 1 ? 's' : '');
+      badge.style.display = '';
+      btnScan.style.display = '';
+      status.textContent = _unclassifiedTags.length + ' tag' + (_unclassifiedTags.length > 1 ? 's' : '') + ' hors référentiel';
+    } else {
+      badge.style.display = 'none';
+      btnScan.style.display = 'none';
+      status.textContent = '✅ Tous les tags sont référencés';
+    }
+  } catch(e) {
+    cloud.innerHTML = '<span class="muted">Erreur réseau</span>';
+  }
+}
+
+function renderUnclassifiedCloud() {
+  var cloud = document.getElementById('unclassTagsCloud');
+  if (!_unclassifiedTags.length) {
+    cloud.innerHTML = '<span class="muted" style="font-size:12px;">Aucun tag non référencé trouvé.</span>';
+    return;
+  }
+  cloud.innerHTML = _unclassifiedTags.map(function(t) {
+    return '<span class="unclass-tag-pill">' + escapeHtml(t.tag) +
+      '<span class="unclass-tag-count">' + t.count + 'x</span></span>';
+  }).join('');
+}
+
+async function scanTagsWithAI() {
+  if (!_unclassifiedTags.length) return;
+  var btnScan = document.getElementById('btnScanAI');
+  var progressArea = document.getElementById('scanProgressArea');
+  var progressMsg = document.getElementById('scanProgressMsg');
+  var status = document.getElementById('unclassStatus');
+  var proposalsArea = document.getElementById('aiProposalsArea');
+
+  btnScan.disabled = true;
+  progressArea.style.display = 'flex';
+  proposalsArea.style.display = 'none';
+  progressMsg.textContent = 'Envoi à l\'IA (' + _unclassifiedTags.length + ' tags)…';
+  status.textContent = '';
+
+  try {
+    var tags = _unclassifiedTags.map(function(t) { return t.tag; });
+    var res = await fetch('/api/metiers/classify-tags-batch', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tags: tags})
+    });
+    var data = await res.json();
+
+    progressArea.style.display = 'none';
+    btnScan.disabled = false;
+
+    if (!data.ok) {
+      if (data.error === 'ollama_unavailable') {
+        status.textContent = '⚠️ Ollama indisponible — classification manuelle uniquement';
+        showToast('Ollama indisponible. Vous pouvez classifier les tags manuellement.', 'warning');
+      } else {
+        status.textContent = '❌ Erreur : ' + data.error;
+      }
+      // Afficher le tableau sans pré-remplissage IA pour permettre la classification manuelle
+      buildProposalsTable([]);
+    } else {
+      buildProposalsTable(data.results || []);
+    }
+  } catch(e) {
+    progressArea.style.display = 'none';
+    btnScan.disabled = false;
+    status.textContent = '❌ Erreur réseau';
+    showToast('Erreur lors du scan IA', 'error');
+  }
+}
+
+function buildProposalsTable(aiResults) {
+  // Construire un index des résultats IA par tag (insensible à la casse)
+  var aiByTag = {};
+  aiResults.forEach(function(r) { if (r.tag) aiByTag[r.tag.toLowerCase()] = r; });
+
+  // Construire les catégories et spécialités depuis METIERS_DATA
+  var categories = METIERS_DATA.map(function(m) { return m.name; });
+
+  _proposalRows = _unclassifiedTags.map(function(t) {
+    var ai = aiByTag[t.tag.toLowerCase()] || {};
+    return {
+      tag: t.tag,
+      count: t.count,
+      category: ai.category || '',
+      specialty: ai.specialty || '',
+      techCategory: ai.techCategory || '',
+      confidence: ai.confidence || 0,
+      confirmed: !!ai.category,
+      ignored: false
+    };
+  });
+
+  var tbody = document.getElementById('proposalsBody');
+  tbody.innerHTML = '';
+
+  _proposalRows.forEach(function(row, idx) {
+    var specOptions = _getSpecialtiesFor(row.category);
+    var tr = document.createElement('tr');
+    tr.id = 'propRow' + idx;
+    if (row.confirmed) tr.classList.add('confirmed');
+
+    // Sélecteur catégorie
+    var catOpts = '<option value="">-- Choisir --</option>' +
+      categories.map(function(c) {
+        return '<option value="' + escapeHtml(c) + '"' + (c === row.category ? ' selected' : '') + '>' + escapeHtml(c) + '</option>';
+      }).join('');
+
+    // Sélecteur spécialité
+    var specOpts = '<option value="">-- Choisir --</option>' +
+      specOptions.map(function(s) {
+        return '<option value="' + escapeHtml(s) + '"' + (s === row.specialty ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
+      }).join('');
+
+    var confidence = row.confidence ? Math.round(row.confidence * 100) + '%' : '';
+    var confStyle = row.confidence >= 0.7 ? 'color:var(--color-success,#22c55e)' : (row.confidence >= 0.4 ? 'color:var(--color-warning,#f59e0b)' : 'color:var(--color-text-secondary)');
+
+    tr.innerHTML =
+      '<td data-label="Confirmer" style="text-align:center;">' +
+        '<input type="checkbox" class="prop-check" id="chk' + idx + '" ' + (row.confirmed ? 'checked' : '') + ' onchange="_onPropCheck(' + idx + ', this.checked)">' +
+      '</td>' +
+      '<td data-label="Tag"><strong>' + escapeHtml(row.tag) + '</strong>' +
+        (confidence ? ' <small style="' + confStyle + ';font-size:10px;">(' + confidence + ')</small>' : '') +
+      '</td>' +
+      '<td data-label="Occurrences" style="text-align:center;">' +
+        '<span class="unclass-tag-count">' + row.count + 'x</span>' +
+      '</td>' +
+      '<td data-label="Catégorie">' +
+        '<select class="prop-select" id="cat' + idx + '" onchange="_onCatChange(' + idx + ', this.value)">' + catOpts + '</select>' +
+      '</td>' +
+      '<td data-label="Spécialité">' +
+        '<select class="prop-select" id="spec' + idx + '" onchange="_onSpecChange(' + idx + ', this.value)">' + specOpts + '</select>' +
+      '</td>' +
+      '<td data-label="Groupe tech">' +
+        '<input type="text" class="prop-input" id="tg' + idx + '" value="' + escapeHtml(row.techCategory) + '" placeholder="ex: Langages" oninput="_proposalRows[' + idx + '].techCategory=this.value">' +
+      '</td>' +
+      '<td data-label="Action">' +
+        '<button class="prop-ignore-btn" id="ignBtn' + idx + '" onclick="_toggleIgnore(' + idx + ')">' +
+          (row.ignored ? '↩ Restaurer' : '✕ Ignorer') +
+        '</button>' +
+      '</td>';
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('aiProposalsArea').style.display = 'block';
+}
+
+function _getSpecialtiesFor(catName) {
+  if (!catName) return [];
+  var cat = METIERS_DATA.find(function(m) { return m.name === catName; });
+  return cat ? cat.specialties.map(function(s) { return s.name; }) : [];
+}
+
+function _onCatChange(idx, catName) {
+  _proposalRows[idx].category = catName;
+  _proposalRows[idx].specialty = '';
+  // Mettre à jour le sélecteur de spécialité
+  var specSel = document.getElementById('spec' + idx);
+  var specs = _getSpecialtiesFor(catName);
+  specSel.innerHTML = '<option value="">-- Choisir --</option>' +
+    specs.map(function(s) { return '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>'; }).join('');
+}
+
+function _onSpecChange(idx, specName) {
+  _proposalRows[idx].specialty = specName;
+}
+
+function _onPropCheck(idx, checked) {
+  _proposalRows[idx].confirmed = checked;
+  var tr = document.getElementById('propRow' + idx);
+  if (tr) { if (checked) tr.classList.add('confirmed'); else tr.classList.remove('confirmed'); }
+}
+
+function _toggleIgnore(idx) {
+  _proposalRows[idx].ignored = !_proposalRows[idx].ignored;
+  var tr = document.getElementById('propRow' + idx);
+  var btn = document.getElementById('ignBtn' + idx);
+  var chk = document.getElementById('chk' + idx);
+  if (_proposalRows[idx].ignored) {
+    tr.classList.add('ignored');
+    chk.checked = false;
+    _proposalRows[idx].confirmed = false;
+    if (btn) btn.textContent = '↩ Restaurer';
+  } else {
+    tr.classList.remove('ignored');
+    if (btn) btn.textContent = '✕ Ignorer';
+  }
+}
+
+function selectAllProposals() {
+  _proposalRows.forEach(function(row, idx) {
+    if (!row.ignored) {
+      row.confirmed = true;
+      var chk = document.getElementById('chk' + idx);
+      if (chk) chk.checked = true;
+      var tr = document.getElementById('propRow' + idx);
+      if (tr) tr.classList.add('confirmed');
+    }
+  });
+}
+
+function deselectAllProposals() {
+  _proposalRows.forEach(function(row, idx) {
+    row.confirmed = false;
+    var chk = document.getElementById('chk' + idx);
+    if (chk) chk.checked = false;
+    var tr = document.getElementById('propRow' + idx);
+    if (tr) tr.classList.remove('confirmed');
+  });
+}
+
+async function saveConfirmedTags() {
+  var toSave = _proposalRows.filter(function(r) { return r.confirmed && !r.ignored && r.category; });
+  if (!toSave.length) {
+    showToast('Aucun tag confirmé avec une catégorie définie', 'warning');
+    return;
+  }
+  var saveStatus = document.getElementById('saveStatus');
+  saveStatus.textContent = 'Enregistrement…';
+  var payload = toSave.map(function(r) {
+    return {tag: r.tag, category: r.category, specialty: r.specialty, tech_group: r.techCategory || null};
+  });
+  try {
+    var res = await fetch('/api/metiers/batch-confirm-tags', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    var data = await res.json();
+    if (data.ok) {
+      var msg = data.saved + ' tag' + (data.saved > 1 ? 's' : '') + ' ajouté' + (data.saved > 1 ? 's' : '') + ' au référentiel';
+      if (data.skipped > 0) msg += ' (' + data.skipped + ' ignoré' + (data.skipped > 1 ? 's' : '') + ', déjà présents)';
+      showToast(msg, 'success');
+      saveStatus.textContent = '✅ ' + msg;
+      // Recharger custom_metiers pour mettre à jour _customMetiersTagSet et l'affichage
+      await loadCustomMetiers();
+      // Actualiser la section
+      setTimeout(loadUnclassifiedTags, 300);
+    } else {
+      saveStatus.textContent = '❌ ' + (data.error || 'Erreur');
+      showToast('Erreur lors de l\'enregistrement', 'error');
+    }
+  } catch(e) {
+    saveStatus.textContent = '❌ Erreur réseau';
+    showToast('Erreur réseau', 'error');
+  }
+}
+
+// Ouvrir la section et charger au démarrage si custom_metiers sont chargés
+document.addEventListener('DOMContentLoaded', function() {
+  // Pré-charger en arrière-plan pour afficher le badge
+  setTimeout(function() {
+    loadUnclassifiedTags().then(function() {
+      // Si des tags non référencés existent, mettre à jour le badge même section fermée
+    }).catch(function(){});
+  }, 500);
 });
 </script>
 {% endblock %}
