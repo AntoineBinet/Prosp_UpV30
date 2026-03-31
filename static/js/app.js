@@ -7,6 +7,19 @@ window.onerror = function(msg, src, line) {
     console.error("[Prosp'Up] Error:", msg, "at", src + ":" + line);
 };
 
+// ═══ Pré-chargement du référentiel custom (custom_metiers) pour buildReferentialTagSet() ═══
+// Chargé dès le démarrage sur toutes les pages afin que les tags confirmés ne soient plus marqués *
+(function() {
+    var isLoginPage = window.location.pathname === '/login';
+    if (isLoginPage) return;
+    fetch('/api/custom_metiers').then(function(r) { return r.ok ? r.json() : null; }).then(function(d) {
+        if (!d || !d.items) return;
+        window._customMetiersTagSet = new Set(
+            d.items.filter(function(i) { return i.type === 'tech'; }).map(function(i) { return i.value.toLowerCase(); })
+        );
+    }).catch(function() {});
+})();
+
 // ═══ Assistant virtuel (disponible sur toutes les pages) ═══
 let assistantChatHistory = [];
 let assistantSessionId = localStorage.getItem('assistant_session_id') || null;

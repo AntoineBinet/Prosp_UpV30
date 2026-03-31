@@ -404,6 +404,10 @@ function buildReferentialTagSet() {
       Object.values(sp.tech).forEach(arr => arr.forEach(t => tags.add(t.toLowerCase())));
     });
   });
+  // Include custom_metiers (type='tech') pre-loaded globally by app.js
+  if (window._customMetiersTagSet) {
+    window._customMetiersTagSet.forEach(t => tags.add(t));
+  }
   return tags;
 }
 

@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.20"
+APP_VERSION = "27.21"
 import os
 import subprocess
 import traceback
@@ -11941,6 +11941,174 @@ def api_custom_metiers_delete(item_id):
         conn.execute("DELETE FROM custom_metiers WHERE id=?", (item_id,))
         conn.commit()
     return jsonify(ok=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v27.21 : Gestion des tags non référencés — classification IA batch
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/prospects/tags-count")
+@login_required
+def api_prospects_tags_count():
+    """Retourne tous les tags utilisés dans les prospects avec leur nombre d'occurrences.
+    Triés par count décroissant.
+    Retourne: { "ok": true, "tags": [{"tag": "Python", "count": 12}, ...] }
+    """
+    uid = _uid()
+    db = _get_db(uid)
+    rows = db.execute(
+        "SELECT tags FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='')",
+        (uid,)
+    ).fetchall()
+    counts: Dict[str, int] = {}
+    for row in rows:
+        for tag in _parse_tags(row["tags"]):
+            key = tag.strip()
+            if key:
+                counts[key] = counts.get(key, 0) + 1
+    sorted_tags = [{"tag": t, "count": c} for t, c in sorted(counts.items(), key=lambda x: -x[1])]
+    return jsonify(ok=True, tags=sorted_tags)
+
+
+@app.post("/api/metiers/classify-tags-batch")
+@login_required
+def api_metiers_classify_tags_batch():
+    """Classifie une liste de tags non référencés via Ollama en un seul prompt batch.
+
+    Body: { "tags": ["tag1", "tag2", ...] }
+    Retourne: { "ok": true, "results": [{"tag":"...","category":"...","specialty":"...","techCategory":"...","confidence":0.9}, ...] }
+    En cas d'erreur Ollama: { "ok": false, "error": "ollama_unavailable" }
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    payload = request.get_json(force=True, silent=True) or {}
+    tags = payload.get("tags", [])
+    if not tags or not isinstance(tags, list):
+        return jsonify(ok=False, error="Liste de tags requise"), 400
+
+    # Arbre métiers de référence pour le contexte Ollama
+    metiers_ref = """Ingénierie Logicielle:
+  Spécialités: Logiciel applicatif, Test/Validation/Qualification logicielle, Logiciels embarqués/IoT, Data Science/ML/Deep Learning, DevOps/Infrastructure/Cloud, Gestion de projet logiciel/Scrum Master, Développement Web/Fullstack
+
+Ingénierie Électronique:
+  Spécialités: Électronique analogique, Électronique numérique, Électronique de puissance, Génie électrique/Électrotechnique, Industrialisation, FPGA/ASIC/SoC
+
+Ingénierie Système:
+  Spécialités: Mécatronique/Robotique, Model Based Design (MBD), Safety/Sûreté de fonctionnement, Contrôle commande/Automatique, Simulation multiphysique/Modélisation, Mécanique, Ingénierie système, Test/Validation/Essais système
+
+Life Science:
+  Spécialités: Qualification d'équipements (Pharma & DM), Validation de systèmes automatisés (VSA), Validation de systèmes d'informations (VSI), Validation de produits (Dispositifs Médicaux)"""
+
+    tech_groups = "Langages, Frameworks, Librairies, Outils, Bases de données, Systèmes, IDE, Protocoles, Microcontrôleurs, Capteurs, Outils CAO, Serveurs, Méthodologies, Matériel, Certifications"
+
+    all_results = []
+    # Traitement par lots de 15 pour la fiabilité du parsing JSON
+    batch_size = 15
+    try:
+        for i in range(0, len(tags), batch_size):
+            batch = tags[i:i + batch_size]
+            tags_json = json.dumps(batch, ensure_ascii=False)
+            prompt = f"""Tu es un expert en classification de compétences techniques pour l'ingénierie B2B (ESN/cabinet de conseil).
+
+Arbre des métiers de référence:
+{metiers_ref}
+
+Groupes technologiques possibles: {tech_groups}
+
+Voici une liste de tags à classifier. Pour chaque tag, détermine:
+- La catégorie métier la plus appropriée (exactement l'un des 4 noms ci-dessus)
+- La spécialité la plus appropriée dans cette catégorie
+- Le groupe technologique le plus approprié
+- Ta confiance de 0.0 à 1.0
+
+Tags à classifier: {tags_json}
+
+Réponds UNIQUEMENT avec un tableau JSON valide (sans markdown, sans texte avant ou après):
+[
+  {{"tag": "NomDuTag", "category": "Catégorie exacte", "specialty": "Spécialité exacte", "techCategory": "Groupe tech", "confidence": 0.9}},
+  ...
+]
+
+Si un tag ne correspond à aucune catégorie connue, mets category null."""
+
+            response_text = _call_ai(prompt, timeout=90)
+
+            # Extraire le JSON du texte de réponse
+            json_block = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', response_text, re.DOTALL)
+            if json_block:
+                response_text = json_block.group(1)
+            else:
+                arr_match = re.search(r'\[[\s\S]*\]', response_text, re.DOTALL)
+                if arr_match:
+                    response_text = arr_match.group(0)
+
+            try:
+                batch_results = json.loads(response_text)
+                if isinstance(batch_results, list):
+                    all_results.extend(batch_results)
+                else:
+                    # Réponse invalide pour ce batch : retourner les tags non classés
+                    for t in batch:
+                        all_results.append({"tag": t, "category": None, "reason": "Réponse Ollama non parsable"})
+            except json.JSONDecodeError:
+                for t in batch:
+                    all_results.append({"tag": t, "category": None, "reason": "JSON invalide"})
+
+    except urllib.error.URLError:
+        return jsonify(ok=False, error="ollama_unavailable")
+    except Exception as e:
+        logger.warning("Erreur classify-tags-batch: %s", e)
+        return jsonify(ok=False, error=str(e))
+
+    return jsonify(ok=True, results=all_results)
+
+
+@app.post("/api/metiers/batch-confirm-tags")
+@login_required
+def api_metiers_batch_confirm_tags():
+    """Enregistre en lot les tags confirmés dans custom_metiers.
+
+    Body: [{"tag":"Kubernetes","category":"Ingénierie Logicielle","specialty":"DevOps/Infrastructure/Cloud","tech_group":"Outils"}, ...]
+    Retourne: { "ok": true, "saved": N, "skipped": M }
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    payload = request.get_json(force=True, silent=True) or []
+    if not isinstance(payload, list):
+        return jsonify(ok=False, error="Tableau JSON attendu"), 400
+
+    saved = 0
+    skipped = 0
+    now = _now()
+
+    with _conn() as conn:
+        for item in payload:
+            tag_val = str(item.get("tag", "")).strip()
+            category = str(item.get("category", "")).strip()
+            specialty = str(item.get("specialty", "")).strip()
+            tech_group = str(item.get("tech_group", "")).strip() or None
+            if not tag_val or not category:
+                skipped += 1
+                continue
+            existing = conn.execute(
+                "SELECT id FROM custom_metiers WHERE type='tech' AND category=? AND specialty=? AND value=?",
+                (category, specialty, tag_val)
+            ).fetchone()
+            if existing:
+                skipped += 1
+            else:
+                conn.execute(
+                    "INSERT INTO custom_metiers (type, category, specialty, tech_group, value, createdAt) VALUES (?,?,?,?,?,?)",
+                    ("tech", category, specialty, tech_group, tag_val, now)
+                )
+                saved += 1
+        conn.commit()
+
+    return jsonify(ok=True, saved=saved, skipped=skipped)
 
 
 # ────────────────────────────────────────────────────────────────────
