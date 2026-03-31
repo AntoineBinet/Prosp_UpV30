@@ -687,6 +687,12 @@ function buildProposalsTable(aiResults) {
   aiResults.forEach(function(r) { if (r.tag) aiByTag[r.tag.toLowerCase()] = r; });
 
   // Construire les catégories et spécialités depuis METIERS_DATA
+  if (typeof METIERS_DATA === 'undefined') {
+    document.getElementById('unclassStatus').textContent = '⚠️ Données métiers non encore chargées, réessayez.';
+    document.getElementById('scanProgressArea').style.display = 'none';
+    document.getElementById('btnScanAI').disabled = false;
+    return;
+  }
   var categories = METIERS_DATA.map(function(m) { return m.name; });
 
   _proposalRows = _unclassifiedTags.map(function(t) {
@@ -758,7 +764,7 @@ function buildProposalsTable(aiResults) {
 }
 
 function _getSpecialtiesFor(catName) {
-  if (!catName) return [];
+  if (!catName || typeof METIERS_DATA === 'undefined') return [];
   var cat = METIERS_DATA.find(function(m) { return m.name === catName; });
   return cat ? cat.specialties.map(function(s) { return s.name; }) : [];
 }
@@ -858,14 +864,7 @@ async function saveConfirmedTags() {
   }
 }
 
-// Ouvrir la section et charger au démarrage si custom_metiers sont chargés
-document.addEventListener('DOMContentLoaded', function() {
-  // Pré-charger en arrière-plan pour afficher le badge
-  setTimeout(function() {
-    loadUnclassifiedTags().then(function() {
-      // Si des tags non référencés existent, mettre à jour le badge même section fermée
-    }).catch(function(){});
-  }, 500);
-});
+// La section se charge uniquement à la demande (clic sur l'en-tête)
+// pour éviter tout accès à METIERS_DATA avant que metiers-data.js soit chargé.
 </script>
 {% endblock %}
