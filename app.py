@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.22"
+APP_VERSION = "27.23"
 import os
 import subprocess
 import traceback
@@ -2292,6 +2292,20 @@ def _migrate_user_db_schema(db_path: Path) -> None:
         except Exception:
             pass
         _migrate_candidate_tabs(conn)
+        # Migration: créer custom_metiers si absent (v27.22 — tag management)
+        try:
+            conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
+                id        INTEGER PRIMARY KEY,
+                type      TEXT NOT NULL,
+                category  TEXT NOT NULL,
+                specialty TEXT,
+                tech_group TEXT,
+                value     TEXT NOT NULL,
+                createdAt TEXT
+            )''')
+            conn.commit()
+        except Exception:
+            pass
     finally:
         conn.close()
 
@@ -12038,7 +12052,9 @@ Réponds UNIQUEMENT avec un tableau JSON valide (sans markdown, sans texte avant
 
 Si un tag ne correspond à aucune catégorie connue, mets category null."""
 
-            response_text = _call_ai(prompt, timeout=60)
+            # Forcer Ollama : ce prompt ne nécessite pas de recherche web,
+            # et l'utilisateur n'a peut-être plus de crédits Sonar
+            response_text = _call_ai_provider("ollama", prompt, _load_ai_config(), 60)
 
             # Extraire le JSON du texte de réponse
             json_block = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', response_text, re.DOTALL)
