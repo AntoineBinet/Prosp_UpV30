@@ -596,17 +596,36 @@ async function loadUnclassifiedTags() {
   cloud.innerHTML = '<span class="muted" style="font-size:12px;">Chargement…</span>';
   status.textContent = '';
   try {
-    var res = await fetch('/api/prospects/tags-count');
-    var data = await res.json();
-    if (!data.ok) { cloud.innerHTML = '<span class="muted">Erreur lors du chargement</span>'; return; }
-    // Construire le référentiel courant (statique + custom déjà en base)
+    // Utiliser /api/data (endpoint éprouvé) plutôt qu'une route dédiée
+    // Les tags y sont déjà parsés en tableaux JS
+    var allTagCounts = {};
+    var page = 1;
+    var limit = 500;
+    while (true) {
+      var res = await fetch('/api/data?lazy=1&page=' + page + '&limit=' + limit);
+      if (!res.ok) { cloud.innerHTML = '<span class="muted">Erreur lors du chargement (' + res.status + ')</span>'; return; }
+      var d = await res.json();
+      (d.prospects || []).forEach(function(p) {
+        var tags = Array.isArray(p.tags) ? p.tags : [];
+        tags.forEach(function(t) {
+          var key = (t || '').trim();
+          if (key) allTagCounts[key] = (allTagCounts[key] || 0) + 1;
+        });
+      });
+      var pg = d.pagination;
+      if (!pg || page >= pg.pages) break;
+      page++;
+    }
+    // Référentiel courant (statique + custom déjà en base)
     var refSet = (typeof buildReferentialTagSet === 'function') ? buildReferentialTagSet() : new Set();
-    // Mettre à jour _customMetiersTagSet depuis _customMetiers chargés sur cette page
     if (typeof _customMetiers !== 'undefined' && _customMetiers.length) {
       window._customMetiersTagSet = new Set(_customMetiers.filter(function(m){ return m.type === 'tech'; }).map(function(m){ return m.value.toLowerCase(); }));
       if (typeof buildReferentialTagSet === 'function') refSet = buildReferentialTagSet();
     }
-    _unclassifiedTags = data.tags.filter(function(t) { return !refSet.has(t.tag.toLowerCase()); });
+    _unclassifiedTags = Object.keys(allTagCounts)
+      .filter(function(t) { return !refSet.has(t.toLowerCase()); })
+      .map(function(t) { return {tag: t, count: allTagCounts[t]}; })
+      .sort(function(a, b) { return b.count - a.count; });
     renderUnclassifiedCloud();
     if (_unclassifiedTags.length > 0) {
       badge.textContent = _unclassifiedTags.length + ' tag' + (_unclassifiedTags.length > 1 ? 's' : '');
@@ -619,7 +638,7 @@ async function loadUnclassifiedTags() {
       status.textContent = '✅ Tous les tags sont référencés';
     }
   } catch(e) {
-    cloud.innerHTML = '<span class="muted">Erreur réseau</span>';
+    cloud.innerHTML = '<span class="muted">Erreur réseau : ' + e.message + '</span>';
   }
 }
 
