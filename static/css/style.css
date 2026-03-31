@@ -5351,6 +5351,18 @@ body[data-page="prospects"] .table-wrapper td:nth-child(3) {
   color: #fff !important;
 }
 
+/* v27.26: Optgroup dans les sélecteurs candidats push */
+.template-select optgroup {
+  font-weight: 600;
+  font-style: normal;
+  color: var(--text-primary, #e2e8f0);
+  padding: 4px 0;
+}
+.template-select optgroup option {
+  font-weight: 400;
+  padding-left: 8px;
+}
+
 /* v27.4: Textarea description IA candidat push */
 .push-desc-textarea {
   width: 100%;

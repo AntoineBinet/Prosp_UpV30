@@ -4375,6 +4375,12 @@ def api_candidates_list():
             d = dict(r)
             d["skills"] = _parse_json_str_list(d.get("skills"))
             d["company_ids"] = _parse_json_int_list(d.get("company_ids"))
+            # v27.26: flag has_dc
+            if not d.get("dossier_competence_pdf"):
+                dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(d["id"])
+                d["has_dc"] = dc_dir.is_dir() and any(dc_dir.glob("*.pdf"))
+            else:
+                d["has_dc"] = True
             out.append(d)
         from math import ceil
         return jsonify(ok=True, candidates=out, pagination={"page": page, "limit": limit, "total": total, "pages": ceil(total / limit) if limit else 1})
@@ -4389,6 +4395,12 @@ def api_candidates_list():
         d = dict(r)
         d["skills"] = _parse_json_str_list(d.get("skills"))
         d["company_ids"] = _parse_json_int_list(d.get("company_ids"))
+        # v27.26: flag has_dc pour savoir si un DC existe (DB ou dossier)
+        if not d.get("dossier_competence_pdf"):
+            dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(d["id"])
+            d["has_dc"] = dc_dir.is_dir() and any(dc_dir.glob("*.pdf"))
+        else:
+            d["has_dc"] = True
         out.append(d)
     return jsonify(out)
 

@@ -7445,12 +7445,40 @@ async function updatePushCandidates(prospectId) {
         }
     }
     allCandidates = allCandidates.filter(c => !c.is_archived);
-    const options = allCandidates.map(c => 
-        `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' - ' + escapeHtml(c.role) : ''}</option>`
-    ).join('');
-    
-    select1.innerHTML = '<option value="">— Aucun —</option>' + options;
-    select2.innerHTML = '<option value="">— Aucun —</option>' + options;
+
+    // v27.26: Séparer en groupes — Recommandés, Avec DC (hors catégorie), Autres
+    const recommendedIds = new Set(recommendedCandidates.map(c => c.id));
+    const grouped = { recommended: [], withDc: [], others: [] };
+    for (const c of allCandidates) {
+        if (recommendedIds.has(c.id)) {
+            grouped.recommended.push(c);
+        } else if (c.dossier_competence_pdf || c.has_dc) {
+            grouped.withDc.push(c);
+        } else {
+            grouped.others.push(c);
+        }
+    }
+    // Garder l'ordre des recommandés selon le score
+    grouped.recommended.sort((a, b) => {
+        const idxA = recommendedCandidates.findIndex(r => r.id === a.id);
+        const idxB = recommendedCandidates.findIndex(r => r.id === b.id);
+        return idxA - idxB;
+    });
+
+    const _optLine = c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' — ' + escapeHtml(c.role) : ''}${c.dossier_competence_pdf || c.has_dc ? ' 📄' : ''}</option>`;
+    let optionsHtml = '';
+    if (grouped.recommended.length > 0) {
+        optionsHtml += `<optgroup label="⭐ Recommandés (catégorie)">` + grouped.recommended.map(_optLine).join('') + '</optgroup>';
+    }
+    if (grouped.withDc.length > 0) {
+        optionsHtml += `<optgroup label="📄 Avec DC (hors catégorie)">` + grouped.withDc.map(_optLine).join('') + '</optgroup>';
+    }
+    if (grouped.others.length > 0) {
+        optionsHtml += `<optgroup label="👤 Autres candidats">` + grouped.others.map(_optLine).join('') + '</optgroup>';
+    }
+
+    select1.innerHTML = '<option value="">— Aucun —</option>' + optionsHtml;
+    select2.innerHTML = '<option value="">— Aucun —</option>' + optionsHtml;
     
     // Pré-remplir avec les candidats recommandés si disponibles
     if (recommendedCandidates.length > 0) {
