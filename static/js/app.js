@@ -7729,6 +7729,18 @@ function _onCandidateSelectChange(slot) {
     if (!select || !descDiv || !textarea) return;
 
     const candId = parseInt(select.value) || 0;
+
+    // Empêcher le même candidat dans les deux slots
+    const otherSlot = slot === 1 ? 2 : 1;
+    const otherSelect = document.getElementById(`detailPushCandidate${otherSlot}`);
+    if (candId && otherSelect && parseInt(otherSelect.value) === candId) {
+        showToast('Ce candidat est déjà sélectionné dans l\'autre slot', 'warning');
+        select.value = '';
+        descDiv.style.display = 'none';
+        textarea.value = '';
+        return;
+    }
+
     if (!candId) {
         descDiv.style.display = 'none';
         textarea.value = '';
@@ -7755,7 +7767,14 @@ async function _generateDescriptionAI(slot) {
     const candId = parseInt(select.value) || 0;
     if (!candId) { showToast('Sélectionnez d\'abord un candidat', 'error'); return; }
 
-    const btn = textarea.parentElement?.querySelector('.btn');
+    // Vérifier que le candidat a un DC
+    const cand = (data.candidates || []).find(c => c.id === candId);
+    if (cand && !cand.has_dc && !cand.dossier_competence_pdf) {
+        showToast('Ce candidat n\'a pas de dossier de compétences uploadé', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById(`pushDescAI_${slot}`)?.querySelector('.btn');
     const origLabel = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="pt-spinner"></span> Analyse DC...'; }
     textarea.value = 'Analyse du dossier de compétences en cours...';
@@ -7765,11 +7784,17 @@ async function _generateDescriptionAI(slot) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
+        if (!res.ok) {
+            let errMsg = `Erreur HTTP ${res.status}`;
+            try { const e = await res.json(); errMsg = e.error || errMsg; } catch(_) {}
+            textarea.value = '';
+            showToast(errMsg, 'error');
+            return;
+        }
         const json = await res.json();
         if (json.ok && json.description) {
             textarea.value = json.description;
             // Mettre à jour le cache local
-            const cand = (data.candidates || []).find(c => c.id === candId);
             if (cand) cand.description_push = json.description;
             showToast('Description IA générée !', 'success');
         } else {
