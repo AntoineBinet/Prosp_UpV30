@@ -7134,59 +7134,69 @@ async function onPushCategoryChange(prospectId, value) {
         __categorySaveTimer = null;
     }, 700);
 
-    // Load template files (v25.9: nouveau système)
-    const templateBox = document.getElementById('detailPushTemplate');
-    const templateList = document.getElementById('detailPushTemplateList');
+    // Load template files
+    const templateSection = document.getElementById(`ptTemplateSection_${prospectId}`);
+    const templateBox = document.getElementById(`ptTemplateBox_${prospectId}`);
     if (!v) {
-        if (templateBox) templateBox.style.display = 'none';
+        if (templateSection) templateSection.style.display = 'none';
         window._currentPushTemplate = null;
         setTimeout(() => updatePushCandidates(prospectId), 100);
         return;
     }
-    
-    if (v && templateBox) {
-        templateBox.style.display = '';
-        if (templateList) templateList.innerHTML = '<span class="muted">Chargement…</span>';
-        
+
+    if (v && templateSection) {
+        templateSection.style.display = '';
+        if (templateBox) templateBox.innerHTML = '<span class="muted">Chargement…</span>';
+
         // Créer un nouvel AbortController pour cette requête
         __categoryFetchController = new AbortController();
         const signal = __categoryFetchController.signal;
-        
+
         try {
             const res = await fetch(`/api/push-categories/${v}/files`, { signal });
             // Vérifier que la requête n'a pas été annulée
             if (signal.aborted) {
                 return; // Ignorer le résultat si annulé
             }
-            
+
             if (!res.ok) {
                 console.error(`Erreur chargement fichiers catégorie ${v}: HTTP ${res.status}`);
-                if (templateList) templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+                if (templateBox) templateBox.innerHTML = '<span class="muted">Erreur de chargement</span>';
                 window._currentPushTemplate = null;
                 return;
             }
             const fdata = await res.json();
-            
+
             // Vérifier à nouveau que la requête n'a pas été annulée pendant le parsing
             if (signal.aborted) {
                 return;
             }
-            
+
             if (fdata.ok && fdata.files && fdata.files.length) {
-                // Prendre le premier template disponible
-                const firstTemplate = fdata.files[0];
-                templateList.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <span>📧 ${escapeHtml(firstTemplate.name)}</span>
-                        <span class="muted" style="font-size:11px;">${(firstTemplate.size/1024).toFixed(0)} Ko</span>
-                    </div>
-                `;
-                // Stocker le nom du template pour generatePush
-                window._currentPushTemplate = firstTemplate.name;
+                if (fdata.files.length === 1) {
+                    // Un seul template : affichage simple
+                    const t = fdata.files[0];
+                    templateBox.innerHTML = `
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span>📧 ${escapeHtml(t.name)}</span>
+                            <span class="muted" style="font-size:11px;">${(t.size/1024).toFixed(0)} Ko</span>
+                        </div>`;
+                    window._currentPushTemplate = t.name;
+                } else {
+                    // Plusieurs templates : dropdown de sélection
+                    const options = fdata.files.map(t =>
+                        `<option value="${escapeHtml(t.name)}">📧 ${escapeHtml(t.name)} (${(t.size/1024).toFixed(0)} Ko)</option>`
+                    ).join('');
+                    templateBox.innerHTML = `<select class="template-select" style="width:100%;"
+                        onchange="window._currentPushTemplate=this.value;updatePushGenerateButton(${prospectId})">
+                        ${options}
+                    </select>`;
+                    window._currentPushTemplate = fdata.files[0].name;
+                }
                 // Mettre à jour le bouton
                 updatePushGenerateButton(prospectId);
             } else {
-                templateList.innerHTML = '<span class="muted">Aucun template disponible. Utilisez "Gérer catégorie" pour en ajouter un.</span>';
+                templateBox.innerHTML = '<span class="muted">Aucun template disponible. Utilisez ⚙️ Gérer pour en ajouter un.</span>';
                 window._currentPushTemplate = null;
             }
         } catch (e) {
@@ -7195,8 +7205,8 @@ async function onPushCategoryChange(prospectId, value) {
                 return; // Requête annulée, ignorer
             }
             console.error(`Erreur chargement fichiers catégorie ${v}:`, e);
-            if (templateList && !signal.aborted) {
-                templateList.innerHTML = '<span class="muted">Erreur de chargement</span>';
+            if (templateBox && !signal.aborted) {
+                templateBox.innerHTML = '<span class="muted">Erreur de chargement</span>';
             }
             window._currentPushTemplate = null;
         } finally {
@@ -7476,7 +7486,7 @@ function _buildPushTabHtml(prospectId, prospect) {
         <div id="sonarCatSuggestion_${prospectId}" style="margin-top:8px;display:none;"></div>
     </div>
 
-    <div class="detail-section-card" style="margin-bottom:14px;" id="ptTemplateSection_${prospectId}" style="display:none;">
+    <div class="detail-section-card" id="ptTemplateSection_${prospectId}" style="margin-bottom:14px;${!prospect.push_category_id ? 'display:none;' : ''}">
         <div class="detail-section-title">📧 Template email (.msg)</div>
         <div id="ptTemplateBox_${prospectId}">
             <div class="muted">Sélectionnez une catégorie pour voir les templates disponibles.</div>
@@ -7484,13 +7494,7 @@ function _buildPushTabHtml(prospectId, prospect) {
     </div>
 
     <div class="detail-section-card" style="margin-bottom:14px;" id="ptCandidatesSection_${prospectId}">
-        <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-            <span>👤 Dossiers de compétences</span>
-            <button class="btn btn-secondary btn-sm" onclick="ollamaPreselectCandidates(${prospectId})"
-                    title="Ollama présélectionne les 2 meilleurs candidats selon le profil prospect">
-                🤖 IA
-            </button>
-        </div>
+        <div class="detail-section-title">👤 Dossiers de compétences</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
             <div style="flex:1;min-width:140px;">
                 <select id="detailPushCandidate1" class="template-select" style="width:100%;" onchange="_updateEmailBtnState(${prospectId})">
