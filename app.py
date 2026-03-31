@@ -11951,6 +11951,9 @@ def api_rapport_hebdo():
 @app.get("/api/custom_metiers")
 def api_custom_metiers_list():
     with _conn() as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
+            id INTEGER PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
+            specialty TEXT, tech_group TEXT, value TEXT NOT NULL, createdAt TEXT)''')
         rows = conn.execute("SELECT * FROM custom_metiers ORDER BY category, specialty, tech_group, value").fetchall()
     return jsonify(ok=True, items=[dict(r) for r in rows])
 
@@ -11967,6 +11970,9 @@ def api_custom_metiers_add():
         return jsonify(ok=False, error="value required"), 400
     now = datetime.datetime.now().isoformat(timespec="seconds")
     with _conn() as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
+            id INTEGER PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
+            specialty TEXT, tech_group TEXT, value TEXT NOT NULL, createdAt TEXT)''')
         # Check duplicate
         existing = conn.execute(
             "SELECT id FROM custom_metiers WHERE type=? AND category=? AND value=?",
@@ -11985,6 +11991,9 @@ def api_custom_metiers_add():
 @app.delete("/api/custom_metiers/<int:item_id>")
 def api_custom_metiers_delete(item_id):
     with _conn() as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
+            id INTEGER PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
+            specialty TEXT, tech_group TEXT, value TEXT NOT NULL, createdAt TEXT)''')
         conn.execute("DELETE FROM custom_metiers WHERE id=?", (item_id,))
         conn.commit()
     return jsonify(ok=True)
@@ -12138,28 +12147,36 @@ def api_metiers_batch_confirm_tags():
     skipped = 0
     now = _now()
 
-    with _conn() as conn:
-        for item in payload:
-            tag_val = str(item.get("tag", "")).strip()
-            category = str(item.get("category", "")).strip()
-            specialty = str(item.get("specialty", "")).strip()
-            tech_group = str(item.get("tech_group", "")).strip() or None
-            if not tag_val or not category:
-                skipped += 1
-                continue
-            existing = conn.execute(
-                "SELECT id FROM custom_metiers WHERE type='tech' AND category=? AND specialty=? AND value=?",
-                (category, specialty, tag_val)
-            ).fetchone()
-            if existing:
-                skipped += 1
-            else:
-                conn.execute(
-                    "INSERT INTO custom_metiers (type, category, specialty, tech_group, value, createdAt) VALUES (?,?,?,?,?,?)",
-                    ("tech", category, specialty, tech_group, tag_val, now)
-                )
-                saved += 1
-        conn.commit()
+    try:
+        with _conn() as conn:
+            # Auto-créer la table si absente (per-user DBs créées avant v27.22)
+            conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
+                id INTEGER PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
+                specialty TEXT, tech_group TEXT, value TEXT NOT NULL, createdAt TEXT)''')
+            for item in payload:
+                tag_val = str(item.get("tag", "")).strip()
+                category = str(item.get("category", "")).strip()
+                specialty = str(item.get("specialty", "")).strip()
+                tech_group = str(item.get("tech_group", "")).strip() or None
+                if not tag_val or not category:
+                    skipped += 1
+                    continue
+                existing = conn.execute(
+                    "SELECT id FROM custom_metiers WHERE type='tech' AND category=? AND specialty=? AND value=?",
+                    (category, specialty, tag_val)
+                ).fetchone()
+                if existing:
+                    skipped += 1
+                else:
+                    conn.execute(
+                        "INSERT INTO custom_metiers (type, category, specialty, tech_group, value, createdAt) VALUES (?,?,?,?,?,?)",
+                        ("tech", category, specialty, tech_group, tag_val, now)
+                    )
+                    saved += 1
+            conn.commit()
+    except Exception as exc:
+        logger.exception("Erreur batch-confirm-tags")
+        return jsonify(ok=False, error=str(exc)), 500
 
     return jsonify(ok=True, saved=saved, skipped=skipped)
 
