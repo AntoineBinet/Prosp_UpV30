@@ -13119,6 +13119,7 @@ body.stack-mode-active .stack-view { display: flex !important; }
     flex-direction: column;
     align-items: flex-end;
     gap: 12px;
+    pointer-events: none; /* FIX: le conteneur ne bloque pas les clics sur les éléments en dessous */
   }
 
   /* Backdrop — masqué par défaut, visible via .is-open */
@@ -13157,6 +13158,7 @@ body.stack-mode-active .stack-view { display: flex !important; }
     transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
                 box-shadow 0.3s ease;
     line-height: 1;
+    pointer-events: auto; /* FIX: re-activer les clics sur le bouton malgré pointer-events: none sur le parent */
   }
   #fab-speed-dial .fab-main:hover {
     box-shadow: 0 6px 28px rgba(255, 107, 53, 0.65);
