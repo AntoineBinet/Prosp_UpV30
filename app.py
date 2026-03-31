@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.21"
+APP_VERSION = "27.22"
 import os
 import subprocess
 import traceback
@@ -12009,8 +12009,8 @@ Life Science:
     tech_groups = "Langages, Frameworks, Librairies, Outils, Bases de données, Systèmes, IDE, Protocoles, Microcontrôleurs, Capteurs, Outils CAO, Serveurs, Méthodologies, Matériel, Certifications"
 
     all_results = []
-    # Traitement par lots de 15 pour la fiabilité du parsing JSON
-    batch_size = 15
+    # Lots de 5 : le frontend gère la boucle, chaque appel reste court (~15-30s)
+    batch_size = 5
     try:
         for i in range(0, len(tags), batch_size):
             batch = tags[i:i + batch_size]
@@ -12038,7 +12038,7 @@ Réponds UNIQUEMENT avec un tableau JSON valide (sans markdown, sans texte avant
 
 Si un tag ne correspond à aucune catégorie connue, mets category null."""
 
-            response_text = _call_ai(prompt, timeout=90)
+            response_text = _call_ai(prompt, timeout=60)
 
             # Extraire le JSON du texte de réponse
             json_block = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', response_text, re.DOTALL)
