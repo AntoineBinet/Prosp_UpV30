@@ -202,6 +202,8 @@ def _call_ai_web(prompt: str, timeout: int = 120) -> str:
 
 # ═══════════════════════════════════════════════════════════════════
 # Phase 1: Système d'embeddings pour matching sémantique
+# Cache mémoire process-level pour éviter les requêtes DB répétées
+_embedding_mem_cache: dict = {}
 # ═══════════════════════════════════════════════════════════════════
 
 def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
@@ -225,9 +227,13 @@ def _get_embedding_for_text(text: str, entity_type: str, entity_id: int = None, 
         return None
     
     text_key = text.strip().lower()
+    # Vérifier le cache mémoire d'abord (évite les requêtes DB répétées)
+    if text_key in _embedding_mem_cache:
+        return _embedding_mem_cache[text_key]
+
     config = config or _load_ai_config()
-    
-    # Vérifier le cache
+
+    # Vérifier le cache DB
     with _conn() as conn:
         cache_row = conn.execute(
             "SELECT embedding FROM embeddings_cache WHERE entity_type=? AND text_key=? AND (entity_id=? OR entity_id IS NULL) LIMIT 1;",
@@ -258,6 +264,9 @@ def _get_text_embedding_simple(text: str) -> List[float] | None:
     """Version simplifiée : génère un embedding basique basé sur les caractères (fallback rapide)."""
     if not text:
         return None
+    key = text.strip().lower()
+    if key in _embedding_mem_cache:
+        return _embedding_mem_cache[key]
     
     # Embedding basique basé sur la fréquence des caractères et mots-clés
     # 128 dimensions : 26 lettres (maj/min), 10 chiffres, 92 autres caractères
@@ -283,7 +292,8 @@ def _get_text_embedding_simple(text: str) -> List[float] | None:
     max_val = max(abs(x) for x in embedding) if embedding else 1.0
     if max_val > 0:
         embedding = [x / max_val for x in embedding]
-    
+
+    _embedding_mem_cache[key] = embedding
     return embedding
 
 def _compute_semantic_similarity(text1: str, text2: str, entity_type: str = "tag") -> float:
