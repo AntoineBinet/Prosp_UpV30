@@ -6190,6 +6190,114 @@ def api_candidate_generate_description(cand_id):
 # OUTLOOK_AVAILABLE détecté au démarrage de l'app
 # ═══════════════════════════════════════════════════════════════════
 
+def _build_candidate_descriptions(candidates_data: list) -> list:
+    """Construit la liste des descriptions HTML des candidats (IA ou format statique)."""
+    lines = []
+    for cand in candidates_data:
+        if cand.get("description_ai"):
+            lines.append(cand["description_ai"])
+        else:
+            prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
+            titre  = cand.get("titre") or cand.get("role", "")
+            annees = cand.get("annees_experience") or cand.get("years_experience") or ""
+            domaine = cand.get("domaine_principal") or cand.get("sector", "")
+            line = f"<b>{prenom}</b>, {titre}"
+            if annees:
+                line += f" avec {annees} ans d\u2019exp\u00e9rience"
+            if domaine:
+                line += f" en {domaine}"
+            line += " \u2014 disponible imm\u00e9diatement."
+            lines.append(line)
+    return lines
+
+
+def _apply_salutation(html_body: str, civilite: str, nom: str) -> str:
+    """Remplace les placeholders de salutation dans le HTML du template."""
+    import re
+    new_salutation = f"Bonjour {civilite} {nom},"
+    # Pattern 1: "Bonjour [titre][Nom]," (avec ou sans virgule finale dans le template)
+    html_body = re.sub(
+        r'Bonjour\s*\[titre\]\s*\[Nom\]\s*,?',
+        new_salutation, html_body, count=1, flags=re.IGNORECASE
+    )
+    # Pattern 2: "Bonjour M. [Nom prospect]," ou variantes
+    html_body = re.sub(
+        r'Bonjour\s+(?:M\.|Mme\.|Dr\.?|Mme|M)?\s*\[?[Nn]om\s*(?:prospect)?\]?\s*,?',
+        new_salutation, html_body, count=1, flags=re.IGNORECASE
+    )
+    # Pattern 3: "Bonjour M. [...]," générique
+    html_body = re.sub(
+        r'Bonjour\s+M\.\s+\[.*?\]\s*,?',
+        new_salutation, html_body, count=1, flags=re.IGNORECASE
+    )
+    return html_body
+
+
+def _apply_candidates(html_body: str, cand_lines: list) -> str:
+    """
+    Remplace le bloc candidats dans le HTML du template.
+    Stratégie 1 : placeholders [Prénom candidat N]
+    Stratégie 2 : remplacer le contenu entre l'ancre "consultants disponibles" et "Si ces profils"
+    Stratégie 3 : insérer avant "Cordialement" en fallback
+    """
+    import re
+    if not cand_lines:
+        return html_body
+
+    # HTML des nouvelles descriptions
+    new_block_html = "\n".join(
+        f'<p style="margin:4px 0;">- {line}</p>' for line in cand_lines
+    )
+
+    # Stratégie 1 : placeholders explicites [Prénom candidat N]
+    placeholder_pat = re.compile(
+        r'(<li[^>]*>|<p[^>]*>|\*\s*|•\s*|-\s*)\[Pr[ée]nom\s+candidat\s*\d*\][^<\n]*(<\/li>|<\/p>|\n|<br\s*/?>|$)',
+        re.IGNORECASE
+    )
+    if placeholder_pat.search(html_body):
+        for line in cand_lines:
+            html_body = placeholder_pat.sub(
+                lambda m, cl=line: m.group(1) + cl + m.group(2),
+                html_body, count=1
+            )
+        return html_body
+
+    # Stratégie 2 : remplacer le bloc entre "consultants disponibles :" et "Si ces profils"
+    # Trouve l'ancre de début (fin de la phrase d'introduction)
+    anchor_start_pat = re.compile(
+        r'(?:consultants\s+disponibles\s*:?\s*|dossiers\s+de\s+comp[eé]tences\s+de\s+consultants[^<\n]*:?\s*)',
+        re.IGNORECASE
+    )
+    anchor_end_pat = re.compile(r'Si\s+ces\s+profils', re.IGNORECASE)
+    m_start = anchor_start_pat.search(html_body)
+    m_end   = anchor_end_pat.search(html_body)
+
+    if m_start and m_end and m_start.end() < m_end.start():
+        # Le "début" est après la balise fermante qui suit l'ancre de début
+        # On cherche la prochaine fermeture de balise (</p>, </span>, <br>, etc.)
+        after_anchor = html_body[m_start.end():]
+        tag_close = re.search(r'(?:</(?:p|span|div|td)[^>]*>|<br\s*/?>)\s*', after_anchor, re.IGNORECASE)
+        if tag_close:
+            insert_from = m_start.end() + tag_close.end()
+        else:
+            insert_from = m_start.end()
+        before = html_body[:insert_from]
+        after  = html_body[m_end.start():]
+        html_body = before + "\n" + new_block_html + "\n" + after
+        return html_body
+
+    # Stratégie 3 : insérer avant la signature
+    for sig in (r'Si\s+ces\s+profils', r'Cordialement', r'Bien\s+cordialement', r'Je\s+vous\s+remercie'):
+        m = re.search(sig, html_body, re.IGNORECASE)
+        if m:
+            html_body = html_body[:m.start()] + new_block_html + "\n" + html_body[m.start():]
+            return html_body
+
+    # Stratégie 4 : ajouter à la fin
+    html_body += "\n" + new_block_html
+    return html_body
+
+
 def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidates_data: list) -> bytes:
     """
     Méthode principale (si Outlook installé) :
@@ -6217,63 +6325,11 @@ def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidate
         logger.warning("extract-msg indisponible (%s), utilisation du fallback .eml", e)
         return _personalize_eml(template_path, prospect_data, candidates_data)
 
-    # Substitution de la salutation
-    import re
-    salutation_pattern = re.compile(
-        r'Bonjour\s+(M\.|Mme\.|Dr\.?|Mme|M)?\s*\[?[Nn]om\s*prospect\]?',
-        re.IGNORECASE
-    )
-    new_salutation = f"Bonjour {civilite} {nom},"
-    if salutation_pattern.search(html_body):
-        html_body = salutation_pattern.sub(new_salutation, html_body, count=1)
-    else:
-        # Fallback: chercher pattern générique
-        html_body = re.sub(
-            r'Bonjour\s+M\.\s+\[.*?\]',
-            new_salutation,
-            html_body, count=1, flags=re.IGNORECASE
-        )
-
-    # Substitution du bloc candidats
+    # Substitutions partagées via helpers
+    html_body = _apply_salutation(html_body, civilite, nom)
     if candidates_data:
-        cand_lines = []
-        for cand in candidates_data:
-            # v27.4: Utiliser la description IA si disponible
-            if cand.get("description_ai"):
-                line = cand["description_ai"]
-            else:
-                # Format statique (fallback)
-                prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
-                titre  = cand.get("titre") or cand.get("role", "")
-                annees = cand.get("annees_experience") or cand.get("years_experience") or ""
-                domaine = cand.get("domaine_principal") or cand.get("sector", "")
-                line = f"- {prenom}, {titre}"
-                if annees:
-                    line += f" avec {annees} ans d'expérience"
-                if domaine:
-                    line += f" en {domaine}"
-                line += "."
-            cand_lines.append(line)
-        # Chercher et remplacer les lignes candidats placeholder
-        cand_block_pattern = re.compile(
-            r'(<li>|•\s*|\*\s*|-\s*)\[Prénom candidat \d+\][^<\n]*(<\/li>|\n|$)',
-            re.IGNORECASE
-        )
-        if cand_block_pattern.search(html_body):
-            # Remplacer chaque ligne placeholder
-            for i, cand_line in enumerate(cand_lines):
-                html_body = cand_block_pattern.sub(
-                    lambda m, cl=cand_line: m.group(1) + cl + m.group(2),
-                    html_body, count=1
-                )
-        else:
-            # Fallback: insérer avant la signature si pattern non trouvé
-            sig_pattern = re.compile(r'(Cordialement|Bien cordialement|Antoine Binet)', re.IGNORECASE)
-            if sig_pattern.search(html_body):
-                cand_block_html = "<br>".join(f"<p>• {l}</p>" for l in cand_lines)
-                html_body = sig_pattern.sub(
-                    f"{cand_block_html}<br>\\1", html_body, count=1
-                )
+        cand_lines = _build_candidate_descriptions(candidates_data)
+        html_body = _apply_candidates(html_body, cand_lines)
 
     # Créer le .msg via win32com
     outlook = win32com.client.Dispatch("Outlook.Application")
@@ -6348,74 +6404,10 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
     if not html_body.strip():
         raise ValueError("Le template .msg ne contient pas de corps HTML exploitable")
 
-    # Substitution salutation — patterns multiples pour couvrir les variantes
-    new_salutation = f"Bonjour {civilite} {nom},"
-    # Pattern 1: "Bonjour [titre][Nom],"
-    html_body = re.sub(
-        r'Bonjour\s*\[titre\]\s*\[Nom\]',
-        new_salutation, html_body, count=1, flags=re.IGNORECASE
-    )
-    # Pattern 2: "Bonjour M. [Nom prospect]"
-    html_body = re.sub(
-        r'Bonjour\s+(M\.|Mme\.|Dr\.?|Mme|M)?\s*\[?[Nn]om\s*(prospect)?\]?',
-        new_salutation, html_body, count=1, flags=re.IGNORECASE
-    )
-    # Pattern 3: "Bonjour M. [...]"
-    html_body = re.sub(
-        r'Bonjour\s+M\.\s+\[.*?\]',
-        new_salutation, html_body, count=1, flags=re.IGNORECASE
-    )
-
-    # Substitution bloc candidats
+    html_body = _apply_salutation(html_body, civilite, nom)
     if candidates_data:
-        cand_html_lines = []
-        for cand in candidates_data:
-            if cand.get("description_ai"):
-                line_html = cand["description_ai"]
-            else:
-                prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
-                titre  = cand.get("titre") or cand.get("role", "")
-                annees = cand.get("annees_experience") or cand.get("years_experience") or ""
-                domaine = cand.get("domaine_principal") or cand.get("sector", "")
-                line_html = f"<b>{prenom}</b>, {titre}"
-                if annees:
-                    line_html += f" avec {annees} ans d'exp\u00e9rience"
-                if domaine:
-                    line_html += f" en {domaine}"
-                line_html += " \u2014 disponible imm\u00e9diatement."
-            cand_html_lines.append(line_html)
-
-        # Stratégie 1: Remplacer les placeholders [Prénom candidat N]
-        cand_placeholder_pattern = re.compile(
-            r'(<li[^>]*>|<p[^>]*>|•\s*|\*\s*|-\s*)\[Pr[ée]nom\s+candidat\s*\d*\][^<\n]*(<\/li>|<\/p>|\n|<br\s*/?>|$)',
-            re.IGNORECASE
-        )
-        if cand_placeholder_pattern.search(html_body):
-            for cand_line in cand_html_lines:
-                html_body = cand_placeholder_pattern.sub(
-                    lambda m, cl=cand_line: m.group(1) + cl + m.group(2),
-                    html_body, count=1
-                )
-        else:
-            # Stratégie 2: Insérer les candidats avant "Si ces profils" ou "Cordialement"
-            cand_block_html = "\n".join(f"<p style='margin:4px 0;'>- {l}</p>" for l in cand_html_lines)
-            insertion_patterns = [
-                r'(Si\s+ces\s+profils\s+semblent\s+pertinents)',
-                r'(Cordialement|Bien\s+cordialement)',
-                r'(Je\s+vous\s+remercie)',
-            ]
-            inserted = False
-            for pat in insertion_patterns:
-                if re.search(pat, html_body, re.IGNORECASE):
-                    html_body = re.sub(
-                        pat,
-                        f"{cand_block_html}<br>\\1",
-                        html_body, count=1, flags=re.IGNORECASE
-                    )
-                    inserted = True
-                    break
-            if not inserted:
-                html_body += f"<br>{cand_block_html}"
+        cand_lines = _build_candidate_descriptions(candidates_data)
+        html_body = _apply_candidates(html_body, cand_lines)
 
     # Construire le .eml propre
     msg_eml = email_lib.mime.multipart.MIMEMultipart("alternative")
