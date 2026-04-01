@@ -10785,6 +10785,51 @@ def api_prospects_bulk_status_tags():
     return jsonify(ok=True, updated=updated)
 
 
+@app.post("/api/prospects/remove-tag-globally")
+def api_prospects_remove_tag_globally():
+    """Supprime un ou plusieurs tags de TOUS les prospects de l'utilisateur courant."""
+    chk = _require_same_origin()
+    if chk:
+        return chk
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    tags_to_remove = payload.get("tags")
+    if not tags_to_remove or not isinstance(tags_to_remove, list):
+        return jsonify(ok=False, error="tags (array) required"), 400
+    tags_to_remove = [str(t).strip() for t in tags_to_remove if str(t).strip()]
+    if not tags_to_remove:
+        return jsonify(ok=False, error="tags vides"), 400
+    # Construire un set case-insensitive pour la comparaison
+    remove_set = set(t.lower() for t in tags_to_remove)
+    affected = 0
+    try:
+        with _conn() as conn:
+            rows = conn.execute(
+                "SELECT id, tags FROM prospects WHERE owner_id=? AND deleted_at IS NULL", (uid,)
+            ).fetchall()
+            for row in rows:
+                raw = row["tags"] or "[]"
+                try:
+                    existing = json.loads(raw) if isinstance(raw, str) and raw.startswith("[") else [t.strip() for t in raw.split(",") if t.strip()]
+                except Exception:
+                    existing = []
+                filtered = [t for t in existing if t.strip().lower() not in remove_set]
+                if len(filtered) != len(existing):
+                    conn.execute(
+                        "UPDATE prospects SET tags=? WHERE id=? AND owner_id=?",
+                        (json.dumps(filtered, ensure_ascii=False), row["id"], uid)
+                    )
+                    affected += 1
+    except Exception as exc:
+        logger.exception("Erreur remove-tag-globally")
+        return jsonify(ok=False, error=str(exc)), 500
+    _audit_log("remove_tag_globally", "prospect",
+               new_value=json.dumps({"tags": tags_to_remove[:20], "affected": affected}, ensure_ascii=False))
+    return jsonify(ok=True, affected=affected, removed=len(tags_to_remove))
+
+
 @app.post("/api/prospects/update-contacts")
 def api_prospects_update_contacts():
     """Bulk update telephone/email for existing prospects from Excel import.
