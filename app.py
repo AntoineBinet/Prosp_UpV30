@@ -6202,16 +6202,23 @@ def api_candidate_generate_description(cand_id):
 
 def _build_candidate_descriptions(candidates_data: list) -> list:
     """Construit la liste des descriptions HTML des candidats (IA ou format statique)."""
+    ORANGE = '#E07020'
     lines = []
     for cand in candidates_data:
         if cand.get("description_ai"):
-            lines.append(cand["description_ai"])
+            # Remplacer <b>Prénom</b> par prénom en orange (généré par le prompt IA)
+            line = re.sub(
+                r'<b>([^<]{1,30})</b>',
+                lambda m: f'<span style="color:{ORANGE};font-weight:bold;">{m.group(1)}</span>',
+                cand["description_ai"], count=1
+            )
+            lines.append(line)
         else:
             prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
             titre  = cand.get("titre") or cand.get("role", "")
             annees = cand.get("annees_experience") or cand.get("years_experience") or ""
             domaine = cand.get("domaine_principal") or cand.get("sector", "")
-            line = f"<b>{prenom}</b>, {titre}"
+            line = f'<span style="color:{ORANGE};font-weight:bold;">{prenom}</span>, {titre}'
             if annees:
                 line += f" avec {annees} ans d\u2019exp\u00e9rience"
             if domaine:
@@ -6254,9 +6261,9 @@ def _apply_candidates(html_body: str, cand_lines: list) -> str:
     if not cand_lines:
         return html_body
 
-    # HTML des nouvelles descriptions
+    # HTML des nouvelles descriptions (tiret + indentation, prénom déjà en orange)
     new_block_html = "\n".join(
-        f'<p style="margin:4px 0;">- {line}</p>' for line in cand_lines
+        f'<p style="margin:5px 0 5px 20px;">&#8203;&ndash;&nbsp;{line}</p>' for line in cand_lines
     )
 
     # Stratégie 1 : placeholders explicites [Prénom candidat N]
@@ -6308,6 +6315,23 @@ def _apply_candidates(html_body: str, cand_lines: list) -> str:
     return html_body
 
 
+def _remove_signature(html_body: str) -> str:
+    """Supprime tout depuis 'Bien cordialement' / 'Cordialement' jusqu'à la fin du contenu.
+    Conserve les balises fermantes </body></html> si présentes."""
+    m = re.search(r'(?:Bien\s+cordialement|Cordialement)', html_body, re.IGNORECASE)
+    if not m:
+        return html_body
+    # Reculer jusqu'au début du bloc parent (<p, <div, <td, <tr)
+    before = html_body[:m.start()]
+    block_start = re.search(r'<(?:p|div|td|tr)[^>]*>\s*$', before, re.IGNORECASE)
+    cut = block_start.start() if block_start else m.start()
+    # Garder </body></html> si présents
+    closing = re.search(r'((?:</(?:body|html)>\s*)+)$', html_body, re.IGNORECASE | re.DOTALL)
+    if closing:
+        return html_body[:cut] + '\n' + closing.group(1)
+    return html_body[:cut]
+
+
 def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidates_data: list) -> bytes:
     """
     Méthode principale (si Outlook installé) :
@@ -6340,6 +6364,7 @@ def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidate
     if candidates_data:
         cand_lines = _build_candidate_descriptions(candidates_data)
         html_body = _apply_candidates(html_body, cand_lines)
+    html_body = _remove_signature(html_body)
 
     # Créer le .msg via win32com
     outlook = win32com.client.Dispatch("Outlook.Application")
@@ -6418,6 +6443,7 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
     if candidates_data:
         cand_lines = _build_candidate_descriptions(candidates_data)
         html_body = _apply_candidates(html_body, cand_lines)
+    html_body = _remove_signature(html_body)
 
     # Construire le .eml propre
     msg_eml = email_lib.mime.multipart.MIMEMultipart("alternative")
