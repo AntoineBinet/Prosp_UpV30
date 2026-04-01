@@ -510,6 +510,14 @@ async function deleteCustomMetier(id) {
 async function loadCustomMetiers() {
   try {
     var res = await fetch('/api/custom_metiers');
+    if (!res.ok) {
+      var errBody = {};
+      try { errBody = await res.json(); } catch(e) {}
+      console.error('[custom_metiers] GET ' + res.status + ':', errBody.error || errBody);
+      _customMetiers = [];
+      renderCustomList();
+      return;
+    }
     var json = await res.json();
     _customMetiers = json.items || [];
     // Mettre à jour le Set global pour buildReferentialTagSet()
@@ -518,7 +526,7 @@ async function loadCustomMetiers() {
     );
     renderCustomList();
     mergeCustomIntoTree();
-  } catch(e) { console.error(e); }
+  } catch(e) { console.error('[custom_metiers]', e); }
 }
 
 function renderCustomList() {
