@@ -565,6 +565,10 @@ renderTree = function() {
         if (!spec.tech[cm.tech_group]) spec.tech[cm.tech_group] = [];
         if (!spec.tech[cm.tech_group].includes(cm.value)) spec.tech[cm.tech_group].push(cm.value);
       }
+    } else if (cm.type === 'specialty') {
+      if (!cat.specialties.find(function(s){ return s.name === cm.value; })) {
+        cat.specialties.push({ name: cm.value, ops: '', tech: {}, sectors: [], certifs: [] });
+      }
     } else if (cm.type === 'sector' && cm.specialty) {
       var spec2 = cat.specialties.find(function(s){ return s.name === cm.specialty; });
       if (spec2) {
