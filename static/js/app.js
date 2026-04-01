@@ -7418,7 +7418,9 @@ async function updatePushCandidates(prospectId) {
     
     // Remplir les dropdowns avec tous les candidats (charger depuis l'API si nécessaire)
     let allCandidates = data.candidates || [];
-    if (allCandidates.length === 0) {
+    // Forcer un re-fetch si le cache est vide ou si tous les candidats sont archivés
+    const _cacheAllArchived = allCandidates.length > 0 && allCandidates.every(c => c.is_archived);
+    if (allCandidates.length === 0 || _cacheAllArchived) {
         // Charger les candidats depuis l'API
         try {
             const res = await fetch('/api/candidates');
@@ -7445,6 +7447,13 @@ async function updatePushCandidates(prospectId) {
         }
     }
     allCandidates = allCandidates.filter(c => !c.is_archived);
+
+    if (allCandidates.length === 0) {
+        select1.innerHTML = '<option value="">— Aucun candidat disponible —</option>';
+        select2.innerHTML = '<option value="">— Aucun candidat disponible —</option>';
+        updatePushGenerateButton(prospectId);
+        return;
+    }
 
     // v27.26: Séparer en groupes — Recommandés, Avec DC (hors catégorie), Autres
     const recommendedIds = new Set(recommendedCandidates.map(c => c.id));
@@ -7619,6 +7628,9 @@ async function initPushTab(prospectId, prospect) {
     // Si une catégorie est déjà sélectionnée, charger les templates et candidats
     if (prospect.push_category_id) {
         await onPushCategoryChange(prospectId, String(prospect.push_category_id));
+    } else {
+        // Pas de catégorie → charger quand même les candidats dans les dropdowns
+        setTimeout(() => updatePushCandidates(prospectId), 100);
     }
     _updateEmailBtnState(prospectId, prospect);
 }
