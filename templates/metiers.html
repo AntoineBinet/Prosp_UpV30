@@ -175,7 +175,7 @@
   }
   .custom-delete-btn {
     background: none; border: none; color: #ef4444; cursor: pointer;
-    font-size: 10px; padding: 0 0 0 4px; opacity: 0; vertical-align: middle;
+    font-size: 10px; padding: 0 0 0 4px; opacity: 0.35; vertical-align: middle;
     line-height: 1; font-weight: 700; transition: opacity .15s;
   }
   .mtag-badge:hover .custom-delete-btn,
@@ -496,57 +496,73 @@ async function submitCustomMetier() {
   var cat = document.getElementById('addMetierCat').value;
   var spec = document.getElementById('addMetierSpec')?.value || '';
   var group = document.getElementById('addMetierGroup')?.value?.trim() || '';
-  var value = document.getElementById('addMetierValue').value.trim();
+  var rawValue = document.getElementById('addMetierValue').value.trim();
   var msg = document.getElementById('addMetierMsg');
-  
-  if (!value) { msg.textContent = '⚠️ Veuillez saisir une valeur'; return; }
-  
-  try {
-    var res = await fetch('/api/custom_metiers', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ type: type, category: cat, specialty: spec, tech_group: group || null, value: value })
-    });
-    var json = await res.json();
-    if (json.ok) {
-      msg.textContent = '✅ Ajouté : ' + value;
-      document.getElementById('addMetierValue').value = '';
-      await loadCustomMetiers();
-      // Auto-ouvrir la catégorie cible pour montrer l'élément ajouté
-      var catNodes = document.querySelectorAll('.tree-node[data-level="0"]');
-      catNodes.forEach(function(node) {
-        var header = node.querySelector('.cat-header');
-        var catNameEl = node.querySelector('.cat-name');
-        if (header && catNameEl && catNameEl.textContent.trim() === cat) {
-          if (!header.classList.contains('open')) {
-            header.classList.add('open');
-            var children = header.nextElementSibling;
-            if (children) children.classList.add('expanded');
-          }
-          // Pour tech/sector, ouvrir aussi la spécialité cible
-          if ((type === 'tech' || type === 'sector') && spec) {
-            var specRows = node.querySelectorAll('.spec-row');
-            specRows.forEach(function(row) {
-              var nameEl = row.querySelector('.spec-name');
-              if (nameEl && nameEl.textContent.trim() === spec) {
-                if (!row.classList.contains('open')) {
-                  var specDetailId = row.getAttribute('onclick').match(/'([^']+)'/);
-                  if (specDetailId) {
-                    row.classList.add('open');
-                    var detail = document.getElementById(specDetailId[1]);
-                    if (detail) detail.classList.add('visible');
-                  }
+
+  if (!rawValue) { msg.textContent = '⚠️ Veuillez saisir une valeur'; return; }
+
+  // Pour les tags (tech), on supporte la saisie multi-valeurs séparées par virgule
+  var values = (type === 'tech')
+    ? rawValue.split(',').map(function(v){ return v.trim(); }).filter(Boolean)
+    : [rawValue];
+
+  var added = [], dupes = [], errors = [];
+  for (var i = 0; i < values.length; i++) {
+    try {
+      var res = await fetch('/api/custom_metiers', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ type: type, category: cat, specialty: spec, tech_group: group || null, value: values[i] })
+      });
+      var json = await res.json();
+      if (json.ok) added.push(values[i]);
+      else if (json.error === 'duplicate') dupes.push(values[i]);
+      else errors.push(values[i]);
+    } catch(e) { errors.push(values[i]); }
+  }
+
+  // Message récap
+  var parts = [];
+  if (added.length)  parts.push('✅ Ajouté : ' + added.join(', '));
+  if (dupes.length)  parts.push('⚠️ Déjà existant : ' + dupes.join(', '));
+  if (errors.length) parts.push('❌ Erreur : ' + errors.join(', '));
+  msg.textContent = parts.join(' | ');
+
+  if (added.length) {
+    document.getElementById('addMetierValue').value = '';
+    await loadCustomMetiers();
+    // Auto-ouvrir la catégorie cible pour montrer les éléments ajoutés
+    var catNodes = document.querySelectorAll('.tree-node[data-level="0"]');
+    catNodes.forEach(function(node) {
+      var header = node.querySelector('.cat-header');
+      var catNameEl = node.querySelector('.cat-name');
+      if (header && catNameEl && catNameEl.textContent.trim() === cat) {
+        if (!header.classList.contains('open')) {
+          header.classList.add('open');
+          var children = header.nextElementSibling;
+          if (children) children.classList.add('expanded');
+        }
+        // Pour tech/sector, ouvrir aussi la spécialité cible
+        if ((type === 'tech' || type === 'sector') && spec) {
+          var specRows = node.querySelectorAll('.spec-row');
+          specRows.forEach(function(row) {
+            var nameEl = row.querySelector('.spec-name');
+            if (nameEl && nameEl.textContent.trim() === spec) {
+              if (!row.classList.contains('open')) {
+                var specDetailId = row.getAttribute('onclick').match(/'([^']+)'/);
+                if (specDetailId) {
+                  row.classList.add('open');
+                  var detail = document.getElementById(specDetailId[1]);
+                  if (detail) detail.classList.add('visible');
                 }
               }
-            });
-          }
-          node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          });
         }
-      });
-    } else {
-      msg.textContent = '❌ ' + (json.error === 'duplicate' ? 'Déjà existant' : json.error);
-    }
-  } catch(e) { msg.textContent = '❌ Erreur réseau'; }
+        node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
 }
 
 async function deleteCustomMetier(id) {
