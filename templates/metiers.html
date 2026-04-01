@@ -248,6 +248,12 @@
     <div id="unclassTagsCloud" class="unclass-tags-cloud">
       <span class="muted" style="font-size:12px;">Chargement…</span>
     </div>
+    <div id="deleteTagsBar" style="display:none;margin:8px 0;padding:8px 12px;border-radius:8px;background:var(--color-surface-elevated,#252540);border:1px solid var(--color-border,#333);display:none;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span id="deleteTagsCount" style="font-size:13px;font-weight:600;"></span>
+      <button class="unclass-btn" onclick="_deleteSelectedTags()" style="background:var(--color-danger,#ef4444);color:#fff;padding:4px 12px;font-size:12px;border:none;border-radius:6px;cursor:pointer;">🗑️ Supprimer des prospects</button>
+      <button class="unclass-btn" onclick="_clearTagSelection()" style="padding:4px 12px;font-size:12px;">Annuler</button>
+      <span id="deleteTagsStatus" style="font-size:12px;opacity:.7;"></span>
+    </div>
     <div class="unclass-actions">
       <button class="unclass-btn primary" id="btnScanAI" onclick="scanTagsWithAI()" style="display:none;">🤖 Scanner avec l'IA</button>
       <button class="unclass-btn" id="btnManualClassify" onclick="buildProposalsTable([])" style="display:none;">✏️ Classifier manuellement</button>
@@ -743,16 +749,93 @@ async function loadUnclassifiedTags() {
   }
 }
 
+var _tagsSelectedForDeletion = new Set();
+
 function renderUnclassifiedCloud() {
   var cloud = document.getElementById('unclassTagsCloud');
   if (!_unclassifiedTags.length) {
     cloud.innerHTML = '<span class="muted" style="font-size:12px;">Aucun tag non référencé trouvé.</span>';
+    _updateDeleteBar();
     return;
   }
   cloud.innerHTML = _unclassifiedTags.map(function(t) {
-    return '<span class="unclass-tag-pill">' + escapeHtml(t.tag) +
+    var selected = _tagsSelectedForDeletion.has(t.tag);
+    return '<span class="unclass-tag-pill' + (selected ? ' tag-selected-delete' : '') + '" onclick="_toggleTagForDeletion(\'' + escapeHtml(t.tag).replace(/'/g, "\\'") + '\')" style="cursor:pointer;' + (selected ? 'outline:2px solid var(--color-danger,#ef4444);opacity:.7;' : '') + '">' +
+      escapeHtml(t.tag) +
       '<span class="unclass-tag-count">' + t.count + 'x</span></span>';
   }).join('');
+  _updateDeleteBar();
+}
+
+function _toggleTagForDeletion(tag) {
+  if (_tagsSelectedForDeletion.has(tag)) {
+    _tagsSelectedForDeletion.delete(tag);
+  } else {
+    _tagsSelectedForDeletion.add(tag);
+  }
+  renderUnclassifiedCloud();
+}
+
+function _clearTagSelection() {
+  _tagsSelectedForDeletion.clear();
+  renderUnclassifiedCloud();
+}
+
+function _updateDeleteBar() {
+  var bar = document.getElementById('deleteTagsBar');
+  var count = _tagsSelectedForDeletion.size;
+  if (count > 0) {
+    bar.style.display = 'flex';
+    document.getElementById('deleteTagsCount').textContent = count + ' tag' + (count > 1 ? 's' : '') + ' sélectionné' + (count > 1 ? 's' : '');
+    document.getElementById('deleteTagsStatus').textContent = '';
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+async function _deleteSelectedTags() {
+  var tags = Array.from(_tagsSelectedForDeletion);
+  if (!tags.length) return;
+  var total = 0;
+  tags.forEach(function(tag) {
+    var t = _unclassifiedTags.find(function(u) { return u.tag === tag; });
+    if (t) total += t.count;
+  });
+  if (!confirm('Supprimer ' + tags.length + ' tag' + (tags.length > 1 ? 's' : '') + ' de toutes les fiches prospects (' + total + ' occurrence' + (total > 1 ? 's' : '') + ' au total) ?\n\nCette action est irréversible.')) return;
+  var statusEl = document.getElementById('deleteTagsStatus');
+  statusEl.textContent = 'Suppression…';
+  try {
+    var res = await fetch('/api/prospects/remove-tag-globally', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tags: tags})
+    });
+    var data = await res.json();
+    if (data.ok) {
+      showToast(tags.length + ' tag' + (tags.length > 1 ? 's' : '') + ' supprimé' + (tags.length > 1 ? 's' : '') + ' de ' + data.affected + ' prospect' + (data.affected > 1 ? 's' : ''), 'success');
+      // Retirer du nuage
+      _unclassifiedTags = _unclassifiedTags.filter(function(t) { return !_tagsSelectedForDeletion.has(t.tag); });
+      _tagsSelectedForDeletion.clear();
+      renderUnclassifiedCloud();
+      // Mettre à jour le badge
+      var badge = document.getElementById('unclassBadge');
+      if (_unclassifiedTags.length > 0) {
+        badge.textContent = _unclassifiedTags.length + ' tag' + (_unclassifiedTags.length > 1 ? 's' : '');
+        document.getElementById('unclassStatus').textContent = _unclassifiedTags.length + ' tag' + (_unclassifiedTags.length > 1 ? 's' : '') + ' hors référentiel';
+      } else {
+        badge.style.display = 'none';
+        document.getElementById('unclassStatus').textContent = '✅ Tous les tags sont référencés';
+        document.getElementById('btnScanAI').style.display = 'none';
+        document.getElementById('btnManualClassify').style.display = 'none';
+      }
+    } else {
+      statusEl.textContent = '❌ ' + (data.error || 'Erreur');
+      showToast('Erreur : ' + (data.error || 'Erreur serveur'), 'error');
+    }
+  } catch(e) {
+    statusEl.textContent = '❌ Erreur réseau';
+    showToast('Erreur réseau', 'error');
+  }
 }
 
 async function scanTagsWithAI() {
