@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.28"
+APP_VERSION = "27.29"
 import os
 import subprocess
 import traceback
@@ -12207,9 +12207,9 @@ def api_custom_metiers_list():
 def api_custom_metiers_add():
     d = request.get_json(force=True)
     tp = d.get("type", "tech")  # tech | specialty | category | sector
-    cat = d.get("category", "").strip()
-    spec = d.get("specialty", "").strip() or None
-    tg = d.get("tech_group", "").strip() or None
+    cat = (d.get("category") or "").strip()
+    spec = (d.get("specialty") or "").strip() or None
+    tg = (d.get("tech_group") or "").strip() or None
     val = d.get("value", "").strip()
     if not val:
         return jsonify(ok=False, error="value required"), 400
