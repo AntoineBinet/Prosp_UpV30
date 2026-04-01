@@ -12445,7 +12445,7 @@ def api_metiers_batch_confirm_tags():
 
     saved = 0
     skipped = 0
-    now = _now()
+    now = datetime.datetime.now().isoformat(timespec="seconds")
 
     try:
         with _conn() as conn:
@@ -12462,7 +12462,7 @@ def api_metiers_batch_confirm_tags():
                     skipped += 1
                     continue
                 existing = conn.execute(
-                    "SELECT id FROM custom_metiers WHERE type='tech' AND category=? AND specialty=? AND value=?",
+                    "SELECT id FROM custom_metiers WHERE type='tech' AND LOWER(category)=LOWER(?) AND LOWER(COALESCE(specialty,''))=LOWER(?) AND LOWER(value)=LOWER(?)",
                     (category, specialty, tag_val)
                 ).fetchone()
                 if existing:

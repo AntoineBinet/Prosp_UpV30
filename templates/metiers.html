@@ -266,6 +266,25 @@
       <div id="scanProgressDetail" style="font-size:11px;opacity:.7;"></div>
     </div>
     <div id="aiProposalsArea" style="display:none;">
+      <!-- Barre de recherche/filtre -->
+      <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="text" id="proposalFilter" placeholder="Filtrer les tags…" oninput="_filterProposals(this.value)" style="flex:1;min-width:180px;padding:6px 10px;border-radius:6px;border:1px solid var(--color-border,#333);background:var(--color-surface,#1a1a2e);color:var(--color-text,#e0e0e0);font-size:13px;">
+        <span id="proposalFilterCount" style="font-size:12px;opacity:.7;"></span>
+      </div>
+      <!-- Barre d'assignation en lot -->
+      <div class="bulk-assign-bar" id="bulkAssignBar" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;padding:8px 10px;border-radius:8px;background:var(--color-surface-elevated,#252540);border:1px solid var(--color-border,#333);">
+        <span style="font-size:12px;font-weight:600;white-space:nowrap;">Appliquer aux sélectionnés :</span>
+        <select id="bulkCat" class="prop-select" style="min-width:140px;" onchange="_onBulkCatChange(this.value)">
+          <option value="">-- Catégorie --</option>
+        </select>
+        <select id="bulkSpec" class="prop-select" style="min-width:140px;">
+          <option value="">-- Spécialité --</option>
+        </select>
+        <select id="bulkTechGroup" class="prop-select" style="min-width:120px;">
+          <option value="">-- Groupe --</option>
+        </select>
+        <button class="unclass-btn primary" onclick="_applyBulkAssign()" style="padding:4px 12px;font-size:12px;">Appliquer</button>
+      </div>
       <div style="overflow-x:auto;">
         <table class="proposals-table">
           <thead>
@@ -283,7 +302,7 @@
         </table>
       </div>
       <div class="unclass-save-area" id="unclassSaveArea">
-        <button class="unclass-btn primary" onclick="saveConfirmedTags()">💾 Enregistrer les tags confirmés</button>
+        <button class="unclass-btn primary" id="btnSaveConfirmed" onclick="saveConfirmedTags()">💾 Enregistrer les tags confirmés</button>
         <button class="unclass-btn" onclick="selectAllProposals()">✅ Tout sélectionner</button>
         <button class="unclass-btn" onclick="deselectAllProposals()">☐ Tout désélectionner</button>
         <span class="unclass-status" id="saveStatus"></span>
@@ -652,6 +671,7 @@ document.querySelectorAll('.nav-button').forEach(function(btn) {
 
 var _unclassifiedTags = []; // [{tag, count}] tags non référencés courants
 var _proposalRows = [];     // état des lignes du tableau de propositions
+var _TECH_GROUPS = ['Langages', 'Frameworks', 'Librairies', 'Outils', 'Bases de données', 'IDE', 'Systèmes', 'Protocoles', 'Capteurs', 'Matériel', 'Outils CAO', 'Serveurs', 'Microcontrôleurs', 'Méthodologies', 'Certifications'];
 
 function toggleUnclassifiedSection() {
   var header = document.getElementById('unclassHeader');
@@ -881,7 +901,10 @@ function buildProposalsTable(aiResults) {
         '<select class="prop-select" id="spec' + idx + '" onchange="_onSpecChange(' + idx + ', this.value)">' + specOpts + '</select>' +
       '</td>' +
       '<td data-label="Groupe tech">' +
-        '<input type="text" class="prop-input" id="tg' + idx + '" value="' + escapeHtml(row.techCategory) + '" placeholder="ex: Langages" oninput="_proposalRows[' + idx + '].techCategory=this.value">' +
+        '<select class="prop-select" id="tg' + idx + '" onchange="_proposalRows[' + idx + '].techCategory=this.value">' +
+          '<option value="">-- Groupe --</option>' +
+          _TECH_GROUPS.map(function(g) { return '<option value="' + escapeHtml(g) + '"' + (g === row.techCategory ? ' selected' : '') + '>' + escapeHtml(g) + '</option>'; }).join('') +
+        '</select>' +
       '</td>' +
       '<td data-label="Action">' +
         '<button class="prop-ignore-btn" id="ignBtn' + idx + '" onclick="_toggleIgnore(' + idx + ')">' +
@@ -892,6 +915,16 @@ function buildProposalsTable(aiResults) {
   });
 
   document.getElementById('aiProposalsArea').style.display = 'block';
+  // Remplir les selects de la barre d'assignation en lot
+  var bulkCat = document.getElementById('bulkCat');
+  bulkCat.innerHTML = '<option value="">-- Catégorie --</option>' +
+    categories.map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+  var bulkTg = document.getElementById('bulkTechGroup');
+  bulkTg.innerHTML = '<option value="">-- Groupe --</option>' +
+    _TECH_GROUPS.map(function(g) { return '<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>'; }).join('');
+  document.getElementById('bulkSpec').innerHTML = '<option value="">-- Spécialité --</option>';
+  document.getElementById('proposalFilter').value = '';
+  document.getElementById('proposalFilterCount').textContent = '';
 }
 
 function _getSpecialtiesFor(catName) {
@@ -937,15 +970,22 @@ function _toggleIgnore(idx) {
 }
 
 function selectAllProposals() {
+  var selected = 0, skipped = 0;
   _proposalRows.forEach(function(row, idx) {
-    if (!row.ignored) {
+    if (!row.ignored && row.category) {
       row.confirmed = true;
       var chk = document.getElementById('chk' + idx);
       if (chk) chk.checked = true;
       var tr = document.getElementById('propRow' + idx);
       if (tr) tr.classList.add('confirmed');
+      selected++;
+    } else if (!row.ignored && !row.category) {
+      skipped++;
     }
   });
+  if (skipped > 0) {
+    showToast(selected + ' sélectionné' + (selected > 1 ? 's' : '') + ', ' + skipped + ' ignoré' + (skipped > 1 ? 's' : '') + ' (sans catégorie)', 'info');
+  }
 }
 
 function deselectAllProposals() {
@@ -965,7 +1005,10 @@ async function saveConfirmedTags() {
     return;
   }
   var saveStatus = document.getElementById('saveStatus');
+  var btnSave = document.getElementById('btnSaveConfirmed');
   saveStatus.textContent = 'Enregistrement…';
+  btnSave.disabled = true;
+  btnSave.textContent = '⏳ Enregistrement…';
   var payload = toSave.map(function(r) {
     return {tag: r.tag, category: r.category, specialty: r.specialty, tech_group: r.techCategory || null};
   });
@@ -981,17 +1024,154 @@ async function saveConfirmedTags() {
       if (data.skipped > 0) msg += ' (' + data.skipped + ' ignoré' + (data.skipped > 1 ? 's' : '') + ', déjà présents)';
       showToast(msg, 'success');
       saveStatus.textContent = '✅ ' + msg;
-      // Recharger custom_metiers pour mettre à jour _customMetiersTagSet et l'affichage
+      // Retirer les lignes sauvées du tableau
+      var savedTags = new Set(toSave.map(function(r) { return r.tag; }));
+      _proposalRows = _proposalRows.filter(function(r) { return !savedTags.has(r.tag); });
+      _unclassifiedTags = _unclassifiedTags.filter(function(t) { return !savedTags.has(t.tag); });
+      // Re-render le tableau avec les lignes restantes
+      var tbody = document.getElementById('proposalsBody');
+      tbody.innerHTML = '';
+      if (_proposalRows.length > 0) {
+        _rebuildProposalRows();
+      } else {
+        document.getElementById('aiProposalsArea').style.display = 'none';
+      }
+      // Mettre à jour le badge
+      var badge = document.getElementById('unclassBadge');
+      if (_unclassifiedTags.length > 0) {
+        badge.textContent = _unclassifiedTags.length + ' tag' + (_unclassifiedTags.length > 1 ? 's' : '');
+      } else {
+        badge.style.display = 'none';
+        document.getElementById('unclassStatus').textContent = '✅ Tous les tags sont référencés';
+      }
+      renderUnclassifiedCloud();
       await loadCustomMetiers();
-      // Actualiser la section
-      setTimeout(loadUnclassifiedTags, 300);
     } else {
       saveStatus.textContent = '❌ ' + (data.error || 'Erreur');
-      showToast('Erreur lors de l\'enregistrement', 'error');
+      showToast('Erreur : ' + (data.error || 'Erreur serveur'), 'error');
     }
   } catch(e) {
     saveStatus.textContent = '❌ Erreur réseau';
     showToast('Erreur réseau', 'error');
+  } finally {
+    btnSave.disabled = false;
+    btnSave.textContent = '💾 Enregistrer les tags confirmés';
+  }
+}
+
+// ── Rebuild proposal rows after removing saved items ──
+function _rebuildProposalRows() {
+  if (typeof METIERS_DATA === 'undefined') return;
+  var categories = METIERS_DATA.map(function(m) { return m.name; });
+  var tbody = document.getElementById('proposalsBody');
+  tbody.innerHTML = '';
+  _proposalRows.forEach(function(row, idx) {
+    var specOptions = _getSpecialtiesFor(row.category);
+    var tr = document.createElement('tr');
+    tr.id = 'propRow' + idx;
+    if (row.confirmed) tr.classList.add('confirmed');
+    if (row.ignored) tr.classList.add('ignored');
+    var catOpts = '<option value="">-- Choisir --</option>' +
+      categories.map(function(c) { return '<option value="' + escapeHtml(c) + '"' + (c === row.category ? ' selected' : '') + '>' + escapeHtml(c) + '</option>'; }).join('');
+    var specOpts = '<option value="">-- Choisir --</option>' +
+      specOptions.map(function(s) { return '<option value="' + escapeHtml(s) + '"' + (s === row.specialty ? ' selected' : '') + '>' + escapeHtml(s) + '</option>'; }).join('');
+    var confidence = row.confidence ? Math.round(row.confidence * 100) + '%' : '';
+    var confStyle = row.confidence >= 0.7 ? 'color:var(--color-success,#22c55e)' : (row.confidence >= 0.4 ? 'color:var(--color-warning,#f59e0b)' : 'color:var(--color-text-secondary)');
+    tr.innerHTML =
+      '<td data-label="Confirmer" style="text-align:center;">' +
+        '<input type="checkbox" class="prop-check" id="chk' + idx + '" ' + (row.confirmed ? 'checked' : '') + ' onchange="_onPropCheck(' + idx + ', this.checked)">' +
+      '</td>' +
+      '<td data-label="Tag"><strong>' + escapeHtml(row.tag) + '</strong>' +
+        (confidence ? ' <small style="' + confStyle + ';font-size:10px;">(' + confidence + ')</small>' : '') +
+      '</td>' +
+      '<td data-label="Occurrences" style="text-align:center;">' +
+        '<span class="unclass-tag-count">' + row.count + 'x</span>' +
+      '</td>' +
+      '<td data-label="Catégorie">' +
+        '<select class="prop-select" id="cat' + idx + '" onchange="_onCatChange(' + idx + ', this.value)">' + catOpts + '</select>' +
+      '</td>' +
+      '<td data-label="Spécialité">' +
+        '<select class="prop-select" id="spec' + idx + '" onchange="_onSpecChange(' + idx + ', this.value)">' + specOpts + '</select>' +
+      '</td>' +
+      '<td data-label="Groupe tech">' +
+        '<select class="prop-select" id="tg' + idx + '" onchange="_proposalRows[' + idx + '].techCategory=this.value">' +
+          '<option value="">-- Groupe --</option>' +
+          _TECH_GROUPS.map(function(g) { return '<option value="' + escapeHtml(g) + '"' + (g === row.techCategory ? ' selected' : '') + '>' + escapeHtml(g) + '</option>'; }).join('') +
+        '</select>' +
+      '</td>' +
+      '<td data-label="Action">' +
+        '<button class="prop-ignore-btn" id="ignBtn' + idx + '" onclick="_toggleIgnore(' + idx + ')">' +
+          (row.ignored ? '↩ Restaurer' : '✕ Ignorer') +
+        '</button>' +
+      '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Filtre des propositions ──
+function _filterProposals(query) {
+  var q = query.toLowerCase().trim();
+  var visible = 0;
+  _proposalRows.forEach(function(row, idx) {
+    var tr = document.getElementById('propRow' + idx);
+    if (!tr) return;
+    if (!q || row.tag.toLowerCase().indexOf(q) !== -1) {
+      tr.style.display = '';
+      visible++;
+    } else {
+      tr.style.display = 'none';
+    }
+  });
+  var countEl = document.getElementById('proposalFilterCount');
+  if (q) {
+    countEl.textContent = visible + '/' + _proposalRows.length + ' affichés';
+  } else {
+    countEl.textContent = '';
+  }
+}
+
+// ── Assignation en lot ──
+function _onBulkCatChange(catName) {
+  var specs = _getSpecialtiesFor(catName);
+  var bulkSpec = document.getElementById('bulkSpec');
+  bulkSpec.innerHTML = '<option value="">-- Spécialité --</option>' +
+    specs.map(function(s) { return '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>'; }).join('');
+}
+
+function _applyBulkAssign() {
+  var cat = document.getElementById('bulkCat').value;
+  var spec = document.getElementById('bulkSpec').value;
+  var tg = document.getElementById('bulkTechGroup').value;
+  if (!cat) {
+    showToast('Choisissez au moins une catégorie', 'warning');
+    return;
+  }
+  var count = 0;
+  _proposalRows.forEach(function(row, idx) {
+    if (row.confirmed && !row.ignored) {
+      row.category = cat;
+      row.specialty = spec;
+      if (tg) row.techCategory = tg;
+      // Mettre à jour les selects dans le DOM
+      var catSel = document.getElementById('cat' + idx);
+      if (catSel) catSel.value = cat;
+      var specSel = document.getElementById('spec' + idx);
+      if (specSel) {
+        var specs = _getSpecialtiesFor(cat);
+        specSel.innerHTML = '<option value="">-- Choisir --</option>' +
+          specs.map(function(s) { return '<option value="' + escapeHtml(s) + '"' + (s === spec ? ' selected' : '') + '>' + escapeHtml(s) + '</option>'; }).join('');
+      }
+      if (tg) {
+        var tgSel = document.getElementById('tg' + idx);
+        if (tgSel) tgSel.value = tg;
+      }
+      count++;
+    }
+  });
+  if (count > 0) {
+    showToast(count + ' tag' + (count > 1 ? 's' : '') + ' mis à jour', 'success');
+  } else {
+    showToast('Sélectionnez d\'abord des tags (checkbox)', 'warning');
   }
 }
 
