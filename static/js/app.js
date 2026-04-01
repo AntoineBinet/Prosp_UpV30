@@ -7984,7 +7984,18 @@ async function generatePushFromTab(prospectId) {
             });
             prospect.pushEmailSentAt = now;
             const sentEl = document.getElementById('detailPushSent');
-            if (sentEl) sentEl.innerHTML = '✅ ' + now;
+            if (sentEl) {
+                sentEl.innerHTML = '✅ ' + now;
+                // Ajouter le bouton undo s'il n'existe pas déjà
+                const sentContainer = sentEl.closest('.detail-info-value');
+                if (sentContainer && !sentContainer.querySelector('.undo-push-btn')) {
+                    const undoBtn = document.createElement('button');
+                    undoBtn.className = 'mini-link-btn undo-push-btn';
+                    undoBtn.textContent = '↩️';
+                    undoBtn.onclick = () => undoLastPush(prospectId, 'email');
+                    sentContainer.appendChild(undoBtn);
+                }
+            }
             await saveToServerAsync();
         } catch (logErr) {
             console.warn('Erreur enregistrement push log:', logErr);
@@ -11506,7 +11517,13 @@ if (channel === 'linkedin') {
     if (el2) el2.textContent = 'Non';
 } else {
     const el = document.getElementById('detailPushSent');
-    if (el) el.textContent = 'Non';
+    if (el) {
+        el.textContent = '🕒 Non envoyé';
+        const container = el.closest('.detail-info-value');
+        if (container) {
+            container.querySelectorAll('.undo-push-btn, .mini-link-btn').forEach(b => b.remove());
+        }
+    }
 }
     } catch (e) {}
 
