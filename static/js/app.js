@@ -7392,44 +7392,90 @@ function suggestPushCategoryFromMetier(prospectId) {
 }
 
 // v25.9: Mettre à jour les dropdowns de candidats pour le push
+// v27.30: Chargement en 2 phases — candidats immédiats puis recommandations en background
 async function updatePushCandidates(prospectId) {
     const prospect = data.prospects.find(x => x.id === prospectId);
     if (!prospect) return;
-    
+
     const select1 = document.getElementById('detailPushCandidate1');
     const select2 = document.getElementById('detailPushCandidate2');
     const btnGenerate = document.getElementById('btnGeneratePush');
-    
+    const titleEl = document.getElementById(`ptCandidatesSection_${prospectId}`);
+
     if (!select1 || !select2) return;
-    
-    // Charger les 4 meilleurs candidats recommandés
-    let recommendedCandidates = [];
-    try {
-        const res = await fetch(`/api/prospect/${prospectId}/best-candidates${prospect.push_category_id ? `?push_category_id=${prospect.push_category_id}` : ''}`);
-        if (res.ok) {
-            const data = await res.json();
-            if (data.ok && data.candidates) {
-                recommendedCandidates = data.candidates.slice(0, 4);
+
+    // Phase 1: Afficher indicateur de chargement immédiatement
+    select1.innerHTML = '<option value="">Chargement…</option>';
+    select2.innerHTML = '<option value="">Chargement…</option>';
+    select1.disabled = true;
+    select2.disabled = true;
+
+    // Helper: construire le HTML des options à partir de la liste de candidats et des recommandés
+    const _buildOptionsHtml = (allCands, recommendedCands) => {
+        const recommendedIds = new Set(recommendedCands.map(c => c.id));
+        const grouped = { recommended: [], withDc: [], others: [] };
+        for (const c of allCands) {
+            if (recommendedIds.has(c.id)) {
+                grouped.recommended.push(c);
+            } else if (c.dossier_competence_pdf || c.has_dc) {
+                grouped.withDc.push(c);
+            } else {
+                grouped.others.push(c);
             }
         }
-    } catch (e) {
-        console.warn('Erreur chargement candidats recommandés:', e);
-    }
-    
-    // Remplir les dropdowns avec tous les candidats (charger depuis l'API si nécessaire)
+        // Garder l'ordre des recommandés selon le score
+        grouped.recommended.sort((a, b) => {
+            const idxA = recommendedCands.findIndex(r => r.id === a.id);
+            const idxB = recommendedCands.findIndex(r => r.id === b.id);
+            return idxA - idxB;
+        });
+
+        const _optLine = c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' — ' + escapeHtml(c.role) : ''}${c.dossier_competence_pdf || c.has_dc ? ' 📄' : ''}</option>`;
+        let html = '';
+        if (grouped.recommended.length > 0) {
+            html += `<optgroup label="⭐ Recommandés (catégorie)">` + grouped.recommended.map(_optLine).join('') + '</optgroup>';
+        }
+        if (grouped.withDc.length > 0) {
+            html += `<optgroup label="📄 Avec DC (hors catégorie)">` + grouped.withDc.map(_optLine).join('') + '</optgroup>';
+        }
+        if (grouped.others.length > 0) {
+            html += `<optgroup label="👤 Autres candidats">` + grouped.others.map(_optLine).join('') + '</optgroup>';
+        }
+        return html;
+    };
+
+    // Helper: appliquer le HTML au select en conservant la sélection
+    const _applyOptions = (html, recommendedCands) => {
+        const prev1 = select1.value;
+        const prev2 = select2.value;
+        select1.innerHTML = '<option value="">— Aucun —</option>' + html;
+        select2.innerHTML = '<option value="">— Aucun —</option>' + html;
+        select1.disabled = false;
+        select2.disabled = false;
+        // Restaurer la sélection manuelle si elle existait
+        if (prev1 && prev1 !== '' && select1.querySelector(`option[value="${prev1}"]`)) {
+            select1.value = prev1;
+        } else if (recommendedCands.length > 0 && recommendedCands[0]) {
+            select1.value = recommendedCands[0].id;
+        }
+        if (prev2 && prev2 !== '' && select2.querySelector(`option[value="${prev2}"]`)) {
+            select2.value = prev2;
+        } else if (recommendedCands.length > 1 && recommendedCands[1]) {
+            select2.value = recommendedCands[1].id;
+        }
+        _onCandidateSelectChange(1);
+        _onCandidateSelectChange(2);
+        updatePushGenerateButton(prospectId);
+    };
+
+    // Phase 2: Charger tous les candidats (rapide) pour permettre la sélection manuelle
     let allCandidates = data.candidates || [];
-    // Forcer un re-fetch si le cache est vide ou si tous les candidats sont archivés
     const _cacheAllArchived = allCandidates.length > 0 && allCandidates.every(c => c.is_archived);
     if (allCandidates.length === 0 || _cacheAllArchived) {
-        // Charger les candidats depuis l'API
         try {
             const res = await fetch('/api/candidates');
-            if (!res.ok) {
-                console.warn(`Erreur chargement candidats: HTTP ${res.status}`);
-                // Continuer avec la liste vide plutôt que de bloquer
-            } else {
+            if (res.ok) {
                 const apiData = await res.json();
-                // Gérer les deux formats : array direct ou {ok: true, candidates: [...]}
                 if (Array.isArray(apiData)) {
                     allCandidates = apiData;
                 } else if (apiData.ok && apiData.candidates) {
@@ -7438,12 +7484,11 @@ async function updatePushCandidates(prospectId) {
                     allCandidates = apiData.candidates;
                 }
                 if (typeof data !== 'undefined') {
-                    data.candidates = allCandidates; // Mettre en cache
+                    data.candidates = allCandidates;
                 }
             }
         } catch (e) {
             console.warn('Erreur chargement candidats:', e);
-            // Continuer avec la liste vide plutôt que de bloquer
         }
     }
     allCandidates = allCandidates.filter(c => !c.is_archived);
@@ -7451,56 +7496,41 @@ async function updatePushCandidates(prospectId) {
     if (allCandidates.length === 0) {
         select1.innerHTML = '<option value="">— Aucun candidat disponible —</option>';
         select2.innerHTML = '<option value="">— Aucun candidat disponible —</option>';
+        select1.disabled = false;
+        select2.disabled = false;
         updatePushGenerateButton(prospectId);
         return;
     }
 
-    // v27.26: Séparer en groupes — Recommandés, Avec DC (hors catégorie), Autres
-    const recommendedIds = new Set(recommendedCandidates.map(c => c.id));
-    const grouped = { recommended: [], withDc: [], others: [] };
-    for (const c of allCandidates) {
-        if (recommendedIds.has(c.id)) {
-            grouped.recommended.push(c);
-        } else if (c.dossier_competence_pdf || c.has_dc) {
-            grouped.withDc.push(c);
-        } else {
-            grouped.others.push(c);
-        }
-    }
-    // Garder l'ordre des recommandés selon le score
-    grouped.recommended.sort((a, b) => {
-        const idxA = recommendedCandidates.findIndex(r => r.id === a.id);
-        const idxB = recommendedCandidates.findIndex(r => r.id === b.id);
-        return idxA - idxB;
-    });
+    // Afficher immédiatement les candidats (sans recommandations) pour sélection manuelle
+    const initialHtml = _buildOptionsHtml(allCandidates, []);
+    _applyOptions(initialHtml, []);
 
-    const _optLine = c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' — ' + escapeHtml(c.role) : ''}${c.dossier_competence_pdf || c.has_dc ? ' 📄' : ''}</option>`;
-    let optionsHtml = '';
-    if (grouped.recommended.length > 0) {
-        optionsHtml += `<optgroup label="⭐ Recommandés (catégorie)">` + grouped.recommended.map(_optLine).join('') + '</optgroup>';
-    }
-    if (grouped.withDc.length > 0) {
-        optionsHtml += `<optgroup label="📄 Avec DC (hors catégorie)">` + grouped.withDc.map(_optLine).join('') + '</optgroup>';
-    }
-    if (grouped.others.length > 0) {
-        optionsHtml += `<optgroup label="👤 Autres candidats">` + grouped.others.map(_optLine).join('') + '</optgroup>';
-    }
-
-    select1.innerHTML = '<option value="">— Aucun —</option>' + optionsHtml;
-    select2.innerHTML = '<option value="">— Aucun —</option>' + optionsHtml;
-    
-    // Pré-remplir avec les candidats recommandés si disponibles
-    if (recommendedCandidates.length > 0) {
-        if (select1 && recommendedCandidates[0]) {
-            select1.value = recommendedCandidates[0].id;
-        }
-        if (select2 && recommendedCandidates[1]) {
-            select2.value = recommendedCandidates[1].id;
+    // Phase 3: Charger les recommandations en arrière-plan (ne bloque pas l'utilisateur)
+    if (titleEl) {
+        const titleSpan = titleEl.querySelector('.detail-section-title');
+        if (titleSpan && !titleSpan.querySelector('.push-reco-spinner')) {
+            titleSpan.insertAdjacentHTML('beforeend', ' <span class="push-reco-spinner" style="font-size:11px;color:var(--color-muted);font-weight:normal;">— analyse en cours…</span>');
         }
     }
-    
-    // Activer/désactiver le bouton selon les sélections
-    updatePushGenerateButton(prospectId);
+    try {
+        const res = await fetch(`/api/prospect/${prospectId}/best-candidates${prospect.push_category_id ? `?push_category_id=${prospect.push_category_id}` : ''}`);
+        if (res.ok) {
+            const rdata = await res.json();
+            if (rdata.ok && rdata.candidates && rdata.candidates.length > 0) {
+                const recommendedCandidates = rdata.candidates.slice(0, 4);
+                const updatedHtml = _buildOptionsHtml(allCandidates, recommendedCandidates);
+                _applyOptions(updatedHtml, recommendedCandidates);
+            }
+        }
+    } catch (e) {
+        console.warn('Erreur chargement candidats recommandés:', e);
+    }
+    // Retirer l'indicateur d'analyse
+    if (titleEl) {
+        const spinner = titleEl.querySelector('.push-reco-spinner');
+        if (spinner) spinner.remove();
+    }
 }
 
 // v25.9: Mettre à jour l'état du bouton de génération
@@ -7935,6 +7965,29 @@ async function generatePushFromTab(prospectId) {
                 btnEmailHdr.innerHTML = origEmailLabel;
                 btnEmailHdr.disabled = false;
             }, 3000);
+        }
+        // Enregistrer le push dans l'historique
+        const now = new Date().toISOString().slice(0, 19);
+        try {
+            await fetch('/api/push-logs/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prospect_id: prospectId,
+                    sentAt: now,
+                    channel: 'email',
+                    to_email: prospect.email || '',
+                    template_name: templateName,
+                    candidate_id1: candidateId1,
+                    candidate_id2: candidateId2
+                })
+            });
+            prospect.pushEmailSentAt = now;
+            const sentEl = document.getElementById('detailPushSent');
+            if (sentEl) sentEl.innerHTML = '✅ ' + now;
+            await saveToServerAsync();
+        } catch (logErr) {
+            console.warn('Erreur enregistrement push log:', logErr);
         }
         showToast('Push généré et téléchargé !', 'success');
     } catch (e) {

@@ -6300,6 +6300,7 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
     """
     Méthode fallback (.eml RFC 2822) si Outlook n'est pas installé.
     S'ouvre dans Outlook, Thunderbird et la plupart des clients mail.
+    Lit le template .msg via extract-msg, fait les substitutions, reconstruit un .eml propre.
     """
     import email as email_lib
     import email.mime.multipart
@@ -6312,7 +6313,7 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
     nom = parts[-1] if parts else nom_complet
     to_email = prospect_data.get("email", "")
 
-    # Lire le corps du template
+    # Lire le corps du template .msg via extract-msg
     html_body = ""
     subject = "Candidats disponibles"
     try:
@@ -6320,21 +6321,46 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
         with extract_msg.Message(str(template_path)) as msg_obj:
             html_body = msg_obj.htmlBody or ""
             if isinstance(html_body, bytes):
-                html_body = html_body.decode("utf-8", errors="replace")
+                # Essayer plusieurs encodages courants dans les .msg
+                for enc in ("utf-8", "cp1252", "latin-1"):
+                    try:
+                        html_body = html_body.decode(enc)
+                        break
+                    except (UnicodeDecodeError, LookupError):
+                        continue
+                else:
+                    html_body = html_body.decode("utf-8", errors="replace")
+            # Si pas de HTML, essayer le body texte
+            if not html_body.strip():
+                txt_body = msg_obj.body or ""
+                if isinstance(txt_body, bytes):
+                    txt_body = txt_body.decode("utf-8", errors="replace")
+                if txt_body.strip():
+                    html_body = "<html><body>" + txt_body.replace("\n", "<br>") + "</body></html>"
             subject = msg_obj.subject or subject
-    except Exception:
-        # Si extract-msg non disponible, lire comme texte brut
-        try:
-            html_body = template_path.read_text(encoding="utf-8", errors="replace")
-        except Exception:
-            html_body = "<p>Corps du message</p>"
+    except ImportError:
+        logger.error("extract-msg non installé — impossible de lire le template .msg")
+        raise ValueError("Le module extract-msg n'est pas installé. Installez-le avec: pip install extract-msg")
+    except Exception as e:
+        logger.error("Erreur lecture template .msg (%s): %s", template_path, e)
+        raise ValueError(f"Impossible de lire le template .msg: {e}")
 
-    # Substitution salutation
+    if not html_body.strip():
+        raise ValueError("Le template .msg ne contient pas de corps HTML exploitable")
+
+    # Substitution salutation — patterns multiples pour couvrir les variantes
     new_salutation = f"Bonjour {civilite} {nom},"
+    # Pattern 1: "Bonjour [titre][Nom],"
     html_body = re.sub(
-        r'Bonjour\s+(M\.|Mme\.|Dr\.?|Mme|M)?\s*\[?[Nn]om\s*prospect\]?',
+        r'Bonjour\s*\[titre\]\s*\[Nom\]',
         new_salutation, html_body, count=1, flags=re.IGNORECASE
     )
+    # Pattern 2: "Bonjour M. [Nom prospect]"
+    html_body = re.sub(
+        r'Bonjour\s+(M\.|Mme\.|Dr\.?|Mme|M)?\s*\[?[Nn]om\s*(prospect)?\]?',
+        new_salutation, html_body, count=1, flags=re.IGNORECASE
+    )
+    # Pattern 3: "Bonjour M. [...]"
     html_body = re.sub(
         r'Bonjour\s+M\.\s+\[.*?\]',
         new_salutation, html_body, count=1, flags=re.IGNORECASE
@@ -6342,35 +6368,56 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
 
     # Substitution bloc candidats
     if candidates_data:
-        cand_lines = []
+        cand_html_lines = []
         for cand in candidates_data:
-            # v27.4: Utiliser la description IA si disponible
             if cand.get("description_ai"):
-                line = cand["description_ai"]
+                line_html = cand["description_ai"]
             else:
-                # Format statique (fallback)
                 prenom = cand.get("prenom") or (cand.get("name", "").split()[0] if cand.get("name") else "")
                 titre  = cand.get("titre") or cand.get("role", "")
                 annees = cand.get("annees_experience") or cand.get("years_experience") or ""
                 domaine = cand.get("domaine_principal") or cand.get("sector", "")
-                line = f"- {prenom}, {titre}"
+                line_html = f"<b>{prenom}</b>, {titre}"
                 if annees:
-                    line += f" avec {annees} ans d'expérience"
+                    line_html += f" avec {annees} ans d'exp\u00e9rience"
                 if domaine:
-                    line += f" en {domaine}"
-                line += "."
-            cand_lines.append(line)
-        cand_block_pattern = re.compile(
-            r'(<li>|•\s*|\*\s*|-\s*)\[Prénom candidat \d+\][^<\n]*(<\/li>|\n|$)',
+                    line_html += f" en {domaine}"
+                line_html += " \u2014 disponible imm\u00e9diatement."
+            cand_html_lines.append(line_html)
+
+        # Stratégie 1: Remplacer les placeholders [Prénom candidat N]
+        cand_placeholder_pattern = re.compile(
+            r'(<li[^>]*>|<p[^>]*>|•\s*|\*\s*|-\s*)\[Pr[ée]nom\s+candidat\s*\d*\][^<\n]*(<\/li>|<\/p>|\n|<br\s*/?>|$)',
             re.IGNORECASE
         )
-        for i, cand_line in enumerate(cand_lines):
-            html_body = cand_block_pattern.sub(
-                lambda m, cl=cand_line: m.group(1) + cl + m.group(2),
-                html_body, count=1
-            )
+        if cand_placeholder_pattern.search(html_body):
+            for cand_line in cand_html_lines:
+                html_body = cand_placeholder_pattern.sub(
+                    lambda m, cl=cand_line: m.group(1) + cl + m.group(2),
+                    html_body, count=1
+                )
+        else:
+            # Stratégie 2: Insérer les candidats avant "Si ces profils" ou "Cordialement"
+            cand_block_html = "\n".join(f"<p style='margin:4px 0;'>- {l}</p>" for l in cand_html_lines)
+            insertion_patterns = [
+                r'(Si\s+ces\s+profils\s+semblent\s+pertinents)',
+                r'(Cordialement|Bien\s+cordialement)',
+                r'(Je\s+vous\s+remercie)',
+            ]
+            inserted = False
+            for pat in insertion_patterns:
+                if re.search(pat, html_body, re.IGNORECASE):
+                    html_body = re.sub(
+                        pat,
+                        f"{cand_block_html}<br>\\1",
+                        html_body, count=1, flags=re.IGNORECASE
+                    )
+                    inserted = True
+                    break
+            if not inserted:
+                html_body += f"<br>{cand_block_html}"
 
-    # Construire le .eml
+    # Construire le .eml propre
     msg_eml = email_lib.mime.multipart.MIMEMultipart("alternative")
     msg_eml["From"] = ""
     msg_eml["To"] = to_email
