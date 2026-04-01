@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.26"
+APP_VERSION = "27.27"
 import os
 import subprocess
 import traceback
@@ -12190,12 +12190,17 @@ def api_rapport_hebdo():
 
 @app.get("/api/custom_metiers")
 def api_custom_metiers_list():
-    with _conn() as conn:
-        conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
-            id INTEGER PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
-            specialty TEXT, tech_group TEXT, value TEXT NOT NULL, createdAt TEXT)''')
-        rows = conn.execute("SELECT * FROM custom_metiers ORDER BY category, specialty, tech_group, value").fetchall()
-    return jsonify(ok=True, items=[dict(r) for r in rows])
+    try:
+        with _conn() as conn:
+            conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
+                id INTEGER PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
+                specialty TEXT, tech_group TEXT, value TEXT NOT NULL, createdAt TEXT)''')
+            rows = conn.execute("SELECT * FROM custom_metiers ORDER BY category, specialty, tech_group, value").fetchall()
+            items = [dict(r) for r in rows]
+        return jsonify(ok=True, items=items)
+    except Exception as exc:
+        logger.exception("Erreur api_custom_metiers_list")
+        return jsonify(ok=False, error=str(exc)), 500
 
 
 @app.post("/api/custom_metiers")
@@ -12209,34 +12214,40 @@ def api_custom_metiers_add():
     if not val:
         return jsonify(ok=False, error="value required"), 400
     now = datetime.datetime.now().isoformat(timespec="seconds")
-    with _conn() as conn:
-        conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
-            id INTEGER PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
-            specialty TEXT, tech_group TEXT, value TEXT NOT NULL, createdAt TEXT)''')
-        # Check duplicate
-        existing = conn.execute(
-            "SELECT id FROM custom_metiers WHERE type=? AND category=? AND value=?",
-            (tp, cat, val)
-        ).fetchone()
-        if existing:
-            return jsonify(ok=False, error="duplicate"), 409
-        conn.execute(
-            "INSERT INTO custom_metiers (type, category, specialty, tech_group, value, createdAt) VALUES (?,?,?,?,?,?)",
-            (tp, cat, spec, tg, val, now)
-        )
-        conn.commit()
-    return jsonify(ok=True)
+    try:
+        with _conn() as conn:
+            conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
+                id INTEGER PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
+                specialty TEXT, tech_group TEXT, value TEXT NOT NULL, createdAt TEXT)''')
+            # Check duplicate
+            existing = conn.execute(
+                "SELECT id FROM custom_metiers WHERE type=? AND category=? AND value=?",
+                (tp, cat, val)
+            ).fetchone()
+            if existing:
+                return jsonify(ok=False, error="duplicate"), 409
+            conn.execute(
+                "INSERT INTO custom_metiers (type, category, specialty, tech_group, value, createdAt) VALUES (?,?,?,?,?,?)",
+                (tp, cat, spec, tg, val, now)
+            )
+        return jsonify(ok=True)
+    except Exception as exc:
+        logger.exception("Erreur api_custom_metiers_add")
+        return jsonify(ok=False, error=str(exc)), 500
 
 
 @app.delete("/api/custom_metiers/<int:item_id>")
 def api_custom_metiers_delete(item_id):
-    with _conn() as conn:
-        conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
-            id INTEGER PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
-            specialty TEXT, tech_group TEXT, value TEXT NOT NULL, createdAt TEXT)''')
-        conn.execute("DELETE FROM custom_metiers WHERE id=?", (item_id,))
-        conn.commit()
-    return jsonify(ok=True)
+    try:
+        with _conn() as conn:
+            conn.execute('''CREATE TABLE IF NOT EXISTS custom_metiers (
+                id INTEGER PRIMARY KEY, type TEXT NOT NULL, category TEXT NOT NULL,
+                specialty TEXT, tech_group TEXT, value TEXT NOT NULL, createdAt TEXT)''')
+            conn.execute("DELETE FROM custom_metiers WHERE id=?", (item_id,))
+        return jsonify(ok=True)
+    except Exception as exc:
+        logger.exception("Erreur api_custom_metiers_delete")
+        return jsonify(ok=False, error=str(exc)), 500
 
 
 # ═══════════════════════════════════════════════════════════════════
