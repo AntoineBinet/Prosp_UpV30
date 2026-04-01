@@ -7507,10 +7507,26 @@ async function updatePushCandidates(prospectId) {
     _applyOptions(initialHtml, []);
 
     // Phase 3: Charger les recommandations en arrière-plan (ne bloque pas l'utilisateur)
+    const spinnerHtml = `<span class="push-reco-spinner" style="
+        display:inline-flex;align-items:center;gap:5px;
+        font-size:11px;font-weight:normal;color:#f59e0b;
+        background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);
+        border-radius:10px;padding:2px 8px;margin-left:8px;vertical-align:middle;">
+        <svg width="10" height="10" viewBox="0 0 10 10" style="animation:spin 1s linear infinite;flex-shrink:0">
+            <circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20" stroke-dashoffset="5"/>
+        </svg>
+        ⭐ Analyse IA en cours…
+    </span>`;
+    if (!document.getElementById('push-reco-keyframes')) {
+        const s = document.createElement('style');
+        s.id = 'push-reco-keyframes';
+        s.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+        document.head.appendChild(s);
+    }
     if (titleEl) {
         const titleSpan = titleEl.querySelector('.detail-section-title');
         if (titleSpan && !titleSpan.querySelector('.push-reco-spinner')) {
-            titleSpan.insertAdjacentHTML('beforeend', ' <span class="push-reco-spinner" style="font-size:11px;color:var(--color-muted);font-weight:normal;">— analyse en cours…</span>');
+            titleSpan.insertAdjacentHTML('beforeend', spinnerHtml);
         }
     }
     try {
@@ -7745,14 +7761,14 @@ function _buildPushTabHtml(prospectId, prospect) {
             <div class="detail-info-item">
                 <div class="detail-info-label">Push email</div>
                 <div class="detail-info-value">
-                    <span id="detailPushSent">${prospect.email ? (prospect.pushEmailSentAt ? ('✅ ' + prospect.pushEmailSentAt) : '🕒 Non envoyé') : '—'}</span>
+                    <span id="detailPushSent">${prospect.email ? (prospect.pushEmailSentAt ? ('✅ ' + String(prospect.pushEmailSentAt).slice(0, 10)) : '🕒 Non envoyé') : '—'}</span>
                     ${(prospect.email && prospect.pushEmailSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${prospectId},'email')">↩️</button>` : ''}
                 </div>
             </div>
             <div class="detail-info-item">
                 <div class="detail-info-label">Push LinkedIn</div>
                 <div class="detail-info-value">
-                    <span id="detailPushLinkedInSent">${prospect.linkedin ? (prospect.pushLinkedInSentAt ? ('✅ ' + prospect.pushLinkedInSentAt) : '🕒 Non envoyé') : '—'}</span>
+                    <span id="detailPushLinkedInSent">${prospect.linkedin ? (prospect.pushLinkedInSentAt ? ('✅ ' + String(prospect.pushLinkedInSentAt).slice(0, 10)) : '🕒 Non envoyé') : '—'}</span>
                     ${(prospect.linkedin && prospect.pushLinkedInSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${prospectId},'linkedin')">↩️</button>` : ''}
                 </div>
             </div>
@@ -7967,7 +7983,7 @@ async function generatePushFromTab(prospectId) {
             }, 3000);
         }
         // Enregistrer le push dans l'historique
-        const now = new Date().toISOString().slice(0, 19);
+        const now = new Date().toISOString().slice(0, 10);
         try {
             await fetch('/api/push-logs/add', {
                 method: 'POST',
@@ -9294,7 +9310,7 @@ async function confirmPushSend() {
         if (channel === 'email') {
             try {
                 const el = document.getElementById('detailPushSent');
-                if (el) el.textContent = '✅ ' + sentAt;
+                if (el) el.textContent = '✅ ' + String(sentAt).slice(0, 10);
             } catch (e) {}
         } else if (channel === 'linkedin') {
             try {
