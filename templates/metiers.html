@@ -568,11 +568,6 @@ renderTree = function() {
   _origRenderTree();
 };
 
-// Charger les métiers personnalisés après leur définition
-if (typeof loadCustomMetiers === 'function') {
-  loadCustomMetiers();
-}
-
 document.querySelectorAll('.nav-button').forEach(function(btn) {
   btn.classList.remove('active');
   if (btn.getAttribute('href') === '/metiers') btn.classList.add('active');
