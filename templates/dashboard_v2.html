@@ -136,6 +136,40 @@
   </article>
 
 </div>
+
+<!-- Section Statistiques -->
+<section class="dv2-stats-section">
+  <div class="dv2-stats-header">
+    <h3 class="dv2-stats-title">Statistiques</h3>
+    <span class="dv2-stats-sub">Tendances et analyses</span>
+  </div>
+  <div class="dv2-stats-grid">
+    <article class="dv2-card dv2-card--stat">
+      <div class="dv2-card-header">
+        <h3 class="dv2-card-title">Repartition pipeline</h3>
+      </div>
+      <div class="dv2-chart-wrap"><canvas id="dv2ChartPipeline"></canvas></div>
+    </article>
+    <article class="dv2-card dv2-card--stat">
+      <div class="dv2-card-header">
+        <h3 class="dv2-card-title">Evolution RDV</h3>
+      </div>
+      <div class="dv2-chart-wrap"><canvas id="dv2ChartRdv"></canvas></div>
+    </article>
+    <article class="dv2-card dv2-card--stat">
+      <div class="dv2-card-header">
+        <h3 class="dv2-card-title">Push par semaine</h3>
+      </div>
+      <div class="dv2-chart-wrap"><canvas id="dv2ChartPush"></canvas></div>
+    </article>
+    <article class="dv2-card dv2-card--stat">
+      <div class="dv2-card-header">
+        <h3 class="dv2-card-title">Top Entreprises</h3>
+      </div>
+      <div class="dv2-chart-wrap"><canvas id="dv2ChartCompanies"></canvas></div>
+    </article>
+  </div>
+</section>
 {% endblock %}
 
 {% block modals %}
