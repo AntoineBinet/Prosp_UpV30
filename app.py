@@ -4075,6 +4075,11 @@ def page_metiers():
     return render_template("metiers.html", static_hashes=_static_hashes)
 
 
+@app.get("/prospects/mode-prosp")
+def page_mode_prosp():
+    return render_template("mode_prosp.html", static_hashes=_static_hashes)
+
+
 @app.get("/offline.html")
 def page_offline():
     return send_from_directory(APP_DIR, "offline.html")

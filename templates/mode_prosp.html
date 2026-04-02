@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Prosp'Up — Mode Prosp</title>
+<link rel="stylesheet" href="/static/css/style.css?v={{ static_hash('css/style.css') }}">
+<link rel="stylesheet" href="/static/css/mode-prosp.css?v={{ static_hash('css/mode-prosp.css') }}">
+<link rel="icon" href="/static/favicon.ico">
+</head>
+<body class="mode-prosp-body" data-page="mode-prosp">
+
+<div class="mp-container">
+    <!-- Header -->
+    <header class="mp-header">
+        <div class="mp-header-left">
+            <img src="/static/logo-up-technologies.png" alt="Up Technologies" class="mp-logo">
+            <span class="mp-title">Mode Prosp</span>
+        </div>
+        <div class="mp-header-center">
+            <span class="mp-counter" id="mpCounter">0 / 0</span>
+        </div>
+        <div class="mp-header-right">
+            <button class="mp-close-btn" onclick="window.close()" title="Fermer cet onglet">Fermer</button>
+        </div>
+    </header>
+
+    <!-- Card viewport -->
+    <div class="mp-viewport" id="mpViewport">
+        <div class="mp-card-track" id="mpCardTrack">
+            <!-- Cards injected by JS -->
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="mp-nav">
+        <button class="mp-nav-btn mp-nav-prev" id="mpPrev" onclick="mpNavigate(-1)" title="Prospect precedent (←)">← Precedent</button>
+        <div class="mp-nav-dots" id="mpDots"></div>
+        <button class="mp-nav-btn mp-nav-next" id="mpNext" onclick="mpNavigate(1)" title="Prospect suivant (→)">Suivant →</button>
+    </div>
+</div>
+
+<script defer src="/static/js/mode-prosp-tab.js?v={{ static_hash('js/mode-prosp-tab.js') }}"></script>
+</body>
+</html>
