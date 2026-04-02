@@ -35,18 +35,19 @@ window.mpClose = function () {
 
     // ── Init ──
     async function init() {
-        // Read IDs from sessionStorage (set by main tab before window.open)
+        // Read IDs from localStorage (set by main tab before window.open)
+        // localStorage is shared across tabs — works on both desktop and mobile Safari
         let ids;
         try {
-            ids = JSON.parse(sessionStorage.getItem('prospup_mode_prosp_ids'));
+            ids = JSON.parse(localStorage.getItem('prospup_mode_prosp_ids'));
         } catch (e) {}
         if (!Array.isArray(ids) || ids.length === 0) {
             track.innerHTML = '<div class="mp-empty">Aucun prospect transmis. Retournez sur la page Prospects et relancez le Mode Prosp.</div>';
             return;
         }
         prospectIds = ids;
-        // Clean up — one-shot transfer
-        sessionStorage.removeItem('prospup_mode_prosp_ids');
+        // Clean up immediately — one-shot transfer
+        try { localStorage.removeItem('prospup_mode_prosp_ids'); } catch (e) {}
 
         // Fetch data
         try {
