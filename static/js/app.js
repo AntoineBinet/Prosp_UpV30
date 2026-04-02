@@ -5757,7 +5757,7 @@ function launchModeProsp() {
         if (typeof showToast === 'function') showToast('Aucun prospect à afficher avec les filtres actuels.', 'warning');
         return;
     }
-    try { sessionStorage.setItem('prospup_mode_prosp_ids', JSON.stringify(ids)); } catch (e) {}
+    try { localStorage.setItem('prospup_mode_prosp_ids', JSON.stringify(ids)); } catch (e) {}
     window.open('/prospects/mode-prosp', '_blank');
 }
 
