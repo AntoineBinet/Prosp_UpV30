@@ -20,10 +20,6 @@
         document.addEventListener('DOMContentLoaded', function() {
             const relanceBanner = document.getElementById('relanceAlertBannerProspects');
             if (relanceBanner) relanceBanner.style.display = 'none';
-            const prospCta = document.getElementById('prospCtaMobile');
-            if (prospCta) prospCta.style.display = 'none';
-            const prospResume = document.getElementById('prospResumeBanner');
-            if (prospResume) prospResume.style.display = 'none';
         });
         // Exécuter immédiatement si DOM déjà chargé
         if (document.readyState === 'loading') {
@@ -31,10 +27,6 @@
         } else {
             const relanceBanner = document.getElementById('relanceAlertBannerProspects');
             if (relanceBanner) relanceBanner.style.display = 'none';
-            const prospCta = document.getElementById('prospCtaMobile');
-            if (prospCta) prospCta.style.display = 'none';
-            const prospResume = document.getElementById('prospResumeBanner');
-            if (prospResume) prospResume.style.display = 'none';
         }
     }
 })();
@@ -203,7 +195,7 @@
             <button class="btn btn-primary" onclick="openQuickAddModal()" title="Ajouter un prospect, entreprise ou candidat (IA ou manuel)" data-help-section="scrapping-ia">➕ Ajouter</button>
             <div class="view-toggle" id="viewToggle">
                 <button class="view-toggle-btn active" id="btnViewTable" onclick="switchTableKanban('table')" title="Vue tableau">☰ <span class="view-count" id="viewCountTable">0</span></button>
-                <button class="view-toggle-btn" id="btnViewProsp" onclick="switchTableKanban('prosp')" title="Mode Prosp défilant">🃏 <span class="view-count" id="viewCountProsp">0</span></button>
+
                 <button class="view-toggle-btn" id="btnViewKanban" onclick="switchTableKanban('kanban')" title="Vue Kanban">▦ <span class="view-count" id="viewCountKanban">0</span></button>
             </div>
         </div>
@@ -286,13 +278,8 @@
         </div>
     </div>
 
-    <div class="prosp-cta-mobile" id="prospCtaMobile">
-        <button class="btn btn-primary prosp-cta-btn" type="button" onclick="switchTableKanban('prosp')" title="Défiler les prospects un par un">🃏 Mode Prosp</button>
-    </div>
-    <div id="prospResumeBanner" class="prosp-resume-banner" aria-live="polite">
-        <span class="prosp-resume-text">Mode Prosp interrompu.</span>
-        <button type="button" class="btn btn-primary btn-sm" onclick="resumeProspSession()">Reprendre</button>
-        <button type="button" class="prosp-resume-dismiss" onclick="dismissProspResumeBanner()" title="Fermer">×</button>
+    <div class="mode-prosp-launch" id="modeProspLaunch">
+        <button class="btn btn-primary mode-prosp-btn" id="btnModeProsp" type="button" onclick="launchModeProsp()" title="Ouvrir le Mode Prosp dans un nouvel onglet">🃏 Mode Prosp</button>
     </div>
 
     <div class="table-toolbar" style="display:flex;justify-content:flex-end;margin-bottom:6px;">

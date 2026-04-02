@@ -2052,7 +2052,6 @@ let inlineCompanyFieldEditing = null;
 let sortDir = 'desc'; // 'asc' ou 'desc'
 let pendingCompanyFocusId = null;
 let companySheetState = { companyId: null, mode: 'view' };
-let _pendingProspListScrollRestore = null;
 
 // Saved views (v6)
 let savedViews = [];
@@ -2230,9 +2229,6 @@ function initProspectsPage() {
     updateBulkBar();
     updateSelectAllState();
     try { initSavedViewsUI(); } catch(e) {}
-    try {
-        if (sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY)) showProspResumeBanner();
-    } catch (e) {}
 }
 
 function populateCompanySelects() {
@@ -3414,40 +3410,8 @@ function archiveProspect(id) {
         });
     }
     
-    // En mode prosp, passer au prospect suivant au lieu de fermer
-    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
-    if (isProspMode) {
-        // Récupérer le prospect suivant AVANT de filtrer (car le prospect actuel sera retiré de la liste)
-        const nextId = getProspNextId(id);
-        filterProspects(); // Met à jour la liste filtrée et _prospSession.ids via syncProspSessionWithFilteredList
-        
-        // Vérifier que nextId est toujours dans la liste après filtrage
-        if (nextId && (_prospSession.ids || []).includes(nextId)) {
-            // Le suivant est toujours valide, naviguer vers lui
-            _prospSession.currentId = nextId;
-            _prospSession.currentIndex = (_prospSession.ids || []).indexOf(nextId);
-            if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-            // Petit délai pour s'assurer que filterProspects a terminé
-            requestAnimationFrame(() => {
-                viewDetail(nextId).catch(() => {});
-            });
-        } else if ((_prospSession.ids || []).length > 0) {
-            // Le suivant n'est plus valide, prendre le premier de la liste
-            const firstId = _prospSession.ids[0];
-            _prospSession.currentId = firstId;
-            _prospSession.currentIndex = 0;
-            if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-            requestAnimationFrame(() => {
-                viewDetail(firstId).catch(() => {});
-            });
-        } else {
-            // Plus de prospects dans la liste, terminer le mode prosp
-            closeDetail();
-        }
-    } else {
-        closeDetail();
-        filterProspects();
-    }
+    closeDetail();
+    filterProspects();
     
     showToast(`📁 ${label} archivé`, 'success');
 }
@@ -3478,10 +3442,6 @@ function unarchiveProspect(id) {
 const restoreFromContacts = unarchiveProspect;
 
 function filterProspects() {
-    const shouldPreserveProspScroll = (_currentView === 'prosp' && _prospSession.active);
-    const prospScrollSnapshot = shouldPreserveProspScroll
-        ? _captureProspectsScrollState(_prospSession.currentId)
-        : null;
 
     const search = (document.getElementById('searchInput') || {value: ''}).value.toLowerCase();
     const company = getFilterVal('companyFilter');
@@ -3562,18 +3522,12 @@ function filterProspects() {
     });
 
     applySort();
-    _currentPage = 1; // Reset pagination when filters change
-    if (prospScrollSnapshot) {
-        _queueProspectsScrollRestore(prospScrollSnapshot);
-    }
-    renderProspects(); // v26: utilise maintenant RAF pour éviter re-renders multiples
+    _currentPage = 1;
+    renderProspects();
     updateBulkBar();
     updateSelectAllState();
     renderActiveFilterChips();
-    updateViewToggleCounts(); // Mettre à jour les compteurs des boutons de mode
-    if (_currentView === 'prosp') {
-        syncProspSessionWithFilteredList();
-    }
+    updateViewToggleCounts();
 }
 
 function syncStatsCardsMode() {
@@ -4428,8 +4382,7 @@ function _renderProspectsImpl() {
         }
         updateStats([]);
         _renderPagination();
-        _flushProspectsScrollRestore();
-        return;
+            return;
     }
 
     // Pagination: slice to current page
@@ -4642,7 +4595,6 @@ function _renderProspectsImpl() {
     updateStats(filteredProspects);
     _renderPagination();
     if (typeof renderKanban === 'function') renderKanban();
-    _flushProspectsScrollRestore();
     _initProspectSwipe();
 }
 
@@ -4758,237 +4710,48 @@ function _initProspectSwipe() {
     }, { passive: true });
 }
 
-// ── Mode Stack Tinder (v27.8) ─────────────────────────────────────────────────
-var _stackMode = {
-    active: false,
-    queue: [],
-    idx: 0,
-    dragState: null
-};
-
-function startStackMode() {
-    if (!filteredProspects || filteredProspects.length === 0) {
-        if (window.showToast) showToast('Aucun prospect à afficher', 'info');
-        return;
-    }
-    _stackMode.queue = filteredProspects.slice();
-    _stackMode.idx = 0;
-    _stackMode.active = true;
-
-    var sv = document.getElementById('stackView');
-    if (!sv) {
-        sv = document.createElement('div');
-        sv.id = 'stackView';
-        sv.className = 'stack-view';
-        sv.innerHTML =
-            '<div class="stack-header">' +
-            '<button class="stack-back-btn" onclick="stopStackMode()">← Retour</button>' +
-            '<span id="stackCounter" class="stack-counter"></span>' +
-            '<div class="stack-hints"><span>← Passer</span><span>Appeler →</span></div>' +
-            '</div>' +
-            '<div id="stackDeck" class="stack-deck"></div>' +
-            '<div class="stack-footer-actions">' +
-            '<button class="stack-btn stack-btn-skip" onclick="_stackSkip()">✕<span>Passer</span></button>' +
-            '<button class="stack-btn stack-btn-detail" onclick="_stackDetail()">👁<span>Fiche</span></button>' +
-            '<button class="stack-btn stack-btn-call" onclick="_stackCall()">📞<span>Appeler</span></button>' +
-            '</div>';
-        document.body.appendChild(sv);
-    }
-    sv.style.display = 'flex';
-    document.body.classList.add('stack-mode-active');
-    _renderStackDeck();
-    _initStackDrag();
-}
-
-function stopStackMode() {
-    _stackMode.active = false;
-    var sv = document.getElementById('stackView');
-    if (sv) sv.style.display = 'none';
-    document.body.classList.remove('stack-mode-active');
-}
-
-function _renderStackDeck() {
-    var deck = document.getElementById('stackDeck');
-    var counter = document.getElementById('stackCounter');
-    if (!deck) return;
-    deck.innerHTML = '';
-    var total = _stackMode.queue.length;
-    var remaining = total - _stackMode.idx;
-    if (counter) counter.textContent = remaining + ' / ' + total;
-    if (remaining <= 0) {
-        deck.innerHTML = '<div class="stack-done"><div style="font-size:48px">🎉</div><div>Tous les prospects vus !</div><button class="btn btn-primary" onclick="stopStackMode()" style="margin-top:16px">Fermer</button></div>';
-        return;
-    }
-    // Afficher jusqu'à 3 cartes (du bas vers le haut)
-    for (var i = Math.min(2, remaining - 1); i >= 0; i--) {
-        var p = _stackMode.queue[_stackMode.idx + i];
-        if (!p) continue;
-        var c = (data.companies || []).find(function(co) { return co.id === p.company_id; });
-        var compNm = (c && c.groupe) ? c.groupe : '';
-        var stM = getStatusMeta(p.statut);
-        var initial = (p.name || '').charAt(0).toUpperCase();
-        var coInit = compNm ? compNm.charAt(0).toUpperCase() : '?';
-        var coColorI = compNm ? compNm.charCodeAt(0) % 6 : 0;
-        var pert2 = Math.min(5, Math.max(0, parseInt(p.pertinence || '3', 10) || 0));
-        var card = document.createElement('div');
-        card.className = 'stack-card' + (i === 0 ? ' stack-card-top' : '');
-        card.style.setProperty('--stack-offset', i);
-        card.dataset.pid = String(p.id);
-        var nfuBadge = '';
-        var todayS = new Date().toISOString().slice(0, 10);
-        if (p.nextFollowUp) {
-            var nf = String(p.nextFollowUp).slice(0, 10);
-            if (nf < todayS) nfuBadge = '<span class="pmc-relance pmc-relance-overdue">● En retard</span>';
-            else if (nf === todayS) nfuBadge = '<span class="pmc-relance pmc-relance-today">● Aujourd\'hui</span>';
-        }
-        card.innerHTML =
-            '<div class="stack-card-avatar pmc-co-c' + coColorI + '">' + coInit + '</div>' +
-            '<div class="stack-card-name">' + escapeHtml(p.name || '') + '</div>' +
-            '<div class="stack-card-company">' + escapeHtml(compNm) + (p.fonction ? ' · ' + escapeHtml(p.fonction) : '') + '</div>' +
-            '<div class="stack-card-status"><span class="pmc-pill ' + 'pmc-s-' + stM.slug + '">' + escapeHtml(stM.label || '') + '</span>' + nfuBadge + '</div>' +
-            '<div class="stack-card-stars">' + '★'.repeat(pert2) + '☆'.repeat(5 - pert2) + '</div>' +
-            (p.telephone ? '<div class="stack-card-meta">📞 ' + escapeHtml(String(p.telephone).slice(0, 20)) + '</div>' : '') +
-            (p.email ? '<div class="stack-card-meta">📧 ' + escapeHtml(p.email) + '</div>' : '');
-        deck.appendChild(card);
-    }
-    if (remaining > 0) _bindStackTopCard();
-}
-
-function _initStackDrag() {
-    var deck = document.getElementById('stackDeck');
-    if (!deck || deck._stackDragInit) return;
-    deck._stackDragInit = true;
-    deck.addEventListener('touchstart', function(e) {
-        var card = e.target.closest('.stack-card-top');
-        if (!card) return;
-        _stackMode.dragState = { card: card, startX: e.touches[0].clientX, startY: e.touches[0].clientY, moved: false };
-    }, { passive: true });
-    deck.addEventListener('touchmove', function(e) {
-        if (!_stackMode.dragState) return;
-        e.preventDefault();
-        var ds = _stackMode.dragState;
-        var dx = e.touches[0].clientX - ds.startX;
-        var dy = e.touches[0].clientY - ds.startY;
-        ds.moved = true;
-        ds.card.style.transition = 'none';
-        ds.card.style.transform = 'translateX(' + dx + 'px) translateY(' + dy * 0.3 + 'px) rotate(' + (dx * 0.08) + 'deg)';
-        // Indicateur visuel gauche/droite
-        var overlay = ds.card.querySelector('.stack-card-overlay');
-        if (!overlay) { overlay = document.createElement('div'); overlay.className = 'stack-card-overlay'; ds.card.appendChild(overlay); }
-        if (dx > 40)  { overlay.textContent = '📞'; overlay.className = 'stack-card-overlay stack-card-overlay-right'; }
-        else if (dx < -40) { overlay.textContent = '✕'; overlay.className = 'stack-card-overlay stack-card-overlay-left'; }
-        else           { overlay.className = 'stack-card-overlay'; overlay.textContent = ''; }
-    }, { passive: false });
-    deck.addEventListener('touchend', function(e) {
-        if (!_stackMode.dragState) return;
-        var ds = _stackMode.dragState;
-        _stackMode.dragState = null;
-        if (!ds.moved) { ds.card.style.transform = ''; return; }
-        var dx = e.changedTouches[0].clientX - ds.startX;
-        ds.card.style.transition = 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.35s ease';
-        if (dx > 70) {
-            // Swipe droite → appeler
-            ds.card.style.transform = 'translateX(120vw) rotate(30deg)';
-            ds.card.style.opacity = '0';
-            setTimeout(function() { _stackCall(Number(ds.card.dataset.pid)); }, 200);
-        } else if (dx < -70) {
-            // Swipe gauche → passer
-            ds.card.style.transform = 'translateX(-120vw) rotate(-30deg)';
-            ds.card.style.opacity = '0';
-            setTimeout(function() { _stackSkip(); }, 200);
-        } else {
-            // Snap back
-            ds.card.style.transform = '';
-        }
-    }, { passive: true });
-}
-
-function _bindStackTopCard() {} // placeholder (drag via deck listener)
-
-function _stackSkip() {
-    if (window.haptic) haptic(12);
-    _stackMode.idx++;
-    _renderStackDeck();
-}
-
-function _stackCall(pid) {
-    var p = _stackMode.queue[_stackMode.idx];
-    if (!p && pid) p = _stackMode.queue.find(function(pr) { return pr.id === pid; });
-    if (p && p.telephone) {
-        window.location.href = 'tel:' + p.telephone.replace(/\s/g, '');
-        if (window.haptic) haptic(30);
-    }
-    _stackMode.idx++;
-    setTimeout(_renderStackDeck, 400);
-}
-
-function _stackDetail() {
-    var p = _stackMode.queue[_stackMode.idx];
-    if (!p) return;
-    stopStackMode();
-    if (typeof viewDetail === 'function') viewDetail(p.id);
-}
-
 // ── Changement statut direct depuis le hero (select) ─────────────────────────
 function _heroChangeStatus(prospectId, newStatus) {
     var prospect = data.prospects.find(function(p) { return p.id === prospectId; });
     if (!prospect || !newStatus) return;
 
-    // En mode Prosp : mettre à jour le statut sans naviguer vers le prospect suivant,
-    // pour ne pas perdre les modifications en cours dans le formulaire d'édition.
-    var isProspModeHero = (_currentView === 'prosp' && _prospSession.active);
-
-    // Helper : synchronise le select editStatut du formulaire avec le nouveau statut
     function _syncEditStatut(val) {
         var editStatutEl = document.getElementById('editStatut');
         if (editStatutEl) editStatutEl.value = val;
     }
 
-    // Popup date RDV
     if (newStatus === 'Rendez-vous') {
         showRdvDatePicker(prospectId, function(selectedDate) {
             prospect.statut = newStatus;
             if (selectedDate) prospect.rdvDate = selectedDate;
             prospect.lastContact = nowISO();
-            // Pas de sauvegarde automatique — l'utilisateur clique "Enregistrer"
             if (window.haptic) haptic(20);
             _syncEditStatut(newStatus);
-            if (!isProspModeHero) {
-                filterProspects();
-                viewDetail(prospectId);
-            }
+            filterProspects();
+            viewDetail(prospectId);
         });
         return;
     }
 
-    // Popup date de relance
     if (newStatus === 'À rappeler') {
         showRelanceDatePicker(prospectId, function(selectedDate) {
             prospect.statut = newStatus;
             if (selectedDate) prospect.nextFollowUp = selectedDate;
             prospect.lastContact = nowISO();
-            // Pas de sauvegarde automatique — l'utilisateur clique "Enregistrer"
             if (window.haptic) haptic(20);
             _syncEditStatut(newStatus);
-            if (!isProspModeHero) {
-                filterProspects();
-                viewDetail(prospectId);
-            }
+            filterProspects();
+            viewDetail(prospectId);
         });
         return;
     }
 
     prospect.statut = newStatus;
     prospect.lastContact = nowISO();
-    // Pas de sauvegarde automatique — l'utilisateur clique "Enregistrer"
     if (window.haptic) haptic(20);
     _syncEditStatut(newStatus);
-    if (isProspModeHero) {
-        // En mode Prosp : rester sur la fiche courante, formulaire déjà synchronisé.
-    } else {
-        filterProspects();
-        viewDetail(prospectId);
-    }
+    filterProspects();
+    viewDetail(prospectId);
 }
 
 // ── Actions rapides v27.8 ─────────────────────────────────────────────────────
@@ -5419,14 +5182,6 @@ async function viewDetail(id) {
     window._currentPushTemplate = null; // Reset template
     const prospect = data.prospects.find(p => p.id === id);
     if (!prospect) return;
-    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
-    if (isProspMode) {
-        _syncProspCurrent(id);
-        if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-    }
-    const prospProgress = isProspMode ? getProspProgress(id) : { index: 0, total: 0 };
-    const hasNextInProsp = isProspMode && !!getProspNextId(id);
-    const hasPrevInProsp = isProspMode && !!getProspPrevId(id);
 
     const company = data.companies.find(c => c.id === prospect.company_id);
     const pert = parseInt(prospect.pertinence, 10) || 3;
@@ -5518,7 +5273,6 @@ async function viewDetail(id) {
             ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-edit')">✏️ Modifier</button>
         </div>
-        ${isProspMode ? `<div class="detail-prosp-progress">Mode Prosp · ${prospProgress.index}/${prospProgress.total}</div><div class="detail-prosp-hint">Swipe gauche: suivant · Swipe droite: fermer</div>` : ''}
 
         <!-- TAB: Infos -->
         <div class="detail-tab-content active" id="tab-info">
@@ -5670,11 +5424,9 @@ async function viewDetail(id) {
                 ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
             </div>
             <div style="display:flex;gap:8px;">
-                ${hasPrevInProsp ? `<button class="btn btn-secondary btn-prosp-prev" onclick="goToProspPrev(${id})" title="Prospect précédent">← Précédent</button>` : ''}
                 <button class="btn btn-secondary" onclick="closeDetail()">Fermer</button>
                 <button class="btn btn-primary" onclick="saveDetail(${id})">💾 Enregistrer</button>
-                ${!isProspMode ? `<button class="btn btn-primary" onclick="saveDetail(${id}, { closeAfterSave: true })" title="Enregistrer et fermer la fiche">💾 Enregistrer et fermer</button>` : ''}
-                ${isProspMode ? `<button class="btn btn-primary btn-prosp-next ${hasNextInProsp ? '' : 'is-last'}" onclick="saveAndNext(${id})" title="${hasNextInProsp ? 'Enregistrer puis prospect suivant' : 'Enregistrer puis quitter le mode Prosp'}">${hasNextInProsp ? 'Suivant →' : 'Terminer ✓'}</button>` : ''}
+                <button class="btn btn-primary" onclick="saveDetail(${id}, { closeAfterSave: true })" title="Enregistrer et fermer la fiche">💾 Enregistrer et fermer</button>
             </div>
         </div>
     `;
@@ -5692,16 +5444,6 @@ async function viewDetail(id) {
         detailModal.classList.add('active');
     }
     if (window.decorateHelpSections) window.decorateHelpSections();
-    const detailCard = detailModal.querySelector('.modal-content');
-    if (detailCard) {
-        detailCard.classList.toggle('prosp-mode-card', isProspMode);
-        if (isProspMode) {
-            detailCard.classList.remove('prosp-enter');
-            requestAnimationFrame(() => detailCard.classList.add('prosp-enter'));
-        } else {
-            detailCard.classList.remove('prosp-enter');
-        }
-    }
 
     // init tags editor (edit mode)
     try { initTagsEditor('editTagsEditor', 'editTagsValue', prospect.tags || []); } catch (e) {}
@@ -5799,18 +5541,12 @@ function quickChangeStatus(prospectId, newStatus) {
             _stampProspectLastContact(prospect);
             saveToServer();
             markUnsaved();
-            if (_currentView === 'prosp' && _prospSession.active) {
-                const nextId = getProspNextId(prospectId);
-                if (typeof filterProspects === 'function') filterProspects();
-                _prospGoToNextAfterStatusChange(prospectId, nextId);
-            } else {
-                viewDetail(prospectId);
-                if (typeof filterProspects === 'function') filterProspects();
-            }
+            viewDetail(prospectId);
+            if (typeof filterProspects === 'function') filterProspects();
         });
         return;
     }
-    
+
     // If selecting "À rappeler", show relance date picker popup
     if (newStatus === 'À rappeler') {
         showRelanceDatePicker(prospectId, function(selectedDate) {
@@ -5821,18 +5557,12 @@ function quickChangeStatus(prospectId, newStatus) {
             _stampProspectLastContact(prospect);
             saveToServer();
             markUnsaved();
-            if (_currentView === 'prosp' && _prospSession.active) {
-                const nextId = getProspNextId(prospectId);
-                if (typeof filterProspects === 'function') filterProspects();
-                _prospGoToNextAfterStatusChange(prospectId, nextId);
-            } else {
-                viewDetail(prospectId);
-                if (typeof filterProspects === 'function') filterProspects();
-            }
+            viewDetail(prospectId);
+            if (typeof filterProspects === 'function') filterProspects();
         });
         return;
     }
-    
+
     const _oldStatut = prospect.statut;
     const _prospName = prospect.name || '';
     prospect.statut = newStatus;
@@ -5853,14 +5583,8 @@ function quickChangeStatus(prospectId, newStatus) {
             if (typeof viewDetail === 'function') viewDetail(prospectId);
         });
     }
-    if (_currentView === 'prosp' && _prospSession.active) {
-        const nextId = getProspNextId(prospectId);
-        if (typeof filterProspects === 'function') filterProspects();
-        _prospGoToNextAfterStatusChange(prospectId, nextId);
-    } else {
-        viewDetail(prospectId);
-        if (typeof filterProspects === 'function') filterProspects();
-    }
+    viewDetail(prospectId);
+    if (typeof filterProspects === 'function') filterProspects();
 }
 
 // ── RDV Date Picker Popup ──
@@ -5982,29 +5706,25 @@ function closeRelanceDatePicker(confirmed) {
     }
 }
 
-// ====== Kanban + Prosp view ======
-const PROSP_SESSION_STORAGE_KEY = 'prospup_last_prosp_session';
+// ====== Kanban view ======
 let _currentView = 'table';
-let _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
-let _prospManuallyExited = false; // Flag pour éviter la reprise automatique si l'utilisateur a quitté volontairement
 
 function _setViewToggleButtons(mode) {
     const btnTable = document.getElementById('btnViewTable');
     const btnKanban = document.getElementById('btnViewKanban');
-    const btnProsp = document.getElementById('btnViewProsp');
     btnTable?.classList.toggle('active', mode === 'table');
     btnKanban?.classList.toggle('active', mode === 'kanban');
-    btnProsp?.classList.toggle('active', mode === 'prosp');
 }
 
 function updateViewToggleCounts() {
     const count = Array.isArray(filteredProspects) ? filteredProspects.length : 0;
     const countTable = document.getElementById('viewCountTable');
-    const countProsp = document.getElementById('viewCountProsp');
     const countKanban = document.getElementById('viewCountKanban');
     if (countTable) countTable.textContent = count;
-    if (countProsp) countProsp.textContent = count;
     if (countKanban) countKanban.textContent = count;
+    // Update Mode Prosp button state
+    const btnModeProsp = document.getElementById('btnModeProsp');
+    if (btnModeProsp) btnModeProsp.disabled = count === 0;
 }
 
 function clearSearchInput() {
@@ -6030,148 +5750,42 @@ function resetFilters() {
     filterProspects();
 }
 
-function _getCurrentProspIds() {
-    return (Array.isArray(filteredProspects) ? filteredProspects : []).map(p => p.id);
+// Mode Prosp — launch in new tab
+function launchModeProsp() {
+    const ids = (Array.isArray(filteredProspects) ? filteredProspects : []).map(p => p.id);
+    if (!ids.length) {
+        if (typeof showToast === 'function') showToast('Aucun prospect à afficher avec les filtres actuels.', 'warning');
+        return;
+    }
+    try { sessionStorage.setItem('prospup_mode_prosp_ids', JSON.stringify(ids)); } catch (e) {}
+    window.open('/prospects/mode-prosp', '_blank');
 }
 
-function _rebuildProspIdsKeepingOrder(previousIds, freshIds) {
-    const fresh = Array.isArray(freshIds) ? freshIds : [];
-    const freshSet = new Set(fresh);
-    const ordered = [];
-    const seen = new Set();
-
-    (Array.isArray(previousIds) ? previousIds : []).forEach(id => {
-        if (!freshSet.has(id) || seen.has(id)) return;
-        seen.add(id);
-        ordered.push(id);
-    });
-
-    fresh.forEach(id => {
-        if (seen.has(id)) return;
-        seen.add(id);
-        ordered.push(id);
-    });
-
-    return ordered;
-}
-
-function _captureProspectsScrollState(anchorId) {
-    const tableView = document.getElementById('tableView');
-    const aid = Number(anchorId);
-    return {
-        anchorId: Number.isFinite(aid) ? aid : null,
-        tableScrollTop: tableView ? tableView.scrollTop : 0,
-        windowY: window.scrollY || window.pageYOffset || 0
+// BroadcastChannel for Mode Prosp sync
+(function() {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const bc = new BroadcastChannel('prospup-mode-prosp');
+    bc.onmessage = function(e) {
+        if (!e.data || e.data.source === 'main') return;
+        if (e.data.type === 'prospect-updated' && e.data.prospect) {
+            const updated = e.data.prospect;
+            const idx = data.prospects.findIndex(p => p.id === updated.id);
+            if (idx >= 0) {
+                data.prospects[idx] = updated;
+                if (typeof filterProspects === 'function') filterProspects();
+                // Refresh detail modal if open on same prospect
+                const modal = document.getElementById('modalDetail');
+                if (modal && modal.classList.contains('active') && window._currentDetailProspectId === updated.id) {
+                    viewDetail(updated.id);
+                }
+            }
+        }
     };
-}
-
-function _restoreProspectsScrollState(state) {
-    if (!state || typeof state !== 'object') return;
-    try {
-        const tableView = document.getElementById('tableView');
-        if (tableView && typeof state.tableScrollTop === 'number') {
-            tableView.scrollTop = state.tableScrollTop;
-        }
-        if (typeof state.windowY === 'number') {
-            window.scrollTo(0, state.windowY);
-        }
-        const aid = Number(state.anchorId);
-        if (Number.isFinite(aid)) {
-            const row = document.querySelector(`#tableBody tr[data-prospect-id="${aid}"]`);
-            if (row) row.scrollIntoView({ behavior: 'auto', block: 'center' });
-        }
-    } catch (e) {}
-}
-
-function _queueProspectsScrollRestore(state) {
-    _pendingProspListScrollRestore = state || null;
-}
-
-function _flushProspectsScrollRestore() {
-    if (!_pendingProspListScrollRestore) return;
-    const state = _pendingProspListScrollRestore;
-    _pendingProspListScrollRestore = null;
-    requestAnimationFrame(() => requestAnimationFrame(() => _restoreProspectsScrollState(state)));
-}
-
-function _parseLastContactTs(value) {
-    const raw = String(value || '').trim();
-    if (!raw) return 0;
-    const normalized = raw.length <= 10 ? `${raw}T00:00:00` : raw.replace(' ', 'T');
-    const ts = Date.parse(normalized);
-    return Number.isFinite(ts) ? ts : 0;
-}
-
-function _pickMostRecentSessionProspectId(candidateIds) {
-    if (!Array.isArray(candidateIds) || candidateIds.length === 0) return null;
-    let best = null;
-    candidateIds.forEach((id, idx) => {
-        const prospect = data.prospects.find(p => p.id === id);
-        if (!prospect) return;
-        const ts = _parseLastContactTs(prospect.lastContact);
-        if (!best || ts > best.ts || (ts === best.ts && idx > best.idx)) {
-            best = { id, ts, idx };
-        }
-    });
-    return best ? best.id : null;
-}
-
-function _syncProspCurrent(id) {
-    if (!_prospSession.active) return;
-    _prospSession.ids = _rebuildProspIdsKeepingOrder(_prospSession.ids, _getCurrentProspIds());
-    _prospSession.currentId = id;
-    _prospSession.currentIndex = _prospSession.ids.indexOf(id);
-}
-
-function getProspProgress(id) {
-    if (!_prospSession.active) return { index: 0, total: 0 };
-    const ids = _prospSession.ids || [];
-    const idx = ids.indexOf(id);
-    return { index: idx >= 0 ? (idx + 1) : 0, total: ids.length };
-}
-
-function getProspNextId(id) {
-    if (!_prospSession.active) return null;
-    const ids = _prospSession.ids || [];
-    const idx = ids.indexOf(id);
-    if (idx < 0) return null;
-    return (idx + 1 < ids.length) ? ids[idx + 1] : null;
-}
-
-function getProspPrevId(id) {
-    if (!_prospSession.active) return null;
-    const ids = _prospSession.ids || [];
-    const idx = ids.indexOf(id);
-    if (idx <= 0) return null;
-    return ids[idx - 1];
-}
-
-function syncProspSessionWithFilteredList() {
-    if (_currentView !== 'prosp' || !_prospSession.active) return;
-    const previousIds = Array.isArray(_prospSession.ids) ? _prospSession.ids.slice() : [];
-    const previousCurrentId = _prospSession.currentId;
-    const previousIndex = previousIds.indexOf(previousCurrentId);
-    _prospSession.ids = _rebuildProspIdsKeepingOrder(previousIds, _getCurrentProspIds());
-    if (_prospSession.ids.length === 0) {
-        if (typeof showToast === 'function') showToast('Aucun prospect dans ce filtre, sortie du mode Prosp.', 'warning');
-        closeDetail();
-        return;
-    }
-    if (!_prospSession.currentId || !_prospSession.ids.includes(_prospSession.currentId)) {
-        const fallbackIndex = previousIndex >= 0 ? Math.min(previousIndex, _prospSession.ids.length - 1) : 0;
-        _prospSession.currentId = _prospSession.ids[fallbackIndex];
-        _prospSession.currentIndex = fallbackIndex;
-        _prospSession.listScrollState = _captureProspectsScrollState(_prospSession.currentId);
-        _queueProspectsScrollRestore(_prospSession.listScrollState);
-        if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-        viewDetail(_prospSession.currentId).catch(() => {});
-        return;
-    }
-    _prospSession.currentIndex = _prospSession.ids.indexOf(_prospSession.currentId);
-}
+    window._prospModeBroadcast = bc;
+})();
 
 function switchTableKanban(mode) {
-    const normalizedMode = (mode === 'kanban' || mode === 'prosp') ? mode : 'table';
+    const normalizedMode = mode === 'kanban' ? 'kanban' : 'table';
     const previousMode = _currentView;
     _currentView = normalizedMode;
 
@@ -6179,60 +5793,26 @@ function switchTableKanban(mode) {
     const kanbanEl = document.getElementById('kanbanView');
     if (!tableEl || !kanbanEl) return;
 
-    // Fonction helper pour appliquer les transitions fluides entre vues
     const applyViewTransition = (elementOut, elementIn, callback) => {
-        if (!elementIn) {
-            // Si pas d'élément entrant (mode prosp), juste cacher l'élément sortant
-            if (elementOut && previousMode !== normalizedMode && elementOut.style.display !== 'none') {
-                elementOut.classList.remove('view-transition-enter');
-                elementOut.classList.add('view-transition-exit');
-                setTimeout(() => {
-                    elementOut.style.display = 'none';
-                    elementOut.classList.remove('view-transition-exit');
-                    if (callback) callback();
-                }, 300);
-            } else {
-                if (elementOut) {
-                    elementOut.style.display = 'none';
-                    elementOut.classList.remove('view-transition-enter', 'view-transition-exit');
-                }
-                if (callback) callback();
-            }
-            return;
-        }
-
-        if (!elementOut) {
-            // Pas d'élément sortant, juste montrer le nouveau
-            elementIn.style.display = '';
-            elementIn.classList.remove('view-transition-exit');
-            elementIn.classList.add('view-transition-enter');
-            void elementIn.offsetWidth;
+        if (!elementOut || !elementIn) {
+            if (elementOut) elementOut.style.display = 'none';
+            if (elementIn) elementIn.style.display = '';
             if (callback) callback();
             return;
         }
-
-        // Si c'est la première fois ou si on change de vue
         if (previousMode !== normalizedMode && elementOut.style.display !== 'none') {
-            // Animation de sortie
             elementOut.classList.remove('view-transition-enter');
             elementOut.classList.add('view-transition-exit');
-            
-            // Après l'animation de sortie, cacher l'élément et montrer le nouveau
             setTimeout(() => {
                 elementOut.style.display = 'none';
                 elementOut.classList.remove('view-transition-exit');
-                
                 elementIn.style.display = '';
                 elementIn.classList.remove('view-transition-exit');
                 elementIn.classList.add('view-transition-enter');
-                
-                // Forcer le reflow pour déclencher l'animation
                 void elementIn.offsetWidth;
-                
                 if (callback) callback();
-            }, 300); // Durée de l'animation de sortie
+            }, 300);
         } else {
-            // Pas de transition nécessaire, changement direct
             elementOut.style.display = 'none';
             elementOut.classList.remove('view-transition-enter', 'view-transition-exit');
             elementIn.style.display = '';
@@ -6246,56 +5826,16 @@ function switchTableKanban(mode) {
     _setViewToggleButtons(normalizedMode);
 
     if (normalizedMode === 'kanban') {
-        _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
         const modal = document.getElementById('modalDetail');
-        if (modal && modal.classList.contains('active')) closeDetail({ keepProspMode: false, fromViewSwitch: true });
-        
-        applyViewTransition(tableEl, kanbanEl, () => {
-            renderKanban();
-        });
+        if (modal && modal.classList.contains('active')) closeDetail({ fromViewSwitch: true });
+        applyViewTransition(tableEl, kanbanEl, () => { renderKanban(); });
         return;
     }
 
-    if (normalizedMode === 'table') {
-        _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
-        const modal = document.getElementById('modalDetail');
-        if (modal && modal.classList.contains('active')) closeDetail({ keepProspMode: false, fromViewSwitch: true });
-        
-        applyViewTransition(kanbanEl, tableEl);
-        return;
-    }
-
-    // Mode prosp
-    const ids = _getCurrentProspIds();
-    if (!ids.length) {
-        _currentView = 'table';
-        applyViewTransition(kanbanEl, tableEl, () => {
-            _setViewToggleButtons('table');
-            if (typeof showToast === 'function') showToast('Aucun prospect à défiler avec les filtres actuels.', 'warning');
-        });
-        return;
-    }
-
-    // Capturer le scroll AVANT de masquer la table (Bug 5)
-    const scrollState = _captureProspectsScrollState(ids[0]);
-    
-    _prospSession = {
-        active: true,
-        ids,
-        currentId: ids[0],
-        currentIndex: 0,
-        listScrollState: scrollState
-    };
-    _prospManuallyExited = false; // Réinitialiser le flag quand on active le mode prosp
-    if (typeof showToast === 'function') {
-        showToast(`Mode Prosp activé · ${ids.length} prospect${ids.length > 1 ? 's' : ''} à traiter`, 'info');
-    }
-    if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-    
-    // Pour le mode prosp, on cache les deux vues (table et kanban)
-    applyViewTransition(previousMode === 'kanban' ? kanbanEl : tableEl, null, () => {
-        viewDetail(ids[0]).catch(() => {});
-    });
+    // table
+    const modal = document.getElementById('modalDetail');
+    if (modal && modal.classList.contains('active')) closeDetail({ fromViewSwitch: true });
+    applyViewTransition(kanbanEl, tableEl);
 }
 
 function renderKanban() {
@@ -6487,106 +6027,26 @@ function saveDetail(id, options = {}) {
     saveToServer();
     markUnsaved();
 
-    // En mode prosp, ne pas appeler filterProspects() : la table est masquée et
-    // syncProspSessionWithFilteredList() pourrait naviguer vers un autre prospect
-    // si le nouveau statut est exclu par un filtre actif, ce qui ferait croire à
-    // l'utilisateur que l'enregistrement n'a pas fonctionné.
-    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
-
-    if (!closeAfterSave && !isProspMode) {
+    if (!closeAfterSave) {
         showToast('✓ Fiche enregistrée', 'success');
     }
 
-    if (refreshAfterSave && !isProspMode) {
+    if (refreshAfterSave) {
         filterProspects();
     }
 
-    if (closeAfterSave && !isProspMode) {
+    if (closeAfterSave) {
         closeDetail();
+    }
+
+    // Broadcast to Mode Prosp tab
+    if (window._prospModeBroadcast) {
+        window._prospModeBroadcast.postMessage({ type: 'prospect-updated', prospect: { ...prospect }, source: 'main' });
     }
 
     return true;
 }
 
-async function saveAndNext(id) {
-    if (!(_currentView === 'prosp' && _prospSession.active)) {
-        saveDetail(id, { closeAfterSave: true });
-        return;
-    }
-
-    const preferredNextId = getProspNextId(id);
-    const saved = saveDetail(id, { closeAfterSave: false, refreshAfterSave: true });
-    if (!saved) return;
-
-    // Bug 2 : Vérifier que id est toujours dans _prospSession.ids avant de sync
-    // (car saveDetail peut avoir appelé filterProspects qui a modifié la liste)
-    if ((_prospSession.ids || []).includes(id)) {
-        _syncProspCurrent(id);
-    } else {
-        // Si id n'est plus dans la liste, syncProspSessionWithFilteredList a déjà été appelé
-        // par filterProspects, donc on utilise l'état actuel
-    }
-    
-    let nextId = null;
-    if (preferredNextId && (_prospSession.ids || []).includes(preferredNextId)) {
-        nextId = preferredNextId;
-    } else {
-        nextId = getProspNextId(id);
-    }
-    if (!nextId) {
-        if (typeof showToast === 'function') showToast('Dernier prospect enregistré. Mode Prosp terminé.', 'success');
-        closeDetail();
-        return;
-    }
-
-    const detailModal = document.getElementById('modalDetail');
-    const detailCard = detailModal ? detailModal.querySelector('.modal-content') : null;
-    if (detailCard) {
-        detailCard.classList.remove('prosp-swipe-left');
-        detailCard.classList.remove('prosp-enter');
-        detailCard.classList.add('prosp-swipe-left');
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 170));
-    _prospSession.currentId = nextId;
-    _prospSession.currentIndex = (_prospSession.ids || []).indexOf(nextId);
-    if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-    await viewDetail(nextId);
-}
-
-function goToProspPrev(id) {
-    if (!(_currentView === 'prosp' && _prospSession.active)) return;
-    const prevId = getProspPrevId(id);
-    if (!prevId) return;
-    _prospSession.currentId = prevId;
-    _prospSession.currentIndex = (_prospSession.ids || []).indexOf(prevId);
-    // Bug 6 : Sauvegarder la session après navigation
-    if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-    viewDetail(prevId).catch(function () {});
-}
-
-// Après changement de statut en Mode Prosp : passer à la fiche suivante (ou première / fermer)
-function _prospGoToNextAfterStatusChange(prospectId, nextId) {
-    if (_currentView !== 'prosp' || !_prospSession.active) return;
-    const ids = _prospSession.ids || [];
-    if (nextId && ids.includes(nextId)) {
-        _prospSession.currentId = nextId;
-        _prospSession.currentIndex = ids.indexOf(nextId);
-        if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-        viewDetail(nextId).catch(function () {});
-    } else if (ids.length > 0) {
-        const currentPos = ids.indexOf(prospectId);
-        const fallbackIndex = currentPos >= 0 ? Math.min(currentPos, ids.length - 1) : 0;
-        const fallbackId = ids[fallbackIndex];
-        _prospSession.currentId = fallbackId;
-        _prospSession.currentIndex = fallbackIndex;
-        if (typeof _saveProspSessionToStorage === 'function') _saveProspSessionToStorage();
-        viewDetail(fallbackId).catch(function () {});
-    } else {
-        closeDetail();
-        if (typeof showToast === 'function') showToast('Mode Prosp terminé.', 'success');
-    }
-}
 
 // ═══ Company Sheet Popup (detailed) ═══
 function companySheetHasModal() {
@@ -7058,16 +6518,7 @@ async function touchLastContact(prospectId) {
 
     _stampProspectLastContact(p);
 
-    // Éviter de casser le déroulé Prosp en plein appel (réordonnancement par lastContact).
-    if (_currentView === 'prosp' && _prospSession.active) {
-        const snapshot = _captureProspectsScrollState(prospectId);
-        if (snapshot) {
-            _prospSession.listScrollState = snapshot;
-            _queueProspectsScrollRestore(snapshot);
-        }
-    } else {
-        try { filterProspects(); } catch (e) {}
-    }
+    try { filterProspects(); } catch (e) {}
 
     try {
         await saveToServerAsync();
@@ -9982,13 +9433,6 @@ function closeIAImportModal() {
             modal.classList.remove('active');
         }
     }
-    // En mode prosp, rouvrir la fiche du prospect courant après fermeture de la modale IA
-    if (_iaCurrentId && typeof viewDetail === 'function' &&
-        typeof _currentView !== 'undefined' && _currentView === 'prosp' &&
-        typeof _prospSession !== 'undefined' && _prospSession && _prospSession.active) {
-        const idToReopen = _iaCurrentId;
-        setTimeout(() => viewDetail(idToReopen), 220);
-    }
 }
 
 function iaBackToStep1() {
@@ -11598,223 +11042,23 @@ function closeDetail(options = {}) {
     } else {
         modal.classList.remove('active');
     }
-
-    const card = modal.querySelector('.modal-content');
-    if (card) {
-        card.classList.remove('prosp-mode-card');
-        card.classList.remove('prosp-enter');
-        card.classList.remove('prosp-swipe-left');
-    }
-
-    // Si on est en mode prosp mais qu'on ne sort pas du mode, réafficher la liste
-    const isProspMode = (_currentView === 'prosp' && _prospSession.active);
-    if (isProspMode && options.keepProspMode) {
-        const tableEl = document.getElementById('tableView');
-        const kanbanEl = document.getElementById('kanbanView');
-        if (tableEl) tableEl.style.display = '';
-        if (kanbanEl) kanbanEl.style.display = 'none';
-        // Réafficher la liste filtrée
-        try {
-            if (typeof filterProspects === 'function') {
-                filterProspects();
-            } else if (typeof renderProspects === 'function') {
-                renderProspects();
-            }
-        } catch (e) {
-            console.warn('Erreur réaffichage liste en mode prosp:', e);
-        }
-        return; // Ne pas sortir du mode prosp
-    }
-
-    const shouldExitProsp = (_currentView === 'prosp') && !options.keepProspMode;
-    if (shouldExitProsp) {
-        const exitScrollState = _prospSession.listScrollState || _captureProspectsScrollState(_prospSession.currentId);
-        _saveProspSessionToStorage({ scrollState: exitScrollState, anchorId: _prospSession.currentId });
-        _prospSession = { active: false, ids: [], currentId: null, currentIndex: -1, listScrollState: null };
-        _prospManuallyExited = true; // Marquer comme sortie volontaire (Bug 4)
-        _currentView = 'table';
-        const tableEl = document.getElementById('tableView');
-        const kanbanEl = document.getElementById('kanbanView');
-        if (tableEl) tableEl.style.display = '';
-        if (kanbanEl) kanbanEl.style.display = 'none';
-        _setViewToggleButtons('table');
-        // Réafficher la liste filtrée après sortie du mode prosp (Bug 3 : avant restauration scroll)
-        try {
-            if (typeof filterProspects === 'function') {
-                filterProspects();
-                // Restaurer le scroll APRÈS filterProspects (Bug 3)
-                if (exitScrollState) {
-                    // Attendre que le rendu soit terminé avant de restaurer le scroll
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => {
-                            _queueProspectsScrollRestore(exitScrollState);
-                            _flushProspectsScrollRestore();
-                        });
-                    });
-                }
-            } else if (typeof renderProspects === 'function') {
-                renderProspects();
-                // Restaurer le scroll APRÈS renderProspects (Bug 3)
-                if (exitScrollState) {
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => {
-                            _queueProspectsScrollRestore(exitScrollState);
-                            _flushProspectsScrollRestore();
-                        });
-                    });
-                }
-            } else if (exitScrollState) {
-                // Fallback si aucune fonction de rendu disponible
-                _queueProspectsScrollRestore(exitScrollState);
-                _flushProspectsScrollRestore();
-            }
-        } catch (e) {
-            console.warn('Erreur réaffichage liste après sortie mode prosp:', e);
-            if (exitScrollState) {
-                _queueProspectsScrollRestore(exitScrollState);
-                _flushProspectsScrollRestore();
-            }
-        }
-        showProspResumeBanner();
-    }
-}
-
-function showProspResumeBanner() {
-    const el = document.getElementById('prospResumeBanner');
-    if (!el) return;
-    // Effacer l'éventuel style inline (posé par le mode archivés) avant d'ajouter la classe
-    el.style.display = '';
-    el.classList.add('visible');
-}
-
-function dismissProspResumeBanner() {
-    const el = document.getElementById('prospResumeBanner');
-    if (el) el.classList.remove('visible');
-    try { sessionStorage.removeItem(PROSP_SESSION_STORAGE_KEY); } catch (e) {}
-}
-
-function resumeProspSession() {
-    let raw;
-    try {
-        raw = sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY);
-    } catch (e) { return; }
-    if (!raw) {
-        if (typeof showToast === 'function') showToast('Aucune session à reprendre.', 'info');
-        return;
-    }
-    let saved;
-    try {
-        saved = JSON.parse(raw);
-    } catch (e) {
-        dismissProspResumeBanner();
-        return;
-    }
-    if (!saved || !Array.isArray(saved.ids) || saved.ids.length === 0) {
-        dismissProspResumeBanner();
-        return;
-    }
-
-    const liveProspects = Array.isArray(data.prospects) ? data.prospects : [];
-    const liveProspectIds = new Set(liveProspects.map(p => p.id));
-    // Si data.prospects n'est pas encore chargé, utiliser les ids sauvegardés tels quels
-    const savedIds = liveProspects.length > 0
-        ? saved.ids.filter(id => liveProspectIds.has(id))
-        : saved.ids.slice();
-    if (savedIds.length === 0) {
-        dismissProspResumeBanner();
-        return;
-    }
-
-    const currentFilteredIds = _getCurrentProspIds();
-    const savedSet = new Set(savedIds);
-    let ids = currentFilteredIds.filter(id => savedSet.has(id));
-    if (ids.length === 0) ids = savedIds;
-
-    let currentId = saved.currentId;
-    if (!ids.includes(currentId)) {
-        if (saved.lastContactHintId && ids.includes(saved.lastContactHintId)) {
-            currentId = saved.lastContactHintId;
-        } else {
-            currentId = _pickMostRecentSessionProspectId(ids) || ids[0];
+    // Broadcast to Mode Prosp tab if detail was saved
+    if (window._prospModeBroadcast && window._currentDetailProspectId) {
+        const p = data.prospects.find(pr => pr.id === window._currentDetailProspectId);
+        if (p) {
+            window._prospModeBroadcast.postMessage({ type: 'prospect-updated', prospect: p, source: 'main' });
         }
     }
-
-    let currentIndex = ids.indexOf(currentId);
-    if (currentIndex < 0) currentIndex = 0;
-
-    _prospSession = {
-        active: true,
-        ids,
-        currentId,
-        currentIndex,
-        listScrollState: saved.scrollState || _captureProspectsScrollState(currentId)
-    };
-    _prospManuallyExited = false; // Réinitialiser le flag quand on reprend la session
-    _currentView = 'prosp';
-    const tableEl = document.getElementById('tableView');
-    const kanbanEl = document.getElementById('kanbanView');
-    if (tableEl) tableEl.style.display = 'none';
-    if (kanbanEl) kanbanEl.style.display = 'none';
-    _setViewToggleButtons('prosp');
-    try { sessionStorage.removeItem(PROSP_SESSION_STORAGE_KEY); } catch (e) {}
-    dismissProspResumeBanner();
-    viewDetail(currentId).catch(function () {});
 }
-
-// Sauvegarder la session Prosp quand l'app passe en arrière-plan (ex: quitter pour appeler)
-// pour pouvoir reprendre au bon endroit au retour (même si la page a été rechargée)
-function _saveProspSessionToStorage(options = {}) {
-    if (_currentView !== 'prosp' || !_prospSession.active) return;
-    const ids = Array.isArray(_prospSession.ids) && _prospSession.ids.length
-        ? _prospSession.ids.slice()
-        : _getCurrentProspIds();
-    const anchorId = options.anchorId != null ? options.anchorId : _prospSession.currentId;
-    const scrollState = options.scrollState || _captureProspectsScrollState(anchorId);
-    _prospSession.listScrollState = scrollState;
-    try {
-        sessionStorage.setItem(PROSP_SESSION_STORAGE_KEY, JSON.stringify({
-            version: 2,
-            ids,
-            currentId: _prospSession.currentId,
-            currentIndex: _prospSession.currentIndex,
-            lastContactHintId: _pickMostRecentSessionProspectId(ids),
-            savedAt: new Date().toISOString(),
-            scrollState
-        }));
-    } catch (e) {}
-}
-document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'hidden') {
-        _saveProspSessionToStorage();
-    } else if (document.visibilityState === 'visible') {
-        // Reprendre si une session est en storage mais qu'on n'est plus en Mode Prosp (ex: perte de state en mémoire)
-        // Bug 4 : Ne pas reprendre automatiquement si l'utilisateur a quitté volontairement
-        try {
-            if (window.__APP_PAGE__ === 'prospects' && _currentView !== 'prosp' && !_prospManuallyExited && sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY)) {
-                const raw = sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY);
-                if (raw) {
-                    const saved = JSON.parse(raw);
-                    if (saved && Array.isArray(saved.ids) && saved.ids.length > 0 && saved.currentId != null) {
-                        resumeProspSession();
-                    }
-                }
-            }
-        } catch (e) {}
-    }
-});
-window.addEventListener('pagehide', _saveProspSessionToStorage);
 
 // Close detail modal on backdrop click
 document.addEventListener('click', (e) => {
     const modal = document.getElementById('modalDetail');
     if (!modal || !modal.classList.contains('active')) return;
-    // Only close if clicking the backdrop itself, not the content
     if (e.target === modal) closeDetail();
 });
 
-// Swipe gestures on detail card (mobile):
-// - right: close
-// - left (mode Prosp only): save + next
+// Swipe gestures on detail card (mobile): swipe right to close
 (function () {
     var swipeStartX = null;
     var swipeStartY = null;
@@ -11836,9 +11080,7 @@ document.addEventListener('click', (e) => {
         var endY = e.changedTouches[0].clientY;
         var deltaX = endX - swipeStartX;
         var deltaY = Math.abs(endY - swipeStartY);
-        if (_currentView === 'prosp' && _prospSession.active && deltaX < -SWIPE_THRESHOLD && Math.abs(deltaX) > deltaY && _prospSession.currentId) {
-            saveAndNext(_prospSession.currentId);
-        } else if (deltaX > SWIPE_THRESHOLD && deltaX > deltaY) {
+        if (deltaX > SWIPE_THRESHOLD && deltaX > deltaY) {
             closeDetail();
         }
         swipeStartX = null;
@@ -12711,21 +11953,12 @@ async function bootstrap(page) {
                 }
             });
             
-            // Masquer les panneaux/bannières spécifiques à la prospection
+            // Masquer la banniere relance en mode archives
             const relanceBanner = document.getElementById('relanceAlertBannerProspects');
             if (relanceBanner) relanceBanner.style.display = 'none';
-            const prospCta = document.getElementById('prospCtaMobile');
-            if (prospCta) prospCta.style.display = 'none';
-            const prospResume = document.getElementById('prospResumeBanner');
-            if (prospResume) prospResume.style.display = 'none';
         } else {
-            // Afficher les panneaux/bannières en mode prospects normal
             const relanceBanner = document.getElementById('relanceAlertBannerProspects');
             if (relanceBanner && relanceBanner.style.display === 'none') relanceBanner.style.display = '';
-            const prospCta = document.getElementById('prospCtaMobile');
-            if (prospCta && prospCta.style.display === 'none') prospCta.style.display = '';
-            const prospResume = document.getElementById('prospResumeBanner');
-            if (prospResume && prospResume.style.display === 'none') prospResume.style.display = '';
         }
         
         // Debug: vérifier le nombre d'archivés
@@ -12778,20 +12011,6 @@ async function bootstrap(page) {
             }
         }
 
-        // Reprendre automatiquement le Mode Prosp au bon index si session sauvegardée (ex: retour après appel)
-        // Bug 1 : Ne pas reprendre si ?open= est présent (priorité à l'ouverture explicite)
-        if (!openId) {
-            try {
-                const raw = sessionStorage.getItem(PROSP_SESSION_STORAGE_KEY);
-                if (raw) {
-                    const saved = JSON.parse(raw);
-                    if (saved && Array.isArray(saved.ids) && saved.ids.length > 0 && saved.currentId != null) {
-                        resumeProspSession();
-                        if (typeof showToast === 'function') showToast('Session Prosp reprise', 'info');
-                    }
-                }
-            } catch (e) {}
-        }
 
     }
 
