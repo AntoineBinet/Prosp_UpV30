@@ -12,6 +12,25 @@ window.mpClose = function () {
     }
 };
 
+// Toggle phone choice dropdown (for numbers with "/")
+window.mpTogglePhoneChoice = function (btn) {
+    var dropdown = btn.nextElementSibling;
+    if (!dropdown) return;
+    var isVisible = dropdown.style.display !== 'none';
+    dropdown.style.display = isVisible ? 'none' : 'flex';
+    if (!isVisible) {
+        // Close on click outside
+        setTimeout(function () {
+            document.addEventListener('click', function close(e) {
+                if (!dropdown.contains(e.target) && e.target !== btn) {
+                    dropdown.style.display = 'none';
+                    document.removeEventListener('click', close);
+                }
+            });
+        }, 0);
+    }
+};
+
 (function () {
     'use strict';
 
@@ -138,9 +157,25 @@ window.mpClose = function () {
             ? '<img class="mp-avatar-img" src="' + photoUrl + '" alt="' + escapeHtml(initials) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" /><div class="mp-avatar" style="background:' + heroColor + ';display:none;">' + escapeHtml(initials) + '</div>'
             : '<div class="mp-avatar" style="background:' + heroColor + ';">' + escapeHtml(initials) + '</div>';
 
-        var quickActions = '';
+        // Phone numbers: detect multiple numbers separated by "/"
+        var phoneNumbers = [];
         if (p.telephone) {
-            quickActions += '<a href="tel:' + escapeHtml(p.telephone.replace(/\s/g, '')) + '" class="mp-quick-btn mp-quick-call" title="Appeler">tel</a>';
+            phoneNumbers = p.telephone.split('/').map(function (n) { return n.trim(); }).filter(Boolean);
+        }
+
+        var quickActions = '';
+        if (phoneNumbers.length === 1) {
+            quickActions += '<a href="tel:' + escapeHtml(phoneNumbers[0].replace(/\s/g, '')) + '" class="mp-quick-btn mp-quick-call" title="Appeler ' + escapeHtml(phoneNumbers[0]) + '">tel</a>';
+        } else if (phoneNumbers.length > 1) {
+            quickActions += '<div style="position:relative;">' +
+                '<button type="button" class="mp-quick-btn mp-quick-call" title="Choisir un numéro" onclick="mpTogglePhoneChoice(this)">tel</button>' +
+                '<div class="mp-phone-choice" style="display:none;">' +
+                phoneNumbers.map(function (num, i) {
+                    return '<a href="tel:' + escapeHtml(num.replace(/\s/g, '')) + '" class="mp-phone-choice-btn">' +
+                        '📞 ' + escapeHtml(num) +
+                    '</a>';
+                }).join('') +
+                '</div></div>';
         }
         if (p.email) {
             quickActions += '<a href="mailto:' + escapeHtml(p.email) + '" class="mp-quick-btn mp-quick-email" title="Email">mail</a>';
@@ -167,7 +202,10 @@ window.mpClose = function () {
                 mpField('Entreprise', '<select class="mp-input" data-field="company_id">' + companyOpts + '</select>') +
                 mpField('Fonction', '<input type="text" class="mp-input" data-field="fonction" value="' + escapeHtml(p.fonction || '') + '">') +
                 mpField('Téléphone', '<input type="text" class="mp-input" data-field="telephone" value="' + escapeHtml(p.telephone || '') + '">' +
-                    (p.telephone ? ' <a href="tel:' + escapeHtml(p.telephone.replace(/\s/g, '')) + '" class="mp-action-link">Appeler</a>' : '')) +
+                    (phoneNumbers.length === 1 ? ' <a href="tel:' + escapeHtml(phoneNumbers[0].replace(/\s/g, '')) + '" class="mp-action-link">Appeler</a>' :
+                     phoneNumbers.length > 1 ? phoneNumbers.map(function (num) {
+                        return ' <a href="tel:' + escapeHtml(num.replace(/\s/g, '')) + '" class="mp-action-link">📞 ' + escapeHtml(num) + '</a>';
+                     }).join('') : '')) +
                 mpField('Email', '<input type="email" class="mp-input" data-field="email" value="' + escapeHtml(p.email || '') + '">' +
                     (p.email ? ' <a href="mailto:' + escapeHtml(p.email) + '" class="mp-action-link">Envoyer</a>' : '')) +
                 mpField('LinkedIn', '<input type="text" class="mp-input" data-field="linkedin" value="' + escapeHtml(p.linkedin || '') + '">' +
