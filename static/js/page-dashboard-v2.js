@@ -119,8 +119,9 @@ async function dv2_fetchPriorities() {
 function dv2_renderHero(data) {
   var h = new Date().getHours();
   var greeting = h < 12 ? 'Bonjour' : h < 18 ? 'Bon apres-midi' : 'Bonsoir';
+  var userName = (window.AppAuth && AppAuth.user) ? (AppAuth.user.display_name || AppAuth.user.username || '') : '';
   var el = document.getElementById('dv2Greeting');
-  if (el) el.textContent = greeting + ' !';
+  if (el) el.textContent = greeting + (userName ? ', ' + userName : '') + ' !';
 
   var dateEl = document.getElementById('dv2Date');
   if (dateEl) {
@@ -1120,6 +1121,11 @@ async function dv2_boot() {
 
 document.addEventListener('DOMContentLoaded', function() {
   if (document.body.dataset.page !== 'dashboard_v2') return;
+
+  // Force re-inject du badge utilisateur (timing fix)
+  if (window.AppAuth && typeof AppAuth._injectBadge === 'function') {
+    AppAuth._injectBadge();
+  }
 
   // Init assistant button if available
   var fab = document.getElementById('dashAssistantFab');
