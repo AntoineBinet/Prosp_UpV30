@@ -258,7 +258,7 @@
 
                 <button class="btn btn-ia-bulk" onclick="openBulkIAModal('email')" title="Trouver les emails via IA pour les prospects sélectionnés" data-help-section="scrapping-ia">📧 Email IA</button>
                 <button class="btn btn-ia-bulk" onclick="openBulkIAModal('tel')" title="Trouver les téléphones via IA pour les prospects sélectionnés" data-help-section="scrapping-ia">📞 Tel IA</button>
-                <button class="btn btn-ia-bulk" onclick="bulkEnrichWithIA()" title="Enrichir les fiches sélectionnées via Perplexity Sonar (recherche web IA)" data-help-section="scrapping-ia">🌐 Enrichir IA</button>
+                <button class="btn btn-ia-bulk" onclick="bulkEnrichWithIA()" title="Enrichir les fiches sélectionnées via recherche web IA (Tavily + Ollama)" data-help-section="scrapping-ia">🌐 Enrichir IA</button>
 
                 <button class="btn btn-primary" onclick="openBulkEditModal()">✏️ Modifier en masse</button>
                 <button class="btn btn-danger" onclick="deleteSelectedProspects()">🗑️ Supprimer</button>
@@ -624,7 +624,7 @@
             <p class="muted" style="font-size:11px;margin-top:0;margin-bottom:14px;color:var(--color-warning);">
                 ⚠️ <strong>LinkedIn bloque souvent l'accès direct via API.</strong> Si le lien ne fonctionne pas, copiez-collez le texte visible de la page LinkedIn (nom, poste, entreprise, localisation) dans le champ ci-dessus. L'IA utilisera ces infos pour compléter la fiche.
             </p>
-            <p class="muted" style="font-size:12px;margin-bottom:10px;">3) Générez avec l’IA (Ollama local ou Sonar/Perplexity si configuré) :</p>
+            <p class="muted" style="font-size:12px;margin-bottom:10px;">3) Générez avec l’IA (Ollama + Tavily recherche web si configuré) :</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;">
                 <button class="btn btn-secondary" onclick="qaBackToStep0()">← Retour</button>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">

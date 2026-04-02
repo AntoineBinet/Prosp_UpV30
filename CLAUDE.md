@@ -59,7 +59,7 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
   - En cas de problème : rollback possible via le bouton "Rollback" dans Paramètres ou depuis la page 404
 
 ## Conventions
-- `APP_VERSION` dans app.py (actuellement "27.2") — incrementer a chaque release
+- `APP_VERSION` dans app.py (actuellement "28.0") — incrementer a chaque release
 - **Workflow git (IMPORTANT)** : TOUJOURS travailler directement sur `main`. Ne JAMAIS créer de branches. Après chaque demande avec modifications, vérifier qu'on est sur `main` (`git checkout main` si nécessaire), puis committer et pousser directement sur `main` (`git add`, `git commit`, `git push origin main`). Pour mettre à jour le serveur sur le PC hébergeur : utiliser le bouton « Mettre à jour et redémarrer » dans Paramètres (section admin). Le flux affiche la sortie git en direct puis recharge la page après redémarrage.
 - **Rappel fin de session** : À chaque fin de réponse où du code a été modifié, committer et pousser sur `main` pour que la session cloud et le pull (bouton Mettre à jour) soient à jour. Sinon les modifications ne seront pas sur Git donc pas dans le pull sur l'hébergeur.
 - Cache busters automatiques : app.py calcule les hash MD5 des fichiers statiques au demarrage et remplace `?v=XXXX` dans le HTML
@@ -118,23 +118,23 @@ playwright.config.js    # Config Playwright (2 projets: desktop-chrome, mobile-p
 - **Vérifications** : `_prospect_owned()`, `_company_owned()`, `_candidate_owned()` pour s'assurer qu'un utilisateur ne peut modifier que ses propres données.
 - **Migration rôles** : au démarrage, migration automatique `UPDATE users SET role='editor' WHERE role='reader'` (rôle reader supprimé).
 
-## IA — Ollama + Sonar (v27.0)
-- **Architecture simplifiée** : 2 providers — **Ollama** (local) et **Sonar** (Perplexity, cloud + web). Fallback automatique entre les deux.
-- **Providers** :
+## IA — Ollama + Tavily (v28.0)
+- **Architecture** : **Ollama** (local, génération de texte) + **Tavily** (cloud, recherche web). Tavily enrichit les prompts Ollama avec des données web réelles.
+- **Composants** :
   - **Ollama** (local, défaut) : gratuit, hors-ligne, requiert GPU. Proxy backend vers `http://127.0.0.1:11434`.
-  - **Perplexity Sonar** (cloud + recherche web) : enrichissement avec données web réelles. ~0.005$/requête. Clé API sur docs.perplexity.ai.
+  - **Tavily** (recherche web cloud) : enrichissement avec données web réelles. ~0.005-0.008$/recherche. 1000 recherches gratuites/mois. Clé API sur app.tavily.com.
+- **Flux web_search** : Tavily recherche → résultats injectés dans le prompt → Ollama génère le texte final → citations Tavily ajoutées.
 - **Configuration** : Paramètres > Configuration IA (admin). Persisté dans `data/ai_config.json` (gitignored, jamais écrasé par MAJ).
 - **Variables d'environnement** (défauts, surchargés par la config UI) :
   - `OLLAMA_URL` (défaut `http://127.0.0.1:11434`), `OLLAMA_MODEL` (défaut `llama3.2`), `OLLAMA_TIMEOUT` (secondes, défaut 120)
-  - `PERPLEXITY_API_KEY` (vide par défaut), `SONAR_MODEL` (défaut `sonar`)
-  - `AI_PROVIDER` (défaut `ollama`, peut être `sonar`)
+  - `TAVILY_API_KEY` (vide par défaut)
 - **Routes API** :
   - `POST /api/ollama/generate` — proxy IA unifié non-streaming, supporte `web_search: true`
   - `POST /api/ollama/generate-stream` — proxy IA unifié streaming SSE, supporte `web_search: true`
   - `GET /api/ai/config` — config IA courante (clés masquées)
   - `POST /api/ai/config` — mise à jour config IA (admin)
-  - `POST /api/ai/test` — test de connexion au provider
-- **Routing web** : les boutons Scrapping/Scan/Bulk passent `web_search: true` → Sonar si clé configurée, sinon provider principal. Les autres fonctions (reformatage, mapping, après réunion) restent sur le provider principal.
+  - `POST /api/ai/test` — test de connexion Ollama ou Tavily
+- **Routing web** : les boutons Scrapping/Scan/Bulk passent `web_search: true` → Tavily+Ollama si clé Tavily configurée, sinon Ollama seul. Les autres fonctions (reformatage, mapping, après réunion) restent sur Ollama seul.
 - **Frontend** : `callOllama(prompt, { webSearch: true })` dans app.js active le routing web.
 
 ### Entrées IA implémentées (boutons / flux)
