@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "27.30"
+APP_VERSION = "28.0"
 import os
 import subprocess
 import traceback
@@ -95,10 +95,9 @@ OLLAMA_URL = (os.environ.get("OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL") or "llama3.2"
 OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT") or "120")
 
-# Multi-provider IA — Perplexity Sonar (cloud + recherche web)
-SONAR_API_KEY = os.environ.get("PERPLEXITY_API_KEY") or ""
-SONAR_MODEL = os.environ.get("SONAR_MODEL") or "sonar"
-SONAR_URL = "https://api.perplexity.ai/chat/completions"
+# Tavily (recherche web cloud) — enrichit Ollama avec des données web
+TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY") or ""
+TAVILY_URL = "https://api.tavily.com/search"
 
 # ═══════════════════════════════════════════════════════════════════
 # v27.x PARTIE 2: Détection Outlook (win32com) au démarrage
@@ -120,7 +119,7 @@ OUTLOOK_AVAILABLE: bool = _detect_outlook()
 logger.info("Outlook disponible (win32com): %s", OUTLOOK_AVAILABLE)
 
 # ═══════════════════════════════════════════════════════════════════
-# v26.5: IA simplifiée — Ollama (local) + Sonar (cloud + web)
+# v28.0: IA simplifiée — Ollama (local) + Tavily (recherche web)
 # ═══════════════════════════════════════════════════════════════════
 _AI_CONFIG_FILE = DATA_DIR / "ai_config.json"
 _ai_config_cache: dict | None = None
@@ -138,12 +137,11 @@ def _load_ai_config() -> dict:
     if _ai_config_cache is not None:
         return _ai_config_cache
     defaults = {
-        "provider": os.environ.get("AI_PROVIDER") or "ollama",
+        "provider": "ollama",
         "fallback_enabled": True,
         "ollama_url": OLLAMA_URL,
         "ollama_model": OLLAMA_MODEL,
-        "sonar_api_key": SONAR_API_KEY,
-        "sonar_model": SONAR_MODEL,
+        "tavily_api_key": TAVILY_API_KEY,
     }
     if _AI_CONFIG_FILE.exists():
         try:
@@ -152,6 +150,12 @@ def _load_ai_config() -> dict:
             for k, v in saved.items():
                 if v is not None and v != "":
                     defaults[k] = v
+            # Migration: ancien provider "sonar" → "ollama"
+            if defaults.get("provider") == "sonar":
+                defaults["provider"] = "ollama"
+            # Migration: supprimer les anciennes clés Sonar (incompatibles avec Tavily)
+            defaults.pop("sonar_api_key", None)
+            defaults.pop("sonar_model", None)
         except Exception:
             pass
     _ai_config_cache = defaults
@@ -166,38 +170,28 @@ def _save_ai_config(config: dict):
     _ai_config_cache = config
 
 def _call_ai(prompt: str, timeout: int = 120) -> str:
-    """Appel IA non-streaming unifié. Retourne le texte généré. Gère le fallback Ollama ↔ Sonar."""
+    """Appel IA non-streaming unifié (Ollama). Retourne le texte généré."""
     config = _load_ai_config()
-    provider = config.get("provider", "ollama")
-    fallback = config.get("fallback_enabled", True)
-    try:
-        return _call_ai_provider(provider, prompt, config, timeout)
-    except Exception as primary_err:
-        if not fallback:
-            raise
-        alt = "ollama" if provider == "sonar" else "sonar"
-        if alt == "sonar" and not config.get("sonar_api_key"):
-            raise primary_err
-        try:
-            logger.info("IA fallback %s → %s", provider, alt)
-            return _call_ai_provider(alt, prompt, config, timeout)
-        except Exception:
-            raise primary_err
+    return _call_ollama_direct(prompt, config, timeout)
 
 def _call_ai_web(prompt: str, timeout: int = 120) -> str:
-    """Appel IA avec recherche web. Sonar si configuré (avec citations + fallback), sinon provider principal."""
+    """Appel IA avec recherche web. Tavily + Ollama si configuré, sinon Ollama seul."""
     config = _load_ai_config()
-    if config.get("sonar_api_key"):
+    if config.get("tavily_api_key"):
         try:
-            logger.info("IA web: utilisation de Sonar pour recherche web")
-            result = _call_sonar(prompt, config, timeout, include_citations=True)
-            logger.info("IA web: Sonar a réussi (%d caractères)", len(result))
+            logger.info("IA web: recherche Tavily + génération Ollama")
+            search_results = _call_tavily_search(prompt, config, timeout=30)
+            enriched_prompt = _build_web_enriched_prompt(prompt, search_results)
+            result = _call_ollama_direct(enriched_prompt, config, timeout)
+            sources = search_results.get("sources", [])
+            if sources:
+                result += "\n\n📎 Sources :\n" + "\n".join(f"- {s['title']}: {s['url']}" for s in sources[:5])
+            logger.info("IA web: Tavily+Ollama réussi (%d caractères)", len(result))
             return result
         except Exception as e:
-            logger.warning("Sonar failed, falling back to main provider: %s", str(e))
-            logger.warning("Détails erreur Sonar: %s", repr(e))
+            logger.warning("Tavily+Ollama failed, falling back to Ollama seul: %s", str(e))
     else:
-        logger.info("IA web: Sonar non configuré, utilisation du provider principal")
+        logger.info("IA web: Tavily non configuré, utilisation d'Ollama seul")
     return _call_ai(prompt, timeout)
 
 # ═══════════════════════════════════════════════════════════════════
@@ -318,9 +312,7 @@ def _compute_semantic_similarity(text1: str, text2: str, entity_type: str = "tag
     return _cosine_similarity(emb1, emb2)
 
 def _call_ai_provider(provider: str, prompt: str, config: dict, timeout: int) -> str:
-    """Appelle un provider spécifique (non-streaming)."""
-    if provider == "sonar":
-        return _call_sonar(prompt, config, timeout)
+    """Appelle un provider spécifique (non-streaming). Seul Ollama est supporté comme provider de chat."""
     return _call_ollama_direct(prompt, config, timeout)
 
 def _call_ollama_direct(prompt: str, config: dict, timeout: int) -> str:
@@ -336,34 +328,29 @@ def _call_ollama_direct(prompt: str, config: dict, timeout: int) -> str:
         data = json.loads(resp.read().decode("utf-8"))
     return data.get("response", "").strip()
 
-def _call_sonar(prompt: str, config: dict, timeout: int, include_citations: bool = False) -> str:
-    """Appel à Perplexity Sonar (non-streaming, recherche web intégrée)."""
-    api_key = config.get("sonar_api_key", "")
+def _call_tavily_search(query: str, config: dict, timeout: int = 30, max_results: int = 5) -> dict:
+    """Recherche web via Tavily. Retourne {answer, sources: [{title, url, content}]}."""
+    api_key = config.get("tavily_api_key", "")
     if not api_key:
-        raise ValueError("Clé API Perplexity non configurée. Ajoutez-la dans Paramètres > Configuration IA.")
-    model = config.get("sonar_model", SONAR_MODEL)
+        raise ValueError("Clé API Tavily non configurée. Ajoutez-la dans Paramètres > Configuration IA.")
     body = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "stream": False,
-        "temperature": 0.3,
+        "query": query[:2000],
+        "include_answer": True,
+        "search_depth": "advanced",
+        "max_results": max_results,
     }, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
-        SONAR_URL, data=body,
+        TAVILY_URL, data=body,
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
         method="POST",
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-        text = data["choices"][0]["message"]["content"].strip()
-        if include_citations:
-            citations = data.get("citations", [])
-            if citations:
-                logger.info("Sonar: %d citations trouvées", len(citations))
-                text += "\n\n📎 Sources :\n" + "\n".join(f"- {c}" for c in citations[:5])
-        logger.info("Sonar: réponse reçue (%d caractères)", len(text))
-        return text
+        sources = [{"title": r.get("title", ""), "url": r.get("url", ""), "content": r.get("content", "")}
+                    for r in data.get("results", [])[:max_results]]
+        logger.info("Tavily: %d résultats trouvés", len(sources))
+        return {"answer": data.get("answer", ""), "sources": sources}
     except urllib.error.HTTPError as e:
         error_body = ""
         try:
@@ -371,52 +358,49 @@ def _call_sonar(prompt: str, config: dict, timeout: int, include_citations: bool
                 error_body = e.read().decode("utf-8")
         except Exception:
             pass
-        logger.error("Sonar HTTP error %d: %s", e.code, error_body[:500] if error_body else e.reason)
-        raise ValueError(f"Erreur Sonar {e.code}: {error_body[:200] if error_body else e.reason}")
+        logger.error("Tavily HTTP error %d: %s", e.code, error_body[:500] if error_body else e.reason)
+        raise ValueError(f"Erreur Tavily {e.code}: {error_body[:200] if error_body else e.reason}")
     except Exception as e:
-        logger.error("Sonar error: %s", str(e))
+        logger.error("Tavily error: %s", str(e))
         raise
 
+def _build_web_enriched_prompt(original_prompt: str, search_results: dict) -> str:
+    """Construit un prompt enrichi avec les résultats de recherche web Tavily."""
+    context_parts = []
+    if search_results.get("answer"):
+        context_parts.append(f"Résumé web : {search_results['answer']}")
+    for s in search_results.get("sources", [])[:5]:
+        if s.get("content"):
+            context_parts.append(f"Source ({s.get('title', 'Sans titre')}) : {s['content'][:500]}")
+    web_context = "\n\n".join(context_parts)
+    return f"""Voici des informations trouvées sur internet pour enrichir ta réponse :
+
+{web_context}
+
+---
+
+En utilisant ces informations web comme contexte, réponds à la demande suivante :
+
+{original_prompt}"""
+
 def _stream_ai_web_sse(prompt: str, model_override: str | None, timeout: int):
-    """Stream SSE pour recherche web (Sonar si configuré, sinon provider principal)."""
+    """Stream SSE pour recherche web (Tavily + Ollama si configuré, sinon Ollama seul)."""
     config = _load_ai_config()
-    if config.get("sonar_api_key"):
+    if config.get("tavily_api_key"):
         try:
-            yield from _stream_sonar_sse(prompt, model_override, config, timeout)
+            yield from _stream_tavily_ollama_sse(prompt, model_override, config, timeout)
             return
         except Exception as e:
-            logger.warning("Sonar stream failed, falling back: %s", e)
+            logger.warning("Tavily+Ollama stream failed, falling back to Ollama seul: %s", e)
     yield from _stream_ai_sse(prompt, model_override, timeout)
 
 def _stream_ai_sse(prompt: str, model_override: str | None, timeout: int):
-    """Générateur SSE unifié. Yield des lignes SSE. Fallback Ollama ↔ Sonar."""
+    """Générateur SSE unifié (Ollama). Yield des lignes SSE."""
     config = _load_ai_config()
-    provider = config.get("provider", "ollama")
-    fallback = config.get("fallback_enabled", True)
     try:
-        yield from _stream_provider_sse(provider, prompt, model_override, config, timeout)
-        return
-    except Exception as primary_err:
-        if not fallback:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(primary_err)}, ensure_ascii=False)}\n\n"
-            return
-        alt = "ollama" if provider == "sonar" else "sonar"
-        if alt == "sonar" and not config.get("sonar_api_key"):
-            yield f"data: {json.dumps({'type': 'error', 'message': str(primary_err)}, ensure_ascii=False)}\n\n"
-            return
-        try:
-            logger.info("IA stream fallback %s → %s", provider, alt)
-            yield f"data: {json.dumps({'type': 'start', 'message': f'Basculement vers {alt}…'}, ensure_ascii=False)}\n\n"
-            yield from _stream_provider_sse(alt, prompt, model_override, config, timeout)
-        except Exception:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(primary_err)}, ensure_ascii=False)}\n\n"
-
-def _stream_provider_sse(provider: str, prompt: str, model_override: str | None, config: dict, timeout: int):
-    """Stream SSE pour un provider spécifique."""
-    if provider == "sonar":
-        yield from _stream_sonar_sse(prompt, model_override, config, timeout)
-    else:
         yield from _stream_ollama_sse(prompt, model_override, config, timeout)
+    except Exception as err:
+        yield f"data: {json.dumps({'type': 'error', 'message': str(err)}, ensure_ascii=False)}\n\n"
 
 def _stream_ollama_sse(prompt: str, model_override: str | None, config: dict, timeout: int):
     """Stream SSE via Ollama."""
@@ -453,48 +437,16 @@ def _stream_ollama_sse(prompt: str, model_override: str | None, config: dict, ti
                     continue
     yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
 
-def _stream_sonar_sse(prompt: str, model_override: str | None, config: dict, timeout: int):
-    """Stream SSE via Perplexity Sonar (OpenAI-compatible streaming + web search)."""
-    api_key = config.get("sonar_api_key", "")
-    if not api_key:
-        raise ValueError("Clé API Perplexity non configurée")
-    model = model_override or config.get("sonar_model", SONAR_MODEL)
-    body = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "stream": True,
-        "temperature": 0.3,
-    }, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        SONAR_URL, data=body,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        yield f"data: {json.dumps({'type': 'start', 'message': 'Recherche web Sonar en cours…'}, ensure_ascii=False)}\n\n"
-        buffer = b""
-        for chunk in resp:
-            buffer += chunk
-            while b"\n" in buffer:
-                line_bytes, buffer = buffer.split(b"\n", 1)
-                line_str = line_bytes.decode("utf-8", errors="ignore").strip()
-                if not line_str:
-                    continue
-                if not line_str.startswith("data: "):
-                    continue
-                data_str = line_str[6:]
-                if data_str == "[DONE]":
-                    yield f"data: {json.dumps({'type': 'end', 'message': 'Recherche terminée'}, ensure_ascii=False)}\n\n"
-                    return
-                try:
-                    data = json.loads(data_str)
-                    delta = data.get("choices", [{}])[0].get("delta", {})
-                    content = delta.get("content", "")
-                    if content:
-                        yield f"data: {json.dumps({'type': 'token', 'text': content, 'done': False}, ensure_ascii=False)}\n\n"
-                except json.JSONDecodeError:
-                    continue
-    yield f"data: {json.dumps({'type': 'end', 'message': 'Recherche terminée'}, ensure_ascii=False)}\n\n"
+def _stream_tavily_ollama_sse(prompt: str, model_override: str | None, config: dict, timeout: int):
+    """Stream SSE : recherche web Tavily puis génération streaming via Ollama."""
+    yield f"data: {json.dumps({'type': 'start', 'message': 'Recherche web Tavily en cours…'}, ensure_ascii=False)}\n\n"
+    search_results = _call_tavily_search(prompt, config, timeout=30)
+    enriched_prompt = _build_web_enriched_prompt(prompt, search_results)
+    yield from _stream_ollama_sse(enriched_prompt, model_override, config, timeout)
+    sources = search_results.get("sources", [])
+    if sources:
+        citations_text = "\n\n📎 Sources :\n" + "\n".join(f"- {s['title']}: {s['url']}" for s in sources[:5])
+        yield f"data: {json.dumps({'type': 'token', 'text': citations_text, 'done': False}, ensure_ascii=False)}\n\n"
 
 # Cache temporaire en mémoire pour les analyses RDV (clé: "{uid}_{prospect_id}")
 # Utilisé à la place de session[] car la session n'est pas persistée dans les réponses SSE streaming
@@ -663,8 +615,8 @@ def _after_request(response):
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: blob:; "
-        "connect-src 'self' https://api.perplexity.ai https://r2cdn.perplexity.ai; "
-        "font-src 'self' https://r2cdn.perplexity.ai; "
+        "connect-src 'self' https://api.tavily.com; "
+        "font-src 'self'; "
         "frame-ancestors 'self'"
     )
 
@@ -12466,7 +12418,7 @@ Réponds UNIQUEMENT avec un tableau JSON valide (sans markdown, sans texte avant
 Si un tag ne correspond à aucune catégorie connue, mets category null."""
 
             # Forcer Ollama : ce prompt ne nécessite pas de recherche web,
-            # et l'utilisateur n'a peut-être plus de crédits Sonar
+            # et l'utilisateur n'a peut-être plus de crédits Tavily
             response_text = _call_ai_provider("ollama", prompt, _load_ai_config(), 60)
 
             # Extraire le JSON du texte de réponse
@@ -13915,7 +13867,7 @@ def meetings_export_pdf(meeting_id):
 @app.get("/api/prospect/<int:prospect_id>/infos-rdv-stream")
 @login_required
 def api_prospect_infos_rdv_stream(prospect_id: int):
-    """Route SSE pour analyser un prospect via IA (Sonar si configuré, sinon Ollama).
+    """Route SSE pour analyser un prospect via IA (Tavily+Ollama si configuré, sinon Ollama seul).
 
     Stream les tokens en temps réel, puis stocke la réponse complète dans
     _rdv_analysis_cache (et non en session, car la session n'est pas persistée
@@ -13968,7 +13920,7 @@ def api_prospect_infos_rdv_stream(prospect_id: int):
 
                 evt_type = evt.get("type")
                 if evt_type == "token":
-                    # Normalise la clé 'text' (Sonar/Ollama générique) → 'content' (frontend rdv)
+                    # Normalise la clé 'text' (Ollama/Tavily générique) → 'content' (frontend rdv)
                     token = evt.get("text") or evt.get("content") or ""
                     if token:
                         full_response_parts.append(token)
@@ -14038,7 +13990,7 @@ def api_prospect_download_rdv_pdf(prospect_id: int):
     
     # Parser le JSON depuis la réponse Ollama
     # Extraction robuste : équilibrage des accolades pour ignorer le texte
-    # autour du JSON (📎 Sources, commentaires…) que Sonar peut ajouter.
+    # autour du JSON (📎 Sources, commentaires…) que Tavily/Ollama peut ajouter.
     def _extract_json_from_text(text):
         """Extrait le premier objet JSON complet depuis un texte potentiellement pollué."""
         import re as _re

@@ -630,10 +630,7 @@ async function updateAIButtonLabels() {
         if (!data.ok || !data.config) return;
         
         const config = data.config;
-        const provider = config.provider || 'ollama';
-        const modelName = provider === 'sonar' 
-            ? (config.sonar_model || 'sonar')
-            : (config.ollama_model || 'llama3.2');
+        const modelName = config.ollama_model || 'llama3.2';
         
         _aiModelNameCache = modelName;
         
@@ -7698,7 +7695,7 @@ function _buildPushTabHtml(prospectId, prospect) {
             <div style="flex:1;min-width:180px;">${catSelect}</div>
             <button class="btn btn-secondary btn-sm" id="btnSonarSuggestCat_${prospectId}"
                     onclick="sonarSuggestCategory(${prospectId})"
-                    title="Sonar (Perplexity) suggère une catégorie selon l'entreprise et le poste">
+                    title="L'IA suggère une catégorie selon l'entreprise et le poste (recherche web si Tavily configuré)">
                 💡 Suggestion IA
             </button>
         </div>
@@ -7870,7 +7867,7 @@ async function _generateDescriptionAI(slot) {
 /**
  * Gestion du clic sur le bouton Email dans l'en-tête de la fiche.
  * Cas 1 — tout configuré : spinner + génération ZIP
- * Cas 2 — catégorie manquante : redirect Push tab + highlight + suggestion Sonar
+ * Cas 2 — catégorie manquante : redirect Push tab + highlight + suggestion IA
  */
 async function handleEmailProspect(prospectId) {
     const prospect = data.prospects.find(p => p.id === prospectId);
@@ -7900,7 +7897,7 @@ async function handleEmailProspect(prospectId) {
                     target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     setTimeout(() => target.classList.remove('pt-highlight'), 2000);
                 }
-                // Déclencher la suggestion Sonar si catégorie manquante
+                // Déclencher la suggestion IA si catégorie manquante
                 if (!hasCat) {
                     sonarSuggestCategory(prospectId);
                 }
@@ -8058,7 +8055,7 @@ function _updateEmailBtnState(prospectId) {
 }
 
 /**
- * Suggestion de catégorie push via Sonar (données non-sensibles : société + poste seulement).
+ * Suggestion de catégorie push via IA web (données non-sensibles : société + poste seulement).
  */
 async function sonarSuggestCategory(prospectId) {
     const prospect = data.prospects.find(p => p.id === prospectId);
@@ -8085,7 +8082,7 @@ async function sonarSuggestCategory(prospectId) {
         const res = await fetch('/api/ollama/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, web_search: true }) // routing Sonar si disponible
+            body: JSON.stringify({ prompt, web_search: true }) // routing Tavily+Ollama si disponible
         });
 
         const payload = await res.json();
@@ -8113,7 +8110,7 @@ async function sonarSuggestCategory(prospectId) {
 }
 
 /**
- * Applique la suggestion de catégorie Sonar.
+ * Applique la suggestion de catégorie IA.
  */
 function applySonarCatSuggestion(prospectId, catId, catName) {
     const select = document.getElementById('detailCategorySelect');
@@ -8127,7 +8124,7 @@ function applySonarCatSuggestion(prospectId, catId, catName) {
 }
 
 /**
- * Présélection de 2 candidats via Ollama (données internes, pas Sonar).
+ * Présélection de 2 candidats via Ollama (données internes, pas recherche web).
  */
 async function ollamaPreselectCandidates(prospectId) {
     await updatePushCandidates(prospectId);
@@ -10112,8 +10109,8 @@ function parseIAImportModal() {
     _renderIAPreview();
 }
 
-// Détecte les valeurs "non trouvé" renvoyées par les IA (Sonar, Ollama…).
-// Centralise la logique partagée entre _processField (bulk Sonar) et parseBulkIAResult (Email/Tel IA).
+// Détecte les valeurs "non trouvé" renvoyées par les IA (Ollama, Tavily…).
+// Centralise la logique partagée entre _processField (bulk IA) et parseBulkIAResult (Email/Tel IA).
 function _isNotFoundValue(value) {
     if (!value) return true;
     return /non\s*trouv|introuvable|inconnu|n\/a|pas\s*trouv|not\s*found|aucun|\[non|à\s*trouver|\[vide\]|\[inconnue?\]|\[aucune?\]/i.test(value.trim());
@@ -10727,7 +10724,7 @@ async function bulkEnrichWithIA() {
     const ids = Array.from(selectedProspects);
     const total = ids.length;
 
-    if (!confirm(`Enrichir ${total} prospect(s) via Perplexity Sonar ?\n\nPour chaque prospect, l'IA recherchera sur internet les informations manquantes (poste, entreprise, téléphone, email, LinkedIn, compétences).\n\nCela peut prendre quelques secondes par prospect.`)) return;
+    if (!confirm(`Enrichir ${total} prospect(s) via recherche web IA ?\n\nPour chaque prospect, l'IA recherchera sur internet les informations manquantes (poste, entreprise, téléphone, email, LinkedIn, compétences).\n\nCela peut prendre quelques secondes par prospect.`)) return;
 
     let done = 0, successCount = 0, failCount = 0;
     const summary = [];
@@ -13881,7 +13878,7 @@ function openPreMeetingModal(prospectId) {
                 evtSource.close();
 
                 // Parser et afficher la fiche formatée
-                // extractJSONFromText (ligne ~13792) gère les sources Sonar après le JSON
+                // extractJSONFromText gère les sources Tavily après le JSON
                 let ficheHtml = '';
                 try {
                     const jsonStr = (typeof extractJSONFromText === 'function') ? extractJSONFromText(fullResponse) : null;
