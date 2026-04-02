@@ -10,7 +10,7 @@ const SHELL = [
   '/static/js/v8-features.js',
   '/static/js/notifications.js',
   '/static/js/metiers-data.js',
-  '/static/js/page-dashboard.js',
+  '/static/js/page-dashboard-v2.js',
   '/static/js/page-focus.js',
   '/static/js/page-calendar.js',
   '/static/js/page-prospects.js',

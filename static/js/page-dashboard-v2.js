@@ -1120,12 +1120,12 @@ async function dv2_boot() {
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
-  if (document.body.dataset.page !== 'dashboard_v2') return;
+  if (document.body.dataset.page !== 'dashboard') return;
 
   // Initialiser AppAuth (badge utilisateur, auth, read-only) via bootstrap
   try {
     var fn = window.bootstrap || window.appBootstrap;
-    if (typeof fn === 'function') await fn('dashboard_v2');
+    if (typeof fn === 'function') await fn('dashboard');
   } catch(e) {}
 
   // Init assistant button if available
