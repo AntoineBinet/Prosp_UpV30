@@ -1,5 +1,5 @@
 // Prosp'Up Service Worker v28 — enhanced caching + offline fallback + HTML stale-while-revalidate
-const CACHE = 'prospup-v28';
+const CACHE = 'prospup-v29';
 const API_CACHE = 'prospup-api-v23.4';
 const API_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -20,6 +20,8 @@ const SHELL = [
   '/static/js/page-companies.js',
   '/static/js/page-quickadd.js',
   '/static/js/page-import.js',
+  '/static/js/mode-prosp-tab.js',
+  '/static/css/mode-prosp.css',
   '/static/icon-192.png',
   '/static/icon-512.png',
   '/static/favicon.ico',
