@@ -4577,6 +4577,19 @@ body[data-page="prospects"] .table-wrapper td:nth-child(3) {
   opacity: 0.45;
   cursor: not-allowed;
 }
+@media (max-width: 900px) {
+  .mode-prosp-launch {
+    margin-bottom: 10px;
+    padding: 0 env(safe-area-inset-right, 0) 0 env(safe-area-inset-left, 0);
+  }
+  .mode-prosp-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+    font-size: 15px;
+    border-radius: 12px;
+  }
+}
 
 /* ========== KANBAN BOARD ========== */
 

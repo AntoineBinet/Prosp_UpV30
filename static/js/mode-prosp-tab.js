@@ -2,6 +2,17 @@
 // Loads filtered prospect IDs from sessionStorage, fetches data from API,
 // renders editable cards with slide navigation, syncs via BroadcastChannel.
 
+// Close / go back (works in both browser tabs and PWA)
+window.mpClose = function () {
+    if (window.opener) {
+        window.close();
+    } else if (history.length > 1) {
+        history.back();
+    } else {
+        window.location.href = '/';
+    }
+};
+
 (function () {
     'use strict';
 
@@ -124,6 +135,18 @@
             ? '<img class="mp-avatar-img" src="' + photoUrl + '?t=' + Date.now() + '" alt="' + escapeHtml(initials) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" /><div class="mp-avatar" style="background:' + heroColor + ';display:none;">' + escapeHtml(initials) + '</div>'
             : '<div class="mp-avatar" style="background:' + heroColor + ';">' + escapeHtml(initials) + '</div>';
 
+        // Quick action buttons (visible on hero)
+        var quickActions = '';
+        if (p.telephone) {
+            quickActions += '<a href="tel:' + escapeHtml(p.telephone.replace(/\s/g, '')) + '" class="mp-quick-btn mp-quick-call" title="Appeler">tel</a>';
+        }
+        if (p.email) {
+            quickActions += '<a href="mailto:' + escapeHtml(p.email) + '" class="mp-quick-btn mp-quick-email" title="Email">mail</a>';
+        }
+        if (p.linkedin) {
+            quickActions += '<a href="' + escapeHtml(p.linkedin) + '" target="_blank" class="mp-quick-btn mp-quick-linkedin" title="LinkedIn">in</a>';
+        }
+
         return '<div class="mp-card-hero" style="--hero-color: ' + heroColor + ';">' +
             '<div class="mp-card-hero-bg"></div>' +
             '<div class="mp-card-hero-content">' +
@@ -133,6 +156,7 @@
                     '<div class="mp-hero-sub">' + escapeHtml(p.fonction || '') + (companyName ? ' &middot; ' + escapeHtml(companyName) : '') + '</div>' +
                     '<div class="mp-hero-stars">' + stars + '</div>' +
                 '</div>' +
+                (quickActions ? '<div class="mp-quick-actions">' + quickActions + '</div>' : '') +
             '</div>' +
         '</div>' +
         '<div class="mp-card-body" data-pid="' + p.id + '">' +
@@ -168,19 +192,17 @@
     }
 
     // ── Navigation ──
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
     function goTo(index, animate) {
         if (index < 0 || index >= prospects.length) return;
         currentIndex = index;
         const offset = -index * 100;
 
-        if (animate === false) {
+        if (animate === false || reducedMotion.matches) {
             track.style.transition = 'none';
         } else {
-            track.style.transition = 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)';
-            // Respect prefers-reduced-motion
-            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                track.style.transition = 'none';
-            }
+            track.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
         }
         track.style.transform = 'translateX(' + offset + '%)';
 
@@ -279,29 +301,92 @@
         });
     }
 
-    // ── Swipe ──
+    // ── Swipe (with drag feedback for mobile) ──
     function setupSwipe() {
         let startX = null;
         let startY = null;
-        const THRESHOLD = 60;
+        let isDragging = false;
+        let dragLocked = false; // true = horizontal swipe confirmed
+        const THRESHOLD = 50;
+        const LOCK_ANGLE_THRESHOLD = 20; // px before we decide direction
 
         viewport.addEventListener('touchstart', function (e) {
-            if (e.target.matches('input, select, textarea')) return;
+            if (e.target.matches('input, select, textarea, a, button')) return;
             startX = e.touches[0].clientX;
             startY = e.touches[0].clientY;
+            isDragging = false;
+            dragLocked = false;
+            track.style.transition = 'none';
         }, { passive: true });
 
-        viewport.addEventListener('touchend', function (e) {
+        viewport.addEventListener('touchmove', function (e) {
             if (startX === null) return;
-            const dx = e.changedTouches[0].clientX - startX;
-            const dy = Math.abs(e.changedTouches[0].clientY - startY);
-            if (Math.abs(dx) > THRESHOLD && Math.abs(dx) > dy) {
-                if (dx < 0) mpNavigate(1);
-                else mpNavigate(-1);
+            const dx = e.touches[0].clientX - startX;
+            const dy = e.touches[0].clientY - startY;
+
+            // Decide direction lock after some movement
+            if (!dragLocked && (Math.abs(dx) > LOCK_ANGLE_THRESHOLD || Math.abs(dy) > LOCK_ANGLE_THRESHOLD)) {
+                if (Math.abs(dy) > Math.abs(dx)) {
+                    // Vertical scroll — cancel swipe
+                    startX = null;
+                    return;
+                }
+                dragLocked = true;
             }
+
+            if (!dragLocked) return;
+
+            isDragging = true;
+            e.preventDefault();
+
+            // Clamp at edges with rubber-band effect
+            let effectiveDx = dx;
+            if ((currentIndex === 0 && dx > 0) || (currentIndex === prospects.length - 1 && dx < 0)) {
+                effectiveDx = dx * 0.3; // rubber band
+            }
+
+            const baseOffset = -currentIndex * viewport.offsetWidth;
+            track.style.transform = 'translateX(' + (baseOffset + effectiveDx) + 'px)';
+        }, { passive: false });
+
+        viewport.addEventListener('touchend', function (e) {
+            if (startX === null) { return; }
+            const dx = e.changedTouches[0].clientX - startX;
             startX = null;
             startY = null;
+
+            if (!isDragging) {
+                // Restore percentage-based transform
+                track.style.transition = '';
+                track.style.transform = 'translateX(' + (-currentIndex * 100) + '%)';
+                return;
+            }
+
+            isDragging = false;
+            dragLocked = false;
+
+            if (Math.abs(dx) > THRESHOLD) {
+                if (dx < 0 && currentIndex < prospects.length - 1) {
+                    goTo(currentIndex + 1, true);
+                    haptic(10);
+                } else if (dx > 0 && currentIndex > 0) {
+                    goTo(currentIndex - 1, true);
+                    haptic(10);
+                } else {
+                    // Snap back
+                    goTo(currentIndex, true);
+                }
+            } else {
+                goTo(currentIndex, true);
+            }
         }, { passive: true });
+    }
+
+    // Haptic feedback helper
+    function haptic(ms) {
+        try {
+            if (navigator.vibrate) navigator.vibrate(ms || 10);
+        } catch (e) {}
     }
 
     // ── BroadcastChannel sync ──
