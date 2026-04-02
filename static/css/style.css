@@ -8399,6 +8399,49 @@ body[data-page="candidate"] #fabAdd {
     line-height: 1.5;
 }
 
+.progress-step {
+    padding: 5px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    white-space: normal;
+}
+.progress-step.done { color: #22c55e; }
+.progress-step.active { color: #58a6ff; }
+.progress-step.error { color: #ef4444; }
+.progress-step .step-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid #58a6ff;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: progress-spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes progress-spin { to { transform: rotate(360deg); } }
+.progress-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 8px 0;
+}
+.progress-badge.tavily {
+    background: rgba(59,130,246,.12);
+    color: #58a6ff;
+    border: 1px solid rgba(59,130,246,.25);
+}
+.progress-badge.ollama {
+    background: rgba(34,197,94,.12);
+    color: #22c55e;
+    border: 1px solid rgba(34,197,94,.25);
+}
+
 .progress-log::-webkit-scrollbar {
     width: 8px;
 }
