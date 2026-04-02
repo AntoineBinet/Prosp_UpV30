@@ -12728,6 +12728,11 @@ def page_dashboard():
     return render_template("dashboard.html", static_hashes=_static_hashes)
 
 
+@app.get("/dashboard_v2")
+def page_dashboard_v2():
+    return render_template("dashboard_v2.html", static_hashes=_static_hashes)
+
+
 # Gamified goals helpers are extracted in services/dashboard_goals.py.
 
 

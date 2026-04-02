@@ -1,0 +1,841 @@
+// Dashboard V2 — Bento Grid Redesign
+// Scoped to [data-page="dashboard_v2"]
+
+// ─── Constants ───
+var DV2_STATUS_ORDER = ["Pas d'actions", "Appele", "A rappeler", "Messagerie", "Rendez-vous", "Prospecte", "Pas interesse"];
+var DV2_STATUS_COLORS = {
+  "Pas d'actions": '#64748b', 'Appele': '#f59e0b', 'Messagerie': '#3b82f6',
+  'A rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Pas interesse': '#94a3b8',
+  'Prospecte': '#8b5cf6'
+};
+var DV2_KPI_COLORS = {
+  relances: '#f59e0b', notes: '#3b82f6', push: '#8b5cf6', rdv: '#22c55e'
+};
+var _dv2_weekChart = null;
+var _dv2_mainData = null;
+
+// ─── Helpers ───
+function dv2_esc(s) {
+  if (typeof escapeHtml === 'function') return escapeHtml(s);
+  var d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+function dv2_dayName(iso) {
+  var days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+  var d = new Date(iso + 'T00:00:00');
+  return days[d.getDay()];
+}
+
+function dv2_dayNameFull(iso) {
+  var days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  var d = new Date(iso + 'T00:00:00');
+  return days[d.getDay()];
+}
+
+function dv2_trendBadge(current, previous) {
+  if (!previous || previous === 0) return '';
+  var diff = current - previous;
+  var pct = Math.round((diff / previous) * 100);
+  if (diff > 0) return '<span class="dv2-trend-badge up">+' + pct + '%</span>';
+  if (diff < 0) return '<span class="dv2-trend-badge down">' + pct + '%</span>';
+  return '<span class="dv2-trend-badge flat">=</span>';
+}
+
+function dv2_relativeDate(isoDate) {
+  if (!isoDate) return { text: '', cls: 'later' };
+  var today = new Date(); today.setHours(0,0,0,0);
+  var target = new Date(isoDate + 'T00:00:00');
+  var diff = Math.round((target - today) / 86400000);
+  if (diff === 0) return { text: "Aujourd'hui", cls: 'today' };
+  if (diff === 1) return { text: 'Demain', cls: 'tomorrow' };
+  if (diff > 1 && diff <= 7) return { text: dv2_dayNameFull(isoDate), cls: 'later' };
+  var parts = isoDate.split('-');
+  return { text: parts[2] + '/' + parts[1], cls: 'later' };
+}
+
+function dv2_sparklineSVG(values, color, w, h) {
+  w = w || 60; h = h || 22;
+  if (!values || !values.length) return '';
+  var max = Math.max(1, Math.max.apply(null, values));
+  var pts = values.map(function(v, i) {
+    var x = values.length > 1 ? (i / (values.length - 1)) * w : w / 2;
+    var y = h - ((v / max) * (h - 4)) - 2;
+    return x.toFixed(1) + ',' + y.toFixed(1);
+  });
+  var lastPt = pts[pts.length - 1].split(',');
+  return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+    '<polyline class="dv2-sparkline-line" points="' + pts.join(' ') + '" stroke="' + color + '"/>' +
+    '<circle class="dv2-sparkline-dot" cx="' + lastPt[0] + '" cy="' + lastPt[1] + '" fill="' + color + '"/>' +
+    '</svg>';
+}
+
+function dv2_emojiForRatio(r) {
+  var x = Math.max(0, Math.min(1, Number(r) || 0));
+  if (x >= 1) return '&#x1F3C6;';
+  if (x >= 0.8) return '&#x1F525;';
+  if (x >= 0.6) return '&#x1F929;';
+  if (x >= 0.4) return '&#x1F60E;';
+  if (x >= 0.2) return '&#x1F642;';
+  return '&#x1F976;';
+}
+
+// ─── Fetchers ───
+async function dv2_fetchMain() {
+  var res = await fetch('/api/dashboard');
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  var json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Error');
+  return json.data;
+}
+
+async function dv2_fetchTasks() {
+  var res = await fetch('/api/tasks?status=pending');
+  var json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Error');
+  return json.tasks || [];
+}
+
+async function dv2_fetchPriorities() {
+  var controller = new AbortController();
+  var tid = setTimeout(function() { controller.abort(); }, 8000);
+  try {
+    var res = await fetch('/api/dashboard/adaptive', { signal: controller.signal });
+    clearTimeout(tid);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+    return json.data;
+  } catch(e) {
+    clearTimeout(tid);
+    throw e;
+  }
+}
+
+// ─── Renderers ───
+
+function dv2_renderHero(data) {
+  var h = new Date().getHours();
+  var greeting = h < 12 ? 'Bonjour' : h < 18 ? 'Bon apres-midi' : 'Bonsoir';
+  var el = document.getElementById('dv2Greeting');
+  if (el) el.textContent = greeting + ' !';
+
+  var dateEl = document.getElementById('dv2Date');
+  if (dateEl) {
+    var now = new Date();
+    var opts = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    dateEl.textContent = now.toLocaleDateString('fr-FR', opts);
+  }
+}
+
+function dv2_renderPerformance(data) {
+  var t = data.today;
+  var w = data.week;
+  var pw = data.prev_week;
+  var days = (w && w.days) || [];
+
+  // Badge with total week actions
+  var totalWeek = (w.relances || 0) + (w.notes || 0) + (w.push_total || 0);
+  var badge = document.getElementById('dv2PerfBadge');
+  if (badge) badge.textContent = totalWeek + ' actions cette semaine';
+
+  // KPI Chips
+  var chips = [
+    { key: 'relances', icon: '\uD83D\uDCDE', label: 'Relances', value: t.relances, weekVal: w.relances, prevVal: pw.relances, color: DV2_KPI_COLORS.relances },
+    { key: 'notes', icon: '\uD83D\uDCDD', label: 'Notes', value: t.notes, weekVal: w.notes, prevVal: pw.notes, color: DV2_KPI_COLORS.notes },
+    { key: 'push', icon: '\uD83D\uDCE4', label: 'Push', value: t.push_total, weekVal: w.push_total, prevVal: pw.push_total, color: DV2_KPI_COLORS.push },
+    { key: 'rdv', icon: '\uD83E\uDD1D', label: 'RDV', value: data.pipeline.rdv, weekVal: data.pipeline.rdv, prevVal: 0, color: DV2_KPI_COLORS.rdv }
+  ];
+
+  var chipsEl = document.getElementById('dv2KpiChips');
+  if (chipsEl) {
+    chipsEl.innerHTML = chips.map(function(c) {
+      // Build sparkline from week days
+      var sparkVals = days.map(function(d) {
+        if (c.key === 'relances') return d.relances || 0;
+        if (c.key === 'notes') return d.notes || 0;
+        if (c.key === 'push') return d.push || 0;
+        return 0;
+      });
+      var sparkHtml = '<div class="dv2-sparkline">' + dv2_sparklineSVG(sparkVals, c.color, 60, 22) + '</div>';
+      var trend = dv2_trendBadge(c.weekVal, c.prevVal);
+
+      return '<div class="dv2-kpi-chip" style="--dv2-chip-color:' + c.color + '">' +
+        '<div class="dv2-kpi-chip-info">' +
+          '<div class="dv2-kpi-chip-value">' + c.value + '</div>' +
+          '<div class="dv2-kpi-chip-label">' + c.icon + ' ' + c.label + ' ' + trend + '</div>' +
+          '<div class="dv2-kpi-chip-sub">' + c.weekVal + ' cette semaine</div>' +
+        '</div>' +
+        sparkHtml +
+      '</div>';
+    }).join('');
+  }
+
+  // Week Chart (Chart.js)
+  dv2_renderWeekChart(days, w);
+}
+
+function dv2_renderWeekChart(days, week) {
+  var container = document.getElementById('dv2WeekChart');
+  if (!container || !days.length) {
+    if (container) container.innerHTML = '<div class="dv2-empty">Aucune donnee cette semaine</div>';
+    return;
+  }
+
+  container.innerHTML = '<canvas id="dv2WeekCanvas"></canvas>';
+  var canvas = document.getElementById('dv2WeekCanvas');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  var ctx = canvas.getContext('2d');
+  var labels = days.map(function(d) { return dv2_dayName(d.date); });
+  var isToday = days.map(function(d) { return d.date === week.end; });
+
+  if (_dv2_weekChart) { _dv2_weekChart.destroy(); _dv2_weekChart = null; }
+
+  _dv2_weekChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Relances',
+          data: days.map(function(d) { return d.relances || 0; }),
+          backgroundColor: 'rgba(245, 158, 11, 0.7)',
+          borderRadius: 4,
+          borderSkipped: false,
+        },
+        {
+          label: 'Notes',
+          data: days.map(function(d) { return d.notes || 0; }),
+          backgroundColor: 'rgba(59, 130, 246, 0.7)',
+          borderRadius: 4,
+          borderSkipped: false,
+        },
+        {
+          label: 'Push',
+          data: days.map(function(d) { return d.push || 0; }),
+          backgroundColor: 'rgba(139, 92, 246, 0.7)',
+          borderRadius: 4,
+          borderSkipped: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: {
+            boxWidth: 8,
+            boxHeight: 8,
+            borderRadius: 4,
+            useBorderRadius: true,
+            font: { size: 10, weight: '600' },
+            padding: 12,
+            color: getComputedStyle(document.documentElement).getPropertyValue('--color-text-secondary').trim() || '#6b7280'
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          titleFont: { size: 11 },
+          bodyFont: { size: 11 },
+          padding: 8,
+          cornerRadius: 8,
+          displayColors: true,
+          boxWidth: 8,
+          boxHeight: 8,
+          boxPadding: 3,
+        }
+      },
+      scales: {
+        x: {
+          stacked: true,
+          grid: { display: false },
+          ticks: {
+            font: { size: 10, weight: '600' },
+            color: getComputedStyle(document.documentElement).getPropertyValue('--color-text-secondary').trim() || '#6b7280'
+          }
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(100,116,139,0.08)',
+          },
+          ticks: {
+            font: { size: 10 },
+            color: getComputedStyle(document.documentElement).getPropertyValue('--color-text-secondary').trim() || '#6b7280',
+            stepSize: 1
+          }
+        }
+      },
+      animation: {
+        duration: 800,
+        easing: 'easeOutQuart'
+      }
+    }
+  });
+}
+
+// ─── Action Center (Tabs: Overdue / Tasks / RDV) ───
+
+function dv2_renderActions(overdueList, tasks, rdvList) {
+  // Update tab counts
+  var tabOv = document.getElementById('dv2TabOverdue');
+  var tabTk = document.getElementById('dv2TabTasks');
+  var tabRv = document.getElementById('dv2TabRdv');
+  if (tabOv) tabOv.textContent = (overdueList || []).length;
+  if (tabTk) tabTk.textContent = (tasks || []).length;
+  if (tabRv) tabRv.textContent = (rdvList || []).length;
+
+  // Render overdue pane
+  var ovEl = document.getElementById('dv2PaneOverdue');
+  if (ovEl) {
+    if (!overdueList || !overdueList.length) {
+      ovEl.innerHTML = '<div class="dv2-empty">Aucune relance en retard !</div>';
+    } else {
+      ovEl.innerHTML = overdueList.slice(0, 5).map(function(p) {
+        var daysLate = Math.floor((Date.now() - new Date(p.nextFollowUp + 'T00:00:00').getTime()) / 86400000);
+        var urg = daysLate >= 7 ? 'critical' : (daysLate >= 3 ? 'warning' : 'mild');
+        return '<div class="dv2-action-row ' + urg + '">' +
+          '<div class="dv2-action-name">' + dv2_esc(p.name) + '</div>' +
+          '<span class="dv2-action-days">-' + daysLate + 'j</span>' +
+          '<a href="/?open=' + p.id + '" class="dv2-action-btn">Ouvrir</a>' +
+        '</div>';
+      }).join('') +
+      (overdueList.length > 5 ? '<div class="dv2-more-link"><a href="/focus">+ ' + (overdueList.length - 5) + ' autres &rarr; Focus</a></div>' : '');
+    }
+  }
+
+  // Render tasks pane
+  var tkEl = document.getElementById('dv2PaneTasks');
+  if (tkEl) {
+    if (!tasks || !tasks.length) {
+      tkEl.innerHTML = '<div class="dv2-empty">Aucune tache en cours.<br><a href="/focus">Creer une tache</a></div>';
+    } else {
+      tkEl.innerHTML = tasks.slice(0, 5).map(function(t) {
+        var dueCls = '';
+        var dueText = '';
+        if (t.due_date) {
+          var parts = t.due_date.split('-');
+          dueText = parts[2] + '/' + parts[1];
+          if (t.due_date < new Date().toISOString().slice(0, 10)) dueCls = ' overdue';
+        }
+        return '<div class="dv2-action-row" data-task-id="' + t.id + '">' +
+          '<button class="dv2-task-check" onclick="dv2_toggleTask(' + t.id + ', this)" title="Valider">&#x2713;</button>' +
+          '<div class="dv2-task-info">' +
+            '<div class="dv2-task-title">' + dv2_esc(t.title) + '</div>' +
+            (t.comment ? '<div class="dv2-task-comment">' + dv2_esc(t.comment.slice(0, 60)) + '</div>' : '') +
+          '</div>' +
+          (dueText ? '<span class="dv2-task-due' + dueCls + '">' + dueText + '</span>' : '') +
+        '</div>';
+      }).join('') +
+      (tasks.length > 5 ? '<div class="dv2-more-link"><a href="/focus">+ ' + (tasks.length - 5) + ' autres &rarr;</a></div>' : '');
+    }
+  }
+
+  // Render RDV pane
+  var rvEl = document.getElementById('dv2PaneRdv');
+  if (rvEl) {
+    if (!rdvList || !rdvList.length) {
+      rvEl.innerHTML = '<div class="dv2-empty">Aucun RDV planifie.</div>';
+    } else {
+      rvEl.innerHTML = rdvList.slice(0, 5).map(function(p) {
+        var dateStr = (p.rdvDate || '').slice(0, 10);
+        var rel = dv2_relativeDate(dateStr);
+        var timeStr = (p.rdvDate || '').slice(11, 16);
+        var isTd = rel.cls === 'today';
+        return '<div class="dv2-action-row' + (isTd ? ' rdv-today' : '') + '">' +
+          '<div class="dv2-action-name">' + dv2_esc(p.name) + '</div>' +
+          (timeStr ? '<span class="dv2-action-meta">' + timeStr + '</span>' : '') +
+          '<span class="dv2-relative-date ' + rel.cls + '">' + rel.text + '</span>' +
+          '<a href="/?open=' + p.id + '" class="dv2-action-btn">Ouvrir</a>' +
+        '</div>';
+      }).join('');
+    }
+  }
+}
+
+function dv2_switchTab(tabName) {
+  var tabs = document.querySelectorAll('.dv2-tab');
+  var panes = document.querySelectorAll('.dv2-tab-pane');
+  var indicator = document.getElementById('dv2TabIndicator');
+
+  var idx = 0;
+  tabs.forEach(function(t, i) {
+    var isActive = t.getAttribute('data-tab') === tabName;
+    t.classList.toggle('active', isActive);
+    if (isActive) idx = i;
+  });
+  panes.forEach(function(p) {
+    p.classList.toggle('active', p.getAttribute('data-pane') === tabName);
+  });
+  if (indicator) indicator.setAttribute('data-pos', String(idx));
+  if (typeof window.haptic === 'function') window.haptic(10);
+}
+window.dv2_switchTab = dv2_switchTab;
+
+async function dv2_toggleTask(taskId, btn) {
+  try {
+    btn.disabled = true;
+    btn.innerHTML = '&#x23F3;';
+    var res = await fetch('/api/tasks/done', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: taskId, status: 'done' })
+    });
+    var json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Erreur');
+    var row = btn.closest('.dv2-action-row');
+    if (row) {
+      row.style.transition = 'opacity .3s, transform .3s';
+      row.style.opacity = '0';
+      row.style.transform = 'translateX(20px)';
+    }
+    if (typeof showToast === 'function') showToast('Tache validee', 'success');
+    setTimeout(async function() {
+      try {
+        var tasks = await dv2_fetchTasks();
+        var tkEl = document.getElementById('dv2TabTasks');
+        if (tkEl) tkEl.textContent = tasks.length;
+        dv2_renderActions(_dv2_mainData ? _dv2_mainData.overdue_list : [], tasks, _dv2_mainData ? _dv2_mainData.upcoming_rdv : []);
+        dv2_switchTab('tasks');
+      } catch(e) {}
+    }, 350);
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = '&#x2713;';
+    if (typeof showToast === 'function') showToast('Erreur: ' + (e.message || 'Inconnue'), 'error');
+  }
+}
+window.dv2_toggleTask = dv2_toggleTask;
+
+// ─── Pipeline Funnel ───
+
+function dv2_renderPipeline(pipeline) {
+  var funnel = document.getElementById('dv2Funnel');
+  var legend = document.getElementById('dv2PipelineLegend');
+  var stats = document.getElementById('dv2PipelineStats');
+
+  if (!pipeline || !pipeline.total) {
+    if (funnel) funnel.innerHTML = '<div class="dv2-empty">Aucun prospect.</div>';
+    return;
+  }
+
+  var total = pipeline.total || 1;
+  var convRate = Math.round((pipeline.rdv / total) * 100);
+
+  if (stats) {
+    stats.innerHTML = '<span>Total: <strong>' + total + '</strong></span>' +
+      '<span>Conversion RDV: <strong>' + convRate + '%</strong></span>' +
+      (pipeline.overdue > 0 ? '<span style="color:#ef4444;">En retard: <strong>' + pipeline.overdue + '</strong></span>' : '');
+  }
+
+  var statusOrder = ["Pas d'actions", "Appele", "A rappeler", "Messagerie", "Rendez-vous", "Prospecte", "Pas interesse"];
+  // Map accented keys from API to our unaccented constants
+  var statuts = pipeline.statuts || {};
+
+  if (funnel) {
+    funnel.innerHTML = statusOrder.map(function(s) {
+      // Try exact match first, then try accented variants
+      var n = statuts[s] || 0;
+      if (!n) {
+        // Try common accented variants
+        var variants = {
+          'Appele': ['Appelé', 'Appele'],
+          'A rappeler': ['À rappeler', 'A rappeler'],
+          'Prospecte': ['Prospecté', 'Prospecte'],
+          'Pas interesse': ['Pas intéressé', 'Pas interesse']
+        };
+        if (variants[s]) {
+          for (var vi = 0; vi < variants[s].length; vi++) {
+            if (statuts[variants[s][vi]]) { n = statuts[variants[s][vi]]; break; }
+          }
+        }
+      }
+      var pct = (n / total) * 100;
+      if (pct < 1 && n > 0) pct = 1;
+      if (n === 0) return '';
+      var color = DV2_STATUS_COLORS[s] || '#64748b';
+      return '<div class="dv2-funnel-seg" style="width:' + pct + '%;background:' + color + '">' +
+        '<div class="dv2-tooltip">' + s + ': ' + n + ' (' + Math.round(pct) + '%)</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  if (legend) {
+    legend.innerHTML = statusOrder.map(function(s) {
+      var n = statuts[s] || 0;
+      if (!n) {
+        var variants = {
+          'Appele': ['Appelé'], 'A rappeler': ['À rappeler'],
+          'Prospecte': ['Prospecté'], 'Pas interesse': ['Pas intéressé']
+        };
+        if (variants[s]) {
+          for (var vi = 0; vi < variants[s].length; vi++) {
+            if (statuts[variants[s][vi]]) { n = statuts[variants[s][vi]]; break; }
+          }
+        }
+      }
+      if (!n) return '';
+      var color = DV2_STATUS_COLORS[s] || '#64748b';
+      return '<div class="dv2-pipeline-legend-item">' +
+        '<span class="dv2-pipeline-dot" style="background:' + color + '"></span>' +
+        '<span>' + s + '</span> <strong>' + n + '</strong>' +
+      '</div>';
+    }).join('');
+  }
+}
+
+// ─── Activity Stream (Heatmap + Feed) ───
+
+function dv2_renderActivity(feed, weekDays) {
+  // Heatmap
+  var heatEl = document.getElementById('dv2Heatmap');
+  if (heatEl && weekDays && weekDays.length) {
+    var maxAct = Math.max(1, Math.max.apply(null, weekDays.map(function(d) {
+      return (d.relances || 0) + (d.notes || 0) + (d.push || 0);
+    })));
+    heatEl.innerHTML = weekDays.map(function(d) {
+      var total = (d.relances || 0) + (d.notes || 0) + (d.push || 0);
+      var opacity = total > 0 ? Math.max(0.15, total / maxAct) : 0.05;
+      return '<div class="dv2-heatmap-cell">' +
+        '<div class="dv2-heatmap-block" style="opacity:' + opacity.toFixed(2) + ';" title="' + d.date + ': ' + total + ' actions"></div>' +
+        '<span class="dv2-heatmap-label">' + dv2_dayName(d.date) + '</span>' +
+        '<span class="dv2-heatmap-count">' + total + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  // Feed
+  var feedEl = document.getElementById('dv2Feed');
+  if (!feedEl) return;
+
+  var items = [];
+  (feed.notes || []).forEach(function(n) {
+    items.push({
+      time: (n.date || '').slice(11, 16) || '--',
+      icon: '\uD83D\uDCDD',
+      text: 'Note pour <strong>' + dv2_esc(n.prospect_name) + '</strong>',
+      detail: dv2_esc((n.content || '').slice(0, 80)),
+      sort: n.date || ''
+    });
+  });
+  (feed.push || []).forEach(function(p) {
+    var ch = p.channel === 'email' ? '\u2709\uFE0F' : (p.channel === 'linkedin' ? '\uD83D\uDCBC' : '\uD83D\uDCE4');
+    items.push({
+      time: (p.createdAt || '').slice(11, 16) || '--',
+      icon: ch,
+      text: 'Push ' + (p.channel || '') + ' envoye',
+      detail: dv2_esc(p.subject || p.to_email || ''),
+      sort: p.createdAt || ''
+    });
+  });
+
+  items.sort(function(a, b) { return b.sort.localeCompare(a.sort); });
+
+  if (!items.length) {
+    feedEl.innerHTML = '<div class="dv2-empty">Aucune activite aujourd\'hui.<br>C\'est le moment de passer des appels !</div>';
+    return;
+  }
+
+  feedEl.innerHTML = items.slice(0, 6).map(function(it) {
+    return '<div class="dv2-feed-item">' +
+      '<span class="dv2-feed-time">' + it.time + '</span>' +
+      '<span class="dv2-feed-icon">' + it.icon + '</span>' +
+      '<div class="dv2-feed-text">' + it.text +
+        (it.detail ? '<div class="dv2-feed-detail">' + it.detail + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('') +
+  (items.length > 6 ? '<div class="dv2-more-link"><span style="color:var(--color-text-secondary);">+ ' + (items.length - 6) + ' autres</span></div>' : '');
+}
+
+// ─── Goals Ring ───
+
+function dv2_fireConfetti(containerEl, intensity) {
+  if (!containerEl) return;
+  containerEl.innerHTML = '';
+  containerEl.classList.remove('active');
+  void containerEl.offsetWidth;
+  containerEl.classList.add('active');
+  var colors = ['#f59e0b', '#3b82f6', '#8b5cf6', '#22c55e', '#ef4444', '#eab308'];
+  var n = Math.max(10, Math.min(60, intensity || 24));
+  for (var i = 0; i < n; i++) {
+    var piece = document.createElement('div');
+    piece.className = 'dv2-confetti-piece';
+    piece.style.left = (Math.random() * 100) + '%';
+    piece.style.animationDelay = (Math.random() * 0.35) + 's';
+    piece.style.animationDuration = (0.9 + Math.random() * 0.7) + 's';
+    piece.style.width = (6 + Math.floor(Math.random() * 6)) + 'px';
+    piece.style.height = (6 + Math.floor(Math.random() * 6)) + 'px';
+    piece.style.setProperty('--confetti-color', colors[i % colors.length]);
+    piece.style.background = colors[i % colors.length];
+    containerEl.appendChild(piece);
+  }
+  setTimeout(function() {
+    try { containerEl.classList.remove('active'); containerEl.innerHTML = ''; } catch(e) {}
+  }, 1800);
+}
+
+function dv2_renderGoals(goals, week, today) {
+  var ringsEl = document.getElementById('dv2GoalsRings');
+  var itemsEl = document.getElementById('dv2GoalsItems');
+  var confetti = document.getElementById('dv2Confetti');
+
+  if (!goals || !goals.daily || !goals.weekly) {
+    if (ringsEl) ringsEl.innerHTML = '<div class="dv2-empty">Objectifs indisponibles.</div>';
+    return;
+  }
+
+  var daily = goals.daily;
+  var weekly = goals.weekly;
+  var dayRatio = daily.xp_total ? (daily.xp_current / daily.xp_total) : 0;
+  var wkRatio = weekly.xp_total ? (weekly.xp_current / weekly.xp_total) : 0;
+
+  // Check level-up
+  var wkXp = Number(weekly.xp_current || 0);
+  var wkLevel = Math.floor(wkXp / 100) + 1;
+  var weekStart = (week && week.start) ? week.start : '';
+  var prevLevelKey = 'dv2_goals_level_' + weekStart;
+  var prevLevel = parseInt(localStorage.getItem(prevLevelKey) || '0', 10) || 0;
+  if (wkLevel > prevLevel) {
+    localStorage.setItem(prevLevelKey, String(wkLevel));
+    dv2_fireConfetti(confetti, 34);
+    if (typeof showToast === 'function') showToast('Level up ! Niveau ' + wkLevel, 'success');
+  }
+
+  // SVG rings
+  var r1 = 52, r2 = 40;
+  var c1 = 2 * Math.PI * r1;
+  var c2 = 2 * Math.PI * r2;
+  var off1 = c1 * (1 - Math.min(1, wkRatio));
+  var off2 = c2 * (1 - Math.min(1, dayRatio));
+
+  if (ringsEl) {
+    ringsEl.innerHTML =
+      '<div class="dv2-rings-svg-wrap">' +
+        '<svg viewBox="0 0 120 120">' +
+          '<circle class="dv2-ring-track" cx="60" cy="60" r="' + r1 + '"/>' +
+          '<circle class="dv2-ring-fill" cx="60" cy="60" r="' + r1 + '" stroke="' + DV2_KPI_COLORS.relances + '" ' +
+            'stroke-dasharray="' + c1.toFixed(1) + '" ' +
+            'style="--dv2-circumference:' + c1.toFixed(1) + ';--dv2-offset:' + off1.toFixed(1) + ';stroke-dashoffset:' + off1.toFixed(1) + '"/>' +
+          '<circle class="dv2-ring-track" cx="60" cy="60" r="' + r2 + '"/>' +
+          '<circle class="dv2-ring-fill" cx="60" cy="60" r="' + r2 + '" stroke="' + DV2_KPI_COLORS.notes + '" ' +
+            'stroke-dasharray="' + c2.toFixed(1) + '" ' +
+            'style="--dv2-circumference:' + c2.toFixed(1) + ';--dv2-offset:' + off2.toFixed(1) + ';stroke-dashoffset:' + off2.toFixed(1) + '"/>' +
+        '</svg>' +
+        '<div class="dv2-rings-center">' +
+          '<div class="dv2-rings-xp">' + Math.round(wkXp) + '</div>' +
+          '<div class="dv2-rings-level">Lv ' + wkLevel + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="dv2-rings-legend">' +
+        '<div class="dv2-ring-legend-item">' +
+          '<span class="dv2-ring-legend-dot" style="background:' + DV2_KPI_COLORS.relances + '"></span>' +
+          '<span class="dv2-ring-legend-label">Semaine</span>' +
+          '<span class="dv2-ring-legend-value">' + Math.round(wkRatio * 100) + '%</span>' +
+        '</div>' +
+        '<div class="dv2-ring-legend-item">' +
+          '<span class="dv2-ring-legend-dot" style="background:' + DV2_KPI_COLORS.notes + '"></span>' +
+          '<span class="dv2-ring-legend-label">Jour</span>' +
+          '<span class="dv2-ring-legend-value">' + Math.round(dayRatio * 100) + '%</span>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;">' +
+          Math.round(daily.xp_current || 0) + '/' + Math.round(daily.xp_total || 0) + ' XP jour &middot; ' +
+          Math.round(weekly.xp_current || 0) + '/' + Math.round(weekly.xp_total || 0) + ' XP semaine' +
+        '</div>' +
+      '</div>';
+  }
+
+  // Goal pills
+  if (itemsEl) {
+    var allItems = [];
+    var todayIso = (today && today.date) ? today.date : new Date().toISOString().slice(0, 10);
+
+    ['daily', 'weekly'].forEach(function(scope) {
+      var obj = goals[scope];
+      if (!obj || !obj.items) return;
+      var keys = Object.keys(obj.items).filter(function(k) { return Number(obj.items[k].target || 0) > 0; });
+      keys.forEach(function(k) {
+        var it = obj.items[k];
+        var done = !!it.done;
+        var stKey = 'dv2_goal_done_' + scope + '_' + k + '_' + (scope === 'daily' ? todayIso : weekStart);
+        var wasDone = localStorage.getItem(stKey) === '1';
+        if (done && !wasDone) {
+          localStorage.setItem(stKey, '1');
+          dv2_fireConfetti(confetti, 26);
+          if (typeof showToast === 'function') showToast('Objectif atteint : ' + (it.label || k), 'success');
+        }
+        allItems.push({
+          label: it.label || k,
+          count: it.count || 0,
+          target: it.target || 0,
+          done: done
+        });
+      });
+    });
+
+    itemsEl.innerHTML = allItems.map(function(it) {
+      return '<span class="dv2-goal-pill' + (it.done ? ' done' : '') + '">' +
+        '<span class="dv2-goal-check">' + (it.done ? '&#x2713;' : '') + '</span> ' +
+        dv2_esc(it.label) + ' <strong>' + it.count + '/' + it.target + '</strong>' +
+      '</span>';
+    }).join('');
+  }
+}
+
+// ─── AI Priorities ───
+
+function dv2_renderPriorities(data) {
+  var listEl = document.getElementById('dv2PrioritiesList');
+  var insightEl = document.getElementById('dv2Insight');
+  var pillEl = document.getElementById('dv2InsightPill');
+  var pillText = document.getElementById('dv2InsightText');
+
+  if (!data || !data.priorities || !data.priorities.length) {
+    if (listEl) listEl.innerHTML = '<div class="dv2-empty">Aucune priorite generee.</div>';
+    return;
+  }
+
+  if (listEl) {
+    listEl.innerHTML = data.priorities.slice(0, 3).map(function(p, idx) {
+      return '<div class="dv2-priority-pill">' +
+        '<span class="dv2-priority-num">' + (idx + 1) + '</span>' +
+        '<span>' + dv2_esc(p) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  if (data.insight) {
+    if (insightEl) {
+      insightEl.textContent = data.insight;
+      insightEl.style.display = 'block';
+    }
+    if (pillEl && pillText) {
+      pillText.textContent = data.insight;
+      pillEl.style.display = 'flex';
+    }
+  }
+}
+
+async function dv2_refreshPriorities() {
+  var listEl = document.getElementById('dv2PrioritiesList');
+  if (listEl) listEl.innerHTML = '<div class="dv2-loading">Analyse en cours...</div>';
+  try {
+    var data = await dv2_fetchPriorities();
+    dv2_renderPriorities(data);
+  } catch(e) {
+    if (listEl) listEl.innerHTML = '<div class="dv2-empty">Priorites IA indisponibles.</div>';
+  }
+}
+window.dv2_refreshPriorities = dv2_refreshPriorities;
+
+// ─── Manual KPI Modal ───
+
+function dv2_openManualKpiModal() {
+  var modal = document.getElementById('manualKpiModal');
+  if (!modal) return;
+  var dateInput = document.getElementById('manualKpiDate');
+  if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+  var countInput = document.getElementById('manualKpiCount');
+  if (countInput) countInput.value = '1';
+  var descInput = document.getElementById('manualKpiDesc');
+  if (descInput) descInput.value = '';
+  modal.style.display = 'flex';
+}
+window.dv2_openManualKpiModal = dv2_openManualKpiModal;
+
+function dv2_closeManualKpiModal() {
+  var modal = document.getElementById('manualKpiModal');
+  if (modal) modal.style.display = 'none';
+}
+window.dv2_closeManualKpiModal = dv2_closeManualKpiModal;
+
+async function dv2_saveManualKpi() {
+  var type = (document.getElementById('manualKpiType') || {}).value || 'note';
+  var date = (document.getElementById('manualKpiDate') || {}).value || new Date().toISOString().split('T')[0];
+  var count = parseInt((document.getElementById('manualKpiCount') || {}).value || '1', 10);
+  var desc = (document.getElementById('manualKpiDesc') || {}).value || '';
+  try {
+    var res = await fetch('/api/manual-kpi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: type, date: date, count: count, description: desc })
+    });
+    var data = await res.json();
+    if (data.ok) {
+      if (typeof showToast === 'function') showToast('KPI enregistre', 'success');
+      dv2_closeManualKpiModal();
+      dv2_boot();
+    } else {
+      if (typeof showToast === 'function') showToast('Erreur: ' + (data.error || 'Inconnu'), 'error');
+    }
+  } catch(e) {
+    if (typeof showToast === 'function') showToast('Erreur: ' + (e.message || 'Inconnue'), 'error');
+  }
+}
+window.dv2_saveManualKpi = dv2_saveManualKpi;
+
+async function dv2_exportDayRecap() {
+  try {
+    var res = await fetch('/api/export/day');
+    var json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Erreur');
+    var recap = json.recap || {};
+    var dateStr = recap.date || new Date().toISOString().slice(0, 10);
+    var blob = new Blob([JSON.stringify(recap, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = "ProspUp_recap_" + dateStr + ".json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    if (typeof showToast === 'function') showToast('Recap du jour telecharge', 'success');
+  } catch(e) {
+    if (typeof showToast === 'function') showToast(e.message || 'Erreur export', 'error');
+  }
+}
+window.dv2_exportDayRecap = dv2_exportDayRecap;
+
+// ─── Boot ───
+
+async function dv2_boot() {
+  try {
+    var results = await Promise.all([dv2_fetchMain(), dv2_fetchTasks()]);
+    var mainData = results[0];
+    var tasks = results[1];
+    _dv2_mainData = mainData;
+
+    dv2_renderHero(mainData);
+    dv2_renderPerformance(mainData);
+    dv2_renderActions(mainData.overdue_list || [], tasks, mainData.upcoming_rdv || []);
+    dv2_renderPipeline(mainData.pipeline);
+    dv2_renderActivity(mainData.feed || { notes: [], push: [] }, (mainData.week && mainData.week.days) || []);
+    dv2_renderGoals(mainData.goals, mainData.week, mainData.today);
+  } catch(e) {
+    console.warn('[DashV2] boot error:', e.message);
+    if (typeof showToast === 'function') showToast('Erreur de chargement du dashboard', 'error');
+  }
+
+  // Non-blocking: AI priorities
+  dv2_fetchPriorities()
+    .then(function(data) { dv2_renderPriorities(data); })
+    .catch(function(e) {
+      console.warn('[DashV2] priorities skipped:', e.message);
+      var el = document.getElementById('dv2PrioritiesList');
+      if (el) el.innerHTML = '<div class="dv2-empty">Priorites IA indisponibles.</div>';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (document.body.dataset.page !== 'dashboard_v2') return;
+
+  // Init assistant button if available
+  var fab = document.getElementById('dashAssistantFab');
+  if (fab) fab.style.display = 'flex';
+
+  dv2_boot();
+});
