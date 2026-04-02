@@ -14859,30 +14859,40 @@ async function _saveUserProfile() {
             credentials: 'same-origin',
             body: JSON.stringify({ display_name: name, email, phone }),
         });
+        if (!r.ok) {
+            console.error('[Profile] PATCH failed:', r.status, r.statusText);
+            if (window.showToast) showToast('Erreur serveur (' + r.status + ')', 'error');
+            return;
+        }
         const d = await r.json();
         if (d.ok) {
-            // Mettre à jour AppAuth.user en mémoire
-            if (window.AppAuth && AppAuth.user) {
-                AppAuth.user.display_name = d.display_name || name;
-                AppAuth.user.email = d.email || email;
-                AppAuth.user.phone = d.phone || phone;
-            }
             _toggleProfileEdit(false);
-            // Rafraîchir l'affichage
+            // Re-fetch depuis le serveur pour garantir la cohérence
+            try {
+                const meR = await fetch('/api/auth/me', { credentials: 'same-origin' });
+                const meD = await meR.json();
+                if (meD.ok && window.AppAuth) {
+                    AppAuth.user = meD.user;
+                    AppAuth._injectBadge();
+                }
+            } catch(e2) { console.warn('[Profile] re-fetch /api/auth/me failed:', e2); }
+            // Rafraîchir l'affichage popup
+            const displayName = (window.AppAuth && AppAuth.user) ? (AppAuth.user.display_name || name) : name;
+            const displayEmail = (window.AppAuth && AppAuth.user) ? (AppAuth.user.email || email) : email;
+            const displayPhone = (window.AppAuth && AppAuth.user) ? (AppAuth.user.phone || phone) : phone;
             const nameEl = document.getElementById('userMenuName');
-            if (nameEl) nameEl.textContent = d.display_name || name;
+            if (nameEl) nameEl.textContent = displayName;
             const emailEl = document.getElementById('userMenuEmail');
-            if (emailEl) { emailEl.textContent = d.email || email; emailEl.style.display = (d.email || email) ? '' : 'none'; }
+            if (emailEl) { emailEl.textContent = displayEmail; emailEl.style.display = displayEmail ? '' : 'none'; }
             const phoneEl = document.getElementById('userMenuPhone');
-            if (phoneEl) { phoneEl.textContent = d.phone || phone; phoneEl.style.display = (d.phone || phone) ? '' : 'none'; }
-            // Badge desktop
-            const badgeName = document.querySelector('.user-session-name');
-            if (badgeName) badgeName.textContent = d.display_name || name;
+            if (phoneEl) { phoneEl.textContent = displayPhone; phoneEl.style.display = displayPhone ? '' : 'none'; }
             if (window.showToast) showToast('Profil mis à jour', 'success');
         } else {
+            console.error('[Profile] save error:', d.error);
             if (window.showToast) showToast(d.error || 'Erreur', 'error');
         }
     } catch(e) {
+        console.error('[Profile] network error:', e);
         if (window.showToast) showToast('Erreur réseau', 'error');
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer'; }
