@@ -808,7 +808,8 @@ def _require_auth():
 
     allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment', '/api/system/logs',
                '/api/deploy/health', '/api/deploy/pull-from-404', '/api/deploy/rollback',
-               '/api/deploy/validation-status', '/api/deploy/confirm-validation')
+               '/api/deploy/validation-status', '/api/deploy/confirm-validation',
+               '/prospects/mode-prosp', '/api/mode-prosp/')
     if any(request.path.startswith(p) for p in allowed):
         return
 
@@ -4078,6 +4079,166 @@ def page_metiers():
 @app.get("/prospects/mode-prosp")
 def page_mode_prosp():
     return render_template("mode_prosp.html", static_hashes=_static_hashes)
+
+
+# ── Mode Prosp: server-side token sessions ──
+_mode_prosp_sessions: Dict[str, dict] = {}
+_MODE_PROSP_TTL = 3600  # 1 hour
+
+
+def _mode_prosp_cleanup():
+    """Remove expired mode-prosp sessions."""
+    now = time.time()
+    expired = [k for k, v in _mode_prosp_sessions.items() if now - v['created_at'] > _MODE_PROSP_TTL]
+    for k in expired:
+        del _mode_prosp_sessions[k]
+
+
+def _mode_prosp_auth(token: str):
+    """Validate a mode-prosp token and return session dict or None."""
+    sess = _mode_prosp_sessions.get(token)
+    if not sess:
+        return None
+    if time.time() - sess['created_at'] > _MODE_PROSP_TTL:
+        del _mode_prosp_sessions[token]
+        return None
+    return sess
+
+
+@app.post("/api/mode-prosp/start")
+def mode_prosp_start():
+    """Create a mode-prosp session: store filtered prospect IDs server-side, return a token."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    ids = request.json.get('ids', [])
+    if not isinstance(ids, list) or len(ids) == 0:
+        return jsonify(ok=False, error="Aucun prospect"), 400
+    # Validate IDs are integers
+    ids = [int(i) for i in ids if str(i).isdigit()]
+    if not ids:
+        return jsonify(ok=False, error="IDs invalides"), 400
+    token = secrets.token_urlsafe(16)
+    _mode_prosp_sessions[token] = {
+        'user_id': uid,
+        'ids': ids,
+        'created_at': time.time()
+    }
+    _mode_prosp_cleanup()
+    return jsonify(ok=True, token=token)
+
+
+@app.get("/api/mode-prosp/data")
+def mode_prosp_data():
+    """Return only the selected prospects + their companies for a mode-prosp session."""
+    token = request.args.get('t', '')
+    sess = _mode_prosp_auth(token)
+    if not sess:
+        return jsonify(ok=False, error="Session expirée ou invalide"), 401
+    uid = sess['user_id']
+    ids = sess['ids']
+    try:
+        db_path = _user_db_path(uid)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout = 20000;")
+        # Fetch prospects by IDs, respecting owner_id
+        placeholders = ','.join('?' * len(ids))
+        rows = conn.execute(
+            f"SELECT * FROM prospects WHERE id IN ({placeholders}) AND owner_id=? AND deleted_at IS NULL",
+            ids + [uid]
+        ).fetchall()
+        p_map = {r['id']: dict(r) for r in rows}
+        # Maintain the original filter order
+        prospects_list = [p_map[i] for i in ids if i in p_map]
+        # Parse JSON fields
+        for p in prospects_list:
+            for jf in ('callNotes', 'tags'):
+                raw = p.get(jf)
+                if isinstance(raw, str) and raw:
+                    try:
+                        p[jf] = json.loads(raw)
+                    except Exception:
+                        p[jf] = []
+                elif not raw:
+                    p[jf] = []
+        # Fetch related companies
+        company_ids = list(set(p.get('company_id') for p in prospects_list if p.get('company_id')))
+        companies_list = []
+        if company_ids:
+            cp = ','.join('?' * len(company_ids))
+            c_rows = conn.execute(
+                f"SELECT * FROM companies WHERE id IN ({cp}) AND owner_id=? AND deleted_at IS NULL",
+                company_ids + [uid]
+            ).fetchall()
+            companies_list = [dict(r) for r in c_rows]
+        conn.close()
+        return jsonify(ok=True, prospects=prospects_list, companies=companies_list)
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.post("/api/mode-prosp/save")
+def mode_prosp_save():
+    """Save a single prospect from mode-prosp. Updates only the editable fields."""
+    token = request.args.get('t', '')
+    sess = _mode_prosp_auth(token)
+    if not sess:
+        return jsonify(ok=False, error="Session expirée ou invalide"), 401
+    uid = sess['user_id']
+    prospect = request.json.get('prospect')
+    if not prospect or not prospect.get('id'):
+        return jsonify(ok=False, error="Prospect invalide"), 400
+    pid = int(prospect['id'])
+    # Verify ownership
+    if pid not in sess['ids']:
+        return jsonify(ok=False, error="Prospect non autorisé"), 403
+    # Editable fields from Mode Prosp cards
+    EDITABLE = ('statut', 'company_id', 'fonction', 'telephone', 'email', 'linkedin',
+                'pertinence', 'priority', 'nextAction', 'nextFollowUp', 'rdvDate', 'lastContact', 'notes')
+    try:
+        db_path = _user_db_path(uid)
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA busy_timeout = 20000;")
+        conn.execute("PRAGMA journal_mode = WAL;")
+        # Build SET clause for only editable fields present in payload
+        sets = []
+        vals = []
+        for f in EDITABLE:
+            if f in prospect:
+                sets.append(f"{f} = ?")
+                val = prospect[f]
+                # Convert company_id and priority to int
+                if f in ('company_id', 'priority', 'pertinence'):
+                    val = int(val) if val is not None else None
+                vals.append(val)
+        if not sets:
+            conn.close()
+            return jsonify(ok=True)
+        vals.extend([pid, uid])
+        conn.execute(
+            f"UPDATE prospects SET {', '.join(sets)} WHERE id = ? AND owner_id = ?",
+            vals
+        )
+        conn.commit()
+        # Fetch updated prospect to return it
+        row = conn.execute("SELECT * FROM prospects WHERE id = ? AND owner_id = ?", (pid, uid)).fetchone()
+        conn.close()
+        if row:
+            updated = dict(row)
+            for jf in ('callNotes', 'tags'):
+                raw = updated.get(jf)
+                if isinstance(raw, str) and raw:
+                    try:
+                        updated[jf] = json.loads(raw)
+                    except Exception:
+                        updated[jf] = []
+                elif not raw:
+                    updated[jf] = []
+            return jsonify(ok=True, prospect=updated)
+        return jsonify(ok=True)
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
 
 
 @app.get("/offline.html")

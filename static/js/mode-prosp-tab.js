@@ -1,8 +1,9 @@
-// Mode Prosp — standalone tab logic
-// Loads filtered prospect IDs from sessionStorage, fetches data from API,
-// renders editable cards with slide navigation, syncs via BroadcastChannel.
+// Mode Prosp — standalone tab logic (v2: server-side token)
+// Uses a server token passed via URL param ?t=TOKEN.
+// All data is fetched/saved via /api/mode-prosp/* endpoints.
+// No localStorage, no sessionStorage, no BroadcastChannel.
 
-// Close / go back (works in both browser tabs and PWA)
+// Close / go back
 window.mpClose = function () {
     if (window.opener) {
         window.close();
@@ -17,57 +18,62 @@ window.mpClose = function () {
     'use strict';
 
     // ── State ──
-    let prospects = [];
-    let companies = [];
-    let currentIndex = 0;
-    let prospectIds = [];
-    let saving = false;
+    var prospects = [];
+    var companies = [];
+    var currentIndex = 0;
+    var saving = false;
+    var token = '';
 
     // ── DOM refs ──
-    const viewport = document.getElementById('mpViewport');
-    const track = document.getElementById('mpCardTrack');
-    const counter = document.getElementById('mpCounter');
-    const prevBtn = document.getElementById('mpPrev');
-    const nextBtn = document.getElementById('mpNext');
+    var viewport = document.getElementById('mpViewport');
+    var track = document.getElementById('mpCardTrack');
+    var counter = document.getElementById('mpCounter');
+    var prevBtn = document.getElementById('mpPrev');
+    var nextBtn = document.getElementById('mpNext');
 
-    // ── BroadcastChannel ──
-    const bc = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('prospup-mode-prosp') : null;
+    // ── Read token from URL ──
+    function getToken() {
+        var params = new URLSearchParams(location.search);
+        return params.get('t') || '';
+    }
 
     // ── Init ──
     async function init() {
-        // Read IDs from URL hash (set by main tab: /prospects/mode-prosp#id1,id2,id3)
-        // URL hash works everywhere: regular tabs, PWA standalone, mobile Safari
-        let ids;
-        const hash = location.hash.slice(1);
-        if (hash) {
-            ids = hash.split(',').map(Number).filter(function(n) { return n > 0; });
-        }
-        if (!Array.isArray(ids) || ids.length === 0) {
+        token = getToken();
+        if (!token) {
             track.innerHTML = '<div class="mp-empty">Aucun prospect transmis. Retournez sur la page Prospects et relancez le Mode Prosp.</div>';
             return;
         }
-        prospectIds = ids;
-        // Clean URL for aesthetics
-        if (history.replaceState) history.replaceState(null, '', location.pathname);
 
-        // Fetch data
+        // Show loading
+        track.innerHTML = '<div class="mp-empty">Chargement...</div>';
+
+        // Fetch data from server using token
         try {
-            const res = await fetch('/api/data', { credentials: 'include' });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const payload = await res.json();
-            const allProspects = Array.isArray(payload.prospects) ? payload.prospects : [];
+            var res = await fetch('/api/mode-prosp/data?t=' + encodeURIComponent(token));
+            if (!res.ok) {
+                if (res.status === 401) {
+                    track.innerHTML = '<div class="mp-empty">Session expirée. Retournez sur la page Prospects et relancez le Mode Prosp.</div>';
+                } else {
+                    throw new Error('HTTP ' + res.status);
+                }
+                return;
+            }
+            var payload = await res.json();
+            if (!payload.ok) {
+                track.innerHTML = '<div class="mp-empty">' + (payload.error || 'Erreur') + '</div>';
+                return;
+            }
+            prospects = Array.isArray(payload.prospects) ? payload.prospects : [];
             companies = Array.isArray(payload.companies) ? payload.companies : [];
-            // Keep only the filtered IDs, in order
-            const pMap = new Map(allProspects.map(p => [p.id, p]));
-            prospects = prospectIds.map(id => pMap.get(id)).filter(Boolean);
         } catch (e) {
-            track.innerHTML = '<div class="mp-empty">Erreur de chargement des donnees. Verifiez que vous etes connecte.</div>';
-            console.error(e);
+            track.innerHTML = '<div class="mp-empty">Erreur de chargement. Vérifiez votre connexion.</div>';
+            console.error('Mode Prosp init error:', e);
             return;
         }
 
         if (prospects.length === 0) {
-            track.innerHTML = '<div class="mp-empty">Aucun prospect trouve.</div>';
+            track.innerHTML = '<div class="mp-empty">Aucun prospect trouvé.</div>';
             return;
         }
 
@@ -75,30 +81,30 @@ window.mpClose = function () {
         goTo(0, false);
         setupKeyboard();
         setupSwipe();
-        setupBroadcast();
+        setupVisibilitySync();
     }
 
     // ── Rendering ──
     function escapeHtml(str) {
-        const d = document.createElement('div');
+        var d = document.createElement('div');
         d.textContent = str || '';
         return d.innerHTML;
     }
 
     function getCompany(id) {
-        return companies.find(c => c.id === id) || null;
+        return companies.find(function (c) { return c.id === id; }) || null;
     }
 
-    const STATUS_OPTIONS = ["Pas d'actions", "Appelé", "A rappeler", "Rendez-vous", "Prospecte", "Messagerie", "Pas interesse"];
-    const STATUS_COLORS = {
-        "Pas d'actions": '#64748b', 'Appele': '#f59e0b', 'Messagerie': '#3b82f6',
-        'A rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Prospecte': '#8b5cf6', 'Pas interesse': '#94a3b8'
+    var STATUS_OPTIONS = ["Pas d'actions", "Appelé", "A rappeler", "Rendez-vous", "Prospecté", "Messagerie", "Pas interessé"];
+    var STATUS_COLORS = {
+        "Pas d'actions": '#64748b', 'Appelé': '#f59e0b', 'Messagerie': '#3b82f6',
+        'A rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Prospecté': '#8b5cf6', 'Pas interessé': '#94a3b8'
     };
 
     function renderAllCards() {
         track.innerHTML = '';
-        prospects.forEach((p, i) => {
-            const card = document.createElement('div');
+        prospects.forEach(function (p, i) {
+            var card = document.createElement('div');
             card.className = 'mp-card';
             card.dataset.index = i;
             card.innerHTML = buildCardHtml(p, i);
@@ -107,37 +113,38 @@ window.mpClose = function () {
     }
 
     function buildCardHtml(p, index) {
-        const company = getCompany(p.company_id);
-        const companyName = company ? (company.groupe || '') + (company.site ? ' (' + company.site + ')' : '') : '';
-        const pert = parseInt(p.pertinence, 10) || 3;
-        const stars = '\u2605'.repeat(pert) + '\u2606'.repeat(5 - pert);
-        const heroColor = STATUS_COLORS[p.statut] || '#64748b';
-        const initials = (p.name || '??').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        var company = getCompany(p.company_id);
+        var companyName = company ? (company.groupe || '') + (company.site ? ' (' + company.site + ')' : '') : '';
+        var pert = parseInt(p.pertinence, 10) || 3;
+        var stars = '\u2605'.repeat(pert) + '\u2606'.repeat(5 - pert);
+        var heroColor = STATUS_COLORS[p.statut] || '#64748b';
+        var initials = (p.name || '??').split(/\s+/).map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
 
-        const statusOpts = STATUS_OPTIONS.map(s =>
-            '<option value="' + escapeHtml(s) + '"' + (p.statut === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>'
-        ).join('');
+        var statusOpts = STATUS_OPTIONS.map(function (s) {
+            return '<option value="' + escapeHtml(s) + '"' + (p.statut === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
+        }).join('');
 
-        const companyOpts = companies.map(c =>
-            '<option value="' + c.id + '"' + (c.id === p.company_id ? ' selected' : '') + '>' + escapeHtml(c.groupe) + ' (' + escapeHtml(c.site || '') + ')</option>'
-        ).join('');
+        var companyOpts = companies.map(function (c) {
+            return '<option value="' + c.id + '"' + (c.id === p.company_id ? ' selected' : '') + '>' + escapeHtml(c.groupe) + ' (' + escapeHtml(c.site || '') + ')</option>';
+        }).join('');
 
-        const pertOpts = [5,4,3,2,1].map(v =>
-            '<option value="' + v + '"' + (pert === v ? ' selected' : '') + '>' + '\u2B50'.repeat(v) + '</option>'
-        ).join('');
+        var pertOpts = [5, 4, 3, 2, 1].map(function (v) {
+            return '<option value="' + v + '"' + (pert === v ? ' selected' : '') + '>' + '\u2B50'.repeat(v) + '</option>';
+        }).join('');
 
-        const priorityOpts = [
+        var priorityOpts = [
             { v: '1', l: 'P1 (haute)' },
             { v: '2', l: 'P2 (normal)' },
             { v: '3', l: 'P3 (basse)' }
-        ].map(o => '<option value="' + o.v + '"' + (String(p.priority || '2') === o.v ? ' selected' : '') + '>' + o.l + '</option>').join('');
+        ].map(function (o) {
+            return '<option value="' + o.v + '"' + (String(p.priority || '2') === o.v ? ' selected' : '') + '>' + o.l + '</option>';
+        }).join('');
 
-        const photoUrl = p.photo_url ? '/api/photos/prospect/' + p.id : '';
-        const avatarHtml = photoUrl
+        var photoUrl = p.photo_url ? '/api/photos/prospect/' + p.id : '';
+        var avatarHtml = photoUrl
             ? '<img class="mp-avatar-img" src="' + photoUrl + '?t=' + Date.now() + '" alt="' + escapeHtml(initials) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" /><div class="mp-avatar" style="background:' + heroColor + ';display:none;">' + escapeHtml(initials) + '</div>'
             : '<div class="mp-avatar" style="background:' + heroColor + ';">' + escapeHtml(initials) + '</div>';
 
-        // Quick action buttons (visible on hero)
         var quickActions = '';
         if (p.telephone) {
             quickActions += '<a href="tel:' + escapeHtml(p.telephone.replace(/\s/g, '')) + '" class="mp-quick-btn mp-quick-call" title="Appeler">tel</a>';
@@ -166,14 +173,14 @@ window.mpClose = function () {
                 mpField('Statut', '<select class="mp-input" data-field="statut">' + statusOpts + '</select>') +
                 mpField('Entreprise', '<select class="mp-input" data-field="company_id">' + companyOpts + '</select>') +
                 mpField('Fonction', '<input type="text" class="mp-input" data-field="fonction" value="' + escapeHtml(p.fonction || '') + '">') +
-                mpField('Telephone', '<input type="text" class="mp-input" data-field="telephone" value="' + escapeHtml(p.telephone || '') + '">' +
+                mpField('Téléphone', '<input type="text" class="mp-input" data-field="telephone" value="' + escapeHtml(p.telephone || '') + '">' +
                     (p.telephone ? ' <a href="tel:' + escapeHtml(p.telephone.replace(/\s/g, '')) + '" class="mp-action-link">Appeler</a>' : '')) +
                 mpField('Email', '<input type="email" class="mp-input" data-field="email" value="' + escapeHtml(p.email || '') + '">' +
                     (p.email ? ' <a href="mailto:' + escapeHtml(p.email) + '" class="mp-action-link">Envoyer</a>' : '')) +
                 mpField('LinkedIn', '<input type="text" class="mp-input" data-field="linkedin" value="' + escapeHtml(p.linkedin || '') + '">' +
                     (p.linkedin ? ' <a href="' + escapeHtml(p.linkedin) + '" target="_blank" class="mp-action-link">Voir</a>' : '')) +
                 mpField('Pertinence', '<select class="mp-input" data-field="pertinence">' + pertOpts + '</select>') +
-                mpField('Priorite', '<select class="mp-input" data-field="priority">' + priorityOpts + '</select>') +
+                mpField('Priorité', '<select class="mp-input" data-field="priority">' + priorityOpts + '</select>') +
                 mpField('Next action', '<input type="text" class="mp-input" data-field="nextAction" value="' + escapeHtml(p.nextAction || '') + '">') +
                 mpField('Relance', '<input type="date" class="mp-input" data-field="nextFollowUp" value="' + escapeHtml(p.nextFollowUp || '') + '">') +
                 mpField('Date RDV', '<input type="datetime-local" class="mp-input" data-field="rdvDate" value="' + escapeHtml(p.rdvDate || '') + '">') +
@@ -194,12 +201,12 @@ window.mpClose = function () {
     }
 
     // ── Navigation ──
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     function goTo(index, animate) {
         if (index < 0 || index >= prospects.length) return;
         currentIndex = index;
-        const offset = -index * 100;
+        var offset = -index * 100;
 
         if (animate === false || reducedMotion.matches) {
             track.style.transition = 'none';
@@ -208,7 +215,6 @@ window.mpClose = function () {
         }
         track.style.transform = 'translateX(' + offset + '%)';
 
-        // Force reflow if no animation
         if (animate === false) void track.offsetWidth;
 
         updateUI();
@@ -219,17 +225,16 @@ window.mpClose = function () {
         prevBtn.disabled = currentIndex === 0;
         nextBtn.disabled = currentIndex === prospects.length - 1;
 
-        // Dots (show max 10)
-        const dotsEl = document.getElementById('mpDots');
+        var dotsEl = document.getElementById('mpDots');
         if (dotsEl && prospects.length <= 20) {
-            dotsEl.innerHTML = prospects.map((_, i) =>
-                '<span class="mp-dot' + (i === currentIndex ? ' active' : '') + '" onclick="mpGoTo(' + i + ')"></span>'
-            ).join('');
+            dotsEl.innerHTML = prospects.map(function (_, i) {
+                return '<span class="mp-dot' + (i === currentIndex ? ' active' : '') + '" onclick="mpGoTo(' + i + ')"></span>';
+            }).join('');
         } else if (dotsEl) {
             dotsEl.innerHTML = '';
         }
 
-        document.title = 'Mode Prosp — ' + (currentIndex + 1) + '/' + prospects.length + ' — ' + (prospects[currentIndex]?.name || '');
+        document.title = 'Mode Prosp — ' + (currentIndex + 1) + '/' + prospects.length + ' — ' + (prospects[currentIndex] ? prospects[currentIndex].name : '');
     }
 
     window.mpNavigate = function (dir) {
@@ -240,54 +245,59 @@ window.mpClose = function () {
         goTo(i, true);
     };
 
-    // ── Save ──
+    // ── Save (single prospect via server token) ──
     window.mpSaveCard = async function (index) {
         if (saving) return;
-        const p = prospects[index];
+        var p = prospects[index];
         if (!p) return;
 
-        const card = track.children[index];
+        var card = track.children[index];
         if (!card) return;
 
         // Read values from card inputs
-        const body = card.querySelector('.mp-card-body');
-        body.querySelectorAll('[data-field]').forEach(el => {
-            const field = el.dataset.field;
-            let val = el.value;
-            if (field === 'company_id') val = parseInt(val, 10);
-            if (field === 'pertinence') val = parseInt(val, 10);
-            p[field] = val;
+        var body = card.querySelector('.mp-card-body');
+        var prospectData = { id: p.id };
+        body.querySelectorAll('[data-field]').forEach(function (el) {
+            var field = el.dataset.field;
+            var val = el.value;
+            if (field === 'company_id' || field === 'pertinence' || field === 'priority') {
+                val = parseInt(val, 10);
+            }
+            prospectData[field] = val;
+            p[field] = val; // update local state
         });
 
-        // Update in-memory data and save full dataset
         saving = true;
-        const saveBtn = card.querySelector('.mp-save-btn');
+        var saveBtn = card.querySelector('.mp-save-btn');
         if (saveBtn) { saveBtn.textContent = 'Sauvegarde...'; saveBtn.disabled = true; }
 
         try {
-            const res = await fetch('/api/save', {
+            var res = await fetch('/api/mode-prosp/save?t=' + encodeURIComponent(token), {
                 method: 'POST',
-                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ companies: companies, prospects: prospects })
+                body: JSON.stringify({ prospect: prospectData })
             });
             if (!res.ok) throw new Error('HTTP ' + res.status);
-            if (saveBtn) saveBtn.textContent = 'Enregistre !';
-            setTimeout(() => { if (saveBtn) { saveBtn.textContent = 'Enregistrer'; saveBtn.disabled = false; } }, 1200);
+            var result = await res.json();
+            if (!result.ok) throw new Error(result.error || 'Erreur');
 
-            // Broadcast update to main tab
-            if (bc) {
-                bc.postMessage({ type: 'prospect-updated', prospect: { ...p }, source: 'mode-prosp' });
+            // Update local prospect with server response
+            if (result.prospect) {
+                prospects[index] = result.prospect;
+                p = result.prospect;
             }
 
-            // Re-render hero (in case status/name changed)
-            const heroColor = STATUS_COLORS[p.statut] || '#64748b';
-            const heroEl = card.querySelector('.mp-card-hero');
+            if (saveBtn) saveBtn.textContent = 'Enregistré !';
+            setTimeout(function () { if (saveBtn) { saveBtn.textContent = 'Enregistrer'; saveBtn.disabled = false; } }, 1200);
+
+            // Re-render hero (status/color may have changed)
+            var heroColor = STATUS_COLORS[p.statut] || '#64748b';
+            var heroEl = card.querySelector('.mp-card-hero');
             if (heroEl) heroEl.style.setProperty('--hero-color', heroColor);
         } catch (e) {
             console.error('Save error:', e);
             if (saveBtn) { saveBtn.textContent = 'Erreur !'; saveBtn.disabled = false; }
-            setTimeout(() => { if (saveBtn) saveBtn.textContent = 'Enregistrer'; }, 2000);
+            setTimeout(function () { if (saveBtn) saveBtn.textContent = 'Enregistrer'; }, 2000);
         } finally {
             saving = false;
         }
@@ -296,21 +306,20 @@ window.mpClose = function () {
     // ── Keyboard ──
     function setupKeyboard() {
         document.addEventListener('keydown', function (e) {
-            // Don't interfere with input fields
             if (e.target.matches('input, select, textarea')) return;
             if (e.key === 'ArrowLeft') { e.preventDefault(); mpNavigate(-1); }
             if (e.key === 'ArrowRight') { e.preventDefault(); mpNavigate(1); }
         });
     }
 
-    // ── Swipe (with drag feedback for mobile) ──
+    // ── Swipe (drag feedback for mobile) ──
     function setupSwipe() {
-        let startX = null;
-        let startY = null;
-        let isDragging = false;
-        let dragLocked = false; // true = horizontal swipe confirmed
-        const THRESHOLD = 50;
-        const LOCK_ANGLE_THRESHOLD = 20; // px before we decide direction
+        var startX = null;
+        var startY = null;
+        var isDragging = false;
+        var dragLocked = false;
+        var THRESHOLD = 50;
+        var LOCK_ANGLE_THRESHOLD = 20;
 
         viewport.addEventListener('touchstart', function (e) {
             if (e.target.matches('input, select, textarea, a, button')) return;
@@ -323,13 +332,11 @@ window.mpClose = function () {
 
         viewport.addEventListener('touchmove', function (e) {
             if (startX === null) return;
-            const dx = e.touches[0].clientX - startX;
-            const dy = e.touches[0].clientY - startY;
+            var dx = e.touches[0].clientX - startX;
+            var dy = e.touches[0].clientY - startY;
 
-            // Decide direction lock after some movement
             if (!dragLocked && (Math.abs(dx) > LOCK_ANGLE_THRESHOLD || Math.abs(dy) > LOCK_ANGLE_THRESHOLD)) {
                 if (Math.abs(dy) > Math.abs(dx)) {
-                    // Vertical scroll — cancel swipe
                     startX = null;
                     return;
                 }
@@ -341,24 +348,22 @@ window.mpClose = function () {
             isDragging = true;
             e.preventDefault();
 
-            // Clamp at edges with rubber-band effect
-            let effectiveDx = dx;
+            var effectiveDx = dx;
             if ((currentIndex === 0 && dx > 0) || (currentIndex === prospects.length - 1 && dx < 0)) {
-                effectiveDx = dx * 0.3; // rubber band
+                effectiveDx = dx * 0.3;
             }
 
-            const baseOffset = -currentIndex * viewport.offsetWidth;
+            var baseOffset = -currentIndex * viewport.offsetWidth;
             track.style.transform = 'translateX(' + (baseOffset + effectiveDx) + 'px)';
         }, { passive: false });
 
         viewport.addEventListener('touchend', function (e) {
-            if (startX === null) { return; }
-            const dx = e.changedTouches[0].clientX - startX;
+            if (startX === null) return;
+            var dx = e.changedTouches[0].clientX - startX;
             startX = null;
             startY = null;
 
             if (!isDragging) {
-                // Restore percentage-based transform
                 track.style.transition = '';
                 track.style.transform = 'translateX(' + (-currentIndex * 100) + '%)';
                 return;
@@ -375,7 +380,6 @@ window.mpClose = function () {
                     goTo(currentIndex - 1, true);
                     haptic(10);
                 } else {
-                    // Snap back
                     goTo(currentIndex, true);
                 }
             } else {
@@ -384,31 +388,36 @@ window.mpClose = function () {
         }, { passive: true });
     }
 
-    // Haptic feedback helper
     function haptic(ms) {
         try {
             if (navigator.vibrate) navigator.vibrate(ms || 10);
         } catch (e) {}
     }
 
-    // ── BroadcastChannel sync ──
-    function setupBroadcast() {
-        if (!bc) return;
-        bc.onmessage = function (e) {
-            if (!e.data || e.data.source === 'mode-prosp') return;
-            if (e.data.type === 'prospect-updated' && e.data.prospect) {
-                const updated = e.data.prospect;
-                const idx = prospects.findIndex(p => p.id === updated.id);
-                if (idx >= 0) {
-                    prospects[idx] = updated;
-                    // Re-render that card
-                    const card = track.children[idx];
-                    if (card) {
-                        card.innerHTML = buildCardHtml(updated, idx);
+    // ── Visibility sync: re-fetch data when tab regains focus ──
+    function setupVisibilitySync() {
+        document.addEventListener('visibilitychange', async function () {
+            if (document.hidden || !token || saving) return;
+            try {
+                var res = await fetch('/api/mode-prosp/data?t=' + encodeURIComponent(token));
+                if (!res.ok) return;
+                var payload = await res.json();
+                if (!payload.ok) return;
+                var fresh = Array.isArray(payload.prospects) ? payload.prospects : [];
+                companies = Array.isArray(payload.companies) ? payload.companies : [];
+                // Update prospects that changed (compare by simple JSON)
+                fresh.forEach(function (fp) {
+                    var idx = prospects.findIndex(function (p) { return p.id === fp.id; });
+                    if (idx >= 0) {
+                        prospects[idx] = fp;
+                        var card = track.children[idx];
+                        if (card) card.innerHTML = buildCardHtml(fp, idx);
                     }
-                }
+                });
+            } catch (e) {
+                // Silent — don't disrupt user
             }
-        };
+        });
     }
 
     // Go
