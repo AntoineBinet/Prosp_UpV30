@@ -7,7 +7,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Prosp'Up — Mode Prosp</title>
-<link rel="stylesheet" href="/static/css/style.css?v={{ static_hash('css/style.css') }}">
 <link rel="stylesheet" href="/static/css/mode-prosp.css?v={{ static_hash('css/mode-prosp.css') }}">
 <link rel="icon" href="/static/favicon.ico">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
@@ -29,11 +28,9 @@
         </div>
     </header>
 
-    <!-- Card viewport -->
+    <!-- Card viewport (one card at a time) -->
     <div class="mp-viewport" id="mpViewport">
-        <div class="mp-card-track" id="mpCardTrack">
-            <!-- Cards injected by JS -->
-        </div>
+        <!-- Single card injected by JS -->
     </div>
 
     <!-- Navigation -->
