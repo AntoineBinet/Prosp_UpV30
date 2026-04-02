@@ -1119,13 +1119,14 @@ async function dv2_boot() {
     .catch(function(e) { console.warn('[DashV2] charts skipped:', e.message); });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
   if (document.body.dataset.page !== 'dashboard_v2') return;
 
-  // Force re-inject du badge utilisateur (timing fix)
-  if (window.AppAuth && typeof AppAuth._injectBadge === 'function') {
-    AppAuth._injectBadge();
-  }
+  // Initialiser AppAuth (badge utilisateur, auth, read-only) via bootstrap
+  try {
+    var fn = window.bootstrap || window.appBootstrap;
+    if (typeof fn === 'function') await fn('dashboard_v2');
+  } catch(e) {}
 
   // Init assistant button if available
   var fab = document.getElementById('dashAssistantFab');
