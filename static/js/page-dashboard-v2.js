@@ -925,19 +925,31 @@ function dv2_renderStats(chartsData) {
   var statusColors = ['#64748b', '#f59e0b', '#ef4444', '#3b82f6', '#22c55e', '#8b5cf6', '#94a3b8', '#06b6d4'];
   var companyColors = ['#f36f21', '#3b82f6', '#22c55e', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899'];
 
-  // 1. Pipeline Doughnut
-  if (chartsData.statusDistribution) {
-    var sd = chartsData.statusDistribution;
+  // === Transform API format to Chart.js format ===
+
+  // 1. Pipeline Doughnut — API returns {"statut": count} object
+  if (chartsData.statusDistribution && typeof chartsData.statusDistribution === 'object') {
+    var sdRaw = chartsData.statusDistribution;
+    var sdLabels, sdData;
+    if (Array.isArray(sdRaw)) {
+      // If already array format
+      sdLabels = sdRaw.map(function(x) { return x.label || x.name || ''; });
+      sdData = sdRaw.map(function(x) { return x.count || x.value || 0; });
+    } else {
+      // Object format: {"Prospect": 5, "RDV": 3}
+      sdLabels = Object.keys(sdRaw);
+      sdData = Object.values(sdRaw);
+    }
     var canvas1 = document.getElementById('dv2ChartPipeline');
-    if (canvas1) {
+    if (canvas1 && sdLabels.length > 0) {
       dv2_destroyChart('pipeline');
       _dv2_chartInstances['pipeline'] = new Chart(canvas1.getContext('2d'), {
         type: 'doughnut',
         data: {
-          labels: sd.labels || [],
+          labels: sdLabels,
           datasets: [{
-            data: sd.data || [],
-            backgroundColor: statusColors.slice(0, (sd.labels || []).length),
+            data: sdData,
+            backgroundColor: statusColors.slice(0, sdLabels.length),
             borderWidth: 0,
             hoverOffset: 6
           }]
@@ -957,19 +969,21 @@ function dv2_renderStats(chartsData) {
     }
   }
 
-  // 2. RDV per Month (Line)
-  if (chartsData.rdvPerMonth) {
-    var rdv = chartsData.rdvPerMonth;
+  // 2. RDV per Month (Line) — API returns [{label: "Apr 2026", count: 7}]
+  if (chartsData.rdvPerMonth && Array.isArray(chartsData.rdvPerMonth)) {
+    var rdvArr = chartsData.rdvPerMonth;
+    var rdvLabels = rdvArr.map(function(x) { return x.label || ''; });
+    var rdvData = rdvArr.map(function(x) { return x.count || 0; });
     var canvas2 = document.getElementById('dv2ChartRdv');
-    if (canvas2) {
+    if (canvas2 && rdvLabels.length > 0) {
       dv2_destroyChart('rdv');
       _dv2_chartInstances['rdv'] = new Chart(canvas2.getContext('2d'), {
         type: 'line',
         data: {
-          labels: rdv.labels || [],
+          labels: rdvLabels,
           datasets: [{
             label: 'RDV',
-            data: rdv.data || [],
+            data: rdvData,
             borderColor: '#22c55e',
             backgroundColor: 'rgba(34,197,94,0.1)',
             fill: true,
@@ -995,19 +1009,21 @@ function dv2_renderStats(chartsData) {
     }
   }
 
-  // 3. Push per Week (Bar)
-  if (chartsData.pushPerWeek) {
-    var pw = chartsData.pushPerWeek;
+  // 3. Push per Week (Bar) — API returns [{label: "S15", count: 42}]
+  if (chartsData.pushPerWeek && Array.isArray(chartsData.pushPerWeek)) {
+    var pwArr = chartsData.pushPerWeek;
+    var pwLabels = pwArr.map(function(x) { return x.label || ''; });
+    var pwData = pwArr.map(function(x) { return x.count || 0; });
     var canvas3 = document.getElementById('dv2ChartPush');
-    if (canvas3) {
+    if (canvas3 && pwLabels.length > 0) {
       dv2_destroyChart('push');
       _dv2_chartInstances['push'] = new Chart(canvas3.getContext('2d'), {
         type: 'bar',
         data: {
-          labels: pw.labels || [],
+          labels: pwLabels,
           datasets: [{
             label: 'Push',
-            data: pw.data || [],
+            data: pwData,
             backgroundColor: 'rgba(139, 92, 246, 0.7)',
             borderRadius: 4,
             borderSkipped: false
@@ -1029,20 +1045,22 @@ function dv2_renderStats(chartsData) {
     }
   }
 
-  // 4. Top Companies (Horizontal Bar)
-  if (chartsData.topCompanies) {
-    var tc = chartsData.topCompanies;
+  // 4. Top Companies (Horizontal Bar) — API returns [{name: "Company", count: 12}]
+  if (chartsData.topCompanies && Array.isArray(chartsData.topCompanies)) {
+    var tcArr = chartsData.topCompanies;
+    var tcLabels = tcArr.map(function(x) { return x.name || x.label || ''; });
+    var tcData = tcArr.map(function(x) { return x.count || 0; });
     var canvas4 = document.getElementById('dv2ChartCompanies');
-    if (canvas4) {
+    if (canvas4 && tcLabels.length > 0) {
       dv2_destroyChart('companies');
       _dv2_chartInstances['companies'] = new Chart(canvas4.getContext('2d'), {
         type: 'bar',
         data: {
-          labels: tc.labels || [],
+          labels: tcLabels,
           datasets: [{
             label: 'Prospects',
-            data: tc.data || [],
-            backgroundColor: companyColors.slice(0, (tc.labels || []).length),
+            data: tcData,
+            backgroundColor: companyColors.slice(0, tcLabels.length),
             borderRadius: 4,
             borderSkipped: false
           }]
