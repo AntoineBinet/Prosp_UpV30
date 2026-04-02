@@ -412,7 +412,7 @@ def _stream_ollama_sse(prompt: str, model_override: str | None, config: dict, ti
         headers={"Content-Type": "application/json"}, method="POST",
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        yield f"data: {json.dumps({'type': 'start', 'message': 'Connexion à Ollama établie'}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'start', 'message': f'Génération IA en cours ({model})…'}, ensure_ascii=False)}\n\n"
         buffer = b""
         for chunk in resp:
             buffer += chunk
@@ -441,6 +441,8 @@ def _stream_tavily_ollama_sse(prompt: str, model_override: str | None, config: d
     """Stream SSE : recherche web Tavily puis génération streaming via Ollama."""
     yield f"data: {json.dumps({'type': 'start', 'message': 'Recherche web Tavily en cours…'}, ensure_ascii=False)}\n\n"
     search_results = _call_tavily_search(prompt, config, timeout=30)
+    nb_sources = len(search_results.get("sources", []))
+    yield f"data: {json.dumps({'type': 'status', 'message': f'Tavily : {nb_sources} source(s) trouvée(s)', 'provider': 'tavily'}, ensure_ascii=False)}\n\n"
     enriched_prompt = _build_web_enriched_prompt(prompt, search_results)
     yield from _stream_ollama_sse(enriched_prompt, model_override, config, timeout)
     sources = search_results.get("sources", [])
@@ -13931,7 +13933,7 @@ def api_prospect_infos_rdv_stream(prospect_id: int):
                     if full_text:
                         _rdv_analysis_cache[cache_key] = full_text
                     yield f"data: {json.dumps({'type': 'done', 'pdf_url': f'/api/prospect/{prospect_id}/download-rdv-pdf'}, ensure_ascii=False)}\n\n"
-                elif evt_type == "start":
+                elif evt_type in ("start", "status"):
                     yield sse_line
                 elif evt_type == "error":
                     yield f"data: {json.dumps({'type': 'error', 'fallback_prompt': fallback_prompt}, ensure_ascii=False)}\n\n"

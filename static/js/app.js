@@ -13865,20 +13865,85 @@ function openPreMeetingModal(prospectId) {
 
     const evtSource = new EventSource(`/api/prospect/${prospectId}/infos-rdv-stream`);
     let fullResponse = '';
+    let usedTavily = false;
+    let charCount = 0;
+    let lastStepEl = null;
+
+    // Initialiser le log comme container de timeline
+    logDiv.innerHTML = '';
+
+    function addStep(icon, message, cssClass) {
+        // Marquer l'étape précédente comme terminée
+        if (lastStepEl && lastStepEl.classList.contains('active')) {
+            lastStepEl.classList.remove('active');
+            lastStepEl.classList.add('done');
+            const spinner = lastStepEl.querySelector('.step-spinner');
+            if (spinner) spinner.outerHTML = '<span style="color:#22c55e;">✓</span>';
+        }
+        const step = document.createElement('div');
+        step.className = 'progress-step ' + (cssClass || 'active');
+        step.innerHTML = icon + ' ' + escapeHtml(message) + (cssClass === 'active' || !cssClass ? ' <span class="step-spinner"></span>' : '');
+        logDiv.appendChild(step);
+        lastStepEl = step;
+        return step;
+    }
+
+    function updateCharCounter() {
+        let counter = document.getElementById('preMeetingCharCounter');
+        if (!counter) {
+            counter = document.createElement('div');
+            counter.id = 'preMeetingCharCounter';
+            counter.className = 'progress-step';
+            counter.style.cssText = 'font-size:11px;color:#8b949e;padding-left:24px;';
+            logDiv.appendChild(counter);
+        }
+        counter.textContent = charCount + ' caractères générés…';
+    }
 
     evtSource.onmessage = function(event) {
         try {
             const data = JSON.parse(event.data);
 
             if (data.type === 'start') {
-                logDiv.innerHTML = `<span style="color:#58a6ff;">${escapeHtml(data.message || 'Analyse en cours…')}</span>`;
+                addStep('🔍', data.message || 'Analyse en cours…', 'active');
+            } else if (data.type === 'status') {
+                if (data.provider === 'tavily') usedTavily = true;
+                // Marquer l'étape précédente comme terminée et ajouter le statut
+                if (lastStepEl && lastStepEl.classList.contains('active')) {
+                    lastStepEl.classList.remove('active');
+                    lastStepEl.classList.add('done');
+                    const spinner = lastStepEl.querySelector('.step-spinner');
+                    if (spinner) spinner.outerHTML = '<span style="color:#22c55e;">✓</span>';
+                }
+                const step = document.createElement('div');
+                step.className = 'progress-step done';
+                step.innerHTML = '📊 ' + escapeHtml(data.message) + ' <span style="color:#22c55e;">✓</span>';
+                logDiv.appendChild(step);
             } else if (data.type === 'token') {
                 fullResponse += (data.content || '');
+                charCount += (data.content || '').length;
+                updateCharCounter();
             } else if (data.type === 'done') {
                 evtSource.close();
 
+                // Marquer la dernière étape comme terminée
+                if (lastStepEl && lastStepEl.classList.contains('active')) {
+                    lastStepEl.classList.remove('active');
+                    lastStepEl.classList.add('done');
+                    const spinner = lastStepEl.querySelector('.step-spinner');
+                    if (spinner) spinner.outerHTML = '<span style="color:#22c55e;">✓</span>';
+                }
+
+                // Supprimer le compteur de caractères
+                const counter = document.getElementById('preMeetingCharCounter');
+                if (counter) counter.remove();
+
+                // Badge résumé des providers utilisés
+                const badgeClass = usedTavily ? 'tavily' : 'ollama';
+                const badgeLabel = usedTavily ? 'Tavily + Ollama' : 'Ollama';
+                const badgeHtml = `<div class="progress-badge ${badgeClass}">✅ Fiche générée — ${badgeLabel}</div>`;
+
                 // Parser et afficher la fiche formatée
-                // extractJSONFromText gère les sources Tavily après le JSON
                 let ficheHtml = '';
                 try {
                     const jsonStr = (typeof extractJSONFromText === 'function') ? extractJSONFromText(fullResponse) : null;
@@ -13889,9 +13954,9 @@ function openPreMeetingModal(prospectId) {
                 } catch(e) { console.warn('Parsing fiche RDV:', e); }
 
                 if (ficheHtml) {
-                    logDiv.innerHTML = ficheHtml;
+                    logDiv.innerHTML = badgeHtml + ficheHtml;
                 } else {
-                    logDiv.innerHTML = '<span style="color:#22c55e;">✅ Génération terminée. Téléchargement du PDF…</span>';
+                    logDiv.innerHTML = badgeHtml + '<div style="margin-top:8px;color:#22c55e;">Téléchargement du PDF…</div>';
                 }
 
                 // Déclencher le téléchargement PDF
@@ -13905,7 +13970,19 @@ function openPreMeetingModal(prospectId) {
                 }
             } else if (data.type === 'error') {
                 evtSource.close();
-                logDiv.innerHTML = '<span style="color:#ef4444;">❌ IA indisponible</span>';
+
+                // Marquer la dernière étape en erreur
+                if (lastStepEl && lastStepEl.classList.contains('active')) {
+                    lastStepEl.classList.remove('active');
+                    lastStepEl.classList.add('error');
+                    const spinner = lastStepEl.querySelector('.step-spinner');
+                    if (spinner) spinner.outerHTML = '<span>✗</span>';
+                }
+
+                const step = document.createElement('div');
+                step.className = 'progress-step error';
+                step.innerHTML = '❌ IA indisponible';
+                logDiv.appendChild(step);
 
                 if (data.fallback_prompt) {
                     document.getElementById('preMeetingPromptText').value = data.fallback_prompt;
@@ -13923,7 +14000,10 @@ function openPreMeetingModal(prospectId) {
 
     evtSource.onerror = function() {
         evtSource.close();
-        logDiv.innerHTML = '<span style="color:#ef4444;">❌ Erreur de connexion au serveur</span>';
+        const step = document.createElement('div');
+        step.className = 'progress-step error';
+        step.innerHTML = '❌ Erreur de connexion au serveur';
+        logDiv.appendChild(step);
         if (btn) {
             btn.disabled = false;
             btn.textContent = '📋 Avant réunion IA';
