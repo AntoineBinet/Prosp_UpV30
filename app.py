@@ -6464,10 +6464,172 @@ def _remove_signature(html_body: str) -> str:
     return html_body[:cut]
 
 
+def _decompress_lzfu(data: bytes) -> bytes:
+    """Décompresse un corps RTF au format LZFu (Exchange/Outlook MSG)."""
+    import struct
+    cb_raw = struct.unpack_from('<I', data, 4)[0]
+    magic  = data[8:12]
+    if magic == b'MELA':
+        return data[16:]
+    if magic != b'LZFu':
+        raise ValueError(f"Signature LZFu inconnue: {magic!r}")
+    # Dictionnaire de 4096 octets pré-rempli avec le préambule RTF standard
+    PREBUF = (
+        b'{\\rtf1\\ansi\\mac\\deff0\\deftab720{\\fonttbl;}'
+        b'{\\f0\\fnil \\froman \\fswiss \\fmodern \\fscript \\fdecor MS Sans SerifSym'
+        b'bolArialTimes New RomanCourier{\\colortbl\\red0\\green0\\blue0\r\n\\par \\pa'
+        b'rd\\plain\\f0\\fs20\\b\\i\\u\\tab\\tx'
+    )
+    d = bytearray(4096)
+    d[:len(PREBUF)] = PREBUF
+    wpos = len(PREBUF)
+    out = bytearray()
+    pos = 16
+    while pos < len(data) and len(out) < cb_raw:
+        ctrl = data[pos]; pos += 1
+        for bit in range(8):
+            if pos >= len(data) or len(out) >= cb_raw:
+                break
+            if ctrl & (1 << bit):
+                ref = (data[pos] << 8) | data[pos + 1]; pos += 2
+                off = (ref >> 4) & 0xFFF
+                ln  = (ref & 0xF) + 2
+                for i in range(ln):
+                    c = d[(off + i) & 0xFFF]
+                    out.append(c)
+                    d[wpos & 0xFFF] = c
+                    wpos = (wpos + 1) & 0xFFF
+            else:
+                c = data[pos]; pos += 1
+                out.append(c)
+                d[wpos & 0xFFF] = c
+                wpos = (wpos + 1) & 0xFFF
+    return bytes(out)
+
+
+def _extract_html_from_rtf(rtf: str) -> str:
+    """
+    Reconstruit l'HTML depuis un RTF fromhtml1 (format Outlook).
+    Les balises HTML sont dans {\\*\\htmltag<N> TAG}, le texte suit \\htmlrtf0.
+    """
+    result = []
+    i = 0
+    n = len(rtf)
+    while i < n:
+        htag = rtf.find('{\\*\\htmltag', i)
+        if htag < 0:
+            break
+        # Avancer après les chiffres du numéro de tag
+        p = htag + len('{\\*\\htmltag')
+        while p < n and rtf[p].isdigit():
+            p += 1
+        if p < n and rtf[p] == ' ':
+            p += 1
+        # Trouver la } fermante (profondeur 1)
+        depth = 1
+        cs = p
+        while p < n and depth > 0:
+            if rtf[p] == '{':
+                depth += 1
+            elif rtf[p] == '}':
+                depth -= 1
+            p += 1
+        result.append(rtf[cs:p - 1])
+        # Chercher du texte après \htmlrtf0 dans les 300 chars suivants
+        seg = rtf[p:p + 300]
+        m = re.search(r'\\htmlrtf0[ \t]?', seg)
+        if m:
+            ts = p + m.end()
+            tm = re.match(r'([^{\\]*)', rtf[ts:])
+            if tm:
+                raw = tm.group(1)
+                # Décoder les escapes RTF \'XX en caractères
+                raw = re.sub(
+                    r"\\'([0-9a-fA-F]{2})",
+                    lambda x: chr(int(x.group(1), 16)),
+                    raw
+                )
+                raw = raw.strip('\r\n')
+                if raw.strip():
+                    result.append(raw)
+        i = p
+    return ''.join(result)
+
+
+def _read_msg_body_olefile(template_path: Path) -> tuple:
+    """
+    Lit le corps HTML et le sujet d'un fichier .msg via olefile (sans extract_msg).
+    Gère les trois formats courants :
+      1. HTML direct (stream 0x1013)
+      2. RTF LZFu compressé avec HTML embarqué (stream 0x1009, fromhtml1)
+      3. Corps texte brut (stream 0x1000) en dernier recours
+    Retourne (html_body: str, subject: str).
+    """
+    import olefile  # type: ignore
+
+    html_body = ""
+    subject = "Candidats disponibles"
+
+    try:
+        ole = olefile.OleFileIO(str(template_path), raise_defects=olefile.DEFECT_POTENTIAL)
+    except Exception as e:
+        raise ValueError(f"Impossible d'ouvrir le fichier .msg: {e}")
+
+    try:
+        # 1. Sujet — PT_UNICODE (001F)
+        if ole.exists('__substg1.0_0037001F'):
+            raw = ole.openstream('__substg1.0_0037001F').read()
+            try:
+                subject = raw.decode('utf-16-le').rstrip('\x00')
+            except Exception:
+                subject = raw.decode('utf-8', errors='replace').rstrip('\x00')
+
+        # 2. Corps HTML direct — PT_BINARY (0102) puis PT_UNICODE (001F)
+        if ole.exists('__substg1.0_10130102'):
+            raw = ole.openstream('__substg1.0_10130102').read()
+            for enc in ('utf-8', 'cp1252', 'latin-1'):
+                try:
+                    html_body = raw.decode(enc)
+                    break
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            else:
+                html_body = raw.decode('utf-8', errors='replace')
+        elif ole.exists('__substg1.0_1013001F'):
+            raw = ole.openstream('__substg1.0_1013001F').read()
+            html_body = raw.decode('utf-16-le', errors='replace').rstrip('\x00')
+
+        # 3. RTF compressé (LZFu) — format fromhtml1 : extraire l'HTML embarqué
+        if not html_body.strip() and ole.exists('__substg1.0_10090102'):
+            try:
+                rtf_raw = ole.openstream('__substg1.0_10090102').read()
+                rtf_bytes = _decompress_lzfu(rtf_raw)
+                rtf_text = rtf_bytes.decode('cp1252', errors='replace')
+                if r'\fromhtml1' in rtf_text:
+                    html_body = _extract_html_from_rtf(rtf_text)
+            except Exception as rtf_err:
+                logger.debug("Extraction HTML depuis RTF échouée: %s", rtf_err)
+
+        # 4. Dernier recours : corps texte brut PT_UNICODE (0x1000)
+        if not html_body.strip() and ole.exists('__substg1.0_1000001F'):
+            raw = ole.openstream('__substg1.0_1000001F').read()
+            txt = raw.decode('utf-16-le', errors='replace').rstrip('\x00')
+            if txt.strip():
+                html_body = (
+                    "<html><body>"
+                    + txt.replace("\r\n", "\n").replace("\n", "<br>")
+                    + "</body></html>"
+                )
+    finally:
+        ole.close()
+
+    return html_body, subject
+
+
 def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidates_data: list) -> bytes:
     """
     Méthode principale (si Outlook installé) :
-    Lit le .msg source avec extract-msg, fait les substitutions HTML,
+    Lit le .msg source via olefile, fait les substitutions HTML,
     puis crée un nouveau MailItem Outlook via win32com.
     """
     import win32com.client  # type: ignore
@@ -6479,20 +6641,11 @@ def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidate
     nom = parts[-1] if parts else nom_complet
     to_email = prospect_data.get("email", "")
 
-    # Lire le corps HTML du template .msg via extract-msg
+    # Lire le corps HTML du template .msg via olefile
     try:
-        import extract_msg  # type: ignore
-        try:
-            msg_obj = extract_msg.Message(str(template_path), strict=False)
-        except TypeError:
-            msg_obj = extract_msg.Message(str(template_path))
-        with msg_obj:
-            html_body = msg_obj.htmlBody or ""
-            if isinstance(html_body, bytes):
-                html_body = html_body.decode("utf-8", errors="replace")
-            subject = msg_obj.subject or ""
+        html_body, subject = _read_msg_body_olefile(template_path)
     except Exception as e:
-        logger.warning("extract-msg indisponible (%s), utilisation du fallback .eml", e)
+        logger.warning("Lecture .msg olefile échouée (%s), fallback .eml", e)
         return _personalize_eml(template_path, prospect_data, candidates_data)
 
     # Substitutions partagées via helpers
@@ -6527,7 +6680,7 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
     """
     Méthode fallback (.eml RFC 2822) si Outlook n'est pas installé.
     S'ouvre dans Outlook, Thunderbird et la plupart des clients mail.
-    Lit le template .msg via extract-msg, fait les substitutions, reconstruit un .eml propre.
+    Lit le template .msg via olefile, fait les substitutions, reconstruit un .eml propre.
     """
     import email as email_lib
     import email.mime.multipart
@@ -6540,47 +6693,14 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
     nom = parts[-1] if parts else nom_complet
     to_email = prospect_data.get("email", "")
 
-    # Lire le corps du template .msg via extract-msg
-    html_body = ""
-    subject = "Candidats disponibles"
+    # Lire le corps du template .msg via olefile
     try:
-        import extract_msg  # type: ignore
-        try:
-            msg_obj = extract_msg.Message(str(template_path), strict=False)
-        except TypeError:
-            msg_obj = extract_msg.Message(str(template_path))
-        with msg_obj:
-            html_body = msg_obj.htmlBody or ""
-            if isinstance(html_body, bytes):
-                # Essayer plusieurs encodages courants dans les .msg
-                for enc in ("utf-8", "cp1252", "latin-1"):
-                    try:
-                        html_body = html_body.decode(enc)
-                        break
-                    except (UnicodeDecodeError, LookupError):
-                        continue
-                else:
-                    html_body = html_body.decode("utf-8", errors="replace")
-            # Si pas de HTML, essayer le body texte
-            if not html_body.strip():
-                txt_body = msg_obj.body or ""
-                if isinstance(txt_body, bytes):
-                    txt_body = txt_body.decode("utf-8", errors="replace")
-                if txt_body.strip():
-                    html_body = "<html><body>" + txt_body.replace("\n", "<br>") + "</body></html>"
-            subject = msg_obj.subject or subject
+        html_body, subject = _read_msg_body_olefile(template_path)
     except ImportError:
-        logger.error("extract-msg non installé — impossible de lire le template .msg")
-        raise ValueError("Le module extract-msg n'est pas installé. Installez-le avec: pip install extract-msg")
+        logger.error("olefile non installé — impossible de lire le template .msg")
+        raise ValueError("Le module olefile n'est pas installé. Installez-le avec: pip install olefile")
     except Exception as e:
         logger.error("Erreur lecture template .msg (%s): %s", template_path, e)
-        # Distinguer les erreurs CRC/corruption pour un message plus utile
-        err_str = str(e)
-        if "CRC" in err_str or "corrupt" in err_str.lower() or "invalid" in err_str.lower():
-            raise ValueError(
-                "Template .msg corrompu (CRC invalide) — veuillez le ré-exporter depuis Outlook "
-                "via Fichier > Enregistrer sous > Format .msg et le ré-uploader."
-            )
         raise ValueError(f"Impossible de lire le template .msg: {e}")
 
     if not html_body.strip():
