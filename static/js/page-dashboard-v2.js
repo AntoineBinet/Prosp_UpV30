@@ -137,9 +137,9 @@ function dv2_renderPerformance(data) {
   var pw = data.prev_week;
   var days = (w && w.days) || [];
 
-  // Contacts = max(relances, notes) pour un comptage plus precis
-  var todayContacts = Math.max(t.relances || 0, t.notes || 0);
-  var weekContacts = Math.max(w.relances || 0, w.notes || 0);
+  // Contacts = appels tracés (call_logs), fallback sur max(relances, notes) si pas encore de données call_logs
+  var todayContacts = (t.calls != null) ? (t.calls || 0) : Math.max(t.relances || 0, t.notes || 0);
+  var weekContacts = (w.calls != null) ? (w.calls || 0) : Math.max(w.relances || 0, w.notes || 0);
   var prevContacts = Math.max(pw.relances || 0, pw.notes || 0);
 
   // Badge with total week actions
@@ -151,7 +151,7 @@ function dv2_renderPerformance(data) {
   var chips = [
     { key: 'contacts', icon: '\uD83D\uDCDE', label: 'Contacts', value: todayContacts,
       weekVal: weekContacts, prevVal: prevContacts, color: DV2_KPI_COLORS.contacts,
-      sub: (t.relances || 0) + ' relances + ' + (t.notes || 0) + ' notes' },
+      sub: (t.calls || 0) + ' appels tracés' },
     { key: 'notes', icon: '\uD83D\uDCDD', label: 'Notes', value: t.notes,
       weekVal: w.notes, prevVal: pw.notes, color: DV2_KPI_COLORS.notes,
       sub: w.notes + ' cette semaine' },
@@ -177,7 +177,7 @@ function dv2_renderPerformance(data) {
   if (chipsEl) {
     chipsEl.innerHTML = chips.map(function(c) {
       var sparkVals = days.map(function(d) {
-        if (c.key === 'contacts') return Math.max(d.relances || 0, d.notes || 0);
+        if (c.key === 'contacts') return (d.calls != null) ? (d.calls || 0) : Math.max(d.relances || 0, d.notes || 0);
         if (c.key === 'notes') return d.notes || 0;
         if (c.key === 'push') return d.push || 0;
         return 0;
@@ -543,7 +543,7 @@ function dv2_renderActivity(feed, weekDays) {
     heatEl.innerHTML =
       '<div class="dv2-activity-bars">' +
         weekDays.map(function(d) {
-          var contacts = Math.max(d.relances || 0, d.notes || 0);
+          var contacts = (d.calls != null) ? (d.calls || 0) : Math.max(d.relances || 0, d.notes || 0);
           var push = d.push || 0;
           var total = contacts + push;
           var pctContacts = maxAct > 0 ? ((contacts / maxAct) * 100) : 0;

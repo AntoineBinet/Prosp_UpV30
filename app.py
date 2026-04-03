@@ -1420,6 +1420,17 @@ def init_db() -> None:
                 FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS call_logs (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                prospect_id INTEGER NOT NULL,
+                owner_id    INTEGER NOT NULL,
+                date        TEXT NOT NULL,
+                called_at   TEXT NOT NULL,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_call_logs_owner_date ON call_logs(owner_id, date);
+            CREATE INDEX IF NOT EXISTS idx_call_logs_prospect ON call_logs(prospect_id);
+
             CREATE TABLE IF NOT EXISTS templates (
                 id         INTEGER PRIMARY KEY,
                 name       TEXT NOT NULL,
@@ -6895,6 +6906,32 @@ def api_prospect_timeline():
 
     events = sorted(events, key=_key, reverse=True)[:120]
     return jsonify({"ok": True, "events": events})
+
+
+@app.post("/api/prospect/log-call")
+def api_prospect_log_call():
+    """Enregistre un clic sur le bouton Appeler pour un prospect."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    body = request.get_json(silent=True) or {}
+    prospect_id = body.get("prospect_id")
+    if not prospect_id:
+        return jsonify(ok=False, error="prospect_id requis"), 400
+    now = _now_iso()
+    today = now[:10]
+    with _conn() as conn:
+        # Vérifier que le prospect appartient à l'utilisateur
+        row = conn.execute(
+            "SELECT id FROM prospects WHERE id=? AND owner_id=?;", (prospect_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Prospect introuvable"), 404
+        conn.execute(
+            "INSERT INTO call_logs (prospect_id, owner_id, date, called_at) VALUES (?,?,?,?);",
+            (prospect_id, uid, today, now),
+        )
+    return jsonify(ok=True)
 
 
 @app.get("/api/candidate/timeline")
@@ -12731,6 +12768,21 @@ def api_dashboard():
             (uid,),
         ).fetchall()
         goals_cfg = _get_goals_config(conn)
+
+        # Appels (call_logs) par jour de la semaine courante
+        try:
+            call_logs_rows = conn.execute(
+                "SELECT date, COUNT(*) AS n FROM call_logs WHERE owner_id=? AND date >= ? AND date <= ? GROUP BY date;",
+                (uid, monday, today),
+            ).fetchall()
+            calls_by_date = {r["date"]: r["n"] for r in call_logs_rows}
+            calls_today = calls_by_date.get(today, 0)
+            calls_week = sum(calls_by_date.values())
+        except Exception:
+            calls_by_date = {}
+            calls_today = 0
+            calls_week = 0
+
         # Event-based KPIs (for goals)
         try:
             rdv_taken_today = conn.execute(
@@ -12836,6 +12888,7 @@ def api_dashboard():
             "relances": count_relances(d),
             "notes": count_notes(d),
             "push": count_push(d),
+            "calls": calls_by_date.get(d, 0),
         })
 
     # Goals / gamification payload (daily + weekly)
@@ -12861,6 +12914,7 @@ def api_dashboard():
             "date": today,
             "relances": count_relances(today),
             "notes": count_notes(today),
+            "calls": calls_today,
             "push_total": count_push(today),
             "push_email": count_push_channel(today, today, "email"),
             "push_linkedin": count_push_channel(today, today, "linkedin"),
@@ -12871,6 +12925,7 @@ def api_dashboard():
             "end": today,
             "relances": count_relances_range(monday, today),
             "notes": count_notes_range(monday, today),
+            "calls": calls_week,
             "push_total": count_push_range(monday, today),
             "push_email": count_push_channel(monday, today, "email"),
             "push_linkedin": count_push_channel(monday, today, "linkedin"),

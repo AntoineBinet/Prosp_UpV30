@@ -6431,6 +6431,7 @@ function openCallChoice(phones, prospectId) {
         btn.style.width = '100%';
         btn.onclick = async () => {
             closeCallChoice();
+            _logCall(prospectId);
             await touchLastContact(prospectId);
             setTimeout(() => {
                 window.location.href = `tel:${normalizeTelForLink(p)}`;
@@ -6528,10 +6529,21 @@ async function touchLastContact(prospectId) {
     }
 }
 
+function _logCall(prospectId) {
+    if (!prospectId) return;
+    fetch('/api/prospect/log-call', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prospect_id: prospectId }),
+    }).catch(() => {});
+}
+
 async function callNumber(tel, prospectId) {
     if (!tel) return;
     const phones = extractPhoneNumbers(tel);
     if (phones.length <= 1) {
+        _logCall(prospectId);
         await touchLastContact(prospectId);
         setTimeout(() => {
             window.location.href = `tel:${normalizeTelForLink(phones[0] || tel)}`;

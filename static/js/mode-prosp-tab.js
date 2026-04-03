@@ -141,7 +141,7 @@
                 mpField('Entreprise', '<select class="mp-input" data-field="company_id">' + companyOpts + '</select>') +
                 mpField('Fonction', '<input type="text" class="mp-input" data-field="fonction" value="' + escapeHtml(p.fonction || '') + '">') +
                 mpField('Telephone', '<input type="text" class="mp-input" data-field="telephone" value="' + escapeHtml(p.telephone || '') + '">' +
-                    (p.telephone ? ' <a href="tel:' + escapeHtml(p.telephone.replace(/\s/g, '')) + '" class="mp-action-link">Appeler</a>' : '')) +
+                    (p.telephone ? ' <a href="tel:' + escapeHtml(p.telephone.replace(/\s/g, '')) + '" class="mp-action-link" onclick="mpLogCall(' + p.id + ')">Appeler</a>' : '')) +
                 mpField('Email', '<input type="email" class="mp-input" data-field="email" value="' + escapeHtml(p.email || '') + '">' +
                     (p.email ? ' <a href="mailto:' + escapeHtml(p.email) + '" class="mp-action-link">Envoyer</a>' : '')) +
                 mpField('LinkedIn', '<input type="text" class="mp-input" data-field="linkedin" value="' + escapeHtml(p.linkedin || '') + '">' +
@@ -327,3 +327,14 @@
     // Go
     init();
 })();
+
+// Accessible depuis onclick inline (hors IIFE) — log un clic sur Appeler
+function mpLogCall(prospectId) {
+    if (!prospectId) return;
+    fetch('/api/prospect/log-call', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prospect_id: prospectId }),
+    }).catch(() => {});
+}
