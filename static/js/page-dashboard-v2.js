@@ -138,8 +138,8 @@ function dv2_renderPerformance(data) {
   var days = (w && w.days) || [];
 
   // Contacts = appels tracés (call_logs), fallback sur max(relances, notes) si pas encore de données call_logs
-  var todayContacts = (t.calls != null) ? (t.calls || 0) : Math.max(t.relances || 0, t.notes || 0);
-  var weekContacts = (w.calls != null) ? (w.calls || 0) : Math.max(w.relances || 0, w.notes || 0);
+  var todayContacts = t.calls > 0 ? t.calls : Math.max(t.relances || 0, t.notes || 0);
+  var weekContacts = w.calls > 0 ? w.calls : Math.max(w.relances || 0, w.notes || 0);
   var prevContacts = Math.max(pw.relances || 0, pw.notes || 0);
 
   // Badge with total week actions
@@ -177,7 +177,7 @@ function dv2_renderPerformance(data) {
   if (chipsEl) {
     chipsEl.innerHTML = chips.map(function(c) {
       var sparkVals = days.map(function(d) {
-        if (c.key === 'contacts') return (d.calls != null) ? (d.calls || 0) : Math.max(d.relances || 0, d.notes || 0);
+        if (c.key === 'contacts') return d.calls > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0);
         if (c.key === 'notes') return d.notes || 0;
         if (c.key === 'push') return d.push || 0;
         return 0;
@@ -528,13 +528,14 @@ function dv2_renderActivity(feed, weekDays) {
   var heatEl = document.getElementById('dv2Heatmap');
   if (heatEl && weekDays && weekDays.length) {
     var maxAct = Math.max(1, Math.max.apply(null, weekDays.map(function(d) {
-      return Math.max(d.relances || 0, d.notes || 0) + (d.push || 0);
+      var c = d.calls > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0);
+      return c + (d.push || 0);
     })));
 
     // Resume semaine
     var weekTotalContacts = 0, weekTotalNotes = 0, weekTotalPush = 0;
     weekDays.forEach(function(d) {
-      weekTotalContacts += Math.max(d.relances || 0, d.notes || 0);
+      weekTotalContacts += d.calls > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0);
       weekTotalNotes += (d.notes || 0);
       weekTotalPush += (d.push || 0);
     });
@@ -543,7 +544,7 @@ function dv2_renderActivity(feed, weekDays) {
     heatEl.innerHTML =
       '<div class="dv2-activity-bars">' +
         weekDays.map(function(d) {
-          var contacts = (d.calls != null) ? (d.calls || 0) : Math.max(d.relances || 0, d.notes || 0);
+          var contacts = d.calls > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0);
           var push = d.push || 0;
           var total = contacts + push;
           var pctContacts = maxAct > 0 ? ((contacts / maxAct) * 100) : 0;
