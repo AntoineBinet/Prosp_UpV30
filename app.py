@@ -1130,7 +1130,7 @@ def api_users_delete():
         if not user:
             return jsonify(ok=False, error="Utilisateur introuvable"), 404
         
-        username = user.get("username") or user.get("display_name") or f"user_{uid}"
+        username = user["username"] or user["display_name"] or f"user_{uid}"
         
         # 1. Nettoyer shared_companies
         # - Supprimer les partages où from_user_id = uid (partages envoyés)
