@@ -6535,15 +6535,18 @@ def _extract_html_from_rtf(rtf: str) -> str:
                 depth -= 1
             p += 1
         result.append(rtf[cs:p - 1])
-        # Chercher du texte après \htmlrtf0 dans les 300 chars suivants
-        seg = rtf[p:p + 300]
-        m = re.search(r'\\htmlrtf0[ \t]?', seg)
+        # Chercher du texte dans le groupe \htmlrtf { \htmlrtf0 TEXT } qui suit
+        # DIRECTEMENT cette balise.
+        # re.match (ancré) évite de sauter au paragraphe suivant (bug duplication).
+        # La fenêtre de 60 chars suffit pour couvrir \htmlrtf {\b \htmlrtf0.
+        seg = rtf[p:p + 60]
+        m = re.match(r'\\htmlrtf\s*\{[^\{]*?\\htmlrtf0\s?', seg)
         if m:
             ts = p + m.end()
-            tm = re.match(r'([^{\\]*)', rtf[ts:])
+            # Regex étendue : inclut les escapes RTF \'XX (accent \'e9 = é, etc.)
+            tm = re.match(r"((?:\\'[0-9a-fA-F]{2}|[^{\\])*)", rtf[ts:])
             if tm:
                 raw = tm.group(1)
-                # Décoder les escapes RTF \'XX en caractères
                 raw = re.sub(
                     r"\\'([0-9a-fA-F]{2})",
                     lambda x: chr(int(x.group(1), 16)),
