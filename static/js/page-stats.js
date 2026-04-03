@@ -366,6 +366,7 @@ async function loadStats() {
     let pushLogs = [];
     try { allData = await dataRes.json(); } catch (e) {}
     try { pushLogs = await pushRes.json(); } catch (e) {}
+    _statsProspects = Array.isArray(allData?.prospects) ? allData.prospects : [];
 
     const from = s?.range?.from || '';
     const to = s?.range?.to || '';
@@ -427,6 +428,7 @@ async function loadStats() {
 // ====== Charts (Chart.js) ======
 
 const _chartInstances = {};
+let _statsProspects = []; // cache prospects pour loadCharts()
 
 function destroyChart(id) {
     if (_chartInstances[id]) {
@@ -643,8 +645,7 @@ async function loadCharts() {
             const ctx = document.getElementById('chartFunnel');
             if (ctx && d && d.statusDistribution) {
                 const statusOrder = ["Pas d'actions", "Appelé", "À rappeler", "Messagerie", "Rendez-vous", "Prospecté", "Pas intéressé"];
-                const statusCounts = {};
-                (d.statusDistribution || []).forEach(s => { statusCounts[s.label] = s.count; });
+                const statusCounts = d.statusDistribution || {};
                 const funnelData = statusOrder.map(s => statusCounts[s] || 0);
                 const funnelColors = ['#64748b', '#3b82f6', '#f59e0b', '#8b5cf6', '#22c55e', '#10b981', '#ef4444'];
                 
@@ -675,7 +676,7 @@ async function loadCharts() {
         {
             destroyChart('chartPortfolio');
             const ctx = document.getElementById('chartPortfolio');
-            if (ctx && data && data.prospects) {
+            if (ctx && _statsProspects.length > 0) {
                 // Build weekly counts over last 12 weeks
                 const now = new Date();
                 const weeks = [];
@@ -686,11 +687,11 @@ async function loadCharts() {
                     const weekStart = new Date(weekEnd);
                     weekStart.setDate(weekEnd.getDate() - 6);
                     const dateStr = weekEnd.toISOString().split('T')[0];
-                    const count = data.prospects.filter(p => {
+                    const count = _statsProspects.filter(p => {
                         const lc = p.lastContact || '';
                         return lc && lc <= dateStr;
                     }).length;
-                    weeks.push(count || data.prospects.length);
+                    weeks.push(count || _statsProspects.length);
                     labels.push('S-' + w);
                 }
                 
@@ -725,9 +726,9 @@ async function loadCharts() {
         {
             destroyChart('chartTags');
             const ctx = document.getElementById('chartTags');
-            if (ctx && data && data.prospects) {
+            if (ctx && _statsProspects.length > 0) {
                 const tagCounts = {};
-                data.prospects.forEach(p => {
+                _statsProspects.forEach(p => {
                     const tags = p.tags || [];
                     tags.forEach(t => {
                         const key = t.trim();
