@@ -7267,6 +7267,20 @@ def api_stats():
             except Exception:
                 continue
 
+        # Appels tracés (call_logs — clics bouton Appeler)
+        try:
+            if mode == "all":
+                calls_count = conn.execute(
+                    "SELECT COUNT(*) AS n FROM call_logs WHERE owner_id=?;", (uid,)
+                ).fetchone()["n"]
+            else:
+                calls_count = conn.execute(
+                    "SELECT COUNT(*) AS n FROM call_logs WHERE owner_id=? AND date>=? AND date<=?;",
+                    (uid, start_iso, end_iso),
+                ).fetchone()["n"]
+        except Exception:
+            calls_count = 0
+
         # Hot companies scoring (range for pushes, but late followups are always "today")
         hot = []
         if mode == "all":
@@ -7316,7 +7330,7 @@ def api_stats():
         "ok": True,
         "range": {"mode": mode, "from": start_iso if mode != "all" else "", "to": end_iso if mode != "all" else ""},
         "totals": {"prospects": total_prospects, "companies": total_companies},
-        "activity": {"pushes": pushes, "callNotes": call_notes},
+        "activity": {"pushes": pushes, "callNotes": call_notes, "calls": calls_count},
         "followups": {"late": late, "dueToday": due_today},
         "statusCounts": {"Rendezvous": rdv_total, "A_rappeler": recall_total},
         "hotCompanies": hot,
@@ -7948,18 +7962,43 @@ def api_stats_charts():
         ).fetchall()
         status_dist = {r["statut"]: r["n"] for r in status_rows}
 
-        # 2) Push activity per week (last 12 weeks)
+        # 2) Push + calls + callNotes per week (last 12 weeks)
+        # Pre-load call notes dates for quick bucketing
+        _cn_dates = []
+        for r in conn.execute(
+            "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes!='' AND (deleted_at IS NULL OR deleted_at='');",
+            (uid,),
+        ).fetchall():
+            try:
+                for n in (json.loads(r["callNotes"] or "[]") or []):
+                    ds = (n.get("date") or "")[:10]
+                    if ds:
+                        _cn_dates.append(ds)
+            except Exception:
+                pass
+
         weeks = []
+        activity_weeks = []
         for i in range(11, -1, -1):
             d = today - datetime.timedelta(weeks=i)
             mon = d - datetime.timedelta(days=d.weekday())
             sun = mon + datetime.timedelta(days=6)
-            count = conn.execute(
-                "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=? WHERE substr(l.sentAt,1,10) >= ? AND substr(l.sentAt,1,10) <= ?;",
-                (uid, mon.isoformat(), sun.isoformat()),
-            ).fetchone()["n"]
+            mon_iso, sun_iso = mon.isoformat(), sun.isoformat()
             label = f"S{mon.isocalendar()[1]}"
-            weeks.append({"label": label, "count": count})
+            push_n = conn.execute(
+                "SELECT COUNT(*) AS n FROM push_logs l JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=? WHERE substr(l.sentAt,1,10)>=? AND substr(l.sentAt,1,10)<=?;",
+                (uid, mon_iso, sun_iso),
+            ).fetchone()["n"]
+            try:
+                calls_n = conn.execute(
+                    "SELECT COUNT(*) AS n FROM call_logs WHERE owner_id=? AND date>=? AND date<=?;",
+                    (uid, mon_iso, sun_iso),
+                ).fetchone()["n"]
+            except Exception:
+                calls_n = 0
+            notes_n = sum(1 for ds in _cn_dates if mon_iso <= ds <= sun_iso)
+            weeks.append({"label": label, "count": push_n})
+            activity_weeks.append({"label": label, "calls": calls_n, "callNotes": notes_n, "push": push_n})
 
         # 3) RDV pris par mois (6 derniers mois) — source primaire : prospect_events rdv_taken
         #    fallback : lastContact des prospects RDV sans événement (rétro-compatibilité)
@@ -8015,6 +8054,7 @@ def api_stats_charts():
         "ok": True,
         "statusDistribution": status_dist,
         "pushPerWeek": weeks,
+        "activityPerWeek": activity_weeks,
         "rdvPerMonth": months_rdv,
         "topCompanies": top_comp,
         "pertinenceDistribution": pert_dist,
