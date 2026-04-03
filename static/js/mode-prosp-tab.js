@@ -165,13 +165,13 @@ window.mpTogglePhoneChoice = function (btn) {
 
         var quickActions = '';
         if (phoneNumbers.length === 1) {
-            quickActions += '<a href="tel:' + escapeHtml(phoneNumbers[0].replace(/\s/g, '')) + '" class="mp-quick-btn mp-quick-call" title="Appeler ' + escapeHtml(phoneNumbers[0]) + '">tel</a>';
+            quickActions += '<a href="tel:' + escapeHtml(phoneNumbers[0].replace(/\s/g, '')) + '" class="mp-quick-btn mp-quick-call" title="Appeler ' + escapeHtml(phoneNumbers[0]) + '" onclick="mpLogCall(' + p.id + ')">tel</a>';
         } else if (phoneNumbers.length > 1) {
             quickActions += '<div style="position:relative;">' +
                 '<button type="button" class="mp-quick-btn mp-quick-call" title="Choisir un numéro" onclick="mpTogglePhoneChoice(this)">tel</button>' +
                 '<div class="mp-phone-choice" style="display:none;">' +
                 phoneNumbers.map(function (num, i) {
-                    return '<a href="tel:' + escapeHtml(num.replace(/\s/g, '')) + '" class="mp-phone-choice-btn">' +
+                    return '<a href="tel:' + escapeHtml(num.replace(/\s/g, '')) + '" class="mp-phone-choice-btn" onclick="mpLogCall(' + p.id + ')">' +
                         '📞 ' + escapeHtml(num) +
                     '</a>';
                 }).join('') +
@@ -202,9 +202,9 @@ window.mpTogglePhoneChoice = function (btn) {
                 mpField('Entreprise', '<select class="mp-input" data-field="company_id">' + companyOpts + '</select>') +
                 mpField('Fonction', '<input type="text" class="mp-input" data-field="fonction" value="' + escapeHtml(p.fonction || '') + '">') +
                 mpField('Téléphone', '<input type="text" class="mp-input" data-field="telephone" value="' + escapeHtml(p.telephone || '') + '">' +
-                    (phoneNumbers.length === 1 ? ' <a href="tel:' + escapeHtml(phoneNumbers[0].replace(/\s/g, '')) + '" class="mp-action-link">Appeler</a>' :
+                    (phoneNumbers.length === 1 ? ' <a href="tel:' + escapeHtml(phoneNumbers[0].replace(/\s/g, '')) + '" class="mp-action-link" onclick="mpLogCall(' + p.id + ')">Appeler</a>' :
                      phoneNumbers.length > 1 ? phoneNumbers.map(function (num) {
-                        return ' <a href="tel:' + escapeHtml(num.replace(/\s/g, '')) + '" class="mp-action-link">📞 ' + escapeHtml(num) + '</a>';
+                        return ' <a href="tel:' + escapeHtml(num.replace(/\s/g, '')) + '" class="mp-action-link" onclick="mpLogCall(' + p.id + ')">📞 ' + escapeHtml(num) + '</a>';
                      }).join('') : '')) +
                 mpField('Email', '<input type="email" class="mp-input" data-field="email" value="' + escapeHtml(p.email || '') + '">' +
                     (p.email ? ' <a href="mailto:' + escapeHtml(p.email) + '" class="mp-action-link">Envoyer</a>' : '')) +
@@ -402,3 +402,14 @@ window.mpTogglePhoneChoice = function (btn) {
 
     init();
 })();
+
+// Accessible depuis onclick inline (hors IIFE) — log un clic sur Appeler
+function mpLogCall(prospectId) {
+    if (!prospectId) return;
+    fetch('/api/prospect/log-call', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prospect_id: prospectId }),
+    }).catch(function () {});
+}
