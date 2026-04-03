@@ -41,6 +41,18 @@ let _chartPertinence = null;
 let _chartActivity = null;
 let _chartTopCompanies = null;
 
+/** Hide a chart-card if all data values are zero/empty */
+function _hideIfEmpty(canvasId, values) {
+    const allZero = !values || values.every(v => !v);
+    const card = document.getElementById(canvasId)?.closest('.chart-card');
+    if (!card) return;
+    if (allZero) {
+        card.style.display = 'none';
+    } else {
+        card.style.display = '';
+    }
+}
+
 const STATUS_COLORS = {
     "Pas d'actions": '#64748b',
     'Appelé': '#f59e0b',
@@ -381,6 +393,7 @@ async function loadStats() {
         cards.appendChild(statCard('Prospects', s.totals?.prospects ?? 0));
         cards.appendChild(statCard('Entreprises', s.totals?.companies ?? 0));
         const sub = (s?.range?.mode === 'all') ? 'All time' : ((from && to) ? `${from} → ${to}` : '');
+        cards.appendChild(statCard('Appels passés', s.activity?.calls ?? 0, sub, (s.activity?.calls > 0) ? 'stat-card-success' : ''));
         cards.appendChild(statCard('Push envoyés', s.activity?.pushes ?? 0, sub));
         cards.appendChild(statCard("Notes d'appel", s.activity?.callNotes ?? 0, sub));
         cards.appendChild(statCard('Relances en retard', s.followups?.late ?? 0, '', (s.followups?.late > 0) ? 'stat-card-alert' : ''));
@@ -491,12 +504,19 @@ async function loadCharts() {
         defaults.color = colors.text;
         defaults.borderColor = colors.grid;
 
+        // Reset all chart-card visibility before rendering
+        ['chartStatus','chartPertinence','chartPush','chartRdv','chartCompanies','chartFunnel','chartPortfolio','chartTags','chartCalls','chartActivityWeek'].forEach(id => {
+            const card = document.getElementById(id)?.closest('.chart-card');
+            if (card) card.style.display = '';
+        });
+
         // 1) Status Distribution (Doughnut)
         {
             destroyChart('chartStatus');
             const labels = Object.keys(d.statusDistribution || {});
             const values = Object.values(d.statusDistribution || {});
             const palette = ['#64748b', '#f59e0b', '#3b82f6', '#ef4444', '#22c55e', '#94a3b8', '#8b5cf6', '#ec4899'];
+            _hideIfEmpty('chartStatus', values);
             const ctx = document.getElementById('chartStatus');
             if (ctx) {
                 _chartInstances['chartStatus'] = new Chart(ctx, {
@@ -521,6 +541,7 @@ async function loadCharts() {
             const pert = d.pertinenceDistribution || {};
             const labels = ['⭐', '⭐⭐', '⭐⭐⭐', '⭐⭐⭐⭐', '⭐⭐⭐⭐⭐'];
             const values = ['1','2','3','4','5'].map(k => pert[k] || 0);
+            _hideIfEmpty('chartPertinence', values);
             const palette = ['#94a3b8', '#f59e0b', '#eab308', '#f97316', '#ef4444'];
             const ctx = document.getElementById('chartPertinence');
             if (ctx) {
@@ -543,6 +564,7 @@ async function loadCharts() {
         {
             destroyChart('chartPush');
             const items = d.pushPerWeek || [];
+            _hideIfEmpty('chartPush', items.map(i => i.count));
             const ctx = document.getElementById('chartPush');
             if (ctx) {
                 _chartInstances['chartPush'] = new Chart(ctx, {
@@ -573,6 +595,7 @@ async function loadCharts() {
         {
             destroyChart('chartRdv');
             const items = d.rdvPerMonth || [];
+            _hideIfEmpty('chartRdv', items.map(i => i.count));
             const ctx = document.getElementById('chartRdv');
             if (ctx) {
                 _chartInstances['chartRdv'] = new Chart(ctx, {
@@ -606,6 +629,7 @@ async function loadCharts() {
         {
             destroyChart('chartCompanies');
             const items = d.topCompanies || [];
+            _hideIfEmpty('chartCompanies', items.map(i => i.count));
             const ctx = document.getElementById('chartCompanies');
             if (ctx) {
                 _chartInstances['chartCompanies'] = new Chart(ctx, {
@@ -647,8 +671,9 @@ async function loadCharts() {
                 const statusOrder = ["Pas d'actions", "Appelé", "À rappeler", "Messagerie", "Rendez-vous", "Prospecté", "Pas intéressé"];
                 const statusCounts = d.statusDistribution || {};
                 const funnelData = statusOrder.map(s => statusCounts[s] || 0);
+                _hideIfEmpty('chartFunnel', funnelData);
                 const funnelColors = ['#64748b', '#3b82f6', '#f59e0b', '#8b5cf6', '#22c55e', '#10b981', '#ef4444'];
-                
+
                 _chartInstances['chartFunnel'] = new Chart(ctx, {
                     type: 'bar',
                     data: {
@@ -676,6 +701,7 @@ async function loadCharts() {
         {
             destroyChart('chartPortfolio');
             const ctx = document.getElementById('chartPortfolio');
+            _hideIfEmpty('chartPortfolio', _statsProspects.length > 0 ? [1] : []);
             if (ctx && _statsProspects.length > 0) {
                 // Build weekly counts over last 12 weeks
                 const now = new Date();
@@ -736,6 +762,7 @@ async function loadCharts() {
                     });
                 });
                 const sorted = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+                _hideIfEmpty('chartTags', sorted.map(s => s[1]));
                 const tagColors = ['#f36f21', '#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#6366f1', '#ef4444', '#64748b', '#10b981', '#a855f7', '#f97316', '#06b6d4', '#84cc16'];
                 
                 _chartInstances['chartTags'] = new Chart(ctx, {
@@ -761,6 +788,94 @@ async function loadCharts() {
                 });
             }
         }
+        // Appels par semaine (call_logs)
+        {
+            destroyChart('chartCalls');
+            const items = (d.activityPerWeek || []);
+            const callData = items.map(i => i.calls || 0);
+            _hideIfEmpty('chartCalls', callData);
+            const ctx = document.getElementById('chartCalls');
+            if (ctx && callData.some(v => v > 0)) {
+                _chartInstances['chartCalls'] = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: items.map(i => i.label),
+                        datasets: [{
+                            label: 'Appels passés',
+                            data: callData,
+                            backgroundColor: '#f59e0bcc',
+                            borderRadius: 6,
+                            borderSkipped: false,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: { grid: { display: false } },
+                            y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } }
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+        }
+
+        // Activité hebdomadaire combinée (appels + notes + push)
+        {
+            destroyChart('chartActivityWeek');
+            const items = (d.activityPerWeek || []);
+            const callData = items.map(i => i.calls || 0);
+            const noteData = items.map(i => i.callNotes || 0);
+            const pushData = items.map(i => i.push || 0);
+            const combined = callData.map((v, i) => v + noteData[i] + pushData[i]);
+            _hideIfEmpty('chartActivityWeek', combined);
+            const ctx = document.getElementById('chartActivityWeek');
+            if (ctx && combined.some(v => v > 0)) {
+                _chartInstances['chartActivityWeek'] = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: items.map(i => i.label),
+                        datasets: [
+                            {
+                                label: 'Appels',
+                                data: callData,
+                                backgroundColor: '#f59e0bcc',
+                                borderRadius: 4,
+                                borderSkipped: false,
+                                stack: 'activity',
+                            },
+                            {
+                                label: "Notes d'appel",
+                                data: noteData,
+                                backgroundColor: '#6366f1cc',
+                                borderRadius: 4,
+                                borderSkipped: false,
+                                stack: 'activity',
+                            },
+                            {
+                                label: 'Push',
+                                data: pushData,
+                                backgroundColor: '#32b8c6cc',
+                                borderRadius: 4,
+                                borderSkipped: false,
+                                stack: 'activity',
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: { grid: { display: false }, stacked: true },
+                            y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid }, stacked: true }
+                        },
+                        plugins: {
+                            legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 }, usePointStyle: true } }
+                        }
+                    }
+                });
+            }
+        }
+
     } catch (err) {
         console.error('Extra charts error:', err);
     } finally {
