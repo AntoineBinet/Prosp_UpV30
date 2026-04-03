@@ -224,7 +224,7 @@ function dv2_renderWeekChart(days, week) {
       datasets: [
         {
           label: 'Contacts',
-          data: days.map(function(d) { return Math.max(d.relances || 0, d.notes || 0); }),
+          data: days.map(function(d) { return d.calls > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0); }),
           backgroundColor: 'rgba(245, 158, 11, 0.7)',
           borderRadius: 4,
           borderSkipped: false,
@@ -240,7 +240,7 @@ function dv2_renderWeekChart(days, week) {
         },
         {
           label: 'Total',
-          data: days.map(function(d) { return Math.max(d.relances || 0, d.notes || 0) + (d.push || 0); }),
+          data: days.map(function(d) { return (d.calls > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0)) + (d.push || 0); }),
           type: 'line',
           borderColor: 'rgba(var(--color-primary-rgb, 243,111,33), 0.8)',
           borderWidth: 2,
