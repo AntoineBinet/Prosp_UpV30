@@ -7431,6 +7431,15 @@ async function generatePushFromTab(prospectId) {
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
+        // Copier l'email du prospect dans le presse-papier
+        let emailCopied = false;
+        if (prospect.email) {
+            try {
+                await navigator.clipboard.writeText(prospect.email);
+                emailCopied = true;
+            } catch (_) { /* permission refusée ou contexte non sécurisé */ }
+        }
+
         // Feedback succès sur le bouton Email de l'en-tête
         if (btnEmailHdr) {
             btnEmailHdr.classList.remove('push-email-loading');
@@ -7476,7 +7485,9 @@ async function generatePushFromTab(prospectId) {
         } catch (logErr) {
             console.warn('Erreur enregistrement push log:', logErr);
         }
-        showToast('Push généré et téléchargé !', 'success');
+        showToast(emailCopied
+            ? `Push téléchargé · Email copié : ${prospect.email}`
+            : 'Push généré et téléchargé !', 'success', 5000);
     } catch (e) {
         showToast(`❌ Erreur: ${e.message || 'Erreur réseau'}`, 'error', 6000);
     } finally {
