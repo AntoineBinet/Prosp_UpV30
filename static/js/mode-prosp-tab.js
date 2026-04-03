@@ -1,128 +1,188 @@
-// Mode Prosp — standalone tab logic
-// Loads filtered prospect IDs from sessionStorage, fetches data from API,
-// renders editable cards with slide navigation, syncs via BroadcastChannel.
+// Mode Prosp — standalone tab (v3: single-card rendering)
+// Renders ONE card at a time. No translateX, no will-change, no DOM bloat.
+// Uses server token (?t=TOKEN) for data. No localStorage/BroadcastChannel.
+
+window.mpClose = function () {
+    if (window.opener) {
+        window.close();
+    } else if (history.length > 1) {
+        history.back();
+    } else {
+        window.location.href = '/';
+    }
+};
+
+// Toggle phone choice dropdown (for numbers with "/")
+window.mpTogglePhoneChoice = function (btn) {
+    var dropdown = btn.nextElementSibling;
+    if (!dropdown) return;
+    var isVisible = dropdown.style.display !== 'none';
+    dropdown.style.display = isVisible ? 'none' : 'flex';
+    if (!isVisible) {
+        // Close on click outside
+        setTimeout(function () {
+            document.addEventListener('click', function close(e) {
+                if (!dropdown.contains(e.target) && e.target !== btn) {
+                    dropdown.style.display = 'none';
+                    document.removeEventListener('click', close);
+                }
+            });
+        }, 0);
+    }
+};
 
 (function () {
     'use strict';
 
-    // ── State ──
-    let prospects = [];
-    let companies = [];
-    let currentIndex = 0;
-    let prospectIds = [];
-    let saving = false;
+    var prospects = [];
+    var companies = [];
+    var currentIndex = 0;
+    var saving = false;
+    var token = '';
 
-    // ── DOM refs ──
-    const viewport = document.getElementById('mpViewport');
-    const track = document.getElementById('mpCardTrack');
-    const counter = document.getElementById('mpCounter');
-    const prevBtn = document.getElementById('mpPrev');
-    const nextBtn = document.getElementById('mpNext');
+    var viewport = document.getElementById('mpViewport');
+    var counter = document.getElementById('mpCounter');
+    var prevBtn = document.getElementById('mpPrev');
+    var nextBtn = document.getElementById('mpNext');
 
-    // ── BroadcastChannel ──
-    const bc = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('prospup-mode-prosp') : null;
+    function getToken() {
+        var params = new URLSearchParams(location.search);
+        return params.get('t') || '';
+    }
 
     // ── Init ──
     async function init() {
-        // Read IDs from sessionStorage (set by main tab before window.open)
-        let ids;
-        try {
-            ids = JSON.parse(sessionStorage.getItem('prospup_mode_prosp_ids'));
-        } catch (e) {}
-        if (!Array.isArray(ids) || ids.length === 0) {
-            track.innerHTML = '<div class="mp-empty">Aucun prospect transmis. Retournez sur la page Prospects et relancez le Mode Prosp.</div>';
+        token = getToken();
+        if (!token) {
+            viewport.innerHTML = '<div class="mp-empty">Aucun prospect transmis. Retournez sur la page Prospects et relancez le Mode Prosp.</div>';
             return;
         }
-        prospectIds = ids;
-        // Clean up — one-shot transfer
-        sessionStorage.removeItem('prospup_mode_prosp_ids');
 
-        // Fetch data
+        viewport.innerHTML = '<div class="mp-empty">Chargement...</div>';
+
         try {
-            const res = await fetch('/api/data', { credentials: 'include' });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const payload = await res.json();
-            const allProspects = Array.isArray(payload.prospects) ? payload.prospects : [];
+            var res = await fetch('/api/mode-prosp/data?t=' + encodeURIComponent(token));
+            if (!res.ok) {
+                if (res.status === 401) {
+                    viewport.innerHTML = '<div class="mp-empty">Session expirée. Retournez sur la page Prospects et relancez le Mode Prosp.</div>';
+                } else {
+                    throw new Error('HTTP ' + res.status);
+                }
+                return;
+            }
+            var payload = await res.json();
+            if (!payload.ok) {
+                viewport.innerHTML = '<div class="mp-empty">' + escapeHtml(payload.error || 'Erreur') + '</div>';
+                return;
+            }
+            prospects = Array.isArray(payload.prospects) ? payload.prospects : [];
             companies = Array.isArray(payload.companies) ? payload.companies : [];
-            // Keep only the filtered IDs, in order
-            const pMap = new Map(allProspects.map(p => [p.id, p]));
-            prospects = prospectIds.map(id => pMap.get(id)).filter(Boolean);
         } catch (e) {
-            track.innerHTML = '<div class="mp-empty">Erreur de chargement des donnees. Verifiez que vous etes connecte.</div>';
-            console.error(e);
+            viewport.innerHTML = '<div class="mp-empty">Erreur de chargement. Vérifiez votre connexion.</div>';
             return;
         }
 
         if (prospects.length === 0) {
-            track.innerHTML = '<div class="mp-empty">Aucun prospect trouve.</div>';
+            viewport.innerHTML = '<div class="mp-empty">Aucun prospect trouvé.</div>';
             return;
         }
 
-        renderAllCards();
-        goTo(0, false);
+        renderCurrentCard();
+        updateUI();
         setupKeyboard();
         setupSwipe();
-        setupBroadcast();
+        setupVisibilitySync();
     }
 
-    // ── Rendering ──
+    // ── Rendering (single card) ──
     function escapeHtml(str) {
-        const d = document.createElement('div');
+        var d = document.createElement('div');
         d.textContent = str || '';
         return d.innerHTML;
     }
 
     function getCompany(id) {
-        return companies.find(c => c.id === id) || null;
+        for (var i = 0; i < companies.length; i++) {
+            if (companies[i].id === id) return companies[i];
+        }
+        return null;
     }
 
-    const STATUS_OPTIONS = ["Pas d'actions", "Appelé", "A rappeler", "Rendez-vous", "Prospecte", "Messagerie", "Pas interesse"];
-    const STATUS_COLORS = {
-        "Pas d'actions": '#64748b', 'Appele': '#f59e0b', 'Messagerie': '#3b82f6',
-        'A rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Prospecte': '#8b5cf6', 'Pas interesse': '#94a3b8'
+    var STATUS_OPTIONS = ["Pas d'actions", "Appelé", "A rappeler", "Rendez-vous", "Prospecté", "Messagerie", "Pas interessé"];
+    var STATUS_COLORS = {
+        "Pas d'actions": '#64748b', "Appelé": '#f59e0b', 'Messagerie': '#3b82f6',
+        'A rappeler': '#ef4444', 'Rendez-vous': '#22c55e', "Prospecté": '#8b5cf6', "Pas interessé": '#94a3b8'
     };
 
-    function renderAllCards() {
-        track.innerHTML = '';
-        prospects.forEach((p, i) => {
-            const card = document.createElement('div');
-            card.className = 'mp-card';
-            card.dataset.index = i;
-            card.innerHTML = buildCardHtml(p, i);
-            track.appendChild(card);
-        });
+    function renderCurrentCard() {
+        var p = prospects[currentIndex];
+        if (!p) return;
+        var card = document.createElement('div');
+        card.className = 'mp-card';
+        card.innerHTML = buildCardHtml(p);
+        viewport.innerHTML = '';
+        viewport.appendChild(card);
     }
 
-    function buildCardHtml(p, index) {
-        const company = getCompany(p.company_id);
-        const companyName = company ? (company.groupe || '') + (company.site ? ' (' + company.site + ')' : '') : '';
-        const pert = parseInt(p.pertinence, 10) || 3;
-        const stars = '\u2605'.repeat(pert) + '\u2606'.repeat(5 - pert);
-        const heroColor = STATUS_COLORS[p.statut] || '#64748b';
-        const initials = (p.name || '??').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    function buildCardHtml(p) {
+        var company = getCompany(p.company_id);
+        var companyName = company ? (company.groupe || '') + (company.site ? ' (' + company.site + ')' : '') : '';
+        var pert = parseInt(p.pertinence, 10) || 3;
+        var stars = '\u2605'.repeat(pert) + '\u2606'.repeat(5 - pert);
+        var heroColor = STATUS_COLORS[p.statut] || '#64748b';
+        var initials = (p.name || '??').split(/\s+/).map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
 
-        const statusOpts = STATUS_OPTIONS.map(s =>
-            '<option value="' + escapeHtml(s) + '"' + (p.statut === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>'
-        ).join('');
+        var statusOpts = STATUS_OPTIONS.map(function (s) {
+            return '<option value="' + escapeHtml(s) + '"' + (p.statut === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
+        }).join('');
 
-        const companyOpts = companies.map(c =>
-            '<option value="' + c.id + '"' + (c.id === p.company_id ? ' selected' : '') + '>' + escapeHtml(c.groupe) + ' (' + escapeHtml(c.site || '') + ')</option>'
-        ).join('');
+        var companyOpts = companies.map(function (c) {
+            return '<option value="' + c.id + '"' + (c.id === p.company_id ? ' selected' : '') + '>' + escapeHtml(c.groupe) + ' (' + escapeHtml(c.site || '') + ')</option>';
+        }).join('');
 
-        const pertOpts = [5,4,3,2,1].map(v =>
-            '<option value="' + v + '"' + (pert === v ? ' selected' : '') + '>' + '\u2B50'.repeat(v) + '</option>'
-        ).join('');
+        var pertOpts = [5, 4, 3, 2, 1].map(function (v) {
+            return '<option value="' + v + '"' + (pert === v ? ' selected' : '') + '>' + '\u2B50'.repeat(v) + '</option>';
+        }).join('');
 
-        const priorityOpts = [
+        var priorityOpts = [
             { v: '1', l: 'P1 (haute)' },
             { v: '2', l: 'P2 (normal)' },
             { v: '3', l: 'P3 (basse)' }
-        ].map(o => '<option value="' + o.v + '"' + (String(p.priority || '2') === o.v ? ' selected' : '') + '>' + o.l + '</option>').join('');
+        ].map(function (o) {
+            return '<option value="' + o.v + '"' + (String(p.priority || '2') === o.v ? ' selected' : '') + '>' + o.l + '</option>';
+        }).join('');
 
-        const photoUrl = p.photo_url ? '/api/photos/prospect/' + p.id : '';
-        const avatarHtml = photoUrl
-            ? '<img class="mp-avatar-img" src="' + photoUrl + '?t=' + Date.now() + '" alt="' + escapeHtml(initials) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" /><div class="mp-avatar" style="background:' + heroColor + ';display:none;">' + escapeHtml(initials) + '</div>'
+        var photoUrl = p.photo_url ? '/api/photos/prospect/' + p.id : '';
+        var avatarHtml = photoUrl
+            ? '<img class="mp-avatar-img" src="' + photoUrl + '" alt="' + escapeHtml(initials) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" /><div class="mp-avatar" style="background:' + heroColor + ';display:none;">' + escapeHtml(initials) + '</div>'
             : '<div class="mp-avatar" style="background:' + heroColor + ';">' + escapeHtml(initials) + '</div>';
+
+        // Phone numbers: detect multiple numbers separated by "/"
+        var phoneNumbers = [];
+        if (p.telephone) {
+            phoneNumbers = p.telephone.split('/').map(function (n) { return n.trim(); }).filter(Boolean);
+        }
+
+        var quickActions = '';
+        if (phoneNumbers.length === 1) {
+            quickActions += '<a href="tel:' + escapeHtml(phoneNumbers[0].replace(/\s/g, '')) + '" class="mp-quick-btn mp-quick-call" title="Appeler ' + escapeHtml(phoneNumbers[0]) + '" onclick="mpLogCall(' + p.id + ')">tel</a>';
+        } else if (phoneNumbers.length > 1) {
+            quickActions += '<div style="position:relative;">' +
+                '<button type="button" class="mp-quick-btn mp-quick-call" title="Choisir un numéro" onclick="mpTogglePhoneChoice(this)">tel</button>' +
+                '<div class="mp-phone-choice" style="display:none;">' +
+                phoneNumbers.map(function (num, i) {
+                    return '<a href="tel:' + escapeHtml(num.replace(/\s/g, '')) + '" class="mp-phone-choice-btn" onclick="mpLogCall(' + p.id + ')">' +
+                        '📞 ' + escapeHtml(num) +
+                    '</a>';
+                }).join('') +
+                '</div></div>';
+        }
+        if (p.email) {
+            quickActions += '<a href="mailto:' + escapeHtml(p.email) + '" class="mp-quick-btn mp-quick-email" title="Email">mail</a>';
+        }
+        if (p.linkedin) {
+            quickActions += '<a href="' + escapeHtml(p.linkedin) + '" target="_blank" class="mp-quick-btn mp-quick-linkedin" title="LinkedIn">in</a>';
+        }
 
         return '<div class="mp-card-hero" style="--hero-color: ' + heroColor + ';">' +
             '<div class="mp-card-hero-bg"></div>' +
@@ -133,6 +193,7 @@
                     '<div class="mp-hero-sub">' + escapeHtml(p.fonction || '') + (companyName ? ' &middot; ' + escapeHtml(companyName) : '') + '</div>' +
                     '<div class="mp-hero-stars">' + stars + '</div>' +
                 '</div>' +
+                (quickActions ? '<div class="mp-quick-actions">' + quickActions + '</div>' : '') +
             '</div>' +
         '</div>' +
         '<div class="mp-card-body" data-pid="' + p.id + '">' +
@@ -140,14 +201,17 @@
                 mpField('Statut', '<select class="mp-input" data-field="statut">' + statusOpts + '</select>') +
                 mpField('Entreprise', '<select class="mp-input" data-field="company_id">' + companyOpts + '</select>') +
                 mpField('Fonction', '<input type="text" class="mp-input" data-field="fonction" value="' + escapeHtml(p.fonction || '') + '">') +
-                mpField('Telephone', '<input type="text" class="mp-input" data-field="telephone" value="' + escapeHtml(p.telephone || '') + '">' +
-                    (p.telephone ? ' <a href="tel:' + escapeHtml(p.telephone.replace(/\s/g, '')) + '" class="mp-action-link" onclick="mpLogCall(' + p.id + ')">Appeler</a>' : '')) +
+                mpField('Téléphone', '<input type="text" class="mp-input" data-field="telephone" value="' + escapeHtml(p.telephone || '') + '">' +
+                    (phoneNumbers.length === 1 ? ' <a href="tel:' + escapeHtml(phoneNumbers[0].replace(/\s/g, '')) + '" class="mp-action-link" onclick="mpLogCall(' + p.id + ')">Appeler</a>' :
+                     phoneNumbers.length > 1 ? phoneNumbers.map(function (num) {
+                        return ' <a href="tel:' + escapeHtml(num.replace(/\s/g, '')) + '" class="mp-action-link" onclick="mpLogCall(' + p.id + ')">📞 ' + escapeHtml(num) + '</a>';
+                     }).join('') : '')) +
                 mpField('Email', '<input type="email" class="mp-input" data-field="email" value="' + escapeHtml(p.email || '') + '">' +
                     (p.email ? ' <a href="mailto:' + escapeHtml(p.email) + '" class="mp-action-link">Envoyer</a>' : '')) +
                 mpField('LinkedIn', '<input type="text" class="mp-input" data-field="linkedin" value="' + escapeHtml(p.linkedin || '') + '">' +
                     (p.linkedin ? ' <a href="' + escapeHtml(p.linkedin) + '" target="_blank" class="mp-action-link">Voir</a>' : '')) +
                 mpField('Pertinence', '<select class="mp-input" data-field="pertinence">' + pertOpts + '</select>') +
-                mpField('Priorite', '<select class="mp-input" data-field="priority">' + priorityOpts + '</select>') +
+                mpField('Priorité', '<select class="mp-input" data-field="priority">' + priorityOpts + '</select>') +
                 mpField('Next action', '<input type="text" class="mp-input" data-field="nextAction" value="' + escapeHtml(p.nextAction || '') + '">') +
                 mpField('Relance', '<input type="date" class="mp-input" data-field="nextFollowUp" value="' + escapeHtml(p.nextFollowUp || '') + '">') +
                 mpField('Date RDV', '<input type="datetime-local" class="mp-input" data-field="rdvDate" value="' + escapeHtml(p.rdvDate || '') + '">') +
@@ -158,7 +222,7 @@
                 '<textarea class="mp-input mp-textarea" data-field="notes" rows="3">' + escapeHtml(p.notes || '') + '</textarea>' +
             '</div>' +
             '<div class="mp-card-actions">' +
-                '<button class="mp-save-btn" onclick="mpSaveCard(' + index + ')">Enregistrer</button>' +
+                '<button class="mp-save-btn" onclick="mpSaveCard()">Enregistrer</button>' +
             '</div>' +
         '</div>';
     }
@@ -167,27 +231,15 @@
         return '<div class="mp-field"><label class="mp-label">' + label + '</label>' + inputHtml + '</div>';
     }
 
-    // ── Navigation ──
-    function goTo(index, animate) {
+    // ── Navigation (swap card) ──
+    function goTo(index) {
         if (index < 0 || index >= prospects.length) return;
         currentIndex = index;
-        const offset = -index * 100;
-
-        if (animate === false) {
-            track.style.transition = 'none';
-        } else {
-            track.style.transition = 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)';
-            // Respect prefers-reduced-motion
-            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                track.style.transition = 'none';
-            }
-        }
-        track.style.transform = 'translateX(' + offset + '%)';
-
-        // Force reflow if no animation
-        if (animate === false) void track.offsetWidth;
-
+        renderCurrentCard();
         updateUI();
+        // Scroll card body to top
+        var body = viewport.querySelector('.mp-card-body');
+        if (body) body.scrollTop = 0;
     }
 
     function updateUI() {
@@ -195,75 +247,79 @@
         prevBtn.disabled = currentIndex === 0;
         nextBtn.disabled = currentIndex === prospects.length - 1;
 
-        // Dots (show max 10)
-        const dotsEl = document.getElementById('mpDots');
+        var dotsEl = document.getElementById('mpDots');
         if (dotsEl && prospects.length <= 20) {
-            dotsEl.innerHTML = prospects.map((_, i) =>
-                '<span class="mp-dot' + (i === currentIndex ? ' active' : '') + '" onclick="mpGoTo(' + i + ')"></span>'
-            ).join('');
+            dotsEl.innerHTML = prospects.map(function (_, i) {
+                return '<span class="mp-dot' + (i === currentIndex ? ' active' : '') + '" onclick="mpGoTo(' + i + ')"></span>';
+            }).join('');
         } else if (dotsEl) {
             dotsEl.innerHTML = '';
         }
 
-        document.title = 'Mode Prosp — ' + (currentIndex + 1) + '/' + prospects.length + ' — ' + (prospects[currentIndex]?.name || '');
+        var p = prospects[currentIndex];
+        document.title = 'Mode Prosp — ' + (currentIndex + 1) + '/' + prospects.length + (p ? ' — ' + p.name : '');
     }
 
     window.mpNavigate = function (dir) {
-        goTo(currentIndex + dir, true);
+        goTo(currentIndex + dir);
     };
 
     window.mpGoTo = function (i) {
-        goTo(i, true);
+        goTo(i);
     };
 
     // ── Save ──
-    window.mpSaveCard = async function (index) {
+    window.mpSaveCard = async function () {
         if (saving) return;
-        const p = prospects[index];
+        var p = prospects[currentIndex];
         if (!p) return;
 
-        const card = track.children[index];
+        var card = viewport.querySelector('.mp-card');
         if (!card) return;
 
-        // Read values from card inputs
-        const body = card.querySelector('.mp-card-body');
-        body.querySelectorAll('[data-field]').forEach(el => {
-            const field = el.dataset.field;
-            let val = el.value;
-            if (field === 'company_id') val = parseInt(val, 10);
-            if (field === 'pertinence') val = parseInt(val, 10);
+        var body = card.querySelector('.mp-card-body');
+        var prospectData = { id: p.id };
+        body.querySelectorAll('[data-field]').forEach(function (el) {
+            var field = el.dataset.field;
+            var val = el.value;
+            if (field === 'company_id' || field === 'pertinence' || field === 'priority') {
+                val = parseInt(val, 10);
+            }
+            prospectData[field] = val;
             p[field] = val;
         });
 
-        // Update in-memory data and save full dataset
         saving = true;
-        const saveBtn = card.querySelector('.mp-save-btn');
+        var saveBtn = card.querySelector('.mp-save-btn');
         if (saveBtn) { saveBtn.textContent = 'Sauvegarde...'; saveBtn.disabled = true; }
 
         try {
-            const res = await fetch('/api/save', {
+            var res = await fetch('/api/mode-prosp/save?t=' + encodeURIComponent(token), {
                 method: 'POST',
-                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ companies: companies, prospects: prospects })
+                body: JSON.stringify({ prospect: prospectData })
             });
             if (!res.ok) throw new Error('HTTP ' + res.status);
-            if (saveBtn) saveBtn.textContent = 'Enregistre !';
-            setTimeout(() => { if (saveBtn) { saveBtn.textContent = 'Enregistrer'; saveBtn.disabled = false; } }, 1200);
+            var result = await res.json();
+            if (!result.ok) throw new Error(result.error || 'Erreur');
 
-            // Broadcast update to main tab
-            if (bc) {
-                bc.postMessage({ type: 'prospect-updated', prospect: { ...p }, source: 'mode-prosp' });
+            if (result.prospect) {
+                prospects[currentIndex] = result.prospect;
             }
 
-            // Re-render hero (in case status/name changed)
-            const heroColor = STATUS_COLORS[p.statut] || '#64748b';
-            const heroEl = card.querySelector('.mp-card-hero');
-            if (heroEl) heroEl.style.setProperty('--hero-color', heroColor);
+            if (saveBtn) saveBtn.textContent = 'Enregistré !';
+            setTimeout(function () {
+                if (saveBtn) { saveBtn.textContent = 'Enregistrer'; saveBtn.disabled = false; }
+            }, 1200);
+
+            // Update hero color if status changed
+            var heroEl = card.querySelector('.mp-card-hero');
+            if (heroEl) {
+                heroEl.style.setProperty('--hero-color', STATUS_COLORS[p.statut] || '#64748b');
+            }
         } catch (e) {
-            console.error('Save error:', e);
             if (saveBtn) { saveBtn.textContent = 'Erreur !'; saveBtn.disabled = false; }
-            setTimeout(() => { if (saveBtn) saveBtn.textContent = 'Enregistrer'; }, 2000);
+            setTimeout(function () { if (saveBtn) saveBtn.textContent = 'Enregistrer'; }, 2000);
         } finally {
             saving = false;
         }
@@ -272,59 +328,78 @@
     // ── Keyboard ──
     function setupKeyboard() {
         document.addEventListener('keydown', function (e) {
-            // Don't interfere with input fields
             if (e.target.matches('input, select, textarea')) return;
-            if (e.key === 'ArrowLeft') { e.preventDefault(); mpNavigate(-1); }
-            if (e.key === 'ArrowRight') { e.preventDefault(); mpNavigate(1); }
+            if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(currentIndex - 1); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); goTo(currentIndex + 1); }
         });
     }
 
     // ── Swipe ──
     function setupSwipe() {
-        let startX = null;
-        let startY = null;
-        const THRESHOLD = 60;
+        var startX = null;
+        var startY = null;
+        var locked = false;
+        var THRESHOLD = 60;
+        var LOCK_DIST = 20;
 
         viewport.addEventListener('touchstart', function (e) {
-            if (e.target.matches('input, select, textarea')) return;
+            if (e.target.matches('input, select, textarea, a, button')) return;
             startX = e.touches[0].clientX;
             startY = e.touches[0].clientY;
+            locked = false;
         }, { passive: true });
 
         viewport.addEventListener('touchend', function (e) {
             if (startX === null) return;
-            const dx = e.changedTouches[0].clientX - startX;
-            const dy = Math.abs(e.changedTouches[0].clientY - startY);
-            if (Math.abs(dx) > THRESHOLD && Math.abs(dx) > dy) {
-                if (dx < 0) mpNavigate(1);
-                else mpNavigate(-1);
-            }
+            var dx = e.changedTouches[0].clientX - startX;
+            var dy = e.changedTouches[0].clientY - startY;
             startX = null;
             startY = null;
+
+            // Only count horizontal swipes
+            if (Math.abs(dx) < THRESHOLD || Math.abs(dy) > Math.abs(dx)) return;
+
+            if (dx < 0 && currentIndex < prospects.length - 1) {
+                goTo(currentIndex + 1);
+                haptic(10);
+            } else if (dx > 0 && currentIndex > 0) {
+                goTo(currentIndex - 1);
+                haptic(10);
+            }
         }, { passive: true });
     }
 
-    // ── BroadcastChannel sync ──
-    function setupBroadcast() {
-        if (!bc) return;
-        bc.onmessage = function (e) {
-            if (!e.data || e.data.source === 'mode-prosp') return;
-            if (e.data.type === 'prospect-updated' && e.data.prospect) {
-                const updated = e.data.prospect;
-                const idx = prospects.findIndex(p => p.id === updated.id);
-                if (idx >= 0) {
-                    prospects[idx] = updated;
-                    // Re-render that card
-                    const card = track.children[idx];
-                    if (card) {
-                        card.innerHTML = buildCardHtml(updated, idx);
-                    }
-                }
-            }
-        };
+    function haptic(ms) {
+        try { if (navigator.vibrate) navigator.vibrate(ms || 10); } catch (e) {}
     }
 
-    // Go
+    // ── Visibility sync ──
+    function setupVisibilitySync() {
+        var lastSync = 0;
+        document.addEventListener('visibilitychange', async function () {
+            if (document.hidden || !token || saving) return;
+            var now = Date.now();
+            if (now - lastSync < 5000) return;
+            lastSync = now;
+            try {
+                var res = await fetch('/api/mode-prosp/data?t=' + encodeURIComponent(token));
+                if (!res.ok) return;
+                var payload = await res.json();
+                if (!payload.ok) return;
+                var fresh = Array.isArray(payload.prospects) ? payload.prospects : [];
+                companies = Array.isArray(payload.companies) ? payload.companies : [];
+                // Update prospects data
+                fresh.forEach(function (fp) {
+                    var idx = prospects.findIndex(function (p) { return p.id === fp.id; });
+                    if (idx >= 0) prospects[idx] = fp;
+                });
+                // Re-render current card with fresh data
+                renderCurrentCard();
+                updateUI();
+            } catch (e) {}
+        });
+    }
+
     init();
 })();
 
@@ -336,5 +411,5 @@ function mpLogCall(prospectId) {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prospect_id: prospectId }),
-    }).catch(() => {});
+    }).catch(function () {});
 }

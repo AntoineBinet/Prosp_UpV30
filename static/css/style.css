@@ -4559,23 +4559,34 @@ body[data-page="prospects"] .table-wrapper td:nth-child(3) {
   opacity: 1;
 }
 
-/* ========== MODE PROSP LAUNCH BUTTON ========== */
-.mode-prosp-launch {
-  margin-bottom: 12px;
-}
+/* ========== MODE PROSP BUTTON (toolbar) ========== */
 .mode-prosp-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 8px 18px;
-  border-radius: 10px;
+  padding: 7px 14px;
+  border-radius: 8px;
   transition: opacity .2s, background .2s;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mode-prosp-btn:hover {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
 }
 .mode-prosp-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
+}
+@media (max-width: 900px) {
+  .mode-prosp-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
 }
 
 /* ========== KANBAN BOARD ========== */

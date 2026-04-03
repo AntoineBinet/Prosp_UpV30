@@ -5750,38 +5750,43 @@ function resetFilters() {
     filterProspects();
 }
 
-// Mode Prosp — launch in new tab
-function launchModeProsp() {
+// Mode Prosp — launch in new tab (server-side token)
+async function launchModeProsp() {
     const ids = (Array.isArray(filteredProspects) ? filteredProspects : []).map(p => p.id);
     if (!ids.length) {
         if (typeof showToast === 'function') showToast('Aucun prospect à afficher avec les filtres actuels.', 'warning');
         return;
     }
-    try { sessionStorage.setItem('prospup_mode_prosp_ids', JSON.stringify(ids)); } catch (e) {}
-    window.open('/prospects/mode-prosp', '_blank');
+    try {
+        const res = await fetch('/api/mode-prosp/start', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: ids })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const result = await res.json();
+        if (!result.ok || !result.token) throw new Error(result.error || 'Erreur');
+        window.open('/prospects/mode-prosp?t=' + encodeURIComponent(result.token), '_blank');
+    } catch (e) {
+        console.error('Mode Prosp start error:', e);
+        if (typeof showToast === 'function') showToast('Erreur lors du lancement du Mode Prosp.', 'error');
+    }
 }
 
-// BroadcastChannel for Mode Prosp sync
+// Sync with Mode Prosp: re-fetch data when main tab regains focus
 (function() {
-    if (typeof BroadcastChannel === 'undefined') return;
-    const bc = new BroadcastChannel('prospup-mode-prosp');
-    bc.onmessage = function(e) {
-        if (!e.data || e.data.source === 'main') return;
-        if (e.data.type === 'prospect-updated' && e.data.prospect) {
-            const updated = e.data.prospect;
-            const idx = data.prospects.findIndex(p => p.id === updated.id);
-            if (idx >= 0) {
-                data.prospects[idx] = updated;
-                if (typeof filterProspects === 'function') filterProspects();
-                // Refresh detail modal if open on same prospect
-                const modal = document.getElementById('modalDetail');
-                if (modal && modal.classList.contains('active') && window._currentDetailProspectId === updated.id) {
-                    viewDetail(updated.id);
-                }
-            }
-        }
-    };
-    window._prospModeBroadcast = bc;
+    var _lastVisibilityRefresh = 0;
+    document.addEventListener('visibilitychange', async function() {
+        if (document.hidden) return;
+        // Only refresh if we're on the prospects page and not too frequent (min 5s)
+        if (!document.getElementById('btnModeProsp')) return;
+        var now = Date.now();
+        if (now - _lastVisibilityRefresh < 5000) return;
+        _lastVisibilityRefresh = now;
+        var ok = await loadFromServer();
+        if (ok && typeof filterProspects === 'function') filterProspects();
+    });
 })();
 
 function switchTableKanban(mode) {
@@ -6037,11 +6042,6 @@ function saveDetail(id, options = {}) {
 
     if (closeAfterSave) {
         closeDetail();
-    }
-
-    // Broadcast to Mode Prosp tab
-    if (window._prospModeBroadcast) {
-        window._prospModeBroadcast.postMessage({ type: 'prospect-updated', prospect: { ...prospect }, source: 'main' });
     }
 
     return true;
@@ -11053,13 +11053,6 @@ function closeDetail(options = {}) {
         window.closeModal(modal);
     } else {
         modal.classList.remove('active');
-    }
-    // Broadcast to Mode Prosp tab if detail was saved
-    if (window._prospModeBroadcast && window._currentDetailProspectId) {
-        const p = data.prospects.find(pr => pr.id === window._currentDetailProspectId);
-        if (p) {
-            window._prospModeBroadcast.postMessage({ type: 'prospect-updated', prospect: p, source: 'main' });
-        }
     }
 }
 
