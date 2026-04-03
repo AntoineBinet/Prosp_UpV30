@@ -663,6 +663,7 @@ async function loadCharts() {
 
     // ═══ Additional Charts (v16.5) ═══
     try {
+        const colors = chartColors();
         // Funnel chart - conversion rates by status
         {
             destroyChart('chartFunnel');
