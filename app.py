@@ -7904,9 +7904,9 @@ def api_stats_charts():
     today_iso = _today_iso()
 
     with _conn() as conn:
-        # 1) Status distribution — prospects de l'utilisateur uniquement
+        # 1) Status distribution — prospects de l'utilisateur uniquement (hors supprimés)
         status_rows = conn.execute(
-            "SELECT statut, COUNT(*) AS n FROM prospects WHERE owner_id=? GROUP BY statut ORDER BY n DESC;",
+            "SELECT statut, COUNT(*) AS n FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') GROUP BY statut ORDER BY n DESC;",
             (uid,),
         ).fetchall()
         status_dist = {r["statut"]: r["n"] for r in status_rows}
@@ -7924,7 +7924,8 @@ def api_stats_charts():
             label = f"S{mon.isocalendar()[1]}"
             weeks.append({"label": label, "count": count})
 
-        # 3) RDV won per month (last 6 months) - based on lastContact of RDV prospects
+        # 3) RDV pris par mois (6 derniers mois) — source primaire : prospect_events rdv_taken
+        #    fallback : lastContact des prospects RDV sans événement (rétro-compatibilité)
         months_rdv = []
         for i in range(5, -1, -1):
             first = (today.replace(day=1) - datetime.timedelta(days=i * 28)).replace(day=1)
@@ -7933,8 +7934,26 @@ def api_stats_charts():
             else:
                 last = first.replace(month=first.month + 1, day=1) - datetime.timedelta(days=1)
             count = conn.execute(
-                "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous' AND lastContact >= ? AND lastContact <= ?;",
-                (uid, first.isoformat(), last.isoformat()),
+                """SELECT COUNT(DISTINCT pid) AS n FROM (
+                     SELECT e.prospect_id AS pid
+                     FROM prospect_events e
+                     JOIN prospects p ON p.id=e.prospect_id
+                     WHERE p.owner_id=? AND e.type='rdv_taken'
+                       AND substr(e.date,1,10)>=? AND substr(e.date,1,10)<=?
+                       AND (p.deleted_at IS NULL OR p.deleted_at='')
+                     UNION
+                     SELECT p.id AS pid
+                     FROM prospects p
+                     WHERE p.owner_id=? AND p.statut='Rendez-vous'
+                       AND (p.deleted_at IS NULL OR p.deleted_at='')
+                       AND p.lastContact>=? AND p.lastContact<=?
+                       AND NOT EXISTS (
+                         SELECT 1 FROM prospect_events e2
+                         WHERE e2.prospect_id=p.id AND e2.type='rdv_taken'
+                       )
+                   )""",
+                (uid, first.isoformat(), last.isoformat(),
+                 uid, first.isoformat(), last.isoformat()),
             ).fetchone()["n"]
             months_rdv.append({"label": first.strftime("%b %Y"), "count": count})
 
@@ -12867,9 +12886,9 @@ def api_dashboard():
         return jsonify(ok=False, error="Non authentifié"), 401
 
     with _conn() as conn:
-        prospects = conn.execute("SELECT * FROM prospects WHERE owner_id=?;", (uid,)).fetchall()
+        prospects = conn.execute("SELECT * FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)).fetchall()
         push_logs = conn.execute(
-            "SELECT l.* FROM push_logs l JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=?;",
+            "SELECT l.* FROM push_logs l JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=? AND (p.deleted_at IS NULL OR p.deleted_at='');",
             (uid,),
         ).fetchall()
         goals_cfg = _get_goals_config(conn)
