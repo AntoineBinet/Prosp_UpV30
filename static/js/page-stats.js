@@ -376,6 +376,7 @@ async function loadStats() {
 
     // KPI Cards
     if (cards) {
+        cards.innerHTML = '';
         cards.appendChild(statCard('Prospects', s.totals?.prospects ?? 0));
         cards.appendChild(statCard('Entreprises', s.totals?.companies ?? 0));
         const sub = (s?.range?.mode === 'all') ? 'All time' : ((from && to) ? `${from} → ${to}` : '');

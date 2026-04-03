@@ -7048,7 +7048,7 @@ def api_stats():
             ).fetchone()["n"]
 
         call_rows = conn.execute(
-            "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '';",
+            "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '' AND (deleted_at IS NULL OR deleted_at = '');",
             (uid,),
         ).fetchall()
         call_notes = 0
@@ -7223,7 +7223,7 @@ def api_stats_insights():
         
         # Call notes (période actuelle)
         call_rows = conn.execute(
-            "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '';",
+            "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '' AND (deleted_at IS NULL OR deleted_at = '');",
             (uid,),
         ).fetchall()
         call_notes = 0
