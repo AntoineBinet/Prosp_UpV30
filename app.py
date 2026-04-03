@@ -6255,13 +6255,14 @@ def _generate_candidate_description_ai(candidate: dict, uid: int) -> str:
 
 La description doit :
 - Commencer par le prénom en gras HTML : <b>{prenom}</b>
-- Mentionner le titre/poste et les années d'expérience
+- Mentionner le vrai titre du poste (ingénieur, développeur, architecte, chef de projet…) et les années d'expérience
 - Détailler les domaines d'intervention spécifiques, technologies et compétences clés
 - Être fluide, professionnelle et convaincante
 - Être en français
+- Ne jamais utiliser le terme « consultant » — utilise le vrai titre du poste (ingénieur, développeur, architecte, etc.)
 
 Exemple de style attendu :
-"<b>Baptiste</b>, consultant en ingénierie système avec 5 ans d'expérience, intervenu notamment sur des systèmes embarqués, de télécommunications et des projets IoT, avec une forte expertise en rédaction d'exigences, définition d'architecture et activités IVVQ."
+"<b>Baptiste</b>, ingénieur systèmes embarqués avec 5 ans d'expérience, intervenu notamment sur des systèmes embarqués, de télécommunications et des projets IoT, avec une forte expertise en rédaction d'exigences, définition d'architecture et activités IVVQ."
 
 Dossier de compétences :
 {pdf_text}
@@ -6481,7 +6482,11 @@ def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidate
     # Lire le corps HTML du template .msg via extract-msg
     try:
         import extract_msg  # type: ignore
-        with extract_msg.Message(str(template_path)) as msg_obj:
+        try:
+            msg_obj = extract_msg.Message(str(template_path), strict=False)
+        except TypeError:
+            msg_obj = extract_msg.Message(str(template_path))
+        with msg_obj:
             html_body = msg_obj.htmlBody or ""
             if isinstance(html_body, bytes):
                 html_body = html_body.decode("utf-8", errors="replace")
@@ -6540,7 +6545,11 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
     subject = "Candidats disponibles"
     try:
         import extract_msg  # type: ignore
-        with extract_msg.Message(str(template_path)) as msg_obj:
+        try:
+            msg_obj = extract_msg.Message(str(template_path), strict=False)
+        except TypeError:
+            msg_obj = extract_msg.Message(str(template_path))
+        with msg_obj:
             html_body = msg_obj.htmlBody or ""
             if isinstance(html_body, bytes):
                 # Essayer plusieurs encodages courants dans les .msg
@@ -6565,6 +6574,13 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
         raise ValueError("Le module extract-msg n'est pas installé. Installez-le avec: pip install extract-msg")
     except Exception as e:
         logger.error("Erreur lecture template .msg (%s): %s", template_path, e)
+        # Distinguer les erreurs CRC/corruption pour un message plus utile
+        err_str = str(e)
+        if "CRC" in err_str or "corrupt" in err_str.lower() or "invalid" in err_str.lower():
+            raise ValueError(
+                "Template .msg corrompu (CRC invalide) — veuillez le ré-exporter depuis Outlook "
+                "via Fichier > Enregistrer sous > Format .msg et le ré-uploader."
+            )
         raise ValueError(f"Impossible de lire le template .msg: {e}")
 
     if not html_body.strip():
