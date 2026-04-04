@@ -7078,36 +7078,27 @@ async function generatePush(prospectId) {
             return;
         }
 
-        const blob = await res.blob();
-        if (!blob || blob.size === 0) {
-            showToast('❌ Le fichier généré est vide', 'error');
-            return;
-        }
-
-        // Nom du fichier depuis le header Content-Disposition ou fallback
-        const cd = res.headers.get('content-disposition') || '';
-        const fnMatch = cd.match(/filename[^;=\n]*=(['\"]?)([^'\";\n]*)\1/);
-        const downloadName = fnMatch ? fnMatch[2] : `push_${prospect.name}.msg`;
-
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = downloadName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        // Copier l'email dans le presse-papier si disponible
-        if (prospect.email) {
-            try {
-                await navigator.clipboard.writeText(prospect.email);
-                showToast('Push généré ! Email copié dans le presse-papier', 'success');
-            } catch (e) {
-                showToast('Push généré ! (Erreur copie email)', 'success');
-            }
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+            // Outlook a ouvert le mail directement → réponse JSON
+            const data = await res.json();
+            showToast(data.message || 'Email ouvert dans Outlook', 'success', 5000);
         } else {
-            showToast('Push généré !', 'success');
+            // Fallback .eml → téléchargement du fichier
+            const blob = await res.blob();
+            if (!blob || blob.size === 0) {
+                showToast('❌ Le fichier généré est vide', 'error');
+                return;
+            }
+            const cd = res.headers.get('content-disposition') || '';
+            const fnMatch = cd.match(/filename[^;=\n]*=(['\"]?)([^'\";\n]*)\1/);
+            const downloadName = fnMatch ? fnMatch[2] : `push_${prospect.name}.eml`;
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = downloadName;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            showToast('Email téléchargé (.eml) — ouvrir pour envoyer', 'success');
         }
     } catch (e) {
         console.error('Erreur génération push:', e);
@@ -7425,27 +7416,23 @@ async function generatePushFromTab(prospectId) {
             return;
         }
 
-        const blob = await res.blob();
-        if (!blob || blob.size === 0) { showToast('❌ Fichier généré vide', 'error'); return; }
-
-        // Nom du fichier depuis le header Content-Disposition ou fallback
-        const cd2 = res.headers.get('content-disposition') || '';
-        const fnMatch2 = cd2.match(/filename[^;=\n]*=(['\"]?)([^'\";\n]*)\1/);
-        const downloadName2 = fnMatch2 ? fnMatch2[2] : `push_${prospect.name}.msg`;
-
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href = url; a.download = downloadName2;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        // Copier l'email du prospect dans le presse-papier
-        let emailCopied = false;
-        if (prospect.email) {
-            try {
-                await navigator.clipboard.writeText(prospect.email);
-                emailCopied = true;
-            } catch (_) { /* permission refusée ou contexte non sécurisé */ }
+        const ct2 = res.headers.get('content-type') || '';
+        if (ct2.includes('application/json')) {
+            // Outlook a ouvert le mail directement
+            const data = await res.json();
+            showToast(data.message || 'Email ouvert dans Outlook', 'success', 5000);
+        } else {
+            // Fallback .eml → téléchargement
+            const blob = await res.blob();
+            if (!blob || blob.size === 0) { showToast('❌ Fichier généré vide', 'error'); return; }
+            const cd2 = res.headers.get('content-disposition') || '';
+            const fnMatch2 = cd2.match(/filename[^;=\n]*=(['\"]?)([^'\";\n]*)\1/);
+            const downloadName2 = fnMatch2 ? fnMatch2[2] : `push_${prospect.name}.eml`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = downloadName2;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
 
         // Feedback succès sur le bouton Email de l'en-tête

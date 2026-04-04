@@ -6075,13 +6075,29 @@ def api_push_generate():
             dc_path = _resolve_dc_path(cand, uid)
             if dc_path:
                 attachment_paths.append(dc_path)
+                logger.info("DC résolu pour %s: %s", cand.get('name', '?'), dc_path)
+            else:
+                logger.info("Pas de DC pour %s (dossier_competence_pdf=%s)",
+                           cand.get('name', '?'), cand.get('dossier_competence_pdf', 'None'))
 
-        # v28.x: Email personnalisé avec PJ intégrées (.msg ou .eml)
-        email_bytes, email_filename = _generate_personalized_email(
-            template_path, prospect_dict, candidates_data, attachment_paths
-        )
-        # Avertissement si email prospect absent
         missing_email = not prospect_dict.get("email", "").strip()
+
+        # Méthode 1 : Outlook disponible → ouvrir directement dans Outlook (mode rédaction)
+        if OUTLOOK_AVAILABLE:
+            try:
+                result = _open_in_outlook(template_path, prospect_dict, candidates_data, attachment_paths)
+                msg = f"Email ouvert dans Outlook ({result['pj_count']} PJ)"
+                if missing_email:
+                    msg += " ⚠️ Email prospect manquant"
+                if result.get("pj_errors"):
+                    msg += f" — PJ en erreur: {', '.join(result['pj_errors'])}"
+                return jsonify(ok=True, method="outlook", message=msg, **result)
+            except Exception as e:
+                logger.warning("Échec ouverture Outlook (%s), fallback .eml", e)
+
+        # Méthode 2 : Fallback .eml avec PJ intégrées (téléchargement)
+        email_bytes = _generate_eml_file(template_path, prospect_dict, candidates_data, attachment_paths)
+        email_filename = template_path.stem + "_personnalise.eml"
 
         import io
         response = send_file(
@@ -6593,59 +6609,62 @@ def _personalize_html_body(template_path: Path, prospect_data: dict, candidates_
     return html_body, subject
 
 
-def _personalize_msg_outlook(template_path: Path, prospect_data: dict,
-                              candidates_data: list, attachment_paths: list[Path] | None = None) -> bytes:
+def _open_in_outlook(template_path: Path, prospect_data: dict,
+                     candidates_data: list, attachment_paths: list[Path] | None = None) -> dict:
     """
-    Méthode principale (si Outlook installé) :
-    Crée un nouveau MailItem Outlook via win32com avec PJ intégrées.
-    Le .msg s'ouvre en mode brouillon (envoyable directement).
+    Ouvre directement l'email dans Outlook en mode rédaction (Display).
+    L'email est prêt à envoyer : destinataire, sujet, corps HTML, PJ.
+    Retourne un dict avec les infos (succès, nb PJ, etc.).
     """
     import win32com.client  # type: ignore
-    import tempfile
+    import pythoncom  # type: ignore
 
-    to_email = prospect_data.get("email", "")
-
+    # Initialiser COM pour ce thread (nécessaire si appelé depuis un thread serveur)
+    pythoncom.CoInitialize()
     try:
+        to_email = prospect_data.get("email", "")
         html_body, subject = _personalize_html_body(template_path, prospect_data, candidates_data)
-    except Exception as e:
-        logger.warning("Personnalisation HTML échouée (%s), fallback .eml", e)
-        return _personalize_eml(template_path, prospect_data, candidates_data, attachment_paths)
 
-    # Créer le .msg via win32com — MailItem non-envoyé = s'ouvre en mode brouillon
-    outlook = win32com.client.Dispatch("Outlook.Application")
-    mail = outlook.CreateItem(0)  # olMailItem = 0
-    mail.To = to_email
-    mail.Subject = subject
-    mail.HTMLBody = html_body
+        outlook = win32com.client.Dispatch("Outlook.Application")
+        mail = outlook.CreateItem(0)  # olMailItem = 0
+        mail.To = to_email
+        mail.Subject = subject
+        mail.HTMLBody = html_body
 
-    # Ajouter les pièces jointes (DC candidats)
-    if attachment_paths:
-        for att_path in attachment_paths:
-            try:
-                mail.Attachments.Add(str(att_path.resolve()))
-            except Exception as e:
-                logger.warning("Erreur ajout PJ %s: %s", att_path.name, e)
+        # Ajouter les pièces jointes (DC candidats)
+        pj_count = 0
+        pj_errors = []
+        if attachment_paths:
+            for att_path in attachment_paths:
+                try:
+                    abs_path = str(att_path.resolve())
+                    mail.Attachments.Add(abs_path)
+                    pj_count += 1
+                    logger.info("PJ ajoutée: %s", att_path.name)
+                except Exception as e:
+                    pj_errors.append(att_path.name)
+                    logger.warning("Erreur ajout PJ %s: %s", att_path.name, e)
 
-    with tempfile.NamedTemporaryFile(suffix='.msg', delete=False) as tmp:
-        out_path = Path(tmp.name)
+        # Afficher dans Outlook en mode rédaction (prêt à envoyer)
+        mail.Display(False)  # False = non modal
 
-    mail.SaveAs(str(out_path), 3)  # 3 = olMSG
-    mail_bytes = out_path.read_bytes()
+        return {
+            "ok": True,
+            "method": "outlook",
+            "to": to_email,
+            "subject": subject,
+            "pj_count": pj_count,
+            "pj_errors": pj_errors
+        }
+    finally:
+        pythoncom.CoUninitialize()
 
-    try:
-        out_path.unlink()
-    except Exception:
-        pass
 
-    return mail_bytes
-
-
-def _personalize_eml(template_path: Path, prospect_data: dict,
-                      candidates_data: list, attachment_paths: list[Path] | None = None) -> bytes:
+def _generate_eml_file(template_path: Path, prospect_data: dict,
+                        candidates_data: list, attachment_paths: list[Path] | None = None) -> bytes:
     """
-    Méthode fallback (.eml RFC 2822) si Outlook n'est pas installé.
-    S'ouvre dans Outlook, Thunderbird et la plupart des clients mail.
-    Inclut les PJ (DC candidats) directement dans l'email.
+    Génère un .eml (RFC 2822) avec PJ intégrées.
+    Fallback quand Outlook n'est pas disponible.
     """
     import email as email_lib
     import email.mime.multipart
@@ -6654,15 +6673,9 @@ def _personalize_eml(template_path: Path, prospect_data: dict,
     import email.encoders
 
     to_email = prospect_data.get("email", "")
+    html_body, subject = _personalize_html_body(template_path, prospect_data, candidates_data)
 
-    try:
-        html_body, subject = _personalize_html_body(template_path, prospect_data, candidates_data)
-    except ImportError:
-        raise ValueError("olefile ou RTFDE non installé. pip install olefile RTFDE extract-msg")
-    except Exception as e:
-        raise ValueError(f"Impossible de lire le template .msg: {e}")
-
-    # Construire le .eml — mixed (HTML + PJ) pour supporter les attachments
+    # Construire le .eml — mixed (HTML + PJ)
     msg_eml = email_lib.mime.multipart.MIMEMultipart("mixed")
     msg_eml["From"] = ""
     msg_eml["To"] = to_email
@@ -6684,27 +6697,6 @@ def _personalize_eml(template_path: Path, prospect_data: dict,
                 logger.warning("Erreur ajout PJ .eml %s: %s", att_path.name, e)
 
     return msg_eml.as_bytes()
-
-
-def _generate_personalized_email(template_path: Path, prospect_data: dict,
-                                  candidates_data: list,
-                                  attachment_paths: list[Path] | None = None) -> tuple[bytes, str]:
-    """
-    Dispatche vers la méthode win32com (OUTLOOK_AVAILABLE=True) ou .eml (fallback).
-    Inclut les pièces jointes dans l'email.
-    Retourne (contenu_bytes, nom_fichier_avec_extension).
-    """
-    if OUTLOOK_AVAILABLE:
-        try:
-            content = _personalize_msg_outlook(template_path, prospect_data, candidates_data, attachment_paths)
-            filename = template_path.stem + "_personnalise.msg"
-            return content, filename
-        except Exception as e:
-            logger.warning("Échec personnalisation win32com (%s), fallback .eml", e)
-
-    content = _personalize_eml(template_path, prospect_data, candidates_data, attachment_paths)
-    filename = template_path.stem + "_personnalise.eml"
-    return content, filename
 
 
 # ────────────────────────────────────────────────────────────────────
