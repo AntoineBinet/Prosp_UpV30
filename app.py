@@ -6398,17 +6398,18 @@ def _apply_candidates(html_body: str, cand_lines: list) -> str:
         f'<p style="margin:5px 0 5px 20px;">&#8203;&ndash;&nbsp;{line}</p>' for line in cand_lines
     )
 
-    # Stratégie 1 : placeholders explicites [Prénom candidat N]
+    # Stratégie 1 : placeholders explicites [Prénom 1], [Prénom 2], [Prénom candidat N]
     placeholder_pat = re.compile(
-        r'(<li[^>]*>|<p[^>]*>|\*\s*|•\s*|-\s*)\[Pr[ée]nom\s+candidat\s*\d*\][^<\n]*(<\/li>|<\/p>|\n|<br\s*/?>|$)',
-        re.IGNORECASE
+        r'<li\b[^>]*>.*?\[Pr[ée]nom(?:\s+candidat)?\s*\d*\].*?</li>',
+        re.IGNORECASE | re.DOTALL
     )
-    if placeholder_pat.search(html_body):
-        for line in cand_lines:
-            html_body = placeholder_pat.sub(
-                lambda m, cl=line: m.group(1) + cl + m.group(2),
-                html_body, count=1
-            )
+    matches = list(placeholder_pat.finditer(html_body))
+    if matches:
+        new_lis = '\n'.join(f'<li>{line}</li>' for line in cand_lines)
+        # Remplacer tout le bloc (du premier au dernier placeholder <li>)
+        start = matches[0].start()
+        end = matches[-1].end()
+        html_body = html_body[:start] + new_lis + html_body[end:]
         return html_body
 
     # Stratégie 2 : remplacer le bloc entre "consultants disponibles :" et "Si ces profils"
@@ -6549,7 +6550,7 @@ def _extract_html_from_rtf(rtf: str) -> str:
                 raw = tm.group(1)
                 raw = re.sub(
                     r"\\'([0-9a-fA-F]{2})",
-                    lambda x: chr(int(x.group(1), 16)),
+                    lambda x: bytes([int(x.group(1), 16)]).decode('cp1252', errors='replace'),
                     raw
                 )
                 raw = raw.strip('\r\n')
@@ -6579,13 +6580,22 @@ def _read_msg_body_olefile(template_path: Path) -> tuple:
         raise ValueError(f"Impossible d'ouvrir le fichier .msg: {e}")
 
     try:
-        # 1. Sujet — PT_UNICODE (001F)
+        # 1. Sujet — PT_UNICODE (001F) puis PT_STRING8/ANSI (001E)
         if ole.exists('__substg1.0_0037001F'):
             raw = ole.openstream('__substg1.0_0037001F').read()
             try:
                 subject = raw.decode('utf-16-le').rstrip('\x00')
             except Exception:
                 subject = raw.decode('utf-8', errors='replace').rstrip('\x00')
+            # Corriger les artefacts cp1252 (C1 control chars 0x80-0x9F)
+            if any('\x80' <= c <= '\x9f' for c in subject):
+                subject = ''.join(
+                    bytes([ord(c)]).decode('cp1252', errors='replace') if '\x80' <= c <= '\x9f' else c
+                    for c in subject
+                )
+        elif ole.exists('__substg1.0_0037001E'):
+            raw = ole.openstream('__substg1.0_0037001E').read()
+            subject = raw.decode('cp1252', errors='replace').rstrip('\x00')
 
         # 2. Corps HTML direct — PT_BINARY (0102) puis PT_UNICODE (001F)
         if ole.exists('__substg1.0_10130102'):
