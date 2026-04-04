@@ -5965,26 +5965,25 @@ def api_push_category_delete_template(cat_id: int):
 
 @app.post("/api/push/generate")
 def api_push_generate():
-    """Génère un template rempli ou un ZIP avec template + dossiers de compétences.
-    
+    """Génère un email personnalisé (.msg/.eml) avec PJ intégrées (DC candidats).
+
     Reçoit: {
         "prospect_id": int,
         "category_id": int,
         "template_filename": str,
         "candidate_id1": int (optionnel),
         "candidate_id2": int (optionnel),
-        "format": "filled" | "zip" (défaut: "filled")
+        "ai_descriptions": bool (optionnel)
     }
-    
-    Retourne: fichier téléchargeable (template rempli ou ZIP)
+
+    Retourne: fichier .msg (Outlook) ou .eml (fallback) avec PJ intégrées
     """
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    
+
     payload = request.get_json(force=True, silent=True) or {}
     template_filename = payload.get("template_filename")
-    format_type = payload.get("format", "filled")  # "filled" ou "zip"
     
     # Validation des paramètres requis
     if not template_filename:
@@ -6070,77 +6069,30 @@ def api_push_generate():
                     logger.warning("Erreur enrichissement IA candidat: %s", e)
 
     try:
-        # v27.x: Personnalisation du template .msg (win32com ou .eml fallback)
+        # Résoudre les chemins des dossiers de compétences (PJ)
+        attachment_paths = []
+        for cand in candidates_data:
+            dc_path = _resolve_dc_path(cand, uid)
+            if dc_path:
+                attachment_paths.append(dc_path)
+
+        # v28.x: Email personnalisé avec PJ intégrées (.msg ou .eml)
         email_bytes, email_filename = _generate_personalized_email(
-            template_path, prospect_dict, candidates_data
+            template_path, prospect_dict, candidates_data, attachment_paths
         )
         # Avertissement si email prospect absent
         missing_email = not prospect_dict.get("email", "").strip()
 
-        if format_type == "filled":
-            import io
-            return send_file(
-                io.BytesIO(email_bytes),
-                mimetype='application/octet-stream',
-                as_attachment=True,
-                download_name=email_filename
-            )
-        else:  # format == "zip"
-            import tempfile
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_zip:
-                zip_path = Path(tmp_zip.name)
-
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # Ajouter le .msg personnalisé (ou .eml fallback)
-                zipf.writestr(email_filename, email_bytes)
-
-                # Ajouter les dossiers de compétences (PDF)
-                for cand in candidates_data:
-                    if cand.get("dossier_competence_pdf"):
-                        dc_path_str = cand["dossier_competence_pdf"]
-                        if not os.path.isabs(dc_path_str):
-                            dc_path = APP_DIR / "dossiers_competence" / dc_path_str
-                        else:
-                            dc_path = Path(dc_path_str)
-                        # Chercher aussi dans data/dossiers_candidats/{uid}/{cand_id}/
-                        if not dc_path.is_file():
-                            cand_id = cand.get("id")
-                            if cand_id:
-                                alt_path = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id) / Path(dc_path_str).name
-                                if alt_path.is_file():
-                                    dc_path = alt_path
-                        if dc_path.is_file():
-                            try:
-                                dc_resolved = dc_path.resolve()
-                                allowed_dirs = [
-                                    str((APP_DIR / "dossiers_competence").resolve()),
-                                    str(DATA_DIR.resolve())
-                                ]
-                                if any(str(dc_resolved).startswith(d.rstrip(os.sep) + os.sep) for d in allowed_dirs):
-                                    safe_name = "".join(c for c in cand['name'] if c.isalnum() or c in "._- ")
-                                    zipf.write(dc_path, f"DC_{safe_name}_{dc_path.name}")
-                            except Exception as e:
-                                logger.warning("Erreur ajout DC %s: %s", dc_path, e)
-
-            response = send_file(
-                str(zip_path),
-                mimetype='application/zip',
-                as_attachment=True,
-                download_name=f"push_{prospect_dict['name']}.zip"
-            )
-            # En-tête informatif si email manquant
-            if missing_email:
-                response.headers['X-Warning'] = 'prospect-email-missing'
-            # Nettoyer le zip temporaire
-            def _cleanup_zip():
-                time.sleep(5)
-                try:
-                    if zip_path.exists():
-                        zip_path.unlink()
-                except Exception:
-                    pass
-            threading.Thread(target=_cleanup_zip, daemon=True).start()
-            return response
+        import io
+        response = send_file(
+            io.BytesIO(email_bytes),
+            mimetype='application/octet-stream',
+            as_attachment=True,
+            download_name=email_filename
+        )
+        if missing_email:
+            response.headers['X-Warning'] = 'prospect-email-missing'
+        return response
     except Exception as e:
         logger.exception("Erreur génération push")
         return jsonify(ok=False, error=str(e)), 500
@@ -6586,41 +6538,93 @@ def _read_msg_body(template_path: Path) -> tuple:
     return html_body, subject
 
 
-def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidates_data: list) -> bytes:
-    """
-    Méthode principale (si Outlook installé) :
-    Lit le .msg source via olefile, fait les substitutions HTML,
-    puis crée un nouveau MailItem Outlook via win32com.
-    """
-    import win32com.client  # type: ignore
-    import tempfile
+def _resolve_dc_path(cand: dict, uid: int) -> Path | None:
+    """Résout le chemin du dossier de compétence PDF d'un candidat."""
+    dc_path_str = cand.get("dossier_competence_pdf")
+    if not dc_path_str:
+        return None
+    if not os.path.isabs(dc_path_str):
+        dc_path = APP_DIR / "dossiers_competence" / dc_path_str
+    else:
+        dc_path = Path(dc_path_str)
+    # Chercher aussi dans data/dossiers_candidats/{uid}/{cand_id}/
+    if not dc_path.is_file():
+        cand_id = cand.get("id")
+        if cand_id:
+            alt_path = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id) / Path(dc_path_str).name
+            if alt_path.is_file():
+                dc_path = alt_path
+    if not dc_path.is_file():
+        return None
+    # Vérification sécurité : chemin dans un répertoire autorisé
+    try:
+        dc_resolved = dc_path.resolve()
+        allowed_dirs = [
+            str((APP_DIR / "dossiers_competence").resolve()),
+            str(DATA_DIR.resolve())
+        ]
+        if not any(str(dc_resolved).startswith(d.rstrip(os.sep) + os.sep) for d in allowed_dirs):
+            return None
+    except Exception:
+        return None
+    return dc_path
 
+
+def _personalize_html_body(template_path: Path, prospect_data: dict, candidates_data: list) -> tuple[str, str]:
+    """
+    Lit un template .msg et applique les substitutions (salutation, candidats, signature).
+    Retourne (html_body, subject).
+    """
     nom_complet = prospect_data.get("name", "")
     parts = nom_complet.split()
     civilite = prospect_data.get("civilite", "M.")
     nom = parts[-1] if parts else nom_complet
-    to_email = prospect_data.get("email", "")
 
-    # Lire le corps HTML du template .msg via olefile
-    try:
-        html_body, subject = _read_msg_body(template_path)
-    except Exception as e:
-        logger.warning("Lecture .msg olefile échouée (%s), fallback .eml", e)
-        return _personalize_eml(template_path, prospect_data, candidates_data)
+    html_body, subject = _read_msg_body(template_path)
+    if not html_body.strip():
+        raise ValueError("Le template .msg ne contient pas de corps HTML exploitable")
 
-    # Substitutions partagées via helpers
     html_body = _apply_salutation(html_body, civilite, nom)
     if candidates_data:
         cand_lines = _build_candidate_descriptions(candidates_data)
         html_body = _apply_candidates(html_body, cand_lines)
     html_body = _remove_signature(html_body)
 
-    # Créer le .msg via win32com
+    return html_body, subject
+
+
+def _personalize_msg_outlook(template_path: Path, prospect_data: dict,
+                              candidates_data: list, attachment_paths: list[Path] | None = None) -> bytes:
+    """
+    Méthode principale (si Outlook installé) :
+    Crée un nouveau MailItem Outlook via win32com avec PJ intégrées.
+    Le .msg s'ouvre en mode brouillon (envoyable directement).
+    """
+    import win32com.client  # type: ignore
+    import tempfile
+
+    to_email = prospect_data.get("email", "")
+
+    try:
+        html_body, subject = _personalize_html_body(template_path, prospect_data, candidates_data)
+    except Exception as e:
+        logger.warning("Personnalisation HTML échouée (%s), fallback .eml", e)
+        return _personalize_eml(template_path, prospect_data, candidates_data, attachment_paths)
+
+    # Créer le .msg via win32com — MailItem non-envoyé = s'ouvre en mode brouillon
     outlook = win32com.client.Dispatch("Outlook.Application")
     mail = outlook.CreateItem(0)  # olMailItem = 0
     mail.To = to_email
     mail.Subject = subject
     mail.HTMLBody = html_body
+
+    # Ajouter les pièces jointes (DC candidats)
+    if attachment_paths:
+        for att_path in attachment_paths:
+            try:
+                mail.Attachments.Add(str(att_path.resolve()))
+            except Exception as e:
+                logger.warning("Erreur ajout PJ %s: %s", att_path.name, e)
 
     with tempfile.NamedTemporaryFile(suffix='.msg', delete=False) as tmp:
         out_path = Path(tmp.name)
@@ -6636,66 +6640,69 @@ def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidate
     return mail_bytes
 
 
-def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: list) -> bytes:
+def _personalize_eml(template_path: Path, prospect_data: dict,
+                      candidates_data: list, attachment_paths: list[Path] | None = None) -> bytes:
     """
     Méthode fallback (.eml RFC 2822) si Outlook n'est pas installé.
     S'ouvre dans Outlook, Thunderbird et la plupart des clients mail.
-    Lit le template .msg via olefile, fait les substitutions, reconstruit un .eml propre.
+    Inclut les PJ (DC candidats) directement dans l'email.
     """
     import email as email_lib
     import email.mime.multipart
     import email.mime.text
-    import re
+    import email.mime.base
+    import email.encoders
 
-    nom_complet = prospect_data.get("name", "")
-    parts = nom_complet.split()
-    civilite = prospect_data.get("civilite", "M.")
-    nom = parts[-1] if parts else nom_complet
     to_email = prospect_data.get("email", "")
 
-    # Lire le corps du template .msg via olefile
     try:
-        html_body, subject = _read_msg_body(template_path)
+        html_body, subject = _personalize_html_body(template_path, prospect_data, candidates_data)
     except ImportError:
-        logger.error("olefile non installé — impossible de lire le template .msg")
-        raise ValueError("Le module olefile n'est pas installé. Installez-le avec: pip install olefile")
+        raise ValueError("olefile ou RTFDE non installé. pip install olefile RTFDE extract-msg")
     except Exception as e:
-        logger.error("Erreur lecture template .msg (%s): %s", template_path, e)
         raise ValueError(f"Impossible de lire le template .msg: {e}")
 
-    if not html_body.strip():
-        raise ValueError("Le template .msg ne contient pas de corps HTML exploitable")
-
-    html_body = _apply_salutation(html_body, civilite, nom)
-    if candidates_data:
-        cand_lines = _build_candidate_descriptions(candidates_data)
-        html_body = _apply_candidates(html_body, cand_lines)
-    html_body = _remove_signature(html_body)
-
-    # Construire le .eml propre
-    msg_eml = email_lib.mime.multipart.MIMEMultipart("alternative")
+    # Construire le .eml — mixed (HTML + PJ) pour supporter les attachments
+    msg_eml = email_lib.mime.multipart.MIMEMultipart("mixed")
     msg_eml["From"] = ""
     msg_eml["To"] = to_email
     msg_eml["Subject"] = subject
+    msg_eml["X-Unsent"] = "1"  # Indique au client mail que c'est un brouillon non-envoyé
     msg_eml.attach(email_lib.mime.text.MIMEText(html_body, "html", "utf-8"))
+
+    # Ajouter les pièces jointes (DC candidats)
+    if attachment_paths:
+        for att_path in attachment_paths:
+            try:
+                att_data = att_path.read_bytes()
+                part = email_lib.mime.base.MIMEBase("application", "pdf")
+                part.set_payload(att_data)
+                email_lib.encoders.encode_base64(part)
+                part.add_header("Content-Disposition", "attachment", filename=att_path.name)
+                msg_eml.attach(part)
+            except Exception as e:
+                logger.warning("Erreur ajout PJ .eml %s: %s", att_path.name, e)
 
     return msg_eml.as_bytes()
 
 
-def _generate_personalized_email(template_path: Path, prospect_data: dict, candidates_data: list) -> tuple[bytes, str]:
+def _generate_personalized_email(template_path: Path, prospect_data: dict,
+                                  candidates_data: list,
+                                  attachment_paths: list[Path] | None = None) -> tuple[bytes, str]:
     """
     Dispatche vers la méthode win32com (OUTLOOK_AVAILABLE=True) ou .eml (fallback).
+    Inclut les pièces jointes dans l'email.
     Retourne (contenu_bytes, nom_fichier_avec_extension).
     """
     if OUTLOOK_AVAILABLE:
         try:
-            content = _personalize_msg_outlook(template_path, prospect_data, candidates_data)
+            content = _personalize_msg_outlook(template_path, prospect_data, candidates_data, attachment_paths)
             filename = template_path.stem + "_personnalise.msg"
             return content, filename
         except Exception as e:
             logger.warning("Échec personnalisation win32com (%s), fallback .eml", e)
 
-    content = _personalize_eml(template_path, prospect_data, candidates_data)
+    content = _personalize_eml(template_path, prospect_data, candidates_data, attachment_paths)
     filename = template_path.stem + "_personnalise.eml"
     return content, filename
 

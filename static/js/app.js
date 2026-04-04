@@ -7061,11 +7061,10 @@ async function generatePush(prospectId) {
                 template_filename: templateName,
                 candidate_id1: candidateId1,
                 candidate_id2: candidateId2,
-                format: 'zip',
                 ai_descriptions: true
             })
         });
-        
+
         if (!res.ok) {
             let errorMsg = `Erreur HTTP ${res.status}`;
             try {
@@ -7078,17 +7077,22 @@ async function generatePush(prospectId) {
             showToast(`❌ Erreur lors de la génération du push: ${errorMsg}`, 'error', 6000);
             return;
         }
-        
+
         const blob = await res.blob();
         if (!blob || blob.size === 0) {
             showToast('❌ Le fichier généré est vide', 'error');
             return;
         }
-        
+
+        // Nom du fichier depuis le header Content-Disposition ou fallback
+        const cd = res.headers.get('content-disposition') || '';
+        const fnMatch = cd.match(/filename[^;=\n]*=(['\"]?)([^'\";\n]*)\1/);
+        const downloadName = fnMatch ? fnMatch[2] : `push_${prospect.name}.msg`;
+
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `push_${prospect.name}_${Date.now()}.zip`;
+        a.download = downloadName;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -7410,7 +7414,6 @@ async function generatePushFromTab(prospectId) {
                 template_filename: templateName,
                 candidate_id1: candidateId1,
                 candidate_id2: candidateId2,
-                format: 'zip',
                 ai_descriptions: true
             })
         });
@@ -7425,9 +7428,14 @@ async function generatePushFromTab(prospectId) {
         const blob = await res.blob();
         if (!blob || blob.size === 0) { showToast('❌ Fichier généré vide', 'error'); return; }
 
+        // Nom du fichier depuis le header Content-Disposition ou fallback
+        const cd2 = res.headers.get('content-disposition') || '';
+        const fnMatch2 = cd2.match(/filename[^;=\n]*=(['\"]?)([^'\";\n]*)\1/);
+        const downloadName2 = fnMatch2 ? fnMatch2[2] : `push_${prospect.name}.msg`;
+
         const url = URL.createObjectURL(blob);
         const a   = document.createElement('a');
-        a.href = url; a.download = `push_${prospect.name}_${Date.now()}.zip`;
+        a.href = url; a.download = downloadName2;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
