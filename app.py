@@ -6399,8 +6399,9 @@ def _apply_candidates(html_body: str, cand_lines: list) -> str:
     )
 
     # Stratégie 1 : placeholders explicites [Prénom 1], [Prénom 2], [Prénom candidat N]
+    # Gère aussi les artefacts RTF (*\t devant le texte dans les <li>)
     placeholder_pat = re.compile(
-        r'<li\b[^>]*>.*?\[Pr[ée]nom(?:\s+candidat)?\s*\d*\].*?</li>',
+        r'<li\b[^>]*>(?:\s*\*[\t\s]*)?(.*?\[Pr[ée]nom(?:\s+candidat)?\s*\d*\].*?)</li>',
         re.IGNORECASE | re.DOTALL
     )
     matches = list(placeholder_pat.finditer(html_body))
@@ -6465,139 +6466,35 @@ def _remove_signature(html_body: str) -> str:
     return html_body[:cut]
 
 
-def _decompress_lzfu(data: bytes) -> bytes:
-    """Décompresse un corps RTF au format LZFu (Exchange/Outlook MSG)."""
-    import struct
-    cb_raw = struct.unpack_from('<I', data, 4)[0]
-    magic  = data[8:12]
-    if magic == b'MELA':
-        return data[16:]
-    if magic != b'LZFu':
-        raise ValueError(f"Signature LZFu inconnue: {magic!r}")
-    # Dictionnaire de 4096 octets pré-rempli avec le préambule RTF standard
-    PREBUF = (
-        b'{\\rtf1\\ansi\\mac\\deff0\\deftab720{\\fonttbl;}'
-        b'{\\f0\\fnil \\froman \\fswiss \\fmodern \\fscript \\fdecor MS Sans SerifSym'
-        b'bolArialTimes New RomanCourier{\\colortbl\\red0\\green0\\blue0\r\n\\par \\pa'
-        b'rd\\plain\\f0\\fs20\\b\\i\\u\\tab\\tx'
-    )
-    d = bytearray(4096)
-    d[:len(PREBUF)] = PREBUF
-    wpos = len(PREBUF)
-    out = bytearray()
-    pos = 16
-    while pos < len(data) and len(out) < cb_raw:
-        ctrl = data[pos]; pos += 1
-        for bit in range(8):
-            if pos >= len(data) or len(out) >= cb_raw:
-                break
-            if ctrl & (1 << bit):
-                ref = (data[pos] << 8) | data[pos + 1]; pos += 2
-                off = (ref >> 4) & 0xFFF
-                ln  = (ref & 0xF) + 2
-                for i in range(ln):
-                    c = d[(off + i) & 0xFFF]
-                    out.append(c)
-                    d[wpos & 0xFFF] = c
-                    wpos = (wpos + 1) & 0xFFF
-            else:
-                c = data[pos]; pos += 1
-                out.append(c)
-                d[wpos & 0xFFF] = c
-                wpos = (wpos + 1) & 0xFFF
-    return bytes(out)
-
-
-def _extract_html_from_rtf(rtf: str) -> str:
+def _read_msg_body(template_path: Path) -> tuple:
     """
-    Reconstruit l'HTML depuis un RTF fromhtml1 (format Outlook).
-    Les balises HTML sont dans {\\*\\htmltag<N> TAG}, le texte suit \\htmlrtf0.
-    """
-    result = []
-    i = 0
-    n = len(rtf)
-    while i < n:
-        htag = rtf.find('{\\*\\htmltag', i)
-        if htag < 0:
-            break
-        # Avancer après les chiffres du numéro de tag
-        p = htag + len('{\\*\\htmltag')
-        while p < n and rtf[p].isdigit():
-            p += 1
-        if p < n and rtf[p] == ' ':
-            p += 1
-        # Trouver la } fermante (profondeur 1)
-        depth = 1
-        cs = p
-        while p < n and depth > 0:
-            if rtf[p] == '{':
-                depth += 1
-            elif rtf[p] == '}':
-                depth -= 1
-            p += 1
-        result.append(rtf[cs:p - 1])
-        # Chercher du texte dans le groupe \htmlrtf { \htmlrtf0 TEXT } qui suit
-        # DIRECTEMENT cette balise.
-        # re.match (ancré) évite de sauter au paragraphe suivant (bug duplication).
-        # La fenêtre de 60 chars suffit pour couvrir \htmlrtf {\b \htmlrtf0.
-        seg = rtf[p:p + 60]
-        m = re.match(r'\\htmlrtf\s*\{[^\{]*?\\htmlrtf0\s?', seg)
-        if m:
-            ts = p + m.end()
-            # Regex étendue : inclut les escapes RTF \'XX (accent \'e9 = é, etc.)
-            tm = re.match(r"((?:\\'[0-9a-fA-F]{2}|[^{\\])*)", rtf[ts:])
-            if tm:
-                raw = tm.group(1)
-                raw = re.sub(
-                    r"\\'([0-9a-fA-F]{2})",
-                    lambda x: bytes([int(x.group(1), 16)]).decode('cp1252', errors='replace'),
-                    raw
-                )
-                raw = raw.strip('\r\n')
-                if raw.strip():
-                    result.append(raw)
-        i = p
-    return ''.join(result)
-
-
-def _read_msg_body_olefile(template_path: Path) -> tuple:
-    """
-    Lit le corps HTML et le sujet d'un fichier .msg via olefile (sans extract_msg).
-    Gère les trois formats courants :
-      1. HTML direct (stream 0x1013)
-      2. RTF LZFu compressé avec HTML embarqué (stream 0x1009, fromhtml1)
-      3. Corps texte brut (stream 0x1000) en dernier recours
+    Lit le corps HTML et le sujet d'un fichier .msg via extract-msg + RTFDE.
+    Utilise des librairies robustes pour le décodage (plus de parsing RTF manuel).
     Retourne (html_body: str, subject: str).
     """
+    import struct
     import olefile  # type: ignore
 
     html_body = ""
     subject = "Candidats disponibles"
 
+    # 1. Sujet — via extract-msg (gère parfaitement l'encodage)
+    try:
+        import extract_msg  # type: ignore
+        msg = extract_msg.Message(str(template_path))
+        subject = msg.subject or subject
+        msg.close()
+    except Exception as e:
+        logger.debug("extract_msg pour le sujet échoué: %s", e)
+
+    # 2. Corps HTML — via olefile + RTFDE pour le RTF→HTML
     try:
         ole = olefile.OleFileIO(str(template_path), raise_defects=olefile.DEFECT_POTENTIAL)
     except Exception as e:
         raise ValueError(f"Impossible d'ouvrir le fichier .msg: {e}")
 
     try:
-        # 1. Sujet — PT_UNICODE (001F) puis PT_STRING8/ANSI (001E)
-        if ole.exists('__substg1.0_0037001F'):
-            raw = ole.openstream('__substg1.0_0037001F').read()
-            try:
-                subject = raw.decode('utf-16-le').rstrip('\x00')
-            except Exception:
-                subject = raw.decode('utf-8', errors='replace').rstrip('\x00')
-            # Corriger les artefacts cp1252 (C1 control chars 0x80-0x9F)
-            if any('\x80' <= c <= '\x9f' for c in subject):
-                subject = ''.join(
-                    bytes([ord(c)]).decode('cp1252', errors='replace') if '\x80' <= c <= '\x9f' else c
-                    for c in subject
-                )
-        elif ole.exists('__substg1.0_0037001E'):
-            raw = ole.openstream('__substg1.0_0037001E').read()
-            subject = raw.decode('cp1252', errors='replace').rstrip('\x00')
-
-        # 2. Corps HTML direct — PT_BINARY (0102) puis PT_UNICODE (001F)
+        # 2a. HTML direct — PT_BINARY (0102) puis PT_UNICODE (001F)
         if ole.exists('__substg1.0_10130102'):
             raw = ole.openstream('__substg1.0_10130102').read()
             for enc in ('utf-8', 'cp1252', 'latin-1'):
@@ -6612,18 +6509,68 @@ def _read_msg_body_olefile(template_path: Path) -> tuple:
             raw = ole.openstream('__substg1.0_1013001F').read()
             html_body = raw.decode('utf-16-le', errors='replace').rstrip('\x00')
 
-        # 3. RTF compressé (LZFu) — format fromhtml1 : extraire l'HTML embarqué
+        # 2b. RTF compressé — décompression LZFu + extraction HTML via RTFDE
         if not html_body.strip() and ole.exists('__substg1.0_10090102'):
             try:
                 rtf_raw = ole.openstream('__substg1.0_10090102').read()
-                rtf_bytes = _decompress_lzfu(rtf_raw)
-                rtf_text = rtf_bytes.decode('cp1252', errors='replace')
-                if r'\fromhtml1' in rtf_text:
-                    html_body = _extract_html_from_rtf(rtf_text)
-            except Exception as rtf_err:
-                logger.debug("Extraction HTML depuis RTF échouée: %s", rtf_err)
+                # Décompression LZFu manuelle (compressed_rtf CRC check échoue sur certains .msg)
+                cb_raw = struct.unpack_from('<I', rtf_raw, 4)[0]
+                magic = rtf_raw[8:12]
+                if magic == b'MELA':
+                    rtf_bytes = rtf_raw[16:]
+                elif magic == b'LZFu':
+                    PREBUF = (
+                        b'{\\rtf1\\ansi\\mac\\deff0\\deftab720{\\fonttbl;}'
+                        b'{\\f0\\fnil \\froman \\fswiss \\fmodern \\fscript '
+                        b'\\fdecor MS Sans SerifSymbolArialTimes New RomanCourier'
+                        b'{\\colortbl\\red0\\green0\\blue0\r\n'
+                        b'\\par \\pard\\plain\\f0\\fs20\\b\\i\\u\\tab\\tx'
+                    )
+                    d = bytearray(4096)
+                    d[:len(PREBUF)] = PREBUF
+                    wpos = len(PREBUF)
+                    out = bytearray()
+                    pos = 16
+                    while pos < len(rtf_raw) and len(out) < cb_raw:
+                        ctrl = rtf_raw[pos]; pos += 1
+                        for bit in range(8):
+                            if pos >= len(rtf_raw) or len(out) >= cb_raw:
+                                break
+                            if ctrl & (1 << bit):
+                                ref = (rtf_raw[pos] << 8) | rtf_raw[pos + 1]; pos += 2
+                                off = (ref >> 4) & 0xFFF
+                                ln = (ref & 0xF) + 2
+                                for i in range(ln):
+                                    c = d[(off + i) & 0xFFF]
+                                    out.append(c)
+                                    d[wpos & 0xFFF] = c
+                                    wpos = (wpos + 1) & 0xFFF
+                            else:
+                                c = rtf_raw[pos]; pos += 1
+                                out.append(c)
+                                d[wpos & 0xFFF] = c
+                                wpos = (wpos + 1) & 0xFFF
+                    rtf_bytes = bytes(out)
+                else:
+                    raise ValueError(f"Signature LZFu inconnue: {magic!r}")
 
-        # 4. Dernier recours : corps texte brut PT_UNICODE (0x1000)
+                # Extraction HTML via RTFDE (gère parfaitement l'encodage et le fromhtml1)
+                from RTFDE.deencapsulate import DeEncapsulator  # type: ignore
+                de = DeEncapsulator(rtf_bytes)
+                de.deencapsulate()
+                raw_html = de.html
+                if isinstance(raw_html, bytes):
+                    html_body = raw_html.decode('utf-8', errors='replace')
+                else:
+                    html_body = raw_html
+
+                # Nettoyer les artefacts RTF résiduels laissés par RTFDE
+                html_body = re.sub(r'\\par\b\s*', '', html_body)       # \par → rien
+                html_body = re.sub(r'(<li\b[^>]*>)\s*\*\t', r'\1', html_body)  # *\t dans les <li>
+            except Exception as rtf_err:
+                logger.warning("Extraction HTML depuis RTF (RTFDE) échouée: %s", rtf_err)
+
+        # 2c. Dernier recours : corps texte brut PT_UNICODE (0x1000)
         if not html_body.strip() and ole.exists('__substg1.0_1000001F'):
             raw = ole.openstream('__substg1.0_1000001F').read()
             txt = raw.decode('utf-16-le', errors='replace').rstrip('\x00')
@@ -6656,7 +6603,7 @@ def _personalize_msg_outlook(template_path: Path, prospect_data: dict, candidate
 
     # Lire le corps HTML du template .msg via olefile
     try:
-        html_body, subject = _read_msg_body_olefile(template_path)
+        html_body, subject = _read_msg_body(template_path)
     except Exception as e:
         logger.warning("Lecture .msg olefile échouée (%s), fallback .eml", e)
         return _personalize_eml(template_path, prospect_data, candidates_data)
@@ -6708,7 +6655,7 @@ def _personalize_eml(template_path: Path, prospect_data: dict, candidates_data: 
 
     # Lire le corps du template .msg via olefile
     try:
-        html_body, subject = _read_msg_body_olefile(template_path)
+        html_body, subject = _read_msg_body(template_path)
     except ImportError:
         logger.error("olefile non installé — impossible de lire le template .msg")
         raise ValueError("Le module olefile n'est pas installé. Installez-le avec: pip install olefile")
