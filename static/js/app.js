@@ -5257,7 +5257,7 @@ async function viewDetail(id) {
         <div class="detail-quick-actions">
             <button class="btn btn-success" onclick="callNumberById(${prospect.id})" ${prospect.telephone ? '' : 'disabled'} title="Appeler le prospect (ouvre l'application téléphone)">📞 Appeler</button>
             ${prospect.email
-                ? `<button class="btn btn-secondary push-email-btn" id="btnEmailProspect_${prospect.id}" onclick="handleEmailProspect(${prospect.id})" title="Cliquer pour envoyer un push email (onglet Push)">✉️ Email</button>`
+                ? `<button class="btn btn-secondary push-email-btn" id="btnEmailProspect_${prospect.id}" onclick="handleEmailProspect(${prospect.id})" title="Générer le push email (Outlook ou .eml)">✉️ Push</button>`
                 : `<button class="btn btn-secondary" disabled title="Email non renseigné">✉️ Email</button>`}
             <button class="btn btn-primary" onclick="openTeamsInvite(${prospect.id})" title="Copier le profil formaté pour une invitation Teams">📅 Teams</button>
             ${prospect.linkedin ? `<button class="btn btn-secondary" onclick="copyLinkedInForProspect(${prospect.id})" title="Copier le lien LinkedIn dans le presse-papier">📋 LinkedIn</button>` : ''}
@@ -7051,7 +7051,7 @@ async function generatePush(prospectId) {
     }
     
     try {
-        showToast('Génération du push en cours (descriptions IA)...', 'info');
+        showToast('Génération du push en cours...', 'info');
         const res = await fetch('/api/push/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7161,14 +7161,14 @@ function _buildPushTabHtml(prospectId, prospect) {
     </div>
 
     <div class="detail-section-card" id="ptTemplateSection_${prospectId}" style="margin-bottom:14px;${!prospect.push_category_id ? 'display:none;' : ''}">
-        <div class="detail-section-title">📧 Template email (.msg)</div>
+        <div class="detail-section-title">📧 Template email</div>
         <div id="ptTemplateBox_${prospectId}">
             <div class="muted">Sélectionnez une catégorie pour voir les templates disponibles.</div>
         </div>
     </div>
 
     <div class="detail-section-card" style="margin-bottom:14px;" id="ptCandidatesSection_${prospectId}">
-        <div class="detail-section-title">👤 Dossiers de compétences</div>
+        <div class="detail-section-title">👤 Candidats & pièces jointes</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
             <div style="flex:1;min-width:140px;">
                 <select id="detailPushCandidate1" class="template-select" style="width:100%;" onchange="_updateEmailBtnState(${prospectId}); _onCandidateSelectChange(1)">
@@ -7189,7 +7189,7 @@ function _buildPushTabHtml(prospectId, prospect) {
                         🤖 Générer IA
                     </button>
                 </div>
-                <textarea id="pushDescText_1" class="push-desc-textarea" rows="3" placeholder="La description IA sera générée automatiquement lors du push, ou cliquez 'Générer IA' pour prévisualiser..."></textarea>
+                <textarea id="pushDescText_1" class="push-desc-textarea" rows="3" placeholder="Description IA générée automatiquement lors du push. Cliquez 'Générer IA' pour prévisualiser."></textarea>
             </div>
             <div id="pushDescAI_2" style="display:none;margin-bottom:8px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
@@ -7198,16 +7198,17 @@ function _buildPushTabHtml(prospectId, prospect) {
                         🤖 Générer IA
                     </button>
                 </div>
-                <textarea id="pushDescText_2" class="push-desc-textarea" rows="3" placeholder="La description IA sera générée automatiquement lors du push, ou cliquez 'Générer IA' pour prévisualiser..."></textarea>
+                <textarea id="pushDescText_2" class="push-desc-textarea" rows="3" placeholder="Description IA générée automatiquement lors du push. Cliquez 'Générer IA' pour prévisualiser."></textarea>
             </div>
         </div>
     </div>
 
     <div style="margin-bottom:14px;">
-        ${noEmail ? '<div class="pt-warning">⚠️ Email prospect non renseigné — le fichier .msg sera généré avec le champ To vide.</div>' : ''}
+        ${noEmail ? '<div class="pt-warning">⚠️ Email prospect non renseigné — l\'email sera généré avec le champ destinataire vide.</div>' : ''}
         <button class="btn btn-primary" id="btnGeneratePush" onclick="generatePushFromTab(${prospectId})" disabled style="width:100%;">
-            📧 Générer et télécharger le push (ZIP)
+            📧 Générer le push email
         </button>
+        <div class="muted" style="font-size:11px;margin-top:4px;text-align:center;">Sur le serveur : ouverture directe dans Outlook · À distance : téléchargement .eml avec PJ</div>
     </div>
 
     <div class="detail-section-card">
@@ -7392,7 +7393,7 @@ async function generatePushFromTab(prospectId) {
     const btnEmailHdr  = document.getElementById(`btnEmailProspect_${prospectId}`);
     const origGenLabel = btnGenerate ? btnGenerate.innerHTML : '';
     const origEmailLabel = btnEmailHdr ? btnEmailHdr.innerHTML : '';
-    if (btnGenerate)  { btnGenerate.disabled = true; btnGenerate.innerHTML = '<span class="pt-spinner"></span> Génération IA en cours…'; }
+    if (btnGenerate)  { btnGenerate.disabled = true; btnGenerate.innerHTML = '<span class="pt-spinner"></span> Génération en cours…'; }
     if (btnEmailHdr)  { btnEmailHdr.disabled = true; btnEmailHdr.classList.add('push-email-loading'); btnEmailHdr.innerHTML = '<span class="pt-spinner"></span>'; }
 
     try {
@@ -7439,7 +7440,7 @@ async function generatePushFromTab(prospectId) {
         if (btnEmailHdr) {
             btnEmailHdr.classList.remove('push-email-loading');
             btnEmailHdr.classList.add('push-email-success');
-            btnEmailHdr.innerHTML = '✓ Envoyé';
+            btnEmailHdr.innerHTML = '✓ Prêt';
             setTimeout(() => {
                 btnEmailHdr.classList.remove('push-email-success');
                 btnEmailHdr.innerHTML = origEmailLabel;

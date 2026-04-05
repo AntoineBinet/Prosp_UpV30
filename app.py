@@ -6082,20 +6082,24 @@ def api_push_generate():
 
         missing_email = not prospect_dict.get("email", "").strip()
 
-        # Méthode 1 : Outlook disponible → ouvrir directement dans Outlook (mode rédaction)
-        if OUTLOOK_AVAILABLE:
+        # Détecter si l'utilisateur est sur la même machine que le serveur
+        # (accès direct localhost:8000 vs accès distant via Cloudflare Tunnel)
+        is_local = request.remote_addr in ('127.0.0.1', '::1', 'localhost')
+
+        # Méthode 1 : Outlook + accès local → ouvrir directement dans Outlook
+        if OUTLOOK_AVAILABLE and is_local:
             try:
                 result = _open_in_outlook(template_path, prospect_dict, candidates_data, attachment_paths)
                 msg = f"Email ouvert dans Outlook ({result['pj_count']} PJ)"
                 if missing_email:
-                    msg += " ⚠️ Email prospect manquant"
+                    msg += " — Email prospect manquant"
                 if result.get("pj_errors"):
                     msg += f" — PJ en erreur: {', '.join(result['pj_errors'])}"
                 return jsonify(ok=True, method="outlook", message=msg, **result)
             except Exception as e:
                 logger.warning("Échec ouverture Outlook (%s), fallback .eml", e)
 
-        # Méthode 2 : Fallback .eml avec PJ intégrées (téléchargement)
+        # Méthode 2 : Accès distant ou pas d'Outlook → .eml avec PJ intégrées
         email_bytes = _generate_eml_file(template_path, prospect_dict, candidates_data, attachment_paths)
         email_filename = template_path.stem + "_personnalise.eml"
 
