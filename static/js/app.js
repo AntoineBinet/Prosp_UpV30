@@ -7080,9 +7080,9 @@ async function generatePush(prospectId) {
 
         const ct = res.headers.get('content-type') || '';
         if (ct.includes('application/json')) {
-            // Outlook a ouvert le mail directement → réponse JSON
+            // Brouillon créé dans Outlook → réponse JSON
             const data = await res.json();
-            showToast(data.message || 'Email ouvert dans Outlook', 'success', 5000);
+            showToast(data.message || '✅ Brouillon créé — vérifiez vos Brouillons Outlook', 'success', 6000);
         } else {
             // Fallback .eml → téléchargement du fichier
             const blob = await res.blob();
@@ -7098,7 +7098,7 @@ async function generatePush(prospectId) {
             a.href = url; a.download = downloadName;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-            showToast('Email téléchargé (.eml) — ouvrir pour envoyer', 'success');
+            showToast('📥 Email téléchargé (.eml avec PJ) — ouvrir pour envoyer', 'success', 5000);
         }
     } catch (e) {
         console.error('Erreur génération push:', e);
@@ -7208,7 +7208,7 @@ function _buildPushTabHtml(prospectId, prospect) {
         <button class="btn btn-primary" id="btnGeneratePush" onclick="generatePushFromTab(${prospectId})" disabled style="width:100%;">
             📧 Générer le push email
         </button>
-        <div class="muted" style="font-size:11px;margin-top:4px;text-align:center;">Sur le serveur : ouverture directe dans Outlook · À distance : téléchargement .eml avec PJ</div>
+        <div class="muted" style="font-size:11px;margin-top:4px;text-align:center;">Le brouillon apparaît dans vos Brouillons Outlook avec les PJ — prêt à envoyer depuis n'importe où</div>
     </div>
 
     <div class="detail-section-card">
@@ -7419,9 +7419,9 @@ async function generatePushFromTab(prospectId) {
 
         const ct2 = res.headers.get('content-type') || '';
         if (ct2.includes('application/json')) {
-            // Outlook a ouvert le mail directement
+            // Brouillon créé dans Outlook
             const data = await res.json();
-            showToast(data.message || 'Email ouvert dans Outlook', 'success', 5000);
+            showToast(data.message || '✅ Brouillon créé — vérifiez vos Brouillons Outlook', 'success', 6000);
         } else {
             // Fallback .eml → téléchargement
             const blob = await res.blob();

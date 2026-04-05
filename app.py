@@ -6082,24 +6082,21 @@ def api_push_generate():
 
         missing_email = not prospect_dict.get("email", "").strip()
 
-        # Détecter si l'utilisateur est sur la même machine que le serveur
-        # (accès direct localhost:8000 vs accès distant via Cloudflare Tunnel)
-        is_local = request.remote_addr in ('127.0.0.1', '::1', 'localhost')
-
-        # Méthode 1 : Outlook + accès local → ouvrir directement dans Outlook
-        if OUTLOOK_AVAILABLE and is_local:
+        # Méthode 1 : Outlook disponible → brouillon dans Outlook (sync Exchange/M365)
+        # Fonctionne depuis n'importe quel appareil : le brouillon apparaît partout
+        if OUTLOOK_AVAILABLE:
             try:
-                result = _open_in_outlook(template_path, prospect_dict, candidates_data, attachment_paths)
-                msg = f"Email ouvert dans Outlook ({result['pj_count']} PJ)"
+                result = _save_to_outlook_drafts(template_path, prospect_dict, candidates_data, attachment_paths)
+                msg = f"Brouillon créé dans Outlook ({result['pj_count']} PJ) — vérifiez vos Brouillons"
                 if missing_email:
-                    msg += " — Email prospect manquant"
+                    msg += " ⚠️ Email prospect manquant"
                 if result.get("pj_errors"):
                     msg += f" — PJ en erreur: {', '.join(result['pj_errors'])}"
-                return jsonify(ok=True, method="outlook", message=msg, **result)
+                return jsonify(ok=True, method="outlook_drafts", message=msg, **result)
             except Exception as e:
-                logger.warning("Échec ouverture Outlook (%s), fallback .eml", e)
+                logger.warning("Échec création brouillon Outlook (%s), fallback .eml", e)
 
-        # Méthode 2 : Accès distant ou pas d'Outlook → .eml avec PJ intégrées
+        # Méthode 2 : Pas d'Outlook → .eml avec PJ intégrées (téléchargement)
         email_bytes = _generate_eml_file(template_path, prospect_dict, candidates_data, attachment_paths)
         email_filename = template_path.stem + "_personnalise.eml"
 
@@ -6613,12 +6610,12 @@ def _personalize_html_body(template_path: Path, prospect_data: dict, candidates_
     return html_body, subject
 
 
-def _open_in_outlook(template_path: Path, prospect_data: dict,
-                     candidates_data: list, attachment_paths: list[Path] | None = None) -> dict:
+def _save_to_outlook_drafts(template_path: Path, prospect_data: dict,
+                            candidates_data: list, attachment_paths: list[Path] | None = None) -> dict:
     """
-    Ouvre directement l'email dans Outlook en mode rédaction (Display).
-    L'email est prêt à envoyer : destinataire, sujet, corps HTML, PJ.
-    Retourne un dict avec les infos (succès, nb PJ, etc.).
+    Crée l'email dans les Brouillons Outlook du serveur via win32com.
+    Le brouillon se synchronise via Exchange/M365 sur tous les appareils.
+    L'utilisateur retrouve l'email prêt à envoyer dans ses Brouillons.
     """
     import win32com.client  # type: ignore
     import pythoncom  # type: ignore
@@ -6649,12 +6646,13 @@ def _open_in_outlook(template_path: Path, prospect_data: dict,
                     pj_errors.append(att_path.name)
                     logger.warning("Erreur ajout PJ %s: %s", att_path.name, e)
 
-        # Afficher dans Outlook en mode rédaction (prêt à envoyer)
-        mail.Display(False)  # False = non modal
+        # Sauvegarder dans les Brouillons Outlook (sync Exchange/M365 automatique)
+        mail.Save()
+        logger.info("Brouillon Outlook créé: To=%s, Subject=%s, PJ=%d", to_email, subject, pj_count)
 
         return {
             "ok": True,
-            "method": "outlook",
+            "method": "outlook_drafts",
             "to": to_email,
             "subject": subject,
             "pj_count": pj_count,
