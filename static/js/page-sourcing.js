@@ -199,8 +199,9 @@ function applyCandidateFilters() {
 
     __candFiltered = __candidates.filter(c => {
         const status = safeStr(c.status).toLowerCase();
-        // Refus → onglet dédié uniquement
+        // Refus et Mission → onglets dédiés
         if (CAND_ARCHIVE_STATUSES.has(status)) return false;
+        if (CAND_MISSION_STATUSES.has(status)) return false;
         const skills = candSkillsArray(c);
         const hay = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${skills.join(' ')} ${safeStr(c.tech)} ${safeStr(c.notes)} ${safeStr(c.linkedin)} ${safeStr(c.source)}`.toLowerCase();
         const okQ = !q || hay.includes(q);
@@ -336,6 +337,7 @@ const CAND_STATUSES = [
     ['refus_contrat',    'Refus du contrat'],
 ];
 const CAND_ARCHIVE_STATUSES = new Set(['nok_prequal', 'nok', 'plus_disponible', 'refus_contrat']);
+const CAND_MISSION_STATUSES = new Set(['valide_contrat', 'freelance', 'freelance_mission']);
 
 function renderStatusSelect(candidateId, currentStatus) {
     const opts = CAND_STATUSES.map(([v, l]) =>
@@ -356,14 +358,18 @@ async function quickChangeStatus(candidateId, newStatus) {
         const cand = __candidates.find(c => c.id === candidateId);
         if (cand) cand.status = newStatus;
         // Si le statut fait sortir de l'onglet courant, re-filtrer après un court délai
-        const currentTab = document.getElementById('panelPipeline')?.style.display !== 'none' ? 'pipeline' : 'archive';
-        const shouldMove = (currentTab === 'pipeline' && CAND_ARCHIVE_STATUSES.has(newStatus)) ||
-                           (currentTab === 'archive' && !CAND_ARCHIVE_STATUSES.has(newStatus));
+        const currentTab = document.getElementById('panelPipeline')?.style.display !== 'none' ? 'pipeline'
+                         : document.getElementById('panelMission')?.style.display !== 'none'  ? 'mission'
+                         : 'archive';
+        const tabForStatus = CAND_ARCHIVE_STATUSES.has(newStatus) ? 'archive'
+                           : CAND_MISSION_STATUSES.has(newStatus) ? 'mission'
+                           : 'pipeline';
+        const shouldMove = currentTab !== tabForStatus;
         if (shouldMove) {
-            setTimeout(() => { applyCandidateFilters(); renderArchiveTable(); }, 600);
+            setTimeout(() => { applyCandidateFilters(); applyMissionFilters(); applyArchiveFilters(); }, 600);
         } else {
             // Juste mettre à jour la couleur du select
-            const sel = document.querySelector(`#candTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #archiveTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select`);
+            const sel = document.querySelector(`#candTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #missionTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #archiveTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select`);
             if (sel) {
                 sel.className = `status-inline-select status-cand-${newStatus}`;
             }
@@ -456,6 +462,93 @@ function updateArchiveSelectAllState() {
     const n = __archiveFiltered.filter(c => __archiveSelected.has(c.id)).length;
     cb.checked = n === __archiveFiltered.length;
     cb.indeterminate = n > 0 && n < __archiveFiltered.length;
+}
+
+// ===== Onglet En mission / Contrat =====
+
+let __missionFiltered = [];
+
+function applyMissionFilters() {
+    const q = (document.getElementById('missionSearch')?.value || '').trim().toLowerCase();
+    const st = (document.getElementById('missionStatusFilter')?.value || '').trim().toLowerCase();
+    __missionFiltered = __candidates.filter(c => {
+        const status = safeStr(c.status).toLowerCase();
+        if (!CAND_MISSION_STATUSES.has(status)) return false;
+        if (st && status !== st) return false;
+        if (q) {
+            const skills = candSkillsArray(c);
+            const hay = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${skills.join(' ')} ${safeStr(c.tech)} ${safeStr(c.notes)}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+    renderMissionTable();
+}
+
+function renderMissionTable() {
+    const tbody = document.getElementById('missionTableBody');
+    const empty = document.getElementById('missionEmptyState');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (__missionFiltered.length === 0) {
+        if (empty) empty.style.display = 'block';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    __missionFiltered.forEach(c => {
+        const skills = candSkillsArray(c);
+        const skillsLabel = skills.join(', ');
+        const combinedTech = skillsLabel ? (skillsLabel + (c.tech ? ' · ' + safeStr(c.tech) : '')) : safeStr(c.tech);
+        const dcBadge = c.has_dc
+            ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
+            : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.dataset.candidateId = c.id;
+        tr.addEventListener('click', (e) => {
+            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, select')) return;
+            window.location.href = '/candidat?id=' + c.id;
+        });
+        tr.innerHTML = `
+            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="mission-row-select" title="Sélectionner" onclick="event.stopPropagation();toggleMissionSelect(${c.id}, this.checked)"></td>
+            <td data-label="Nom"><span title="${escapeHtml(c.name || '')}">${escapeHtml(c.name || '')}</span></td>
+            <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
+            <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
+            <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
+            <td data-label="DC">${dcBadge}</td>
+            <td data-label="Statut">${renderStatusSelect(c.id, c.status)}</td>
+            <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
+            <td data-label="Actions">
+              <div class="table-actions-inline">
+                <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
+                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
+                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
+              </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+let __missionSelected = new Set();
+function toggleMissionSelect(id, checked) {
+    if (checked) __missionSelected.add(id);
+    else __missionSelected.delete(id);
+    updateMissionSelectAllState();
+}
+function toggleMissionSelectAll(checked) {
+    if (checked) __missionFiltered.forEach(c => __missionSelected.add(c.id));
+    else __missionFiltered.forEach(c => __missionSelected.delete(c.id));
+    renderMissionTable();
+}
+function updateMissionSelectAllState() {
+    const cb = document.getElementById('missionSelectAll');
+    if (!cb || !__missionFiltered.length) return;
+    const n = __missionFiltered.filter(c => __missionSelected.has(c.id)).length;
+    cb.checked = n === __missionFiltered.length;
+    cb.indeterminate = n > 0 && n < __missionFiltered.length;
 }
 
 function openCandidateModal(editing=false) {
@@ -1141,24 +1234,17 @@ function _vsaImportPreFillAnyway() {
 
 // ===== Tabs =====
 function setTab(tab) {
-    const pPipeline = document.getElementById('panelPipeline');
-    const pArchive  = document.getElementById('panelArchive');
-    const bPipeline = document.getElementById('tabPipeline');
-    const bArchive  = document.getElementById('tabArchive');
-    if (!pPipeline || !pArchive) return;
-
-    if (tab === 'archive') {
-        pPipeline.style.display = 'none';
-        pArchive.style.display  = 'block';
-        bPipeline?.classList.remove('active');
-        bArchive?.classList.add('active');
-        applyArchiveFilters();
-    } else {
-        pPipeline.style.display = 'block';
-        pArchive.style.display  = 'none';
-        bPipeline?.classList.add('active');
-        bArchive?.classList.remove('active');
-    }
+    const panels  = { pipeline: 'panelPipeline', mission: 'panelMission', archive: 'panelArchive' };
+    const buttons = { pipeline: 'tabPipeline',   mission: 'tabMission',   archive: 'tabArchive'   };
+    Object.entries(panels).forEach(([t, id]) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = t === tab ? 'block' : 'none';
+    });
+    Object.entries(buttons).forEach(([t, id]) => {
+        document.getElementById(id)?.classList.toggle('active', t === tab);
+    });
+    if (tab === 'archive') applyArchiveFilters();
+    if (tab === 'mission') applyMissionFilters();
 }
 
 async function loadCandidateFolderSettings() {
@@ -1250,8 +1336,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('archiveSearch')?.addEventListener('input', applyArchiveFilters);
     document.getElementById('archiveStatusFilter')?.addEventListener('change', applyArchiveFilters);
 
+    // Mission tab events
+    document.getElementById('missionSearch')?.addEventListener('input', applyMissionFilters);
+    document.getElementById('missionStatusFilter')?.addEventListener('change', applyMissionFilters);
+
     // Tabs
     document.getElementById('tabPipeline')?.addEventListener('click', () => setTab('pipeline'));
+    document.getElementById('tabMission')?.addEventListener('click', () => setTab('mission'));
     document.getElementById('tabArchive')?.addEventListener('click', () => setTab('archive'));
 
     try {

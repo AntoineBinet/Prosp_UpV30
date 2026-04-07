@@ -13,6 +13,7 @@
   <div class="content-title">Sourcing</div>
   <div class="tabbar">
     <button class="tab active" id="tabPipeline" type="button">Pipeline</button>
+    <button class="tab" id="tabMission" type="button">En mission / Contrat</button>
     <button class="tab" id="tabArchive" type="button">Archivés / Refusés</button>
   </div>
 </div>
@@ -31,9 +32,6 @@
         <option value="oksi">OKSI</option>
         <option value="top_profil">Top profil</option>
         <option value="reunion_tech">En Réunion Technique</option>
-        <option value="valide_contrat">Validé / Contrat</option>
-        <option value="freelance">Freelance</option>
-        <option value="freelance_mission">FREELANCE EN MISSION UP</option>
       </optgroup>
     </select>
     <input id="candSkillsFilter" type="text" placeholder="🎯 Filtrer compétences (ex: RTOS, AUTOSAR)" />
@@ -97,6 +95,44 @@
 
   <div id="candEmptyState" class="card" style="margin-top:14px; display:none;">
     <div class="muted">Aucun candidat pour ces filtres.</div>
+  </div>
+</section>
+
+<!-- En mission / Contrat -->
+<section id="panelMission" style="display:none;">
+  <div class="controls">
+    <input id="missionSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les missions" />
+    <select id="missionStatusFilter">
+      <option value="">Tous</option>
+      <option value="valide_contrat">Validé / Contrat</option>
+      <option value="freelance">Freelance</option>
+      <option value="freelance_mission">FREELANCE EN MISSION UP</option>
+    </select>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:32px; padding-left:12px;"><input type="checkbox" id="missionSelectAll" title="Sélectionner tous" aria-label="Sélectionner tous" onclick="toggleMissionSelectAll(this.checked)"></th>
+          <th>Nom</th>
+          <th>Rôle</th>
+          <th>Localisation</th>
+          <th>Compétences / Tech</th>
+          <th>DC</th>
+          <th>Statut</th>
+          <th>MAJ</th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="missionTableBody">
+        <tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="missionEmptyState" class="card" style="margin-top:14px; display:none;">
+    <div class="muted">Aucun candidat en mission ou sous contrat.</div>
   </div>
 </section>
 
