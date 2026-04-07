@@ -13,7 +13,7 @@
   <div class="content-title">Sourcing</div>
   <div class="tabbar">
     <button class="tab active" id="tabPipeline" type="button">Pipeline</button>
-    <button class="tab" id="tabProd" type="button">Productivité</button>
+    <button class="tab" id="tabArchive" type="button">Archivés / Refusés</button>
   </div>
 </div>
 
@@ -92,75 +92,40 @@
   </div>
 </section>
 
-<!-- Productivité -->
-<section id="panelProd" style="display:none;">
-  <div class="card">
-    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
-      <div style="flex: 1 1 320px;">
-        <div class="muted" style="margin-bottom:6px;">Entreprises cibles</div>
-        <select id="targetCompanySelect" multiple size="6" style="width:100%; min-height: 160px;"></select>
-        <div class="muted" style="margin-top:8px;">Astuce : Ctrl/Cmd + clic pour multi-sélection.</div>
-      </div>
-
-      <div style="flex: 2 1 520px;">
-        <div class="muted" style="margin-bottom:6px;">Mots-clés (issus des tags + notes entreprise + fonctions prospects)</div>
-        <div id="keywordChips" class="chips"></div>
-
-        <div style="display:flex; gap:10px; margin-top:10px;">
-          <input id="keywordAddInput" type="text" placeholder="Ajouter un mot-clé (ex: RTOS, AUTOSAR...)" />
-          <button class="btn btn-secondary" id="btnAddKeyword">➕</button>
-          <button class="btn btn-secondary" id="btnSaveCompanyTags">💾 Sauver en tags</button>
-        </div>
-
-        <div style="margin-top:12px;">
-          <div class="muted" style="margin-bottom:6px;">Requête LinkedIn (Boolean) prête à coller</div>
-          <textarea id="liQuery" rows="3" style="width:100%; padding:10px 12px; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-surface-2); color: var(--color-text);"></textarea>
-          <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
-            <button class="btn btn-primary" id="btnCopyQuery">📋 Copier</button>
-            <button class="btn btn-secondary" id="btnOpenLinkedIn">🔗 Ouvrir LinkedIn</button>
-            <button class="btn btn-secondary" id="btnPickCandidateOfDay">⭐ Candidat du jour</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="content-header" style="margin-top: 16px;">
-    <div class="content-title">Matching candidats</div>
-    <div class="controls">
-      <select id="matchStatusFilter">
-        <option value="">Tous</option>
-        <option value="a_sourcer" selected>🧲 À sourcer</option>
-        <option value="a_contacter">📨 À contacter</option>
-        <option value="en_cours">⏳ En cours</option>
-        <option value="interesse">✅ Intéressé</option>
-      </select>
-      <input id="matchSearch" type="text" placeholder="Filtrer (nom/tech...)" aria-label="Filtrer les candidats matchés" />
-      <button class="btn btn-secondary" id="btnRefreshMatch">🔄 Recalculer</button>
-      <div class="muted" id="matchSummary" style="flex:999 1 auto; min-width: 220px;"></div>
-    </div>
+<!-- Archivés / Refusés -->
+<section id="panelArchive" style="display:none;">
+  <div class="controls">
+    <input id="archiveSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les archivés" />
+    <select id="archiveStatusFilter">
+      <option value="">Archivés + Refusés</option>
+      <option value="archive">📦 Archivé</option>
+      <option value="refuse">❌ Refusé</option>
+    </select>
   </div>
 
   <div class="table-wrapper">
     <table>
       <thead>
         <tr>
-          <th>Match</th>
+          <th style="width:32px; padding-left:12px;"><input type="checkbox" id="archiveSelectAll" title="Sélectionner tous" aria-label="Sélectionner tous" onclick="toggleArchiveSelectAll(this.checked)"></th>
           <th>Nom</th>
           <th>Rôle</th>
           <th>Localisation</th>
           <th>Compétences / Tech</th>
+          <th>DC</th>
+          <th>Statut</th>
+          <th>MAJ</th>
           <th style="text-align:right;">Actions</th>
         </tr>
       </thead>
-      <tbody id="matchTableBody"></tbody>
+      <tbody id="archiveTableBody">
+        <tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
+      </tbody>
     </table>
   </div>
 
-  <div class="card" style="margin-top: 14px;">
-    <div class="muted">
-      Le score est un <strong>matching simple</strong> (overlap mots-clés ↔ texte candidat). C'est volontairement rapide et "productif".
-    </div>
+  <div id="archiveEmptyState" class="card" style="margin-top:14px; display:none;">
+    <div class="muted">Aucun candidat archivé ou refusé.</div>
   </div>
 </section>
 {% endblock %}
