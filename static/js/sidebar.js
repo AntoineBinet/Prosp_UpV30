@@ -289,128 +289,24 @@
         });
     }
 
-    // ── Build mobile bottom nav ───────────────────────────────────
-    function buildMobileBottomNav() {
-        // Remove existing (from HTML)
-        document.querySelectorAll('.mobile-bottom-nav').forEach(function (el) { el.remove(); });
-
-        var nav = document.createElement('nav');
-        nav.className = 'mobile-bottom-nav';
-
-        // Flatten all items to find the mobile subset
-        var allItems = [];
-        NAV.forEach(function (g) {
-            g.items.forEach(function (item) { allItems.push(item); });
-        });
-
-        MOBILE_NAV.forEach(function (pageName) {
-            var item = allItems.find(function (i) { return i.page === pageName; });
-            if (!item) return;
-            var a = document.createElement('a');
-            a.href = item.href;
-            _attachPrefetch(a, item.href);
-            _attachNavLoading(a, item.href);
-            if (item.helpSection) a.setAttribute('data-help-section', item.helpSection);
-            if (_isActive(item)) a.classList.add('active');
-            a.innerHTML = '<span class="bn-icon">' + item.icon + '</span>' + item.label;
-            nav.appendChild(a);
-        });
-        
-        // Ajouter le badge utilisateur à la fin de la barre de navigation mobile
-        // Utiliser _currentUser ou essayer de le récupérer depuis window.AppAuth
-        var user = _currentUser;
-        if (!user && window.AppAuth && window.AppAuth.user) {
-            user = window.AppAuth.user;
-        }
-        // Si toujours pas d'utilisateur, essayer de récupérer depuis le badge desktop
-        if (!user) {
-            var desktopBadge = document.querySelector('.user-session-badge');
-            if (desktopBadge) {
-                var nameEl = desktopBadge.querySelector('.user-session-name');
-                var roleEl = desktopBadge.querySelector('.user-session-role');
-                if (nameEl && roleEl) {
-                    // Créer un objet user minimal depuis le badge existant
-                    user = {
-                        display_name: nameEl.textContent.trim(),
-                        username: nameEl.textContent.trim(),
-                        role: roleEl.textContent.trim().toLowerCase()
-                    };
-                }
-            }
-        }
-        if (user) {
-            var userBtn = document.createElement('button');
-            userBtn.className = 'mobile-bottom-nav-user';
-            userBtn.type = 'button';
-            var initial = ((user.display_name || user.username || '').charAt(0) || 'U').toUpperCase();
-            userBtn.innerHTML = '<span class="bn-icon bn-user-avatar">' + initial + '</span><span class="bn-label">Profil</span>';
-            userBtn.onclick = function() {
-                if (typeof openUserMenu === 'function') {
-                    openUserMenu();
-                }
-            };
-            nav.appendChild(userBtn);
-        } else {
-            console.warn('buildMobileBottomNav: aucun utilisateur trouvé pour le badge');
-        }
-
-        document.body.appendChild(nav);
-
-        // Ajouter une classe au body pour indiquer que la bottom nav est active
-        document.body.classList.add('mobile-bottom-nav-active');
-
-        // Badge relances sur le bouton Profil
-        _refreshProfileBadge();
-    }
-
-    /** Récupère le nombre de relances urgentes et met à jour le badge sur le bouton Profil. */
-    function _refreshProfileBadge() {
-        fetch('/api/dashboard', { credentials: 'same-origin' })
-            .then(function(r) { return r.ok ? r.json() : null; })
-            .then(function(d) {
-                if (!d || !d.ok) return;
-                var overdue   = (d.pipeline && d.pipeline.overdue)    || 0;
-                var dueToday  = (d.pipeline && d.pipeline.due_today)  || 0;
-                var count = overdue + dueToday;
-                var btn = document.querySelector('.mobile-bottom-nav-user');
-                if (!btn) return;
-                var badge = btn.querySelector('.bn-notif-badge');
-                if (count > 0) {
-                    if (!badge) {
-                        badge = document.createElement('span');
-                        badge.className = 'bn-notif-badge';
-                        btn.appendChild(badge);
-                    }
-                    badge.textContent = count > 9 ? '9+' : String(count);
-                } else if (badge) {
-                    badge.remove();
-                }
-            })
-            .catch(function() {});
-    }
-
-    window._refreshProfileBadge = _refreshProfileBadge;
-
-    function _noop() {
-    }
+    // Mobile bottom nav moved to mobile.js
+    function buildMobileBottomNav() {}
+    window._refreshProfileBadge = function() {};
 
     // ── Public API ────────────────────────────────────────────────
     window.buildSidebar = buildSidebar;
     window.buildMobileBottomNav = buildMobileBottomNav;
-    
-    // Exposer _currentUser pour que app.js puisse déclencher la reconstruction
+
     window._sidebarCurrentUser = function() { return _currentUser; };
 
     // ── Auto-init (role-aware) ─────────────────────────────────────
     function _init() {
-        // Fetch current user role to filter admin-only nav items
         fetch('/api/auth/me', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : { ok: false }; })
             .then(function (d) {
                 _currentUser = (d.ok && d.user) ? d.user : null;
                 var isAdmin = _currentUser && _currentUser.role === 'admin';
                 if (!isAdmin) {
-                    // Remove admin-only items from NAV before building
                     NAV.forEach(function (group) {
                         group.items = group.items.filter(function (item) {
                             if (item.adminOnly) return false;
@@ -422,13 +318,11 @@
                     });
                 }
                 buildSidebar();
-                buildMobileBottomNav();
                 document.dispatchEvent(new CustomEvent('sidebar-ready'));
             })
             .catch(function (e) {
                 console.warn('Sidebar init error:', e);
                 buildSidebar();
-                buildMobileBottomNav();
                 document.dispatchEvent(new CustomEvent('sidebar-ready'));
             });
     }

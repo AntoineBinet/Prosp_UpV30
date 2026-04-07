@@ -1,33 +1,834 @@
 /* ═══════════════════════════════════════════════════════════════
-   ProspUp — Mobile CSS Layer (iPhone iOS 17+)
-   Chargé APRÈS style.css — uniquement des @media (max-width: 900px)
-   NE JAMAIS modifier le comportement desktop (> 900px)
+   ProspUp — Mobile CSS Layer v2.0 (iPhone 17 / iOS 18+ style)
+   Loaded AFTER style.css — all rules scoped to @media (max-width: 900px)
+   NEVER modify desktop behavior (> 900px)
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Masquer les éléments mobile sur desktop (> 900px) ─────────
-   Garantit que le footer flottant et le FAB n'apparaissent PAS
-   sur desktop, peu importe le CSS du navigateur.
-   ─────────────────────────────────────────────────────────────── */
+/* ── Hide mobile elements on desktop ─────────────────────────── */
 @media (min-width: 901px) {
-  .mobile-footer-float,
-  .fab-speed-dial,
-  .fab-backdrop {
-    display: none !important;
+  .m-tabbar,
+  .m-fab,
+  .m-fab-backdrop,
+  .m-overlay,
+  .m-pull-indicator,
+  .m-status-chips,
+  .m-card,
+  .m-bottom-sheet { display: none !important; }
+}
+
+/* ── Mobile-only / Desktop-only toggle ───────────────────────── */
+.mobile-only { display: none !important; }
+.desktop-only { display: initial !important; }
+
+@media (max-width: 900px) {
+  .mobile-only { display: block !important; }
+  .desktop-only { display: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FOUNDATIONS — Body, safe areas, scroll behavior
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.04);
+  }
+
+  /* Hide desktop sidebar */
+  .sidebar { display: none !important; }
+  .main-layout { grid-template-columns: 1fr !important; }
+
+  /* Header compact */
+  header {
+    padding: max(6px, env(safe-area-inset-top, 6px)) 12px 6px 12px !important;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  header h1 { font-size: 17px !important; }
+
+  .header-logo-app { height: 24px !important; max-width: 120px !important; }
+
+  .header-center .user-session-badge { display: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB BAR — iOS 18+ floating pill bar
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .m-tabbar {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    left: 10px;
+    right: 10px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    background: rgba(15, 15, 22, 0.92);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
+    z-index: 9000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+                0 0 0 0.5px rgba(255, 255, 255, 0.06) inset;
+    padding: 0 4px;
+    list-style: none;
+    margin: 0;
+  }
+
+  .m-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    text-decoration: none;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    padding: 6px 10px;
+    border-radius: 16px;
+    transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    min-width: 52px;
+    text-align: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    position: relative;
+    line-height: 1;
+  }
+
+  .m-tab-icon {
+    font-size: 22px;
+    line-height: 1;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .m-tab-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+
+  /* Active state */
+  .m-tab.active {
+    color: #FF6B35;
+    background: rgba(255, 107, 53, 0.12);
+  }
+
+  .m-tab.active .m-tab-icon {
+    transform: scale(1.12) translateY(-1px);
+  }
+
+  .m-tab.active .m-tab-label {
+    opacity: 1;
+    font-weight: 600;
+  }
+
+  /* Active dot indicator */
+  .m-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    background: #FF6B35;
+    border-radius: 50%;
+  }
+
+  /* Press feedback */
+  .m-tab:active {
+    transform: scale(0.9);
+    transition: transform 0.08s ease;
+  }
+
+  /* Avatar in tab bar */
+  .m-tab-avatar {
+    width: 26px;
+    height: 26px;
+    background: linear-gradient(135deg, #FF6B35, #FF8C42);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+    font-style: normal;
+    transition: transform 0.2s ease;
+  }
+
+  .m-tab.active .m-tab-avatar {
+    box-shadow: 0 2px 10px rgba(255, 107, 53, 0.4);
+  }
+
+  /* Notification badge */
+  .m-tab-badge {
+    position: absolute;
+    top: 2px;
+    right: 6px;
+    min-width: 16px;
+    height: 16px;
+    background: #EF4444;
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    line-height: 1;
   }
 }
 
-/* ── BUG 1 : Barre d'actions horizontale scrollable ─────────────
-   Les boutons de la toolbar-row sont coupés sur mobile.
-   Root cause : le parent flex-column (content-header) laisse la
-   toolbar-row s'étendre sans limite → l'overflow interne ne se
-   déclenche jamais. Fix : contraindre le parent + forcer scroll.
-   ─────────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  /* Empêche le content-header d'élargir la page */
-  .content-header {
-    overflow: hidden;
-    max-width: 100%;
+/* Light mode tab bar */
+@media (max-width: 900px) and (prefers-color-scheme: light) {
+  .m-tabbar {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.06),
+                0 0 0 0.5px rgba(0, 0, 0, 0.04) inset;
   }
+  .m-tab { color: rgba(0, 0, 0, 0.4); }
+  .m-tab.active { color: #FF6B35; background: rgba(255, 107, 53, 0.08); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FAB — Floating Action Button
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .m-fab {
+    position: fixed;
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF6B35, #FF8C42);
+    border: none;
+    box-shadow: 0 4px 20px rgba(255, 107, 53, 0.45);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    color: white;
+    z-index: 9001;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.3s ease,
+                background 0.3s ease;
+    -webkit-tap-highlight-color: transparent;
+    line-height: 1;
+  }
+
+  .m-fab:active { transform: scale(0.92); }
+
+  .m-fab.is-open {
+    transform: rotate(45deg);
+    background: linear-gradient(135deg, #374151, #4B5563);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  }
+
+  /* FAB options menu */
+  .m-fab-options {
+    position: fixed;
+    bottom: calc(156px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    z-index: 9001;
+    pointer-events: none;
+  }
+
+  .m-fab-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(16px) scale(0.85);
+    transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+
+  .m-fab-options.is-open { pointer-events: auto; }
+  .m-fab-options.is-open .m-fab-option {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+
+  /* Cascade delay */
+  .m-fab-options.is-open .m-fab-option:nth-child(1) { transition-delay: 0.04s; }
+  .m-fab-options.is-open .m-fab-option:nth-child(2) { transition-delay: 0.08s; }
+  .m-fab-options.is-open .m-fab-option:nth-child(3) { transition-delay: 0.12s; }
+  .m-fab-options.is-open .m-fab-option:nth-child(4) { transition-delay: 0.16s; }
+
+  .m-fab-option-label {
+    background: rgba(15, 15, 22, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: white;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 7px 14px;
+    border-radius: 20px;
+    white-space: nowrap;
+    letter-spacing: 0.2px;
+  }
+
+  .m-fab-option-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    color: white;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease;
+    line-height: 1;
+  }
+
+  .m-fab-option-btn:active { transform: scale(0.88); }
+
+  /* Backdrop */
+  .m-fab-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    z-index: 8999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .m-fab-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* Light mode FAB */
+@media (max-width: 900px) and (prefers-color-scheme: light) {
+  .m-fab-option-label {
+    background: rgba(255, 255, 255, 0.95);
+    color: #1f2937;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PROSPECT CARDS — Mobile card layout (replaces table)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  /* Hide desktop table on prospects page */
+  body[data-page="prospects"] .table-wrapper { display: none !important; }
+
+  /* Card container */
+  .m-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 12px;
+  }
+
+  /* Individual card */
+  .m-card {
+    display: flex;
+    align-items: stretch;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: transform 0.08s ease, background 0.1s ease;
+    position: relative;
+  }
+
+  .m-card:active { transform: scale(0.985); background: rgba(255, 255, 255, 0.07); }
+
+  /* Status accent bar */
+  .m-card-accent {
+    width: 4px;
+    min-height: 100%;
+    flex-shrink: 0;
+    border-radius: 16px 0 0 16px;
+  }
+
+  .m-card-accent.s-appele     { background: #3B82F6; }
+  .m-card-accent.s-rdv        { background: #22C55E; }
+  .m-card-accent.s-prospecte   { background: #A855F7; }
+  .m-card-accent.s-messagerie  { background: #F59E0B; }
+  .m-card-accent.s-rappeler    { background: #F97316; }
+  .m-card-accent.s-pas-interesse { background: #EF4444; }
+  .m-card-accent.s-pas-actions { background: #64748B; }
+  .m-card-accent.s-autre       { background: #94A3B8; }
+  .m-card-accent.s-none        { background: #475569; }
+
+  /* Card body */
+  .m-card-body {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 12px 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* Row 1: Name + status pill */
+  .m-card-row1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .m-card-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .m-card-pill {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .m-card-pill.s-appele     { background: rgba(59,130,246,0.15); color: #60A5FA; }
+  .m-card-pill.s-rdv        { background: rgba(34,197,94,0.15); color: #4ADE80; }
+  .m-card-pill.s-prospecte   { background: rgba(168,85,247,0.15); color: #C084FC; }
+  .m-card-pill.s-messagerie  { background: rgba(245,158,11,0.15); color: #FBBF24; }
+  .m-card-pill.s-rappeler    { background: rgba(249,115,22,0.15); color: #FB923C; }
+  .m-card-pill.s-pas-interesse { background: rgba(239,68,68,0.15); color: #F87171; }
+  .m-card-pill.s-pas-actions { background: rgba(100,116,139,0.15); color: #94A3B8; }
+  .m-card-pill.s-autre       { background: rgba(148,163,184,0.15); color: #CBD5E1; }
+
+  /* Row 2: Company + function */
+  .m-card-row2 {
+    font-size: 12px;
+    color: var(--color-text-secondary, #94A3B8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Row 3: Badges (followup, stars, RDV date) */
+  .m-card-row3 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+    align-items: center;
+  }
+
+  .m-card-followup {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 6px;
+    line-height: 1.3;
+  }
+
+  .m-card-followup.due { background: rgba(239,68,68,0.15); color: #F87171; }
+  .m-card-followup.ok  { background: rgba(34,197,94,0.15); color: #4ADE80; }
+
+  .m-card-stars {
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+
+  .m-card-rdv {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: rgba(34,197,94,0.12);
+    color: #4ADE80;
+  }
+
+  /* Chevron */
+  .m-card-chevron {
+    display: flex;
+    align-items: center;
+    padding: 0 10px 0 4px;
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.2);
+    flex-shrink: 0;
+  }
+
+  /* Swipe wrapper */
+  .m-swipe-wrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    touch-action: pan-y;
+    isolation: isolate;
+  }
+
+  .m-swipe-actions {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    z-index: 0;
+  }
+
+  .m-swipe-actions-left { left: 0; }
+  .m-swipe-actions-right { right: 0; }
+
+  .m-swipe-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 0 16px;
+    min-width: 64px;
+    -webkit-tap-highlight-color: transparent;
+    transition: filter 0.1s ease;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+
+  .m-swipe-action:active { filter: brightness(0.85); }
+
+  .m-swipe-action.call  { background: #22C55E; color: white; }
+  .m-swipe-action.email { background: #3B82F6; color: white; }
+  .m-swipe-action.status { background: #A855F7; color: white; }
+  .m-swipe-action.log   { background: #F59E0B; color: white; }
+
+  .m-swipe-action-icon { font-size: 20px; }
+  .m-swipe-action-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  /* Card content layer (slides over actions) */
+  .m-card-inner {
+    position: relative;
+    z-index: 1;
+    background: var(--color-surface, #1e293b);
+    transition: transform 0.2s ease;
+    display: flex;
+    align-items: stretch;
+    border-radius: 16px;
+  }
+}
+
+/* Light mode cards */
+@media (max-width: 900px) and (prefers-color-scheme: light) {
+  .m-card {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.06);
+  }
+  .m-card:active { background: rgba(0, 0, 0, 0.04); }
+  .m-card-chevron { color: rgba(0, 0, 0, 0.2); }
+  .m-card-inner { background: #ffffff; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STATUS CHIPS — Horizontal scroll filter bar
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .m-status-chips {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+
+  .m-status-chips::-webkit-scrollbar { display: none; }
+
+  .m-chip {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-secondary, #94A3B8);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.15s ease;
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+
+  .m-chip.active {
+    background: rgba(255, 107, 53, 0.15);
+    color: #FF6B35;
+    border-color: rgba(255, 107, 53, 0.3);
+    font-weight: 600;
+  }
+
+  .m-chip:active { transform: scale(0.95); }
+
+  .m-chip-count {
+    display: inline-block;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    margin-left: 4px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 10px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 18px;
+  }
+
+  .m-chip.active .m-chip-count {
+    background: rgba(255, 107, 53, 0.2);
+  }
+}
+
+/* Light mode chips */
+@media (max-width: 900px) and (prefers-color-scheme: light) {
+  .m-chip {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.08);
+    color: #64748b;
+  }
+  .m-chip.active {
+    background: rgba(255, 107, 53, 0.1);
+    border-color: rgba(255, 107, 53, 0.25);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PULL-TO-REFRESH — Native-feel indicator
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .m-pull-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    padding: 14px;
+    padding-top: max(14px, env(safe-area-inset-top));
+    text-align: center;
+    background: var(--color-surface, #1e293b);
+    border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.1));
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-secondary, #94A3B8);
+    transform: translateY(-100%);
+    transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+    pointer-events: none;
+  }
+
+  .m-pull-indicator.visible { transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BOTTOM SHEET — iOS-style modal replacement
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .m-bottom-sheet {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9500;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .m-bottom-sheet.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .m-bottom-sheet-inner {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 85vh;
+    background: var(--color-surface, #1e293b);
+    border-radius: 20px 20px 0 0;
+    padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.32, 1.08, 0.62, 1);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .m-bottom-sheet.is-open .m-bottom-sheet-inner {
+    transform: translateY(0);
+  }
+
+  /* Handle bar */
+  .m-bottom-sheet-inner::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    margin: 0 auto 12px;
+  }
+
+  .m-bottom-sheet-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 12px;
+  }
+
+  .m-sheet-btn {
+    width: 100%;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    margin-bottom: 6px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s ease;
+    font-family: inherit;
+  }
+
+  .m-sheet-btn:active { background: rgba(255, 255, 255, 0.1); }
+
+  .m-sheet-cancel {
+    width: 100%;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border: none;
+    border-radius: 12px;
+    margin-top: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    font-family: inherit;
+    text-align: center;
+  }
+
+  .m-sheet-cancel:active { background: rgba(255, 255, 255, 0.1); }
+
+  .m-sheet-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+}
+
+/* Light mode bottom sheet */
+@media (max-width: 900px) and (prefers-color-scheme: light) {
+  .m-bottom-sheet-inner {
+    background: #f8fafc;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+  }
+  .m-bottom-sheet-inner::before { background: rgba(0, 0, 0, 0.15); }
+  .m-bottom-sheet-title { color: rgba(0, 0, 0, 0.35); }
+  .m-sheet-btn {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.06);
+    color: #1e293b;
+  }
+  .m-sheet-btn:active { background: rgba(0, 0, 0, 0.06); }
+  .m-sheet-cancel { background: rgba(0, 0, 0, 0.04); color: #1e293b; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PAGE TRANSITIONS — iOS-style slide animations
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .page-enter-from-right {
+    animation: m-slideInRight 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  }
+  .page-enter-from-left {
+    animation: m-slideInLeft 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  }
+  .page-exit-to-left {
+    animation: m-slideOutLeft 0.2s cubic-bezier(0.55, 0, 1, 0.45) both;
+    pointer-events: none;
+  }
+  .page-exit-to-right {
+    animation: m-slideOutRight 0.2s cubic-bezier(0.55, 0, 1, 0.45) both;
+    pointer-events: none;
+  }
+
+  @keyframes m-slideInRight {
+    from { transform: translateX(100%); opacity: 0.6; }
+    to   { transform: translateX(0);    opacity: 1;   }
+  }
+  @keyframes m-slideInLeft {
+    from { transform: translateX(-100%); opacity: 0.6; }
+    to   { transform: translateX(0);     opacity: 1;   }
+  }
+  @keyframes m-slideOutLeft {
+    from { transform: translateX(0);    opacity: 1; }
+    to   { transform: translateX(-25%); opacity: 0; }
+  }
+  @keyframes m-slideOutRight {
+    from { transform: translateX(0);   opacity: 1; }
+    to   { transform: translateX(25%); opacity: 0; }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TOOLBAR — Horizontal scroll on mobile
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .content-header { overflow: hidden; max-width: 100%; }
 
   .toolbar-row,
   .action-bar,
@@ -36,431 +837,134 @@
   .filter-bar {
     display: flex !important;
     flex-wrap: nowrap !important;
-    overflow-x: scroll !important;  /* scroll = toujours scrollable, même si contenu = largeur */
-    overflow-y: visible;
+    overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
     gap: 8px;
     padding-bottom: 4px;
-    padding-right: 20px; /* hint visuel : item suivant visible */
+    padding-right: 20px;
     scrollbar-width: none;
     width: 100%;
     box-sizing: border-box;
-    /* Isolation : force un contexte de scroll indépendant du parent */
-    isolation: isolate;
   }
 
   .toolbar-row::-webkit-scrollbar,
   .action-bar::-webkit-scrollbar,
   .toolbar::-webkit-scrollbar,
-  .filter-bar::-webkit-scrollbar {
-    display: none;
-  }
+  .filter-bar::-webkit-scrollbar { display: none; }
 
   .toolbar-row > *,
   .action-bar > *,
   .filter-bar > * {
     flex-shrink: 0 !important;
-    scroll-snap-align: start;
   }
 }
 
-/* ── BUG 2 : Footer doublé / contenu en bas de page ─────────────
-   Masquer footer inline sur mobile (le footer flottant le remplace).
-   Ajouter padding-bottom pour ne pas passer sous la nav mobile.
-   ─────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   MODALS — Full-screen sheets on mobile
+   ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  footer:not(.mobile-footer-float),
-  .footer:not(.mobile-footer-float),
-  #footer:not(.mobile-footer-float) {
-    display: none !important;
+  /* Footer hidden on mobile (replaced by tab bar) */
+  footer:not(.m-tabbar),
+  .footer:not(.m-tabbar),
+  #footer:not(.m-tabbar) { display: none !important; }
+
+  /* Adjust FABs and other fixed elements for tab bar space */
+  .fab, .fab-icon-only {
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  body,
-  main,
-  .main-content,
-  #main,
-  .content {
-    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+  /* Undo toast above tab bar */
+  .undo-toast {
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 12px !important;
+    right: 12px !important;
   }
 }
 
-/* ── Footer mobile flottant glassmorphism ────────────────────────
-   Remplace le .mobile-bottom-nav existant sur 900px uniquement.
-   ─────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   DASHBOARD — Mobile grid
+   ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  /* Masquer la bottom nav générée par sidebar.js — le footer flottant la remplace */
-  .mobile-bottom-nav {
-    display: none !important;
+  .dash-grid, .dash-grid-v2, .dash-widgets-container {
+    grid-template-columns: 1fr !important;
+  }
+  .dash-widgets-container [data-widget-id] {
+    grid-column: span 1 !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FOCUS PAGE — Cards instead of table
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  body[data-page="focus"] .focus-table {
+    display: block !important;
+  }
+  body[data-page="focus"] .focus-table thead { display: none; }
+  body[data-page="focus"] .focus-table tbody { display: block; }
+
+  .focus-row {
+    display: block !important;
+    padding: 12px;
+    margin-bottom: 8px;
+    border-radius: 14px;
+    border: 1px solid var(--color-border);
+    background: rgba(255, 255, 255, 0.03);
   }
 
-  .mobile-footer-float {
-    position: fixed;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
-    left: 12px;
-    right: 12px;
-    height: 70px;
-    background: rgba(18, 18, 28, 0.88);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-    z-index: 9000;
-    box-shadow: 0 -2px 30px rgba(0, 0, 0, 0.4),
-                0 0 0 0.5px rgba(255, 255, 255, 0.05);
-    list-style: none;
-    margin: 0;
-    padding: 0;
+  .focus-cell {
+    display: block !important;
+    width: 100% !important;
+    padding: 3px 0 !important;
+    text-align: left !important;
+    white-space: normal !important;
   }
+}
 
-  .mf-item {
+/* ═══════════════════════════════════════════════════════════════
+   SETTINGS — Collapsible sections on mobile
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .settings-section-mobile-collapsible { margin-bottom: 12px; }
+
+  .settings-section-summary {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 3px;
-    text-decoration: none;
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.3px;
-    padding: 8px 10px;
-    border-radius: 16px;
-    transition: color 0.2s ease, background 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-    min-width: 48px;
-    text-align: center;
-    background: transparent;
-    border: none;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
     cursor: pointer;
-    font-family: inherit;
-    position: relative;
-  }
-
-  .mf-item.active {
-    color: #FF6B35;
-    background: rgba(255, 107, 53, 0.12);
-  }
-
-  .mf-item:active {
-    background: rgba(255, 255, 255, 0.08);
-    transform: scale(0.92);
-    transition: transform 0.1s ease;
-  }
-
-  .mf-icon {
-    font-size: 22px;
-    line-height: 1;
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  .mf-item.active .mf-icon {
-    transform: scale(1.15) translateY(-2px);
-  }
-
-  .mf-avatar {
-    width: 28px;
-    height: 28px;
-    background: linear-gradient(135deg, #FF6B35, #FF8C42);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    user-select: none;
     font-size: 14px;
     font-weight: 700;
-    color: white;
-    font-style: normal;
-  }
-
-  /* Point indicateur sous l'item actif */
-  .mf-item.active::after {
-    content: '';
-    display: block;
-    width: 4px;
-    height: 4px;
-    background: #FF6B35;
-    border-radius: 50%;
-    margin-top: 1px;
+    color: var(--color-primary);
+    list-style: none;
   }
 }
 
-/* ── FAB Speed Dial ─────────────────────────────────────────────
-   Bouton circulaire flottant bas-droite, s'ouvre en cascade.
-   ─────────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  .fab-speed-dial {
-    position: fixed;
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-    right: 20px;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 12px;
+/* ═══════════════════════════════════════════════════════════════
+   TOUCH OPTIMIZATIONS
+   ═══════════════════════════════════════════════════════════════ */
+@media (hover: none) and (pointer: coarse) {
+  body, a, button, .btn, tr[onclick], [role="button"] {
+    -webkit-tap-highlight-color: rgba(var(--color-primary-rgb), 0.12);
   }
-
-  .fab-main {
-    width: 58px;
-    height: 58px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #FF6B35, #FF8C42);
-    border: none;
-    box-shadow: 0 4px 20px rgba(255, 107, 53, 0.5);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-    color: white;
-    font-weight: 300;
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-                box-shadow 0.3s ease;
-    -webkit-tap-highlight-color: transparent;
-    line-height: 1;
-  }
-
-  .fab-main:active {
-    transform: scale(0.93);
-  }
-
-  .fab-main.is-open {
-    transform: rotate(45deg);
-    background: linear-gradient(135deg, #2C3E50, #34495E);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  }
-
-  /* Options cachées par défaut */
-  .fab-options {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 10px;
-  }
-
-  .fab-option {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    opacity: 0;
-    transform: translateY(20px) scale(0.8);
-    transition: opacity 0.25s ease,
-                transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-    pointer-events: none;
-  }
-
-  /* Animation en cascade */
-  .fab-options.is-open .fab-option:nth-child(1) {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    transition-delay: 0.05s;
-    pointer-events: auto;
-  }
-
-  .fab-options.is-open .fab-option:nth-child(2) {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    transition-delay: 0.1s;
-    pointer-events: auto;
-  }
-
-  .fab-options.is-open .fab-option:nth-child(3) {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    transition-delay: 0.15s;
-    pointer-events: auto;
-  }
-
-  .fab-options.is-open .fab-option:nth-child(4) {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    transition-delay: 0.2s;
-    pointer-events: auto;
-  }
-
-  .fab-options.is-open .fab-option:nth-child(5) {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    transition-delay: 0.25s;
-    pointer-events: auto;
-  }
-
-  .fab-option-label {
-    background: rgba(20, 20, 30, 0.88);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    color: white;
-    font-size: 13px;
-    font-weight: 500;
-    padding: 6px 12px;
-    border-radius: 20px;
-    white-space: nowrap;
-    letter-spacing: 0.3px;
-  }
-
-  .fab-option-btn {
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    border: none;
-    color: white;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    transition: transform 0.15s ease;
-    line-height: 1;
-  }
-
-  .fab-option-btn:active {
-    transform: scale(0.9);
-  }
-
-  /* Backdrop sombre quand ouvert */
-  .fab-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
-    z-index: 9998;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-  }
-
-  .fab-backdrop.is-open {
-    opacity: 1;
-    pointer-events: auto;
-  }
+  body { overscroll-behavior-y: contain; }
+  input[type="checkbox"] { width: 20px; height: 20px; }
 }
 
-/* ── Améliorations UX cartes prospects ───────────────────────── */
-@media (max-width: 900px) {
-  /* Cartes plus spacieuses */
-  .prospect-card-mobile,
-  .card {
-    padding: 14px 16px !important;
-    border-radius: 16px !important;
-    margin-bottom: 8px !important;
-    min-height: 72px;
-  }
-
-  /* Zone de tap links tel: — Apple HIG minimum 44px */
-  a[href^="tel:"] {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 0;
-    min-height: 44px;
-  }
-
-  /* Status badge visible */
-  .status-badge,
-  [class*="statut-badge"] {
-    font-size: 10px !important;
-    padding: 3px 8px !important;
-    border-radius: 10px !important;
-  }
-
-  /* KPI stats cards */
-  .kpi-card,
-  .stat-card {
-    border-radius: 20px !important;
-    padding: 14px !important;
-  }
-
-  /* Notification banners */
-  .alert-banner,
-  [class*="alert-bar"],
-  [class*="warning-bar"] {
-    border-radius: 16px !important;
-    padding: 12px 16px !important;
-    font-size: 13px !important;
-    margin: 8px 0 !important;
-  }
-
-  /* Pull-to-refresh hint */
-  .prospects-list-container,
-  .prospect-cards-mobile {
-    overscroll-behavior-y: contain;
-  }
+/* PWA standalone mode */
+@media (display-mode: standalone) {
+  header { padding-top: max(8px, env(safe-area-inset-top)) !important; }
 }
 
-/* ── Masquer le FAB assistant virtuel sur mobile (remplacé par Speed Dial) ── */
-@media (max-width: 900px) {
-  #dashAssistantFab {
-    display: none !important;
-  }
-}
-
-/* ── Transitions slide horizontal — style iOS natif ─────────────
-   Uniquement sur mobile (≤ 900px). Anime .container au changement
-   de page pour simuler le slide natif iPhone.
-   ─────────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  /* Évite le débordement horizontal pendant l'animation */
-  body {
-    overflow-x: hidden;
-  }
-
-  /* ── Animations entrée ── */
-  .page-enter-from-right {
-    animation: slideInFromRight 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
-  }
-
-  .page-enter-from-left {
-    animation: slideInFromLeft 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
-  }
-
-  /* ── Animations sortie ── */
-  .page-exit-to-left {
-    animation: slideOutToLeft 0.22s cubic-bezier(0.55, 0, 1, 0.45) both;
-    pointer-events: none;
-  }
-
-  .page-exit-to-right {
-    animation: slideOutToRight 0.22s cubic-bezier(0.55, 0, 1, 0.45) both;
-    pointer-events: none;
-  }
-
-  /* ── Keyframes ── */
-  @keyframes slideInFromRight {
-    from { transform: translateX(100%); opacity: 0.7; }
-    to   { transform: translateX(0);    opacity: 1;   }
-  }
-
-  @keyframes slideInFromLeft {
-    from { transform: translateX(-100%); opacity: 0.7; }
-    to   { transform: translateX(0);     opacity: 1;   }
-  }
-
-  @keyframes slideOutToLeft {
-    from { transform: translateX(0);    opacity: 1; }
-    to   { transform: translateX(-28%); opacity: 0; }
-  }
-
-  @keyframes slideOutToRight {
-    from { transform: translateX(0);   opacity: 1; }
-    to   { transform: translateX(28%); opacity: 0; }
-  }
-
-  /* ── Overlay léger pendant la transition (évite le flash blanc) ── */
-  .nav-transition-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0);
-    z-index: 8999; /* Sous le footer (9000) et le FAB (9999) */
-    pointer-events: none;
-    transition: background 0.12s ease;
-  }
-
-  .nav-transition-overlay.active {
-    background: rgba(0, 0, 0, 0.06);
-  }
+/* ═══════════════════════════════════════════════════════════════
+   PRINT — Hide mobile elements
+   ═══════════════════════════════════════════════════════════════ */
+@media print {
+  .m-tabbar, .m-fab, .m-fab-backdrop, .m-fab-options,
+  .m-overlay, .m-pull-indicator, .m-bottom-sheet { display: none !important; }
 }
