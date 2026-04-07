@@ -224,13 +224,13 @@ function renderCandidateTable() {
         const isSelected = __selectedCandidates.has(c.id);
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
-            : '<span class="dc-badge missing" title="Pas de dossier de compétences">—</span>';
+            : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
         if (isSelected) tr.classList.add('row-selected');
         tr.addEventListener('click', (e) => {
-            if (e.target.closest('.mini-action, button, a, input')) return;
+            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn')) return;
             window.location.href = '/candidat?id=' + c.id;
         });
         tr.innerHTML = `
@@ -256,6 +256,49 @@ function renderCandidateTable() {
     });
 
     updateCandidateSelectAllState();
+}
+
+function quickUploadDC(candidateId) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.addEventListener('change', async () => {
+        const file = input.files[0];
+        document.body.removeChild(input);
+        if (!file) return;
+        const btn = document.querySelector(`#candTableBody tr[data-candidate-id="${candidateId}"] .dc-upload-btn`);
+        if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+        const fd = new FormData();
+        fd.append('dc', file);
+        fd.append('candidate_id', candidateId);
+        try {
+            const res = await fetch('/api/candidates/upload-dc', { method: 'POST', body: fd });
+            const json = await res.json().catch(() => ({}));
+            if (res.ok && json.ok) {
+                showToast('DC enregistré : ' + json.filename, 'success');
+                // Mettre à jour localement sans recharger tout
+                const cand = __candidates.find(c => c.id === candidateId);
+                if (cand) cand.has_dc = true;
+                const cFilt = __candFiltered.find(c => c.id === candidateId);
+                if (cFilt) cFilt.has_dc = true;
+                const tr = document.querySelector(`#candTableBody tr[data-candidate-id="${candidateId}"]`);
+                if (tr) {
+                    const dcCell = tr.querySelector('[data-label="DC"]');
+                    if (dcCell) dcCell.innerHTML = '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>';
+                }
+            } else {
+                showToast('Échec upload DC : ' + (json.error || 'HTTP ' + res.status), 'error');
+                if (btn) { btn.textContent = '＋ DC'; btn.disabled = false; }
+            }
+        } catch(e) {
+            showToast('Erreur réseau : ' + (e?.message || e), 'error');
+            if (btn) { btn.textContent = '＋ DC'; btn.disabled = false; }
+        }
+    });
+    input.addEventListener('cancel', () => { document.body.removeChild(input); });
+    input.click();
 }
 
 function openCandidateModal(editing=false) {
