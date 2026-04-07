@@ -40,21 +40,49 @@
     <a class="btn btn-secondary btn-link-inline" href="/api/candidates/export.csv" target="_blank">⬇️ Export CSV</a>
   </div>
 
+  <!-- Barre d'actions en masse -->
+  <div class="bulk-actions" id="candBulkActions" style="display:none; margin-bottom:10px;">
+    <div class="bulk-left">
+      <strong id="candBulkCount">0</strong> sélectionné(s)
+      <button class="btn btn-secondary" onclick="clearCandidateSelection()">Tout désélectionner</button>
+    </div>
+    <div class="bulk-right">
+      <select id="candBulkStatus">
+        <option value="">Changer statut…</option>
+        <option value="a_sourcer">🧲 À sourcer</option>
+        <option value="a_contacter">📨 À contacter</option>
+        <option value="en_cours">⏳ En cours</option>
+        <option value="ec1">📞 EC1</option>
+        <option value="ec2">📞📞 EC2</option>
+        <option value="ed">📋 ED</option>
+        <option value="interesse">✅ Intéressé</option>
+        <option value="mission">🚀 Mission</option>
+        <option value="refuse">❌ Refusé</option>
+        <option value="embauche">🎉 Embauché</option>
+        <option value="archive">📦 Archivé</option>
+      </select>
+      <button class="btn btn-primary" onclick="applyBulkCandidateStatus()">Appliquer</button>
+      <button class="btn btn-danger" onclick="deleteSelectedCandidates()">🗑️ Supprimer</button>
+    </div>
+  </div>
+
   <div class="table-wrapper">
     <table>
       <thead>
         <tr>
+          <th style="width:32px; padding-left:12px;"><input type="checkbox" id="candSelectAll" title="Sélectionner tous les candidats" aria-label="Sélectionner tous les candidats" onclick="toggleCandidateSelectAll(this.checked)"></th>
           <th>Nom</th>
           <th>Rôle</th>
           <th>Localisation</th>
           <th>Compétences / Tech</th>
+          <th>DC</th>
           <th>Statut</th>
           <th>MAJ</th>
           <th style="text-align:right;">Actions</th>
         </tr>
       </thead>
       <tbody id="candTableBody">
-        <tr><td colspan="7" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
+        <tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
       </tbody>
     </table>
   </div>

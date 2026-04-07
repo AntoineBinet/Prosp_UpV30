@@ -5261,6 +5261,42 @@ def api_candidates_set_status():
     return jsonify(ok=True, updatedAt=now)
 
 
+@app.post("/api/candidates/bulk-update")
+def api_candidates_bulk_update():
+    """Bulk update a whitelisted field for selected candidates (owner only)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    ids = payload.get("ids", [])
+    field = payload.get("field", "")
+    value = payload.get("value", "")
+    ALLOWED_FIELDS = {"status": "status"}
+    if field not in ALLOWED_FIELDS or not ids:
+        return jsonify(ok=False, error="Requête invalide"), 400
+    try:
+        ids = [int(i) for i in ids]
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="IDs invalides"), 400
+    col = ALLOWED_FIELDS[field]
+    now = datetime.now().isoformat()
+    db_path = _get_user_db(uid)
+    conn = sqlite3.connect(db_path)
+    try:
+        placeholders = ",".join("?" * len(ids))
+        conn.execute(
+            f"UPDATE candidates SET {col}=?, updatedAt=? WHERE id IN ({placeholders}) AND owner_id=? AND deleted_at IS NULL",
+            [value, now] + ids + [uid],
+        )
+        conn.commit()
+        updated = conn.execute("SELECT changes()").fetchone()[0]
+        return jsonify(ok=True, updated=updated)
+    except Exception as exc:
+        return jsonify(ok=False, error=str(exc)), 500
+    finally:
+        conn.close()
+
+
 @app.post("/api/candidate-push")
 def api_candidate_push_add():
     """Log a candidate → prospect push (simple history, reuses candidate_events)."""
