@@ -87,10 +87,8 @@ async function confirmEC1() {
 }
 
 
-// Productivité
-let __activeKeywords = [];
-let __customKeywords = []; // ajoutés par l'utilisateur (persistés)
-let __selectedCompanyIds = [];
+// Archive tab
+let __archiveFiltered = [];
 
 function candSkillsArray(c) {
     if (!c) return [];
@@ -183,12 +181,13 @@ function applyCandidateFilters() {
     const skillsNeed = parseSkillsFilter();
 
     __candFiltered = __candidates.filter(c => {
+        const status = safeStr(c.status).toLowerCase();
+        // Archivés et refusés → onglet dédié uniquement
+        if (status === 'archive' || status === 'refuse') return false;
         const skills = candSkillsArray(c);
         const hay = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${skills.join(' ')} ${safeStr(c.tech)} ${safeStr(c.notes)} ${safeStr(c.linkedin)} ${safeStr(c.source)}`.toLowerCase();
         const okQ = !q || hay.includes(q);
-        const okS = !st || safeStr(c.status).toLowerCase() === st;
-        // Hide archived unless explicitly filtered
-        const okArchive = st === 'archive' || !c.is_archived;
+        const okS = !st || status === st;
         // skills filter = AND over requested skills
         let okSkills = true;
         if (skillsNeed.length) {
@@ -196,7 +195,7 @@ function applyCandidateFilters() {
             const techText = safeStr(c.tech).toLowerCase();
             okSkills = skillsNeed.every(sk => skillSet.has(sk) || techText.includes(sk));
         }
-        return okQ && okS && okSkills && okArchive;
+        return okQ && okS && okSkills;
     });
 
     renderCandidateTable();
@@ -240,7 +239,7 @@ function renderCandidateTable() {
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
             <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
             <td data-label="DC">${dcBadge}</td>
-            <td data-label="Statut"><span class="badge">${escapeHtml(candStatusLabel(c.status))}</span></td>
+            <td data-label="Statut">${renderStatusSelect(c.id, c.status)}</td>
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
@@ -299,6 +298,144 @@ function quickUploadDC(candidateId) {
     });
     input.addEventListener('cancel', () => { document.body.removeChild(input); });
     input.click();
+}
+
+// ===== Statut inline =====
+
+const CAND_STATUSES = [
+    ['a_sourcer',   '🧲 À sourcer'],
+    ['a_contacter', '📨 À contacter'],
+    ['en_cours',    '⏳ En cours'],
+    ['ec1',         '📞 EC1'],
+    ['ec2',         '📞📞 EC2'],
+    ['ed',          '📋 ED'],
+    ['interesse',   '✅ Intéressé'],
+    ['mission',     '🚀 Mission'],
+    ['refuse',      '❌ Refusé'],
+    ['embauche',    '🎉 Embauché'],
+    ['archive',     '📦 Archivé'],
+];
+
+function renderStatusSelect(candidateId, currentStatus) {
+    const opts = CAND_STATUSES.map(([v, l]) =>
+        `<option value="${v}"${v === currentStatus ? ' selected' : ''}>${escapeHtml(l)}</option>`
+    ).join('');
+    return `<select class="status-inline-select status-cand-${escapeHtml(currentStatus)}" onclick="event.stopPropagation()" onchange="quickChangeStatus(${candidateId}, this.value)">${opts}</select>`;
+}
+
+async function quickChangeStatus(candidateId, newStatus) {
+    try {
+        const res = await fetch('/api/candidates/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: candidateId, status: newStatus })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        // Mettre à jour localement
+        const cand = __candidates.find(c => c.id === candidateId);
+        if (cand) cand.status = newStatus;
+        // Si le statut fait sortir de l'onglet courant, re-filtrer après un court délai
+        const archived = ['archive', 'refuse'];
+        const currentTab = document.getElementById('panelPipeline')?.style.display !== 'none' ? 'pipeline' : 'archive';
+        const shouldMove = (currentTab === 'pipeline' && archived.includes(newStatus)) ||
+                           (currentTab === 'archive' && !archived.includes(newStatus));
+        if (shouldMove) {
+            setTimeout(() => { applyCandidateFilters(); renderArchiveTable(); }, 600);
+        } else {
+            // Juste mettre à jour la couleur du select
+            const sel = document.querySelector(`#candTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #archiveTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select`);
+            if (sel) {
+                sel.className = `status-inline-select status-cand-${newStatus}`;
+            }
+        }
+    } catch(e) {
+        showToast('Impossible de changer le statut : ' + (e?.message || e), 'error');
+    }
+}
+
+// ===== Onglet Archivés / Refusés =====
+
+function applyArchiveFilters() {
+    const q = (document.getElementById('archiveSearch')?.value || '').trim().toLowerCase();
+    const st = (document.getElementById('archiveStatusFilter')?.value || '').trim().toLowerCase();
+    __archiveFiltered = __candidates.filter(c => {
+        const status = safeStr(c.status).toLowerCase();
+        if (status !== 'archive' && status !== 'refuse') return false;
+        if (st && status !== st) return false;
+        if (q) {
+            const skills = candSkillsArray(c);
+            const hay = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${skills.join(' ')} ${safeStr(c.tech)} ${safeStr(c.notes)}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+    renderArchiveTable();
+}
+
+function renderArchiveTable() {
+    const tbody = document.getElementById('archiveTableBody');
+    const empty = document.getElementById('archiveEmptyState');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (__archiveFiltered.length === 0) {
+        if (empty) empty.style.display = 'block';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    __archiveFiltered.forEach(c => {
+        const skills = candSkillsArray(c);
+        const skillsLabel = skills.join(', ');
+        const combinedTech = skillsLabel ? (skillsLabel + (c.tech ? ' · ' + safeStr(c.tech) : '')) : safeStr(c.tech);
+        const dcBadge = c.has_dc
+            ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
+            : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.dataset.candidateId = c.id;
+        tr.addEventListener('click', (e) => {
+            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, select')) return;
+            window.location.href = '/candidat?id=' + c.id;
+        });
+        tr.innerHTML = `
+            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="archive-row-select" title="Sélectionner" onclick="event.stopPropagation();toggleArchiveSelect(${c.id}, this.checked)"></td>
+            <td data-label="Nom"><span title="${escapeHtml(c.name || '')}">${escapeHtml(c.name || '')}</span></td>
+            <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
+            <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
+            <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
+            <td data-label="DC">${dcBadge}</td>
+            <td data-label="Statut">${renderStatusSelect(c.id, c.status)}</td>
+            <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
+            <td data-label="Actions">
+              <div class="table-actions-inline">
+                <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
+                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
+                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
+              </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+let __archiveSelected = new Set();
+function toggleArchiveSelect(id, checked) {
+    if (checked) __archiveSelected.add(id);
+    else __archiveSelected.delete(id);
+    updateArchiveSelectAllState();
+}
+function toggleArchiveSelectAll(checked) {
+    if (checked) __archiveFiltered.forEach(c => __archiveSelected.add(c.id));
+    else __archiveFiltered.forEach(c => __archiveSelected.delete(c.id));
+    renderArchiveTable();
+}
+function updateArchiveSelectAllState() {
+    const cb = document.getElementById('archiveSelectAll');
+    if (!cb || !__archiveFiltered.length) return;
+    const n = __archiveFiltered.filter(c => __archiveSelected.has(c.id)).length;
+    cb.checked = n === __archiveFiltered.length;
+    cb.indeterminate = n > 0 && n < __archiveFiltered.length;
 }
 
 function openCandidateModal(editing=false) {
@@ -379,7 +516,6 @@ async function saveCandidate(e) {
     closeCandidateModal();
     await loadCandidates();
     applyCandidateFilters();
-    refreshProductivityMatching();
 }
 
 async function deleteCandidate(id) {
@@ -402,7 +538,6 @@ async function deleteCandidate(id) {
     // Mise à jour UI immédiate
     await loadCandidates();
     applyCandidateFilters();
-    refreshProductivityMatching();
 
     // Toast avec bouton Annuler (10 secondes)
     if (typeof showUndoToast === 'function') {
@@ -510,7 +645,6 @@ async function deleteSelectedCandidates() {
     clearCandidateSelection();
     await loadCandidates();
     applyCandidateFilters();
-    refreshProductivityMatching();
 }
 
 // ===== Ajouter via VSA =====
@@ -985,356 +1119,25 @@ function _vsaImportPreFillAnyway() {
     _vsaImportApplyParsed(parsed);
 }
 
-// ===== Productivité =====
-
-function loadCustomKeywords() {
-    try {
-        const raw = localStorage.getItem('sourcing_custom_keywords_v5');
-        if (raw) __customKeywords = JSON.parse(raw) || [];
-        if (!Array.isArray(__customKeywords)) __customKeywords = [];
-    } catch(e) { __customKeywords = []; }
-}
-function saveCustomKeywords() {
-    try { localStorage.setItem('sourcing_custom_keywords_v5', JSON.stringify(__customKeywords)); } catch(e) {}
-}
-
-function selectedCompanyObjects() {
-    return (data?.companies || []).filter(c => __selectedCompanyIds.includes(Number(c.id)));
-}
-
-function deriveKeywordsFromCompanies() {
-    const companies = selectedCompanyObjects();
-    const companyById = new Map((data?.companies || []).map(c => [Number(c.id), c]));
-    const prospects = data?.prospects || [];
-
-    // fréquence simple de tokens
-    const freq = new Map();
-
-    const addTerm = (term, w=1) => {
-        const t = safeStr(term).trim();
-        if (!t) return;
-        const key = t.toLowerCase();
-        if (STOP.has(key)) return;
-        freq.set(key, (freq.get(key) || 0) + w);
-    };
-
-    companies.forEach(c => {
-        // tags entreprise
-        try {
-            const tags = Array.isArray(c.tags) ? c.tags : (safeStr(c.tags).split(',').map(x=>x.trim()).filter(Boolean));
-            tags.forEach(t => addTerm(t, 6));
-        } catch(e) {}
-        // notes entreprise
-        toTokens(c.notes).forEach(tok => addTerm(tok, 1));
-    });
-
-    // ajouter vocab depuis prospects de ces entreprises
-    prospects
-        .filter(p => __selectedCompanyIds.includes(Number(p.company_id)))
-        .forEach(p => {
-            toTokens(p.fonction).forEach(tok => addTerm(tok, 2));
-            toTokens(p.notes).forEach(tok => addTerm(tok, 1));
-            try { (Array.isArray(p.tags) ? p.tags : []).forEach(t => addTerm(t, 3)); } catch(e) {}
-        });
-
-    // privilégier certains patterns
-    const prefer = ['c++','c','python','linux','rtos','can','autosar','embedded','embarqué','firmware','fpga','stm32','nvidia','ros','lidar','v2x','ethernet','do-178','iso26262'];
-    prefer.forEach(k => { if (freq.has(k)) freq.set(k, freq.get(k) + 4); });
-
-    // output top terms
-    const sorted = [...freq.entries()].sort((a,b)=>b[1]-a[1]).map(([k])=>k);
-    const base = sorted.slice(0, 14).map(s => s); // keep lowercase
-    const merged = uniq(base.concat(__customKeywords));
-    __activeKeywords = merged.slice(0, 24);
-}
-
-function renderKeywordChips() {
-    const wrap = document.getElementById('keywordChips');
-    if (!wrap) return;
-    wrap.innerHTML = '';
-    if (__activeKeywords.length === 0) {
-        wrap.innerHTML = '<div class="muted">Sélectionnez une entreprise pour générer des mots-clés…</div>';
-        return;
-    }
-
-    __activeKeywords.forEach(k => {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'chip';
-        chip.title = 'Cliquer pour supprimer';
-        chip.innerHTML = `${escapeHtml(k)} <span class="chip-x">×</span>`;
-        chip.addEventListener('click', () => {
-            __activeKeywords = __activeKeywords.filter(x => x.toLowerCase() !== k.toLowerCase());
-            renderKeywordChips();
-            updateLinkedInQuery();
-            refreshProductivityMatching();
-        });
-        wrap.appendChild(chip);
-    });
-}
-
-function updateLinkedInQuery() {
-    const ta = document.getElementById('liQuery');
-    if (!ta) return;
-    if (__activeKeywords.length === 0) { ta.value = ''; return; }
-
-    const parts = __activeKeywords.map(k => {
-        const kk = k.trim();
-        if (!kk) return '';
-        if (kk.includes(' ') || kk.includes('+') || kk.includes('#') || kk.includes('-')) return `"${kk}"`;
-        return kk;
-    }).filter(Boolean);
-
-    const q = '(' + parts.join(' OR ') + ')';
-    ta.value = q;
-}
-
-function computeCandidateScore(c) {
-    const kw = __activeKeywords.map(x => x.toLowerCase());
-    if (kw.length === 0) return { score: 0, matched: [] };
-
-    const skills = candSkillsArray(c).join(' ');
-    const text = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${skills} ${safeStr(c.tech)} ${safeStr(c.notes)}`.toLowerCase();
-    const matched = [];
-    kw.forEach(k => {
-        if (!k) return;
-        // match mot-clé en substring (simple & rapide)
-        if (text.includes(k)) matched.push(k);
-    });
-
-    const score = Math.round((matched.length / kw.length) * 100);
-    return { score, matched };
-}
-
-function renderMatchTable() {
-    const tbody = document.getElementById('matchTableBody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-
-    const st = (document.getElementById('matchStatusFilter')?.value || '').trim().toLowerCase();
-    const q = (document.getElementById('matchSearch')?.value || '').trim().toLowerCase();
-
-    const list = __candidates
-        .filter(c => !st || safeStr(c.status).toLowerCase() === st)
-        .filter(c => {
-            const hay = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${candSkillsArray(c).join(' ')} ${safeStr(c.tech)} ${safeStr(c.notes)}`.toLowerCase();
-            return !q || hay.includes(q);
-        })
-        .map(c => ({ c, ...computeCandidateScore(c) }))
-        .sort((a,b)=> b.score - a.score);
-
-    const summary = document.getElementById('matchSummary');
-    if (summary) {
-        summary.textContent = `Mots-clés: ${__activeKeywords.length} · Candidats: ${list.length}`;
-    }
-
-    if (list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
-        return;
-    }
-
-    list.forEach(({c, score, matched}) => {
-        const m = matched.slice(0, 8).join(', ');
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td data-label="Match"><span class="match-pill" title="${escapeHtml(m)}">${score}%</span></td>
-          <td data-label="Nom"><span title="${escapeHtml(c.name || '')}">${escapeHtml(c.name || '')}</span></td>
-          <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
-          <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
-          <td data-label="Compétences / Tech">${renderClampCell(c.tech)}</td>
-          <td data-label="Actions">
-            <div class="table-actions-inline">
-              <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
-              ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
-              <button class="mini-action" onclick="copyApproachMessage(${c.id})" title="Copier message">💬</button>
-              <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
-            </div>
-          </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-function refreshProductivityMatching() {
-    if (document.getElementById('panelProd')?.style.display === 'none') return;
-    updateLinkedInQuery();
-    renderMatchTable();
-}
-
-function populateCompanyMultiSelect() {
-    const sel = document.getElementById('targetCompanySelect');
-    if (!sel) return;
-    sel.innerHTML = '';
-
-    const companies = (data?.companies || []).slice().sort((a,b) => safeStr(a.groupe).localeCompare(safeStr(b.groupe), 'fr', { sensitivity:'base' }));
-    companies.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = String(c.id);
-        opt.textContent = `${safeStr(c.groupe)}${c.site ? ' — ' + safeStr(c.site) : ''}`;
-        sel.appendChild(opt);
-    });
-}
-
-async function copyToClipboard(text) {
-    const t = safeStr(text);
-    if (!t) return false;
-    try {
-        await navigator.clipboard.writeText(t);
-        return true;
-    } catch (e) {
-        // fallback
-        try {
-            const ta = document.createElement('textarea');
-            ta.value = t;
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            ta.remove();
-            return true;
-        } catch (err) {
-            return false;
-        }
-    }
-}
-
-function pickTopCompanyLabel() {
-    const companies = selectedCompanyObjects();
-    if (!companies.length) return '';
-    const c = companies[0];
-    return `${safeStr(c.groupe)}${c.site ? ' (' + safeStr(c.site) + ')' : ''}`;
-}
-
-async function copyApproachMessage(candidateId) {
-    const c = __candidates.find(x => x.id === candidateId);
-    if (!c) return;
-
-    const target = pickTopCompanyLabel();
-    const kw = __activeKeywords.slice(0, 6).join(', ');
-    const msg =
-`Bonjour ${safeStr(c.name).split(' ')[0] || ''},
-
-Je suis ingénieur d’affaires chez Up Technologies. Je travaille en ce moment sur des besoins similaires à : ${target || 'des clients en région'}.
-
-Votre profil m’a interpellé (mots-clés: ${kw || '—'}). Est-ce que vous seriez ouvert à un échange rapide (10-15 min) cette semaine ?
-
-Merci et bonne journée !`;
-
-    const ok = await copyToClipboard(msg);
-    showToast(ok ? "Message copié." : "Impossible de copier (clipboard).", ok ? 'success' : 'error');
-}
-
-async function handleCandidateOfDay() {
-    // prend le meilleur match selon les filtres actuels
-    const st = (document.getElementById('matchStatusFilter')?.value || '').trim().toLowerCase();
-    const list = __candidates
-        .filter(c => !st || safeStr(c.status).toLowerCase() === st)
-        .map(c => ({ c, ...computeCandidateScore(c) }))
-        .sort((a,b)=> b.score - a.score);
-
-    if (list.length === 0) {
-        showToast("Aucun candidat dans ce filtre.", 'info');
-        return;
-    }
-
-    const best = list[0];
-    const c = best.c;
-    const label = `${safeStr(c.name)} — ${best.score}%`;
-    const ok = await copyToClipboard(document.getElementById('liQuery')?.value || '');
-    showToast(`Candidat du jour : ${label}${ok ? " — Requête LinkedIn copiée" : ""}`, 'success', 4000);
-    // ouvrir LinkedIn du candidat si dispo
-    if (c.linkedin) window.open(c.linkedin, '_blank');
-}
-
-async function saveCompanyTagsFromKeywords() {
-    if (__selectedCompanyIds.length === 0) {
-        showToast("Sélectionnez une entreprise.", 'warning');
-        return;
-    }
-    if (__activeKeywords.length === 0) {
-        showToast("Aucun mot-clé.", 'warning');
-        return;
-    }
-
-    // merge dans company.tags + save
-    __selectedCompanyIds.forEach(cid => {
-        const c = data.companies.find(x => Number(x.id) === Number(cid));
-        if (!c) return;
-        const existing = Array.isArray(c.tags) ? c.tags : (safeStr(c.tags).split(',').map(x=>x.trim()).filter(Boolean));
-        const merged = uniq(existing.concat(__activeKeywords));
-        c.tags = merged;
-    });
-
-    try {
-        await saveToServerAsync();
-        showToast("Tags entreprise mis à jour.", 'success');
-    } catch (e) {
-        console.error(e);
-        showToast("Impossible de sauvegarder les tags.", 'error');
-    }
-}
-
-function wireProductivityEvents() {
-    const sel = document.getElementById('targetCompanySelect');
-    sel && sel.addEventListener('change', () => {
-        __selectedCompanyIds = Array.from(sel.selectedOptions).map(o => Number(o.value));
-        deriveKeywordsFromCompanies();
-        renderKeywordChips();
-        updateLinkedInQuery();
-        refreshProductivityMatching();
-    });
-
-    document.getElementById('btnAddKeyword')?.addEventListener('click', () => {
-        const inp = document.getElementById('keywordAddInput');
-        const v = inp ? inp.value.trim() : '';
-        if (!v) return;
-        __customKeywords = uniq(__customKeywords.concat([v]));
-        saveCustomKeywords();
-        deriveKeywordsFromCompanies();
-        renderKeywordChips();
-        updateLinkedInQuery();
-        refreshProductivityMatching();
-        if (inp) inp.value = '';
-    });
-
-    document.getElementById('btnCopyQuery')?.addEventListener('click', async () => {
-        const q = document.getElementById('liQuery')?.value || '';
-        const ok = await copyToClipboard(q);
-        showToast(ok ? "✅ Requête copiée" : "❌ Impossible de copier", ok ? 'success' : 'error');
-    });
-
-    document.getElementById('btnOpenLinkedIn')?.addEventListener('click', () => {
-        const q = document.getElementById('liQuery')?.value || '';
-        const url = 'https://www.linkedin.com/search/results/people/?keywords=' + encodeURIComponent(q);
-        window.open(url, '_blank');
-    });
-
-    document.getElementById('btnPickCandidateOfDay')?.addEventListener('click', handleCandidateOfDay);
-    document.getElementById('btnRefreshMatch')?.addEventListener('click', refreshProductivityMatching);
-    document.getElementById('matchStatusFilter')?.addEventListener('change', refreshProductivityMatching);
-    document.getElementById('matchSearch')?.addEventListener('input', refreshProductivityMatching);
-
-    document.getElementById('btnSaveCompanyTags')?.addEventListener('click', saveCompanyTagsFromKeywords);
-}
-
 // ===== Tabs =====
 function setTab(tab) {
-    const p1 = document.getElementById('panelPipeline');
-    const p2 = document.getElementById('panelProd');
-    const b1 = document.getElementById('tabPipeline');
-    const b2 = document.getElementById('tabProd');
-    if (!p1 || !p2 || !b1 || !b2) return;
+    const pPipeline = document.getElementById('panelPipeline');
+    const pArchive  = document.getElementById('panelArchive');
+    const bPipeline = document.getElementById('tabPipeline');
+    const bArchive  = document.getElementById('tabArchive');
+    if (!pPipeline || !pArchive) return;
 
-    if (tab === 'prod') {
-        p1.style.display = 'none';
-        p2.style.display = 'block';
-        b1.classList.remove('active');
-        b2.classList.add('active');
-        refreshProductivityMatching();
+    if (tab === 'archive') {
+        pPipeline.style.display = 'none';
+        pArchive.style.display  = 'block';
+        bPipeline?.classList.remove('active');
+        bArchive?.classList.add('active');
+        applyArchiveFilters();
     } else {
-        p1.style.display = 'block';
-        p2.style.display = 'none';
-        b1.classList.add('active');
-        b2.classList.remove('active');
+        pPipeline.style.display = 'block';
+        pArchive.style.display  = 'none';
+        bPipeline?.classList.add('active');
+        bArchive?.classList.remove('active');
     }
 }
 
@@ -1412,7 +1215,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof fn === 'function') await fn('sourcing');
     } catch (e) {}
 
-    loadCustomKeywords();
     await loadCandidateFolderSettings();
     document.getElementById('btnSaveCandidateFolder')?.addEventListener('click', saveCandidateFolderSettings);
     document.getElementById('btnScanCandidateFolder')?.addEventListener('click', scanCandidateFolder);
@@ -1421,25 +1223,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('candSearch')?.addEventListener('input', applyCandidateFilters);
     document.getElementById('candStatusFilter')?.addEventListener('change', applyCandidateFilters);
     document.getElementById('candSkillsFilter')?.addEventListener('input', applyCandidateFilters);
-    // v27.x PARTIE 3: nouveau wizard 2 étapes pour ajouter un candidat
     document.getElementById('btnAddCandidate')?.addEventListener('click', openWizardCandModal);
     document.getElementById('candForm')?.addEventListener('submit', saveCandidate);
 
+    // Archive tab events
+    document.getElementById('archiveSearch')?.addEventListener('input', applyArchiveFilters);
+    document.getElementById('archiveStatusFilter')?.addEventListener('change', applyArchiveFilters);
+
     // Tabs
     document.getElementById('tabPipeline')?.addEventListener('click', () => setTab('pipeline'));
-    document.getElementById('tabProd')?.addEventListener('click', () => setTab('prod'));
-
-    // Productivité init
-    populateCompanyMultiSelect();
-    wireProductivityEvents();
+    document.getElementById('tabArchive')?.addEventListener('click', () => setTab('archive'));
 
     try {
         await loadCandidates();
         applyCandidateFilters();
-        deriveKeywordsFromCompanies();
-        renderKeywordChips();
-        updateLinkedInQuery();
-        refreshProductivityMatching();
     } catch (err) {
         console.error(err);
         showToast("❌ Impossible de charger les candidats. Vérifiez que le serveur Python est lancé (app.py).", 'error');

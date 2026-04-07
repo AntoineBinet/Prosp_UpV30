@@ -3218,6 +3218,12 @@ form.has-invalid-fields input[type="submit"] {
 .dc-upload-btn { background:transparent; border:1px dashed var(--color-border); cursor:pointer; transition:opacity .15s, border-color .15s; white-space:nowrap; }
 .dc-upload-btn:hover { opacity:0.8; border-color:var(--color-primary); color:var(--color-primary); }
 tr.row-selected { background:rgba(168,85,247,0.08) !important; }
+.status-inline-select { font-size:12px; padding:3px 6px; border-radius:6px; border:1px solid var(--color-border); background:var(--color-surface-2); color:var(--color-text); cursor:pointer; max-width:140px; }
+.status-inline-select:hover { border-color:var(--color-primary); }
+.status-cand-interesse { border-color:rgba(34,197,94,0.4); color:#22c55e; }
+.status-cand-mission { border-color:rgba(168,85,247,0.4); color:#a855f7; }
+.status-cand-embauche { border-color:rgba(59,130,246,0.4); color:#3b82f6; }
+.status-cand-refuse, .status-cand-archive { border-color:rgba(239,68,68,0.3); color:var(--color-text-secondary); opacity:0.7; }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { text-decoration: underline; }
 .sort-indicator { margin-left: 6px; font-size: 12px; opacity: 0.7; }
