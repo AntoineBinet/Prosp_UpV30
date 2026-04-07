@@ -2299,6 +2299,48 @@ def _migrate_user_db_schema(db_path: Path) -> None:
         conn.close()
 
 
+_CANDIDATE_STATUS_MIGRATION = {
+    "a_sourcer": "nouveau",
+    "a_contacter": "proposition",
+    "a_contacter_relance": "proposition",
+    "en_cours": "entretien",
+    "ec1": "entretien",
+    "ec2": "entretien",
+    "ed": "a_faire",
+    "interesse": "oksi",
+    "mission": "freelance_mission",
+    "embauche": "valide_contrat",
+    "refuse": "nok",
+    "archive": "plus_disponible",
+}
+
+
+def _migrate_candidate_statuses(db_path: Path) -> None:
+    """Migre les anciens statuts candidats vers les nouveaux slugs."""
+    try:
+        conn = sqlite3.connect(db_path)
+        for old, new in _CANDIDATE_STATUS_MIGRATION.items():
+            conn.execute(
+                "UPDATE candidates SET status=? WHERE status=? AND deleted_at IS NULL;",
+                (new, old),
+            )
+        # Sync is_archived for archive statuses
+        archive_statuses = ("nok_prequal", "nok", "plus_disponible", "refus_contrat")
+        placeholders = ",".join("?" * len(archive_statuses))
+        conn.execute(
+            f"UPDATE candidates SET is_archived=1 WHERE status IN ({placeholders}) AND deleted_at IS NULL;",
+            archive_statuses,
+        )
+        conn.execute(
+            f"UPDATE candidates SET is_archived=0 WHERE status NOT IN ({placeholders}) AND deleted_at IS NULL;",
+            archive_statuses,
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("migrate_candidate_statuses %s: %s", db_path, e)
+
+
 def _migrate_all_user_dbs() -> None:
     """Migre toutes les DB per-user (deleted_at) et supprime les dossiers orphelins."""
     if not DATA_DIR.exists():
@@ -2324,6 +2366,7 @@ def _migrate_all_user_dbs() -> None:
                     print(f"[WARN] Impossible de supprimer {p}: {e}")
             else:
                 _migrate_user_db_schema(user_db)
+                _migrate_candidate_statuses(user_db)
 
 
 def _migrate_users_schema() -> None:
@@ -4448,22 +4491,36 @@ def _dump_json_list(v: Any, *, as_int: bool = False) -> str | None:
 # We define a simple rank to detect when a candidate crosses
 # "contacted" (en_cours+) or "solid" (ec1+) states.
 _CANDIDATE_STATUS_RANK = {
+    "nouveau": 0,
+    "proposition": 1,
+    "entretien": 2,
+    "a_faire": 3,
+    "oksi": 4,
+    "top_profil": 5,
+    "reunion_tech": 6,
+    "valide_contrat": 7,
+    "freelance": 8,
+    "freelance_mission": 9,
+    "nok_prequal": -1,
+    "nok": -2,
+    "plus_disponible": -3,
+    "refus_contrat": -4,
+    # legacy — kept for migration compatibility
     "a_sourcer": 0,
     "a_contacter": 1,
-    "a_contacter_relance": 2,
-    "en_cours": 3,
-    "ec1": 4,
-    "ec2": 5,
-    "ed": 6,
-    "interesse": 7,
-    "mission": 8,
-    "embauche": 9,
-    "refuse": -1,
-    "archive": -2,
+    "en_cours": 2,
+    "ec1": 2,
+    "ec2": 2,
+    "ed": 3,
+    "interesse": 4,
+    "mission": 9,
+    "refuse": -2,
+    "embauche": 7,
+    "archive": -3,
 }
 
-_CANDIDATE_CONTACTED_RANK = 3  # en_cours
-_CANDIDATE_SOLID_RANK = 4      # ec1
+_CANDIDATE_CONTACTED_RANK = 2  # entretien
+_CANDIDATE_SOLID_RANK = 4      # oksi
 
 
 def _candidate_status_rank(status: str | None) -> int:
@@ -5223,10 +5280,18 @@ def api_candidates_set_status():
 
     # Keep is_archived in sync with status when relevant
     st = status.lower()
+    _ARCHIVE_STATUSES = {"nok_prequal", "nok", "plus_disponible", "refus_contrat", "archive"}
+    _ACTIVE_STATUSES = {
+        "nouveau", "proposition", "entretien", "a_faire", "oksi", "top_profil",
+        "reunion_tech", "valide_contrat", "freelance", "freelance_mission",
+        # legacy
+        "a_sourcer", "a_contacter", "en_cours", "ec1", "ec2", "ed",
+        "interesse", "mission", "embauche", "refuse",
+    }
     is_archived = None
-    if st == "archive":
+    if st in _ARCHIVE_STATUSES:
         is_archived = 1
-    elif st in ("a_sourcer", "a_contacter", "en_cours", "ec1", "ec2", "ed", "interesse", "mission", "refuse", "embauche"):
+    elif st in _ACTIVE_STATUSES:
         is_archived = 0
 
     uid = _uid()
@@ -16037,6 +16102,7 @@ if __name__ == "__main__":
     DATA_DIR.mkdir(exist_ok=True)
     init_db()
     _migrate_users_schema()
+    _migrate_candidate_statuses(DB_PATH)
     _migrate_all_user_dbs()
     load_initial_data_if_needed()
 

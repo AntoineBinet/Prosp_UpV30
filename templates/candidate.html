@@ -116,17 +116,24 @@
       <div class="form-group">
         <label>Statut</label>
         <select id="fStatus" class="autosave-field">
-          <option value="a_sourcer">🧲 À sourcer</option>
-          <option value="a_contacter">📨 À contacter</option>
-          <option value="en_cours">⏳ En cours</option>
-          <option value="ec1">📞 EC1</option>
-          <option value="ec2">📞📞 EC2</option>
-          <option value="ed">📋 ED</option>
-          <option value="interesse">✅ Intéressé</option>
-          <option value="mission">🚀 Mission</option>
-          <option value="refuse">❌ Refusé</option>
-          <option value="embauche">🎉 Embauché</option>
-          <option value="archive">📦 Archivé</option>
+          <option value="nouveau">Nouveau / A traiter</option>
+          <option value="proposition">Proposition faite</option>
+          <optgroup label="Opérationnel">
+            <option value="entretien">Entretien en cours</option>
+            <option value="a_faire">A FAIRE</option>
+            <option value="oksi">OKSI</option>
+            <option value="top_profil">Top profil</option>
+            <option value="reunion_tech">En Réunion Technique</option>
+            <option value="valide_contrat">Validé / Contrat</option>
+            <option value="freelance">Freelance</option>
+            <option value="freelance_mission">FREELANCE EN MISSION UP</option>
+          </optgroup>
+          <optgroup label="Refus">
+            <option value="nok_prequal">NOK Préqual</option>
+            <option value="nok">NOK</option>
+            <option value="plus_disponible">Plus disponible</option>
+            <option value="refus_contrat">Refus du contrat</option>
+          </optgroup>
         </select>
       </div>
     </div>

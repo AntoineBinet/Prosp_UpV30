@@ -3218,12 +3218,21 @@ form.has-invalid-fields input[type="submit"] {
 .dc-upload-btn { background:transparent; border:1px dashed var(--color-border); cursor:pointer; transition:opacity .15s, border-color .15s; white-space:nowrap; }
 .dc-upload-btn:hover { opacity:0.8; border-color:var(--color-primary); color:var(--color-primary); }
 tr.row-selected { background:rgba(168,85,247,0.08) !important; }
-.status-inline-select { font-size:12px; padding:3px 6px; border-radius:6px; border:1px solid var(--color-border); background:var(--color-surface-2); color:var(--color-text); cursor:pointer; max-width:140px; }
+.status-inline-select { font-size:12px; padding:3px 6px; border-radius:6px; border:1px solid var(--color-border); background:var(--color-surface-2); color:var(--color-text); cursor:pointer; max-width:170px; }
 .status-inline-select:hover { border-color:var(--color-primary); }
-.status-cand-interesse { border-color:rgba(34,197,94,0.4); color:#22c55e; }
-.status-cand-mission { border-color:rgba(168,85,247,0.4); color:#a855f7; }
-.status-cand-embauche { border-color:rgba(59,130,246,0.4); color:#3b82f6; }
-.status-cand-refuse, .status-cand-archive { border-color:rgba(239,68,68,0.3); color:var(--color-text-secondary); opacity:0.7; }
+/* Nouveau / Proposition */
+.status-cand-nouveau, .status-cand-proposition { border-color:rgba(148,163,184,0.4); color:var(--color-text-secondary); }
+/* Opérationnel — vert progressif */
+.status-cand-entretien { border-color:rgba(251,191,36,0.5); color:#fbbf24; }
+.status-cand-a_faire { border-color:rgba(251,191,36,0.6); color:#f59e0b; }
+.status-cand-oksi { border-color:rgba(34,197,94,0.5); color:#22c55e; }
+.status-cand-top_profil { border-color:rgba(34,197,94,0.6); color:#16a34a; }
+.status-cand-reunion_tech { border-color:rgba(59,130,246,0.5); color:#60a5fa; }
+.status-cand-valide_contrat { border-color:rgba(59,130,246,0.7); color:#3b82f6; }
+.status-cand-freelance { border-color:rgba(168,85,247,0.4); color:#c084fc; }
+.status-cand-freelance_mission { border-color:rgba(168,85,247,0.7); color:#a855f7; font-weight:600; }
+/* Refus */
+.status-cand-nok_prequal, .status-cand-nok, .status-cand-plus_disponible, .status-cand-refus_contrat { border-color:rgba(239,68,68,0.3); color:var(--color-text-secondary); opacity:0.75; }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { text-decoration: underline; }
 .sort-indicator { margin-left: 6px; font-size: 12px; opacity: 0.7; }
