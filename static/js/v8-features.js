@@ -481,50 +481,11 @@
         updateScrolled();
     }
 
-    // ────────────── 4. MOBILE HAMBURGER ──────────────
+    // ────────────── 4. MOBILE (handled by mobile.js) ──────────────
 
-    window.toggleMobileMenu = function () {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.getElementById('mobileOverlay');
-        if (!sidebar) return;
-        sidebar.classList.toggle('sidebar-open');
-        if (overlay) overlay.classList.toggle('active');
-    };
-
-    function _initMobile() {
-        // Create overlay
-        if (!document.getElementById('mobileOverlay')) {
-            const ov = document.createElement('div');
-            ov.id = 'mobileOverlay';
-            ov.className = 'mobile-overlay';
-            ov.onclick = window.toggleMobileMenu;
-            document.body.appendChild(ov);
-        }
-
-        // Create hamburger button if not exists
-        const header = document.querySelector('header');
-        if (header && !document.getElementById('hamburgerBtn')) {
-            const btn = document.createElement('button');
-            btn.id = 'hamburgerBtn';
-            btn.className = 'hamburger-btn';
-            btn.innerHTML = '<span></span><span></span><span></span>';
-            btn.onclick = window.toggleMobileMenu;
-            header.prepend(btn);
-        }
-
-        // P4: Barre d'actions rapides mobile (Focus, Recherche, Ajouter prospect)
-        if (!document.getElementById('mobileQuickActionsBar')) {
-            const bar = document.createElement('div');
-            bar.id = 'mobileQuickActionsBar';
-            bar.className = 'mobile-quick-actions-bar';
-            bar.setAttribute('role', 'toolbar');
-            bar.setAttribute('aria-label', 'Actions rapides');
-            bar.innerHTML = '<button type="button" class="mobile-qa-item mobile-qa-pile" onclick="typeof startStackMode === \'function\' && startStackMode()" aria-label="Mode pile" title="Mode pile (swipe)">🃏 Pile</button>' +
-                '<button type="button" class="mobile-qa-item" onclick="window.openGlobalSearch && window.openGlobalSearch()" aria-label="Recherche globale" title="Recherche">🔍 Recherche</button>' +
-                '<button type="button" class="mobile-qa-item" aria-label="Ajouter un prospect" title="Ajouter un prospect" onclick="(typeof openAddModal===\'function\'?openAddModal():window.location.href=\'/?add=1\')">➕ Ajouter</button>';
-            document.body.appendChild(bar);
-        }
-    }
+    // Legacy stubs for backward compat
+    window.toggleMobileMenu = function () {};
+    function _initMobile() {}
 
     // ────────────── 4b. DISPLAY PREFERENCES (Focus on/off, etc.) ──────────────
     function _displayPrefOn(key) {
@@ -539,12 +500,12 @@
     };
 
     var _navPrefMap = [
-        { key: 'display_dashboard', selector: 'a.nav-button[href="/dashboard"], nav.mobile-bottom-nav a[href="/dashboard"]' },
+        { key: 'display_dashboard', selector: 'a.nav-button[href="/dashboard"]' },
         { key: 'display_focus', selector: 'a[href="/focus"]' },
-        { key: 'display_calendrier', selector: 'a.nav-button[href="/calendrier"], nav.mobile-bottom-nav a[href="/calendrier"]' },
+        { key: 'display_calendrier', selector: 'a.nav-button[href="/calendrier"]' },
         { key: 'display_entreprises', selector: 'a.nav-button[href="/entreprises"]' },
         { key: 'display_sourcing', selector: 'a.nav-button[href="/sourcing"]' },
-        { key: 'display_push', selector: 'a.nav-button[href="/push"], nav.mobile-bottom-nav a[href="/push"]' },
+        { key: 'display_push', selector: 'a.nav-button[href="/push"]' },
         { key: 'display_templates', selector: 'a.nav-button[href="/templates"]' },
         { key: 'display_stats', selector: 'a.nav-button[href="/stats"]' },
         { key: 'display_rapport', selector: 'a.nav-button[href="/rapport"]' },
@@ -749,76 +710,13 @@
 
     // ────────────── INIT ──────────────
 
-    // ────────────── 4b. PULL-TO-REFRESH (mobile) ──────────────
-    function _initPullToRefresh() {
-        var mobile = window.matchMedia('(max-width: 600px)');
-        if (!mobile.matches) return;
-        var loadFn = typeof window.loadFromServer === 'function' ? window.loadFromServer : null;
-        if (!loadFn) return;
-
-        var startY = 0;
-        var pulling = false;
-        var indicator = null;
-
-        function getScrollTop() {
-            return document.documentElement.scrollTop || document.body.scrollTop || 0;
-        }
-        function ensureIndicator() {
-            if (indicator) return indicator;
-            indicator = document.createElement('div');
-            indicator.id = 'pullToRefreshIndicator';
-            indicator.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;padding:12px;padding-top:max(12px,env(safe-area-inset-top));text-align:center;background:var(--color-surface);border-bottom:1px solid var(--color-border);font-size:13px;color:var(--color-text-secondary);transform:translateY(-100%);transition:transform .2s;pointer-events:none;';
-            indicator.textContent = 'Actualisation…';
-            document.body.appendChild(indicator);
-            return indicator;
-        }
-        function showIndicator() {
-            var el = ensureIndicator();
-            el.style.transform = 'translateY(0)';
-        }
-        function hideIndicator() {
-            if (indicator) indicator.style.transform = 'translateY(-100%)';
-        }
-
-        document.addEventListener('touchstart', function (e) {
-            if (getScrollTop() > 5) return;
-            startY = e.touches[0].clientY;
-            pulling = false;
-        }, { passive: true });
-        document.addEventListener('touchmove', function (e) {
-            if (getScrollTop() > 5) return;
-            var dy = e.touches[0].clientY - startY;
-            if (dy > 40) pulling = true;
-        }, { passive: true });
-        document.addEventListener('touchend', function (e) {
-            if (getScrollTop() > 5) { startY = 0; return; }
-            var endY = e.changedTouches[0].clientY;
-            var dy = endY - startY;
-            if (pulling && dy > 60) {
-                showIndicator();
-                Promise.resolve(loadFn()).then(function (ok) {
-                    try {
-                        if (typeof window.normalizeData === 'function') window.normalizeData();
-                        if (document.body.getAttribute('data-page') === 'prospects' && typeof window.filterProspects === 'function') window.filterProspects();
-                    } catch (e) { /* page sans liste prospects (ex. Paramètres) */ }
-                    hideIndicator();
-                    if (window.showToast) window.showToast(ok !== false ? 'Données actualisées' : 'Données non rechargées', ok !== false ? 'success' : 'warning', 2000);
-                }).catch(function () {
-                    hideIndicator();
-                    if (window.showToast) window.showToast('Erreur lors de l\'actualisation', 'error');
-                });
-            }
-            startY = 0;
-            pulling = false;
-        }, { passive: true });
-    }
+    // Pull-to-refresh moved to mobile.js
 
     document.addEventListener('DOMContentLoaded', function () {
         _initHeaderLayout();
         _initThemeToggle();
         _initMobile();
         if (window.applyDisplayPrefs) window.applyDisplayPrefs();
-        _initPullToRefresh();
         // Sidebar construit de façon asynchrone (fetch /api/auth/me) : bouton réduire après sidebar-ready
         document.addEventListener('sidebar-ready', function onSidebarReady() {
             document.removeEventListener('sidebar-ready', onSidebarReady);
@@ -872,13 +770,7 @@
         }, 1500);
     });
 
-    // ── v22: Active bottom nav indicator ──
-    (function _initBottomNavActive() {
-        var path = window.location.pathname;
-        document.querySelectorAll('.mobile-bottom-nav a').forEach(function (a) {
-            if (a.getAttribute('href') === path) a.classList.add('active');
-        });
-    })();
+    // Bottom nav active indicator moved to mobile.js
 
     // ── v22: Centralized SW registration + update toast ──
     if ('serviceWorker' in navigator) {
@@ -946,105 +838,7 @@
             .catch(function () { /* silent */ });
     }
 
-    // ────────────── v23.5: SWIPE-TO-ACTION (mobile) ──────────────
-
-    function _initSwipeActions() {
-        if (!window.matchMedia('(max-width: 900px)').matches) return;
-        var swipeStartX = 0, swipeStartY = 0, swipeRow = null, swipeOverlay = null;
-        var THRESHOLD = 70;
-
-        document.addEventListener('touchstart', function (e) {
-            var row = e.target.closest('tr[data-id]');
-            if (!row) return;
-            swipeRow = row;
-            swipeStartX = e.touches[0].clientX;
-            swipeStartY = e.touches[0].clientY;
-        }, { passive: true });
-
-        document.addEventListener('touchmove', function (e) {
-            if (!swipeRow) return;
-            var dx = e.touches[0].clientX - swipeStartX;
-            var dy = e.touches[0].clientY - swipeStartY;
-            if (Math.abs(dy) > Math.abs(dx)) { swipeRow = null; return; }
-            if (Math.abs(dx) > 20) {
-                swipeRow.style.transform = 'translateX(' + dx + 'px)';
-                swipeRow.style.transition = 'none';
-                if (!swipeOverlay) {
-                    swipeOverlay = document.createElement('div');
-                    swipeOverlay.className = 'swipe-action-overlay';
-                    swipeOverlay.innerHTML = dx > 0
-                        ? '<span class="swipe-action-icon swipe-call">📞</span>'
-                        : '<span class="swipe-action-icon swipe-status">🔄</span>';
-                    swipeRow.style.position = 'relative';
-                    swipeRow.appendChild(swipeOverlay);
-                } else {
-                    swipeOverlay.innerHTML = dx > 0
-                        ? '<span class="swipe-action-icon swipe-call">📞</span>'
-                        : '<span class="swipe-action-icon swipe-status">🔄</span>';
-                }
-            }
-        }, { passive: true });
-
-        document.addEventListener('touchend', function (e) {
-            if (!swipeRow) return;
-            var dx = e.changedTouches[0].clientX - swipeStartX;
-            swipeRow.style.transform = '';
-            swipeRow.style.transition = 'transform 0.2s ease';
-            if (swipeOverlay) { swipeOverlay.remove(); swipeOverlay = null; }
-            var pid = swipeRow.getAttribute('data-id');
-            if (Math.abs(dx) > THRESHOLD && pid) {
-                window.haptic(15);
-                if (dx > 0) {
-                    // Swipe right → quick call
-                    var tel = swipeRow.querySelector('[data-field="telephone"]');
-                    if (tel && tel.textContent.trim()) {
-                        window.open('tel:' + tel.textContent.trim());
-                    } else {
-                        window.showToast('Pas de numéro de téléphone', 'warning', 2000);
-                    }
-                } else {
-                    // Swipe left → cycle status
-                    _cycleProspectStatus(pid);
-                }
-            }
-            swipeRow = null;
-        }, { passive: true });
-    }
-
-    function _cycleProspectStatus(pid) {
-        var statuses = ['À contacter', 'Contacté', 'En discussion', 'Rendez-vous', 'Proposition', 'Gagné', 'Perdu'];
-        var currentData = window._v8Data || (typeof data !== 'undefined' ? data : null);
-        if (!currentData || !currentData.prospects) return;
-        var prospect = currentData.prospects.find(function (p) { return String(p.id) === String(pid); });
-        if (!prospect) return;
-        var idx = statuses.indexOf(prospect.statut || '');
-        var next = statuses[(idx + 1) % statuses.length];
-        var oldStatut = prospect.statut;
-        prospect.statut = next;
-
-        fetch('/api/prospects/bulk-status-tags', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids: [parseInt(pid)], statut: next })
-        }).then(function (r) { return r.json(); }).then(function (json) {
-            if (json.ok) {
-                window.showToast('Statut → ' + next, 'success', 2000);
-                if (typeof window.filterProspects === 'function') window.filterProspects();
-                // Celebration for "Gagné"
-                if (next === 'Gagné') _celebrate();
-                // Push undo
-                window.pushUndo('Statut ' + next + ' → ' + oldStatut, function () {
-                    prospect.statut = oldStatut;
-                    fetch('/api/prospects/bulk-status-tags', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ids: [parseInt(pid)], statut: oldStatut })
-                    });
-                    if (typeof window.filterProspects === 'function') window.filterProspects();
-                });
-            }
-        });
-    }
+    // Swipe-to-action moved to mobile.js
 
     // ────────────── v23.5: BREADCRUMBS ──────────────
 
@@ -1167,12 +961,9 @@
         el.innerHTML = html;
     };
 
-    // Patch init
-    var _origInit = document.addEventListener;
+    // Patch init (swipe moved to mobile.js)
     document.addEventListener('DOMContentLoaded', function () {
-        _initSwipeActions();
-        // Breadcrumbs désactivés (v25) : fil d'Ariane maison + page retiré à la demande
-        // _initBreadcrumbs();
+        // Breadcrumbs désactivés (v25)
     });
 
     // ── FAB Speed Dial Desktop (≥ 901px) ──────────────────────────

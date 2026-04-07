@@ -733,32 +733,6 @@ const AppAuth = {
                 }
             }
             
-            // Le badge mobile est maintenant dans la bottom nav (sidebar.js)
-            // Mettre à jour l'utilisateur dans sidebar.js et reconstruire la bottom nav
-            const updateMobileNav = () => {
-                if (typeof window.setSidebarCurrentUser === 'function') {
-                    window.setSidebarCurrentUser(this.user);
-                } else if (typeof buildMobileBottomNav === 'function') {
-                    // Reconstruire directement si setSidebarCurrentUser n'est pas disponible
-                    buildMobileBottomNav();
-                }
-            };
-            
-            // Essayer immédiatement
-            updateMobileNav();
-            
-            // Écouter l'événement sidebar-ready pour réessayer
-            const sidebarReadyListener = () => {
-                updateMobileNav();
-                document.removeEventListener('sidebar-ready', sidebarReadyListener);
-            };
-            document.addEventListener('sidebar-ready', sidebarReadyListener);
-            
-            // Fallback avec timeout
-            setTimeout(() => {
-                updateMobileNav();
-            }, 500);
-            
             return true;
         };
         
@@ -4595,120 +4569,10 @@ function _renderProspectsImpl() {
     updateStats(filteredProspects);
     _renderPagination();
     if (typeof renderKanban === 'function') renderKanban();
-    _initProspectSwipe();
 }
 
-// ── Swipe iOS-style sur les cartes prospects (mobile uniquement) ──────────────
-
-var _swipeState = null;
-var _swipeListenerAttached = false;
-
-function _closeAllSwipes(except) {
-    document.querySelectorAll('.pmc-content[data-swipe-open]').forEach(function(el) {
-        if (el === except) return;
-        el.style.transition = 'transform 0.2s ease';
-        el.style.transform = '';
-        el.removeAttribute('data-swipe-open');
-    });
-}
-
-function _initProspectSwipe() {
-    if (window.matchMedia('(min-width: 901px)').matches) return;
-    if (_swipeListenerAttached) return;
-
-    var tbody = document.getElementById('tableBody');
-    if (!tbody) return;
-    _swipeListenerAttached = true;
-
-    var SNAP_THRESHOLD = 50;  // px minimum pour déclencher le snap
-    var MAX_REVEAL = Math.min(160, Math.floor(window.innerWidth * 0.42)); // adaptatif (42% max)
-
-    tbody.addEventListener('touchstart', function(e) {
-        var wrap = e.target.closest('.pmc-swipe-wrap');
-        if (!wrap) return;
-        var content = wrap.querySelector('.pmc-content');
-        if (!content) return;
-        _swipeState = {
-            wrap: wrap,
-            content: content,
-            startX: e.touches[0].clientX,
-            startY: e.touches[0].clientY,
-            moved: false,
-            aborted: false
-        };
-    }, { passive: true });
-
-    tbody.addEventListener('touchmove', function(e) {
-        if (!_swipeState || _swipeState.aborted) return;
-        var dx = e.touches[0].clientX - _swipeState.startX;
-        var dy = e.touches[0].clientY - _swipeState.startY;
-        var ax = Math.abs(dx), ay = Math.abs(dy);
-
-        if (!_swipeState.moved) {
-            if (ax < 3 && ay < 3) return; // sub-3px: too small to classify
-            // Abort if clearly vertical (dy notably exceeds dx)
-            if (ay > ax + 4) { _swipeState.aborted = true; return; }
-            // Horizontal gesture confirmed: prevent browser from starting
-            // native vertical scroll immediately (before the visual deadzone ends)
-            e.preventDefault();
-            if (ax < 6) return; // visual deadzone: don't apply transform yet
-            _swipeState.moved = true;
-            _swipeState.content.style.transition = 'none';
-            // Close other open swipes
-            _closeAllSwipes(_swipeState.content);
-        } else {
-            e.preventDefault();
-        }
-
-        var hasContact = !_swipeState.wrap.querySelector('.pmc-no-contact');
-        var clamped = Math.max(-MAX_REVEAL, Math.min(MAX_REVEAL, dx));
-        if (dx > 0 && !hasContact) clamped = 0;
-        _swipeState.content.style.transform = 'translateX(' + clamped + 'px)';
-    }, { passive: false });
-
-    tbody.addEventListener('touchend', function(e) {
-        if (!_swipeState) return;
-        var state = _swipeState;
-        _swipeState = null;
-
-        if (!state.moved || state.aborted) {
-            state.content.style.transform = '';
-            return;
-        }
-
-        var dx = e.changedTouches[0].clientX - state.startX;
-        var hasContact = !state.wrap.querySelector('.pmc-no-contact');
-        state.content.style.transition = 'transform 0.2s ease';
-
-        if (dx > SNAP_THRESHOLD && hasContact) {
-            var leftW = state.wrap.querySelector('.pmc-actions-left').offsetWidth;
-            state.content.style.transform = 'translateX(' + leftW + 'px)';
-            state.content.setAttribute('data-swipe-open', 'left');
-            if (window.haptic) window.haptic(8);
-        } else if (dx < -SNAP_THRESHOLD) {
-            var rightW = state.wrap.querySelector('.pmc-actions-right').offsetWidth;
-            state.content.style.transform = 'translateX(-' + rightW + 'px)';
-            state.content.setAttribute('data-swipe-open', 'right');
-            if (window.haptic) window.haptic(8);
-        } else {
-            state.content.style.transform = '';
-            state.content.removeAttribute('data-swipe-open');
-        }
-    }, { passive: true });
-
-    // Cancel swipe on system interrupt (incoming call, notification, etc.)
-    tbody.addEventListener('touchcancel', function() {
-        if (!_swipeState) return;
-        _swipeState.content.style.transition = 'transform 0.2s ease';
-        _swipeState.content.style.transform = '';
-        _swipeState = null;
-    }, { passive: true });
-
-    // Tap anywhere outside closes open swipes
-    document.addEventListener('touchstart', function(e) {
-        if (!e.target.closest('.pmc-swipe-wrap')) _closeAllSwipes();
-    }, { passive: true });
-}
+// Swipe moved to mobile.js — stub for backward compat
+function _closeAllSwipes() {}
 
 // ── Changement statut direct depuis le hero (select) ─────────────────────────
 function _heroChangeStatus(prospectId, newStatus) {

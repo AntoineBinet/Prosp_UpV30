@@ -1,205 +1,530 @@
-/* ═══════════════════════════════════════════════════════════════
-   ProspUp — Mobile JS Layer (iPhone iOS 17+)
-   Chargé en dernier, s'exécute uniquement sur mobile (≤ 900px).
-   ═══════════════════════════════════════════════════════════════ */
-
+/* ==================================================================
+   ProspUp — Mobile JS Layer v2.0 (iPhone 17 / iOS 18+)
+   Loaded LAST, executes only on mobile (<=900px).
+   All DOM injection uses m- prefixed classes to avoid conflicts.
+   ================================================================== */
 (function () {
   'use strict';
 
-  // Sécurité : ne rien faire sur desktop
-  if (window.innerWidth > 900) return;
+  // ── Guard: skip on desktop ──────────────────────────────────────
+  var MQ = window.matchMedia('(max-width: 900px)');
+  if (!MQ.matches) return;
 
-  // ── Active state footer flottant ───────────────────────────────
-  // Lit data-page du body pour activer le bon item du footer mobile
-  function initMobileFooterActive() {
+  // ── Constants ───────────────────────────────────────────────────
+  var PAGE_ORDER = {
+    '/dashboard': 0,
+    '/': 1,
+    '/focus': 2,
+    '/calendrier': 3
+  };
+  var EXIT_DURATION = 180;
+
+  // ── Helpers ─────────────────────────────────────────────────────
+  function haptic(ms) {
+    if (window.haptic) window.haptic(ms || 10);
+    else if (navigator.vibrate) navigator.vibrate(ms || 10);
+  }
+
+  function esc(s) {
+    if (typeof window.escapeHtml === 'function') return window.escapeHtml(s);
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ==================================================================
+  //  1. TAB BAR — iOS 18+ floating bottom navigation
+  // ==================================================================
+  function buildTabBar() {
+    var existing = document.getElementById('m-tabbar');
+    if (existing) existing.remove();
+
+    var nav = document.createElement('nav');
+    nav.className = 'm-tabbar';
+    nav.id = 'm-tabbar';
+    nav.setAttribute('role', 'navigation');
+    nav.setAttribute('aria-label', 'Navigation mobile');
+
+    var tabs = [
+      { page: 'dashboard', href: '/dashboard', icon: '📊', label: 'Stats' },
+      { page: 'prospects', href: '/',          icon: '👥', label: 'Prospects' },
+      { page: 'focus',     href: '/focus',     icon: '🎯', label: 'Focus' },
+      { page: 'calendar',  href: '/calendrier',icon: '📅', label: 'Agenda' }
+    ];
+
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();
     var currentPath = window.location.pathname;
 
-    // Mapping page_id / path → data-page du footer
-    var footerLinks = document.querySelectorAll('.mobile-footer-float .mf-item');
-    footerLinks.forEach(function (link) {
-      var href = link.getAttribute('href') || '';
-      var linkPage = link.getAttribute('data-page') || '';
+    tabs.forEach(function (t) {
+      var a = document.createElement('a');
+      a.href = t.href;
+      a.className = 'm-tab';
+      a.setAttribute('data-page', t.page);
 
-      var isActive = false;
+      var isActive = (t.page === currentPage) ||
+                     (t.href === currentPath) ||
+                     (t.href === '/' && currentPath === '/');
+      if (isActive) a.classList.add('active');
 
-      // Correspondance par data-page attribut
-      if (linkPage && linkPage === currentPage) {
-        isActive = true;
-      }
-      // Correspondance par href exact
-      if (!isActive && href && (currentPath === href || currentPath === href + '/')) {
-        isActive = true;
-      }
-      // Page prospects : route "/"
-      if (!isActive && href === '/' && currentPath === '/') {
-        isActive = true;
-      }
+      a.innerHTML =
+        '<span class="m-tab-icon">' + t.icon + '</span>' +
+        '<span class="m-tab-label">' + t.label + '</span>';
 
-      if (isActive) {
-        link.classList.add('active');
-      }
+      a.addEventListener('click', handleNavClick);
+      nav.appendChild(a);
     });
+
+    // Profile button
+    var profileBtn = document.createElement('button');
+    profileBtn.type = 'button';
+    profileBtn.className = 'm-tab';
+    profileBtn.onclick = function () {
+      if (typeof openUserMenu === 'function') openUserMenu();
+    };
+
+    var initial = 'A';
+    if (window.AppAuth && window.AppAuth.user) {
+      initial = ((window.AppAuth.user.display_name || window.AppAuth.user.username || '').charAt(0) || 'A').toUpperCase();
+    }
+
+    profileBtn.innerHTML =
+      '<span class="m-tab-avatar" id="m-avatar">' + initial + '</span>' +
+      '<span class="m-tab-label">Profil</span>';
+
+    nav.appendChild(profileBtn);
+    document.body.appendChild(nav);
+
+    // Sync avatar after sidebar-ready
+    document.addEventListener('sidebar-ready', syncAvatar);
+    setTimeout(syncAvatar, 1200);
   }
 
-  // ── FAB Speed Dial ─────────────────────────────────────────────
-  function initFABSpeedDial() {
-    var fabMain = document.getElementById('fab-main-btn');
-    var fabOptions = document.getElementById('fab-options');
-    var backdrop = document.getElementById('fab-backdrop');
-
-    if (!fabMain || !fabOptions || !backdrop) return;
-
-    var isOpen = false;
-
-    function openFAB() {
-      isOpen = true;
-      fabMain.classList.add('is-open');
-      fabOptions.classList.add('is-open');
-      backdrop.classList.add('is-open');
-      fabMain.setAttribute('aria-expanded', 'true');
-      // Haptic feedback iOS
-      if (navigator.vibrate) navigator.vibrate(10);
+  function syncAvatar() {
+    var el = document.getElementById('m-avatar');
+    if (!el) return;
+    var user = null;
+    if (window.AppAuth && window.AppAuth.user) user = window.AppAuth.user;
+    if (!user && window._sidebarCurrentUser) user = window._sidebarCurrentUser();
+    if (user) {
+      el.textContent = ((user.display_name || user.username || '').charAt(0) || 'A').toUpperCase();
     }
+  }
 
-    function closeFAB() {
-      isOpen = false;
-      fabMain.classList.remove('is-open');
-      fabOptions.classList.remove('is-open');
-      backdrop.classList.remove('is-open');
-      fabMain.setAttribute('aria-expanded', 'false');
-    }
+  // ==================================================================
+  //  2. FAB — Speed Dial
+  // ==================================================================
+  function buildFAB() {
+    // Backdrop
+    var backdrop = document.createElement('div');
+    backdrop.className = 'm-fab-backdrop';
+    backdrop.id = 'm-fab-backdrop';
+    document.body.appendChild(backdrop);
 
-    fabMain.addEventListener('click', function () {
-      isOpen ? closeFAB() : openFAB();
+    // Options container
+    var options = document.createElement('div');
+    options.className = 'm-fab-options';
+    options.id = 'm-fab-options';
+
+    var items = [
+      { action: 'add-prospect', label: 'Prospect',    icon: '👤', bg: '#FF6B35' },
+      { action: 'add-candidate', label: 'Candidat',   icon: '💼', bg: '#4ECDC4' },
+      { action: 'assistant-ia',  label: 'Assistant IA',icon: '🤖', bg: '#22C55E' },
+      { action: 'mode-prosp',    label: 'Mode Prosp',  icon: '🃏', bg: '#F59E0B' }
+    ];
+
+    items.forEach(function (item) {
+      var opt = document.createElement('div');
+      opt.className = 'm-fab-option';
+      opt.setAttribute('data-action', item.action);
+      opt.innerHTML =
+        '<span class="m-fab-option-label">' + item.label + '</span>' +
+        '<button class="m-fab-option-btn" style="background:' + item.bg + '" aria-label="' + item.label + '">' + item.icon + '</button>';
+      opt.addEventListener('click', function () {
+        closeFAB();
+        routeFABAction(item.action);
+      });
+      options.appendChild(opt);
     });
+
+    document.body.appendChild(options);
+
+    // Main button
+    var fab = document.createElement('button');
+    fab.className = 'm-fab';
+    fab.id = 'm-fab';
+    fab.setAttribute('aria-label', 'Actions rapides');
+    fab.setAttribute('aria-expanded', 'false');
+    fab.innerHTML = '<span>+</span>';
+    fab.addEventListener('click', toggleFAB);
+    document.body.appendChild(fab);
 
     backdrop.addEventListener('click', closeFAB);
-
-    // Fermeture avec la touche Escape
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && isOpen) closeFAB();
-    });
-
-    // Routing des actions — adapté aux vraies routes Flask de ProspUp
-    document.querySelectorAll('.fab-option').forEach(function (option) {
-      option.addEventListener('click', function () {
-        var action = option.getAttribute('data-action');
-        closeFAB();
-
-        switch (action) {
-          case 'add-prospect':
-            // Utilise la fonction globale openQuickAddModal() de app.js si disponible
-            if (typeof window.openQuickAddModal === 'function') {
-              window.openQuickAddModal();
-            } else if (typeof window.openAddModal === 'function') {
-              window.openAddModal();
-            } else {
-              window.location.href = '/';
-            }
-            break;
-
-          case 'add-candidate':
-            // Navigation vers la page candidats
-            window.location.href = '/sourcing';
-            break;
-
-          case 'quick-note':
-            // Navigation vers Focus (liste relances + notes)
-            window.location.href = '/focus';
-            break;
-
-          case 'mode-prosp':
-            // Mode Prosp = vue défilante sur la page prospects
-            if (typeof window.switchTableKanban === 'function') {
-              // Si déjà sur la page prospects, activer le mode directement
-              window.switchTableKanban('prosp');
-            } else {
-              window.location.href = '/?view=prosp';
-            }
-            break;
-
-          case 'assistant-ia':
-            if (typeof window.toggleAssistantChat === 'function') {
-              window.toggleAssistantChat();
-            }
-            break;
-        }
-      });
+      if (e.key === 'Escape' && fab.classList.contains('is-open')) closeFAB();
     });
   }
 
-  // ── Avatar initial dans le footer ─────────────────────────────
-  // Synchronise l'initiale de l'avatar du footer avec l'utilisateur connecté
-  function syncFooterAvatar() {
-    var avatarEl = document.getElementById('mf-avatar-initial');
-    if (!avatarEl) return;
+  var _fabOpen = false;
+  function toggleFAB() {
+    _fabOpen ? closeFAB() : openFAB();
+  }
+  function openFAB() {
+    _fabOpen = true;
+    haptic(10);
+    document.getElementById('m-fab').classList.add('is-open');
+    document.getElementById('m-fab').setAttribute('aria-expanded', 'true');
+    document.getElementById('m-fab-options').classList.add('is-open');
+    document.getElementById('m-fab-backdrop').classList.add('is-open');
+  }
+  function closeFAB() {
+    _fabOpen = false;
+    var fab = document.getElementById('m-fab');
+    if (fab) {
+      fab.classList.remove('is-open');
+      fab.setAttribute('aria-expanded', 'false');
+    }
+    var opts = document.getElementById('m-fab-options');
+    if (opts) opts.classList.remove('is-open');
+    var bd = document.getElementById('m-fab-backdrop');
+    if (bd) bd.classList.remove('is-open');
+  }
 
-    // Essayer de récupérer depuis le badge desktop ou AppAuth
-    function trySync() {
-      var user = null;
-      if (window.AppAuth && window.AppAuth.user) {
-        user = window.AppAuth.user;
-      }
-      if (!user) {
-        var bnAvatar = document.querySelector('.bn-user-avatar');
-        if (bnAvatar) {
-          avatarEl.textContent = bnAvatar.textContent.trim() || 'A';
-          return;
-        }
-      }
-      if (user) {
-        var initial = ((user.display_name || user.username || '').charAt(0) || 'A').toUpperCase();
-        avatarEl.textContent = initial;
+  function routeFABAction(action) {
+    switch (action) {
+      case 'add-prospect':
+        if (typeof window.openQuickAddModal === 'function') window.openQuickAddModal();
+        else if (typeof window.openAddModal === 'function') window.openAddModal();
+        else window.location.href = '/?add=1';
+        break;
+      case 'add-candidate':
+        window.location.href = '/sourcing';
+        break;
+      case 'assistant-ia':
+        if (typeof window.toggleAssistantChat === 'function') window.toggleAssistantChat();
+        break;
+      case 'mode-prosp':
+        if (typeof window.switchTableKanban === 'function') window.switchTableKanban('prosp');
+        else window.location.href = '/?view=prosp';
+        break;
+    }
+  }
+
+  // ==================================================================
+  //  3. PROSPECT CARDS — Replace table with mobile cards
+  // ==================================================================
+  function renderProspectCards() {
+    if (document.body.getAttribute('data-page') !== 'prospects') return;
+
+    var tableBody = document.getElementById('tableBody');
+    if (!tableBody) return;
+
+    // Get data from app.js
+    var allData = window._v8Data || (typeof data !== 'undefined' ? data : null);
+    if (!allData || !allData.prospects) return;
+
+    // Get filtered prospect IDs from the visible table rows or use filterProspects result
+    var container = document.getElementById('m-cards-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'm-cards';
+      container.id = 'm-cards-container';
+      var tableWrapper = document.querySelector('.table-wrapper');
+      if (tableWrapper && tableWrapper.parentNode) {
+        tableWrapper.parentNode.insertBefore(container, tableWrapper);
+      } else {
+        var content = document.querySelector('.content');
+        if (content) content.appendChild(container);
       }
     }
 
-    // Attendre que sidebar.js ait fini (sidebar-ready event)
-    document.addEventListener('sidebar-ready', trySync);
-    // Fallback après 1s si l'event ne se déclenche pas
-    setTimeout(trySync, 1000);
+    // Get visible prospect IDs from table
+    var rows = tableBody.querySelectorAll('tr[data-id]');
+    var html = '';
+    rows.forEach(function (row, idx) {
+      var pid = row.getAttribute('data-id');
+      var prospect = allData.prospects.find(function (p) { return String(p.id) === String(pid); });
+      if (!prospect) return;
+
+      var sm = (typeof getStatusMeta === 'function') ? getStatusMeta(prospect.statut) : { icon: '', slug: 'none', label: '' };
+      var name = esc((prospect.prenom || '') + ' ' + (prospect.nom || '')).trim() || 'Sans nom';
+      var company = esc(prospect.entreprise || '');
+      var fonction = esc(prospect.fonction || '');
+      var sub = company + (company && fonction ? ' \u00B7 ' : '') + fonction;
+
+      // Followup badge
+      var followup = '';
+      if (typeof renderFollowupMini === 'function') {
+        followup = renderFollowupMini(prospect);
+      }
+
+      // Stars
+      var stars = '';
+      var pert = parseInt(prospect.pertinence) || 0;
+      if (pert > 0) stars = '<span class="m-card-stars">' + '\u2605'.repeat(Math.min(pert, 5)) + '</span>';
+
+      // RDV date
+      var rdvBadge = '';
+      if (sm.slug === 'rdv' && prospect.rdvDate && typeof formatRdvDateForBadge === 'function') {
+        var fmtRdv = formatRdvDateForBadge(prospect.rdvDate);
+        if (fmtRdv) rdvBadge = '<span class="m-card-rdv">' + esc(fmtRdv) + '</span>';
+      }
+
+      // Tel/email for swipe actions
+      var tel = (prospect.telephone || '').trim();
+      var email = (prospect.email || '').trim();
+
+      html +=
+        '<div class="m-swipe-wrap" data-pid="' + pid + '">' +
+          '<div class="m-swipe-actions m-swipe-actions-left">' +
+            (tel ? '<button class="m-swipe-action call" onclick="window.open(\'tel:' + esc(tel) + '\')"><span class="m-swipe-action-icon">📞</span><span class="m-swipe-action-label">Appeler</span></button>' : '') +
+            (email ? '<button class="m-swipe-action email" onclick="window.open(\'mailto:' + esc(email) + '\')"><span class="m-swipe-action-icon">✉️</span><span class="m-swipe-action-label">Email</span></button>' : '') +
+            (!tel && !email ? '<span class="m-swipe-action" style="background:#64748B;color:white;min-width:64px;opacity:0.5"><span class="m-swipe-action-icon">🚫</span><span class="m-swipe-action-label">Aucun</span></span>' : '') +
+          '</div>' +
+          '<div class="m-swipe-actions m-swipe-actions-right">' +
+            '<button class="m-swipe-action status" data-pid="' + pid + '" onclick="window._mCycleStatus(' + pid + ')"><span class="m-swipe-action-icon">🔄</span><span class="m-swipe-action-label">Statut</span></button>' +
+            '<button class="m-swipe-action log" onclick="if(typeof viewDetail===\'function\')viewDetail(' + pid + ')"><span class="m-swipe-action-icon">📝</span><span class="m-swipe-action-label">Fiche</span></button>' +
+          '</div>' +
+          '<div class="m-card-inner m-card" onclick="if(typeof viewDetail===\'function\')viewDetail(' + pid + ')">' +
+            '<div class="m-card-accent s-' + sm.slug + '"></div>' +
+            '<div class="m-card-body">' +
+              '<div class="m-card-row1">' +
+                '<span class="m-card-name">' + name + '</span>' +
+                (sm.label ? '<span class="m-card-pill s-' + sm.slug + '">' + sm.icon + ' ' + sm.label + '</span>' : '') +
+              '</div>' +
+              (sub ? '<div class="m-card-row2">' + sub + '</div>' : '') +
+              '<div class="m-card-row3">' + followup + stars + rdvBadge + '</div>' +
+            '</div>' +
+            '<div class="m-card-chevron">\u203A</div>' +
+          '</div>' +
+        '</div>';
+    });
+
+    container.innerHTML = html;
+    initSwipeGestures();
   }
 
-  // ── Transitions slide horizontal iOS ──────────────────────────
-  // Ordre des onglets dans le footer flottant (index = position)
-  var PAGE_ORDER = {
-    '/dashboard': 0,
-    '/':          1,
-    '/focus':     2,
-    '/calendrier':3,
+  // Hook into filterProspects to re-render cards
+  var _origFilter = window.filterProspects;
+  if (typeof _origFilter === 'function') {
+    window.filterProspects = function () {
+      _origFilter.apply(this, arguments);
+      setTimeout(renderProspectCards, 50);
+    };
+  }
+
+  // ==================================================================
+  //  4. SWIPE GESTURES — iOS-style card swipe
+  // ==================================================================
+  var _swState = null;
+  var _swAttached = false;
+
+  function initSwipeGestures() {
+    var container = document.getElementById('m-cards-container');
+    if (!container || _swAttached) return;
+    _swAttached = true;
+
+    var SNAP = 50;
+    var MAX_REVEAL = Math.min(140, Math.floor(window.innerWidth * 0.38));
+
+    container.addEventListener('touchstart', function (e) {
+      var wrap = e.target.closest('.m-swipe-wrap');
+      if (!wrap) return;
+      var inner = wrap.querySelector('.m-card-inner');
+      if (!inner) return;
+      _swState = {
+        wrap: wrap, inner: inner,
+        startX: e.touches[0].clientX,
+        startY: e.touches[0].clientY,
+        moved: false, aborted: false
+      };
+    }, { passive: true });
+
+    container.addEventListener('touchmove', function (e) {
+      if (!_swState || _swState.aborted) return;
+      var dx = e.touches[0].clientX - _swState.startX;
+      var dy = e.touches[0].clientY - _swState.startY;
+      var ax = Math.abs(dx), ay = Math.abs(dy);
+
+      if (!_swState.moved) {
+        if (ax < 3 && ay < 3) return;
+        if (ay > ax + 4) { _swState.aborted = true; return; }
+        if (ax < 6) return;
+        _swState.moved = true;
+        _swState.inner.style.transition = 'none';
+        closeAllSwipes(_swState.inner);
+      }
+
+      var hasLeft = _swState.wrap.querySelector('.m-swipe-actions-left');
+      var clamped = Math.max(-MAX_REVEAL, Math.min(MAX_REVEAL, dx));
+      if (dx > 0 && hasLeft && !hasLeft.children.length) clamped = 0;
+      _swState.inner.style.transform = 'translateX(' + clamped + 'px)';
+    }, { passive: false });
+
+    container.addEventListener('touchend', function (e) {
+      if (!_swState) return;
+      var s = _swState;
+      _swState = null;
+      if (!s.moved || s.aborted) { s.inner.style.transform = ''; return; }
+
+      var dx = e.changedTouches[0].clientX - s.startX;
+      s.inner.style.transition = 'transform 0.2s ease';
+
+      if (dx > SNAP) {
+        var leftW = s.wrap.querySelector('.m-swipe-actions-left');
+        s.inner.style.transform = 'translateX(' + (leftW ? leftW.offsetWidth : 0) + 'px)';
+        s.inner.setAttribute('data-swipe-open', 'left');
+        haptic(8);
+      } else if (dx < -SNAP) {
+        var rightW = s.wrap.querySelector('.m-swipe-actions-right');
+        s.inner.style.transform = 'translateX(-' + (rightW ? rightW.offsetWidth : 0) + 'px)';
+        s.inner.setAttribute('data-swipe-open', 'right');
+        haptic(8);
+      } else {
+        s.inner.style.transform = '';
+        s.inner.removeAttribute('data-swipe-open');
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchcancel', function () {
+      if (!_swState) return;
+      _swState.inner.style.transition = 'transform 0.2s ease';
+      _swState.inner.style.transform = '';
+      _swState = null;
+    }, { passive: true });
+
+    document.addEventListener('touchstart', function (e) {
+      if (!e.target.closest('.m-swipe-wrap')) closeAllSwipes();
+    }, { passive: true });
+  }
+
+  function closeAllSwipes(except) {
+    document.querySelectorAll('.m-card-inner[data-swipe-open]').forEach(function (el) {
+      if (el === except) return;
+      el.style.transition = 'transform 0.2s ease';
+      el.style.transform = '';
+      el.removeAttribute('data-swipe-open');
+    });
+  }
+
+  // ==================================================================
+  //  5. STATUS CYCLING — Swipe left action
+  // ==================================================================
+  var STATUS_ORDER = [
+    'A contacter', 'Appele', 'Messagerie', 'Rendez-vous',
+    'Prospecte', 'A rappeler', 'Pas interesse', "Pas d'actions"
+  ];
+
+  window._mCycleStatus = function (pid) {
+    var allData = window._v8Data || (typeof data !== 'undefined' ? data : null);
+    if (!allData || !allData.prospects) return;
+    var p = allData.prospects.find(function (x) { return x.id === pid || String(x.id) === String(pid); });
+    if (!p) return;
+    var idx = STATUS_ORDER.indexOf(p.statut || '');
+    var next = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
+    var old = p.statut;
+    p.statut = next;
+
+    fetch('/api/prospects/bulk-status-tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [parseInt(pid)], statut: next })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j.ok) {
+        haptic(15);
+        if (window.showToast) window.showToast('Statut \u2192 ' + next, 'success', 2000);
+        if (typeof window.filterProspects === 'function') window.filterProspects();
+        if (window.pushUndo) {
+          window.pushUndo('Statut ' + next + ' \u2192 ' + old, function () {
+            p.statut = old;
+            fetch('/api/prospects/bulk-status-tags', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: [parseInt(pid)], statut: old })
+            });
+            if (typeof window.filterProspects === 'function') window.filterProspects();
+          });
+        }
+      }
+    });
   };
 
-  // Durée animation sortie en ms (avant navigation)
-  var EXIT_DURATION = 200;
+  // ==================================================================
+  //  6. PULL-TO-REFRESH
+  // ==================================================================
+  function initPullToRefresh() {
+    var loadFn = typeof window.loadFromServer === 'function' ? window.loadFromServer : null;
+    if (!loadFn) return;
 
+    var startY = 0, pulling = false, indicator = null;
+
+    function getScrollTop() {
+      return document.documentElement.scrollTop || document.body.scrollTop || 0;
+    }
+
+    function ensureIndicator() {
+      if (indicator) return indicator;
+      indicator = document.createElement('div');
+      indicator.className = 'm-pull-indicator';
+      indicator.textContent = 'Actualisation\u2026';
+      document.body.appendChild(indicator);
+      return indicator;
+    }
+
+    document.addEventListener('touchstart', function (e) {
+      if (getScrollTop() > 5) return;
+      startY = e.touches[0].clientY;
+      pulling = false;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function (e) {
+      if (getScrollTop() > 5) return;
+      if (e.touches[0].clientY - startY > 40) pulling = true;
+    }, { passive: true });
+
+    document.addEventListener('touchend', function () {
+      if (!pulling || getScrollTop() > 5) { startY = 0; pulling = false; return; }
+      ensureIndicator();
+      indicator.classList.add('visible');
+      haptic(15);
+
+      Promise.resolve(loadFn()).then(function (ok) {
+        try {
+          if (typeof window.normalizeData === 'function') window.normalizeData();
+          if (document.body.getAttribute('data-page') === 'prospects' && typeof window.filterProspects === 'function') window.filterProspects();
+        } catch (e) { /* ignore */ }
+        indicator.classList.remove('visible');
+        if (window.showToast) window.showToast(ok !== false ? 'Donnees actualisees' : 'Donnees non rechargees', ok !== false ? 'success' : 'warning', 2000);
+      }).catch(function () {
+        indicator.classList.remove('visible');
+        if (window.showToast) window.showToast('Erreur lors de l\'actualisation', 'error');
+      });
+
+      startY = 0;
+      pulling = false;
+    }, { passive: true });
+  }
+
+  // ==================================================================
+  //  7. PAGE TRANSITIONS — iOS slide animations
+  // ==================================================================
   function getPageIndex(pathname) {
     if (PAGE_ORDER[pathname] !== undefined) return PAGE_ORDER[pathname];
-    // Correspondance partielle (ex: /focus/xxx → 2)
     for (var key in PAGE_ORDER) {
       if (key !== '/' && pathname.indexOf(key) === 0) return PAGE_ORDER[key];
     }
     return -1;
   }
 
-  function getPageWrapper() {
+  function getWrapper() {
     return document.querySelector('.container') || document.body;
   }
 
-  function createNavOverlay() {
-    if (document.getElementById('nav-transition-overlay')) return;
-    var el = document.createElement('div');
-    el.className = 'nav-transition-overlay';
-    el.id = 'nav-transition-overlay';
-    document.body.appendChild(el);
-  }
-
   function animatePageEntrance() {
-    var direction = sessionStorage.getItem('prospup_nav_direction');
-    if (!direction) return;
+    var dir = sessionStorage.getItem('prospup_nav_direction');
+    if (!dir) return;
     sessionStorage.removeItem('prospup_nav_direction');
-
-    var wrapper = getPageWrapper();
-    var cls = direction === 'forward' ? 'page-enter-from-right' : 'page-enter-from-left';
+    var wrapper = getWrapper();
+    var cls = dir === 'forward' ? 'page-enter-from-right' : 'page-enter-from-left';
     wrapper.classList.add(cls);
     wrapper.addEventListener('animationend', function () {
       wrapper.classList.remove(cls);
@@ -209,61 +534,38 @@
   function handleNavClick(event) {
     var link = event.currentTarget;
     var href = link.getAttribute('href');
-    if (!href || href.charAt(0) === '#' || href.indexOf('javascript') === 0) return;
+    if (!href || href.charAt(0) === '#') return;
 
     var targetPath;
-    try {
-      targetPath = new URL(href, window.location.origin).pathname;
-    } catch (e) {
-      return;
-    }
+    try { targetPath = new URL(href, window.location.origin).pathname; } catch (e) { return; }
 
-    // Même page → pas d'animation
-    if (targetPath === window.location.pathname) {
-      event.preventDefault();
-      return;
-    }
+    if (targetPath === window.location.pathname) { event.preventDefault(); return; }
 
-    var currentIdx = getPageIndex(window.location.pathname);
-    var targetIdx  = getPageIndex(targetPath);
-    var direction  = 'forward';
-    if (currentIdx !== -1 && targetIdx !== -1) {
-      direction = targetIdx >= currentIdx ? 'forward' : 'backward';
-    }
+    var ci = getPageIndex(window.location.pathname);
+    var ti = getPageIndex(targetPath);
+    var direction = (ci !== -1 && ti !== -1) ? (ti >= ci ? 'forward' : 'backward') : 'forward';
 
     sessionStorage.setItem('prospup_nav_direction', direction);
     event.preventDefault();
 
-    var wrapper = getPageWrapper();
-    var overlay = document.getElementById('nav-transition-overlay');
+    var wrapper = getWrapper();
     var exitCls = direction === 'forward' ? 'page-exit-to-left' : 'page-exit-to-right';
-
     wrapper.classList.add(exitCls);
-    if (overlay) overlay.classList.add('active');
 
-    setTimeout(function () {
-      window.location.href = href;
-    }, EXIT_DURATION);
+    setTimeout(function () { window.location.href = href; }, EXIT_DURATION);
   }
 
-  function initSlideTransitions() {
-    createNavOverlay();
+  function initTransitions() {
     animatePageEntrance();
-
-    // Liens du footer flottant
-    document.querySelectorAll('.mobile-footer-float .mf-item[href]').forEach(function (link) {
-      link.addEventListener('click', handleNavClick);
-    });
-
-    // Autres liens internes hors footer (ex: liens dans les cartes, sidebar)
+    // Internal links get transition too
     document.querySelectorAll('a[href^="/"]').forEach(function (link) {
-      if (!link.closest('.mobile-footer-float')) {
+      if (!link.closest('.m-tabbar')) {
         link.addEventListener('click', handleNavClick);
       }
     });
   }
 
-  // Gestion du bouton retour iOS (swipe bord gauche → bfcache)
+  // Handle bfcache (back swipe)
   window.addEventListener('pageshow', function (event) {
     if (event.persisted) {
       sessionStorage.setItem('prospup_nav_direction', 'backward');
@@ -271,12 +573,94 @@
     }
   });
 
-  // ── Init au chargement du DOM ──────────────────────────────────
+  // ==================================================================
+  //  8. STATUS FILTER CHIPS (Prospects page)
+  // ==================================================================
+  function buildStatusChips() {
+    if (document.body.getAttribute('data-page') !== 'prospects') return;
+
+    var container = document.getElementById('m-status-chips');
+    if (container) return; // already built
+
+    container = document.createElement('div');
+    container.className = 'm-status-chips mobile-only';
+    container.id = 'm-status-chips';
+
+    var statuses = [
+      { key: 'all',    label: 'Tous' },
+      { key: 'urgent', label: 'Urgents' },
+      { key: 'rappeler', label: 'A rappeler' },
+      { key: 'rdv',    label: 'RDV' },
+      { key: 'appele', label: 'Appeles' },
+      { key: 'messagerie', label: 'Messagerie' },
+      { key: 'prospecte', label: 'Prospectes' },
+      { key: 'pas-interesse', label: 'Pas int.' }
+    ];
+
+    statuses.forEach(function (s) {
+      var chip = document.createElement('button');
+      chip.className = 'm-chip' + (s.key === 'all' ? ' active' : '');
+      chip.setAttribute('data-filter', s.key);
+      chip.textContent = s.label;
+      chip.addEventListener('click', function () {
+        container.querySelectorAll('.m-chip').forEach(function (c) { c.classList.remove('active'); });
+        chip.classList.add('active');
+        haptic(8);
+        applyStatusFilter(s.key);
+      });
+      container.appendChild(chip);
+    });
+
+    // Insert before the card container or table
+    var content = document.querySelector('.content-header');
+    if (content && content.nextSibling) {
+      content.parentNode.insertBefore(container, content.nextSibling);
+    }
+  }
+
+  function applyStatusFilter(key) {
+    // Use the existing filter system from app.js
+    var filterEl = document.getElementById('filterStatut');
+    if (!filterEl) return;
+
+    var mapping = {
+      'all': '',
+      'urgent': 'A rappeler',
+      'rappeler': 'A rappeler',
+      'rdv': 'Rendez-vous',
+      'appele': 'Appele',
+      'messagerie': 'Messagerie',
+      'prospecte': 'Prospecte',
+      'pas-interesse': 'Pas interesse'
+    };
+
+    filterEl.value = mapping[key] || '';
+    if (typeof window.filterProspects === 'function') window.filterProspects();
+  }
+
+  // ==================================================================
+  //  9. INITIALIZATION
+  // ==================================================================
   function init() {
-    initMobileFooterActive();
-    initFABSpeedDial();
-    syncFooterAvatar();
-    initSlideTransitions();
+    buildTabBar();
+    buildFAB();
+    buildStatusChips();
+    initPullToRefresh();
+    initTransitions();
+
+    // Render cards after data is loaded
+    if (document.body.getAttribute('data-page') === 'prospects') {
+      // Wait for app.js data load
+      var checkData = setInterval(function () {
+        var d = window._v8Data || (typeof data !== 'undefined' ? data : null);
+        if (d && d.prospects) {
+          clearInterval(checkData);
+          setTimeout(renderProspectCards, 100);
+        }
+      }, 200);
+      // Safety: stop checking after 10s
+      setTimeout(function () { clearInterval(checkData); }, 10000);
+    }
   }
 
   if (document.readyState === 'loading') {
