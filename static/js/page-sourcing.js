@@ -113,18 +113,35 @@ function parseSkillsFilter() {
 
 function candStatusLabel(s) {
     const v = (s || '').toLowerCase();
-    if (v === 'a_sourcer') return '🧲 À sourcer';
-    if (v === 'a_contacter') return '📨 À contacter';
-    if (v === 'en_cours') return '⏳ En cours';
-    if (v === 'ec1') return '📞 EC1';
-    if (v === 'ec2') return '📞📞 EC2';
-    if (v === 'ed') return '📋 ED';
-    if (v === 'interesse') return '✅ Intéressé';
-    if (v === 'mission') return '🚀 Mission';
-    if (v === 'refuse') return '❌ Refusé';
-    if (v === 'embauche') return '🎉 Embauché';
-    if (v === 'archive') return '📦 Archivé';
-    return s || '—';
+    const LABELS = {
+        nouveau: 'Nouveau / A traiter',
+        proposition: 'Proposition faite',
+        entretien: 'Entretien en cours',
+        a_faire: 'A FAIRE',
+        oksi: 'OKSI',
+        top_profil: 'Top profil',
+        reunion_tech: 'En Réunion Technique',
+        valide_contrat: 'Validé / Contrat',
+        freelance: 'Freelance',
+        freelance_mission: 'FREELANCE EN MISSION UP',
+        nok_prequal: 'NOK Préqual',
+        nok: 'NOK',
+        plus_disponible: 'Plus disponible',
+        refus_contrat: 'Refus du contrat',
+        // legacy fallbacks
+        a_sourcer: 'Nouveau / A traiter',
+        a_contacter: 'Proposition faite',
+        en_cours: 'Entretien en cours',
+        ec1: 'Entretien en cours',
+        ec2: 'Entretien en cours',
+        ed: 'A FAIRE',
+        interesse: 'OKSI',
+        mission: 'FREELANCE EN MISSION UP',
+        refuse: 'NOK',
+        embauche: 'Validé / Contrat',
+        archive: 'Plus disponible',
+    };
+    return LABELS[v] || s || '—';
 }
 function safeStr(v) { return (v === null || v === undefined) ? '' : String(v); }
 
@@ -182,8 +199,8 @@ function applyCandidateFilters() {
 
     __candFiltered = __candidates.filter(c => {
         const status = safeStr(c.status).toLowerCase();
-        // Archivés et refusés → onglet dédié uniquement
-        if (status === 'archive' || status === 'refuse') return false;
+        // Refus → onglet dédié uniquement
+        if (CAND_ARCHIVE_STATUSES.has(status)) return false;
         const skills = candSkillsArray(c);
         const hay = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${skills.join(' ')} ${safeStr(c.tech)} ${safeStr(c.notes)} ${safeStr(c.linkedin)} ${safeStr(c.source)}`.toLowerCase();
         const okQ = !q || hay.includes(q);
@@ -303,18 +320,22 @@ function quickUploadDC(candidateId) {
 // ===== Statut inline =====
 
 const CAND_STATUSES = [
-    ['a_sourcer',   '🧲 À sourcer'],
-    ['a_contacter', '📨 À contacter'],
-    ['en_cours',    '⏳ En cours'],
-    ['ec1',         '📞 EC1'],
-    ['ec2',         '📞📞 EC2'],
-    ['ed',          '📋 ED'],
-    ['interesse',   '✅ Intéressé'],
-    ['mission',     '🚀 Mission'],
-    ['refuse',      '❌ Refusé'],
-    ['embauche',    '🎉 Embauché'],
-    ['archive',     '📦 Archivé'],
+    ['nouveau',          'Nouveau / A traiter'],
+    ['proposition',      'Proposition faite'],
+    ['entretien',        'Entretien en cours'],
+    ['a_faire',          'A FAIRE'],
+    ['oksi',             'OKSI'],
+    ['top_profil',       'Top profil'],
+    ['reunion_tech',     'En Réunion Technique'],
+    ['valide_contrat',   'Validé / Contrat'],
+    ['freelance',        'Freelance'],
+    ['freelance_mission','FREELANCE EN MISSION UP'],
+    ['nok_prequal',      'NOK Préqual'],
+    ['nok',              'NOK'],
+    ['plus_disponible',  'Plus disponible'],
+    ['refus_contrat',    'Refus du contrat'],
 ];
+const CAND_ARCHIVE_STATUSES = new Set(['nok_prequal', 'nok', 'plus_disponible', 'refus_contrat']);
 
 function renderStatusSelect(candidateId, currentStatus) {
     const opts = CAND_STATUSES.map(([v, l]) =>
@@ -335,10 +356,9 @@ async function quickChangeStatus(candidateId, newStatus) {
         const cand = __candidates.find(c => c.id === candidateId);
         if (cand) cand.status = newStatus;
         // Si le statut fait sortir de l'onglet courant, re-filtrer après un court délai
-        const archived = ['archive', 'refuse'];
         const currentTab = document.getElementById('panelPipeline')?.style.display !== 'none' ? 'pipeline' : 'archive';
-        const shouldMove = (currentTab === 'pipeline' && archived.includes(newStatus)) ||
-                           (currentTab === 'archive' && !archived.includes(newStatus));
+        const shouldMove = (currentTab === 'pipeline' && CAND_ARCHIVE_STATUSES.has(newStatus)) ||
+                           (currentTab === 'archive' && !CAND_ARCHIVE_STATUSES.has(newStatus));
         if (shouldMove) {
             setTimeout(() => { applyCandidateFilters(); renderArchiveTable(); }, 600);
         } else {
@@ -360,7 +380,7 @@ function applyArchiveFilters() {
     const st = (document.getElementById('archiveStatusFilter')?.value || '').trim().toLowerCase();
     __archiveFiltered = __candidates.filter(c => {
         const status = safeStr(c.status).toLowerCase();
-        if (status !== 'archive' && status !== 'refuse') return false;
+        if (!CAND_ARCHIVE_STATUSES.has(status)) return false;
         if (st && status !== st) return false;
         if (q) {
             const skills = candSkillsArray(c);
@@ -469,7 +489,7 @@ function fillCandidateForm(c) {
     document.getElementById('candTech').value = safeStr(c.tech);
     document.getElementById('candLinkedin').value = safeStr(c.linkedin);
     document.getElementById('candSource').value = safeStr(c.source);
-    document.getElementById('candStatus').value = safeStr(c.status || 'a_sourcer');
+    document.getElementById('candStatus').value = safeStr(c.status || 'nouveau');
     document.getElementById('candNotes').value = safeStr(c.notes);
     const vsaEl = document.getElementById('candVsaUrl');
     if (vsaEl) vsaEl.value = safeStr(c.vsa_url || '');
@@ -947,7 +967,7 @@ window.applyVsaImport = async function() {
             tech: techParts.join(', ').trim() || data.tech || '',
             linkedin: data.linkedin || '',
             source: 'VSA',
-            status: 'a_sourcer',
+            status: 'nouveau',
             notes: data.notes || '',
             vsa_url: data.vsa_url || _vsaUrl || '',
             phone: data.phone || '',
@@ -1270,7 +1290,7 @@ function openWizardCandModal() {
     document.getElementById('wizardDcFileName').textContent = '';
     document.getElementById('wizardDcFile').value = '';
     document.getElementById('wizardVsaUrl').value = '';
-    document.getElementById('wizardStatus').value = 'a_sourcer';
+    document.getElementById('wizardStatus').value = 'nouveau';
     document.getElementById('wizardBtnAnalyze').disabled = true;
     document.getElementById('wizardStep1').style.display = '';
     document.getElementById('wizardStep2').style.display = 'none';
