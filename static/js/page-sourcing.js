@@ -3,6 +3,7 @@
 let __candidates = [];
 let __candFiltered = [];
 let __candEditing = null;
+let __selectedCandidates = new Set();
 
 // EC1 quick action (modal)
 let __ec1CandidateId = null;
@@ -168,7 +169,7 @@ async function loadCandidates() {
     const _skTb = document.getElementById('candTableBody');
     if (_skTb) {
         const sk = Array(7).fill('<div class="skeleton skeleton-row"></div>').join('');
-        _skTb.innerHTML = '<tr><td colspan="7" style="padding:8px 0;">' + sk + '</td></tr>';
+        _skTb.innerHTML = '<tr><td colspan="9" style="padding:8px 0;">' + sk + '</td></tr>';
     }
     const res = await fetch('/api/candidates');
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -209,7 +210,9 @@ function renderCandidateTable() {
     tbody.innerHTML = '';
     if (__candFiltered.length === 0) {
         if (empty) empty.style.display = 'block';
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        updateCandidateBulkBar();
+        updateCandidateSelectAllState();
         return;
     }
     if (empty) empty.style.display = 'none';
@@ -218,18 +221,25 @@ function renderCandidateTable() {
         const skills = candSkillsArray(c);
         const skillsLabel = skills.join(', ');
         const combinedTech = skillsLabel ? (skillsLabel + (c.tech ? ' · ' + safeStr(c.tech) : '')) : safeStr(c.tech);
+        const isSelected = __selectedCandidates.has(c.id);
+        const dcBadge = c.has_dc
+            ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
+            : '<span class="dc-badge missing" title="Pas de dossier de compétences">—</span>';
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
+        tr.dataset.candidateId = c.id;
+        if (isSelected) tr.classList.add('row-selected');
         tr.addEventListener('click', (e) => {
-            // Don't navigate if clicking on action buttons/links
-            if (e.target.closest('.mini-action, button, a')) return;
+            if (e.target.closest('.mini-action, button, a, input')) return;
             window.location.href = '/candidat?id=' + c.id;
         });
         tr.innerHTML = `
+            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="cand-row-select" title="Sélectionner" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();toggleCandidateSelect(${c.id}, this.checked)"></td>
             <td data-label="Nom"><span title="${escapeHtml(c.name || '')}">${escapeHtml(c.name || '')}</span></td>
             <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
             <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
+            <td data-label="DC">${dcBadge}</td>
             <td data-label="Statut"><span class="badge">${escapeHtml(candStatusLabel(c.status))}</span></td>
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
@@ -244,6 +254,8 @@ function renderCandidateTable() {
         `;
         tbody.appendChild(tr);
     });
+
+    updateCandidateSelectAllState();
 }
 
 function openCandidateModal(editing=false) {
@@ -366,6 +378,96 @@ async function deleteCandidate(id) {
             }
         });
     }
+}
+
+// ===== Sélection multiple + actions en masse =====
+
+function toggleCandidateSelect(id, checked) {
+    if (checked) __selectedCandidates.add(id);
+    else __selectedCandidates.delete(id);
+    const tr = document.querySelector(`#candTableBody tr[data-candidate-id="${id}"]`);
+    if (tr) {
+        tr.classList.toggle('row-selected', checked);
+        const cb = tr.querySelector('.cand-row-select');
+        if (cb) cb.checked = checked;
+    }
+    updateCandidateBulkBar();
+    updateCandidateSelectAllState();
+}
+
+function toggleCandidateSelectAll(checked) {
+    if (checked) __candFiltered.forEach(c => __selectedCandidates.add(c.id));
+    else __candFiltered.forEach(c => __selectedCandidates.delete(c.id));
+    renderCandidateTable();
+    updateCandidateBulkBar();
+}
+
+function clearCandidateSelection() {
+    __selectedCandidates.clear();
+    renderCandidateTable();
+    updateCandidateBulkBar();
+}
+
+function updateCandidateBulkBar() {
+    const bar = document.getElementById('candBulkActions');
+    const countEl = document.getElementById('candBulkCount');
+    if (!bar || !countEl) return;
+    countEl.textContent = __selectedCandidates.size;
+    bar.style.display = __selectedCandidates.size > 0 ? 'flex' : 'none';
+}
+
+function updateCandidateSelectAllState() {
+    const cb = document.getElementById('candSelectAll');
+    if (!cb) return;
+    if (!__candFiltered.length) {
+        cb.checked = false;
+        cb.indeterminate = false;
+        return;
+    }
+    const n = __candFiltered.filter(c => __selectedCandidates.has(c.id)).length;
+    cb.checked = n === __candFiltered.length;
+    cb.indeterminate = n > 0 && n < __candFiltered.length;
+}
+
+async function applyBulkCandidateStatus() {
+    const status = document.getElementById('candBulkStatus')?.value;
+    if (!status) { showToast('Choisissez un statut.', 'warning'); return; }
+    if (!__selectedCandidates.size) return;
+    const ids = [...__selectedCandidates];
+    try {
+        const res = await fetch('/api/candidates/bulk-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids, field: 'status', value: status })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        showToast(`Statut mis à jour pour ${ids.length} candidat(s).`, 'success');
+        clearCandidateSelection();
+        await loadCandidates();
+        applyCandidateFilters();
+    } catch(e) {
+        showToast('Impossible de mettre à jour : ' + (e?.message || e), 'error');
+    }
+}
+
+async function deleteSelectedCandidates() {
+    if (!__selectedCandidates.size) return;
+    const ids = [...__selectedCandidates];
+    if (!confirm(`⚠️ Supprimer ${ids.length} candidat(s) sélectionné(s) ?\nCette action peut être annulée.`)) return;
+    let done = 0;
+    for (const id of ids) {
+        const res = await fetch('/api/candidates/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        if (res.ok) done++;
+    }
+    showToast(`${done} candidat(s) supprimé(s).`, 'success');
+    clearCandidateSelection();
+    await loadCandidates();
+    applyCandidateFilters();
+    refreshProductivityMatching();
 }
 
 // ===== Ajouter via VSA =====
