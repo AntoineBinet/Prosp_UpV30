@@ -242,7 +242,7 @@ function renderCandidateTable() {
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
             : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
-        const descBadge = _buildDescBadge(c);
+        const descActionBtn = _buildDescActionBtn(c);
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
@@ -257,14 +257,14 @@ function renderCandidateTable() {
             <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
             <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
-            <td data-label="DC"><div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">${dcBadge}${descBadge}</div></td>
+            <td data-label="DC">${dcBadge}</td>
             <td data-label="Statut">${renderStatusSelect(c.id, c.status)}</td>
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
                 <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
-                <button class="mini-action" onclick="openEC1Modal(event, ${c.id})" title="Planifier EC1">📞 EC1</button>
+                ${descActionBtn}
                 <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
                 <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
               </div>
@@ -320,17 +320,17 @@ function quickUploadDC(candidateId) {
 }
 
 /**
- * Retourne le badge de statut de la phrase de présentation IA.
+ * Retourne le bouton IA pour la colonne Actions (remplace EC1).
  * - DC absent → '' (rien)
- * - DC présent + description générée → badge violet "✨ Intro"
- * - DC présent + pas de description → bouton orange cliquable "🤖 Intro"
+ * - DC présent + description générée → ✨ (régénérer au clic)
+ * - DC présent + pas de description → 🤖 cliquable pour générer
  */
-function _buildDescBadge(c) {
+function _buildDescActionBtn(c) {
     if (!c.has_dc) return '';
     if (c.description_push && c.description_push.trim()) {
-        return `<span class="desc-badge has-desc" title="Phrase de présentation IA rédigée — cliquez sur la fiche pour modifier">✨ Intro</span>`;
+        return `<button class="mini-action desc-gen-btn" onclick="event.stopPropagation();quickGenerateDescription(${c.id})" title="Phrase IA rédigée — cliquer pour régénérer" style="opacity:.7;">✨</button>`;
     }
-    return `<button class="desc-badge no-desc desc-gen-btn" title="Générer la phrase de présentation depuis le DC" onclick="event.stopPropagation();quickGenerateDescription(${c.id})">🤖 Intro</button>`;
+    return `<button class="mini-action desc-gen-btn" onclick="event.stopPropagation();quickGenerateDescription(${c.id})" title="Générer la phrase de présentation IA depuis le DC">🤖</button>`;
 }
 
 async function quickGenerateDescription(candidateId) {
@@ -350,16 +350,15 @@ async function quickGenerateDescription(candidateId) {
                 const c = arr.find(x => x.id === candidateId);
                 if (c) c.description_push = json.description;
             });
-            // Mettre à jour le badge dans le DOM
+            // Mettre à jour le bouton IA dans la colonne Actions
             const tr = document.querySelector(`tr[data-candidate-id="${candidateId}"]`);
             if (tr) {
                 const descBtnEl = tr.querySelector('.desc-gen-btn');
                 if (descBtnEl) {
-                    const span = document.createElement('span');
-                    span.className = 'desc-badge has-desc';
-                    span.title = 'Phrase de présentation IA rédigée — cliquez sur la fiche pour modifier';
-                    span.textContent = '✨ Intro';
-                    descBtnEl.replaceWith(span);
+                    descBtnEl.textContent = '✨';
+                    descBtnEl.style.opacity = '0.7';
+                    descBtnEl.title = 'Phrase IA rédigée — cliquer pour régénérer';
+                    descBtnEl.disabled = false;
                 }
             }
             showToast('Phrase de présentation générée !', 'success');
@@ -471,7 +470,7 @@ function renderArchiveTable() {
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
             : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
-        const descBadge = _buildDescBadge(c);
+        const descActionBtn = _buildDescActionBtn(c);
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
@@ -485,13 +484,14 @@ function renderArchiveTable() {
             <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
             <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
-            <td data-label="DC"><div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">${dcBadge}${descBadge}</div></td>
+            <td data-label="DC">${dcBadge}</td>
             <td data-label="Statut">${renderStatusSelect(c.id, c.status)}</td>
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
                 <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                ${descActionBtn}
                 <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
                 <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
               </div>
@@ -559,7 +559,7 @@ function renderMissionTable() {
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
             : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
-        const descBadge = _buildDescBadge(c);
+        const descActionBtn = _buildDescActionBtn(c);
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
@@ -573,13 +573,14 @@ function renderMissionTable() {
             <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
             <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
-            <td data-label="DC"><div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">${dcBadge}${descBadge}</div></td>
+            <td data-label="DC">${dcBadge}</td>
             <td data-label="Statut">${renderStatusSelect(c.id, c.status)}</td>
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
                 <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                ${descActionBtn}
                 <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
                 <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
               </div>
@@ -1291,8 +1292,8 @@ function _vsaImportPreFillAnyway() {
 
 // ===== Tabs =====
 function setTab(tab) {
-    const panels  = { pipeline: 'panelPipeline', mission: 'panelMission', archive: 'panelArchive' };
-    const buttons = { pipeline: 'tabPipeline',   mission: 'tabMission',   archive: 'tabArchive'   };
+    const panels  = { pipeline: 'panelPipeline', mission: 'panelMission', archive: 'panelArchive', settings: 'panelSettings' };
+    const buttons = { pipeline: 'tabPipeline',   mission: 'tabMission',   archive: 'tabArchive',   settings: 'tabSettings'   };
     Object.entries(panels).forEach(([t, id]) => {
         const el = document.getElementById(id);
         if (el) el.style.display = t === tab ? 'block' : 'none';
@@ -1302,6 +1303,146 @@ function setTab(tab) {
     });
     if (tab === 'archive') applyArchiveFilters();
     if (tab === 'mission') applyMissionFilters();
+    if (tab === 'settings') loadSettingsTab();
+}
+
+// ===== Onglet Paramètres =====
+
+const _DEFAULT_PROMPT_PLACEHOLDER = '(prompt par défaut intégré — laissez vide pour l\'utiliser)';
+
+async function loadSettingsTab() {
+    try {
+        const res = await fetch('/api/ai/config');
+        const j = await res.json();
+        if (!j.ok) return;
+        const cfg = j.config;
+        const promptEl = document.getElementById('settingDescPrompt');
+        const maxCharsEl = document.getElementById('settingPdfMaxChars');
+        if (promptEl) promptEl.value = cfg.candidate_description_prompt || '';
+        if (maxCharsEl) maxCharsEl.value = cfg.candidate_pdf_max_chars || 6000;
+    } catch(e) {
+        showToast('Impossible de charger la config IA', 'error');
+    }
+}
+
+async function saveSettingsTab() {
+    const promptEl = document.getElementById('settingDescPrompt');
+    const maxCharsEl = document.getElementById('settingPdfMaxChars');
+    const btn = document.getElementById('btnSaveSettings');
+    const payload = {
+        candidate_description_prompt: (promptEl?.value ?? '').trim(),
+        candidate_pdf_max_chars: parseInt(maxCharsEl?.value) || 6000,
+    };
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Enregistrement…'; }
+    try {
+        const res = await fetch('/api/ai/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const j = await res.json().catch(() => ({}));
+        if (res.ok && j.ok) {
+            showToast('Paramètres enregistrés', 'success');
+        } else {
+            showToast(j.error || 'Erreur lors de la sauvegarde', 'error');
+        }
+    } catch(e) {
+        showToast('Erreur réseau : ' + (e?.message || e), 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '💾 Enregistrer les paramètres'; }
+    }
+}
+
+function resetPromptToDefault() {
+    const el = document.getElementById('settingDescPrompt');
+    if (el) { el.value = ''; el.focus(); }
+    showToast('Prompt vidé — le prompt intégré sera utilisé', 'info');
+}
+
+function showDefaultPrompt() {
+    const DEFAULT = `Tu es un commercial senior dans une société de conseil en ingénierie. Tu dois rédiger une présentation percutante pour un email de prospection B2B — l'objectif est de DONNER ENVIE au client de rencontrer le candidat.
+
+Rédige EXACTEMENT 2 phrases à partir du dossier de compétences ci-dessous.
+
+PHRASE 1 — Présentation générale (identité + titre + expérience) :
+- Commence par le prénom en gras HTML : <b>{prenom}</b>
+- Donne son vrai titre de poste (ingénieur, développeur, architecte, chef de projet… — jamais « consultant »)
+- Mentionne ses années d'expérience réelles trouvées dans le dossier
+- Cite ses domaines principaux d'intervention ou sa spécialité distinctive
+- Style : clair, professionnel, direct
+
+PHRASE 2 — Accroche vendeuse (réalisation concrète) :
+- Ton dynamique avec un verbe d'action ("a conçu", "a piloté", "a développé", "a validé", "a déployé"…)
+- S'appuie sur une réalisation ou mission concrète citée dans le dossier
+- Met en avant la valeur apportée ou le résultat obtenu si disponible
+- Peut citer 1 à 2 technologies clés pour rassurer le client
+
+Règles communes :
+- Tout le contenu doit venir EXCLUSIVEMENT du dossier ci-dessous
+- En français — ne pas écrire "il/elle est disponible" ni "il/elle cherche un poste"
+- Les 2 phrases ensemble font 70-100 mots max
+
+Exemple de structure attendue :
+"<b>Prénom</b>, [titre réel] avec [X] ans d'expérience, spécialisé(e) en [domaine(s) réel(s) du dossier]. Il/Elle a [réalisation concrète issue du dossier], [résultat ou point fort différenciant]."
+
+Dossier de compétences :
+{pdf_text}
+
+Réponds UNIQUEMENT avec les 2 phrases, sans guillemets, sans tiret au début, sans commentaire.`;
+    const el = document.getElementById('settingDescPrompt');
+    if (el && !el.value.trim()) {
+        el.value = DEFAULT;
+        showToast('Prompt par défaut copié dans l\'éditeur — modifiez-le puis enregistrez', 'info', 5000);
+    } else if (el) {
+        // Ouvrir dans un alert pour ne pas écraser les modifs en cours
+        alert('Prompt par défaut :\n\n' + DEFAULT);
+    }
+}
+
+let __bulkGenRunning = false;
+async function bulkGenerateDescriptions() {
+    if (__bulkGenRunning) return;
+    const targets = __candidates.filter(c => c.has_dc && !(c.description_push && c.description_push.trim()));
+    if (targets.length === 0) {
+        showToast('Tous les candidats avec DC ont déjà une phrase de présentation ✨', 'success');
+        return;
+    }
+    if (!confirm(`Générer les phrases de présentation pour ${targets.length} candidat(s) ?\n\nOpération séquentielle — environ ${targets.length * 20}–${targets.length * 60} secondes selon Ollama.`)) return;
+
+    __bulkGenRunning = true;
+    const btn = document.getElementById('btnBulkGenerate');
+    const progress = document.getElementById('bulkGenProgress');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération en cours…'; }
+
+    let done = 0, errors = 0;
+    for (const cand of targets) {
+        if (progress) progress.textContent = `${done + errors + 1} / ${targets.length} — ${escapeHtml(cand.name)}…`;
+        try {
+            const res = await fetch(`/api/candidates/${cand.id}/generate-description`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }
+            });
+            const j = await res.json().catch(() => ({}));
+            if (res.ok && j.ok && j.description) {
+                cand.description_push = j.description;
+                // Mettre à jour le bouton IA dans le DOM si visible
+                const tr = document.querySelector(`tr[data-candidate-id="${cand.id}"]`);
+                if (tr) {
+                    const btn2 = tr.querySelector('.desc-gen-btn');
+                    if (btn2) { btn2.textContent = '✨'; btn2.style.opacity = '0.7'; btn2.title = 'Phrase IA rédigée — cliquer pour régénérer'; }
+                }
+                done++;
+            } else {
+                errors++;
+            }
+        } catch(e) {
+            errors++;
+        }
+    }
+
+    __bulkGenRunning = false;
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 Générer les introductions manquantes'; }
+    if (progress) progress.textContent = `✅ ${done} générée(s)${errors ? ` · ❌ ${errors} échec(s)` : ''}`;
+    showToast(`Génération terminée : ${done} réussie(s)${errors ? ', ' + errors + ' échec(s)' : ''}`, errors ? 'warning' : 'success');
 }
 
 async function loadCandidateFolderSettings() {
@@ -1401,6 +1542,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('tabPipeline')?.addEventListener('click', () => setTab('pipeline'));
     document.getElementById('tabMission')?.addEventListener('click', () => setTab('mission'));
     document.getElementById('tabArchive')?.addEventListener('click', () => setTab('archive'));
+    document.getElementById('tabSettings')?.addEventListener('click', () => setTab('settings'));
 
     try {
         await loadCandidates();

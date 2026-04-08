@@ -127,6 +127,8 @@ def api_ai_config_get():
         "ollama_model": config.get("ollama_model", OLLAMA_MODEL),
         "tavily_api_key_set": bool(tavily_key),
         "tavily_api_key_preview": (tavily_key[:8] + "…") if len(tavily_key) > 8 else ("••••" if tavily_key else ""),
+        "candidate_description_prompt": config.get("candidate_description_prompt", ""),
+        "candidate_pdf_max_chars": int(config.get("candidate_pdf_max_chars") or 6000),
     })
 
 
@@ -148,6 +150,13 @@ def api_ai_config_post():
         config["ollama_model"] = str(payload["ollama_model"]).strip() or OLLAMA_MODEL
     if "tavily_api_key" in payload:
         config["tavily_api_key"] = str(payload["tavily_api_key"]).strip()
+    if "candidate_description_prompt" in payload:
+        config["candidate_description_prompt"] = str(payload["candidate_description_prompt"])
+    if "candidate_pdf_max_chars" in payload:
+        try:
+            config["candidate_pdf_max_chars"] = max(1000, min(20000, int(payload["candidate_pdf_max_chars"])))
+        except (ValueError, TypeError):
+            pass
     config["provider"] = "ollama"
     _save_ai_config(config)
     logger.info("AI config updated by user %s", user.get("id"))

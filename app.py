@@ -142,6 +142,8 @@ def _load_ai_config() -> dict:
         "ollama_url": OLLAMA_URL,
         "ollama_model": OLLAMA_MODEL,
         "tavily_api_key": TAVILY_API_KEY,
+        "candidate_description_prompt": "",  # vide = prompt intégré par défaut
+        "candidate_pdf_max_chars": 6000,
     }
     if _AI_CONFIG_FILE.exists():
         try:
@@ -6311,19 +6313,27 @@ def _generate_candidate_description_ai(candidate: dict, uid: int) -> str:
     Retourne la description HTML ou chaîne vide en cas d'échec.
     Cache le résultat dans la colonne description_push de la table candidates.
     """
+    ai_config = _load_ai_config()
+    max_chars = int(ai_config.get("candidate_pdf_max_chars") or 6000)
+
     dc_path = _resolve_dc_pdf_path(candidate, uid)
     if not dc_path:
         logger.info("Pas de DC PDF pour le candidat %s (id=%s)", candidate.get("name"), candidate.get("id"))
         return ""
 
-    pdf_text = _extract_pdf_text(dc_path, max_chars=6000)
+    pdf_text = _extract_pdf_text(dc_path, max_chars=max_chars)
     if not pdf_text:
         logger.warning("Impossible d'extraire le texte du DC PDF: %s", dc_path)
         return ""
 
     prenom = candidate.get("prenom") or (candidate.get("name", "").split()[0] if candidate.get("name") else "Candidat")
 
-    prompt = f"""Tu es un commercial senior dans une société de conseil en ingénierie. Tu dois rédiger une présentation percutante pour un email de prospection B2B — l'objectif est de DONNER ENVIE au client de rencontrer le candidat.
+    # Prompt personnalisé ou prompt intégré par défaut
+    custom_prompt = (ai_config.get("candidate_description_prompt") or "").strip()
+    if custom_prompt:
+        prompt = custom_prompt.replace("{prenom}", prenom).replace("{pdf_text}", pdf_text)
+    else:
+        prompt = f"""Tu es un commercial senior dans une société de conseil en ingénierie. Tu dois rédiger une présentation percutante pour un email de prospection B2B — l'objectif est de DONNER ENVIE au client de rencontrer le candidat.
 
 Rédige EXACTEMENT 2 phrases à partir du dossier de compétences ci-dessous.
 
@@ -6359,6 +6369,8 @@ Réponds UNIQUEMENT avec les 2 phrases, sans guillemets, sans tiret au début, s
         # Nettoyer éventuels guillemets ou tirets en début
         desc = re.sub(r'^[\s"\'\\-–—•]+', '', desc)
         desc = re.sub(r'[\s"\']+$', '', desc)
+        # Fusionner les sauts de ligne pour n'avoir qu'un seul paragraphe
+        desc = re.sub(r'\s*\n+\s*', ' ', desc)
         # Vérification minimale
         if len(desc) < 20:
             logger.warning("Description IA trop courte pour candidat %s: %s", candidate.get("id"), desc)

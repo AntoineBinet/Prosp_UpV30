@@ -15,6 +15,7 @@
     <button class="tab active" id="tabPipeline" type="button">Pipeline</button>
     <button class="tab" id="tabMission" type="button">En mission / Contrat</button>
     <button class="tab" id="tabArchive" type="button">Archivés / Refusés</button>
+    <button class="tab" id="tabSettings" type="button">⚙️ Paramètres</button>
   </div>
 </div>
 
@@ -172,6 +173,50 @@
 
   <div id="archiveEmptyState" class="card" style="margin-top:14px; display:none;">
     <div class="muted">Aucun candidat archivé ou refusé.</div>
+  </div>
+</section>
+
+<!-- Paramètres -->
+<section id="panelSettings" style="display:none;">
+  <div class="card" style="padding:24px; max-width:860px; margin-top:16px;">
+
+    <div style="margin-bottom:28px;">
+      <div style="font-weight:700; font-size:15px; margin-bottom:6px;">🤖 Prompt de présentation IA</div>
+      <p class="muted" style="font-size:13px; margin-bottom:10px;">
+        Utilisé pour générer la phrase de présentation depuis le DC PDF. Laissez vide pour utiliser le prompt par défaut intégré.<br>
+        Variables disponibles : <code>{prenom}</code> (prénom du candidat), <code>{pdf_text}</code> (texte extrait du DC).
+      </p>
+      <textarea id="settingDescPrompt" rows="14"
+        placeholder="Laissez vide pour utiliser le prompt par défaut intégré."
+        style="width:100%; box-sizing:border-box; font-family:monospace; font-size:12px; line-height:1.5; resize:vertical;"></textarea>
+      <div style="margin-top:8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="resetPromptToDefault()">↩️ Réinitialiser (vider)</button>
+        <button class="btn btn-secondary btn-sm" onclick="showDefaultPrompt()">👁 Voir le prompt par défaut</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:28px;">
+      <div style="font-weight:700; font-size:15px; margin-bottom:6px;">📄 Extraction PDF</div>
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <label style="font-size:13px; white-space:nowrap;">Caractères max extraits du DC :</label>
+        <input type="number" id="settingPdfMaxChars" min="1000" max="20000" step="500" style="width:90px;">
+        <span class="muted" style="font-size:12px;">Défaut : 6000. Augmenter améliore la précision mais ralentit la génération.</span>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveSettingsTab()" id="btnSaveSettings">💾 Enregistrer les paramètres</button>
+
+    <div style="margin-top:28px; padding-top:22px; border-top:1px solid var(--color-border);">
+      <div style="font-weight:700; font-size:15px; margin-bottom:6px;">🚀 Génération en masse</div>
+      <p class="muted" style="font-size:13px; margin-bottom:12px;">
+        Génère les phrases de présentation pour tous les candidats ayant un DC mais pas encore de phrase. Traitement séquentiel — peut prendre plusieurs minutes selon le nombre de candidats et la vitesse d'Ollama.
+      </p>
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="bulkGenerateDescriptions()" id="btnBulkGenerate">🤖 Générer les introductions manquantes</button>
+        <div id="bulkGenProgress" style="font-size:13px;"></div>
+      </div>
+    </div>
+
   </div>
 </section>
 {% endblock %}
