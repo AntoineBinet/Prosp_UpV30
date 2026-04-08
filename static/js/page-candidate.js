@@ -925,6 +925,7 @@ function buildPayload() {
         email: (document.getElementById('fEmail')?.value || '').trim(),
         sector: (document.getElementById('fSector')?.value || '').trim(),
         dossier_competence_pdf: (document.getElementById('fDossierCompetence')?.value || '').trim(),
+        description_push: (document.getElementById('viewPresentationText')?.value ?? null),
     };
 }
 
@@ -1026,6 +1027,9 @@ async function loadCandidate() {
   document.getElementById('fTech').value = safeStr(__cand.tech);
   if (document.getElementById('fDossierCompetence')) {
       document.getElementById('fDossierCompetence').value = safeStr(__cand.dossier_competence_pdf || '');
+  }
+  if (document.getElementById('viewPresentationText')) {
+      document.getElementById('viewPresentationText').value = safeStr(__cand.description_push || '');
   }
   document.getElementById('fNotes').value = safeStr(__cand.notes);
 
@@ -1176,6 +1180,53 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Expose triggerAutoSave for IA import system
     window.triggerCandidateAutoSave = function() { triggerAutoSave(true); };
+
+    // Expose generatePresentationAI globally
+    window.generatePresentationAI = async function() {
+        if (!__cand?.id) return;
+        const btn = document.getElementById('btnGeneratePresentationAI');
+        const textarea = document.getElementById('viewPresentationText');
+        const statusEl = document.getElementById('viewPresentationStatus');
+        if (!textarea) return;
+
+        if (!__cand.dossier_competence_pdf && !__cand.has_dc) {
+            if (typeof showToast === 'function') showToast('Ce candidat n\'a pas de dossier de compétences uploadé', 'warning');
+            return;
+        }
+
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="pt-spinner"></span> Analyse DC…'; }
+        if (statusEl) statusEl.textContent = '';
+        textarea.value = 'Analyse du dossier de compétences en cours…';
+
+        try {
+            const res = await fetch(`/api/candidates/${__cand.id}/generate-description`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!res.ok) {
+                let errMsg = `Erreur HTTP ${res.status}`;
+                try { const e = await res.json(); errMsg = e.error || errMsg; } catch(_) {}
+                textarea.value = __cand.description_push || '';
+                if (typeof showToast === 'function') showToast(errMsg, 'error');
+                return;
+            }
+            const json = await res.json();
+            if (json.ok && json.description) {
+                textarea.value = json.description;
+                __cand.description_push = json.description;
+                if (statusEl) statusEl.textContent = '✅ Phrase générée et sauvegardée';
+                if (typeof showToast === 'function') showToast('Phrase de présentation générée !', 'success');
+            } else {
+                textarea.value = __cand.description_push || '';
+                if (typeof showToast === 'function') showToast(json.error || 'Erreur génération', 'error');
+            }
+        } catch (e) {
+            textarea.value = __cand.description_push || '';
+            if (typeof showToast === 'function') showToast(`Erreur: ${e.message}`, 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Générer IA'; }
+        }
+    };
 
     await loadCandidate();
     loadCandidateFolder();

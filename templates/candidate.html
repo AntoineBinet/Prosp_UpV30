@@ -49,6 +49,18 @@
     <div id="viewDcIndicator"><span class="muted">Chargement…</span></div>
   </div>
 
+  <!-- Phrase de présentation IA -->
+  <div style="margin-top:18px;" id="viewPresentationSection">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div style="font-weight:700;">🤖 Phrase de présentation (push)</div>
+      <button class="btn btn-secondary btn-sm" id="btnGeneratePresentationAI" onclick="generatePresentationAI()" style="font-size:12px;">🤖 Générer IA</button>
+    </div>
+    <textarea id="viewPresentationText" class="autosave-field" rows="3"
+      placeholder="Cliquez 'Générer IA' pour créer automatiquement une phrase de présentation à partir du dossier de compétences. Utilisée automatiquement lors des push emails."
+      style="width:100%; resize:vertical; box-sizing:border-box;"></textarea>
+    <div id="viewPresentationStatus" class="muted" style="font-size:11px; margin-top:4px;"></div>
+  </div>
+
   <div style="margin-top:18px;">
     <div style="font-weight:700; margin-bottom:8px;">🏢 Entreprises associées</div>
     <div id="viewCompanies" class="chips"></div>

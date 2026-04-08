@@ -7057,21 +7057,21 @@ function _buildPushTabHtml(prospectId, prospect) {
         <div id="pushDescriptionsAI" style="margin-top:10px;">
             <div id="pushDescAI_1" style="display:none;margin-bottom:8px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                    <span class="muted" style="font-size:12px;">Description IA — Candidat 1</span>
-                    <button class="btn btn-secondary btn-sm" onclick="_generateDescriptionAI(1)" style="font-size:11px;padding:2px 8px;" title="Générer / régénérer via Ollama">
-                        🤖 Générer IA
+                    <span class="muted" style="font-size:12px;">Présentation — Candidat 1 <span style="opacity:.6;">(depuis fiche candidat)</span></span>
+                    <button class="btn btn-secondary btn-sm" onclick="_generateDescriptionAI(1)" style="font-size:11px;padding:2px 8px;" title="Régénérer via Ollama (écrase la phrase de la fiche candidat)">
+                        ♻️ Régénérer
                     </button>
                 </div>
-                <textarea id="pushDescText_1" class="push-desc-textarea" rows="3" placeholder="Description IA générée automatiquement lors du push. Cliquez 'Générer IA' pour prévisualiser."></textarea>
+                <textarea id="pushDescText_1" class="push-desc-textarea" rows="3" placeholder="Phrase de présentation chargée depuis la fiche candidat. Générez-la depuis la fiche, ou régénérez ici."></textarea>
             </div>
             <div id="pushDescAI_2" style="display:none;margin-bottom:8px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                    <span class="muted" style="font-size:12px;">Description IA — Candidat 2</span>
-                    <button class="btn btn-secondary btn-sm" onclick="_generateDescriptionAI(2)" style="font-size:11px;padding:2px 8px;" title="Générer / régénérer via Ollama">
-                        🤖 Générer IA
+                    <span class="muted" style="font-size:12px;">Présentation — Candidat 2 <span style="opacity:.6;">(depuis fiche candidat)</span></span>
+                    <button class="btn btn-secondary btn-sm" onclick="_generateDescriptionAI(2)" style="font-size:11px;padding:2px 8px;" title="Régénérer via Ollama (écrase la phrase de la fiche candidat)">
+                        ♻️ Régénérer
                     </button>
                 </div>
-                <textarea id="pushDescText_2" class="push-desc-textarea" rows="3" placeholder="Description IA générée automatiquement lors du push. Cliquez 'Générer IA' pour prévisualiser."></textarea>
+                <textarea id="pushDescText_2" class="push-desc-textarea" rows="3" placeholder="Phrase de présentation chargée depuis la fiche candidat. Générez-la depuis la fiche, ou régénérez ici."></textarea>
             </div>
         </div>
     </div>
