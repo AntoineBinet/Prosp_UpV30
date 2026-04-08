@@ -407,6 +407,16 @@ window.mpClose = function () {
     window.mpNavigate = function (dir) { goTo(currentIndex + dir); };
     window.mpGoTo = function (i) { goTo(i); };
 
+    window.mpRefreshLastContact = function (prospectId, lastContact) {
+        var idx = prospects.findIndex(function (p) { return p.id === prospectId; });
+        if (idx < 0) return;
+        prospects[idx].lastContact = lastContact;
+        if (idx === currentIndex) {
+            var input = viewport.querySelector('[data-field="lastContact"]');
+            if (input) input.value = (lastContact || '').slice(0, 16);
+        }
+    };
+
     // ── Save ──
     window.mpSaveCard = async function () {
         if (saving) return;
@@ -511,5 +521,11 @@ function mpLogCall(prospectId) {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prospect_id: prospectId }),
-    }).catch(function () {});
+    }).then(function (res) { return res.json(); })
+      .then(function (data) {
+          if (data.ok && data.lastContact && window.mpRefreshLastContact) {
+              window.mpRefreshLastContact(prospectId, data.lastContact);
+          }
+      })
+      .catch(function () {});
 }
