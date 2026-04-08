@@ -784,8 +784,12 @@ const AppAuth = {
 // Ré-injecter le badge utilisateur + badge Focus après chaque reconstruction de la sidebar
 document.addEventListener('sidebar-ready', function () {
     if (window.AppAuth && typeof AppAuth._injectBadge === 'function') AppAuth._injectBadge();
-    // Re-inject the overdue relance badge on the Focus nav item now that the sidebar DOM exists
-    try { _injectSidebarBadge.apply(null, _lastOverdueCounts || [0, 0]); } catch(e) {}
+    // Re-inject the Focus badge AFTER _initSidebarCollapse (v8-features) has wrapped nav button
+    // text into nav-icon/nav-label spans. Using setTimeout(0) ensures we run after all other
+    // synchronous sidebar-ready handlers, regardless of listener registration order.
+    setTimeout(function () {
+        try { _injectSidebarBadge.apply(null, _lastOverdueCounts || [0, 0]); } catch(e) {}
+    }, 0);
 });
 
 let _badgeResizeRaf = null;
