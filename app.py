@@ -6359,6 +6359,8 @@ Réponds UNIQUEMENT avec les 2 phrases, sans guillemets, sans tiret au début, s
         # Nettoyer éventuels guillemets ou tirets en début
         desc = re.sub(r'^[\s"\'\\-–—•]+', '', desc)
         desc = re.sub(r'[\s"\']+$', '', desc)
+        # Fusionner les sauts de ligne pour n'avoir qu'un seul paragraphe
+        desc = re.sub(r'\s*\n+\s*', ' ', desc)
         # Vérification minimale
         if len(desc) < 20:
             logger.warning("Description IA trop courte pour candidat %s: %s", candidate.get("id"), desc)
