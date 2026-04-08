@@ -304,23 +304,30 @@
         fetch('/api/auth/me', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : { ok: false }; })
             .then(function (d) {
-                _currentUser = (d.ok && d.user) ? d.user : null;
-                var isAdmin = _currentUser && _currentUser.role === 'admin';
-                if (!isAdmin) {
-                    NAV.forEach(function (group) {
-                        group.items = group.items.filter(function (item) {
-                            if (item.adminOnly) return false;
-                            if (item.children) {
-                                item.children = item.children.filter(function (c) { return !c.adminOnly; });
-                            }
-                            return true;
+                // Wrap entirely so that any internal error doesn't cascade to .catch()
+                // (which would call buildSidebar() a second time and produce duplicate nav badges)
+                try {
+                    _currentUser = (d.ok && d.user) ? d.user : null;
+                    var isAdmin = _currentUser && _currentUser.role === 'admin';
+                    if (!isAdmin) {
+                        NAV.forEach(function (group) {
+                            group.items = group.items.filter(function (item) {
+                                if (item.adminOnly) return false;
+                                if (item.children) {
+                                    item.children = item.children.filter(function (c) { return !c.adminOnly; });
+                                }
+                                return true;
+                            });
                         });
-                    });
+                    }
+                } catch (e) {
+                    console.warn('Sidebar role filter error:', e);
                 }
                 buildSidebar();
                 document.dispatchEvent(new CustomEvent('sidebar-ready'));
             })
             .catch(function (e) {
+                // Only runs if fetch or JSON parsing failed — never after .then() completes
                 console.warn('Sidebar init error:', e);
                 buildSidebar();
                 document.dispatchEvent(new CustomEvent('sidebar-ready'));
