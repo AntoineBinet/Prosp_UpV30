@@ -4916,6 +4916,7 @@ def api_candidates_save():
                     onenote_url=?, vsa_url=?, skills=?, company_ids=?, is_archived=?,
                     years_experience=?, sector=?, phone=?, email=?, dossier_competence_pdf=?,
                     prenom=?, titre=?, annees_experience=?, domaine_principal=?,
+                    description_push=?,
                     updatedAt=?
                 WHERE id=? AND owner_id=?;
                 ''',
@@ -4943,6 +4944,7 @@ def api_candidates_save():
                     _t("titre"),
                     annees_exp_v,
                     _t("domaine_principal"),
+                    _t("description_push"),
                     now,
                     int(cid),
                     uid,
@@ -6326,14 +6328,16 @@ def _generate_candidate_description_ai(candidate: dict, uid: int) -> str:
 
 La description doit :
 - Commencer par le prénom en gras HTML : <b>{prenom}</b>
-- Mentionner le vrai titre du poste (ingénieur, développeur, architecte, chef de projet…) et les années d'expérience
-- Détailler les domaines d'intervention spécifiques, technologies et compétences clés
+- Mentionner le vrai titre du poste (ingénieur, développeur, architecte, chef de projet…) et les années d'expérience réelles trouvées dans le dossier
+- Détailler les VRAIS domaines d'intervention, technologies et compétences clés extraits du dossier fourni
 - Être fluide, professionnelle et convaincante
 - Être en français
 - Ne jamais utiliser le terme « consultant » — utilise le vrai titre du poste (ingénieur, développeur, architecte, etc.)
 
-Exemple de style attendu :
-"<b>Baptiste</b>, ingénieur systèmes embarqués avec 5 ans d'expérience, intervenu notamment sur des systèmes embarqués, de télécommunications et des projets IoT, avec une forte expertise en rédaction d'exigences, définition d'architecture et activités IVVQ."
+IMPORTANT : Les informations (titre, années d'expérience, domaines, technologies) doivent être extraites EXCLUSIVEMENT du dossier de compétences ci-dessous. Ne t'appuie pas sur des exemples génériques.
+
+Format attendu (adapte le contenu au candidat réel) :
+<b>[Prénom]</b>, [titre réel du candidat] avec [X] ans d'expérience, [domaines et missions réels], avec une expertise en [compétences techniques réelles du dossier].
 
 Dossier de compétences :
 {pdf_text}
