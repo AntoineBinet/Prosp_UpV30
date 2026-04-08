@@ -781,12 +781,15 @@ const AppAuth = {
     }
 };
 
-// Ré-injecter le badge utilisateur après chaque reconstruction de la sidebar (sidebar.js écrase le contenu)
+// Ré-injecter le badge utilisateur + badge Focus après chaque reconstruction de la sidebar
 document.addEventListener('sidebar-ready', function () {
     if (window.AppAuth && typeof AppAuth._injectBadge === 'function') AppAuth._injectBadge();
+    // Re-inject the overdue relance badge on the Focus nav item now that the sidebar DOM exists
+    try { _injectSidebarBadge.apply(null, _lastOverdueCounts || [0, 0]); } catch(e) {}
 });
 
 let _badgeResizeRaf = null;
+let _lastOverdueCounts = [0, 0]; // [overdueCount, dueTodayCount] — replayed on sidebar-ready
 window.addEventListener('resize', function () {
     if (!window.AppAuth || !AppAuth.user || typeof AppAuth._injectBadge !== 'function') return;
     if (_badgeResizeRaf) cancelAnimationFrame(_badgeResizeRaf);
@@ -4875,8 +4878,8 @@ function updateStats(prospects) {
     const prospectésEl = document.getElementById('prospectésCount');
     if (prospectésEl) prospectésEl.textContent = prospectsOnly.filter(p => p.statut === 'Prospecté').length;
 
-    // Relances en retard : basé sur les prospects affichés (filtrés)
-    updateOverdueAlerts(activeProspects);
+    // Relances en retard : badge global = toujours basé sur TOUS les prospects (pas le filtre courant)
+    updateOverdueAlerts(data.prospects || []);
 }
 
 // ═══ Quick filter from stat cards ═══
@@ -5013,6 +5016,8 @@ function updateOverdueAlerts(prospects) {
 }
 
 function _injectSidebarBadge(overdueCount, dueTodayCount) {
+    // Persist last counts so sidebar-ready can replay them if sidebar rebuilt after bootstrap
+    _lastOverdueCounts = [overdueCount, dueTodayCount];
     // Find Focus nav-button in sidebar
     const focusLinks = document.querySelectorAll('a.nav-button[href="/focus"]');
     focusLinks.forEach(link => {
