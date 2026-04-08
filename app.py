@@ -4253,6 +4253,7 @@ def mode_prosp_save():
     try:
         db_path = _user_db_path(uid)
         conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout = 20000;")
         conn.execute("PRAGMA journal_mode = WAL;")
         # Build SET clause for only editable fields present in payload
@@ -7290,7 +7291,11 @@ def api_prospect_log_call():
             "INSERT INTO call_logs (prospect_id, owner_id, date, called_at) VALUES (?,?,?,?);",
             (prospect_id, uid, today, now),
         )
-    return jsonify(ok=True)
+        conn.execute(
+            "UPDATE prospects SET lastContact = ? WHERE id = ? AND owner_id = ?;",
+            (now, prospect_id, uid),
+        )
+    return jsonify(ok=True, lastContact=now)
 
 
 @app.get("/api/candidate/timeline")
