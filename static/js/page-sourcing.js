@@ -242,12 +242,13 @@ function renderCandidateTable() {
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
             : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
+        const descBadge = _buildDescBadge(c);
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
         if (isSelected) tr.classList.add('row-selected');
         tr.addEventListener('click', (e) => {
-            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn')) return;
+            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, .desc-gen-btn')) return;
             window.location.href = '/candidat?id=' + c.id;
         });
         tr.innerHTML = `
@@ -256,7 +257,7 @@ function renderCandidateTable() {
             <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
             <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
-            <td data-label="DC">${dcBadge}</td>
+            <td data-label="DC"><div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">${dcBadge}${descBadge}</div></td>
             <td data-label="Statut">${renderStatusSelect(c.id, c.status)}</td>
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
@@ -316,6 +317,60 @@ function quickUploadDC(candidateId) {
     });
     input.addEventListener('cancel', () => { document.body.removeChild(input); });
     input.click();
+}
+
+/**
+ * Retourne le badge de statut de la phrase de présentation IA.
+ * - DC absent → '' (rien)
+ * - DC présent + description générée → badge violet "✨ Intro"
+ * - DC présent + pas de description → bouton orange cliquable "🤖 Intro"
+ */
+function _buildDescBadge(c) {
+    if (!c.has_dc) return '';
+    if (c.description_push && c.description_push.trim()) {
+        return `<span class="desc-badge has-desc" title="Phrase de présentation IA rédigée — cliquez sur la fiche pour modifier">✨ Intro</span>`;
+    }
+    return `<button class="desc-badge no-desc desc-gen-btn" title="Générer la phrase de présentation depuis le DC" onclick="event.stopPropagation();quickGenerateDescription(${c.id})">🤖 Intro</button>`;
+}
+
+async function quickGenerateDescription(candidateId) {
+    // Trouver le bouton dans le tableau (toutes les tables)
+    const btn = document.querySelector(`tr[data-candidate-id="${candidateId}"] .desc-gen-btn`);
+    if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+    try {
+        const res = await fetch(`/api/candidates/${candidateId}/generate-description`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.ok && json.description) {
+            // Mettre à jour localement
+            [__candidates, __candFiltered, __missionFiltered, __archiveFiltered].forEach(arr => {
+                if (!arr) return;
+                const c = arr.find(x => x.id === candidateId);
+                if (c) c.description_push = json.description;
+            });
+            // Mettre à jour le badge dans le DOM
+            const tr = document.querySelector(`tr[data-candidate-id="${candidateId}"]`);
+            if (tr) {
+                const descBtnEl = tr.querySelector('.desc-gen-btn');
+                if (descBtnEl) {
+                    const span = document.createElement('span');
+                    span.className = 'desc-badge has-desc';
+                    span.title = 'Phrase de présentation IA rédigée — cliquez sur la fiche pour modifier';
+                    span.textContent = '✨ Intro';
+                    descBtnEl.replaceWith(span);
+                }
+            }
+            showToast('Phrase de présentation générée !', 'success');
+        } else {
+            showToast(json.error || 'Erreur génération (vérifiez qu\'Ollama est actif)', 'error');
+            if (btn) { btn.textContent = '🤖 Intro'; btn.disabled = false; }
+        }
+    } catch(e) {
+        showToast('Erreur réseau : ' + (e?.message || e), 'error');
+        if (btn) { btn.textContent = '🤖 Intro'; btn.disabled = false; }
+    }
 }
 
 // ===== Statut inline =====
@@ -416,11 +471,12 @@ function renderArchiveTable() {
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
             : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
+        const descBadge = _buildDescBadge(c);
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
         tr.addEventListener('click', (e) => {
-            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, select')) return;
+            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, .desc-gen-btn, select')) return;
             window.location.href = '/candidat?id=' + c.id;
         });
         tr.innerHTML = `
@@ -429,7 +485,7 @@ function renderArchiveTable() {
             <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
             <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
-            <td data-label="DC">${dcBadge}</td>
+            <td data-label="DC"><div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">${dcBadge}${descBadge}</div></td>
             <td data-label="Statut">${renderStatusSelect(c.id, c.status)}</td>
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
@@ -503,11 +559,12 @@ function renderMissionTable() {
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
             : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
+        const descBadge = _buildDescBadge(c);
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
         tr.addEventListener('click', (e) => {
-            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, select')) return;
+            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, .desc-gen-btn, select')) return;
             window.location.href = '/candidat?id=' + c.id;
         });
         tr.innerHTML = `
@@ -516,7 +573,7 @@ function renderMissionTable() {
             <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
             <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
-            <td data-label="DC">${dcBadge}</td>
+            <td data-label="DC"><div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">${dcBadge}${descBadge}</div></td>
             <td data-label="Statut">${renderStatusSelect(c.id, c.status)}</td>
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
