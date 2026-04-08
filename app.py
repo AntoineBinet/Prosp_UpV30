@@ -6323,29 +6323,35 @@ def _generate_candidate_description_ai(candidate: dict, uid: int) -> str:
 
     prenom = candidate.get("prenom") or (candidate.get("name", "").split()[0] if candidate.get("name") else "Candidat")
 
-    prompt = f"""Tu es un commercial senior dans une société de conseil en ingénierie. Tu dois rédiger une accroche percutante pour présenter un candidat dans un email de prospection B2B — l'objectif est de DONNER ENVIE au client de le rencontrer.
+    prompt = f"""Tu es un commercial senior dans une société de conseil en ingénierie. Tu dois rédiger une présentation percutante pour un email de prospection B2B — l'objectif est de DONNER ENVIE au client de rencontrer le candidat.
 
-Rédige 1 à 2 phrases (60-90 mots max) à partir du dossier de compétences ci-dessous.
+Rédige EXACTEMENT 2 phrases à partir du dossier de compétences ci-dessous.
 
-Règles :
+PHRASE 1 — Présentation générale (identité + titre + expérience) :
 - Commence par le prénom en gras HTML : <b>{prenom}</b>
-- Ton vendeur et dynamique : utilise des verbes d'action concrets ("a conçu", "a piloté", "a développé", "maîtrise", "intervient sur", "a validé"…)
-- Mets en avant ce que le candidat peut APPORTER au client, pas juste une liste de compétences
-- Si le dossier cite des réalisations mesurables ou des projets notables, exploite-les
-- Vrai titre du poste tiré du dossier (jamais « consultant »)
-- Années d'expérience et domaines techniques réels du dossier
+- Donne son vrai titre de poste (ingénieur, développeur, architecte, chef de projet… — jamais « consultant »)
+- Mentionne ses années d'expérience réelles trouvées dans le dossier
+- Cite ses domaines principaux d'intervention ou sa spécialité distinctive
+- Style : clair, professionnel, direct
+
+PHRASE 2 — Accroche vendeuse (réalisation concrète) :
+- Ton dynamique avec un verbe d'action ("a conçu", "a piloté", "a développé", "a validé", "a déployé"…)
+- S'appuie sur une réalisation ou mission concrète citée dans le dossier
+- Met en avant la valeur apportée ou le résultat obtenu si disponible
+- Peut citer 1 à 2 technologies clés pour rassurer le client
+
+Règles communes :
+- Tout le contenu doit venir EXCLUSIVEMENT du dossier ci-dessous
 - En français — ne pas écrire "il/elle est disponible" ni "il/elle cherche un poste"
+- Les 2 phrases ensemble font 70-100 mots max
 
-Style à éviter (trop descriptif, style CV) :
-"<b>{prenom}</b>, ingénieur X avec N ans d'expérience, ayant travaillé sur Y, avec une expertise en Z."
-
-Style attendu (vendeur, percutant, verbes d'action) :
-"<b>{prenom}</b> a [réalisation ou mission concrète] sur [contexte réel du dossier] — [point fort différenciant]. [Optionnel : compétences techniques clés qui rassurent le client.]"
+Exemple de structure attendue :
+"<b>Prénom</b>, [titre réel] avec [X] ans d'expérience, spécialisé(e) en [domaine(s) réel(s) du dossier]. Il/Elle a [réalisation concrète issue du dossier], [résultat ou point fort différenciant]."
 
 Dossier de compétences :
 {pdf_text}
 
-Réponds UNIQUEMENT avec l'accroche, sans guillemets, sans tiret au début, sans commentaire."""
+Réponds UNIQUEMENT avec les 2 phrases, sans guillemets, sans tiret au début, sans commentaire."""
 
     try:
         result = _call_ai(prompt, timeout=90)
