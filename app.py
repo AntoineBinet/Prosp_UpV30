@@ -6323,26 +6323,29 @@ def _generate_candidate_description_ai(candidate: dict, uid: int) -> str:
 
     prenom = candidate.get("prenom") or (candidate.get("name", "").split()[0] if candidate.get("name") else "Candidat")
 
-    prompt = f"""Tu es un assistant spécialisé en recrutement B2B pour une société de conseil en ingénierie.
-À partir du dossier de compétences ci-dessous, rédige UNE SEULE description concise (2-3 phrases, 50-80 mots max) du candidat pour un email de prospection commerciale.
+    prompt = f"""Tu es un commercial senior dans une société de conseil en ingénierie. Tu dois rédiger une accroche percutante pour présenter un candidat dans un email de prospection B2B — l'objectif est de DONNER ENVIE au client de le rencontrer.
 
-La description doit :
-- Commencer par le prénom en gras HTML : <b>{prenom}</b>
-- Mentionner le vrai titre du poste (ingénieur, développeur, architecte, chef de projet…) et les années d'expérience réelles trouvées dans le dossier
-- Détailler les VRAIS domaines d'intervention, technologies et compétences clés extraits du dossier fourni
-- Être fluide, professionnelle et convaincante
-- Être en français
-- Ne jamais utiliser le terme « consultant » — utilise le vrai titre du poste (ingénieur, développeur, architecte, etc.)
+Rédige 1 à 2 phrases (60-90 mots max) à partir du dossier de compétences ci-dessous.
 
-IMPORTANT : Les informations (titre, années d'expérience, domaines, technologies) doivent être extraites EXCLUSIVEMENT du dossier de compétences ci-dessous. Ne t'appuie pas sur des exemples génériques.
+Règles :
+- Commence par le prénom en gras HTML : <b>{prenom}</b>
+- Ton vendeur et dynamique : utilise des verbes d'action concrets ("a conçu", "a piloté", "a développé", "maîtrise", "intervient sur", "a validé"…)
+- Mets en avant ce que le candidat peut APPORTER au client, pas juste une liste de compétences
+- Si le dossier cite des réalisations mesurables ou des projets notables, exploite-les
+- Vrai titre du poste tiré du dossier (jamais « consultant »)
+- Années d'expérience et domaines techniques réels du dossier
+- En français — ne pas écrire "il/elle est disponible" ni "il/elle cherche un poste"
 
-Format attendu (adapte le contenu au candidat réel) :
-<b>[Prénom]</b>, [titre réel du candidat] avec [X] ans d'expérience, [domaines et missions réels], avec une expertise en [compétences techniques réelles du dossier].
+Style à éviter (trop descriptif, style CV) :
+"<b>{prenom}</b>, ingénieur X avec N ans d'expérience, ayant travaillé sur Y, avec une expertise en Z."
+
+Style attendu (vendeur, percutant, verbes d'action) :
+"<b>{prenom}</b> a [réalisation ou mission concrète] sur [contexte réel du dossier] — [point fort différenciant]. [Optionnel : compétences techniques clés qui rassurent le client.]"
 
 Dossier de compétences :
 {pdf_text}
 
-Réponds UNIQUEMENT avec la description, sans guillemets, sans tiret au début, sans texte autour."""
+Réponds UNIQUEMENT avec l'accroche, sans guillemets, sans tiret au début, sans commentaire."""
 
     try:
         result = _call_ai(prompt, timeout=90)
