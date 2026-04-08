@@ -393,7 +393,12 @@
         sidebar.querySelectorAll('.nav-button:not(:has(.nav-icon))').forEach(function (btn) {
             // Vérifier que le bouton n'a pas déjà été wrappé (évite doublons)
             if (btn.querySelector('.nav-icon') || btn.querySelector('.nav-label')) return;
-            
+
+            // Sauvegarder les badges avant de lire textContent (sinon leur nombre
+            // se retrouve collé dans le label, ex: "Focus8" au lieu de "Focus")
+            var savedBadges = Array.from(btn.querySelectorAll('.sidebar-alert-badge'));
+            savedBadges.forEach(function (b) { b.remove(); });
+
             const text = btn.textContent.trim();
             // First 1-2 chars are emoji, rest is label
             const match = text.match(/^(\S+)\s*(.*)/);
@@ -406,6 +411,9 @@
                     btn.setAttribute('data-tooltip', label);
                 }
             }
+
+            // Remettre les badges après le wrapping
+            savedBadges.forEach(function (b) { btn.appendChild(b); });
         });
 
         // Restore saved state
