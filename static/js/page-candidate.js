@@ -506,7 +506,8 @@ async function loadCandidateDcStatus() {
                 const url = `/api/candidates/${__cand.id}/dossier-competence`;
                 return `<a href="${url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;">⬇️ Télécharger${j.files.length > 1 ? ' (' + escapeHtml(f) + ')' : ''}</a>`;
             }).join('');
-            el.innerHTML = `<span class="badge badge-success" style="font-size:12px;">✅ DC disponible</span>${fileLinks}`;
+            const firstName = j.files[0] || '';
+            el.innerHTML = `<span class="badge badge-success" style="font-size:12px;">✅ DC disponible</span>${fileLinks}<button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcRenameInline(this,'${escapeHtml(firstName).replace(/'/g,"\\'")}')">✏️ Renommer</button>`;
         } else {
             el.innerHTML = `<span class="badge" style="background:rgba(245,158,11,.15);color:#f59e0b;font-size:12px;">⚠ DC manquant</span>
                 <button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcUploadModal()">➕ Ajouter le DC</button>`;
@@ -514,6 +515,54 @@ async function loadCandidateDcStatus() {
     } catch (e) {
         el.innerHTML = '<span class="muted">Statut DC indisponible.</span>';
     }
+}
+
+function openDcRenameInline(btn, currentName) {
+    const container = btn.parentElement;
+    const sanitized = currentName.replace(/\.pdf$/i, '');
+    btn.replaceWith((() => {
+        const wrap = document.createElement('span');
+        wrap.style.cssText = 'display:inline-flex;align-items:center;gap:4px;margin-left:8px;';
+        wrap.innerHTML = `
+            <input id="dcRenameInput" value="${escapeHtml(sanitized)}" style="font-size:12px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:220px;" />
+            <button class="btn btn-primary btn-sm" id="dcRenameSaveBtn" style="font-size:12px;">✅</button>
+            <button class="btn btn-secondary btn-sm" id="dcRenameCancelBtn" style="font-size:12px;">✕</button>`;
+        return wrap;
+    })());
+    const inp = document.getElementById('dcRenameInput');
+    const saveBtn = document.getElementById('dcRenameSaveBtn');
+    const cancelBtn = document.getElementById('dcRenameCancelBtn');
+    inp?.focus();
+    inp?.select();
+    async function doRename() {
+        const newName = (inp?.value || '').trim();
+        if (!newName) return;
+        saveBtn.disabled = true;
+        try {
+            const res = await fetch(`/api/candidates/${__cand.id}/dc-rename`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_name: newName })
+            });
+            const j = await res.json();
+            if (j.ok) {
+                if (typeof showToast === 'function') showToast('Fichier DC renommé : ' + j.filename, 'success');
+                loadCandidateDcStatus();
+            } else {
+                if (typeof showToast === 'function') showToast('Erreur : ' + (j.error || 'Renommage échoué'), 'error');
+                saveBtn.disabled = false;
+            }
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Erreur réseau', 'error');
+            saveBtn.disabled = false;
+        }
+    }
+    saveBtn?.addEventListener('click', doRename);
+    cancelBtn?.addEventListener('click', () => loadCandidateDcStatus());
+    inp?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') doRename();
+        if (e.key === 'Escape') loadCandidateDcStatus();
+    });
 }
 
 let __dcUploadFile = null;
