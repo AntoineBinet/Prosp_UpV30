@@ -83,6 +83,10 @@
       <div style="font-weight:600; font-size:13px; margin-bottom:6px; color:var(--color-text-muted);">📞 Références</div>
       <div id="viewRefContent" style="font-size:13px; white-space:pre-wrap; padding:8px 12px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:8px;"></div>
     </div>
+    <div id="viewAvisPersoSection" style="margin-top:10px; display:none;">
+      <div style="font-weight:600; font-size:13px; margin-bottom:6px; color:var(--color-text-muted);">💬 Avis perso</div>
+      <div id="viewAvisPersoContent" style="font-size:13px; white-space:pre-wrap; padding:8px 12px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:8px;"></div>
+    </div>
   </div>
 
   <div style="margin-top:18px;">
@@ -326,6 +330,11 @@
       <div class="form-group">
         <label>Références</label>
         <textarea id="fReferencesCandidats" rows="3" placeholder="Jean Dupont — DRH — Société X — 06 xx xx xx xx / jean.dupont@x.fr" class="autosave-field"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>💬 Avis perso</label>
+        <textarea id="fAvisPerso" rows="4" placeholder="Impression générale, points forts / points faibles, recommandation…" class="autosave-field"></textarea>
       </div>
     </div>
     <!-- fin section entretien -->
