@@ -5141,7 +5141,6 @@ async function viewDetail(id) {
 
         <div class="detail-tabs">
             <button class="detail-tab active" onclick="switchDetailTab(this,'tab-info')">Infos</button>
-            ${showCandidats ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-candidats');loadCandidatsTab(${prospect.id})">🎯 Candidats</button>` : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-push')">📤 Push</button>
             ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-edit')">✏️ Modifier</button>
@@ -5169,23 +5168,6 @@ async function viewDetail(id) {
                 <div id="ntBox_${id}"></div>
             </div>
         </div>
-
-        ${showCandidats ? `<!-- TAB: Candidats -->
-        <div class="detail-tab-content" id="tab-candidats">
-            <div class="detail-section-card" style="margin-bottom:16px;">
-                <div class="detail-section-title">✅ Candidats choisis</div>
-                <div id="selectedCandidatesList" style="min-height:60px;">
-                    <span class="muted">Aucun candidat sélectionné</span>
-                </div>
-                <div style="margin-top:12px;">
-                    <button class="btn btn-primary" onclick="openCandidateSelector(${prospect.id})" style="width:100%;">➕ Ajouter des candidats</button>
-                </div>
-            </div>
-            <div class="detail-section-card" id="candidateMatchSection">
-                <div class="detail-section-title">🎯 Candidats recommandés (4 maximum)</div>
-                <div id="unifiedCandidateList"><span class="muted">Analyse en cours…</span></div>
-            </div>
-        </div>` : ''}
 
         <!-- TAB: Push (v27.x PARTIE 2) -->
         <div class="detail-tab-content" id="tab-push">
@@ -7007,6 +6989,8 @@ async function initPushTab(prospectId, prospect) {
         setTimeout(() => updatePushCandidates(prospectId), 100);
     }
     _updateEmailBtnState(prospectId, prospect);
+    // Charger les candidats recommandés par l'IA dans la section dédiée
+    loadUnifiedCandidates(prospectId, prospect.tags, prospect.push_category_id);
 }
 
 /**
@@ -7044,36 +7028,52 @@ function _buildPushTabHtml(prospectId, prospect) {
         <div class="detail-section-title">👤 Candidats & pièces jointes</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
             <div style="flex:1;min-width:140px;">
+                <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:3px;">Candidat 1</label>
                 <select id="detailPushCandidate1" class="template-select" style="width:100%;" onchange="_updateEmailBtnState(${prospectId}); _onCandidateSelectChange(1)">
                     <option value="">— Aucun —</option>
                 </select>
             </div>
             <div style="flex:1;min-width:140px;">
+                <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:3px;">Candidat 2</label>
                 <select id="detailPushCandidate2" class="template-select" style="width:100%;" onchange="_updateEmailBtnState(${prospectId}); _onCandidateSelectChange(2)">
                     <option value="">— Aucun —</option>
                 </select>
             </div>
         </div>
-        <div id="pushDescriptionsAI" style="margin-top:10px;">
-            <div id="pushDescAI_1" style="display:none;margin-bottom:8px;">
+        <div id="pushDescriptionsAI" style="margin-top:12px;">
+            <div id="pushDescAI_1" style="display:none;margin-bottom:10px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                     <span class="muted" style="font-size:12px;">Présentation — Candidat 1 <span style="opacity:.6;">(depuis fiche candidat)</span></span>
                     <button class="btn btn-secondary btn-sm" onclick="_generateDescriptionAI(1)" style="font-size:11px;padding:2px 8px;" title="Régénérer via Ollama (écrase la phrase de la fiche candidat)">
                         ♻️ Régénérer
                     </button>
                 </div>
-                <textarea id="pushDescText_1" class="push-desc-textarea" rows="3" placeholder="Phrase de présentation chargée depuis la fiche candidat. Générez-la depuis la fiche, ou régénérez ici."></textarea>
+                <textarea id="pushDescText_1" class="push-desc-textarea" rows="3"
+                    placeholder="Phrase de présentation. Modifiez-la ici — elle sera sauvegardée automatiquement."
+                    onblur="_saveDescriptionToCandidate(1)"></textarea>
+                <div id="pushDescSave_1" style="font-size:11px;color:var(--color-text-secondary);text-align:right;height:14px;"></div>
             </div>
-            <div id="pushDescAI_2" style="display:none;margin-bottom:8px;">
+            <div id="pushDescAI_2" style="display:none;margin-bottom:10px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                     <span class="muted" style="font-size:12px;">Présentation — Candidat 2 <span style="opacity:.6;">(depuis fiche candidat)</span></span>
                     <button class="btn btn-secondary btn-sm" onclick="_generateDescriptionAI(2)" style="font-size:11px;padding:2px 8px;" title="Régénérer via Ollama (écrase la phrase de la fiche candidat)">
                         ♻️ Régénérer
                     </button>
                 </div>
-                <textarea id="pushDescText_2" class="push-desc-textarea" rows="3" placeholder="Phrase de présentation chargée depuis la fiche candidat. Générez-la depuis la fiche, ou régénérez ici."></textarea>
+                <textarea id="pushDescText_2" class="push-desc-textarea" rows="3"
+                    placeholder="Phrase de présentation. Modifiez-la ici — elle sera sauvegardée automatiquement."
+                    onblur="_saveDescriptionToCandidate(2)"></textarea>
+                <div id="pushDescSave_2" style="font-size:11px;color:var(--color-text-secondary);text-align:right;height:14px;"></div>
             </div>
         </div>
+    </div>
+
+    <div class="detail-section-card" id="candidateMatchSection" style="margin-bottom:14px;">
+        <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>🎯 Candidats recommandés par l'IA</span>
+            <span style="font-size:11px;color:var(--color-text-secondary);font-weight:normal;">Cliquez ➕ pour ajouter au push</span>
+        </div>
+        <div id="unifiedCandidateList"><span class="muted">Analyse des compétences en cours…</span></div>
     </div>
 
     <div style="margin-bottom:14px;">
@@ -7194,6 +7194,86 @@ async function _generateDescriptionAI(slot) {
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = origLabel; }
     }
+}
+
+/**
+ * Sauvegarde la présentation manuelle d'un candidat sur le serveur (onblur).
+ * Appelée quand l'utilisateur quitte le champ textarea après modification.
+ */
+async function _saveDescriptionToCandidate(slot) {
+    const select = document.getElementById(`detailPushCandidate${slot}`);
+    const textarea = document.getElementById(`pushDescText_${slot}`);
+    const statusEl = document.getElementById(`pushDescSave_${slot}`);
+    if (!select || !textarea) return;
+
+    const candId = parseInt(select.value) || 0;
+    if (!candId) return;
+
+    const desc = textarea.value; // conserver tel quel (HTML ou texte brut)
+
+    // Mettre à jour le cache local
+    const cand = (data.candidates || []).find(c => c.id === candId);
+    if (cand) cand.description_push = desc;
+
+    // Sauvegarder sur le serveur
+    try {
+        if (statusEl) statusEl.textContent = 'Sauvegarde…';
+        const res = await fetch(`/api/candidates/${candId}/save-description`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description: desc })
+        });
+        if (statusEl) {
+            if (res.ok) {
+                statusEl.textContent = '✓ Sauvegardé';
+                setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
+            } else {
+                statusEl.textContent = '⚠ Erreur sauvegarde';
+            }
+        }
+    } catch (e) {
+        console.warn('Erreur sauvegarde description candidat:', e);
+        if (statusEl) statusEl.textContent = '⚠ Erreur réseau';
+    }
+}
+
+/**
+ * Sélectionne un candidat recommandé dans le premier slot libre du push.
+ * Appelée depuis les cartes IA de la section "Candidats recommandés".
+ */
+function selectCandidateForPush(candidateId) {
+    const sel1 = document.getElementById('detailPushCandidate1');
+    const sel2 = document.getElementById('detailPushCandidate2');
+    if (!sel1 || !sel2) { showToast('Sélecteurs non disponibles', 'warning'); return; }
+
+    const idStr = String(candidateId);
+    const opt1 = sel1.querySelector(`option[value="${idStr}"]`);
+    if (!opt1) { showToast('Ce candidat n\'est pas dans la liste de sélection', 'warning'); return; }
+
+    // Déjà sélectionné ?
+    if (parseInt(sel1.value) === candidateId || parseInt(sel2.value) === candidateId) {
+        showToast('Ce candidat est déjà sélectionné', 'warning');
+        return;
+    }
+
+    // Slot 1 libre ?
+    if (!sel1.value) {
+        sel1.value = idStr;
+        _onCandidateSelectChange(1);
+        showToast('Candidat ajouté au slot 1', 'success');
+    } else if (!sel2.value) {
+        sel2.value = idStr;
+        _onCandidateSelectChange(2);
+        showToast('Candidat ajouté au slot 2', 'success');
+    } else {
+        // Les deux slots sont pris → remplacer le slot 2
+        sel2.value = idStr;
+        _onCandidateSelectChange(2);
+        showToast('Candidat remplacé dans le slot 2', 'info');
+    }
+    // Scroller vers la section candidats
+    const section = document.getElementById('ptCandidatesSection_' + (sel1.closest('[id^="pushTabContent_"]') ? sel1.closest('[id^="pushTabContent_"]').id.replace('pushTabContent_','') : ''));
+    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /**
@@ -12206,23 +12286,30 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
                 : '';
 
             return `
-                <a href="${viewFicheUrl}" class="bestmatch-card bestmatch-card-link${idx === 0 ? ' bestmatch-top' : ''}" title="Ouvrir la fiche candidat">
-                    <div class="bestmatch-header">
-                        <div class="bestmatch-name">
-                            ${idx === 0 ? '<span class="bestmatch-crown">👑</span>' : ''}
-                            <strong>${escapeHtml(c.name)}</strong>
-                            ${linkedinBtn}
-                            ${telBtn}
+                <div style="margin-bottom:10px;">
+                    <a href="${viewFicheUrl}" class="bestmatch-card bestmatch-card-link${idx === 0 ? ' bestmatch-top' : ''}" title="Ouvrir la fiche candidat" style="margin-bottom:0;">
+                        <div class="bestmatch-header">
+                            <div class="bestmatch-name">
+                                ${idx === 0 ? '<span class="bestmatch-crown">👑</span>' : ''}
+                                <strong>${escapeHtml(c.name)}</strong>
+                                ${linkedinBtn}
+                                ${telBtn}
+                            </div>
+                            <span class="bestmatch-score" title="${scoreDetails.join(' · ')}">${c.pct}%</span>
                         </div>
-                        <span class="bestmatch-score" title="${scoreDetails.join(' · ')}">${c.pct}%</span>
-                    </div>
-                    <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · 📍 ' + escapeHtml(c.location) : ''}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
-                    <div class="bestmatch-skills">${skillsHtml || '<span class="muted">Aucune compétence renseignée</span>'}</div>
-                    <div class="bestmatch-matched">${(c.matched_tags || []).length} compétence${(c.matched_tags || []).length > 1 ? 's' : ''} en commun : ${(c.matched_tags || []).map(t => escapeHtml(t)).join(', ')}</div>
-                    ${semanticInfo}
-                    ${aiExplanation}
-                    <div class="bestmatch-actions"><span class="bestmatch-action-label">Voir la fiche →</span></div>
-                </a>`;
+                        <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · 📍 ' + escapeHtml(c.location) : ''}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
+                        <div class="bestmatch-skills">${skillsHtml || '<span class="muted">Aucune compétence renseignée</span>'}</div>
+                        <div class="bestmatch-matched">${(c.matched_tags || []).length} compétence${(c.matched_tags || []).length > 1 ? 's' : ''} en commun : ${(c.matched_tags || []).map(t => escapeHtml(t)).join(', ')}</div>
+                        ${semanticInfo}
+                        ${aiExplanation}
+                        <div class="bestmatch-actions"><span class="bestmatch-action-label">Voir la fiche →</span></div>
+                    </a>
+                    <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();selectCandidateForPush(${c.id})"
+                        style="width:100%;margin-top:4px;font-size:12px;border-radius:0 0 8px 8px;"
+                        title="Ajouter ce candidat dans le slot de sélection">
+                        ➕ Sélectionner pour le push
+                    </button>
+                </div>`;
         }).join('');
     } catch (e) {
         console.error('unified-candidates error', e);

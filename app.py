@@ -2200,6 +2200,27 @@ Cordialement,"""
                 ),
             )
 
+        # Migration: corriger les templates dont le body contient "au sein   Technologies."
+        # (erreur de saisie : "d'Up" manquant, ex: "au sein  Technologies." au lieu de "au sein d'Up Technologies.")
+        try:
+            import re as _re_tmpl
+            _tmpl_rows = conn.execute("SELECT id, body, linkedin_body FROM templates;").fetchall()
+            _tmpl_updated = False
+            for _tr in _tmpl_rows:
+                _bid, _body, _lbody = _tr["id"], _tr["body"] or "", _tr["linkedin_body"] or ""
+                _new_body = _re_tmpl.sub(r"au sein\s+Technologies\.", "au sein d'Up Technologies.", _body)
+                _new_lbody = _re_tmpl.sub(r"au sein\s+Technologies\.", "au sein d'Up Technologies.", _lbody)
+                if _new_body != _body or _new_lbody != _lbody:
+                    conn.execute(
+                        "UPDATE templates SET body=?, linkedin_body=? WHERE id=?;",
+                        (_new_body, _new_lbody, _bid)
+                    )
+                    _tmpl_updated = True
+            if _tmpl_updated:
+                conn.commit()
+        except Exception:
+            pass
+
         # v25: candidate_tabs (onglets fiche candidat) — migration depuis candidate_ec1_checklists
         _migrate_candidate_tabs(conn)
 
@@ -6610,6 +6631,29 @@ Réponds UNIQUEMENT avec les 2 phrases, sans guillemets, sans tiret au début, s
     except Exception as e:
         logger.warning("Erreur génération description IA pour candidat %s: %s", candidate.get("id"), e)
         return ""
+
+
+@app.post("/api/candidates/<int:cand_id>/save-description")
+def api_candidate_save_description(cand_id):
+    """Sauvegarde manuellement la description push d'un candidat (édition manuelle dans l'onglet Push).
+    Retourne: { ok }
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(silent=True) or {}
+    description = payload.get("description", "")
+    if description is not None:
+        description = str(description).strip() or None
+    with _conn() as conn:
+        rows_affected = conn.execute(
+            "UPDATE candidates SET description_push=? WHERE id=? AND owner_id=?;",
+            (description, cand_id, uid)
+        ).rowcount
+        conn.commit()
+    if rows_affected == 0:
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+    return jsonify(ok=True)
 
 
 @app.post("/api/candidates/<int:cand_id>/generate-description")
