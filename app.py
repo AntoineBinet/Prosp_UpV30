@@ -1896,6 +1896,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             ("eval_communication", "TEXT"),
             ("langues", "TEXT"),
             ("references_candidat", "TEXT"),
+            ("avis_perso", "TEXT"),
         ]:
             if _col not in cand_cols:
                 _add_col("candidates", _col, _ddl)
@@ -4980,7 +4981,7 @@ def api_candidates_save():
                     fonctions_recherchees=?, motif_recherche=?, avancement_recherches=?,
                     remuneration_actuelle=?, pretentions_salariales=?, propal_a=?,
                     eval_technique=?, eval_personnalite=?, eval_communication=?,
-                    langues=?, references_candidat=?,
+                    langues=?, references_candidat=?, avis_perso=?,
                     updatedAt=?
                 WHERE id=? AND owner_id=?;
                 ''',
@@ -5025,6 +5026,7 @@ def api_candidates_save():
                     _t("eval_communication"),
                     _t("langues"),
                     _t("references_candidat"),
+                    _t("avis_perso"),
                     now,
                     int(cid),
                     uid,
@@ -5044,10 +5046,10 @@ def api_candidates_save():
                     fonctions_recherchees, motif_recherche, avancement_recherches,
                     remuneration_actuelle, pretentions_salariales, propal_a,
                     eval_technique, eval_personnalite, eval_communication,
-                    langues, references_candidat,
+                    langues, references_candidat, avis_perso,
                     createdAt, updatedAt, owner_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 ''',
                 (
                     name,
@@ -5089,6 +5091,7 @@ def api_candidates_save():
                     _t("eval_communication"),
                     _t("langues"),
                     _t("references_candidat"),
+                    _t("avis_perso"),
                     now,
                     now,
                     uid,
@@ -5170,7 +5173,8 @@ Extrait les informations suivantes et retourne UNIQUEMENT un objet JSON valide, 
   "eval_personnalite": "évaluation personnalité",
   "eval_communication": "évaluation communication",
   "langues": "langues et niveaux (ex: Anglais B2 testé, Espagnol A1)",
-  "references_candidat": "références transmises (nom, fonction, société, contact)"
+  "references_candidat": "références transmises (nom, fonction, société, contact)",
+  "avis_perso": "avis personnel du consultant sur le candidat — texte libre de la case Détails / commentaires de la section Évaluation"
 }}
 
 Si une information est absente, mets null pour les champs numériques et \"\" pour les champs texte."""

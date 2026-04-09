@@ -432,6 +432,7 @@ const _INLINE_FIELD_MAP = {
     eval_communication:   { formId: 'fEvalCommunication',     type: 'text' },
     langues:              { formId: 'fLangues',               type: 'text' },
     references_candidat:  { formId: 'fReferencesCandidats',   type: 'textarea' },
+    avis_perso:           { formId: 'fAvisPerso',             type: 'textarea' },
 };
 
 function _buildStatusSelect(current) {
@@ -619,7 +620,7 @@ function renderViewMode() {
         __cand.eval_communication? { key: 'eval_communication',label: 'Communication',val: escapeHtml(__cand.eval_communication) } : null,
     ].filter(Boolean);
 
-    const hasEntretien = entretienFields.length > 0 || evalFields.length > 0 || __cand.references_candidat;
+    const hasEntretien = entretienFields.length > 0 || evalFields.length > 0 || __cand.references_candidat || __cand.avis_perso;
 
     if (viewEntretienSection) viewEntretienSection.style.display = '';
     // Zone d'import : visible quand vide, compacte quand données présentes
@@ -660,6 +661,20 @@ function renderViewMode() {
             </div>`;
         } else {
             if (refSection) refSection.style.display = 'none';
+        }
+    }
+
+    const avisSection = document.getElementById('viewAvisPersoSection');
+    const avisContent = document.getElementById('viewAvisPersoContent');
+    if (avisContent) {
+        if (__cand.avis_perso) {
+            if (avisSection) avisSection.style.display = '';
+            avisContent.innerHTML = `<div style="display:flex;gap:8px;align-items:flex-start;">
+                <div id="cand-val-avis_perso" style="flex:1;white-space:pre-wrap;">${escapeHtml(__cand.avis_perso)}</div>
+                <button class="cand-edit-btn" onclick="startInlineEdit('avis_perso')" title="Modifier avis perso">✏️</button>
+            </div>`;
+        } else {
+            if (avisSection) avisSection.style.display = 'none';
         }
     }
 
@@ -1178,6 +1193,7 @@ function buildPayload() {
         eval_communication: (document.getElementById('fEvalCommunication')?.value || '').trim() || null,
         langues: (document.getElementById('fLangues')?.value || '').trim() || null,
         references_candidat: (document.getElementById('fReferencesCandidats')?.value || '').trim() || null,
+        avis_perso: (document.getElementById('fAvisPerso')?.value || '').trim() || null,
     };
 }
 
@@ -1300,6 +1316,7 @@ async function loadCandidate() {
   if (document.getElementById('fEvalCommunication')) document.getElementById('fEvalCommunication').value = safeStr(__cand.eval_communication);
   if (document.getElementById('fLangues')) document.getElementById('fLangues').value = safeStr(__cand.langues);
   if (document.getElementById('fReferencesCandidats')) document.getElementById('fReferencesCandidats').value = safeStr(__cand.references_candidat);
+  if (document.getElementById('fAvisPerso')) document.getElementById('fAvisPerso').value = safeStr(__cand.avis_perso);
   document.getElementById('fNotes').value = safeStr(__cand.notes);
 
   __skills = Array.isArray(__cand.skills) ? uniqCaseInsensitive(__cand.skills) : [];
@@ -1478,6 +1495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         { key: 'eval_communication',    label: 'Évaluation communication', type: 'text' },
         { key: 'langues',               label: 'Langues',                  type: 'text' },
         { key: 'references_candidat',   label: 'Références',               type: 'textarea' },
+        { key: 'avis_perso',            label: 'Avis perso',               type: 'textarea' },
     ];
 
     let _ficheProgress = 0;
