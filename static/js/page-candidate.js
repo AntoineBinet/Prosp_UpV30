@@ -621,7 +621,10 @@ function renderViewMode() {
 
     const hasEntretien = entretienFields.length > 0 || evalFields.length > 0 || __cand.references_candidat;
 
-    if (viewEntretienSection) viewEntretienSection.style.display = hasEntretien ? '' : 'none';
+    if (viewEntretienSection) viewEntretienSection.style.display = '';
+    // Zone d'import : visible quand vide, compacte quand données présentes
+    const ficheZone = document.getElementById('ficheEntretienZone');
+    if (ficheZone) ficheZone.style.display = hasEntretien ? 'none' : '';
     if (entretienGrid && hasEntretien) {
         entretienGrid.innerHTML = entretienFields.map(f => {
             if (f.special === 'permis') {
@@ -1456,62 +1459,200 @@ document.addEventListener('DOMContentLoaded', async () => {
     // "Ajouter un champ" entretien — ouvre le formulaire d'édition section entretien
     window.startInlineEditEntretienAdd = function() { switchToEditMode(); };
 
-    // ═══ Parseur fiche entretien Excel via Ollama ═══
+    // ═══ Parseur fiche entretien Excel via Ollama (avec progression + confirmation) ═══
+
+    const _FICHE_FIELD_DEFS = [
+        { key: 'disponibilite',         label: 'Disponibilité',           type: 'text' },
+        { key: 'mobilite',              label: 'Mobilité géographique',    type: 'text' },
+        { key: 'permis_conduire',       label: 'Permis de conduire',       type: 'checkbox' },
+        { key: 'vehicule',              label: 'Véhicule',                 type: 'checkbox' },
+        { key: 'permis_travail',        label: 'Permis de travail',        type: 'text' },
+        { key: 'fonctions_recherchees', label: 'Fonctions recherchées',    type: 'text' },
+        { key: 'motif_recherche',       label: 'Motif de recherche',       type: 'textarea' },
+        { key: 'avancement_recherches', label: 'Avancement des recherches',type: 'text' },
+        { key: 'remuneration_actuelle', label: 'Rémunération actuelle',    type: 'text' },
+        { key: 'pretentions_salariales',label: 'Prétentions salariales',   type: 'text' },
+        { key: 'propal_a',              label: 'Proposition à',            type: 'text' },
+        { key: 'eval_technique',        label: 'Évaluation technique',     type: 'text' },
+        { key: 'eval_personnalite',     label: 'Évaluation personnalité',  type: 'text' },
+        { key: 'eval_communication',    label: 'Évaluation communication', type: 'text' },
+        { key: 'langues',               label: 'Langues',                  type: 'text' },
+        { key: 'references_candidat',   label: 'Références',               type: 'textarea' },
+    ];
+
+    let _ficheProgress = 0;
+    let _ficheProgressTimer = null;
+
+    function _setFicheProgress(pct, label, emoji) {
+        _ficheProgress = pct;
+        const bar = document.getElementById('ficheProgressBar');
+        const pctEl = document.getElementById('ficheProgressPct');
+        const lbl = document.getElementById('ficheProgressLabel');
+        const emo = document.getElementById('ficheProgressEmoji');
+        if (bar) bar.style.width = pct + '%';
+        if (pctEl) pctEl.textContent = pct + '%';
+        if (label && lbl) lbl.textContent = label;
+        if (emoji && emo) emo.textContent = emoji;
+    }
+
+    function _animateProgressTo(target, label, emoji, durationMs) {
+        if (_ficheProgressTimer) clearInterval(_ficheProgressTimer);
+        if (label) { const lbl = document.getElementById('ficheProgressLabel'); if (lbl) lbl.textContent = label; }
+        if (emoji) { const emo = document.getElementById('ficheProgressEmoji'); if (emo) emo.textContent = emoji; }
+        const start = _ficheProgress;
+        const steps = Math.max(1, Math.round(durationMs / 60));
+        let step = 0;
+        _ficheProgressTimer = setInterval(() => {
+            step++;
+            const t = step / steps;
+            const eased = t < 0.5 ? 2*t*t : -1+(4-2*t)*t; // ease-in-out
+            const cur = Math.round(start + (target - start) * eased);
+            _setFicheProgress(cur);
+            if (step >= steps) { clearInterval(_ficheProgressTimer); _setFicheProgress(target); }
+        }, 60);
+    }
+
+    function _openProgressModal() {
+        _ficheProgress = 0;
+        _setFicheProgress(0, 'Lecture du fichier Excel…', '📄');
+        const m = document.getElementById('modalFicheProgress');
+        if (m) { if (window.openModal) window.openModal(m); else m.classList.add('active'); }
+    }
+
+    function _closeProgressModal() {
+        if (_ficheProgressTimer) { clearInterval(_ficheProgressTimer); _ficheProgressTimer = null; }
+        const m = document.getElementById('modalFicheProgress');
+        if (m) { if (window.closeModal) window.closeModal(m); else m.classList.remove('active'); }
+    }
+
+    window.closeFicheReviewModal = function() {
+        const m = document.getElementById('modalFicheReview');
+        if (m) { if (window.closeModal) window.closeModal(m); else m.classList.remove('active'); }
+    };
+
+    function _openReviewModal(fields) {
+        const container = document.getElementById('ficheReviewFields');
+        if (!container) return;
+
+        const rows = _FICHE_FIELD_DEFS.map(def => {
+            const rawVal = fields[def.key];
+            const isEmpty = rawVal == null || rawVal === '' || rawVal === 0;
+            const displayVal = isEmpty ? '' : String(rawVal);
+            const highlightStyle = isEmpty ? 'opacity:0.45;' : '';
+
+            let inputHtml;
+            if (def.type === 'checkbox') {
+                const checked = rawVal === 1 || rawVal === true || rawVal === '1' ? 'checked' : '';
+                inputHtml = `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="ficheReview_${def.key}" ${checked} style="width:16px;height:16px;" />
+                    <span style="font-size:13px;">${checked ? '✅ Oui' : '❌ Non'}</span>
+                </label>`;
+            } else if (def.type === 'textarea') {
+                inputHtml = `<textarea id="ficheReview_${def.key}" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;font-size:13px;">${escapeHtml(displayVal)}</textarea>`;
+            } else {
+                inputHtml = `<input id="ficheReview_${def.key}" type="text" value="${escapeHtml(displayVal)}" style="width:100%;box-sizing:border-box;font-size:13px;" />`;
+            }
+
+            return `<div style="${highlightStyle}padding:8px 0;border-bottom:1px solid var(--color-border);display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:start;">
+                <div style="font-size:12px;font-weight:600;padding-top:6px;color:${isEmpty?'var(--color-text-muted)':'inherit'}">${def.label}${isEmpty?' <span style="font-size:10px;opacity:.6;">(vide)</span>':''}</div>
+                <div>${inputHtml}</div>
+            </div>`;
+        }).join('');
+
+        container.innerHTML = rows;
+
+        // Live checkbox label update
+        _FICHE_FIELD_DEFS.filter(d => d.type === 'checkbox').forEach(def => {
+            const chk = document.getElementById('ficheReview_' + def.key);
+            if (chk) chk.addEventListener('change', function() {
+                const span = this.nextElementSibling;
+                if (span) span.textContent = this.checked ? '✅ Oui' : '❌ Non';
+            });
+        });
+
+        const m = document.getElementById('modalFicheReview');
+        if (m) { if (window.openModal) window.openModal(m); else m.classList.add('active'); }
+    }
+
+    window.applyFicheEntretien = function() {
+        const _fill = (formId, key, type) => {
+            const reviewEl = document.getElementById('ficheReview_' + key);
+            const formEl = document.getElementById(formId);
+            if (!reviewEl || !formEl) return;
+            if (type === 'checkbox') {
+                const val = reviewEl.checked ? 1 : 0;
+                formEl.checked = reviewEl.checked;
+                __cand[key] = val;
+            } else {
+                const val = (reviewEl.value || '').trim();
+                if (val !== '') { formEl.value = val; __cand[key] = val; }
+            }
+        };
+
+        const formMap = {
+            disponibilite:         ['fDisponibilite',         'text'],
+            mobilite:              ['fMobilite',              'text'],
+            permis_conduire:       ['fPermisConduire',        'checkbox'],
+            vehicule:              ['fVehicule',              'checkbox'],
+            permis_travail:        ['fPermisTravail',         'text'],
+            fonctions_recherchees: ['fFonctionsRecherchees',  'text'],
+            motif_recherche:       ['fMotifRecherche',        'textarea'],
+            avancement_recherches: ['fAvancementRecherches',  'text'],
+            remuneration_actuelle: ['fRemunerationActuelle',  'text'],
+            pretentions_salariales:['fPretentionsSalariales', 'text'],
+            propal_a:              ['fPropalA',               'text'],
+            eval_technique:        ['fEvalTechnique',         'text'],
+            eval_personnalite:     ['fEvalPersonnalite',      'text'],
+            eval_communication:    ['fEvalCommunication',     'text'],
+            langues:               ['fLangues',               'text'],
+            references_candidat:   ['fReferencesCandidats',   'textarea'],
+        };
+        Object.entries(formMap).forEach(([k, [id, t]]) => _fill(id, k, t));
+
+        triggerAutoSave(true);
+        window.closeFicheReviewModal();
+        renderViewMode();
+        if (typeof showToast === 'function') showToast('✅ Données enregistrées', 'success', 4000);
+    };
+
     window.parseFicheEntretien = async function(input) {
         const file = input?.files?.[0];
         if (!file) return;
-        // Reset input so same file can be re-selected
         input.value = '';
 
-        if (typeof showToast === 'function') showToast('📊 Analyse de la fiche entretien par IA…', 'info', 8000);
+        _openProgressModal();
+        _animateProgressTo(25, 'Lecture du fichier Excel…', '📄', 600);
 
         const fd = new FormData();
         fd.append('file', file);
 
+        _animateProgressTo(55, 'Envoi à l\'IA…', '🤖', 1200);
+
         let json;
         try {
-            const res = await fetch('/api/candidates/parse-fiche-entretien', { method: 'POST', body: fd });
+            const fetchPromise = fetch('/api/candidates/parse-fiche-entretien', { method: 'POST', body: fd });
+            // Animate to 85% while waiting
+            await new Promise(r => setTimeout(r, 1500));
+            _animateProgressTo(85, 'Analyse et extraction des données…', '🔍', 2000);
+            const res = await fetchPromise;
             json = await res.json();
         } catch (e) {
-            if (typeof showToast === 'function') showToast('Erreur réseau lors du parsing : ' + e.message, 'error');
+            _closeProgressModal();
+            if (typeof showToast === 'function') showToast('Erreur réseau : ' + e.message, 'error');
             return;
         }
 
         if (!json?.ok) {
-            if (typeof showToast === 'function') showToast('Erreur parsing fiche : ' + (json?.error || 'inconnue'), 'error');
+            _closeProgressModal();
+            if (typeof showToast === 'function') showToast('Erreur : ' + (json?.error || 'inconnue'), 'error');
             return;
         }
 
-        const f = json.fields || {};
-        const _fill = (id, val) => {
-            const el = document.getElementById(id);
-            if (!el || val == null || val === '') return;
-            if (el.type === 'checkbox') el.checked = !!val;
-            else el.value = val;
-        };
+        _animateProgressTo(100, 'Extraction terminée !', '✅', 400);
+        await new Promise(r => setTimeout(r, 600));
+        _closeProgressModal();
 
-        _fill('fDisponibilite', f.disponibilite);
-        _fill('fMobilite', f.mobilite);
-        if (f.permis_conduire != null) _fill('fPermisConduire', f.permis_conduire);
-        if (f.vehicule != null) _fill('fVehicule', f.vehicule);
-        _fill('fPermisTravail', f.permis_travail);
-        _fill('fFonctionsRecherchees', f.fonctions_recherchees);
-        _fill('fMotifRecherche', f.motif_recherche);
-        _fill('fAvancementRecherches', f.avancement_recherches);
-        _fill('fRemunerationActuelle', f.remuneration_actuelle);
-        _fill('fPretentionsSalariales', f.pretentions_salariales);
-        _fill('fPropalA', f.propal_a);
-        _fill('fEvalTechnique', f.eval_technique);
-        _fill('fEvalPersonnalite', f.eval_personnalite);
-        _fill('fEvalCommunication', f.eval_communication);
-        _fill('fLangues', f.langues);
-        _fill('fReferencesCandidats', f.references_candidat);
-
-        triggerAutoSave();
-        if (typeof showToast === 'function') showToast('✅ Fiche entretien importée — vérifiez et ajustez les champs', 'success', 6000);
-
-        // Switch to edit mode so user can review
-        if (!__editMode) switchToEditMode();
+        _openReviewModal(json.fields || {});
     };
 
     // Expose generatePresentationAI globally

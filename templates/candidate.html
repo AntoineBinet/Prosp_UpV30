@@ -55,10 +55,25 @@
 
   <!-- ═══ Section Données entretien (vue lecture) ═══ -->
   <div style="margin-top:18px;" id="viewEntretienSection">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
       <div style="font-weight:700; font-size:15px;">📋 Données entretien</div>
       <button class="btn btn-secondary btn-sm" onclick="startInlineEditEntretienAdd()" style="font-size:11px;" title="Ajouter un champ manquant">➕ Ajouter un champ</button>
     </div>
+
+    <!-- Zone d'import fiche entretien -->
+    <div id="ficheEntretienZone" style="border:2px dashed var(--color-border); border-radius:10px; padding:18px 20px; margin-bottom:14px; text-align:center; background:var(--color-surface-2);">
+      <div style="font-size:28px; margin-bottom:6px;">📊</div>
+      <div style="font-weight:600; margin-bottom:4px;">Importer une fiche entretien Excel</div>
+      <div class="muted" style="font-size:12px; margin-bottom:12px;">L'IA extrait automatiquement toutes les informations du candidat depuis votre fiche d'entretien Up Technologies.</div>
+      <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+        <label class="btn btn-primary" style="cursor:pointer; margin:0;">
+          📂 Sélectionner la fiche Excel
+          <input type="file" id="ficheEntretienInputZone" accept=".xlsx,.xls" style="display:none;" onchange="parseFicheEntretien(this)">
+        </label>
+        <a class="btn btn-secondary" href="/api/candidates/fiche-entretien-template" download style="text-decoration:none; font-size:13px;">📥 Télécharger le modèle</a>
+      </div>
+    </div>
+
     <div id="viewEntretienGrid" class="cand-view-grid"></div>
     <div id="viewEvalSection" style="margin-top:10px; display:none;">
       <div style="font-weight:600; font-size:13px; margin-bottom:6px; color:var(--color-text-muted);">⭐ Évaluation</div>
@@ -405,6 +420,43 @@
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-secondary" onclick="closeNewTabModal()">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Modale scan IA fiche entretien ═══ -->
+<div id="modalFicheProgress" class="modal" role="dialog" aria-modal="true" aria-labelledby="ficheProgressTitle">
+  <div class="modal-backdrop"></div>
+  <div class="modal-content" style="max-width:460px; text-align:center;">
+    <div class="modal-header" style="border-bottom:none; justify-content:center; padding-bottom:0;">
+      <h2 id="ficheProgressTitle" style="font-size:16px;">🤖 Scan IA en cours…</h2>
+    </div>
+    <div class="modal-body" style="padding-top:12px;">
+      <div style="font-size:36px; margin-bottom:12px;" id="ficheProgressEmoji">📄</div>
+      <div id="ficheProgressLabel" style="font-size:14px; font-weight:600; margin-bottom:16px;">Lecture du fichier Excel…</div>
+      <div style="background:var(--color-surface-2); border-radius:999px; height:10px; overflow:hidden; margin:0 8px 8px;">
+        <div id="ficheProgressBar" style="height:100%; width:0%; background:linear-gradient(90deg,#f97316,#fb923c); border-radius:999px; transition:width .25s ease;"></div>
+      </div>
+      <div id="ficheProgressPct" class="muted" style="font-size:12px;">0%</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Modale review fiche entretien ═══ -->
+<div id="modalFicheReview" class="modal" role="dialog" aria-modal="true" aria-labelledby="ficheReviewTitle">
+  <div class="modal-backdrop"></div>
+  <div class="modal-content" style="max-width:700px;">
+    <div class="modal-header">
+      <h2 id="ficheReviewTitle">✅ Données extraites — vérifiez avant de confirmer</h2>
+      <button class="modal-close" onclick="closeFicheReviewModal()" aria-label="Fermer">×</button>
+    </div>
+    <div class="modal-body" style="max-height:65vh; overflow-y:auto;">
+      <p class="muted" style="font-size:12px; margin-bottom:14px;">Vérifiez et corrigez les valeurs ci-dessous avant d'enregistrer. Les champs vides ne seront pas modifiés.</p>
+      <div id="ficheReviewFields"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" onclick="closeFicheReviewModal()">Annuler</button>
+      <button type="button" class="btn btn-primary" onclick="applyFicheEntretien()">✅ Confirmer et enregistrer</button>
     </div>
   </div>
 </div>

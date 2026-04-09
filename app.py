@@ -5085,6 +5085,18 @@ def api_candidates_save():
     return jsonify({"ok": True, "id": cid})
 
 
+@app.get("/api/candidates/fiche-entretien-template")
+def api_candidates_fiche_entretien_template():
+    """Télécharge le modèle de fiche entretien Excel."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    template_path = APP_DIR / "docs" / "Fiche entretien NEW Prenom NOM - EC1 XXX  JJMMAAAA.xlsx"
+    if not template_path.exists():
+        return jsonify(ok=False, error="Modèle non trouvé"), 404
+    return send_file(str(template_path), as_attachment=True, download_name="fiche_entretien_Up.xlsx")
+
+
 @app.post("/api/candidates/parse-fiche-entretien")
 def api_candidates_parse_fiche_entretien():
     """Parse une fiche entretien Excel (format Up Technologies) via Ollama.
