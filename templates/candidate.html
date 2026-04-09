@@ -9,6 +9,17 @@
 {% block header_subtitle %}Liens (LinkedIn / OneNote / VSA) · Compétences · Entreprises associées{% endblock %}
 
 {% block content %}
+<style>
+.cand-edit-btn {
+  background: none; border: none; cursor: pointer; padding: 2px 4px;
+  opacity: 0; font-size: 13px; transition: opacity .15s;
+  border-radius: 4px; color: var(--color-primary, #f97316);
+}
+.cand-view-row:hover .cand-edit-btn,
+.cand-view-row:focus-within .cand-edit-btn { opacity: 1; }
+.cand-edit-btn:hover { background: rgba(249,115,22,.12); }
+</style>
+
 <div class="content-header" style="align-items:flex-start; gap:12px;">
   <div style="flex: 1 1 auto; min-width: 260px;">
     <div class="content-title" id="candTitle">Candidat</div>
@@ -27,11 +38,15 @@
 
 <!-- ═══ VIEW MODE (lecture) ═══ -->
 <section class="card" id="viewSection">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+  <!-- Fichier Excel caché, accessible depuis vue lecture et édition -->
+  <input type="file" id="ficheEntretienInputGlobal" accept=".xlsx,.xls" style="display:none;" onchange="parseFicheEntretien(this)">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
     <div style="font-weight:800; font-size:17px;">📋 Informations</div>
-    <div style="display:flex; gap:8px;">
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-secondary" onclick="document.getElementById('ficheEntretienInputGlobal').click()" style="font-size:12px;" title="Importer une fiche entretien Excel via Ollama">📊 Importer fiche Excel</button>
       <button class="btn btn-secondary" id="btnArchiveView" onclick="archiveCandidate()" style="font-size:13px;">📦 Archiver</button>
-      <button class="btn btn-primary" id="btnEditMode" onclick="switchToEditMode()">✏️ Modifier</button>
+      <button class="btn btn-primary" id="btnEditMode" onclick="switchToEditMode()">✏️ Modifier tout</button>
     </div>
   </div>
 
@@ -40,7 +55,10 @@
 
   <!-- ═══ Section Données entretien (vue lecture) ═══ -->
   <div style="margin-top:18px;" id="viewEntretienSection">
-    <div style="font-weight:700; margin-bottom:10px; font-size:15px;">📋 Données entretien</div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <div style="font-weight:700; font-size:15px;">📋 Données entretien</div>
+      <button class="btn btn-secondary btn-sm" onclick="startInlineEditEntretienAdd()" style="font-size:11px;" title="Ajouter un champ manquant">➕ Ajouter un champ</button>
+    </div>
     <div id="viewEntretienGrid" class="cand-view-grid"></div>
     <div id="viewEvalSection" style="margin-top:10px; display:none;">
       <div style="font-weight:600; font-size:13px; margin-bottom:6px; color:var(--color-text-muted);">⭐ Évaluation</div>
@@ -63,10 +81,6 @@
     <div id="viewDcIndicator"><span class="muted">Chargement…</span></div>
   </div>
 
-  <div style="margin-top:18px;">
-    <div style="font-weight:700; margin-bottom:8px;">🏢 Entreprises associées</div>
-    <div id="viewCompanies" class="chips"></div>
-  </div>
 
 </section>
 
