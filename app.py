@@ -5234,6 +5234,60 @@ def api_candidate_dc_status(cid):
     return jsonify(ok=True, has_dc=bool(files), files=files)
 
 
+@app.post("/api/candidates/<int:cid>/dc-rename")
+def api_candidate_dc_rename(cid):
+    """Renomme le fichier DC d'un candidat sur le disque et met à jour la DB."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    new_name = (payload.get("new_name") or "").strip()
+    if not new_name:
+        return jsonify(ok=False, error="Nouveau nom manquant"), 400
+    # Sécurité : nom de fichier simple, sans chemin
+    new_name = "".join(c for c in new_name if c.isalnum() or c in "._- ")
+    if not new_name.lower().endswith(".pdf"):
+        new_name += ".pdf"
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT dossier_competence_pdf FROM candidates WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (cid, uid)
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+
+    dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cid)
+    # Trouver le fichier existant
+    existing_files = sorted(dc_dir.glob("*.pdf")) if dc_dir.is_dir() else []
+    if not existing_files:
+        return jsonify(ok=False, error="Aucun fichier DC trouvé"), 404
+
+    old_file = existing_files[0]
+    new_file = dc_dir / new_name
+
+    # Vérification path traversal
+    try:
+        base = str((DATA_DIR / "dossiers_candidats" / str(uid)).resolve())
+        if not str(new_file.resolve()).startswith(base):
+            return jsonify(ok=False, error="Chemin invalide"), 403
+    except Exception:
+        return jsonify(ok=False, error="Chemin invalide"), 403
+
+    try:
+        old_file.rename(new_file)
+        with _conn() as conn:
+            conn.execute(
+                "UPDATE candidates SET dossier_competence_pdf=?, updatedAt=? WHERE id=? AND owner_id=?;",
+                (str(new_file), _now_iso(), cid, uid)
+            )
+        logger.info("DC renommé: user=%s cand=%s %s→%s", uid, cid, old_file.name, new_name)
+        return jsonify(ok=True, filename=new_name)
+    except Exception as e:
+        logger.error("Erreur renommage DC: %s", e)
+        return jsonify(ok=False, error=str(e)), 500
+
+
 @app.post("/api/prospects/delete")
 def api_prospects_delete():
     """v27.10: Soft delete a prospect (fenêtre d'annulation 10s via /api/soft-deleted/restore)."""
