@@ -394,7 +394,7 @@ const CAND_STATUSES = [
     ['hors_aura',        'Hors Aura'],
 ];
 const CAND_ARCHIVE_STATUSES = new Set(['nok_prequal', 'nok', 'plus_disponible', 'refus_contrat']);
-const CAND_MISSION_STATUSES = new Set(['valide_contrat', 'freelance', 'freelance_mission']);
+const CAND_MISSION_STATUSES = new Set(['valide_contrat', 'freelance_mission']);
 const CAND_HORS_AURA_STATUSES = new Set(['hors_aura']);
 
 function renderStatusSelect(candidateId, currentStatus) {
