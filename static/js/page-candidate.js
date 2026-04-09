@@ -401,45 +401,180 @@ function statusBadgeClass(s) {
 
 // ═══ View mode rendering ═══
 
+// ═══ Inline field editing ═══
+
+// Mapping: cand key → { formId, type }
+const _INLINE_FIELD_MAP = {
+    status:               { formId: 'fStatus',               type: 'status' },
+    role:                 { formId: 'fRole',                  type: 'text' },
+    location:             { formId: 'fLocation',              type: 'text' },
+    years_experience:     { formId: 'fYearsExperience',       type: 'number' },
+    seniority:            { formId: 'fSeniority',             type: 'text' },
+    sector:               { formId: 'fSector',                type: 'text' },
+    source:               { formId: 'fSource',                type: 'text' },
+    tech:                 { formId: 'fTech',                  type: 'text' },
+    phone:                { formId: 'fPhone',                 type: 'tel' },
+    email:                { formId: 'fEmail',                 type: 'email' },
+    linkedin:             { formId: 'fLinkedIn',              type: 'text' },
+    onenote_url:          { formId: 'fOneNote',               type: 'text' },
+    vsa_url:              { formId: 'fVSA',                   type: 'text' },
+    disponibilite:        { formId: 'fDisponibilite',         type: 'text' },
+    mobilite:             { formId: 'fMobilite',              type: 'text' },
+    permis_travail:       { formId: 'fPermisTravail',         type: 'text' },
+    fonctions_recherchees:{ formId: 'fFonctionsRecherchees',  type: 'text' },
+    avancement_recherches:{ formId: 'fAvancementRecherches',  type: 'text' },
+    motif_recherche:      { formId: 'fMotifRecherche',        type: 'textarea' },
+    remuneration_actuelle:{ formId: 'fRemunerationActuelle',  type: 'text' },
+    pretentions_salariales:{ formId: 'fPretentionsSalariales',type: 'text' },
+    propal_a:             { formId: 'fPropalA',               type: 'text' },
+    eval_technique:       { formId: 'fEvalTechnique',         type: 'text' },
+    eval_personnalite:    { formId: 'fEvalPersonnalite',      type: 'text' },
+    eval_communication:   { formId: 'fEvalCommunication',     type: 'text' },
+    langues:              { formId: 'fLangues',               type: 'text' },
+    references_candidat:  { formId: 'fReferencesCandidats',   type: 'textarea' },
+};
+
+function _buildStatusSelect(current) {
+    const opts = [
+        ['nouveau','Nouveau / A traiter'],['proposition','Proposition faite'],
+        ['entretien','Entretien en cours'],['a_faire','A FAIRE'],['oksi','OKSI'],
+        ['top_profil','Top profil'],['reunion_tech','En Réunion Technique'],
+        ['valide_contrat','Validé / Contrat'],['freelance','Freelance'],
+        ['freelance_mission','FREELANCE EN MISSION UP'],
+        ['nok_prequal','NOK Préqual'],['nok','NOK'],
+        ['plus_disponible','Plus disponible'],['refus_contrat','Refus du contrat'],
+    ];
+    return `<select id="cand-inline-input" style="flex:1;min-width:0;">${opts.map(([v,l])=>`<option value="${v}"${v===current?' selected':''}>${l}</option>`).join('')}</select>`;
+}
+
+function startInlineEdit(key) {
+    const map = _INLINE_FIELD_MAP[key];
+    if (!map || !__cand) return;
+    const valEl = document.getElementById('cand-val-' + key);
+    if (!valEl || valEl.querySelector('#cand-inline-input')) return; // already editing
+
+    const rawVal = __cand[key] != null ? String(__cand[key]) : '';
+    let inputHtml;
+    if (map.type === 'status') {
+        inputHtml = _buildStatusSelect(rawVal);
+    } else if (map.type === 'textarea') {
+        inputHtml = `<textarea id="cand-inline-input" rows="3" style="flex:1;min-width:0;resize:vertical;">${escapeHtml(rawVal)}</textarea>`;
+    } else {
+        inputHtml = `<input id="cand-inline-input" type="${map.type}" value="${escapeHtml(rawVal)}" style="flex:1;min-width:0;" />`;
+    }
+
+    valEl.innerHTML = `<div style="display:flex;gap:6px;align-items:flex-start;width:100%;">
+        ${inputHtml}
+        <button class="btn btn-primary btn-sm" onclick="saveInlineEdit('${key}')" style="flex-shrink:0;">✓</button>
+        <button class="btn btn-secondary btn-sm" onclick="renderViewMode()" style="flex-shrink:0;">✕</button>
+    </div>`;
+
+    const inp = document.getElementById('cand-inline-input');
+    if (inp) {
+        inp.focus();
+        if (inp.tagName !== 'SELECT' && inp.tagName !== 'TEXTAREA') inp.select?.();
+        inp.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && inp.tagName !== 'TEXTAREA') { e.preventDefault(); saveInlineEdit(key); }
+            if (e.key === 'Escape') renderViewMode();
+        });
+    }
+}
+
+function startInlineEditPermis() {
+    const valEl = document.getElementById('cand-val-permis');
+    if (!valEl || valEl.querySelector('#cand-inline-permis')) return;
+    const pc = !!__cand.permis_conduire;
+    const vh = !!__cand.vehicule;
+    valEl.innerHTML = `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:4px;font-weight:400;cursor:pointer;">
+            <input type="checkbox" id="cand-inline-permis" ${pc?'checked':''} /> Permis de conduire
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-weight:400;cursor:pointer;">
+            <input type="checkbox" id="cand-inline-vehicule" ${vh?'checked':''} /> Véhicule
+        </label>
+        <button class="btn btn-primary btn-sm" onclick="saveInlineEditPermis()">✓</button>
+        <button class="btn btn-secondary btn-sm" onclick="renderViewMode()">✕</button>
+    </div>`;
+}
+
+function saveInlineEditPermis() {
+    const pcEl = document.getElementById('cand-inline-permis');
+    const vhEl = document.getElementById('cand-inline-vehicule');
+    if (!pcEl) return;
+    __cand.permis_conduire = pcEl.checked ? 1 : 0;
+    __cand.vehicule = vhEl?.checked ? 1 : 0;
+    const fPC = document.getElementById('fPermisConduire');
+    const fVH = document.getElementById('fVehicule');
+    if (fPC) fPC.checked = !!__cand.permis_conduire;
+    if (fVH) fVH.checked = !!__cand.vehicule;
+    triggerAutoSave(true);
+    renderViewMode();
+}
+
+function saveInlineEdit(key) {
+    const map = _INLINE_FIELD_MAP[key];
+    const inp = document.getElementById('cand-inline-input');
+    if (!inp || !map) return;
+    let newVal = inp.value.trim();
+    if (map.type === 'number') {
+        const n = parseInt(newVal);
+        __cand[key] = isNaN(n) ? null : n;
+    } else {
+        __cand[key] = newVal || null;
+    }
+    const formEl = document.getElementById(map.formId);
+    if (formEl) formEl.value = newVal;
+    triggerAutoSave(true);
+    renderViewMode();
+}
+
+function _editBtn(key, label) {
+    return `<button class="cand-edit-btn" onclick="startInlineEdit('${key}')" title="Modifier ${label}" aria-label="Modifier ${label}">✏️</button>`;
+}
+
+function _makeRow(key, label, valueHtml) {
+    return `<div class="cand-view-row" id="cand-row-${key}">
+        <div class="cand-view-label">${label}</div>
+        <div class="cand-view-value" id="cand-val-${key}">${valueHtml}</div>
+        ${_editBtn(key, label)}
+    </div>`;
+}
+
+// ═══ View mode rendering ═══
+
 function renderViewMode() {
     if (!__cand) return;
     const grid = document.getElementById('viewGrid');
     const viewSkills = document.getElementById('viewSkills');
-    const viewCompanies = document.getElementById('viewCompanies');
-    const viewNotes = document.getElementById('viewNotes');
     const archiveBtn = document.getElementById('btnArchiveView');
 
-    // Info grid
-    const fields = [
-        { label: 'Statut', value: `<span class="${statusBadgeClass(__cand.status)}">${escapeHtml(candStatusLabel(__cand.status))}</span>` },
-        { label: 'Rôle', value: escapeHtml(__cand.role || '—') },
-        { label: 'Localisation', value: escapeHtml(__cand.location || '—') },
-        { label: 'Expérience', value: __cand.years_experience ? `${__cand.years_experience} ans` : (escapeHtml(__cand.seniority || '—')) },
-        { label: 'Secteur', value: escapeHtml(__cand.sector || '—') },
-        { label: 'Source', value: escapeHtml(__cand.source || '—') },
-        { label: 'Tech', value: escapeHtml(__cand.tech || '—') },
-    ];
-
-    if (__cand.phone) fields.push({ label: 'Téléphone', value: `<a href="tel:${escapeHtml(__cand.phone)}">${escapeHtml(__cand.phone)}</a>` });
-    // For consistency with the prospects and companies lists we do not open a mailto: link directly here.
-    // Instead, clicking the email simply copies it to the clipboard and gives a small hint via the tooltip.
+    // Info grid — always-visible fields
+    let gridHtml = '';
+    gridHtml += _makeRow('status', 'Statut', `<span class="${statusBadgeClass(__cand.status)}">${escapeHtml(candStatusLabel(__cand.status))}</span>`);
+    gridHtml += _makeRow('role', 'Rôle', escapeHtml(__cand.role || '—'));
+    gridHtml += _makeRow('location', 'Localisation', escapeHtml(__cand.location || '—'));
+    const expVal = __cand.years_experience ? `${__cand.years_experience} ans` : escapeHtml(__cand.seniority || '—');
+    gridHtml += _makeRow('years_experience', 'Expérience', expVal);
+    gridHtml += _makeRow('sector', 'Secteur', escapeHtml(__cand.sector || '—'));
+    gridHtml += _makeRow('source', 'Source', escapeHtml(__cand.source || '—'));
+    gridHtml += _makeRow('tech', 'Tech', escapeHtml(__cand.tech || '—'));
+    if (__cand.phone) {
+        gridHtml += _makeRow('phone', 'Téléphone', `<a href="tel:${escapeHtml(__cand.phone)}">${escapeHtml(__cand.phone)}</a>`);
+    }
     if (__cand.email) {
-        const escaped = escapeHtml(__cand.email).replace(/'/g, "\\'");
-        fields.push({ label: 'Email', value: `<a href="javascript:void(0)" onclick="copyEmailToClipboard('${escaped}')" title="Copier l\'email" style="cursor:pointer;">${escapeHtml(__cand.email)}</a>` });
+        const esc = escapeHtml(__cand.email).replace(/'/g, "\\'");
+        gridHtml += _makeRow('email', 'Email', `<a href="javascript:void(0)" onclick="copyEmailToClipboard('${esc}')" title="Copier l'email" style="cursor:pointer;">${escapeHtml(__cand.email)}</a>`);
     }
-    if (__cand.linkedin) fields.push({ label: 'LinkedIn', value: `<a href="${escapeHtml(__cand.linkedin)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.linkedin)}</a>` });
-    if (__cand.onenote_url) fields.push({ label: 'OneNote', value: `<a href="${escapeHtml(__cand.onenote_url)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.onenote_url)}</a>` });
-    if (__cand.vsa_url) fields.push({ label: 'VSA', value: `<a href="${escapeHtml(__cand.vsa_url)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.vsa_url)}</a>` });
-    if (__cand.dossier_competence_pdf) {
-        const pdfUrl = `/api/candidates/${__cand.id}/dossier-competence`;
-        fields.push({ label: 'Dossier de compétence', value: `<a href="${pdfUrl}" target="_blank" style="word-break:break-all;">📄 ${escapeHtml(__cand.dossier_competence_pdf)}</a>` });
+    if (__cand.linkedin) {
+        gridHtml += _makeRow('linkedin', 'LinkedIn', `<a href="${escapeHtml(__cand.linkedin)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.linkedin)}</a>`);
     }
-
-    if (grid) {
-        grid.innerHTML = fields.map(f =>
-            `<div class="cand-view-row"><div class="cand-view-label">${f.label}</div><div class="cand-view-value">${f.value}</div></div>`
-        ).join('');
+    if (__cand.onenote_url) {
+        gridHtml += _makeRow('onenote_url', 'OneNote', `<a href="${escapeHtml(__cand.onenote_url)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.onenote_url)}</a>`);
     }
+    if (__cand.vsa_url) {
+        gridHtml += _makeRow('vsa_url', 'VSA', `<a href="${escapeHtml(__cand.vsa_url)}" target="_blank" style="word-break:break-all;">${escapeHtml(__cand.vsa_url)}</a>`);
+    }
+    if (grid) grid.innerHTML = gridHtml;
 
     // Skills / Tags
     if (viewSkills) {
@@ -453,87 +588,76 @@ function renderViewMode() {
     // DC indicator (async, non-bloquant)
     loadCandidateDcStatus();
 
-    // Companies
-    if (viewCompanies) {
-        const companyIds = Array.isArray(__cand.company_ids) ? __cand.company_ids : [];
-        const byId = new Map((__companies || []).map(c => [Number(c.id), c]));
-        if (companyIds.length === 0) {
-            viewCompanies.innerHTML = '<div class="muted">Aucune entreprise associée.</div>';
-        } else {
-            viewCompanies.innerHTML = companyIds
-                .map(id => byId.get(Number(id)))
-                .filter(Boolean)
-                .map(c => {
-                    const label = `${safeStr(c.groupe)}${c.site ? ' — ' + safeStr(c.site) : ''}`;
-                    return `<a class="chip" href="/?company=${encodeURIComponent(c.id)}" style="text-decoration:none;" title="Voir prospects">${escapeHtml(label)}</a>`;
-                }).join('');
-        }
-    }
-
     // ═══ Données entretien ═══
     const entretienGrid = document.getElementById('viewEntretienGrid');
     const viewEntretienSection = document.getElementById('viewEntretienSection');
-    if (entretienGrid) {
-        const ef = [];
-        if (__cand.disponibilite) ef.push({ label: 'Disponibilité', value: escapeHtml(__cand.disponibilite) });
-        if (__cand.mobilite) ef.push({ label: 'Mobilité', value: escapeHtml(__cand.mobilite) });
-        const permisStr = [
-            __cand.permis_conduire ? '✅ Permis de conduire' : '❌ Permis de conduire',
-            __cand.vehicule ? '✅ Véhicule' : '❌ Véhicule',
-        ];
-        if (__cand.permis_conduire != null || __cand.vehicule != null) ef.push({ label: 'Permis / Véhicule', value: permisStr.join(' · ') });
-        if (__cand.permis_travail) ef.push({ label: 'Permis de travail', value: escapeHtml(__cand.permis_travail) });
-        if (__cand.fonctions_recherchees) ef.push({ label: 'Fonctions recherchées', value: escapeHtml(__cand.fonctions_recherchees) });
-        if (__cand.motif_recherche) ef.push({ label: 'Motif de recherche', value: escapeHtml(__cand.motif_recherche) });
-        if (__cand.avancement_recherches) ef.push({ label: 'Avancement', value: escapeHtml(__cand.avancement_recherches) });
-        if (__cand.remuneration_actuelle) ef.push({ label: 'Rémunération actuelle', value: escapeHtml(__cand.remuneration_actuelle) });
-        if (__cand.pretentions_salariales) ef.push({ label: 'Prétentions', value: escapeHtml(__cand.pretentions_salariales) });
-        if (__cand.propal_a) ef.push({ label: 'Propal à', value: escapeHtml(__cand.propal_a) });
-        if (__cand.langues) ef.push({ label: 'Langues', value: escapeHtml(__cand.langues) });
 
-        if (ef.length === 0) {
-            if (viewEntretienSection) viewEntretienSection.style.display = 'none';
-        } else {
-            if (viewEntretienSection) viewEntretienSection.style.display = '';
-            entretienGrid.innerHTML = ef.map(f =>
-                `<div class="cand-view-row"><div class="cand-view-label">${f.label}</div><div class="cand-view-value">${f.value}</div></div>`
-            ).join('');
-        }
+    // Permis/Véhicule : seulement si au moins un est à 1 (explicitement coché)
+    const hasPermis = __cand.permis_conduire === 1 || __cand.vehicule === 1;
+    const permisDisplay = [
+        __cand.permis_conduire === 1 ? '✅ Permis' : null,
+        __cand.vehicule === 1 ? '✅ Véhicule' : null,
+    ].filter(Boolean).join(' · ') || '—';
+
+    const entretienFields = [
+        __cand.disponibilite         ? { key: 'disponibilite',         label: 'Disponibilité',       val: escapeHtml(__cand.disponibilite) } : null,
+        __cand.mobilite              ? { key: 'mobilite',              label: 'Mobilité',             val: escapeHtml(__cand.mobilite) } : null,
+        hasPermis                    ? { key: '_permis',               label: 'Permis / Véhicule',    val: permisDisplay, special: 'permis' } : null,
+        __cand.permis_travail        ? { key: 'permis_travail',        label: 'Permis de travail',    val: escapeHtml(__cand.permis_travail) } : null,
+        __cand.fonctions_recherchees ? { key: 'fonctions_recherchees', label: 'Fonctions recherchées',val: escapeHtml(__cand.fonctions_recherchees) } : null,
+        __cand.motif_recherche       ? { key: 'motif_recherche',       label: 'Motif de recherche',   val: escapeHtml(__cand.motif_recherche) } : null,
+        __cand.avancement_recherches ? { key: 'avancement_recherches', label: 'Avancement',           val: escapeHtml(__cand.avancement_recherches) } : null,
+        __cand.remuneration_actuelle ? { key: 'remuneration_actuelle', label: 'Rémunération actuelle',val: escapeHtml(__cand.remuneration_actuelle) } : null,
+        __cand.pretentions_salariales? { key: 'pretentions_salariales',label: 'Prétentions',          val: escapeHtml(__cand.pretentions_salariales) } : null,
+        __cand.propal_a              ? { key: 'propal_a',              label: 'Propal à',             val: escapeHtml(__cand.propal_a) } : null,
+        __cand.langues               ? { key: 'langues',               label: 'Langues',              val: escapeHtml(__cand.langues) } : null,
+    ].filter(Boolean);
+
+    const evalFields = [
+        __cand.eval_technique    ? { key: 'eval_technique',    label: 'Technique',    val: escapeHtml(__cand.eval_technique) } : null,
+        __cand.eval_personnalite ? { key: 'eval_personnalite', label: 'Personnalité', val: escapeHtml(__cand.eval_personnalite) } : null,
+        __cand.eval_communication? { key: 'eval_communication',label: 'Communication',val: escapeHtml(__cand.eval_communication) } : null,
+    ].filter(Boolean);
+
+    const hasEntretien = entretienFields.length > 0 || evalFields.length > 0 || __cand.references_candidat;
+
+    if (viewEntretienSection) viewEntretienSection.style.display = hasEntretien ? '' : 'none';
+    if (entretienGrid && hasEntretien) {
+        entretienGrid.innerHTML = entretienFields.map(f => {
+            if (f.special === 'permis') {
+                return `<div class="cand-view-row" id="cand-row-_permis">
+                    <div class="cand-view-label">${f.label}</div>
+                    <div class="cand-view-value" id="cand-val-permis">${f.val}</div>
+                    <button class="cand-edit-btn" onclick="startInlineEditPermis()" title="Modifier permis/véhicule">✏️</button>
+                </div>`;
+            }
+            return _makeRow(f.key, f.label, f.val);
+        }).join('');
     }
-    // Évaluation
+
     const evalSection = document.getElementById('viewEvalSection');
     const evalGrid = document.getElementById('viewEvalGrid');
     if (evalGrid) {
-        const ev = [];
-        if (__cand.eval_technique) ev.push({ label: 'Technique', value: escapeHtml(__cand.eval_technique) });
-        if (__cand.eval_personnalite) ev.push({ label: 'Personnalité', value: escapeHtml(__cand.eval_personnalite) });
-        if (__cand.eval_communication) ev.push({ label: 'Communication', value: escapeHtml(__cand.eval_communication) });
-        if (ev.length > 0) {
-            evalGrid.innerHTML = ev.map(f =>
-                `<div class="cand-view-row"><div class="cand-view-label">${f.label}</div><div class="cand-view-value">${f.value}</div></div>`
-            ).join('');
+        if (evalFields.length > 0) {
+            evalGrid.innerHTML = evalFields.map(f => _makeRow(f.key, f.label, f.val)).join('');
             if (evalSection) evalSection.style.display = '';
         } else {
             if (evalSection) evalSection.style.display = 'none';
         }
     }
-    // Références
+
     const refSection = document.getElementById('viewRefSection');
     const refContent = document.getElementById('viewRefContent');
     if (refContent) {
         if (__cand.references_candidat) {
-            refContent.textContent = __cand.references_candidat;
             if (refSection) refSection.style.display = '';
+            refContent.innerHTML = `<div style="display:flex;gap:8px;align-items:flex-start;">
+                <div id="cand-val-references_candidat" style="flex:1;white-space:pre-wrap;">${escapeHtml(__cand.references_candidat)}</div>
+                <button class="cand-edit-btn" onclick="startInlineEdit('references_candidat')" title="Modifier références">✏️</button>
+            </div>`;
         } else {
             if (refSection) refSection.style.display = 'none';
         }
-    }
-
-    // Notes
-    if (viewNotes) {
-        viewNotes.textContent = __cand.notes || 'Aucune note.';
-        if (!__cand.notes) viewNotes.classList.add('muted');
-        else viewNotes.classList.remove('muted');
     }
 
     // Archive btn label
@@ -1322,6 +1446,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Expose triggerAutoSave for IA import system
     window.triggerCandidateAutoSave = function() { triggerAutoSave(true); };
+
+    // Expose inline edit helpers globally (called from onclick in HTML)
+    window.startInlineEdit = startInlineEdit;
+    window.startInlineEditPermis = startInlineEditPermis;
+    window.saveInlineEdit = saveInlineEdit;
+    window.saveInlineEditPermis = saveInlineEditPermis;
+
+    // "Ajouter un champ" entretien — ouvre le formulaire d'édition section entretien
+    window.startInlineEditEntretienAdd = function() { switchToEditMode(); };
 
     // ═══ Parseur fiche entretien Excel via Ollama ═══
     window.parseFicheEntretien = async function(input) {
