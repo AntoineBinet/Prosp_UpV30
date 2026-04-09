@@ -4508,6 +4508,7 @@ _CANDIDATE_STATUS_RANK = {
     "nok": -2,
     "plus_disponible": -3,
     "refus_contrat": -4,
+    "hors_aura": -5,
     # legacy — kept for migration compatibility
     "a_sourcer": 0,
     "a_contacter": 1,
@@ -5339,7 +5340,7 @@ def api_candidates_set_status():
 
     # Keep is_archived in sync with status when relevant
     st = status.lower()
-    _ARCHIVE_STATUSES = {"nok_prequal", "nok", "plus_disponible", "refus_contrat", "archive"}
+    _ARCHIVE_STATUSES = {"nok_prequal", "nok", "plus_disponible", "refus_contrat", "hors_aura", "archive"}
     _ACTIVE_STATUSES = {
         "nouveau", "proposition", "entretien", "a_faire", "oksi", "top_profil",
         "reunion_tech", "valide_contrat", "freelance", "freelance_mission",

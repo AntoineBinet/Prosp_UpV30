@@ -128,6 +128,7 @@ function candStatusLabel(s) {
         nok: 'NOK',
         plus_disponible: 'Plus disponible',
         refus_contrat: 'Refus du contrat',
+        hors_aura: 'Hors Aura',
         // legacy fallbacks
         a_sourcer: 'Nouveau / A traiter',
         a_contacter: 'Proposition faite',
@@ -199,9 +200,10 @@ function applyCandidateFilters() {
 
     __candFiltered = __candidates.filter(c => {
         const status = safeStr(c.status).toLowerCase();
-        // Refus et Mission → onglets dédiés
+        // Refus, Mission et Hors Aura → onglets dédiés
         if (CAND_ARCHIVE_STATUSES.has(status)) return false;
         if (CAND_MISSION_STATUSES.has(status)) return false;
+        if (CAND_HORS_AURA_STATUSES.has(status)) return false;
         const skills = candSkillsArray(c);
         const hay = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${skills.join(' ')} ${safeStr(c.tech)} ${safeStr(c.notes)} ${safeStr(c.linkedin)} ${safeStr(c.source)}`.toLowerCase();
         const okQ = !q || hay.includes(q);
@@ -389,9 +391,11 @@ const CAND_STATUSES = [
     ['nok',              'NOK'],
     ['plus_disponible',  'Plus disponible'],
     ['refus_contrat',    'Refus du contrat'],
+    ['hors_aura',        'Hors Aura'],
 ];
 const CAND_ARCHIVE_STATUSES = new Set(['nok_prequal', 'nok', 'plus_disponible', 'refus_contrat']);
 const CAND_MISSION_STATUSES = new Set(['valide_contrat', 'freelance', 'freelance_mission']);
+const CAND_HORS_AURA_STATUSES = new Set(['hors_aura']);
 
 function renderStatusSelect(candidateId, currentStatus) {
     const opts = CAND_STATUSES.map(([v, l]) =>
@@ -414,16 +418,18 @@ async function quickChangeStatus(candidateId, newStatus) {
         // Si le statut fait sortir de l'onglet courant, re-filtrer après un court délai
         const currentTab = document.getElementById('panelPipeline')?.style.display !== 'none' ? 'pipeline'
                          : document.getElementById('panelMission')?.style.display !== 'none'  ? 'mission'
+                         : document.getElementById('panelHorsAura')?.style.display !== 'none' ? 'horsaura'
                          : 'archive';
         const tabForStatus = CAND_ARCHIVE_STATUSES.has(newStatus) ? 'archive'
                            : CAND_MISSION_STATUSES.has(newStatus) ? 'mission'
+                           : CAND_HORS_AURA_STATUSES.has(newStatus) ? 'horsaura'
                            : 'pipeline';
         const shouldMove = currentTab !== tabForStatus;
         if (shouldMove) {
-            setTimeout(() => { applyCandidateFilters(); applyMissionFilters(); applyArchiveFilters(); }, 600);
+            setTimeout(() => { applyCandidateFilters(); applyMissionFilters(); applyArchiveFilters(); applyHorsAuraFilters(); }, 600);
         } else {
             // Juste mettre à jour la couleur du select
-            const sel = document.querySelector(`#candTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #missionTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #archiveTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select`);
+            const sel = document.querySelector(`#candTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #missionTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #archiveTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #horsAuraTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select`);
             if (sel) {
                 sel.className = `status-inline-select status-cand-${newStatus}`;
             }
@@ -607,6 +613,94 @@ function updateMissionSelectAllState() {
     const n = __missionFiltered.filter(c => __missionSelected.has(c.id)).length;
     cb.checked = n === __missionFiltered.length;
     cb.indeterminate = n > 0 && n < __missionFiltered.length;
+}
+
+// ===== Onglet Hors Aura =====
+
+let __horsAuraFiltered = [];
+
+function applyHorsAuraFilters() {
+    const q = (document.getElementById('horsAuraSearch')?.value || '').trim().toLowerCase();
+    __horsAuraFiltered = __candidates.filter(c => {
+        const status = safeStr(c.status).toLowerCase();
+        if (!CAND_HORS_AURA_STATUSES.has(status)) return false;
+        if (q) {
+            const skills = candSkillsArray(c);
+            const hay = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${skills.join(' ')} ${safeStr(c.tech)} ${safeStr(c.notes)}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+    renderHorsAuraTable();
+}
+
+function renderHorsAuraTable() {
+    const tbody = document.getElementById('horsAuraTableBody');
+    const empty = document.getElementById('horsAuraEmptyState');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (__horsAuraFiltered.length === 0) {
+        if (empty) empty.style.display = 'block';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    __horsAuraFiltered.forEach(c => {
+        const skills = candSkillsArray(c);
+        const skillsLabel = skills.join(', ');
+        const combinedTech = skillsLabel ? (skillsLabel + (c.tech ? ' · ' + safeStr(c.tech) : '')) : safeStr(c.tech);
+        const dcBadge = c.has_dc
+            ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
+            : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
+        const descActionBtn = _buildDescActionBtn(c);
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.dataset.candidateId = c.id;
+        tr.addEventListener('click', (e) => {
+            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, .desc-gen-btn, select')) return;
+            window.location.href = '/candidat?id=' + c.id;
+        });
+        const updatedAt = safeStr(c.updatedAt || c.createdAt || '').slice(0, 10);
+        tr.innerHTML = `
+            <td onclick="event.stopPropagation()"><input type="checkbox" ${__horsAuraSelected.has(c.id) ? 'checked' : ''} onchange="toggleHorsAuraSelect(${c.id}, this.checked)"></td>
+            <td><strong>${escapeHtml(safeStr(c.name))}</strong></td>
+            <td data-label="Rôle">${renderClampCell(c.role)}</td>
+            <td data-label="Localisation">${renderClampCell(c.location)}</td>
+            <td data-label="Compétences">${renderClampCell(combinedTech)}</td>
+            <td>${dcBadge}</td>
+            <td>${renderStatusSelect(c.id, c.status)}</td>
+            <td>${escapeHtml(updatedAt)}</td>
+            <td data-label="Actions">
+              <div class="table-actions-inline">
+                <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
+                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                ${descActionBtn}
+                <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
+                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
+              </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+let __horsAuraSelected = new Set();
+function toggleHorsAuraSelect(id, checked) {
+    if (checked) __horsAuraSelected.add(id);
+    else __horsAuraSelected.delete(id);
+    updateHorsAuraSelectAllState();
+}
+function toggleHorsAuraSelectAll(checked) {
+    if (checked) __horsAuraFiltered.forEach(c => __horsAuraSelected.add(c.id));
+    else __horsAuraFiltered.forEach(c => __horsAuraSelected.delete(c.id));
+    renderHorsAuraTable();
+}
+function updateHorsAuraSelectAllState() {
+    const cb = document.getElementById('horsAuraSelectAll');
+    if (!cb || !__horsAuraFiltered.length) return;
+    const n = __horsAuraFiltered.filter(c => __horsAuraSelected.has(c.id)).length;
+    cb.checked = n === __horsAuraFiltered.length;
+    cb.indeterminate = n > 0 && n < __horsAuraFiltered.length;
 }
 
 function openCandidateModal(editing=false) {
@@ -1292,8 +1386,8 @@ function _vsaImportPreFillAnyway() {
 
 // ===== Tabs =====
 function setTab(tab) {
-    const panels  = { pipeline: 'panelPipeline', mission: 'panelMission', archive: 'panelArchive', settings: 'panelSettings' };
-    const buttons = { pipeline: 'tabPipeline',   mission: 'tabMission',   archive: 'tabArchive',   settings: 'tabSettings'   };
+    const panels  = { pipeline: 'panelPipeline', mission: 'panelMission', archive: 'panelArchive', horsaura: 'panelHorsAura', settings: 'panelSettings' };
+    const buttons = { pipeline: 'tabPipeline',   mission: 'tabMission',   archive: 'tabArchive',   horsaura: 'tabHorsAura',   settings: 'tabSettings'   };
     Object.entries(panels).forEach(([t, id]) => {
         const el = document.getElementById(id);
         if (el) el.style.display = t === tab ? 'block' : 'none';
@@ -1303,6 +1397,7 @@ function setTab(tab) {
     });
     if (tab === 'archive') applyArchiveFilters();
     if (tab === 'mission') applyMissionFilters();
+    if (tab === 'horsaura') applyHorsAuraFilters();
     if (tab === 'settings') loadSettingsTab();
 }
 
@@ -1538,10 +1633,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('missionSearch')?.addEventListener('input', applyMissionFilters);
     document.getElementById('missionStatusFilter')?.addEventListener('change', applyMissionFilters);
 
+    // Hors Aura tab events
+    document.getElementById('horsAuraSearch')?.addEventListener('input', applyHorsAuraFilters);
+
     // Tabs
     document.getElementById('tabPipeline')?.addEventListener('click', () => setTab('pipeline'));
     document.getElementById('tabMission')?.addEventListener('click', () => setTab('mission'));
     document.getElementById('tabArchive')?.addEventListener('click', () => setTab('archive'));
+    document.getElementById('tabHorsAura')?.addEventListener('click', () => setTab('horsaura'));
     document.getElementById('tabSettings')?.addEventListener('click', () => setTab('settings'));
 
     try {

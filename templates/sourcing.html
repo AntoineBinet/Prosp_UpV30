@@ -15,6 +15,7 @@
     <button class="tab active" id="tabPipeline" type="button">Pipeline</button>
     <button class="tab" id="tabMission" type="button">En mission / Contrat</button>
     <button class="tab" id="tabArchive" type="button">Archivés / Refusés</button>
+    <button class="tab" id="tabHorsAura" type="button">Hors Aura</button>
     <button class="tab" id="tabSettings" type="button">⚙️ Paramètres</button>
   </div>
 </div>
@@ -66,6 +67,9 @@
           <option value="nok">NOK</option>
           <option value="plus_disponible">Plus disponible</option>
           <option value="refus_contrat">Refus du contrat</option>
+        </optgroup>
+        <optgroup label="Hors région">
+          <option value="hors_aura">Hors Aura</option>
         </optgroup>
       </select>
       <button class="btn btn-primary" onclick="applyBulkCandidateStatus()">Appliquer</button>
@@ -173,6 +177,38 @@
 
   <div id="archiveEmptyState" class="card" style="margin-top:14px; display:none;">
     <div class="muted">Aucun candidat archivé ou refusé.</div>
+  </div>
+</section>
+
+<!-- Hors Aura -->
+<section id="panelHorsAura" style="display:none;">
+  <div class="controls">
+    <input id="horsAuraSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les candidats hors Aura" />
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:32px; padding-left:12px;"><input type="checkbox" id="horsAuraSelectAll" title="Sélectionner tous" aria-label="Sélectionner tous" onclick="toggleHorsAuraSelectAll(this.checked)"></th>
+          <th>Nom</th>
+          <th>Rôle</th>
+          <th>Localisation</th>
+          <th>Compétences / Tech</th>
+          <th>DC</th>
+          <th>Statut</th>
+          <th>MAJ</th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="horsAuraTableBody">
+        <tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Chargement…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="horsAuraEmptyState" class="card" style="margin-top:14px; display:none;">
+    <div class="muted">Aucun candidat hors région Aura.</div>
   </div>
 </section>
 
