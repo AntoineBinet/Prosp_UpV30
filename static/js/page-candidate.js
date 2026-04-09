@@ -470,6 +470,65 @@ function renderViewMode() {
         }
     }
 
+    // ═══ Données entretien ═══
+    const entretienGrid = document.getElementById('viewEntretienGrid');
+    const viewEntretienSection = document.getElementById('viewEntretienSection');
+    if (entretienGrid) {
+        const ef = [];
+        if (__cand.disponibilite) ef.push({ label: 'Disponibilité', value: escapeHtml(__cand.disponibilite) });
+        if (__cand.mobilite) ef.push({ label: 'Mobilité', value: escapeHtml(__cand.mobilite) });
+        const permisStr = [
+            __cand.permis_conduire ? '✅ Permis de conduire' : '❌ Permis de conduire',
+            __cand.vehicule ? '✅ Véhicule' : '❌ Véhicule',
+        ];
+        if (__cand.permis_conduire != null || __cand.vehicule != null) ef.push({ label: 'Permis / Véhicule', value: permisStr.join(' · ') });
+        if (__cand.permis_travail) ef.push({ label: 'Permis de travail', value: escapeHtml(__cand.permis_travail) });
+        if (__cand.fonctions_recherchees) ef.push({ label: 'Fonctions recherchées', value: escapeHtml(__cand.fonctions_recherchees) });
+        if (__cand.motif_recherche) ef.push({ label: 'Motif de recherche', value: escapeHtml(__cand.motif_recherche) });
+        if (__cand.avancement_recherches) ef.push({ label: 'Avancement', value: escapeHtml(__cand.avancement_recherches) });
+        if (__cand.remuneration_actuelle) ef.push({ label: 'Rémunération actuelle', value: escapeHtml(__cand.remuneration_actuelle) });
+        if (__cand.pretentions_salariales) ef.push({ label: 'Prétentions', value: escapeHtml(__cand.pretentions_salariales) });
+        if (__cand.propal_a) ef.push({ label: 'Propal à', value: escapeHtml(__cand.propal_a) });
+        if (__cand.langues) ef.push({ label: 'Langues', value: escapeHtml(__cand.langues) });
+
+        if (ef.length === 0) {
+            if (viewEntretienSection) viewEntretienSection.style.display = 'none';
+        } else {
+            if (viewEntretienSection) viewEntretienSection.style.display = '';
+            entretienGrid.innerHTML = ef.map(f =>
+                `<div class="cand-view-row"><div class="cand-view-label">${f.label}</div><div class="cand-view-value">${f.value}</div></div>`
+            ).join('');
+        }
+    }
+    // Évaluation
+    const evalSection = document.getElementById('viewEvalSection');
+    const evalGrid = document.getElementById('viewEvalGrid');
+    if (evalGrid) {
+        const ev = [];
+        if (__cand.eval_technique) ev.push({ label: 'Technique', value: escapeHtml(__cand.eval_technique) });
+        if (__cand.eval_personnalite) ev.push({ label: 'Personnalité', value: escapeHtml(__cand.eval_personnalite) });
+        if (__cand.eval_communication) ev.push({ label: 'Communication', value: escapeHtml(__cand.eval_communication) });
+        if (ev.length > 0) {
+            evalGrid.innerHTML = ev.map(f =>
+                `<div class="cand-view-row"><div class="cand-view-label">${f.label}</div><div class="cand-view-value">${f.value}</div></div>`
+            ).join('');
+            if (evalSection) evalSection.style.display = '';
+        } else {
+            if (evalSection) evalSection.style.display = 'none';
+        }
+    }
+    // Références
+    const refSection = document.getElementById('viewRefSection');
+    const refContent = document.getElementById('viewRefContent');
+    if (refContent) {
+        if (__cand.references_candidat) {
+            refContent.textContent = __cand.references_candidat;
+            if (refSection) refSection.style.display = '';
+        } else {
+            if (refSection) refSection.style.display = 'none';
+        }
+    }
+
     // Notes
     if (viewNotes) {
         viewNotes.textContent = __cand.notes || 'Aucune note.';
@@ -975,6 +1034,23 @@ function buildPayload() {
         sector: (document.getElementById('fSector')?.value || '').trim(),
         dossier_competence_pdf: (document.getElementById('fDossierCompetence')?.value || '').trim(),
         description_push: (document.getElementById('viewPresentationText')?.value ?? null),
+        // v28.1 : champs fiche entretien
+        disponibilite: (document.getElementById('fDisponibilite')?.value || '').trim() || null,
+        mobilite: (document.getElementById('fMobilite')?.value || '').trim() || null,
+        permis_conduire: document.getElementById('fPermisConduire')?.checked ? 1 : 0,
+        vehicule: document.getElementById('fVehicule')?.checked ? 1 : 0,
+        permis_travail: (document.getElementById('fPermisTravail')?.value || '').trim() || null,
+        fonctions_recherchees: (document.getElementById('fFonctionsRecherchees')?.value || '').trim() || null,
+        motif_recherche: (document.getElementById('fMotifRecherche')?.value || '').trim() || null,
+        avancement_recherches: (document.getElementById('fAvancementRecherches')?.value || '').trim() || null,
+        remuneration_actuelle: (document.getElementById('fRemunerationActuelle')?.value || '').trim() || null,
+        pretentions_salariales: (document.getElementById('fPretentionsSalariales')?.value || '').trim() || null,
+        propal_a: (document.getElementById('fPropalA')?.value || '').trim() || null,
+        eval_technique: (document.getElementById('fEvalTechnique')?.value || '').trim() || null,
+        eval_personnalite: (document.getElementById('fEvalPersonnalite')?.value || '').trim() || null,
+        eval_communication: (document.getElementById('fEvalCommunication')?.value || '').trim() || null,
+        langues: (document.getElementById('fLangues')?.value || '').trim() || null,
+        references_candidat: (document.getElementById('fReferencesCandidats')?.value || '').trim() || null,
     };
 }
 
@@ -1080,6 +1156,23 @@ async function loadCandidate() {
   if (document.getElementById('viewPresentationText')) {
       document.getElementById('viewPresentationText').value = safeStr(__cand.description_push || '');
   }
+  // v28.1: champs fiche entretien
+  if (document.getElementById('fDisponibilite')) document.getElementById('fDisponibilite').value = safeStr(__cand.disponibilite);
+  if (document.getElementById('fMobilite')) document.getElementById('fMobilite').value = safeStr(__cand.mobilite);
+  if (document.getElementById('fPermisConduire')) document.getElementById('fPermisConduire').checked = !!(__cand.permis_conduire);
+  if (document.getElementById('fVehicule')) document.getElementById('fVehicule').checked = !!(__cand.vehicule);
+  if (document.getElementById('fPermisTravail')) document.getElementById('fPermisTravail').value = safeStr(__cand.permis_travail);
+  if (document.getElementById('fFonctionsRecherchees')) document.getElementById('fFonctionsRecherchees').value = safeStr(__cand.fonctions_recherchees);
+  if (document.getElementById('fMotifRecherche')) document.getElementById('fMotifRecherche').value = safeStr(__cand.motif_recherche);
+  if (document.getElementById('fAvancementRecherches')) document.getElementById('fAvancementRecherches').value = safeStr(__cand.avancement_recherches);
+  if (document.getElementById('fRemunerationActuelle')) document.getElementById('fRemunerationActuelle').value = safeStr(__cand.remuneration_actuelle);
+  if (document.getElementById('fPretentionsSalariales')) document.getElementById('fPretentionsSalariales').value = safeStr(__cand.pretentions_salariales);
+  if (document.getElementById('fPropalA')) document.getElementById('fPropalA').value = safeStr(__cand.propal_a);
+  if (document.getElementById('fEvalTechnique')) document.getElementById('fEvalTechnique').value = safeStr(__cand.eval_technique);
+  if (document.getElementById('fEvalPersonnalite')) document.getElementById('fEvalPersonnalite').value = safeStr(__cand.eval_personnalite);
+  if (document.getElementById('fEvalCommunication')) document.getElementById('fEvalCommunication').value = safeStr(__cand.eval_communication);
+  if (document.getElementById('fLangues')) document.getElementById('fLangues').value = safeStr(__cand.langues);
+  if (document.getElementById('fReferencesCandidats')) document.getElementById('fReferencesCandidats').value = safeStr(__cand.references_candidat);
   document.getElementById('fNotes').value = safeStr(__cand.notes);
 
   __skills = Array.isArray(__cand.skills) ? uniqCaseInsensitive(__cand.skills) : [];
@@ -1229,6 +1322,64 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Expose triggerAutoSave for IA import system
     window.triggerCandidateAutoSave = function() { triggerAutoSave(true); };
+
+    // ═══ Parseur fiche entretien Excel via Ollama ═══
+    window.parseFicheEntretien = async function(input) {
+        const file = input?.files?.[0];
+        if (!file) return;
+        // Reset input so same file can be re-selected
+        input.value = '';
+
+        if (typeof showToast === 'function') showToast('📊 Analyse de la fiche entretien par IA…', 'info', 8000);
+
+        const fd = new FormData();
+        fd.append('file', file);
+
+        let json;
+        try {
+            const res = await fetch('/api/candidates/parse-fiche-entretien', { method: 'POST', body: fd });
+            json = await res.json();
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Erreur réseau lors du parsing : ' + e.message, 'error');
+            return;
+        }
+
+        if (!json?.ok) {
+            if (typeof showToast === 'function') showToast('Erreur parsing fiche : ' + (json?.error || 'inconnue'), 'error');
+            return;
+        }
+
+        const f = json.fields || {};
+        const _fill = (id, val) => {
+            const el = document.getElementById(id);
+            if (!el || val == null || val === '') return;
+            if (el.type === 'checkbox') el.checked = !!val;
+            else el.value = val;
+        };
+
+        _fill('fDisponibilite', f.disponibilite);
+        _fill('fMobilite', f.mobilite);
+        if (f.permis_conduire != null) _fill('fPermisConduire', f.permis_conduire);
+        if (f.vehicule != null) _fill('fVehicule', f.vehicule);
+        _fill('fPermisTravail', f.permis_travail);
+        _fill('fFonctionsRecherchees', f.fonctions_recherchees);
+        _fill('fMotifRecherche', f.motif_recherche);
+        _fill('fAvancementRecherches', f.avancement_recherches);
+        _fill('fRemunerationActuelle', f.remuneration_actuelle);
+        _fill('fPretentionsSalariales', f.pretentions_salariales);
+        _fill('fPropalA', f.propal_a);
+        _fill('fEvalTechnique', f.eval_technique);
+        _fill('fEvalPersonnalite', f.eval_personnalite);
+        _fill('fEvalCommunication', f.eval_communication);
+        _fill('fLangues', f.langues);
+        _fill('fReferencesCandidats', f.references_candidat);
+
+        triggerAutoSave();
+        if (typeof showToast === 'function') showToast('✅ Fiche entretien importée — vérifiez et ajustez les champs', 'success', 6000);
+
+        // Switch to edit mode so user can review
+        if (!__editMode) switchToEditMode();
+    };
 
     // Expose generatePresentationAI globally
     window.generatePresentationAI = async function() {
