@@ -7068,20 +7068,17 @@ function _buildPushTabHtml(prospectId, prospect) {
         </div>
     </div>
 
-    <div class="detail-section-card" id="candidateMatchSection" style="margin-bottom:14px;">
-        <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-            <span>🎯 Candidats recommandés par l'IA</span>
-            <span style="font-size:11px;color:var(--color-text-secondary);font-weight:normal;">Cliquez ➕ pour ajouter au push</span>
-        </div>
-        <div id="unifiedCandidateList"><span class="muted">Analyse des compétences en cours…</span></div>
-    </div>
-
     <div style="margin-bottom:14px;">
         ${noEmail ? '<div class="pt-warning">⚠️ Email prospect non renseigné — l\'email sera généré avec le champ destinataire vide.</div>' : ''}
         <button class="btn btn-primary" id="btnGeneratePush" onclick="generatePushFromTab(${prospectId})" disabled style="width:100%;">
             📧 Générer le push email
         </button>
         <div class="muted" style="font-size:11px;margin-top:4px;text-align:center;">Le brouillon apparaît dans vos Brouillons Outlook avec les PJ — prêt à envoyer depuis n'importe où</div>
+    </div>
+
+    <div class="detail-section-card" id="candidateMatchSection" style="margin-bottom:14px;">
+        <div class="detail-section-title">🎯 Pertinence des candidats (référence IA)</div>
+        <div id="unifiedCandidateList"><span class="muted">Analyse des compétences en cours…</span></div>
     </div>
 
     <div class="detail-section-card">
@@ -12286,30 +12283,23 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
                 : '';
 
             return `
-                <div style="margin-bottom:10px;">
-                    <a href="${viewFicheUrl}" class="bestmatch-card bestmatch-card-link${idx === 0 ? ' bestmatch-top' : ''}" title="Ouvrir la fiche candidat" style="margin-bottom:0;">
-                        <div class="bestmatch-header">
-                            <div class="bestmatch-name">
-                                ${idx === 0 ? '<span class="bestmatch-crown">👑</span>' : ''}
-                                <strong>${escapeHtml(c.name)}</strong>
-                                ${linkedinBtn}
-                                ${telBtn}
-                            </div>
-                            <span class="bestmatch-score" title="${scoreDetails.join(' · ')}">${c.pct}%</span>
+                <a href="${viewFicheUrl}" class="bestmatch-card bestmatch-card-link${idx === 0 ? ' bestmatch-top' : ''}" title="Ouvrir la fiche candidat">
+                    <div class="bestmatch-header">
+                        <div class="bestmatch-name">
+                            ${idx === 0 ? '<span class="bestmatch-crown">👑</span>' : ''}
+                            <strong>${escapeHtml(c.name)}</strong>
+                            ${linkedinBtn}
+                            ${telBtn}
                         </div>
-                        <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · 📍 ' + escapeHtml(c.location) : ''}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
-                        <div class="bestmatch-skills">${skillsHtml || '<span class="muted">Aucune compétence renseignée</span>'}</div>
-                        <div class="bestmatch-matched">${(c.matched_tags || []).length} compétence${(c.matched_tags || []).length > 1 ? 's' : ''} en commun : ${(c.matched_tags || []).map(t => escapeHtml(t)).join(', ')}</div>
-                        ${semanticInfo}
-                        ${aiExplanation}
-                        <div class="bestmatch-actions"><span class="bestmatch-action-label">Voir la fiche →</span></div>
-                    </a>
-                    <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();selectCandidateForPush(${c.id})"
-                        style="width:100%;margin-top:4px;font-size:12px;border-radius:0 0 8px 8px;"
-                        title="Ajouter ce candidat dans le slot de sélection">
-                        ➕ Sélectionner pour le push
-                    </button>
-                </div>`;
+                        <span class="bestmatch-score" title="${scoreDetails.join(' · ')}">${c.pct}%</span>
+                    </div>
+                    <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · 📍 ' + escapeHtml(c.location) : ''}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
+                    <div class="bestmatch-skills">${skillsHtml || '<span class="muted">Aucune compétence renseignée</span>'}</div>
+                    <div class="bestmatch-matched">${(c.matched_tags || []).length} compétence${(c.matched_tags || []).length > 1 ? 's' : ''} en commun : ${(c.matched_tags || []).map(t => escapeHtml(t)).join(', ')}</div>
+                    ${semanticInfo}
+                    ${aiExplanation}
+                    <div class="bestmatch-actions"><span class="bestmatch-action-label">Voir la fiche →</span></div>
+                </a>`;
         }).join('');
     } catch (e) {
         console.error('unified-candidates error', e);

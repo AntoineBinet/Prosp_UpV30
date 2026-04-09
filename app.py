@@ -2200,16 +2200,22 @@ Cordialement,"""
                 ),
             )
 
-        # Migration: corriger les templates dont le body contient "au sein   Technologies."
-        # (erreur de saisie : "d'Up" manquant, ex: "au sein  Technologies." au lieu de "au sein d'Up Technologies.")
+        # Migration: corriger les templates dont la phrase d'intro est incomplète.
+        # Remplace toute variante de "au sein … Technologies." (avec ou sans HTML, avec ou sans "d'Up")
+        # par la version correcte avec mise en forme orange.
         try:
             import re as _re_tmpl
+            _PHRASE_PATTERN = _re_tmpl.compile(
+                r"au sein\s*(?:<[^>]*>\s*)*(?:d['']Up\s+)?(?:\s*)Technologies\.",
+                _re_tmpl.DOTALL | _re_tmpl.IGNORECASE
+            )
+            _PHRASE_REPLACE = "au sein <span style=\"color:#E07020;font-weight:bold;\">d'Up Technologies.</span>"
             _tmpl_rows = conn.execute("SELECT id, body, linkedin_body FROM templates;").fetchall()
             _tmpl_updated = False
             for _tr in _tmpl_rows:
                 _bid, _body, _lbody = _tr["id"], _tr["body"] or "", _tr["linkedin_body"] or ""
-                _new_body = _re_tmpl.sub(r"au sein\s+Technologies\.", "au sein d'Up Technologies.", _body)
-                _new_lbody = _re_tmpl.sub(r"au sein\s+Technologies\.", "au sein d'Up Technologies.", _lbody)
+                _new_body  = _PHRASE_PATTERN.sub(_PHRASE_REPLACE, _body)
+                _new_lbody = _PHRASE_PATTERN.sub(_PHRASE_REPLACE, _lbody)
                 if _new_body != _body or _new_lbody != _lbody:
                     conn.execute(
                         "UPDATE templates SET body=?, linkedin_body=? WHERE id=?;",
