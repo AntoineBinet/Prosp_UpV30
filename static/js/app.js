@@ -6586,13 +6586,26 @@ async function onPushCategoryChange(prospectId, value) {
     const templateBox = document.getElementById(`ptTemplateBox_${prospectId}`);
     if (!v) {
         if (templateSection) templateSection.style.display = 'none';
+        // Masquer toutes les sections dépendantes de la catégorie
+        const candSec = document.getElementById(`ptCandidatesSection_${prospectId}`);
+        const genSec  = document.getElementById(`ptGenerateSection_${prospectId}`);
+        const aiSec   = document.getElementById('candidateMatchSection');
+        if (candSec) candSec.style.display = 'none';
+        if (genSec)  genSec.style.display  = 'none';
+        if (aiSec)   aiSec.style.display   = 'none';
         window._currentPushTemplate = null;
-        setTimeout(() => updatePushCandidates(prospectId), 100);
         return;
     }
 
     if (v && templateSection) {
         templateSection.style.display = '';
+        // Afficher les sections dépendantes de la catégorie
+        const _candSec = document.getElementById(`ptCandidatesSection_${prospectId}`);
+        const _genSec  = document.getElementById(`ptGenerateSection_${prospectId}`);
+        const _aiSec   = document.getElementById('candidateMatchSection');
+        if (_candSec) _candSec.style.display = '';
+        if (_genSec)  _genSec.style.display  = '';
+        if (_aiSec)   _aiSec.style.display   = '';
         if (templateBox) templateBox.innerHTML = '<span class="muted">Chargement…</span>';
 
         // Créer un nouvel AbortController pour cette requête
@@ -6984,13 +6997,13 @@ async function initPushTab(prospectId, prospect) {
     // Si une catégorie est déjà sélectionnée, charger les templates et candidats
     if (prospect.push_category_id) {
         await onPushCategoryChange(prospectId, String(prospect.push_category_id));
-    } else {
-        // Pas de catégorie → charger quand même les candidats dans les dropdowns
-        setTimeout(() => updatePushCandidates(prospectId), 100);
     }
+    // Pas de catégorie → ne pas charger les candidats (section masquée)
     _updateEmailBtnState(prospectId, prospect);
-    // Charger les candidats recommandés par l'IA dans la section dédiée
-    loadUnifiedCandidates(prospectId, prospect.tags, prospect.push_category_id);
+    // Charger les candidats recommandés par l'IA uniquement si catégorie définie
+    if (prospect.push_category_id) {
+        loadUnifiedCandidates(prospectId, prospect.tags, prospect.push_category_id);
+    }
 }
 
 /**
@@ -7024,7 +7037,7 @@ function _buildPushTabHtml(prospectId, prospect) {
         </div>
     </div>
 
-    <div class="detail-section-card" style="margin-bottom:14px;" id="ptCandidatesSection_${prospectId}">
+    <div class="detail-section-card" style="margin-bottom:14px;${!prospect.push_category_id ? 'display:none;' : ''}" id="ptCandidatesSection_${prospectId}">
         <div class="detail-section-title">👤 Candidats & pièces jointes</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
             <div style="flex:1;min-width:140px;">
@@ -7068,7 +7081,7 @@ function _buildPushTabHtml(prospectId, prospect) {
         </div>
     </div>
 
-    <div style="margin-bottom:14px;">
+    <div style="margin-bottom:14px;" id="ptGenerateSection_${prospectId}"${!prospect.push_category_id ? ' style="display:none;margin-bottom:14px;"' : ''}>
         ${noEmail ? '<div class="pt-warning">⚠️ Email prospect non renseigné — l\'email sera généré avec le champ destinataire vide.</div>' : ''}
         <button class="btn btn-primary" id="btnGeneratePush" onclick="generatePushFromTab(${prospectId})" disabled style="width:100%;">
             📧 Générer le push email
@@ -7076,7 +7089,7 @@ function _buildPushTabHtml(prospectId, prospect) {
         <div class="muted" style="font-size:11px;margin-top:4px;text-align:center;">Le brouillon apparaît dans vos Brouillons Outlook avec les PJ — prêt à envoyer depuis n'importe où</div>
     </div>
 
-    <div class="detail-section-card" id="candidateMatchSection" style="margin-bottom:14px;">
+    <div class="detail-section-card" id="candidateMatchSection" style="margin-bottom:14px;${!prospect.push_category_id ? 'display:none;' : ''}">
         <div class="detail-section-title">🎯 Pertinence des candidats (référence IA)</div>
         <div id="unifiedCandidateList"><span class="muted">Analyse des compétences en cours…</span></div>
     </div>
