@@ -1878,6 +1878,27 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
         # v27.4: description push IA (cache Ollama)
         if "description_push" not in cand_cols:
             _add_col("candidates", "description_push", "TEXT")
+        # v28.1: champs fiche entretien candidat
+        for _col, _ddl in [
+            ("disponibilite", "TEXT"),
+            ("mobilite", "TEXT"),
+            ("permis_conduire", "INTEGER"),
+            ("vehicule", "INTEGER"),
+            ("permis_travail", "TEXT"),
+            ("fonctions_recherchees", "TEXT"),
+            ("motif_recherche", "TEXT"),
+            ("avancement_recherches", "TEXT"),
+            ("remuneration_actuelle", "TEXT"),
+            ("pretentions_salariales", "TEXT"),
+            ("propal_a", "TEXT"),
+            ("eval_technique", "TEXT"),
+            ("eval_personnalite", "TEXT"),
+            ("eval_communication", "TEXT"),
+            ("langues", "TEXT"),
+            ("references_candidat", "TEXT"),
+        ]:
+            if _col not in cand_cols:
+                _add_col("candidates", _col, _ddl)
 
         # v23.5: Soft delete — add deleted_at column to main tables
         for tbl in ("prospects", "companies", "candidates"):
@@ -4911,6 +4932,20 @@ def api_candidates_save():
         except Exception:
             annees_exp_v = None
 
+        # v28.1: champs fiche entretien
+        permis_conduire_v = None
+        try:
+            pc = payload.get("permis_conduire")
+            permis_conduire_v = int(pc) if pc not in (None, "", "null") else None
+        except Exception:
+            permis_conduire_v = None
+        vehicule_v = None
+        try:
+            vh = payload.get("vehicule")
+            vehicule_v = int(vh) if vh not in (None, "", "null") else None
+        except Exception:
+            vehicule_v = None
+
         if cid:
             cur.execute(
                 '''
@@ -4920,6 +4955,11 @@ def api_candidates_save():
                     years_experience=?, sector=?, phone=?, email=?, dossier_competence_pdf=?,
                     prenom=?, titre=?, annees_experience=?, domaine_principal=?,
                     description_push=?,
+                    disponibilite=?, mobilite=?, permis_conduire=?, vehicule=?, permis_travail=?,
+                    fonctions_recherchees=?, motif_recherche=?, avancement_recherches=?,
+                    remuneration_actuelle=?, pretentions_salariales=?, propal_a=?,
+                    eval_technique=?, eval_personnalite=?, eval_communication=?,
+                    langues=?, references_candidat=?,
                     updatedAt=?
                 WHERE id=? AND owner_id=?;
                 ''',
@@ -4948,6 +4988,22 @@ def api_candidates_save():
                     annees_exp_v,
                     _t("domaine_principal"),
                     _t("description_push"),
+                    _t("disponibilite"),
+                    _t("mobilite"),
+                    permis_conduire_v,
+                    vehicule_v,
+                    _t("permis_travail"),
+                    _t("fonctions_recherchees"),
+                    _t("motif_recherche"),
+                    _t("avancement_recherches"),
+                    _t("remuneration_actuelle"),
+                    _t("pretentions_salariales"),
+                    _t("propal_a"),
+                    _t("eval_technique"),
+                    _t("eval_personnalite"),
+                    _t("eval_communication"),
+                    _t("langues"),
+                    _t("references_candidat"),
                     now,
                     int(cid),
                     uid,
@@ -4963,9 +5019,14 @@ def api_candidates_save():
                     onenote_url, vsa_url, skills, company_ids, is_archived,
                     years_experience, sector, phone, email, dossier_competence_pdf,
                     prenom, titre, annees_experience, domaine_principal,
+                    disponibilite, mobilite, permis_conduire, vehicule, permis_travail,
+                    fonctions_recherchees, motif_recherche, avancement_recherches,
+                    remuneration_actuelle, pretentions_salariales, propal_a,
+                    eval_technique, eval_personnalite, eval_communication,
+                    langues, references_candidat,
                     createdAt, updatedAt, owner_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 ''',
                 (
                     name,
@@ -4991,6 +5052,22 @@ def api_candidates_save():
                     _t("titre"),
                     annees_exp_v,
                     _t("domaine_principal"),
+                    _t("disponibilite"),
+                    _t("mobilite"),
+                    permis_conduire_v,
+                    vehicule_v,
+                    _t("permis_travail"),
+                    _t("fonctions_recherchees"),
+                    _t("motif_recherche"),
+                    _t("avancement_recherches"),
+                    _t("remuneration_actuelle"),
+                    _t("pretentions_salariales"),
+                    _t("propal_a"),
+                    _t("eval_technique"),
+                    _t("eval_personnalite"),
+                    _t("eval_communication"),
+                    _t("langues"),
+                    _t("references_candidat"),
                     now,
                     now,
                     uid,
@@ -5006,6 +5083,79 @@ def api_candidates_save():
 
     log_activity(_candidate_action, 'candidat', cid, name)
     return jsonify({"ok": True, "id": cid})
+
+
+@app.post("/api/candidates/parse-fiche-entretien")
+def api_candidates_parse_fiche_entretien():
+    """Parse une fiche entretien Excel (format Up Technologies) via Ollama.
+    Retourne un JSON avec les champs extraits pour pré-remplir la fiche candidat.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return jsonify(ok=False, error="Fichier manquant"), 400
+    if not file.filename.lower().endswith((".xlsx", ".xls")):
+        return jsonify(ok=False, error="Format non supporté (xlsx/xls requis)"), 400
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(BytesIO(file.read()), data_only=True)
+        lines = []
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            for row in ws.iter_rows(values_only=True):
+                non_none = [str(v).strip() for v in row if v is not None and str(v).strip()]
+                if non_none:
+                    lines.append(" | ".join(non_none))
+        excel_text = "\n".join(lines[:150])  # limiter à 150 lignes
+    except Exception as e:
+        return jsonify(ok=False, error=f"Erreur lecture Excel : {e}"), 400
+
+    prompt = f"""Tu es un assistant RH expert. Voici le contenu brut d'une fiche d'entretien candidat extraite d'un fichier Excel :
+
+---
+{excel_text}
+---
+
+Extrait les informations suivantes et retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, sans balises markdown :
+{{
+  "disponibilite": "date ou délai de disponibilité du candidat (ex: Immédiate, 1 mois de préavis, 3 mois)",
+  "mobilite": "zones géographiques acceptées (ex: Lyon, Paris, Grenoble, Nationale, Internationale)",
+  "permis_conduire": 1 ou 0,
+  "vehicule": 1 ou 0,
+  "permis_travail": "type de permis de travail si mentionné (ex: Salarié, CDI, indépendant)",
+  "fonctions_recherchees": "postes et secteurs recherchés",
+  "motif_recherche": "motif de départ / motivations",
+  "avancement_recherches": "avancement des autres pistes (ex: ED, EP, Std By, actif discret)",
+  "remuneration_actuelle": "rémunération actuelle (fixe + variable + avantages)",
+  "pretentions_salariales": "prétentions salariales souhaitées",
+  "propal_a": "salaire proposé par l'entreprise si mentionné",
+  "eval_technique": "évaluation technique (note ou commentaire)",
+  "eval_personnalite": "évaluation personnalité",
+  "eval_communication": "évaluation communication",
+  "langues": "langues et niveaux (ex: Anglais B2 testé, Espagnol A1)",
+  "references_candidat": "références transmises (nom, fonction, société, contact)"
+}}
+
+Si une information est absente, mets null pour les champs numériques et \"\" pour les champs texte."""
+
+    try:
+        config = _load_ai_config()
+        timeout = int(config.get("ollama_timeout", 120))
+        raw = _call_ollama_direct(prompt, config, timeout)
+        # Extraire le JSON de la réponse
+        json_match = re.search(r'\{[\s\S]*\}', raw)
+        if not json_match:
+            return jsonify(ok=False, error="L'IA n'a pas retourné de JSON valide", raw=raw[:500]), 422
+        parsed = json.loads(json_match.group(0))
+        return jsonify(ok=True, fields=parsed)
+    except json.JSONDecodeError as e:
+        return jsonify(ok=False, error=f"JSON invalide retourné par l'IA : {e}", raw=raw[:500] if 'raw' in dir() else ""), 422
+    except Exception as e:
+        return jsonify(ok=False, error=f"Erreur IA : {e}"), 500
 
 
 @app.post("/api/candidates/delete")

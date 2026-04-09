@@ -38,6 +38,20 @@
   <div class="cand-view-grid" id="viewGrid">
   </div>
 
+  <!-- ═══ Section Données entretien (vue lecture) ═══ -->
+  <div style="margin-top:18px;" id="viewEntretienSection">
+    <div style="font-weight:700; margin-bottom:10px; font-size:15px;">📋 Données entretien</div>
+    <div id="viewEntretienGrid" class="cand-view-grid"></div>
+    <div id="viewEvalSection" style="margin-top:10px; display:none;">
+      <div style="font-weight:600; font-size:13px; margin-bottom:6px; color:var(--color-text-muted);">⭐ Évaluation</div>
+      <div id="viewEvalGrid" class="cand-view-grid"></div>
+    </div>
+    <div id="viewRefSection" style="margin-top:10px; display:none;">
+      <div style="font-weight:600; font-size:13px; margin-bottom:6px; color:var(--color-text-muted);">📞 Références</div>
+      <div id="viewRefContent" style="font-size:13px; white-space:pre-wrap; padding:8px 12px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:8px;"></div>
+    </div>
+  </div>
+
   <div style="margin-top:18px;">
     <div style="font-weight:700; margin-bottom:8px;">🏷️ Tags / Compétences techniques</div>
     <div id="viewSkills" class="chips"></div>
@@ -242,7 +256,106 @@
       </div>
     </div>
 
-    <div class="form-group">
+    <!-- ═══ Section Données entretien ═══ -->
+    <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--color-border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+        <div style="font-weight:700; font-size:15px;">📋 Données entretien</div>
+        <label class="btn btn-secondary" style="cursor:pointer; font-size:12px; margin:0;" title="Importer une fiche entretien Excel via Ollama">
+          📊 Importer fiche Excel (IA)
+          <input type="file" id="ficheEntretienInput" accept=".xlsx,.xls" style="display:none;" onchange="parseFicheEntretien(this)">
+        </label>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Disponibilité</label>
+          <input id="fDisponibilite" placeholder="Immédiate, 1 mois de préavis…" class="autosave-field" />
+        </div>
+        <div class="form-group">
+          <label>Mobilité géographique</label>
+          <input id="fMobilite" placeholder="Lyon, Grenoble, Nationale, Internationale…" class="autosave-field" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Permis de travail</label>
+          <input id="fPermisTravail" placeholder="Salarié, Indépendant, Work permit…" class="autosave-field" />
+        </div>
+        <div class="form-group" style="display:flex; gap:20px; align-items:center; padding-top:20px;">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:400; cursor:pointer;">
+            <input type="checkbox" id="fPermisConduire" class="autosave-field" style="width:16px; height:16px;" />
+            Permis de conduire
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-weight:400; cursor:pointer;">
+            <input type="checkbox" id="fVehicule" class="autosave-field" style="width:16px; height:16px;" />
+            Véhicule
+          </label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Fonctions recherchées</label>
+          <input id="fFonctionsRecherchees" placeholder="Ingénieur C/C++, Lead Dev, secteur défense…" class="autosave-field" />
+        </div>
+        <div class="form-group">
+          <label>Avancement des recherches</label>
+          <input id="fAvancementRecherches" placeholder="ED, EP, Std By, actif discret…" class="autosave-field" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Motif de recherche / Motivations</label>
+        <textarea id="fMotifRecherche" rows="2" placeholder="Fin de contrat, évolution de carrière, recherche de sens…" class="autosave-field"></textarea>
+      </div>
+
+      <div style="font-weight:600; font-size:13px; margin:14px 0 8px; color:var(--color-text-muted);">💶 Rémunération</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Rémunération actuelle</label>
+          <input id="fRemunerationActuelle" placeholder="45k€ fixe + 5k variable + voiture…" class="autosave-field" />
+        </div>
+        <div class="form-group">
+          <label>Prétentions salariales</label>
+          <input id="fPretentionsSalariales" placeholder="50-55k€…" class="autosave-field" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Proposition à</label>
+          <input id="fPropalA" placeholder="48k€…" class="autosave-field" />
+        </div>
+      </div>
+
+      <div style="font-weight:600; font-size:13px; margin:14px 0 8px; color:var(--color-text-muted);">⭐ Évaluation</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Technique</label>
+          <input id="fEvalTechnique" placeholder="4/5 — Bonne maîtrise C/C++, RTOS…" class="autosave-field" />
+        </div>
+        <div class="form-group">
+          <label>Personnalité</label>
+          <input id="fEvalPersonnalite" placeholder="3/5 — Discret, à l'aise en équipe…" class="autosave-field" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Communication</label>
+          <input id="fEvalCommunication" placeholder="4/5 — Clair et structuré…" class="autosave-field" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Langues</label>
+        <input id="fLangues" placeholder="Anglais B2 (testé), Espagnol A1…" class="autosave-field" />
+      </div>
+
+      <div class="form-group">
+        <label>Références</label>
+        <textarea id="fReferencesCandidats" rows="3" placeholder="Jean Dupont — DRH — Société X — 06 xx xx xx xx / jean.dupont@x.fr" class="autosave-field"></textarea>
+      </div>
+    </div>
+    <!-- fin section entretien -->
+
+    <div class="form-group" style="margin-top:16px; padding-top:16px; border-top:1px solid var(--color-border);">
       <label>Notes</label>
       <textarea id="fNotes" rows="6" placeholder="Contexte, échanges, prochaines étapes…" class="autosave-field"></textarea>
     </div>
