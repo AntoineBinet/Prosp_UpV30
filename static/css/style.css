@@ -3138,19 +3138,31 @@ form.has-invalid-fields input[type="submit"] {
 tr.row-selected { background:rgba(168,85,247,0.08) !important; }
 .status-inline-select { font-size:12px; padding:3px 6px; border-radius:6px; border:1px solid var(--color-border); background:var(--color-surface-2); color:var(--color-text); cursor:pointer; max-width:170px; }
 .status-inline-select:hover { border-color:var(--color-primary); }
-/* Nouveau / Proposition */
-.status-cand-nouveau, .status-cand-proposition { border-color:rgba(148,163,184,0.4); color:var(--color-text-secondary); }
-/* Opérationnel — vert progressif */
+/* Nouveau — gris */
+.status-cand-nouveau { border-color:rgba(148,163,184,0.4); color:#94a3b8; }
+/* Proposition — cyan */
+.status-cand-proposition { border-color:rgba(6,182,212,0.45); color:#22d3ee; }
+/* Entretien — jaune */
 .status-cand-entretien { border-color:rgba(251,191,36,0.5); color:#fbbf24; }
-.status-cand-a_faire { border-color:rgba(251,191,36,0.6); color:#f59e0b; }
-.status-cand-oksi { border-color:rgba(34,197,94,0.5); color:#22c55e; }
-.status-cand-top_profil { border-color:rgba(34,197,94,0.6); color:#16a34a; }
-.status-cand-reunion_tech { border-color:rgba(59,130,246,0.5); color:#60a5fa; }
-.status-cand-valide_contrat { border-color:rgba(59,130,246,0.7); color:#3b82f6; }
+/* A faire — orange */
+.status-cand-a_faire { border-color:rgba(249,115,22,0.55); color:#fb923c; }
+/* OKSI — vert */
+.status-cand-oksi { border-color:rgba(34,197,94,0.55); color:#22c55e; }
+/* Top profil — rouge vif */
+.status-cand-top_profil { border-color:rgba(239,68,68,0.65); color:#f87171; font-weight:600; }
+/* Réunion tech — indigo */
+.status-cand-reunion_tech { border-color:rgba(99,102,241,0.55); color:#818cf8; }
+/* Validé / Contrat — bleu */
+.status-cand-valide_contrat { border-color:rgba(59,130,246,0.65); color:#60a5fa; font-weight:600; }
+/* Freelance — violet clair */
 .status-cand-freelance { border-color:rgba(168,85,247,0.4); color:#c084fc; }
-.status-cand-freelance_mission { border-color:rgba(168,85,247,0.7); color:#a855f7; font-weight:600; }
-/* Refus */
-.status-cand-nok_prequal, .status-cand-nok, .status-cand-plus_disponible, .status-cand-refus_contrat { border-color:rgba(239,68,68,0.3); color:var(--color-text-secondary); opacity:0.75; }
+/* Freelance en mission — violet vif */
+.status-cand-freelance_mission { border-color:rgba(168,85,247,0.75); color:#a855f7; font-weight:700; }
+/* Refus (muted) */
+.status-cand-nok_prequal { border-color:rgba(239,68,68,0.25); color:#f87171; opacity:0.6; }
+.status-cand-nok { border-color:rgba(239,68,68,0.25); color:#fca5a5; opacity:0.6; }
+.status-cand-plus_disponible { border-color:rgba(148,163,184,0.3); color:#94a3b8; opacity:0.65; }
+.status-cand-refus_contrat { border-color:rgba(239,68,68,0.25); color:#f87171; opacity:0.6; }
 /* Hors Aura */
 .status-cand-hors_aura { border-color:rgba(100,116,139,0.4); color:#94a3b8; }
 th.sortable { cursor: pointer; user-select: none; }
