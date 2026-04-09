@@ -264,10 +264,9 @@ function renderCandidateTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
-                <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
                 ${descActionBtn}
-                <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
+                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">🧭</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">🧭</button>`}
                 <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
               </div>
             </td>
@@ -495,10 +494,9 @@ function renderArchiveTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
-                <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
                 ${descActionBtn}
-                <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
+                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">🧭</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">🧭</button>`}
                 <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
               </div>
             </td>
@@ -584,10 +582,9 @@ function renderMissionTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
-                <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
                 ${descActionBtn}
-                <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
+                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">🧭</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">🧭</button>`}
                 <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
               </div>
             </td>
@@ -672,10 +669,9 @@ function renderHorsAuraTable() {
             <td>${escapeHtml(updatedAt)}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
-                <a class="mini-action" href="/candidat?id=${c.id}" title="Fiche candidat">👤</a>
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
                 ${descActionBtn}
-                <button class="mini-action" onclick="editCandidate(${c.id})">✏️</button>
+                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">🧭</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">🧭</button>`}
                 <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
               </div>
             </td>
