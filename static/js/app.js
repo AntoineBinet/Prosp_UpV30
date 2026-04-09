@@ -7000,10 +7000,6 @@ async function initPushTab(prospectId, prospect) {
     }
     // Pas de catégorie → ne pas charger les candidats (section masquée)
     _updateEmailBtnState(prospectId, prospect);
-    // Charger les candidats recommandés par l'IA uniquement si catégorie définie
-    if (prospect.push_category_id) {
-        loadUnifiedCandidates(prospectId, prospect.tags, prospect.push_category_id);
-    }
 }
 
 /**
@@ -7081,7 +7077,7 @@ function _buildPushTabHtml(prospectId, prospect) {
         </div>
     </div>
 
-    <div style="margin-bottom:14px;" id="ptGenerateSection_${prospectId}"${!prospect.push_category_id ? ' style="display:none;margin-bottom:14px;"' : ''}>
+    <div id="ptGenerateSection_${prospectId}" style="${!prospect.push_category_id ? 'display:none;' : ''}margin-bottom:14px;">
         ${noEmail ? '<div class="pt-warning">⚠️ Email prospect non renseigné — l\'email sera généré avec le champ destinataire vide.</div>' : ''}
         <button class="btn btn-primary" id="btnGeneratePush" onclick="generatePushFromTab(${prospectId})" disabled style="width:100%;">
             📧 Générer le push email
