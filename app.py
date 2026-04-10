@@ -6026,6 +6026,108 @@ def api_push_categories_match(cat_id: int):
     return jsonify({"ok": True, "candidates": scored[:3], "keywords": keywords})
 
 
+@app.get("/api/push-categories/<int:cat_id>/match-prospects")
+def api_push_categories_match_prospects(cat_id: int):
+    """Trouve des prospects pertinents pour une catégorie push :
+    - a un email, pas de téléphone, jamais pushé par email
+    - scorés par matching tags + fonction avec les mots-clés de la catégorie
+    - retourne 10 prospects aléatoires parmi les mieux scorés
+    """
+    import random as _random
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        cat_row = conn.execute(
+            "SELECT * FROM push_categories WHERE id=? AND owner_id=?;", (cat_id, uid)
+        ).fetchone()
+        if not cat_row:
+            return jsonify({"ok": False, "error": "Catégorie introuvable"}), 404
+
+        keywords = _parse_json_str_list(cat_row["keywords"])
+        if not keywords:
+            keywords = [cat_row["name"].lower()]
+
+        # Prospects avec email, sans téléphone, non supprimés, jamais pushés par email
+        rows = conn.execute("""
+            SELECT p.id, p.name, p.fonction, p.email, p.telephone, p.tags,
+                   p.statut, p.pertinence, p.pushEmailSentAt,
+                   c.groupe AS company_groupe, c.site AS company_site
+            FROM prospects p
+            LEFT JOIN companies c ON p.company_id = c.id
+            WHERE p.owner_id = ?
+              AND (p.deleted_at IS NULL OR p.deleted_at = '')
+              AND (p.email IS NOT NULL AND p.email != '')
+              AND (p.telephone IS NULL OR p.telephone = '')
+              AND (p.pushEmailSentAt IS NULL OR p.pushEmailSentAt = '')
+              AND p.id NOT IN (
+                  SELECT DISTINCT prospect_id FROM push_logs
+                  WHERE channel = 'email' OR channel IS NULL OR channel = ''
+              )
+        """, (uid,)).fetchall()
+
+    # Scorer chaque prospect sur matching mots-clés ↔ tags + fonction
+    scored = []
+    unscored = []
+
+    for row in rows:
+        p = dict(row)
+        tags = _parse_json_str_list(p.get("tags"))
+        fonction = (p.get("fonction") or "").lower()
+        tags_lower = [t.lower() for t in tags]
+        haystack = " ".join(tags_lower) + " " + fonction
+
+        score = 0
+        matched = []
+        for kw in keywords:
+            kw_l = kw.lower()
+            if kw_l in tags_lower:       # correspondance exacte tag → 3 pts
+                score += 3
+                matched.append(kw)
+            elif kw_l in haystack:       # correspondance partielle fonction/tag → 1 pt
+                score += 1
+                matched.append(kw)
+
+        company = p.get("company_groupe") or p.get("company_site") or ""
+        entry = {
+            "id": p["id"],
+            "name": p.get("name", ""),
+            "email": p.get("email", ""),
+            "fonction": p.get("fonction") or "",
+            "company": company,
+            "tags": tags,
+            "score": round(score, 1),
+            "matched_keywords": matched,
+        }
+        if score > 0:
+            scored.append(entry)
+        else:
+            unscored.append(entry)
+
+    scored.sort(key=lambda x: x["score"], reverse=True)
+
+    # Sélection aléatoire : 10 depuis le pool scoré, puis compléter avec non-scorés
+    if len(scored) >= 10:
+        result = _random.sample(scored, 10)
+    else:
+        result = scored[:]
+        remaining = 10 - len(result)
+        if unscored and remaining > 0:
+            result += _random.sample(unscored, min(remaining, len(unscored)))
+
+    _random.shuffle(result)
+
+    return jsonify({
+        "ok": True,
+        "prospects": result,
+        "total_scored": len(scored),
+        "total_available": len(scored) + len(unscored),
+        "keywords": keywords,
+        "category_name": cat_row["name"],
+    })
+
+
 @app.post("/api/push-categories/<int:cat_id>/set-candidates")
 def api_push_categories_set_candidates(cat_id: int):
     """Enregistre les deux candidats par défaut d'une catégorie push. v27.3."""

@@ -369,6 +369,7 @@ function catCard(cat) {
                     <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:4px;">${kwHtml}</div>
                 </div>
                 <div style="display:flex; gap:6px; flex-shrink:0;">
+                    <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="openCatProspects(${cat.id})" title="Voir les prospects les plus pertinents pour cette catégorie">👤 Prospects</button>
                     <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="editCat(${cat.id})">✏️</button>
                     <button class="btn btn-danger" style="padding:5px 10px;font-size:11px;" onclick="deleteCat(${cat.id})">🗑️</button>
                 </div>
@@ -579,6 +580,90 @@ async function scanPushs() {
     }
     if (btn) btn.textContent = '🔄 Scanner pushs/';
     await loadCategories();
+}
+
+// ── Prospects suggérés par catégorie ──────────────────────────────────────
+
+let __catProspectsCatId = null;
+
+async function openCatProspects(catId) {
+    __catProspectsCatId = catId;
+    const modal = document.getElementById('modalCatProspects');
+    if (!modal) return;
+    const title = document.getElementById('modalCatProspectsTitle');
+    const cat = __categories.find(c => c.id === catId);
+    if (title) title.textContent = `Prospects suggérés — ${cat ? escapeHtml(cat.name) : ''}`;
+    document.getElementById('catProspectsList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);">Chargement…</div>';
+    document.getElementById('catProspectsInfo').textContent = '';
+    if (window.openModal) window.openModal(modal); else modal.classList.add('active');
+    await _fetchAndRenderCatProspects(catId);
+}
+
+function closeCatProspects() {
+    const modal = document.getElementById('modalCatProspects');
+    if (modal) {
+        if (window.closeModal) window.closeModal(modal); else modal.classList.remove('active');
+    }
+    __catProspectsCatId = null;
+}
+
+async function refreshCatProspects() {
+    if (!__catProspectsCatId) return;
+    const btn = document.getElementById('btnRefreshCatProspects');
+    if (btn) btn.disabled = true;
+    document.getElementById('catProspectsList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);">Chargement…</div>';
+    await _fetchAndRenderCatProspects(__catProspectsCatId);
+    if (btn) btn.disabled = false;
+}
+
+async function _fetchAndRenderCatProspects(catId) {
+    try {
+        const res = await fetch(`/api/push-categories/${catId}/match-prospects`);
+        const data = await res.json();
+        if (!data.ok) {
+            document.getElementById('catProspectsList').innerHTML = `<div style="color:var(--color-danger,#ef4444);padding:12px;">❌ ${escapeHtml(data.error || 'Erreur')}</div>`;
+            return;
+        }
+        _renderCatProspectsList(data);
+    } catch (e) {
+        document.getElementById('catProspectsList').innerHTML = `<div style="color:var(--color-danger,#ef4444);padding:12px;">❌ Erreur réseau : ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function _renderCatProspectsList(data) {
+    const prospects = data.prospects || [];
+    const info = document.getElementById('catProspectsInfo');
+    const list = document.getElementById('catProspectsList');
+
+    if (info) {
+        const kwPills = (data.keywords || []).map(k => `<span class="tag-pill" style="font-size:10px;padding:1px 7px;">${escapeHtml(k)}</span>`).join(' ');
+        info.innerHTML = `Mots-clés : ${kwPills || '<span class="muted">—</span>'} &nbsp;·&nbsp; ${data.total_scored || 0} prospect(s) avec correspondance sur ${data.total_available || 0} éligibles`;
+    }
+
+    if (!prospects.length) {
+        list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--color-text-secondary);">Aucun prospect éligible (email sans téléphone, jamais pushé).</div>';
+        return;
+    }
+
+    list.innerHTML = prospects.map(p => {
+        const tagPills = (p.tags || []).map(t => `<span class="tag-pill" style="font-size:10px;padding:1px 7px;">${escapeHtml(t)}</span>`).join(' ');
+        const matchedPills = (p.matched_keywords || []).map(k => `<span class="tag-pill" style="font-size:10px;padding:1px 7px;background:rgba(249,115,22,0.12);color:var(--color-primary);border-color:rgba(249,115,22,0.25);">${escapeHtml(k)}</span>`).join(' ');
+        const scoreBar = p.score > 0
+            ? `<span style="font-size:10px;font-weight:700;color:var(--color-primary);margin-left:6px;">▲${p.score} pts</span>`
+            : '';
+
+        return `<div style="padding:10px 0;border-bottom:1px solid var(--color-border);display:flex;flex-direction:column;gap:4px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <div style="font-weight:700;font-size:13px;">${escapeHtml(p.name)}${scoreBar}</div>
+                <div style="font-size:11px;color:var(--color-text-secondary);white-space:nowrap;">${escapeHtml(p.email)}</div>
+            </div>
+            <div style="font-size:11px;color:var(--color-text-secondary);">
+                ${p.fonction ? escapeHtml(p.fonction) + (p.company ? ' · ' : '') : ''}${p.company ? escapeHtml(p.company) : ''}
+            </div>
+            ${tagPills ? `<div style="display:flex;flex-wrap:wrap;gap:3px;">${tagPills}</div>` : ''}
+            ${matchedPills ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">${matchedPills}</div>` : ''}
+        </div>`;
+    }).join('');
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────

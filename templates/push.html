@@ -117,6 +117,24 @@
         </div>
     </div>
 </div>
+
+<!-- Modal : Prospects suggérés pour une catégorie push -->
+<div class="modal" role="dialog" aria-modal="true" id="modalCatProspects" aria-labelledby="modalCatProspectsTitle">
+    <div class="modal-content" style="max-width: 640px;">
+        <div class="modal-header">
+            <span id="modalCatProspectsTitle">Prospects suggérés</span>
+            <button class="modal-close" aria-label="Fermer" onclick="closeCatProspects()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="catProspectsInfo" style="font-size:12px; color:var(--color-text-secondary); margin-bottom:10px;"></div>
+            <div id="catProspectsList"></div>
+        </div>
+        <div class="btn-group" style="margin-top: 16px; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <button class="btn btn-secondary" id="btnRefreshCatProspects" onclick="refreshCatProspects()">🔄 Nouvelles suggestions</button>
+            <button class="btn btn-secondary" onclick="closeCatProspects()">Fermer</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block page_scripts %}
