@@ -61,6 +61,7 @@
     <div class="content-header">
         <div class="content-title">Catégories de push</div>
         <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end;">
+            <button class="btn btn-secondary" id="btnManageTemplates">📝 Templates texte</button>
             <button class="btn btn-primary" id="btnScanPushs">🔄 Scanner pushs/</button>
             <button class="btn btn-secondary" id="btnNewCat">➕ Nouvelle catégorie</button>
         </div>
@@ -114,6 +115,57 @@
         <div class="modal-body" id="pushDetailBody"></div>
         <div class="btn-group" style="margin-top: 16px;">
             <button class="btn btn-secondary" onclick="closePushDetail()">Fermer</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal : Gestion des templates texte email -->
+<div class="modal" role="dialog" aria-modal="true" id="modalTemplateManager" aria-labelledby="modalTemplateManagerTitle">
+    <div class="modal-content" style="max-width: 780px;">
+        <div class="modal-header">
+            <span id="modalTemplateManagerTitle">📝 Templates texte email</span>
+            <button class="modal-close" aria-label="Fermer" onclick="closeTemplateManager()">&times;</button>
+        </div>
+        <div class="modal-body" style="display:flex; gap:16px; min-height: 400px;">
+            <!-- Liste des templates -->
+            <div style="width:210px; flex-shrink:0; border-right:1px solid var(--color-border); padding-right:14px;">
+                <button class="btn btn-primary" style="width:100%; margin-bottom:10px; font-size:12px;" onclick="newTemplate()">➕ Nouveau template</button>
+                <div id="tplList" style="display:flex; flex-direction:column; gap:6px;"></div>
+            </div>
+            <!-- Éditeur -->
+            <div style="flex:1; min-width:0;" id="tplEditorWrap">
+                <div id="tplEditorEmpty" style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--color-text-secondary); font-size:13px;">
+                    Sélectionnez un template ou créez-en un nouveau.
+                </div>
+                <div id="tplEditor" style="display:none;">
+                    <input type="hidden" id="tplId">
+                    <div style="margin-bottom:10px;">
+                        <label style="font-weight:600; font-size:13px;">Nom du template <span style="color:var(--color-danger);">*</span></label>
+                        <input id="tplName" type="text" placeholder="Ex : Prospection Tech, Candidature Embarqué…" style="width:100%; margin-top:5px; padding:8px 10px; border:1px solid var(--color-border); border-radius:10px; background:var(--color-surface); color:var(--color-text); font-size:13px;">
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <label style="font-weight:600; font-size:13px;">Sujet email</label>
+                        <input id="tplSubject" type="text" placeholder="Ex : Opportunité — {{entreprise}}" style="width:100%; margin-top:5px; padding:8px 10px; border:1px solid var(--color-border); border-radius:10px; background:var(--color-surface); color:var(--color-text); font-size:13px;">
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <label style="font-weight:600; font-size:13px;">Corps email</label>
+                        <div style="font-size:11px; color:var(--color-text-secondary); margin:3px 0 5px;">Variables : <code>{{civilite}}</code> <code>{{nom}}</code> <code>{{prenom}}</code> <code>{{entreprise}}</code></div>
+                        <textarea id="tplBody" rows="7" placeholder="Bonjour {{civilite}} {{nom}},&#10;&#10;…" style="width:100%; padding:8px 10px; border:1px solid var(--color-border); border-radius:10px; background:var(--color-surface); color:var(--color-text); font-size:13px; resize:vertical; font-family:inherit;"></textarea>
+                    </div>
+                    <div style="margin-bottom:14px;">
+                        <label style="font-weight:600; font-size:13px;">Corps LinkedIn <span style="color:var(--color-text-secondary); font-weight:400;">(optionnel)</span></label>
+                        <textarea id="tplLinkedinBody" rows="4" placeholder="Version courte pour message LinkedIn…" style="width:100%; padding:8px 10px; border:1px solid var(--color-border); border-radius:10px; background:var(--color-surface); color:var(--color-text); font-size:13px; resize:vertical; font-family:inherit;"></textarea>
+                    </div>
+                    <div style="margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+                        <input type="checkbox" id="tplIsDefault" style="width:15px; height:15px; cursor:pointer;">
+                        <label for="tplIsDefault" style="font-size:13px; cursor:pointer;">Template par défaut</label>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="saveTemplate()">💾 Enregistrer</button>
+                        <button class="btn btn-danger" id="tplBtnDelete" onclick="deleteTemplate()" style="display:none;">🗑️ Supprimer</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
