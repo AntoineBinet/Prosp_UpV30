@@ -220,6 +220,13 @@ function switchPushTab(tab) {
         btnC.style.color = 'var(--color-text-secondary)';
         btnC.style.fontWeight = '600';
         btnC.style.borderBottom = '2px solid transparent';
+        if (!__historiqueLoaded) {
+            reloadPushLogs().catch(err => {
+                console.error(err);
+                showToast("Impossible de charger l'historique des push.", 'error');
+            });
+            __historiqueLoaded = true;
+        }
     } else {
         tabH.style.display = 'none';
         tabC.style.display = '';
@@ -240,6 +247,7 @@ function switchPushTab(tab) {
 
 let __categories = [];
 let __categoriesLoaded = false;
+let __historiqueLoaded = false;
 let __allCandidates = null; // cache pour le sélecteur de candidats par défaut
 
 function __catEl(id) { return document.getElementById(id); }
@@ -596,10 +604,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnCancel) btnCancel.addEventListener('click', () => { showCatEditor(false); resetCatEditor(); });
     if (btnSave) btnSave.addEventListener('click', saveCat);
 
-    try {
-        await reloadPushLogs();
-    } catch (err) {
-        console.error(err);
-        showToast("Impossible de charger l'historique des push. Vérifiez que le serveur Python est lancé (app.py).", 'error');
-    }
+    // Onglet Catégories actif par défaut
+    loadCategories();
+    __categoriesLoaded = true;
 });

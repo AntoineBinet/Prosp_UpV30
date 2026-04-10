@@ -10,12 +10,12 @@
 
 {% block content %}
 <div style="display:flex; gap:8px; margin-bottom: 20px; border-bottom: 1px solid var(--color-border); padding-bottom: 0;">
-    <button id="tabBtnHistorique" onclick="switchPushTab('historique')" style="padding: 8px 18px; border:none; background:none; cursor:pointer; font-size:14px; font-weight:700; color:var(--color-primary); border-bottom: 2px solid var(--color-primary); margin-bottom:-1px;">📤 Historique</button>
-    <button id="tabBtnCategories" onclick="switchPushTab('categories')" style="padding: 8px 18px; border:none; background:none; cursor:pointer; font-size:14px; font-weight:600; color:var(--color-text-secondary); border-bottom: 2px solid transparent; margin-bottom:-1px;">📋 Catégories</button>
+    <button id="tabBtnCategories" onclick="switchPushTab('categories')" style="padding: 8px 18px; border:none; background:none; cursor:pointer; font-size:14px; font-weight:700; color:var(--color-primary); border-bottom: 2px solid var(--color-primary); margin-bottom:-1px;">📋 Catégories</button>
+    <button id="tabBtnHistorique" onclick="switchPushTab('historique')" style="padding: 8px 18px; border:none; background:none; cursor:pointer; font-size:14px; font-weight:600; color:var(--color-text-secondary); border-bottom: 2px solid transparent; margin-bottom:-1px;">📤 Historique</button>
 </div>
 
 <!-- Onglet Historique -->
-<div id="tab-historique">
+<div id="tab-historique" style="display:none;">
     <div class="content-header">
         <div class="content-title">📤 Historique</div>
         <p style="color: var(--color-text-secondary);">Filtrez et retrouvez rapidement à qui, quand, et quel contenu a été envoyé.</p>
@@ -57,7 +57,7 @@
 </div>
 
 <!-- Onglet Catégories -->
-<div id="tab-categories" style="display:none;">
+<div id="tab-categories">
     <div class="content-header">
         <div class="content-title">Catégories de push</div>
         <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end;">
