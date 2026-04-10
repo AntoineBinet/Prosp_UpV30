@@ -404,8 +404,14 @@ window.mpClose = function () {
         document.title = 'Mode Prosp \u2014 ' + (currentIndex + 1) + '/' + prospects.length + (p ? ' \u2014 ' + p.name : '');
     }
 
-    window.mpNavigate = function (dir) { goTo(currentIndex + dir); };
-    window.mpGoTo = function (i) { goTo(i); };
+    window.mpNavigate = async function (dir) {
+        if (!saving) await mpSaveCard();
+        goTo(currentIndex + dir);
+    };
+    window.mpGoTo = async function (i) {
+        if (!saving) await mpSaveCard();
+        goTo(i);
+    };
 
     window.mpRefreshLastContact = function (prospectId, lastContact) {
         var idx = prospects.findIndex(function (p) { return p.id === prospectId; });
@@ -460,8 +466,8 @@ window.mpClose = function () {
     function setupKeyboard() {
         document.addEventListener('keydown', function (e) {
             if (e.target.matches('input, select, textarea')) return;
-            if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(currentIndex - 1); }
-            if (e.key === 'ArrowRight') { e.preventDefault(); goTo(currentIndex + 1); }
+            if (e.key === 'ArrowLeft') { e.preventDefault(); mpNavigate(-1); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); mpNavigate(1); }
         });
     }
 
@@ -479,8 +485,8 @@ window.mpClose = function () {
             var dy = e.changedTouches[0].clientY - startY;
             startX = null; startY = null;
             if (Math.abs(dx) < THRESHOLD || Math.abs(dy) > Math.abs(dx)) return;
-            if (dx < 0 && currentIndex < prospects.length - 1) { goTo(currentIndex + 1); haptic(10); }
-            else if (dx > 0 && currentIndex > 0) { goTo(currentIndex - 1); haptic(10); }
+            if (dx < 0 && currentIndex < prospects.length - 1) { mpNavigate(1); haptic(10); }
+            else if (dx > 0 && currentIndex > 0) { mpNavigate(-1); haptic(10); }
         }, { passive: true });
     }
 
