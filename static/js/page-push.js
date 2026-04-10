@@ -283,8 +283,14 @@ async function loadCatFiles(catId) {
         if (data.ok && data.files && data.files.length) {
             box.innerHTML = data.files.map(f => `
                 <div style="display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--color-border);">
-                    <span>📄 ${escapeHtml(f.name)} <span class="muted" style="font-size:10px;">${(f.size/1024).toFixed(0)} Ko</span></span>
-                    <button onclick="deleteCatTemplate(${catId}, '${escapeHtml(f.name)}')" style="background:none;border:none;cursor:pointer;color:var(--color-danger,#ef4444);font-size:13px;padding:2px 6px;" title="Supprimer ce template">🗑️</button>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;" title="${escapeHtml(f.name)}">📄 ${escapeHtml(f.name)} <span class="muted" style="font-size:10px;">${(f.size/1024).toFixed(0)} Ko</span></span>
+                    <div style="display:flex;gap:2px;flex-shrink:0;">
+                        <a href="${escapeHtml(f.url)}" download="${escapeHtml(f.name)}" style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:13px;padding:2px 6px;text-decoration:none;display:inline-flex;align-items:center;" title="Télécharger ce template">📥</a>
+                        <label style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:13px;padding:2px 6px;display:inline-flex;align-items:center;" title="Remplacer ce template">
+                            🔄<input type="file" accept=".msg,.eml,.oft" style="display:none;" onchange="replaceCatTemplate(${catId}, '${escapeHtml(f.name)}', this)">
+                        </label>
+                        <button onclick="deleteCatTemplate(${catId}, '${escapeHtml(f.name)}')" style="background:none;border:none;cursor:pointer;color:var(--color-danger,#ef4444);font-size:13px;padding:2px 6px;" title="Supprimer ce template">🗑️</button>
+                    </div>
                 </div>
             `).join('');
         } else {
@@ -309,6 +315,30 @@ async function uploadCatTemplate(catId, input) {
             loadCatFiles(catId);
         } else {
             showToast('❌ ' + (data.error || 'Erreur upload'), 'error');
+        }
+    } catch (e) {
+        showToast('❌ Erreur réseau : ' + e.message, 'error');
+    } finally {
+        input.value = '';
+    }
+}
+
+async function replaceCatTemplate(catId, oldName, input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    // Renommer le fichier côté FormData pour écraser l'existant
+    const renamed = new File([file], oldName, { type: file.type });
+    const formData = new FormData();
+    formData.append('file', renamed);
+    try {
+        showToast('Remplacement en cours…', 'info');
+        const res = await fetch(`/api/push-categories/${catId}/upload-template`, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.ok) {
+            showToast('Template remplacé !', 'success');
+            loadCatFiles(catId);
+        } else {
+            showToast('❌ ' + (data.error || 'Erreur'), 'error');
         }
     } catch (e) {
         showToast('❌ Erreur réseau : ' + e.message, 'error');
