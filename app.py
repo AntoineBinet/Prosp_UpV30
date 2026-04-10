@@ -10053,13 +10053,19 @@ def api_push_logs_list():
                 l.template_id,
                 l.template_name,
                 l.createdAt,
+                l.consultant1_id,
+                l.consultant2_id,
                 p.name AS prospect_name,
                 p.email AS prospect_email,
                 c.groupe AS company_groupe,
-                c.site AS company_site
+                c.site AS company_site,
+                COALESCE(u1.display_name, u1.username) AS consultant1_name,
+                COALESCE(u2.display_name, u2.username) AS consultant2_name
             FROM push_logs l
             JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=?
             LEFT JOIN companies c ON c.id = p.company_id
+            LEFT JOIN users u1 ON u1.id = l.consultant1_id
+            LEFT JOIN users u2 ON u2.id = l.consultant2_id
             ORDER BY l.id DESC;
             ''',
             (uid,),
