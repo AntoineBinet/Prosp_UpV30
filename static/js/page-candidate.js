@@ -708,7 +708,7 @@ async function loadCandidateDcStatus() {
                 return `<a href="${url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;">⬇️ Télécharger${j.files.length > 1 ? ' (' + escapeHtml(f) + ')' : ''}</a>`;
             }).join('');
             const firstName = j.files[0] || '';
-            el.innerHTML = `<span class="badge badge-success" style="font-size:12px;">✅ DC disponible</span>${fileLinks}<button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcRenameInline(this,'${escapeHtml(firstName).replace(/'/g,"\\'")}')">✏️ Renommer</button>`;
+            el.innerHTML = `<span class="badge badge-success" style="font-size:12px;">✅ DC disponible</span>${fileLinks}<button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcRenameInline(this,'${escapeHtml(firstName).replace(/'/g,"\\'")}')">✏️ Renommer</button><button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcUploadModal()">🔄 Remplacer</button><button class="btn btn-danger btn-sm" style="font-size:12px;margin-left:8px;" onclick="deleteDcFile()">🗑️ Supprimer</button>`;
         } else {
             el.innerHTML = `<span class="badge" style="background:rgba(245,158,11,.15);color:#f59e0b;font-size:12px;">⚠ DC manquant</span>
                 <button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcUploadModal()">➕ Ajouter le DC</button>`;
@@ -836,6 +836,23 @@ async function saveDcUpload() {
         if (typeof showToast === 'function') showToast('Erreur réseau : ' + e.message, 'error');
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    }
+}
+
+async function deleteDcFile() {
+    if (!__cand?.id) return;
+    if (!confirm('Supprimer définitivement le dossier de compétences ? Cette action est irréversible.')) return;
+    try {
+        const res = await fetch(`/api/candidates/${__cand.id}/dc-delete`, { method: 'POST' });
+        const j = await res.json();
+        if (j.ok) {
+            if (typeof showToast === 'function') showToast('Dossier de compétences supprimé', 'success');
+            loadCandidateDcStatus();
+        } else {
+            if (typeof showToast === 'function') showToast('Erreur : ' + (j.error || 'Suppression échouée'), 'error');
+        }
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('Erreur réseau', 'error');
     }
 }
 
