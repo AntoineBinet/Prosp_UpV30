@@ -771,6 +771,140 @@ async function _catProspectSendEmail(prospectId) {
     }
 }
 
+// ── Gestion des templates texte ────────────────────────────────────────────
+
+let __templates = [];
+
+async function openTemplateManager() {
+    const modal = document.getElementById('modalTemplateManager');
+    if (!modal) return;
+    _tplShowEditor(false);
+    document.getElementById('tplList').innerHTML = '<span class="muted" style="font-size:12px;">Chargement…</span>';
+    if (window.openModal) window.openModal(modal); else modal.classList.add('active');
+    await _loadTemplates();
+}
+
+function closeTemplateManager() {
+    const modal = document.getElementById('modalTemplateManager');
+    if (!modal) return;
+    if (window.closeModal) window.closeModal(modal); else modal.classList.remove('active');
+}
+
+async function _loadTemplates() {
+    try {
+        const res = await fetch('/api/templates');
+        __templates = await res.json();
+    } catch (e) {
+        __templates = [];
+    }
+    _renderTplList();
+}
+
+function _renderTplList() {
+    const box = document.getElementById('tplList');
+    if (!box) return;
+    if (!__templates.length) {
+        box.innerHTML = '<span class="muted" style="font-size:12px;">Aucun template. Créez-en un.</span>';
+        return;
+    }
+    const currentId = document.getElementById('tplId')?.value;
+    box.innerHTML = __templates.map(t => {
+        const active = String(t.id) === String(currentId);
+        const defBadge = t.is_default ? '<span style="font-size:9px;padding:1px 5px;background:rgba(249,115,22,0.15);color:var(--color-primary);border:1px solid rgba(249,115,22,0.3);border-radius:6px;margin-left:4px;">défaut</span>' : '';
+        return `<button onclick="selectTemplate(${t.id})" style="text-align:left;padding:8px 10px;border-radius:10px;border:1px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'};background:${active ? 'rgba(249,115,22,0.08)' : 'var(--color-surface)'};cursor:pointer;font-size:12px;color:var(--color-text);width:100%;">
+            <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(t.name)}${defBadge}</div>
+            ${t.subject ? `<div style="color:var(--color-text-secondary);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">${escapeHtml(t.subject)}</div>` : ''}
+        </button>`;
+    }).join('');
+}
+
+function _tplShowEditor(show) {
+    const editor = document.getElementById('tplEditor');
+    const empty = document.getElementById('tplEditorEmpty');
+    if (editor) editor.style.display = show ? '' : 'none';
+    if (empty) empty.style.display = show ? 'none' : '';
+}
+
+function selectTemplate(id) {
+    const t = __templates.find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('tplId').value = t.id;
+    document.getElementById('tplName').value = t.name || '';
+    document.getElementById('tplSubject').value = t.subject || '';
+    document.getElementById('tplBody').value = t.body || '';
+    document.getElementById('tplLinkedinBody').value = t.linkedin_body || '';
+    document.getElementById('tplIsDefault').checked = !!t.is_default;
+    const btnDel = document.getElementById('tplBtnDelete');
+    if (btnDel) btnDel.style.display = '';
+    _tplShowEditor(true);
+    _renderTplList();
+}
+
+function newTemplate() {
+    document.getElementById('tplId').value = '';
+    document.getElementById('tplName').value = '';
+    document.getElementById('tplSubject').value = '';
+    document.getElementById('tplBody').value = '';
+    document.getElementById('tplLinkedinBody').value = '';
+    document.getElementById('tplIsDefault').checked = false;
+    const btnDel = document.getElementById('tplBtnDelete');
+    if (btnDel) btnDel.style.display = 'none';
+    _tplShowEditor(true);
+    _renderTplList();
+    document.getElementById('tplName')?.focus();
+}
+
+async function saveTemplate() {
+    const name = (document.getElementById('tplName')?.value || '').trim();
+    if (!name) { showToast('Le nom du template est requis', 'warning'); return; }
+    const payload = {
+        id: document.getElementById('tplId').value ? Number(document.getElementById('tplId').value) : null,
+        name,
+        subject: document.getElementById('tplSubject').value || '',
+        body: document.getElementById('tplBody').value || '',
+        linkedin_body: document.getElementById('tplLinkedinBody').value || '',
+        is_default: document.getElementById('tplIsDefault').checked
+    };
+    try {
+        const res = await fetch('/api/templates/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.ok) { showToast('❌ ' + (data.error || 'Erreur'), 'error'); return; }
+        document.getElementById('tplId').value = data.id;
+        const btnDel = document.getElementById('tplBtnDelete');
+        if (btnDel) btnDel.style.display = '';
+        showToast('Template enregistré', 'success');
+        await _loadTemplates();
+        if (data.id) _renderTplList();
+    } catch (e) {
+        showToast('❌ Erreur : ' + e.message, 'error');
+    }
+}
+
+async function deleteTemplate() {
+    const id = document.getElementById('tplId')?.value;
+    if (!id) return;
+    const t = __templates.find(x => x.id === Number(id));
+    if (!confirm(`Supprimer le template "${t?.name || id}" ?`)) return;
+    try {
+        const res = await fetch('/api/templates/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: Number(id) })
+        });
+        const data = await res.json();
+        if (!data.ok) { showToast('❌ ' + (data.error || 'Erreur'), 'error'); return; }
+        showToast('Template supprimé', 'success');
+        _tplShowEditor(false);
+        await _loadTemplates();
+    } catch (e) {
+        showToast('❌ Erreur : ' + e.message, 'error');
+    }
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -789,10 +923,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnScan = document.getElementById('btnScanPushs');
     const btnCancel = document.getElementById('btnCancelCat');
     const btnSave = document.getElementById('btnSaveCat');
+    const btnTpl = document.getElementById('btnManageTemplates');
     if (btnNew) btnNew.addEventListener('click', () => { resetCatEditor(); showCatEditor(true); });
     if (btnScan) btnScan.addEventListener('click', scanPushs);
     if (btnCancel) btnCancel.addEventListener('click', () => { showCatEditor(false); resetCatEditor(); });
     if (btnSave) btnSave.addEventListener('click', saveCat);
+    if (btnTpl) btnTpl.addEventListener('click', openTemplateManager);
 
     // Onglet Catégories actif par défaut
     loadCategories();
