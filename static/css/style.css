@@ -3428,6 +3428,42 @@ tr.company-focus {
   opacity: .8;
 }
 
+/* ── Auto-tags : aperçu 2 lignes repliable ── */
+.tags-preview-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  max-height: 56px; /* ~2 lignes de tag-pills (≈25px/ligne + marge) */
+  overflow: hidden;
+}
+.tags-preview-wrap.expanded {
+  max-height: none;
+}
+.tags-voir-tout-btn {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--color-primary);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0 2px;
+  text-decoration: underline;
+  opacity: .85;
+}
+.tags-voir-tout-btn:hover { opacity: 1; }
+
+/* ── Auto-tags modal : options de sélection ── */
+.auto-tag-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.auto-tag-option input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
 /* ── Métier suggestion cards ── */
 .metier-suggestion {
   margin-bottom: 8px; padding: 8px 12px; border-radius: 10px;

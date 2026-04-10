@@ -5157,7 +5157,7 @@ async function viewDetail(id) {
                 <div class="detail-info-item"><div class="detail-info-label">Next action</div><div class="detail-info-value">${escapeHtml(prospect.nextAction || '—')}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Priorité</div><div class="detail-info-value">P${prospect.priority ?? 2}</div></div>
                 ${prospect.rdvDate ? `<div class="detail-info-item"><div class="detail-info-label">📅 Date RDV</div><div class="detail-info-value">${escapeHtml(prospect.rdvDate)} <button class="mini-action" onclick="copyRdvForTeams(${prospect.id})" title="Copier RDV pour Teams" style="margin-left:6px;font-size:11px;">📋 Teams</button></div></div>` : ''}
-                <div class="detail-info-item full"><div class="detail-info-label">Compétences</div><div class="detail-info-value" id="detailTagsContainer">${(prospect.tags && prospect.tags.length) ? prospect.tags.map(t => { const inRef = typeof buildReferentialTagSet === 'function' && buildReferentialTagSet().has(t.toLowerCase()); return `<span class="tag-pill${inRef ? '' : ' tag-pill-custom'}" title="${inRef ? 'Référentiel Up Technologies' : 'Tag personnalisé (hors référentiel)'}">${escapeHtml(t)}${inRef ? '' : ' *'}</span>`; }).join(' ') : '—'}</div></div>
+                <div class="detail-info-item full"><div class="detail-info-label">Compétences</div><div class="detail-info-value" id="detailTagsContainer">${_renderTagsPreview(prospect.tags, prospect.id)}</div></div>
                 ${showMetier ? `<div class="detail-info-item full" id="metierSection"><div class="detail-info-label">🏗️ Métier suggéré</div><div class="detail-info-value" id="metierSuggestions">${renderMetierSection(prospect)}</div></div>` : ''}
                 <div class="detail-info-item full"><div class="detail-info-label">Notes</div><div class="detail-info-value" style="white-space:pre-wrap;">${escapeHtml(prospect.notes || '—')}</div></div>
             </div>
@@ -5250,7 +5250,7 @@ async function viewDetail(id) {
                     </select>
                 </div>
                 <div style="margin-top:16px;">
-                    <label class="detail-info-label">Compétences</label>
+                    <label class="detail-info-label" style="display:flex;align-items:center;gap:8px;">Compétences <button id="btnAutoTags_${prospect.id}" type="button" class="btn btn-secondary" onclick="handleAutoTags(${prospect.id})" title="Générer des tags automatiquement via Tavily + Ollama (basé sur le poste, l'entreprise, LinkedIn…)" style="font-size:11px;padding:3px 10px;font-weight:600;">✨ Ajouter Auto</button></label>
                     <input id="editTagsValue" type="hidden" value="${escapeHtml(JSON.stringify(prospect.tags || []))}">
                     <div id="editTagsEditor" class="tag-editor-host" style="margin-top:6px;"></div>
                 </div>
@@ -9336,6 +9336,253 @@ function handleScanIA(prospectId) {
             showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
         });
     }
+}
+
+// ═══ AUTO-TAGS IA — génération ciblée de tags compétences via Tavily + Ollama ═══
+
+/**
+ * Construit un prompt focalisé sur la génération de tags de compétences pour un prospect.
+ * Le prompt guide l'IA à déduire les technologies de l'équipe du manager à partir
+ * de son profil LinkedIn, son poste, son entreprise et son secteur.
+ */
+function getAutoTagsPromptProspect(prospectId) {
+    const p = data.prospects.find(x => x.id === prospectId);
+    if (!p) return null;
+    const company = data.companies.find(c => c.id === p.company_id);
+    const companyName = company ? company.groupe : '';
+    const companySite = company ? company.site : '';
+    const companyNotes = (company && company.notes) ? company.notes.slice(0, 400) : '';
+    const existingTags = Array.isArray(p.tags) ? p.tags.join(', ') : '';
+
+    const contextParts = [
+        `Nom : ${p.name || '[INCONNU]'}`,
+        `Fonction : ${p.fonction || '[NON RENSEIGNÉE]'}`,
+        `Entreprise : ${companyName || '[INCONNUE]'}${companySite ? ` — site : ${companySite}` : ''}`,
+        p.linkedin ? `Profil LinkedIn : ${p.linkedin}` : null,
+        (p.notes || '').trim() ? `Notes prospect : ${p.notes.slice(0, 400)}` : null,
+        companyNotes ? `Notes entreprise : ${companyNotes}` : null,
+        existingTags ? `Tags déjà présents (ne pas répéter) : ${existingTags}` : null,
+    ].filter(Boolean).join('\n');
+
+    return `Tu es expert en recrutement B2B d'ingénieurs spécialisés (systèmes embarqués, électronique, robotique, logiciel, informatique industrielle, mécanique). Je dois définir les TAGS DE COMPÉTENCES d'un PROSPECT (manager ou décideur chez un client potentiel) afin de savoir quels profils de candidats lui proposer ultérieurement.
+
+Ces tags doivent refléter :
+- Les technologies maîtrisées et utilisées par ce manager ET son équipe
+- Le secteur d'activité et les domaines techniques de l'entreprise
+- Les besoins probables en recrutement / sous-traitance compte tenu de son poste
+
+══════ FICHE PROSPECT ══════
+${contextParts}
+
+══════ INSTRUCTIONS DE RECHERCHE ══════
+Utilise internet (LinkedIn, site de l'entreprise, presse tech, communiqués de presse, societe.com) pour identifier les technologies réelles pilotées par ce manager et les besoins de son secteur.
+
+══════ TAGS DISPONIBLES ══════
+Embarqué    : AUTOSAR, C/C++, RTOS, Linux embarqué, Yocto, QNX, FreeRTOS, VxWorks, ARM, Microcontrôleur, FPGA, VHDL, Verilog
+Connectivité: CAN, LIN, Ethernet, TCP/IP, SPI, I2C, UART, Modbus, CANopen, EtherCAT
+Électronique: PCB, Altium, KiCad, Électronique analogique, Électronique numérique, Puissance, RF, Hyperfréquence
+Logiciel    : Python, Java, C#, .NET, Rust, DevOps, Docker, CI/CD, Git
+Systèmes    : Mécatronique, CAO mécanique, Catia, SolidWorks, Robotique, ROS
+Vision / IA : ADAS, Lidar, Radar, Vision par ordinateur, IA/ML, Traitement signal
+Outils      : Matlab/Simulink, LabVIEW, Banc de test, DOORS, PTC Integrity
+Normes      : ISO 26262, DO-178, IEC 61508, IATF 16949, Cybersécurité, IEC 62443, ASPICE
+Secteurs    : Automotive, Aéronautique, Défense, Médical, Énergie, Ferroviaire, Naval, Spatial, Industrie 4.0
+Méthodes    : Gestion de projet, Agilité, V-cycle, Lean, Six Sigma
+Métiers     : Électronique, Logiciel embarqué, Informatique industrielle, Mécanique, Systèmes, Automatisme, Robotique, Validation/Test, Direction technique
+
+Tu peux ajouter des tags personnalisés pertinents non listés ci-dessus si nécessaire.
+
+══════ FORMAT DE RÉPONSE (STRICT) ══════
+Réponds UNIQUEMENT avec cette ligne, rien d'autre :
+TAGS: tag1, tag2, tag3, tag4, tag5, ...
+
+Règles impératives :
+- Entre 5 et 15 tags, choisis les plus pertinents pour CE prospect spécifique
+- Ne répète pas les tags déjà présents${existingTags ? ` (${existingTags})` : ''}
+- Privilégie la précision sur l'exhaustivité — un tag ciblé vaut mieux que 15 tags vagues`;
+}
+
+/** Déclenche la génération automatique de tags via Tavily + Ollama. */
+function handleAutoTags(prospectId) {
+    const btn = document.getElementById(`btnAutoTags_${prospectId}`);
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération…'; }
+
+    const prompt = getAutoTagsPromptProspect(prospectId);
+    if (!prompt) {
+        showToast('Données introuvables pour ce prospect.', 'warning');
+        if (btn) { btn.disabled = false; btn.textContent = '✨ Ajouter Auto'; }
+        return;
+    }
+
+    callOllama(prompt, { webSearch: true }).then(function (text) {
+        // Cherche la ligne TAGS: tag1, tag2, ...
+        const tagsMatch = text.match(/TAGS\s*:\s*\[?\s*([^\]\n\r]+?)\s*\]?\s*(?:\n|$)/i)
+            || text.match(/TAGS\s*:\s*(.+)/i);
+        let suggestedTags = [];
+        if (tagsMatch && tagsMatch[1]) {
+            suggestedTags = tagsMatch[1].split(',').map(t => t.trim()).filter(Boolean);
+        }
+        // Fallback : si aucun match, cherche la première ligne avec ≥3 valeurs séparées par virgules
+        if (!suggestedTags.length) {
+            for (const line of text.split('\n')) {
+                const parts = line.replace(/^[^:]*:\s*/, '').split(',').map(t => t.trim()).filter(Boolean);
+                if (parts.length >= 3) { suggestedTags = parts; break; }
+            }
+        }
+        if (!suggestedTags.length) {
+            showToast('Aucun tag détecté dans la réponse IA. Réessayez ou utilisez le Scrapping IA.', 'warning', 5000);
+            return;
+        }
+        openAutoTagsModal(prospectId, suggestedTags);
+    }).catch(function () {
+        showToast('IA indisponible. Utilisez le Scrapping IA pour ajouter des tags manuellement.', 'warning', 5000);
+    }).finally(function () {
+        if (btn) { btn.disabled = false; btn.textContent = '✨ Ajouter Auto'; }
+    });
+}
+
+let _autoTagsCurrentProspectId = 0;
+
+function _ensureAutoTagsModal() {
+    if (document.getElementById('modalAutoTags')) return;
+    const div = document.createElement('div');
+    div.innerHTML = `
+    <div id="modalAutoTags" class="modal" role="dialog" aria-modal="true" aria-label="Tags suggérés par IA">
+        <div class="modal-content" style="max-width:500px;">
+            <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <span id="autoTagsModalTitle">✨ Tags suggérés par IA</span>
+                <button class="btn btn-secondary" onclick="closeAutoTagsModal()" style="font-size:14px;padding:4px 10px;" aria-label="Fermer">✕</button>
+            </div>
+            <p class="muted" style="font-size:12px;margin:12px 0 8px;">Sélectionnez les tags à ajouter. Les tags déjà présents sur la fiche sont exclus automatiquement.</p>
+            <div id="autoTagsSuggestions" style="display:flex;flex-wrap:wrap;gap:10px;min-height:40px;margin-bottom:16px;"></div>
+            <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;border-top:1px solid var(--color-border);padding-top:12px;">
+                <div style="display:flex;gap:6px;">
+                    <button class="btn btn-secondary" onclick="autoTagsToggleAll(true)" style="font-size:12px;padding:4px 10px;">✅ Tout</button>
+                    <button class="btn btn-secondary" onclick="autoTagsToggleAll(false)" style="font-size:12px;padding:4px 10px;">❌ Aucun</button>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-secondary" onclick="closeAutoTagsModal()">Annuler</button>
+                    <button class="btn btn-primary" onclick="applyAutoTags()">💾 Ajouter les tags sélectionnés</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(div.firstElementChild);
+}
+
+function openAutoTagsModal(prospectId, suggestedTags) {
+    _autoTagsCurrentProspectId = prospectId;
+    const p = data.prospects.find(x => x.id === prospectId);
+    const existingTags = (p && Array.isArray(p.tags)) ? p.tags : [];
+    const existingLower = new Set(existingTags.map(t => t.toLowerCase()));
+
+    // Exclure les tags déjà présents
+    const newTags = suggestedTags.filter(t => t && !existingLower.has(t.toLowerCase()));
+    if (!newTags.length) {
+        showToast('Tous les tags suggérés sont déjà présents sur cette fiche.', 'info');
+        return;
+    }
+
+    _ensureAutoTagsModal();
+
+    const title = document.getElementById('autoTagsModalTitle');
+    if (title) title.textContent = `✨ Tags suggérés — ${p ? escapeHtml(p.name) : ''}`;
+
+    const container = document.getElementById('autoTagsSuggestions');
+    if (container) {
+        container.innerHTML = newTags.map((tag, i) => {
+            const inRef = typeof buildReferentialTagSet === 'function' && buildReferentialTagSet().has(tag.toLowerCase());
+            return `<label class="auto-tag-option" for="autoTag_${i}" title="${inRef ? 'Tag du référentiel Up Technologies' : 'Tag personnalisé'}">
+                <input type="checkbox" id="autoTag_${i}" value="${escapeHtml(tag)}" checked>
+                <span class="tag-pill${inRef ? '' : ' tag-pill-custom'}">${escapeHtml(tag)}${inRef ? '' : ' *'}</span>
+            </label>`;
+        }).join('');
+    }
+
+    const modal = document.getElementById('modalAutoTags');
+    if (modal) {
+        if (window.openModal) window.openModal(modal);
+        else modal.classList.add('active');
+    }
+}
+
+function closeAutoTagsModal() {
+    const modal = document.getElementById('modalAutoTags');
+    if (!modal) return;
+    if (window.closeModal) window.closeModal(modal);
+    else modal.classList.remove('active');
+}
+
+function autoTagsToggleAll(checked) {
+    document.querySelectorAll('#autoTagsSuggestions input[type="checkbox"]')
+        .forEach(cb => { cb.checked = checked; });
+}
+
+function applyAutoTags() {
+    const prospectId = _autoTagsCurrentProspectId;
+    const p = data.prospects.find(x => x.id === prospectId);
+    if (!p) { showToast('Prospect introuvable.', 'warning'); return; }
+
+    const checked = document.querySelectorAll('#autoTagsSuggestions input[type="checkbox"]:checked');
+    const selectedTags = Array.from(checked).map(cb => cb.value.trim()).filter(Boolean);
+    if (!selectedTags.length) {
+        showToast('Aucun tag sélectionné.', 'info');
+        closeAutoTagsModal();
+        return;
+    }
+
+    // Fusionner avec les tags existants (sans doublons)
+    const existingTags = Array.isArray(p.tags) ? p.tags : [];
+    const existingLower = new Set(existingTags.map(t => t.toLowerCase()));
+    const mergedTags = [...existingTags, ...selectedTags.filter(t => !existingLower.has(t.toLowerCase()))];
+
+    // Mettre à jour dans le modèle mémoire
+    p.tags = mergedTags;
+
+    // Mettre à jour l'éditeur de tags dans l'onglet Modifier (si ouvert)
+    const hiddenInput = document.getElementById('editTagsValue');
+    if (hiddenInput) {
+        hiddenInput.value = JSON.stringify(mergedTags);
+        try { initTagsEditor('editTagsEditor', 'editTagsValue', mergedTags); } catch (e) {}
+    }
+
+    // Mettre à jour l'affichage dans l'onglet Infos
+    const tagsContainer = document.getElementById('detailTagsContainer');
+    if (tagsContainer) {
+        tagsContainer.innerHTML = _renderTagsPreview(mergedTags, prospectId);
+    }
+
+    closeAutoTagsModal();
+    showToast(`${selectedTags.length} tag${selectedTags.length > 1 ? 's' : ''} ajouté${selectedTags.length > 1 ? 's' : ''}.`, 'success');
+
+    // Sauvegarder sur le serveur
+    saveToServer();
+    markUnsaved();
+}
+
+/**
+ * Affiche les tags d'un prospect avec repli à 2 lignes et bouton "Voir tout...".
+ * Utilisé dans l'onglet Infos de la fiche prospect.
+ */
+function _renderTagsPreview(tags, prospectId) {
+    if (!tags || !tags.length) return '—';
+    const pillsHtml = tags.map(t => {
+        const inRef = typeof buildReferentialTagSet === 'function' && buildReferentialTagSet().has(t.toLowerCase());
+        return `<span class="tag-pill${inRef ? '' : ' tag-pill-custom'}" title="${inRef ? 'Référentiel Up Technologies' : 'Tag personnalisé (hors référentiel)'}">${escapeHtml(t)}${inRef ? '' : ' *'}</span>`;
+    }).join('');
+    const wrapId = `tagsPreviewWrap_${prospectId}`;
+    const showBtn = tags.length > 6;
+    return `<div class="tags-preview-wrap" id="${wrapId}">${pillsHtml}</div>${showBtn ? `<button class="tags-voir-tout-btn" onclick="toggleTagsPreview('${wrapId}',this)" type="button">Voir tout (${tags.length} tags) ▼</button>` : ''}`;
+}
+
+/** Bascule entre vue repliée (2 lignes) et vue complète. */
+function toggleTagsPreview(wrapId, btn) {
+    const wrap = document.getElementById(wrapId);
+    if (!wrap) return;
+    const isExpanded = wrap.classList.toggle('expanded');
+    if (btn) btn.textContent = isExpanded
+        ? 'Réduire ▲'
+        : `Voir tout (${wrap.querySelectorAll('.tag-pill').length} tags) ▼`;
 }
 
 // ─── Modal ───
