@@ -6574,21 +6574,33 @@ def _generate_candidate_description_ai(candidate: dict, uid: int) -> str:
         logger.warning("Impossible d'extraire le texte du DC PDF: %s", dc_path)
         return ""
 
-    prenom = candidate.get("prenom") or (candidate.get("name", "").split()[0] if candidate.get("name") else "Candidat")
+    prenom = (candidate.get("prenom") or "").strip()
+    if not prenom:
+        name_parts = (candidate.get("name") or "").split()
+        # Noms souvent stockés en format "NOM Prénom" → prendre le dernier mot comme prénom
+        prenom = name_parts[-1] if len(name_parts) > 1 else (name_parts[0] if name_parts else "Candidat")
+
+    # Années d'expérience depuis la DB pour ancrer le prompt (évite les hallucinations)
+    annees_exp = str(candidate.get("annees_experience") or candidate.get("years_experience") or "").strip()
 
     # Prompt personnalisé ou prompt intégré par défaut
     custom_prompt = (ai_config.get("candidate_description_prompt") or "").strip()
     if custom_prompt:
         prompt = custom_prompt.replace("{prenom}", prenom).replace("{pdf_text}", pdf_text)
     else:
+        annees_instruction = (
+            f"- Mentionne ses années d'expérience : utilise le chiffre EXACT du dossier ({annees_exp} ans selon sa fiche — ne pas modifier ce chiffre)"
+            if annees_exp else
+            "- Mentionne ses années d'expérience : utilise le chiffre EXACT écrit dans le dossier, ne pas inventer ni arrondir"
+        )
         prompt = f"""Tu es un commercial senior dans une société de conseil en ingénierie. Tu dois rédiger une présentation percutante pour un email de prospection B2B — l'objectif est de DONNER ENVIE au client de rencontrer le candidat.
 
 Rédige EXACTEMENT 2 phrases à partir du dossier de compétences ci-dessous.
 
 PHRASE 1 — Présentation générale (identité + titre + expérience) :
-- Commence par le prénom en gras HTML : <b>{prenom}</b>
+- Commence OBLIGATOIREMENT par le prénom en gras HTML : <b>{prenom}</b> — utilise UNIQUEMENT ce prénom, jamais le nom de famille
 - Donne son vrai titre de poste (ingénieur, développeur, architecte, chef de projet… — jamais « consultant »)
-- Mentionne ses années d'expérience réelles trouvées dans le dossier
+{annees_instruction}
 - Cite ses domaines principaux d'intervention ou sa spécialité distinctive
 - Style : clair, professionnel, direct
 
@@ -6598,7 +6610,8 @@ PHRASE 2 — Accroche vendeuse (réalisation concrète) :
 - Met en avant la valeur apportée ou le résultat obtenu si disponible
 - Peut citer 1 à 2 technologies clés pour rassurer le client
 
-Règles communes :
+Règles ABSOLUES :
+- Commence TOUJOURS par <b>{prenom}</b> (le prénom, jamais le nom de famille)
 - Tout le contenu doit venir EXCLUSIVEMENT du dossier ci-dessous
 - En français — ne pas écrire "il/elle est disponible" ni "il/elle cherche un poste"
 - Les 2 phrases ensemble font 70-100 mots max
