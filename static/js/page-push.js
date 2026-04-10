@@ -686,7 +686,7 @@ function _renderCatProspectsList(data) {
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                 <div style="font-weight:700;font-size:13px;">${escapeHtml(p.name)}${scoreBar}</div>
                 <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-                    <button onclick="viewDetail(${p.id})" title="Voir la fiche complète" style="background:none;border:1px solid var(--color-border);border-radius:6px;cursor:pointer;font-size:11px;padding:3px 8px;color:var(--color-text);">👁️ Fiche</button>
+                    <button onclick="_openProspectFromCategory(${p.id}, __catProspectsCatId)" title="Voir la fiche complète (catégorie pré-sélectionnée)" style="background:none;border:1px solid var(--color-border);border-radius:6px;cursor:pointer;font-size:11px;padding:3px 8px;color:var(--color-text);">👁️ Fiche</button>
                     <button onclick="_catProspectSendEmail(${p.id})" title="Envoyer un email push" style="background:none;border:1px solid var(--color-border);border-radius:6px;cursor:pointer;font-size:11px;padding:3px 8px;color:var(--color-text);">✉️ Email</button>
                 </div>
             </div>
@@ -697,6 +697,15 @@ function _renderCatProspectsList(data) {
             ${matchedPills ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">${matchedPills}</div>` : ''}
         </div>`;
     }).join('');
+}
+
+function _openProspectFromCategory(prospectId, catId) {
+    // Pré-sélectionner la catégorie push dans la fiche avant ouverture
+    if (catId && typeof data !== 'undefined' && Array.isArray(data.prospects)) {
+        const p = data.prospects.find(x => x.id === prospectId);
+        if (p) p.push_category_id = Number(catId);
+    }
+    if (typeof viewDetail === 'function') viewDetail(prospectId);
 }
 
 async function _catProspectSendEmail(prospectId) {
