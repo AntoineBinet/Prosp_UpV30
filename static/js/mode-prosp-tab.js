@@ -404,14 +404,26 @@ window.mpClose = function () {
         document.title = 'Mode Prosp \u2014 ' + (currentIndex + 1) + '/' + prospects.length + (p ? ' \u2014 ' + p.name : '');
     }
 
-    window.mpNavigate = async function (dir) {
-        if (!saving) await mpSaveCard();
-        goTo(currentIndex + dir);
-    };
-    window.mpGoTo = async function (i) {
-        if (!saving) await mpSaveCard();
-        goTo(i);
-    };
+    // Capture current card fields into local array synchronously, then navigate.
+    // The server save runs in the background so navigation is instant and data
+    // is never lost even if the network request fails.
+    function _captureCurrentCard() {
+        if (saving) return;
+        var card = viewport.querySelector('.mp-card');
+        var body = card && card.querySelector('.mp-card-body');
+        var p = prospects[currentIndex];
+        if (!body || !p) return;
+        body.querySelectorAll('[data-field]').forEach(function (el) {
+            var field = el.dataset.field;
+            var val = el.value;
+            if (field === 'company_id' || field === 'pertinence' || field === 'priority') val = parseInt(val, 10);
+            p[field] = val;
+        });
+        mpSaveCard(); // fire-and-forget — index captured inside mpSaveCard via savedIndex
+    }
+
+    window.mpNavigate = function (dir) { _captureCurrentCard(); goTo(currentIndex + dir); };
+    window.mpGoTo = function (i) { _captureCurrentCard(); goTo(i); };
 
     window.mpRefreshLastContact = function (prospectId, lastContact) {
         var idx = prospects.findIndex(function (p) { return p.id === prospectId; });
@@ -431,6 +443,7 @@ window.mpClose = function () {
         var card = viewport.querySelector('.mp-card');
         if (!card) return;
         var body = card.querySelector('.mp-card-body');
+        if (!body) return;
         var prospectData = { id: p.id };
         body.querySelectorAll('[data-field]').forEach(function (el) {
             var field = el.dataset.field;
@@ -439,6 +452,7 @@ window.mpClose = function () {
             prospectData[field] = val;
             p[field] = val;
         });
+        var savedIndex = currentIndex; // capture before any await — currentIndex may change if user navigates while fetch is in flight
         saving = true;
         var saveBtn = card.querySelector('.mp-save-btn');
         if (saveBtn) { saveBtn.textContent = 'Sauvegarde...'; saveBtn.disabled = true; }
@@ -451,7 +465,7 @@ window.mpClose = function () {
             if (!res.ok) throw new Error('HTTP ' + res.status);
             var result = await res.json();
             if (!result.ok) throw new Error(result.error || 'Erreur');
-            if (result.prospect) prospects[currentIndex] = result.prospect;
+            if (result.prospect) prospects[savedIndex] = result.prospect;
             if (saveBtn) saveBtn.textContent = 'Enregistr\u00e9 !';
             setTimeout(function () { if (saveBtn) { saveBtn.textContent = 'Enregistrer'; saveBtn.disabled = false; } }, 1200);
             var heroEl = card.querySelector('.mp-card-hero');
@@ -466,8 +480,8 @@ window.mpClose = function () {
     function setupKeyboard() {
         document.addEventListener('keydown', function (e) {
             if (e.target.matches('input, select, textarea')) return;
-            if (e.key === 'ArrowLeft') { e.preventDefault(); mpNavigate(-1); }
-            if (e.key === 'ArrowRight') { e.preventDefault(); mpNavigate(1); }
+            if (e.key === 'ArrowLeft') { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex - 1); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex + 1); }
         });
     }
 
@@ -485,8 +499,8 @@ window.mpClose = function () {
             var dy = e.changedTouches[0].clientY - startY;
             startX = null; startY = null;
             if (Math.abs(dx) < THRESHOLD || Math.abs(dy) > Math.abs(dx)) return;
-            if (dx < 0 && currentIndex < prospects.length - 1) { mpNavigate(1); haptic(10); }
-            else if (dx > 0 && currentIndex > 0) { mpNavigate(-1); haptic(10); }
+            if (dx < 0 && currentIndex < prospects.length - 1) { _captureCurrentCard(); goTo(currentIndex + 1); haptic(10); }
+            else if (dx > 0 && currentIndex > 0) { _captureCurrentCard(); goTo(currentIndex - 1); haptic(10); }
         }, { passive: true });
     }
 
