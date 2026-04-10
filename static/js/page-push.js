@@ -654,17 +654,14 @@ function _renderCatProspectsList(data) {
 
         return `<div style="padding:10px 0;border-bottom:1px solid var(--color-border);display:flex;flex-direction:column;gap:4px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-                <div style="font-weight:700;font-size:13px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;"
-                     onclick="openProspectQuickView(${p.id})"
-                     title="Voir la fiche prospect">${escapeHtml(p.name)}${scoreBar}</div>
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <span style="font-size:11px;color:var(--color-text-secondary);">${escapeHtml(p.email)}</span>
-                    <button onclick="event.stopPropagation(); openProspectQuickView(${p.id})" title="Voir la fiche" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;">👁️</button>
-                    <button onclick="event.stopPropagation(); _catProspectSendEmail(${p.id})" title="Envoyer un email push" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;">✉️</button>
+                <div style="font-weight:700;font-size:13px;">${escapeHtml(p.name)}${scoreBar}</div>
+                <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+                    <button onclick="viewDetail(${p.id})" title="Voir la fiche complète" style="background:none;border:1px solid var(--color-border);border-radius:6px;cursor:pointer;font-size:11px;padding:3px 8px;color:var(--color-text);">👁️ Fiche</button>
+                    <button onclick="_catProspectSendEmail(${p.id})" title="Envoyer un email push" style="background:none;border:1px solid var(--color-border);border-radius:6px;cursor:pointer;font-size:11px;padding:3px 8px;color:var(--color-text);">✉️ Email</button>
                 </div>
             </div>
             <div style="font-size:11px;color:var(--color-text-secondary);">
-                ${p.fonction ? escapeHtml(p.fonction) + (p.company ? ' · ' : '') : ''}${p.company ? escapeHtml(p.company) : ''}
+                ${p.email ? escapeHtml(p.email) + ' · ' : ''}${p.fonction ? escapeHtml(p.fonction) : ''}${p.company ? ' · ' + escapeHtml(p.company) : ''}
             </div>
             ${tagPills ? `<div style="display:flex;flex-wrap:wrap;gap:3px;">${tagPills}</div>` : ''}
             ${matchedPills ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">${matchedPills}</div>` : ''}
@@ -672,97 +669,10 @@ function _renderCatProspectsList(data) {
     }).join('');
 }
 
-// ── Quick-view fiche prospect ──────────────────────────────────────────────
-
-function openProspectQuickView(prospectId) {
-    const prospect = (typeof data !== 'undefined' && data.prospects)
-        ? data.prospects.find(p => p.id === prospectId)
-        : null;
-
-    const modal = document.getElementById('modalProspectQuickView');
-    const body = document.getElementById('prospectQuickViewBody');
-    const title = document.getElementById('modalProspectQVTitle');
-    const emailBtn = document.getElementById('btnQVEmail');
-    if (!modal || !body) return;
-
-    if (!prospect) {
-        if (body) body.innerHTML = '<div style="color:var(--color-danger,#ef4444);padding:12px;">Prospect introuvable dans les données locales.</div>';
-        if (window.openModal) window.openModal(modal); else modal.classList.add('active');
-        return;
-    }
-
-    const company = (typeof data !== 'undefined' && data.companies)
-        ? data.companies.find(c => c.id === prospect.company_id)
-        : null;
-    const companyLabel = company
-        ? [company.groupe, company.site].filter(Boolean).join(' · ')
-        : '';
-
-    const tags = (() => {
-        try {
-            const v = prospect.tags;
-            if (!v) return [];
-            if (Array.isArray(v)) return v;
-            const parsed = JSON.parse(v);
-            return Array.isArray(parsed) ? parsed : [String(parsed)];
-        } catch { return typeof prospect.tags === 'string' ? prospect.tags.split(',').map(t => t.trim()).filter(Boolean) : []; }
-    })();
-
-    const tagPills = tags.map(t => `<span class="tag-pill" style="font-size:11px;">${escapeHtml(t)}</span>`).join(' ');
-
-    const statusColors = {
-        "Pas d'actions": '#64748b', 'Appelé': '#f59e0b', 'Messagerie': '#3b82f6',
-        'À rappeler': '#ef4444', 'Rendez-vous': '#22c55e', 'Prospecté': '#8b5cf6', 'Pas intéressé': '#94a3b8'
-    };
-    const statusColor = statusColors[prospect.statut] || '#64748b';
-    const initials = (prospect.name || '??').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-
-    if (title) title.textContent = prospect.name || 'Fiche prospect';
-
-    body.innerHTML = `
-        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
-            <div style="width:44px;height:44px;border-radius:50%;background:${statusColor};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff;flex-shrink:0;">${escapeHtml(initials)}</div>
-            <div>
-                <div style="font-weight:800;font-size:15px;">${escapeHtml(prospect.name || '')}</div>
-                ${prospect.fonction ? `<div style="font-size:12px;color:var(--color-text-secondary);">${escapeHtml(prospect.fonction)}</div>` : ''}
-                ${companyLabel ? `<div style="font-size:12px;color:var(--color-text-secondary);">${escapeHtml(companyLabel)}</div>` : ''}
-            </div>
-            ${prospect.statut ? `<span class="tag-pill" style="margin-left:auto;font-size:11px;border-color:${statusColor};color:${statusColor};">${escapeHtml(prospect.statut)}</span>` : ''}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
-            ${prospect.email ? `<div><span style="color:var(--color-text-secondary);">✉️ Email :</span> <a href="mailto:${escapeHtml(prospect.email)}" style="color:var(--color-primary);">${escapeHtml(prospect.email)}</a></div>` : ''}
-            ${prospect.linkedin ? `<div><span style="color:var(--color-text-secondary);">🔗 LinkedIn :</span> <a href="${escapeHtml(prospect.linkedin)}" target="_blank" rel="noopener noreferrer" style="color:var(--color-primary);">${escapeHtml(prospect.linkedin)}</a></div>` : ''}
-            ${prospect.pertinence ? `<div><span style="color:var(--color-text-secondary);">⭐ Pertinence :</span> ${'★'.repeat(parseInt(prospect.pertinence)||0)}${'☆'.repeat(Math.max(0,5-(parseInt(prospect.pertinence)||0)))}</div>` : ''}
-            ${tags.length ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">${tagPills}</div>` : ''}
-            ${prospect.notes ? `<div style="margin-top:6px;padding:10px;background:var(--color-surface-2,rgba(255,255,255,0.05));border-radius:10px;font-size:12px;color:var(--color-text-secondary);white-space:pre-wrap;max-height:100px;overflow:auto;">${escapeHtml(prospect.notes)}</div>` : ''}
-        </div>
-    `;
-
-    if (emailBtn) {
-        if (prospect.email) {
-            emailBtn.style.display = '';
-            emailBtn.onclick = () => _catProspectSendEmail(prospectId);
-        } else {
-            emailBtn.style.display = 'none';
-        }
-    }
-
-    if (window.openModal) window.openModal(modal); else modal.classList.add('active');
-}
-
-function closeProspectQuickView() {
-    const modal = document.getElementById('modalProspectQuickView');
-    if (modal) {
-        if (window.closeModal) window.closeModal(modal); else modal.classList.remove('active');
-    }
-}
-
 async function _catProspectSendEmail(prospectId) {
-    closeProspectQuickView();
     if (typeof openEmailForProspect === 'function') {
         await openEmailForProspect(prospectId);
     } else {
-        // Fallback : mailto direct
         const p = (typeof data !== 'undefined' && data.prospects)
             ? data.prospects.find(x => x.id === prospectId)
             : null;

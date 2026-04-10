@@ -188,18 +188,14 @@
     </div>
 </div>
 
-<!-- Modal : Quick-view fiche prospect (depuis page push) -->
-<div class="modal" role="dialog" aria-modal="true" id="modalProspectQuickView" aria-labelledby="modalProspectQVTitle">
-    <div class="modal-content" style="max-width: 520px;">
+<!-- Modal : Fiche prospect complète (réutilise viewDetail de app.js) -->
+<div class="modal" role="dialog" aria-modal="true" id="modalDetail" aria-labelledby="modalDetailTitle">
+    <div class="modal-content">
         <div class="modal-header">
-            <span id="modalProspectQVTitle">Fiche prospect</span>
-            <button class="modal-close" aria-label="Fermer" onclick="closeProspectQuickView()">&times;</button>
+            <span id="modalDetailTitle">Fiche prospect</span>
+            <button class="modal-close" onclick="closeDetail()" aria-label="Fermer">&times;</button>
         </div>
-        <div class="modal-body" id="prospectQuickViewBody"></div>
-        <div class="btn-group" style="margin-top: 16px; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-            <button class="btn btn-primary" id="btnQVEmail" onclick="">✉️ Envoyer un email push</button>
-            <button class="btn btn-secondary" onclick="closeProspectQuickView()">Fermer</button>
-        </div>
+        <div id="detailContent"></div>
     </div>
 </div>
 {% endblock %}
