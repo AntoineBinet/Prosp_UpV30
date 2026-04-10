@@ -4946,10 +4946,12 @@ def api_candidates_save():
     with _conn() as conn:
         cur = conn.cursor()
         old_status = None
+        existing_dc_path = None
         if cid:
             try:
-                r0 = conn.execute("SELECT status FROM candidates WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
+                r0 = conn.execute("SELECT status, dossier_competence_pdf FROM candidates WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
                 old_status = r0["status"] if r0 else None
+                existing_dc_path = r0["dossier_competence_pdf"] if r0 else None
             except Exception:
                 old_status = None
         # v27.x: champs prenom, titre, annees_experience, domaine_principal
@@ -5010,7 +5012,7 @@ def api_candidates_save():
                     _t("sector"),
                     _t("phone"),
                     _t("email"),
-                    _t("dossier_competence_pdf"),
+                    _t("dossier_competence_pdf") or existing_dc_path,
                     _t("prenom"),
                     _t("titre"),
                     annees_exp_v,
@@ -7102,23 +7104,52 @@ def _read_msg_body(template_path: Path) -> tuple:
 
 
 def _resolve_dc_path(cand: dict, uid: int) -> Path | None:
-    """Résout le chemin du dossier de compétence PDF d'un candidat."""
+    """Résout le chemin du dossier de compétence PDF d'un candidat.
+    Cherche dans cet ordre :
+    1. Le champ dossier_competence_pdf en DB (chemin absolu ou relatif)
+    2. Le dossier data/dossiers_candidats/{uid}/{cand_id}/ (glob *.pdf)
+    """
     dc_path_str = cand.get("dossier_competence_pdf")
+    cand_id = cand.get("id")
+
+    # Cas 1 : champ DB vide → chercher directement dans le dossier par convention
     if not dc_path_str:
+        if cand_id:
+            dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id)
+            if dc_dir.is_dir():
+                pdfs = sorted(dc_dir.glob("*.pdf"))
+                if pdfs:
+                    dc_path = pdfs[0]
+                    # Vérification sécurité
+                    try:
+                        if str(dc_path.resolve()).startswith(str(DATA_DIR.resolve()).rstrip(os.sep) + os.sep):
+                            return dc_path
+                    except Exception:
+                        pass
         return None
+
+    # Cas 2 : champ DB renseigné
     if not os.path.isabs(dc_path_str):
         dc_path = APP_DIR / "dossiers_competence" / dc_path_str
     else:
         dc_path = Path(dc_path_str)
-    # Chercher aussi dans data/dossiers_candidats/{uid}/{cand_id}/
-    if not dc_path.is_file():
-        cand_id = cand.get("id")
-        if cand_id:
-            alt_path = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id) / Path(dc_path_str).name
-            if alt_path.is_file():
-                dc_path = alt_path
+
+    # Fallback : fichier déplacé vers le nouveau dossier
+    if not dc_path.is_file() and cand_id:
+        alt_path = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id) / Path(dc_path_str).name
+        if alt_path.is_file():
+            dc_path = alt_path
+        else:
+            # Dernière tentative : n'importe quel PDF présent dans le dossier
+            dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id)
+            if dc_dir.is_dir():
+                pdfs = sorted(dc_dir.glob("*.pdf"))
+                if pdfs:
+                    dc_path = pdfs[0]
+
     if not dc_path.is_file():
         return None
+
     # Vérification sécurité : chemin dans un répertoire autorisé
     try:
         dc_resolved = dc_path.resolve()
