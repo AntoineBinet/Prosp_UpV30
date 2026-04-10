@@ -5482,6 +5482,39 @@ def api_candidate_dc_rename(cid):
         return jsonify(ok=False, error=str(e)), 500
 
 
+@app.post("/api/candidates/<int:cid>/dc-delete")
+def api_candidate_dc_delete(cid):
+    """Supprime le(s) fichier(s) DC d'un candidat du disque et efface le champ en DB."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM candidates WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (cid, uid)
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+
+    dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cid)
+    deleted = []
+    if dc_dir.is_dir():
+        for f in dc_dir.glob("*.pdf"):
+            try:
+                f.unlink()
+                deleted.append(f.name)
+            except Exception as e:
+                logger.error("Erreur suppression DC %s: %s", f, e)
+
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE candidates SET dossier_competence_pdf=NULL, updatedAt=? WHERE id=? AND owner_id=?;",
+            (_now_iso(), cid, uid)
+        )
+    logger.info("DC supprimé: user=%s cand=%s files=%s", uid, cid, deleted)
+    return jsonify(ok=True, deleted=deleted)
+
+
 @app.post("/api/prospects/delete")
 def api_prospects_delete():
     """v27.10: Soft delete a prospect (fenêtre d'annulation 10s via /api/soft-deleted/restore)."""
