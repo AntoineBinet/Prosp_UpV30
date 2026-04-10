@@ -38,7 +38,7 @@ function applyPushFilters() {
 
     __pushFiltered = __pushLogs.filter(l => {
         const hay = (
-            `${safeStr(l.prospect_name)} ${safeStr(l.company_groupe)} ${safeStr(l.company_site)} ${safeStr(l.prospect_email)} ${safeStr(l.to_email)} ${safeStr(l.subject)} ${safeStr(l.channel)}`
+            `${safeStr(l.prospect_name)} ${safeStr(l.company_groupe)} ${safeStr(l.company_site)} ${safeStr(l.prospect_email)} ${safeStr(l.to_email)} ${safeStr(l.subject)} ${safeStr(l.channel)} ${safeStr(l.consultant1_name)} ${safeStr(l.consultant2_name)}`
         ).toLowerCase();
         const okQ = !q || hay.includes(q);
         const okC = !ch || safeStr(l.channel).toLowerCase() === ch;
@@ -57,7 +57,7 @@ function renderPushTable() {
 
     if (__pushFiltered.length === 0) {
         if (empty) empty.style.display = 'block';
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
         return;
     }
     if (empty) empty.style.display = 'none';
@@ -69,6 +69,7 @@ function renderPushTable() {
         const dateFormatted = typeof formatPushDate === 'function'
             ? formatPushDate(l.sentAt || l.createdAt)
             : (l.sentAt || l.createdAt || '');
+        const consultants = [l.consultant1_name, l.consultant2_name].filter(Boolean).join(', ') || '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td data-label="Date">${escapeHtml(dateFormatted)}</td>
@@ -76,6 +77,7 @@ function renderPushTable() {
             <td data-label="Entreprise"><span class="table-cell-clamp" title="${escapeHtml(company)}">${escapeHtml(company)}</span></td>
             <td data-label="Email"><span class="table-cell-clamp" title="${escapeHtml(l.to_email || l.prospect_email || '')}">${escapeHtml(l.to_email || l.prospect_email || '')}</span></td>
             <td data-label="Sujet"><span class="table-cell-clamp" title="${escapeHtml(safeStr(l.subject))}">${escapeHtml(safeStr(l.subject) || '—')}</span></td>
+            <td data-label="Consultant(s)"><span class="table-cell-clamp" title="${escapeHtml(consultants)}">${escapeHtml(consultants)}</span></td>
             <td data-label="Canal">${escapeHtml(pushChannelLabel(l.channel))}</td>
             <td data-label="Actions">
                 <div class="table-actions-inline">
@@ -104,6 +106,7 @@ function openPushDetail(id) {
         ? formatPushDate(l.sentAt || l.createdAt)
         : (l.sentAt || l.createdAt || '');
 
+    const detailConsultants = [l.consultant1_name, l.consultant2_name].filter(Boolean).join(', ') || '—';
     body.innerHTML = `
         <div class="detail-info" style="margin-bottom: 10px;">
             <div><strong>Date:</strong> ${escapeHtml(dateFormatted)}</div>
@@ -112,6 +115,7 @@ function openPushDetail(id) {
             <div><strong>Email:</strong> ${escapeHtml(l.to_email || l.prospect_email || '')}</div>
             <div><strong>Canal:</strong> ${escapeHtml(pushChannelLabel(l.channel))}</div>
             <div><strong>Template:</strong> ${escapeHtml(l.template_name || '—')}</div>
+            <div><strong>Consultant(s):</strong> ${escapeHtml(detailConsultants)}</div>
         </div>
         <div style="margin-top: 12px;">
             <div style="font-weight:700; margin-bottom: 6px;">Sujet</div>
