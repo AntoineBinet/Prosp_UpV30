@@ -2346,6 +2346,21 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             conn.commit()
         except Exception:
             pass
+        # Migration: créer call_logs si absent (stats appels per-user)
+        try:
+            conn.execute('''CREATE TABLE IF NOT EXISTS call_logs (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                prospect_id INTEGER NOT NULL,
+                owner_id    INTEGER NOT NULL,
+                date        TEXT NOT NULL,
+                called_at   TEXT NOT NULL,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+            )''')
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_call_logs_owner_date ON call_logs(owner_id, date);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_call_logs_prospect ON call_logs(prospect_id);")
+            conn.commit()
+        except Exception:
+            pass
     finally:
         conn.close()
 
@@ -2392,6 +2407,45 @@ def _migrate_candidate_statuses(db_path: Path) -> None:
         logger.warning("migrate_candidate_statuses %s: %s", db_path, e)
 
 
+def _migrate_call_logs_to_user_db(user_id: int, user_db: Path) -> None:
+    """Copie les call_logs de la DB globale vers la DB per-user si la table est vide."""
+    try:
+        if not DB_PATH.exists():
+            return
+        conn = sqlite3.connect(user_db)
+        conn.row_factory = sqlite3.Row
+        count = conn.execute("SELECT COUNT(*) AS n FROM call_logs WHERE owner_id=?;", (user_id,)).fetchone()["n"]
+        if count > 0:
+            conn.close()
+            return  # Déjà des données, pas besoin de migrer
+        conn.close()
+        global_conn = sqlite3.connect(DB_PATH)
+        global_conn.row_factory = sqlite3.Row
+        try:
+            rows = global_conn.execute(
+                "SELECT prospect_id, owner_id, date, called_at FROM call_logs WHERE owner_id=?;",
+                (user_id,)
+            ).fetchall()
+        except Exception:
+            rows = []
+        finally:
+            global_conn.close()
+        if not rows:
+            return
+        conn = sqlite3.connect(user_db)
+        conn.execute("PRAGMA foreign_keys = OFF;")
+        conn.executemany(
+            "INSERT OR IGNORE INTO call_logs (prospect_id, owner_id, date, called_at) VALUES (?, ?, ?, ?);",
+            [(r["prospect_id"], r["owner_id"], r["date"], r["called_at"]) for r in rows]
+        )
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+        conn.close()
+        print(f"[OK] {len(rows)} call_logs récupérés depuis DB globale vers {user_db}")
+    except Exception as e:
+        print(f"[WARN] Migration call_logs ({user_db}): {e}")
+
+
 def _migrate_all_user_dbs() -> None:
     """Migre toutes les DB per-user (deleted_at) et supprime les dossiers orphelins."""
     if not DATA_DIR.exists():
@@ -2418,6 +2472,7 @@ def _migrate_all_user_dbs() -> None:
             else:
                 _migrate_user_db_schema(user_db)
                 _migrate_candidate_statuses(user_db)
+                _migrate_call_logs_to_user_db(uid, user_db)
 
 
 def _migrate_users_schema() -> None:
@@ -2813,6 +2868,15 @@ def _init_user_db(user_id: int) -> Path:
                 FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS call_logs (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                prospect_id INTEGER NOT NULL,
+                owner_id    INTEGER NOT NULL,
+                date        TEXT NOT NULL,
+                called_at   TEXT NOT NULL,
+                FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_push_logs_prospect_id ON push_logs(prospect_id);
             CREATE INDEX IF NOT EXISTS idx_push_logs_sentAt ON push_logs(sentAt);
             CREATE INDEX IF NOT EXISTS idx_templates_default ON templates(is_default);
@@ -2843,6 +2907,8 @@ def _init_user_db(user_id: int) -> Path:
             CREATE INDEX IF NOT EXISTS idx_candidate_ec1_interviewAt ON candidate_ec1_checklists(interviewAt);
             CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
             CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+            CREATE INDEX IF NOT EXISTS idx_call_logs_owner_date ON call_logs(owner_id, date);
+            CREATE INDEX IF NOT EXISTS idx_call_logs_prospect ON call_logs(prospect_id);
         ''')
 
         now = datetime.datetime.now().isoformat(timespec="seconds")
