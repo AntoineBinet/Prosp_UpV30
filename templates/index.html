@@ -684,7 +684,29 @@
 {% endblock %}
 
 {% block fab %}
-<!-- FAB: Ajouter - Masqué sur prospects (bouton dans toolbar-row), visible sur autres pages -->
+<!-- FAB Speed Dial — Desktop (≥ 901px, géré par v8-features.js) -->
+<div id="fab-speed-dial">
+  <div class="fab-options" id="fab-options">
+    <div class="fab-option" data-action="mode-prosp">
+      <span class="fab-option-label">Mode Prosp</span>
+      <button class="fab-option-btn" style="background:#F59E0B;" aria-label="Mode Prosp">🃏</button>
+    </div>
+    <div class="fab-option" data-action="assistant-ia">
+      <span class="fab-option-label">Assistant IA</span>
+      <button class="fab-option-btn" style="background:#22C55E;" aria-label="Assistant IA">🤖</button>
+    </div>
+    <div class="fab-option" data-action="add-candidate">
+      <span class="fab-option-label">Candidat</span>
+      <button class="fab-option-btn" style="background:#4ECDC4;" aria-label="Ajouter un candidat">💼</button>
+    </div>
+    <div class="fab-option" data-action="add-prospect">
+      <span class="fab-option-label">Prospect</span>
+      <button class="fab-option-btn" style="background:#FF6B35;" aria-label="Ajouter un prospect">👤</button>
+    </div>
+  </div>
+  <button class="fab-main" id="fab-main-btn" aria-label="Actions rapides" aria-expanded="false">+</button>
+</div>
+<div id="fab-backdrop"></div>
 {% endblock %}
 
 <!-- Modal Ajouter via VSA (accessible depuis partout) -->
