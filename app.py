@@ -16811,7 +16811,9 @@ def dc_generator_setup_logos():
     if not f.filename.lower().endswith('.pdf'):
         return jsonify({'success': False, 'error': 'Fichier PDF requis'}), 400
 
-    tmp_path = os.path.join('/tmp', f'up_template_{int(datetime.datetime.now().timestamp())}.pdf')
+    import tempfile as _tempfile
+    fd, tmp_path = _tempfile.mkstemp(suffix='.pdf', prefix='up_template_')
+    os.close(fd)
     f.save(tmp_path)
     try:
         script_path = os.path.join(APP_DIR, 'utils', 'extract_up_assets.py')
@@ -16861,7 +16863,9 @@ def dc_generator_generate():
         if 'cv_file' in request.files and request.files['cv_file'].filename:
             cv_file = request.files['cv_file']
             ext  = os.path.splitext(cv_file.filename)[1].lower()
-            tmp_cv = os.path.join('/tmp', f'cv_upload_{int(datetime.datetime.now().timestamp())}{ext}')
+            import tempfile as _tempfile
+            fd, tmp_cv = _tempfile.mkstemp(suffix=ext, prefix='cv_upload_')
+            os.close(fd)
             cv_file.save(tmp_cv)
             parser  = CVParser()
             cv_data = parser.parse(tmp_cv)
@@ -16889,7 +16893,7 @@ def dc_generator_generate():
         cid_str   = str(candidate_id) if candidate_id else 'standalone'
         nom_raw   = f"{cv_data.get('nom','candidat')}_{cv_data.get('prenom','')}".strip('_')
         nom_clean = re.sub(r'[^\w\-]', '_', nom_raw)
-        output_path = os.path.join(APP_DIR, 'outputs', 'dossiers', f'{cid_str}_{nom_clean}_{timestamp}.pdf')
+        output_path = os.path.join(str(APP_DIR), 'outputs', 'dossiers', f'{cid_str}_{nom_clean}_{timestamp}.pdf')
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         gen = DossierGenerator()
