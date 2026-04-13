@@ -5,6 +5,67 @@ let __candFiltered = [];
 let __candEditing = null;
 let __selectedCandidates = new Set();
 
+// ===== Tri colonnes =====
+let __candSortKey = 'updatedAt';
+let __candSortDir = 'desc';
+
+function _sortCandidates(arr) {
+    const dir = __candSortDir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+        switch (__candSortKey) {
+            case 'name':
+                return dir * (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' });
+            case 'role':
+                return dir * (a.role || '').localeCompare(b.role || '', 'fr', { sensitivity: 'base' });
+            case 'location':
+                return dir * (a.location || '').localeCompare(b.location || '', 'fr', { sensitivity: 'base' });
+            case 'status':
+                return dir * (a.status || '').localeCompare(b.status || '', 'fr', { sensitivity: 'base' });
+            case 'updatedAt': {
+                const da = a.updatedAt || a.createdAt || '';
+                const db = b.updatedAt || b.createdAt || '';
+                return dir * da.localeCompare(db);
+            }
+            default: return 0;
+        }
+    });
+}
+
+function setCandSort(key) {
+    if (__candSortKey === key) {
+        __candSortDir = __candSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        __candSortKey = key;
+        __candSortDir = key === 'updatedAt' ? 'desc' : 'asc';
+    }
+    updateCandSortIndicators();
+    applyCandidateFilters();
+    applyMissionFilters();
+    applyArchiveFilters();
+    applyHorsAuraFilters();
+}
+
+function updateCandSortIndicators() {
+    const panels = ['pipeline', 'mission', 'archive', 'horsaura'];
+    const keys = ['name', 'role', 'location', 'status', 'updatedAt'];
+    panels.forEach(p => {
+        keys.forEach(k => {
+            const el = document.getElementById(`sort-${p}-${k}`);
+            if (!el) return;
+            el.textContent = k === __candSortKey ? (__candSortDir === 'asc' ? '▲' : '▼') : '';
+        });
+    });
+}
+
+if (!window._candSortListenerAttached) {
+    document.addEventListener('click', (e) => {
+        const th = e.target.closest('th[data-cand-sort]');
+        if (!th) return;
+        setCandSort(th.dataset.candSort);
+    });
+    window._candSortListenerAttached = true;
+}
+
 // EC1 quick action (modal)
 let __ec1CandidateId = null;
 
@@ -218,6 +279,7 @@ function applyCandidateFilters() {
         return okQ && okS && okSkills;
     });
 
+    _sortCandidates(__candFiltered);
     renderCandidateTable();
 }
 
@@ -454,6 +516,7 @@ function applyArchiveFilters() {
         }
         return true;
     });
+    _sortCandidates(__archiveFiltered);
     renderArchiveTable();
 }
 
@@ -542,6 +605,7 @@ function applyMissionFilters() {
         }
         return true;
     });
+    _sortCandidates(__missionFiltered);
     renderMissionTable();
 }
 
@@ -628,6 +692,7 @@ function applyHorsAuraFilters() {
         }
         return true;
     });
+    _sortCandidates(__horsAuraFiltered);
     renderHorsAuraTable();
 }
 
@@ -1642,6 +1707,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadCandidates();
         applyCandidateFilters();
+        updateCandSortIndicators();
     } catch (err) {
         console.error(err);
         showToast("❌ Impossible de charger les candidats. Vérifiez que le serveur Python est lancé (app.py).", 'error');

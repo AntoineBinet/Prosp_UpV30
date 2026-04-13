@@ -83,13 +83,13 @@
       <thead>
         <tr>
           <th style="width:32px; padding-left:12px;"><input type="checkbox" id="candSelectAll" title="Sélectionner tous les candidats" aria-label="Sélectionner tous les candidats" onclick="toggleCandidateSelectAll(this.checked)"></th>
-          <th>Nom</th>
-          <th>Rôle</th>
-          <th>Localisation</th>
+          <th class="sortable" data-cand-sort="name">Nom <span class="sort-indicator" id="sort-pipeline-name"></span></th>
+          <th class="sortable" data-cand-sort="role">Rôle <span class="sort-indicator" id="sort-pipeline-role"></span></th>
+          <th class="sortable" data-cand-sort="location">Localisation <span class="sort-indicator" id="sort-pipeline-location"></span></th>
           <th>Compétences / Tech</th>
           <th>DC</th>
-          <th>Statut</th>
-          <th>MAJ</th>
+          <th class="sortable" data-cand-sort="status">Statut <span class="sort-indicator" id="sort-pipeline-status"></span></th>
+          <th class="sortable" data-cand-sort="updatedAt">MAJ <span class="sort-indicator" id="sort-pipeline-updatedAt"></span></th>
           <th style="text-align:right;">Actions</th>
         </tr>
       </thead>
@@ -120,13 +120,13 @@
       <thead>
         <tr>
           <th style="width:32px; padding-left:12px;"><input type="checkbox" id="missionSelectAll" title="Sélectionner tous" aria-label="Sélectionner tous" onclick="toggleMissionSelectAll(this.checked)"></th>
-          <th>Nom</th>
-          <th>Rôle</th>
-          <th>Localisation</th>
+          <th class="sortable" data-cand-sort="name">Nom <span class="sort-indicator" id="sort-mission-name"></span></th>
+          <th class="sortable" data-cand-sort="role">Rôle <span class="sort-indicator" id="sort-mission-role"></span></th>
+          <th class="sortable" data-cand-sort="location">Localisation <span class="sort-indicator" id="sort-mission-location"></span></th>
           <th>Compétences / Tech</th>
           <th>DC</th>
-          <th>Statut</th>
-          <th>MAJ</th>
+          <th class="sortable" data-cand-sort="status">Statut <span class="sort-indicator" id="sort-mission-status"></span></th>
+          <th class="sortable" data-cand-sort="updatedAt">MAJ <span class="sort-indicator" id="sort-mission-updatedAt"></span></th>
           <th style="text-align:right;">Actions</th>
         </tr>
       </thead>
@@ -159,13 +159,13 @@
       <thead>
         <tr>
           <th style="width:32px; padding-left:12px;"><input type="checkbox" id="archiveSelectAll" title="Sélectionner tous" aria-label="Sélectionner tous" onclick="toggleArchiveSelectAll(this.checked)"></th>
-          <th>Nom</th>
-          <th>Rôle</th>
-          <th>Localisation</th>
+          <th class="sortable" data-cand-sort="name">Nom <span class="sort-indicator" id="sort-archive-name"></span></th>
+          <th class="sortable" data-cand-sort="role">Rôle <span class="sort-indicator" id="sort-archive-role"></span></th>
+          <th class="sortable" data-cand-sort="location">Localisation <span class="sort-indicator" id="sort-archive-location"></span></th>
           <th>Compétences / Tech</th>
           <th>DC</th>
-          <th>Statut</th>
-          <th>MAJ</th>
+          <th class="sortable" data-cand-sort="status">Statut <span class="sort-indicator" id="sort-archive-status"></span></th>
+          <th class="sortable" data-cand-sort="updatedAt">MAJ <span class="sort-indicator" id="sort-archive-updatedAt"></span></th>
           <th style="text-align:right;">Actions</th>
         </tr>
       </thead>
@@ -191,13 +191,13 @@
       <thead>
         <tr>
           <th style="width:32px; padding-left:12px;"><input type="checkbox" id="horsAuraSelectAll" title="Sélectionner tous" aria-label="Sélectionner tous" onclick="toggleHorsAuraSelectAll(this.checked)"></th>
-          <th>Nom</th>
-          <th>Rôle</th>
-          <th>Localisation</th>
+          <th class="sortable" data-cand-sort="name">Nom <span class="sort-indicator" id="sort-horsaura-name"></span></th>
+          <th class="sortable" data-cand-sort="role">Rôle <span class="sort-indicator" id="sort-horsaura-role"></span></th>
+          <th class="sortable" data-cand-sort="location">Localisation <span class="sort-indicator" id="sort-horsaura-location"></span></th>
           <th>Compétences / Tech</th>
           <th>DC</th>
-          <th>Statut</th>
-          <th>MAJ</th>
+          <th class="sortable" data-cand-sort="status">Statut <span class="sort-indicator" id="sort-horsaura-status"></span></th>
+          <th class="sortable" data-cand-sort="updatedAt">MAJ <span class="sort-indicator" id="sort-horsaura-updatedAt"></span></th>
           <th style="text-align:right;">Actions</th>
         </tr>
       </thead>
