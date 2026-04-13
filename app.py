@@ -16836,68 +16836,62 @@ def dc_generator_setup_logos():
 @login_required
 def dc_generator_generate():
     """Génère le PDF dossier de compétences"""
-    from utils.cv_parser import CVParser
-    from utils.dossier_generator import DossierGenerator
-
     uid = _uid()
-    candidate_id = request.form.get('candidate_id')
-    titre_override = request.form.get('titre_override', '').strip()
-    exp_override   = request.form.get('exp_override', '').strip()
-
-    # Données de base depuis la DB si candidat fourni
-    base_data = {}
-    if candidate_id:
-        with _conn() as conn:
-            row = conn.execute(
-                "SELECT * FROM candidates WHERE id=? AND owner_id=?", (candidate_id, uid)
-            ).fetchone()
-        if row:
-            base_data = _safe_row_to_dict(row) or {}
-
-    # Parse le CV si fourni
-    cv_data = {}
     tmp_cv = None
-    if 'cv_file' in request.files and request.files['cv_file'].filename:
-        cv_file = request.files['cv_file']
-        ext  = os.path.splitext(cv_file.filename)[1].lower()
-        tmp_cv = os.path.join('/tmp', f'cv_upload_{int(datetime.datetime.now().timestamp())}{ext}')
-        cv_file.save(tmp_cv)
-        try:
+    try:
+        from utils.cv_parser import CVParser
+        from utils.dossier_generator import DossierGenerator
+
+        candidate_id = request.form.get('candidate_id')
+        titre_override = request.form.get('titre_override', '').strip()
+        exp_override   = request.form.get('exp_override', '').strip()
+
+        # Données de base depuis la DB si candidat fourni
+        base_data = {}
+        if candidate_id:
+            with _conn() as conn:
+                row = conn.execute(
+                    "SELECT * FROM candidates WHERE id=? AND owner_id=?", (candidate_id, uid)
+                ).fetchone()
+            if row:
+                base_data = _safe_row_to_dict(row) or {}
+
+        # Parse le CV si fourni
+        cv_data = {}
+        if 'cv_file' in request.files and request.files['cv_file'].filename:
+            cv_file = request.files['cv_file']
+            ext  = os.path.splitext(cv_file.filename)[1].lower()
+            tmp_cv = os.path.join('/tmp', f'cv_upload_{int(datetime.datetime.now().timestamp())}{ext}')
+            cv_file.save(tmp_cv)
             parser  = CVParser()
             cv_data = parser.parse(tmp_cv)
             if base_data:
                 cv_data = parser.merge_with_candidate(cv_data, base_data)
-        finally:
-            try:
-                os.remove(tmp_cv)
-            except Exception:
-                pass
-    else:
-        # Utiliser données DB uniquement
-        cv_data = {
-            'nom': base_data.get('nom', base_data.get('name', '')),
-            'prenom': base_data.get('prenom', ''),
-            'titre_poste': base_data.get('titre', base_data.get('role', '')),
-            'annees_experience': '',
-            'competences': [], 'experiences': [],
-            'formations': [], 'langues': [], 'certifications': []
-        }
+        else:
+            # Utiliser données DB uniquement
+            cv_data = {
+                'nom': base_data.get('nom', base_data.get('name', '')),
+                'prenom': base_data.get('prenom', ''),
+                'titre_poste': base_data.get('titre', base_data.get('role', '')),
+                'annees_experience': '',
+                'competences': [], 'experiences': [],
+                'formations': [], 'langues': [], 'certifications': []
+            }
 
-    # Appliquer les overrides
-    if titre_override:
-        cv_data['titre_poste'] = titre_override
-    if exp_override:
-        cv_data['annees_experience'] = exp_override
+        # Appliquer les overrides
+        if titre_override:
+            cv_data['titre_poste'] = titre_override
+        if exp_override:
+            cv_data['annees_experience'] = exp_override
 
-    # Générer le PDF
-    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    cid_str   = str(candidate_id) if candidate_id else 'standalone'
-    nom_raw   = f"{cv_data.get('nom','candidat')}_{cv_data.get('prenom','')}".strip('_')
-    nom_clean = re.sub(r'[^\w\-]', '_', nom_raw)
-    output_path = os.path.join(APP_DIR, 'outputs', 'dossiers', f'{cid_str}_{nom_clean}_{timestamp}.pdf')
-
-    try:
+        # Générer le PDF
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        cid_str   = str(candidate_id) if candidate_id else 'standalone'
+        nom_raw   = f"{cv_data.get('nom','candidat')}_{cv_data.get('prenom','')}".strip('_')
+        nom_clean = re.sub(r'[^\w\-]', '_', nom_raw)
+        output_path = os.path.join(APP_DIR, 'outputs', 'dossiers', f'{cid_str}_{nom_clean}_{timestamp}.pdf')
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
         gen = DossierGenerator()
         gen.generate(cv_data, output_path)
 
@@ -16911,21 +16905,29 @@ def dc_generator_generate():
                 conn.commit()
 
         nom_dl = f"Dossier_Up_{cv_data.get('nom','')}_{cv_data.get('prenom','')}.pdf"
+        import urllib.parse as _urlparse
         return jsonify({
             'success': True,
-            'download_url': f"/dc-generator/download?path={output_path}",
+            'download_url': '/dc-generator/download?path=' + _urlparse.quote(output_path, safe=''),
             'filename': nom_dl,
             'generated_at': datetime.datetime.now().strftime('%d/%m/%Y à %H:%M')
         })
     except Exception as e:
         logger.error("DC Generator error: %s", e, exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if tmp_cv:
+            try:
+                os.remove(tmp_cv)
+            except Exception:
+                pass
 
 
 @app.route('/dc-generator/download')
 @login_required
 def dc_generator_download():
-    path = request.args.get('path', '')
+    import urllib.parse as _urlparse
+    path = _urlparse.unquote(request.args.get('path', ''))
     if not path or '..' in path:
         abort(404)
     # Sécurité : le fichier doit être dans outputs/dossiers/
