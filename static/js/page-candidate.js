@@ -698,6 +698,13 @@ function renderViewMode() {
 async function loadCandidateDcStatus() {
     const el = document.getElementById('viewDcIndicator');
     if (!el || !__cand?.id) return;
+
+    // Injecter le bouton DC Generator
+    const btnZone = document.getElementById('dcGeneratorBtnZone');
+    if (btnZone) {
+        btnZone.innerHTML = `<a href="/candidates/${__cand.id}/dc-generator" class="btn btn-secondary btn-sm" style="font-size:12px; text-decoration:none;">📄 Générer dossier Up</a>`;
+    }
+
     try {
         const res = await fetch(`/api/candidates/${__cand.id}/dc-status`);
         const j = await res.json();

@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+
+{% block title %}Prosp'Up — DC Generator{% endblock %}
+
+{% block page_id %}dc-generator{% endblock %}
+
+{% block header_title %}Prosp'Up — DC Generator{% endblock %}
+
+{% block header_subtitle %}Générateur de Dossier de Compétences format Up Technologies{% endblock %}
+
+{% block content %}
+<style>
+.dc-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .dc-layout { grid-template-columns: 1fr; }
+}
+.dc-dropzone {
+  border: 2px dashed var(--color-border);
+  border-radius: 10px;
+  padding: 24px 20px;
+  text-align: center;
+  background: var(--color-surface-2);
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.dc-dropzone:hover, .dc-dropzone.drag-over {
+  border-color: var(--color-primary);
+  background: rgba(232,119,34,.07);
+}
+.dc-dropzone-icon { font-size: 32px; margin-bottom: 8px; }
+.dc-dropzone-label { font-weight: 600; margin-bottom: 4px; }
+.dc-dropzone-hint { font-size: 12px; color: var(--color-text-muted); margin-bottom: 12px; }
+.dc-file-preview {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.dc-file-preview .dc-file-name { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-badge-ok { display: inline-flex; align-items: center; gap: 6px; background: rgba(34,197,94,.15); color: #22c55e; border: 1px solid rgba(34,197,94,.3); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; }
+.dc-badge-warn { display: inline-flex; align-items: center; gap: 6px; background: rgba(234,179,8,.15); color: #ca8a04; border: 1px solid rgba(234,179,8,.3); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; }
+.dc-candidate-badge { background: rgba(232,119,34,.12); border: 1px solid rgba(232,119,34,.3); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+.dc-candidate-badge .dc-cand-name { font-weight: 700; font-size: 15px; }
+.dc-result-card { border-radius: 12px; padding: 20px; margin-top: 8px; }
+.dc-result-card.success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3); }
+.dc-result-card.prev { background: var(--color-surface-2); border: 1px solid var(--color-border); }
+.dc-spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid rgba(232,119,34,.2); border-top-color: #E87722; border-radius: 50%; animation: dc-spin .7s linear infinite; vertical-align: middle; margin-right: 8px; }
+@keyframes dc-spin { to { transform: rotate(360deg); } }
+.dc-progress { display: none; text-align: center; padding: 32px 0; }
+.dc-progress.visible { display: block; }
+</style>
+
+<div class="content-header">
+  <div class="content-title">📄 DC Generator</div>
+</div>
+
+<div class="dc-layout">
+
+  <!-- ── ZONE GAUCHE : Setup + Paramètres ── -->
+  <div>
+
+    <!-- Section Setup logos (collapsible) -->
+    {% if not logo_configured %}
+    <div class="card" id="dcSetupSection">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+        <div style="font-weight:700; font-size:15px;">⚙️ Configuration initiale</div>
+        <span class="dc-badge-warn">⚠️ Requis</span>
+      </div>
+      <p style="font-size:13px; color:var(--color-text-muted); margin-bottom:16px;">
+        Uploadez un dossier de compétences Up Technologies existant (PDF) pour extraire automatiquement les logos header et footer. À faire une seule fois.
+      </p>
+      <div class="dc-dropzone" id="setupDropzone" onclick="document.getElementById('setupPdfInput').click()">
+        <div class="dc-dropzone-icon">📑</div>
+        <div class="dc-dropzone-label">Déposez un PDF dossier Up ici</div>
+        <div class="dc-dropzone-hint">ou cliquez pour sélectionner</div>
+        <input type="file" id="setupPdfInput" accept=".pdf" style="display:none;" onchange="handleSetupFile(this)">
+        <div id="setupFileName" style="display:none;" class="dc-file-preview">
+          <span>📄</span>
+          <span class="dc-file-name" id="setupFileNameText"></span>
+          <button type="button" onclick="event.stopPropagation(); clearSetupFile()" style="background:none;border:none;cursor:pointer;color:var(--color-text-muted);">✕</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px; width:100%;" onclick="extractLogos()" id="btnExtractLogos" disabled>
+        🖼️ Extraire les logos
+      </button>
+      <div id="setupResult" style="margin-top:10px; font-size:13px;"></div>
+    </div>
+    {% else %}
+    <div class="card" style="display:flex; align-items:center; gap:12px; padding:14px 18px; margin-bottom:0;">
+      <span class="dc-badge-ok">✅ Logos configurés</span>
+      <span style="font-size:13px; color:var(--color-text-muted);">Les logos Up Technologies sont prêts.</span>
+      <button class="btn btn-secondary" style="margin-left:auto; font-size:12px;" onclick="document.getElementById('dcSetupCollapsed').classList.toggle('hidden')">⚙️ Reconfigurer</button>
+    </div>
+    <div id="dcSetupCollapsed" class="card hidden" style="margin-top:0; border-top:none; border-radius:0 0 12px 12px;">
+      <p style="font-size:13px; color:var(--color-text-muted); margin-bottom:16px;">
+        Uploadez un nouveau dossier Up pour remplacer les logos existants.
+      </p>
+      <div class="dc-dropzone" id="setupDropzone" onclick="document.getElementById('setupPdfInput').click()">
+        <div class="dc-dropzone-icon">📑</div>
+        <div class="dc-dropzone-label">Déposez un PDF dossier Up ici</div>
+        <div class="dc-dropzone-hint">ou cliquez pour sélectionner</div>
+        <input type="file" id="setupPdfInput" accept=".pdf" style="display:none;" onchange="handleSetupFile(this)">
+        <div id="setupFileName" style="display:none;" class="dc-file-preview">
+          <span>📄</span>
+          <span class="dc-file-name" id="setupFileNameText"></span>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px; width:100%;" onclick="extractLogos()" id="btnExtractLogos" disabled>
+        🖼️ Remplacer les logos
+      </button>
+      <div id="setupResult" style="margin-top:10px; font-size:13px;"></div>
+    </div>
+    {% endif %}
+
+    <!-- Section Paramètres génération -->
+    <div class="card" style="margin-top:20px;">
+      <div style="font-weight:700; font-size:15px; margin-bottom:16px;">🛠️ Paramètres</div>
+
+      {% if candidate %}
+      <div class="dc-candidate-badge">
+        <div style="font-size:11px; color:var(--color-text-muted); margin-bottom:4px;">Candidat pré-sélectionné</div>
+        <div class="dc-cand-name">{{ candidate.prenom or '' }} {{ candidate.nom or candidate.name or '' }}</div>
+        {% if candidate.titre or candidate.role %}
+        <div style="font-size:13px; color:var(--color-text-muted);">{{ candidate.titre or candidate.role }}</div>
+        {% endif %}
+      </div>
+      <input type="hidden" id="candidateId" value="{{ candidate.id }}">
+      {% else %}
+      <input type="hidden" id="candidateId" value="">
+      {% endif %}
+
+      <!-- Drop zone CV -->
+      <div style="margin-bottom:16px;">
+        <label style="font-size:13px; font-weight:600; display:block; margin-bottom:8px;">📎 CV du candidat (DOCX ou PDF)</label>
+        <div class="dc-dropzone" id="cvDropzone" onclick="document.getElementById('cvFileInput').click()">
+          <div class="dc-dropzone-icon">📄</div>
+          <div class="dc-dropzone-label">Déposez le CV ici</div>
+          <div class="dc-dropzone-hint">DOCX ou PDF — optionnel si candidat pré-sélectionné</div>
+          <input type="file" id="cvFileInput" accept=".pdf,.docx" style="display:none;" onchange="handleCvFile(this)">
+        </div>
+        <div id="cvFileName" style="display:none;" class="dc-file-preview">
+          <span>📄</span>
+          <span class="dc-file-name" id="cvFileNameText"></span>
+          <button type="button" onclick="clearCvFile()" style="background:none;border:none;cursor:pointer;color:var(--color-text-muted);">✕</button>
+        </div>
+      </div>
+
+      <!-- Titre du poste -->
+      <div class="form-group" style="margin-bottom:12px;">
+        <label style="font-size:13px; font-weight:600;">Titre du poste</label>
+        <input type="text" id="titreOverride" class="form-control"
+               placeholder="{% if candidate and (candidate.titre or candidate.role) %}{{ candidate.titre or candidate.role }}{% else %}ex : Ingénieur développeur Full Stack{% endif %}"
+               style="margin-top:4px;">
+      </div>
+
+      <!-- Années d'expérience -->
+      <div class="form-group" style="margin-bottom:16px;">
+        <label style="font-size:13px; font-weight:600;">Années d'expérience</label>
+        <input type="text" id="expOverride" class="form-control"
+               placeholder="ex : 5 ans d'expérience"
+               style="margin-top:4px;">
+      </div>
+
+      <button class="btn btn-primary" style="width:100%; font-size:15px; padding:12px;" onclick="generateDossier()" id="btnGenerate">
+        🚀 Générer le dossier de compétences
+      </button>
+    </div>
+  </div>
+
+  <!-- ── ZONE DROITE : Résultat ── -->
+  <div>
+
+    <!-- Dossier précédemment généré -->
+    {% if candidate and candidate.dossier_path %}
+    <div class="card dc-result-card prev" id="prevDossierCard">
+      <div style="font-weight:700; font-size:15px; margin-bottom:8px;">📄 Dernier dossier généré</div>
+      {% if candidate.dossier_generated_at %}
+      <div style="font-size:12px; color:var(--color-text-muted); margin-bottom:12px;">
+        Généré le {{ candidate.dossier_generated_at[:16].replace('T', ' à ') if candidate.dossier_generated_at else '' }}
+      </div>
+      {% endif %}
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a href="/candidates/{{ candidate.id }}/dossier/download" class="btn btn-primary" style="text-decoration:none;">⬇️ Télécharger</a>
+        <button class="btn btn-secondary" onclick="generateDossier()">🔄 Régénérer</button>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Zone de progression -->
+    <div class="card dc-progress" id="dcProgress">
+      <div class="dc-spinner"></div>
+      <span style="font-size:14px; font-weight:600;">Génération en cours...</span>
+      <div style="font-size:12px; color:var(--color-text-muted); margin-top:8px;">
+        Parsing du CV · Mise en page Up Technologies · Génération PDF
+      </div>
+    </div>
+
+    <!-- Zone résultat succès -->
+    <div class="card dc-result-card success" id="dcResultCard" style="display:none;">
+      <div style="font-size:24px; margin-bottom:8px;">✅</div>
+      <div style="font-weight:700; font-size:16px; margin-bottom:4px;">Dossier généré avec succès !</div>
+      <div id="dcResultDate" style="font-size:12px; color:var(--color-text-muted); margin-bottom:16px;"></div>
+      <a id="dcDownloadLink" href="#" class="btn btn-primary" style="text-decoration:none; display:inline-block;">
+        ⬇️ Télécharger le PDF
+      </a>
+    </div>
+
+    <!-- Zone erreur -->
+    <div class="card" id="dcErrorCard" style="display:none; background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3);">
+      <div style="font-weight:700; color:#ef4444; margin-bottom:6px;">❌ Erreur de génération</div>
+      <div id="dcErrorMsg" style="font-size:13px;"></div>
+    </div>
+
+    <!-- Aide -->
+    <div class="card" style="margin-top:20px; background:var(--color-surface-2);">
+      <div style="font-weight:700; font-size:13px; margin-bottom:8px;">💡 Comment ça marche</div>
+      <ol style="font-size:13px; color:var(--color-text-muted); margin:0; padding-left:18px; line-height:1.7;">
+        <li>Uploadez le CV du candidat (DOCX ou PDF) — le parseur extrait automatiquement les compétences, expériences et formations.</li>
+        <li>Ajustez le titre et les années d'expérience si besoin.</li>
+        <li>Cliquez sur <b>Générer</b> — le PDF est créé au format Up Technologies.</li>
+        <li>Téléchargez le dossier prêt à l'envoi.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var _setupFile = null;
+  var _cvFile = null;
+
+  // ── Setup logos ───────────────────────────────────────────────────
+  window.handleSetupFile = function(input) {
+    _setupFile = input.files[0] || null;
+    var preview = document.getElementById('setupFileName');
+    var nameEl  = document.getElementById('setupFileNameText');
+    var btn     = document.getElementById('btnExtractLogos');
+    if (_setupFile) {
+      preview.style.display = 'flex';
+      nameEl.textContent = _setupFile.name;
+      if (btn) btn.disabled = false;
+    } else {
+      preview.style.display = 'none';
+      if (btn) btn.disabled = true;
+    }
+  };
+
+  window.clearSetupFile = function() {
+    _setupFile = null;
+    var input = document.getElementById('setupPdfInput');
+    if (input) input.value = '';
+    var preview = document.getElementById('setupFileName');
+    if (preview) preview.style.display = 'none';
+    var btn = document.getElementById('btnExtractLogos');
+    if (btn) btn.disabled = true;
+  };
+
+  window.extractLogos = function() {
+    if (!_setupFile) return;
+    var btn = document.getElementById('btnExtractLogos');
+    var resultEl = document.getElementById('setupResult');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Extraction…'; }
+    if (resultEl) resultEl.innerHTML = '';
+
+    var fd = new FormData();
+    fd.append('pdf_template', _setupFile);
+
+    fetch('/dc-generator/setup-logos', { method: 'POST', credentials: 'same-origin', body: fd })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.success) {
+          if (resultEl) resultEl.innerHTML = '<span style="color:#22c55e; font-weight:600;">✅ Logos extraits avec succès ! Rechargement…</span>';
+          setTimeout(function() { location.reload(); }, 1500);
+        } else {
+          if (resultEl) resultEl.innerHTML = '<span style="color:#ef4444;">❌ ' + (d.error || 'Erreur inconnue') + '</span>';
+          if (btn) { btn.disabled = false; btn.textContent = '🖼️ Extraire les logos'; }
+        }
+      })
+      .catch(function(e) {
+        if (resultEl) resultEl.innerHTML = '<span style="color:#ef4444;">❌ Erreur réseau : ' + e.message + '</span>';
+        if (btn) { btn.disabled = false; btn.textContent = '🖼️ Extraire les logos'; }
+      });
+  };
+
+  // ── CV file ───────────────────────────────────────────────────────
+  window.handleCvFile = function(input) {
+    _cvFile = input.files[0] || null;
+    var preview = document.getElementById('cvFileName');
+    var nameEl  = document.getElementById('cvFileNameText');
+    var dropzone = document.getElementById('cvDropzone');
+    if (_cvFile) {
+      if (preview) preview.style.display = 'flex';
+      if (nameEl) nameEl.textContent = _cvFile.name;
+      if (dropzone) dropzone.style.display = 'none';
+    } else {
+      if (preview) preview.style.display = 'none';
+      if (dropzone) dropzone.style.display = '';
+    }
+  };
+
+  window.clearCvFile = function() {
+    _cvFile = null;
+    var input = document.getElementById('cvFileInput');
+    if (input) input.value = '';
+    var preview = document.getElementById('cvFileName');
+    if (preview) preview.style.display = 'none';
+    var dropzone = document.getElementById('cvDropzone');
+    if (dropzone) dropzone.style.display = '';
+  };
+
+  // ── Drag & drop ───────────────────────────────────────────────────
+  function setupDropzone(zoneId, inputId, onFileFn) {
+    var zone = document.getElementById(zoneId);
+    if (!zone) return;
+    zone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      zone.classList.add('drag-over');
+    });
+    zone.addEventListener('dragleave', function() {
+      zone.classList.remove('drag-over');
+    });
+    zone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      var files = e.dataTransfer.files;
+      if (files && files[0]) {
+        var input = document.getElementById(inputId);
+        if (input) {
+          // Assign to file input via DataTransfer
+          try {
+            var dt = new DataTransfer();
+            dt.items.add(files[0]);
+            input.files = dt.files;
+          } catch(ex) {}
+        }
+        onFileFn({ files: [files[0]] });
+      }
+    });
+  }
+  setupDropzone('setupDropzone', 'setupPdfInput', window.handleSetupFile);
+  setupDropzone('cvDropzone', 'cvFileInput', window.handleCvFile);
+
+  // ── Génération dossier ────────────────────────────────────────────
+  window.generateDossier = function() {
+    var candidateId = document.getElementById('candidateId');
+    var titre = document.getElementById('titreOverride');
+    var exp   = document.getElementById('expOverride');
+    var btn   = document.getElementById('btnGenerate');
+    var progress = document.getElementById('dcProgress');
+    var resultCard = document.getElementById('dcResultCard');
+    var errorCard  = document.getElementById('dcErrorCard');
+
+    if (!_cvFile && !(candidateId && candidateId.value)) {
+      if (typeof window.showToast === 'function') {
+        window.showToast('Uploadez un CV ou sélectionnez un candidat.', 'warning');
+      } else {
+        alert('Uploadez un CV ou sélectionnez un candidat.');
+      }
+      return;
+    }
+
+    // UI : début génération
+    if (btn) btn.disabled = true;
+    if (progress) progress.classList.add('visible');
+    if (resultCard) resultCard.style.display = 'none';
+    if (errorCard)  errorCard.style.display = 'none';
+
+    var fd = new FormData();
+    if (candidateId && candidateId.value) fd.append('candidate_id', candidateId.value);
+    if (_cvFile) fd.append('cv_file', _cvFile);
+    if (titre && titre.value) fd.append('titre_override', titre.value);
+    if (exp && exp.value)   fd.append('exp_override', exp.value);
+
+    fetch('/dc-generator/generate', { method: 'POST', credentials: 'same-origin', body: fd })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (progress) progress.classList.remove('visible');
+        if (btn) btn.disabled = false;
+
+        if (d.success) {
+          if (resultCard) resultCard.style.display = 'block';
+          var dateEl = document.getElementById('dcResultDate');
+          if (dateEl) dateEl.textContent = 'Généré le ' + (d.generated_at || '');
+          var dlLink = document.getElementById('dcDownloadLink');
+          if (dlLink) {
+            dlLink.href = d.download_url;
+            dlLink.download = d.filename || 'dossier.pdf';
+          }
+          // Déclencher le téléchargement auto
+          if (d.download_url) {
+            var a = document.createElement('a');
+            a.href = d.download_url;
+            a.download = d.filename || 'dossier.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }
+          if (typeof window.showToast === 'function') {
+            window.showToast('Dossier généré avec succès !', 'success');
+          }
+        } else {
+          if (errorCard)  errorCard.style.display = 'block';
+          var errMsg = document.getElementById('dcErrorMsg');
+          if (errMsg) errMsg.textContent = d.error || 'Erreur inconnue';
+        }
+      })
+      .catch(function(e) {
+        if (progress) progress.classList.remove('visible');
+        if (btn) btn.disabled = false;
+        if (errorCard)  errorCard.style.display = 'block';
+        var errMsg = document.getElementById('dcErrorMsg');
+        if (errMsg) errMsg.textContent = 'Erreur réseau : ' + e.message;
+      });
+  };
+
+})();
+</script>
+{% endblock %}
