@@ -1057,3 +1057,179 @@
     background: rgba(30, 41, 59, 0.3);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   TUNNEL DE VENTE — Section gamification pipeline (v29.0)
+   ═══════════════════════════════════════════════════════════ */
+
+.dv2-journey-section {
+  margin: 0 0 36px;
+  animation: dv2-fadeSlideUp 0.4s ease both;
+  animation-delay: 0.2s;
+}
+
+.dv2-journey-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .dv2-journey-grid { grid-template-columns: 1fr; }
+}
+
+/* Hint text next to card title */
+.dv2-journey-hint {
+  font-size: 11px;
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+/* ── Funnel rows ── */
+.dv2-journey-stage {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--color-border);
+  animation: dv2-fadeSlideUp 0.35s ease both;
+}
+
+.dv2-journey-stage:last-child { border-bottom: none; }
+
+.dv2-journey-stage-icon {
+  font-size: 18px;
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.dv2-journey-stage-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dv2-journey-stage-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dv2-journey-stage-bar {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.dv2-journey-stage-fill {
+  height: 100%;
+  border-radius: 4px;
+  width: 0;
+  transition: width 1s cubic-bezier(.4,0,.2,1);
+}
+
+.dv2-journey-stage-count {
+  font-size: 15px;
+  font-weight: 800;
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.dv2-journey-stage-count.zero {
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+/* ── Priority prospect rows ── */
+.dv2-journey-prospect-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  animation: dv2-pillReveal 0.3s ease both;
+}
+
+.dv2-journey-prospect-row:last-child { border-bottom: none; }
+
+.dv2-journey-prospect-row:hover {
+  background: rgba(var(--color-primary-rgb), 0.05);
+  border-radius: 8px;
+  padding-left: 6px;
+  padding-right: 6px;
+  margin: 0 -6px;
+}
+
+.dv2-journey-prospect-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dv2-journey-prospect-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dv2-journey-prospect-company {
+  font-size: 11px;
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dv2-journey-prospect-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.dv2-journey-stage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: .3px;
+  white-space: nowrap;
+}
+
+.dv2-journey-stage-badge.s-besoin     { background: rgba(59,130,246,.15); color: #3b82f6; }
+.dv2-journey-stage-badge.s-reunion_tech { background: rgba(139,92,246,.15); color: #8b5cf6; }
+
+.dv2-journey-days {
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+.dv2-journey-days.urgent { color: #ef4444; font-weight: 700; }
+
+.dv2-journey-empty {
+  text-align: center;
+  padding: 24px 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.dv2-journey-empty-icon {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 8px;
+  opacity: 0.6;
+}

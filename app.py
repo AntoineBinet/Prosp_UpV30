@@ -7839,6 +7839,137 @@ def api_prospect_log_call():
     return jsonify(ok=True, lastContact=now)
 
 
+@app.post("/api/prospect/log-stage")
+def api_prospect_log_stage():
+    """Enregistre une étape de pipeline (reunion_tech, contrat_signe) pour un prospect."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    body = request.get_json(silent=True) or {}
+    prospect_id = body.get("prospect_id")
+    stage = body.get("stage")
+    ALLOWED_STAGES = ("reunion_tech", "contrat_signe")
+    if not prospect_id:
+        return jsonify(ok=False, error="prospect_id requis"), 400
+    if stage not in ALLOWED_STAGES:
+        return jsonify(ok=False, error="stage invalide"), 400
+    now = _now_iso()
+    today = now[:10]
+    STAGE_LABELS = {
+        "reunion_tech": "Réunion Technique réalisée",
+        "contrat_signe": "Contrat Signé",
+    }
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM prospects WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (prospect_id, uid),
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Prospect introuvable"), 404
+        conn.execute(
+            """INSERT INTO prospect_events (prospect_id, date, type, title, content, meta, createdAt)
+               VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(prospect_id, type, date) DO UPDATE SET title=excluded.title, createdAt=excluded.createdAt;""",
+            (prospect_id, today, stage, STAGE_LABELS[stage], None, None, now),
+        )
+    return jsonify(ok=True, stage=stage, date=today)
+
+
+@app.get("/api/dashboard/pipeline-stages")
+def api_dashboard_pipeline_stages():
+    """Retourne la distribution des prospects par étape de pipeline (frise chronologique)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        # Prospects de l'utilisateur non supprimés/archivés
+        all_prospects = conn.execute(
+            """SELECT id, name, statut, rdvDate, lastContact, nextFollowUp, company_id
+               FROM prospects
+               WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') AND (is_archived=0 OR is_archived IS NULL)
+               ORDER BY id;""",
+            (uid,),
+        ).fetchall()
+
+        # Prospects ayant au moins 1 réunion enregistrée
+        meeting_pids = set(
+            r[0]
+            for r in conn.execute(
+                "SELECT DISTINCT prospect_id FROM meetings WHERE owner_id=?;", (uid,)
+            ).fetchall()
+        )
+
+        # Prospects avec event 'reunion_tech'
+        rt_pids = set(
+            r[0]
+            for r in conn.execute(
+                "SELECT DISTINCT prospect_id FROM prospect_events WHERE type='reunion_tech' AND prospect_id IN (SELECT id FROM prospects WHERE owner_id=?);",
+                (uid,),
+            ).fetchall()
+        )
+
+        # Prospects avec event 'contrat_signe'
+        contrat_pids = set(
+            r[0]
+            for r in conn.execute(
+                "SELECT DISTINCT prospect_id FROM prospect_events WHERE type='contrat_signe' AND prospect_id IN (SELECT id FROM prospects WHERE owner_id=?);",
+                (uid,),
+            ).fetchall()
+        )
+
+        # Map company_id → name
+        company_names = {
+            r[0]: r[1]
+            for r in conn.execute(
+                "SELECT id, groupe FROM companies WHERE owner_id=?;", (uid,)
+            ).fetchall()
+        }
+
+        # Classement des prospects par stage
+        stage_counts = {"appel": 0, "rdv": 0, "besoin": 0, "reunion_tech": 0, "contrat": 0}
+        stage_prospects = {"appel": [], "rdv": [], "besoin": [], "reunion_tech": [], "contrat": []}
+
+        RDV_STATUTS = {"Rendez-vous", "Prospecté"}
+
+        for p in all_prospects:
+            pid = p["id"]
+            # Dériver l'étape la plus avancée
+            if pid in contrat_pids:
+                stage = "contrat"
+            elif pid in rt_pids:
+                stage = "reunion_tech"
+            elif pid in meeting_pids:
+                stage = "besoin"
+            elif p["statut"] in RDV_STATUTS or (p["rdvDate"] and str(p["rdvDate"]).strip()):
+                stage = "rdv"
+            else:
+                stage = "appel"
+
+            stage_counts[stage] += 1
+            stage_prospects[stage].append({
+                "id": pid,
+                "name": p["name"],
+                "company": company_names.get(p["company_id"], ""),
+                "statut": p["statut"],
+                "lastContact": p["lastContact"] or "",
+                "nextFollowUp": p["nextFollowUp"] or "",
+                "stage": stage,
+            })
+
+        # Top prospects à pousser: stages besoin + reunion_tech, triés par lastContact (les plus anciens)
+        priority = sorted(
+            stage_prospects["besoin"] + stage_prospects["reunion_tech"],
+            key=lambda x: (x["lastContact"] or "0"),
+        )[:8]
+
+    return jsonify(
+        ok=True,
+        stages=stage_counts,
+        total=len(all_prospects),
+        priority_prospects=priority,
+    )
+
+
 @app.get("/api/candidate/timeline")
 def api_candidate_timeline():
     """Timeline des événements d'un candidat (candidate_events)."""
