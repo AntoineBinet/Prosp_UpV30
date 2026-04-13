@@ -33,7 +33,8 @@
                   { href: '/help',       icon: '\u2753',       label: 'Aide',      page: 'help',       helpSection: 'raccourcis' }
               ]
             },
-            { href: '/push',      icon: '\uD83D\uDCE4', label: 'Push',             page: 'push',      helpSection: 'push' },
+            { href: '/push',         icon: '\uD83D\uDCE4', label: 'Push',             page: 'push',         helpSection: 'push' },
+            { href: '/dc-generator', icon: '\uD83D\uDCC4', label: 'DC Generator',    page: 'dc-generator', helpSection: 'dc-generator' },
             { href: '/?archived=1', icon: '\uD83D\uDCC1', label: 'Archiv\u00e9s', id: 'sidebarArchivedBtn', page: '_archived', helpSection: 'archived' }
         ]}
     ];

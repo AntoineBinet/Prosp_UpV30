@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "28.0"
+APP_VERSION = "29.0"
 import os
 import subprocess
 import traceback
@@ -1900,6 +1900,12 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
         ]:
             if _col not in cand_cols:
                 _add_col("candidates", _col, _ddl)
+
+        # v29.0: DC Generator — dossier généré par le générateur interne
+        if "dossier_path" not in cand_cols:
+            _add_col("candidates", "dossier_path", "TEXT")
+        if "dossier_generated_at" not in cand_cols:
+            _add_col("candidates", "dossier_generated_at", "DATETIME")
 
         # v23.5: Soft delete — add deleted_at column to main tables
         for tbl in ("prospects", "companies", "candidates"):
@@ -16763,6 +16769,194 @@ def api_assistant_action():
     except Exception as e:
         logger.error("Erreur exécution action assistant: %s", e)
         return jsonify(ok=False, error=str(e)), 500
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v29.0: DC Generator — Dossier de Compétences format Up Technologies
+# ═══════════════════════════════════════════════════════════════════
+
+@app.route('/dc-generator')
+@login_required
+def dc_generator():
+    """Page principale DC Generator (sans candidat pré-sélectionné)"""
+    logo_ok = os.path.exists(os.path.join(APP_DIR, 'static', 'up_assets', 'up_logo_header.png'))
+    return render_template('dc_generator.html', logo_configured=logo_ok, candidate=None)
+
+
+@app.route('/candidates/<int:candidate_id>/dc-generator')
+@login_required
+def dc_generator_candidate(candidate_id):
+    """DC Generator pré-rempli avec un candidat"""
+    uid = _uid()
+    with _conn() as conn:
+        candidate = conn.execute(
+            "SELECT * FROM candidates WHERE id=? AND owner_id=?", (candidate_id, uid)
+        ).fetchone()
+    if not candidate:
+        abort(404)
+    logo_ok = os.path.exists(os.path.join(APP_DIR, 'static', 'up_assets', 'up_logo_header.png'))
+    return render_template('dc_generator.html',
+                           logo_configured=logo_ok,
+                           candidate=dict(candidate))
+
+
+@app.route('/dc-generator/setup-logos', methods=['POST'])
+@login_required
+def dc_generator_setup_logos():
+    """Upload d'un PDF template pour extraction des logos"""
+    import subprocess as _subprocess
+    if 'pdf_template' not in request.files:
+        return jsonify({'success': False, 'error': 'Aucun fichier fourni'}), 400
+    f = request.files['pdf_template']
+    if not f.filename.lower().endswith('.pdf'):
+        return jsonify({'success': False, 'error': 'Fichier PDF requis'}), 400
+
+    tmp_path = os.path.join('/tmp', f'up_template_{int(datetime.datetime.now().timestamp())}.pdf')
+    f.save(tmp_path)
+    try:
+        script_path = os.path.join(APP_DIR, 'utils', 'extract_up_assets.py')
+        result = _subprocess.run(
+            [sys.executable, script_path, tmp_path],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            return jsonify({'success': True, 'message': result.stdout})
+        else:
+            return jsonify({'success': False, 'error': result.stderr or result.stdout}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+
+@app.route('/dc-generator/generate', methods=['POST'])
+@login_required
+def dc_generator_generate():
+    """Génère le PDF dossier de compétences"""
+    from utils.cv_parser import CVParser
+    from utils.dossier_generator import DossierGenerator
+
+    uid = _uid()
+    candidate_id = request.form.get('candidate_id')
+    titre_override = request.form.get('titre_override', '').strip()
+    exp_override   = request.form.get('exp_override', '').strip()
+
+    # Données de base depuis la DB si candidat fourni
+    base_data = {}
+    if candidate_id:
+        with _conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM candidates WHERE id=? AND owner_id=?", (candidate_id, uid)
+            ).fetchone()
+        if row:
+            base_data = _safe_row_to_dict(row) or {}
+
+    # Parse le CV si fourni
+    cv_data = {}
+    tmp_cv = None
+    if 'cv_file' in request.files and request.files['cv_file'].filename:
+        cv_file = request.files['cv_file']
+        ext  = os.path.splitext(cv_file.filename)[1].lower()
+        tmp_cv = os.path.join('/tmp', f'cv_upload_{int(datetime.datetime.now().timestamp())}{ext}')
+        cv_file.save(tmp_cv)
+        try:
+            parser  = CVParser()
+            cv_data = parser.parse(tmp_cv)
+            if base_data:
+                cv_data = parser.merge_with_candidate(cv_data, base_data)
+        finally:
+            try:
+                os.remove(tmp_cv)
+            except Exception:
+                pass
+    else:
+        # Utiliser données DB uniquement
+        cv_data = {
+            'nom': base_data.get('nom', base_data.get('name', '')),
+            'prenom': base_data.get('prenom', ''),
+            'titre_poste': base_data.get('titre', base_data.get('role', '')),
+            'annees_experience': '',
+            'competences': [], 'experiences': [],
+            'formations': [], 'langues': [], 'certifications': []
+        }
+
+    # Appliquer les overrides
+    if titre_override:
+        cv_data['titre_poste'] = titre_override
+    if exp_override:
+        cv_data['annees_experience'] = exp_override
+
+    # Générer le PDF
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    cid_str   = str(candidate_id) if candidate_id else 'standalone'
+    nom_raw   = f"{cv_data.get('nom','candidat')}_{cv_data.get('prenom','')}".strip('_')
+    nom_clean = re.sub(r'[^\w\-]', '_', nom_raw)
+    output_path = os.path.join(APP_DIR, 'outputs', 'dossiers', f'{cid_str}_{nom_clean}_{timestamp}.pdf')
+
+    try:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        gen = DossierGenerator()
+        gen.generate(cv_data, output_path)
+
+        # Sauvegarder en DB si candidat connu
+        if candidate_id:
+            with _conn() as conn:
+                conn.execute(
+                    "UPDATE candidates SET dossier_path=?, dossier_generated_at=? WHERE id=? AND owner_id=?",
+                    (output_path, datetime.datetime.now().isoformat(), candidate_id, uid)
+                )
+                conn.commit()
+
+        nom_dl = f"Dossier_Up_{cv_data.get('nom','')}_{cv_data.get('prenom','')}.pdf"
+        return jsonify({
+            'success': True,
+            'download_url': f"/dc-generator/download?path={output_path}",
+            'filename': nom_dl,
+            'generated_at': datetime.datetime.now().strftime('%d/%m/%Y à %H:%M')
+        })
+    except Exception as e:
+        logger.error("DC Generator error: %s", e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/dc-generator/download')
+@login_required
+def dc_generator_download():
+    path = request.args.get('path', '')
+    if not path or '..' in path:
+        abort(404)
+    # Sécurité : le fichier doit être dans outputs/dossiers/
+    abs_path = os.path.abspath(path)
+    allowed_dir = os.path.abspath(os.path.join(APP_DIR, 'outputs', 'dossiers'))
+    if not abs_path.startswith(allowed_dir):
+        abort(403)
+    if not os.path.exists(abs_path):
+        abort(404)
+    nom = os.path.basename(abs_path).replace('_', ' ')
+    return send_file(abs_path, as_attachment=True, download_name=nom)
+
+
+@app.route('/candidates/<int:candidate_id>/dossier/download')
+@login_required
+def candidate_dossier_download(candidate_id):
+    uid = _uid()
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT dossier_path, nom, prenom, name FROM candidates WHERE id=? AND owner_id=?",
+            (candidate_id, uid)
+        ).fetchone()
+    if not row or not row['dossier_path']:
+        abort(404)
+    abs_path = os.path.abspath(row['dossier_path'])
+    if not os.path.exists(abs_path):
+        abort(404)
+    nom = row['nom'] or row['name'] or 'Candidat'
+    prenom = row['prenom'] or ''
+    nom_dl = f"Dossier_Compétences_Up_{nom}_{prenom}.pdf"
+    return send_file(abs_path, as_attachment=True, download_name=nom_dl)
 
 
 # ── Blueprints ────────────────────────────────────────────────────
