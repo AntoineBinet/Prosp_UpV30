@@ -1085,6 +1085,117 @@ function dv2_renderStats(chartsData) {
   }
 }
 
+// ─── Tunnel de Vente — Pipeline Gamification (v29.0) ───
+
+var DV2_JOURNEY_STAGES = [
+  { key: 'appel',        label: 'Appel Prosp',      icon: '📞', color: '#64748b' },
+  { key: 'rdv',          label: 'RDV Prosp',         icon: '🤝', color: '#f59e0b' },
+  { key: 'besoin',       label: 'Besoin Qualifié',   icon: '💡', color: '#3b82f6' },
+  { key: 'reunion_tech', label: 'Réunion Technique', icon: '⚙️', color: '#8b5cf6' },
+  { key: 'contrat',      label: 'Contrat Signé',     icon: '🏆', color: '#22c55e' },
+];
+
+async function dv2_loadJourney() {
+  try {
+    var res = await fetch('/api/dashboard/pipeline-stages', { credentials: 'include' });
+    var data = await res.json();
+    if (!data.ok) return;
+    dv2_renderJourneyFunnel(data);
+    dv2_renderJourneyProspects(data.priority_prospects || []);
+  } catch(e) {
+    console.warn('[DashV2] tunnel de vente skipped:', e.message);
+    var funnel = document.getElementById('dv2JourneyStages');
+    if (funnel) funnel.innerHTML = '<div class="dv2-empty">Données indisponibles.</div>';
+  }
+}
+
+function dv2_renderJourneyFunnel(data) {
+  var stagesEl = document.getElementById('dv2JourneyStages');
+  var badgeEl = document.getElementById('dv2JourneyBadge');
+  if (!stagesEl) return;
+
+  var total = data.total || 0;
+  var stages = data.stages || {};
+
+  if (badgeEl) badgeEl.textContent = total + ' prospect' + (total !== 1 ? 's' : '');
+
+  if (!total) {
+    stagesEl.innerHTML = '<div class="dv2-journey-empty"><span class="dv2-journey-empty-icon">📭</span>Aucun prospect.</div>';
+    return;
+  }
+
+  stagesEl.innerHTML = DV2_JOURNEY_STAGES.map(function(s, i) {
+    var n = stages[s.key] || 0;
+    var pct = total ? Math.round((n / total) * 100) : 0;
+    return '<div class="dv2-journey-stage" style="animation-delay:' + (i * 80) + 'ms">' +
+      '<div class="dv2-journey-stage-icon">' + s.icon + '</div>' +
+      '<div class="dv2-journey-stage-info">' +
+        '<div class="dv2-journey-stage-label">' + dv2_esc(s.label) + '</div>' +
+        '<div class="dv2-journey-stage-bar">' +
+          '<div class="dv2-journey-stage-fill" style="background:' + s.color + ';width:0" data-pct="' + pct + '"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="dv2-journey-stage-count' + (n === 0 ? ' zero' : '') + '">' + n + '</div>' +
+    '</div>';
+  }).join('');
+
+  // Animer les barres après rendu
+  setTimeout(function() {
+    stagesEl.querySelectorAll('.dv2-journey-stage-fill').forEach(function(fill) {
+      fill.style.width = fill.getAttribute('data-pct') + '%';
+    });
+  }, 80);
+}
+
+function dv2_renderJourneyProspects(prospects) {
+  var el = document.getElementById('dv2JourneyProspects');
+  if (!el) return;
+
+  if (!prospects || !prospects.length) {
+    el.innerHTML = '<div class="dv2-journey-empty">' +
+      '<span class="dv2-journey-empty-icon">🎯</span>' +
+      'Aucun prospect en attente de progression.<br>' +
+      '<span style="font-size:11px;opacity:.7;">Ajoutez des réunions pour faire avancer vos prospects !</span>' +
+    '</div>';
+    return;
+  }
+
+  var STAGE_CLASSES = { besoin: 's-besoin', reunion_tech: 's-reunion_tech' };
+  var STAGE_LABELS  = { besoin: '💡 Besoin', reunion_tech: '⚙️ Réunion Tech' };
+
+  el.innerHTML = prospects.map(function(p, i) {
+    var stageClass = STAGE_CLASSES[p.stage] || '';
+    var stageLabel = STAGE_LABELS[p.stage] || p.stage;
+
+    // Jours depuis dernier contact
+    var daysHtml = '';
+    if (p.lastContact) {
+      var diffMs = Date.now() - new Date(p.lastContact).getTime();
+      var diffDays = Math.floor(diffMs / 86400000);
+      if (diffDays >= 0) {
+        var cls = diffDays >= 14 ? 'urgent' : '';
+        daysHtml = '<div class="dv2-journey-days ' + cls + '">' +
+          (diffDays === 0 ? "Aujourd'hui" : diffDays + 'j sans contact') +
+        '</div>';
+      }
+    }
+
+    return '<div class="dv2-journey-prospect-row" style="animation-delay:' + (i * 60) + 'ms" ' +
+      'onclick="window.location.href=\'/?open=' + p.id + '\'" title="Voir la fiche de ' + dv2_esc(p.name) + '">' +
+      '<div class="dv2-journey-prospect-info">' +
+        '<div class="dv2-journey-prospect-name">' + dv2_esc(p.name) + '</div>' +
+        (p.company ? '<div class="dv2-journey-prospect-company">' + dv2_esc(p.company) + '</div>' : '') +
+      '</div>' +
+      '<div class="dv2-journey-prospect-meta">' +
+        '<span class="dv2-journey-stage-badge ' + stageClass + '">' + stageLabel + '</span>' +
+        daysHtml +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+window.dv2_loadJourney = dv2_loadJourney;
+
 // ─── Boot ───
 
 async function dv2_boot() {
@@ -1118,6 +1229,9 @@ async function dv2_boot() {
   dv2_fetchCharts()
     .then(function(data) { if (data) dv2_renderStats(data); })
     .catch(function(e) { console.warn('[DashV2] charts skipped:', e.message); });
+
+  // Non-blocking: Tunnel de vente (gamification pipeline)
+  dv2_loadJourney().catch(function(e) { console.warn('[DashV2] journey skipped:', e.message); });
 }
 
 document.addEventListener('DOMContentLoaded', async function() {

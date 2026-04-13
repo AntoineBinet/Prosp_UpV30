@@ -210,6 +210,26 @@
   }
 
   // ==================================================================
+  //  Mini-frise chronologique (5 dots) pour les cartes mobiles
+  // ==================================================================
+  function _buildMiniFrise(prospect) {
+    var stage = (typeof window._getProspectStageFast === 'function')
+      ? window._getProspectStageFast(prospect)
+      : 0;
+    var html = '<div class="prospect-frise-mini" title="Étape pipeline: ' +
+      (['Appel Prosp','RDV Prosp','Besoin','Réunion Tech','Contrat Signé'][stage] || 'Appel Prosp') + '">';
+    for (var i = 0; i < 5; i++) {
+      var cls = i < stage ? 'done' : (i === stage ? 'active' : '');
+      html += '<div class="prospect-frise-mini-dot ' + cls + '"></div>';
+      if (i < 4) {
+        html += '<div class="prospect-frise-mini-connector' + (i < stage ? ' done' : '') + '"></div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  // ==================================================================
   //  3. PROSPECT CARDS — Replace table with mobile cards
   // ==================================================================
   function renderProspectCards() {
@@ -292,7 +312,7 @@
                 (sm.label ? '<span class="m-card-pill s-' + sm.slug + '">' + sm.icon + ' ' + sm.label + '</span>' : '') +
               '</div>' +
               (sub ? '<div class="m-card-row2">' + sub + '</div>' : '') +
-              '<div class="m-card-row3">' + followup + stars + rdvBadge + '</div>' +
+              '<div class="m-card-row3">' + followup + stars + rdvBadge + _buildMiniFrise(prospect) + '</div>' +
             '</div>' +
             '<div class="m-card-chevron">\u203A</div>' +
           '</div>' +

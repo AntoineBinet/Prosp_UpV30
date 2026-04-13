@@ -12203,3 +12203,230 @@ body[data-page="sourcing"] #fab-speed-dial { display: none !important; }
   border-radius: 999px;
   margin-top: 3px;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   FRISE CHRONOLOGIQUE PROSPECT (Gamification Pipeline)
+   ═══════════════════════════════════════════════════════════ */
+
+.prospect-frise {
+  padding: 14px 16px 10px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.prospect-frise-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.prospect-frise-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.prospect-frise-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid var(--color-border);
+  background: var(--color-surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: all 0.3s cubic-bezier(.4,0,.2,1);
+  animation: frise-step-enter 0.4s ease both;
+}
+
+.prospect-frise-step.completed .prospect-frise-dot {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(34,197,94,.15);
+}
+
+.prospect-frise-step.active .prospect-frise-dot {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(243,111,33,.2);
+  animation: frise-step-enter 0.4s ease both, frise-pulse 2s ease-in-out infinite;
+}
+
+.prospect-frise-step.future .prospect-frise-dot {
+  opacity: 0.4;
+}
+
+.prospect-frise-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  color: var(--color-muted);
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.2;
+  max-width: 58px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prospect-frise-step.completed .prospect-frise-label { color: #22c55e; }
+.prospect-frise-step.active .prospect-frise-label { color: var(--color-primary); font-weight: 700; }
+
+.prospect-frise-connector {
+  flex: 1;
+  height: 2px;
+  background: var(--color-border);
+  position: relative;
+  overflow: hidden;
+  min-width: 8px;
+}
+
+.prospect-frise-connector-fill {
+  position: absolute;
+  inset: 0;
+  background: #22c55e;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.6s cubic-bezier(.4,0,.2,1);
+}
+
+.prospect-frise-connector.filled .prospect-frise-connector-fill {
+  transform: scaleX(1);
+}
+
+/* Boutons d'avancement d'étape */
+.prospect-frise-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 0;
+  flex-wrap: wrap;
+  background: var(--color-surface);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.prospect-frise-advance-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.prospect-frise-advance-btn:hover {
+  border-color: var(--color-primary);
+  background: rgba(243,111,33,.08);
+  color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+.prospect-frise-advance-btn.btn-contrat {
+  border-color: #22c55e;
+  color: #22c55e;
+  background: rgba(34,197,94,.06);
+}
+
+.prospect-frise-advance-btn.btn-contrat:hover {
+  background: rgba(34,197,94,.14);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(34,197,94,.2);
+}
+
+/* Mini-frise sur les cartes mobiles */
+.prospect-frise-mini {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.prospect-frise-mini-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-border);
+  flex-shrink: 0;
+  transition: background 0.3s ease;
+}
+
+.prospect-frise-mini-dot.done { background: #22c55e; }
+.prospect-frise-mini-dot.active { background: var(--color-primary); animation: frise-mini-pulse 1.5s ease-in-out infinite; }
+
+.prospect-frise-mini-connector {
+  flex: 1;
+  height: 1.5px;
+  background: var(--color-border);
+  min-width: 4px;
+}
+
+.prospect-frise-mini-connector.done { background: #22c55e; }
+
+/* Mini-badge étape (pour dashboard) */
+.frise-stage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: .3px;
+}
+.frise-stage-badge.s1 { background: rgba(100,116,139,.15); color: #64748b; }
+.frise-stage-badge.s2 { background: rgba(34,197,94,.15); color: #22c55e; }
+.frise-stage-badge.s3 { background: rgba(59,130,246,.15); color: #3b82f6; }
+.frise-stage-badge.s4 { background: rgba(139,92,246,.15); color: #8b5cf6; }
+.frise-stage-badge.s5 { background: rgba(243,111,33,.15); color: var(--color-primary); }
+
+/* Animations */
+@keyframes frise-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(243,111,33,.2); }
+  50%       { box-shadow: 0 0 0 8px rgba(243,111,33,0); }
+}
+
+@keyframes frise-step-enter {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes frise-mini-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* Confetti célébration */
+.frise-confetti-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.frise-confetti-piece {
+  position: absolute;
+  top: -20px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  animation: frise-confetti-fall 1.4s ease-out forwards;
+}
+
+@keyframes frise-confetti-fall {
+  0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}

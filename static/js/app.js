@@ -2210,6 +2210,17 @@ function initProspectsPage() {
     updateBulkBar();
     updateSelectAllState();
     try { initSavedViewsUI(); } catch(e) {}
+
+    // Ouverture automatique d'une fiche via ?open=PID (depuis le dashboard tunnel)
+    try {
+        const openId = new URLSearchParams(window.location.search).get('open');
+        if (openId) {
+            setTimeout(() => {
+                const pid = parseInt(openId, 10);
+                if (!isNaN(pid) && typeof viewDetail === 'function') viewDetail(pid);
+            }, 400);
+        }
+    } catch (e) {}
 }
 
 function populateCompanySelects() {
@@ -5139,6 +5150,9 @@ async function viewDetail(id) {
         </div>
         ${(prospect.nextAction || '').trim() ? `<div class="detail-next-action-banner" role="status"><strong>🎯 Prochaine action :</strong> ${escapeHtml(prospect.nextAction)}</div>` : ''}
 
+        <!-- FRISE CHRONOLOGIQUE (gamification pipeline) -->
+        <div id="friseContainer_${prospect.id}"></div>
+
         <div class="detail-tabs">
             <button class="detail-tab active" onclick="switchDetailTab(this,'tab-info')">Infos</button>
             <button class="detail-tab" onclick="switchDetailTab(this,'tab-push')">📤 Push</button>
@@ -5302,6 +5316,11 @@ async function viewDetail(id) {
 
     // init tags editor (edit mode)
     try { initTagsEditor('editTagsEditor', 'editTagsValue', prospect.tags || []); } catch (e) {}
+
+    // Frise chronologique gamification
+    if (typeof loadProspectFrise === 'function') {
+        loadProspectFrise(prospect.id, prospect);
+    }
 
     // v27.x PARTIE 1: Initialiser Notes/Suivi (composant NotesTimeline) dans l'onglet Infos
     setTimeout(() => {
@@ -15090,4 +15109,171 @@ document.addEventListener('keydown', function(e) {
         _pollInterval = setInterval(_check, POLL_MS);
     });
 }());
+
+// ══════════════════════════════════════════════════════════════════════
+//  FRISE CHRONOLOGIQUE PROSPECT — Gamification Pipeline (v29.0)
+// ══════════════════════════════════════════════════════════════════════
+
+const FRISE_STAGES = [
+    { key: 'appel',       label: 'Appel\nProsp',    icon: '📞', color: '#64748b' },
+    { key: 'rdv',         label: 'RDV\nProsp',      icon: '🤝', color: '#f59e0b' },
+    { key: 'besoin',      label: 'Besoin\nQualifié', icon: '💡', color: '#3b82f6' },
+    { key: 'reunion_tech',label: 'Réunion\nTech',   icon: '⚙️', color: '#8b5cf6' },
+    { key: 'contrat',     label: 'Contrat\nSigné',  icon: '🏆', color: '#22c55e' },
+];
+
+const FRISE_STAGE_LABELS = {
+    appel: 'Appel Prosp', rdv: 'RDV Prosp', besoin: 'Besoin Qualifié',
+    reunion_tech: 'Réunion Tech', contrat: 'Contrat Signé',
+};
+
+function _getProspectStageFromData(prospect, events, hasMeeting) {
+    if (!prospect) return 0;
+    // Stage 5 - Contrat Signé
+    if (events && events.some(e => e.type === 'contrat_signe')) return 4;
+    // Stage 4 - Réunion Technique
+    if (events && events.some(e => e.type === 'reunion_tech')) return 3;
+    // Stage 3 - Besoin (meeting saved)
+    if (hasMeeting) return 2;
+    // Stage 2 - RDV
+    const RDV_STATUTS = ['Rendez-vous', 'Prospecté'];
+    if (RDV_STATUTS.includes(prospect.statut) || (prospect.rdvDate && String(prospect.rdvDate).trim())) return 1;
+    // Stage 1 - Appel Prosp (default)
+    return 0;
+}
+
+// Stage simplifié depuis le statut seul (pour les listes)
+function _getProspectStageFast(prospect) {
+    if (!prospect) return 0;
+    const RDV_STATUTS = ['Rendez-vous', 'Prospecté'];
+    if (RDV_STATUTS.includes(prospect.statut) || (prospect.rdvDate && String(prospect.rdvDate).trim())) return 1;
+    return 0;
+}
+
+async function loadProspectFrise(prospectId, prospect) {
+    const container = document.getElementById(`friseContainer_${prospectId}`);
+    if (!container) return;
+
+    // Affichage rapide en attendant les données
+    const fastStage = _getProspectStageFast(prospect);
+    container.innerHTML = _buildFriseHtml(prospectId, fastStage, false, false);
+
+    try {
+        // Charger events + meetings en parallèle
+        const [evRes, mtRes] = await Promise.all([
+            fetch(`/api/prospect/timeline?id=${prospectId}`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ ok: false })),
+            fetch(`/api/meetings?prospect_id=${prospectId}`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ ok: false })),
+        ]);
+
+        const events = (evRes.ok && evRes.events) ? evRes.events : [];
+        const hasMeeting = (mtRes.ok && mtRes.meetings && mtRes.meetings.length > 0);
+        const stage = _getProspectStageFromData(prospect, events, hasMeeting);
+        const hasRt = events.some(e => e.type === 'reunion_tech');
+        const hasContrat = events.some(e => e.type === 'contrat_signe');
+
+        container.innerHTML = _buildFriseHtml(prospectId, stage, hasRt, hasContrat);
+
+        // Animer les connecteurs après un court délai
+        setTimeout(() => {
+            container.querySelectorAll('.prospect-frise-connector').forEach((c, i) => {
+                if (i < stage) {
+                    setTimeout(() => c.classList.add('filled'), i * 120);
+                }
+            });
+        }, 50);
+    } catch (e) {
+        // Silent fail — frise reste en version rapide
+    }
+}
+
+function _buildFriseHtml(prospectId, stage, hasRt, hasContrat) {
+    const stepsHtml = FRISE_STAGES.map((s, i) => {
+        const state = i < stage ? 'completed' : (i === stage ? 'active' : 'future');
+        const delay = i * 60;
+        const dotContent = state === 'completed' ? '✓' : s.icon;
+        const labelLines = s.label.split('\n').map(l => escapeHtml(l)).join('<br>');
+
+        let step = `<div class="prospect-frise-step ${state}" style="animation-delay:${delay}ms">` +
+            `<div class="prospect-frise-dot" title="${FRISE_STAGE_LABELS[s.key]}">${dotContent}</div>` +
+            `<div class="prospect-frise-label">${labelLines}</div>` +
+            `</div>`;
+
+        if (i < FRISE_STAGES.length - 1) {
+            step += `<div class="prospect-frise-connector" data-idx="${i}"></div>`;
+        }
+        return step;
+    }).join('');
+
+    // Boutons d'avancement contextuels
+    let advanceBtns = '';
+    if (stage === 2 && !hasRt) {
+        advanceBtns = `<button class="prospect-frise-advance-btn" onclick="logProspectStage(${prospectId},'reunion_tech')" title="Marquer la réunion technique comme réalisée">⚙️ Marquer RT faite</button>`;
+    } else if (stage === 3 && !hasContrat) {
+        advanceBtns = `<button class="prospect-frise-advance-btn btn-contrat" onclick="logProspectStage(${prospectId},'contrat_signe')" title="Marquer le contrat comme signé">🏆 Contrat signé !</button>`;
+    }
+
+    const actionsHtml = advanceBtns ? `<div class="prospect-frise-actions">${advanceBtns}</div>` : '';
+
+    return `<div class="prospect-frise">` +
+        `<div class="prospect-frise-steps">${stepsHtml}</div>` +
+        `</div>` +
+        actionsHtml;
+}
+
+async function logProspectStage(prospectId, stage) {
+    const LABELS = { reunion_tech: 'Réunion Technique', contrat_signe: 'Contrat Signé' };
+    try {
+        const res = await fetch('/api/prospect/log-stage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ prospect_id: prospectId, stage }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            if (window.showToast) window.showToast('Erreur : ' + (data.error || 'Inconnue'), 'error');
+            return;
+        }
+        // Célébration
+        _friseConfetti();
+        if (window.showToast) window.showToast('🎉 ' + LABELS[stage] + ' validé(e) !', 'success', 3500);
+
+        // Recharger la frise
+        const prospect = (window.prospects || []).find(p => p.id === prospectId);
+        if (prospect) await loadProspectFrise(prospectId, prospect);
+    } catch (e) {
+        if (window.showToast) window.showToast('Erreur de connexion', 'error');
+    }
+}
+
+function _friseConfetti() {
+    const layer = document.createElement('div');
+    layer.className = 'frise-confetti-layer';
+    document.body.appendChild(layer);
+
+    const colors = ['#f36f21', '#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444'];
+    const count = 38;
+    for (let i = 0; i < count; i++) {
+        const piece = document.createElement('div');
+        piece.className = 'frise-confetti-piece';
+        piece.style.cssText = [
+            `left:${10 + Math.random() * 80}%`,
+            `background:${colors[Math.floor(Math.random() * colors.length)]}`,
+            `animation-delay:${Math.random() * 0.5}s`,
+            `animation-duration:${0.9 + Math.random() * 0.8}s`,
+            `width:${5 + Math.random() * 6}px`,
+            `height:${5 + Math.random() * 6}px`,
+            `border-radius:${Math.random() > 0.5 ? '50%' : '2px'}`,
+        ].join(';');
+        layer.appendChild(piece);
+    }
+    setTimeout(() => layer.remove(), 2000);
+}
+
+// Rendre les fonctions accessibles globalement
+window.loadProspectFrise = loadProspectFrise;
+window.logProspectStage = logProspectStage;
+window._getProspectStageFast = _getProspectStageFast;
+window.FRISE_STAGES = FRISE_STAGES;
+window.FRISE_STAGE_LABELS = FRISE_STAGE_LABELS;
 
