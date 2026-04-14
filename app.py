@@ -4379,6 +4379,10 @@ def mode_prosp_save():
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout = 20000;")
         conn.execute("PRAGMA journal_mode = WAL;")
+        # Fetch current prospect state before update (for event diffing)
+        old_row = conn.execute("SELECT statut, rdvDate FROM prospects WHERE id = ? AND owner_id = ?", (pid, uid)).fetchone()
+        old_statut = str(old_row["statut"] or "").strip() if old_row else ""
+        old_rdv = str(old_row["rdvDate"] or "").strip() if old_row else ""
         # Build SET clause for only editable fields present in payload
         sets = []
         vals = []
@@ -4398,6 +4402,20 @@ def mode_prosp_save():
             f"UPDATE prospects SET {', '.join(sets)} WHERE id = ? AND owner_id = ?",
             vals
         )
+        # Log "RDV pris" event for gamified goals (same logic as upsert_all)
+        try:
+            new_statut = str(prospect.get("statut") or "").strip()
+            new_rdv = str(prospect.get("rdvDate") or "").strip()
+            if new_statut == "Rendez-vous" and new_rdv:
+                if old_statut != "Rendez-vous" or old_rdv != new_rdv:
+                    now_ev = datetime.datetime.now().isoformat(timespec="seconds")
+                    ev_date = now_ev[:10]
+                    conn.execute(
+                        "INSERT OR IGNORE INTO prospect_events (prospect_id, date, type, title, content, meta, createdAt) VALUES (?,?,?,?,?,?,?)",
+                        (pid, ev_date, "rdv_taken", "RDV pris", None, json.dumps({"rdvDate": new_rdv}, ensure_ascii=False), now_ev),
+                    )
+        except Exception:
+            pass
         conn.commit()
         # Fetch updated prospect to return it
         row = conn.execute("SELECT * FROM prospects WHERE id = ? AND owner_id = ?", (pid, uid)).fetchone()
