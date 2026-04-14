@@ -35,8 +35,10 @@ def main():
     header_path = os.path.join(ASSETS_DIR, 'up_logo_header.png')
     footer_path = os.path.join(ASSETS_DIR, 'up_logo_footer.png')
 
-    # Coordonnées validées sur dossiers Up Technologies réels
-    size_h = extract_logo_region(pdf_path, 0, (0.55, 0.00, 1.00, 0.115), header_path)
+    # Coordonnées validées sur dossiers Up Technologies réels.
+    # Header : serre bien le logo pour éviter d'attraper le texte sous le bandeau
+    # (ex. « … génie électrique » du titre de document).
+    size_h = extract_logo_region(pdf_path, 0, (0.55, 0.00, 1.00, 0.065), header_path)
     size_f = extract_logo_region(pdf_path, 0, (0.18, 0.882, 0.82, 1.000), footer_path)
 
     print(f"Logo header extrait : {header_path} ({size_h} octets)")

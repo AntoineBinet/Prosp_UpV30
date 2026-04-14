@@ -18,11 +18,13 @@ RÈGLES STRICTES :
 - "competences" = compétences techniques GLOBALES (langages, frameworks, outils, BDD, cloud, méthodes, secteurs)
 - NE PAS inclure de descriptions de missions ou de réalisations
 - NE PAS inventer de compétences absentes
-- Max 6 catégories
+- Max 8 catégories
 - Chaque catégorie a SOIT "items" (liste plate, max 12 items), SOIT "groupes" (sous-catégories avec titre et items)
 - Utilise "groupes" si la catégorie regroupe plusieurs domaines distincts (ex: "Domaines de compétences")
 - Utilise "items" pour les listes simples (langages, outils, secteurs)
-- Les catégories doivent être des labels comme "Langages", "Outils", "Méthodes", "Secteurs", "Domaines de compétences"
+- Les catégories DOIVENT être des labels génériques : "Langages", "Frameworks", "Outils", "Bases de données", "Méthodes", "Cloud", "Secteurs", "Domaines de compétences", "Technologies XML", "Web", "Conception", "Certifications"
+- INTERDIT d'utiliser comme catégorie un nom d'outil ("SQL", "DB2", "Java", "Oracle", "Eclipse") ou un nom de client ("HERTZ", "BNP", "EDF", "GMF", "AXA", "SANOFI", "EFS"…)
+- INTERDIT d'utiliser comme catégorie un fragment d'expérience ("Technologies et outils utilisés au quotidien", "Projet X", "Réalisations")
 
 Retourne UNIQUEMENT ce JSON valide, sans markdown ni explication :
 {{
@@ -56,15 +58,19 @@ Tu es un expert RH. À partir du texte de CV ci-dessous, extrais la liste des ex
 
 RÈGLES STRICTES :
 - Une entrée = une mission ou un projet chez un client/employeur distinct
+- "entreprise" OBLIGATOIRE : nom du client ou de l'employeur (ex: "HERTZ", "BNP Paribas", "EFS"). JAMAIS vide.
+- "dates" OBLIGATOIRE : période de la mission (ex: "01/2012 au 07/2012", "Depuis 09/2020")
 - "titre_projet" = nom du projet ou de la mission (ex: "Refonte espace client GMF")
   Si pas de nom explicite → "{rôle} chez {entreprise}" (ex: "Chef de Projet chez EFS")
-- "poste" = rôle/fonction du candidat dans la mission
-- "sous_missions" : réalisations structurées
+- "poste" = rôle/fonction du candidat dans la mission (du champ "Rôle :" ou "Fonction :" du CV)
+- "sous_missions" : réalisations structurées (lignes avec ❖ • ou ➢ o dans le CV)
   • Liste simple → "bullets" : ["réalisation 1", "réalisation 2"]
   • Réalisations avec sous-parties → "groupes" : [{{"titre": "Partie", "items": ["item 1"]}}]
-- "outils" = outils/technologies de CETTE mission uniquement
-- Max 12 expériences
+- "outils" = outils/technologies de CETTE mission uniquement (liste sous « Technologies et outils utilisés au quotidien »)
+- NE JAMAIS inclure les lignes « Technologies et outils utilisés au quotidien » dans les bullets — elles vont dans "outils"
+- Max 15 expériences
 - NE PAS inventer de données absentes
+- Si une expérience n'a PAS d'entreprise identifiable, NE PAS la créer
 
 Retourne UNIQUEMENT ce JSON valide, sans markdown ni explication :
 {{
@@ -98,17 +104,17 @@ TEXTE DU CV :
 
 _SECTION_PATTERNS = {
     'competences': [
-        r'(?im)^[ \t]*(?:COMPÉTENCES?(?:\s+TECHNIQUES?)?|TECHNICAL\s+SKILLS?|SAVOIRS?\s*FAIRE?|EXPERTISE\s+TECHNIQUE)[:\s]*$',
-        r'(?im)^[ \t]*(?:COMPÉTENCES?|SKILLS?)[:\s]*$',
+        r'(?im)^[ \t]*(?:COMP[EÉ]TENCES?(?:\s+TECHNIQUES?)?|TECHNICAL\s+SKILLS?|SAVOIRS?\s*FAIRE?|EXPERTISE\s+TECHNIQUE)\s*:?\s*$',
+        r'(?im)^[ \t]*(?:COMP[EÉ]TENCES?|SKILLS?)\b[^\n]{0,30}$',
     ],
     'experiences': [
-        r'(?im)^[ \t]*(?:EXPÉRIENCES?\s+PROFESSIONNELLES?|PARCOURS\s+PROFESSIONNEL|EXPÉRIENCES?\s+(?:DE\s+)?TRAVAIL)[:\s]*$',
-        r'(?im)^[ \t]*(?:EXPÉRIENCES?|MISSIONS?\s+PROFESSIONNELLES?)[:\s]*$',
-        r'(?im)^[ \t]*(?:PROFESSIONAL\s+EXPERIENCE|WORK\s+EXPERIENCE)[:\s]*$',
+        r'(?im)^[ \t]*(?:EXP[EÉ]RIENCES?\s+PROFESSIONNELLES?|PARCOURS\s+PROFESSIONNEL|EXP[EÉ]RIENCES?\s+(?:DE\s+)?TRAVAIL)\s*:?\s*$',
+        r'(?im)^[ \t]*(?:EXP[EÉ]RIENCES?|MISSIONS?\s+PROFESSIONNELLES?)\s*:?\s*$',
+        r'(?im)^[ \t]*(?:PROFESSIONAL\s+EXPERIENCE|WORK\s+EXPERIENCE)\s*:?\s*$',
     ],
     'formations': [
-        r'(?im)^[ \t]*(?:FORMATIONS?\s+(?:ET\s+)?DIPLÔMES?|FORMATIONS?\s+ACADÉMIQUES?|PARCOURS\s+(?:ACADÉMIQUE|SCOLAIRE)|EDUCATION)[:\s]*$',
-        r'(?im)^[ \t]*(?:FORMATIONS?|DIPLÔMES?|STUDIES?)[:\s]*$',
+        r'(?im)^[ \t]*(?:FORMATIONS?\s+(?:ET\s+)?DIPL[OÔ]MES?|FORMATIONS?\s+ACAD[EÉ]MIQUES?|PARCOURS\s+(?:ACAD[EÉ]MIQUE|SCOLAIRE)|EDUCATION)\s*:?\s*$',
+        r'(?im)^[ \t]*(?:FORMATIONS?|DIPL[OÔ]MES?|STUDIES?)\s*:?\s*$',
     ],
 }
 
@@ -247,6 +253,38 @@ def _is_valid_competences(data: dict) -> bool:
     return bad <= len(cats) * 0.33
 
 
+def _is_valid_experiences(data: dict) -> bool:
+    """Une liste d'expériences est valide si la majorité des entrées ont
+    au moins une entreprise ou un titre de projet non vide."""
+    exps = data.get('experiences', [])
+    if not exps:
+        return True
+    invalid = 0
+    for e in exps:
+        if not isinstance(e, dict):
+            invalid += 1; continue
+        ent = str(e.get('entreprise', '')).strip()
+        tit = str(e.get('titre_projet', '')).strip()
+        if not ent and not tit:
+            invalid += 1
+    return invalid <= len(exps) * 0.3
+
+
+def _dedupe_experiences(exps: list) -> list:
+    """Supprime les doublons (même entreprise + mêmes dates)."""
+    seen = set()
+    out = []
+    for e in exps:
+        if not isinstance(e, dict):
+            continue
+        key = (str(e.get('entreprise', '')).strip().lower(),
+               str(e.get('dates', '')).strip().lower())
+        if key == ('', '') or key not in seen:
+            seen.add(key)
+            out.append(e)
+    return out
+
+
 # ── Extraction principale ─────────────────────────────────────────────────────
 
 def extract(cv_text: str, ollama_url: str = 'http://127.0.0.1:11434',
@@ -283,10 +321,31 @@ def extract(cv_text: str, ollama_url: str = 'http://127.0.0.1:11434',
     exp_data = {}
     if raw2:
         exp_data = _parse_json_response(raw2) or {}
+        if not _is_valid_experiences(exp_data):
+            print('[OllamaExtractor] expériences invalides (entreprise/titre manquants), retry...')
+            raw2b = _call_ollama(prompt2, ollama_url, model, min(timeout, 120))
+            if raw2b:
+                retry = _parse_json_response(raw2b) or {}
+                if _is_valid_experiences(retry):
+                    exp_data = retry
+
+    # Filtrer les expériences vides
+    raw_exps = exp_data.get('experiences', []) if isinstance(exp_data, dict) else []
+    clean_exps = []
+    for e in raw_exps:
+        if not isinstance(e, dict):
+            continue
+        ent = str(e.get('entreprise', '')).strip()
+        tit = str(e.get('titre_projet', '')).strip()
+        dates = str(e.get('dates', '')).strip()
+        if not ent and not tit and not dates:
+            continue
+        clean_exps.append(e)
+    clean_exps = _dedupe_experiences(clean_exps)
 
     # ── Fusion ────────────────────────────────────────────────────────────────
     combined = {**comp_data}  # nom, prenom, titre_poste, annees_experience, competences, formations, langues, certifications
-    combined['experiences'] = exp_data.get('experiences', [])
+    combined['experiences'] = clean_exps
 
     return _normalize(combined) if (combined.get('nom') or combined.get('competences') or combined.get('experiences')) else None
 
