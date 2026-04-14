@@ -11,59 +11,126 @@ import urllib.error
 
 
 _PROMPT_TEMPLATE = """\
-Analyse ce CV et retourne UNIQUEMENT un objet JSON valide (pas de markdown, pas d'explication).
+Tu es un expert RH spécialisé dans les CVs de consultants français.
+Analyse ce CV et retourne UNIQUEMENT un objet JSON valide. Aucun markdown, aucune explication, aucun texte avant ou après le JSON.
 
-Structure JSON exacte requise :
+═══════════════════════════════════════════════════════
+RÈGLES ABSOLUES :
+═══════════════════════════════════════════════════════
+
+1. COMPÉTENCES = résumé GLOBAL des savoirs techniques du candidat
+   ✓ À inclure : langages de programmation, frameworks, outils, BDD, cloud, méthodes, normes, secteurs
+   ✗ À EXCLURE : toute description de mission, résultat, réalisation, contexte client
+   → Maximum 6 catégories, maximum 10 items par catégorie
+
+2. EXPÉRIENCES = liste des missions/projets (max 12)
+   → Une entrée = une mission distincte chez un client ou employeur
+   → "titre_projet" : nom du projet ou de la mission
+     Ex: "Refonte espace client GMF", "Projet DevOps CI/CD", "Stage Contrôle-Commande DAB"
+     Si pas de nom explicite → "{rôle} chez {entreprise}", ex: "Chef de Projet chez EFS"
+   → "sous_missions" : réalisations de la mission
+     • Si liste simple → utiliser "bullets" : ["réalisation 1", "réalisation 2"]
+     • Si réalisations organisées en sous-parties → utiliser "groupes" :
+       [{{"titre": "Sous-partie", "items": ["item 1", "item 2"]}}]
+
+3. FORMATIONS = diplômes et formations académiques UNIQUEMENT (pas les certifications pro)
+
+4. CERTIFICATIONS = certifications professionnelles (AWS, PRINCE2, etc.)
+
+═══════════════════════════════════════════════════════
+STRUCTURE JSON EXACTE (respecter les noms de clés) :
+═══════════════════════════════════════════════════════
 {{
-  "nom": "NOM",
+  "nom": "NOM_EN_MAJUSCULES",
   "prenom": "Prénom",
-  "titre_poste": "Chef de Projet",
+  "titre_poste": "Chef de Projet / Expert DevOps",
   "annees_experience": "18 ans d'expérience",
-  "email": "",
-  "telephone": "",
   "competences": [
-    {{"categorie": "Langages & Frameworks", "items": ["Java J2EE", "Spring", "JSF 2.0"]}},
-    {{"categorie": "Outils", "items": ["Eclipse", "Maven", "Git"]}},
-    {{"categorie": "Bases de données", "items": ["Oracle", "DB2", "SQL"]}},
-    {{"categorie": "Méthodes", "items": ["UML", "Cycle en V", "Agile"]}},
-    {{"categorie": "Secteurs d'activité", "items": ["Finance", "Assurance"]}}
+    {{"categorie": "Langages & Frameworks", "items": ["Java J2EE", "Spring", "JSF 2.0", "Python", "SQL"]}},
+    {{"categorie": "Outils & DevOps", "items": ["Jenkins", "Docker", "Kubernetes", "Git", "Maven", "Ansible"]}},
+    {{"categorie": "Bases de données", "items": ["Oracle", "DB2", "SQL Server", "PL/SQL"]}},
+    {{"categorie": "Cloud & Infrastructure", "items": ["Azure", "AWS", "Linux", "Terraform"]}},
+    {{"categorie": "Méthodes", "items": ["Agile/Scrum", "DevOps", "PRINCE2", "Cycle en V"]}},
+    {{"categorie": "Secteurs", "items": ["Finance", "Assurance", "Énergie", "Santé"]}}
   ],
   "experiences": [
     {{
-      "entreprise": "Nom client / entreprise",
-      "dates": "2010 – 2012",
-      "duree": "(2 ans)",
+      "titre_projet": "Refonte espace client GMF",
+      "entreprise": "GMF Assurances",
+      "dates": "08/2012 à 08/2013",
+      "duree": "(12 mois)",
       "secteur": "Assurance",
-      "poste": "Développeur J2EE",
-      "sous_missions": [{{"titre": "Réalisations", "bullets": ["Action 1", "Action 2"]}}],
-      "outils": "Java, JSF, DB2"
+      "poste": "Architecte, Référent technique",
+      "sous_missions": [
+        {{
+          "titre": "Réalisations",
+          "bullets": [
+            "Refonte de l'espace sociétaire sur gmf.fr",
+            "Développement d'IHMs JSF 2.0 offrant de nouveaux services",
+            "Expertise JSF 2.0 et correction d'anomalies"
+          ]
+        }}
+      ],
+      "outils": "Java J2EE, JSF 2.0, PrimeFaces, Maven, Eclipse, DB2"
+    }},
+    {{
+      "titre_projet": "Projet DevOps CI/CD HSBC",
+      "entreprise": "HSBC Paris",
+      "dates": "05/2015 à 04/2017",
+      "duree": "(21 mois)",
+      "secteur": "Finance",
+      "poste": "Expert DevOps",
+      "sous_missions": [
+        {{
+          "titre": "Réalisations",
+          "groupes": [
+            {{
+              "titre": "Intégration continue",
+              "items": [
+                "Mise en place du serveur Jenkins",
+                "Automatisation des tests unitaires et d'intégration",
+                "Analyse automatisée de la qualité du code"
+              ]
+            }},
+            {{
+              "titre": "Déploiement automatisé",
+              "items": [
+                "Mise en place d'environnements de tests avec Docker",
+                "Déploiements automatisés en SIT et UAT"
+              ]
+            }}
+          ]
+        }}
+      ],
+      "outils": "Jenkins, Maven, SONAR, Docker, Linux, Puppet, Ansible, AWS"
     }}
   ],
-  "formations": [{{"label": "Formation", "texte": "Diplôme – École", "annee": "2006"}}],
-  "langues": [{{"langue": "Anglais", "niveau": "Courant"}}],
-  "certifications": []
+  "formations": [
+    {{"label": "Formation", "texte": "Diplôme d'ingénieur – École Centrale Paris", "annee": "2006"}}
+  ],
+  "langues": [
+    {{"langue": "Anglais", "niveau": "Courant"}},
+    {{"langue": "Français", "niveau": "Langue maternelle"}}
+  ],
+  "certifications": [
+    "AWS Certified Solutions Architect – Associate",
+    "PRINCE2 Foundation Certificate in Project Management"
+  ]
 }}
 
-Règles :
-- "competences" = UNIQUEMENT les savoirs techniques (langages, frameworks, outils, BDD, méthodes, secteurs) — PAS les descriptions de missions
-- "experiences" = une entrée par mission/client distincte, avec réalisations et outils
-- Max 8 items par catégorie de compétences, max 10 expériences
-- Laisse vide ("") les champs absents — ne les invente pas
-
-CV :
+═══════════════════════════════════════════════════════
+CV À ANALYSER :
+═══════════════════════════════════════════════════════
 {cv_text}"""
 
 
 def extract(cv_text: str, ollama_url: str = 'http://127.0.0.1:11434',
-            model: str = 'llama3.2', timeout: int = 120) -> dict | None:
+            model: str = 'llama3.2', timeout: int = 180) -> dict | None:
     """
     Envoie cv_text à Ollama pour extraction structurée.
     Retourne un dict ou None si échec.
     """
-    # Tronquer à 6000 caractères pour tenir dans le contexte du modèle
-    cv_truncated = cv_text[:6000]
-    if len(cv_text) > 6000:
-        cv_truncated += '\n[... texte tronqué ...]'
+    cv_truncated = _smart_truncate(cv_text, 10000)
 
     prompt = _PROMPT_TEMPLATE.format(cv_text=cv_truncated)
 
@@ -72,8 +139,9 @@ def extract(cv_text: str, ollama_url: str = 'http://127.0.0.1:11434',
         'prompt': prompt,
         'stream': False,
         'options': {
-            'temperature': 0.1,
-            'num_predict': 3000,
+            'temperature': 0.05,
+            'num_predict': 4096,
+            'num_ctx':     8192,
         }
     }).encode('utf-8')
 
@@ -93,8 +161,21 @@ def extract(cv_text: str, ollama_url: str = 'http://127.0.0.1:11434',
         print(f'[OllamaExtractor] connexion échouée : {e}')
         return None
 
-    # Extraire le JSON de la réponse (parfois entouré de markdown)
     return _parse_json_response(response_text)
+
+
+def _smart_truncate(text: str, max_chars: int) -> str:
+    """Tronque le CV en conservant le début (identité + compétences) et les premières missions."""
+    if len(text) <= max_chars:
+        return text
+
+    # Couper sur un saut de ligne propre
+    cut = text[:max_chars]
+    last_nl = cut.rfind('\n', max_chars - 500, max_chars)
+    if last_nl > max_chars - 500:
+        cut = cut[:last_nl]
+
+    return cut + '\n\n[... CV tronqué – analyse basée sur les premières sections ...]'
 
 
 def _parse_json_response(text: str) -> dict | None:
@@ -112,7 +193,20 @@ def _parse_json_response(text: str) -> dict | None:
     # Trouver la fin du JSON en comptant les accolades
     depth = 0
     end = -1
+    in_string = False
+    escape_next = False
     for i, ch in enumerate(text[start:], start):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == '\\' and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
         if ch == '{':
             depth += 1
         elif ch == '}':
@@ -121,16 +215,12 @@ def _parse_json_response(text: str) -> dict | None:
                 end = i + 1
                 break
 
-    if end == -1:
-        # JSON incomplet — essayer quand même
-        json_str = text[start:]
-    else:
-        json_str = text[start:end]
+    json_str = text[start:end] if end != -1 else text[start:]
 
     try:
         data = json.loads(json_str)
     except json.JSONDecodeError:
-        # Tentative de réparation : supprimer trailing commas
+        # Tentative de réparation : trailing commas
         json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
         try:
             data = json.loads(json_str)
@@ -146,34 +236,63 @@ def _normalize(data: dict) -> dict:
     def _str(v):  return str(v).strip() if v else ''
     def _list(v): return v if isinstance(v, list) else []
 
+    # ── Compétences ──────────────────────────────────────────────────────
     competences = []
     for cat in _list(data.get('competences')):
         if isinstance(cat, dict):
             categorie = _str(cat.get('categorie') or cat.get('category', ''))
-            items     = [_str(x) for x in _list(cat.get('items')) if x]
+            items     = [_str(x) for x in _list(cat.get('items')) if x and str(x).strip()]
             if categorie and items:
-                competences.append({'categorie': categorie, 'items': items})
+                competences.append({'categorie': categorie, 'items': items[:10]})
 
+    # ── Expériences ───────────────────────────────────────────────────────
     experiences = []
     for exp in _list(data.get('experiences')):
-        if isinstance(exp, dict):
-            sous = []
-            for sm in _list(exp.get('sous_missions')):
-                if isinstance(sm, dict):
-                    bullets = [_str(b) for b in _list(sm.get('bullets')) if b]
-                    sous.append({'titre': _str(sm.get('titre', 'Réalisations')), 'bullets': bullets})
-            if not sous:
-                sous = [{'titre': 'Réalisations', 'bullets': []}]
-            experiences.append({
-                'entreprise': _str(exp.get('entreprise')),
-                'dates':      _str(exp.get('dates')),
-                'duree':      _str(exp.get('duree')),
-                'secteur':    _str(exp.get('secteur')),
-                'poste':      _str(exp.get('poste')),
-                'sous_missions': sous,
-                'outils':     _str(exp.get('outils')),
-            })
+        if not isinstance(exp, dict):
+            continue
 
+        # Normaliser les sous_missions (avec support groupes)
+        sous = []
+        for sm in _list(exp.get('sous_missions')):
+            if not isinstance(sm, dict):
+                continue
+
+            bullets  = [_str(b) for b in _list(sm.get('bullets')) if b and str(b).strip()]
+            groupes  = []
+            for g in _list(sm.get('groupes')):
+                if isinstance(g, dict):
+                    g_items = [_str(x) for x in _list(g.get('items')) if x and str(x).strip()]
+                    if g_items:
+                        groupes.append({
+                            'titre': _str(g.get('titre', '')),
+                            'items': g_items,
+                        })
+
+            sm_entry = {
+                'titre':   _str(sm.get('titre', 'Réalisations')),
+                'bullets': bullets,
+            }
+            if groupes:
+                sm_entry['groupes'] = groupes
+
+            if bullets or groupes:
+                sous.append(sm_entry)
+
+        if not sous:
+            sous = [{'titre': 'Réalisations', 'bullets': []}]
+
+        experiences.append({
+            'titre_projet':  _str(exp.get('titre_projet')),
+            'entreprise':    _str(exp.get('entreprise')),
+            'dates':         _str(exp.get('dates')),
+            'duree':         _str(exp.get('duree')),
+            'secteur':       _str(exp.get('secteur')),
+            'poste':         _str(exp.get('poste')),
+            'sous_missions': sous,
+            'outils':        _str(exp.get('outils')),
+        })
+
+    # ── Formations ────────────────────────────────────────────────────────
     formations = []
     for f in _list(data.get('formations')):
         if isinstance(f, dict):
@@ -183,6 +302,7 @@ def _normalize(data: dict) -> dict:
                 'annee': _str(f.get('annee')),
             })
 
+    # ── Langues ───────────────────────────────────────────────────────────
     langues = []
     for l in _list(data.get('langues')):
         if isinstance(l, dict):
