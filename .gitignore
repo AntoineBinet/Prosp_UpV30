@@ -16,3 +16,4 @@ logs/
 data/ai_config.json
 test-results/
 outputs/dossiers/*.pdf
+outputs/dossiers/*.docx

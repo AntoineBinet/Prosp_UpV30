@@ -1,344 +1,490 @@
 #!/usr/bin/env python3
 """
-Génère un PDF dossier de compétences au format Up Technologies.
+Génère un DOCX dossier de compétences au format Up Technologies.
+Utilise python-docx pour une fidélité maximale au template Word officiel.
+Sortie : fichier .docx (editable dans Word/LibreOffice).
 """
 import os
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import cm
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    HRFlowable, PageBreak
-)
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_CENTER
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+import re
+from docx import Document
+from docx.shared import Pt, Cm, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 
 # ── Couleurs Up Technologies ──────────────────────────────────────────────────
-ORANGE     = colors.HexColor('#E87722')
-DARK       = colors.HexColor('#1A1A1A')
-GREY       = colors.HexColor('#5A5A5A')
-LGREY      = colors.HexColor('#AAAAAA')
-BORDERGREY = colors.HexColor('#CCCCCC')
+ORANGE     = RGBColor(0xE8, 0x77, 0x22)
+DARK       = RGBColor(0x1A, 0x1A, 0x1A)
+GREY       = RGBColor(0x5A, 0x5A, 0x5A)
+LGREY      = RGBColor(0xCC, 0xCC, 0xCC)
 
-PAGE_W, PAGE_H = A4
-MARGIN_L  = 2.0*cm; MARGIN_R = 2.0*cm
-MARGIN_T  = 2.2*cm; MARGIN_B = 2.5*cm
-CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R
+ORANGE_HEX = 'E87722'
+LGREY_HEX  = 'CCCCCC'
+WHITE_HEX  = 'FFFFFF'
 
-# ── Polices : Lato système > Helvetica fallback ───────────────────────────────
-def _load_fonts():
-    candidates = [
-        '/usr/share/fonts/truetype/lato',
-        '/usr/share/fonts/lato',
-        os.path.join(os.environ.get('WINDIR', ''), 'Fonts') if os.name == 'nt' else '',
-    ]
-    for lato_dir in candidates:
-        if not lato_dir:
-            continue
-        try:
-            r = os.path.join(lato_dir, 'Lato-Regular.ttf')
-            b = os.path.join(lato_dir, 'Lato-Bold.ttf')
-            if not os.path.exists(r):
-                continue
-            pdfmetrics.registerFont(TTFont('Lato',        r))
-            pdfmetrics.registerFont(TTFont('Lato-Bold',   b))
-            semi = os.path.join(lato_dir, 'Lato-Semibold.ttf')
-            ital = os.path.join(lato_dir, 'Lato-Italic.ttf')
-            pdfmetrics.registerFont(TTFont('Lato-Semi',   semi if os.path.exists(semi) else b))
-            pdfmetrics.registerFont(TTFont('Lato-Italic', ital if os.path.exists(ital) else r))
-            return 'Lato', 'Lato-Bold', 'Lato-Semi', 'Lato-Italic'
-        except Exception:
-            pass
-    return 'Helvetica', 'Helvetica-Bold', 'Helvetica-Bold', 'Helvetica-Oblique'
+BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOGO_HEADER = os.path.join(BASE_DIR, 'static', 'up_assets', 'up_logo_header.png')
+LOGO_FOOTER = os.path.join(BASE_DIR, 'static', 'up_assets', 'up_logo_footer.png')
 
-FONT_BODY, FONT_BOLD, FONT_SEMI, FONT_ITAL = _load_fonts()
+# ── Helpers XML ───────────────────────────────────────────────────────────────
 
-# ── Styles ────────────────────────────────────────────────────────────────────
-def _make_styles():
-    s = {}
-    def P(name, **kw): return ParagraphStyle(name + '_dc', **kw)
-    s['name']            = P('name',           fontName=FONT_BOLD, fontSize=18, leading=22, textColor=DARK,   spaceAfter=0)
-    s['role']            = P('role',           fontName=FONT_BODY, fontSize=12, leading=15, textColor=DARK,   spaceAfter=0)
-    s['exp']             = P('exp',            fontName=FONT_BODY, fontSize=12, leading=15, textColor=DARK,   spaceAfter=10)
-    s['section_title']   = P('section_title',  fontName=FONT_ITAL, fontSize=14, leading=18, textColor=ORANGE, spaceAfter=4)
-    s['label_cell']      = P('label_cell',     fontName=FONT_BODY, fontSize=9,  leading=12, textColor=GREY,   alignment=TA_CENTER)
-    s['body']            = P('body',           fontName=FONT_BODY, fontSize=8.5,leading=12, textColor=DARK)
-    s['body_bold']       = P('body_bold',      fontName=FONT_SEMI, fontSize=8.5,leading=12, textColor=DARK)
-    s['bullet']          = P('bullet',         fontName=FONT_BODY, fontSize=8.5,leading=13, textColor=DARK,   leftIndent=10, spaceAfter=1)
-    s['mission_title']   = P('mission_title',  fontName=FONT_BODY, fontSize=13, leading=16, textColor=DARK,   spaceAfter=3)
-    s['mission_bold']    = P('mission_bold',   fontName=FONT_BOLD, fontSize=9,  leading=12, textColor=DARK,   spaceAfter=2)
-    s['tools']           = P('tools',          fontName=FONT_BODY, fontSize=8.5,leading=12, textColor=DARK,   spaceAfter=6)
-    s['formation_label'] = P('formation_label',fontName=FONT_BODY, fontSize=9,  leading=12, textColor=GREY,   alignment=TA_CENTER)
-    s['formation_body']  = P('formation_body', fontName=FONT_BODY, fontSize=9,  leading=13, textColor=DARK)
-    return s
+def _set_cell_borders(cell, **sides):
+    """sides: top/left/bottom/right → {'color': hex, 'sz': int, 'val': str}"""
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    for old in tcPr.findall(qn('w:tcBorders')):
+        tcPr.remove(old)
+    borders = OxmlElement('w:tcBorders')
+    for side, attrs in sides.items():
+        e = OxmlElement(f'w:{side}')
+        e.set(qn('w:val'),   attrs.get('val', 'single'))
+        e.set(qn('w:sz'),    str(attrs.get('sz', 4)))
+        e.set(qn('w:color'), attrs.get('color', 'auto'))
+        e.set(qn('w:space'), '0')
+        borders.append(e)
+    tcPr.append(borders)
 
-ST = _make_styles()
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-def _bullet(text):
-    """Bullet point propre — supprime les prefixes parasites du texte extrait."""
-    import re
-    cleaned = re.sub(r'^[\u2022\u2023\u25e6\u2043\u2219\*\-\>\u279e\u27a4\u25b6\u2714\u2713\u2715\u2716\s]+', '', text).strip()
-    return Paragraph(f'\u2022 {cleaned}', ST['bullet'])
+def _set_cell_borders_none(cell):
+    """Remove all borders from a cell."""
+    _set_cell_borders(cell,
+        top={'val': 'none', 'color': 'auto', 'sz': 0},
+        left={'val': 'none', 'color': 'auto', 'sz': 0},
+        bottom={'val': 'none', 'color': 'auto', 'sz': 0},
+        right={'val': 'none', 'color': 'auto', 'sz': 0})
 
-def _bold_header(text):
-    return Paragraph(f'<b>{text}</b>', ST['body_bold'])
 
-def mission_hr():
-    return HRFlowable(width=CONTENT_W, thickness=0.8, color=LGREY, spaceAfter=6, spaceBefore=0)
+def _set_cell_valign(cell, align='center'):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    for old in tcPr.findall(qn('w:vAlign')):
+        tcPr.remove(old)
+    v = OxmlElement('w:vAlign')
+    v.set(qn('w:val'), align)
+    tcPr.append(v)
 
-# ── Table compétences : UNE RANGÉE PAR CATÉGORIE ────────────────────────────
-def competences_table(rows_data):
-    """
-    rows_data : liste de (label_str, [flowables])
-    Chaque tuple devient UNE rangée dans le tableau.
-    """
-    col_w = [3.2*cm, CONTENT_W - 3.2*cm]
-    table_rows = [
-        [Paragraph(lbl, ST['label_cell']), content]
-        for lbl, content in rows_data
-    ]
-    n = len(table_rows)
-    t = Table(table_rows, colWidths=col_w, hAlign='LEFT')
 
-    style_cmds = [
-        ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
-        ('VALIGN',       (1, 0),  (1, -1), 'TOP'),
-        # Bordure orange sur toute la colonne gauche
-        ('BOX',          (0, 0),  (0, -1), 1.5, ORANGE),
-        # Bordure grise sur la colonne droite
-        ('BOX',          (1, 0),  (1, -1), 0.5, BORDERGREY),
-        # Padding
-        ('TOPPADDING',   (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING',(0, 0), (-1, -1), 8),
-        ('LEFTPADDING',  (0, 0),  (0, -1), 4),
-        ('RIGHTPADDING', (0, 0),  (0, -1), 4),
-        ('LEFTPADDING',  (1, 0),  (1, -1), 8),
-        ('RIGHTPADDING', (1, 0),  (1, -1), 6),
-    ]
-    # Séparateurs horizontaux entre rangées (sauf la dernière)
-    for i in range(n - 1):
-        style_cmds.append(('LINEBELOW', (0, i), (-1, i), 0.5, BORDERGREY))
+def _set_cell_margins(cell, top=60, left=60, bottom=60, right=60):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    for old in tcPr.findall(qn('w:tcMar')):
+        tcPr.remove(old)
+    mar = OxmlElement('w:tcMar')
+    for side, val in [('top', top), ('left', left), ('bottom', bottom), ('right', right)]:
+        e = OxmlElement(f'w:{side}')
+        e.set(qn('w:w'), str(val))
+        e.set(qn('w:type'), 'dxa')
+        mar.append(e)
+    tcPr.append(mar)
 
-    t.setStyle(TableStyle(style_cmds))
-    return t
 
-# ── Header / Footer canvas ────────────────────────────────────────────────────
-BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOGO_HEADER  = os.path.join(BASE_DIR, 'static', 'up_assets', 'up_logo_header.png')
-LOGO_FOOTER  = os.path.join(BASE_DIR, 'static', 'up_assets', 'up_logo_footer.png')
+def _para_spacing(para, before=0, after=0, line=240):
+    pPr = para._p.get_or_add_pPr()
+    for old in pPr.findall(qn('w:spacing')):
+        pPr.remove(old)
+    sp = OxmlElement('w:spacing')
+    sp.set(qn('w:before'), str(before))
+    sp.set(qn('w:after'), str(after))
+    sp.set(qn('w:line'), str(line))
+    sp.set(qn('w:lineRule'), 'auto')
+    pPr.append(sp)
 
-def _make_header_footer(canvas_obj, doc):
-    canvas_obj.saveState()
-    # ── Header logo ──
-    if os.path.exists(LOGO_HEADER):
-        try:
-            canvas_obj.drawImage(
-                LOGO_HEADER,
-                PAGE_W - MARGIN_R - 4.5*cm,
-                PAGE_H - MARGIN_T - 1.5*cm + 0.3*cm,
-                width=4.5*cm, height=1.5*cm,
-                preserveAspectRatio=True, mask='auto'
-            )
-        except Exception:
-            _draw_text_logo_header(canvas_obj)
-    else:
-        _draw_text_logo_header(canvas_obj)
 
-    # ── Footer logo ──
-    if os.path.exists(LOGO_FOOTER):
-        try:
-            canvas_obj.drawImage(
-                LOGO_FOOTER,
-                (PAGE_W - 8.0*cm) / 2, 0.45*cm,
-                width=8.0*cm, height=1.4*cm,
-                preserveAspectRatio=True, mask='auto'
-            )
-        except Exception:
-            _draw_text_logo_footer(canvas_obj)
-    else:
-        _draw_text_logo_footer(canvas_obj)
+def _para_border_bottom(para, color=LGREY_HEX, sz=4):
+    """Trace une ligne sous le paragraphe (HR)."""
+    pPr = para._p.get_or_add_pPr()
+    for old in pPr.findall(qn('w:pBdr')):
+        pPr.remove(old)
+    bdr = OxmlElement('w:pBdr')
+    bottom = OxmlElement('w:bottom')
+    bottom.set(qn('w:val'), 'single')
+    bottom.set(qn('w:sz'), str(sz))
+    bottom.set(qn('w:color'), color)
+    bdr.append(bottom)
+    pPr.append(bdr)
 
-    # ── Numéro de page ──
-    canvas_obj.setFont(FONT_BODY, 8)
-    canvas_obj.setFillColor(LGREY)
-    canvas_obj.drawRightString(PAGE_W - MARGIN_R, 0.5*cm, f'Page {doc.page}')
-    canvas_obj.restoreState()
 
-def _draw_text_logo_header(canvas_obj):
-    canvas_obj.setFont(FONT_BOLD, 10)
-    canvas_obj.setFillColor(ORANGE)
-    canvas_obj.drawRightString(PAGE_W - MARGIN_R, PAGE_H - MARGIN_T - 0.5*cm, 'UP TECHNOLOGIES')
+def _set_col_width(table, col_idx, width_cm):
+    """Force la largeur d'une colonne via XML."""
+    for row in table.rows:
+        cell = row.cells[col_idx]
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        for old in tcPr.findall(qn('w:tcW')):
+            tcPr.remove(old)
+        tcW = OxmlElement('w:tcW')
+        # 1 cm ≈ 567 twips
+        twips = int(width_cm * 567)
+        tcW.set(qn('w:w'), str(twips))
+        tcW.set(qn('w:type'), 'dxa')
+        tcPr.append(tcW)
 
-def _draw_text_logo_footer(canvas_obj):
-    canvas_obj.setFont(FONT_BODY, 8)
-    canvas_obj.setFillColor(LGREY)
-    canvas_obj.drawCentredString(PAGE_W / 2, 0.6*cm, 'UP TECHNOLOGIES')
+
+def _strip_bullet(text):
+    return re.sub(
+        r'^[\u2022\u2023\u25e6\u2043\u2219\u25cf\u25cb\u2714\u2713'
+        r'\u279e\u27a4\u25b6\u2715\u2716\u27a2\u2023\u203a'
+        r'\*\->\u27a4\u27a6\u27a1\u2192\u21e8➤✦❖●◆▶►•\s]+',
+        '', text
+    ).strip()
+
 
 # ── Classe principale ─────────────────────────────────────────────────────────
+
 class DossierGenerator:
 
     def generate(self, data: dict, output_path: str) -> str:
+        """Génère un fichier .docx et retourne le chemin."""
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        story = self._build_story(data)
-        doc = SimpleDocTemplate(
-            output_path, pagesize=A4,
-            leftMargin=MARGIN_L, rightMargin=MARGIN_R,
-            topMargin=MARGIN_T + 1.8*cm, bottomMargin=MARGIN_B + 1.8*cm,
-            title=f"Dossier de Compétences \u2013 {data.get('nom', '')} \u2013 Up Technologies",
-            author='Up Technologies'
-        )
-        doc.build(story, onFirstPage=_make_header_footer, onLaterPages=_make_header_footer)
+        doc = Document()
+        self._setup_page(doc)
+        self._add_header_footer(doc)
+        self._build_content(doc, data)
+        doc.save(output_path)
         return output_path
 
-    def _build_story(self, data: dict):
-        story = []
+    # ── Setup page ────────────────────────────────────────────────────────────
+    def _setup_page(self, doc):
+        section = doc.sections[0]
+        section.page_width    = Cm(21.0)
+        section.page_height   = Cm(29.7)
+        section.left_margin   = Cm(2.0)
+        section.right_margin  = Cm(2.0)
+        section.top_margin    = Cm(3.2)
+        section.bottom_margin = Cm(3.0)
+        # Supprimer le style de tableau par défaut (grille bleue)
+        doc.styles['Normal'].font.name = 'Calibri'
+        doc.styles['Normal'].font.size = Pt(10)
 
-        # ── PAGE 1 : Identité + Compétences + Formation ──────────────────────
-        story.append(Spacer(1, 0.2*cm))
+    def _add_header_footer(self, doc):
+        section = doc.sections[0]
 
-        nom_complet = f"{data.get('prenom', '')} {data.get('nom', '')}".strip() or 'Candidat'
-        story.append(Paragraph(f'<b>{nom_complet}</b>', ST['name']))
+        # ── Header ────────────────────────────────────────────────────────────
+        header = section.header
+        header.is_linked_to_previous = False
+        # Vider le contenu par défaut
+        for p in header.paragraphs:
+            p.clear()
+        if os.path.exists(LOGO_HEADER):
+            try:
+                hp = header.paragraphs[0]
+                hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                _para_spacing(hp, 0, 0)
+                run = hp.add_run()
+                run.add_picture(LOGO_HEADER, width=Cm(4.2))
+            except Exception:
+                hp = header.paragraphs[0]
+                r = hp.add_run('UP TECHNOLOGIES')
+                r.bold = True
+                r.font.color.rgb = ORANGE
+                hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        else:
+            hp = header.paragraphs[0]
+            r = hp.add_run('UP TECHNOLOGIES')
+            r.bold = True
+            r.font.color.rgb = ORANGE
+            hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+        # ── Footer ────────────────────────────────────────────────────────────
+        footer = section.footer
+        footer.is_linked_to_previous = False
+        for p in footer.paragraphs:
+            p.clear()
+        fp = footer.paragraphs[0]
+        fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _para_spacing(fp, 0, 0)
+        if os.path.exists(LOGO_FOOTER):
+            try:
+                run = fp.add_run()
+                run.add_picture(LOGO_FOOTER, width=Cm(7.0))
+            except Exception:
+                fp.add_run('Up Technologies').font.color.rgb = LGREY
+        else:
+            fp.add_run('Up Technologies').font.color.rgb = LGREY
+
+    # ── Contenu principal ─────────────────────────────────────────────────────
+    def _build_content(self, doc, data):
+        nom_complet = (
+            f"{data.get('prenom', '')} {data.get('nom', '')}".strip()
+            or 'Candidat'
+        )
+
+        # ── Identité ──────────────────────────────────────────────────────────
+        p = doc.add_paragraph()
+        _para_spacing(p, 0, 40)
+        r = p.add_run(nom_complet)
+        r.bold = True
+        r.font.size = Pt(20)
+        r.font.color.rgb = DARK
 
         if data.get('titre_poste'):
-            story.append(Paragraph(data['titre_poste'], ST['role']))
+            p = doc.add_paragraph()
+            _para_spacing(p, 0, 20)
+            r = p.add_run(data['titre_poste'])
+            r.font.size = Pt(12)
+            r.font.color.rgb = DARK
+
         if data.get('annees_experience'):
-            story.append(Paragraph(data['annees_experience'], ST['exp']))
-        else:
-            story.append(Spacer(1, 0.3*cm))
+            p = doc.add_paragraph()
+            _para_spacing(p, 0, 80)
+            r = p.add_run(data['annees_experience'])
+            r.font.size = Pt(12)
+            r.font.color.rgb = DARK
 
-        story.append(Paragraph(
-            "Comp\u00e9tences, Outils &amp; Secteurs d'intervention",
-            ST['section_title']
-        ))
+        # ── Titre section compétences ─────────────────────────────────────────
+        p = doc.add_paragraph()
+        _para_spacing(p, 0, 60)
+        r = p.add_run("Compétences, Outils & Secteurs d\u2019intervention")
+        r.bold = True
+        r.italic = True
+        r.font.size = Pt(13)
+        r.font.color.rgb = ORANGE
 
-        # ── Tableau compétences — UNE RANGÉE PAR CATÉGORIE ──────────────────
-        competences = data.get('competences', [])
+        # ── Tableau compétences ───────────────────────────────────────────────
+        competences = [c for c in data.get('competences', []) if c.get('items')]
         if competences:
-            table_rows = []
-            for cat in competences:
-                items = cat.get('items', [])
-                if not items:
-                    continue
-                flowables = []
-                for item in items:
-                    if item and item.strip():
-                        flowables.append(_bullet(item))
-                if flowables:
-                    # Wrap liste de flowables dans une sous-table pour compatibilité
-                    inner = Table([[f] for f in flowables],
-                                  colWidths=[CONTENT_W - 3.2*cm - 0.3*cm],
-                                  hAlign='LEFT')
-                    inner.setStyle(TableStyle([
-                        ('TOPPADDING',    (0,0), (-1,-1), 0),
-                        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-                        ('LEFTPADDING',   (0,0), (-1,-1), 0),
-                        ('RIGHTPADDING',  (0,0), (-1,-1), 0),
-                    ]))
-                    table_rows.append((cat['categorie'], inner))
-
-            if table_rows:
-                story.append(competences_table(table_rows))
+            self._add_competences_table(doc, competences)
         else:
-            story.append(Paragraph('(Comp\u00e9tences \u00e0 renseigner)', ST['body']))
+            p = doc.add_paragraph('(Compétences à renseigner)')
+            _para_spacing(p, 0, 0)
 
-        story.append(Spacer(1, 0.5*cm))
+        # ── Formation, Langues ────────────────────────────────────────────────
+        formations  = data.get('formations', [])
+        langues     = data.get('langues', [])
+        certifs     = data.get('certifications', [])
 
-        # ── Formation / Langues / Certifications ─────────────────────────────
-        formations = data.get('formations', [])
-        langues    = data.get('langues', [])
-        certifs    = data.get('certifications', [])
+        fl_rows = []
+        if formations:
+            form_lines = [f['texte'] for f in formations if f.get('texte')]
+            if form_lines:
+                fl_rows.append(('Formation', '\n'.join(form_lines), ''))
+        if langues:
+            lang_lines = [f"{l['langue']} \u2013 {l['niveau']}" for l in langues]
+            fl_rows.append(('Langues', '\n'.join(lang_lines), ''))
+        if certifs:
+            fl_rows.append(('Certifications', '\n'.join(certifs), ''))
 
-        if formations or langues or certifs:
-            story.append(Paragraph('Formation, Langues', ST['section_title']))
-            form_rows = []
+        if fl_rows:
+            p = doc.add_paragraph()
+            _para_spacing(p, 120, 60)
+            r = p.add_run('Formation, Langues')
+            r.bold = True
+            r.italic = True
+            r.font.size = Pt(13)
+            r.font.color.rgb = ORANGE
+            self._add_formation_table(doc, fl_rows)
 
-            if formations:
-                form_texte = '<br/>'.join(f['texte'] for f in formations if f.get('texte'))
-                form_annee = '<br/>'.join(f['annee'] for f in formations if f.get('annee'))
-                if form_texte:
-                    form_rows.append(('Formation', form_texte, form_annee))
-
-            if langues:
-                lang_texte = '<br/>'.join(
-                    f"{l['langue']} \u2013 {l['niveau']}" for l in langues
-                )
-                form_rows.append(('Langues', lang_texte, ''))
-
-            if certifs:
-                cert_texte = '<br/>'.join(certifs)
-                form_rows.append(('Certifications', cert_texte, ''))
-
-            if form_rows:
-                col_w2 = [3.2*cm, CONTENT_W - 3.2*cm - 2.0*cm, 2.0*cm]
-                ftable = Table(
-                    [[Paragraph(lbl, ST['formation_label']),
-                      Paragraph(txt, ST['formation_body']),
-                      Paragraph(annee, ST['formation_body'])]
-                     for lbl, txt, annee in form_rows],
-                    colWidths=col_w2, hAlign='LEFT'
-                )
-                n_f = len(form_rows)
-                fstyle = [
-                    ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
-                    ('VALIGN',       (1, 0),  (1, -1), 'TOP'),
-                    ('BOX',          (0, 0),  (0, -1), 1.5, ORANGE),
-                    ('BOX',          (1, 0),  (2, -1), 0.5, BORDERGREY),
-                    ('LINEAFTER',    (1, 0),  (1, -1), 0.5, BORDERGREY),
-                    ('TOPPADDING',   (0, 0), (-1, -1), 8),
-                    ('BOTTOMPADDING',(0, 0), (-1, -1), 8),
-                    ('LEFTPADDING',  (0, 0),  (0, -1), 4),
-                    ('LEFTPADDING',  (1, 0),  (1, -1), 8),
-                    ('LEFTPADDING',  (2, 0),  (2, -1), 6),
-                ]
-                for i in range(n_f - 1):
-                    fstyle.append(('LINEBELOW', (0, i), (-1, i), 0.5, BORDERGREY))
-                ftable.setStyle(TableStyle(fstyle))
-                story.append(ftable)
-
-        story.append(PageBreak())
-
-        # ── PAGES 2-N : Expériences ───────────────────────────────────────────
+        # ── Expériences (page break avant chaque) ────────────────────────────
         experiences = data.get('experiences', [])
         for i, exp in enumerate(experiences):
-            story.append(Spacer(1, 0.3*cm))
+            doc.add_page_break()
+            self._add_experience(doc, exp, i)
 
-            titre = exp.get('entreprise', f'Mission {i+1}')
-            dates = exp.get('dates', '')
-            duree = exp.get('duree', '')
-            ligne_titre = titre
-            if dates and dates != titre:
-                ligne_titre += f" \u2013 {dates}"
-            if duree:
-                ligne_titre += f" \u2013 {duree}"
-            story.append(Paragraph(ligne_titre, ST['mission_title']))
-            story.append(mission_hr())
+    # ── Table compétences ─────────────────────────────────────────────────────
+    def _add_competences_table(self, doc, competences):
+        COL_L = 3.2   # cm — colonne label
+        COL_R = 13.8  # cm — colonne items
 
-            if exp.get('secteur'):
-                story.append(Paragraph(f'<b>Secteur :</b> {exp["secteur"]}', ST['body']))
-            if exp.get('poste'):
-                story.append(Paragraph(f'<b>Mission :</b> {exp["poste"]}', ST['body']))
-            story.append(Spacer(1, 0.2*cm))
+        n = len(competences)
+        tbl = doc.add_table(rows=n, cols=2)
+        tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+        # Fixer largeurs
+        _set_col_width(tbl, 0, COL_L)
+        _set_col_width(tbl, 1, COL_R)
+        # Supprimer style par défaut
+        tbl.style = doc.styles['Table Grid']
 
-            for sous in exp.get('sous_missions', []):
-                titre_sous = sous.get('titre', '')
-                if titre_sous and titre_sous != 'R\u00e9alisations':
-                    story.append(_bold_header(titre_sous))
-                elif titre_sous:
-                    story.append(Paragraph('<b>R\u00e9alisations :</b>', ST['mission_bold']))
-                for bullet_text in sous.get('bullets', []):
-                    if bullet_text and bullet_text.strip():
-                        story.append(_bullet(bullet_text))
-                story.append(Spacer(1, 4))
+        for i, cat in enumerate(competences):
+            label = cat['categorie']
+            items = [_strip_bullet(x) for x in cat['items'] if x and x.strip()]
 
-            if exp.get('outils'):
-                story.append(Paragraph(
-                    f'<b>Logiciels / Outils :</b> {exp["outils"]}', ST['tools']
-                ))
+            lc = tbl.rows[i].cells[0]
+            rc = tbl.rows[i].cells[1]
 
-            if i < len(experiences) - 1:
-                story.append(PageBreak())
+            # ── Bordures colonne gauche ──
+            is_first = (i == 0)
+            is_last  = (i == n - 1)
 
-        return story
+            _set_cell_borders(lc,
+                top    = {'color': ORANGE_HEX, 'sz': 12} if is_first else {'color': LGREY_HEX, 'sz': 4},
+                left   = {'color': ORANGE_HEX, 'sz': 12},
+                bottom = {'color': ORANGE_HEX, 'sz': 12} if is_last  else {'color': LGREY_HEX, 'sz': 4},
+                right  = {'color': LGREY_HEX, 'sz': 4},
+            )
+            _set_cell_borders(rc,
+                top    = {'color': ORANGE_HEX, 'sz': 4} if is_first else {'color': LGREY_HEX, 'sz': 4},
+                left   = {'color': LGREY_HEX, 'sz': 4},
+                bottom = {'color': ORANGE_HEX, 'sz': 4} if is_last  else {'color': LGREY_HEX, 'sz': 4},
+                right  = {'color': LGREY_HEX, 'sz': 4},
+            )
+
+            # ── Marges cellules ──
+            _set_cell_margins(lc, top=80, left=60, bottom=80, right=40)
+            _set_cell_margins(rc, top=60, left=100, bottom=60, right=60)
+
+            # ── Label (gauche) ──
+            _set_cell_valign(lc, 'center')
+            lp = lc.paragraphs[0]
+            lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _para_spacing(lp, 0, 0)
+            lr = lp.add_run(label)
+            lr.font.size  = Pt(9)
+            lr.font.color.rgb = GREY
+
+            # ── Items (droite) ──
+            _set_cell_valign(rc, 'top')
+            first_item = True
+            for item in items:
+                if not item:
+                    continue
+                rp = rc.paragraphs[0] if first_item else rc.add_paragraph()
+                first_item = False
+                _para_spacing(rp, 0, 20)
+                rp.paragraph_format.left_indent = Cm(0.15)
+                rr = rp.add_run(f'\u2022  {item}')
+                rr.font.size  = Pt(8.5)
+                rr.font.color.rgb = DARK
+
+    # ── Table formation ───────────────────────────────────────────────────────
+    def _add_formation_table(self, doc, fl_rows):
+        n = len(fl_rows)
+        tbl = doc.add_table(rows=n, cols=2)
+        tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+        tbl.style = doc.styles['Table Grid']
+        _set_col_width(tbl, 0, 3.2)
+        _set_col_width(tbl, 1, 13.8)
+
+        for i, (lbl, txt, _) in enumerate(fl_rows):
+            is_first = (i == 0)
+            is_last  = (i == n - 1)
+            lc = tbl.rows[i].cells[0]
+            rc = tbl.rows[i].cells[1]
+
+            _set_cell_borders(lc,
+                top    = {'color': ORANGE_HEX, 'sz': 12} if is_first else {'color': LGREY_HEX, 'sz': 4},
+                left   = {'color': ORANGE_HEX, 'sz': 12},
+                bottom = {'color': ORANGE_HEX, 'sz': 12} if is_last  else {'color': LGREY_HEX, 'sz': 4},
+                right  = {'color': LGREY_HEX, 'sz': 4},
+            )
+            _set_cell_borders(rc,
+                top    = {'color': ORANGE_HEX, 'sz': 4} if is_first else {'color': LGREY_HEX, 'sz': 4},
+                left   = {'color': LGREY_HEX, 'sz': 4},
+                bottom = {'color': ORANGE_HEX, 'sz': 4} if is_last  else {'color': LGREY_HEX, 'sz': 4},
+                right  = {'color': LGREY_HEX, 'sz': 4},
+            )
+            _set_cell_margins(lc, top=80, left=60, bottom=80, right=40)
+            _set_cell_margins(rc, top=60, left=100, bottom=60, right=60)
+
+            _set_cell_valign(lc, 'center')
+            lp = lc.paragraphs[0]
+            lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _para_spacing(lp, 0, 0)
+            lr = lp.add_run(lbl)
+            lr.font.size = Pt(9)
+            lr.font.color.rgb = GREY
+
+            _set_cell_valign(rc, 'top')
+            first_line = True
+            for line in txt.split('\n'):
+                if not line.strip():
+                    continue
+                rp = rc.paragraphs[0] if first_line else rc.add_paragraph()
+                first_line = False
+                _para_spacing(rp, 0, 20)
+                rr = rp.add_run(line.strip())
+                rr.font.size = Pt(9)
+                rr.font.color.rgb = DARK
+
+    # ── Expérience ────────────────────────────────────────────────────────────
+    def _add_experience(self, doc, exp, idx):
+        entreprise = exp.get('entreprise', f'Mission {idx + 1}')
+        dates      = exp.get('dates', '')
+        duree      = exp.get('duree', '')
+
+        # Titre de l'expérience
+        parts = [entreprise]
+        if dates and dates != entreprise:
+            parts.append(dates)
+        if duree:
+            parts.append(duree)
+
+        p = doc.add_paragraph()
+        _para_spacing(p, 0, 40)
+        r = p.add_run(' \u2013 '.join(parts))
+        r.font.size = Pt(13)
+        r.font.color.rgb = DARK
+
+        # Ligne de séparation
+        p_hr = doc.add_paragraph()
+        _para_spacing(p_hr, 0, 60)
+        _para_border_bottom(p_hr, LGREY_HEX, sz=6)
+
+        # Secteur / Poste
+        if exp.get('secteur'):
+            p = doc.add_paragraph()
+            _para_spacing(p, 0, 20)
+            rb = p.add_run('Secteur\u00a0: ')
+            rb.bold = True
+            rb.font.size = Pt(9)
+            r = p.add_run(exp['secteur'])
+            r.font.size = Pt(9)
+            r.font.color.rgb = DARK
+
+        if exp.get('poste'):
+            p = doc.add_paragraph()
+            _para_spacing(p, 0, 60)
+            rb = p.add_run('Mission\u00a0: ')
+            rb.bold = True
+            rb.font.size = Pt(9)
+            r = p.add_run(exp['poste'])
+            r.font.size = Pt(9)
+            r.font.color.rgb = DARK
+
+        # Sous-missions
+        for sous in exp.get('sous_missions', []):
+            titre_sous = sous.get('titre', '')
+            bullets    = [b for b in sous.get('bullets', []) if b and b.strip()]
+            if not bullets:
+                continue
+
+            if titre_sous and titre_sous != 'Réalisations':
+                p = doc.add_paragraph()
+                _para_spacing(p, 40, 20)
+                rb = p.add_run(f'{titre_sous}\u00a0:')
+                rb.bold = True
+                rb.font.size = Pt(9)
+                rb.font.color.rgb = DARK
+            else:
+                p = doc.add_paragraph()
+                _para_spacing(p, 40, 20)
+                rb = p.add_run('R\u00e9alisations\u00a0:')
+                rb.bold = True
+                rb.font.size = Pt(9)
+                rb.font.color.rgb = DARK
+
+            for bullet in bullets:
+                clean = _strip_bullet(bullet)
+                if not clean:
+                    continue
+                p = doc.add_paragraph()
+                _para_spacing(p, 0, 20)
+                p.paragraph_format.left_indent = Cm(0.5)
+                r = p.add_run(f'\u2022\u00a0\u00a0{clean}')
+                r.font.size = Pt(9)
+                r.font.color.rgb = DARK
+
+        # Outils
+        if exp.get('outils'):
+            p = doc.add_paragraph()
+            _para_spacing(p, 80, 0)
+            rb = p.add_run('Logiciels\u00a0/ Outils\u00a0: ')
+            rb.bold = True
+            rb.font.size = Pt(9)
+            raw_outils = exp['outils']
+            clean_outils = re.sub(
+                r'^(logiciels?\s*/?\s*[Oo]utils?\s*:\s*)', '', raw_outils
+            ).strip()
+            r = p.add_run(clean_outils)
+            r.font.size = Pt(9)
+            r.font.color.rgb = DARK
