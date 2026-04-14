@@ -133,6 +133,7 @@ def _set_col_width(table, col_idx, width_cm):
 
 
 def _strip_bullet(text):
+    text = _sanitize(text)
     return re.sub(
         r'^[\u2022\u2023\u25e6\u2043\u2219\u25cf\u25cb\u2714\u2713'
         r'\u279e\u27a4\u25b6\u2715\u2716\u27a2\u2023\u203a'
@@ -140,6 +141,21 @@ def _strip_bullet(text):
         r'➤✦❖●◆▶►•o\s]+',
         '', text
     ).strip()
+
+
+_CTRL_RE = re.compile(
+    '['
+    '\x00-\x08\x0B\x0C\x0E-\x1F\x7F'
+    '\ud800-\udfff'
+    '\ufffe\uffff'
+    ']'
+)
+
+def _sanitize(text):
+    """Supprime les caractères de contrôle incompatibles avec l'XML DOCX."""
+    if text is None:
+        return ''
+    return _CTRL_RE.sub('', str(text))
 
 
 # ── Classe principale ─────────────────────────────────────────────────────────
@@ -152,9 +168,22 @@ class DossierGenerator:
         doc = Document()
         self._setup_page(doc)
         self._add_header_footer(doc)
-        self._build_content(doc, data)
+        self._build_content(doc, self._sanitize_data(data))
         doc.save(output_path)
         return output_path
+
+    @staticmethod
+    def _sanitize_data(data):
+        """Nettoie récursivement les caractères de contrôle du dict CV."""
+        def _clean(v):
+            if isinstance(v, str):
+                return _sanitize(v)
+            if isinstance(v, list):
+                return [_clean(x) for x in v]
+            if isinstance(v, dict):
+                return {k: _clean(vv) for k, vv in v.items()}
+            return v
+        return _clean(data) if isinstance(data, dict) else data
 
     # ── Setup page ────────────────────────────────────────────────────────────
     def _setup_page(self, doc):
@@ -206,7 +235,7 @@ class DossierGenerator:
         if os.path.exists(LOGO_HEADER):
             try:
                 run = hp.add_run()
-                run.add_picture(LOGO_HEADER, width=Cm(3.5))
+                run.add_picture(LOGO_HEADER, width=Cm(2.8))
             except Exception:
                 r_logo = hp.add_run('UP TECHNOLOGIES')
                 r_logo.bold = True
@@ -272,7 +301,8 @@ class DossierGenerator:
         r.font.color.rgb = ORANGE
 
         # ── Tableau compétences ───────────────────────────────────────────────
-        competences = [c for c in data.get('competences', []) if c.get('items')]
+        competences = [c for c in data.get('competences', [])
+                       if c.get('items') or c.get('groupes')]
         if competences:
             self._add_competences_table(doc, competences)
         else:
@@ -284,16 +314,28 @@ class DossierGenerator:
         langues     = data.get('langues', [])
         certifs     = data.get('certifications', [])
 
+        # Dédupliquer les certifs pour éviter qu'elles apparaissent aussi dans
+        # les formations. Normalisation simple via casefold().
+        form_lines = [f['texte'] for f in formations if f.get('texte')]
+        cert_keys  = {c.casefold().strip() for c in certifs if c}
+        form_lines = [l for l in form_lines if l.casefold().strip() not in cert_keys]
+        # Dédup interne des certifs
+        seen_c = set(); certifs_clean = []
+        for c in certifs:
+            k = (c or '').casefold().strip()
+            if k and k not in seen_c:
+                seen_c.add(k); certifs_clean.append(c)
+
         fl_rows = []
-        if formations:
-            form_lines = [f['texte'] for f in formations if f.get('texte')]
-            if form_lines:
-                fl_rows.append(('Formation', '\n'.join(form_lines), ''))
+        if form_lines:
+            fl_rows.append(('Formation', '\n'.join(form_lines), ''))
         if langues:
-            lang_lines = [f"{l['langue']} \u2013 {l['niveau']}" for l in langues]
-            fl_rows.append(('Langues', '\n'.join(lang_lines), ''))
-        if certifs:
-            fl_rows.append(('Certifications', '\n'.join(certifs), ''))
+            lang_lines = [f"{l['langue']} \u2013 {l['niveau']}" if l.get('niveau') else l['langue']
+                          for l in langues if l.get('langue')]
+            if lang_lines:
+                fl_rows.append(('Langues', '\n'.join(lang_lines), ''))
+        if certifs_clean:
+            fl_rows.append(('Certifications', '\n'.join(certifs_clean), ''))
 
         if fl_rows:
             p = doc.add_paragraph()
@@ -306,98 +348,124 @@ class DossierGenerator:
             self._add_formation_table(doc, fl_rows)
 
         # ── Expériences (page break avant chaque) ────────────────────────────
-        for i, exp in enumerate(data.get('experiences', [])):
+        exps = [e for e in data.get('experiences', []) if self._exp_has_content(e)]
+        for i, exp in enumerate(exps):
             doc.add_page_break()
             self._add_experience(doc, exp, i)
 
+    @staticmethod
+    def _exp_has_content(exp):
+        if not isinstance(exp, dict):
+            return False
+        if exp.get('entreprise') or exp.get('titre_projet') or exp.get('dates'):
+            return True
+        for sm in exp.get('sous_missions', []):
+            if sm.get('bullets') or sm.get('groupes'):
+                return True
+        return bool(exp.get('outils'))
+
     # ── Table compétences ─────────────────────────────────────────────────────
     def _add_competences_table(self, doc, competences):
-        COL_L = 3.2   # cm — colonne label
-        COL_R = 13.8  # cm — colonne items
+        """Rend une mini-table par catégorie, séparées par un paragraphe
+        vide fin → reproduit les "boîtes" du gabarit Up Technologies."""
+        for idx, cat in enumerate(competences):
+            self._add_competence_box(doc, cat, is_last=(idx == len(competences) - 1))
 
-        n = len(competences)
-        tbl = doc.add_table(rows=n, cols=2)
+    def _add_competence_box(self, doc, cat, is_last=False):
+        COL_L = 3.2
+        COL_R = 13.8
+
+        label   = cat.get('categorie', '')
+        groupes = cat.get('groupes', [])
+        items   = [_strip_bullet(x) for x in cat.get('items', []) if x and str(x).strip()]
+
+        tbl = doc.add_table(rows=1, cols=2)
         tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
         _set_col_width(tbl, 0, COL_L)
         _set_col_width(tbl, 1, COL_R)
-        tbl.style = doc.styles['Table Grid']
 
-        for i, cat in enumerate(competences):
-            label   = cat['categorie']
-            groupes = cat.get('groupes', [])
-            items   = [_strip_bullet(x) for x in cat.get('items', []) if x and str(x).strip()]
+        lc = tbl.rows[0].cells[0]
+        rc = tbl.rows[0].cells[1]
 
-            lc = tbl.rows[i].cells[0]
-            rc = tbl.rows[i].cells[1]
+        # Label (gauche) : encadré orange
+        _set_cell_borders(lc,
+            top    = {'color': ORANGE_HEX, 'sz': 12},
+            left   = {'color': ORANGE_HEX, 'sz': 12},
+            bottom = {'color': ORANGE_HEX, 'sz': 12},
+            right  = {'color': ORANGE_HEX, 'sz': 12},
+        )
+        # Items (droite) : encadré gris
+        _set_cell_borders(rc,
+            top    = {'color': LGREY_HEX, 'sz': 4},
+            left   = {'color': LGREY_HEX, 'sz': 4},
+            bottom = {'color': LGREY_HEX, 'sz': 4},
+            right  = {'color': LGREY_HEX, 'sz': 4},
+        )
+        _set_cell_margins(lc, top=100, left=60, bottom=100, right=60)
+        _set_cell_margins(rc, top=80, left=120, bottom=80, right=80)
 
-            is_first = (i == 0)
-            is_last  = (i == n - 1)
+        _set_cell_valign(lc, 'center')
+        lp = lc.paragraphs[0]
+        lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _para_spacing(lp, 0, 0)
+        lr = lp.add_run(label)
+        lr.bold = True
+        lr.font.size  = Pt(9)
+        lr.font.color.rgb = GREY
 
-            _set_cell_borders(lc,
-                top    = {'color': ORANGE_HEX, 'sz': 12} if is_first else {'color': LGREY_HEX, 'sz': 4},
-                left   = {'color': ORANGE_HEX, 'sz': 12},
-                bottom = {'color': ORANGE_HEX, 'sz': 12} if is_last  else {'color': LGREY_HEX, 'sz': 4},
-                right  = {'color': LGREY_HEX, 'sz': 4},
-            )
-            _set_cell_borders(rc,
-                top    = {'color': ORANGE_HEX, 'sz': 4} if is_first else {'color': LGREY_HEX, 'sz': 4},
-                left   = {'color': LGREY_HEX, 'sz': 4},
-                bottom = {'color': ORANGE_HEX, 'sz': 4} if is_last  else {'color': LGREY_HEX, 'sz': 4},
-                right  = {'color': LGREY_HEX, 'sz': 4},
-            )
+        _set_cell_valign(rc, 'top')
+        first_para = True
+        def _rc_para():
+            nonlocal first_para
+            if first_para:
+                first_para = False
+                return rc.paragraphs[0]
+            return rc.add_paragraph()
 
-            _set_cell_margins(lc, top=80, left=60, bottom=80, right=40)
-            _set_cell_margins(rc, top=60, left=100, bottom=60, right=60)
-
-            _set_cell_valign(lc, 'center')
-            lp = lc.paragraphs[0]
-            lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            _para_spacing(lp, 0, 0)
-            lr = lp.add_run(label)
-            lr.font.size  = Pt(9)
-            lr.font.color.rgb = GREY
-
-            _set_cell_valign(rc, 'top')
-            first_para = True
-
-            def _rc_para():
-                nonlocal first_para
-                if first_para:
-                    first_para = False
-                    return rc.paragraphs[0]
-                return rc.add_paragraph()
-
-            if groupes:
-                # Structure à deux niveaux : titre de groupe (gras) + sous-items
-                for g in groupes:
-                    g_titre = _strip_bullet(g.get('titre', ''))
-                    g_items = [_strip_bullet(x) for x in g.get('items', []) if x and str(x).strip()]
-                    if g_titre:
-                        tp = _rc_para()
-                        _para_spacing(tp, 4, 4)
-                        tp.paragraph_format.left_indent = Cm(0.15)
-                        tr = tp.add_run(g_titre)
-                        tr.bold = True
-                        tr.font.size = Pt(9)
-                        tr.font.color.rgb = DARK
-                    for item in g_items:
-                        sp = _rc_para()
-                        _para_spacing(sp, 0, 18)
-                        sp.paragraph_format.left_indent = Cm(0.55)
-                        sr = sp.add_run(f'\u2022\u00a0 {item}')
-                        sr.font.size = Pt(8.5)
-                        sr.font.color.rgb = GREY
-            else:
-                # Liste plate de bullets
-                for item in items:
-                    if not item:
-                        continue
+        if groupes:
+            for g in groupes:
+                g_titre = _strip_bullet(g.get('titre', ''))
+                g_items = [_strip_bullet(x) for x in g.get('items', []) if x and str(x).strip()]
+                if g_titre:
+                    tp = _rc_para()
+                    _para_spacing(tp, 4, 4)
+                    tp.paragraph_format.left_indent = Cm(0.0)
+                    tr = tp.add_run(g_titre)
+                    tr.bold = True
+                    tr.font.size = Pt(9)
+                    tr.font.color.rgb = DARK
+                for item in g_items:
+                    sp = _rc_para()
+                    _para_spacing(sp, 0, 18)
+                    sp.paragraph_format.left_indent = Cm(0.4)
+                    sr = sp.add_run(f'\u2022\u00a0 {item}')
+                    sr.font.size = Pt(8.5)
+                    sr.font.color.rgb = GREY
+        else:
+            if items:
+                # Afficher en ligne pour les listes courtes (tags séparés par
+                # virgules), en bullets pour les listes longues.
+                total_len = sum(len(x) for x in items)
+                if total_len < 120 and len(items) <= 8:
                     rp = _rc_para()
-                    _para_spacing(rp, 0, 20)
-                    rp.paragraph_format.left_indent = Cm(0.15)
-                    rr = rp.add_run(f'\u2022\u00a0 {item}')
-                    rr.font.size  = Pt(8.5)
+                    _para_spacing(rp, 0, 0)
+                    rr = rp.add_run(', '.join(items))
+                    rr.font.size = Pt(9)
                     rr.font.color.rgb = DARK
+                else:
+                    for item in items:
+                        rp = _rc_para()
+                        _para_spacing(rp, 0, 18)
+                        rp.paragraph_format.left_indent = Cm(0.0)
+                        rr = rp.add_run(f'\u2022\u00a0 {item}')
+                        rr.font.size  = Pt(8.5)
+                        rr.font.color.rgb = DARK
+
+        # Petit espace entre les boîtes
+        if not is_last:
+            sep = doc.add_paragraph()
+            _para_spacing(sep, 0, 40)
+            sep.add_run('').font.size = Pt(4)
 
     # ── Table formation ───────────────────────────────────────────────────────
     def _add_formation_table(self, doc, fl_rows):
@@ -475,7 +543,7 @@ class DossierGenerator:
         r = p.add_run(titre_projet)
         r.bold   = True
         r.italic = True
-        r.font.size = Pt(14)
+        r.font.size = Pt(13)
         r.font.color.rgb = DARK
 
         # Sous-titre : entreprise – dates – durée ──────────────────────────────
@@ -484,13 +552,14 @@ class DossierGenerator:
             p = doc.add_paragraph()
             _para_spacing(p, 0, 0)
             r = p.add_run(' \u2013 '.join(subtitle_parts))
-            r.font.size = Pt(11)
+            r.italic = True
+            r.font.size = Pt(10.5)
             r.font.color.rgb = GREY
 
-        # Ligne de séparation ──────────────────────────────────────────────────
+        # Ligne de séparation (gris foncé, épais comme dans le gabarit) ────────
         p_hr = doc.add_paragraph()
         _para_spacing(p_hr, 60, 80)
-        _para_border_bottom(p_hr, LGREY_HEX, sz=6)
+        _para_border_bottom(p_hr, '5A5A5A', sz=12)
 
         # Secteur / Poste ──────────────────────────────────────────────────────
         if exp.get('secteur'):

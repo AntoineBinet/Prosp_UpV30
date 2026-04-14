@@ -209,38 +209,56 @@ class CVParser:
                     })
 
         if 'certifications' in sections:
-            data['certifications'] = [l for l in sections['certifications'] if len(l) > 3]
+            data['certifications'] = [
+                _BULLET_STRIP.sub('', l).strip()
+                for l in sections['certifications']
+                if len(l) > 3
+            ]
+            data['certifications'] = [c for c in data['certifications'] if c]
 
         return data
 
     # ── Découpage en sections ─────────────────────────────────────────────────
     def _split_sections(self, lignes: list) -> dict:
+        # Titres ancrés : la ligne entière doit être un titre (pas un mot au
+        # milieu d'une phrase comme « 18 ans d'expérience »).
         KEYWORDS = {
             'competences': (
-                r'comp[ée]tences?|skills?|savoir[\s\-]faire|expertise|profil\s+technique'
+                r'^(?:comp[ée]tences?(?:\s+(?:techniques?|fonctionnelles?|cl[ée]s?'
+                r'|,?\s+outils?(?:\s+et\s+secteurs?)?))?'
+                r'|skills?|savoir[\s\-]faire|expertise(?:\s+technique)?'
+                r'|profil\s+technique)\s*:?$'
             ),
             'experiences': (
-                r'exp[ée]riences?|parcours(\s+professionnel)?|historique(\s+professionnel)?'
-                # missions? seul ou "missions professionnelles" — exige fin de ligne pour
-                # éviter de matcher "Mission : Stagiaire..." ou "• Suivi des missions"
-                r'|missions?(\s+professionnelles?)?\s*$|carri[eè]re|postes?\s+occup'
+                r'^(?:exp[ée]riences?(?:\s+(?:professionnelles?|de\s+travail))?'
+                r'|parcours(?:\s+professionnel)?'
+                r'|historique(?:\s+professionnel)?'
+                r'|missions?(?:\s+professionnelles?)?'
+                r'|carri[eè]re|postes?\s+occup[ée]s?'
+                r'|professional\s+experience|work\s+experience)\s*:?$'
             ),
             'formations': (
-                # Ancrer chaque alternative pour éviter les faux positifs
-                # ("Votre formation...", "bureau d'études"...)
-                r'^formations?'
-                r'|^dipl[ôo]mes?'
-                r'|^[ée]tudes?(?:\s+sup[ée]rieures?)?$'
-                r'|^education$|^cursus$'
-                r'|formation,?\s+langues?'
+                r'^(?:formations?(?:\s+(?:et\s+)?(?:dipl[ôo]mes?|langues?|acad[ée]miques?))?'
+                r'|dipl[ôo]mes?'
+                r'|[ée]tudes?(?:\s+sup[ée]rieures?)?'
+                r'|education|cursus)\s*:?$'
             ),
             'langues': (
-                r'^langues?(\s+[ée]trang|parl|ma[îi]tri)?$|^languages?$'
+                r'^(?:langues?(?:\s+(?:[ée]trang[eè]res?|parl[ée]es?|ma[îi]tris[ée]es?))?'
+                r'|languages?)\s*:?$'
             ),
             'certifications': (
-                r'^certifications?$|^certificats?$'
+                r'^(?:certifications?|certificats?)\s*:?$'
             ),
         }
+        # Exclure les lignes qui contiennent « ans d'expérience », qui ne sont
+        # pas des titres de section.
+        SKIP_INLINE = re.compile(
+            r'\b(?:\d+\s*ans?|plusieurs)\s+d.exp[ée]rience|mission\s*:|r[ôo]le\s*:'
+            r'|poste\s*:|contexte\s*:',
+            re.I
+        )
+
         sections: dict = {}
         current = None
         buf: list = []
@@ -248,22 +266,28 @@ class CVParser:
         for l in lignes:
             # Retirer les préfixes bullets pour la détection de section
             l_test = _BULLET_STRIP.sub('', l).strip()
-            if len(l_test) <= 70:
-                matched = None
+            # Un titre ne contient pas de date, pas de "ans d'expérience", etc.
+            is_title_candidate = (
+                len(l_test) <= 60
+                and not _DATE_RE.search(l_test)
+                and not SKIP_INLINE.search(l_test)
+            )
+            matched = None
+            if is_title_candidate:
                 for key, pat in KEYWORDS.items():
-                    if re.search(pat, l_test, re.I) and len(l_test.split()) <= 8:
+                    if re.match(pat, l_test, re.I):
                         matched = key
                         break
-                if matched:
-                    if matched == current:
-                        # Déjà dans cette section : label de sous-catégorie → ajouter au buf
-                        buf.append(l)
-                    else:
-                        if current and buf:
-                            sections[current] = buf
-                        current = matched
-                        buf = []
-                    continue
+            if matched:
+                if matched == current:
+                    # Déjà dans cette section : label de sous-catégorie → ajouter au buf
+                    buf.append(l)
+                else:
+                    if current and buf:
+                        sections[current] = buf
+                    current = matched
+                    buf = []
+                continue
             if current:
                 buf.append(l)
 
@@ -276,95 +300,380 @@ class CVParser:
         """
         Produit une liste de {categorie, items}.
         Chaque catégorie devient une rangée dans le tableau du dossier.
+
+        Deux cas à gérer :
+        1. Tableau : chaque ligne = "Label      Item1, Item2, Item3"
+           (séparateur = 2+ espaces / tabulation)
+        2. Liste : alternance de lignes d'en-tête (courtes, finissant par « : »
+           ou correspondant à un label canonique Up) et de lignes d'items.
         """
-        # Labels de tableau Up Technologies (après fusion)
+        # Labels canoniques de tableau Up Technologies (après fusion)
         UP_LABEL_RE = re.compile(
-            r'^(domaines?\s+de\s+comp[ée]tences?'
-            r'|langages?,?\s+outils?,?\s+normes?'
+            r'^(?:domaines?\s+de\s+comp[ée]tences?'
+            r'|langages?(?:,?\s+outils?)?(?:,?\s+normes?)?'
             r'|secteurs?\s+d.activit[ée]s?'
-            r'|outils?\s+et\s+technologies?'
-            r'|comp[ée]tences?\s+techniques?'
-            r'|comp[ée]tences?\s+fonctionnelles?'
-            r'|technologies?\s+et\s+environnement'
+            r'|outils?(?:\s+et\s+technologies?)?'
+            r'|comp[ée]tences?\s+(?:techniques?|fonctionnelles?|cl[ée]s?)'
+            r'|technologies?(?:\s+et\s+environnement)?'
             r'|environnement\s+technique'
-            r'|m[ée]thodes?\s+et\s+outils?'
-            r')$',
+            r'|m[ée]thodes?(?:\s+et\s+outils?)?'
+            r'|bases?\s+de\s+donn[ée]es?|bdd|sgbd'
+            r'|frameworks?'
+            r'|syst[èe]mes?\s+(?:d.exploitation)?|os'
+            r'|cloud|devops|web|conception|divers'
+            r'|tech(?:nologies?)?\s+xml|java(?:/j2ee)?'
+            r')\s*:?$',
+            re.I
+        )
+        # Noms à ne JAMAIS considérer comme catégorie (viennent des expériences
+        # mal découpées). Liste noire : outils, clients connus, etc.
+        BAD_CAT_RE = re.compile(
+            r'^(?:sql|db2|oracle|java|python|eclipse|maven|jira|docker|git|spring'
+            r'|subversion|svn|jenkins|linux|unix|cobol|angular|react|node|vue'
+            r'|hertz|natixis|bnp|bnp\s*paribas|edf|hsbc|mediapost|gmf|axa|sanofi|efs'
+            r'|generali|cedicam|ina|societe\s*generale|sg|orange|bouygues|thales'
+            r'|projet|mission|secteur|client|entreprise|soci[ée]t[ée]|groupe'
+            r'|contexte|r[ôo]le|poste|fonction'
+            r')\.?\s*$',
             re.I
         )
 
         competences = []
         cat = {'categorie': 'Compétences', 'items': []}
 
-        for l in lignes:
+        def _flush():
+            nonlocal cat
+            if cat['items']:
+                competences.append(cat)
+            cat = {'categorie': 'Compétences', 'items': []}
+
+        for raw in lignes:
+            l = raw
             # Filtres parasites
             if re.match(r'^page\s+\d', l, re.I): continue
             if re.match(r'^[•\-–]\s*$', l): continue
             if re.match(r'^\(\d+\s*mois\)', l): continue
             if _DATE_RE.search(l) and len(l) < 60 and len(l.split()) <= 5: continue
             if _EXP_LINE_RE.search(l): continue
+            if re.search(r'technologies?\s+et\s+outils?\s+utilis', l, re.I): continue
+            if re.search(r'utilis[ée]s?\s+au\s+quotidien', l, re.I): continue
 
-            # Détecter un en-tête de catégorie
-            is_header = False
             stripped = _BULLET_STRIP.sub('', l).strip()
+            if not stripped or len(stripped) <= 2:
+                continue
 
+            # Cas 1a : ligne tabulaire "LABEL   items..." (2+ espaces)
+            m_tab = re.match(r'^([^\s:][^:]{2,45}?)[ \t]{2,}(.+)$', stripped)
+            if m_tab:
+                lbl = m_tab.group(1).strip().rstrip(':').strip()
+                rest = m_tab.group(2).strip()
+                if (UP_LABEL_RE.match(lbl) or lbl.endswith(':')
+                        or (len(lbl.split()) <= 4 and len(lbl) <= 35
+                            and not BAD_CAT_RE.match(lbl))):
+                    _flush()
+                    cat = {'categorie': lbl.rstrip(':').strip(), 'items': []}
+                    for it in re.split(r'\s*[,;]\s*', rest):
+                        it = it.strip()
+                        if it and len(it) <= 200:
+                            cat['items'].append(it)
+                    continue
+
+            # Cas 1b : ligne commence par un label canonique suivi d'items
+            # (séparateur = simple espace, fréquent en PDF extraction)
+            m_prefix = re.match(
+                r'^(Java(?:/J2EE)?|Tech(?:nologies?)?\s+XML|Base\s+de\s+donn[ée]es'
+                r'|Bases?\s+de\s+donn[ée]es?|BDD|SGBD'
+                r'|Web|Conception|Divers|Cloud|DevOps|Frameworks?'
+                r'|Langages?|Outils?|Secteurs?|M[ée]thodes?'
+                r'|Certifications?|Environnement\s+technique'
+                r'|Syst[èe]mes?\s+(?:d.exploitation)?|OS|Os)\b\s*[:\-–]?\s+(.+)$',
+                stripped, re.I
+            )
+            if m_prefix and not UP_LABEL_RE.match(stripped):
+                lbl = m_prefix.group(1).strip().rstrip(':').strip()
+                rest = m_prefix.group(2).strip()
+                if rest and len(rest) < 400 and not BAD_CAT_RE.match(lbl):
+                    _flush()
+                    cat = {'categorie': lbl, 'items': []}
+                    for it in re.split(r'\s*[,;]\s*', rest):
+                        it = it.strip(' .')
+                        if it and len(it) <= 200:
+                            cat['items'].append(it)
+                    continue
+
+            # Cas 2 : en-tête de catégorie
+            is_header = False
             if UP_LABEL_RE.match(stripped):
                 is_header = True
-            elif len(stripped) < 65 and (stripped.endswith(':') or stripped.endswith(' :')):
-                is_header = True
-            elif len(stripped) < 55 and stripped == stripped.upper() and len(stripped.split()) <= 6 and len(stripped) > 3:
-                is_header = True
+            elif stripped.endswith(':') or stripped.endswith(' :'):
+                # Titre explicite « XXX : »
+                if len(stripped) < 65 and not BAD_CAT_RE.match(stripped.rstrip(':').strip()):
+                    is_header = True
 
             if is_header:
                 label = stripped.rstrip(':').rstrip(' :').strip()
-                if label and label != cat['categorie']:
-                    if cat['items']:
-                        competences.append(cat)
+                if label and label.lower() != cat['categorie'].lower():
+                    _flush()
                     cat = {'categorie': label, 'items': []}
                 continue
 
             # Item de compétence
-            item = _BULLET_STRIP.sub('', l).strip()
-            if not item or len(item) <= 2: continue
+            item = stripped
             if _DATE_RE.search(item) and len(item.split()) <= 6: continue
             if len(item) > 200: continue
             cat['items'].append(item)
 
-        if cat['items']:
-            competences.append(cat)
-        return competences
+        _flush()
+
+        # Nettoyage final : fusionner catégories "Compétences" vide avec la
+        # suivante ; dédupliquer les items ; ignorer catégories dont le nom
+        # ressemble à un item d'expérience.
+        clean = []
+        for c in competences:
+            name = c.get('categorie', '').strip()
+            items = c.get('items', [])
+            if not items:
+                continue
+            if BAD_CAT_RE.match(name) and len(items) <= 1:
+                continue
+            # Dédup en conservant l'ordre
+            seen = set()
+            uniq = []
+            for it in items:
+                key = it.lower().strip()
+                if key and key not in seen:
+                    seen.add(key)
+                    uniq.append(it)
+            clean.append({'categorie': name, 'items': uniq[:15]})
+        return clean
 
     # ── Parse section expériences ─────────────────────────────────────────────
     def _parse_experiences(self, lignes: list) -> list:
+        """
+        Heuristique pour CV tabulaires Up Technologies :
+        - Une ligne d'entreprise (courte, majuscules / Title Case, pas de date)
+          précède immédiatement une ligne contenant une date (« Depuis 09/2020 »,
+          « 01/2012 au 07/2012 »).
+        - Les lignes « Projet … : », « Rôle : », « Mission : », « Secteur : »
+          sont des métadonnées du bloc en cours.
+        - « (N mois) » seul → durée de l'expérience courante.
+        - Les lignes « ❖ », « ➢ », « • », « o » sont des bullets.
+        - Les lignes avec « Technologies et outils utilisés au quotidien »
+          précèdent la liste des outils.
+        """
+        # Patterns
+        DATE_HEAD = re.compile(
+            r'^(?:depuis\s+)?\d{2}/\d{4}(?:\s*(?:au|[àa]|[-–—])\s*'
+            r'(?:aujourd.hui|pr[ée]sent|\w*\s*\d{4}|\d{2}/\d{4}))?\s*$|'
+            r'^\d{4}\s*[-–—à]\s*(?:\d{4}|pr[ée]sent|aujourd.hui)\s*$',
+            re.I
+        )
+        DUREE_ONLY = re.compile(r'^\(\s*\d+\s*(?:mois|ans?|mo)\s*\)\s*$', re.I)
+        PROJET_RE = re.compile(r'^projet(?:\s+(?:de|d.))?\s*[:\-–]\s*(.+)', re.I)
+        SECTOR_RE = re.compile(r'^secteur\s*:\s*(.+)', re.I)
+        ROLE_RE   = re.compile(r'^(?:r[ôo]le|poste|mission|fonction)\s*:\s*(.+)', re.I)
+        DUREE_RE  = re.compile(r'^\(\s*(\d+)\s*(mois|ans?|mo)\s*\)', re.I)
+        TOOLS_HEADER_RE = re.compile(
+            r'technologies?\s+et\s+outils?\s+utilis|'
+            r'utilis[ée]s?\s+au\s+quotidien|'
+            r'^logiciels?\s*(?:/|et)?\s*outils?\s*:',
+            re.I
+        )
+        # "Nom d'entreprise" : ligne courte, contient au moins une majuscule,
+        # pas de date, pas un bullet, pas un mot-clé outil/rôle.
+        def _is_company_line(s):
+            s = s.strip()
+            if not s or len(s) > 70:
+                return False
+            if _DATE_RE.search(s):
+                return False
+            if re.match(r'^[•➢❖◆►▸o\-–—*]', s):
+                return False
+            if not re.search(r'[A-Za-z]', s):
+                return False
+            if len(s.split()) > 8:
+                return False
+            # Commence par une majuscule (nom d'entité)
+            if not re.match(r'^[A-Z0-9(]', s):
+                return False
+            # Pas un rôle / section / mot-clé
+            if re.match(r'^(?:r[ôo]le|poste|mission|fonction|secteur|contexte|projet'
+                        r'|client|dur[ée]e|environnement|technologies?|logiciels?|outils?'
+                        r'|r[ée]alisations?|stack)\s*[:\-]', s, re.I):
+                return False
+            # Pas un mot-outil seul
+            if re.match(r'^(?:SQL|DB2|Oracle|Java|Python|Eclipse|Maven|Jira|Docker'
+                        r'|Git|Spring|SVN|Jenkins|Linux|Unix|COBOL)\.?\s*$', s, re.I):
+                return False
+            return True
+
+        # Pré-traitement : fusionner les entreprises découpées sur 2 lignes.
+        # Pattern typique : une ligne d'entreprise courte suivie d'une autre
+        # ligne courte qui continue (parenthèse fermée, accent, etc.), puis
+        # une ligne de date. On concatène 1 → 1+2 uniquement si 2 se ferme
+        # par « ) » ou commence par une minuscule (continuation).
+        merged = []
+        i = 0
+        L = lignes
+        while i < len(L):
+            cur = L[i].strip()
+            nxt = L[i+1].strip() if i+1 < len(L) else ''
+            nxt2 = L[i+2].strip() if i+2 < len(L) else ''
+            # Entreprise wrap : "EFS (Etablissement" + "Français du Sang)"
+            if (cur and nxt and nxt2
+                    and '(' in cur and ')' in nxt
+                    and not DATE_HEAD.match(cur) and not DATE_HEAD.match(nxt)
+                    and (DATE_HEAD.match(nxt2) or DUREE_ONLY.match(nxt2))
+                    and len(cur) < 40 and len(nxt) < 40):
+                merged.append(cur + ' ' + nxt)
+                i += 2; continue
+            # Entreprise multi-mots : "BNP Paribas" / "INA (Institut National" + "Audiovisuel)"
+            # Déjà géré par la parenthèse.
+            merged.append(cur)
+            i += 1
+        L = merged
+
+        # Fusion des « Rôle : » coupés sur 2 lignes (le second commence par
+        # une majuscule courte, pas un bullet).
+        merged2 = []
+        i = 0
+        while i < len(L):
+            cur = L[i]
+            nxt = L[i+1] if i+1 < len(L) else ''
+            if (re.match(r'^(?:r[ôo]le|poste|fonction|mission)\s*:', cur, re.I)
+                    and nxt and len(nxt) < 45
+                    and re.match(r'^[A-Z]', nxt)
+                    and not DATE_HEAD.match(nxt) and not DUREE_ONLY.match(nxt)
+                    and not re.match(r'^(?:secteur|contexte|projet|environnement|technologies?'
+                                     r'|logiciels?|outils?|r[ée]alisations?)\s*:', nxt, re.I)
+                    and not re.match(r'^[•➢❖◆►▸o\-–—*]', nxt)):
+                merged2.append(cur + ' ' + nxt)
+                i += 2; continue
+            merged2.append(cur)
+            i += 1
+        L = merged2
+
+        # Détecter d'abord tous les indices de ligne qui démarrent une
+        # nouvelle expérience (ligne de date DATE_HEAD).
+        date_indices = [i for i, l in enumerate(L)
+                        if DATE_HEAD.match(l.strip()) and len(l.strip()) < 80]
+
         experiences = []
-        exp = None
 
-        for l in lignes:
-            if re.match(r'^page\s+\d', l, re.I): continue
-            if _DATE_RE.search(l) and len(l) < 100:
-                if exp: experiences.append(exp)
-                exp = {
-                    'entreprise': l, 'dates': l, 'duree': '',
-                    'secteur': '', 'poste': '',
-                    'sous_missions': [{'titre': 'Réalisations', 'bullets': []}],
-                    'outils': ''
-                }
-            elif exp:
-                low = l.lower()
-                if re.match(r'^secteur\s*:', low) and len(l) < 120:
-                    exp['secteur'] = re.sub(r'^secteur\s*:\s*', '', l, flags=re.I).strip()
-                elif re.match(r'^(r[ôo]le|poste|mission|fonction)\s*:', low) and len(l) < 120:
-                    exp['poste'] = re.sub(r'^[^:]+:\s*', '', l).strip()
-                elif re.search(r'logiciels?|outils?|stack|technos?', low) and len(l) < 150:
-                    exp['outils'] = l
-                elif re.match(r'^\(\d+\s*mois\)', l.strip()):
-                    exp['duree'] = l.strip()
-                else:
+        def _new_exp():
+            return {
+                'entreprise': '', 'dates': '', 'duree': '',
+                'secteur': '', 'poste': '', 'titre_projet': '',
+                'sous_missions': [{'titre': 'Réalisations', 'bullets': []}],
+                'outils': ''
+            }
+
+        for k, didx in enumerate(date_indices):
+            exp = _new_exp()
+            exp['dates'] = L[didx].strip()
+
+            # Remonter en arrière pour récupérer les lignes d'entreprise
+            # (jusqu'à 3 lignes courtes, non-date, non-bullet, qui ne
+            # ressemblent pas à un rôle/bullet/métadonnée).
+            company_parts = []
+            j = didx - 1
+            start_prev = date_indices[k-1] if k > 0 else -1
+            while j > start_prev and len(company_parts) < 3:
+                cand = L[j].strip()
+                if not cand:
+                    j -= 1; continue
+                if re.match(r'^page\s+\d', cand, re.I):
+                    j -= 1; continue
+                if _is_company_line(cand):
+                    company_parts.insert(0, cand)
+                    j -= 1
+                    continue
+                break
+            if company_parts:
+                exp['entreprise'] = ' '.join(company_parts).strip()
+
+            # Fin du bloc : prochaine date ou fin
+            end = date_indices[k+1] if k+1 < len(date_indices) else len(L)
+            # Si on remonte pour récupérer l'entreprise du bloc suivant, le
+            # bloc courant se termine avant ces lignes.
+            if k+1 < len(date_indices):
+                # Récupérer company_parts du bloc suivant pour connaître
+                # le nombre de lignes à exclure de la fin du bloc courant.
+                next_didx = date_indices[k+1]
+                exclude = 0
+                jj = next_didx - 1
+                while jj > didx and exclude < 3:
+                    cand = L[jj].strip()
+                    if not cand:
+                        jj -= 1; continue
+                    if _is_company_line(cand):
+                        exclude += 1; jj -= 1; continue
+                    break
+                end = next_didx - exclude
+
+            # Parcourir le corps du bloc
+            collecting_tools = False
+            i = didx + 1
+            while i < end:
+                l = L[i].strip()
+                i += 1
+                if not l: continue
+                if re.match(r'^page\s+\d', l, re.I): continue
+
+                if DUREE_ONLY.match(l):
+                    exp['duree'] = l
+                    continue
+
+                m = SECTOR_RE.match(l)
+                if m:
+                    exp['secteur'] = m.group(1).strip()
+                    continue
+                m = ROLE_RE.match(l)
+                if m:
+                    exp['poste'] = m.group(1).strip()
+                    continue
+                m = PROJET_RE.match(l)
+                if m:
+                    exp['titre_projet'] = m.group(1).strip()
+                    continue
+
+                if TOOLS_HEADER_RE.search(l):
+                    collecting_tools = True
+                    m_out = re.search(r':\s*(.+)$', l)
+                    if m_out:
+                        exp['outils'] = (exp['outils'] + ', ' + m_out.group(1).strip()).strip(', ')
+                    continue
+
+                if collecting_tools:
                     item = _BULLET_STRIP.sub('', l).strip()
-                    if item and len(item) > 3:
-                        exp['sous_missions'][0]['bullets'].append(item)
+                    if item and len(item) < 100:
+                        exp['outils'] = (exp['outils'] + ', ' + item).strip(', ')
+                        continue
+                    collecting_tools = False
 
-        if exp: experiences.append(exp)
-        return experiences
+                item = _BULLET_STRIP.sub('', l).strip()
+                if item and len(item) > 3:
+                    exp['sous_missions'][0]['bullets'].append(item)
+
+            if exp['entreprise'] or exp['sous_missions'][0]['bullets']:
+                experiences.append(exp)
+
+        # Filtrer les expériences vides (sans entreprise ni titre ni bullet)
+        filtered = []
+        for e in experiences:
+            has_content = (
+                e.get('entreprise') or e.get('titre_projet') or e.get('dates')
+                or any(e.get('sous_missions', [{}])[0].get('bullets', []))
+            )
+            if has_content:
+                # Fallback titre_projet
+                if not e['titre_projet']:
+                    if e['poste'] and e['entreprise']:
+                        e['titre_projet'] = f"{e['poste']} chez {e['entreprise']}"
+                    elif e['entreprise']:
+                        e['titre_projet'] = e['entreprise']
+                filtered.append(e)
+        return filtered
 
     # ── Parse section formations ──────────────────────────────────────────────
     def _parse_formations(self, lignes: list) -> list:
