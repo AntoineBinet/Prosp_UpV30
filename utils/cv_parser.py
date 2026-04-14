@@ -464,7 +464,7 @@ class CVParser:
         # Patterns
         DATE_HEAD = re.compile(
             r'^(?:depuis\s+)?\d{2}/\d{4}(?:\s*(?:au|[àa]|[-–—])\s*'
-            r'(?:aujourd.hui|pr[ée]sent|\w*\s*\d{4}|\d{2}/\d{4}))?\s*$|'
+            r'(?:aujourd.hui|pr[ée]sent|(?:fin\s+)?(?:\w+\s+){0,2}\d{4}|\d{2}/\d{4}))?\s*$|'
             r'^\d{4}\s*[-–—à]\s*(?:\d{4}|pr[ée]sent|aujourd.hui)\s*$',
             re.I
         )
@@ -533,6 +533,20 @@ class CVParser:
             i += 1
         L = merged
 
+        # Fusion des dates coupées sur 2 lignes (ex. "03/2019 à fin " + "Septembre 2019")
+        merged_d = []
+        i = 0
+        DATE_START = re.compile(r'^\d{2}/\d{4}\s*(?:au|[àa]|[-–—])\s+(?:fin\s+)?[a-zéèêA-Z]*\s*$')
+        while i < len(L):
+            cur = L[i]
+            nxt = L[i+1] if i+1 < len(L) else ''
+            if DATE_START.match(cur.strip()) and re.match(r'^[A-Za-zéèê]+\s+\d{4}\s*$', nxt.strip()):
+                merged_d.append(cur.strip() + ' ' + nxt.strip())
+                i += 2; continue
+            merged_d.append(cur)
+            i += 1
+        L = merged_d
+
         # Fusion des « Rôle : » coupés sur 2 lignes (le second commence par
         # une majuscule courte, pas un bullet).
         merged2 = []
@@ -564,17 +578,37 @@ class CVParser:
             return {
                 'entreprise': '', 'dates': '', 'duree': '',
                 'secteur': '', 'poste': '', 'titre_projet': '',
+                'intro': '',
                 'sous_missions': [{'titre': 'Réalisations', 'bullets': []}],
                 'outils': ''
             }
+
+        # Marqueurs de bullet explicites dans le texte PDF
+        PRIMARY_BULLET = re.compile(r'^[❖•●◆▶►✦➤*]\s*')
+        SECONDARY_BULLET = re.compile(r'^[➢▸▶►>→o]\s+')
+        ENV_TECH_RE = re.compile(r'^environnement\s+technique\s*:?\s*$', re.I)
+        END_PUNCT = re.compile(r'[.!?:…\)]\s*$')
+
+        def _is_continuation(prev, cur):
+            """cur continue prev si cur n'a pas de bullet marker,
+            et prev ne finit pas par ponctuation forte."""
+            if not prev:
+                return False
+            if PRIMARY_BULLET.match(cur) or SECONDARY_BULLET.match(cur):
+                return False
+            # Ligne courte commençant par minuscule = clairement une continuation
+            if re.match(r'^[a-zà-ÿ(]', cur):
+                return True
+            # Prev ne finit pas par ponctuation forte → continuation
+            if not END_PUNCT.search(prev):
+                return True
+            return False
 
         for k, didx in enumerate(date_indices):
             exp = _new_exp()
             exp['dates'] = L[didx].strip()
 
             # Remonter en arrière pour récupérer les lignes d'entreprise
-            # (jusqu'à 3 lignes courtes, non-date, non-bullet, qui ne
-            # ressemblent pas à un rôle/bullet/métadonnée).
             company_parts = []
             j = didx - 1
             start_prev = date_indices[k-1] if k > 0 else -1
@@ -592,13 +626,9 @@ class CVParser:
             if company_parts:
                 exp['entreprise'] = ' '.join(company_parts).strip()
 
-            # Fin du bloc : prochaine date ou fin
+            # Fin du bloc
             end = date_indices[k+1] if k+1 < len(date_indices) else len(L)
-            # Si on remonte pour récupérer l'entreprise du bloc suivant, le
-            # bloc courant se termine avant ces lignes.
             if k+1 < len(date_indices):
-                # Récupérer company_parts du bloc suivant pour connaître
-                # le nombre de lignes à exclure de la fin du bloc courant.
                 next_didx = date_indices[k+1]
                 exclude = 0
                 jj = next_didx - 1
@@ -611,51 +641,119 @@ class CVParser:
                     break
                 end = next_didx - exclude
 
-            # Parcourir le corps du bloc
-            collecting_tools = False
-            i = didx + 1
-            while i < end:
+            # ── Collecter les lignes du corps, en respectant les marqueurs ──
+            body_lines = []
+            for i in range(didx + 1, end):
                 l = L[i].strip()
-                i += 1
                 if not l: continue
                 if re.match(r'^page\s+\d', l, re.I): continue
+                if re.match(r'^\d+\s*/\s*\d+\s*$', l): continue  # "3 / 7"
+                body_lines.append(l)
 
+            # ── Parser méta + intro + bullets + outils ──
+            idx = 0
+            while idx < len(body_lines):
+                l = body_lines[idx]
+                # Durée seule
                 if DUREE_ONLY.match(l):
                     exp['duree'] = l
-                    continue
-
+                    idx += 1; continue
+                # Méta
                 m = SECTOR_RE.match(l)
                 if m:
                     exp['secteur'] = m.group(1).strip()
-                    continue
+                    idx += 1; continue
                 m = ROLE_RE.match(l)
                 if m:
                     exp['poste'] = m.group(1).strip()
-                    continue
+                    idx += 1; continue
                 m = PROJET_RE.match(l)
                 if m:
                     exp['titre_projet'] = m.group(1).strip()
-                    continue
+                    idx += 1; continue
+                break
 
-                if TOOLS_HEADER_RE.search(l):
-                    collecting_tools = True
+            # ── Parser corps : intro + bullets + environnement technique (outils) ──
+            current = None  # 'intro' | 'bullet' | 'tools'
+            buf = []
+
+            def _flush_buf():
+                nonlocal buf, current
+                if not buf:
+                    return
+                merged = ' '.join(buf).strip()
+                merged = re.sub(r'\s+', ' ', merged)
+                if current == 'intro':
+                    if exp['intro']:
+                        exp['intro'] += ' ' + merged
+                    else:
+                        exp['intro'] = merged
+                elif current == 'bullet':
+                    if merged:
+                        exp['sous_missions'][0]['bullets'].append(merged)
+                elif current == 'tools':
+                    if merged:
+                        exp['outils'] = (exp['outils'] + ', ' + merged).strip(', ')
+                buf = []
+
+            while idx < len(body_lines):
+                l = body_lines[idx]
+                idx += 1
+
+                # "Environnement technique :" ou équivalent → bascule outils
+                stripped_no_bullet = PRIMARY_BULLET.sub('', l).strip()
+                if ENV_TECH_RE.match(stripped_no_bullet) or TOOLS_HEADER_RE.search(l):
+                    _flush_buf()
+                    current = 'tools'
+                    # Si la même ligne contient ":" suivi de contenu
                     m_out = re.search(r':\s*(.+)$', l)
                     if m_out:
-                        exp['outils'] = (exp['outils'] + ', ' + m_out.group(1).strip()).strip(', ')
+                        rest = m_out.group(1).strip()
+                        if rest and not ENV_TECH_RE.match(stripped_no_bullet):
+                            buf.append(rest); _flush_buf()
                     continue
 
-                if collecting_tools:
-                    item = _BULLET_STRIP.sub('', l).strip()
-                    if item and len(item) < 100:
-                        exp['outils'] = (exp['outils'] + ', ' + item).strip(', ')
+                # Marqueur secondaire (➢ / o) en mode outils = item outil
+                if current == 'tools' and SECONDARY_BULLET.match(l):
+                    _flush_buf()
+                    item = SECONDARY_BULLET.sub('', l).strip()
+                    if item:
+                        buf.append(item); _flush_buf()
+                    continue
+
+                # Marqueur primaire (❖ / •) = nouveau bullet
+                if PRIMARY_BULLET.match(l):
+                    _flush_buf()
+                    current = 'bullet'
+                    content = PRIMARY_BULLET.sub('', l).strip()
+                    if content:
+                        buf.append(content)
+                    continue
+
+                # Secondaire en mode bullets → sous-item (on colle au bullet actuel
+                # préfixé de « – » pour ne pas perdre l'info)
+                if SECONDARY_BULLET.match(l) and current == 'bullet':
+                    content = SECONDARY_BULLET.sub('', l).strip()
+                    if content:
+                        # Ajouter comme nouveau bullet avec prefix
+                        _flush_buf()
+                        buf.append(content)
+                        _flush_buf()
+                    continue
+
+                # Pas de marqueur : continuation du buf ou intro initiale
+                if current is None:
+                    current = 'intro'
+                # Continuation : ajouter au buf
+                if current in ('intro', 'bullet', 'tools'):
+                    # Si la ligne est elle-même une métadonnée (Rôle tardif), skip
+                    if ROLE_RE.match(l) or SECTOR_RE.match(l):
                         continue
-                    collecting_tools = False
+                    buf.append(l)
 
-                item = _BULLET_STRIP.sub('', l).strip()
-                if item and len(item) > 3:
-                    exp['sous_missions'][0]['bullets'].append(item)
+            _flush_buf()
 
-            if exp['entreprise'] or exp['sous_missions'][0]['bullets']:
+            if exp['entreprise'] or exp['intro'] or exp['sous_missions'][0]['bullets']:
                 experiences.append(exp)
 
         # Filtrer les expériences vides (sans entreprise ni titre ni bullet)
@@ -666,12 +764,20 @@ class CVParser:
                 or any(e.get('sous_missions', [{}])[0].get('bullets', []))
             )
             if has_content:
-                # Fallback titre_projet
+                # Fallback titre_projet : privilégier le poste seul
+                # (l'entreprise apparaît déjà dans le sous-titre du DC).
                 if not e['titre_projet']:
-                    if e['poste'] and e['entreprise']:
-                        e['titre_projet'] = f"{e['poste']} chez {e['entreprise']}"
+                    if e['poste']:
+                        e['titre_projet'] = e['poste']
                     elif e['entreprise']:
                         e['titre_projet'] = e['entreprise']
+                else:
+                    # Si titre_projet contient "chez {entreprise}", retirer
+                    if e['entreprise']:
+                        e['titre_projet'] = re.sub(
+                            r'\s+chez\s+' + re.escape(e['entreprise']) + r'.*$',
+                            '', e['titre_projet'], flags=re.I
+                        ).strip()
                 filtered.append(e)
         return filtered
 
