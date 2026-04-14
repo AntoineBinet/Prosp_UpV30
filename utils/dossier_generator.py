@@ -2,7 +2,7 @@
 """
 Génère un DOCX dossier de compétences au format Up Technologies.
 Utilise python-docx pour une fidélité maximale au template Word officiel.
-Sortie : fichier .docx (editable dans Word/LibreOffice).
+Sortie : fichier .docx (éditable dans Word/LibreOffice).
 """
 import os
 import re
@@ -92,7 +92,7 @@ def _para_spacing(para, before=0, after=0, line=240):
 
 
 def _para_border_bottom(para, color=LGREY_HEX, sz=4):
-    """Trace une ligne sous le paragraphe (HR)."""
+    """Trace une ligne sous le paragraphe (séparateur)."""
     pPr = para._p.get_or_add_pPr()
     for old in pPr.findall(qn('w:pBdr')):
         pPr.remove(old)
@@ -114,7 +114,6 @@ def _set_col_width(table, col_idx, width_cm):
         for old in tcPr.findall(qn('w:tcW')):
             tcPr.remove(old)
         tcW = OxmlElement('w:tcW')
-        # 1 cm ≈ 567 twips
         twips = int(width_cm * 567)
         tcW.set(qn('w:w'), str(twips))
         tcW.set(qn('w:type'), 'dxa')
@@ -125,7 +124,8 @@ def _strip_bullet(text):
     return re.sub(
         r'^[\u2022\u2023\u25e6\u2043\u2219\u25cf\u25cb\u2714\u2713'
         r'\u279e\u27a4\u25b6\u2715\u2716\u27a2\u2023\u203a'
-        r'\*\->\u27a4\u27a6\u27a1\u2192\u21e8➤✦❖●◆▶►•\s]+',
+        r'\*\->\u27a4\u27a6\u27a1\u2192\u21e8\u27a4\u27a6\u27a1'
+        r'➤✦❖●◆▶►•o\s]+',
         '', text
     ).strip()
 
@@ -153,7 +153,6 @@ class DossierGenerator:
         section.right_margin  = Cm(2.0)
         section.top_margin    = Cm(3.2)
         section.bottom_margin = Cm(3.0)
-        # Supprimer le style de tableau par défaut (grille bleue)
         doc.styles['Normal'].font.name = 'Calibri'
         doc.styles['Normal'].font.size = Pt(10)
 
@@ -163,7 +162,6 @@ class DossierGenerator:
         # ── Header ────────────────────────────────────────────────────────────
         header = section.header
         header.is_linked_to_previous = False
-        # Vider le contenu par défaut
         for p in header.paragraphs:
             p.clear()
         if os.path.exists(LOGO_HEADER):
@@ -174,17 +172,9 @@ class DossierGenerator:
                 run = hp.add_run()
                 run.add_picture(LOGO_HEADER, width=Cm(4.2))
             except Exception:
-                hp = header.paragraphs[0]
-                r = hp.add_run('UP TECHNOLOGIES')
-                r.bold = True
-                r.font.color.rgb = ORANGE
-                hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                _add_text_logo(header.paragraphs[0])
         else:
-            hp = header.paragraphs[0]
-            r = hp.add_run('UP TECHNOLOGIES')
-            r.bold = True
-            r.font.color.rgb = ORANGE
-            hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            _add_text_logo(header.paragraphs[0])
 
         # ── Footer ────────────────────────────────────────────────────────────
         footer = section.footer
@@ -212,7 +202,7 @@ class DossierGenerator:
 
         # ── Identité ──────────────────────────────────────────────────────────
         p = doc.add_paragraph()
-        _para_spacing(p, 0, 40)
+        _para_spacing(p, 0, 20)
         r = p.add_run(nom_complet)
         r.bold = True
         r.font.size = Pt(20)
@@ -220,7 +210,7 @@ class DossierGenerator:
 
         if data.get('titre_poste'):
             p = doc.add_paragraph()
-            _para_spacing(p, 0, 20)
+            _para_spacing(p, 0, 10)
             r = p.add_run(data['titre_poste'])
             r.font.size = Pt(12)
             r.font.color.rgb = DARK
@@ -235,7 +225,7 @@ class DossierGenerator:
         # ── Titre section compétences ─────────────────────────────────────────
         p = doc.add_paragraph()
         _para_spacing(p, 0, 60)
-        r = p.add_run("Compétences, Outils & Secteurs d\u2019intervention")
+        r = p.add_run("Comp\u00e9tences, Outils & Secteurs d\u2019intervention")
         r.bold = True
         r.italic = True
         r.font.size = Pt(13)
@@ -246,7 +236,7 @@ class DossierGenerator:
         if competences:
             self._add_competences_table(doc, competences)
         else:
-            p = doc.add_paragraph('(Compétences à renseigner)')
+            p = doc.add_paragraph('(Comp\u00e9tences \u00e0 renseigner)')
             _para_spacing(p, 0, 0)
 
         # ── Formation, Langues ────────────────────────────────────────────────
@@ -276,8 +266,7 @@ class DossierGenerator:
             self._add_formation_table(doc, fl_rows)
 
         # ── Expériences (page break avant chaque) ────────────────────────────
-        experiences = data.get('experiences', [])
-        for i, exp in enumerate(experiences):
+        for i, exp in enumerate(data.get('experiences', [])):
             doc.add_page_break()
             self._add_experience(doc, exp, i)
 
@@ -289,10 +278,8 @@ class DossierGenerator:
         n = len(competences)
         tbl = doc.add_table(rows=n, cols=2)
         tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
-        # Fixer largeurs
         _set_col_width(tbl, 0, COL_L)
         _set_col_width(tbl, 1, COL_R)
-        # Supprimer style par défaut
         tbl.style = doc.styles['Table Grid']
 
         for i, cat in enumerate(competences):
@@ -302,7 +289,6 @@ class DossierGenerator:
             lc = tbl.rows[i].cells[0]
             rc = tbl.rows[i].cells[1]
 
-            # ── Bordures colonne gauche ──
             is_first = (i == 0)
             is_last  = (i == n - 1)
 
@@ -319,11 +305,9 @@ class DossierGenerator:
                 right  = {'color': LGREY_HEX, 'sz': 4},
             )
 
-            # ── Marges cellules ──
             _set_cell_margins(lc, top=80, left=60, bottom=80, right=40)
             _set_cell_margins(rc, top=60, left=100, bottom=60, right=60)
 
-            # ── Label (gauche) ──
             _set_cell_valign(lc, 'center')
             lp = lc.paragraphs[0]
             lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -332,7 +316,6 @@ class DossierGenerator:
             lr.font.size  = Pt(9)
             lr.font.color.rgb = GREY
 
-            # ── Items (droite) ──
             _set_cell_valign(rc, 'top')
             first_item = True
             for item in items:
@@ -342,7 +325,7 @@ class DossierGenerator:
                 first_item = False
                 _para_spacing(rp, 0, 20)
                 rp.paragraph_format.left_indent = Cm(0.15)
-                rr = rp.add_run(f'\u2022  {item}')
+                rr = rp.add_run(f'\u2022\u00a0 {item}')
                 rr.font.size  = Pt(8.5)
                 rr.font.color.rgb = DARK
 
@@ -398,29 +381,48 @@ class DossierGenerator:
 
     # ── Expérience ────────────────────────────────────────────────────────────
     def _add_experience(self, doc, exp, idx):
-        entreprise = exp.get('entreprise', f'Mission {idx + 1}')
-        dates      = exp.get('dates', '')
-        duree      = exp.get('duree', '')
+        entreprise   = exp.get('entreprise', '')
+        dates        = exp.get('dates', '')
+        duree        = exp.get('duree', '')
 
-        # Titre de l'expérience
-        parts = [entreprise]
-        if dates and dates != entreprise:
-            parts.append(dates)
-        if duree:
-            parts.append(duree)
+        # Titre du projet/mission (italique, gras, sombre) ─────────────────────
+        # Choisir le meilleur titre disponible
+        titre_projet = exp.get('titre_projet', '').strip()
+        if not titre_projet:
+            # Fallback : construire depuis poste + entreprise
+            poste = exp.get('poste', '').strip()
+            if poste and entreprise:
+                titre_projet = f'{poste} chez {entreprise}'
+            elif poste:
+                titre_projet = poste
+            elif entreprise:
+                titre_projet = entreprise
+            else:
+                titre_projet = f'Mission {idx + 1}'
 
         p = doc.add_paragraph()
-        _para_spacing(p, 0, 40)
-        r = p.add_run(' \u2013 '.join(parts))
-        r.font.size = Pt(13)
+        _para_spacing(p, 0, 6)
+        r = p.add_run(titre_projet)
+        r.bold   = True
+        r.italic = True
+        r.font.size = Pt(14)
         r.font.color.rgb = DARK
 
-        # Ligne de séparation
+        # Sous-titre : entreprise – dates – durée ──────────────────────────────
+        subtitle_parts = [x for x in [entreprise, dates, duree] if x]
+        if subtitle_parts:
+            p = doc.add_paragraph()
+            _para_spacing(p, 0, 0)
+            r = p.add_run(' \u2013 '.join(subtitle_parts))
+            r.font.size = Pt(11)
+            r.font.color.rgb = GREY
+
+        # Ligne de séparation ──────────────────────────────────────────────────
         p_hr = doc.add_paragraph()
-        _para_spacing(p_hr, 0, 60)
+        _para_spacing(p_hr, 60, 80)
         _para_border_bottom(p_hr, LGREY_HEX, sz=6)
 
-        # Secteur / Poste
+        # Secteur / Poste ──────────────────────────────────────────────────────
         if exp.get('secteur'):
             p = doc.add_paragraph()
             _para_spacing(p, 0, 20)
@@ -433,7 +435,7 @@ class DossierGenerator:
 
         if exp.get('poste'):
             p = doc.add_paragraph()
-            _para_spacing(p, 0, 60)
+            _para_spacing(p, 0, 80)
             rb = p.add_run('Mission\u00a0: ')
             rb.bold = True
             rb.font.size = Pt(9)
@@ -441,40 +443,70 @@ class DossierGenerator:
             r.font.size = Pt(9)
             r.font.color.rgb = DARK
 
-        # Sous-missions
+        # Sous-missions ────────────────────────────────────────────────────────
         for sous in exp.get('sous_missions', []):
             titre_sous = sous.get('titre', '')
-            bullets    = [b for b in sous.get('bullets', []) if b and b.strip()]
-            if not bullets:
+            groupes    = sous.get('groupes', [])
+            bullets    = [b for b in sous.get('bullets', []) if b and str(b).strip()]
+
+            # Rien à afficher → passer
+            if not bullets and not groupes:
                 continue
 
-            if titre_sous and titre_sous != 'Réalisations':
+            # En-tête de la sous-section
+            if titre_sous:
                 p = doc.add_paragraph()
                 _para_spacing(p, 40, 20)
                 rb = p.add_run(f'{titre_sous}\u00a0:')
                 rb.bold = True
                 rb.font.size = Pt(9)
                 rb.font.color.rgb = DARK
+
+            if groupes:
+                # ── Bullets à deux niveaux ────────────────────────────────────
+                # Niveau 1 : titre du groupe (• gras)
+                # Niveau 2 : items du groupe (o grisé)
+                for groupe in groupes:
+                    g_titre = _strip_bullet(groupe.get('titre', ''))
+                    g_items = [str(x).strip() for x in groupe.get('items', []) if x and str(x).strip()]
+
+                    if not g_titre and not g_items:
+                        continue
+
+                    if g_titre:
+                        p = doc.add_paragraph()
+                        _para_spacing(p, 20, 8)
+                        p.paragraph_format.left_indent = Cm(0.4)
+                        rb = p.add_run(f'\u2022\u00a0 {g_titre}')
+                        rb.bold = True
+                        rb.font.size = Pt(9)
+                        rb.font.color.rgb = DARK
+
+                    for item in g_items:
+                        clean = _strip_bullet(item)
+                        if not clean:
+                            continue
+                        p = doc.add_paragraph()
+                        _para_spacing(p, 0, 12)
+                        p.paragraph_format.left_indent = Cm(1.2)
+                        r = p.add_run(f'o\u00a0\u00a0{clean}')
+                        r.font.size = Pt(8.5)
+                        r.font.color.rgb = GREY
+
             else:
-                p = doc.add_paragraph()
-                _para_spacing(p, 40, 20)
-                rb = p.add_run('R\u00e9alisations\u00a0:')
-                rb.bold = True
-                rb.font.size = Pt(9)
-                rb.font.color.rgb = DARK
+                # ── Bullets plats ─────────────────────────────────────────────
+                for bullet in bullets:
+                    clean = _strip_bullet(str(bullet))
+                    if not clean:
+                        continue
+                    p = doc.add_paragraph()
+                    _para_spacing(p, 0, 18)
+                    p.paragraph_format.left_indent = Cm(0.5)
+                    r = p.add_run(f'\u2022\u00a0\u00a0{clean}')
+                    r.font.size = Pt(9)
+                    r.font.color.rgb = DARK
 
-            for bullet in bullets:
-                clean = _strip_bullet(bullet)
-                if not clean:
-                    continue
-                p = doc.add_paragraph()
-                _para_spacing(p, 0, 20)
-                p.paragraph_format.left_indent = Cm(0.5)
-                r = p.add_run(f'\u2022\u00a0\u00a0{clean}')
-                r.font.size = Pt(9)
-                r.font.color.rgb = DARK
-
-        # Outils
+        # Outils ───────────────────────────────────────────────────────────────
         if exp.get('outils'):
             p = doc.add_paragraph()
             _para_spacing(p, 80, 0)
@@ -488,3 +520,11 @@ class DossierGenerator:
             r = p.add_run(clean_outils)
             r.font.size = Pt(9)
             r.font.color.rgb = DARK
+
+
+def _add_text_logo(para):
+    """Fallback texte si le logo image n'est pas disponible."""
+    para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    r = para.add_run('UP TECHNOLOGIES')
+    r.bold = True
+    r.font.color.rgb = ORANGE
