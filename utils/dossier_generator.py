@@ -527,11 +527,9 @@ class DossierGenerator:
         # Choisir le meilleur titre disponible
         titre_projet = exp.get('titre_projet', '').strip()
         if not titre_projet:
-            # Fallback : construire depuis poste + entreprise
+            # Fallback : privilégier le poste seul (entreprise déjà en sous-titre)
             poste = exp.get('poste', '').strip()
-            if poste and entreprise:
-                titre_projet = f'{poste} chez {entreprise}'
-            elif poste:
+            if poste:
                 titre_projet = poste
             elif entreprise:
                 titre_projet = entreprise
@@ -560,6 +558,16 @@ class DossierGenerator:
         p_hr = doc.add_paragraph()
         _para_spacing(p_hr, 60, 80)
         _para_border_bottom(p_hr, '5A5A5A', sz=12)
+
+        # Intro / contexte ─────────────────────────────────────────────────────
+        intro_txt = (exp.get('intro') or '').strip()
+        if intro_txt:
+            p = doc.add_paragraph()
+            _para_spacing(p, 0, 80)
+            r = p.add_run(intro_txt)
+            r.italic = True
+            r.font.size = Pt(9.5)
+            r.font.color.rgb = DARK
 
         # Secteur / Poste ──────────────────────────────────────────────────────
         if exp.get('secteur'):
