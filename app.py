@@ -16837,16 +16837,17 @@ def dc_generator_setup_logos():
 @app.route('/dc-generator/generate', methods=['POST'])
 @login_required
 def dc_generator_generate():
-    """Génère le PDF dossier de compétences"""
+    """Génère le dossier de compétences Word (.docx)"""
     uid = _uid()
     tmp_cv = None
     try:
         from utils.cv_parser import CVParser
         from utils.dossier_generator import DossierGenerator
 
-        candidate_id = request.form.get('candidate_id')
+        candidate_id   = request.form.get('candidate_id')
         titre_override = request.form.get('titre_override', '').strip()
         exp_override   = request.form.get('exp_override', '').strip()
+        use_ollama     = request.form.get('use_ollama', 'auto')  # 'auto'|'yes'|'no'
 
         # Données de base depuis la DB si candidat fourni
         base_data = {}
@@ -16858,48 +16859,100 @@ def dc_generator_generate():
             if row:
                 base_data = _safe_row_to_dict(row) or {}
 
-        # Parse le CV si fourni
+        # ── Extraction du CV ──────────────────────────────────────────────────
         cv_data = {}
+        cv_text = ''
+
         if 'cv_file' in request.files and request.files['cv_file'].filename:
             cv_file = request.files['cv_file']
-            ext  = os.path.splitext(cv_file.filename)[1].lower()
+            ext = os.path.splitext(cv_file.filename)[1].lower()
             import tempfile as _tempfile
             fd, tmp_cv = _tempfile.mkstemp(suffix=ext, prefix='cv_upload_')
             os.close(fd)
             cv_file.save(tmp_cv)
-            parser  = CVParser()
-            cv_data = parser.parse(tmp_cv)
+
+            # Extraire le texte brut pour Ollama
+            if ext == '.pdf':
+                try:
+                    import pypdfium2 as _pdfium
+                    _pdf = _pdfium.PdfDocument(tmp_cv)
+                    cv_text = '\n'.join(
+                        _pdf[i].get_textpage().get_text_range()
+                        for i in range(len(_pdf))
+                    )
+                except Exception:
+                    pass
+            elif ext in ('.docx', '.doc'):
+                try:
+                    from docx import Document as _Docx
+                    _doc = _Docx(tmp_cv)
+                    cv_text = '\n'.join(p.text for p in _doc.paragraphs if p.text.strip())
+                except Exception:
+                    pass
+
+            # ── Essayer Ollama si texte disponible ────────────────────────────
+            ollama_ok = False
+            if cv_text.strip() and use_ollama != 'no':
+                try:
+                    ai_cfg = {}
+                    ai_cfg_path = os.path.join(str(APP_DIR), 'data', 'ai_config.json')
+                    if os.path.exists(ai_cfg_path):
+                        import json as _json
+                        with open(ai_cfg_path) as _f:
+                            ai_cfg = _json.load(_f)
+                    ollama_url = ai_cfg.get('ollama_url', 'http://127.0.0.1:11434')
+                    ollama_model = ai_cfg.get('ollama_model', 'llama3.2')
+                    ollama_timeout = int(ai_cfg.get('ollama_timeout', 120))
+
+                    from utils.ollama_extractor import extract as _ollama_extract
+                    extracted = _ollama_extract(cv_text, ollama_url, ollama_model, ollama_timeout)
+                    if extracted and (extracted.get('competences') or extracted.get('nom')):
+                        cv_data = extracted
+                        ollama_ok = True
+                        logger.info("DC Generator: Ollama extraction OK")
+                except Exception as _oe:
+                    logger.warning("DC Generator: Ollama extraction failed: %s", _oe)
+
+            # ── Fallback regex ────────────────────────────────────────────────
+            if not ollama_ok:
+                parser  = CVParser()
+                cv_data = parser.parse(tmp_cv)
+
             if base_data:
-                cv_data = parser.merge_with_candidate(cv_data, base_data)
+                parser_inst = CVParser()
+                cv_data = parser_inst.merge_with_candidate(cv_data, base_data)
         else:
-            # Utiliser données DB uniquement
+            # Pas de CV — utiliser les données DB uniquement
             cv_data = {
-                'nom': base_data.get('nom', base_data.get('name', '')),
-                'prenom': base_data.get('prenom', ''),
-                'titre_poste': base_data.get('titre', base_data.get('role', '')),
+                'nom':               base_data.get('nom', base_data.get('name', '')),
+                'prenom':            base_data.get('prenom', ''),
+                'titre_poste':       base_data.get('titre', base_data.get('role', '')),
                 'annees_experience': '',
                 'competences': [], 'experiences': [],
-                'formations': [], 'langues': [], 'certifications': []
+                'formations':  [], 'langues': [], 'certifications': []
             }
 
-        # Appliquer les overrides
+        # ── Overrides manuels ─────────────────────────────────────────────────
         if titre_override:
             cv_data['titre_poste'] = titre_override
         if exp_override:
             cv_data['annees_experience'] = exp_override
 
-        # Générer le PDF
+        # ── Générer le fichier Word ───────────────────────────────────────────
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         cid_str   = str(candidate_id) if candidate_id else 'standalone'
-        nom_raw   = f"{cv_data.get('nom','candidat')}_{cv_data.get('prenom','')}".strip('_')
+        nom_raw   = f"{cv_data.get('nom','candidat')} {cv_data.get('prenom','')}".strip()
         nom_clean = re.sub(r'[^\w\-]', '_', nom_raw)
-        output_path = os.path.join(str(APP_DIR), 'outputs', 'dossiers', f'{cid_str}_{nom_clean}_{timestamp}.pdf')
+        output_path = os.path.join(
+            str(APP_DIR), 'outputs', 'dossiers',
+            f'{cid_str}_{nom_clean}_{timestamp}.docx'
+        )
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         gen = DossierGenerator()
         gen.generate(cv_data, output_path)
 
-        # Sauvegarder en DB si candidat connu
+        # ── Sauvegarder en DB ─────────────────────────────────────────────────
         if candidate_id:
             with _conn() as conn:
                 conn.execute(
@@ -16908,13 +16961,14 @@ def dc_generator_generate():
                 )
                 conn.commit()
 
-        nom_dl = f"Dossier_Up_{cv_data.get('nom','')}_{cv_data.get('prenom','')}.pdf"
+        nom_dl = f"Dossier_Up_{cv_data.get('nom','')}_{cv_data.get('prenom','')}.docx"
         import urllib.parse as _urlparse
         return jsonify({
             'success': True,
             'download_url': '/dc-generator/download?path=' + _urlparse.quote(output_path, safe=''),
             'filename': nom_dl,
-            'generated_at': datetime.datetime.now().strftime('%d/%m/%Y à %H:%M')
+            'generated_at': datetime.datetime.now().strftime('%d/%m/%Y à %H:%M'),
+            'used_ollama': ollama_ok if 'cv_file' in request.files and request.files['cv_file'].filename else False,
         })
     except Exception as e:
         logger.error("DC Generator error: %s", e, exc_info=True)
@@ -16942,7 +16996,9 @@ def dc_generator_download():
     if not os.path.exists(abs_path):
         abort(404)
     nom = os.path.basename(abs_path).replace('_', ' ')
-    return send_file(abs_path, as_attachment=True, download_name=nom)
+    mime = ('application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            if abs_path.endswith('.docx') else 'application/pdf')
+    return send_file(abs_path, as_attachment=True, download_name=nom, mimetype=mime)
 
 
 @app.route('/candidates/<int:candidate_id>/dossier/download')
@@ -16961,8 +17017,11 @@ def candidate_dossier_download(candidate_id):
         abort(404)
     nom = row['nom'] or row['name'] or 'Candidat'
     prenom = row['prenom'] or ''
-    nom_dl = f"Dossier_Compétences_Up_{nom}_{prenom}.pdf"
-    return send_file(abs_path, as_attachment=True, download_name=nom_dl)
+    ext = '.docx' if abs_path.endswith('.docx') else '.pdf'
+    nom_dl = f"Dossier_Compétences_Up_{nom}_{prenom}{ext}"
+    mime = ('application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            if ext == '.docx' else 'application/pdf')
+    return send_file(abs_path, as_attachment=True, download_name=nom_dl, mimetype=mime)
 
 
 # ── Blueprints ────────────────────────────────────────────────────
