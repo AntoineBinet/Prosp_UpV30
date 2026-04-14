@@ -18,8 +18,11 @@ RÈGLES STRICTES :
 - "competences" = compétences techniques GLOBALES (langages, frameworks, outils, BDD, cloud, méthodes, secteurs)
 - NE PAS inclure de descriptions de missions ou de réalisations
 - NE PAS inventer de compétences absentes
-- Max 6 catégories, max 10 items par catégorie
-- Les catégories doivent être des labels comme "Langages", "Outils", "Méthodes", "Secteurs"
+- Max 6 catégories
+- Chaque catégorie a SOIT "items" (liste plate, max 12 items), SOIT "groupes" (sous-catégories avec titre et items)
+- Utilise "groupes" si la catégorie regroupe plusieurs domaines distincts (ex: "Domaines de compétences")
+- Utilise "items" pour les listes simples (langages, outils, secteurs)
+- Les catégories doivent être des labels comme "Langages", "Outils", "Méthodes", "Secteurs", "Domaines de compétences"
 
 Retourne UNIQUEMENT ce JSON valide, sans markdown ni explication :
 {{
@@ -28,7 +31,13 @@ Retourne UNIQUEMENT ce JSON valide, sans markdown ni explication :
   "titre_poste": "Chef de Projet / Expert DevOps",
   "annees_experience": "18 ans d'expérience",
   "competences": [
-    {{"categorie": "Langages & Frameworks", "items": ["Java J2EE", "Spring", "Python", "SQL"]}},
+    {{
+      "categorie": "Domaines de compétences",
+      "groupes": [
+        {{"titre": "Architecture logicielle", "items": ["Microservices", "API REST", "Event-driven"]}},
+        {{"titre": "Développement backend", "items": ["Java J2EE", "Spring Boot", "Python"]}}
+      ]
+    }},
     {{"categorie": "Outils & DevOps", "items": ["Jenkins", "Docker", "Kubernetes", "Git"]}},
     {{"categorie": "Cloud & Infrastructure", "items": ["Azure", "AWS", "Linux"]}},
     {{"categorie": "Méthodes", "items": ["Agile/Scrum", "DevOps", "PRINCE2"]}},
@@ -228,6 +237,11 @@ def _is_valid_competences(data: dict) -> bool:
                 or _TOOL_AS_CATEGORY_RE.match(name)
                 or _EXPERIENCE_AS_CATEGORY_RE.search(name)):
             bad += 1
+        # Vérifier aussi les titres de groupes si présents
+        for g in cat.get('groupes', []):
+            g_name = g.get('titre', '')
+            if (_BAD_CATEGORY_RE.search(g_name) or _TOOL_AS_CATEGORY_RE.match(g_name)):
+                bad += 0.5  # Demi-pénalité pour les groupes
 
     # Si plus du tiers des catégories semblent mauvaises → invalide
     return bad <= len(cats) * 0.33
@@ -321,11 +335,27 @@ def _normalize(data: dict) -> dict:
 
     competences = []
     for cat in _lst(data.get('competences')):
-        if isinstance(cat, dict):
-            cat_name = _str(cat.get('categorie') or cat.get('category', ''))
-            items    = [_str(x) for x in _lst(cat.get('items')) if x and str(x).strip()]
-            if cat_name and items:
-                competences.append({'categorie': cat_name, 'items': items[:10]})
+        if not isinstance(cat, dict):
+            continue
+        cat_name = _str(cat.get('categorie') or cat.get('category', ''))
+        if not cat_name:
+            continue
+        raw_groupes = _lst(cat.get('groupes'))
+        if raw_groupes:
+            # Structure groupée : titre (gras) + sous-items
+            groupes = []
+            for g in raw_groupes:
+                if isinstance(g, dict):
+                    g_titre = _str(g.get('titre', ''))
+                    g_items = [_str(x) for x in _lst(g.get('items')) if x and str(x).strip()]
+                    if g_items:
+                        groupes.append({'titre': g_titre, 'items': g_items[:10]})
+            if groupes:
+                competences.append({'categorie': cat_name, 'groupes': groupes})
+        else:
+            items = [_str(x) for x in _lst(cat.get('items')) if x and str(x).strip()]
+            if items:
+                competences.append({'categorie': cat_name, 'items': items[:12]})
 
     experiences = []
     for exp in _lst(data.get('experiences')):

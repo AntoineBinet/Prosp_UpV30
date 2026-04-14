@@ -91,6 +91,18 @@ def _para_spacing(para, before=0, after=0, line=240):
     pPr.append(sp)
 
 
+def _add_page_number_field(run, field='PAGE'):
+    """Insère un champ Word PAGE ou NUMPAGES dans un run."""
+    fld_begin  = OxmlElement('w:fldChar')
+    fld_begin.set(qn('w:fldCharType'), 'begin')
+    instr = OxmlElement('w:instrText')
+    instr.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+    instr.text = f' {field} '
+    fld_end  = OxmlElement('w:fldChar')
+    fld_end.set(qn('w:fldCharType'), 'end')
+    run._r.extend([fld_begin, instr, fld_end])
+
+
 def _para_border_bottom(para, color=LGREY_HEX, sz=4):
     """Trace une ligne sous le paragraphe (séparateur)."""
     pPr = para._p.get_or_add_pPr()
@@ -159,22 +171,50 @@ class DossierGenerator:
     def _add_header_footer(self, doc):
         section = doc.sections[0]
 
-        # ── Header ────────────────────────────────────────────────────────────
+        # ── Header : "Page X sur Y" à gauche, logo à droite ──────────────────
         header = section.header
         header.is_linked_to_previous = False
         for p in header.paragraphs:
             p.clear()
+        hp = header.paragraphs[0]
+        _para_spacing(hp, 0, 0)
+
+        # Tabulation center-right pour séparer page# et logo
+        from docx.oxml import OxmlElement as _OxmlElement
+        pPr = hp._p.get_or_add_pPr()
+        tabs = _OxmlElement('w:tabs')
+        tab_right = _OxmlElement('w:tab')
+        tab_right.set(qn('w:val'), 'right')
+        tab_right.set(qn('w:pos'), str(int(17 * 567)))  # 17 cm ≈ zone utile
+        tabs.append(tab_right)
+        pPr.append(tabs)
+
+        # "Page X sur Y"
+        r_page = hp.add_run('Page\u00a0')
+        r_page.font.size = Pt(8)
+        r_page.font.color.rgb = GREY
+        _add_page_number_field(r_page, 'PAGE')
+        r_sur = hp.add_run('\u00a0sur\u00a0')
+        r_sur.font.size = Pt(8)
+        r_sur.font.color.rgb = GREY
+        _add_page_number_field(r_sur, 'NUMPAGES')
+
+        # Tabulation → logo à droite
+        r_tab = hp.add_run('\t')
+        r_tab.font.size = Pt(8)
+
         if os.path.exists(LOGO_HEADER):
             try:
-                hp = header.paragraphs[0]
-                hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-                _para_spacing(hp, 0, 0)
                 run = hp.add_run()
-                run.add_picture(LOGO_HEADER, width=Cm(4.2))
+                run.add_picture(LOGO_HEADER, width=Cm(3.5))
             except Exception:
-                _add_text_logo(header.paragraphs[0])
+                r_logo = hp.add_run('UP TECHNOLOGIES')
+                r_logo.bold = True
+                r_logo.font.color.rgb = ORANGE
         else:
-            _add_text_logo(header.paragraphs[0])
+            r_logo = hp.add_run('UP TECHNOLOGIES')
+            r_logo.bold = True
+            r_logo.font.color.rgb = ORANGE
 
         # ── Footer ────────────────────────────────────────────────────────────
         footer = section.footer
@@ -283,8 +323,9 @@ class DossierGenerator:
         tbl.style = doc.styles['Table Grid']
 
         for i, cat in enumerate(competences):
-            label = cat['categorie']
-            items = [_strip_bullet(x) for x in cat['items'] if x and x.strip()]
+            label   = cat['categorie']
+            groupes = cat.get('groupes', [])
+            items   = [_strip_bullet(x) for x in cat.get('items', []) if x and str(x).strip()]
 
             lc = tbl.rows[i].cells[0]
             rc = tbl.rows[i].cells[1]
@@ -317,17 +358,46 @@ class DossierGenerator:
             lr.font.color.rgb = GREY
 
             _set_cell_valign(rc, 'top')
-            first_item = True
-            for item in items:
-                if not item:
-                    continue
-                rp = rc.paragraphs[0] if first_item else rc.add_paragraph()
-                first_item = False
-                _para_spacing(rp, 0, 20)
-                rp.paragraph_format.left_indent = Cm(0.15)
-                rr = rp.add_run(f'\u2022\u00a0 {item}')
-                rr.font.size  = Pt(8.5)
-                rr.font.color.rgb = DARK
+            first_para = True
+
+            def _rc_para():
+                nonlocal first_para
+                if first_para:
+                    first_para = False
+                    return rc.paragraphs[0]
+                return rc.add_paragraph()
+
+            if groupes:
+                # Structure à deux niveaux : titre de groupe (gras) + sous-items
+                for g in groupes:
+                    g_titre = _strip_bullet(g.get('titre', ''))
+                    g_items = [_strip_bullet(x) for x in g.get('items', []) if x and str(x).strip()]
+                    if g_titre:
+                        tp = _rc_para()
+                        _para_spacing(tp, 4, 4)
+                        tp.paragraph_format.left_indent = Cm(0.15)
+                        tr = tp.add_run(g_titre)
+                        tr.bold = True
+                        tr.font.size = Pt(9)
+                        tr.font.color.rgb = DARK
+                    for item in g_items:
+                        sp = _rc_para()
+                        _para_spacing(sp, 0, 18)
+                        sp.paragraph_format.left_indent = Cm(0.55)
+                        sr = sp.add_run(f'\u2022\u00a0 {item}')
+                        sr.font.size = Pt(8.5)
+                        sr.font.color.rgb = GREY
+            else:
+                # Liste plate de bullets
+                for item in items:
+                    if not item:
+                        continue
+                    rp = _rc_para()
+                    _para_spacing(rp, 0, 20)
+                    rp.paragraph_format.left_indent = Cm(0.15)
+                    rr = rp.add_run(f'\u2022\u00a0 {item}')
+                    rr.font.size  = Pt(8.5)
+                    rr.font.color.rgb = DARK
 
     # ── Table formation ───────────────────────────────────────────────────────
     def _add_formation_table(self, doc, fl_rows):
