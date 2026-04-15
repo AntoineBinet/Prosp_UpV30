@@ -6,13 +6,13 @@ Approche : ouvre le template tel quel, remplace les {{placeholders}},
 duplique le bloc {{#EXPERIENCES}}…{{/EXPERIENCES}} pour chaque mission.
 Mise en page Word préservée à 100%.
 
-Placeholders attendus dans le template :
+Placeholders du template :
   {{PRENOM_NOM}}, {{TITRE_POSTE}}, {{ANNEES_EXPERIENCE}}
   {{COMPETENCES}}, {{OUTILS}}, {{SECTEURS}}
   {{FORMATIONS}}, {{Année d'obtention}}, {{LANGUES}}
-  {{#EXPERIENCES}} … {{/EXPERIENCES}} avec à l'intérieur :
+  {{#EXPERIENCES}} … {{/EXPERIENCES}} avec :
     {{EXP_TITRE}}, {{EXP_SECTEUR}}, {{EXP_MISSION}},
-    {{EXP_REALISATIONS}}, {{EXP_OUTILS}}
+    {{EXP_REALISATIONS}}, {{EXP_OUTILS}}, {{Logo société}}
 """
 
 import copy
@@ -23,17 +23,22 @@ from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-# Chemin du template (relatif à ce fichier → ../sample/template_dc.docx)
 _HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(_HERE, '..', 'sample', 'template_dc.docx')
 
 
-# ── Formatage des données ─────────────────────────────────────────────────────
+# ── Utilitaires ───────────────────────────────────────────────────────────────
 
 def _s(v) -> str:
-    """Retourne str(v).strip() ou ''."""
     return str(v).strip() if v else ''
 
+
+def _get_para_text(elem) -> str:
+    """Texte complet d'un élément XML en joignant tous les w:t."""
+    return ''.join(t.text or '' for t in elem.iter(qn('w:t')))
+
+
+# ── Formatage des données ─────────────────────────────────────────────────────
 
 def _fmt_prenom_nom(data: dict) -> str:
     prenom = _s(data.get('prenom'))
@@ -42,117 +47,136 @@ def _fmt_prenom_nom(data: dict) -> str:
 
 
 def _fmt_annees(data: dict) -> str:
-    """Extrait le nombre d'années (le template ajoute déjà ' ans d'expérience')."""
+    """Extrait juste le chiffre (le template ajoute ' ans d'expérience')."""
     val = _s(data.get('annees_experience'))
     m = re.match(r'^(\d+)', val)
     return m.group(1) if m else val
 
 
 def _categorize_competences(competences: list) -> tuple:
-    """Répartit les catégories de compétences en (domaines, outils, secteurs)."""
+    """
+    Répartit les catégories en (domaines, outils, secteurs).
+    Anti-duplication : si domaines vide, toutes les cats vont dans domaines
+    et outils reste vide.
+    """
     domaines, outils_cats, secteurs_cats = [], [], []
 
     OUTILS_KEYS  = ('outil', 'langag', 'framework', 'technolog', 'cloud',
                     'base de donn', 'web', 'normes', 'logiciel', 'infrastructure',
-                    'développement', 'conception', 'certification', 'méthode')
-    SECTEUR_KEYS = ('secteur',)
-    DOMAINE_KEYS = ('domaine', 'compét', 'expertise', 'savoir')
+                    'certification', 'méthode')
+    SECTEUR_KEYS = ('secteur', 'industrie', 'activit')
+    # DOMAINE_KEYS volontairement strict : on ne matche que les catégories clairement
+    # "domaine métier" (avec groupes) pour éviter la duplication avec OUTILS
+    DOMAINE_KEYS = ('domaine', 'compét', 'expertise', 'savoir', 'architectur')
 
     for cat in competences:
         name = _s(cat.get('categorie')).lower()
         if any(k in name for k in SECTEUR_KEYS):
             secteurs_cats.append(cat)
-        elif any(k in name for k in OUTILS_KEYS):
-            outils_cats.append(cat)
         elif any(k in name for k in DOMAINE_KEYS) or cat.get('groupes'):
             domaines.append(cat)
+        elif any(k in name for k in OUTILS_KEYS):
+            outils_cats.append(cat)
         else:
+            # Par défaut : catégorie plate sans groupe → outils
             outils_cats.append(cat)
 
-    # Fallback : si aucune catégorie triée, tout → domaines
-    if not domaines and not outils_cats and not secteurs_cats:
-        domaines = list(competences)
+    # Anti-duplication : si pas de domaines clairement identifiés,
+    # tout va dans domaines (cellule COMPETENCES) et on vide outils
+    if not domaines:
+        domaines  = list(outils_cats)
+        outils_cats = []
 
     return domaines, outils_cats, secteurs_cats
 
 
-def _fmt_competences_text(cats: list) -> str:
+def _competences_to_lines(cats: list) -> list:
+    """Retourne [(text, is_bold)] : titre de groupe en gras, items en bullet."""
     lines = []
     for cat in cats:
         name = _s(cat.get('categorie'))
         if cat.get('groupes'):
-            lines.append(f"{name} :")
+            lines.append((name, True))
             for g in cat['groupes']:
                 titre = _s(g.get('titre'))
                 items = [_s(x) for x in (g.get('items') or []) if x]
-                if titre and items:
-                    lines.append(f"  {titre} : {', '.join(items)}")
-                elif items:
-                    lines.append(f"  {', '.join(items)}")
+                if titre:
+                    lines.append((titre, False))
+                lines.extend((f'\u2022 {item}', False) for item in items)
         elif cat.get('items'):
-            items = [_s(x) for x in cat['items'] if x]
-            lines.append(f"{name} : {', '.join(items)}")
-    return '\n'.join(lines)
+            lines.append((name, True))
+            lines.extend((f'\u2022 {_s(x)}', False) for x in cat['items'] if x)
+    return lines
 
 
-def _fmt_items_flat(cats: list) -> str:
+def _outils_to_lines(cats: list) -> list:
+    """Retourne [(text, is_bold)] pour les outils (bullet par catégorie)."""
+    lines = []
+    for cat in cats:
+        name  = _s(cat.get('categorie'))
+        items = []
+        for x in (cat.get('items') or []):
+            if x: items.append(_s(x))
+        for g in (cat.get('groupes') or []):
+            for x in (g.get('items') or []):
+                if x: items.append(_s(x))
+        if items:
+            lines.append((f'{name} : {", ".join(items)}', False))
+    return lines
+
+
+def _secteurs_to_lines(cats: list) -> list:
+    lines = []
     items = []
     for cat in cats:
         for x in (cat.get('items') or []):
-            if x:
-                items.append(_s(x))
+            if x: items.append(_s(x))
         for g in (cat.get('groupes') or []):
             for x in (g.get('items') or []):
-                if x:
-                    items.append(_s(x))
-    return ', '.join(items)
+                if x: items.append(_s(x))
+    if items:
+        lines.extend((f'\u2022 {item}', False) for item in items)
+    return lines
 
 
-def _fmt_formations(formations: list) -> str:
+def _formations_to_lines(formations: list) -> list:
+    """Texte de formation sans le préfixe label (la colonne gauche l'indique déjà)."""
     lines = []
     for f in formations:
-        label = _s(f.get('label'))
         texte = _s(f.get('texte'))
-        parts = [p for p in [label, texte] if p]
-        if parts:
-            lines.append(' — '.join(parts))
-    return '\n'.join(lines)
+        if texte:
+            lines.append((texte, False))
+    return lines
 
 
-def _fmt_annees_obtention(formations: list) -> str:
-    annees = [_s(f.get('annee')) for f in formations if f.get('annee')]
-    return ' / '.join(annees)
+def _annees_to_lines(formations: list) -> list:
+    """Une année par formation (aligné avec _formations_to_lines)."""
+    return [(_s(f.get('annee')), False) for f in formations]
 
 
-def _fmt_langues(langues: list) -> str:
+def _langues_to_text(langues: list) -> str:
     parts = []
     for lang in langues:
         langue = _s(lang.get('langue'))
         niveau = _s(lang.get('niveau'))
         if langue:
-            parts.append(f"{langue} ({niveau})" if niveau else langue)
+            parts.append(f'{langue} ({niveau})' if niveau else langue)
     return ', '.join(parts)
 
+
+# ── Formatage expériences ─────────────────────────────────────────────────────
 
 def _fmt_exp_titre(exp: dict) -> str:
     titre      = _s(exp.get('titre_projet'))
     entreprise = _s(exp.get('entreprise'))
     dates      = _s(exp.get('dates'))
     duree      = _s(exp.get('duree'))
-
     parts = []
-    if titre:
-        parts.append(titre)
-    if entreprise:
-        parts.append(f"— {entreprise}" if titre else entreprise)
+    if titre:      parts.append(titre)
+    if entreprise: parts.append(f'\u2014 {entreprise}' if titre else entreprise)
     date_parts = [p for p in [dates, duree] if p]
-    if date_parts:
-        parts.append(f"({' '.join(date_parts)})")
+    if date_parts: parts.append(f'({" ".join(date_parts)})')
     return ' '.join(parts)
-
-
-def _fmt_exp_mission(exp: dict) -> str:
-    return _s(exp.get('poste'))
 
 
 def _fmt_exp_realisations(exp: dict) -> str:
@@ -163,101 +187,154 @@ def _fmt_exp_realisations(exp: dict) -> str:
             g_titre = _s(g.get('titre'))
             g_items = [_s(x) for x in (g.get('items') or []) if x]
             if g_titre:
-                lines.append(f"{g_titre} :")
-                lines.extend(f"  • {x}" for x in g_items)
+                lines.append(f'{g_titre} :')
+                lines.extend(f'  \u2022 {x}' for x in g_items)
             else:
                 bullets.extend(g_items)
-        for b in bullets:
-            if _s(b):
-                lines.append(f"• {_s(b)}")
+        lines.extend(f'\u2022 {_s(b)}' for b in bullets if _s(b))
     return '\n'.join(lines)
 
 
 # ── Manipulation XML ──────────────────────────────────────────────────────────
 
-def _get_para_text(para_elem) -> str:
-    """Retourne le texte complet d'un w:p en joignant tous les w:t."""
-    return ''.join(t.text or '' for t in para_elem.iter(qn('w:t')))
+def _apply_bold(para_elem, bold: bool):
+    """Active ou désactive le gras sur le premier run du paragraphe."""
+    for r in para_elem.iter(qn('w:r')):
+        rPr = r.find(qn('w:rPr'))
+        if bold:
+            if rPr is None:
+                rPr = OxmlElement('w:rPr')
+                r.insert(0, rPr)
+            if rPr.find(qn('w:b')) is None:
+                rPr.insert(0, OxmlElement('w:b'))
+        else:
+            if rPr is not None:
+                b = rPr.find(qn('w:b'))
+                if b is not None:
+                    rPr.remove(b)
+        break  # premier run seulement
 
 
-def _replace_in_para_elem(para_elem, replacements: dict):
-    """
-    Remplace les {{placeholders}} dans un élément w:p.
-    Gère le fragment de placeholder sur plusieurs runs/w:t.
-    Le texte multi-ligne (\\n) est injecté avec des w:br dans le premier run.
-    """
-    full = _get_para_text(para_elem)
-    if not any(k in full for k in replacements):
-        return
-
-    new_text = full
-    for k, v in replacements.items():
-        new_text = new_text.replace(k, _s(v))
-
+def _set_para_text(para_elem, text: str):
+    """Place le texte dans le premier w:t et vide les autres.
+    Supporte le multiline via w:br."""
     t_elems = list(para_elem.iter(qn('w:t')))
     if not t_elems:
         return
-
-    # Vider tous les w:t sauf le premier
     for t in t_elems[1:]:
         t.text = ''
 
     first_t = t_elems[0]
 
-    if '\n' not in new_text:
-        first_t.text = new_text
-        if new_text.startswith(' ') or new_text.endswith(' '):
+    if '\n' not in text:
+        first_t.text = text
+        if text and (text[0] == ' ' or text[-1] == ' '):
             first_t.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
         return
 
-    # Texte multi-ligne → première ligne dans w:t, suivantes via w:br + w:t
-    lines = new_text.split('\n')
+    lines = text.split('\n')
     first_t.text = lines[0]
-
     first_r = first_t.getparent()
     if first_r is None:
         return
-
     for line in lines[1:]:
-        br = OxmlElement('w:br')
-        first_r.append(br)
+        first_r.append(OxmlElement('w:br'))
         t_new = OxmlElement('w:t')
         t_new.text = line
-        if line.startswith(' ') or line.endswith(' '):
+        if line and (line[0] == ' ' or line[-1] == ' '):
             t_new.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
         first_r.append(t_new)
 
 
-def _replace_all_in_doc(doc: Document, replacements: dict):
-    """Remplace les placeholders dans tous les paragraphes et cellules."""
+def _replace_in_para_elem(para_elem, replacements: dict):
+    """
+    Remplace les {{placeholders}} dans un w:p en gérant le fragment de runs.
+    Supporte le texte multi-ligne (\\n → w:br).
+    """
+    full = _get_para_text(para_elem)
+    if not any(k in full for k in replacements):
+        return
+    new_text = full
+    for k, v in replacements.items():
+        new_text = new_text.replace(k, _s(v))
+    _set_para_text(para_elem, new_text)
+
+
+def _expand_cell_content(doc: Document, placeholder: str, lines: list):
+    """
+    Trouve la cellule de tableau contenant le placeholder,
+    remplace par plusieurs paragraphes (un par ligne).
+    lines: [(text: str, bold: bool)]
+    Les paragraphes sont des clones du paragraphe original (style préservé).
+    """
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    if placeholder not in _get_para_text(para._element):
+                        continue
+                    cell_tc  = cell._tc
+                    para_elem = para._element
+                    para_idx  = list(cell_tc).index(para_elem)
+
+                    if not lines:
+                        _replace_in_para_elem(para_elem, {placeholder: ''})
+                        return
+
+                    # Ligne 0 → modifier le paragraphe existant
+                    text0, bold0 = lines[0]
+                    _replace_in_para_elem(para_elem, {placeholder: text0})
+                    _apply_bold(para_elem, bold0)
+
+                    # Lignes suivantes → cloner + insérer
+                    for j, (text, bold) in enumerate(lines[1:], 1):
+                        new_p = copy.deepcopy(para_elem)
+                        # Remettre text0 → text dans le clone
+                        _set_para_text(new_p, text)
+                        _apply_bold(new_p, bold)
+                        cell_tc.insert(para_idx + j, new_p)
+                    return
+
+
+def _replace_in_all_paras(doc: Document, replacements: dict):
+    """Remplace dans tous les w:p du document (body + tables + textboxes)."""
     for para in doc.element.body.iter(qn('w:p')):
         _replace_in_para_elem(para, replacements)
 
 
+def _cleanup_placeholders(doc: Document):
+    """
+    Catch-all : supprime tout {{...}} résiduel dans l'ensemble du document.
+    Gère à la fois les w:t atomiques et les runs fragmentés.
+    """
+    pattern = re.compile(r'\{\{[^}]*\}\}')
+    for para in doc.element.body.iter(qn('w:p')):
+        full = _get_para_text(para)
+        if '{{' in full:
+            new_text = pattern.sub('', full)
+            _set_para_text(para, new_text)
+
+
 def _expand_experiences(doc: Document, experiences: list):
     """
-    Trouve le bloc {{#EXPERIENCES}}…{{/EXPERIENCES}} dans les enfants directs
-    du body, le supprime, puis insère autant de copies qu'il y a d'expériences.
+    Trouve {{#EXPERIENCES}}…{{/EXPERIENCES}} dans les enfants directs du body,
+    supprime les marqueurs, et insère autant de copies du bloc qu'il y a d'expériences.
+    Gère aussi les éléments non-paragraphe (tables, textboxes) dans le bloc.
     """
     body = doc.element.body
-    start_elem = None
-    end_elem   = None
+    start_elem = end_elem = None
 
-    # Chercher uniquement parmi les enfants directs du body (pas dans les tables)
     for child in body:
-        if child.tag != qn('w:p'):
-            continue
-        text = _get_para_text(child)
-        if '{{#EXPERIENCES}}' in text:
+        if child.tag == qn('w:p') and '{{#EXPERIENCES}}' in _get_para_text(child):
             start_elem = child
-        elif '{{/EXPERIENCES}}' in text and start_elem is not None:
+        elif child.tag == qn('w:p') and '{{/EXPERIENCES}}' in _get_para_text(child) and start_elem is not None:
             end_elem = child
             break
 
     if start_elem is None or end_elem is None:
         return
 
-    # Collecter les éléments du bloc (enfants directs entre start et end exclus)
+    # Collecte des éléments du bloc (tous les enfants directs entre start et end)
     block_elems = []
     collecting  = False
     for child in list(body):
@@ -269,28 +346,30 @@ def _expand_experiences(doc: Document, experiences: list):
         if collecting:
             block_elems.append(child)
 
-    # Position d'insertion = index de start_elem dans body
     insert_pos = list(body).index(start_elem)
-
-    # Supprimer marqueurs + bloc original
     body.remove(start_elem)
     for elem in block_elems:
         body.remove(elem)
     body.remove(end_elem)
 
-    # Insérer une copie remplie du bloc pour chaque expérience
     for i, exp in enumerate(experiences):
         exp_replacements = {
-            '{{EXP_TITRE}}':        _fmt_exp_titre(exp),
-            '{{EXP_SECTEUR}}':      _s(exp.get('secteur')),
-            '{{EXP_MISSION}}':      _fmt_exp_mission(exp),
-            '{{EXP_REALISATIONS}}': _fmt_exp_realisations(exp),
-            '{{EXP_OUTILS}}':       _s(exp.get('outils')),
+            '{{EXP_TITRE}}':          _fmt_exp_titre(exp),
+            '{{EXP_SECTEUR}}':        _s(exp.get('secteur')),
+            '{{EXP_MISSION}}':        _s(exp.get('poste')),
+            '{{EXP_REALISATIONS}}':   _fmt_exp_realisations(exp),
+            '{{EXP_OUTILS}}':         _s(exp.get('outils')),
+            '{{Logo soci\u00e9t\u00e9}}': '',   # placeholder logo → vide
         }
         offset = i * len(block_elems)
         for j, elem in enumerate(block_elems):
             new_elem = copy.deepcopy(elem)
-            _replace_in_para_elem(new_elem, exp_replacements)
+            # Remplacer dans TOUS les w:p de l'élément (y compris tables internes)
+            if new_elem.tag == qn('w:p'):
+                _replace_in_para_elem(new_elem, exp_replacements)
+            else:
+                for para in new_elem.iter(qn('w:p')):
+                    _replace_in_para_elem(para, exp_replacements)
             body.insert(insert_pos + offset + j, new_elem)
 
 
@@ -303,13 +382,10 @@ class DossierGenerator:
     def generate(self, data: dict, output_path: str) -> str:
         """
         Remplit le template avec *data* et sauvegarde le .docx en *output_path*.
-
-        *data* suit la structure retournée par utils/ollama_extractor.py :
-          nom, prenom, titre_poste, annees_experience,
-          competences, experiences, formations, langues, certifications
+        *data* suit la structure de utils/ollama_extractor.py.
         """
         if not os.path.exists(self.template_path):
-            raise FileNotFoundError(f"Template introuvable : {self.template_path}")
+            raise FileNotFoundError(f'Template introuvable : {self.template_path}')
 
         doc = Document(self.template_path)
 
@@ -320,22 +396,33 @@ class DossierGenerator:
 
         domaines, outils_cats, secteurs_cats = _categorize_competences(competences)
 
-        # 1. Bloc expériences en premier (avant les remplacements simples)
+        # Phase 1 : Bloc expériences (avant tout autre remplacement)
         _expand_experiences(doc, experiences)
 
-        # 2. Remplacements simples
-        replacements = {
+        # Phase 2 : Cellules des tableaux (multi-paragraphes)
+        _expand_cell_content(doc, '{{COMPETENCES}}',
+                             _competences_to_lines(domaines))
+        _expand_cell_content(doc, '{{OUTILS}}',
+                             _outils_to_lines(outils_cats))
+        _expand_cell_content(doc, '{{SECTEURS}}',
+                             _secteurs_to_lines(secteurs_cats))
+        _expand_cell_content(doc, '{{FORMATIONS}}',
+                             _formations_to_lines(formations))
+        _expand_cell_content(doc, '{{Ann\u00e9e d\u2019obtention}}',
+                             _annees_to_lines(formations))
+        langues_text = _langues_to_text(langues)
+        _expand_cell_content(doc, '{{LANGUES}}',
+                             [(langues_text, False)] if langues_text else [])
+
+        # Phase 3 : Remplacements simples (nom, titre, années)
+        _replace_in_all_paras(doc, {
             '{{PRENOM_NOM}}':        _fmt_prenom_nom(data),
             '{{TITRE_POSTE}}':       _s(data.get('titre_poste')),
             '{{ANNEES_EXPERIENCE}}': _fmt_annees(data),
-            '{{COMPETENCES}}':       _fmt_competences_text(domaines) or _fmt_competences_text(competences),
-            '{{OUTILS}}':            _fmt_items_flat(outils_cats),
-            '{{SECTEURS}}':          _fmt_items_flat(secteurs_cats),
-            '{{FORMATIONS}}':        _fmt_formations(formations),
-            "{{Ann\u00e9e d\u2019obtention}}": _fmt_annees_obtention(formations),
-            '{{LANGUES}}':           _fmt_langues(langues),
-        }
-        _replace_all_in_doc(doc, replacements)
+        })
+
+        # Phase 4 : Nettoyage de tous les {{...}} résiduels
+        _cleanup_placeholders(doc)
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         doc.save(output_path)
