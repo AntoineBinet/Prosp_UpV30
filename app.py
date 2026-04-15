@@ -14079,9 +14079,9 @@ def api_dashboard():
             calls_week = 0
 
         # Event-based KPIs (for goals)
-        # Fallback UNION: si prospect_events n'existe pas ou que l'event n'a pas été créé (DB ancienne),
+        # Fallback UNION: pour les prospects qui n'ont jamais eu d'event rdv_taken (DB ancienne sans prospect_events),
         # on comptabilise aussi les prospects statut='Rendez-vous' dont lastContact est dans la période
-        # et qui n'ont pas d'event rdv_taken cette période (évite les doublons).
+        # Condition "NOT EXISTS (ANY event)" pour éviter le surcômptage des RDV anciens déjà comptabilisés.
         try:
             rdv_taken_today = conn.execute(
                 """SELECT COUNT(DISTINCT pid) FROM (
@@ -14095,13 +14095,14 @@ def api_dashboard():
                     FROM prospects p
                     WHERE p.owner_id=? AND p.statut='Rendez-vous'
                       AND (p.deleted_at IS NULL OR p.deleted_at='')
+                      AND p.rdvDate IS NOT NULL AND p.rdvDate != ''
                       AND substr(p.lastContact,1,10)=?
                       AND NOT EXISTS (
                           SELECT 1 FROM prospect_events e2
-                          WHERE e2.prospect_id=p.id AND e2.type='rdv_taken' AND e2.date=?
+                          WHERE e2.prospect_id=p.id AND e2.type='rdv_taken'
                       )
                 )""",
-                (uid, today, uid, today, today),
+                (uid, today, uid, today),
             ).fetchone()[0]
             rdv_taken_week = conn.execute(
                 """SELECT COUNT(DISTINCT pid) FROM (
@@ -14115,14 +14116,14 @@ def api_dashboard():
                     FROM prospects p
                     WHERE p.owner_id=? AND p.statut='Rendez-vous'
                       AND (p.deleted_at IS NULL OR p.deleted_at='')
+                      AND p.rdvDate IS NOT NULL AND p.rdvDate != ''
                       AND substr(p.lastContact,1,10) BETWEEN ? AND ?
                       AND NOT EXISTS (
                           SELECT 1 FROM prospect_events e2
                           WHERE e2.prospect_id=p.id AND e2.type='rdv_taken'
-                            AND e2.date BETWEEN ? AND ?
                       )
                 )""",
-                (uid, monday, today, uid, monday, today, monday, today),
+                (uid, monday, today, uid, monday, today),
             ).fetchone()[0]
         except Exception:
             rdv_taken_today = 0
@@ -14145,6 +14146,54 @@ def api_dashboard():
             cand_contacted_today = 0
             cand_contacted_week = 0
             cand_solid_week = 0
+
+        # RDV events par jour de la semaine (pour les barres d'activité)
+        try:
+            rdv_rows = conn.execute(
+                """SELECT e.date, COUNT(DISTINCT e.prospect_id) AS n
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
+                   WHERE e.type='rdv_taken' AND e.date BETWEEN ? AND ?
+                     AND (p.deleted_at IS NULL OR p.deleted_at='')
+                   GROUP BY e.date""",
+                (uid, monday, today),
+            ).fetchall()
+            rdv_by_date = {r["date"]: r["n"] for r in rdv_rows}
+        except Exception:
+            rdv_by_date = {}
+
+        # Prospects passés en RDV aujourd'hui (pour le feed)
+        try:
+            today_rdv_rows = conn.execute(
+                """SELECT DISTINCT p.id, p.name, COALESCE(c.groupe, '') AS company_name,
+                          p.rdvDate, e.createdAt
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
+                   LEFT JOIN companies c ON c.id=p.company_id
+                   WHERE e.type='rdv_taken' AND e.date=?
+                     AND (p.deleted_at IS NULL OR p.deleted_at='')
+                   ORDER BY e.createdAt DESC LIMIT 10""",
+                (uid, today),
+            ).fetchall()
+            today_rdv_prospects = [dict(r) for r in today_rdv_rows]
+        except Exception:
+            today_rdv_prospects = []
+
+        # Manual KPI ajustements pour la semaine courante
+        try:
+            mkpi_rows = conn.execute(
+                "SELECT type, SUM(count) AS total FROM manual_kpi WHERE user_id=? AND date BETWEEN ? AND ? GROUP BY type",
+                (uid, monday, today),
+            ).fetchall()
+            manual_kpi_week = {r["type"]: r["total"] for r in mkpi_rows}
+            mkpi_today_rows = conn.execute(
+                "SELECT type, SUM(count) AS total FROM manual_kpi WHERE user_id=? AND date=? GROUP BY type",
+                (uid, today),
+            ).fetchall()
+            manual_kpi_today = {r["type"]: r["total"] for r in mkpi_today_rows}
+        except Exception:
+            manual_kpi_week = {}
+            manual_kpi_today = {}
 
     prospects_list = [dict(r) for r in prospects]
     push_list = [dict(r) for r in push_logs]
@@ -14220,19 +14269,21 @@ def api_dashboard():
             "notes": count_notes(d),
             "push": count_push(d),
             "calls": calls_by_date.get(d, 0),
+            "rdv": rdv_by_date.get(d, 0),
         })
 
     # Goals / gamification payload (daily + weekly)
+    # Intègre les ajustements manual_kpi (peuvent être négatifs pour corriger les sur-comptages)
     goals_daily_counts = {
-        "rdv": rdv_taken_today,
-        "push": count_push(today),
-        "sourcing_contacted": cand_contacted_today,
+        "rdv": max(0, rdv_taken_today + int(manual_kpi_today.get("rdv", 0))),
+        "push": max(0, count_push(today) + int(manual_kpi_today.get("push_email", 0)) + int(manual_kpi_today.get("push_linkedin", 0))),
+        "sourcing_contacted": max(0, cand_contacted_today + int(manual_kpi_today.get("sourcing", 0))),
     }
     goals_weekly_counts = {
-        "rdv": rdv_taken_week,
-        "push": count_push_range(monday, today),
-        "sourcing_contacted": cand_contacted_week,
-        "sourcing_solid": cand_solid_week,
+        "rdv": max(0, rdv_taken_week + int(manual_kpi_week.get("rdv", 0))),
+        "push": max(0, count_push_range(monday, today) + int(manual_kpi_week.get("push_email", 0)) + int(manual_kpi_week.get("push_linkedin", 0))),
+        "sourcing_contacted": max(0, cand_contacted_week + int(manual_kpi_week.get("sourcing", 0))),
+        "sourcing_solid": max(0, cand_solid_week),
     }
     goals_payload = _build_goals_payload(
         goals_cfg=goals_cfg,
@@ -14260,6 +14311,7 @@ def api_dashboard():
             "push_total": count_push_range(monday, today),
             "push_email": count_push_channel(monday, today, "email"),
             "push_linkedin": count_push_channel(monday, today, "linkedin"),
+            "rdv_total": rdv_taken_week,
             "days": week_days,
         },
         "prev_week": {
@@ -14288,6 +14340,13 @@ def api_dashboard():
                 "to_email": pl.get("to_email", ""),
                 "createdAt": pl.get("createdAt", ""),
             } for pl in today_push[:10]],
+            "rdv": [{
+                "prospect_id": r.get("id"),
+                "prospect_name": r.get("name", ""),
+                "company_name": r.get("company_name", ""),
+                "rdvDate": r.get("rdvDate", ""),
+                "createdAt": r.get("createdAt", ""),
+            } for r in today_rdv_prospects],
         },
         "overdue_list": [{
             "id": p["id"],

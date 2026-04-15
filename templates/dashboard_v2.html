@@ -111,9 +111,9 @@
     <div class="dv2-confetti-layer" id="dv2Confetti"></div>
     <div class="dv2-card-header">
       <h3 class="dv2-card-title">Objectifs</h3>
-      <a class="dv2-card-link" href="/parametres#goals" title="Configurer">
+      <button class="dv2-card-link" onclick="dv2_openManualKpiModal()" title="Corriger / ajouter des KPIs manuellement" style="background:none;border:none;cursor:pointer;padding:4px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-      </a>
+      </button>
     </div>
     <div class="dv2-goals-rings" id="dv2GoalsRings">
       <div class="dv2-loading">Chargement...</div>
@@ -212,24 +212,32 @@
 {% endblock %}
 
 {% block modals %}
-<!-- Manual KPI Modal (reused from dashboard) -->
+<!-- Manual KPI Modal — Corriger / ajouter des KPIs -->
 <div class="modal" role="dialog" aria-modal="true" id="manualKpiModal" aria-labelledby="manualKpiModalTitle" style="display:none;">
-  <div class="modal-content" style="max-width:440px;">
+  <div class="modal-content" style="max-width:480px;">
     <div class="modal-header">
-      <span id="manualKpiModalTitle">Ajouter une action KPI</span>
+      <span id="manualKpiModalTitle">⚙ Corriger / ajouter des KPIs</span>
       <button class="modal-close" onclick="dv2_closeManualKpiModal()" aria-label="Fermer">&times;</button>
     </div>
     <div style="padding:16px 0;">
-      <p class="muted" style="font-size:13px;margin-bottom:14px;">Enregistrer une action effectuee hors de l'application.</p>
+      <!-- Résumé semaine courante (rempli par JS) -->
+      <div id="manualKpiWeekSummary" style="background:var(--color-surface-2,rgba(0,0,0,.06));border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--color-text-secondary);display:none;">
+        <strong style="font-size:13px;color:var(--color-text);">Semaine en cours</strong>
+        <div id="manualKpiWeekStats" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:8px;"></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin-bottom:14px;">
+        Utilisez une valeur <strong>positive</strong> pour ajouter une action non enregistrée,
+        ou <strong>négative</strong> pour corriger un sur-comptage (ex : −1 RDV).
+      </p>
       <div class="form-group" style="margin-bottom:12px;">
         <label style="font-weight:600;font-size:13px;">Type d'action</label>
         <select id="manualKpiType" class="filter-select" style="width:100%;margin-top:4px;">
-          <option value="contact">Appel / Contact</option>
-          <option value="rdv">Rendez-vous</option>
-          <option value="push_email">Push Email</option>
-          <option value="push_linkedin">Push LinkedIn</option>
-          <option value="sourcing">Sourcing</option>
-          <option value="note">Note / Action</option>
+          <option value="rdv">📅 Rendez-vous</option>
+          <option value="contact">📞 Appel / Contact</option>
+          <option value="push_email">✉️ Push Email</option>
+          <option value="push_linkedin">💼 Push LinkedIn</option>
+          <option value="sourcing">🔍 Sourcing candidat</option>
+          <option value="note">📝 Note / Action</option>
         </select>
       </div>
       <div class="form-group" style="margin-bottom:12px;">
@@ -237,12 +245,12 @@
         <input type="date" id="manualKpiDate" class="filter-select" style="width:100%;margin-top:4px;">
       </div>
       <div class="form-group" style="margin-bottom:12px;">
-        <label style="font-weight:600;font-size:13px;">Quantite</label>
-        <input type="number" id="manualKpiCount" value="1" min="1" max="50" class="filter-select" style="width:100%;margin-top:4px;">
+        <label style="font-weight:600;font-size:13px;">Ajustement (positif = ajouter, négatif = soustraire)</label>
+        <input type="number" id="manualKpiCount" value="1" min="-50" max="50" class="filter-select" style="width:100%;margin-top:4px;">
       </div>
       <div class="form-group" style="margin-bottom:16px;">
         <label style="font-weight:600;font-size:13px;">Description (optionnel)</label>
-        <input type="text" id="manualKpiDesc" placeholder="Ex: RDV chez client X" class="filter-select" style="width:100%;margin-top:4px;">
+        <input type="text" id="manualKpiDesc" placeholder="Ex: RDV chez client X, ou correction sur-comptage" class="filter-select" style="width:100%;margin-top:4px;">
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button class="btn btn-secondary" onclick="dv2_closeManualKpiModal()">Annuler</button>
