@@ -16797,8 +16797,7 @@ def api_assistant_action():
 @login_required
 def dc_generator():
     """Page principale DC Generator (sans candidat pré-sélectionné)"""
-    logo_ok = os.path.exists(os.path.join(APP_DIR, 'static', 'up_assets', 'up_logo_header.png'))
-    return render_template('dc_generator.html', logo_configured=logo_ok, candidate=None)
+    return render_template('dc_generator.html', candidate=None)
 
 
 @app.route('/candidates/<int:candidate_id>/dc-generator')
@@ -16812,44 +16811,22 @@ def dc_generator_candidate(candidate_id):
         ).fetchone()
     if not candidate:
         abort(404)
-    logo_ok = os.path.exists(os.path.join(APP_DIR, 'static', 'up_assets', 'up_logo_header.png'))
-    return render_template('dc_generator.html',
-                           logo_configured=logo_ok,
-                           candidate=dict(candidate))
+    return render_template('dc_generator.html', candidate=dict(candidate))
 
 
-@app.route('/dc-generator/setup-logos', methods=['POST'])
+@app.route('/dc-generator/template')
 @login_required
-def dc_generator_setup_logos():
-    """Upload d'un PDF template pour extraction des logos"""
-    import subprocess as _subprocess
-    if 'pdf_template' not in request.files:
-        return jsonify({'success': False, 'error': 'Aucun fichier fourni'}), 400
-    f = request.files['pdf_template']
-    if not f.filename.lower().endswith('.pdf'):
-        return jsonify({'success': False, 'error': 'Fichier PDF requis'}), 400
-
-    import tempfile as _tempfile
-    fd, tmp_path = _tempfile.mkstemp(suffix='.pdf', prefix='up_template_')
-    os.close(fd)
-    f.save(tmp_path)
-    try:
-        script_path = os.path.join(APP_DIR, 'utils', 'extract_up_assets.py')
-        result = _subprocess.run(
-            [sys.executable, script_path, tmp_path],
-            capture_output=True, text=True, timeout=30
-        )
-        if result.returncode == 0:
-            return jsonify({'success': True, 'message': result.stdout})
-        else:
-            return jsonify({'success': False, 'error': result.stderr or result.stdout}), 500
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
+def dc_generator_template():
+    """Téléchargement du template vide template_dc.docx"""
+    template_path = os.path.join(APP_DIR, 'sample', 'template_dc.docx')
+    if not os.path.exists(template_path):
+        abort(404)
+    return send_file(
+        template_path,
+        as_attachment=True,
+        download_name='template_dc.docx',
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
 
 
 @app.route('/dc-generator/generate', methods=['POST'])
