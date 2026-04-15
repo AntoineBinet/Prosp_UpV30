@@ -16829,6 +16829,39 @@ def dc_generator_template():
     )
 
 
+@app.route('/dc-generator/upload-template', methods=['POST'])
+@login_required
+@role_required('admin')
+def dc_generator_upload_template():
+    """Remplace le template template_dc.docx (admin uniquement)"""
+    import shutil as _shutil
+    if 'template_file' not in request.files:
+        return jsonify({'success': False, 'error': 'Aucun fichier fourni'}), 400
+    f = request.files['template_file']
+    if not f.filename.lower().endswith('.docx'):
+        return jsonify({'success': False, 'error': 'Fichier .docx requis'}), 400
+
+    template_dir  = os.path.join(APP_DIR, 'sample')
+    template_path = os.path.join(template_dir, 'template_dc.docx')
+    os.makedirs(template_dir, exist_ok=True)
+
+    # Sauvegarde de l'ancien template
+    if os.path.exists(template_path):
+        _shutil.copy2(template_path, template_path + '.bak')
+    try:
+        f.save(template_path)
+        # Vérifier que c'est un docx valide
+        from docx import Document as _Docx
+        _Docx(template_path)
+        return jsonify({'success': True})
+    except Exception as e:
+        # Restaurer le backup si le fichier est invalide
+        bak = template_path + '.bak'
+        if os.path.exists(bak):
+            _shutil.copy2(bak, template_path)
+        return jsonify({'success': False, 'error': f'Fichier invalide : {e}'}), 400
+
+
 @app.route('/dc-generator/generate', methods=['POST'])
 @login_required
 def dc_generator_generate():

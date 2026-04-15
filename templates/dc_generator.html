@@ -78,10 +78,14 @@
     <!-- Barre template -->
     <div class="dc-template-bar">
       <span>📝</span>
-      <span class="dc-tpl-label">Template Up Technologies actif : <b>template_dc.docx</b></span>
+      <span class="dc-tpl-label">Template actif : <b>template_dc.docx</b></span>
       <a href="/dc-generator/template" class="btn btn-secondary" style="font-size:12px; text-decoration:none;" download>
-        ⬇️ Télécharger le template vide
+        ⬇️ Télécharger
       </a>
+      <button class="btn btn-secondary" style="font-size:12px;" onclick="document.getElementById('tplUploadInput').click()">
+        🔄 Remplacer
+      </button>
+      <input type="file" id="tplUploadInput" accept=".docx" style="display:none;" onchange="uploadTemplate(this)">
     </div>
 
     <!-- Section Paramètres génération -->
@@ -218,6 +222,33 @@
       if (preview)  preview.style.display = 'none';
       if (dropzone) dropzone.style.display = '';
     }
+  };
+
+  // ── Upload template ───────────────────────────────────────────────
+  window.uploadTemplate = function(input) {
+    var file = input.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      if (typeof window.showToast === 'function') window.showToast('Fichier .docx requis', 'error');
+      input.value = '';
+      return;
+    }
+    var fd = new FormData();
+    fd.append('template_file', file);
+    fetch('/dc-generator/upload-template', { method: 'POST', credentials: 'same-origin', body: fd })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        input.value = '';
+        if (d.success) {
+          if (typeof window.showToast === 'function') window.showToast('Template mis à jour avec succès !', 'success');
+        } else {
+          if (typeof window.showToast === 'function') window.showToast('Erreur : ' + (d.error || 'inconnue'), 'error');
+        }
+      })
+      .catch(function(e) {
+        input.value = '';
+        if (typeof window.showToast === 'function') window.showToast('Erreur réseau : ' + e.message, 'error');
+      });
   };
 
   window.clearCvFile = function() {
