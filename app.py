@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "29.2"
+APP_VERSION = "29.3"
 import os
 import subprocess
 import traceback
@@ -2367,6 +2367,193 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             conn.commit()
         except Exception:
             pass
+        # Migration v29+: créer toutes les tables d'événements et KPI manquantes dans les DBs per-user existantes
+        # Ces tables sont essentielles pour les KPIs et la gamification (prospect_events, candidate_events, etc.)
+        try:
+            conn.executescript('''
+                CREATE TABLE IF NOT EXISTS company_events (
+                    id        INTEGER PRIMARY KEY,
+                    company_id INTEGER NOT NULL,
+                    date      TEXT NOT NULL,
+                    type      TEXT,
+                    title     TEXT,
+                    content   TEXT,
+                    meta      TEXT,
+                    createdAt TEXT,
+                    FOREIGN KEY(company_id) REFERENCES companies(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_company_events_company ON company_events(company_id);
+                CREATE INDEX IF NOT EXISTS idx_company_events_date ON company_events(date);
+
+                CREATE TABLE IF NOT EXISTS prospect_events (
+                    id         INTEGER PRIMARY KEY,
+                    prospect_id INTEGER NOT NULL,
+                    date       TEXT NOT NULL,
+                    type       TEXT,
+                    title      TEXT,
+                    content    TEXT,
+                    meta       TEXT,
+                    createdAt  TEXT,
+                    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_prospect_events_prospect ON prospect_events(prospect_id);
+                CREATE INDEX IF NOT EXISTS idx_prospect_events_date ON prospect_events(date);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_prospect_events_unique ON prospect_events(prospect_id, type, date);
+
+                CREATE TABLE IF NOT EXISTS candidate_events (
+                    id           INTEGER PRIMARY KEY,
+                    candidate_id INTEGER NOT NULL,
+                    date         TEXT NOT NULL,
+                    type         TEXT,
+                    title        TEXT,
+                    content      TEXT,
+                    meta         TEXT,
+                    createdAt    TEXT,
+                    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_candidate_events_candidate ON candidate_events(candidate_id);
+                CREATE INDEX IF NOT EXISTS idx_candidate_events_date ON candidate_events(date);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_candidate_events_unique ON candidate_events(candidate_id, type, date);
+
+                CREATE TABLE IF NOT EXISTS push_logs (
+                    id            INTEGER PRIMARY KEY,
+                    prospect_id   INTEGER NOT NULL,
+                    sentAt        TEXT NOT NULL,
+                    channel       TEXT,
+                    to_email      TEXT,
+                    subject       TEXT,
+                    body          TEXT,
+                    template_id   INTEGER,
+                    template_name TEXT,
+                    createdAt     TEXT NOT NULL,
+                    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_push_logs_prospect_id ON push_logs(prospect_id);
+                CREATE INDEX IF NOT EXISTS idx_push_logs_sentAt ON push_logs(sentAt);
+
+                CREATE TABLE IF NOT EXISTS push_categories (
+                    id            INTEGER PRIMARY KEY,
+                    name          TEXT NOT NULL,
+                    keywords      TEXT,
+                    auto_detected INTEGER DEFAULT 0,
+                    owner_id      INTEGER,
+                    createdAt     TEXT,
+                    updatedAt     TEXT,
+                    UNIQUE(name, owner_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_push_categories_name ON push_categories(name);
+                CREATE INDEX IF NOT EXISTS idx_push_categories_owner ON push_categories(owner_id);
+
+                CREATE TABLE IF NOT EXISTS push_variants (
+                    id            INTEGER PRIMARY KEY,
+                    push_log_id   INTEGER NOT NULL,
+                    variant_id    TEXT NOT NULL,
+                    subject       TEXT,
+                    body          TEXT,
+                    sent_at       TEXT,
+                    opened_at     TEXT,
+                    clicked_at    TEXT,
+                    replied_at    TEXT,
+                    createdAt     TEXT NOT NULL,
+                    FOREIGN KEY(push_log_id) REFERENCES push_logs(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_push_variants_push_log_id ON push_variants(push_log_id);
+                CREATE INDEX IF NOT EXISTS idx_push_variants_variant_id ON push_variants(variant_id);
+
+                CREATE TABLE IF NOT EXISTS rdv_checklists (
+                    id          INTEGER PRIMARY KEY,
+                    prospect_id INTEGER NOT NULL UNIQUE,
+                    data        TEXT,
+                    updatedAt   TEXT,
+                    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS manual_kpi (
+                    id          INTEGER PRIMARY KEY,
+                    user_id     INTEGER,
+                    type        TEXT NOT NULL,
+                    date        TEXT NOT NULL,
+                    count       INTEGER DEFAULT 1,
+                    description TEXT,
+                    createdAt   TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key   TEXT PRIMARY KEY,
+                    value TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id          INTEGER PRIMARY KEY,
+                    title       TEXT NOT NULL,
+                    comment     TEXT,
+                    due_date    TEXT,
+                    status      TEXT NOT NULL DEFAULT 'pending',
+                    linked_ids  TEXT,
+                    createdAt   TEXT,
+                    updatedAt   TEXT,
+                    owner_id    INTEGER
+                );
+
+                CREATE TABLE IF NOT EXISTS task_rules (
+                    id            INTEGER PRIMARY KEY,
+                    name          TEXT NOT NULL,
+                    trigger_type  TEXT NOT NULL,
+                    conditions    TEXT NOT NULL,
+                    template_title TEXT NOT NULL,
+                    template_comment TEXT,
+                    priority      INTEGER DEFAULT 2,
+                    enabled       INTEGER DEFAULT 1,
+                    owner_id      INTEGER,
+                    createdAt     TEXT,
+                    updatedAt     TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_task_rules_trigger ON task_rules(trigger_type, enabled);
+                CREATE INDEX IF NOT EXISTS idx_task_rules_owner ON task_rules(owner_id);
+
+                CREATE TABLE IF NOT EXISTS meetings (
+                    id            INTEGER PRIMARY KEY,
+                    prospect_id  INTEGER NOT NULL,
+                    owner_id     INTEGER NOT NULL,
+                    date         TEXT NOT NULL,
+                    title        TEXT NOT NULL,
+                    checklist_data TEXT,
+                    notes        TEXT,
+                    createdAt    TEXT NOT NULL,
+                    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS meeting_action_items (
+                    id            INTEGER PRIMARY KEY,
+                    meeting_id    INTEGER NOT NULL,
+                    prospect_id   INTEGER NOT NULL,
+                    task          TEXT NOT NULL,
+                    assignee      TEXT,
+                    due_date      TEXT,
+                    priority      TEXT,
+                    status        TEXT NOT NULL DEFAULT 'pending',
+                    owner_id      INTEGER NOT NULL,
+                    createdAt     TEXT NOT NULL,
+                    FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS meeting_opportunities (
+                    id              INTEGER PRIMARY KEY,
+                    meeting_id      INTEGER NOT NULL,
+                    prospect_id     INTEGER NOT NULL,
+                    type            TEXT NOT NULL,
+                    estimated_value REAL,
+                    probability     INTEGER,
+                    description     TEXT,
+                    owner_id        INTEGER NOT NULL,
+                    createdAt       TEXT NOT NULL,
+                    FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+                    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+                );
+            ''')
+        except Exception as e:
+            print(f"[WARN] Migration tables KPI manquantes ({db_path}): {e}")
     finally:
         conn.close()
 
@@ -13892,14 +14079,50 @@ def api_dashboard():
             calls_week = 0
 
         # Event-based KPIs (for goals)
+        # Fallback UNION: si prospect_events n'existe pas ou que l'event n'a pas été créé (DB ancienne),
+        # on comptabilise aussi les prospects statut='Rendez-vous' dont lastContact est dans la période
+        # et qui n'ont pas d'event rdv_taken cette période (évite les doublons).
         try:
             rdv_taken_today = conn.execute(
-                "SELECT COUNT(*) FROM prospect_events e JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=? WHERE e.type='rdv_taken' AND e.date=?",
-                (uid, today),
+                """SELECT COUNT(DISTINCT pid) FROM (
+                    SELECT e.prospect_id AS pid
+                    FROM prospect_events e
+                    JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
+                    WHERE e.type='rdv_taken' AND e.date=?
+                      AND (p.deleted_at IS NULL OR p.deleted_at='')
+                    UNION
+                    SELECT p.id AS pid
+                    FROM prospects p
+                    WHERE p.owner_id=? AND p.statut='Rendez-vous'
+                      AND (p.deleted_at IS NULL OR p.deleted_at='')
+                      AND substr(p.lastContact,1,10)=?
+                      AND NOT EXISTS (
+                          SELECT 1 FROM prospect_events e2
+                          WHERE e2.prospect_id=p.id AND e2.type='rdv_taken' AND e2.date=?
+                      )
+                )""",
+                (uid, today, uid, today, today),
             ).fetchone()[0]
             rdv_taken_week = conn.execute(
-                "SELECT COUNT(*) FROM prospect_events e JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=? WHERE e.type='rdv_taken' AND e.date BETWEEN ? AND ?",
-                (uid, monday, today),
+                """SELECT COUNT(DISTINCT pid) FROM (
+                    SELECT e.prospect_id AS pid
+                    FROM prospect_events e
+                    JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
+                    WHERE e.type='rdv_taken' AND e.date BETWEEN ? AND ?
+                      AND (p.deleted_at IS NULL OR p.deleted_at='')
+                    UNION
+                    SELECT p.id AS pid
+                    FROM prospects p
+                    WHERE p.owner_id=? AND p.statut='Rendez-vous'
+                      AND (p.deleted_at IS NULL OR p.deleted_at='')
+                      AND substr(p.lastContact,1,10) BETWEEN ? AND ?
+                      AND NOT EXISTS (
+                          SELECT 1 FROM prospect_events e2
+                          WHERE e2.prospect_id=p.id AND e2.type='rdv_taken'
+                            AND e2.date BETWEEN ? AND ?
+                      )
+                )""",
+                (uid, monday, today, uid, monday, today, monday, today),
             ).fetchone()[0]
         except Exception:
             rdv_taken_today = 0
