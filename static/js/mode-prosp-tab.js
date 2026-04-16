@@ -65,10 +65,10 @@ window.mpClose = function () {
         return null;
     }
 
-    var STATUS_OPTIONS = ["Pas d'actions", "Appel\u00e9", "A rappeler", "Rendez-vous", "Prospect\u00e9", "Messagerie", "Pas interess\u00e9"];
+    var STATUS_OPTIONS = ["Pas d'actions", "Appel\u00e9", "\u00c0 rappeler", "Rendez-vous", "Prospect\u00e9", "Messagerie", "Pas int\u00e9ress\u00e9"];
     var STATUS_COLORS = {
         "Pas d'actions": '#64748b', "Appel\u00e9": '#f59e0b', 'Messagerie': '#3b82f6',
-        'A rappeler': '#ef4444', 'Rendez-vous': '#22c55e', "Prospect\u00e9": '#8b5cf6', "Pas interess\u00e9": '#94a3b8'
+        '\u00c0 rappeler': '#ef4444', 'Rendez-vous': '#22c55e', "Prospect\u00e9": '#8b5cf6', "Pas int\u00e9ress\u00e9": '#94a3b8'
     };
 
     var TL_ICONS = { call_note: '\uD83D\uDCDE', push: '\uD83D\uDCE7', done: '\u2705', rdv: '\uD83D\uDCC5', linkedin: '\uD83D\uDD17', event: '\uD83D\uDCCC', note_libre: '\uD83D\uDCDD' };
@@ -253,7 +253,7 @@ window.mpClose = function () {
                         currentValue: rdvInput ? rdvInput.value : '',
                         onConfirm: function (val) { if (rdvInput && val) rdvInput.value = val; }
                     });
-                } else if (newVal === 'A rappeler') {
+                } else if (newVal === '\u00c0 rappeler') {
                     var relInput = card.querySelector('[data-field="nextFollowUp"]');
                     mpShowDatePicker({
                         title: 'Date de relance',
