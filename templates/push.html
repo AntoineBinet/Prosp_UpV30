@@ -189,6 +189,25 @@
     </div>
 </div>
 
+<!-- Modal : Détail d'une catégorie push -->
+<div class="modal" role="dialog" aria-modal="true" id="modalCatDetail" aria-labelledby="modalCatDetailTitle">
+    <div class="modal-content" style="max-width: 680px;">
+        <div class="modal-header">
+            <span id="modalCatDetailTitle">Catégorie</span>
+            <button class="modal-close" aria-label="Fermer" onclick="closeCatDetail()">&times;</button>
+        </div>
+        <div class="modal-body" id="modalCatDetailBody" style="overflow-y: auto; max-height: 65vh;"></div>
+        <div class="btn-group" style="margin-top: 16px; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-secondary" id="modalCatBtnProspects">👤 Prospects</button>
+                <button class="btn btn-secondary" id="modalCatBtnEdit">✏️ Modifier</button>
+                <button class="btn btn-danger" id="modalCatBtnDelete">🗑️ Supprimer</button>
+            </div>
+            <button class="btn btn-secondary" onclick="closeCatDetail()">Fermer</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal : Fiche prospect complète (réutilise viewDetail de app.js) -->
 <div class="modal" role="dialog" aria-modal="true" id="modalDetail" aria-labelledby="modalDetailTitle">
     <div class="modal-content">

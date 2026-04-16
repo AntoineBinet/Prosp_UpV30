@@ -12430,3 +12430,110 @@ body[data-page="sourcing"] #fab-speed-dial { display: none !important; }
   0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
   100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
 }
+
+/* ── Push categories grid cards ──────────────────────────────────────────── */
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  overflow: visible;
+}
+
+.push-cat-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  overflow: visible;
+}
+
+.push-cat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+  border-color: var(--color-primary);
+  z-index: 10;
+}
+
+.push-cat-card-title {
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 10px;
+  line-height: 1.3;
+  color: var(--color-text);
+}
+
+.push-cat-card-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.push-cat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  width: fit-content;
+  transition: background 0.2s;
+}
+
+.push-cat-badge.has {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.push-cat-badge.none {
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--color-text-secondary);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.push-cat-badge.loading {
+  background: rgba(148, 163, 184, 0.06);
+  color: var(--color-text-secondary);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  opacity: 0.6;
+}
+
+.push-cat-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-surface-2, rgba(24, 24, 36, 0.98));
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 9px 13px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  max-width: 280px;
+  width: max-content;
+  line-height: 1.5;
+  z-index: 50;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  text-align: left;
+}
+
+.push-cat-card:hover .push-cat-tooltip {
+  display: block;
+}
+
+@media (max-width: 900px) {
+  .grid-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .grid-cards {
+    grid-template-columns: 1fr;
+  }
+}
