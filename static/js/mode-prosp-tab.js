@@ -41,6 +41,7 @@ window.mpClose = function () {
     var companies = [];
     var currentIndex = 0;
     var saving = false;
+    var navDir = 0; // +1=next, -1=prev, 0=pas d'animation
     var token = '';
 
     var viewport = document.getElementById('mpViewport');
@@ -231,6 +232,11 @@ window.mpClose = function () {
         if (!p) return;
         var card = document.createElement('div');
         card.className = 'mp-card';
+        // Appliquer classe animation selon direction de navigation
+        if (navDir > 0)      card.classList.add('mp-entering-next');
+        else if (navDir < 0) card.classList.add('mp-entering-prev');
+        else                 card.classList.add('mp-entering-init');
+        navDir = 0; // reset après usage
         card.innerHTML = buildCardHtml(p);
         viewport.innerHTML = '';
         viewport.appendChild(card);
@@ -422,8 +428,8 @@ window.mpClose = function () {
         mpSaveCard(); // fire-and-forget — index captured inside mpSaveCard via savedIndex
     }
 
-    window.mpNavigate = function (dir) { _captureCurrentCard(); goTo(currentIndex + dir); };
-    window.mpGoTo = function (i) { _captureCurrentCard(); goTo(i); };
+    window.mpNavigate = function (dir) { _captureCurrentCard(); navDir = dir; goTo(currentIndex + dir); };
+    window.mpGoTo = function (i) { _captureCurrentCard(); navDir = (i > currentIndex ? 1 : -1); goTo(i); };
 
     window.mpRefreshLastContact = function (prospectId, lastContact) {
         var idx = prospects.findIndex(function (p) { return p.id === prospectId; });
@@ -499,8 +505,8 @@ window.mpClose = function () {
             var dy = e.changedTouches[0].clientY - startY;
             startX = null; startY = null;
             if (Math.abs(dx) < THRESHOLD || Math.abs(dy) > Math.abs(dx)) return;
-            if (dx < 0 && currentIndex < prospects.length - 1) { _captureCurrentCard(); goTo(currentIndex + 1); haptic(10); }
-            else if (dx > 0 && currentIndex > 0) { _captureCurrentCard(); goTo(currentIndex - 1); haptic(10); }
+            if (dx < 0 && currentIndex < prospects.length - 1) { _captureCurrentCard(); navDir = 1; goTo(currentIndex + 1); haptic(10); }
+            else if (dx > 0 && currentIndex > 0) { _captureCurrentCard(); navDir = -1; goTo(currentIndex - 1); haptic(10); }
         }, { passive: true });
     }
 

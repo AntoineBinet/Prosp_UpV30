@@ -24,20 +24,40 @@
             <span class="mp-counter" id="mpCounter">0 / 0</span>
         </div>
         <div class="mp-header-right">
-            <button class="mp-close-btn" onclick="mpClose()" title="Fermer cet onglet">Fermer</button>
+            <button class="mp-close-btn" onclick="mpClose()" title="Fermer cet onglet">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Fermer
+            </button>
         </div>
     </header>
 
-    <!-- Card viewport (one card at a time) -->
-    <div class="mp-viewport" id="mpViewport">
-        <!-- Single card injected by JS -->
+    <!-- Deck stage : ghost cards + viewport + side arrows -->
+    <div class="mp-deck-stage">
+        <!-- Ghost cards (effet de pile, purement décoratif) -->
+        <div class="mp-ghost mp-ghost-2" aria-hidden="true"></div>
+        <div class="mp-ghost mp-ghost-1" aria-hidden="true"></div>
+
+        <!-- Card viewport — le JS injecte .mp-card ici -->
+        <div class="mp-viewport" id="mpViewport"></div>
+
+        <!-- Flèche gauche -->
+        <button class="mp-arrow mp-arrow-prev" id="mpPrev" onclick="mpNavigate(-1)" title="Prospect précédent (←)" aria-label="Prospect précédent">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 18l-6-6 6-6"/>
+            </svg>
+        </button>
+
+        <!-- Flèche droite -->
+        <button class="mp-arrow mp-arrow-next" id="mpNext" onclick="mpNavigate(1)" title="Prospect suivant (→)" aria-label="Prospect suivant">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </button>
     </div>
 
-    <!-- Navigation -->
-    <div class="mp-nav">
-        <button class="mp-nav-btn mp-nav-prev" id="mpPrev" onclick="mpNavigate(-1)" title="Prospect precedent (←)">← Precedent</button>
+    <!-- Progress strip (dots de pagination) -->
+    <div class="mp-progress-strip">
         <div class="mp-nav-dots" id="mpDots"></div>
-        <button class="mp-nav-btn mp-nav-next" id="mpNext" onclick="mpNavigate(1)" title="Prospect suivant (→)">Suivant →</button>
     </div>
 </div>
 
