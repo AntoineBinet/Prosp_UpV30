@@ -40,13 +40,14 @@ function setCandSort(key) {
     }
     updateCandSortIndicators();
     applyCandidateFilters();
+    applyLinkedinFilters();
     applyMissionFilters();
     applyArchiveFilters();
     applyHorsAuraFilters();
 }
 
 function updateCandSortIndicators() {
-    const panels = ['pipeline', 'mission', 'archive', 'horsaura'];
+    const panels = ['pipeline', 'linkedin', 'mission', 'archive', 'horsaura'];
     const keys = ['name', 'role', 'location', 'status', 'updatedAt'];
     panels.forEach(p => {
         keys.forEach(k => {
@@ -261,10 +262,11 @@ function applyCandidateFilters() {
 
     __candFiltered = __candidates.filter(c => {
         const status = safeStr(c.status).toLowerCase();
-        // Refus, Mission et Hors Aura → onglets dédiés
+        // Refus, Mission, Hors Aura et LinkedIn → onglets dédiés
         if (CAND_ARCHIVE_STATUSES.has(status)) return false;
         if (CAND_MISSION_STATUSES.has(status)) return false;
         if (CAND_HORS_AURA_STATUSES.has(status)) return false;
+        if (CAND_LINKEDIN_STATUSES.has(status)) return false;
         const skills = candSkillsArray(c);
         const hay = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${skills.join(' ')} ${safeStr(c.tech)} ${safeStr(c.notes)} ${safeStr(c.linkedin)} ${safeStr(c.source)}`.toLowerCase();
         const okQ = !q || hay.includes(q);
@@ -457,6 +459,7 @@ const CAND_STATUSES = [
 const CAND_ARCHIVE_STATUSES = new Set(['nok_prequal', 'nok', 'plus_disponible', 'refus_contrat']);
 const CAND_MISSION_STATUSES = new Set(['valide_contrat', 'freelance_mission']);
 const CAND_HORS_AURA_STATUSES = new Set(['hors_aura']);
+const CAND_LINKEDIN_STATUSES = new Set(['nouveau', 'proposition', 'entretien']);
 
 function renderStatusSelect(candidateId, currentStatus) {
     const opts = CAND_STATUSES.map(([v, l]) =>
@@ -478,19 +481,21 @@ async function quickChangeStatus(candidateId, newStatus) {
         if (cand) cand.status = newStatus;
         // Si le statut fait sortir de l'onglet courant, re-filtrer après un court délai
         const currentTab = document.getElementById('panelPipeline')?.style.display !== 'none' ? 'pipeline'
-                         : document.getElementById('panelMission')?.style.display !== 'none'  ? 'mission'
-                         : document.getElementById('panelHorsAura')?.style.display !== 'none' ? 'horsaura'
+                         : document.getElementById('panelLinkedin')?.style.display !== 'none'  ? 'linkedin'
+                         : document.getElementById('panelMission')?.style.display !== 'none'   ? 'mission'
+                         : document.getElementById('panelHorsAura')?.style.display !== 'none'  ? 'horsaura'
                          : 'archive';
         const tabForStatus = CAND_ARCHIVE_STATUSES.has(newStatus) ? 'archive'
                            : CAND_MISSION_STATUSES.has(newStatus) ? 'mission'
                            : CAND_HORS_AURA_STATUSES.has(newStatus) ? 'horsaura'
+                           : CAND_LINKEDIN_STATUSES.has(newStatus) ? 'linkedin'
                            : 'pipeline';
         const shouldMove = currentTab !== tabForStatus;
         if (shouldMove) {
-            setTimeout(() => { applyCandidateFilters(); applyMissionFilters(); applyArchiveFilters(); applyHorsAuraFilters(); }, 600);
+            setTimeout(() => { applyCandidateFilters(); applyLinkedinFilters(); applyMissionFilters(); applyArchiveFilters(); applyHorsAuraFilters(); }, 600);
         } else {
             // Juste mettre à jour la couleur du select
-            const sel = document.querySelector(`#candTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #missionTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #archiveTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #horsAuraTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select`);
+            const sel = document.querySelector(`#candTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #linkedinTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #missionTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #archiveTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select, #horsAuraTableBody tr[data-candidate-id="${candidateId}"] .status-inline-select`);
             if (sel) {
                 sel.className = `status-inline-select status-cand-${newStatus}`;
             }
@@ -762,6 +767,95 @@ function updateHorsAuraSelectAllState() {
     const n = __horsAuraFiltered.filter(c => __horsAuraSelected.has(c.id)).length;
     cb.checked = n === __horsAuraFiltered.length;
     cb.indeterminate = n > 0 && n < __horsAuraFiltered.length;
+}
+
+// ===== Onglet LinkedIn =====
+
+let __linkedinFiltered = [];
+
+function applyLinkedinFilters() {
+    const q = (document.getElementById('linkedinSearch')?.value || '').trim().toLowerCase();
+    const st = (document.getElementById('linkedinStatusFilter')?.value || '').trim().toLowerCase();
+    __linkedinFiltered = __candidates.filter(c => {
+        const status = safeStr(c.status).toLowerCase();
+        if (!CAND_LINKEDIN_STATUSES.has(status)) return false;
+        if (st && status !== st) return false;
+        if (q) {
+            const skills = candSkillsArray(c);
+            const hay = `${safeStr(c.name)} ${safeStr(c.role)} ${safeStr(c.location)} ${skills.join(' ')} ${safeStr(c.tech)} ${safeStr(c.notes)}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+    _sortCandidates(__linkedinFiltered);
+    renderLinkedinTable();
+}
+
+function renderLinkedinTable() {
+    const tbody = document.getElementById('linkedinTableBody');
+    const empty = document.getElementById('linkedinEmptyState');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (__linkedinFiltered.length === 0) {
+        if (empty) empty.style.display = 'block';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    __linkedinFiltered.forEach(c => {
+        const skills = candSkillsArray(c);
+        const skillsLabel = skills.join(', ');
+        const combinedTech = skillsLabel ? (skillsLabel + (c.tech ? ' · ' + safeStr(c.tech) : '')) : safeStr(c.tech);
+        const dcBadge = c.has_dc
+            ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
+            : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
+        const descActionBtn = _buildDescActionBtn(c);
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.dataset.candidateId = c.id;
+        tr.addEventListener('click', (e) => {
+            if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, .desc-gen-btn, select')) return;
+            window.location.href = '/candidat?id=' + c.id;
+        });
+        tr.innerHTML = `
+            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="linkedin-row-select" title="Sélectionner" onclick="event.stopPropagation();toggleLinkedinSelect(${c.id}, this.checked)"></td>
+            <td data-label="Nom"><span title="${escapeHtml(c.name || '')}">${escapeHtml(c.name || '')}</span></td>
+            <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
+            <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
+            <td data-label="Compétences / Tech">${renderClampCell(combinedTech)}</td>
+            <td data-label="DC">${dcBadge}</td>
+            <td data-label="Statut">${renderStatusSelect(c.id, c.status)}</td>
+            <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
+            <td data-label="Actions">
+              <div class="table-actions-inline">
+                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                ${descActionBtn}
+                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">🧭</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">🧭</button>`}
+                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
+              </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+let __linkedinSelected = new Set();
+function toggleLinkedinSelect(id, checked) {
+    if (checked) __linkedinSelected.add(id);
+    else __linkedinSelected.delete(id);
+    updateLinkedinSelectAllState();
+}
+function toggleLinkedinSelectAll(checked) {
+    if (checked) __linkedinFiltered.forEach(c => __linkedinSelected.add(c.id));
+    else __linkedinFiltered.forEach(c => __linkedinSelected.delete(c.id));
+    renderLinkedinTable();
+}
+function updateLinkedinSelectAllState() {
+    const cb = document.getElementById('linkedinSelectAll');
+    if (!cb || !__linkedinFiltered.length) return;
+    const n = __linkedinFiltered.filter(c => __linkedinSelected.has(c.id)).length;
+    cb.checked = n === __linkedinFiltered.length;
+    cb.indeterminate = n > 0 && n < __linkedinFiltered.length;
 }
 
 function openCandidateModal(editing=false) {
@@ -1447,8 +1541,8 @@ function _vsaImportPreFillAnyway() {
 
 // ===== Tabs =====
 function setTab(tab) {
-    const panels  = { pipeline: 'panelPipeline', mission: 'panelMission', archive: 'panelArchive', horsaura: 'panelHorsAura', settings: 'panelSettings' };
-    const buttons = { pipeline: 'tabPipeline',   mission: 'tabMission',   archive: 'tabArchive',   horsaura: 'tabHorsAura',   settings: 'tabSettings'   };
+    const panels  = { pipeline: 'panelPipeline', linkedin: 'panelLinkedin', mission: 'panelMission', archive: 'panelArchive', horsaura: 'panelHorsAura', settings: 'panelSettings' };
+    const buttons = { pipeline: 'tabPipeline',   linkedin: 'tabLinkedin',   mission: 'tabMission',   archive: 'tabArchive',   horsaura: 'tabHorsAura',   settings: 'tabSettings'   };
     Object.entries(panels).forEach(([t, id]) => {
         const el = document.getElementById(id);
         if (el) el.style.display = t === tab ? 'block' : 'none';
@@ -1456,6 +1550,7 @@ function setTab(tab) {
     Object.entries(buttons).forEach(([t, id]) => {
         document.getElementById(id)?.classList.toggle('active', t === tab);
     });
+    if (tab === 'linkedin') applyLinkedinFilters();
     if (tab === 'archive') applyArchiveFilters();
     if (tab === 'mission') applyMissionFilters();
     if (tab === 'horsaura') applyHorsAuraFilters();
@@ -1697,8 +1792,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Hors Aura tab events
     document.getElementById('horsAuraSearch')?.addEventListener('input', applyHorsAuraFilters);
 
+    // LinkedIn tab events
+    document.getElementById('linkedinSearch')?.addEventListener('input', applyLinkedinFilters);
+    document.getElementById('linkedinStatusFilter')?.addEventListener('change', applyLinkedinFilters);
+
     // Tabs
     document.getElementById('tabPipeline')?.addEventListener('click', () => setTab('pipeline'));
+    document.getElementById('tabLinkedin')?.addEventListener('click', () => setTab('linkedin'));
     document.getElementById('tabMission')?.addEventListener('click', () => setTab('mission'));
     document.getElementById('tabArchive')?.addEventListener('click', () => setTab('archive'));
     document.getElementById('tabHorsAura')?.addEventListener('click', () => setTab('horsaura'));
@@ -1707,6 +1807,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadCandidates();
         applyCandidateFilters();
+        applyLinkedinFilters();
         updateCandSortIndicators();
     } catch (err) {
         console.error(err);
