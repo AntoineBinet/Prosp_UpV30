@@ -6410,7 +6410,14 @@ function _logCall(prospectId) {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prospect_id: prospectId }),
-    }).catch(() => {});
+    }).then(res => res.json())
+      .then(data => {
+          // Recharger la timeline si elle est visible (modal prospect ouvert)
+          if (data.ok && typeof ntLoadFeed === 'function') {
+              ntLoadFeed('ntBox_' + prospectId, 'prospect', prospectId);
+          }
+      })
+      .catch(() => {});
 }
 
 async function callNumber(tel, prospectId) {

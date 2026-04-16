@@ -546,6 +546,10 @@ function mpLogCall(prospectId) {
           if (data.ok && data.lastContact && window.mpRefreshLastContact) {
               window.mpRefreshLastContact(prospectId, data.lastContact);
           }
+          // Recharger la timeline pour afficher l'entrée "Appel sortant"
+          if (data.ok && typeof ntLoadFeed === 'function') {
+              ntLoadFeed('ntBox_' + prospectId, 'prospect', prospectId);
+          }
       })
       .catch(function () {});
 }
