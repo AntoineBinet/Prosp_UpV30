@@ -529,31 +529,35 @@ function dv2_renderActivity(feed, weekDays) {
   if (heatEl && weekDays && weekDays.length) {
     var maxAct = Math.max(1, Math.max.apply(null, weekDays.map(function(d) {
       var c = d.calls > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0);
-      return c + (d.push || 0);
+      return c + (d.push || 0) + (d.rdv || 0);
     })));
 
     // Resume semaine
-    var weekTotalContacts = 0, weekTotalNotes = 0, weekTotalPush = 0;
+    var weekTotalContacts = 0, weekTotalPush = 0, weekTotalRdv = 0;
     weekDays.forEach(function(d) {
       weekTotalContacts += d.calls > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0);
-      weekTotalNotes += (d.notes || 0);
       weekTotalPush += (d.push || 0);
+      weekTotalRdv += (d.rdv || 0);
     });
-    var weekTotal = weekTotalContacts + weekTotalPush;
+    var weekTotal = weekTotalContacts + weekTotalPush + weekTotalRdv;
 
     heatEl.innerHTML =
       '<div class="dv2-activity-bars">' +
         weekDays.map(function(d) {
           var contacts = d.calls > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0);
           var push = d.push || 0;
-          var total = contacts + push;
+          var rdv = d.rdv || 0;
+          var total = contacts + push + rdv;
           var pctContacts = maxAct > 0 ? ((contacts / maxAct) * 100) : 0;
           var pctPush = maxAct > 0 ? ((push / maxAct) * 100) : 0;
+          var pctRdv = maxAct > 0 ? ((rdv / maxAct) * 100) : 0;
           var isToday = d.date === weekDays[weekDays.length - 1].date;
+          var tooltip = dv2_dayName(d.date) + ': ' + contacts + ' contacts, ' + push + ' push' + (rdv ? ', ' + rdv + ' RDV' : '');
           return '<div class="dv2-bar-col' + (isToday ? ' today' : '') + '">' +
-            '<div class="dv2-bar-stack" title="' + dv2_dayName(d.date) + ': ' + contacts + ' contacts, ' + push + ' push">' +
+            '<div class="dv2-bar-stack" title="' + tooltip + '">' +
               '<div class="dv2-bar-seg contacts" style="height:' + pctContacts.toFixed(0) + '%"></div>' +
               '<div class="dv2-bar-seg push" style="height:' + pctPush.toFixed(0) + '%"></div>' +
+              (rdv ? '<div class="dv2-bar-seg rdv" style="height:' + pctRdv.toFixed(0) + '%"></div>' : '') +
             '</div>' +
             '<span class="dv2-bar-label">' + dv2_dayName(d.date) + '</span>' +
             '<span class="dv2-bar-total">' + total + '</span>' +
@@ -562,12 +566,14 @@ function dv2_renderActivity(feed, weekDays) {
       '</div>' +
       '<div class="dv2-activity-summary">' +
         '<strong>' + weekTotal + '</strong> actions cette semaine : ' +
-        '<span style="color:#f59e0b">' + weekTotalContacts + ' contacts</span> + ' +
-        '<span style="color:#8b5cf6">' + weekTotalPush + ' push</span>' +
+        '<span style="color:#f59e0b">' + weekTotalContacts + ' contacts</span>' +
+        ' + <span style="color:#8b5cf6">' + weekTotalPush + ' push</span>' +
+        (weekTotalRdv ? ' + <span style="color:#22c55e">' + weekTotalRdv + ' RDV</span>' : '') +
       '</div>' +
       '<div class="dv2-activity-legend">' +
         '<span><span class="dv2-legend-dot" style="background:#f59e0b"></span> Contacts</span>' +
         '<span><span class="dv2-legend-dot" style="background:#8b5cf6"></span> Push</span>' +
+        '<span><span class="dv2-legend-dot" style="background:#22c55e"></span> RDV</span>' +
       '</div>';
   }
 
@@ -598,6 +604,26 @@ function dv2_renderActivity(feed, weekDays) {
       detail: '',
       sort: p.createdAt || '',
       prospectId: p.prospect_id
+    });
+  });
+  (feed.rdv || []).forEach(function(r) {
+    var rdvFmt = '';
+    if (r.rdvDate) {
+      var rdvTrimmed = r.rdvDate.trim();
+      var rdvDatePart = rdvTrimmed.split('T')[0].split(' ')[0];
+      var rdvTimePart = rdvTrimmed.indexOf('T') > -1 ? rdvTrimmed.split('T')[1] : (rdvTrimmed.indexOf(' ') > -1 ? rdvTrimmed.split(' ')[1] : '');
+      var dm = rdvDatePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (dm) rdvFmt = dm[3] + '/' + dm[2] + (rdvTimePart ? ' ' + rdvTimePart.slice(0, 5) : '');
+    }
+    items.push({
+      time: (r.createdAt || '').slice(11, 16) || '--',
+      icon: '\uD83D\uDCC5',
+      cls: 'rdv',
+      text: '<span class="dv2-feed-type" style="color:#22c55e">RDV</span> <strong>' + dv2_esc(r.prospect_name) + '</strong>' +
+            (r.company_name ? ' <span style="opacity:0.7">— ' + dv2_esc(r.company_name) + '</span>' : ''),
+      detail: rdvFmt ? 'Le ' + rdvFmt : '',
+      sort: r.createdAt || '',
+      prospectId: r.prospect_id
     });
   });
 
@@ -825,13 +851,32 @@ window.dv2_refreshPriorities = dv2_refreshPriorities;
 function dv2_openManualKpiModal() {
   var modal = document.getElementById('manualKpiModal');
   if (!modal) return;
+  var today = new Date().toISOString().split('T')[0];
   var dateInput = document.getElementById('manualKpiDate');
-  if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+  if (dateInput) dateInput.value = today;
   var countInput = document.getElementById('manualKpiCount');
   if (countInput) countInput.value = '1';
   var descInput = document.getElementById('manualKpiDesc');
   if (descInput) descInput.value = '';
   modal.style.display = 'flex';
+
+  // Charger les stats de la semaine pour contexte
+  var summaryEl = document.getElementById('manualKpiWeekSummary');
+  var statsEl = document.getElementById('manualKpiWeekStats');
+  if (summaryEl && statsEl && window._dv2LastGoals) {
+    var goals = window._dv2LastGoals;
+    var daily = (goals.daily || {}).items || {};
+    var weekly = (goals.weekly || {}).items || {};
+    var chips = [];
+    if (daily.rdv) chips.push('<span style="color:#22c55e">📅 RDV aujourd\'hui : <strong>' + daily.rdv.count + '</strong></span>');
+    if (weekly.rdv) chips.push('<span style="color:#22c55e">📅 RDV semaine : <strong>' + weekly.rdv.count + '</strong></span>');
+    if (daily.push) chips.push('<span style="color:#8b5cf6">📤 Push aujourd\'hui : <strong>' + daily.push.count + '</strong></span>');
+    if (weekly.push) chips.push('<span style="color:#8b5cf6">📤 Push semaine : <strong>' + weekly.push.count + '</strong></span>');
+    if (chips.length) {
+      statsEl.innerHTML = chips.join('');
+      summaryEl.style.display = '';
+    }
+  }
 }
 window.dv2_openManualKpiModal = dv2_openManualKpiModal;
 
@@ -1209,7 +1254,8 @@ async function dv2_boot() {
     dv2_renderPerformance(mainData);
     dv2_renderActions(mainData.overdue_list || [], tasks, mainData.upcoming_rdv || []);
     dv2_renderPipeline(mainData.pipeline);
-    dv2_renderActivity(mainData.feed || { notes: [], push: [] }, (mainData.week && mainData.week.days) || []);
+    dv2_renderActivity(mainData.feed || { notes: [], push: [], rdv: [] }, (mainData.week && mainData.week.days) || []);
+    window._dv2LastGoals = mainData.goals;
     dv2_renderGoals(mainData.goals, mainData.week, mainData.today);
   } catch(e) {
     console.warn('[DashV2] boot error:', e.message);

@@ -690,6 +690,7 @@
 }
 .dv2-bar-seg.contacts { background: #f59e0b; }
 .dv2-bar-seg.push { background: #8b5cf6; }
+.dv2-bar-seg.rdv { background: #22c55e; }
 .dv2-bar-label {
   font-size: 9px;
   font-weight: 600;
@@ -737,6 +738,7 @@
 .dv2-feed-item:hover { background: var(--color-surface-2, rgba(0,0,0,0.03)); }
 .dv2-feed-item.note { border-left: 2px solid #3b82f6; padding-left: 10px; }
 .dv2-feed-item.push { border-left: 2px solid #8b5cf6; padding-left: 10px; }
+.dv2-feed-item.rdv  { border-left: 2px solid #22c55e; padding-left: 10px; }
 .dv2-feed-time {
   font-size: 10px;
   font-weight: 700;
