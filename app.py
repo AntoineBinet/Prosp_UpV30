@@ -1052,6 +1052,20 @@ def api_users_list():
         users_list.append(u)
     return jsonify(ok=True, users=users_list, is_admin=is_admin, current_user_id=current_user_id)
 
+@app.get("/api/users/for-push")
+@login_required
+def api_users_for_push():
+    """Liste minimale des utilisateurs actifs pour la sélection de consultants dans le push modal.
+    Accessible à tous les utilisateurs authentifiés (admin et editor)."""
+    user = getattr(g, 'user', None) or _get_current_user()
+    current_user_id = int(user["id"]) if user and user.get("id") is not None else None
+    with _auth_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, username, display_name FROM users WHERE is_active=1 ORDER BY display_name, username;"
+        ).fetchall()
+    users_list = [dict(r) for r in rows]
+    return jsonify(ok=True, users=users_list, current_user_id=current_user_id)
+
 @app.post("/api/users/save")
 @login_required
 @role_required('admin')
