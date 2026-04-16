@@ -71,6 +71,15 @@ window.mpClose = function () {
         "Pas d'actions": '#64748b', "Appel\u00e9": '#f59e0b', 'Messagerie': '#3b82f6',
         '\u00c0 rappeler': '#ef4444', 'Rendez-vous': '#22c55e', "Prospect\u00e9": '#8b5cf6', "Pas int\u00e9ress\u00e9": '#94a3b8'
     };
+    var STATUS_GLOW = {
+        "Pas d'actions": 'rgba(100,116,139,0.18)',
+        "Appel\u00e9": 'rgba(245,158,11,0.22)',
+        'Messagerie': 'rgba(59,130,246,0.22)',
+        '\u00c0 rappeler': 'rgba(239,68,68,0.25)',
+        'Rendez-vous': 'rgba(34,197,94,0.28)',
+        "Prospect\u00e9": 'rgba(139,92,246,0.22)',
+        "Pas int\u00e9ress\u00e9": 'rgba(148,163,184,0.12)'
+    };
 
     var TL_ICONS = { call_note: '\uD83D\uDCDE', push: '\uD83D\uDCE7', done: '\u2705', rdv: '\uD83D\uDCC5', linkedin: '\uD83D\uDD17', event: '\uD83D\uDCCC', note_libre: '\uD83D\uDCDD' };
     var TL_LABELS = { call_note: "Note d'appel", push: 'Push', done: 'Fait', rdv: 'RDV', linkedin: 'LinkedIn', event: '\u00c9v\u00e9nement', note_libre: 'Note' };
@@ -177,7 +186,10 @@ window.mpClose = function () {
                     '<div class="mp-hero-info">' +
                         '<div class="mp-hero-name">' + escapeHtml(p.name) + '</div>' +
                         '<div class="mp-hero-sub">' + escapeHtml(p.fonction || '') + (companyName ? ' \u00b7 ' + escapeHtml(companyName) : '') + '</div>' +
-                        '<div class="mp-hero-stars">' + stars + '</div>' +
+                        '<div class="mp-hero-meta">' +
+                            '<span class="mp-hero-stars">' + stars + '</span>' +
+                            '<span class="mp-status-badge" style="background:' + heroColor + '22;border-color:' + heroColor + '55;color:' + heroColor + ';">' + escapeHtml(p.statut || '') + '</span>' +
+                        '</div>' +
                     '</div>' +
                     (quickActions ? '<div class="mp-quick-actions">' + quickActions + '</div>' : '') +
                 '</div>' +
@@ -237,6 +249,8 @@ window.mpClose = function () {
         else if (navDir < 0) card.classList.add('mp-entering-prev');
         else                 card.classList.add('mp-entering-init');
         navDir = 0; // reset après usage
+        // Status glow CSS variable
+        card.style.setProperty('--status-glow', STATUS_GLOW[p.statut] || 'rgba(99,102,241,0.18)');
         card.innerHTML = buildCardHtml(p);
         viewport.innerHTML = '';
         viewport.appendChild(card);
@@ -250,6 +264,15 @@ window.mpClose = function () {
                 this.style.borderLeftColor = heroColor;
                 var heroEl = card.querySelector('.mp-card-hero');
                 if (heroEl) heroEl.style.setProperty('--hero-color', heroColor);
+                card.style.setProperty('--status-glow', STATUS_GLOW[newVal] || 'rgba(99,102,241,0.18)');
+                // Mettre à jour le badge statut dans le hero
+                var badge = card.querySelector('.mp-status-badge');
+                if (badge) {
+                    badge.style.background = heroColor + '22';
+                    badge.style.borderColor = heroColor + '55';
+                    badge.style.color = heroColor;
+                    badge.textContent = newVal;
+                }
                 if (newVal === 'Rendez-vous') {
                     var rdvInput = card.querySelector('[data-field="rdvDate"]');
                     mpShowDatePicker({
@@ -408,6 +431,11 @@ window.mpClose = function () {
         } else if (dotsEl) { dotsEl.innerHTML = ''; }
         var p = prospects[currentIndex];
         document.title = 'Mode Prosp \u2014 ' + (currentIndex + 1) + '/' + prospects.length + (p ? ' \u2014 ' + p.name : '');
+        // Barre de progression
+        var fill = document.getElementById('mpProgressFill');
+        if (fill && prospects.length > 0) {
+            fill.style.width = ((currentIndex + 1) / prospects.length * 100).toFixed(1) + '%';
+        }
     }
 
     // Capture current card fields into local array synchronously, then navigate.
