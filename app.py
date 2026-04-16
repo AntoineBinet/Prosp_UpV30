@@ -2001,6 +2001,16 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             );
         ''')
 
+        # Mode Prosp sessions persistées (v28.1) — survivent aux redémarrages serveur
+        conn.executescript('''
+            CREATE TABLE IF NOT EXISTS mode_prosp_sessions (
+                token      TEXT PRIMARY KEY,
+                user_id    INTEGER NOT NULL,
+                ids        TEXT NOT NULL,
+                created_at REAL NOT NULL
+            );
+        ''')
+
         # Paires de prospects marquées "pas un doublon" (v27.3)
         conn.executescript('''
             CREATE TABLE IF NOT EXISTS duplicate_ignores (
@@ -4460,32 +4470,53 @@ def page_mode_prosp():
 
 
 # ── Mode Prosp: server-side token sessions ──
-_mode_prosp_sessions: Dict[str, dict] = {}
-_MODE_PROSP_TTL = 3600  # 1 hour
+_MODE_PROSP_TTL = 3600 * 8  # 8 heures (survit aux redémarrages grâce à la DB)
 
 
 def _mode_prosp_cleanup():
-    """Remove expired mode-prosp sessions."""
-    now = time.time()
-    expired = [k for k, v in _mode_prosp_sessions.items() if now - v['created_at'] > _MODE_PROSP_TTL]
-    for k in expired:
-        del _mode_prosp_sessions[k]
+    """Supprime les sessions Mode Prosp expirées de la DB."""
+    try:
+        with _conn() as conn:
+            conn.execute(
+                "DELETE FROM mode_prosp_sessions WHERE ? - created_at > ?;",
+                (time.time(), _MODE_PROSP_TTL)
+            )
+    except Exception as e:
+        logger.warning("mode_prosp_cleanup: %s", e)
 
 
 def _mode_prosp_auth(token: str):
-    """Validate a mode-prosp token and return session dict or None."""
-    sess = _mode_prosp_sessions.get(token)
-    if not sess:
+    """Valide un token Mode Prosp depuis la DB et retourne le dict de session ou None."""
+    if not token:
         return None
-    if time.time() - sess['created_at'] > _MODE_PROSP_TTL:
-        del _mode_prosp_sessions[token]
+    try:
+        with _conn() as conn:
+            row = conn.execute(
+                "SELECT user_id, ids, created_at FROM mode_prosp_sessions WHERE token=?;",
+                (token,)
+            ).fetchone()
+    except Exception:
         return None
-    return sess
+    if not row:
+        return None
+    row = dict(row)
+    if time.time() - row['created_at'] > _MODE_PROSP_TTL:
+        try:
+            with _conn() as conn:
+                conn.execute("DELETE FROM mode_prosp_sessions WHERE token=?;", (token,))
+        except Exception:
+            pass
+        return None
+    return {
+        'user_id': row['user_id'],
+        'ids': json.loads(row['ids']),
+        'created_at': row['created_at']
+    }
 
 
 @app.post("/api/mode-prosp/start")
 def mode_prosp_start():
-    """Create a mode-prosp session: store filtered prospect IDs server-side, return a token."""
+    """Create a mode-prosp session: store filtered prospect IDs in DB, return a token."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
@@ -4497,11 +4528,15 @@ def mode_prosp_start():
     if not ids:
         return jsonify(ok=False, error="IDs invalides"), 400
     token = secrets.token_urlsafe(16)
-    _mode_prosp_sessions[token] = {
-        'user_id': uid,
-        'ids': ids,
-        'created_at': time.time()
-    }
+    try:
+        with _conn() as conn:
+            conn.execute(
+                "INSERT INTO mode_prosp_sessions (token, user_id, ids, created_at) VALUES (?, ?, ?, ?);",
+                (token, uid, json.dumps(ids), time.time())
+            )
+    except Exception as e:
+        logger.error("mode_prosp_start: %s", e)
+        return jsonify(ok=False, error="Erreur serveur"), 500
     _mode_prosp_cleanup()
     return jsonify(ok=True, token=token)
 
