@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "29.3"
+APP_VERSION = "29.4"
 import os
 import subprocess
 import traceback
@@ -8034,13 +8034,16 @@ def api_prospect_log_call():
         return jsonify(ok=False, error="prospect_id requis"), 400
     now = _now_iso()
     today = now[:10]
+    # Précision microseconde pour garantir l'unicité dans prospect_events (contrainte UNIQUE sur prospect_id, type, date)
+    event_at = datetime.datetime.now().isoformat()
     with _conn() as conn:
-        # Vérifier que le prospect appartient à l'utilisateur
+        # Vérifier que le prospect appartient à l'utilisateur et récupérer le statut courant
         row = conn.execute(
-            "SELECT id FROM prospects WHERE id=? AND owner_id=?;", (prospect_id, uid)
+            "SELECT id, statut FROM prospects WHERE id=? AND owner_id=?;", (prospect_id, uid)
         ).fetchone()
         if not row:
             return jsonify(ok=False, error="Prospect introuvable"), 404
+        statut = (row["statut"] or "").strip()
         conn.execute(
             "INSERT INTO call_logs (prospect_id, owner_id, date, called_at) VALUES (?,?,?,?);",
             (prospect_id, uid, today, now),
@@ -8048,6 +8051,13 @@ def api_prospect_log_call():
         conn.execute(
             "UPDATE prospects SET lastContact = ? WHERE id = ? AND owner_id = ?;",
             (now, prospect_id, uid),
+        )
+        # Ajouter une entrée dans la timeline prospect
+        call_content = f"Statut : {statut}" if statut else ""
+        conn.execute(
+            "INSERT OR IGNORE INTO prospect_events "
+            "(prospect_id, date, type, title, content, createdAt) VALUES (?,?,?,?,?,?);",
+            (prospect_id, event_at, "call", "Appel sortant", call_content, now),
         )
     return jsonify(ok=True, lastContact=now)
 

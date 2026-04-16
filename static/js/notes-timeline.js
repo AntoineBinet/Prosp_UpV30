@@ -7,6 +7,7 @@
 'use strict';
 
 const NT_TYPE_ICONS = {
+    call:      '📞',
     call_note: '📞',
     push:      '📧',
     done:      '✅',
@@ -17,6 +18,7 @@ const NT_TYPE_ICONS = {
 };
 
 const NT_TYPE_LABELS = {
+    call:       'Appel sortant',
     call_note:  "Note d'appel",
     push:       'Push envoyé',
     done:       'Marqué fait',
@@ -27,6 +29,7 @@ const NT_TYPE_LABELS = {
 };
 
 const NT_TYPE_DOT = {
+    call:       'call',
     call_note:  'call',
     push:       'push',
     done:       'done',
