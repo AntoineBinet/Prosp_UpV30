@@ -985,12 +985,16 @@ async function ensureBuiltinCategories() {
                 body: JSON.stringify({ id: null, name: cat.name, keywords: cat.keywords })
             });
             const data = await res.json();
-            if (data.ok || data.id) created++;
+            // ok normal, ou "existe déjà" (UNIQUE) = déjà présente, compter quand même
+            if (data.ok || data.id || (typeof data.error === 'string' && data.error.includes('existe déjà'))) {
+                created++;
+            }
         } catch (e) {}
     }
+    // Toujours recharger pour afficher les catégories nouvellement créées
+    await loadCategories();
     if (created > 0) {
-        showToast(`${created} nouvelle(s) catégorie(s) ajoutée(s)`, 'success', 3000);
-        await loadCategories();
+        showToast(`${created} catégorie(s) ajoutée(s) automatiquement`, 'success', 3000);
     }
 }
 
