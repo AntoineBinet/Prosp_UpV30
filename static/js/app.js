@@ -4606,9 +4606,11 @@ function _heroChangeStatus(prospectId, newStatus) {
         showRdvDatePicker(prospectId, function(selectedDate) {
             prospect.statut = newStatus;
             if (selectedDate) prospect.rdvDate = selectedDate;
-            prospect.lastContact = nowISO();
+            _stampProspectLastContact(prospect);
             if (window.haptic) haptic(20);
             _syncEditStatut(newStatus);
+            saveToServer();
+            markUnsaved();
             filterProspects();
             viewDetail(prospectId);
         });
@@ -4619,9 +4621,11 @@ function _heroChangeStatus(prospectId, newStatus) {
         showRelanceDatePicker(prospectId, function(selectedDate) {
             prospect.statut = newStatus;
             if (selectedDate) prospect.nextFollowUp = selectedDate;
-            prospect.lastContact = nowISO();
+            _stampProspectLastContact(prospect);
             if (window.haptic) haptic(20);
             _syncEditStatut(newStatus);
+            saveToServer();
+            markUnsaved();
             filterProspects();
             viewDetail(prospectId);
         });
@@ -4629,9 +4633,11 @@ function _heroChangeStatus(prospectId, newStatus) {
     }
 
     prospect.statut = newStatus;
-    prospect.lastContact = nowISO();
+    _stampProspectLastContact(prospect);
     if (window.haptic) haptic(20);
     _syncEditStatut(newStatus);
+    saveToServer();
+    markUnsaved();
     filterProspects();
     viewDetail(prospectId);
 }
