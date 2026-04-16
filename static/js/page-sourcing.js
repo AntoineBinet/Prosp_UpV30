@@ -1841,6 +1841,8 @@ function openWizardCandModal() {
     document.getElementById('wizardDcFileName').style.display = 'none';
     document.getElementById('wizardDcFileName').textContent = '';
     document.getElementById('wizardDcFile').value = '';
+    const liEl = document.getElementById('wizardLinkedin');
+    if (liEl) liEl.value = '';
     document.getElementById('wizardVsaUrl').value = '';
     document.getElementById('wizardStatus').value = 'nouveau';
     document.getElementById('wizardBtnAnalyze').disabled = true;
@@ -1849,6 +1851,10 @@ function openWizardCandModal() {
     const modal = document.getElementById('modalAddCandidateWizard');
     if (window.openModal) window.openModal(modal);
     else modal.classList.add('active');
+}
+
+function wizardSkipToStep2() {
+    _wizardShowStep2({}, false, null);
 }
 
 function closeWizardCandModal() {
@@ -1966,6 +1972,7 @@ async function wizardCreateCandidate() {
         annees_experience: parseInt(document.getElementById('wizardAnnees').value) || null,
         domaine_principal: document.getElementById('wizardDomaine').value.trim() || null,
         role:   document.getElementById('wizardRole').value.trim()   || null,
+        linkedin: document.getElementById('wizardLinkedin')?.value.trim() || null,
         vsa_url: document.getElementById('wizardVsaUrl').value.trim() || null,
         status: document.getElementById('wizardStatus').value,
         skills: document.getElementById('wizardTags').value.split(',').map(s => s.trim()).filter(Boolean),
@@ -1997,6 +2004,7 @@ async function wizardCreateCandidate() {
         closeWizardCandModal();
         if (typeof loadCandidates === 'function') await loadCandidates();
         if (typeof applyCandidateFilters === 'function') applyCandidateFilters();
+        if (typeof applyLinkedinFilters === 'function') applyLinkedinFilters();
     } catch (e) {
         if (typeof showToast === 'function') showToast('Erreur réseau : ' + e.message, 'error');
     } finally {
