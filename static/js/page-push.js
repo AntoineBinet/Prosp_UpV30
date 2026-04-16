@@ -253,8 +253,28 @@ let __categories = [];
 let __categoriesLoaded = false;
 let __historiqueLoaded = false;
 let __allCandidates = null; // cache pour le sélecteur de candidats par défaut
+let __catFilesData = {};    // cache: catId -> files[]
+let __openCatDetailId = null;
 
 function __catEl(id) { return document.getElementById(id); }
+
+// Descriptions détaillées par catégorie (clé = nom exact de la catégorie)
+const __catDescriptions = {
+    'Automatisme_Informatique_Industrielle': 'Conception, programmation et mise en service de systèmes automatisés de production. Ces ingénieurs programment des automates (PLC/API), développent des architectures SCADA/supervision, et assurent la communication entre équipements via des réseaux industriels (Modbus, Profibus, EtherNet/IP, OPC-UA). Compétences clés : Siemens TIA Portal, Rockwell Studio 5000, Schneider, KUKA, ABB, jumeaux numériques, Industry 4.0. Managers cibles : Responsable Automatisme, Directeur de Production, Chef de Département Systèmes de Contrôle.',
+    'Cybersécurité': 'Protection des systèmes informatiques et réseaux contre les cyberattaques. Interventions sur l\'audit de sécurité, la mise en place de politiques de sécurité (firewall, IAM, SOC), la détection d\'incidents (SIEM/XDR), la gestion des plans de reprise et la conformité réglementaire (NIS2, ISO 27001, ANSSI). Particulièrement critique dans les industries OT/IT (énergie, santé, infrastructure). Managers cibles : RSSI, Responsable Sécurité des SI, DSI.',
+    'Data_IA': 'Regroupe trois profils complémentaires — Data Engineer (pipelines ETL, architectures Big Data, bases de données), Data Scientist (modèles prédictifs ML/DL, analyse métier) et Développeur IA (implémentation et mise en production de modèles d\'intelligence artificielle). Stratégiques pour la maintenance prédictive, l\'analyse de données biologiques, et l\'optimisation de performance industrielle. Managers cibles : Responsable Data, Chief Data Officer, Directeur R&D, Responsable Innovation.',
+    'DevOps': 'Pont entre développement logiciel et opérations IT. Mise en place des pipelines CI/CD (intégration et déploiement continus), automatisation via Terraform, Ansible, Docker, Kubernetes, surveillance des systèmes en production et sécurisation des pipelines (DevSecOps). Essentiel pour les entreprises qui développent des logiciels embarqués ou des plateformes IoT industrielles. Managers cibles : Responsable Infrastructure, DSI, Lead Tech.',
+    'Electronique_Système': 'Conception de cartes électroniques (PCB design, schématique), travail sur composants (FPGA, microcontrôleurs), tests électroniques et validation hardware. Profils : Ingénieur Électronique Hardware, Ingénieur FPGA/VHDL, Ingénieur Électronique Analogique/Numérique. Fortement demandé en électronique de puissance (ferroviaire), électronique embarquée véhicule et instrumentation médicale. Managers cibles : Responsable Bureau d\'Études Électronique, Chef de Projet Hardware, Responsable R&D.',
+    'Gestion_de_Projet': 'Pilotage de projets techniques de bout en bout — planification, gestion des ressources, des coûts et des délais, coordination des équipes pluridisciplinaires et reporting client. Maîtrise de méthodologies PMI/PMP, Prince2 ou Agile/Scrum adapté à l\'industrie. Profil transversal très valorisé sur des projets d\'envergure pluriannuels. Managers cibles : Directeur de Projets, PMO, Directeur Technique.',
+    'Ingenierie_Mecanique_CAO': 'Conception de pièces et assemblages mécaniques via des outils CAO (CATIA, SolidWorks, NX, Creo) et réalisation de calculs de structures (éléments finis, RDM). Profils : Ingénieur Conception Mécanique, Ingénieur Calcul Structure, Ingénieur Industrialisation. Indispensable pour la conception de poids lourds, de matériel ferroviaire et d\'instrumentation médicale. Managers cibles : Responsable Bureau d\'Études Mécanique, Chef de Projet Industrialisation, Responsable R&D Produit.',
+    'Logiciels': 'Développement d\'applications logicielles industrielles (applications métier, interfaces HMI, middleware, architecture logicielle, maintenance applicative). Profils : Développeur C/C++, Développeur .NET/Java, Architecte Logiciel, Ingénieur Logiciel embarqué. Pertinent pour les clients développant en interne leurs logiciels de supervision, de pilotage ou d\'analyse. Managers cibles : Responsable Développement Logiciel, Lead Developer, DSI.',
+    'Systèmes Embarqués & Traitement du Signal': 'Développement logiciel bas niveau (bare metal, RTOS), portage d\'OS temps réel (FreeRTOS, VxWorks, Linux embarqué), acquisition et traitement de signaux (filtres numériques, FFT, DSP). Profils : Ingénieur Systèmes Embarqués, Ingénieur DSP/Signal, Ingénieur BSP/Firmware. Cœur de métier d\'Up Technologie, forte demande en systèmes ferroviaires, ECU/BCM automobile et capteurs biologiques. Managers cibles : Responsable Systèmes Embarqués, Chef de Projet Firmware, Responsable R&D Électronique.',
+    'Systèmes_Réseaux': 'Administration et évolution de l\'infrastructure IT/OT — serveurs, réseaux LAN/WAN, virtualisation (VMware, Hyper-V), stockage SAN/NAS, connectivité industrielle et supervision des systèmes critiques. Très utile pour les infrastructures de supervision énergétique et les sites industriels multi-sites. Managers cibles : Responsable Infrastructure IT, Responsable Systèmes d\'Information, DSI.',
+    'Test_Qualite_Logicielle': 'Conception et exécution de plans de test (unitaires, intégration, validation), développement de frameworks de test automatisés (Robot Framework, Selenium, pytest), et conformité aux normes qualité sectorielles (ISO 26262 automobile, EN 50128 ferroviaire, IEC 62304 médical). Profil critique dans les industries où la certification logicielle est réglementaire. Managers cibles : Responsable Validation, Responsable Qualité Logicielle, Chef de Projet Test.',
+    'Simulation_Modélisation': 'Développement de modèles de simulation et de modélisation numérique pour valider des systèmes avant prototypage physique. Utilisation de Matlab/Simulink, ANSYS, Altair, Model-Based Design (MBD). Profils : Ingénieur Simulation, Ingénieur Modélisation Numérique, Ingénieur Model-Based Design. Très demandé en R&D embarquée, ferroviaire et automobile pour la réduction des cycles de développement. Managers cibles : Responsable R&D, Chef de Projet Systèmes, Responsable Validation V&V.',
+    'Electrotechnique_Energie': 'Conception et dimensionnement de systèmes électrotechniques et de génie électrique — électronique de puissance, variateurs, motorisation, réseaux HTA/HTB, postes de transformation, énergies renouvelables et stockage. Profils : Ingénieur Électrotechnicien, Ingénieur Génie Électrique, Ingénieur Énergie. Très demandé chez les producteurs/distributeurs d\'énergie et dans la traction électrique ferroviaire ou véhicule industriel. Managers cibles : Responsable Génie Électrique, Chef de Projet Énergie, Directeur Technique.',
+    'Surete_Fonctionnement_SdF': 'Analyse et maîtrise de la sûreté de fonctionnement des systèmes critiques — fiabilité, disponibilité, maintenabilité et sécurité (RAMS). Réalisation d\'analyses FMECA, HAZOP, arbres de défaillances (FTA), et application des normes de sécurité fonctionnelle (IEC 61508, IEC 61511, EN 50129). Profils : Ingénieur SdF/RAMS, Ingénieur Sécurité Fonctionnelle, Expert Fiabilité. Critique dans les systèmes nucléaires, ferroviaires et industriels certifiés. Managers cibles : Responsable Sûreté de Fonctionnement, Chef de Projet Sécurité, Directeur Qualité & Risques.'
+};
 
 async function loadCategories() {
     try {
@@ -274,35 +294,70 @@ function renderCategories() {
     }
     if (empty) empty.style.display = 'none';
     list.innerHTML = __categories.map(catCard).join('');
+    // Charger les fichiers en arrière-plan pour mettre à jour les badges
     __categories.forEach(cat => loadCatFiles(cat.id));
 }
 
 async function loadCatFiles(catId) {
-    const box = __catEl(`catFiles_${catId}`);
-    if (!box) return;
     try {
         const res = await fetch(`/api/push-categories/${catId}/files`);
-        if (!res.ok) { box.innerHTML = '<span class="muted">Erreur de chargement</span>'; return; }
-        const data = await res.json();
-        if (data.ok && data.files && data.files.length) {
-            box.innerHTML = data.files.map(f => `
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--color-border);">
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;" title="${escapeHtml(f.name)}">📄 ${escapeHtml(f.name)} <span class="muted" style="font-size:10px;">${(f.size/1024).toFixed(0)} Ko</span></span>
-                    <div style="display:flex;gap:2px;flex-shrink:0;">
-                        <a href="${escapeHtml(f.url)}" download="${escapeHtml(f.name)}" style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:13px;padding:2px 6px;text-decoration:none;display:inline-flex;align-items:center;" title="Télécharger ce template">📥</a>
-                        <label style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:13px;padding:2px 6px;display:inline-flex;align-items:center;" title="Remplacer ce template">
-                            🔄<input type="file" accept=".msg,.eml,.oft" style="display:none;" onchange="replaceCatTemplate(${catId}, '${escapeHtml(f.name)}', this)">
-                        </label>
-                        <button onclick="deleteCatTemplate(${catId}, '${escapeHtml(f.name)}')" style="background:none;border:none;cursor:pointer;color:var(--color-danger,#ef4444);font-size:13px;padding:2px 6px;" title="Supprimer ce template">🗑️</button>
-                    </div>
-                </div>
-            `).join('');
+        if (!res.ok) {
+            __catFilesData[catId] = [];
         } else {
-            box.innerHTML = '<span class="muted">Aucun template — cliquez "Ajouter" pour en importer un.</span>';
+            const data = await res.json();
+            __catFilesData[catId] = (data.ok && data.files && data.files.length) ? data.files : [];
         }
     } catch (e) {
-        box.innerHTML = '<span class="muted">Erreur</span>';
+        __catFilesData[catId] = [];
     }
+    _updateCatTplBadge(catId);
+    _renderModalCatFiles(catId);
+}
+
+function _updateCatTplBadge(catId) {
+    const badge = document.getElementById(`catTplBadge_${catId}`);
+    if (!badge) return;
+    const files = __catFilesData[catId] || [];
+    const has = files.length > 0;
+    badge.className = `push-cat-badge ${has ? 'has' : 'none'}`;
+    badge.textContent = has ? '📧 Template chargé' : '📧 Aucun template';
+}
+
+function _updateCatCandBadge(catId) {
+    const cat = __categories.find(c => c.id === catId);
+    if (!cat) return;
+    const badge = document.getElementById(`catCandBadge_${catId}`);
+    if (!badge) return;
+    const n = (cat.candidate1_id ? 1 : 0) + (cat.candidate2_id ? 1 : 0);
+    const text = n === 0 ? 'Aucun candidat' : n === 1 ? '1 candidat sélectionné' : '2 candidats sélectionnés';
+    badge.className = `push-cat-badge ${n > 0 ? 'has' : 'none'}`;
+    badge.textContent = '👤 ' + text;
+}
+
+function _renderModalCatFiles(catId) {
+    const box = document.getElementById(`catFiles_${catId}`);
+    if (!box) return; // modal non ouverte
+    const files = __catFilesData[catId];
+    if (files === undefined) {
+        box.innerHTML = '<span class="muted">Chargement…</span>';
+        return;
+    }
+    if (!files.length) {
+        box.innerHTML = '<span class="muted">Aucun template — cliquez "Ajouter" pour en importer un.</span>';
+        return;
+    }
+    box.innerHTML = files.map(f => `
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--color-border);">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;" title="${escapeHtml(f.name)}">📄 ${escapeHtml(f.name)} <span class="muted" style="font-size:10px;">${(f.size/1024).toFixed(0)} Ko</span></span>
+            <div style="display:flex;gap:2px;flex-shrink:0;">
+                <a href="${escapeHtml(f.url)}" download="${escapeHtml(f.name)}" style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:13px;padding:2px 6px;text-decoration:none;display:inline-flex;align-items:center;" title="Télécharger ce template">📥</a>
+                <label style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:13px;padding:2px 6px;display:inline-flex;align-items:center;" title="Remplacer ce template">
+                    🔄<input type="file" accept=".msg,.eml,.oft" style="display:none;" onchange="replaceCatTemplate(${catId}, '${escapeHtml(f.name)}', this)">
+                </label>
+                <button onclick="deleteCatTemplate(${catId}, '${escapeHtml(f.name)}')" style="background:none;border:none;cursor:pointer;color:var(--color-danger,#ef4444);font-size:13px;padding:2px 6px;" title="Supprimer ce template">🗑️</button>
+            </div>
+        </div>
+    `).join('');
 }
 
 async function uploadCatTemplate(catId, input) {
@@ -390,48 +445,87 @@ function _catCandidateSlotHtml(cat, slot) {
 }
 
 function catCard(cat) {
-    const kw = Array.isArray(cat.keywords) ? cat.keywords : [];
-    const kwHtml = kw.length
-        ? kw.map(k => `<span class="tag-pill" style="font-size:10px;padding:2px 8px;">${escapeHtml(k)}</span>`).join(' ')
-        : '<span class="muted">Aucun mot-clé</span>';
-    const auto = cat.auto_detected ? '<span class="tag-pill" style="font-size:9px;padding:1px 6px;background:rgba(34,197,94,0.1);color:#22c55e;border-color:rgba(34,197,94,0.2);">auto</span>' : '';
+    const nCandidates = (cat.candidate1_id ? 1 : 0) + (cat.candidate2_id ? 1 : 0);
+    const candText = nCandidates === 0 ? 'Aucun candidat'
+        : nCandidates === 1 ? '1 candidat sélectionné'
+        : '2 candidats sélectionnés';
+    const auto = cat.auto_detected
+        ? '<span class="tag-pill" style="font-size:9px;padding:1px 6px;background:rgba(34,197,94,0.1);color:#22c55e;border-color:rgba(34,197,94,0.2);">auto</span>'
+        : '';
+    const desc = __catDescriptions[cat.name] || '';
+    const shortDesc = desc ? (desc.length > 150 ? desc.slice(0, 150) + '…' : desc) : '';
+
     return `
-        <div class="card" style="margin-bottom: 10px;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:800; font-size:15px;">${escapeHtml(cat.name)} ${auto}</div>
-                    <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:4px;">${kwHtml}</div>
-                </div>
-                <div style="display:flex; gap:6px; flex-shrink:0;">
-                    <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="openCatProspects(${cat.id})" title="Voir les prospects les plus pertinents pour cette catégorie">👤 Prospects</button>
-                    <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="editCat(${cat.id})">✏️</button>
-                    <button class="btn btn-danger" style="padding:5px 10px;font-size:11px;" onclick="deleteCat(${cat.id})">🗑️</button>
-                </div>
-            </div>
-            <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--color-border);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <span style="font-weight:600; font-size:12px; color:var(--color-text-secondary);">👤 Candidats par défaut</span>
-                    <button onclick="autoSuggestCandidates(${cat.id})" style="font-size:11px;padding:3px 10px;background:var(--color-surface-2,rgba(255,255,255,0.06));border:1px solid var(--color-border);border-radius:8px;cursor:pointer;" title="Suggérer automatiquement les 2 meilleurs candidats">🔁 Auto</button>
-                </div>
-                <div id="catCandidateSlots_${cat.id}">
-                    ${_catCandidateSlotHtml(cat, 1)}
-                    ${_catCandidateSlotHtml(cat, 2)}
-                </div>
-            </div>
-            <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--color-border);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <span style="font-weight:600; font-size:12px; color:var(--color-text-secondary);">📧 Templates email (.msg)</span>
-                    <label style="cursor:pointer; font-size:11px; padding:4px 10px; background:var(--color-surface-2,rgba(255,255,255,0.06)); border:1px solid var(--color-border); border-radius:8px; display:flex; align-items:center; gap:4px;" title="Ajouter un template .msg pour cette catégorie">
-                        📤 Ajouter
-                        <input type="file" accept=".msg,.eml,.oft" style="display:none;" onchange="uploadCatTemplate(${cat.id}, this)">
-                    </label>
-                </div>
-                <div id="catFiles_${cat.id}" style="font-size:12px; color:var(--color-text-secondary);">
-                    <span class="muted">Chargement…</span>
-                </div>
+        <div class="push-cat-card" onclick="openCatDetail(${cat.id})">
+            ${shortDesc ? `<div class="push-cat-tooltip">${escapeHtml(shortDesc)}</div>` : ''}
+            <div class="push-cat-card-title">${escapeHtml(cat.name)} ${auto}</div>
+            <div class="push-cat-card-badges">
+                <span class="push-cat-badge ${nCandidates > 0 ? 'has' : 'none'}" id="catCandBadge_${cat.id}">👤 ${escapeHtml(candText)}</span>
+                <span class="push-cat-badge loading" id="catTplBadge_${cat.id}">📧 …</span>
             </div>
         </div>
     `;
+}
+
+function openCatDetail(catId) {
+    __openCatDetailId = catId;
+    const cat = __categories.find(c => c.id === catId);
+    if (!cat) return;
+    const modal = document.getElementById('modalCatDetail');
+    if (!modal) return;
+
+    document.getElementById('modalCatDetailTitle').textContent = cat.name;
+    document.getElementById('modalCatBtnProspects').onclick = () => { closeCatDetail(); openCatProspects(catId); };
+    document.getElementById('modalCatBtnEdit').onclick = () => { closeCatDetail(); editCat(catId); };
+    document.getElementById('modalCatBtnDelete').onclick = () => deleteCat(catId);
+
+    const desc = __catDescriptions[cat.name] || '';
+    const kw = Array.isArray(cat.keywords) ? cat.keywords : [];
+    const kwHtml = kw.length
+        ? kw.map(k => `<span class="tag-pill" style="font-size:11px;">${escapeHtml(k)}</span>`).join(' ')
+        : '<span class="muted">Aucun mot-clé</span>';
+
+    document.getElementById('modalCatDetailBody').innerHTML = `
+        ${desc ? `<p style="color:var(--color-text-secondary);font-size:13px;line-height:1.65;margin-bottom:18px;">${escapeHtml(desc)}</p>` : ''}
+        <div style="margin-bottom:18px;">
+            <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;">Tags</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">${kwHtml}</div>
+        </div>
+        <div style="margin-bottom:18px;padding-top:16px;border-top:1px solid var(--color-border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.6px;">👤 Candidats par défaut</div>
+                <button onclick="autoSuggestCandidates(${catId})" style="font-size:11px;padding:3px 10px;background:var(--color-surface-2,rgba(255,255,255,0.06));border:1px solid var(--color-border);border-radius:8px;cursor:pointer;" title="Suggérer automatiquement les 2 meilleurs candidats">🔁 Auto</button>
+            </div>
+            <div id="catCandidateSlots_${catId}">
+                ${_catCandidateSlotHtml(cat, 1)}
+                ${_catCandidateSlotHtml(cat, 2)}
+            </div>
+        </div>
+        <div style="padding-top:16px;border-top:1px solid var(--color-border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.6px;">📧 Templates email (.msg)</div>
+                <label style="cursor:pointer;font-size:11px;padding:4px 10px;background:var(--color-surface-2,rgba(255,255,255,0.06));border:1px solid var(--color-border);border-radius:8px;display:flex;align-items:center;gap:4px;" title="Ajouter un template .msg">
+                    📤 Ajouter
+                    <input type="file" accept=".msg,.eml,.oft" style="display:none;" onchange="uploadCatTemplate(${catId}, this)">
+                </label>
+            </div>
+            <div id="catFiles_${catId}" style="font-size:12px;color:var(--color-text-secondary);">
+                <span class="muted">Chargement…</span>
+            </div>
+        </div>
+    `;
+
+    if (window.openModal) window.openModal(modal); else modal.classList.add('active');
+    // Charger / afficher les fichiers depuis le cache ou refetch
+    loadCatFiles(catId);
+}
+
+function closeCatDetail() {
+    const modal = document.getElementById('modalCatDetail');
+    if (modal) {
+        if (window.closeModal) window.closeModal(modal); else modal.classList.remove('active');
+    }
+    __openCatDetailId = null;
 }
 
 async function _loadAllCandidatesCache() {
@@ -473,6 +567,7 @@ async function autoSuggestCandidates(catId) {
             cat.candidate2_role = top2[1]?.role || null;
             const box = document.getElementById(`catCandidateSlots_${catId}`);
             if (box) box.innerHTML = _catCandidateSlotHtml(cat, 1) + _catCandidateSlotHtml(cat, 2);
+            _updateCatCandBadge(catId);
         }
         if (top2.length === 0) showToast('Aucun candidat trouvé pour ces mots-clés', 'warning');
         else showToast(`${top2.length} candidat(s) suggéré(s) automatiquement`, 'success');
@@ -519,6 +614,7 @@ async function confirmCatCandidate(catId, slot, otherId) {
         cat[`candidate${slot}_role`] = picked?.role || null;
         const box = document.getElementById(`catCandidateSlots_${catId}`);
         if (box) box.innerHTML = _catCandidateSlotHtml(cat, 1) + _catCandidateSlotHtml(cat, 2);
+        _updateCatCandBadge(catId);
     }
     showToast('Candidat enregistré', 'success', 2000);
 }
@@ -541,6 +637,7 @@ async function clearCatCandidate(catId, slot) {
         cat[`candidate${slot}_role`] = null;
         const box = document.getElementById(`catCandidateSlots_${catId}`);
         if (box) box.innerHTML = _catCandidateSlotHtml(cat, 1) + _catCandidateSlotHtml(cat, 2);
+        _updateCatCandBadge(catId);
     }
     showToast('Candidat effacé', 'info', 2000);
 }
@@ -858,6 +955,45 @@ async function deleteTemplate() {
     }
 }
 
+// ── Catégories built-in (création automatique si absentes) ─────────────────
+
+const __BUILTIN_CATEGORIES = [
+    {
+        name: 'Simulation_Modélisation',
+        keywords: ['simulation', 'modélisation', 'matlab', 'simulink', 'ansys', 'altair', 'model-based design', 'mbd', 'éléments finis', 'fem', 'cfd', 'ansys fluent', 'dymola', 'modelica', 'dspace', 'rapid prototyping', 'hil', 'sil', 'validation', 'vérification', 'ferroviaire', 'automobile', 'aéronautique']
+    },
+    {
+        name: 'Electrotechnique_Energie',
+        keywords: ['électrotechnique', 'génie électrique', 'énergie', 'électronique de puissance', 'variateur', 'onduleur', 'convertisseur', 'hta', 'htb', 'poste de transformation', 'transformateur', 'motorisation', 'vfd', 'igbt', 'ups', 'alimentation', 'réseau électrique', 'smartgrid', 'energies renouvelables', 'photovoltaique', 'stockage énergie', 'batterie', 'bms', 'traction électrique', 'ev', 'véhicule électrique']
+    },
+    {
+        name: 'Surete_Fonctionnement_SdF',
+        keywords: ['sûreté de fonctionnement', 'sdf', 'rams', 'fiabilité', 'disponibilité', 'maintenabilité', 'sécurité', 'fmea', 'fmeca', 'hazop', 'fta', 'amdec', 'iec 61508', 'iec 61511', 'en 50128', 'en 50129', 'iso 26262', 'sil', 'asil', 'sécurité fonctionnelle', 'analyse de risque', 'nucléaire', 'ferroviaire', 'certification']
+    }
+];
+
+async function ensureBuiltinCategories() {
+    const existingNames = new Set(__categories.map(c => c.name));
+    const missing = __BUILTIN_CATEGORIES.filter(b => !existingNames.has(b.name));
+    if (!missing.length) return;
+    let created = 0;
+    for (const cat of missing) {
+        try {
+            const res = await fetch('/api/push-categories/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: null, name: cat.name, keywords: cat.keywords })
+            });
+            const data = await res.json();
+            if (data.ok || data.id) created++;
+        } catch (e) {}
+    }
+    if (created > 0) {
+        showToast(`${created} nouvelle(s) catégorie(s) ajoutée(s)`, 'success', 3000);
+        await loadCategories();
+    }
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -884,6 +1020,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnTpl) btnTpl.addEventListener('click', openTemplateManager);
 
     // Onglet Catégories actif par défaut
-    loadCategories();
+    await loadCategories();
     __categoriesLoaded = true;
+    // Créer les catégories built-in manquantes
+    await ensureBuiltinCategories();
 });
