@@ -255,6 +255,13 @@ window.mpClose = function () {
         viewport.innerHTML = '';
         viewport.appendChild(card);
 
+        // Supprimer la classe d'animation après qu'elle soit terminée
+        // (évite que le transform résiduel de fill-mode:both crée un nouveau
+        // containing block pour position:fixed → corrige le décalage dropdown tel)
+        card.addEventListener('animationend', function () {
+            card.classList.remove('mp-entering-next', 'mp-entering-prev', 'mp-entering-init');
+        }, { once: true });
+
         // Status change => date picker
         var statusSelect = card.querySelector('[data-field="statut"]');
         if (statusSelect) {
