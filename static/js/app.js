@@ -8339,15 +8339,22 @@ async function openPushSelectModal(prospectId, channel = 'email') {
     _pushModalUsers = [];
     if (cons1Select && cons2Select) {
         loadPromises.push(
-            fetch('/api/users')
-                .then(res => res.ok ? res.json() : [])
-                .then(users => {
-                    if (Array.isArray(users)) {
+            fetch('/api/users/for-push')
+                .then(res => res.ok ? res.json() : { users: [] })
+                .then(response => {
+                    // /api/users/for-push retourne {ok, users, current_user_id}
+                    const users = Array.isArray(response) ? response : (response?.users || []);
+                    const currentUserId = response?.current_user_id || null;
+                    if (Array.isArray(users) && users.length > 0) {
                         _pushModalUsers = users;
                         const options = '<option value="">Aucun consultant</option>' +
                             users.map(u => `<option value="${u.id}">${escapeHtml(u.display_name || u.username || 'Utilisateur ' + u.id)}</option>`).join('');
                         cons1Select.innerHTML = options;
                         cons2Select.innerHTML = options;
+                        // Pré-sélectionner l'utilisateur connecté comme Consultant 1 par défaut
+                        if (currentUserId) {
+                            cons1Select.value = String(currentUserId);
+                        }
                     } else {
                         cons1Select.innerHTML = '<option value="">Aucun consultant</option>';
                         cons2Select.innerHTML = '<option value="">Aucun consultant</option>';
