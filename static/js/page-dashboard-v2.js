@@ -1092,6 +1092,108 @@ function dv2_renderStats(chartsData) {
     }
   }
 
+  // 5. Top Pushed Consultants (Horizontal Bar) — in Activity card
+  if (chartsData.topPushedConsultants && Array.isArray(chartsData.topPushedConsultants)) {
+    var tpArr = chartsData.topPushedConsultants;
+    var subEl = document.getElementById('dv2TopPushedSub');
+    var canvasTP = document.getElementById('dv2ChartTopPushed');
+    if (canvasTP) {
+      dv2_destroyChart('topPushed');
+      if (!tpArr.length) {
+        var wrap = canvasTP.parentElement;
+        if (wrap) wrap.innerHTML = '<div class="dv2-activity-chart-empty">Aucun push envoye pour le moment</div>';
+        if (subEl) subEl.textContent = '';
+      } else {
+        var tpLabels = tpArr.map(function(x) { return x.name || 'Candidat'; });
+        var tpData = tpArr.map(function(x) { return x.count || 0; });
+        var tpColors = ['#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe', '#f5f3ff'];
+        if (subEl) subEl.textContent = 'Top ' + tpArr.length;
+        _dv2_chartInstances['topPushed'] = new Chart(canvasTP.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: tpLabels,
+            datasets: [{
+              label: 'Push envoyes',
+              data: tpData,
+              backgroundColor: tpColors.slice(0, tpLabels.length),
+              borderRadius: 4,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: 'rgba(0,0,0,0.85)', titleFont: { size: 11 }, bodyFont: { size: 11 }, padding: 8, cornerRadius: 8,
+                callbacks: {
+                  label: function(ctx) { return ctx.parsed.x + ' push envoye' + (ctx.parsed.x > 1 ? 's' : ''); }
+                }
+              }
+            },
+            scales: {
+              x: { beginAtZero: true, grid: { color: cc.grid }, ticks: { font: { size: 10 }, color: cc.textSec, stepSize: 1 } },
+              y: { grid: { display: false }, ticks: { font: { size: 10 }, color: cc.text } }
+            },
+            animation: { duration: 700, easing: 'easeOutQuart' }
+          }
+        });
+      }
+    }
+  }
+
+  // 6. Urgency Distribution (Vertical Bar) — in Priorités IA card
+  if (chartsData.urgencyDistribution && Array.isArray(chartsData.urgencyDistribution)) {
+    var uArr = chartsData.urgencyDistribution;
+    var uSubEl = document.getElementById('dv2UrgencySub');
+    var canvasU = document.getElementById('dv2ChartUrgency');
+    if (canvasU) {
+      dv2_destroyChart('urgency');
+      var uTotal = uArr.reduce(function(s, x) { return s + (x.count || 0); }, 0);
+      if (!uTotal) {
+        var wrapU = canvasU.parentElement;
+        if (wrapU) wrapU.innerHTML = '<div class="dv2-activity-chart-empty">Aucune prochaine action planifiee</div>';
+        if (uSubEl) uSubEl.textContent = '';
+      } else {
+        var uLabels = uArr.map(function(x) { return x.label || ''; });
+        var uData = uArr.map(function(x) { return x.count || 0; });
+        var uColors = ['#ef4444', '#f59e0b', '#3b82f6', '#94a3b8'];
+        if (uSubEl) uSubEl.textContent = uTotal + ' prospects a suivre';
+        _dv2_chartInstances['urgency'] = new Chart(canvasU.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: uLabels,
+            datasets: [{
+              label: 'Prospects',
+              data: uData,
+              backgroundColor: uColors,
+              borderRadius: 6,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: 'rgba(0,0,0,0.85)', titleFont: { size: 11 }, bodyFont: { size: 11 }, padding: 8, cornerRadius: 8,
+                callbacks: {
+                  label: function(ctx) { return ctx.parsed.y + ' prospect' + (ctx.parsed.y > 1 ? 's' : ''); }
+                }
+              }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { font: { size: 10 }, color: cc.text } },
+              y: { beginAtZero: true, grid: { color: cc.grid }, ticks: { font: { size: 10 }, color: cc.textSec, stepSize: 1 } }
+            },
+            animation: { duration: 700, easing: 'easeOutQuart' }
+          }
+        });
+      }
+    }
+  }
+
   // 4. Top Companies (Horizontal Bar) — API returns [{name: "Company", count: 12}]
   if (chartsData.topCompanies && Array.isArray(chartsData.topCompanies)) {
     var tcArr = chartsData.topCompanies;

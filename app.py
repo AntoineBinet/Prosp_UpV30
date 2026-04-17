@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "29.4"
+APP_VERSION = "29.5"
 import os
 import subprocess
 import traceback
@@ -9197,6 +9197,49 @@ def api_stats_charts():
         ).fetchall()
         pert_dist = {str(r["pertinence"]): r["n"] for r in pert_rows}
 
+        # 6) Top consultants pushés (tout l'historique, top 6) — agrège candidate_id1 + candidate_id2
+        top_pushed_rows = conn.execute(
+            """SELECT ca.id AS cid, ca.name AS cname, COUNT(*) AS n FROM (
+                   SELECT l.candidate_id1 AS cid FROM push_logs l
+                     JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=?
+                     WHERE l.candidate_id1 IS NOT NULL
+                   UNION ALL
+                   SELECT l.candidate_id2 AS cid FROM push_logs l
+                     JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=?
+                     WHERE l.candidate_id2 IS NOT NULL
+               ) pc
+               JOIN candidates ca ON ca.id = pc.cid AND ca.owner_id=?
+               GROUP BY ca.id, ca.name
+               ORDER BY n DESC LIMIT 6;""",
+            (uid, uid, uid),
+        ).fetchall()
+        top_pushed = [{"name": r["cname"] or f"Candidat {r['cid']}", "count": r["n"]} for r in top_pushed_rows]
+
+        # 7) Urgence des prospects (répartition pour Priorités IA)
+        urgent_overdue = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') AND nextAction IS NOT NULL AND nextAction!='' AND nextAction<?;",
+            (uid, today_iso),
+        ).fetchone()["n"]
+        urgent_today = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') AND nextAction=?;",
+            (uid, today_iso),
+        ).fetchone()["n"]
+        week_end = (today + datetime.timedelta(days=7)).isoformat()
+        urgent_week = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') AND nextAction>? AND nextAction<=?;",
+            (uid, today_iso, week_end),
+        ).fetchone()["n"]
+        urgent_later = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') AND nextAction>?;",
+            (uid, week_end),
+        ).fetchone()["n"]
+        urgency_dist = [
+            {"label": "En retard", "count": urgent_overdue},
+            {"label": "Aujourd'hui", "count": urgent_today},
+            {"label": "Cette semaine", "count": urgent_week},
+            {"label": "Plus tard", "count": urgent_later},
+        ]
+
     return jsonify({
         "ok": True,
         "statusDistribution": status_dist,
@@ -9205,6 +9248,8 @@ def api_stats_charts():
         "rdvPerMonth": months_rdv,
         "topCompanies": top_comp,
         "pertinenceDistribution": pert_dist,
+        "topPushedConsultants": top_pushed,
+        "urgencyDistribution": urgency_dist,
     })
 
 

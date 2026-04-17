@@ -100,9 +100,20 @@
     <div class="dv2-card-header">
       <h3 class="dv2-card-title">Activite du jour</h3>
     </div>
-    <div class="dv2-heatmap" id="dv2Heatmap"></div>
-    <div class="dv2-feed" id="dv2Feed">
-      <div class="dv2-loading">Chargement...</div>
+    <div class="dv2-activity-split">
+      <div class="dv2-activity-top">
+        <div class="dv2-heatmap" id="dv2Heatmap"></div>
+        <div class="dv2-feed" id="dv2Feed">
+          <div class="dv2-loading">Chargement...</div>
+        </div>
+      </div>
+      <div class="dv2-activity-bottom">
+        <div class="dv2-activity-chart-header">
+          <span class="dv2-activity-chart-title">Consultants les plus pousses</span>
+          <span class="dv2-activity-chart-sub" id="dv2TopPushedSub">Top 6</span>
+        </div>
+        <div class="dv2-activity-chart-wrap"><canvas id="dv2ChartTopPushed"></canvas></div>
+      </div>
     </div>
   </article>
 
@@ -133,6 +144,13 @@
       <div class="dv2-loading">Analyse en cours...</div>
     </div>
     <div class="dv2-insight" id="dv2Insight" style="display:none;"></div>
+    <div class="dv2-priorities-chart">
+      <div class="dv2-activity-chart-header">
+        <span class="dv2-activity-chart-title">Urgence des prospects</span>
+        <span class="dv2-activity-chart-sub" id="dv2UrgencySub"></span>
+      </div>
+      <div class="dv2-priorities-chart-wrap"><canvas id="dv2ChartUrgency"></canvas></div>
+    </div>
   </article>
 
 </div>
