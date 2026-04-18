@@ -153,31 +153,28 @@ function renderIcons(root) {
     var size = parseInt(el.dataset.size, 10) || 16;
     var cls  = el.dataset.cls || '';
 
-    // Rendu immédiat (synchrone) ─────────────────────────────────
-    // Priorité : fichier connu → emoji → SVG inline (dernier recours)
-    var immediate;
-    if (_svgFileCache[name] === true) {
-      immediate = _fileSVGImg(name, size);
-    } else if (EMOJI_FALLBACK[name]) {
-      // Emoji par défaut tant qu'aucun fichier n'est déposé dans icons/
-      immediate = _emojiSpan(name);
-    } else {
-      // Dernier recours : tracé inline (icônes sans emoji défini)
-      immediate = _inlineSVG(name, size, cls);
-    }
+    // Rendu avec fallback emoji si le fichier SVG est absent ──────
+    // <img> pointe vers icons/<name>.svg ; onerror → emoji
+    var emoji = EMOJI_FALLBACK[name] || '';
+    var img = document.createElement('img');
+    img.src     = '/icons/' + name + '.svg';
+    img.width   = size;
+    img.height  = size;
+    img.className = 'icon icon-file';
+    img.setAttribute('aria-hidden', 'true');
+    img.style.cssText = 'display:inline;vertical-align:middle;opacity:.9';
+    img.onerror = function () {
+      var fb = document.createElement('span');
+      fb.setAttribute('aria-hidden', 'true');
+      fb.textContent = emoji || name;
+      img.parentNode && img.parentNode.replaceChild(fb, img);
+    };
 
-    // Insérer un placeholder récupérable pour l'upgrade async
-    var placeholder = document.createElement('span');
-    placeholder.className = 'icon-placeholder';
-    placeholder.setAttribute('data-icon-name', name);
-    placeholder.setAttribute('data-icon-size', size);
-    placeholder.innerHTML = immediate;
-    el.replaceWith(placeholder);
-
-    // Probe fichier en arrière-plan — upgrade vers SVG si trouvé ──
-    if (_svgFileCache[name] === undefined) {
-      _probeFileAndUpgrade(name, size);
-    }
+    var wrap = document.createElement('span');
+    wrap.className = 'icon-placeholder';
+    wrap.setAttribute('data-icon-name', name);
+    wrap.appendChild(img);
+    el.replaceWith(wrap);
   });
 }
 
