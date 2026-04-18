@@ -13,6 +13,10 @@
     <title>{% block title %}Prosp'Up{% endblock %}</title>
 <link rel="stylesheet" href="/static/css/style.css?v={{ static_hash('css/style.css') }}">
 <link rel="stylesheet" href="/static/css/mobile.css?v={{ static_hash('css/mobile.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/icons.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/states.css') }}">
+<script defer src="{{ url_for('static', filename='js/icons.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/states.js') }}"></script>
     {% block extra_head %}{% endblock %}
 </head>
 <body data-page="{% block page_id %}{% endblock %}">
@@ -78,7 +82,7 @@
           <!-- Affichage normal -->
           <div id="userMenuNameDisplay" class="user-menu-name-row">
             <div id="userMenuName" class="user-menu-name"></div>
-            <button type="button" class="user-menu-edit-btn" onclick="_toggleProfileEdit(true)" title="Modifier le profil" aria-label="Modifier le profil">✏️</button>
+            <button type="button" class="user-menu-edit-btn" onclick="_toggleProfileEdit(true)" title="Modifier le profil" aria-label="Modifier le profil"><i data-icon="edit" data-size="14" aria-hidden="true"></i></button>
           </div>
           <!-- Formulaire d'édition inline -->
           <div id="userMenuEditForm" class="user-menu-edit-form" style="display:none;" role="form" aria-label="Modifier le profil">
@@ -110,24 +114,24 @@
         </div>
         <div class="user-menu-divider"></div>
         <div class="user-menu-item" onclick="openUserMenuOption('changePassword')">
-          <span class="user-menu-icon">🔐</span>
+          <span class="user-menu-icon"><i data-icon="settings" data-size="16" aria-hidden="true"></i></span>
           <span>Changer mon mot de passe</span>
         </div>
         <div class="user-menu-item" onclick="window.location.href='/parametres'">
-          <span class="user-menu-icon">⚙️</span>
+          <span class="user-menu-icon"><i data-icon="settings" data-size="16" aria-hidden="true"></i></span>
           <span>Paramètres</span>
         </div>
         <div class="user-menu-item admin-only" onclick="openUserMenuOption('users')" style="display:none;">
-          <span class="user-menu-icon">👥</span>
+          <span class="user-menu-icon"><i data-icon="users" data-size="16" aria-hidden="true"></i></span>
           <span>Gestion utilisateurs</span>
         </div>
         <div class="user-menu-item" onclick="openUserMenuOption('dashboardCustomization')">
-          <span class="user-menu-icon">🖥️</span>
+          <span class="user-menu-icon"><i data-icon="dashboard" data-size="16" aria-hidden="true"></i></span>
           <span>Personnalisation dashboard</span>
         </div>
         <div class="user-menu-divider"></div>
         <div class="user-menu-item" onclick="if(window.AppAuth) AppAuth.logout()">
-          <span class="user-menu-icon">⏻</span>
+          <span class="user-menu-icon"><i data-icon="xCircle" data-size="16" aria-hidden="true"></i></span>
           <span>Déconnexion</span>
         </div>
       </div>

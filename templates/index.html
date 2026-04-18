@@ -45,22 +45,22 @@
                 <input type="text" id="searchInput" placeholder="🔍 Rechercher (nom, entreprise…)" aria-label="Rechercher un prospect" style="width:100%;padding-right:32px;">
                 <button type="button" id="btnClearSearch" class="search-clear-btn" onclick="clearSearchInput()" title="Effacer la recherche" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--color-text-secondary);cursor:pointer;font-size:18px;line-height:1;padding:4px;display:none;">×</button>
             </div>
-            <button class="btn btn-secondary filter-toggle-btn" id="btnToggleFilters" type="button" title="Afficher les filtres" data-help-section="prospects">⚙️ Filtres</button>
+            <button class="btn btn-secondary filter-toggle-btn" id="btnToggleFilters" type="button" title="Afficher les filtres" data-help-section="prospects"><i data-icon="filter" data-size="14" aria-hidden="true"></i><span> Filtres</span></button>
             <!-- Boutons mobile uniquement -->
-            <button class="btn btn-secondary mobile-only prospect-tool-btn" id="btnStackMode" type="button" title="Mode Tinder (cartes)" onclick="startStackMode()" aria-label="Mode Stack Tinder">🃏</button>
-            <button class="btn btn-secondary mobile-only prospect-tool-btn" id="btnGroupByStatus" type="button" title="Grouper par statut" onclick="toggleGroupByStatus()" aria-label="Grouper par statut">⊞</button>
+            <button class="btn btn-secondary mobile-only prospect-tool-btn" id="btnStackMode" type="button" title="Mode Tinder (cartes)" onclick="startStackMode()" aria-label="Mode Stack"><i data-icon="cards" aria-hidden="true"></i></button>
+            <button class="btn btn-secondary mobile-only prospect-tool-btn" id="btnGroupByStatus" type="button" title="Grouper par statut" onclick="toggleGroupByStatus()" aria-label="Grouper par statut"><i data-icon="list" aria-hidden="true"></i></button>
             <div id="activeFilterChips" class="filter-chips-bar"></div>
         </div>
 
         <!-- Barre de filtres rapides par statut (mobile uniquement) — v27.8 -->
         <div class="prospect-status-chips mobile-only" id="prospectStatusChips" role="group" aria-label="Filtres rapides statut">
             <button class="psc-chip psc-chip-active" data-status="" onclick="_setStatusChip(this,'')">Tous</button>
-            <button class="psc-chip psc-chip-urgent" data-status="urgent" onclick="_setStatusChip(this,'urgent')">🔴 Urgents</button>
-            <button class="psc-chip" data-status="À rappeler" onclick="_setStatusChip(this,'À rappeler')">⏳ Rappeler</button>
-            <button class="psc-chip" data-status="Rendez-vous" onclick="_setStatusChip(this,'Rendez-vous')">🤝 RDV</button>
-            <button class="psc-chip" data-status="Appelé" onclick="_setStatusChip(this,'Appelé')">📞 Appelé</button>
-            <button class="psc-chip" data-status="Messagerie" onclick="_setStatusChip(this,'Messagerie')">💬 Messagerie</button>
-            <button class="psc-chip" data-status="Pas intéressé" onclick="_setStatusChip(this,'Pas intéressé')">❌ Pas intéressé</button>
+            <button class="psc-chip psc-chip-urgent" data-status="urgent" onclick="_setStatusChip(this,'urgent')"><i data-icon="alertTri" data-size="12" aria-hidden="true"></i><span> Urgents</span></button>
+            <button class="psc-chip" data-status="À rappeler" onclick="_setStatusChip(this,'À rappeler')"><i data-icon="clock" data-size="12" aria-hidden="true"></i><span> Rappeler</span></button>
+            <button class="psc-chip" data-status="Rendez-vous" onclick="_setStatusChip(this,'Rendez-vous')"><i data-icon="calendar" data-size="12" aria-hidden="true"></i><span> RDV</span></button>
+            <button class="psc-chip" data-status="Appelé" onclick="_setStatusChip(this,'Appelé')"><i data-icon="phone" data-size="12" aria-hidden="true"></i><span> Appelé</span></button>
+            <button class="psc-chip" data-status="Messagerie" onclick="_setStatusChip(this,'Messagerie')"><i data-icon="mail" data-size="12" aria-hidden="true"></i><span> Messagerie</span></button>
+            <button class="psc-chip" data-status="Pas intéressé" onclick="_setStatusChip(this,'Pas intéressé')"><i data-icon="xCircle" data-size="12" aria-hidden="true"></i><span> Pas intéressé</span></button>
         </div>
 
         <div id="filterPanel" class="filter-panel" style="display:none;">
@@ -73,14 +73,14 @@
                     <label class="filter-label">Statut</label>
                     <select id="statusFilter" class="filter-select">
                         <option value="">Tous</option>
-                        <option value="Appelé">📞 Appelé</option>
-                        <option value="Rendez-vous">🤝 Rendez-vous</option>
-                        <option value="Prospecté">🎯 Prospecté</option>
-                        <option value="Messagerie">💬 Messagerie</option>
-                        <option value="À rappeler">📞 À rappeler</option>
-                        <option value="Pas d'actions">✓ Pas d'actions</option>
-                        <option value="Pas intéressé">❌ Pas intéressé</option>
-                        <option value="Prospectés">📋 Prospectés</option>
+                        <option value="Appelé">Appelé</option>
+                        <option value="Rendez-vous">Rendez-vous</option>
+                        <option value="Prospecté">Prospecté</option>
+                        <option value="Messagerie">Messagerie</option>
+                        <option value="À rappeler">À rappeler</option>
+                        <option value="Pas d'actions">Pas d'actions</option>
+                        <option value="Pas intéressé">Pas intéressé</option>
+                        <option value="Prospectés">Prospectés</option>
                     </select>
                 </div>
                 <div class="filter-group">
@@ -98,41 +98,41 @@
                     <label class="filter-label">Téléphone</label>
                     <select id="phoneFilter" class="filter-select">
                         <option value="">Tous</option>
-                        <option value="with">✅ Avec</option>
-                        <option value="without">❌ Sans</option>
+                        <option value="with">Avec</option>
+                        <option value="without">Sans</option>
                     </select>
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">Email</label>
                     <select id="emailFilter" class="filter-select">
                         <option value="">Tous</option>
-                        <option value="with">✅ Avec</option>
-                        <option value="without">❌ Sans</option>
+                        <option value="with">Avec</option>
+                        <option value="without">Sans</option>
                     </select>
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">LinkedIn</label>
                     <select id="linkedinFilter" class="filter-select">
                         <option value="">Tous</option>
-                        <option value="with">✅ Avec</option>
-                        <option value="without">❌ Sans</option>
+                        <option value="with">Avec</option>
+                        <option value="without">Sans</option>
                     </select>
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">Push email</label>
                     <select id="pushFilter" class="filter-select">
                         <option value="">Tous</option>
-                        <option value="sent">✅ Envoyé</option>
-                        <option value="unsent">🕒 Non envoyé</option>
+                        <option value="sent">Envoyé</option>
+                        <option value="unsent">Non envoyé</option>
                     </select>
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">Relance</label>
                     <select id="followupFilter" class="filter-select">
                         <option value="">Toutes</option>
-                        <option value="due">⚠️ À relancer</option>
-                        <option value="has">📅 Avec relance</option>
-                        <option value="none">— Sans relance</option>
+                        <option value="due">À relancer</option>
+                        <option value="has">Avec relance</option>
+                        <option value="none">Sans relance</option>
                     </select>
                 </div>
                 <div class="filter-group">
@@ -155,49 +155,48 @@
             </div>
             <div class="filter-panel-actions">
                 <div class="exclude-wrap" id="excludeWrap">
-                    <button class="btn btn-secondary" type="button" id="excludeToggle" title="Exclure des statuts">🚫 Exclure statuts</button>
+                    <button class="btn btn-secondary" type="button" id="excludeToggle" title="Exclure des statuts"><i data-icon="filter" data-size="14" aria-hidden="true"></i><span> Exclure statuts</span></button>
                     <div class="dropdown-panel" id="excludePanel" style="display:none;">
                         <div class="dropdown-title">Masquer les statuts</div>
-                        <label class="dropdown-item"><input type="checkbox" value="Appelé"> 📞 Appelé</label>
-                        <label class="dropdown-item"><input type="checkbox" value="Rendez-vous"> 🤝 Rendez-vous</label>
-                        <label class="dropdown-item"><input type="checkbox" value="Prospecté"> 🎯 Prospecté</label>
-                        <label class="dropdown-item"><input type="checkbox" value="Messagerie"> 💬 Messagerie</label>
-                        <label class="dropdown-item"><input type="checkbox" value="À rappeler"> 📞 À rappeler</label>
-                        <label class="dropdown-item"><input type="checkbox" value="Pas d'actions"> ✓ Pas d'actions</label>
-                        <label class="dropdown-item"><input type="checkbox" value="Pas intéressé"> ❌ Pas intéressé</label>
-                        <label class="dropdown-item"><input type="checkbox" value="Prospectés"> 📋 Prospectés</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Appelé"> Appelé</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Rendez-vous"> Rendez-vous</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Prospecté"> Prospecté</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Messagerie"> Messagerie</label>
+                        <label class="dropdown-item"><input type="checkbox" value="À rappeler"> À rappeler</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Pas d'actions"> Pas d'actions</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Pas intéressé"> Pas intéressé</label>
+                        <label class="dropdown-item"><input type="checkbox" value="Prospectés"> Prospectés</label>
                         <div class="dropdown-actions">
                             <button class="btn btn-secondary" type="button" id="excludeClear">Tout afficher</button>
                             <button class="btn btn-primary" type="button" id="excludeApply">Appliquer</button>
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-secondary" type="button" id="btnResetFilters">🔄 Réinitialiser</button>
+                <button class="btn btn-secondary" type="button" id="btnResetFilters"><i data-icon="x" data-size="14" aria-hidden="true"></i><span> Réinitialiser</span></button>
                 <span id="filterCount" class="filter-count"></span>
             </div>
         </div>
 
         <div class="toolbar-row">
             <select id="savedViewSelect" title="Vues enregistrées"><option value="">Vues…</option></select>
-            <button class="btn btn-secondary" id="btnSaveView" type="button" title="Enregistrer la vue courante">💾 Vue</button>
-            <button class="btn btn-secondary" id="btnDeleteView" type="button" title="Supprimer la vue sélectionnée">🗑️ Suppr.</button>
-            <button class="btn btn-secondary" onclick="openStatsModal()" aria-label="Statistiques">📊 Stats</button>
+            <button class="btn btn-secondary" id="btnSaveView" type="button" title="Enregistrer la vue courante"><i data-icon="check" data-size="14" aria-hidden="true"></i><span> Vue</span></button>
+            <button class="btn btn-secondary" id="btnDeleteView" type="button" title="Supprimer la vue sélectionnée"><i data-icon="trash" data-size="14" aria-hidden="true"></i><span> Suppr.</span></button>
+            <button class="btn btn-secondary" onclick="openStatsModal()" aria-label="Statistiques"><i data-icon="chart" data-size="14" aria-hidden="true"></i><span> Stats</span></button>
             <div class="export-dropdown" id="exportDropdown">
-            <button class="btn btn-secondary" type="button" onclick="this.parentElement.classList.toggle('open')" aria-label="Exporter les données">⬇️ Export</button>
+            <button class="btn btn-secondary" type="button" onclick="this.parentElement.classList.toggle('open')" aria-label="Exporter les données"><i data-icon="download" data-size="14" aria-hidden="true"></i><span> Export</span></button>
             <div class="export-dropdown-menu">
-                <button class="export-dropdown-item" onclick="window.location.href='/api/export/xlsx'">📊 Export Excel</button>
-                <button class="export-dropdown-item" onclick="exportCurrentViewCSV()">📄 Export CSV</button>
-                <button class="export-dropdown-item" onclick="exportCurrentViewJSON()">📋 Export JSON</button>
-                <button class="export-dropdown-item" onclick="printCurrentView()">🖨️ Imprimer</button>
+                <button class="export-dropdown-item" onclick="window.location.href='/api/export/xlsx'"><i data-icon="file" data-size="14" aria-hidden="true"></i> Export Excel</button>
+                <button class="export-dropdown-item" onclick="exportCurrentViewCSV()"><i data-icon="file" data-size="14" aria-hidden="true"></i> Export CSV</button>
+                <button class="export-dropdown-item" onclick="exportCurrentViewJSON()"><i data-icon="file" data-size="14" aria-hidden="true"></i> Export JSON</button>
+                <button class="export-dropdown-item" onclick="printCurrentView()"><i data-icon="send" data-size="14" aria-hidden="true"></i> Imprimer</button>
             </div>
             </div>
-            <button class="btn btn-secondary" onclick="openImportListModal()" title="Importer Excel ou CSV" data-help-section="parametres">📥 Importer ma liste</button>
-            <button class="btn btn-primary" onclick="openQuickAddModal()" title="Ajouter un prospect, entreprise ou candidat (IA ou manuel)" data-help-section="scrapping-ia">➕ Ajouter</button>
-            <button class="btn btn-primary mode-prosp-btn" id="btnModeProsp" type="button" onclick="launchModeProsp()" title="Ouvrir le Mode Prosp dans un nouvel onglet">🃏 Mode Prosp</button>
+            <button class="btn btn-secondary" onclick="openImportListModal()" title="Importer Excel ou CSV" data-help-section="parametres"><i data-icon="upload" data-size="14" aria-hidden="true"></i><span> Importer ma liste</span></button>
+            <button class="btn btn-primary" onclick="openQuickAddModal()" title="Ajouter un prospect, entreprise ou candidat (IA ou manuel)" data-help-section="scrapping-ia"><i data-icon="plus" data-size="14" aria-hidden="true"></i><span> Ajouter</span></button>
+            <button class="btn btn-primary mode-prosp-btn" id="btnModeProsp" type="button" onclick="launchModeProsp()" title="Ouvrir le Mode Prosp dans un nouvel onglet"><i data-icon="cards" data-size="14" aria-hidden="true"></i><span> Mode Prosp</span></button>
             <div class="view-toggle" id="viewToggle">
-                <button class="view-toggle-btn active" id="btnViewTable" onclick="switchTableKanban('table')" title="Vue tableau">☰ <span class="view-count" id="viewCountTable">0</span></button>
-
-                <button class="view-toggle-btn" id="btnViewKanban" onclick="switchTableKanban('kanban')" title="Vue Kanban">▦ <span class="view-count" id="viewCountKanban">0</span></button>
+                <button class="view-toggle-btn active" id="btnViewTable" onclick="switchTableKanban('table')" title="Vue tableau"><i data-icon="list" data-size="14" aria-hidden="true"></i> <span class="view-count" id="viewCountTable">0</span></button>
+                <button class="view-toggle-btn" id="btnViewKanban" onclick="switchTableKanban('kanban')" title="Vue Kanban"><i data-icon="grid" data-size="14" aria-hidden="true"></i> <span class="view-count" id="viewCountKanban">0</span></button>
             </div>
         </div>
 
@@ -209,13 +208,13 @@
             <div class="bulk-right">
                 <select id="bulkStatus">
                     <option value="">Changer statut...</option>
-                    <option value="Appelé">📞 Appelé</option>
-                    <option value="Rendez-vous">🤝 Rendez-vous</option>
-                    <option value="Prospecté">🎯 Prospecté</option>
-                    <option value="Messagerie">💬 Messagerie</option>
-                    <option value="À rappeler">📞 À rappeler</option>
-                    <option value="Pas d'actions">✓ Pas d'actions</option>
-                    <option value="Pas intéressé">❌ Pas intéressé</option>
+                    <option value="Appelé">Appelé</option>
+                    <option value="Rendez-vous">Rendez-vous</option>
+                    <option value="Prospecté">Prospecté</option>
+                    <option value="Messagerie">Messagerie</option>
+                    <option value="À rappeler">À rappeler</option>
+                    <option value="Pas d'actions">Pas d'actions</option>
+                    <option value="Pas intéressé">Pas intéressé</option>
                 </select>
                 <button class="btn btn-primary" onclick="applyBulkStatus()">Appliquer</button>
 
@@ -242,19 +241,19 @@
                     <option value="date">Date...</option>
                 </select>
                 <input type="date" id="bulkRelanceDate" style="display:none; width:140px;" title="Date de relance">
-                <button class="btn btn-primary" onclick="applyBulkRelance()">📅 Relance</button>
-                <button class="btn btn-secondary" onclick="applyBulkRelanceDone()" title="Vider la date de relance pour les sélectionnés">✓ Relance faite</button>
+                <button class="btn btn-primary" onclick="applyBulkRelance()"><i data-icon="calendar" data-size="14" aria-hidden="true"></i><span> Relance</span></button>
+                <button class="btn btn-secondary" onclick="applyBulkRelanceDone()" title="Vider la date de relance pour les sélectionnés"><i data-icon="check" data-size="14" aria-hidden="true"></i><span> Relance faite</span></button>
 
-                <button class="btn btn-secondary" onclick="exportSelectedJSON()">⬇️ Export JSON</button>
-                <button class="btn btn-secondary" onclick="exportSelectedCSV()">⬇️ Export CSV</button>
-                <button class="btn btn-secondary" onclick="exportSelectedVCF()">📇 Export VCF</button>
+                <button class="btn btn-secondary" onclick="exportSelectedJSON()"><i data-icon="download" data-size="14" aria-hidden="true"></i><span> Export JSON</span></button>
+                <button class="btn btn-secondary" onclick="exportSelectedCSV()"><i data-icon="download" data-size="14" aria-hidden="true"></i><span> Export CSV</span></button>
+                <button class="btn btn-secondary" onclick="exportSelectedVCF()"><i data-icon="download" data-size="14" aria-hidden="true"></i><span> Export VCF</span></button>
 
-                <button class="btn btn-ia-bulk" onclick="openBulkIAModal('email')" title="Trouver les emails via IA pour les prospects sélectionnés" data-help-section="scrapping-ia">📧 Email IA</button>
-                <button class="btn btn-ia-bulk" onclick="openBulkIAModal('tel')" title="Trouver les téléphones via IA pour les prospects sélectionnés" data-help-section="scrapping-ia">📞 Tel IA</button>
-                <button class="btn btn-ia-bulk" onclick="bulkEnrichWithIA()" title="Enrichir les fiches sélectionnées via recherche web IA (Tavily + Ollama)" data-help-section="scrapping-ia">🌐 Enrichir IA</button>
+                <button class="btn btn-ia-bulk" onclick="openBulkIAModal('email')" title="Trouver les emails via IA pour les prospects sélectionnés" data-help-section="scrapping-ia"><i data-icon="mail" data-size="14" aria-hidden="true"></i><span> Email IA</span></button>
+                <button class="btn btn-ia-bulk" onclick="openBulkIAModal('tel')" title="Trouver les téléphones via IA pour les prospects sélectionnés" data-help-section="scrapping-ia"><i data-icon="phone" data-size="14" aria-hidden="true"></i><span> Tel IA</span></button>
+                <button class="btn btn-ia-bulk" onclick="bulkEnrichWithIA()" title="Enrichir les fiches sélectionnées via recherche web IA (Tavily + Ollama)" data-help-section="scrapping-ia"><i data-icon="external" data-size="14" aria-hidden="true"></i><span> Enrichir IA</span></button>
 
-                <button class="btn btn-primary" onclick="openBulkEditModal()">✏️ Modifier en masse</button>
-                <button class="btn btn-danger" onclick="deleteSelectedProspects()">🗑️ Supprimer</button>
+                <button class="btn btn-primary" onclick="openBulkEditModal()"><i data-icon="edit" data-size="14" aria-hidden="true"></i><span> Modifier en masse</span></button>
+                <button class="btn btn-danger" onclick="deleteSelectedProspects()"><i data-icon="trash" data-size="14" aria-hidden="true"></i><span> Supprimer</span></button>
             </div>
         </div>
 

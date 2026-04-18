@@ -17,9 +17,9 @@
     <button class="tab" id="tabMission" type="button">En mission / Contrat</button>
     <button class="tab" id="tabArchive" type="button">Archivés / Refusés</button>
     <button class="tab" id="tabHorsAura" type="button">Hors Aura</button>
-    <button class="tab" id="tabSettings" type="button">⚙️ Paramètres</button>
+    <button class="tab" id="tabSettings" type="button"><i data-icon="settings" data-size="14" aria-hidden="true"></i><span> Paramètres</span></button>
   </div>
-  <button class="btn btn-primary" id="btnAddCandidate">➕ Ajouter</button>
+  <button class="btn btn-primary" id="btnAddCandidate"><i data-icon="plus" data-size="14" aria-hidden="true"></i><span> Ajouter</span></button>
 </div>
 
 <!-- Pipeline -->
@@ -37,7 +37,7 @@
       </optgroup>
     </select>
     <input id="candSkillsFilter" type="text" placeholder="🎯 Filtrer compétences (ex: RTOS, AUTOSAR)" />
-    <a class="btn btn-secondary btn-link-inline" href="/api/candidates/export.csv" target="_blank">⬇️ Export CSV</a>
+    <a class="btn btn-secondary btn-link-inline" href="/api/candidates/export.csv" target="_blank"><i data-icon="download" data-size="14" aria-hidden="true"></i><span> Export CSV</span></a>
   </div>
 
   <!-- Barre d'actions en masse -->
@@ -72,7 +72,7 @@
         </optgroup>
       </select>
       <button class="btn btn-primary" onclick="applyBulkCandidateStatus()">Appliquer</button>
-      <button class="btn btn-danger" onclick="deleteSelectedCandidates()">🗑️ Supprimer</button>
+      <button class="btn btn-danger" onclick="deleteSelectedCandidates()"><i data-icon="trash" data-size="14" aria-hidden="true"></i><span> Supprimer</span></button>
     </div>
   </div>
 
@@ -262,8 +262,8 @@
         placeholder="Laissez vide pour utiliser le prompt par défaut intégré."
         style="width:100%; box-sizing:border-box; font-family:monospace; font-size:12px; line-height:1.5; resize:vertical;"></textarea>
       <div style="margin-top:8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <button class="btn btn-secondary btn-sm" onclick="resetPromptToDefault()">↩️ Réinitialiser (vider)</button>
-        <button class="btn btn-secondary btn-sm" onclick="showDefaultPrompt()">👁 Voir le prompt par défaut</button>
+        <button class="btn btn-secondary btn-sm" onclick="resetPromptToDefault()"><i data-icon="x" data-size="14" aria-hidden="true"></i><span> Réinitialiser (vider)</span></button>
+        <button class="btn btn-secondary btn-sm" onclick="showDefaultPrompt()"><i data-icon="info" data-size="14" aria-hidden="true"></i><span> Voir le prompt par défaut</span></button>
       </div>
     </div>
 
@@ -276,7 +276,7 @@
       </div>
     </div>
 
-    <button class="btn btn-primary" onclick="saveSettingsTab()" id="btnSaveSettings">💾 Enregistrer les paramètres</button>
+    <button class="btn btn-primary" onclick="saveSettingsTab()" id="btnSaveSettings"><i data-icon="check" data-size="14" aria-hidden="true"></i><span> Enregistrer les paramètres</span></button>
 
     <div style="margin-top:28px; padding-top:22px; border-top:1px solid var(--color-border);">
       <div style="font-weight:700; font-size:15px; margin-bottom:6px;">🚀 Génération en masse</div>

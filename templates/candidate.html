@@ -27,12 +27,12 @@
   </div>
 
   <div class="controls" style="justify-content:flex-end;">
-    <button class="btn btn-secondary" onclick="copyCandidateForTeams()" title="Copier le profil formaté pour Teams">📋 Teams</button>
-    <a id="btnOpenLinkedIn" class="btn btn-secondary" target="_blank" rel="noopener" href="#">🔗 LinkedIn</a>
-    <a id="btnOpenOneNote" class="btn btn-secondary" target="_blank" rel="noopener" href="#">📝 OneNote</a>
-    <a id="btnOpenVSA" class="btn btn-secondary" target="_blank" rel="noopener" href="#" style="display:none;">🧭 VSA</a>
-    <span id="btnVSAEmpty" class="btn btn-secondary" style="opacity:0.4;cursor:default;display:none;" title="Aucun lien VSA renseigné">🧭 VSA</span>
-    <a class="btn btn-secondary" href="/sourcing" style="text-decoration:none;">⬅️ Retour</a>
+    <button class="btn btn-secondary" onclick="copyCandidateForTeams()" title="Copier le profil formaté pour Teams"><i data-icon="copy" data-size="14" aria-hidden="true"></i><span> Teams</span></button>
+    <a id="btnOpenLinkedIn" class="btn btn-secondary" target="_blank" rel="noopener" href="#"><i data-icon="linkedin" data-size="14" aria-hidden="true"></i><span> LinkedIn</span></a>
+    <a id="btnOpenOneNote" class="btn btn-secondary" target="_blank" rel="noopener" href="#"><i data-icon="note" data-size="14" aria-hidden="true"></i><span> OneNote</span></a>
+    <a id="btnOpenVSA" class="btn btn-secondary" target="_blank" rel="noopener" href="#" style="display:none;"><i data-icon="external" data-size="14" aria-hidden="true"></i><span> VSA</span></a>
+    <span id="btnVSAEmpty" class="btn btn-secondary" style="opacity:0.4;cursor:default;display:none;" title="Aucun lien VSA renseigné"><i data-icon="external" data-size="14" aria-hidden="true"></i><span> VSA</span></span>
+    <a class="btn btn-secondary" href="/sourcing" style="text-decoration:none;"><i data-icon="chevronL" data-size="14" aria-hidden="true"></i><span> Retour</span></a>
   </div>
 </div>
 
@@ -44,9 +44,9 @@
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
     <div style="font-weight:800; font-size:17px;">📋 Informations</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <button class="btn btn-secondary" onclick="document.getElementById('ficheEntretienInputGlobal').click()" style="font-size:12px;" title="Importer une fiche entretien Excel via Ollama">📊 Importer fiche Excel</button>
-      <button class="btn btn-secondary" id="btnArchiveView" onclick="archiveCandidate()" style="font-size:13px;">📦 Archiver</button>
-      <button class="btn btn-primary" id="btnEditMode" onclick="switchToEditMode()">✏️ Modifier tout</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('ficheEntretienInputGlobal').click()" style="font-size:12px;" title="Importer une fiche entretien Excel via Ollama"><i data-icon="upload" data-size="14" aria-hidden="true"></i><span> Importer fiche Excel</span></button>
+      <button class="btn btn-secondary" id="btnArchiveView" onclick="archiveCandidate()" style="font-size:13px;"><i data-icon="archive" data-size="14" aria-hidden="true"></i><span> Archiver</span></button>
+      <button class="btn btn-primary" id="btnEditMode" onclick="switchToEditMode()"><i data-icon="edit" data-size="14" aria-hidden="true"></i><span> Modifier tout</span></button>
     </div>
   </div>
 
@@ -57,7 +57,7 @@
   <div style="margin-top:18px;" id="viewEntretienSection">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
       <div style="font-weight:700; font-size:15px;">📋 Données entretien</div>
-      <button class="btn btn-secondary btn-sm" onclick="startInlineEditEntretienAdd()" style="font-size:11px;" title="Ajouter un champ manquant">➕ Ajouter un champ</button>
+      <button class="btn btn-secondary btn-sm" onclick="startInlineEditEntretienAdd()" style="font-size:11px;" title="Ajouter un champ manquant"><i data-icon="plus" data-size="12" aria-hidden="true"></i><span> Ajouter un champ</span></button>
     </div>
 
     <!-- Zone d'import fiche entretien -->
@@ -67,10 +67,10 @@
       <div class="muted" style="font-size:12px; margin-bottom:12px;">L'IA extrait automatiquement toutes les informations du candidat depuis votre fiche d'entretien Up Technologies.</div>
       <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
         <label class="btn btn-primary" style="cursor:pointer; margin:0;">
-          📂 Sélectionner la fiche Excel
+          <i data-icon="upload" data-size="14" aria-hidden="true"></i><span> Sélectionner la fiche Excel</span>
           <input type="file" id="ficheEntretienInputZone" accept=".xlsx,.xls" style="display:none;" onchange="parseFicheEntretien(this)">
         </label>
-        <a class="btn btn-secondary" href="/api/candidates/fiche-entretien-template" download style="text-decoration:none; font-size:13px;">📥 Télécharger le modèle</a>
+        <a class="btn btn-secondary" href="/api/candidates/fiche-entretien-template" download style="text-decoration:none; font-size:13px;"><i data-icon="download" data-size="14" aria-hidden="true"></i><span> Télécharger le modèle</span></a>
       </div>
     </div>
 
@@ -112,7 +112,7 @@
     <div style="font-weight:800; font-size:17px;">✏️ Modifier candidat</div>
     <div style="display:flex; gap:8px; align-items:center;">
       <span id="autoSaveStatus" class="muted" style="font-size:12px;">—</span>
-      <button class="btn btn-secondary" type="button" onclick="switchToViewMode()">👁️ Vue lecture</button>
+      <button class="btn btn-secondary" type="button" onclick="switchToViewMode()"><i data-icon="info" data-size="14" aria-hidden="true"></i><span> Vue lecture</span></button>
     </div>
   </div>
   <form id="candidateForm">

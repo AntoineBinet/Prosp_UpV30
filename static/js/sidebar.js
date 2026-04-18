@@ -8,34 +8,34 @@
     // ── Navigation structure ──────────────────────────────────────
     var NAV = [
         { group: 'Prospection', items: [
-            { href: '/dashboard',   icon: '\uD83D\uDCCA', label: 'Dashboard',   page: 'dashboard',   helpSection: 'dashboard' },
-            { href: '/',            icon: '\uD83D\uDC65', label: 'Prospects',    page: 'prospects',  helpSection: 'prospects' },
-            { href: '/entreprises', icon: '\uD83D\uDCCD', label: 'Entreprises',  page: 'companies',  helpSection: 'entreprises' },
-            { href: '/focus',       icon: '\uD83C\uDFAF', label: 'Focus',        page: 'focus',      helpSection: 'focus' }
+            { href: '/dashboard',   icon: 'dashboard', label: 'Dashboard',   page: 'dashboard',   helpSection: 'dashboard' },
+            { href: '/',            icon: 'users',     label: 'Prospects',   page: 'prospects',   helpSection: 'prospects' },
+            { href: '/entreprises', icon: 'building',  label: 'Entreprises', page: 'companies',   helpSection: 'entreprises' },
+            { href: '/focus',       icon: 'target',    label: 'Focus',       page: 'focus',       helpSection: 'focus' }
         ]},
         { group: 'Actions', items: [
-            { href: '/sourcing',  icon: '\uD83E\uDDF2', label: 'Candidats',         page: 'sourcing',  helpSection: 'sourcing' },
-            { href: '/calendrier',  icon: '\uD83D\uDCC5', label: 'Calendrier',   page: 'calendar',   helpSection: 'calendrier' },
-            { href: '/collab',      icon: '\uD83D\uDC65', label: 'Collaboration', page: 'collab',     helpSection: 'collab' }
+            { href: '/sourcing',    icon: 'search',    label: 'Candidats',    page: 'sourcing',   helpSection: 'sourcing' },
+            { href: '/calendrier',  icon: 'calendar',  label: 'Calendrier',   page: 'calendar',   helpSection: 'calendrier' },
+            { href: '/collab',      icon: 'users',     label: 'Collaboration',page: 'collab',     helpSection: 'collab' }
         ]},
         { group: 'Analyse', items: [
-            { href: '/stats',   icon: '\uD83D\uDCC8', label: 'Stats',   page: 'stats',   helpSection: 'stats' },
-            { href: '/rapport', icon: '\uD83D\uDCCB', label: 'Rapport', page: 'rapport', helpSection: 'rapport' }
+            { href: '/stats',   icon: 'chart', label: 'Stats',   page: 'stats',   helpSection: 'stats' },
+            { href: '/rapport', icon: 'file',  label: 'Rapport', page: 'rapport', helpSection: 'rapport' }
         ]},
         { group: 'Outils', items: [
-            { href: '/parametres', icon: '\u2699\uFE0F', label: 'Param\u00e8tres', page: 'settings', helpSection: 'parametres',
+            { href: '/parametres', icon: 'settings', label: 'Param\u00e8tres', page: 'settings', helpSection: 'parametres',
               children: [
-                  { href: '/duplicates', icon: '\uD83D\uDD00', label: 'Doublons',  page: 'duplicates', helpSection: 'doublons' },
-                  { href: '/snapshots',  icon: '\uD83D\uDCBE', label: 'Snapshots', page: 'snapshots',  helpSection: 'snapshots' },
-                  { href: '/metiers',    icon: '\uD83C\uDFD7\uFE0F', label: 'M\u00e9tiers',  page: 'metiers',  helpSection: 'metiers' },
-                  { href: '/users',      icon: '\uD83D\uDC65', label: 'Utilisateurs', page: 'users',   helpSection: 'utilisateurs', adminOnly: true },
-                  { href: '/activity',   icon: '\uD83D\uDCCB', label: 'Journal',   page: 'activity',   helpSection: 'activity', adminOnly: true },
-                  { href: '/help',       icon: '\u2753',       label: 'Aide',      page: 'help',       helpSection: 'raccourcis' }
+                  { href: '/duplicates', icon: 'more',     label: 'Doublons',     page: 'duplicates', helpSection: 'doublons' },
+                  { href: '/snapshots',  icon: 'download', label: 'Snapshots',    page: 'snapshots',  helpSection: 'snapshots' },
+                  { href: '/metiers',    icon: 'settings', label: 'M\u00e9tiers', page: 'metiers',    helpSection: 'metiers' },
+                  { href: '/users',      icon: 'users',    label: 'Utilisateurs', page: 'users',      helpSection: 'utilisateurs', adminOnly: true },
+                  { href: '/activity',   icon: 'file',     label: 'Journal',      page: 'activity',   helpSection: 'activity', adminOnly: true },
+                  { href: '/help',       icon: 'alertTri', label: 'Aide',         page: 'help',       helpSection: 'raccourcis' }
               ]
             },
-            { href: '/push',         icon: '\uD83D\uDCE4', label: 'Push',             page: 'push',         helpSection: 'push' },
-            { href: '/dc-generator', icon: '\uD83D\uDCC4', label: 'DC Generator',    page: 'dc-generator', helpSection: 'dc-generator' },
-            { href: '/?archived=1', icon: '\uD83D\uDCC1', label: 'Archiv\u00e9s', id: 'sidebarArchivedBtn', page: '_archived', helpSection: 'archived' }
+            { href: '/push',         icon: 'send',    label: 'Push',         page: 'push',         helpSection: 'push' },
+            { href: '/dc-generator', icon: 'file',    label: 'DC Generator', page: 'dc-generator', helpSection: 'dc-generator' },
+            { href: '/?archived=1',  icon: 'archive', label: 'Archiv\u00e9s', id: 'sidebarArchivedBtn', page: '_archived', helpSection: 'archived' }
         ]}
     ];
 
@@ -182,7 +182,7 @@
 
         // Title
         var h2 = document.createElement('h2');
-        h2.innerHTML = '\uD83E\uDDED <span class="nav-label">Navigation</span>';
+        h2.innerHTML = '<span class="nav-label">Navigation</span>';
         sidebar.appendChild(h2);
 
         NAV.forEach(function (group) {
@@ -216,7 +216,7 @@
                     // Icône + label wrappés pour le mode sidebar collapsed
                     var iconSpan = document.createElement('span');
                     iconSpan.className = 'nav-icon';
-                    iconSpan.textContent = item.icon;
+                    iconSpan.innerHTML = '<i data-icon="' + item.icon + '" data-size="18" aria-hidden="true"></i>';
                     var labelSpan = document.createElement('span');
                     labelSpan.className = 'nav-label';
                     labelSpan.textContent = '\u00a0' + item.label;
@@ -249,7 +249,12 @@
                         _attachNavLoading(ca, child.href);
                         if (child.helpSection) ca.setAttribute('data-help-section', child.helpSection);
                         if (child.page === currentPage) ca.classList.add('active');
-                        ca.textContent = child.icon + ' ' + child.label;
+                        var caIcon = document.createElement('i');
+                        caIcon.setAttribute('data-icon', child.icon);
+                        caIcon.setAttribute('data-size', '16');
+                        caIcon.setAttribute('aria-hidden', 'true');
+                        ca.appendChild(caIcon);
+                        ca.appendChild(document.createTextNode('\u00a0' + child.label));
                         sub.appendChild(ca);
                     });
 
@@ -283,11 +288,21 @@
                     if (item.helpSection) a.setAttribute('data-help-section', item.helpSection);
                     if (selfActive) a.classList.add('active');
 
-                    a.textContent = item.icon + ' ' + item.label;
+                    var aIcon = document.createElement('i');
+                    aIcon.setAttribute('data-icon', item.icon);
+                    aIcon.setAttribute('data-size', '18');
+                    aIcon.setAttribute('aria-hidden', 'true');
+                    var aLabel = document.createElement('span');
+                    aLabel.className = 'nav-label';
+                    aLabel.textContent = '\u00a0' + item.label;
+                    a.appendChild(aIcon);
+                    a.appendChild(aLabel);
                     sidebar.appendChild(a);
                 }
             });
         });
+
+        if (window.renderIcons) window.renderIcons(sidebar);
     }
 
     // Mobile bottom nav moved to mobile.js

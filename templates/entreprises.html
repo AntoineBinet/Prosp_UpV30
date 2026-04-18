@@ -23,7 +23,7 @@
         <input type="text" id="companySearchInput" placeholder="Rechercher une entreprise..." class="companies-search" aria-label="Rechercher une entreprise">
         <button class="btn btn-primary" onclick="openAddCompanyModal()">Ajouter</button>
         <div class="view-toggle companies-view-toggle" role="group" aria-label="Vue cartes ou liste">
-            <button type="button" class="view-toggle-btn active" id="btnCompaniesViewCards" onclick="switchCompaniesView('cards')" title="Vue cartes">🃏 Cartes</button>
+            <button type="button" class="view-toggle-btn active" id="btnCompaniesViewCards" onclick="switchCompaniesView('cards')" title="Vue cartes"><i data-icon="cards" data-size="14" aria-hidden="true"></i><span> Cartes</span></button>
             <button type="button" class="view-toggle-btn" id="btnCompaniesViewTable" onclick="switchCompaniesView('table')" title="Vue liste">☰ Liste</button>
         </div>
     </div>
@@ -34,7 +34,7 @@
             <button class="btn btn-secondary" onclick="clearCompanySelection()">Tout désélectionner</button>
         </div>
         <div class="bulk-right">
-            <button class="btn btn-primary" onclick="openMergeCompaniesModal()">🔀 Fusionner</button>
+            <button class="btn btn-primary" onclick="openMergeCompaniesModal()"><i data-icon="moreH" data-size="14" aria-hidden="true"></i><span> Fusionner</span></button>
         </div>
     </div>
 

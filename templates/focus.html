@@ -15,7 +15,7 @@
     <span style="font-size:20px;">⚠️</span>
     <div style="flex:1;">
       <strong>Rappel :</strong> Vous n'avez pas encore exporté votre suivi activité cette semaine.
-      <a href="/stats" class="btn btn-primary btn-sm" style="margin-left:10px;">📥 Aller aux Stats</a>
+      <a href="/stats" class="btn btn-primary btn-sm" style="margin-left:10px;"><i data-icon="chart" data-size="14" aria-hidden="true"></i> Aller aux Stats</a>
     </div>
     <button class="mini-action" onclick="this.closest('.card').style.display='none'" title="Masquer">✕</button>
   </div>
@@ -26,8 +26,8 @@
   <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;">
     <div class="dash-card-title">✅ Tâches</div>
     <div style="display:flex; gap:8px;">
-      <button class="btn btn-secondary btn-sm" id="btnShowArchived">📁 Archives</button>
-      <button class="btn btn-primary btn-sm" id="btnAddTask">➕ Ajouter</button>
+      <button class="btn btn-secondary btn-sm" id="btnShowArchived"><i data-icon="archive" data-size="14" aria-hidden="true"></i><span> Archives</span></button>
+      <button class="btn btn-primary btn-sm" id="btnAddTask"><i data-icon="plus" data-size="14" aria-hidden="true"></i><span> Ajouter</span></button>
     </div>
   </div>
   <div id="todoList"><div class="skeleton skeleton-row" style="margin:8px 0"></div><div class="skeleton skeleton-row" style="margin:8px 0"></div><div class="skeleton skeleton-row" style="margin:8px 0"></div></div>
@@ -44,7 +44,7 @@
       <option value="tomorrow">Demain</option>
       <option value="week">Cette semaine</option>
     </select>
-    <button class="btn btn-secondary" id="btnFocusReload">🔄 Actualiser</button>
+    <button class="btn btn-secondary" id="btnFocusReload"><i data-icon="clock" data-size="14" aria-hidden="true"></i><span> Actualiser</span></button>
     <div class="muted" id="focusSummary" style="flex: 999 1 auto; min-width: 240px;"></div>
   </div>
 </div>
@@ -92,7 +92,7 @@
       <input type="hidden" id="taskEditId" value="">
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button class="btn btn-secondary" onclick="closeTaskModal()">Annuler</button>
-        <button class="btn btn-primary" onclick="saveTask()">💾 Enregistrer</button>
+        <button class="btn btn-primary" onclick="saveTask()"><i data-icon="check" data-size="14" aria-hidden="true"></i><span> Enregistrer</span></button>
       </div>
     </div>
   </div>
