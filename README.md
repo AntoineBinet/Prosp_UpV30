@@ -1,25 +1,27 @@
-# ProspUp v21
+# ProspUp v29.7
 
-CRM de prospection et sourcing pour ESN/ingenierie — Up Technologies.
+CRM de prospection et sourcing pour ESN/ingénierie — Up Technologies.
 
-## Fonctionnalites
+## Fonctionnalités
 
-- **Prospects** : gestion centralisee avec fiches enrichies (tags, notes, statuts, scores)
-- **Mode Prosp** : defilement rapide fiche par fiche, optimise mobile (swipe, reprise de session)
-- **Entreprises** : fiches entreprise avec opportunites et evenements
-- **Focus** : file d'actions (relances, rappels) triee par echeance
+- **Prospects** : gestion centralisée avec fiches enrichies (tags, notes, statuts, scores)
+- **Mode Prosp** : défilement rapide fiche par fiche, optimisé mobile (swipe, reprise de session)
+- **Entreprises** : fiches entreprise avec opportunités et évènements
+- **Focus** : file d'actions (relances, rappels) triée par échéance
 - **Calendrier** : vue mensuelle/semaine des RDV et relances
-- **Sourcing** : pipeline candidats avec matching par competences
+- **Sourcing** : pipeline candidats avec matching par compétences
 - **Push** : envoi d'emails/LinkedIn avec templates et suivi
 - **Stats & Rapport** : KPI, graphiques, rapport hebdomadaire exportable
-- **Dashboard** : objectifs gamifies, XP, progression quotidienne/hebdomadaire
+- **Dashboard** : objectifs gamifiés, XP, progression quotidienne/hebdomadaire
+- **IA** : enrichissement prospects via Ollama (local) + Tavily (recherche web)
 - **Multi-utilisateurs** : isolation par `owner_id`, base par utilisateur (`data/user_<id>/`)
 
-## Demarrage rapide
+## Démarrage rapide
 
-### Prerequis
+### Prérequis
 - Python 3.10+
 - pip
+- (Optionnel) Node 18+ pour les tests E2E Playwright
 
 ### Installation
 
@@ -30,78 +32,88 @@ python app.py
 
 Ouvrir http://127.0.0.1:8000 dans le navigateur.
 
-### Windows
+### Windows (simple)
 
-Double-cliquer sur `PROSPUP.bat` — installe les dependances et lance le serveur.
+Double-cliquer sur `PROSPUP.bat` — installe les dépendances et lance serveur + tunnel Cloudflare.
 
-Les mises à jour se font manuellement via le bouton "Mettre à jour et redémarrer" dans les paramètres de l'application (section admin).
+Les mises à jour se font via le bouton **« Mettre à jour et redémarrer »** dans les paramètres de l'application (section admin).
 
-Compte initial : `admin / admin` (a changer immediatement).
+Compte initial : `admin / admin` (à changer immédiatement).
 
-### prospup.work inaccessible depuis l'iPhone ?
+### prospup.work inaccessible ?
 
-L'acces passe par un **tunnel Cloudflare** qui tourne sur le PC. Si le PC est eteint, en veille, ou si les fenetres ProspUp ont ete fermees, le tunnel s'arrete.
-
-- **Relancer tout** : double-cliquer sur `RELANCE.bat` (fermer d'abord les fenetres Serveur + Tunnel si elles sont encore ouvertes).
-- **Le serveur tourne deja** : lancer `RELANCE_TUNNEL_SEUL.bat` pour ne redemarrer que le tunnel.
-- Details : `docs/GUIDE_TUNNEL.md`
+L'accès passe par un **tunnel Cloudflare** qui tourne sur le PC hébergeur.
+Si l'accès est coupé :
+- **Relancer tout** : double-cliquer sur `RELANCE.bat`
+- **Serveur OK, tunnel KO** : `RELANCE_TUNNEL_SEUL.bat`
+- Détails : [docs/GUIDE_TUNNEL.md](docs/GUIDE_TUNNEL.md)
 
 ## Structure du projet
 
 ```
-ProspUp v21/
-  app.py                 # Backend Flask (routes, auth, API, DB)
-  index.html             # Page Prospects (principale)
-  login.html             # Page de connexion
-  dashboard.html         # Tableau de bord
-  entreprises.html       # Gestion entreprises
-  focus.html             # File d'actions (relances)
-  calendrier.html        # Calendrier RDV/relances
-  sourcing.html          # Pipeline candidats
-  push.html              # Historique push emails/LinkedIn
-  templates.html         # Categories push
-  stats.html             # Statistiques
-  rapport.html           # Rapport hebdomadaire
-  parametres.html        # Parametres & export
-  users.html             # Gestion utilisateurs (admin)
-  static/
-    css/style.css         # Feuille de style unique
-    js/app.js             # JS principal (auth, data, mode Prosp)
-    js/page-*.js          # Scripts specifiques par page
-  services/
-    dashboard_goals.py    # Logique objectifs/gamification
-  docs/
-    README.md             # Documentation detaillee
-    CHANGELOG_v21.md      # Changelog v21
-    MODE_EMPLOI.md        # Guide utilisateur
-    GUIDE_TUNNEL.md       # Acces distant (Cloudflare)
-  tests/                  # Tests automatises (pytest)
-  pushs/                  # Templates push par categorie
-  data/                   # Bases utilisateurs (runtime)
-  snapshots/              # Sauvegardes DB (runtime)
-  initial_data.json       # Donnees de demarrage (seed)
-  requirements.txt        # Dependances Python
-  PROSPUP.bat             # Lanceur Windows
+Prosp_UpV25/
+├── app.py                 # Backend Flask (~17500 lignes) — routes, API, auth, DB
+├── routes/                # Blueprints (ai.py, auth.py, deploy.py)
+├── services/              # Logique métier (dashboard_goals.py)
+├── templates/             # 20 pages HTML (Jinja2)
+├── static/
+│   ├── css/               # style.css, mobile.css, mode-prosp.css, dashboard-v2.css
+│   └── js/                # app.js + page-*.js (un fichier par page)
+├── scripts/               # Outils admin (supervisor, audit, watchdog…)
+├── tests/
+│   ├── e2e/               # Tests Playwright (14 specs desktop + mobile)
+│   └── test_*.py          # Tests pytest (API, services)
+├── docs/                  # Documentation
+├── sample/                # Templates Word (dossier compétence)
+├── pushs/                 # Templates push par catégorie (built-in + custom)
+├── data/                  # Runtime — user DBs, photos, avatars (gitignored)
+├── snapshots/             # Sauvegardes manuelles DB (gitignored)
+├── backups/               # Sauvegardes auto DB (gitignored)
+├── requirements.txt       # Dépendances Python
+├── package.json           # Dépendances Node (Playwright uniquement)
+├── playwright.config.js   # Config tests E2E
+└── PROSPUP.bat            # Lanceur Windows
 ```
 
-## Multi-utilisateurs (resume direction)
+## Stack technique
 
-- Chaque API metier est protegee par l'utilisateur connecte (`_uid()`).
-- Les requetes de lecture/ecriture critiques filtrent les donnees par `owner_id`.
-- La creation de compte initialise une base dediee `data/user_<id>/prospects.db`.
-- Resultat : un utilisateur ne voit/modifie pas les prospects/candidats d'un autre.
+- **Backend** : Flask + SQLite + Waitress (prod), ReportLab (PDF), python-docx (DOCX)
+- **Frontend** : Vanilla JS (no framework), Chart.js (stats uniquement), xlsx.js (import Excel)
+- **CSS** : Glassmorphism dark theme + light via `prefers-color-scheme`
+- **PWA** : Service Worker + manifest + offline.html
+- **Hébergement** : PC local + tunnel Cloudflare → prospup.work, port 8000
+- **Tests** : Playwright (Chromium desktop + Pixel 5 mobile)
 
-## Changelog v21
+## Multi-utilisateurs (résumé)
 
-Voir `docs/CHANGELOG_v21.md` pour le detail :
-1. Mode Prosp mobile (defilement + reprise session avec fallback lastContact)
-2. Revue visuelle (CSS harmonise, tables en cartes mobile, touch targets 44px)
-3. Isolation multi-utilisateur (12+ endpoints securises, owner_id strict)
-4. Depot propre (restructuration racine, .gitignore, version 21.0)
+- Chaque API métier filtre par `_uid()` (session cookie ou JWT Bearer).
+- Lecture/écriture filtrent par `owner_id`.
+- Création de compte → base dédiée `data/user_<id>/prospects.db`.
+- Rôles : `admin` (3) et `editor` (2).
+
+## IA (Ollama + Tavily)
+
+- **Ollama** (local, gratuit) : génération de texte. Proxy vers `http://127.0.0.1:11434`.
+- **Tavily** (cloud, optionnel) : recherche web pour enrichir les prompts. ~0.005$/recherche.
+- Config : Paramètres > Configuration IA (admin). Persistée dans `data/ai_config.json` (gitignored).
+
+## Commandes utiles
+
+```bash
+python app.py                      # Dev server (port 8000, debug=True)
+python app.py --prod                # Prod avec Waitress
+python scripts/supervise_prospup.py # Superviseur : crash loop detection + rollback
+npx playwright test                 # Tests E2E
+python minify.py                    # Minification CSS/JS (optionnel)
+```
 
 ## Documentation
 
-- `docs/README.md` — Documentation detaillee
-- `docs/CHANGELOG_v21.md` — Changelog v21
-- `docs/MODE_EMPLOI.md` — Guide utilisateur
-- `docs/GUIDE_TUNNEL.md` — Acces distant (Cloudflare)
+- [CLAUDE.md](CLAUDE.md) — Référence technique complète (architecture, conventions, workflow)
+- [docs/MODE_EMPLOI.md](docs/MODE_EMPLOI.md) — Guide utilisateur
+- [docs/GUIDE_TUNNEL.md](docs/GUIDE_TUNNEL.md) — Accès distant Cloudflare
+- [docs/DEPLOY_UPDATE.md](docs/DEPLOY_UPDATE.md) — Flux de mise à jour
+- [docs/MISE_A_JOUR_PC_HEBERGEUR.md](docs/MISE_A_JOUR_PC_HEBERGEUR.md) — Procédure PC hébergeur
+- [docs/AUDIT_SECURITE.md](docs/AUDIT_SECURITE.md) — Audit sécurité
+- [docs/AUDIT_UI_NAVIGATION.md](docs/AUDIT_UI_NAVIGATION.md) — Audit UI/navigation
+- [docs/AUDIT_MODE_PROSP_ARCHITECTURE.md](docs/AUDIT_MODE_PROSP_ARCHITECTURE.md) — Architecture Mode Prosp

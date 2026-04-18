@@ -1,19 +1,48 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+
+# Node / Playwright
+node_modules/
+test-results/
+playwright-report/
+
+# Secrets & config
 .env
+.env.local
+.secret_key
+scripts/.agent-secret
+scripts/.cursor-api-key
+# User runtime data (avatars, photos, user DBs, AI config)
+data/
+
+# Databases
 *.db
 *.db-shm
 *.db-wal
 *.db-journal
-.secret_key
-scripts/.agent-secret
-scripts/.cursor-api-key
-nul 
-logs/
+
+# Runtime state
 .last_commit_hash
 .rollback_done
-data/ai_config.json
-test-results/
+.supervisor_pid
+.claude/settings.local.json
+
+# Logs
+logs/
+*.log
+!tests/**/*.log
+
+# Generated outputs
 outputs/dossiers/*.pdf
 outputs/dossiers/*.docx
+
+# Local snapshots / backups (manual workflow)
+snapshots/
+backups/
+
+# Misc Windows artefacts
+nul
+Thumbs.db
