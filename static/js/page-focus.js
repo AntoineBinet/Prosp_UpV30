@@ -45,24 +45,36 @@ async function reloadFocus() {
     const container = document.getElementById('focusContainer');
     if (!container) return;
 
-    container.innerHTML = '<div class="card" style="padding:12px 16px;">' +
-        Array(5).fill('<div class="skeleton skeleton-row"></div>').join('') +
-        '</div>';
+    if (window.renderLoading) renderLoading(container, { rows: 5 });
+    else container.innerHTML = ‘<div class="card" style="padding:12px 16px;"><div class="skeleton skeleton-row"></div></div>’;
 
-    const res = await fetch('/api/focus_queue');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    __focusItems = Array.isArray(json) ? json : (Array.isArray(json?.items) ? json.items : []);
+    try {
+        const res = await fetch(‘/api/focus_queue’);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        __focusItems = Array.isArray(json) ? json : (Array.isArray(json?.items) ? json.items : []);
 
-    const items = applyFocusFilter(__focusItems);
+        const items = applyFocusFilter(__focusItems);
 
-    // stats
-    const t = todayISO();
-    const late = __focusItems.filter(x => x.nextFollowUp && x.nextFollowUp < t).length;
-    const dueToday = __focusItems.filter(x => x.nextFollowUp && x.nextFollowUp === t).length;
-    if (summary) summary.textContent = `Total: ${__focusItems.length} · En retard: ${late} · À faire aujourd’hui: ${dueToday}`;
+        // stats
+        const t = todayISO();
+        const late = __focusItems.filter(x => x.nextFollowUp && x.nextFollowUp < t).length;
+        const dueToday = __focusItems.filter(x => x.nextFollowUp && x.nextFollowUp === t).length;
+        if (summary) summary.textContent = `Total: ${__focusItems.length} · En retard: ${late} · À faire aujourd’hui: ${dueToday}`;
 
-    renderFocus(items);
+        renderFocus(items);
+    } catch (err) {
+        if (window.renderError) {
+            renderError(container, {
+                title: ‘Impossible de charger les relances’,
+                desc: ‘Vos brouillons locaux sont sauvegardés. Réessayez dans un instant.’,
+                trace: err.message,
+                onRetry: () => reloadFocus(),
+            });
+        } else {
+            container.innerHTML = ‘<div class="card"><div class="muted">Erreur de chargement. Rechargez la page.</div></div>’;
+        }
+    }
 }
 
 function renderFocus(items) {
@@ -71,7 +83,15 @@ function renderFocus(items) {
     container.innerHTML = '';
 
     if (!items || items.length === 0) {
-        container.innerHTML = '<div class="card"><div class="muted">Aucune relance pour ce filtre.</div></div>';
+        if (window.renderEmpty) {
+            renderEmpty(container, {
+                icon: 'target',
+                title: 'Rien à faire aujourd\'hui',
+                desc: 'Toutes les relances sont à jour. Prenez un café ☕',
+            });
+        } else {
+            container.innerHTML = '<div class="card"><div class="muted">Aucune relance pour ce filtre.</div></div>';
+        }
         return;
     }
 

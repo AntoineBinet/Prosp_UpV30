@@ -293,7 +293,8 @@ function renderCandidateTable() {
     tbody.innerHTML = '';
     if (__candFiltered.length === 0) {
         if (empty) empty.style.display = 'block';
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="padding:0; border:none;"><div class="state" style="padding:32px 16px;"><div class="state-illus"><i data-icon="search" data-size="40"></i></div><h3 class="state-title">Aucun candidat trouvé</h3><p class="state-desc">Aucun résultat pour ces filtres.</p></div></td></tr>';
+        if (window.renderIcons) renderIcons(tbody);
         updateCandidateBulkBar();
         updateCandidateSelectAllState();
         return;
@@ -532,7 +533,8 @@ function renderArchiveTable() {
     tbody.innerHTML = '';
     if (__archiveFiltered.length === 0) {
         if (empty) empty.style.display = 'block';
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="padding:0; border:none;"><div class="state" style="padding:32px 16px;"><div class="state-illus"><i data-icon="search" data-size="40"></i></div><h3 class="state-title">Aucun candidat trouvé</h3><p class="state-desc">Aucun résultat pour ces filtres.</p></div></td></tr>';
+        if (window.renderIcons) renderIcons(tbody);
         return;
     }
     if (empty) empty.style.display = 'none';
@@ -621,7 +623,8 @@ function renderMissionTable() {
     tbody.innerHTML = '';
     if (__missionFiltered.length === 0) {
         if (empty) empty.style.display = 'block';
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="padding:0; border:none;"><div class="state" style="padding:32px 16px;"><div class="state-illus"><i data-icon="search" data-size="40"></i></div><h3 class="state-title">Aucun candidat trouvé</h3><p class="state-desc">Aucun résultat pour ces filtres.</p></div></td></tr>';
+        if (window.renderIcons) renderIcons(tbody);
         return;
     }
     if (empty) empty.style.display = 'none';
@@ -708,7 +711,8 @@ function renderHorsAuraTable() {
     tbody.innerHTML = '';
     if (__horsAuraFiltered.length === 0) {
         if (empty) empty.style.display = 'block';
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="padding:0; border:none;"><div class="state" style="padding:32px 16px;"><div class="state-illus"><i data-icon="search" data-size="40"></i></div><h3 class="state-title">Aucun candidat trouvé</h3><p class="state-desc">Aucun résultat pour ces filtres.</p></div></td></tr>';
+        if (window.renderIcons) renderIcons(tbody);
         return;
     }
     if (empty) empty.style.display = 'none';
@@ -798,7 +802,8 @@ function renderLinkedinTable() {
     tbody.innerHTML = '';
     if (__linkedinFiltered.length === 0) {
         if (empty) empty.style.display = 'block';
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 35px; color: var(--color-text-secondary);">Aucun résultat</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="padding:0; border:none;"><div class="state" style="padding:32px 16px;"><div class="state-illus"><i data-icon="search" data-size="40"></i></div><h3 class="state-title">Aucun candidat trouvé</h3><p class="state-desc">Aucun résultat pour ces filtres.</p></div></td></tr>';
+        if (window.renderIcons) renderIcons(tbody);
         return;
     }
     if (empty) empty.style.display = 'none';

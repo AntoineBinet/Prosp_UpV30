@@ -339,11 +339,20 @@ function _renderModalCatFiles(catId) {
     if (!box) return; // modal non ouverte
     const files = __catFilesData[catId];
     if (files === undefined) {
-        box.innerHTML = '<span class="muted">Chargement…</span>';
+        if (window.renderLoading) renderLoading(box, { rows: 3 });
+        else box.innerHTML = '<span class="muted">Chargement…</span>';
         return;
     }
     if (!files.length) {
-        box.innerHTML = '<span class="muted">Aucun template — cliquez "Ajouter" pour en importer un.</span>';
+        if (window.renderEmpty) {
+            renderEmpty(box, {
+                icon: 'send',
+                title: 'Aucun template',
+                desc: 'Importez un template .msg ou .eml pour commencer.',
+            });
+        } else {
+            box.innerHTML = '<span class="muted">Aucun template — cliquez "Ajouter" pour en importer un.</span>';
+        }
         return;
     }
     box.innerHTML = files.map(f => `
@@ -724,7 +733,9 @@ async function openCatProspects(catId) {
     const title = document.getElementById('modalCatProspectsTitle');
     const cat = __categories.find(c => c.id === catId);
     if (title) title.textContent = `Prospects suggérés — ${cat ? escapeHtml(cat.name) : ''}`;
-    document.getElementById('catProspectsList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);">Chargement…</div>';
+    const _cpList = document.getElementById('catProspectsList');
+    if (window.renderLoading) renderLoading(_cpList, { rows: 4 });
+    else _cpList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);">Chargement…</div>';
     document.getElementById('catProspectsInfo').textContent = '';
     if (window.openModal) window.openModal(modal); else modal.classList.add('active');
     await _fetchAndRenderCatProspects(catId);
@@ -742,7 +753,9 @@ async function refreshCatProspects() {
     if (!__catProspectsCatId) return;
     const btn = document.getElementById('btnRefreshCatProspects');
     if (btn) btn.disabled = true;
-    document.getElementById('catProspectsList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);">Chargement…</div>';
+    const _cpList2 = document.getElementById('catProspectsList');
+    if (window.renderLoading) renderLoading(_cpList2, { rows: 4 });
+    else _cpList2.innerHTML = '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);">Chargement…</div>';
     await _fetchAndRenderCatProspects(__catProspectsCatId);
     if (btn) btn.disabled = false;
 }
@@ -752,12 +765,16 @@ async function _fetchAndRenderCatProspects(catId) {
         const res = await fetch(`/api/push-categories/${catId}/match-prospects`);
         const data = await res.json();
         if (!data.ok) {
-            document.getElementById('catProspectsList').innerHTML = `<div style="color:var(--color-danger,#ef4444);padding:12px;">❌ ${escapeHtml(data.error || 'Erreur')}</div>`;
+            const _el = document.getElementById('catProspectsList');
+            if (window.renderError) renderError(_el, { title: 'Erreur serveur', desc: data.error || 'Réessayez dans un instant.', onRetry: () => _fetchAndRenderCatProspects(catId) });
+            else _el.innerHTML = `<div style="color:var(--color-danger,#ef4444);padding:12px;">${escapeHtml(data.error || 'Erreur')}</div>`;
             return;
         }
         _renderCatProspectsList(data);
     } catch (e) {
-        document.getElementById('catProspectsList').innerHTML = `<div style="color:var(--color-danger,#ef4444);padding:12px;">❌ Erreur réseau : ${escapeHtml(e.message)}</div>`;
+        const _el2 = document.getElementById('catProspectsList');
+        if (window.renderError) renderError(_el2, { title: 'Serveur indisponible.', desc: 'Réessayez dans un instant.', trace: e.message, onRetry: () => _fetchAndRenderCatProspects(catId) });
+        else _el2.innerHTML = `<div style="color:var(--color-danger,#ef4444);padding:12px;">Erreur réseau : ${escapeHtml(e.message)}</div>`;
     }
 }
 
@@ -829,7 +846,9 @@ async function openTemplateManager() {
     const modal = document.getElementById('modalTemplateManager');
     if (!modal) return;
     _tplShowEditor(false);
-    document.getElementById('tplList').innerHTML = '<span class="muted" style="font-size:12px;">Chargement…</span>';
+    const _tplEl = document.getElementById('tplList');
+    if (window.renderLoading) renderLoading(_tplEl, { rows: 3 });
+    else _tplEl.innerHTML = '<span class="muted" style="font-size:12px;">Chargement…</span>';
     if (window.openModal) window.openModal(modal); else modal.classList.add('active');
     await _loadTemplates();
 }
@@ -854,7 +873,8 @@ function _renderTplList() {
     const box = document.getElementById('tplList');
     if (!box) return;
     if (!__templates.length) {
-        box.innerHTML = '<span class="muted" style="font-size:12px;">Aucun template. Créez-en un.</span>';
+        if (window.renderEmpty) renderEmpty(box, { icon: 'send', title: 'Aucun template', desc: 'Créez votre premier template email.' });
+        else box.innerHTML = '<span class="muted" style="font-size:12px;">Aucun template. Créez-en un.</span>';
         return;
     }
     const currentId = document.getElementById('tplId')?.value;
