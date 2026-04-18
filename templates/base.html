@@ -13,10 +13,10 @@
     <title>{% block title %}Prosp'Up{% endblock %}</title>
 <link rel="stylesheet" href="/static/css/style.css?v={{ static_hash('css/style.css') }}">
 <link rel="stylesheet" href="/static/css/mobile.css?v={{ static_hash('css/mobile.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/icons.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/states.css') }}">
-<script defer src="{{ url_for('static', filename='js/icons.js') }}"></script>
-<script defer src="{{ url_for('static', filename='js/states.js') }}"></script>
+<link rel="stylesheet" href="/static/css/icons.css?v={{ static_hash('css/icons.css') }}">
+<link rel="stylesheet" href="/static/css/states.css?v={{ static_hash('css/states.css') }}">
+<script defer src="/static/js/icons.js?v={{ static_hash('js/icons.js') }}"></script>
+<script defer src="/static/js/states.js?v={{ static_hash('js/states.js') }}"></script>
     {% block extra_head %}{% endblock %}
 </head>
 <body data-page="{% block page_id %}{% endblock %}">
@@ -292,7 +292,7 @@
     <!-- Mobile tab bar + FAB (injected by mobile.js) -->
 
     {% block scripts %}
-    <script defer src="/static/js/sidebar.js?v=2000"></script>
+    <script defer src="/static/js/sidebar.js?v={{ static_hash('js/sidebar.js') }}"></script>
     <script defer src="/static/js/v8-features.js?v=2101"></script>
     <script defer src="/static/js/help-shortcut.js?v=2000"></script>
     <script defer src="/static/js/notifications.js?v=2000"></script>
