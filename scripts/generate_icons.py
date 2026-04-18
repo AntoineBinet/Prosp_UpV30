@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
-ICONS_DIR = ROOT / "icons"
+ICONS_DIR = ROOT / "static" / "icons"
 ICONS_DIR.mkdir(exist_ok=True)
 
 # Tracés SVG — synchronisés avec ICON_PATHS dans static/js/icons.js

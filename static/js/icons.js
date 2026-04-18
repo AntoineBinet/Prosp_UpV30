@@ -1,10 +1,13 @@
 /**
  * Prosp'Up — Système d'icônes SVG unifié
  * -----------------------------------------------------------
- * Priorité d'affichage pour chaque <i data-icon="X"> :
- *   1. Fichier  /icons/X.svg  (dossier icons/ à la racine — déposez vos SVG là)
- *   2. Tracé inline ICON_PATHS  (intégré — fonctionne sans fichier)
- *   3. Emoji EMOJI_FALLBACK  (secours absolu)
+ * Chaque <i data-icon="X"> est remplacé par :
+ *   <img src="/static/icons/X.svg">   si le fichier existe
+ *   emoji EMOJI_FALLBACK              sinon (onerror)
+ *
+ * Pour ajouter/remplacer une icône : déposez un fichier SVG dans
+ *   static/icons/<nom>.svg
+ * Voir icons/NOMMAGE.txt pour la liste complète des noms.
  *
  * Usage HTML :
  *   <i data-icon="phone"></i>
@@ -12,16 +15,11 @@
  *   <button aria-label="Appeler"><i data-icon="phone"></i></button>
  *
  * Usage JS :
- *   el.innerHTML = icon('phone', { size: 16 });
- *   renderIcons();           // balaie tout le document
- *   renderIcons(container);  // balaie un sous-arbre
- *
- * Pour ajouter une icône personnalisée :
- *   Déposez  icons/<nom>.svg  à la racine du projet.
- *   Voir  icons/NOMMAGE.txt  pour la liste complète des noms.
+ *   el.innerHTML = window.icon('phone', { size: 16 });
+ *   if (window.renderIcons) renderIcons(container);
  */
 
-// ── 1. Tracés SVG intégrés (fallback si pas de fichier) ───────────
+// ── 1. Tracés SVG inline (utilisés par icon() et comme source pour generate_icons.py) ──
 var ICON_PATHS = {
   // Navigation
   dashboard: '<rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>',
@@ -36,7 +34,6 @@ var ICON_PATHS = {
   archive:   '<rect x="2" y="3" width="20" height="5"/><path d="M4 8v13h16V8M10 12h4"/>',
   settings:  '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   home:      '<path d="M3 10l9-7 9 7v11a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/>',
-
   // Actions
   phone:     '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
   mail:      '<rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/>',
@@ -61,106 +58,72 @@ var ICON_PATHS = {
   chevronU:  '<polyline points="18 15 12 9 6 15"/>',
   external:  '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
   link:      '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
-
-  // Statuts / Feedback
+  // Statuts
   alert:     '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
   alertTri:  '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
   info:      '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
   star:      '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
   bell:      '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
   flag:      '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
-
-  // Social / liens
+  // Social
   linkedin:  '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>',
   note:      '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>',
-
-  // Modes d'affichage
+  // Affichage
   list:      '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
   grid:      '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
   cards:     '<rect x="3" y="6" width="18" height="12" rx="2"/>',
 };
 
-// ── 2. Emojis de secours (affichés si aucun SVG disponible) ───────
+// ── 2. Emojis de secours (affichés si le fichier SVG est absent) ──
 var EMOJI_FALLBACK = {
-  dashboard:   '📊', users:      '👥', building:  '📍',
-  target:      '🎯', search:     '🧲', calendar:  '📅',
-  chart:       '📈', file:       '📋', settings:  '⚙️',
-  send:        '📤', archive:    '📁', more:      '⋮',
-  download:    '💾', alertTri:   '❓', collab:    '👥',
-  plus:        '➕', edit:       '✏️', trash:     '🗑️',
-  check:       '✔',  checkCircle:'✅', x:         '✕',
-  xCircle:     '✕',  clock:      '🔄', filter:    '⚙️',
-  upload:      '📥', phone:      '📞', mail:      '📧',
-  linkedin:    '🔗', note:       '📝', copy:      '📋',
-  external:    '🧭', link:       '🔗', chevronL:  '←',
-  chevronR:    '→',  chevronD:   '▾',  chevronU:  '▴',
-  moreH:       '···', list:      '☰',  grid:      '▦',
-  cards:       '🃏', alert:      '⚠️', info:      '👁',
-  star:        '⭐', bell:       '🔔', flag:      '🚩',
-  home:        '🏠',
+  dashboard:'📊', users:'👥',   building:'📍',  target:'🎯',
+  search:'🧲',    calendar:'📅', chart:'📈',     file:'📋',
+  settings:'⚙️',  send:'📤',    archive:'📁',   more:'⋮',
+  download:'💾',  alertTri:'❓', collab:'👥',    plus:'➕',
+  edit:'✏️',      trash:'🗑️',   check:'✔',      checkCircle:'✅',
+  x:'✕',          xCircle:'✕',  clock:'🔄',     filter:'⚙️',
+  upload:'📥',    phone:'📞',   mail:'📧',       linkedin:'🔗',
+  note:'📝',      copy:'📋',    external:'🧭',   link:'🔗',
+  chevronL:'←',   chevronR:'→', chevronD:'▾',   chevronU:'▴',
+  moreH:'···',    list:'☰',     grid:'▦',        cards:'🃏',
+  alert:'⚠️',     info:'👁',    star:'⭐',       bell:'🔔',
+  flag:'🚩',      home:'🏠',
 };
 
-// ── 3. Cache de disponibilité fichiers (évite les re-requêtes) ────
-// true  = fichier présent  |  false = absent  |  undefined = inconnu
-var _svgFileCache = {};
-
-// ── Helpers internes ──────────────────────────────────────────────
-function _inlineSVG(name, size, cls) {
+// ── 3. Rendu d'une icône (string HTML — synchrone) ─────────────────
+function icon(name, opts) {
+  var size = (opts && opts.size) || 16;
+  var cls  = (opts && opts.cls)  || '';
   var path = ICON_PATHS[name];
-  if (!path) return '';
-  return '<svg class="icon ' + (cls || '') + '" width="' + size + '" height="' + size + '"' +
-         ' viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
-         ' stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"' +
-         ' aria-hidden="true">' + path + '</svg>';
-}
-
-function _emojiSpan(name) {
+  if (path) {
+    return '<svg class="icon ' + cls + '" width="' + size + '" height="' + size + '"' +
+           ' viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
+           ' stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"' +
+           ' aria-hidden="true">' + path + '</svg>';
+  }
   var e = EMOJI_FALLBACK[name];
   return e ? '<span class="icon-emoji" aria-hidden="true">' + e + '</span>' : '';
 }
 
-function _fileSVGImg(name, size) {
-  return '<img src="/icons/' + name + '.svg" class="icon icon-file" width="' + size +
-         '" height="' + size + '" aria-hidden="true"' +
-         ' style="display:inline;vertical-align:middle;opacity:.9">';
-}
-
-// ── 4. Rendu d'une icône (string) ─────────────────────────────────
+// ── 4. renderIcons() — remplace <i data-icon> dans un sous-arbre ──
 /**
- * Rend une icône sous forme de string SVG inline (ou emoji en dernier recours).
- * N'effectue PAS de probe réseau — toujours synchrone.
- * Pour les icônes avec fichier, préférez renderIcons() qui upgrades en arrière-plan.
- */
-function icon(name, opts) {
-  var size = (opts && opts.size) || 16;
-  var cls  = (opts && opts.cls)  || '';
-  if (_svgFileCache[name] === true) return _fileSVGImg(name, size);
-  if (ICON_PATHS[name])             return _inlineSVG(name, size, cls);
-  return _emojiSpan(name);
-}
-
-// ── 5. renderIcons() — remplace <i data-icon> dans un sous-arbre ──
-/**
- * Balaie root et remplace chaque <i data-icon="X"> par son rendu.
- * Affiche immédiatement le SVG inline (ou emoji), puis probe en
- * arrière-plan si un fichier /icons/X.svg existe ; si oui, upgrade.
+ * Balaie root et remplace chaque <i data-icon="X"> par
+ * <img src="/static/icons/X.svg">.
+ * Si le fichier est absent (onerror) → affiche l'emoji EMOJI_FALLBACK.
  * @param {Element|Document} root
  */
 function renderIcons(root) {
   root = root || document;
   root.querySelectorAll('i[data-icon]').forEach(function (el) {
-    var name = el.dataset.icon;
-    var size = parseInt(el.dataset.size, 10) || 16;
-    var cls  = el.dataset.cls || '';
-
-    // Rendu avec fallback emoji si le fichier SVG est absent ──────
-    // <img> pointe vers icons/<name>.svg ; onerror → emoji
+    var name  = el.dataset.icon;
+    var size  = parseInt(el.dataset.size, 10) || 16;
     var emoji = EMOJI_FALLBACK[name] || '';
+
     var img = document.createElement('img');
-    img.src     = '/icons/' + name + '.svg';
-    img.width   = size;
-    img.height  = size;
-    img.className = 'icon icon-file';
+    img.src       = '/static/icons/' + name + '.svg';
+    img.width     = size;
+    img.height    = size;
+    img.className = 'icon';
     img.setAttribute('aria-hidden', 'true');
     img.style.cssText = 'display:inline;vertical-align:middle;opacity:.9';
     img.onerror = function () {
@@ -171,39 +134,13 @@ function renderIcons(root) {
     };
 
     var wrap = document.createElement('span');
-    wrap.className = 'icon-placeholder';
-    wrap.setAttribute('data-icon-name', name);
+    wrap.className = 'icon-wrap';
     wrap.appendChild(img);
     el.replaceWith(wrap);
   });
 }
 
-// Probe silencieuse — met à jour le cache, n'upgrade pas le DOM actuel
-// (les prochains appels à renderIcons utiliseront le cache)
-function _probeFile(name) {
-  var img = new Image();
-  img.onload  = function () { _svgFileCache[name] = true; };
-  img.onerror = function () { _svgFileCache[name] = false; };
-  img.src = '/icons/' + name + '.svg?' + Date.now();
-}
-
-// Probe + upgrade DOM : utilisé quand aucun inline n'est disponible
-function _probeFileAndUpgrade(name, size) {
-  var img = new Image();
-  img.onload = function () {
-    _svgFileCache[name] = true;
-    // Remplacer tous les placeholders de cette icône dans la page
-    document.querySelectorAll('.icon-placeholder[data-icon-name="' + name + '"]')
-      .forEach(function (ph) {
-        var s = parseInt(ph.dataset.iconSize, 10) || size;
-        ph.innerHTML = _fileSVGImg(name, s);
-      });
-  };
-  img.onerror = function () { _svgFileCache[name] = false; };
-  img.src = '/icons/' + name + '.svg?' + Date.now();
-}
-
-// ── 6. Auto-run & exposition globale ─────────────────────────────
+// ── 5. Auto-run & exposition globale ─────────────────────────────
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function () { renderIcons(); });
 } else {

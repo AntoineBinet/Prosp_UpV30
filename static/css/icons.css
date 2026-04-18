@@ -8,8 +8,16 @@
   display: inline-block;
   vertical-align: -0.15em;
   flex-shrink: 0;
-  color: inherit; /* stroke: currentColor */
+  /* Fichiers SVG chargés via <img> : filter pour adapter au thème */
+  filter: brightness(0) invert(1); /* dark mode par défaut : blanc */
 }
+
+/* Light mode : icônes noires */
+@media (prefers-color-scheme: light) {
+  .icon { filter: brightness(0); }
+}
+[data-theme="light"] .icon { filter: brightness(0); }
+[data-theme="dark"]  .icon { filter: brightness(0) invert(1); }
 
 /* Espacement automatique quand l'icône est suivie/précédée de texte */
 .icon + span,
