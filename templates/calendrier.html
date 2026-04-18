@@ -19,7 +19,7 @@
       <option value="month" selected>Mois</option>
       <option value="week">Semaine</option>
     </select>
-    <button class="btn btn-primary" id="calSyncBtn" onclick="document.getElementById('icsFileInput').click()" title="Importer un fichier calendrier .ics">📅 Sync Calendar</button>
+    <button class="btn btn-primary" id="calSyncBtn" onclick="document.getElementById('icsFileInput').click()" title="Importer un fichier calendrier .ics"><i data-icon="calendar" data-size="14" aria-hidden="true"></i> Sync Calendar</button>
     <input type="file" id="icsFileInput" accept=".ics,.ical" style="display:none" onchange="importICSFile(this.files[0])">
   </div>
 </div>

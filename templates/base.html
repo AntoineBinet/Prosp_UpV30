@@ -75,7 +75,7 @@
         <!-- Avatar cliquable pour upload -->
         <div id="userMenuAvatar" class="user-menu-avatar" onclick="_openAvatarUpload()" title="Changer la photo" role="button" tabindex="0">
           <input type="file" id="userMenuAvatarInput" accept=".jpg,.jpeg,.png,.webp" style="display:none" onchange="_uploadUserAvatar(this)">
-          <div class="user-menu-avatar-overlay"><span>📷</span></div>
+          <div class="user-menu-avatar-overlay"><i data-icon="camera" data-size="18" aria-hidden="true"></i></div>
         </div>
         <!-- Infos utilisateur -->
         <div class="user-menu-info">
@@ -141,7 +141,7 @@
     <div id="userMenuChangePasswordModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="userMenuChangePwTitle" style="display:none;">
       <div class="modal-content" style="max-width:480px;">
         <button class="modal-close" onclick="closeUserMenuModal('changePassword')" aria-label="Fermer">×</button>
-        <h2 id="userMenuChangePwTitle">🔐 Changer mon mot de passe</h2>
+        <h2 id="userMenuChangePwTitle"><i data-icon="lock" data-size="16" aria-hidden="true"></i> Changer mon mot de passe</h2>
         <div style="display:grid;gap:12px;margin-top:16px;">
           <div>
             <label class="filter-label">Mot de passe actuel</label>
@@ -167,7 +167,7 @@
     <div id="userMenuUsersModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="userMenuUsersTitle" style="display:none;">
       <div class="modal-content" style="max-width:800px;max-height:90vh;overflow-y:auto;">
         <button class="modal-close" onclick="closeUserMenuModal('users')" aria-label="Fermer">×</button>
-        <h2 id="userMenuUsersTitle">👥 Gestion des Utilisateurs</h2>
+        <h2 id="userMenuUsersTitle"><i data-icon="users" data-size="16" aria-hidden="true"></i> Gestion des Utilisateurs</h2>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;margin-bottom:16px;">
           <div class="content-title">Gestion des Utilisateurs</div>
           <button class="btn btn-primary" onclick="openUserModal()">+ Nouvel utilisateur</button>
@@ -179,11 +179,11 @@
     <div id="userMenuDashboardCustomizationModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="userMenuDashCustomTitle" style="display:none;">
       <div class="modal-content" style="max-width:700px;max-height:90vh;overflow-y:auto;">
         <button class="modal-close" onclick="closeUserMenuModal('dashboardCustomization')" aria-label="Fermer">×</button>
-        <h2 id="userMenuDashCustomTitle">🖥️ Personnalisation de l'affichage</h2>
+        <h2 id="userMenuDashCustomTitle"><i data-icon="dashboard" data-size="16" aria-hidden="true"></i> Personnalisation de l'affichage</h2>
         <p class="muted" style="margin-bottom:10px;margin-top:16px;">Activez ou désactivez des modules et blocs.</p>
         <div class="display-prefs-columns" id="userMenuDisplayPrefsColumns">
           <div class="display-prefs-pane" id="pane-nav" role="tabpanel">
-            <div class="display-prefs-col-title">🧭 Nav</div>
+            <div class="display-prefs-col-title"><i data-icon="mapPin" data-size="14" aria-hidden="true"></i> Nav</div>
             <div class="display-prefs-scroll display-prefs-scroll-compact">
               <div class="settings-group display-prefs-group">
                 <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_dashboard">Dashboard</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_dashboard" checked><span class="slider"></span></label></div>
@@ -199,7 +199,7 @@
             </div>
           </div>
           <div class="display-prefs-pane" id="pane-dashboard" role="tabpanel">
-            <div class="display-prefs-col-title">📊 Dashboard</div>
+            <div class="display-prefs-col-title"><i data-icon="dashboard" data-size="14" aria-hidden="true"></i> Dashboard</div>
             <div class="display-prefs-scroll display-prefs-scroll-compact">
               <div class="settings-group display-prefs-group">
                 <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_relance_banner">Bannière relances</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_relance_banner" checked><span class="slider"></span></label></div>
@@ -217,7 +217,7 @@
             </div>
           </div>
           <div class="display-prefs-pane" id="pane-fiche" role="tabpanel">
-            <div class="display-prefs-col-title">👤 Fiche</div>
+            <div class="display-prefs-col-title"><i data-icon="users" data-size="14" aria-hidden="true"></i> Fiche</div>
             <div class="display-prefs-scroll display-prefs-scroll-compact">
               <div class="settings-group display-prefs-group">
                 <div class="display-pref-row display-pref-row-compact"><label class="display-pref-label" for="userMenu_display_candidate_proposition">Candidats recommandés</label><label class="switch switch-compact"><input type="checkbox" class="display-pref-checkbox" id="userMenu_display_candidate_proposition" checked><span class="slider"></span></label></div>
@@ -255,7 +255,7 @@
             <label class="filter-label" for="uPassword">Mot de passe <span id="pwHint">(requis)</span></label>
             <div class="input-with-toggle">
               <input id="uPassword" name="password" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" minlength="8" pattern="^(?=.*[A-Za-z])(?=.*\d).{8,}$" oninput="updatePwConfirmVisibility()" onblur="validateUserPassword()">
-              <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Afficher / masquer">👁️</button>
+              <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Afficher / masquer"><i data-icon="eye" data-size="14" aria-hidden="true"></i></button>
             </div>
             <span id="pwReqHint" style="font-size:11px;color:var(--color-text-secondary,#94a3b8);margin-top:4px;display:block;">Min. 8 caractères, au moins 1 lettre et 1 chiffre.</span>
           </div>
@@ -263,15 +263,15 @@
             <label class="filter-label" for="uPasswordConfirm">Confirmer le mot de passe</label>
             <div class="input-with-toggle">
               <input id="uPasswordConfirm" name="password_confirm" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" oninput="validateUserPassword()">
-              <button type="button" class="pw-toggle" id="pwConfirmToggleBtn" onclick="toggleConfirmVisibility()" title="Afficher / masquer">👁️</button>
+              <button type="button" class="pw-toggle" id="pwConfirmToggleBtn" onclick="toggleConfirmVisibility()" title="Afficher / masquer"><i data-icon="eye" data-size="14" aria-hidden="true"></i></button>
             </div>
             <span id="pwMismatchMsg" style="display:none;font-size:12px;color:#ef4444;margin-top:4px;">Les deux mots de passe ne correspondent pas.</span>
           </div>
           <div>
             <label class="filter-label">Rôle</label>
             <select id="uRole" class="filter-select" style="width:100%;">
-              <option value="admin">🔑 Admin — accès total</option>
-              <option value="editor" selected>✏️ Éditeur — lecture + modification</option>
+              <option value="admin">Admin — accès total</option>
+              <option value="editor" selected>Éditeur — lecture + modification</option>
             </select>
           </div>
           <div></div>

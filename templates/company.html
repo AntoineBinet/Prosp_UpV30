@@ -12,10 +12,10 @@
 <div class="content-header">
   <div class="content-title" id="companyTitle">Entreprise</div>
   <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
-    <a class="btn btn-secondary" id="btnBackCompanies" href="/entreprises">↩️ Liste</a>
-    <a class="btn btn-secondary" id="btnViewProspects" href="/">👥 Prospects</a>
-    <a class="btn btn-primary" id="btnAddProspect" href="/">➕ Prospect</a>
-    <button class="btn btn-secondary" id="btnCompanyReload" type="button">🔄 Rafraîchir</button>
+    <a class="btn btn-secondary" id="btnBackCompanies" href="/entreprises"><i data-icon="chevronL" data-size="14" aria-hidden="true"></i> Liste</a>
+    <a class="btn btn-secondary" id="btnViewProspects" href="/"><i data-icon="users" data-size="14" aria-hidden="true"></i> Prospects</a>
+    <a class="btn btn-primary" id="btnAddProspect" href="/"><i data-icon="plus" data-size="14" aria-hidden="true"></i> Prospect</a>
+    <button class="btn btn-secondary" id="btnCompanyReload" type="button"><i data-icon="clock" data-size="14" aria-hidden="true"></i> Rafraîchir</button>
   </div>
 </div>
 
@@ -35,15 +35,15 @@
     </div>
   </div>
   <div class="company-quick-actions" id="companyQuickActions">
-    <a class="btn btn-success" id="companyHeroPhone" href="#" style="display:none; text-decoration:none;">📞 Appeler</a>
-    <a class="btn btn-secondary" id="companyHeroWebsite" href="#" target="_blank" rel="noopener" style="display:none; text-decoration:none;">🌐 Site</a>
-    <a class="btn btn-secondary" id="companyHeroLinkedin" href="#" target="_blank" rel="noopener" style="display:none; text-decoration:none;">🔗 LinkedIn</a>
-    <a class="btn btn-primary" id="companyHeroProspects" href="/">👥 Voir les prospects</a>
+    <a class="btn btn-success" id="companyHeroPhone" href="#" style="display:none; text-decoration:none;"><i data-icon="phone" data-size="14" aria-hidden="true"></i> Appeler</a>
+    <a class="btn btn-secondary" id="companyHeroWebsite" href="#" target="_blank" rel="noopener" style="display:none; text-decoration:none;"><i data-icon="globe" data-size="14" aria-hidden="true"></i> Site</a>
+    <a class="btn btn-secondary" id="companyHeroLinkedin" href="#" target="_blank" rel="noopener" style="display:none; text-decoration:none;"><i data-icon="linkedin" data-size="14" aria-hidden="true"></i> LinkedIn</a>
+    <a class="btn btn-primary" id="companyHeroProspects" href="/"><i data-icon="users" data-size="14" aria-hidden="true"></i> Voir les prospects</a>
   </div>
   <div class="card" style="margin-bottom:14px;">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-      <div style="font-weight:800;">📌 Fiche entreprise</div>
-      <button class="btn btn-primary" id="btnCompanySave" type="button">💾 Enregistrer</button>
+      <div style="font-weight:800;"><i data-icon="mapPin" data-size="14" aria-hidden="true"></i> Fiche entreprise</div>
+      <button class="btn btn-primary" id="btnCompanySave" type="button"><i data-icon="check" data-size="14" aria-hidden="true"></i> Enregistrer</button>
     </div>
 
     <div class="form-grid" style="margin-top:12px;">
@@ -121,8 +121,8 @@
 
   <div class="card" style="margin-bottom:14px;">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-      <div style="font-weight:800;">🧩 Opportunités</div>
-      <button class="btn btn-primary" id="btnOppAdd" type="button">➕ Ajouter</button>
+      <div style="font-weight:800;"><i data-icon="target" data-size="14" aria-hidden="true"></i> Opportunités</div>
+      <button class="btn btn-primary" id="btnOppAdd" type="button"><i data-icon="plus" data-size="14" aria-hidden="true"></i> Ajouter</button>
     </div>
     <div class="muted" style="margin-top:6px;">Pipeline: Prosp / RDV / Proposition / RT / Won / Lost / NoGo</div>
 
@@ -131,7 +131,7 @@
 
   <div class="card" style="margin-bottom:14px;">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-      <div style="font-weight:800;">👥 Prospects liés</div>
+      <div style="font-weight:800;"><i data-icon="users" data-size="14" aria-hidden="true"></i> Prospects liés</div>
       <div class="muted" id="companyProspectCount"></div>
     </div>
     <div class="table-wrapper" style="margin-top:10px;">
@@ -153,11 +153,11 @@
   <div class="card">
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;">
       <div>
-        <div style="font-weight:800;">🕒 Timeline</div>
+        <div style="font-weight:800;"><i data-icon="clock" data-size="14" aria-hidden="true"></i> Timeline</div>
         <div class="muted">Notes entreprise, push, événements prospects.</div>
       </div>
       <div style="display:flex; gap:10px;">
-        <button class="btn btn-secondary" id="btnEventAdd" type="button">➕ Note</button>
+        <button class="btn btn-secondary" id="btnEventAdd" type="button"><i data-icon="plus" data-size="14" aria-hidden="true"></i> Note</button>
       </div>
     </div>
 
@@ -167,6 +167,6 @@
 {% endblock %}
 
 {% block page_scripts %}
-<script defer src="/static/js/metiers-data.js?v=2000"></script>
-<script defer src="/static/js/page-company.js?v=2000"></script>
+<script defer src="/static/js/metiers-data.js?v={{ static_hash('js/metiers-data.js') }}"></script>
+<script defer src="/static/js/page-company.js?v={{ static_hash('js/page-company.js') }}"></script>
 {% endblock %}

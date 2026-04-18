@@ -12,8 +12,8 @@
 <div class="content-header">
   <div class="content-title">Collaborateurs</div>
   <div class="controls">
-    <button class="btn btn-primary" id="btnAddCollaborator">➕ Ajouter collaborateur</button>
-    <button class="btn btn-secondary" id="btnReloadCollab">🔄 Actualiser</button>
+    <button class="btn btn-primary" id="btnAddCollaborator"><i data-icon="plus" data-size="14" aria-hidden="true"></i> Ajouter collaborateur</button>
+    <button class="btn btn-secondary" id="btnReloadCollab"><i data-icon="clock" data-size="14" aria-hidden="true"></i> Actualiser</button>
   </div>
 </div>
 
@@ -46,7 +46,7 @@
 <div class="modal" role="dialog" aria-modal="true" id="addCollaboratorModal" aria-labelledby="addCollaboratorModalTitle" style="display:none;">
   <div class="modal-content" style="max-width:520px;">
     <div class="modal-header">
-      <span id="addCollaboratorModalTitle">➕ Partager une entreprise</span>
+      <span id="addCollaboratorModalTitle"><i data-icon="plus" data-size="14" aria-hidden="true"></i> Partager une entreprise</span>
       <button class="modal-close" onclick="closeAddCollaboratorModal()" aria-label="Fermer">×</button>
     </div>
     <div style="padding:16px 0;">
@@ -58,14 +58,14 @@
       </div>
       <div class="form-group" style="margin-bottom:12px;">
         <label style="font-weight:600;font-size:13px;">Entreprise *</label>
-        <input type="text" id="companySearchInput" placeholder="🔍 Rechercher une entreprise…" class="filter-select" style="width:100%;margin-top:4px;margin-bottom:4px;font-size:12px;" autocomplete="off">
+        <input type="text" id="companySearchInput" placeholder="Rechercher une entreprise…" class="filter-select" style="width:100%;margin-top:4px;margin-bottom:4px;font-size:12px;" autocomplete="off">
         <select id="companySelect" class="filter-select" style="width:100%;min-height:100px;">
           <option value="">-- Sélectionner une entreprise --</option>
         </select>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button class="btn btn-secondary" onclick="closeAddCollaboratorModal()">Annuler</button>
-        <button class="btn btn-primary" onclick="shareCompany()">✅ Partager</button>
+        <button class="btn btn-primary" onclick="shareCompany()"><i data-icon="checkCircle" data-size="14" aria-hidden="true"></i> Partager</button>
       </div>
     </div>
   </div>
@@ -88,7 +88,7 @@
 <div class="modal" role="dialog" aria-modal="true" id="editSharedProspectModal" aria-labelledby="editSharedProspectModalTitle" style="display:none;">
   <div class="modal-content" style="max-width:520px;">
     <div class="modal-header">
-      <span id="editSharedProspectModalTitle">✏️ Modifier le prospect</span>
+      <span id="editSharedProspectModalTitle"><i data-icon="edit" data-size="14" aria-hidden="true"></i> Modifier le prospect</span>
       <button class="modal-close" onclick="closeEditSharedProspectModal()" aria-label="Fermer">×</button>
     </div>
     <div style="padding:16px 0;">
@@ -114,7 +114,7 @@
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button class="btn btn-secondary" onclick="closeEditSharedProspectModal()">Annuler</button>
-        <button class="btn btn-primary" onclick="saveSharedProspect()">✅ Enregistrer</button>
+        <button class="btn btn-primary" onclick="saveSharedProspect()"><i data-icon="checkCircle" data-size="14" aria-hidden="true"></i> Enregistrer</button>
       </div>
     </div>
   </div>
@@ -122,5 +122,5 @@
 {% endblock %}
 
 {% block page_scripts %}
-<script defer src="/static/js/page-collab.js?v=2001"></script>
+<script defer src="/static/js/page-collab.js?v={{ static_hash('js/page-collab.js') }}"></script>
 {% endblock %}

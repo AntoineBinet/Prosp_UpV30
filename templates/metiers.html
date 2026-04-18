@@ -189,15 +189,15 @@
 {% block content %}
 <div class="stats-strip" id="statsStrip"></div>
 <div class="tree-controls">
-  <input type="text" class="tree-search" id="treeSearch" placeholder="🔍 Rechercher un métier, une compétence, un outil… (Ctrl+K)">
-  <button onclick="expandAll()">📂 Tout déplier</button>
-  <button onclick="collapseAll()">📁 Tout replier</button>
-  <button onclick="toggleAddPanel()" style="background:var(--color-primary);color:#fff;border-color:var(--color-primary);">➕ Ajouter</button>
+  <input type="text" class="tree-search" id="treeSearch" placeholder="Rechercher un métier, une compétence, un outil… (Ctrl+K)">
+  <button onclick="expandAll()"><i data-icon="folder" data-size="14" aria-hidden="true"></i> Tout déplier</button>
+  <button onclick="collapseAll()"><i data-icon="archive" data-size="14" aria-hidden="true"></i> Tout replier</button>
+  <button onclick="toggleAddPanel()" style="background:var(--color-primary);color:#fff;border-color:var(--color-primary);"><i data-icon="plus" data-size="14" aria-hidden="true"></i> Ajouter</button>
 </div>
 
 <!-- Panel d'ajout -->
 <div id="addMetierPanel" class="card" style="display:none;margin-bottom:14px;padding:16px;">
-  <div style="font-weight:700;margin-bottom:10px;">➕ Ajouter au référentiel</div>
+  <div style="font-weight:700;margin-bottom:10px;"><i data-icon="plus" data-size="14" aria-hidden="true"></i> Ajouter au référentiel</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
     <div>
       <label style="font-size:11px;display:block;margin-bottom:2px;">Type</label>
@@ -223,7 +223,7 @@
       <label style="font-size:11px;display:block;margin-bottom:2px;">Valeur</label>
       <input id="addMetierValue" type="text" placeholder="ex: Rust, IoT avancé…" style="padding:7px 10px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:12px;width:100%;">
     </div>
-    <button onclick="submitCustomMetier()" style="padding:7px 16px;border-radius:8px;background:var(--color-primary);color:#fff;border:none;cursor:pointer;font-weight:600;">✅ Ajouter</button>
+    <button onclick="submitCustomMetier()" style="padding:7px 16px;border-radius:8px;background:var(--color-primary);color:#fff;border:none;cursor:pointer;font-weight:600;"><i data-icon="checkCircle" data-size="14" aria-hidden="true"></i> Ajouter</button>
   </div>
   <div id="addMetierMsg" class="muted" style="margin-top:6px;font-size:11px;"></div>
 </div>
@@ -239,7 +239,7 @@
 <!-- ═══ Section : Nouveaux tags à classifier ═══ -->
 <div class="unclass-section" id="unclassifiedSection">
   <div class="unclass-header" id="unclassHeader" onclick="toggleUnclassifiedSection()">
-    <span style="font-size:20px;">🏷️</span>
+    <span style="font-size:20px;"><i data-icon="tag" data-size="20" aria-hidden="true"></i></span>
     <span class="unclass-title">Nouveaux tags à classifier</span>
     <span class="unclass-badge" id="unclassBadge" style="display:none;"></span>
     <span class="unclass-chevron" id="unclassChevron">▶</span>
@@ -250,14 +250,14 @@
     </div>
     <div id="deleteTagsBar" style="display:none;margin:8px 0;padding:8px 12px;border-radius:8px;background:var(--color-surface-elevated,#252540);border:1px solid var(--color-border,#333);display:none;align-items:center;gap:8px;flex-wrap:wrap;">
       <span id="deleteTagsCount" style="font-size:13px;font-weight:600;"></span>
-      <button class="unclass-btn" onclick="_deleteSelectedTags()" style="background:var(--color-danger,#ef4444);color:#fff;padding:4px 12px;font-size:12px;border:none;border-radius:6px;cursor:pointer;">🗑️ Supprimer des prospects</button>
+      <button class="unclass-btn" onclick="_deleteSelectedTags()" style="background:var(--color-danger,#ef4444);color:#fff;padding:4px 12px;font-size:12px;border:none;border-radius:6px;cursor:pointer;"><i data-icon="trash" data-size="13" aria-hidden="true"></i> Supprimer des prospects</button>
       <button class="unclass-btn" onclick="_clearTagSelection()" style="padding:4px 12px;font-size:12px;">Annuler</button>
       <span id="deleteTagsStatus" style="font-size:12px;opacity:.7;"></span>
     </div>
     <div class="unclass-actions">
       <button class="unclass-btn primary" id="btnScanAI" onclick="scanTagsWithAI()" style="display:none;">🤖 Scanner avec l'IA</button>
-      <button class="unclass-btn" id="btnManualClassify" onclick="buildProposalsTable([])" style="display:none;">✏️ Classifier manuellement</button>
-      <button class="unclass-btn" id="btnReloadTags" onclick="loadUnclassifiedTags()">🔄 Actualiser</button>
+      <button class="unclass-btn" id="btnManualClassify" onclick="buildProposalsTable([])" style="display:none;"><i data-icon="edit" data-size="14" aria-hidden="true"></i> Classifier manuellement</button>
+      <button class="unclass-btn" id="btnReloadTags" onclick="loadUnclassifiedTags()"><i data-icon="clock" data-size="14" aria-hidden="true"></i> Actualiser</button>
       <span class="unclass-status" id="unclassStatus"></span>
     </div>
     <div id="scanProgressArea" style="display:none;" class="scan-progress">
@@ -308,8 +308,8 @@
         </table>
       </div>
       <div class="unclass-save-area" id="unclassSaveArea">
-        <button class="unclass-btn primary" id="btnSaveConfirmed" onclick="saveConfirmedTags()">💾 Enregistrer les tags confirmés</button>
-        <button class="unclass-btn" onclick="selectAllProposals()">✅ Tout sélectionner</button>
+        <button class="unclass-btn primary" id="btnSaveConfirmed" onclick="saveConfirmedTags()"><i data-icon="check" data-size="14" aria-hidden="true"></i> Enregistrer les tags confirmés</button>
+        <button class="unclass-btn" onclick="selectAllProposals()"><i data-icon="checkCircle" data-size="14" aria-hidden="true"></i> Tout sélectionner</button>
         <button class="unclass-btn" onclick="deselectAllProposals()">☐ Tout désélectionner</button>
         <span class="unclass-status" id="saveStatus"></span>
       </div>
@@ -319,7 +319,7 @@
 {% endblock %}
 
 {% block page_scripts %}
-<script defer src="/static/js/metiers-data.js?v=2000"></script>
+<script defer src="/static/js/metiers-data.js?v={{ static_hash('js/metiers-data.js') }}"></script>
 <script>
 const root = document.getElementById('treeRoot');
 function renderStats() {

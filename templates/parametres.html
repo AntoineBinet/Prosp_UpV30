@@ -18,13 +18,13 @@
 </div>
 
 <div class="settings-section">
-  <h3>💾 Gestion des données</h3>
+  <h3><i data-icon="archive" data-size="14" aria-hidden="true"></i> Gestion des données</h3>
   <div class="settings-group">
-    <button class="btn btn-primary" onclick="exportJSON()">💾 Exporter JSON</button>
-    <button class="btn btn-primary" onclick="importJSON()">📥 Importer JSON</button>
-    <a href="/api/export/xlsx" download target="_blank" class="btn btn-secondary btn-link-inline">📊 Exporter Excel</a>
-    <a href="/snapshots" class="btn btn-secondary btn-link-inline">💾 Snapshots</a>
-    <button class="btn btn-danger" onclick="resetAllData()">🔄 Réinitialiser</button>
+    <button class="btn btn-primary" onclick="exportJSON()"><i data-icon="download" data-size="14" aria-hidden="true"></i> Exporter JSON</button>
+    <button class="btn btn-primary" onclick="importJSON()"><i data-icon="upload" data-size="14" aria-hidden="true"></i> Importer JSON</button>
+    <a href="/api/export/xlsx" download target="_blank" class="btn btn-secondary btn-link-inline"><i data-icon="chart" data-size="14" aria-hidden="true"></i> Exporter Excel</a>
+    <a href="/snapshots" class="btn btn-secondary btn-link-inline"><i data-icon="archive" data-size="14" aria-hidden="true"></i> Snapshots</a>
+    <button class="btn btn-danger" onclick="resetAllData()"><i data-icon="x" data-size="14" aria-hidden="true"></i> Réinitialiser</button>
   </div>
   <input type="file" id="jsonFile" accept=".json" style="display:block;">
   <div class="muted" style="margin-top:10px;">
@@ -107,15 +107,15 @@
     </div>
 
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center;">
-      <button class="btn btn-primary" id="btnSaveGoals">💾 Enregistrer les objectifs</button>
-      <button class="btn btn-secondary" id="btnResetGoals">↩️ Restaurer par défaut</button>
+      <button class="btn btn-primary" id="btnSaveGoals"><i data-icon="check" data-size="14" aria-hidden="true"></i> Enregistrer les objectifs</button>
+      <button class="btn btn-secondary" id="btnResetGoals"><i data-icon="chevronL" data-size="14" aria-hidden="true"></i> Restaurer par défaut</button>
       <span class="muted" id="goalsSaveStatus" style="font-size:12px;"></span>
     </div>
   </div>
 </div>
 
 <div class="settings-section" id="notifications">
-  <h3>🔔 Notifications navigateur</h3>
+  <h3><i data-icon="bell" data-size="14" aria-hidden="true"></i> Notifications navigateur</h3>
   <div class="about-section">
     <p class="muted">Rappel quotidien (relances en retard / à faire aujourd'hui) via une notification du navigateur, une fois par jour à l'heure choisie. L'onglet ou l'app doit avoir été ouverte récemment.</p>
     <div class="settings-group" style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
@@ -147,7 +147,7 @@
 </div>
 
 <div class="settings-section">
-  <h3>📋 Template InMail LinkedIn</h3>
+  <h3><i data-icon="linkedin" data-size="14" aria-hidden="true"></i> Template InMail LinkedIn</h3>
   <div class="about-section">
     <p class="muted" style="font-size:13px;margin-bottom:10px;">Ce texte sera copié automatiquement lors d'un push LinkedIn. Variables disponibles : <code>{nom}</code>, <code>{prenom}</code>, <code>{entreprise}</code>, <code>{fonction}</code>, <code>{civilite}</code></p>
     <textarea id="linkedinInmailTemplate" class="inmail-textarea" placeholder="Bonjour {civilite} {nom},
@@ -156,8 +156,8 @@ Je me permets de vous contacter concernant {entreprise}.
 
 Belle journée,"></textarea>
     <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end;">
-      <button class="btn btn-secondary" onclick="resetLinkedinTemplate()">🔄 Par défaut</button>
-      <button class="btn btn-primary" onclick="saveLinkedinTemplate()">💾 Enregistrer</button>
+      <button class="btn btn-secondary" onclick="resetLinkedinTemplate()"><i data-icon="x" data-size="14" aria-hidden="true"></i> Par défaut</button>
+      <button class="btn btn-primary" onclick="saveLinkedinTemplate()"><i data-icon="check" data-size="14" aria-hidden="true"></i> Enregistrer</button>
     </div>
     <span id="linkedinTemplateStatus" class="muted" style="font-size:12px;margin-top:6px;display:block;"></span>
   </div>
@@ -170,7 +170,7 @@ Belle journée,"></textarea>
     <p class="muted" style="margin-bottom:14px;">Ollama est le moteur IA local. Ajoutez une clé Tavily pour enrichir automatiquement les recherches IA avec des données web réelles (prospects, RDV, scraping…).</p>
 
     <div id="aiOllamaConfig" style="margin-bottom:14px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);">
-      <h4 style="margin:0 0 10px 0;font-size:14px;">🏠 Configuration Ollama</h4>
+      <h4 style="margin:0 0 10px 0;font-size:14px;"><i data-icon="home" data-size="14" aria-hidden="true"></i> Configuration Ollama</h4>
       <div style="display:grid;gap:10px;max-width:450px;">
         <div>
           <label class="filter-label">URL Ollama</label>
@@ -184,13 +184,13 @@ Belle journée,"></textarea>
     </div>
 
     <div id="aiTavilyConfig" style="margin-bottom:14px;padding:14px;border-radius:10px;background:linear-gradient(135deg, rgba(59,130,246,.06), rgba(139,92,246,.06));border:1px solid rgba(59,130,246,.2);">
-      <h4 style="margin:0 0 10px 0;font-size:14px;">🔍 Configuration Tavily (Recherche web)</h4>
+      <h4 style="margin:0 0 10px 0;font-size:14px;"><i data-icon="search" data-size="14" aria-hidden="true"></i> Configuration Tavily (Recherche web)</h4>
       <div style="display:grid;gap:10px;max-width:450px;">
         <div>
           <label class="filter-label">Clé API Tavily</label>
           <div style="display:flex;gap:8px;">
             <input type="password" id="aiTavilyApiKey" class="filter-input" style="flex:1;" placeholder="tvly-..." autocomplete="off">
-            <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="var el=document.getElementById('aiTavilyApiKey');el.type=el.type==='password'?'text':'password';">👁️</button>
+            <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="var el=document.getElementById('aiTavilyApiKey');el.type=el.type==='password'?'text':'password';" aria-label="Afficher/masquer la clé"><i data-icon="eye" data-size="14" aria-hidden="true"></i></button>
           </div>
           <div class="muted" style="font-size:11px;margin-top:4px;">Obtenez une clé sur <a href="https://app.tavily.com" target="_blank" style="color:var(--color-accent);">app.tavily.com</a> · 1000 recherches gratuites/mois · ~0.005$/recherche ensuite</div>
         </div>
@@ -209,9 +209,9 @@ Belle journée,"></textarea>
     </div>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <button class="btn btn-primary" id="btnAiSave" onclick="saveAiConfig()">💾 Enregistrer</button>
-      <button class="btn btn-secondary" id="btnAiTest" onclick="testAiConnection()">🔌 Tester Ollama</button>
-      <button class="btn btn-secondary" id="btnTavilyTest" onclick="testTavilyConnection()">🔍 Tester Tavily</button>
+      <button class="btn btn-primary" id="btnAiSave" onclick="saveAiConfig()"><i data-icon="check" data-size="14" aria-hidden="true"></i> Enregistrer</button>
+      <button class="btn btn-secondary" id="btnAiTest" onclick="testAiConnection()"><i data-icon="tool" data-size="14" aria-hidden="true"></i> Tester Ollama</button>
+      <button class="btn btn-secondary" id="btnTavilyTest" onclick="testTavilyConnection()"><i data-icon="search" data-size="14" aria-hidden="true"></i> Tester Tavily</button>
       <span id="aiConfigStatus" style="font-size:13px;"></span>
     </div>
 
@@ -220,14 +220,14 @@ Belle journée,"></textarea>
 </div>
 
 <div class="settings-section" id="systemVerifySection">
-  <h3>🔍 Vérification système</h3>
+  <h3><i data-icon="search" data-size="14" aria-hidden="true"></i> Vérification système</h3>
   <div class="about-section">
     <p class="muted" style="margin-bottom:10px;">Vérifie que tous les composants nécessaires au travail à distance avec Cursor fonctionnent correctement (Git, Ollama, Flask, API, scripts).</p>
     <div class="settings-group" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-primary" id="btnSystemVerify" onclick="runSystemVerify()">🔍 Lancer la vérification</button>
-      <button class="btn btn-secondary" id="btnSystemLogs" onclick="showSystemLogs()">📋 Voir les logs serveur</button>
-      <button class="btn btn-secondary" id="btnCheckDeployment" onclick="checkDeployment()">🔎 Vérifier le déploiement</button>
-      <button class="btn btn-secondary" id="btnRestartServer" onclick="restartServer()" title="Redémarrer le serveur et l'application sur l'ordinateur hébergeur" style="background:#f59e0b;border-color:#f59e0b;color:#fff;">🔄 Redémarrer le serveur</button>
+      <button class="btn btn-primary" id="btnSystemVerify" onclick="runSystemVerify()"><i data-icon="search" data-size="14" aria-hidden="true"></i> Lancer la vérification</button>
+      <button class="btn btn-secondary" id="btnSystemLogs" onclick="showSystemLogs()"><i data-icon="file" data-size="14" aria-hidden="true"></i> Voir les logs serveur</button>
+      <button class="btn btn-secondary" id="btnCheckDeployment" onclick="checkDeployment()"><i data-icon="search" data-size="14" aria-hidden="true"></i> Vérifier le déploiement</button>
+      <button class="btn btn-secondary" id="btnRestartServer" onclick="restartServer()" title="Redémarrer le serveur et l'application sur l'ordinateur hébergeur" style="background:#f59e0b;border-color:#f59e0b;color:#fff;"><i data-icon="clock" data-size="14" aria-hidden="true"></i> Redémarrer le serveur</button>
     </div>
     <div id="systemVerifyResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);"></div>
     <div id="restartServerStatus" style="display:none;margin-top:12px;padding:12px;border-radius:10px;font-size:13px;"></div>
@@ -235,11 +235,11 @@ Belle journée,"></textarea>
 </div>
 
 <div class="settings-section" id="deployUpdateSection">
-  <h3>🔄 Mise à jour du serveur</h3>
+  <h3><i data-icon="upload" data-size="14" aria-hidden="true"></i> Mise à jour du serveur</h3>
   <div class="about-section">
     <p class="muted" style="margin-bottom:10px;">Récupère les dernières modifications depuis Git (origin/main) et redémarre automatiquement le serveur. Cette action est irréversible.</p>
     <div class="settings-group" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <button class="btn btn-primary" id="btnDeployPull" onclick="triggerDeployPull()">🔄 Mettre à jour et redémarrer</button>
+      <button class="btn btn-primary" id="btnDeployPull" onclick="triggerDeployPull()"><i data-icon="upload" data-size="14" aria-hidden="true"></i> Mettre à jour et redémarrer</button>
       <span id="deployPullStatus" style="font-size:13px;color:var(--color-text-secondary);"></span>
     </div>
     <div id="deployPullResults" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:var(--color-surface-2);border:1px solid var(--color-border);max-height:320px;overflow-y:auto;"><pre id="deployPullLog" style="margin:0;font-size:12px;font-family:monospace;white-space:pre-wrap;word-break:break-all;"></pre><div id="deployPullSummary" style="margin-top:10px;"></div></div>
@@ -247,14 +247,14 @@ Belle journée,"></textarea>
 </div>
 
 <div class="settings-section" id="backupSection">
-  <h3>💾 Sauvegardes automatiques</h3>
+  <h3><i data-icon="archive" data-size="14" aria-hidden="true"></i> Sauvegardes automatiques</h3>
   <div class="about-section">
     <p class="muted" style="margin-bottom:10px;">Sauvegarde compressée de la base SQLite, effectuée automatiquement chaque nuit à 3h00. Rétention : 14 jours.</p>
 
     <div id="backupSummary" style="margin-bottom:12px;font-size:13px;color:var(--color-text-secondary);">Chargement…</div>
 
     <div class="settings-group" style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <button class="btn btn-primary" id="btnTriggerBackup" onclick="triggerBackup()">💾 Déclencher un backup maintenant</button>
+      <button class="btn btn-primary" id="btnTriggerBackup" onclick="triggerBackup()"><i data-icon="download" data-size="14" aria-hidden="true"></i> Déclencher un backup maintenant</button>
       <span id="backupTriggerStatus" style="font-size:13px;color:var(--color-text-secondary);"></span>
     </div>
 
@@ -273,7 +273,7 @@ Belle journée,"></textarea>
     
     <div style="margin-top: 12px; margin-bottom: 16px; padding: 12px 16px; border-radius: 10px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.08)); border: 2px solid rgba(34, 197, 94, 0.3);">
       <div style="display: flex; align-items: center; gap: 10px; font-weight: 600; color: #22c55e; font-size: 14px;">
-        <span style="font-size: 20px;">✅</span>
+        <span style="font-size: 20px;"><i data-icon="checkCircle" data-size="20" aria-hidden="true"></i></span>
         <span>Dernière version active — Cohérence textes, UX et fonctionnalités (v27.0)</span>
       </div>
       <p style="margin-top: 8px; margin-bottom: 0; font-size: 12px; color: var(--color-text-secondary);">
@@ -296,8 +296,8 @@ Belle journée,"></textarea>
 {% endblock %}
 
 {% block page_scripts %}
-<script defer src="/static/js/notifications.js?v=2000"></script>
-<script defer src="/static/js/page-settings.js?v=2000"></script>
+<script defer src="/static/js/notifications.js?v={{ static_hash('js/notifications.js') }}"></script>
+<script defer src="/static/js/page-settings.js?v={{ static_hash('js/page-settings.js') }}"></script>
 <script>
   // Sections rétractables sur mobile uniquement
   (function() {

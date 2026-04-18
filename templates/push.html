@@ -22,14 +22,14 @@
     </div>
 
     <div class="controls">
-        <input id="pushSearch" type="text" placeholder="🔍 Rechercher (prospect, entreprise, email, sujet)..." aria-label="Rechercher dans les push">
+        <input id="pushSearch" type="text" placeholder="Rechercher (prospect, entreprise, email, sujet)..." aria-label="Rechercher dans les push">
         <select id="pushChannelFilter">
             <option value="">Tous les canaux</option>
             <option value="email">✉️ Email</option>
             <option value="linkedin">🔗 LinkedIn</option>
             <option value="other">📨 Autre</option>
         </select>
-        <button class="btn btn-secondary" onclick="reloadPushLogs()">🔄 Rafraîchir</button>
+        <button class="btn btn-secondary" onclick="reloadPushLogs()"><i data-icon="clock" data-size="14" aria-hidden="true"></i> Rafraîchir</button>
     </div>
 
     <div class="table-wrapper">
@@ -62,9 +62,9 @@
     <div class="content-header">
         <div class="content-title">Catégories de push</div>
         <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end;">
-            <button class="btn btn-secondary" id="btnManageTemplates">📝 Templates texte</button>
-            <button class="btn btn-primary" id="btnScanPushs">🔄 Scanner pushs/</button>
-            <button class="btn btn-secondary" id="btnNewCat">➕ Nouvelle catégorie</button>
+            <button class="btn btn-secondary" id="btnManageTemplates"><i data-icon="note" data-size="14" aria-hidden="true"></i> Templates texte</button>
+            <button class="btn btn-primary" id="btnScanPushs"><i data-icon="search" data-size="14" aria-hidden="true"></i> Scanner pushs/</button>
+            <button class="btn btn-secondary" id="btnNewCat"><i data-icon="plus" data-size="14" aria-hidden="true"></i> Nouvelle catégorie</button>
         </div>
     </div>
 
@@ -93,7 +93,7 @@
             </div>
         </div>
         <div class="btn-group" style="margin-top: 12px;">
-            <button class="btn btn-primary" id="btnSaveCat">💾 Enregistrer</button>
+            <button class="btn btn-primary" id="btnSaveCat"><i data-icon="check" data-size="14" aria-hidden="true"></i> Enregistrer</button>
             <button class="btn btn-secondary" id="btnCancelCat">Annuler</button>
         </div>
     </div>
@@ -124,13 +124,13 @@
 <div class="modal" role="dialog" aria-modal="true" id="modalTemplateManager" aria-labelledby="modalTemplateManagerTitle">
     <div class="modal-content" style="max-width: 780px;">
         <div class="modal-header">
-            <span id="modalTemplateManagerTitle">📝 Templates texte email</span>
+            <span id="modalTemplateManagerTitle"><i data-icon="note" data-size="14" aria-hidden="true"></i> Templates texte email</span>
             <button class="modal-close" aria-label="Fermer" onclick="closeTemplateManager()">&times;</button>
         </div>
         <div class="modal-body" style="display:flex; gap:16px; min-height: 400px;">
             <!-- Liste des templates -->
             <div style="width:210px; flex-shrink:0; border-right:1px solid var(--color-border); padding-right:14px;">
-                <button class="btn btn-primary" style="width:100%; margin-bottom:10px; font-size:12px;" onclick="newTemplate()">➕ Nouveau template</button>
+                <button class="btn btn-primary" style="width:100%; margin-bottom:10px; font-size:12px;" onclick="newTemplate()"><i data-icon="plus" data-size="14" aria-hidden="true"></i> Nouveau template</button>
                 <div id="tplList" style="display:flex; flex-direction:column; gap:6px;"></div>
             </div>
             <!-- Éditeur -->
@@ -162,8 +162,8 @@
                         <label for="tplIsDefault" style="font-size:13px; cursor:pointer;">Template par défaut</label>
                     </div>
                     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <button class="btn btn-primary" onclick="saveTemplate()">💾 Enregistrer</button>
-                        <button class="btn btn-danger" id="tplBtnDelete" onclick="deleteTemplate()" style="display:none;">🗑️ Supprimer</button>
+                        <button class="btn btn-primary" onclick="saveTemplate()"><i data-icon="check" data-size="14" aria-hidden="true"></i> Enregistrer</button>
+                        <button class="btn btn-danger" id="tplBtnDelete" onclick="deleteTemplate()" style="display:none;"><i data-icon="trash" data-size="14" aria-hidden="true"></i> Supprimer</button>
                     </div>
                 </div>
             </div>
@@ -183,7 +183,7 @@
             <div id="catProspectsList"></div>
         </div>
         <div class="btn-group" style="margin-top: 16px; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-            <button class="btn btn-secondary" id="btnRefreshCatProspects" onclick="refreshCatProspects()">🔄 Nouvelles suggestions</button>
+            <button class="btn btn-secondary" id="btnRefreshCatProspects" onclick="refreshCatProspects()"><i data-icon="clock" data-size="14" aria-hidden="true"></i> Nouvelles suggestions</button>
             <button class="btn btn-secondary" onclick="closeCatProspects()">Fermer</button>
         </div>
     </div>
@@ -199,9 +199,9 @@
         <div class="modal-body" id="modalCatDetailBody" style="overflow-y: auto; max-height: 65vh;"></div>
         <div class="btn-group" style="margin-top: 16px; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="btn btn-secondary" id="modalCatBtnProspects">👤 Prospects</button>
-                <button class="btn btn-secondary" id="modalCatBtnEdit">✏️ Modifier</button>
-                <button class="btn btn-danger" id="modalCatBtnDelete">🗑️ Supprimer</button>
+                <button class="btn btn-secondary" id="modalCatBtnProspects"><i data-icon="users" data-size="14" aria-hidden="true"></i> Prospects</button>
+                <button class="btn btn-secondary" id="modalCatBtnEdit"><i data-icon="edit" data-size="14" aria-hidden="true"></i> Modifier</button>
+                <button class="btn btn-danger" id="modalCatBtnDelete"><i data-icon="trash" data-size="14" aria-hidden="true"></i> Supprimer</button>
             </div>
             <button class="btn btn-secondary" onclick="closeCatDetail()">Fermer</button>
         </div>

@@ -38,7 +38,7 @@
         <button type="button" class="relance-alert-banner-close" onclick="document.getElementById('relanceAlertBannerProspects').style.display='none'; sessionStorage.setItem('relanceAlertDismissed', Date.now());" title="Masquer">×</button>
     </div>
     <div class="content-header">
-        <div class="content-title" id="viewTitle">👥 Tous les prospects</div>
+        <div class="content-title" id="viewTitle"><i data-icon="users" data-size="16" aria-hidden="true"></i> Tous les prospects</div>
         
         <div class="controls" id="mainControls">
             <div class="search-input-wrapper" style="position:relative;flex:1;">
@@ -486,7 +486,7 @@
 <div class="modal" role="dialog" aria-modal="true" id="modalBulkEdit" aria-labelledby="modalBulkEditTitle">
     <div class="modal-content" style="max-width:460px;position:relative;">
         <button class="modal-close" onclick="closeBulkEditModal()" aria-label="Fermer">✕</button>
-        <h2 id="modalBulkEditTitle">✏️ Modifier en masse</h2>
+        <h2 id="modalBulkEditTitle"><i data-icon="edit" data-size="16" aria-hidden="true"></i> Modifier en masse</h2>
         <p id="bulkEditInfo" style="color:var(--color-text-secondary);margin-bottom:16px;"></p>
         <div style="margin-bottom:12px;">
             <label style="display:block;margin-bottom:6px;font-weight:500;">Champ à modifier</label>
@@ -519,7 +519,7 @@
             <button id="qaOverlayCancelBtn" class="btn btn-secondary" style="margin-top:14px;font-size:12px;" onclick="qaOverlayCancel()">Annuler</button>
         </div>
         <div class="modal-header">
-            <span id="modalQuickAddTitle">➕ Ajouter</span>
+            <span id="modalQuickAddTitle"><i data-icon="plus" data-size="14" aria-hidden="true"></i> Ajouter</span>
             <button class="modal-close" onclick="closeQuickAddModal()" aria-label="Fermer">&times;</button>
         </div>
 
@@ -528,7 +528,7 @@
             <p class="muted" style="font-size:12px;margin-bottom:10px;">Choisissez votre méthode d'ajout :</p>
             <div style="display:flex;gap:10px;margin-bottom:16px;">
                 <div class="qa-card" data-method="manual" onclick="qaPickMethod('manual')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
-                    <div style="font-size:28px;margin-bottom:6px;">✏️</div>
+                    <div style="font-size:28px;margin-bottom:6px;"><i data-icon="edit" data-size="28" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:13px;">Ajout manuel</div>
                     <div class="muted" style="font-size:11px;margin-top:3px;">Saisie directe</div>
                 </div>
@@ -538,12 +538,12 @@
                     <div class="muted" style="font-size:11px;margin-top:3px;">IA locale ou cloud</div>
                 </div>
                 <div class="qa-card" data-method="file" onclick="qaPickMethod('file')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
-                    <div style="font-size:28px;margin-bottom:6px;">📄</div>
+                    <div style="font-size:28px;margin-bottom:6px;"><i data-icon="file" data-size="28" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:13px;">Importer un fichier</div>
                     <div class="muted" style="font-size:11px;margin-top:3px;">Excel, CSV, PDF, Word</div>
                 </div>
                 <div class="qa-card" data-method="vsa" onclick="qaPickMethod('vsa')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
-                    <div style="font-size:28px;margin-bottom:6px;">🔗</div>
+                    <div style="font-size:28px;margin-bottom:6px;"><i data-icon="link" data-size="28" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:13px;">Depuis VSA</div>
                     <div class="muted" style="font-size:11px;margin-top:3px;">Import candidat VSA</div>
                 </div>
@@ -560,21 +560,21 @@
             <p class="muted" style="font-size:12px;margin-bottom:10px;">1) Type de données à extraire :</p>
             <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
                 <div class="qa-card" data-type="prospect" onclick="qaPickType('prospect')" style="flex:1;min-width:80px;padding:14px 10px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;">
-                    <div style="font-size:22px;margin-bottom:4px;">👥</div>
+                    <div style="font-size:22px;margin-bottom:4px;"><i data-icon="users" data-size="22" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:12px;">Prospects</div>
                 </div>
                 <div class="qa-card" data-type="company" onclick="qaPickType('company')" style="flex:1;min-width:80px;padding:14px 10px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;">
-                    <div style="font-size:22px;margin-bottom:4px;">🏢</div>
+                    <div style="font-size:22px;margin-bottom:4px;"><i data-icon="building" data-size="22" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:12px;">Entreprises</div>
                 </div>
                 <div class="qa-card" data-type="candidate" onclick="qaPickType('candidate')" style="flex:1;min-width:80px;padding:14px 10px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;">
-                    <div style="font-size:22px;margin-bottom:4px;">🧑‍💻</div>
+                    <div style="font-size:22px;margin-bottom:4px;"><i data-icon="users" data-size="22" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:12px;">Candidats</div>
                 </div>
             </div>
             <p class="muted" style="font-size:12px;margin-bottom:8px;">2) Choisissez un fichier (Excel, CSV, PDF ou Word) :</p>
             <input type="file" id="qaFileInput" accept=".xlsx,.xls,.csv,.pdf,.doc,.docx" style="display:none;">
-            <button type="button" class="btn btn-primary" onclick="document.getElementById('qaFileInput').click()">📁 Choisir un fichier</button>
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('qaFileInput').click()"><i data-icon="folder" data-size="14" aria-hidden="true"></i> Choisir un fichier</button>
             <p id="qaFileChosen" class="muted" style="font-size:12px;margin-top:8px;display:none;"></p>
             <p class="muted" style="font-size:11px;margin-top:10px;">Le fichier est envoyé au serveur (PC qui héberge Prosp'Up). PDF/Word : l’analyse IA se fait sur le serveurê— vous pouvez être sur un autre appareil.</p>
             <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
@@ -587,17 +587,17 @@
             <p class="muted" style="font-size:12px;margin-bottom:10px;">1) Choisissez le type à ajouter :</p>
             <div style="display:flex;gap:10px;margin-bottom:16px;">
                 <div class="qa-card" data-type="prospect" onclick="qaPickType('prospect')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
-                    <div style="font-size:28px;margin-bottom:6px;">👥</div>
+                    <div style="font-size:28px;margin-bottom:6px;"><i data-icon="users" data-size="28" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:13px;">Prospect</div>
                     <div class="muted" style="font-size:11px;margin-top:3px;">Manager / Décideur</div>
                 </div>
                 <div class="qa-card" data-type="company" onclick="qaPickType('company')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
-                    <div style="font-size:28px;margin-bottom:6px;">🏢</div>
+                    <div style="font-size:28px;margin-bottom:6px;"><i data-icon="building" data-size="28" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:13px;">Entreprise</div>
                     <div class="muted" style="font-size:11px;margin-top:3px;">Client / Cible</div>
                 </div>
                 <div class="qa-card" data-type="candidate" onclick="qaPickType('candidate')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
-                    <div style="font-size:28px;margin-bottom:6px;">🧑‍💻</div>
+                    <div style="font-size:28px;margin-bottom:6px;"><i data-icon="users" data-size="28" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:13px;">Candidat</div>
                     <div class="muted" style="font-size:11px;margin-top:3px;">Consultant / Profil</div>
                 </div>
@@ -624,7 +624,7 @@
             <textarea id="qaPasteTextarea" rows="10" style="width:100%;border:1px solid var(--color-border);border-radius:10px;padding:12px;font-size:12px;font-family:monospace;background:var(--color-surface);color:var(--color-text);resize:vertical;" placeholder="Collez ici le retour de l'IA (JSON) ou modifiez le texte généré…"></textarea>
             <div style="display:flex;gap:10px;margin-top:14px;justify-content:space-between;">
                 <button class="btn btn-secondary" onclick="qaBackToStep1()">← Retour</button>
-                <button class="btn btn-primary" onclick="qaParse()">🔍 Analyser</button>
+                <button class="btn btn-primary" onclick="qaParse()"><i data-icon="search" data-size="14" aria-hidden="true"></i> Analyser</button>
             </div>
         </div>
 
@@ -633,7 +633,7 @@
             <p class="muted" style="font-size:12px;margin-bottom:12px;">Importez un fichier Excel contenant <strong>Nom</strong>, <strong>Téléphone</strong> et/ou <strong>Email</strong>. Les prospects existants seront enrichis sans créer de doublons.</p>
             <div id="qaContactsFileZone" style="">
                 <input type="file" id="qaContactsFileInput" accept=".xlsx,.xls" style="display:none;">
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('qaContactsFileInput').click()">📁 Choisir un fichier Excel</button>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('qaContactsFileInput').click()"><i data-icon="folder" data-size="14" aria-hidden="true"></i> Choisir un fichier Excel</button>
                 <p id="qaContactsFileChosen" class="muted" style="font-size:12px;margin-top:8px;display:none;"></p>
             </div>
             <div id="qaContactsMapping" style="display:none;margin-top:14px;">
@@ -641,7 +641,7 @@
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;" id="qaContactsMappingGrid"></div>
                 <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
                     <button class="btn btn-secondary" onclick="qaContactsBackToFile()">← Retour</button>
-                    <button class="btn btn-primary" onclick="qaContactsAnalyse()">🔍 Analyser</button>
+                    <button class="btn btn-primary" onclick="qaContactsAnalyse()"><i data-icon="search" data-size="14" aria-hidden="true"></i> Analyser</button>
                 </div>
             </div>
             <div id="qaContactsPreview" style="display:none;margin-top:14px;">
@@ -653,7 +653,7 @@
                 <div id="qaContactsUnmatched" style="display:none;margin-top:10px;padding:8px 12px;border-radius:8px;background:var(--color-surface-2);font-size:11px;"></div>
                 <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
                     <button class="btn btn-secondary" onclick="qaContactsBackToMapping()">← Retour</button>
-                    <button class="btn btn-primary" onclick="qaContactsApply()" id="qaContactsApplyBtn">✅ Appliquer les mises à jour</button>
+                    <button class="btn btn-primary" onclick="qaContactsApply()" id="qaContactsApplyBtn"><i data-icon="checkCircle" data-size="14" aria-hidden="true"></i> Appliquer les mises à jour</button>
                 </div>
             </div>
         </div>
@@ -670,7 +670,7 @@
             <div id="qaPreviewList" style="max-height:350px;overflow-y:auto;"></div>
             <div style="display:flex;gap:10px;margin-top:14px;justify-content:space-between;">
                 <button class="btn btn-secondary" onclick="qaBackToStep1()">← Retour</button>
-                <button class="btn btn-primary" onclick="qaCreateAll()">🚀 Créer</button>
+                <button class="btn btn-primary" onclick="qaCreateAll()"><i data-icon="zap" data-size="14" aria-hidden="true"></i> Créer</button>
             </div>
         </div>
     </div>
@@ -700,7 +700,7 @@
     </div>
     <div class="fab-option" data-action="add-prospect">
       <span class="fab-option-label">Prospect</span>
-      <button class="fab-option-btn" style="background:#FF6B35;" aria-label="Ajouter un prospect">👤</button>
+      <button class="fab-option-btn" style="background:#FF6B35;" aria-label="Ajouter un prospect"><i data-icon="users" data-size="18" aria-hidden="true"></i></button>
     </div>
   </div>
   <button class="fab-main" id="fab-main-btn" aria-label="Actions rapides" aria-expanded="false">+</button>
@@ -712,7 +712,7 @@
 <div id="modalVsaImport" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalVsaImportTitle">
   <div class="modal-content" style="max-width: 560px;">
     <div class="modal-header">
-      <h2 id="modalVsaImportTitle" style="margin:0;">🔗 Ajouter un candidat depuis VSA</h2>
+      <h2 id="modalVsaImportTitle" style="margin:0;"><i data-icon="link" data-size="16" aria-hidden="true"></i> Ajouter un candidat depuis VSA</h2>
       <button class="modal-close" onclick="closeVsaImportModal()" aria-label="Fermer">×</button>
     </div>
     <p class="muted" style="font-size:12px;margin-bottom:14px;">Collez le contenu de la fiche VSA pour pré-remplir la fiche candidat.</p>
