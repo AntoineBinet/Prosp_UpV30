@@ -154,16 +154,16 @@ function renderIcons(root) {
     var cls  = el.dataset.cls || '';
 
     // Rendu immédiat (synchrone) ─────────────────────────────────
+    // Priorité : fichier connu → emoji → SVG inline (dernier recours)
     var immediate;
     if (_svgFileCache[name] === true) {
-      // Fichier connu présent
       immediate = _fileSVGImg(name, size);
-    } else if (ICON_PATHS[name]) {
-      // SVG inline disponible
-      immediate = _inlineSVG(name, size, cls);
-    } else {
-      // Secours emoji
+    } else if (EMOJI_FALLBACK[name]) {
+      // Emoji par défaut tant qu'aucun fichier n'est déposé dans icons/
       immediate = _emojiSpan(name);
+    } else {
+      // Dernier recours : tracé inline (icônes sans emoji défini)
+      immediate = _inlineSVG(name, size, cls);
     }
 
     // Insérer un placeholder récupérable pour l'upgrade async
@@ -174,12 +174,8 @@ function renderIcons(root) {
     placeholder.innerHTML = immediate;
     el.replaceWith(placeholder);
 
-    // Probe fichier en arrière-plan (sauf si déjà connu) ─────────
-    if (_svgFileCache[name] === undefined && ICON_PATHS[name]) {
-      // Fichier inconnu ET on a déjà un inline → probe silencieuse
-      _probeFile(name);
-    } else if (_svgFileCache[name] === undefined && !ICON_PATHS[name]) {
-      // Pas d'inline → probe obligatoire pour tenter le fichier
+    // Probe fichier en arrière-plan — upgrade vers SVG si trouvé ──
+    if (_svgFileCache[name] === undefined) {
       _probeFileAndUpgrade(name, size);
     }
   });
