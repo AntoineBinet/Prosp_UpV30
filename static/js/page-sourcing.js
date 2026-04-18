@@ -377,7 +377,7 @@ function quickUploadDC(candidateId) {
                 if (btn) { btn.textContent = '＋ DC'; btn.disabled = false; }
             }
         } catch(e) {
-            showToast('Erreur réseau : ' + (e?.message || e), 'error');
+            showToast('Serveur indisponible. Réessayez dans un instant.', 'error');
             if (btn) { btn.textContent = '＋ DC'; btn.disabled = false; }
         }
     });

@@ -6688,7 +6688,7 @@ async function onPushCategoryChange(prospectId, value) {
                 // Mettre à jour le bouton
                 updatePushGenerateButton(prospectId);
             } else {
-                templateBox.innerHTML = '<span class="muted">Aucun template disponible. Utilisez ⚙️ Gérer pour en ajouter un.</span>';
+                templateBox.innerHTML = '<span class="muted">Aucun template disponible. Utilisez « Gérer » pour en ajouter un.</span>';
                 window._currentPushTemplate = null;
             }
         } catch (e) {
@@ -11595,7 +11595,7 @@ function _doSaveProspect(newProspect) {
     closeProspectModal();
     filterProspects();
     saveToServerAsync().then(() => {
-        showToast('✅ Prospect ajouté', 'success');
+        showToast('Prospect ajouté — Voir dans Focus →', 'success');
     }).catch(() => {
         showToast('⚠️ Erreur lors de la sauvegarde', 'error');
     });

@@ -3,6 +3,15 @@
    Up Technologies — Prosp'Up v25
    ═══════════════════════════════════════════════════════════════ */
 
+/* USAGE TYPO — ne pas utiliser d'autres tailles
+ *   meta / chips         → var(--font-size-xs)   11/16
+ *   texte secondaire     → var(--font-size-sm)   13/18
+ *   body, lignes table   → var(--font-size-base) 14/20
+ *   titres carte         → var(--font-size-md)   16/22
+ *   titres section       → var(--font-size-lg)   20/28
+ *   titres page          → var(--font-size-xl)   28/34
+ */
+
 /* ── View Transitions (cross-document, Chrome 126+) ── */
 @view-transition {
   navigation: auto;
@@ -28,7 +37,7 @@
 
     /* Text */
     --color-text: #111827;
-    --color-text-secondary: #6b7280;
+    --color-text-secondary: #4b5563; /* ratio 4.5:1 sur fond blanc (était #6b7280) */
 
     /* Lines & elevation */
     --color-border: rgba(17, 24, 39, 0.12);
@@ -68,6 +77,16 @@
     --spacing-lg: 24px;
     --spacing-xl: 32px;
     --spacing-2xl: 48px;
+
+    /* Typographic scale */
+    --font-size-xs:   11px;
+    --font-size-sm:   13px;
+    --font-size-base: 14px;
+    --font-size-md:   16px;
+    --font-size-lg:   20px;
+    --font-size-xl:   28px;
+    --line-height-tight: 1.2;
+    --line-height-base:  1.5;
 }
 /* --- Layout stability (no horizontal shift) --- */
 *, *::before, *::after { box-sizing: border-box; }
@@ -89,7 +108,7 @@ body {
         --color-surface: #111826;
         --color-surface-2: #0f1723;
         --color-text: #e5e7eb;
-        --color-text-secondary: #9ca3af;
+        --color-text-secondary: #b6bcc7; /* ratio 4.5:1 sur fond #0b0f14 (était #9ca3af) */
         --color-border: rgba(255, 255, 255, 0.10);
         --shadow: 0 12px 40px rgba(0,0,0,0.45);
         
@@ -12535,5 +12554,28 @@ body[data-page="sourcing"] #fab-speed-dial { display: none !important; }
 @media (max-width: 600px) {
   .grid-cards {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ── Piste 10B — Focus visible cohérent ─────────────────────────────────── */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 4px;
+}
+:where(button, a):focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ── Piste 10C — Hit-areas 44×44 (WCAG 2.5.5) ──────────────────────────── */
+button, .btn, [role="button"], a.btn, .mini-action {
+  min-height: 32px;
+  min-width: 32px;
+}
+@media (hover: none) and (pointer: coarse) {
+  button, .btn, [role="button"], a.btn, .mini-action,
+  input[type="checkbox"], input[type="radio"] {
+    min-height: 44px;
+    min-width: 44px;
   }
 }
