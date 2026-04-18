@@ -869,6 +869,12 @@ def favicon():
     # Serve app icon (tab favicon)
     return send_from_directory(str(APP_DIR / "static"), "favicon.ico", mimetype="image/vnd.microsoft.icon")
 
+@app.get("/icons/<path:filename>")
+def serve_custom_icon(filename):
+    """Sert les SVG du dossier icons/ à la racine — voir icons/NOMMAGE.txt."""
+    icons_dir = str(APP_DIR / "icons")
+    return send_from_directory(icons_dir, filename)
+
 # /api/deploy/pull-from-404 et /api/deploy/rollback — déplacés dans routes/deploy.py
 
 

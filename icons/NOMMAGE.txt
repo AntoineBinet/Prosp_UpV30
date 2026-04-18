@@ -1,0 +1,109 @@
+═══════════════════════════════════════════════════════════════════
+  PROSP'UP — Guide d'utilisation des icônes SVG personnalisées
+  Dossier : icons/  (racine du projet)
+═══════════════════════════════════════════════════════════════════
+
+COMMENT ÇA FONCTIONNE
+─────────────────────
+1. Placez vos fichiers SVG dans CE dossier (icons/).
+2. Nommez-les EXACTEMENT comme indiqué dans le tableau ci-dessous.
+3. L'application les chargera automatiquement au prochain rechargement
+   de page — aucune modification de code requise.
+
+PRIORITÉ D'AFFICHAGE
+─────────────────────
+  1. Votre fichier SVG dans ce dossier  ← priorité maximale
+  2. Icône SVG intégrée (tracé standard)  ← affichée par défaut
+  3. Emoji d'origine  ← secours absolu si rien d'autre
+
+FORMAT DES FICHIERS SVG
+────────────────────────
+• Format : SVG (viewBox="0 0 24 24" recommandé)
+• Trait : stroke="currentColor" (s'adapte à la couleur du thème)
+  OU fill="currentColor" pour des icônes pleines
+• Taille : 24×24 px (redimensionné automatiquement par l'app)
+• Pas de couleur hardcodée (#fff, #000) — utilisez currentColor
+
+
+TABLEAU DES NOMS
+═══════════════════════════════════════════════════════════════════
+  Nom du fichier          Emoji remplacé   Où il apparaît
+───────────────────────────────────────────────────────────────────
+
+  ── Navigation ──────────────────────────────────────────────────
+  dashboard.svg           📊               Sidebar / Dashboard
+  users.svg               👥               Sidebar / Prospects, Collab, Utilisateurs
+  building.svg            📍               Sidebar / Entreprises
+  target.svg              🎯               Sidebar / Focus
+  search.svg              🧲               Sidebar / Candidats (Sourcing)
+  calendar.svg            📅               Sidebar / Calendrier
+  chart.svg               📈               Sidebar / Stats
+  file.svg                📋               Sidebar / Rapport, Journal, DC Generator
+  settings.svg            ⚙️               Sidebar / Paramètres, Métiers
+  send.svg                📤               Sidebar / Push
+  archive.svg             📁               Sidebar / Archivés
+  more.svg                🔀               Sidebar / Doublons (menu vertical ⋮)
+  download.svg            💾               Sidebar / Snapshots
+  alertTri.svg            ❓               Sidebar / Aide
+  collab.svg              👥               Sidebar / Collaboration
+
+  ── Actions & Boutons ────────────────────────────────────────────
+  plus.svg                ➕               Boutons "Ajouter"
+  edit.svg                ✏️               Boutons "Modifier"
+  trash.svg               🗑️               Boutons "Supprimer"
+  check.svg               💾               Boutons "Enregistrer"
+  x.svg                   ↩️ / ✕           Boutons "Réinitialiser / Annuler"
+  xCircle.svg             ⏻ / ✕            Bouton déconnexion / fermer
+  clock.svg               🔄               Bouton "Actualiser"
+  filter.svg              ⚙️               Boutons filtre
+  upload.svg              📥               Bouton "Importer"
+
+  ── Contacts & Communication ─────────────────────────────────────
+  phone.svg               📞               Chips statut "Appelé", boutons appel
+  mail.svg                📧               Boutons email / bulk mail
+  send.svg                📤              (voir Navigation)
+  linkedin.svg            🔗               Bouton LinkedIn candidat
+  note.svg                📝               Bouton OneNote
+  copy.svg                📋               Bouton Teams / Copier
+  external.svg            🧭               Bouton VSA / lien externe
+  link.svg                🔗               Lien générique
+
+  ── Navigation / Contrôles ───────────────────────────────────────
+  chevronL.svg            ⬅️               Bouton "Retour"
+  chevronR.svg            ➡️               Flèche droite
+  chevronD.svg            🔽               Flèche bas / dropdown
+  chevronU.svg            🔼               Flèche haut
+  moreH.svg               🔀               Menu horizontal ···  (Fusionner entreprises)
+
+  ── Affichage ────────────────────────────────────────────────────
+  list.svg                ☰                Vue liste
+  grid.svg                ▦                Vue grille
+  cards.svg               🃏               Vue cartes
+
+  ── Statuts & Feedback ───────────────────────────────────────────
+  alert.svg               ⚠️               Icône alerte (info)
+  checkCircle.svg         ✅               Succès
+  info.svg                👁                Voir / Info
+  star.svg                ⭐               Favori
+  bell.svg                🔔               Notification
+  flag.svg                🚩               Indicateur
+
+═══════════════════════════════════════════════════════════════════
+EXEMPLES D'UTILISATION DANS LE CODE (pour développeurs)
+═══════════════════════════════════════════════════════════════════
+
+HTML :
+  <i data-icon="phone" data-size="16" aria-hidden="true"></i>
+  <button aria-label="Appeler"><i data-icon="phone"></i></button>
+
+JS (injection dynamique) :
+  el.innerHTML = window.icon('phone', { size: 16 });
+  if (window.renderIcons) window.renderIcons(el);
+
+Noms valides : dashboard, users, building, target, search, calendar,
+  chart, file, settings, send, archive, more, download, alertTri,
+  collab, plus, edit, trash, check, x, xCircle, clock, filter,
+  upload, phone, mail, linkedin, note, copy, external, link,
+  chevronL, chevronR, chevronD, chevronU, moreH, list, grid, cards,
+  alert, checkCircle, info, star, bell, flag, home
+═══════════════════════════════════════════════════════════════════
