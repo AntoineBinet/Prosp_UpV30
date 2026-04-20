@@ -114,6 +114,42 @@
     </select>
   </div>
 
+  <!-- Barre d'actions en masse LinkedIn -->
+  <div class="bulk-actions" id="linkedinBulkActions" style="display:none; margin-bottom:10px;">
+    <div class="bulk-left">
+      <strong id="linkedinBulkCount">0</strong> sélectionné(s)
+      <button class="btn btn-secondary" onclick="clearLinkedinSelection()">Tout désélectionner</button>
+    </div>
+    <div class="bulk-right">
+      <select id="linkedinBulkStatus">
+        <option value="">Changer statut…</option>
+        <option value="nouveau">Nouveau / A traiter</option>
+        <option value="proposition">Proposition faite</option>
+        <optgroup label="Opérationnel">
+          <option value="entretien">Entretien en cours</option>
+          <option value="a_faire">A FAIRE</option>
+          <option value="oksi">OKSI</option>
+          <option value="top_profil">Top profil</option>
+          <option value="reunion_tech">En Réunion Technique</option>
+          <option value="valide_contrat">Validé / Contrat</option>
+          <option value="freelance">Freelance</option>
+          <option value="freelance_mission">FREELANCE EN MISSION UP</option>
+        </optgroup>
+        <optgroup label="Refus">
+          <option value="nok_prequal">NOK Préqual</option>
+          <option value="nok">NOK</option>
+          <option value="plus_disponible">Plus disponible</option>
+          <option value="refus_contrat">Refus du contrat</option>
+        </optgroup>
+        <optgroup label="Hors région">
+          <option value="hors_aura">Hors Aura</option>
+        </optgroup>
+      </select>
+      <button class="btn btn-primary" onclick="applyBulkLinkedinStatus()">Appliquer</button>
+      <button class="btn btn-danger" onclick="deleteSelectedLinkedin()"><i data-icon="trash" data-size="14" aria-hidden="true"></i><span> Supprimer</span></button>
+    </div>
+  </div>
+
   <div class="table-wrapper">
     <table>
       <thead>
@@ -149,6 +185,42 @@
       <option value="valide_contrat">Validé / Contrat</option>
       <option value="freelance_mission">FREELANCE EN MISSION UP</option>
     </select>
+  </div>
+
+  <!-- Barre d'actions en masse Mission -->
+  <div class="bulk-actions" id="missionBulkActions" style="display:none; margin-bottom:10px;">
+    <div class="bulk-left">
+      <strong id="missionBulkCount">0</strong> sélectionné(s)
+      <button class="btn btn-secondary" onclick="clearMissionSelection()">Tout désélectionner</button>
+    </div>
+    <div class="bulk-right">
+      <select id="missionBulkStatus">
+        <option value="">Changer statut…</option>
+        <option value="nouveau">Nouveau / A traiter</option>
+        <option value="proposition">Proposition faite</option>
+        <optgroup label="Opérationnel">
+          <option value="entretien">Entretien en cours</option>
+          <option value="a_faire">A FAIRE</option>
+          <option value="oksi">OKSI</option>
+          <option value="top_profil">Top profil</option>
+          <option value="reunion_tech">En Réunion Technique</option>
+          <option value="valide_contrat">Validé / Contrat</option>
+          <option value="freelance">Freelance</option>
+          <option value="freelance_mission">FREELANCE EN MISSION UP</option>
+        </optgroup>
+        <optgroup label="Refus">
+          <option value="nok_prequal">NOK Préqual</option>
+          <option value="nok">NOK</option>
+          <option value="plus_disponible">Plus disponible</option>
+          <option value="refus_contrat">Refus du contrat</option>
+        </optgroup>
+        <optgroup label="Hors région">
+          <option value="hors_aura">Hors Aura</option>
+        </optgroup>
+      </select>
+      <button class="btn btn-primary" onclick="applyBulkMissionStatus()">Appliquer</button>
+      <button class="btn btn-danger" onclick="deleteSelectedMission()"><i data-icon="trash" data-size="14" aria-hidden="true"></i><span> Supprimer</span></button>
+    </div>
   </div>
 
   <div class="table-wrapper">
@@ -190,6 +262,42 @@
     </select>
   </div>
 
+  <!-- Barre d'actions en masse Archive -->
+  <div class="bulk-actions" id="archiveBulkActions" style="display:none; margin-bottom:10px;">
+    <div class="bulk-left">
+      <strong id="archiveBulkCount">0</strong> sélectionné(s)
+      <button class="btn btn-secondary" onclick="clearArchiveSelection()">Tout désélectionner</button>
+    </div>
+    <div class="bulk-right">
+      <select id="archiveBulkStatus">
+        <option value="">Changer statut…</option>
+        <option value="nouveau">Nouveau / A traiter</option>
+        <option value="proposition">Proposition faite</option>
+        <optgroup label="Opérationnel">
+          <option value="entretien">Entretien en cours</option>
+          <option value="a_faire">A FAIRE</option>
+          <option value="oksi">OKSI</option>
+          <option value="top_profil">Top profil</option>
+          <option value="reunion_tech">En Réunion Technique</option>
+          <option value="valide_contrat">Validé / Contrat</option>
+          <option value="freelance">Freelance</option>
+          <option value="freelance_mission">FREELANCE EN MISSION UP</option>
+        </optgroup>
+        <optgroup label="Refus">
+          <option value="nok_prequal">NOK Préqual</option>
+          <option value="nok">NOK</option>
+          <option value="plus_disponible">Plus disponible</option>
+          <option value="refus_contrat">Refus du contrat</option>
+        </optgroup>
+        <optgroup label="Hors région">
+          <option value="hors_aura">Hors Aura</option>
+        </optgroup>
+      </select>
+      <button class="btn btn-primary" onclick="applyBulkArchiveStatus()">Appliquer</button>
+      <button class="btn btn-danger" onclick="deleteSelectedArchive()"><i data-icon="trash" data-size="14" aria-hidden="true"></i><span> Supprimer</span></button>
+    </div>
+  </div>
+
   <div class="table-wrapper">
     <table>
       <thead>
@@ -220,6 +328,42 @@
 <section id="panelHorsAura" style="display:none;">
   <div class="controls">
     <input id="horsAuraSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les candidats hors Aura" />
+  </div>
+
+  <!-- Barre d'actions en masse Hors Aura -->
+  <div class="bulk-actions" id="horsAuraBulkActions" style="display:none; margin-bottom:10px;">
+    <div class="bulk-left">
+      <strong id="horsAuraBulkCount">0</strong> sélectionné(s)
+      <button class="btn btn-secondary" onclick="clearHorsAuraSelection()">Tout désélectionner</button>
+    </div>
+    <div class="bulk-right">
+      <select id="horsAuraBulkStatus">
+        <option value="">Changer statut…</option>
+        <option value="nouveau">Nouveau / A traiter</option>
+        <option value="proposition">Proposition faite</option>
+        <optgroup label="Opérationnel">
+          <option value="entretien">Entretien en cours</option>
+          <option value="a_faire">A FAIRE</option>
+          <option value="oksi">OKSI</option>
+          <option value="top_profil">Top profil</option>
+          <option value="reunion_tech">En Réunion Technique</option>
+          <option value="valide_contrat">Validé / Contrat</option>
+          <option value="freelance">Freelance</option>
+          <option value="freelance_mission">FREELANCE EN MISSION UP</option>
+        </optgroup>
+        <optgroup label="Refus">
+          <option value="nok_prequal">NOK Préqual</option>
+          <option value="nok">NOK</option>
+          <option value="plus_disponible">Plus disponible</option>
+          <option value="refus_contrat">Refus du contrat</option>
+        </optgroup>
+        <optgroup label="Hors région">
+          <option value="hors_aura">Hors Aura</option>
+        </optgroup>
+      </select>
+      <button class="btn btn-primary" onclick="applyBulkHorsAuraStatus()">Appliquer</button>
+      <button class="btn btn-danger" onclick="deleteSelectedHorsAura()"><i data-icon="trash" data-size="14" aria-hidden="true"></i><span> Supprimer</span></button>
+    </div>
   </div>
 
   <div class="table-wrapper">
@@ -360,6 +504,16 @@
               <option value="refus_contrat">Refus du contrat</option>
             </optgroup>
           </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Téléphone</label>
+          <input id="candPhone" type="tel" placeholder="06 xx xx xx xx">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input id="candEmail" type="email" placeholder="prenom.nom@email.com">
         </div>
       </div>
       <div class="form-group">
