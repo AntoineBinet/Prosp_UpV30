@@ -14,6 +14,7 @@ var DV2_KPI_COLORS = {
 var _dv2_weekChart = null;
 var _dv2_mainData = null;
 var _dv2_chartInstances = {};
+var _dv2_weekOffset = 0; // 0 = current week, -1 = last week, etc.
 
 // ─── Helpers ───
 function dv2_esc(s) {
@@ -82,9 +83,80 @@ function dv2_emojiForRatio(r) {
   return '&#x1F976;';
 }
 
+// ─── Week navigation helpers ───
+
+function dv2_weekMonday(offset) {
+  var d = new Date();
+  d.setHours(0, 0, 0, 0);
+  var day = d.getDay();
+  var diff = (day === 0) ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff + offset * 7);
+  return d;
+}
+
+function dv2_isoWeek(offset) {
+  var monday = dv2_weekMonday(offset);
+  var d = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate()));
+  var dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return d.getUTCFullYear() + '-W' + String(weekNo).padStart(2, '0');
+}
+
+function dv2_weekLabel(offset) {
+  var monday = dv2_weekMonday(offset);
+  var sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  var fmt = { day: 'numeric', month: 'short' };
+  return monday.toLocaleDateString('fr-FR', fmt) + ' \u2013 ' + sunday.toLocaleDateString('fr-FR', fmt);
+}
+
+function dv2_updateWeekNav() {
+  var prevBtn = document.getElementById('dv2WeekPrev');
+  var nextBtn = document.getElementById('dv2WeekNext');
+  var todayBtn = document.getElementById('dv2WeekToday');
+  var label = document.getElementById('dv2WeekLabel');
+  if (prevBtn) prevBtn.disabled = (_dv2_weekOffset <= -52);
+  if (nextBtn) nextBtn.disabled = (_dv2_weekOffset >= 0);
+  if (todayBtn) todayBtn.style.display = _dv2_weekOffset < 0 ? 'inline-flex' : 'none';
+  if (label) label.textContent = _dv2_weekOffset === 0 ? 'Cette semaine' : dv2_weekLabel(_dv2_weekOffset);
+}
+
+async function dv2_reloadPerformance(weekISO) {
+  var chipsEl = document.getElementById('dv2KpiChips');
+  if (chipsEl) chipsEl.innerHTML = '<div class="dv2-skel-chip"></div><div class="dv2-skel-chip"></div><div class="dv2-skel-chip"></div><div class="dv2-skel-chip"></div>';
+  var chartEl = document.getElementById('dv2WeekChart');
+  if (chartEl) chartEl.innerHTML = '<div class="dv2-skel-chart"></div>';
+  try {
+    var data = await dv2_fetchMain(weekISO);
+    _dv2_mainData = data;
+    dv2_renderPerformance(data);
+    dv2_renderActivity(data.feed || { notes: [], push: [], rdv: [] }, (data.week && data.week.days) || []);
+  } catch(e) {
+    console.warn('[DashV2] week reload error:', e.message);
+    if (typeof showToast === 'function') showToast('Erreur de chargement', 'error');
+  }
+}
+
+window.dv2_navWeek = function(delta) {
+  if (delta === 0) {
+    _dv2_weekOffset = 0;
+  } else {
+    var next = _dv2_weekOffset + delta;
+    if (next > 0 || next < -52) return;
+    _dv2_weekOffset = next;
+  }
+  dv2_updateWeekNav();
+  var weekISO = _dv2_weekOffset < 0 ? dv2_isoWeek(_dv2_weekOffset) : null;
+  dv2_reloadPerformance(weekISO);
+};
+
 // ─── Fetchers ───
-async function dv2_fetchMain() {
-  var res = await fetch('/api/dashboard');
+async function dv2_fetchMain(weekISO) {
+  var url = '/api/dashboard';
+  if (weekISO) url += '?week=' + encodeURIComponent(weekISO);
+  var res = await fetch(url);
   if (!res.ok) throw new Error('HTTP ' + res.status);
   var json = await res.json();
   if (!json.ok) throw new Error(json.error || 'Error');
@@ -136,35 +208,41 @@ function dv2_renderPerformance(data) {
   var w = data.week;
   var pw = data.prev_week;
   var days = (w && w.days) || [];
+  var isPast = !!data.is_past_week;
 
-  // Contacts = appels tracés (call_logs), fallback sur max(relances, notes) si pas encore de données call_logs
+  // Contacts = appels tracés (call_logs), fallback sur max(relances, notes)
   var todayContacts = t.calls > 0 ? t.calls : Math.max(t.relances || 0, t.notes || 0);
   var weekContacts = w.calls > 0 ? w.calls : Math.max(w.relances || 0, w.notes || 0);
   var prevContacts = Math.max(pw.relances || 0, pw.notes || 0);
 
-  // Badge with total week actions
+  // Badge
   var totalWeek = weekContacts + (w.push_total || 0);
   var badge = document.getElementById('dv2PerfBadge');
-  if (badge) badge.textContent = totalWeek + ' actions cette semaine';
+  if (badge) badge.textContent = isPast ? dv2_weekLabel(_dv2_weekOffset) : totalWeek + ' actions cette semaine';
 
-  // KPI Chips — "Contacts" remplace "Relances" pour plus de precision
+  // KPI Chips — pour une semaine passée, affiche le total semaine comme valeur principale
   var chips = [
-    { key: 'contacts', icon: '\uD83D\uDCDE', label: 'Contacts', value: todayContacts,
+    { key: 'contacts', icon: '\uD83D\uDCDE', label: 'Contacts',
+      value: isPast ? weekContacts : todayContacts,
       weekVal: weekContacts, prevVal: prevContacts, color: DV2_KPI_COLORS.contacts,
-      sub: (t.calls || 0) + ' appels tracés' },
-    { key: 'notes', icon: '\uD83D\uDCDD', label: 'Notes', value: t.notes,
+      sub: isPast ? weekContacts + ' cette semaine' : (t.calls || 0) + ' appels trac\u00e9s' },
+    { key: 'notes', icon: '\uD83D\uDCDD', label: 'Notes',
+      value: isPast ? w.notes : t.notes,
       weekVal: w.notes, prevVal: pw.notes, color: DV2_KPI_COLORS.notes,
       sub: w.notes + ' cette semaine' },
-    { key: 'push', icon: '\uD83D\uDCE4', label: 'Push', value: t.push_total,
+    { key: 'push', icon: '\uD83D\uDCE4', label: 'Push',
+      value: isPast ? w.push_total : t.push_total,
       weekVal: w.push_total, prevVal: pw.push_total, color: DV2_KPI_COLORS.push,
       sub: (w.push_email || 0) + ' emails + ' + (w.push_linkedin || 0) + ' linkedin' },
-    { key: 'rdv', icon: '\uD83E\uDD1D', label: 'RDV', value: data.pipeline.rdv,
-      weekVal: data.pipeline.rdv, prevVal: 0, color: DV2_KPI_COLORS.rdv,
-      sub: 'sur ' + (data.pipeline.total || 0) + ' prospects' }
+    { key: 'rdv', icon: '\uD83E\uDD1D', label: 'RDV',
+      value: isPast ? (w.rdv_total || 0) : data.pipeline.rdv,
+      weekVal: isPast ? (w.rdv_total || 0) : data.pipeline.rdv, prevVal: 0,
+      color: DV2_KPI_COLORS.rdv,
+      sub: isPast ? 'RDV pris cette semaine' : 'sur ' + (data.pipeline.total || 0) + ' prospects' }
   ];
 
-  // Overdue chip (5th, alert style)
-  if (data.pipeline.overdue > 0) {
+  // Overdue chip (5th, alert style) — uniquement pour la semaine courante
+  if (!isPast && data.pipeline.overdue > 0) {
     chips.push({
       key: 'overdue', icon: '\u26A0\uFE0F', label: 'En retard', value: data.pipeline.overdue,
       weekVal: data.pipeline.overdue, prevVal: 0, color: '#ef4444',
@@ -524,6 +602,9 @@ function dv2_renderPipeline(pipeline) {
 // ─── Activity Stream (Heatmap + Feed) ───
 
 function dv2_renderActivity(feed, weekDays) {
+  // Update card title to reflect period
+  var actTitle = document.querySelector('#dv2Activity .dv2-card-title');
+  if (actTitle) actTitle.textContent = _dv2_weekOffset < 0 ? 'Activit\u00e9 de la semaine' : 'Activit\u00e9 du jour';
   // Mini-barres verticales au lieu de blocs heatmap
   var heatEl = document.getElementById('dv2Heatmap');
   if (heatEl && weekDays && weekDays.length) {
@@ -630,13 +711,11 @@ function dv2_renderActivity(feed, weekDays) {
   items.sort(function(a, b) { return b.sort.localeCompare(a.sort); });
 
   if (!items.length) {
+    var emptyMsg = _dv2_weekOffset < 0 ? 'Aucune activit\u00e9 cette semaine-l\u00e0' : 'Aucune activit\u00e9 aujourd\'hui';
     feedEl.innerHTML = '<div class="dv2-empty-activity">' +
       '<div class="dv2-empty-activity-icon">\uD83D\uDE80</div>' +
-      '<div class="dv2-empty-activity-text">Aucune activite aujourd\'hui</div>' +
-      '<div class="dv2-empty-activity-cta">' +
-        '<a href="/" class="dv2-action-btn">Prospects</a> ' +
-        '<a href="/focus" class="dv2-action-btn">Focus</a>' +
-      '</div>' +
+      '<div class="dv2-empty-activity-text">' + emptyMsg + '</div>' +
+      (_dv2_weekOffset === 0 ? '<div class="dv2-empty-activity-cta"><a href="/" class="dv2-action-btn">Prospects</a> <a href="/focus" class="dv2-action-btn">Focus</a></div>' : '') +
     '</div>';
     return;
   }
