@@ -145,7 +145,7 @@
   }
 }
 /* Mobile */
-@media (max-width: 767px) {
+@media (max-width: 900px) {
   .dv2-grid {
     grid-template-columns: 1fr;
     grid-template-areas:
@@ -1071,7 +1071,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
-@media (max-width: 767px) {
+@media (max-width: 900px) {
   .dv2-stats-grid { grid-template-columns: 1fr; }
 }
 .dv2-card--stat {
