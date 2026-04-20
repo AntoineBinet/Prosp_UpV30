@@ -14148,12 +14148,32 @@ def page_dashboard():
 
 @app.get("/api/dashboard")
 def api_dashboard():
-    """Return KPIs for today + this week + trends."""
-    today = _today_iso()
-    # Monday of this week
-    d_today = datetime.date.fromisoformat(today)
+    """Return KPIs for today + this week + trends. Accepts ?week=YYYY-WNN for historical navigation."""
+    real_today = _today_iso()
+    real_d_today = datetime.date.fromisoformat(real_today)
+
+    week_param = request.args.get('week', '').strip()
+    is_past_week = False
+    d_today = real_d_today
+    today = real_today
+    if week_param and '-W' in week_param:
+        try:
+            yr_s, wn_s = week_param.split('-W')
+            yr_p, wn_p = int(yr_s), int(wn_s)
+            jan4_p = datetime.date(yr_p, 1, 4)
+            w1_monday = jan4_p - datetime.timedelta(days=jan4_p.isoweekday() - 1)
+            req_monday_d = w1_monday + datetime.timedelta(weeks=wn_p - 1)
+            req_sunday_d = req_monday_d + datetime.timedelta(days=6)
+            if req_monday_d <= real_d_today:
+                d_today = min(req_sunday_d, real_d_today)
+                today = d_today.isoformat()
+                is_past_week = req_sunday_d < real_d_today
+        except Exception:
+            pass
+
+    # Monday of the target week
     monday = (d_today - datetime.timedelta(days=d_today.weekday())).isoformat()
-    # Last week range
+    # Previous week for trend comparison
     prev_monday = (d_today - datetime.timedelta(days=d_today.weekday() + 7)).isoformat()
     prev_sunday = (d_today - datetime.timedelta(days=d_today.weekday() + 1)).isoformat()
 
@@ -14267,18 +14287,19 @@ def api_dashboard():
         except Exception:
             rdv_by_date = {}
 
-        # Prospects passés en RDV aujourd'hui (pour le feed)
+        # Prospects passés en RDV (aujourd'hui, ou toute la semaine pour une semaine passée)
         try:
+            feed_start = monday if is_past_week else today
             today_rdv_rows = conn.execute(
                 """SELECT DISTINCT p.id, p.name, COALESCE(c.groupe, '') AS company_name,
                           p.rdvDate, e.createdAt
                    FROM prospect_events e
                    JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
                    LEFT JOIN companies c ON c.id=p.company_id
-                   WHERE e.type='rdv_taken' AND e.date=?
+                   WHERE e.type='rdv_taken' AND e.date BETWEEN ? AND ?
                      AND (p.deleted_at IS NULL OR p.deleted_at='')
-                   ORDER BY e.createdAt DESC LIMIT 10""",
-                (uid, today),
+                   ORDER BY e.createdAt DESC LIMIT 20""",
+                (uid, feed_start, today),
             ).fetchall()
             today_rdv_prospects = [dict(r) for r in today_rdv_rows]
         except Exception:
@@ -14346,13 +14367,14 @@ def api_dashboard():
     # RDV count
     rdv_total = sum(1 for p in prospects_list if p.get("statut") == "Rendez-vous")
 
-    # Today's notes for activity feed
+    # Notes/push for activity feed — full week range for past weeks, today only otherwise
+    feed_start = monday if is_past_week else today
     today_notes = sorted(
-        [n for n in all_notes if (n.get("date") or "")[:10] == today],
+        [n for n in all_notes if feed_start <= (n.get("date") or "")[:10] <= today],
         key=lambda x: x.get("date", ""), reverse=True
     )
     today_push = sorted(
-        [pl for pl in push_list if (pl.get("sentAt") or "")[:10] == today],
+        [pl for pl in push_list if feed_start <= (pl.get("sentAt") or "")[:10] <= today],
         key=lambda x: x.get("createdAt", ""), reverse=True
     )
 
@@ -14397,6 +14419,7 @@ def api_dashboard():
     )
 
     return jsonify(ok=True, data={
+        "is_past_week": is_past_week,
         "today": {
             "date": today,
             "relances": count_relances(today),
@@ -14410,6 +14433,7 @@ def api_dashboard():
         "week": {
             "start": monday,
             "end": today,
+            "week_num": datetime.date.fromisoformat(monday).isocalendar()[1],
             "relances": count_relances_range(monday, today),
             "notes": count_notes_range(monday, today),
             "calls": calls_week,
