@@ -22,31 +22,31 @@
   }
 
   // ─── Fetch & indexation par jour ─────────────────────────
+  // /api/calendar_events renvoie { events: [{ date, time, name, company,
+  // statut, type: rdv|relance|ec1, id, url? }], ok: true }.
   function loadEvents() {
     return fetchJSON('/api/calendar_events').then(function (res) {
       STATE.events = {};
-      var prospects = (res && res.prospects) || [];
-      prospects.forEach(function (p) {
-        if (p.rdvDate) push(p.rdvDate.slice(0, 10), {
-          type: 'rdv',
-          label: p.name + (p.company_groupe ? ' · ' + p.company_groupe : ''),
-          href: '/v30/prospect/' + p.id
-        });
-        if (p.nextFollowUp) push(p.nextFollowUp.slice(0, 10), {
-          type: 'relance',
-          label: 'Relancer ' + p.name,
-          href: '/v30/prospect/' + p.id
-        });
-      });
-      var ec1s = (res && res.ec1) || (res && res.candidate_tabs) || [];
-      ec1s.forEach(function (e) {
-        var d = (e.date || e.scheduled_at || '').slice(0, 10);
-        if (!d) return;
-        push(d, {
-          type: 'ec1',
-          label: 'EC1 · ' + (e.candidate_name || e.name || '—'),
-          href: '/v30/candidat/' + (e.candidate_id || '')
-        });
+      var events = (res && res.events) || [];
+      events.forEach(function (e) {
+        var iso = (e.date || '').slice(0, 10);
+        if (!iso) return;
+        var t = e.type || 'rdv';
+        var timePrefix = e.time ? e.time + ' · ' : '';
+        var label, href;
+        if (t === 'ec1') {
+          label = 'EC1 · ' + (e.name || '—');
+          href = e.url || ('/v30/candidat/' + (e.id || ''));
+        } else if (t === 'relance') {
+          label = 'Relancer ' + (e.name || '—')
+            + (e.company ? ' · ' + e.company : '');
+          href = e.url || ('/v30/prospect/' + (e.id || ''));
+        } else {
+          label = timePrefix + (e.name || '—')
+            + (e.company ? ' · ' + e.company : '');
+          href = e.url || ('/v30/prospect/' + (e.id || ''));
+        }
+        push(iso, { type: t, label: label, href: href });
       });
     }).catch(function (err) {
       console.error('[v30 calendar] /api/calendar_events failed:', err);
