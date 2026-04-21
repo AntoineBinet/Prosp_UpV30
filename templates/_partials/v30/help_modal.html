@@ -1,0 +1,116 @@
+{# ============================================================
+   ProspUp v30 — Help modal (shortcuts)
+   Activable via `?` ou bouton data-v30-help-open.
+   Contenu reproduit SPEC §2.3.
+   ============================================================ #}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-help-backdrop" data-v30-help-backdrop></div>
+
+<div class="v30-help" data-v30-help role="dialog" aria-modal="true" aria-label="Raccourcis clavier" hidden>
+  <div class="v30-help__head">
+    {{ ui.icon('bulb', 16) }}
+    <span class="v30-help__title">Raccourcis clavier</span>
+    <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-help-close aria-label="Fermer">
+      {{ ui.icon('x') }}
+    </button>
+  </div>
+  <div class="v30-help__body">
+
+    <div class="v30-help__section">
+      <div class="v30-help__section-title">Global</div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Command palette</span>
+        <span class="v30-help__row-keys"><span class="kbd">⌘</span><span class="kbd">K</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Ouvrir / fermer la palette (alternative)</span>
+        <span class="v30-help__row-keys"><span class="kbd">/</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Basculer le thème clair / sombre</span>
+        <span class="v30-help__row-keys"><span class="kbd">⇧</span><span class="kbd">T</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Focus mode (cacher la sidebar)</span>
+        <span class="v30-help__row-keys"><span class="kbd">⌘</span><span class="kbd">B</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Toggle sidebar (alternative)</span>
+        <span class="v30-help__row-keys"><span class="kbd">[</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Ouvrir cette aide</span>
+        <span class="v30-help__row-keys"><span class="kbd">?</span></span>
+      </div>
+    </div>
+
+    <div class="v30-help__section">
+      <div class="v30-help__section-title">Navigation (G + touche)</div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Goto Dashboard</span>
+        <span class="v30-help__row-keys"><span class="kbd">G</span><span class="kbd">D</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Goto Prospects</span>
+        <span class="v30-help__row-keys"><span class="kbd">G</span><span class="kbd">P</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Goto Entreprises</span>
+        <span class="v30-help__row-keys"><span class="kbd">G</span><span class="kbd">E</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Goto Candidats / Sourcing</span>
+        <span class="v30-help__row-keys"><span class="kbd">G</span><span class="kbd">S</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Goto Focus</span>
+        <span class="v30-help__row-keys"><span class="kbd">G</span><span class="kbd">F</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Goto Push</span>
+        <span class="v30-help__row-keys"><span class="kbd">G</span><span class="kbd">U</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Goto Stats</span>
+        <span class="v30-help__row-keys"><span class="kbd">G</span><span class="kbd">T</span></span>
+      </div>
+    </div>
+
+    <div class="v30-help__section">
+      <div class="v30-help__section-title">Création</div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Ouvrir le menu Créer (palette)</span>
+        <span class="v30-help__row-keys"><span class="kbd">C</span></span>
+      </div>
+    </div>
+
+    <div class="v30-help__section">
+      <div class="v30-help__section-title">Tables (futurs, non encore branchés)</div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Ligne suivante / précédente</span>
+        <span class="v30-help__row-keys"><span class="kbd">J</span> / <span class="kbd">K</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Sélectionner la ligne active</span>
+        <span class="v30-help__row-keys"><span class="kbd">X</span></span>
+      </div>
+      <div class="v30-help__row">
+        <span class="v30-help__row-label">Éditer la ligne active</span>
+        <span class="v30-help__row-keys"><span class="kbd">E</span></span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="v30-goto-hint" data-v30-goto-hint aria-live="polite">
+  <span>Goto…</span>
+  <span class="kbd">D</span>
+  <span class="kbd">P</span>
+  <span class="kbd">E</span>
+  <span class="kbd">S</span>
+  <span class="kbd">F</span>
+  <span class="kbd">U</span>
+  <span class="kbd">T</span>
+</div>

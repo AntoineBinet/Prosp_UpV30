@@ -1,0 +1,113 @@
+/* ProspUp v30 — Shortcuts: help modal + focus mode + goto hint */
+
+/* ─── Help modal ─── */
+.v30-help-backdrop {
+  position: fixed;
+  inset: 0;
+  background: oklch(0 0 0 / 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 70;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-2);
+}
+.v30-help-backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.v30-help {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  width: 520px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  z-index: 71;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-2), transform var(--dur-2) var(--ease-smooth);
+  overflow: hidden;
+}
+.v30-help.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+.v30-help__head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v30-help__title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.v30-help__body {
+  padding: 14px 18px 18px;
+  max-height: 440px;
+  overflow: auto;
+}
+.v30-help__section {
+  margin-bottom: 14px;
+}
+.v30-help__section-title {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.v30-help__row {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: var(--text);
+  gap: 10px;
+}
+.v30-help__row-label { flex: 1; }
+.v30-help__row-keys { display: inline-flex; gap: 3px; flex-shrink: 0; }
+
+/* ─── Goto hint (affiché quand "G" est pressé, avant la 2e touche) ─── */
+.v30-goto-hint {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translate(-50%, 100%);
+  background: var(--text);
+  color: var(--bg);
+  padding: 8px 14px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  font-size: 12.5px;
+  font-weight: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-2), transform var(--dur-2);
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.v30-goto-hint.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.v30-goto-hint .kbd {
+  background: color-mix(in oklch, var(--bg) 15%, transparent);
+  border-color: color-mix(in oklch, var(--bg) 30%, transparent);
+  color: var(--bg);
+}
+
+/* ─── Focus mode : cache la sidebar ─── */
+.v30-app-shell.is-focus .v30-sidebar { display: none; }
+.v30-app-shell.is-focus .v30-main__inner { max-width: 100%; }
