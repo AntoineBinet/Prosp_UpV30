@@ -1,0 +1,184 @@
+/* ProspUp v30 — Push (Campagnes / Templates / Historique) */
+
+.v30-push-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.v30-push-topbar h1 {
+  font-size: 22px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--text);
+}
+
+/* ─── Campagnes : liste cartes horizontales ─── */
+.v30-camp-card {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  align-items: center;
+}
+.v30-camp-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v30-camp-card__name { font-size: 14px; font-weight: 600; color: var(--text); }
+.v30-camp-card__cat  { font-size: 11.5px; color: var(--text-3); }
+.v30-camp-card__stats {
+  display: flex;
+  gap: 24px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.v30-camp-stat__label { color: var(--text-3); }
+.v30-camp-stat__val { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+.v30-camp-stat__val.is-info    { color: var(--info); }
+.v30-camp-stat__val.is-success { color: var(--success); }
+.v30-camp-card__date {
+  color: var(--text-3);
+  font-size: 11.5px;
+  align-self: end;
+}
+.v30-camp-card__bar {
+  height: 3px;
+  background: var(--surface-2);
+  border-radius: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.v30-camp-card__bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* ─── Wizard preview ─── */
+.v30-wizard-preview {
+  padding: 20px;
+  margin-top: 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+}
+.v30-wizard-preview__eyebrow {
+  font-size: 12px;
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.v30-wizard-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.v30-wizard-step {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  transition: border-color var(--dur-1), background var(--dur-1);
+}
+.v30-wizard-step.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.v30-wizard-step__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v30-wizard-step__num {
+  width: 20px; height: 20px; border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+.v30-wizard-step.is-active .v30-wizard-step__num {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.v30-wizard-step__title { font-size: 13px; font-weight: 600; color: var(--text); }
+.v30-wizard-step__desc  { font-size: 12px; color: var(--text-2); margin-top: 6px; }
+
+/* ─── Templates : grid 3 cols ─── */
+.v30-tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.v30-tpl-card {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v30-tpl-card__body {
+  font-size: 11.5px;
+  color: var(--text-2);
+  line-height: 1.4;
+  min-height: 46px;
+  font-family: var(--font-mono);
+  background: var(--surface-2);
+  padding: 8px;
+  border-radius: var(--r-sm);
+}
+.v30-tpl-card__meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+.v30-tpl-card__new {
+  border-style: dashed;
+  color: var(--text-3);
+  cursor: pointer;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ─── Historique : timeline groupée par jour ─── */
+.v30-hist-day {
+  padding: 10px 16px;
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.v30-hist-day + .v30-hist-day {
+  border-top: 1px solid var(--border);
+}
+.v30-hist-row {
+  display: grid;
+  grid-template-columns: 60px 28px 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.v30-hist-row:last-child { border-bottom: 0; }
+.v30-hist-row__time { font-size: 11px; color: var(--text-3); }
+.v30-hist-row__name { font-size: 12.5px; font-weight: 500; color: var(--text); }
+.v30-hist-row__name .muted { color: var(--text-3); font-weight: 400; }
+.v30-hist-row__subject { font-size: 11.5px; color: var(--text-3); }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .v30-tpl-grid { grid-template-columns: 1fr; }
+  .v30-wizard-steps { grid-template-columns: 1fr; }
+}
