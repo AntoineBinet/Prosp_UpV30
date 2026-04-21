@@ -4497,6 +4497,52 @@ def page_v30_login():
     return render_template("v30/login.html", app_version=APP_VERSION)
 
 
+@app.get("/v30/candidat/<int:cid>")
+def page_v30_candidate_detail(cid):
+    """Fiche candidat v30 (SPEC §3.8). Rendu serveur minimal ; les
+    données (profil + expériences) sont chargées côté client via
+    /api/candidates/<id> et /api/candidates/<id>/experiences."""
+    uid = _uid()
+    if not uid:
+        return redirect('/login')
+    try:
+        with _conn() as conn:
+            row = conn.execute(
+                "SELECT id, name FROM candidates WHERE id=? AND owner_id=? AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+                (cid, uid),
+            ).fetchone()
+    except Exception:
+        row = None
+    if not row:
+        return redirect('/v30/sourcing')
+
+    u = _get_current_user() or {}
+    dn = (u.get("display_name") or u.get("username") or "").strip()
+    parts = [p for p in dn.split() if p]
+    user_initials = "".join(p[0].upper() for p in parts[:2]) or "AB"
+
+    counts = {}
+    try:
+        with _conn() as conn:
+            counts["candidats"] = conn.execute(
+                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+            ).fetchone()[0]
+    except Exception:
+        counts = {}
+
+    return render_template(
+        "v30/candidate_detail.html",
+        active="candidats",
+        crumbs=["Prosp'Up", "Candidats", row["name"] or "Fiche"],
+        counts=counts,
+        pinned=[],
+        user_initials=user_initials,
+        candidate_id=cid,
+        candidate_name=row["name"] or "",
+        app_version=APP_VERSION,
+    )
+
+
 @app.get("/v30/stats")
 def page_v30_stats():
     """Stats & Rapport v30 (SPEC §3.9). Topbar + 4 KPI + Top entreprises
