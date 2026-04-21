@@ -296,30 +296,37 @@
   };
 
   // ─── Fetch + orchestration ──────────────────────────────────
+  // Sans query : on liste TOUS les prospects via /api/data.
+  // Avec query : on bascule sur /api/search?q= (fuzzy server-side).
   function loadProspects() {
-    var params = new URLSearchParams({
-      q: STATE.q || '',
-      limit: STATE.limit,
-      offset: STATE.offset
-    });
-    return fetchJSON('/api/search?' + params.toString()).then(function (res) {
+    var q = (STATE.q || '').trim();
+    var url = q
+      ? '/api/search?' + new URLSearchParams({ q: q, limit: 500, offset: 0 }).toString()
+      : '/api/data';
+    return fetchJSON(url).then(function (res) {
       var all = (res && res.prospects) || [];
+      // Ignore les prospects archivés côté client (comme v29)
+      all = all.filter(function (p) { return !p.is_archived && !p.deleted_at; });
       STATE.companies = {};
       ((res && res.companies) || []).forEach(function (c) { STATE.companies[c.id] = c.groupe || c.name || ''; });
       // Filtrage client-side selon le pill actif
       var filter = STATE.filter || 'all';
-      STATE.prospects = all.filter(function (p) {
-        if (filter === 'relance') return /(relanc|relance)/i.test(p.statut || '');
-        if (filter === 'hot') return (p.pertinence || 0) >= 4;
+      var filtered = all.filter(function (p) {
+        if (filter === 'relance') return /(relanc|relance|À rappeler|A rappeler|rappeler)/i.test(p.statut || '');
+        if (filter === 'hot') return parseInt(p.pertinence, 10) >= 4;
         if (filter === 'mine') return true; // déjà filtré par owner_id côté API (per-user DB)
         return true;
       });
-      STATE.total = (res && res.counts && res.counts.prospects) || all.length;
+      STATE.total = filtered.length;
+      // Pagination client-side (utile surtout pour /api/data qui renvoie tout)
+      var start = STATE.offset || 0;
+      var end = start + (STATE.limit || 50);
+      STATE.prospects = filtered.slice(start, end);
       renderAll();
       updatePagination();
       updateCounts();
     }).catch(function (err) {
-      console.error('[v30 prospects] /api/search failed:', err);
+      console.error('[v30 prospects] fetch failed:', err);
     });
   }
 
