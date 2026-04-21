@@ -1,5 +1,5 @@
 // Prosp'Up Service Worker v30 — liquid glass shell + v30 UX refresh
-const CACHE = 'prospup-v30.0-beta-shell-2';
+const CACHE = 'prospup-v30.0-beta-shell-3';
 const API_CACHE = 'prospup-api-v23.4';
 const API_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -47,6 +47,7 @@ const SHELL = [
   '/static/css/v30/snapshots.css',
   '/static/css/v30/help.css',
   '/static/css/v30/metiers.css',
+  '/static/css/v30/rapport_doc.css',
   // v30 JS
   '/static/js/v30/opt-in.js',
   '/static/js/v30/palette.js',
@@ -68,6 +69,7 @@ const SHELL = [
   '/static/js/v30/activity.js',
   '/static/js/v30/snapshots.js',
   '/static/js/v30/metiers.js',
+  '/static/js/v30/table_nav.js',
   // Assets partagés
   '/static/icon-192.png',
   '/static/icon-512.png',

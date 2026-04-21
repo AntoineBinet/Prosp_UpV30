@@ -3,6 +3,13 @@
    Reproduit screens/prospects.jsx. Dépend de tokens/components/chrome.
    ============================================================ */
 
+/* Ligne active via navigation clavier J/K/X/E */
+.v30-pp-table tr.is-active td,
+[data-v30-table-nav] tr.is-active td {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: color-mix(in oklch, var(--accent) 6%, transparent);
+}
+
 /* Saved pills (chips dynamiques issues de /api/views) */
 .v30-saved-pills { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .v30-pill__x {

@@ -88,7 +88,7 @@
               <th style="width:96px;"></th>
             </tr>
           </thead>
-          <tbody data-v30-rows>
+          <tbody data-v30-rows data-v30-table-nav>
             {% for _ in range(10) %}
             <tr>
               <td style="padding-left:14px;"><span class="skel" style="width:16px;height:16px;border-radius:3px;display:inline-block;"></span></td>
@@ -190,4 +190,5 @@
 </div>
 
 <script defer src="/static/js/v30/prospects.js?v={{ static_hash('js/v30/prospects.js') }}"></script>
+<script defer src="/static/js/v30/table_nav.js?v={{ static_hash('js/v30/table_nav.js') }}"></script>
 {% endblock %}
