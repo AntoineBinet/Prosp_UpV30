@@ -205,21 +205,200 @@
     });
   }
 
-  // ─── Nouvelle campagne ───────────────────────────────────
-  function bindNewCampaign() {
+  // ─── Campagnes (liste) ───────────────────────────────────
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    try {
+      var d = new Date(iso);
+      return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) +
+             ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    } catch (_) { return iso; }
+  }
+
+  function renderCampaigns() {
+    var host = document.querySelector('[data-v30-camp-grid]');
+    if (!host) return;
+    if (!STATE.campaigns || STATE.campaigns.length === 0) {
+      host.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:28px;">' +
+        'Aucune campagne. Clique sur <b>Nouvelle campagne</b> pour commencer.</div>';
+      return;
+    }
+    host.innerHTML = STATE.campaigns.map(function (c) {
+      var sent = c.sent_at ? true : false;
+      var stats = c.stats || {};
+      var recipients = stats.recipients != null ? stats.recipients : '—';
+      return '<div class="v30-camp-card" data-campaign-id="' + c.id + '">' +
+        '<div class="row-sb"><div class="v30-camp-card__name">' + esc(c.name) + '</div>' +
+          '<span class="v30-camp-card__badge' + (sent ? ' is-sent' : '') + '">' +
+          (sent ? 'Envoyée' : 'Brouillon') + '</span></div>' +
+        '<div class="v30-camp-card__meta">' +
+          '<span>Créée ' + esc(fmtDate(c.created_at)) + '</span>' +
+          (c.sent_at ? '<span>· envoyée ' + esc(fmtDate(c.sent_at)) + '</span>' : '') +
+        '</div>' +
+        '<div class="v30-camp-card__stats">' +
+          '<span>Audience : <b>' + recipients + '</b></span>' +
+          (stats.sent != null ? '<span>Envoyés : <b>' + stats.sent + '</b></span>' : '') +
+        '</div>' +
+        (sent ? '' : '<div class="v30-camp-card__actions">' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-camp-delete="' + c.id + '">Supprimer</button>' +
+        '</div>') +
+      '</div>';
+    }).join('');
+    // Binder delete
+    host.querySelectorAll('[data-camp-delete]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.dataset.campDelete;
+        if (!confirm('Supprimer cette campagne ?')) return;
+        fetch('/api/push-campaigns/' + id, { method: 'DELETE', credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(loadCampaigns);
+      });
+    });
+  }
+
+  function loadCampaigns() {
+    return fetchJSON('/api/push-campaigns').then(function (rows) {
+      STATE.campaigns = Array.isArray(rows) ? rows : [];
+      renderCampaigns();
+    }).catch(function (err) {
+      console.error('[v30 push] /api/push-campaigns failed:', err);
+      var host = document.querySelector('[data-v30-camp-grid]');
+      if (host) host.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:28px;">Erreur.</div>';
+    });
+  }
+
+  // ─── Wizard (3 étapes) ───────────────────────────────────
+  var WIZ = { step: 1, campaign: null };
+
+  function wizEl(sel) { return document.querySelector(sel); }
+  function wizShowStep(n) {
+    WIZ.step = n;
+    document.querySelectorAll('[data-wiz-panel]').forEach(function (p) {
+      p.hidden = (parseInt(p.dataset.wizPanel, 10) !== n);
+    });
+    document.querySelectorAll('[data-wiz-step]').forEach(function (s) {
+      s.classList.toggle('is-active', parseInt(s.dataset.wizStep, 10) === n);
+    });
+    wizEl('[data-v30-wiz-title]').textContent = 'Étape ' + n + ' · ' +
+      (n === 1 ? 'Cible' : n === 2 ? 'Message' : 'Envoi');
+    wizEl('[data-v30-wiz-prev]').hidden = (n === 1);
+    wizEl('[data-v30-wiz-next]').hidden = (n === 3);
+    wizEl('[data-v30-wiz-send]').hidden = (n !== 3);
+    if (n === 2) wizLoadCats();
+    if (n === 3) wizFillReview();
+  }
+  function wizFilters() {
+    var tagsRaw = wizEl('[data-wiz-tags]').value || '';
+    var tags = tagsRaw.split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+    return {
+      statut: wizEl('[data-wiz-statut]').value || null,
+      pertinence_min: wizEl('[data-wiz-perti]').value || null,
+      tags: tags.length ? tags : null
+    };
+  }
+  function wizRefreshAudience() {
+    if (!WIZ.campaign) return;
+    var filters = wizFilters();
+    // Patch la campagne côté serveur
+    fetch('/api/push-campaigns/' + WIZ.campaign.id, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filters: filters, name: wizEl('[data-wiz-name]').value || WIZ.campaign.name })
+    }).then(function (r) { return r.json(); })
+      .then(function (res) { if (res.ok) WIZ.campaign = res.campaign; })
+      .then(function () {
+        return fetch('/api/push-campaigns/' + WIZ.campaign.id + '/recipients-preview', {
+          method: 'POST', credentials: 'same-origin'
+        });
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        wizEl('[data-wiz-audience] .v30-wiz-audience__count').textContent = res.count != null ? res.count : '—';
+      });
+  }
+  function wizLoadCats() {
+    var sel = wizEl('[data-wiz-cat]');
+    if (!sel || sel.options.length > 1) return;
+    fetchJSON('/api/push-categories').then(function (res) {
+      var cats = (res && (res.categories || res.items)) || res || [];
+      cats.forEach(function (c) {
+        var opt = document.createElement('option');
+        opt.value = c.id; opt.textContent = c.name || c.title || ('Catégorie ' + c.id);
+        sel.appendChild(opt);
+      });
+    }).catch(function () {});
+  }
+  function wizFillReview() {
+    wizEl('[data-wiz-review-name]').textContent = wizEl('[data-wiz-name]').value || WIZ.campaign.name || '—';
+    wizEl('[data-wiz-review-audience]').textContent =
+      wizEl('[data-wiz-audience] .v30-wiz-audience__count').textContent + ' prospects';
+    wizEl('[data-wiz-review-cat]').textContent = wizEl('[data-wiz-cat]').selectedOptions[0]?.textContent || '—';
+    wizEl('[data-wiz-review-tpl]').textContent = wizEl('[data-wiz-tpl]').selectedOptions[0]?.textContent || 'Aucun';
+  }
+  function wizOpen() {
+    wizEl('[data-v30-wiz-backdrop]').hidden = false;
+    wizEl('[data-v30-wiz]').hidden = false;
+    // Reset form
+    wizEl('[data-wiz-name]').value = '';
+    wizEl('[data-wiz-statut]').value = '';
+    wizEl('[data-wiz-perti]').value = '';
+    wizEl('[data-wiz-tags]').value = '';
+    wizEl('[data-wiz-when]').value = '';
+    // Crée un brouillon
+    fetch('/api/push-campaigns', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nouvelle campagne' })
+    }).then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.ok) { WIZ.campaign = res.campaign; wizShowStep(1); wizRefreshAudience(); }
+      });
+  }
+  function wizClose(reload) {
+    wizEl('[data-v30-wiz-backdrop]').hidden = true;
+    wizEl('[data-v30-wiz]').hidden = true;
+    WIZ.campaign = null;
+    if (reload) loadCampaigns();
+  }
+  function wizSend() {
+    if (!WIZ.campaign) return;
+    fetch('/api/push-campaigns/' + WIZ.campaign.id + '/send', {
+      method: 'POST', credentials: 'same-origin'
+    }).then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.ok) {
+          if (window.showToast) window.showToast('Campagne envoyée (' + res.sent + ' destinataires)', 'success');
+          wizClose(true);
+        }
+      });
+  }
+  function bindWizard() {
     var btn = document.querySelector('[data-v30-new-campaign]');
-    if (btn) btn.addEventListener('click', function () {
-      // Redirige vers la page Push legacy pour le flux de création actuel
-      window.location.href = '/push';
+    if (btn) btn.addEventListener('click', wizOpen);
+    document.querySelectorAll('[data-v30-wiz-close]').forEach(function (b) {
+      b.addEventListener('click', function () { wizClose(false); });
+    });
+    var next = wizEl('[data-v30-wiz-next]');
+    var prev = wizEl('[data-v30-wiz-prev]');
+    var send = wizEl('[data-v30-wiz-send]');
+    if (next) next.addEventListener('click', function () { wizShowStep(Math.min(3, WIZ.step + 1)); });
+    if (prev) prev.addEventListener('click', function () { wizShowStep(Math.max(1, WIZ.step - 1)); });
+    if (send) send.addEventListener('click', wizSend);
+    // Refresh audience quand un filtre change
+    ['[data-wiz-statut]', '[data-wiz-perti]', '[data-wiz-tags]', '[data-wiz-name]'].forEach(function (sel) {
+      var el = wizEl(sel);
+      if (el) el.addEventListener('change', wizRefreshAudience);
+      if (el && el.tagName !== 'SELECT') el.addEventListener('blur', wizRefreshAudience);
     });
   }
 
   // ─── Init ────────────────────────────────────────────────
   function init() {
     bindTabs();
-    bindNewCampaign();
-    // Premier panel actif = Campagnes : on charge en lazy via tab switch.
-    // Précharge quand même l'historique pour que le badge Templates se peuple rapidement sur clic
+    bindWizard();
+    loadCampaigns();
   }
 
   if (document.readyState === 'loading') {

@@ -27,37 +27,154 @@
 
   {# ─── Panel Campagnes ─── #}
   <div data-v30-push-panel="campagnes">
-    <div class="empty" style="padding:24px;border:1px solid var(--border);border-radius:14px;background:var(--surface);">
-      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;">
-        Campagnes — en préparation
+    <div class="v30-camp-grid" data-v30-camp-grid>
+      <div class="empty" style="padding:20px;">Chargement des campagnes…</div>
+    </div>
+  </div>
+
+  {# ─── Wizard « Nouvelle campagne » (modal 3 étapes) ─── #}
+  <div class="v30-wizard-backdrop" data-v30-wiz-backdrop hidden></div>
+  <div class="v30-wizard" data-v30-wiz role="dialog" aria-modal="true"
+       aria-label="Nouvelle campagne push" hidden>
+    <header class="v30-wizard__head">
+      <div>
+        <div class="v30-wizard__eyebrow">Nouvelle campagne</div>
+        <h2 class="v30-wizard__title" data-v30-wiz-title>Étape 1 · Cible</h2>
       </div>
-      <div style="font-size:12.5px;color:var(--text-2);max-width:520px;margin:0 auto;line-height:1.6;">
-        Le nouveau concept de <b>Campagne</b> (cible + message + programmation + tracking
-        sent/opened/replied) nécessite une migration DB (table <code class="mono">push_campaigns</code>,
-        voir SPEC §5.2). En attendant, utilisez l'onglet <b>Historique</b> pour voir les
-        pushs déjà envoyés et l'onglet <b>Templates</b> pour gérer les modèles réutilisables.
+      <button type="button" class="btn btn-ghost btn-icon"
+              data-v30-wiz-close aria-label="Fermer">
+        {{ ui.icon('x') }}
+      </button>
+    </header>
+
+    <nav class="v30-wizard-steps" data-v30-wiz-nav>
+      <div class="v30-wizard-step is-active" data-wiz-step="1">
+        <div class="v30-wizard-step__head">
+          <span class="v30-wizard-step__num">1</span>
+          <span class="v30-wizard-step__title">Cible</span>
+        </div>
+        <div class="v30-wizard-step__desc">Filtres + preview audience</div>
       </div>
+      <div class="v30-wizard-step" data-wiz-step="2">
+        <div class="v30-wizard-step__head">
+          <span class="v30-wizard-step__num">2</span>
+          <span class="v30-wizard-step__title">Message</span>
+        </div>
+        <div class="v30-wizard-step__desc">Template + catégorie</div>
+      </div>
+      <div class="v30-wizard-step" data-wiz-step="3">
+        <div class="v30-wizard-step__head">
+          <span class="v30-wizard-step__num">3</span>
+          <span class="v30-wizard-step__title">Envoi</span>
+        </div>
+        <div class="v30-wizard-step__desc">Programmation + validation</div>
+      </div>
+    </nav>
+
+    <div class="v30-wizard__body" data-v30-wiz-body>
+      {# Étape 1 — Cible #}
+      <section data-wiz-panel="1">
+        <label class="v30-field">
+          <span class="v30-field__label">Nom de la campagne</span>
+          <input type="text" class="v30-input" data-wiz-name
+                 placeholder="Ex. Relance DevOps — avril">
+        </label>
+        <div class="v30-field-grid">
+          <label class="v30-field">
+            <span class="v30-field__label">Statut</span>
+            <select class="v30-input" data-wiz-statut>
+              <option value="">Tous</option>
+              <option value="À contacter">À contacter</option>
+              <option value="Relance à faire">Relance à faire</option>
+              <option value="En discussion">En discussion</option>
+              <option value="RDV pris">RDV pris</option>
+            </select>
+          </label>
+          <label class="v30-field">
+            <span class="v30-field__label">Pertinence min.</span>
+            <select class="v30-input" data-wiz-perti>
+              <option value="">Toutes</option>
+              <option value="1">1+</option>
+              <option value="2">2+</option>
+              <option value="3">3+</option>
+              <option value="4">4+</option>
+              <option value="5">5 uniquement</option>
+            </select>
+          </label>
+        </div>
+        <label class="v30-field">
+          <span class="v30-field__label">Tags (un par ligne)</span>
+          <textarea class="v30-input" data-wiz-tags rows="2"
+                    placeholder="DevOps&#10;PME"></textarea>
+        </label>
+        <div class="v30-wiz-audience" data-wiz-audience>
+          <span class="v30-wiz-audience__count">—</span>
+          prospects correspondent aux filtres
+        </div>
+      </section>
+
+      {# Étape 2 — Message #}
+      <section data-wiz-panel="2" hidden>
+        <label class="v30-field">
+          <span class="v30-field__label">Catégorie push</span>
+          <select class="v30-input" data-wiz-cat>
+            <option value="">— Choisir une catégorie —</option>
+          </select>
+        </label>
+        <label class="v30-field">
+          <span class="v30-field__label">Template</span>
+          <select class="v30-input" data-wiz-tpl>
+            <option value="">— Composer sans template —</option>
+          </select>
+        </label>
+        <div class="v30-wiz-tpl-preview" data-wiz-tpl-preview>
+          <span class="muted" style="font-size:12px;">
+            Sélectionne un template ou continue pour composer le message à la volée.
+          </span>
+        </div>
+      </section>
+
+      {# Étape 3 — Envoi #}
+      <section data-wiz-panel="3" hidden>
+        <div class="v30-wiz-review" data-wiz-review>
+          <div class="v30-wiz-review__row">
+            <span class="v30-wiz-review__label">Nom</span>
+            <span data-wiz-review-name>—</span>
+          </div>
+          <div class="v30-wiz-review__row">
+            <span class="v30-wiz-review__label">Audience</span>
+            <span data-wiz-review-audience>—</span>
+          </div>
+          <div class="v30-wiz-review__row">
+            <span class="v30-wiz-review__label">Catégorie</span>
+            <span data-wiz-review-cat>—</span>
+          </div>
+          <div class="v30-wiz-review__row">
+            <span class="v30-wiz-review__label">Template</span>
+            <span data-wiz-review-tpl>—</span>
+          </div>
+        </div>
+        <label class="v30-field">
+          <span class="v30-field__label">Programmer l'envoi</span>
+          <input type="datetime-local" class="v30-input" data-wiz-when>
+          <span class="muted" style="font-size:11.5px;">
+            Laisse vide pour envoyer immédiatement.
+          </span>
+        </label>
+      </section>
     </div>
 
-    {# Wizard preview (non interactif) #}
-    <div class="v30-wizard-preview">
-      <div class="v30-wizard-preview__eyebrow">Assistant nouvelle campagne — aperçu</div>
-      <div class="v30-wizard-steps">
-        {% for s in [
-          {'i': 1, 't': 'Cible',   'd': 'Catégorie + filtres · preview des prospects',  'active': true},
-          {'i': 2, 't': 'Message', 'd': 'Template ou composer avec variables',           'active': false},
-          {'i': 3, 't': 'Envoi',   'd': 'Immédiat / programmé · checklist de validation','active': false}
-        ] %}
-        <div class="v30-wizard-step{% if s.active %} is-active{% endif %}">
-          <div class="v30-wizard-step__head">
-            <span class="v30-wizard-step__num">{{ s.i }}</span>
-            <span class="v30-wizard-step__title">{{ s.t }}</span>
-          </div>
-          <div class="v30-wizard-step__desc">{{ s.d }}</div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
+    <footer class="v30-wizard__foot">
+      <button type="button" class="btn btn-ghost" data-v30-wiz-prev hidden>
+        Précédent
+      </button>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost" data-v30-wiz-close>Annuler</button>
+      <button type="button" class="btn btn-accent" data-v30-wiz-next>Suivant</button>
+      <button type="button" class="btn btn-accent" data-v30-wiz-send hidden>
+        {{ ui.icon('send', 13) }} Envoyer
+      </button>
+    </footer>
   </div>
 
   {# ─── Panel Templates ─── #}
