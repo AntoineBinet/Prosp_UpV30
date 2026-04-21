@@ -1,0 +1,220 @@
+/* ============================================================
+   ProspUp v30 — Fiche prospect (prospect-detail.jsx)
+   ============================================================ */
+
+.v30-fp {
+  padding: 16px 0 32px;
+}
+
+/* ─────────── Header card ─────────── */
+.v30-fp-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.v30-fp-header__avatar {
+  width: 56px; height: 56px;
+  font-size: 18px;
+}
+.v30-fp-header__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.v30-fp-header__name {
+  font-size: 22px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--text);
+}
+.v30-fp-header__meta {
+  font-size: 13px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.v30-fp-header__meta b { color: var(--text-2); font-weight: 600; }
+.v30-fp-header__chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.v30-fp-header__actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Editable name */
+.v30-fp-editable {
+  cursor: text;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background var(--dur-1);
+}
+.v30-fp-editable:hover { background: var(--surface-2); }
+.v30-fp-editable[contenteditable="true"] {
+  background: var(--surface-2);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.v30-fp-saved-check {
+  color: var(--success);
+  opacity: 0;
+  transition: opacity var(--dur-2);
+  display: inline-flex;
+}
+.v30-fp-saved-check.is-visible { opacity: 1; }
+
+/* ─────────── Layout 2 cols ─────────── */
+.v30-fp-body {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* ─────────── Timeline bloc ─────────── */
+.v30-fp-timeline {
+  padding: 4px 16px 12px;
+  position: relative;
+}
+.v30-fp-timeline::before {
+  content: "";
+  position: absolute;
+  left: 118px;
+  top: 12px;
+  bottom: 12px;
+  width: 1px;
+  background: var(--border);
+}
+.v30-fp-ev {
+  display: grid;
+  grid-template-columns: 100px 12px 1fr;
+  gap: 10px;
+  padding: 10px 0;
+  align-items: start;
+}
+.v30-fp-ev__time {
+  font-size: 11px;
+  color: var(--text-3);
+  padding-top: 2px;
+}
+.v30-fp-ev__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  margin-top: 4px;
+  margin-left: 1px;
+  border: 2px solid var(--surface);
+}
+.v30-fp-ev__title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+}
+.v30-fp-ev__body {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 1px;
+}
+
+/* ─────────── Aside rows ─────────── */
+.v30-fp-aside-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+}
+.v30-fp-aside-row:first-of-type { border-top: 0; }
+.v30-fp-aside-row__label { color: var(--text-3); }
+.v30-fp-aside-row__value { color: var(--text); }
+
+/* Candidats recommandés */
+.v30-fp-cand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  text-decoration: none;
+  color: inherit;
+}
+.v30-fp-cand:not(:first-of-type) {
+  border-top: 1px solid var(--border);
+}
+
+/* ─────────── IA drawer ─────────── */
+.v30-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: oklch(0 0 0 / 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 50;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-2);
+}
+.v30-drawer-backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.v30-drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 480px;
+  max-width: 100vw;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-pop);
+  z-index: 51;
+  transform: translateX(100%);
+  transition: transform var(--dur-3) var(--ease-smooth);
+  display: flex;
+  flex-direction: column;
+}
+.v30-drawer.is-open { transform: translateX(0); }
+
+.v30-drawer__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.v30-drawer__title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.v30-drawer__body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+.v30-drawer__foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .v30-fp-body { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .v30-fp-header { grid-template-columns: 1fr; }
+  .v30-fp-header__actions { justify-content: flex-start; flex-wrap: wrap; }
+  .v30-drawer { width: 100vw; }
+}
