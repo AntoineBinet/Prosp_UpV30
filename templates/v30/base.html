@@ -32,6 +32,7 @@
   <link rel="stylesheet" href="/static/css/v30/tokens.css?v={{ static_hash('css/v30/tokens.css') }}">
   <link rel="stylesheet" href="/static/css/v30/components.css?v={{ static_hash('css/v30/components.css') }}">
   <link rel="stylesheet" href="/static/css/v30/chrome.css?v={{ static_hash('css/v30/chrome.css') }}">
+  <link rel="stylesheet" href="/static/css/v30/palette.css?v={{ static_hash('css/v30/palette.css') }}">
 
   {% block extra_head %}{% endblock %}
 </head>
@@ -48,7 +49,12 @@
     </div>
   </div>
 
+  {# ─── Command palette ⌘K (global) ─── #}
+  {% include "_partials/v30/palette.html" %}
+
   {% block modals %}{% endblock %}
+
+  <script defer src="/static/js/v30/palette.js?v={{ static_hash('js/v30/palette.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

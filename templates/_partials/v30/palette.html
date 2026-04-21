@@ -1,0 +1,30 @@
+{# ============================================================
+   ProspUp v30 — Command palette ⌘K
+   Reproduit screens/login-palette.jsx · ScreenPalette.
+   Activation globale : raccourcis ⌘K / Ctrl+K ou bouton
+   data-v30-cmdk du topbar.
+   ============================================================ #}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-palette-backdrop" data-v30-palette-backdrop></div>
+
+<div class="v30-palette" data-v30-palette role="dialog" aria-modal="true" aria-label="Palette de commandes" hidden>
+  <div class="v30-palette__head">
+    {{ ui.icon('search', 16) }}
+    <input type="text" class="v30-palette__input" placeholder="Rechercher ou sauter vers…"
+           data-v30-palette-input autocomplete="off" spellcheck="false">
+    <span class="kbd">Esc</span>
+  </div>
+
+  <div class="v30-palette__body" data-v30-palette-body>
+    {# Contenu hydraté par static/js/v30/palette.js #}
+  </div>
+
+  <div class="v30-palette__foot">
+    <span><span class="kbd">↑</span><span class="kbd">↓</span> Naviguer</span>
+    <span><span class="kbd">↵</span> Ouvrir</span>
+    <span><span class="kbd">⌘</span><span class="kbd">↵</span> Nouvel onglet</span>
+    <div class="v30-spacer"></div>
+    <span>Propulsé par <b>ProspUp</b></span>
+  </div>
+</div>
