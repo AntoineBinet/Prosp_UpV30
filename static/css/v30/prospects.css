@@ -1,0 +1,324 @@
+/* ============================================================
+   ProspUp v30 — Prospects (Table + Kanban + Split + bulk bar)
+   Reproduit screens/prospects.jsx. Dépend de tokens/components/chrome.
+   ============================================================ */
+
+/* ─────────── Page topbar (sticky sous la topbar globale) ─────────── */
+.v30-pp-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.v30-pp-topbar h1 {
+  font-size: 18px;
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+}
+.v30-pp-topbar h1 .v30-pp-count {
+  color: var(--text-3);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  margin-left: 6px;
+}
+
+/* ─────────── Saved views pills ─────────── */
+.v30-pp-views {
+  display: flex;
+  gap: 6px;
+  padding: 12px 0;
+  align-items: center;
+  overflow-x: auto;
+}
+.v30-pp-views::-webkit-scrollbar { height: 0; }
+
+.v30-pill {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-1), border-color var(--dur-1), color var(--dur-1);
+}
+.v30-pill:hover { color: var(--text); background: var(--surface-2); }
+.v30-pill.is-active {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text);
+  font-weight: 500;
+}
+.v30-pill .mono { opacity: 0.5; }
+
+/* ─────────── Recherche inline ─────────── */
+.v30-pp-search {
+  position: relative;
+  width: 240px;
+}
+.v30-pp-search .input {
+  padding-left: 28px;
+}
+.v30-pp-search__icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* ─────────── Table ─────────── */
+.v30-pp-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 4px;
+  background: var(--surface);
+}
+.v30-pp-table-scroll {
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+}
+.v30-pp-table td {
+  padding: 9px 10px;
+}
+.v30-pp-table tr.is-selected td {
+  background: color-mix(in oklch, var(--accent) 8%, var(--surface));
+}
+
+.v30-pp-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v30-pp-name__value {
+  font-weight: 500;
+  color: var(--text);
+}
+.v30-pp-name__role {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* Pertinence bars (5 barres croissantes) */
+.v30-pertinence {
+  display: inline-flex;
+  gap: 2px;
+  align-items: flex-end;
+}
+.v30-pertinence__bar {
+  width: 4px;
+  background: var(--surface-3);
+  border-radius: 1px;
+}
+.v30-pertinence__bar.is-on { background: var(--accent); }
+
+/* Mobile cell (numero + pastille) */
+.v30-pp-tel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--text-2);
+}
+.v30-pp-tel__badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px; height: 20px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+.v30-pp-tel__dot {
+  position: absolute;
+  right: -1px; bottom: -1px;
+  width: 7px; height: 7px;
+  border-radius: 4px;
+  border: 1.5px solid var(--surface);
+}
+.v30-pp-tel__dot.is-now  { background: var(--success); box-shadow: 0 0 0 2px color-mix(in oklch, var(--success) 20%, transparent); }
+.v30-pp-tel__dot.is-soon { background: oklch(0.74 0.15 75); }
+.v30-pp-tel__dot.is-off  { background: var(--text-muted); }
+.v30-pp-tel__number {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* Actions row (hover-revealed) */
+.v30-pp-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity var(--dur-1);
+}
+.v30-pp-table tr:hover .v30-pp-actions,
+.v30-pp-table tr.is-selected .v30-pp-actions { opacity: 1; }
+
+/* Footer pagination */
+.v30-pp-pagin {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+/* Empty state for table */
+.v30-pp-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+/* ─────────── Kanban ─────────── */
+.v30-pp-kanban {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.v30-pp-kcol {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 420px;
+}
+.v30-pp-kcol__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 2px;
+}
+.v30-pp-kcol__dot {
+  width: 6px; height: 6px; border-radius: 3px;
+}
+.v30-pp-kcol__title { font-size: 12px; font-weight: 600; color: var(--text); }
+.v30-pp-kcol__count { font-size: 11px; color: var(--text-3); }
+
+.v30-pp-kcard {
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.v30-pp-kcard__name { font-size: 13px; font-weight: 500; color: var(--text); }
+.v30-pp-kcard__co   { font-size: 11.5px; color: var(--text-3); margin-top: 1px; }
+.v30-pp-kcard__foot { display: flex; gap: 4px; margin-top: 8px; align-items: center; }
+
+/* ─────────── Split ─────────── */
+.v30-pp-split {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 0;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 540px;
+}
+.v30-pp-split__list {
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow: auto;
+  max-height: calc(100vh - 260px);
+}
+.v30-pp-split__row {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+.v30-pp-split__row:hover { background: var(--surface-2); }
+.v30-pp-split__row.is-selected { background: var(--surface-2); }
+.v30-pp-split__detail {
+  padding: 20px;
+  overflow: auto;
+  max-height: calc(100vh - 260px);
+  background: var(--bg);
+}
+
+/* ─────────── Bulk bar ─────────── */
+.v30-bulk {
+  position: fixed;
+  bottom: 24px;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 40;
+}
+.v30-bulk__inner {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--text);
+  color: var(--bg);
+  padding: 8px 12px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.v30-bulk__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: color-mix(in oklch, var(--bg) 15%, transparent);
+  border-radius: 6px;
+}
+.v30-bulk__sep {
+  width: 1px;
+  height: 16px;
+  background: color-mix(in oklch, var(--bg) 20%, transparent);
+}
+.v30-bulk__btn {
+  background: transparent;
+  border: 0;
+  color: var(--bg);
+  opacity: 0.9;
+  font-size: 12.5px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.v30-bulk__btn:hover { opacity: 1; background: color-mix(in oklch, var(--bg) 10%, transparent); }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .v30-pp-kanban { grid-template-columns: repeat(3, minmax(200px, 1fr)); }
+  .v30-pp-split { grid-template-columns: 260px 1fr; }
+}
+@media (max-width: 900px) {
+  .v30-pp-kanban { grid-template-columns: 1fr; }
+  .v30-pp-split  { grid-template-columns: 1fr; }
+  .v30-pp-split__list { border-right: 0; border-bottom: 1px solid var(--border); }
+}
