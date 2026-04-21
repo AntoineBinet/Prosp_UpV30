@@ -22,11 +22,13 @@
     <div class="v30-spacer"></div>
     <div class="segmented" role="tablist" data-v30-rapport-weeks>
       <button type="button" class="active" data-week="current" role="tab"
-              aria-selected="true">Semaine en cours</button>
+              aria-selected="true">En cours</button>
       <button type="button" data-week="prev" role="tab" aria-selected="false">
-        Semaine précédente
+        Précédente
       </button>
     </div>
+    <input type="week" class="input" data-v30-rapport-week-picker
+           aria-label="Choisir une semaine ISO" style="max-width:180px;">
     <button type="button" class="btn" data-v30-rapport-copy>
       {{ ui.icon('bookmark', 13) }} Copier Markdown
     </button>

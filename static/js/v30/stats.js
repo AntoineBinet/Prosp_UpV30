@@ -274,9 +274,16 @@
     } catch (_) {}
   }
 
-  function repLoad(which) {
-    REP.week = weekParam(which);
+  function repLoad(whichOrIso) {
+    // whichOrIso : 'current' / 'prev' ou une semaine ISO directe (YYYY-Www).
+    if (whichOrIso && /^\d{4}-W\d{2}$/.test(whichOrIso)) {
+      REP.week = whichOrIso;
+    } else {
+      REP.week = weekParam(whichOrIso);
+    }
     REP.key = 'prospup_rapport_' + REP.week;
+    var picker = document.querySelector('[data-v30-rep-week-picker]');
+    if (picker) picker.value = REP.week;
     return fetchJSON('/api/rapport-hebdo?week=' + encodeURIComponent(REP.week))
       .then(function (res) {
         REP.data = res || {};
@@ -329,6 +336,13 @@
       if (!b) return;
       seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('active', x === b); });
       repLoad(b.dataset.week);
+    });
+    var picker = document.querySelector('[data-v30-rep-week-picker]');
+    if (picker) picker.addEventListener('change', function () {
+      if (!picker.value) return;
+      // Desactive les pills (aucune n'est 'active')
+      if (seg) seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('active'); });
+      repLoad(picker.value);
     });
     var refresh = document.querySelector('[data-v30-rep-refresh]');
     if (refresh) refresh.addEventListener('click', function () {

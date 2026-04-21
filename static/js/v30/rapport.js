@@ -112,9 +112,15 @@
     }).join('');
   }
 
-  function loadWeek(which) {
-    STATE.week = weekParam(which);
+  function loadWeek(whichOrIso) {
+    if (whichOrIso && /^\d{4}-W\d{2}$/.test(whichOrIso)) {
+      STATE.week = whichOrIso;
+    } else {
+      STATE.week = weekParam(whichOrIso);
+    }
     WEEK_KEY = 'prospup_rapport_' + STATE.week;
+    var picker = $('[data-v30-rapport-week-picker]');
+    if (picker) picker.value = STATE.week;
     return fetchJSON('/api/rapport-hebdo?week=' + encodeURIComponent(STATE.week))
       .then(function (res) {
         // L'API emballe dans { data, ok }. On passe l'objet data partout.
@@ -156,8 +162,7 @@
   // ─── Toolbar ────────────────────────────────────────────
   function bindWeekToggle() {
     var seg = $('[data-v30-rapport-weeks]');
-    if (!seg) return;
-    seg.addEventListener('click', function (e) {
+    if (seg) seg.addEventListener('click', function (e) {
       var btn = e.target.closest('button[data-week]');
       if (!btn) return;
       seg.querySelectorAll('button[data-week]').forEach(function (b) {
@@ -166,6 +171,12 @@
         b.setAttribute('aria-selected', active ? 'true' : 'false');
       });
       loadWeek(btn.dataset.week);
+    });
+    var picker = $('[data-v30-rapport-week-picker]');
+    if (picker) picker.addEventListener('change', function () {
+      if (!picker.value) return;
+      if (seg) seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('active'); });
+      loadWeek(picker.value);
     });
   }
 
