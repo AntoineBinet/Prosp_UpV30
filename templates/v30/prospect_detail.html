@@ -1,0 +1,231 @@
+{% extends "v30/base.html" %}
+{% block title %}{{ prospect_name or 'Fiche prospect' }} — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-prospect-detail{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/prospect_detail.css?v={{ static_hash('css/v30/prospect_detail.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-fp" data-v30-fp data-prospect-id="{{ prospect_id }}">
+
+  {# ─── Header (hydraté par JS) ─── #}
+  <div class="v30-fp-header" data-v30-fp-header>
+    <span class="avatar avatar-lg v30-fp-header__avatar" data-field="initials">
+      <span class="skel" style="width:36px;height:18px;"></span>
+    </span>
+    <div>
+      <div class="v30-fp-header__title-row">
+        <h1 class="v30-fp-header__name v30-fp-editable" data-field="name" data-v30-edit="name" tabindex="0">
+          <span class="skel" style="width:200px;height:22px;display:inline-block;"></span>
+        </h1>
+        <span data-field="statut-pill">
+          <span class="skel" style="width:80px;height:18px;border-radius:999px;display:inline-block;"></span>
+        </span>
+        <span class="v30-fp-saved-check" data-v30-saved-check aria-live="polite">
+          {{ ui.icon('check', 14) }}
+        </span>
+      </div>
+      <div class="v30-fp-header__meta" data-field="meta">
+        <span class="skel" style="width:320px;height:12px;display:inline-block;"></span>
+      </div>
+      <div class="v30-fp-header__chips" data-field="chips">
+        {% for _ in range(3) %}
+        <span class="skel" style="width:120px;height:20px;display:inline-block;border-radius:6px;"></span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="v30-fp-header__actions">
+      <button type="button" class="btn btn-accent" data-v30-action="push">
+        {{ ui.icon('send', 13) }} Pousser
+      </button>
+      <a class="btn" data-field="tel-link" href="#" hidden>
+        {{ ui.icon('phone', 13) }} Appeler
+      </a>
+      <button type="button" class="btn" data-v30-action="schedule">
+        {{ ui.icon('calendar', 13) }} Planifier
+      </button>
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-action="more" aria-label="Plus">
+        {{ ui.icon('dot3') }}
+      </button>
+    </div>
+  </div>
+
+  {# ─── Body 2 cols : Main + Aside ─── #}
+  <div class="v30-fp-body">
+
+    {# Main column #}
+    <div>
+      <div class="tabs" role="tablist" data-v30-fp-tabs>
+        <button type="button" class="active" data-tab="apercu" role="tab" aria-selected="true">Aperçu</button>
+        <button type="button" data-tab="timeline" role="tab" aria-selected="false">
+          Timeline <span class="tab-count" data-field="count-timeline">—</span>
+        </button>
+        <button type="button" data-tab="push" role="tab" aria-selected="false">
+          Push <span class="tab-count" data-field="count-push">—</span>
+        </button>
+        <button type="button" data-tab="ia" role="tab" aria-selected="false">IA</button>
+      </div>
+
+      {# Panel: Aperçu #}
+      <div data-v30-fp-panel="apercu">
+        <div class="card" style="margin-top:12px;">
+          <div class="row-sb" style="margin-bottom:8px;">
+            <div class="card-title">Notes rapides</div>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-edit-notes>Éditer</button>
+          </div>
+          <div class="v30-fp-editable" data-field="notes" data-v30-edit="notes"
+               style="font-size:13px;color:var(--text-2);line-height:1.6;min-height:1.6em;">
+            <span class="skel" style="width:90%;height:13px;"></span>
+          </div>
+        </div>
+
+        <div class="card card-flush" style="margin-top:12px;">
+          <div class="card-header">
+            <div class="card-title">Activité</div>
+            <div style="display:flex;gap:4px;" data-v30-fp-filter>
+              <button type="button" class="btn btn-ghost btn-sm active" data-filter="all">Tous</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-filter="push">Push</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-filter="note">Notes</button>
+            </div>
+          </div>
+          <div class="v30-fp-timeline" data-v30-fp-events>
+            {% for _ in range(4) %}
+            <div class="v30-fp-ev">
+              <span class="skel" style="height:11px;"></span>
+              <span class="skel" style="width:10px;height:10px;border-radius:50%;margin-top:4px;"></span>
+              <div>
+                <div class="skel" style="width:60%;height:13px;margin-bottom:4px;"></div>
+                <div class="skel" style="width:80%;height:12px;"></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      {# Panel: Timeline (vue étendue) #}
+      <div data-v30-fp-panel="timeline" hidden>
+        <div class="card card-flush" style="margin-top:12px;">
+          <div class="card-header">
+            <div class="card-title">Timeline complète</div>
+          </div>
+          <div class="v30-fp-timeline" data-v30-fp-events-full>
+            <div class="empty">Chargement…</div>
+          </div>
+        </div>
+      </div>
+
+      {# Panel: Push (historique) #}
+      <div data-v30-fp-panel="push" hidden>
+        <div class="card card-flush" style="margin-top:12px;">
+          <div class="card-header">
+            <div class="card-title">Historique des pushs</div>
+          </div>
+          <div data-v30-fp-push-list style="padding:8px 16px;">
+            <div class="empty">Chargement…</div>
+          </div>
+        </div>
+      </div>
+
+      {# Panel: IA #}
+      <div data-v30-fp-panel="ia" hidden>
+        <div class="card" style="margin-top:12px;">
+          <div class="row-sb">
+            <div class="card-title">{{ ui.icon('sparkles') }} Analyses IA</div>
+            <button type="button" class="btn btn-accent btn-sm" data-v30-ia-run>
+              {{ ui.icon('sparkles', 12) }} Lancer une analyse
+            </button>
+          </div>
+          <p class="muted" style="margin-top:10px;font-size:12.5px;">
+            Scraping IA, avant-RDV, après-RDV — lance une analyse pour peupler cette section.
+            Les résultats s'affichent dans un tiroir latéral.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {# Aside #}
+    <aside style="display:flex;flex-direction:column;gap:12px;">
+      <div class="card" style="padding:14px;">
+        <div class="label">Détails</div>
+        <div class="v30-fp-aside-row">
+          <span class="v30-fp-aside-row__label">Statut</span>
+          <span class="v30-fp-aside-row__value" data-field="aside-statut">—</span>
+        </div>
+        <div class="v30-fp-aside-row">
+          <span class="v30-fp-aside-row__label">Pertinence</span>
+          <span class="v30-fp-aside-row__value" data-field="aside-pertinence">—</span>
+        </div>
+        <div class="v30-fp-aside-row">
+          <span class="v30-fp-aside-row__label">Fonction</span>
+          <span class="v30-fp-aside-row__value v30-fp-editable" data-field="aside-fonction" data-v30-edit="fonction">—</span>
+        </div>
+        <div class="v30-fp-aside-row">
+          <span class="v30-fp-aside-row__label">Email</span>
+          <span class="v30-fp-aside-row__value truncate v30-fp-editable" data-field="aside-email" data-v30-edit="email">—</span>
+        </div>
+        <div class="v30-fp-aside-row">
+          <span class="v30-fp-aside-row__label">Téléphone</span>
+          <span class="v30-fp-aside-row__value mono v30-fp-editable" data-field="aside-tel" data-v30-edit="telephone">—</span>
+        </div>
+        <div class="v30-fp-aside-row">
+          <span class="v30-fp-aside-row__label">LinkedIn</span>
+          <span class="v30-fp-aside-row__value truncate" data-field="aside-linkedin">—</span>
+        </div>
+        <div class="v30-fp-aside-row">
+          <span class="v30-fp-aside-row__label">Prochain RDV</span>
+          <span class="v30-fp-aside-row__value num mono" data-field="aside-next-rdv">—</span>
+        </div>
+        <div class="v30-fp-aside-row">
+          <span class="v30-fp-aside-row__label">Dernier contact</span>
+          <span class="v30-fp-aside-row__value" data-field="aside-last">—</span>
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px;">
+        <div class="label">Tags</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;" data-field="aside-tags">
+          <span class="skel" style="width:60px;height:20px;display:inline-block;border-radius:6px;"></span>
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px;" data-field="aside-company" hidden>
+        <div class="label">Entreprise</div>
+        <a href="#" data-field="company-link"
+           style="display:flex;align-items:center;gap:10px;padding:4px 0;text-decoration:none;color:inherit;">
+          <span style="width:36px;height:36px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;"
+                data-field="company-initials">—</span>
+          <div>
+            <div style="font-size:13px;font-weight:500;" data-field="company-name">—</div>
+            <div style="font-size:11px;color:var(--text-3);" data-field="company-sub">—</div>
+          </div>
+        </a>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+{# ─── Drawer IA ─── #}
+<div class="v30-drawer-backdrop" data-v30-drawer-backdrop></div>
+<aside class="v30-drawer" data-v30-drawer role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="v30-drawer-title">
+  <div class="v30-drawer__head">
+    <span class="v30-drawer__title" id="v30-drawer-title" data-field="title">Analyse IA</span>
+    <button type="button" class="btn btn-ghost btn-icon" data-v30-drawer-close aria-label="Fermer">
+      {{ ui.icon('x') }}
+    </button>
+  </div>
+  <div class="v30-drawer__body" data-field="body">
+    <div class="empty">Aucune analyse en cours.</div>
+  </div>
+  <div class="v30-drawer__foot">
+    <button type="button" class="btn btn-ghost" data-v30-drawer-close>Fermer</button>
+    <button type="button" class="btn btn-accent" data-v30-drawer-apply hidden>Appliquer</button>
+  </div>
+</aside>
+
+<script defer src="/static/js/v30/prospect_detail.js?v={{ static_hash('js/v30/prospect_detail.js') }}"></script>
+{% endblock %}
