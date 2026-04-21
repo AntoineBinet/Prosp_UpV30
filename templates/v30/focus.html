@@ -84,6 +84,34 @@
     </div>
 
   </div>
+
+  {# ─── Bloc Tâches (parite v29 : CRUD manuel) ─── #}
+  <section class="card card-flush" data-v30-focus-tasks style="margin-top:16px;">
+    <div class="card-header">
+      <div class="card-title" style="display:flex;align-items:center;gap:6px;">
+        {{ ui.icon('check', 13) }}
+        Tâches <span class="tab-count" data-field="tcount">0</span>
+      </div>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-tasks-toggle-done
+              aria-pressed="false" title="Afficher / masquer les tâches terminées">
+        Terminées
+      </button>
+      <button type="button" class="btn btn-sm" data-v30-tasks-add>
+        {{ ui.icon('plus', 13) }} Ajouter
+      </button>
+    </div>
+    <form class="v30-tasks-form" data-v30-tasks-form hidden>
+      <input type="text" class="input" placeholder="Intitulé de la tâche…" required
+             data-v30-tasks-title aria-label="Intitulé">
+      <input type="date" class="input" data-v30-tasks-due aria-label="Échéance">
+      <button type="submit" class="btn btn-accent btn-sm">Enregistrer</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-tasks-cancel>Annuler</button>
+    </form>
+    <div data-v30-tasks-list>
+      <div class="empty" style="padding:20px;font-size:12px;">Chargement…</div>
+    </div>
+  </section>
 </div>
 
 {# Réutilise les styles .v30-ac__row de dashboard.css pour les lignes #}

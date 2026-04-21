@@ -53,7 +53,112 @@
     host.innerHTML = items.join('');
   }
 
+  // ─── Bloc Tâches (parite v29 : CRUD manuel) ───────────────
+  var TASKS = { showDone: false, items: [] };
+
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+
+  function renderTasks() {
+    var host = document.querySelector('[data-v30-tasks-list]');
+    var c = document.querySelector('[data-v30-focus-tasks] [data-field="tcount"]');
+    if (!host) return;
+    var items = TASKS.items.slice();
+    if (!TASKS.showDone) items = items.filter(function (t) { return t.status !== 'done'; });
+    if (c) c.textContent = items.filter(function (t) { return t.status !== 'done'; }).length;
+    if (items.length === 0) {
+      host.innerHTML = '<div class="empty" style="padding:20px;font-size:12px;">Aucune tâche. Cliquez sur « Ajouter ».</div>';
+      return;
+    }
+    host.innerHTML = items.map(function (t) {
+      var done = t.status === 'done';
+      var due = t.due_date ? new Date(t.due_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '';
+      return '<div class="v30-task-row' + (done ? ' is-done' : '') + '" data-tid="' + t.id + '">' +
+        '<input type="checkbox" ' + (done ? 'checked' : '') + ' data-v30-task-done aria-label="Marquer comme fait">' +
+        '<span class="v30-task-row__title">' + esc(t.title || '') + '</span>' +
+        (due ? '<span class="v30-task-row__due muted mono">' + esc(due) + '</span>' : '<span></span>') +
+        '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-task-delete ' +
+          'aria-label="Supprimer" title="Supprimer">×</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  function loadTasks() {
+    fetchJSON('/api/tasks?status=all').then(function (res) {
+      TASKS.items = (res && res.tasks) || [];
+      renderTasks();
+    }).catch(function (err) {
+      console.error('[v30 focus tasks] /api/tasks failed:', err);
+      var host = document.querySelector('[data-v30-tasks-list]');
+      if (host) host.innerHTML = '<div class="empty" style="padding:20px;font-size:12px;">Erreur de chargement.</div>';
+    });
+  }
+
+  function bindTasks() {
+    var form = document.querySelector('[data-v30-tasks-form]');
+    var titleInput = document.querySelector('[data-v30-tasks-title]');
+    var dueInput = document.querySelector('[data-v30-tasks-due]');
+    var addBtn = document.querySelector('[data-v30-tasks-add]');
+    var cancelBtn = document.querySelector('[data-v30-tasks-cancel]');
+    var toggleDone = document.querySelector('[data-v30-tasks-toggle-done]');
+
+    if (addBtn) addBtn.addEventListener('click', function () {
+      form.hidden = false;
+      titleInput.value = ''; dueInput.value = '';
+      titleInput.focus();
+    });
+    if (cancelBtn) cancelBtn.addEventListener('click', function () { form.hidden = true; });
+    if (form) form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var title = titleInput.value.trim();
+      if (!title) return;
+      postJSON('/api/tasks/save', { title: title, due_date: dueInput.value || null })
+        .then(function () { form.hidden = true; loadTasks(); });
+    });
+    if (toggleDone) toggleDone.addEventListener('click', function () {
+      TASKS.showDone = !TASKS.showDone;
+      toggleDone.setAttribute('aria-pressed', TASKS.showDone ? 'true' : 'false');
+      toggleDone.classList.toggle('active', TASKS.showDone);
+      renderTasks();
+    });
+
+    // Delegate done + delete
+    var list = document.querySelector('[data-v30-tasks-list]');
+    if (list) list.addEventListener('click', function (e) {
+      var row = e.target.closest('.v30-task-row');
+      if (!row) return;
+      var tid = row.dataset.tid;
+      if (e.target.matches('[data-v30-task-delete]')) {
+        // Double-clic pour confirmer la suppression (evite confirm() bloquant)
+        if (e.target.dataset.armed === '1') {
+          postJSON('/api/tasks/delete', { id: Number(tid) }).then(loadTasks);
+          return;
+        }
+        e.target.dataset.armed = '1';
+        e.target.textContent = '✓';
+        e.target.title = 'Cliquer à nouveau pour confirmer';
+        setTimeout(function () {
+          if (e.target) { e.target.dataset.armed = ''; e.target.textContent = '×'; e.target.title = 'Supprimer'; }
+        }, 2500);
+      }
+    });
+    if (list) list.addEventListener('change', function (e) {
+      if (!e.target.matches('[data-v30-task-done]')) return;
+      var row = e.target.closest('.v30-task-row');
+      if (!row) return;
+      postJSON('/api/tasks/done', { id: Number(row.dataset.tid), done: e.target.checked ? 1 : 0 })
+        .then(loadTasks);
+    });
+  }
+
   function init() {
+    bindTasks();
+    loadTasks();
     fetchJSON('/api/dashboard').then(function (res) {
       var d = (res && res.data) || {};
       var sub = document.querySelector('[data-v30-focus] [data-field="subtitle"]');

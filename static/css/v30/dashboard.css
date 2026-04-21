@@ -4,6 +4,32 @@
    Dépend de tokens.css + components.css + chrome.css.
    ============================================================ */
 
+/* ─── Focus · Bloc Tâches ─── */
+.v30-tasks-form {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.v30-tasks-form[hidden] { display: none; }
+.v30-tasks-form .input { flex: 1 1 200px; }
+.v30-task-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto 30px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.v30-task-row:last-child { border-bottom: 0; }
+.v30-task-row.is-done .v30-task-row__title {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+.v30-task-row__title { color: var(--text); }
+.v30-task-row__due { font-size: 11px; color: var(--text-3); }
+
 .v30-dash {
   display: flex;
   flex-direction: column;
