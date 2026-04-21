@@ -3,6 +3,14 @@
    Reproduit screens/prospects.jsx. Dépend de tokens/components/chrome.
    ============================================================ */
 
+/* Saved pills (chips dynamiques issues de /api/views) */
+.v30-saved-pills { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.v30-pill__x {
+  margin-left: 4px; opacity: .6; cursor: pointer;
+  padding: 0 4px; border-radius: 4px;
+}
+.v30-pill__x:hover { opacity: 1; background: color-mix(in oklch, var(--text) 10%, transparent); }
+
 /* ─────────── Page topbar (sticky sous la topbar globale) ─────────── */
 .v30-pp-topbar {
   display: flex;

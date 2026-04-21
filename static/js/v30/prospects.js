@@ -303,10 +303,18 @@
       offset: STATE.offset
     });
     return fetchJSON('/api/search?' + params.toString()).then(function (res) {
-      STATE.prospects = (res && res.prospects) || [];
+      var all = (res && res.prospects) || [];
       STATE.companies = {};
       ((res && res.companies) || []).forEach(function (c) { STATE.companies[c.id] = c.groupe || c.name || ''; });
-      STATE.total = (res && res.counts && res.counts.prospects) || STATE.prospects.length;
+      // Filtrage client-side selon le pill actif
+      var filter = STATE.filter || 'all';
+      STATE.prospects = all.filter(function (p) {
+        if (filter === 'relance') return /(relanc|relance)/i.test(p.statut || '');
+        if (filter === 'hot') return (p.pertinence || 0) >= 4;
+        if (filter === 'mine') return true; // déjà filtré par owner_id côté API (per-user DB)
+        return true;
+      });
+      STATE.total = (res && res.counts && res.counts.prospects) || all.length;
       renderAll();
       updatePagination();
       updateCounts();
@@ -473,6 +481,88 @@
     });
   }
 
+  // ─── Pills (Tous / Mes / A relancer / Hot + saved views) ────
+  function applyViewFilter(name) {
+    // Filtres built-in : on patch STATE.filters puis on reload
+    STATE.filter = name;
+    STATE.offset = 0;
+    loadProspects();
+  }
+
+  function bindBuiltinPills() {
+    document.querySelectorAll('.v30-pp-views [data-view-filter]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.v30-pp-views [data-view-filter]').forEach(function (b) {
+          b.classList.toggle('is-active', b === btn);
+        });
+        applyViewFilter(btn.dataset.viewFilter);
+      });
+    });
+  }
+
+  function renderSavedPills() {
+    var host = document.querySelector('[data-v30-saved-views]');
+    if (!host) return;
+    host.innerHTML = (STATE.savedViews || []).map(function (v) {
+      return '<button type="button" class="v30-pill" data-saved-view-id="' + v.id + '">' +
+        esc(v.name) + ' <span class="v30-pill__x" data-saved-view-delete="' + v.id + '" aria-label="Supprimer">×</span>' +
+      '</button>';
+    }).join('');
+    host.querySelectorAll('[data-saved-view-id]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        if (e.target.closest('[data-saved-view-delete]')) return;
+        var v = (STATE.savedViews || []).find(function (x) { return x.id == btn.dataset.savedViewId; });
+        if (!v) return;
+        var st = v.state || {};
+        STATE.q = st.q || '';
+        var inp = document.querySelector('[data-v30-search]');
+        if (inp) inp.value = STATE.q;
+        STATE.filter = st.filter || 'all';
+        STATE.offset = 0;
+        loadProspects();
+      });
+    });
+    host.querySelectorAll('[data-saved-view-delete]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = btn.dataset.savedViewDelete;
+        if (!confirm('Supprimer cette vue ?')) return;
+        fetch('/api/views/' + id, { method: 'DELETE', credentials: 'same-origin' })
+          .then(loadSavedViews);
+      });
+    });
+  }
+
+  function loadSavedViews() {
+    return fetchJSON('/api/views?page=prospects').then(function (rows) {
+      STATE.savedViews = Array.isArray(rows) ? rows : [];
+      renderSavedPills();
+    }).catch(function () { STATE.savedViews = []; renderSavedPills(); });
+  }
+
+  function bindSaveView() {
+    var btn = document.querySelector('[data-v30-save-view]');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var name = prompt('Nom de la vue :');
+      if (!name) return;
+      fetch('/api/views/save', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          page: 'prospects',
+          name: name,
+          state: { q: STATE.q || '', filter: STATE.filter || 'all' }
+        })
+      }).then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.ok) loadSavedViews();
+          else alert('Échec : ' + (res.error || 'inconnu'));
+        });
+    });
+  }
+
   function init() {
     bindViewSwitch();
     bindSelection();
@@ -481,7 +571,10 @@
     bindBulk();
     bindSearch();
     bindPagination();
+    bindBuiltinPills();
+    bindSaveView();
     loadProspects();
+    loadSavedViews();
   }
 
   if (document.readyState === 'loading') {

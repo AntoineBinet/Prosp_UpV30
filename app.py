@@ -12103,6 +12103,21 @@ def api_views_delete():
     return jsonify({"ok": True})
 
 
+# v30 — REST delete (miroir de /api/views/delete POST body)
+@app.delete("/api/views/<int:vid>")
+def api_views_delete_rest(vid: int):
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    err = _require_same_origin()
+    if err:
+        return err
+    with _conn() as conn:
+        cur = conn.execute("DELETE FROM saved_views WHERE id=? AND owner_id=?;", (vid, uid))
+        deleted = cur.rowcount
+    return jsonify(ok=True, deleted=deleted)
+
+
 # ====== Tasks / To-Do API (v19) ======
 
 @app.get("/api/tasks")
