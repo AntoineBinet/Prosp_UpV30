@@ -1,0 +1,55 @@
+{% extends "v30/base.html" %}
+{% block title %}Activité — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-activity{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/activity.css?v={{ static_hash('css/v30/activity.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-activity" data-v30-activity>
+
+  <div class="v30-activity__topbar">
+    <div>
+      <div class="v30-activity__eyebrow">Administration</div>
+      <h1 class="v30-activity__title">
+        <span class="serif">Journal d'activité.</span>
+      </h1>
+      <div class="v30-activity__sub">
+        <span data-field="total">—</span> événements — filtrable par utilisateur ou action.
+      </div>
+    </div>
+    <div class="v30-spacer"></div>
+    <select class="v30-input" data-v30-activity-user>
+      <option value="">Tous les utilisateurs</option>
+    </select>
+    <select class="v30-input" data-v30-activity-action>
+      <option value="">Toutes les actions</option>
+      <option value="login">Connexion</option>
+      <option value="logout">Déconnexion</option>
+      <option value="create_prospect">Création prospect</option>
+      <option value="update_prospect">Maj prospect</option>
+      <option value="delete_prospect">Suppression prospect</option>
+      <option value="create_company">Création entreprise</option>
+      <option value="update_company">Maj entreprise</option>
+      <option value="push_sent">Push envoyé</option>
+    </select>
+  </div>
+
+  <div class="card card-flush">
+    <div class="v30-activity__table" data-v30-activity-list>
+      <div class="empty" style="padding:24px;">Chargement…</div>
+    </div>
+    <footer class="v30-activity__foot" data-v30-activity-pag>
+      <button type="button" class="btn btn-ghost btn-sm" data-pag-prev disabled>← Précédent</button>
+      <span class="muted mono" data-pag-range>—</span>
+      <button type="button" class="btn btn-ghost btn-sm" data-pag-next disabled>Suivant →</button>
+    </footer>
+  </div>
+
+</div>
+
+<script defer src="/static/js/v30/activity.js?v={{ static_hash('js/v30/activity.js') }}"></script>
+{% endblock %}

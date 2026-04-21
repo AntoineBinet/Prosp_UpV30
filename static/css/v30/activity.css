@@ -1,0 +1,54 @@
+/* ProspUp v30 — Journal d'activité (admin) */
+
+.v30-activity { display: flex; flex-direction: column; gap: 14px; }
+
+.v30-activity__topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.v30-activity__eyebrow {
+  font-size: 10.5px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.v30-activity__title {
+  margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
+  letter-spacing: -.01em;
+}
+.v30-activity__title .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; }
+.v30-activity__sub { font-size: 12.5px; color: var(--text-2); }
+
+.v30-activity__table .v30-activity-row {
+  display: grid;
+  grid-template-columns: 140px 120px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.v30-activity__table .v30-activity-row:last-child { border-bottom: 0; }
+.v30-activity__table .v30-activity-row__when {
+  font-family: var(--font-mono); color: var(--text-3); font-size: 11.5px;
+}
+.v30-activity__table .v30-activity-row__user {
+  color: var(--text); font-weight: 500;
+}
+.v30-activity__table .v30-activity-row__what { color: var(--text-2); }
+.v30-activity__table .v30-activity-row__target {
+  color: var(--text-3); font-size: 11.5px;
+}
+
+.v30-activity__foot {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 10px; border-top: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+  .v30-activity__table .v30-activity-row {
+    grid-template-columns: 1fr auto;
+  }
+  .v30-activity__table .v30-activity-row__when,
+  .v30-activity__table .v30-activity-row__user { grid-column: 1 / -1; }
+}

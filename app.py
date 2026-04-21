@@ -4806,6 +4806,27 @@ def page_v30_stats():
     )
 
 
+@app.get("/v30/activity")
+@login_required
+@role_required('admin')
+def page_v30_activity():
+    """Journal d'activité v30 — admin only, miroir /activity."""
+    uid = _uid()
+    u = _get_current_user() or {}
+    dn = (u.get("display_name") or u.get("username") or "AB").strip()
+    parts = [p for p in dn.split() if p]
+    user_initials = ("".join(p[0].upper() for p in parts[:2]) or dn[:2].upper())
+    return render_template(
+        "v30/activity.html",
+        active="activity",
+        crumbs=["Prosp'Up", "Activité"],
+        counts={},
+        pinned=[],
+        user_initials=user_initials,
+        app_version=APP_VERSION,
+    )
+
+
 @app.get("/v30/parametres")
 @login_required
 def page_v30_parametres():
