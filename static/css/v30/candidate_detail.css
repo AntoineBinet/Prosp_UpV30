@@ -1,0 +1,92 @@
+/* ProspUp v30 — Fiche candidat (skills + disponibilités) */
+
+/* Réutilise : v30-fp (header + body + aside) depuis prospect_detail.css */
+
+/* ─── Skills : tags avec niveau 1-5 ─── */
+.v30-fc-skills-group + .v30-fc-skills-group {
+  margin-top: 12px;
+}
+.v30-fc-skills-cat {
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.v30-fc-skills-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.v30-fc-skill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
+}
+.v30-fc-skill__bars {
+  display: inline-flex;
+  gap: 1.5px;
+}
+.v30-fc-skill__bar {
+  width: 3px;
+  height: 8px;
+  background: var(--surface-3);
+}
+.v30-fc-skill__bar.is-on { background: var(--accent); }
+
+/* ─── Disponibilités : grille 8 semaines ─── */
+.v30-fc-dispo {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+.v30-fc-dispo__cell {
+  padding: 10px 6px;
+  border-radius: 6px;
+  text-align: center;
+}
+.v30-fc-dispo__week {
+  font-size: 10px;
+  color: var(--text-3);
+}
+.v30-fc-dispo__label {
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 2px;
+  color: var(--text);
+}
+.v30-fc-dispo__cell.is-libre  { background: var(--success-soft); }
+.v30-fc-dispo__cell.is-busy   { background: var(--warn-soft); }
+.v30-fc-dispo__cell.is-placed { background: var(--accent-soft); }
+
+:root[data-theme="dark"] .v30-fc-dispo__cell.is-libre  { color: oklch(0.85 0.12 155); }
+:root[data-theme="dark"] .v30-fc-dispo__cell.is-busy   { color: oklch(0.85 0.14 75); }
+:root[data-theme="dark"] .v30-fc-dispo__cell.is-placed { color: oklch(0.85 0.12 258); }
+
+/* ─── Missions passées ─── */
+.v30-fc-mission {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.v30-fc-mission:first-of-type { border-top: 0; }
+.v30-fc-mission__co { font-size: 12.5px; font-weight: 500; color: var(--text); }
+.v30-fc-mission__role { font-size: 11.5px; color: var(--text-2); }
+.v30-fc-mission__date { font-size: 11px; color: var(--text-3); margin-top: 1px; font-family: var(--font-mono); }
+
+/* ─── Campagnes match ─── */
+.v30-fc-campaign {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.v30-fc-campaign:first-of-type { border-top: 0; }
+.v30-fc-campaign__name { font-size: 12.5px; font-weight: 500; color: var(--text); }
+.v30-fc-campaign__sub  { font-size: 11px; color: var(--text-3); }
