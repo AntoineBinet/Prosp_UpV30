@@ -1,0 +1,90 @@
+{% extends "v30/base.html" %}
+{% block title %}Aide — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-help{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/help.css?v={{ static_hash('css/v30/help.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-help">
+
+  <div class="v30-help__topbar">
+    <div>
+      <div class="v30-help__eyebrow">Centre d'aide</div>
+      <h1 class="v30-help__title"><span class="serif">Besoin d'un coup de main ?</span></h1>
+      <div class="v30-help__sub">
+        Démarrage rapide, raccourcis clavier, guides détaillés.
+      </div>
+    </div>
+  </div>
+
+  <div class="v30-help__grid">
+
+    <a class="v30-help__card" href="/help#demarrage">
+      <div class="v30-help__card-head">{{ ui.icon('zap', 16) }}<h3>Démarrage</h3></div>
+      <p>Premiers pas, créer un prospect, pousser ses premiers emails.</p>
+    </a>
+
+    <a class="v30-help__card" href="/help#dashboard">
+      <div class="v30-help__card-head">{{ ui.icon('home', 16) }}<h3>Dashboard</h3></div>
+      <p>KPI du jour, priorités IA, objectifs hebdomadaires.</p>
+    </a>
+
+    <a class="v30-help__card" href="/help#prospects">
+      <div class="v30-help__card-head">{{ ui.icon('users', 16) }}<h3>Prospects</h3></div>
+      <p>Import Excel, filtres, statuts, relances, bulk actions.</p>
+    </a>
+
+    <a class="v30-help__card" href="/help#push">
+      <div class="v30-help__card-head">{{ ui.icon('send', 16) }}<h3>Push &amp; Campagnes</h3></div>
+      <p>Templates, wizard campagne 3 étapes, suivi ouvertures.</p>
+    </a>
+
+    <a class="v30-help__card" href="/help#sourcing">
+      <div class="v30-help__card-head">{{ ui.icon('user', 16) }}<h3>Sourcing candidats</h3></div>
+      <p>Pipeline 5 statuts, compétences avec niveau, dispo 8 semaines.</p>
+    </a>
+
+    <a class="v30-help__card" href="/help#ia">
+      <div class="v30-help__card-head">{{ ui.icon('sparkles', 16) }}<h3>IA &amp; Scraping</h3></div>
+      <p>Enrichissement prospect, avant/après-RDV, Email IA, web search.</p>
+    </a>
+
+    <button type="button" class="v30-help__card" data-v30-help-shortcuts>
+      <div class="v30-help__card-head">{{ ui.icon('command', 16) }}<h3>Raccourcis clavier</h3></div>
+      <p>⌘K, G+P, /, ? et la navigation globale.</p>
+    </button>
+
+    <a class="v30-help__card" href="/docs/MODE_EMPLOI.md" target="_blank" rel="noopener">
+      <div class="v30-help__card-head">{{ ui.icon('report', 16) }}<h3>Manuel complet</h3></div>
+      <p>Guide utilisateur détaillé (markdown, 12 pages).</p>
+    </a>
+
+  </div>
+
+  <section class="card v30-help__tips">
+    <div class="card-title">Astuces</div>
+    <ul>
+      <li><b>⌘ + K</b> (ou <b>Ctrl + K</b>) ouvre la palette de commandes depuis n'importe quelle page.</li>
+      <li><b>G</b> puis une lettre (D, P, E, S, F, U, T) navigue instantanément.</li>
+      <li>Sur les tables, active une ligne et appuie sur <b>E</b> pour éditer en place.</li>
+      <li>Clic long sur un prospect en mobile = menu contextuel.</li>
+      <li>Mode Prosp accessible via la palette ou <code class="mono">/prospects/mode-prosp</code>.</li>
+    </ul>
+  </section>
+
+</div>
+
+<script>
+  (function () {
+    var btn = document.querySelector('[data-v30-help-shortcuts]');
+    if (btn) btn.addEventListener('click', function () {
+      var ev = new KeyboardEvent('keydown', { key: '?', shiftKey: true });
+      document.dispatchEvent(ev);
+    });
+  })();
+</script>
+{% endblock %}

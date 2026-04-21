@@ -1,0 +1,59 @@
+/* ProspUp v30 — Aide */
+
+.v30-help { display: flex; flex-direction: column; gap: 16px; }
+
+.v30-help__topbar {
+  padding: 6px 0 10px;
+  border-bottom: 1px solid var(--border);
+}
+.v30-help__eyebrow {
+  font-size: 10.5px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.v30-help__title {
+  margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
+  letter-spacing: -.01em;
+}
+.v30-help__title .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; }
+.v30-help__sub { font-size: 12.5px; color: var(--text-2); }
+
+.v30-help__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.v30-help__card {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: transform .12s, border-color .12s;
+}
+.v30-help__card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+}
+.v30-help__card-head {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--accent);
+}
+.v30-help__card-head h3 {
+  margin: 0; font-size: 13.5px; font-weight: 600; color: var(--text);
+}
+.v30-help__card p {
+  margin: 0; font-size: 12px; color: var(--text-2); line-height: 1.55;
+}
+
+.v30-help__tips ul {
+  margin: 8px 0 0; padding-left: 20px;
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 12.5px; color: var(--text-2); line-height: 1.6;
+}
+.v30-help__tips code { font-family: var(--font-mono); font-size: 12px; }
