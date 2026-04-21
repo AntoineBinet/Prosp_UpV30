@@ -15,7 +15,7 @@
     p: '/v30/prospects',
     e: '/v30/entreprises',
     s: '/v30/sourcing',
-    f: '/focus',            // legacy
+    f: '/v30/focus',
     u: '/v30/push',
     t: '/v30/stats'
   };

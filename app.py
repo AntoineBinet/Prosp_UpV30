@@ -4497,6 +4497,29 @@ def page_v30_login():
     return render_template("v30/login.html", app_version=APP_VERSION)
 
 
+@app.get("/v30/calendrier")
+def page_v30_calendar():
+    """Calendrier v30 — grille mois avec RDV / relances / EC1 candidats.
+    Hydraté côté client via /api/calendar_events."""
+    uid = _uid()
+    user_initials = "AB"
+    if uid:
+        u = _get_current_user() or {}
+        dn = (u.get("display_name") or u.get("username") or "").strip()
+        if dn:
+            parts = [p for p in dn.split() if p]
+            user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
+    return render_template(
+        "v30/calendar.html",
+        active="calendar",
+        crumbs=["Prosp'Up", "Calendrier"],
+        counts={},
+        pinned=[],
+        user_initials=user_initials,
+        app_version=APP_VERSION,
+    )
+
+
 @app.get("/v30/focus")
 def page_v30_focus():
     """Focus v30 — vue concentration 3 colonnes (overdue / today / upcoming)

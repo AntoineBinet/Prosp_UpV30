@@ -17,8 +17,8 @@
     { label: 'Candidats',   sub: 'Pipeline sourcing',    icon: 'user',     href: '/v30/sourcing' },
     { label: 'Push',        sub: 'Campagnes & templates',icon: 'send',     href: '/v30/push' },
     { label: 'Stats',       sub: 'Tableau de bord + rapport', icon: 'chart', href: '/v30/stats' },
-    { label: 'Focus',       sub: 'Mode concentration',   icon: 'focus',    href: '/focus' },
-    { label: 'Calendrier',  sub: 'RDV & relances',       icon: 'calendar', href: '/calendrier' }
+    { label: 'Focus',       sub: 'Mode concentration',   icon: 'focus',    href: '/v30/focus' },
+    { label: 'Calendrier',  sub: 'RDV & relances',       icon: 'calendar', href: '/v30/calendrier' }
   ];
 
   function esc(s) {

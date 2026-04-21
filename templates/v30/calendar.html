@@ -1,0 +1,49 @@
+{% extends "v30/base.html" %}
+{% block title %}Calendrier — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-calendar{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/calendar.css?v={{ static_hash('css/v30/calendar.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div data-v30-cal>
+
+  <div class="v30-cal-topbar">
+    <h1>Calendrier</h1>
+    <div class="v30-spacer"></div>
+    <button type="button" class="btn btn-ghost btn-icon" data-v30-cal-prev aria-label="Mois précédent">
+      {{ ui.icon('chevL') }}
+    </button>
+    <span class="v30-cal-month" data-v30-cal-month>—</span>
+    <button type="button" class="btn btn-ghost btn-icon" data-v30-cal-next aria-label="Mois suivant">
+      {{ ui.icon('chevR') }}
+    </button>
+    <button type="button" class="btn btn-sm" data-v30-cal-today>Aujourd'hui</button>
+  </div>
+
+  <div class="v30-cal">
+    <div class="v30-cal__head">
+      {% for d in ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
+      <div class="v30-cal__head-cell">{{ d }}</div>
+      {% endfor %}
+    </div>
+    <div class="v30-cal__grid" data-v30-cal-grid>
+      {% for _ in range(42) %}
+      <div class="v30-cal__cell"><span class="skel" style="width:18px;height:12px;"></span></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div style="display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--text-3);flex-wrap:wrap;">
+    <span><span style="display:inline-block;width:8px;height:8px;background:oklch(0.50 0.15 280);border-radius:2px;margin-right:4px;"></span>RDV</span>
+    <span><span style="display:inline-block;width:8px;height:8px;background:var(--warn);border-radius:2px;margin-right:4px;"></span>Relance à faire</span>
+    <span><span style="display:inline-block;width:8px;height:8px;background:var(--success);border-radius:2px;margin-right:4px;"></span>EC1 candidat</span>
+  </div>
+
+</div>
+
+<script defer src="/static/js/v30/calendar.js?v={{ static_hash('js/v30/calendar.js') }}"></script>
+{% endblock %}
