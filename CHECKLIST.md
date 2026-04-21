@@ -29,16 +29,17 @@
 - [x] **Fiche prospect** (`prospect-detail.jsx` → `templates/v30/prospect_detail.html`) — route `/v30/prospect/<id>`. Header éditable inline, tabs Aperçu/Timeline/Push/IA, drawer IA 480px. Branchée sur `/api/prospect/timeline` + `/api/prospects/bulk-edit` pour l'edit-in-place. Clic liste → v30 (plus legacy).
 - [x] **Entreprises** (`screens/entreprises.jsx` → `templates/v30/entreprises.html`) — route `/v30/entreprises`. Topbar + 4 KPI Instrument Serif + table 8 colonnes. Branché sur `GET /api/data`, agrégation par company_id (total / piped / won / lastContact). Recherche fuzzy client-side. Fiche entreprise dédiée (clic sur une ligne → `/v30/entreprise/<id>`) à faire.
 - [~] **Push** (`screens/push.jsx` → `templates/v30/push.html`) — route `/v30/push`. **Templates + Historique branchés** sur `/api/templates` et `/api/data`. **Campagnes** : empty state + wizard preview non interactif (demande migration DB `push_campaigns`, SPEC §5.2, en attente de validation user).
-- [ ] **Sourcing** (`screens/sourcing.jsx`) — kanban + grille + matching par push
-- [ ] **Fiche candidat** — compétences (niveaux) + DC + calendrier dispo
-- [ ] **Stats + Rapport fusionnés** (`screens/stats.jsx`)
+- [x] **Sourcing** (`screens/sourcing.jsx` → `templates/v30/sourcing.html`) — route `/v30/sourcing`. Kanban 5 statuts (mapping défensif sur `candidates.status`) + vue Grille. Branché sur `GET /api/candidates`.
+- [ ] **Fiche candidat** — compétences (niveaux) + DC + calendrier dispo **(à faire)**
+- [~] **Stats + Rapport** (`screens/stats.jsx` → `templates/v30/stats.html`) — route `/v30/stats`. Topbar + period filter + 4 KPI + Top entreprises hydratés. Les 8 charts Chart.js et l'éditeur Rapport WYSIWYG restent sur `/stats` et `/rapport` legacy en attendant migration complète.
 
 ## Étape 4 · Command Palette ⌘K
 
-- [ ] Composant `static/js/v30/palette.js` (`window.Palette.open()`)
-- [ ] Endpoint `GET /api/search?q=X` (fuzzy prospects + entreprises + candidats)
-- [ ] Sections : Actions rapides · Aller à… · Résultats
-- [ ] Raccourcis globaux (`⌘K`, `G+D/P/E/F/S`, `C`, `[`, `?`, `⌘B`, `J/K`, `X`, `E`)
+- [x] Composant `static/js/v30/palette.js` (`window.ProspPalette.open()`)
+- [x] Endpoint `GET /api/search` (réutilise l'existant, pas besoin d'en créer)
+- [x] Sections : Actions rapides · Aller à… · Résultats (Prospects + Entreprises + Candidats)
+- [x] Raccourcis globaux : `⌘K` / `Ctrl+K` ouvrir, `↑↓` + `Enter` naviguer, `⌘+Enter` nouvel onglet, `Esc` fermer, action « Basculer thème »
+- [ ] À faire encore : raccourcis chainés `G+D`, `G+P`, `G+E`, `G+F`, `G+S` (goto), `C` (créer), `[` (toggle sidebar), `?` (modal aide), `⌘B` (focus mode), `J/K/X/E` (tables)
 
 ## Étape 5 · Polish & QA
 

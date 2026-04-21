@@ -6,6 +6,29 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
 ### UI v30 — étape 3 (Dashboard branché + Prospects + Fiche prospect + Entreprises)
 
+- **Command palette ⌘K v30** — disponible globalement sur toutes les pages v30 (SPEC §2.2) :
+  - Ouverture via `⌘K` / `Ctrl+K` ou clic sur le bouton `data-v30-cmdk` de la topbar.
+  - Fuzzy search sur `/api/search` (prospects + entreprises + candidats) avec debounce 180 ms.
+  - 4 sections : Actions rapides (Créer / Nouvelle campagne / Mode Prosp / Basculer thème), résultats Prospects / Entreprises / Candidats (avec avatar + statut pill), « Aller à… » (toutes les pages v30 et legacy).
+  - Navigation clavier ↑↓ + Enter (`⌘+Enter` = nouvel onglet), Esc pour fermer.
+  - Injectée via `_partials/v30/palette.html` dans `base_v30.html` ; CSS `palette.css` + JS `palette.js`.
+
+- **Stats v30** — preview sur `/v30/stats` :
+  - Topbar : titre + segmented Tableau de bord / Rapport + period filter (7j / 30j / 90j / Tout) + lien « Graphiques détaillés » (ouvre `/stats` legacy pour les 8 charts Chart.js).
+  - 4 KPI (Push envoyés · Taux ouverture · Taux réponse · RDV obtenus) hydratés via `GET /api/stats?days=N` (fallback `/api/dashboard` si le endpoint ne retourne pas la structure attendue).
+  - Bloc Top entreprises (nb prospects) agrégé client-side depuis `/api/data`.
+  - Tab Rapport : lien vers l'éditeur rapport legacy `/rapport` en attendant fusion complète (SPEC §3.9).
+
+- **Sourcing v30** — preview sur `/v30/sourcing` :
+  - Topbar : titre + compteur + segmented Pipeline / Grille + Ajouter.
+  - Match banner (placeholder fermable).
+  - Vue Pipeline : kanban 5 statuts (Vivier / Qualifié / Proposé / En entretien / Placé) avec mapping défensif sur la colonne `candidates.status`. Cartes compactes : avatar + nom + rôle + 3 skills + localisation.
+  - Vue Grille : cartes `minmax(280px, 1fr)` avec bouton « Voir fiche ».
+  - Clic sur carte → `/v30/candidat/<id>` (fiche candidat v30 à faire dans un commit ultérieur).
+  - Branché sur `GET /api/candidates`.
+
+- **Sidebar v30 câblée aux routes v30** : Dashboard · Prospects · Entreprises · Candidats · Push · Stats pointent maintenant vers `/v30/*`. Focus / Calendrier / Rapport restent legacy en attendant leur migration.
+
 - **Push v30** — preview sur `/v30/push` :
   - Topbar : titre + segmented Campagnes/Templates/Historique + bouton accent « Nouvelle campagne ».
   - Panel **Campagnes** : empty state expliquant que la table `push_campaigns` (SPEC §5.2) est à créer + wizard preview 3 étapes (Cible / Message / Envoi) **non interactif**. Migration DB proposée dans un futur commit avec validation utilisateur (HANDOFF §5 interdit toute migration sans accord explicite).
