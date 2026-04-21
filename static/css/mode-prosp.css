@@ -718,7 +718,7 @@ select.mp-input { cursor: pointer; }
   .mp-phone-choice-btn { padding: 14px 16px; font-size: 16px; min-height: 52px; }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 600px) {
   .mp-field-grid { grid-template-columns: 1fr; gap: 7px; }
   .mp-hero-name  { font-size: 15px; }
   .mp-card-hero  { padding: 12px 12px 10px; }

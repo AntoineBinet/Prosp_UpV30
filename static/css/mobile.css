@@ -842,7 +842,7 @@
     overscroll-behavior-x: contain;
     gap: 8px;
     padding-bottom: 4px;
-    padding-right: 20px;
+    padding-right: max(20px, env(safe-area-inset-right, 0px));
     scrollbar-width: none;
     width: 100%;
     box-sizing: border-box;
@@ -959,6 +959,106 @@
 /* PWA standalone mode */
 @media (display-mode: standalone) {
   header { padding-top: max(8px, env(safe-area-inset-top)) !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LOGO — Réduction supplémentaire sur très petits écrans
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .header-logo-app { height: 20px !important; max-width: 90px !important; }
+  header h1 { font-size: 15px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FILTER PANEL — Responsive sur mobile
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  #filterPanel {
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 2 colonnes sur tablette (601-900px), 1 colonne sur phone */
+  .filter-panel-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Annule le span 2 qui déborde sur 1 colonne */
+  .filter-group-wide {
+    grid-column: span 1 !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .filter-panel-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BULK ACTIONS — Empilées sur mobile
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .bulk-actions {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 8px 10px !important;
+  }
+
+  .bulk-actions .bulk-left,
+  .bulk-actions .bulk-right {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+  }
+
+  .bulk-actions .bulk-right {
+    justify-content: flex-start !important;
+    gap: 6px !important;
+  }
+
+  /* Bulk actions entreprises */
+  .company-bulk-actions {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPANIES TABLE — Masquée sur mobile (remplacée par cards)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  body[data-page="companies"] .table-wrapper,
+  body[data-page="companies"] .companies-table-wrap {
+    display: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CONTENT AREA — Paddings adaptés sur mobile
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .content-area,
+  .main-content {
+    padding: 12px !important;
+  }
+
+  /* Cartes et sections : réduction des paddings */
+  .card { padding: 14px !important; }
+  .section-card { padding: 14px !important; }
+
+  /* Tableaux de bord v1 : grille 1 col */
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Pagination compacte */
+  .pagination {
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: center;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════

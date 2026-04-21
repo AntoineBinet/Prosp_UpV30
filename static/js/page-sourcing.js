@@ -329,6 +329,7 @@ function renderCandidateTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
+                ${_buildPhoneBtn(c)}
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                 ${descActionBtn}
                 ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</button>`}
@@ -397,6 +398,11 @@ function _buildDescActionBtn(c) {
         return `<button class="mini-action desc-gen-btn" onclick="event.stopPropagation();quickGenerateDescription(${c.id})" title="Phrase IA rédigée — cliquer pour régénérer" style="opacity:.7;">${window.icon ? window.icon('sparkles', {size:13}) : ''}</button>`;
     }
     return `<button class="mini-action desc-gen-btn" onclick="event.stopPropagation();quickGenerateDescription(${c.id})" title="Générer la phrase de présentation IA depuis le DC">${window.icon ? window.icon('robot', {size:13}) : ''}</button>`;
+}
+
+function _buildPhoneBtn(c) {
+    if (!c.phone) return '';
+    return `<a class="mini-action" href="tel:${escapeHtml(c.phone)}" onclick="event.stopPropagation()" title="Appeler ${escapeHtml(c.name || '')} (${escapeHtml(c.phone)})">${window.icon ? window.icon('phone', {size:13}) : ''}</a>`;
 }
 
 async function quickGenerateDescription(candidateId) {
@@ -542,6 +548,7 @@ function renderArchiveTable() {
         const skills = candSkillsArray(c);
         const skillsLabel = skills.join(', ');
         const combinedTech = skillsLabel ? (skillsLabel + (c.tech ? ' · ' + safeStr(c.tech) : '')) : safeStr(c.tech);
+        const isSelected = __archiveSelected.has(c.id);
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
             : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
@@ -549,12 +556,13 @@ function renderArchiveTable() {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
+        if (isSelected) tr.classList.add('row-selected');
         tr.addEventListener('click', (e) => {
             if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, .desc-gen-btn, select')) return;
             window.location.href = '/candidat?id=' + c.id;
         });
         tr.innerHTML = `
-            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="archive-row-select" title="Sélectionner" onclick="event.stopPropagation();toggleArchiveSelect(${c.id}, this.checked)"></td>
+            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="archive-row-select" title="Sélectionner" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();toggleArchiveSelect(${c.id}, this.checked)"></td>
             <td data-label="Nom"><span title="${escapeHtml(c.name || '')}">${escapeHtml(c.name || '')}</span></td>
             <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
@@ -564,6 +572,7 @@ function renderArchiveTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
+                ${_buildPhoneBtn(c)}
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                 ${descActionBtn}
                 ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</button>`}
@@ -579,12 +588,16 @@ let __archiveSelected = new Set();
 function toggleArchiveSelect(id, checked) {
     if (checked) __archiveSelected.add(id);
     else __archiveSelected.delete(id);
+    const tr = document.querySelector(`#archiveTableBody tr[data-candidate-id="${id}"]`);
+    if (tr) tr.classList.toggle('row-selected', checked);
     updateArchiveSelectAllState();
+    updateArchiveBulkBar();
 }
 function toggleArchiveSelectAll(checked) {
     if (checked) __archiveFiltered.forEach(c => __archiveSelected.add(c.id));
     else __archiveFiltered.forEach(c => __archiveSelected.delete(c.id));
     renderArchiveTable();
+    updateArchiveBulkBar();
 }
 function updateArchiveSelectAllState() {
     const cb = document.getElementById('archiveSelectAll');
@@ -632,6 +645,7 @@ function renderMissionTable() {
         const skills = candSkillsArray(c);
         const skillsLabel = skills.join(', ');
         const combinedTech = skillsLabel ? (skillsLabel + (c.tech ? ' · ' + safeStr(c.tech) : '')) : safeStr(c.tech);
+        const isSelected = __missionSelected.has(c.id);
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
             : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
@@ -639,12 +653,13 @@ function renderMissionTable() {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
+        if (isSelected) tr.classList.add('row-selected');
         tr.addEventListener('click', (e) => {
             if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, .desc-gen-btn, select')) return;
             window.location.href = '/candidat?id=' + c.id;
         });
         tr.innerHTML = `
-            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="mission-row-select" title="Sélectionner" onclick="event.stopPropagation();toggleMissionSelect(${c.id}, this.checked)"></td>
+            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="mission-row-select" title="Sélectionner" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();toggleMissionSelect(${c.id}, this.checked)"></td>
             <td data-label="Nom"><span title="${escapeHtml(c.name || '')}">${escapeHtml(c.name || '')}</span></td>
             <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
@@ -654,6 +669,7 @@ function renderMissionTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
+                ${_buildPhoneBtn(c)}
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                 ${descActionBtn}
                 ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</button>`}
@@ -669,12 +685,16 @@ let __missionSelected = new Set();
 function toggleMissionSelect(id, checked) {
     if (checked) __missionSelected.add(id);
     else __missionSelected.delete(id);
+    const tr = document.querySelector(`#missionTableBody tr[data-candidate-id="${id}"]`);
+    if (tr) tr.classList.toggle('row-selected', checked);
     updateMissionSelectAllState();
+    updateMissionBulkBar();
 }
 function toggleMissionSelectAll(checked) {
     if (checked) __missionFiltered.forEach(c => __missionSelected.add(c.id));
     else __missionFiltered.forEach(c => __missionSelected.delete(c.id));
     renderMissionTable();
+    updateMissionBulkBar();
 }
 function updateMissionSelectAllState() {
     const cb = document.getElementById('missionSelectAll');
@@ -720,6 +740,7 @@ function renderHorsAuraTable() {
         const skills = candSkillsArray(c);
         const skillsLabel = skills.join(', ');
         const combinedTech = skillsLabel ? (skillsLabel + (c.tech ? ' · ' + safeStr(c.tech) : '')) : safeStr(c.tech);
+        const isSelected = __horsAuraSelected.has(c.id);
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
             : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
@@ -727,13 +748,14 @@ function renderHorsAuraTable() {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
+        if (isSelected) tr.classList.add('row-selected');
         tr.addEventListener('click', (e) => {
             if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, .desc-gen-btn, select')) return;
             window.location.href = '/candidat?id=' + c.id;
         });
         const updatedAt = safeStr(c.updatedAt || c.createdAt || '').slice(0, 10);
         tr.innerHTML = `
-            <td onclick="event.stopPropagation()"><input type="checkbox" ${__horsAuraSelected.has(c.id) ? 'checked' : ''} onchange="toggleHorsAuraSelect(${c.id}, this.checked)"></td>
+            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="horsaura-row-select" title="Sélectionner" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();toggleHorsAuraSelect(${c.id}, this.checked)"></td>
             <td><strong>${escapeHtml(safeStr(c.name))}</strong></td>
             <td data-label="Rôle">${renderClampCell(c.role)}</td>
             <td data-label="Localisation">${renderClampCell(c.location)}</td>
@@ -743,6 +765,7 @@ function renderHorsAuraTable() {
             <td>${escapeHtml(updatedAt)}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
+                ${_buildPhoneBtn(c)}
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                 ${descActionBtn}
                 ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</button>`}
@@ -758,12 +781,16 @@ let __horsAuraSelected = new Set();
 function toggleHorsAuraSelect(id, checked) {
     if (checked) __horsAuraSelected.add(id);
     else __horsAuraSelected.delete(id);
+    const tr = document.querySelector(`#horsAuraTableBody tr[data-candidate-id="${id}"]`);
+    if (tr) tr.classList.toggle('row-selected', checked);
     updateHorsAuraSelectAllState();
+    updateHorsAuraBulkBar();
 }
 function toggleHorsAuraSelectAll(checked) {
     if (checked) __horsAuraFiltered.forEach(c => __horsAuraSelected.add(c.id));
     else __horsAuraFiltered.forEach(c => __horsAuraSelected.delete(c.id));
     renderHorsAuraTable();
+    updateHorsAuraBulkBar();
 }
 function updateHorsAuraSelectAllState() {
     const cb = document.getElementById('horsAuraSelectAll');
@@ -811,6 +838,7 @@ function renderLinkedinTable() {
         const skills = candSkillsArray(c);
         const skillsLabel = skills.join(', ');
         const combinedTech = skillsLabel ? (skillsLabel + (c.tech ? ' · ' + safeStr(c.tech) : '')) : safeStr(c.tech);
+        const isSelected = __linkedinSelected.has(c.id);
         const dcBadge = c.has_dc
             ? '<span class="dc-badge available" title="Dossier de compétences disponible">DC</span>'
             : `<button class="dc-badge missing dc-upload-btn" title="Cliquer pour uploader un DC (PDF)" onclick="event.stopPropagation();quickUploadDC(${c.id})">＋ DC</button>`;
@@ -818,12 +846,13 @@ function renderLinkedinTable() {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.dataset.candidateId = c.id;
+        if (isSelected) tr.classList.add('row-selected');
         tr.addEventListener('click', (e) => {
             if (e.target.closest('.mini-action, button, a, input, .dc-upload-btn, .desc-gen-btn, select')) return;
             window.location.href = '/candidat?id=' + c.id;
         });
         tr.innerHTML = `
-            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="linkedin-row-select" title="Sélectionner" onclick="event.stopPropagation();toggleLinkedinSelect(${c.id}, this.checked)"></td>
+            <td style="padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="linkedin-row-select" title="Sélectionner" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();toggleLinkedinSelect(${c.id}, this.checked)"></td>
             <td data-label="Nom"><span title="${escapeHtml(c.name || '')}">${escapeHtml(c.name || '')}</span></td>
             <td data-label="Rôle">${renderClampCell(c.role, 'table-cell-clamp--wide')}</td>
             <td data-label="Localisation">${renderClampCell(c.location, 'table-cell-clamp--wide')}</td>
@@ -833,6 +862,7 @@ function renderLinkedinTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
+                ${_buildPhoneBtn(c)}
                 ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                 ${descActionBtn}
                 ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</button>`}
@@ -848,12 +878,16 @@ let __linkedinSelected = new Set();
 function toggleLinkedinSelect(id, checked) {
     if (checked) __linkedinSelected.add(id);
     else __linkedinSelected.delete(id);
+    const tr = document.querySelector(`#linkedinTableBody tr[data-candidate-id="${id}"]`);
+    if (tr) tr.classList.toggle('row-selected', checked);
     updateLinkedinSelectAllState();
+    updateLinkedinBulkBar();
 }
 function toggleLinkedinSelectAll(checked) {
     if (checked) __linkedinFiltered.forEach(c => __linkedinSelected.add(c.id));
     else __linkedinFiltered.forEach(c => __linkedinSelected.delete(c.id));
     renderLinkedinTable();
+    updateLinkedinBulkBar();
 }
 function updateLinkedinSelectAllState() {
     const cb = document.getElementById('linkedinSelectAll');
@@ -898,6 +932,10 @@ function fillCandidateForm(c) {
     document.getElementById('candNotes').value = safeStr(c.notes);
     const vsaEl = document.getElementById('candVsaUrl');
     if (vsaEl) vsaEl.value = safeStr(c.vsa_url || '');
+    const phoneEl = document.getElementById('candPhone');
+    if (phoneEl) phoneEl.value = safeStr(c.phone || '');
+    const emailEl = document.getElementById('candEmail');
+    if (emailEl) emailEl.value = safeStr(c.email || '');
 }
 
 function editCandidate(id) {
@@ -923,6 +961,8 @@ async function saveCandidate(e) {
         source: document.getElementById('candSource').value.trim(),
         status: document.getElementById('candStatus').value,
         notes: document.getElementById('candNotes').value.trim(),
+        phone: (document.getElementById('candPhone')?.value || '').trim(),
+        email: (document.getElementById('candEmail')?.value || '').trim(),
     };
     if (vsaUrlEl && vsaUrlEl.value) payload.vsa_url = vsaUrlEl.value.trim();
 
@@ -1018,6 +1058,82 @@ function updateCandidateBulkBar() {
     countEl.textContent = __selectedCandidates.size;
     bar.style.display = __selectedCandidates.size > 0 ? 'flex' : 'none';
 }
+
+// ===== Helpers actions en masse mutualisés =====
+
+function _updateBulkBar(barId, countId, size) {
+    const bar = document.getElementById(barId);
+    const el = document.getElementById(countId);
+    if (!bar || !el) return;
+    el.textContent = size;
+    bar.style.display = size > 0 ? 'flex' : 'none';
+}
+
+async function _bulkChangeStatus(selectedSet, selectId, reloadFns) {
+    const status = document.getElementById(selectId)?.value;
+    if (!status) { showToast('Choisissez un statut.', 'warning'); return; }
+    if (!selectedSet.size) return;
+    const ids = [...selectedSet];
+    try {
+        const res = await fetch('/api/candidates/bulk-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids, field: 'status', value: status })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        showToast(`Statut mis à jour pour ${ids.length} candidat(s).`, 'success');
+        selectedSet.clear();
+        await loadCandidates();
+        reloadFns.forEach(fn => fn());
+    } catch(e) {
+        showToast('Impossible de mettre à jour : ' + (e?.message || e), 'error');
+    }
+}
+
+async function _bulkDelete(selectedSet, reloadFns) {
+    if (!selectedSet.size) return;
+    const ids = [...selectedSet];
+    if (!confirm(`⚠️ Supprimer ${ids.length} candidat(s) sélectionné(s) ?\nCette action peut être annulée.`)) return;
+    let done = 0;
+    for (const id of ids) {
+        const res = await fetch('/api/candidates/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        if (res.ok) done++;
+    }
+    showToast(`${done} candidat(s) supprimé(s).`, 'success');
+    selectedSet.clear();
+    await loadCandidates();
+    reloadFns.forEach(fn => fn());
+}
+
+const _ALL_RELOAD_FNS = () => [applyCandidateFilters, applyLinkedinFilters, applyMissionFilters, applyArchiveFilters, applyHorsAuraFilters];
+
+// ===== Bulk actions — LinkedIn =====
+function updateLinkedinBulkBar() { _updateBulkBar('linkedinBulkActions', 'linkedinBulkCount', __linkedinSelected.size); }
+function clearLinkedinSelection() { __linkedinSelected.clear(); renderLinkedinTable(); updateLinkedinBulkBar(); }
+async function applyBulkLinkedinStatus() { await _bulkChangeStatus(__linkedinSelected, 'linkedinBulkStatus', _ALL_RELOAD_FNS()); updateLinkedinBulkBar(); }
+async function deleteSelectedLinkedin() { await _bulkDelete(__linkedinSelected, _ALL_RELOAD_FNS()); updateLinkedinBulkBar(); }
+
+// ===== Bulk actions — Mission =====
+function updateMissionBulkBar() { _updateBulkBar('missionBulkActions', 'missionBulkCount', __missionSelected.size); }
+function clearMissionSelection() { __missionSelected.clear(); renderMissionTable(); updateMissionBulkBar(); }
+async function applyBulkMissionStatus() { await _bulkChangeStatus(__missionSelected, 'missionBulkStatus', _ALL_RELOAD_FNS()); updateMissionBulkBar(); }
+async function deleteSelectedMission() { await _bulkDelete(__missionSelected, _ALL_RELOAD_FNS()); updateMissionBulkBar(); }
+
+// ===== Bulk actions — Archive =====
+function updateArchiveBulkBar() { _updateBulkBar('archiveBulkActions', 'archiveBulkCount', __archiveSelected.size); }
+function clearArchiveSelection() { __archiveSelected.clear(); renderArchiveTable(); updateArchiveBulkBar(); }
+async function applyBulkArchiveStatus() { await _bulkChangeStatus(__archiveSelected, 'archiveBulkStatus', _ALL_RELOAD_FNS()); updateArchiveBulkBar(); }
+async function deleteSelectedArchive() { await _bulkDelete(__archiveSelected, _ALL_RELOAD_FNS()); updateArchiveBulkBar(); }
+
+// ===== Bulk actions — Hors Aura =====
+function updateHorsAuraBulkBar() { _updateBulkBar('horsAuraBulkActions', 'horsAuraBulkCount', __horsAuraSelected.size); }
+function clearHorsAuraSelection() { __horsAuraSelected.clear(); renderHorsAuraTable(); updateHorsAuraBulkBar(); }
+async function applyBulkHorsAuraStatus() { await _bulkChangeStatus(__horsAuraSelected, 'horsAuraBulkStatus', _ALL_RELOAD_FNS()); updateHorsAuraBulkBar(); }
+async function deleteSelectedHorsAura() { await _bulkDelete(__horsAuraSelected, _ALL_RELOAD_FNS()); updateHorsAuraBulkBar(); }
 
 function updateCandidateSelectAllState() {
     const cb = document.getElementById('candSelectAll');

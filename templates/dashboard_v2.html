@@ -45,6 +45,12 @@
       <h3 class="dv2-card-title">Performance</h3>
       <span class="dv2-card-badge" id="dv2PerfBadge"></span>
     </div>
+    <div class="dv2-week-nav" id="dv2WeekNav">
+      <button class="dv2-week-nav-btn" id="dv2WeekPrev" onclick="dv2_navWeek(-1)" title="Semaine pr&#233;c&#233;dente">&#8249;</button>
+      <span class="dv2-week-nav-label" id="dv2WeekLabel">Cette semaine</span>
+      <button class="dv2-week-nav-btn" id="dv2WeekNext" onclick="dv2_navWeek(1)" title="Semaine suivante" disabled>&#8250;</button>
+      <button class="dv2-week-nav-today" id="dv2WeekToday" onclick="dv2_navWeek(0)" style="display:none">Aujourd&#39;hui</button>
+    </div>
     <div class="dv2-kpi-chips" id="dv2KpiChips">
       <div class="dv2-skel-chip"></div>
       <div class="dv2-skel-chip"></div>
