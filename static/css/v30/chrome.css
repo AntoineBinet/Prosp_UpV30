@@ -1,0 +1,255 @@
+/* ============================================================
+   ProspUp v30 — App chrome (topbar + sidebar + shell)
+   Reproduction des styles inline de screens/_chrome.jsx.
+   Dépend de tokens.css + components.css.
+   ============================================================ */
+
+.v30-app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.v30-app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.v30-main {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.v30-main__inner {
+  padding: 20px 24px;
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+
+.v30-main__inner.is-flush {
+  padding: 0;
+  max-width: none;
+}
+
+.v30-spacer { flex: 1; }
+
+/* ─────────── Topbar ─────────── */
+.v30-topbar {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.v30-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: calc(var(--sidebar-w) - 12px);
+}
+
+.v30-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+
+.v30-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.v30-crumbs__sep {
+  color: var(--text-muted);
+  display: inline-flex;
+}
+
+.v30-crumbs__item {
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+.v30-crumbs__item.is-current {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.v30-cmdk {
+  width: 360px;
+  height: 30px;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border-color: transparent;
+}
+
+.v30-cmdk:hover {
+  background: var(--surface-3);
+}
+
+.v30-cmdk__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.v30-cmdk__kbd {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.v30-kbd-trailing {
+  margin-left: 4px;
+}
+
+/* ─────────── Sidebar ─────────── */
+.v30-sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  padding: 12px 8px;
+  gap: 2px;
+}
+
+.v30-sidebar__section {
+  margin-bottom: 10px;
+}
+
+.v30-sidebar__title {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 8px 10px 4px;
+}
+
+.v30-sb-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 400;
+  position: relative;
+  transition: background var(--dur-1), color var(--dur-1);
+}
+
+.v30-sb-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.v30-sb-item.is-active {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.v30-sb-item__rail {
+  position: absolute;
+  left: -8px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--text);
+  border-radius: 2px;
+}
+
+.v30-sb-item__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v30-sb-item__count {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.v30-sb-item--pinned .v30-sb-item__pinned {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.v30-sb-item__pinned-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+}
+.v30-sb-item__pinned-sub {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.v30-sidebar__footer {
+  display: flex;
+  gap: 4px;
+  padding: 8px 4px;
+  align-items: center;
+  border-top: 1px solid var(--border);
+}
+
+.v30-sidebar__version {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ─────────── Theme toggle (sun/moon swap) ─────────── */
+.v30-theme-toggle__sun { display: none; }
+.v30-theme-toggle__moon { display: inline-flex; }
+:root[data-theme="dark"] .v30-theme-toggle__sun { display: inline-flex; }
+:root[data-theme="dark"] .v30-theme-toggle__moon { display: none; }
+
+/* ─────────── Responsive (mobile fallback) ─────────── */
+@media (max-width: 900px) {
+  .v30-sidebar {
+    display: none;
+  }
+  .v30-topbar__brand {
+    min-width: 0;
+  }
+  .v30-cmdk {
+    width: auto;
+    flex: 1;
+    min-width: 120px;
+  }
+  .v30-cmdk__label span:not(svg) {
+    display: none;
+  }
+  .v30-cmdk__kbd {
+    display: none;
+  }
+}

@@ -1,0 +1,92 @@
+{# ============================================================
+   ProspUp v30 — Sidebar (232px, collapsible 56px)
+   Reproduit screens/_chrome.jsx · Sidebar.
+   Variables attendues :
+     active : id de la section active (dashboard, focus, calendar,
+              push, stats, rapport, prospects, entreprises, candidats)
+     counts : dict optionnel { prospects: 1247, entreprises: 342, ... }
+     pinned : liste optionnelle de { id, label, sub }
+   ============================================================ #}
+{% import "_partials/v30/icon.html" as ui %}
+{% set active = active or '' %}
+{% set counts = counts or {} %}
+{% set pinned = pinned or [] %}
+
+{% set nav_items = [
+  { 'id': 'dashboard', 'icon': 'home',     'label': 'Dashboard', 'href': '/dashboard' },
+  { 'id': 'focus',     'icon': 'focus',    'label': 'Focus',     'href': '/focus' },
+  { 'id': 'calendar',  'icon': 'calendar', 'label': 'Calendrier','href': '/calendrier' },
+  { 'id': 'push',      'icon': 'send',     'label': 'Push',      'href': '/push' },
+  { 'id': 'stats',     'icon': 'chart',    'label': 'Stats',     'href': '/stats' },
+  { 'id': 'rapport',   'icon': 'report',   'label': 'Rapport',   'href': '/rapport' }
+] %}
+{% set record_items = [
+  { 'id': 'prospects',   'icon': 'users',    'label': 'Prospects',   'href': '/' },
+  { 'id': 'entreprises', 'icon': 'building', 'label': 'Entreprises', 'href': '/entreprises' },
+  { 'id': 'candidats',   'icon': 'user',     'label': 'Candidats',   'href': '/sourcing' }
+] %}
+
+<aside class="v30-sidebar" aria-label="Navigation principale">
+
+  <div class="v30-sidebar__section">
+    <div class="v30-sidebar__title">Navigate</div>
+    {% for it in nav_items %}
+      {% set is_active = (active == it.id) %}
+      <a class="v30-sb-item{% if is_active %} is-active{% endif %}"
+         href="{{ it.href }}"
+         {% if is_active %}aria-current="page"{% endif %}>
+        {% if is_active %}<span class="v30-sb-item__rail" aria-hidden="true"></span>{% endif %}
+        {{ ui.icon(it.icon) }}
+        <span class="v30-sb-item__label">{{ it.label }}</span>
+        {% set c = counts.get(it.id) %}
+        {% if c is not none %}
+          <span class="v30-sb-item__count num">{{ '{:,}'.format(c)|replace(',', ' ') }}</span>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </div>
+
+  <div class="v30-sidebar__section">
+    <div class="v30-sidebar__title">Records</div>
+    {% for it in record_items %}
+      {% set is_active = (active == it.id) %}
+      <a class="v30-sb-item{% if is_active %} is-active{% endif %}"
+         href="{{ it.href }}"
+         {% if is_active %}aria-current="page"{% endif %}>
+        {% if is_active %}<span class="v30-sb-item__rail" aria-hidden="true"></span>{% endif %}
+        {{ ui.icon(it.icon) }}
+        <span class="v30-sb-item__label">{{ it.label }}</span>
+        {% set c = counts.get(it.id) %}
+        {% if c is not none %}
+          <span class="v30-sb-item__count num">{{ '{:,}'.format(c)|replace(',', ' ') }}</span>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </div>
+
+  {% if pinned %}
+  <div class="v30-sidebar__section">
+    <div class="v30-sidebar__title">Épinglés</div>
+    {% for p in pinned %}
+      <a class="v30-sb-item v30-sb-item--pinned" href="{{ p.href or '#' }}">
+        {{ ui.icon('bookmark', 13) }}
+        <span class="v30-sb-item__pinned">
+          <span class="v30-sb-item__pinned-label truncate">{{ p.label }}</span>
+          <span class="v30-sb-item__pinned-sub truncate muted">{{ p.sub }}</span>
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="v30-spacer"></div>
+
+  <div class="v30-sidebar__footer">
+    <a class="btn btn-ghost btn-sm btn-icon" href="/parametres" title="Paramètres" aria-label="Paramètres">
+      {{ ui.icon('cog') }}
+    </a>
+    {% include "_partials/v30/theme_toggle.html" %}
+    <div class="v30-spacer"></div>
+    <span class="v30-sidebar__version mono">v{{ app_version or '30.0' }}</span>
+  </div>
+</aside>

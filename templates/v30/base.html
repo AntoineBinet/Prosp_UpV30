@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="description" content="Prosp'Up — CRM Prospection B2B par Up Technologies.">
+  <title>{% block title %}Prosp'Up v30{% endblock %}</title>
+
+  {# Theme init inline (avant tout rendu) pour éviter le flash clair/sombre #}
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'light' || t === 'dark') {
+          document.documentElement.dataset.theme = t;
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="icon" href="/static/favicon.ico">
+
+  {# Google Fonts (HANDOFF §1 / ProspUp_v30_Refonte.html) #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  {# Design system v30 #}
+  <link rel="stylesheet" href="/static/css/v30/tokens.css?v={{ static_hash('css/v30/tokens.css') }}">
+  <link rel="stylesheet" href="/static/css/v30/components.css?v={{ static_hash('css/v30/components.css') }}">
+  <link rel="stylesheet" href="/static/css/v30/chrome.css?v={{ static_hash('css/v30/chrome.css') }}">
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body data-v30="1" data-page="{% block page_id %}{% endblock %}">
+  <div class="v30-app-shell">
+    {% include "_partials/v30/topbar.html" %}
+    <div class="v30-app-body">
+      {% include "_partials/v30/sidebar.html" %}
+      <main class="v30-main" role="main">
+        <div class="v30-main__inner{% if flush %} is-flush{% endif %}">
+          {% block content %}{% endblock %}
+        </div>
+      </main>
+    </div>
+  </div>
+
+  {% block modals %}{% endblock %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

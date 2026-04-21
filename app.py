@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "29.7"
+APP_VERSION = "29.8"
 import os
 import subprocess
 import traceback
@@ -4468,6 +4468,24 @@ def page_metiers():
 @app.get("/prospects/mode-prosp")
 def page_mode_prosp():
     return render_template("mode_prosp.html", static_hashes=_static_hashes)
+
+
+@app.get("/v30/preview")
+def page_v30_preview():
+    """Preview du chrome v30 (topbar + sidebar) + aperçu du design system.
+    Voir CHECKLIST.md et update UX web app/handoff/HANDOFF.md."""
+    return render_template(
+        "v30/preview.html",
+        active="dashboard",
+        crumbs=["Prosp'Up", "Aperçu v30"],
+        counts={"prospects": 1247, "entreprises": 342, "candidats": 89, "focus": 12},
+        pinned=[
+            {"id": "cap", "label": "Capgemini",    "sub": "12 prospects"},
+            {"id": "sfr", "label": "SFR Business", "sub": "4 prospects"},
+        ],
+        user_initials="AB",
+        app_version=APP_VERSION,
+    )
 
 
 # ── Mode Prosp: server-side token sessions ──

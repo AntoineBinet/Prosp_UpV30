@@ -1,0 +1,235 @@
+{% extends "v30/base.html" %}
+{% block title %}Preview v30 — Chrome & design system{% endblock %}
+{% block page_id %}v30-preview{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="stack gap-6" style="padding-bottom: 80px;">
+
+  {# ─── Hero de page ─── #}
+  <header class="stack gap-2">
+    <span class="badge badge-accent">
+      <span class="badge-dot"></span>
+      Aperçu v30 — design system & chrome
+    </span>
+    <h1 class="serif" style="font-size: 40px; line-height: 1.05; margin: 0; color: var(--text);">
+      Bonjour, Antoine.
+    </h1>
+    <p class="muted" style="margin: 0; font-size: 13px;">
+      Cette page de prévisualisation rend le chrome v30 (topbar + sidebar) et une sélection
+      de composants du design system. Elle sert à valider la direction visuelle avant de
+      migrer les écrans un à un. Voir <code class="mono">CHECKLIST.md</code> et
+      <code class="mono">update UX web app/handoff/SPEC.md</code>.
+    </p>
+  </header>
+
+  {# ─── Section boutons ─── #}
+  <section class="card">
+    <div class="card-header">
+      <div class="card-title">{{ ui.icon('zap') }} Boutons</div>
+      <span class="card-sub">.btn · .btn-primary · .btn-accent · .btn-ghost · .btn-danger</span>
+    </div>
+    <div style="padding: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+      <button type="button" class="btn">{{ ui.icon('plus') }} Créer</button>
+      <button type="button" class="btn btn-primary">{{ ui.icon('check') }} Enregistrer</button>
+      <button type="button" class="btn btn-accent">{{ ui.icon('send') }} Pousser</button>
+      <button type="button" class="btn btn-ghost">{{ ui.icon('filter') }} Filtres</button>
+      <button type="button" class="btn btn-danger">{{ ui.icon('x') }} Archiver</button>
+      <button type="button" class="btn btn-sm">{{ ui.icon('cog', 12) }} Petit</button>
+      <button type="button" class="btn btn-lg">{{ ui.icon('sparkles') }} Grand</button>
+      <button type="button" class="btn btn-icon" aria-label="Menu">{{ ui.icon('dot3') }}</button>
+      <span class="kbd">⌘</span><span class="kbd">K</span>
+    </div>
+  </section>
+
+  {# ─── Section badges & status ─── #}
+  <section class="card">
+    <div class="card-header">
+      <div class="card-title">{{ ui.icon('tag') }} Badges &amp; statuts pipeline</div>
+      <span class="card-sub">.badge · .status</span>
+    </div>
+    <div style="padding: 16px; display: flex; flex-wrap: wrap; gap: 8px;">
+      <span class="badge">Neutre</span>
+      <span class="badge badge-success"><span class="badge-dot"></span>Actif</span>
+      <span class="badge badge-warn"><span class="badge-dot"></span>À relancer</span>
+      <span class="badge badge-danger"><span class="badge-dot"></span>En retard</span>
+      <span class="badge badge-info">Info</span>
+      <span class="badge badge-accent">{{ ui.icon('sparkles', 11) }} IA</span>
+    </div>
+    <div style="padding: 0 16px 16px; display: flex; flex-wrap: wrap; gap: 8px;">
+      <span class="status status-new">Nouveau</span>
+      <span class="status status-contact">Contacté</span>
+      <span class="status status-meeting">RDV</span>
+      <span class="status status-proposal">Proposition</span>
+      <span class="status status-won">Gagné</span>
+      <span class="status status-lost">Perdu</span>
+    </div>
+  </section>
+
+  {# ─── Section inputs ─── #}
+  <section class="card">
+    <div class="card-header">
+      <div class="card-title">{{ ui.icon('search') }} Inputs</div>
+      <span class="card-sub">.input · .select · .textarea · .label</span>
+    </div>
+    <div style="padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+      <div>
+        <label class="label" for="v30-preview-name">Nom</label>
+        <input id="v30-preview-name" class="input" placeholder="Antoine Binet" />
+      </div>
+      <div>
+        <label class="label" for="v30-preview-role">Rôle</label>
+        <select id="v30-preview-role" class="select">
+          <option>Admin</option>
+          <option>Éditeur</option>
+        </select>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label class="label" for="v30-preview-note">Notes</label>
+        <textarea id="v30-preview-note" class="textarea" rows="3" placeholder="Quelques notes…"></textarea>
+      </div>
+    </div>
+  </section>
+
+  {# ─── Section segmented + tabs ─── #}
+  <section class="card">
+    <div class="card-header">
+      <div class="card-title">{{ ui.icon('split') }} Segmented &amp; tabs</div>
+      <span class="card-sub">.segmented · .tabs</span>
+    </div>
+    <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+      <div class="segmented" role="tablist">
+        <button type="button" class="active">{{ ui.icon('table') }} Table</button>
+        <button type="button">{{ ui.icon('kanban') }} Kanban</button>
+        <button type="button">{{ ui.icon('split') }} Split</button>
+      </div>
+      <div class="tabs" role="tablist">
+        <button type="button" class="active">Aperçu</button>
+        <button type="button">Timeline <span class="tab-count">12</span></button>
+        <button type="button">Push <span class="tab-count">3</span></button>
+        <button type="button">Fichiers</button>
+        <button type="button">IA</button>
+      </div>
+    </div>
+  </section>
+
+  {# ─── Section table ─── #}
+  <section class="card card-flush">
+    <div class="card-header">
+      <div class="card-title">{{ ui.icon('table') }} Table</div>
+      <span class="card-sub">.table — densité 32px</span>
+    </div>
+    <div style="overflow: auto;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width: 28px;"><input type="checkbox" aria-label="Tout sélectionner"></th>
+            <th>Nom</th>
+            <th>Entreprise</th>
+            <th>Statut</th>
+            <th>Pertinence</th>
+            <th>Dernière action</th>
+            <th>Tags</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox" aria-label="Sélectionner"></td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="avatar">JD</span>
+                <div>
+                  <div style="font-size: 13px; font-weight: 600; color: var(--text);">Jean Dupont</div>
+                  <div style="font-size: 11.5px;" class="muted">Directeur Technique</div>
+                </div>
+              </div>
+            </td>
+            <td>Capgemini</td>
+            <td><span class="status status-meeting">RDV</span></td>
+            <td class="mono num">★★★★☆</td>
+            <td class="muted">il y a 2 j</td>
+            <td>
+              <span class="badge">Tech</span>
+              <span class="badge">Paris</span>
+              <span class="badge muted">+2</span>
+            </td>
+          </tr>
+          <tr class="selected">
+            <td><input type="checkbox" checked aria-label="Sélectionner"></td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="avatar">MC</span>
+                <div>
+                  <div style="font-size: 13px; font-weight: 600; color: var(--text);">Marie Curie</div>
+                  <div style="font-size: 11.5px;" class="muted">Head of Engineering</div>
+                </div>
+              </div>
+            </td>
+            <td>SFR Business</td>
+            <td><span class="status status-proposal">Proposition</span></td>
+            <td class="mono num">★★★★★</td>
+            <td class="muted">hier</td>
+            <td><span class="badge">Embarqué</span></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" aria-label="Sélectionner"></td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="avatar">AL</span>
+                <div>
+                  <div style="font-size: 13px; font-weight: 600; color: var(--text);">Antoine Leblanc</div>
+                  <div style="font-size: 11.5px;" class="muted">CTO</div>
+                </div>
+              </div>
+            </td>
+            <td>Orange</td>
+            <td><span class="status status-won">Gagné</span></td>
+            <td class="mono num">★★★☆☆</td>
+            <td class="muted">il y a 1 sem.</td>
+            <td><span class="badge">Lyon</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {# ─── Section cards éditoriales (bento) ─── #}
+  <section class="stack gap-3">
+    <h2 style="font-size: 13px; font-weight: 600; letter-spacing: -0.005em; margin: 0; color: var(--text);">Grands chiffres éditoriaux</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+      {% for kpi in [
+        {'label': 'RDV cette semaine', 'value': '12', 'delta': '+3'},
+        {'label': 'Pushes envoyés',    'value': '87', 'delta': '+14'},
+        {'label': 'Contacts actifs',   'value': '318', 'delta': '+22'},
+        {'label': 'RDV pipés',         'value': '5',  'delta': '-1'}
+      ] %}
+      <div class="card">
+        <div class="muted" style="font-size: 11.5px; letter-spacing: 0.02em;">{{ kpi.label }}</div>
+        <div class="serif num" style="font-size: 44px; line-height: 1; margin-top: 6px; color: var(--text);">{{ kpi.value }}</div>
+        <div class="muted" style="font-size: 11.5px; margin-top: 4px;">
+          <span class="mono">{{ kpi.delta }}</span> vs semaine -1
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ─── Skeletons + empty ─── #}
+  <section class="card">
+    <div class="card-header">
+      <div class="card-title">{{ ui.icon('clock') }} États de chargement &amp; vides</div>
+      <span class="card-sub">.skel · .empty</span>
+    </div>
+    <div style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+      <div class="skel" style="height: 20px; width: 60%;"></div>
+      <div class="skel" style="height: 20px; width: 80%;"></div>
+      <div class="skel" style="height: 20px; width: 40%;"></div>
+      <div class="empty">
+        Aucun prospect pour ces filtres.
+      </div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}

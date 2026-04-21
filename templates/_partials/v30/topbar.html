@@ -1,0 +1,51 @@
+{# ============================================================
+   ProspUp v30 — Topbar (48px fixe)
+   Reproduit screens/_chrome.jsx · Topbar.
+   Variables attendues :
+     crumbs : liste de strings (défaut : ["Prosp'Up"])
+   ============================================================ #}
+{% import "_partials/v30/icon.html" as ui %}
+{% set crumbs = crumbs or ["Prosp'Up"] %}
+<header class="v30-topbar" role="banner">
+  {# ─── Logo + fil d'ariane ─── #}
+  <div class="v30-topbar__brand">
+    <span class="v30-logo" aria-hidden="true">P</span>
+    <nav class="v30-crumbs" aria-label="Fil d'Ariane">
+      {% for c in crumbs %}
+        {% if not loop.first %}
+          <span class="v30-crumbs__sep">{{ ui.icon('chevR', 12) }}</span>
+        {% endif %}
+        <span class="v30-crumbs__item{% if loop.last %} is-current{% endif %}">{{ c }}</span>
+      {% endfor %}
+    </nav>
+  </div>
+
+  <div class="v30-spacer"></div>
+
+  {# ─── Command palette trigger ⌘K ─── #}
+  <button type="button"
+          class="btn btn-ghost v30-cmdk"
+          data-v30-cmdk
+          aria-label="Ouvrir la recherche (Commande + K)">
+    <span class="v30-cmdk__label">
+      {{ ui.icon('search') }}
+      <span>Rechercher ou sauter vers…</span>
+    </span>
+    <span class="v30-cmdk__kbd">
+      <span class="kbd">⌘</span><span class="kbd">K</span>
+    </span>
+  </button>
+
+  <div class="v30-spacer"></div>
+
+  {# ─── Actions ─── #}
+  <button type="button" class="btn" data-v30-create aria-label="Créer">
+    {{ ui.icon('plus') }}
+    <span>Créer</span>
+    <span class="kbd v30-kbd-trailing">C</span>
+  </button>
+  <button type="button" class="btn btn-ghost btn-icon" title="Notifications" aria-label="Notifications">
+    {{ ui.icon('bell') }}
+  </button>
+  <span class="avatar" aria-label="Compte" title="Compte">{{ (user_initials or 'AB')|upper }}</span>
+</header>

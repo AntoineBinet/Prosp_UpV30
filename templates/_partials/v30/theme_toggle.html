@@ -1,0 +1,32 @@
+{# ============================================================
+   ProspUp v30 — Theme toggle (sun/moon)
+   Reproduit la fonction ThemeToggle de screens/_chrome.jsx.
+   Bascule document.documentElement.dataset.theme et persiste
+   en localStorage sous la clé 'theme'.
+   ============================================================ #}
+{% import "_partials/v30/icon.html" as ui %}
+<button type="button"
+        class="btn btn-ghost btn-sm btn-icon v30-theme-toggle"
+        data-v30-theme-toggle
+        title="Basculer le thème"
+        aria-label="Basculer le thème">
+  <span class="v30-theme-toggle__sun">{{ ui.icon('sun') }}</span>
+  <span class="v30-theme-toggle__moon">{{ ui.icon('moon') }}</span>
+</button>
+<script>
+(function(){
+  var btn = document.currentScript.previousElementSibling;
+  if (!btn || btn.dataset.v30ThemeBound === '1') return;
+  btn.dataset.v30ThemeBound = '1';
+  function apply(theme){
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem('theme', theme); } catch(e) {}
+    btn.title = theme === 'dark' ? 'Passer en clair' : 'Passer en sombre';
+  }
+  btn.addEventListener('click', function(e){
+    e.stopPropagation();
+    var cur = document.documentElement.dataset.theme || 'dark';
+    apply(cur === 'dark' ? 'light' : 'dark');
+  });
+})();
+</script>
