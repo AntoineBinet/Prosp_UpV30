@@ -408,7 +408,7 @@
       if (!a) return;
       e.preventDefault();
       var id = a.dataset.v30Open;
-      window.location.href = '/?prospect=' + encodeURIComponent(id);
+      window.location.href = '/v30/prospect/' + encodeURIComponent(id);
     });
   }
 

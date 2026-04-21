@@ -4497,6 +4497,56 @@ def page_v30_login():
     return render_template("v30/login.html", app_version=APP_VERSION)
 
 
+@app.get("/v30/prospect/<int:pid>")
+def page_v30_prospect_detail(pid):
+    """Fiche prospect v30 (SPEC §3.4). Rendu serveur du chrome ;
+    les données (prospect + timeline + push logs) sont chargées côté
+    client via /api/prospect/timeline. Inline-edit via
+    /api/prospects/bulk-edit avec ids=[pid]."""
+    uid = _uid()
+    if not uid:
+        return redirect('/login')
+    # Vérifie ownership léger (le endpoint timeline filtre déjà)
+    try:
+        with _conn() as conn:
+            row = conn.execute(
+                "SELECT id, name FROM prospects WHERE id=? AND owner_id=? AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+                (pid, uid),
+            ).fetchone()
+    except Exception:
+        row = None
+    if not row:
+        # Pas d'accès → retour liste
+        return redirect('/v30/prospects')
+
+    u = _get_current_user() or {}
+    dn = (u.get("display_name") or u.get("username") or "").strip()
+    parts = [p for p in dn.split() if p]
+    user_initials = "".join(p[0].upper() for p in parts[:2]) or "AB"
+
+    counts = {}
+    try:
+        with _conn() as conn:
+            counts["prospects"] = conn.execute(
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
+                (uid,),
+            ).fetchone()[0]
+    except Exception:
+        counts = {}
+
+    return render_template(
+        "v30/prospect_detail.html",
+        active="prospects",
+        crumbs=["Prosp'Up", "Prospects", row["name"] or "Fiche"],
+        counts=counts,
+        pinned=[],
+        user_initials=user_initials,
+        prospect_id=pid,
+        prospect_name=row["name"] or "",
+        app_version=APP_VERSION,
+    )
+
+
 @app.get("/v30/prospects")
 def page_v30_prospects():
     """Prospects v30 (SPEC §3.3). Rendu serveur du chrome uniquement ;
