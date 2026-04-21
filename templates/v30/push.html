@@ -1,0 +1,99 @@
+{% extends "v30/base.html" %}
+{% block title %}Push — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-push{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/push.css?v={{ static_hash('css/v30/push.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div data-v30-push>
+
+  {# ─── Topbar ─── #}
+  <div class="v30-push-topbar">
+    <h1>Push</h1>
+    <div class="segmented" role="tablist" data-v30-push-tabs>
+      <button type="button" class="active" data-tab="campagnes" role="tab" aria-selected="true">Campagnes</button>
+      <button type="button" data-tab="templates" role="tab" aria-selected="false">Templates</button>
+      <button type="button" data-tab="historique" role="tab" aria-selected="false">Historique</button>
+    </div>
+    <div class="v30-spacer"></div>
+    <button type="button" class="btn btn-accent" data-v30-new-campaign>
+      {{ ui.icon('plus', 13) }} Nouvelle campagne
+    </button>
+  </div>
+
+  {# ─── Panel Campagnes ─── #}
+  <div data-v30-push-panel="campagnes">
+    <div class="empty" style="padding:24px;border:1px solid var(--border);border-radius:14px;background:var(--surface);">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;">
+        Campagnes — en préparation
+      </div>
+      <div style="font-size:12.5px;color:var(--text-2);max-width:520px;margin:0 auto;line-height:1.6;">
+        Le nouveau concept de <b>Campagne</b> (cible + message + programmation + tracking
+        sent/opened/replied) nécessite une migration DB (table <code class="mono">push_campaigns</code>,
+        voir SPEC §5.2). En attendant, utilisez l'onglet <b>Historique</b> pour voir les
+        pushs déjà envoyés et l'onglet <b>Templates</b> pour gérer les modèles réutilisables.
+      </div>
+    </div>
+
+    {# Wizard preview (non interactif) #}
+    <div class="v30-wizard-preview">
+      <div class="v30-wizard-preview__eyebrow">Assistant nouvelle campagne — aperçu</div>
+      <div class="v30-wizard-steps">
+        {% for s in [
+          {'i': 1, 't': 'Cible',   'd': 'Catégorie + filtres · preview des prospects',  'active': true},
+          {'i': 2, 't': 'Message', 'd': 'Template ou composer avec variables',           'active': false},
+          {'i': 3, 't': 'Envoi',   'd': 'Immédiat / programmé · checklist de validation','active': false}
+        ] %}
+        <div class="v30-wizard-step{% if s.active %} is-active{% endif %}">
+          <div class="v30-wizard-step__head">
+            <span class="v30-wizard-step__num">{{ s.i }}</span>
+            <span class="v30-wizard-step__title">{{ s.t }}</span>
+          </div>
+          <div class="v30-wizard-step__desc">{{ s.d }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ─── Panel Templates ─── #}
+  <div data-v30-push-panel="templates" hidden>
+    <div class="v30-tpl-grid" data-v30-tpl-grid>
+      {% for _ in range(6) %}
+      <div class="card v30-tpl-card">
+        <div class="row-sb">
+          <div class="skel" style="width:60%;height:13px;"></div>
+          <span class="skel" style="width:20px;height:20px;border-radius:50%;"></span>
+        </div>
+        <div style="display:flex;gap:4px;">
+          <span class="skel" style="width:40px;height:16px;"></span>
+          <span class="skel" style="width:40px;height:16px;"></span>
+        </div>
+        <div class="v30-tpl-card__body">
+          <div class="skel" style="width:100%;height:11px;margin-bottom:4px;"></div>
+          <div class="skel" style="width:85%;height:11px;"></div>
+        </div>
+        <div class="v30-tpl-card__meta">
+          <span class="skel" style="width:60px;height:11px;"></span>
+          <span class="skel" style="width:80px;height:11px;"></span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ─── Panel Historique ─── #}
+  <div data-v30-push-panel="historique" hidden>
+    <div class="card card-flush" data-v30-hist>
+      <div class="empty" style="padding:20px;">Chargement de l'historique…</div>
+    </div>
+  </div>
+
+</div>
+
+<script defer src="/static/js/v30/push.js?v={{ static_hash('js/v30/push.js') }}"></script>
+{% endblock %}
