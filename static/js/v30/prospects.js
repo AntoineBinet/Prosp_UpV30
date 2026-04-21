@@ -294,4 +294,199 @@
     renderSplitDetail: renderSplitDetail,
     renderBulk: renderBulk
   };
+
+  // ─── Fetch + orchestration ──────────────────────────────────
+  function loadProspects() {
+    var params = new URLSearchParams({
+      q: STATE.q || '',
+      limit: STATE.limit,
+      offset: STATE.offset
+    });
+    return fetchJSON('/api/search?' + params.toString()).then(function (res) {
+      STATE.prospects = (res && res.prospects) || [];
+      STATE.companies = {};
+      ((res && res.companies) || []).forEach(function (c) { STATE.companies[c.id] = c.groupe || c.name || ''; });
+      STATE.total = (res && res.counts && res.counts.prospects) || STATE.prospects.length;
+      renderAll();
+      updatePagination();
+      updateCounts();
+    }).catch(function (err) {
+      console.error('[v30 prospects] /api/search failed:', err);
+    });
+  }
+
+  function renderAll() {
+    renderTable();
+    renderKanban();
+    renderSplit();
+    renderBulk();
+  }
+
+  function updatePagination() {
+    var host = document.querySelector('[data-v30-pagination]');
+    if (!host) return;
+    var range = host.querySelector('[data-field="range"]');
+    if (range) {
+      var to = Math.min(STATE.offset + STATE.prospects.length, STATE.total);
+      range.textContent = STATE.prospects.length === 0 ? '0 sur ' + STATE.total : (STATE.offset + 1) + '–' + to + ' sur ' + STATE.total;
+    }
+    var prev = host.querySelector('[data-field="prev"]');
+    var next = host.querySelector('[data-field="next"]');
+    if (prev) prev.disabled = (STATE.offset <= 0);
+    if (next) next.disabled = (STATE.offset + STATE.limit >= STATE.total);
+  }
+
+  function updateCounts() {
+    var totalEl = document.querySelector('[data-v30-prospects] [data-field="total"]');
+    if (totalEl) totalEl.textContent = STATE.total.toLocaleString('fr-FR');
+    var allEl = document.querySelector('.v30-pp-views [data-view-filter="all"] [data-field="count"]');
+    if (allEl) allEl.textContent = STATE.total.toLocaleString('fr-FR');
+  }
+
+  // ─── View switch (table / kanban / split) ───────────────────
+  function bindViewSwitch() {
+    var seg = document.querySelector('[data-v30-view]');
+    if (!seg) return;
+    seg.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-view]');
+      if (!btn) return;
+      var v = btn.dataset.view;
+      seg.querySelectorAll('button[data-view]').forEach(function (b) {
+        var active = (b === btn);
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      document.querySelectorAll('[data-v30-view-panel]').forEach(function (p) {
+        p.hidden = (p.dataset.v30ViewPanel !== v);
+      });
+    });
+  }
+
+  // ─── Sélection (table checkboxes + split open) ──────────────
+  function bindSelection() {
+    document.addEventListener('change', function (e) {
+      var cb = e.target.closest('[data-v30-row-select]');
+      if (cb) {
+        var tr = cb.closest('tr');
+        var id = Number(tr && tr.dataset.id);
+        if (!id) return;
+        if (cb.checked) STATE.selected.add(id);
+        else STATE.selected.delete(id);
+        tr.classList.toggle('is-selected', cb.checked);
+        renderBulk();
+        return;
+      }
+      if (e.target.matches('[data-v30-select-all]')) {
+        var all = e.target.checked;
+        STATE.selected.clear();
+        if (all) STATE.prospects.forEach(function (p) { STATE.selected.add(p.id); });
+        renderTable();
+        renderBulk();
+      }
+    });
+  }
+
+  // ─── Split : clic ligne → charge détail depuis STATE ────────
+  function bindSplit() {
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('[data-v30-split-open]');
+      if (!a) return;
+      e.preventDefault();
+      var id = Number(a.dataset.v30SplitOpen);
+      var p = STATE.prospects.find(function (x) { return x.id === id; });
+      document.querySelectorAll('[data-v30-split-open]').forEach(function (row) {
+        row.classList.toggle('is-selected', Number(row.dataset.v30SplitOpen) === id);
+      });
+      renderSplitDetail(p);
+    });
+  }
+
+  // ─── Ouvrir fiche (table + kanban) → redirige vers legacy ───
+  function bindOpen() {
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('[data-v30-open]');
+      if (!a) return;
+      e.preventDefault();
+      var id = a.dataset.v30Open;
+      window.location.href = '/?prospect=' + encodeURIComponent(id);
+    });
+  }
+
+  // ─── Bulk bar actions ───────────────────────────────────────
+  function bindBulk() {
+    var bar = document.querySelector('[data-v30-bulk]');
+    if (!bar) return;
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var action = btn.dataset.action;
+      var ids = Array.from(STATE.selected);
+      if (action === 'clear') {
+        STATE.selected.clear();
+        renderTable();
+        renderBulk();
+        return;
+      }
+      if (!ids.length) return;
+      if (action === 'tag') {
+        var tag = prompt('Tag à ajouter aux ' + ids.length + ' prospects :');
+        if (!tag) return;
+        fetchPostJSON('/api/prospects/bulk-status-tags', { ids: ids, add_tags: [tag] })
+          .then(function () { STATE.selected.clear(); loadProspects(); })
+          .catch(function (err) { alert('Échec : ' + err.message); });
+      } else if (action === 'push') {
+        // Pas de bulk-push natif — on ouvre la page Push avec les ids
+        window.location.href = '/push?ids=' + ids.join(',');
+      } else {
+        alert('Action "' + action + '" : à brancher dans un commit futur.');
+      }
+    });
+  }
+
+  // ─── Recherche (debounced) ──────────────────────────────────
+  function bindSearch() {
+    var input = document.querySelector('[data-v30-search]');
+    if (!input) return;
+    var t = null;
+    input.addEventListener('input', function () {
+      clearTimeout(t);
+      t = setTimeout(function () {
+        STATE.q = input.value.trim();
+        STATE.offset = 0;
+        loadProspects();
+      }, 200);
+    });
+  }
+
+  // ─── Pagination ─────────────────────────────────────────────
+  function bindPagination() {
+    document.addEventListener('click', function (e) {
+      var prev = e.target.closest('[data-v30-pagination] [data-field="prev"]');
+      var next = e.target.closest('[data-v30-pagination] [data-field="next"]');
+      if (prev && !prev.disabled) {
+        STATE.offset = Math.max(0, STATE.offset - STATE.limit);
+        loadProspects();
+      } else if (next && !next.disabled) {
+        STATE.offset += STATE.limit;
+        loadProspects();
+      }
+    });
+  }
+
+  function init() {
+    bindViewSwitch();
+    bindSelection();
+    bindSplit();
+    bindOpen();
+    bindBulk();
+    bindSearch();
+    bindPagination();
+    loadProspects();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })(window);
