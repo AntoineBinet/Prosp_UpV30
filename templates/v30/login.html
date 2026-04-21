@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>Prosp'Up — Connexion (v30 preview)</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="icon" href="/static/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/v30/tokens.css?v={{ static_hash('css/v30/tokens.css') }}">
+  <link rel="stylesheet" href="/static/css/v30/components.css?v={{ static_hash('css/v30/components.css') }}">
+  <style>
+    html, body { height: 100%; }
+    body { overflow: hidden; }
+
+    .v30-login {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .v30-login__form-col {
+      padding: 48px 56px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .v30-login__brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .v30-login__logo {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--text); color: var(--bg);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-family: var(--font-serif); font-size: 18px; font-weight: 500;
+    }
+    .v30-login__brand-name {
+      font-size: 15px; font-weight: 600; letter-spacing: -0.2px;
+    }
+
+    .v30-login__form {
+      max-width: 360px;
+    }
+    .v30-login__title {
+      font-family: var(--font-serif);
+      font-size: 44px; font-weight: 400; margin: 0;
+      letter-spacing: -0.5px; line-height: 1.1;
+    }
+    .v30-login__subtitle {
+      font-size: 13.5px; color: var(--text-3);
+      margin: 8px 0 28px;
+    }
+    .v30-login__fields {
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .v30-login__fields .input {
+      height: 38px;
+    }
+    .v30-login__label-row {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .v30-login__forgot {
+      font-size: 11.5px; color: var(--text-3);
+      text-decoration: none;
+    }
+    .v30-login__forgot:hover {
+      color: var(--text-2);
+    }
+    .v30-login__submit {
+      height: 40px;
+      margin-top: 6px;
+    }
+
+    .v30-login__error {
+      display: none;
+      margin: 0 0 12px;
+      padding: 8px 12px;
+      background: var(--danger-soft);
+      color: var(--danger);
+      border-radius: var(--r-md);
+      font-size: 12.5px;
+    }
+    .v30-login__error.is-visible { display: block; }
+
+    .v30-login__version {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* ─── Colonne droite éditoriale ─── */
+    .v30-login__aside {
+      background: var(--ink-950);
+      color: #fff;
+      padding: 56px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+    .v30-login__aside::before {
+      content: "";
+      position: absolute; inset: 0;
+      background-image: repeating-linear-gradient(45deg, transparent 0 8px, rgba(255,255,255,0.02) 8px 9px);
+      pointer-events: none;
+    }
+    .v30-login__aside-inner {
+      position: relative;
+    }
+    .v30-login__tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.15);
+      font-size: 11px;
+      color: rgba(255,255,255,0.7);
+    }
+    .v30-login__quote {
+      font-family: var(--font-serif);
+      font-size: 36px;
+      line-height: 1.15;
+      letter-spacing: -0.3px;
+      font-style: italic;
+      color: rgba(255,255,255,0.95);
+      margin: 0;
+    }
+    .v30-login__quote-author {
+      margin-top: 16px;
+      display: flex; align-items: center; gap: 10px;
+      color: rgba(255,255,255,0.6); font-size: 12px;
+    }
+    .v30-login__quote-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 600;
+    }
+    .v30-login__stats {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .v30-login__stat-value {
+      font-family: var(--font-serif);
+      font-size: 28px;
+      color: #fff;
+    }
+    .v30-login__stat-label {
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    @media (max-width: 900px) {
+      .v30-login { grid-template-columns: 1fr; }
+      .v30-login__aside { display: none; }
+      .v30-login__form-col { padding: 32px 24px; }
+    }
+  </style>
+</head>
+<body data-v30="1" data-page="v30-login">
+  <div class="v30-login">
+
+    {# ─── Colonne gauche : formulaire ─── #}
+    <section class="v30-login__form-col">
+      <div class="v30-login__brand">
+        <span class="v30-login__logo" aria-hidden="true">P</span>
+        <span class="v30-login__brand-name">Prosp'Up</span>
+      </div>
+
+      <div class="v30-login__form">
+        <h1 class="v30-login__title">Bon retour.</h1>
+        <p class="v30-login__subtitle">
+          Connectez-vous pour retrouver votre pipeline, vos campagnes et vos candidats.
+        </p>
+
+        <div id="v30LoginError" class="v30-login__error" role="alert"></div>
+
+        <form id="v30LoginForm" class="v30-login__fields" novalidate>
+          <div>
+            <label class="label" for="v30-login-username">Identifiant</label>
+            <input id="v30-login-username" class="input" type="text"
+                   name="username" autocomplete="username"
+                   placeholder="prenom.nom" required autofocus>
+          </div>
+          <div>
+            <div class="v30-login__label-row">
+              <label class="label" for="v30-login-password">Mot de passe</label>
+              <a class="v30-login__forgot" href="#" tabindex="-1">Oublié ?</a>
+            </div>
+            <input id="v30-login-password" class="input" type="password"
+                   name="password" autocomplete="current-password"
+                   placeholder="••••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-accent btn-lg v30-login__submit" id="v30LoginSubmit">
+            Se connecter
+          </button>
+        </form>
+      </div>
+
+      <div class="v30-login__version">v{{ app_version or '30.0' }} · MAJ auto</div>
+    </section>
+
+    {# ─── Colonne droite : éditoriale ─── #}
+    <aside class="v30-login__aside" aria-hidden="true">
+      <div class="v30-login__aside-inner">
+        <span class="v30-login__tag">Refonte v30</span>
+      </div>
+      <div class="v30-login__aside-inner">
+        <blockquote class="v30-login__quote">
+          « Trois fois moins de clics pour envoyer un push, trois fois plus de RDV. »
+        </blockquote>
+        <div class="v30-login__quote-author">
+          <span class="v30-login__quote-avatar">JM</span>
+          Julien M. · Consultant sourcing · depuis 2024
+        </div>
+      </div>
+      <div class="v30-login__stats">
+        <div>
+          <div class="v30-login__stat-value">+38%</div>
+          <div class="v30-login__stat-label">RDV obtenus</div>
+        </div>
+        <div>
+          <div class="v30-login__stat-value">−42%</div>
+          <div class="v30-login__stat-label">Clics par push</div>
+        </div>
+        <div>
+          <div class="v30-login__stat-value">7j</div>
+          <div class="v30-login__stat-label">Série moyenne</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    (function () {
+      var form = document.getElementById('v30LoginForm');
+      var err  = document.getElementById('v30LoginError');
+      var btn  = document.getElementById('v30LoginSubmit');
+      if (!form) return;
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        err.classList.remove('is-visible');
+        err.textContent = '';
+        btn.disabled = true;
+        var original = btn.textContent;
+        btn.textContent = 'Connexion…';
+
+        try {
+          var resp = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: document.getElementById('v30-login-username').value.trim(),
+              password: document.getElementById('v30-login-password').value
+            })
+          });
+          var data = await resp.json();
+          if (data.ok) {
+            window.location.href = data.must_change_password
+              ? '/parametres?change_password=1'
+              : '/dashboard';
+          } else {
+            err.textContent = (data.error || 'Erreur de connexion');
+            err.classList.add('is-visible');
+          }
+        } catch (_) {
+          err.textContent = 'Erreur réseau';
+          err.classList.add('is-visible');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = original;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

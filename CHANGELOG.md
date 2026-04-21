@@ -2,6 +2,14 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [29.9] — 2026-04-21
+
+### UI v30 — étape 3 (écrans 1 & 2)
+
+- **Login v30** (`templates/v30/login.html`, route `/v30/login`) : split 60/40 (formulaire + colonne éditoriale avec citation + 3 stats). Formulaire fonctionnel (POST `/api/auth/login`, redirection `/dashboard` ou `/parametres?change_password=1`). `/v30/login` ajouté à la liste des routes publiques dans `before_request`.
+- **Dashboard v3** (`templates/v30/dashboard.html`, route `/v30/dashboard`, CSS `static/css/v30/dashboard.css`) : hero éditorial + 4 KPI Instrument Serif + streak card ; bento 2:2:1 (Action center avec tabs À faire/RDV/En retard · Pipeline 5 étages · Objectifs avec ring SVG) ; bento 1:1 (Priorités IA · Timeline activité). Données mockées reprises du JSX de référence — branchement SQL dans un futur commit.
+- Tabs Action center : switch client-side vanilla (aucun framework ajouté).
+
 ## [29.8] — 2026-04-21
 
 ### UI v30 — étape 1 & 2 (design system + navigation)

@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "29.8"
+APP_VERSION = "29.9"
 import os
 import subprocess
 import traceback
@@ -808,7 +808,7 @@ def _require_auth():
     if request.method == "OPTIONS":
         return
 
-    allowed = ('/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment', '/api/system/logs',
+    allowed = ('/login', '/v30/login', '/static/', '/favicon.ico', '/api/auth/', '/api/app-version', '/api/system/check-deployment', '/api/system/logs',
                '/api/deploy/health', '/api/deploy/pull-from-404', '/api/deploy/rollback',
                '/api/deploy/validation-status', '/api/deploy/confirm-validation',
                '/prospects/mode-prosp', '/api/mode-prosp/')
@@ -4478,6 +4478,33 @@ def page_v30_preview():
         "v30/preview.html",
         active="dashboard",
         crumbs=["Prosp'Up", "Aperçu v30"],
+        counts={"prospects": 1247, "entreprises": 342, "candidats": 89, "focus": 12},
+        pinned=[
+            {"id": "cap", "label": "Capgemini",    "sub": "12 prospects"},
+            {"id": "sfr", "label": "SFR Business", "sub": "4 prospects"},
+        ],
+        user_initials="AB",
+        app_version=APP_VERSION,
+    )
+
+
+@app.get("/v30/login")
+def page_v30_login():
+    """Preview du login v30 (split 60/40, citation + stats éditoriales).
+    Formulaire fonctionnel : POST vers /api/auth/login comme /login."""
+    if session.get('user_id'):
+        return redirect('/v30/preview')
+    return render_template("v30/login.html", app_version=APP_VERSION)
+
+
+@app.get("/v30/dashboard")
+def page_v30_dashboard():
+    """Preview du Dashboard v3 (hero éditorial, bento, rings, priorités IA).
+    SPEC §3.2. Rendu sur données mockées — pas de requête DB pour l'instant."""
+    return render_template(
+        "v30/dashboard.html",
+        active="dashboard",
+        crumbs=["Prosp'Up", "Dashboard"],
         counts={"prospects": 1247, "entreprises": 342, "candidats": 89, "focus": 12},
         pinned=[
             {"id": "cap", "label": "Capgemini",    "sub": "12 prospects"},

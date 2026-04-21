@@ -1,0 +1,270 @@
+{% extends "v30/base.html" %}
+{% block title %}Dashboard — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-dashboard{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/dashboard.css?v={{ static_hash('css/v30/dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+{# Données mockées (reprises du JSX) — à brancher sur des endpoints Flask plus tard #}
+{% set hero_kpis = [
+  {'label': 'RDV sem.',  'value': '8',   'delta': '+2',  'neg': false},
+  {'label': 'Push',      'value': '47',  'delta': '+12', 'neg': false},
+  {'label': 'Contacts',  'value': '124', 'delta': '−3',  'neg': true}
+] %}
+{% set ac_todo = [
+  {'name': 'Marie Dubois',   'co': 'Capgemini',        'time': "Aujourd'hui · 14h", 'pill': 'status-meeting',  'label': 'RDV préparer'},
+  {'name': 'Thomas Martin',  'co': 'Sopra Steria',     'time': 'Il y a 3 jours',    'pill': 'status-contact',  'label': 'Relance'},
+  {'name': 'Julie Bernard',  'co': 'Atos',             'time': 'Demain',            'pill': 'status-proposal', 'label': 'Propale'},
+  {'name': 'Alex Petit',     'co': 'Orange Business',  'time': 'Vendredi',          'pill': 'status-new',      'label': 'Qualifier'}
+] %}
+{% set ac_rdv = [
+  {'name': 'Marie Dubois', 'co': 'Capgemini',  'time': '14:00 · Téams',   'pill': 'status-meeting', 'label': 'Dans 2h'},
+  {'name': 'Sophie Leroy', 'co': 'Thales',     'time': '16:30 · Bureaux', 'pill': 'status-meeting', 'label': 'Dans 4h'},
+  {'name': 'Paul Moreau',  'co': 'BNP Paribas','time': '18:00 · Call',    'pill': 'status-meeting', 'label': 'Ce soir'}
+] %}
+{% set ac_late = [
+  {'name': 'Eric Durand',   'co': 'AXA Tech',        'time': 'Retard 12j', 'pill': 'status-lost',    'label': 'À sauver'},
+  {'name': 'Claire Girard', 'co': 'Renault Digital', 'time': 'Retard 8j',  'pill': 'status-contact', 'label': 'Relance'}
+] %}
+{% set pipeline = [
+  {'name': 'Prospecter',   'n': 420, 'bg': 'var(--info-soft)',                 'fg': 'var(--info)'},
+  {'name': 'Contacté',     'n': 186, 'bg': 'var(--accent-soft)',               'fg': 'var(--accent)'},
+  {'name': 'RDV',          'n':  54, 'bg': 'oklch(0.92 0.05 280)',             'fg': 'oklch(0.50 0.15 280)'},
+  {'name': 'Proposition',  'n':  18, 'bg': 'var(--warn-soft)',                 'fg': 'oklch(0.50 0.14 75)'},
+  {'name': 'Gagné',        'n':   7, 'bg': 'var(--success-soft)',              'fg': 'var(--success)'}
+] %}
+{% set pipe_max = 420 %}
+{% set goals = [
+  {'label': 'Push',     'val': 8,  'max': 10},
+  {'label': 'RDV',      'val': 3,  'max': 4},
+  {'label': 'Contacts', 'val': 22, 'max': 30}
+] %}
+{% set priorities = [
+  {'name': 'Isabelle Renard', 'co': 'Thales Group',      'reason': "Ouvert l'email 3× sans répondre — relance idéale maintenant.", 'urg': 'haut'},
+  {'name': 'Kévin Lefèvre',   'co': 'Airbus Defence',    'reason': 'RDV prévu vendredi, aucune prépa envoyée.',                   'urg': 'haut'},
+  {'name': 'Laure Giraud',    'co': 'Safran',            'reason': 'Embauche active côté C++ embarqué — match parfait.',          'urg': 'moyen'},
+  {'name': 'Mohamed Ben',     'co': 'Dassault Systemes', 'reason': 'Changement de poste récent détecté sur LinkedIn.',            'urg': 'moyen'},
+  {'name': 'Chloé Marchand',  'co': 'EDF DTEAM',         'reason': 'Dernier contact > 45j, scoring en baisse.',                   'urg': 'bas'}
+] %}
+{% set activity = [
+  {'t': '14:02', 'tag': 'push',   'text': 'Campagne « Embarqué Q2 » envoyée à 18 prospects.'},
+  {'t': '13:45', 'tag': 'rdv',    'text': 'RDV Marie Dubois (Capgemini) déplacé au 23/04.'},
+  {'t': '11:20', 'tag': 'note',   'text': 'Note ajoutée sur Thomas Martin — « Attente budget Q3 ».'},
+  {'t': '10:08', 'tag': 'status', 'text': 'Julie Bernard passée de Contacté → Proposition.'},
+  {'t': '09:30', 'tag': 'push',   'text': "Alex Petit a ouvert l'email « Opportunité Safran »."},
+  {'t': '09:12', 'tag': 'note',   'text': '6 prospects importés depuis fichier_prospection.xlsx.'}
+] %}
+{% set goal_pct = 73 %}
+{% set ring_r = 44 %}
+{# stroke-dasharray / offset — r * 2 * π et offset pour arriver au pct #}
+{% set ring_c = 276.4601 %}{# = 2 * pi * 44 #}
+{% set ring_offset = (ring_c * (1 - goal_pct / 100.0))|round(2) %}
+
+<div class="v30-dash">
+
+  {# ─── Hero ─── #}
+  <section class="v30-hero">
+    <div>
+      <div class="v30-hero__eyebrow">Lundi 21 avril · Semaine 17</div>
+      <h1 class="v30-hero__title">Bonjour, Antoine.</h1>
+      <p class="v30-hero__subtitle">
+        Tu as <b>4 relances</b> en retard et <b>3 RDV</b> aujourd'hui.
+      </p>
+    </div>
+    <div class="v30-hero__kpis">
+      {% for k in hero_kpis %}
+      <div class="v30-hero-kpi">
+        <div class="v30-hero-kpi__label">{{ k.label }}</div>
+        <div class="v30-hero-kpi__value num">{{ k.value }}</div>
+        <div class="v30-hero-kpi__delta{% if k.neg %} is-neg{% endif %}">{{ k.delta }} vs sem-1</div>
+      </div>
+      {% endfor %}
+      <div class="card v30-streak">
+        <div class="v30-streak__inner">
+          <div class="v30-streak__icon">{{ ui.icon('flame', 16) }}</div>
+          <div>
+            <div class="v30-streak__label">Série active</div>
+            <div class="v30-streak__value">7 jours · <span class="v30-streak__xp">+240 XP</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ─── Bento row 1 : Action center · Pipeline · Goals ─── #}
+  <div class="v30-bento-1">
+
+    {# Action center #}
+    <div class="card card-flush">
+      <div class="tabs" style="padding: 0 16px;" role="tablist" data-v30-ac>
+        <button type="button" class="active" data-tab="todo" role="tab" aria-selected="true">
+          À faire <span class="tab-count">12</span>
+        </button>
+        <button type="button" data-tab="rdv" role="tab" aria-selected="false">
+          RDV aujourd'hui <span class="tab-count">3</span>
+        </button>
+        <button type="button" data-tab="late" role="tab" aria-selected="false">
+          En retard <span class="tab-count">4</span>
+        </button>
+      </div>
+      {% for panel in [{'key': 'todo', 'items': ac_todo}, {'key': 'rdv', 'items': ac_rdv}, {'key': 'late', 'items': ac_late}] %}
+      <div data-panel="{{ panel.key }}"{% if not loop.first %} hidden{% endif %}>
+        {% for it in panel['items'] %}
+        <div class="v30-ac__row">
+          <span class="avatar">{% for w in it.name.split(' ') %}{{ w[0] }}{% endfor %}</span>
+          <div style="min-width: 0;">
+            <div class="v30-ac__name truncate">{{ it.name }}</div>
+            <div class="v30-ac__sub truncate">{{ it.co }} · {{ it.time }}</div>
+          </div>
+          <span class="status {{ it.pill }}">{{ it.label }}</span>
+          <button type="button" class="btn btn-ghost btn-sm btn-icon" aria-label="Ouvrir">
+            {{ ui.icon('arrowR') }}
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+
+    {# Pipeline #}
+    <div class="card">
+      <div class="row-sb" style="margin-bottom: 14px;">
+        <div class="card-title">Pipeline</div>
+        <span class="muted" style="font-size: 12px;">685 prospects actifs</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        {% for s in pipeline %}
+        {% set pct = ((s.n * 100) / pipe_max) | round(0, 'floor') | int %}
+        <div class="v30-pipeline__row">
+          <span class="v30-pipeline__stage">{{ s.name }}</span>
+          <div class="v30-pipeline__bar">
+            <div class="v30-pipeline__fill" style="width: {{ pct }}%; background: {{ s.bg }};"></div>
+            <span class="v30-pipeline__num num" style="color: {{ s.fg }};">{{ s.n }}</span>
+          </div>
+          <span class="v30-pipeline__pct mono num">{{ pct }}%</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Goals #}
+    <div class="card v30-goals">
+      <div class="row-sb" style="margin-bottom: 8px;">
+        <div class="card-title">Objectifs</div>
+        <button type="button" class="btn btn-ghost btn-sm btn-icon" aria-label="Paramètres objectifs">
+          {{ ui.icon('cog', 13) }}
+        </button>
+      </div>
+      <div class="v30-goals__ring">
+        <svg width="120" height="120" viewBox="0 0 120 120" aria-label="Progression {{ goal_pct }} %">
+          <circle cx="60" cy="60" r="{{ ring_r }}" fill="none" stroke="var(--surface-2)" stroke-width="10"/>
+          <circle cx="60" cy="60" r="{{ ring_r }}" fill="none" stroke="var(--accent)" stroke-width="10"
+                  stroke-linecap="round"
+                  stroke-dasharray="{{ ring_c }}" stroke-dashoffset="{{ ring_offset }}"
+                  transform="rotate(-90 60 60)"/>
+          <text x="60" y="64" text-anchor="middle" font-family="var(--font-serif)" font-size="30" fill="var(--text)">
+            {{ goal_pct }}%
+          </text>
+        </svg>
+      </div>
+      <div class="v30-goals__list">
+        {% for g in goals %}
+        {% set gpct = ((g.val * 100) / g['max']) | round(0, 'floor') | int %}
+        <div class="v30-goal__row">
+          <div class="v30-goal__head">
+            <span>{{ g.label }}</span>
+            <span class="mono num"><b>{{ g.val }}</b>/{{ g['max'] }}</span>
+          </div>
+          <div class="v30-goal__track">
+            <div class="v30-goal__fill" style="width: {{ gpct }}%;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
+  {# ─── Bento row 2 : Priorités IA · Activité récente ─── #}
+  <div class="v30-bento-2">
+
+    {# Priorités IA #}
+    <div class="card card-flush">
+      <div class="card-header">
+        <div class="card-title">{{ ui.icon('sparkles') }} Priorités IA</div>
+        <button type="button" class="btn btn-ghost btn-sm">
+          {{ ui.icon('clock', 13) }} Rafraîchir
+        </button>
+      </div>
+      <div>
+        {% for it in priorities %}
+        {% set pill = 'badge-danger' if it.urg == 'haut' else 'badge-warn' if it.urg == 'moyen' else 'badge-info' %}
+        <div class="v30-prio__row">
+          <span class="avatar">{% for w in it.name.split(' ') %}{{ w[0] }}{% endfor %}</span>
+          <div>
+            <div class="v30-prio__name">
+              {{ it.name }} <span class="v30-prio__co">· {{ it.co }}</span>
+            </div>
+            <div class="v30-prio__reason">{{ it.reason }}</div>
+          </div>
+          <div class="v30-prio__tail">
+            <span class="badge {{ pill }}">{{ it.urg }}</span>
+            <button type="button" class="btn btn-sm">Ouvrir</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Activité récente #}
+    <div class="card card-flush">
+      <div class="card-header">
+        <div class="card-title">Activité récente</div>
+        <button type="button" class="btn btn-ghost btn-sm">Tout voir</button>
+      </div>
+      <div class="v30-timeline">
+        {% for e in activity %}
+        {% set dot_color = {
+          'push':   'var(--accent)',
+          'rdv':    'oklch(0.50 0.15 280)',
+          'note':   'var(--text-3)',
+          'status': 'var(--success)'
+        }.get(e.tag, 'var(--text-3)') %}
+        <div class="v30-timeline__row">
+          <span class="v30-timeline__time mono">{{ e.t }}</span>
+          <span class="v30-timeline__dot" style="background: {{ dot_color }};"></span>
+          <div class="v30-timeline__text">{{ e.text }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{# ─── Tabs Action Center : switch client-side ─── #}
+<script>
+(function(){
+  var host = document.querySelector('[data-v30-ac]');
+  if (!host) return;
+  var card = host.closest('.card');
+  host.addEventListener('click', function(e){
+    var btn = e.target.closest('button[data-tab]');
+    if (!btn) return;
+    var key = btn.dataset.tab;
+    host.querySelectorAll('button[data-tab]').forEach(function(b){
+      var active = (b === btn);
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    card.querySelectorAll('[data-panel]').forEach(function(p){
+      p.hidden = (p.dataset.panel !== key);
+    });
+  });
+})();
+</script>
+{% endblock %}
