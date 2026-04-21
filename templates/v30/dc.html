@@ -1,0 +1,71 @@
+{% extends "v30/base.html" %}
+{% block title %}Dossier de compétence — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-dc{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/parametres.css?v={{ static_hash('css/v30/parametres.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-params">
+
+  <div class="v30-params__topbar">
+    <div>
+      <div class="v30-params__eyebrow">Export candidat</div>
+      <h1 class="v30-params__title"><span class="serif">Dossier de compétence.</span></h1>
+      <div class="v30-params__sub">
+        Génère un DOCX/PDF à partir d'une fiche candidat et d'un template.
+      </div>
+    </div>
+    <div class="v30-spacer"></div>
+    <a class="btn btn-accent" href="{{ '/dc_generator?candidate=' ~ cid if cid else '/dc_generator' }}">
+      {{ ui.icon('link', 13) }} Ouvrir le générateur
+    </a>
+  </div>
+
+  {% if cid %}
+  <section class="card">
+    <div class="card-title">Candidat #{{ cid }}</div>
+    <p class="muted" style="font-size:12.5px;line-height:1.7;margin-top:6px;">
+      La génération complète (choix du template, mapping des variables, fusion
+      des expériences) reste sur la page <a href="/dc_generator?candidate={{ cid }}">générateur</a>.
+      La v30 l'embarquera progressivement.
+    </p>
+    <div style="margin-top:10px;display:flex;gap:8px;">
+      <a class="btn btn-accent" href="/dc_generator?candidate={{ cid }}">Lancer la génération</a>
+      <a class="btn" href="/v30/candidat/{{ cid }}">← Retour fiche candidat</a>
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="v30-params__grid">
+
+    <a class="v30-params__card" href="/dc_generator#templates">
+      <div class="v30-params__card-head">
+        {{ ui.icon('report', 16) }}
+        <h3>Templates DOCX</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Uploade tes propres templates avec variables Jinja (candidat, expériences,
+        compétences).
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    <a class="v30-params__card" href="/sourcing">
+      <div class="v30-params__card-head">
+        {{ ui.icon('users', 16) }}
+        <h3>Choisir un candidat</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Ouvre la liste sourcing pour sélectionner le candidat à exporter.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+  </div>
+
+</div>
+{% endblock %}

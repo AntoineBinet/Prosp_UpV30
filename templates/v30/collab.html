@@ -1,0 +1,76 @@
+{% extends "v30/base.html" %}
+{% block title %}Collaboration — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-collab{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/parametres.css?v={{ static_hash('css/v30/parametres.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-params" data-v30-collab>
+
+  <div class="v30-params__topbar">
+    <div>
+      <div class="v30-params__eyebrow">Équipe</div>
+      <h1 class="v30-params__title"><span class="serif">Collaboration.</span></h1>
+      <div class="v30-params__sub">
+        Partage d'entreprises et de prospects entre collaborateurs.
+      </div>
+    </div>
+    <div class="v30-spacer"></div>
+    <a class="btn" href="/collab">
+      {{ ui.icon('link', 13) }} Ouvrir la page complète
+    </a>
+  </div>
+
+  <div class="v30-params__grid">
+
+    <a class="v30-params__card" href="/collab#share-company">
+      <div class="v30-params__card-head">
+        {{ ui.icon('building', 16) }}
+        <h3>Partager une entreprise</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Donner à un autre utilisateur l'accès à une entreprise et à ses prospects,
+        en lecture ou écriture.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    <a class="v30-params__card" href="/collab#my-shared">
+      <div class="v30-params__card-head">
+        {{ ui.icon('users', 16) }}
+        <h3>Mes partages</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Liste des entreprises que je partage et à qui. Révoquer l'accès à tout moment.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    <a class="v30-params__card" href="/collab#shared-with-me">
+      <div class="v30-params__card-head">
+        {{ ui.icon('inbox', 16) }}
+        <h3>Partagés avec moi</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Entreprises partagées par mes collègues. Apparaissent dans ma liste Entreprises.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+  </div>
+
+  <section class="card">
+    <div class="card-title">À savoir</div>
+    <p class="muted" style="font-size:12.5px;line-height:1.7;margin-top:6px;">
+      Les prospects rattachés à une entreprise partagée sont visibles (et éditables
+      si le partage est en écriture) par le destinataire. L'auteur d'origine reste
+      propriétaire des enregistrements — seul un admin peut réattribuer.
+    </p>
+  </section>
+
+</div>
+{% endblock %}

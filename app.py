@@ -4806,6 +4806,62 @@ def page_v30_stats():
     )
 
 
+@app.get("/v30/collab")
+@login_required
+def page_v30_collab():
+    """Collaboration v30 — hub cartes vers /collab."""
+    u = _get_current_user() or {}
+    dn = (u.get("display_name") or u.get("username") or "AB").strip()
+    parts = [p for p in dn.split() if p]
+    user_initials = ("".join(p[0].upper() for p in parts[:2]) or dn[:2].upper())
+    return render_template(
+        "v30/collab.html",
+        active="collab",
+        crumbs=["Prosp'Up", "Collaboration"],
+        counts={}, pinned=[],
+        user_initials=user_initials,
+        app_version=APP_VERSION,
+    )
+
+
+@app.get("/v30/duplicates")
+@login_required
+def page_v30_duplicates():
+    """Doublons v30 — hub cartes vers /duplicates."""
+    u = _get_current_user() or {}
+    dn = (u.get("display_name") or u.get("username") or "AB").strip()
+    parts = [p for p in dn.split() if p]
+    user_initials = ("".join(p[0].upper() for p in parts[:2]) or dn[:2].upper())
+    return render_template(
+        "v30/duplicates.html",
+        active="duplicates",
+        crumbs=["Prosp'Up", "Doublons"],
+        counts={}, pinned=[],
+        user_initials=user_initials,
+        app_version=APP_VERSION,
+    )
+
+
+@app.get("/v30/dc")
+@app.get("/v30/dc/<int:cid>")
+@login_required
+def page_v30_dc(cid: int | None = None):
+    """Générateur DC v30 — hub cartes + lien vers /dc_generator."""
+    u = _get_current_user() or {}
+    dn = (u.get("display_name") or u.get("username") or "AB").strip()
+    parts = [p for p in dn.split() if p]
+    user_initials = ("".join(p[0].upper() for p in parts[:2]) or dn[:2].upper())
+    return render_template(
+        "v30/dc.html",
+        active="dc",
+        crumbs=["Prosp'Up", "Dossier de compétence"],
+        counts={}, pinned=[],
+        user_initials=user_initials,
+        cid=cid,
+        app_version=APP_VERSION,
+    )
+
+
 @app.get("/v30/metiers")
 @login_required
 @role_required('admin')

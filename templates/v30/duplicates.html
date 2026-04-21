@@ -1,0 +1,68 @@
+{% extends "v30/base.html" %}
+{% block title %}Doublons — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-duplicates{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/parametres.css?v={{ static_hash('css/v30/parametres.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-params">
+
+  <div class="v30-params__topbar">
+    <div>
+      <div class="v30-params__eyebrow">Qualité données</div>
+      <h1 class="v30-params__title"><span class="serif">Détection de doublons.</span></h1>
+      <div class="v30-params__sub">
+        Repère et fusionne les doublons d'entreprises et de prospects.
+      </div>
+    </div>
+    <div class="v30-spacer"></div>
+    <a class="btn btn-accent" href="/duplicates">
+      {{ ui.icon('link', 13) }} Lancer l'analyse
+    </a>
+  </div>
+
+  <div class="v30-params__grid">
+
+    <a class="v30-params__card" href="/duplicates#companies">
+      <div class="v30-params__card-head">
+        {{ ui.icon('building', 16) }}
+        <h3>Doublons d'entreprises</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Détection par nom + site, fusion en conservant le plus ancien et en
+        réattribuant les prospects/logs.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    <a class="v30-params__card" href="/duplicates#prospects">
+      <div class="v30-params__card-head">
+        {{ ui.icon('users', 16) }}
+        <h3>Doublons de prospects</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Détection par email, téléphone ou LinkedIn. Fusion manuelle après
+        comparaison côte-à-côte.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    <a class="v30-params__card" href="/duplicates#ignored">
+      <div class="v30-params__card-head">
+        {{ ui.icon('x', 16) }}
+        <h3>Paires ignorées</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Couples marqués comme non-doublons — consultables et réinitialisables.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+  </div>
+
+</div>
+{% endblock %}
