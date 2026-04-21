@@ -1,0 +1,57 @@
+/* ProspUp v30 — Snapshots */
+
+.v30-snap { display: flex; flex-direction: column; gap: 14px; }
+
+.v30-snap__topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.v30-snap__eyebrow {
+  font-size: 10.5px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.v30-snap__title {
+  margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
+  letter-spacing: -.01em;
+}
+.v30-snap__title .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; }
+.v30-snap__sub { font-size: 12.5px; color: var(--text-2); }
+
+.v30-snap__list .v30-snap-row {
+  display: grid;
+  grid-template-columns: 1fr 140px 100px auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.v30-snap__list .v30-snap-row:last-child { border-bottom: 0; }
+.v30-snap__list .v30-snap-row__name {
+  color: var(--text); font-weight: 500;
+}
+.v30-snap__list .v30-snap-row__name .muted {
+  color: var(--text-3); font-weight: 400; font-size: 11.5px; margin-left: 6px;
+}
+.v30-snap__list .v30-snap-row__when {
+  font-family: var(--font-mono); color: var(--text-3); font-size: 11.5px;
+}
+.v30-snap__list .v30-snap-row__size {
+  font-family: var(--font-mono); color: var(--text-2); text-align: right;
+}
+.v30-snap__list .v30-snap-row__actions {
+  display: flex; gap: 4px;
+}
+.v30-snap__list .v30-snap-badge {
+  font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-2);
+  border: 1px solid var(--border);
+  margin-left: 4px;
+}
+.v30-snap__list .v30-snap-badge.is-auto {
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 25%, transparent);
+}

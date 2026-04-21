@@ -1,0 +1,37 @@
+{% extends "v30/base.html" %}
+{% block title %}Snapshots — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-snapshots{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/snapshots.css?v={{ static_hash('css/v30/snapshots.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-snap" data-v30-snap>
+
+  <div class="v30-snap__topbar">
+    <div>
+      <div class="v30-snap__eyebrow">Sauvegardes</div>
+      <h1 class="v30-snap__title"><span class="serif">Snapshots.</span></h1>
+      <div class="v30-snap__sub">
+        Sauvegardes de la base de données, <span data-field="count">—</span> au total.
+      </div>
+    </div>
+    <div class="v30-spacer"></div>
+    <button type="button" class="btn btn-accent" data-v30-snap-create>
+      {{ ui.icon('plus', 13) }} Créer un snapshot
+    </button>
+  </div>
+
+  <div class="card card-flush">
+    <div class="v30-snap__list" data-v30-snap-list>
+      <div class="empty" style="padding:24px;">Chargement…</div>
+    </div>
+  </div>
+
+</div>
+
+<script defer src="/static/js/v30/snapshots.js?v={{ static_hash('js/v30/snapshots.js') }}"></script>
+{% endblock %}
