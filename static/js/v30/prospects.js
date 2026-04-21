@@ -114,6 +114,24 @@
     return html;
   }
 
+  function renderEmail(email) {
+    if (!email) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+    var clean = String(email).trim();
+    return '<a class="v30-pp-email truncate" href="mailto:' + esc(clean) + '" title="' + esc(clean) + '" ' +
+      'style="display:inline-block;max-width:180px;color:var(--text-2);font-size:12px;">' +
+      esc(clean) + '</a>';
+  }
+
+  function renderPushBadges(p) {
+    var parts = [];
+    if (p.pushEmailSentAt) parts.push('<span class="badge" title="Push email envoyé le ' + esc(p.pushEmailSentAt) + '"' +
+      ' style="font-size:10px;padding:1px 6px;">✉</span>');
+    if (p.pushLinkedInSentAt) parts.push('<span class="badge" title="Push LinkedIn envoyé le ' + esc(p.pushLinkedInSentAt) + '"' +
+      ' style="font-size:10px;padding:1px 6px;">in</span>');
+    if (!parts.length) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+    return '<div style="display:inline-flex;gap:3px;">' + parts.join('') + '</div>';
+  }
+
   function renderRow(p) {
     var sel = STATE.selected.has(p.id);
     var cls = statusClass(p.statut);
@@ -135,6 +153,8 @@
       '<td>' + (p.statut ? '<span class="status ' + cls + '">' + esc(p.statut) + '</span>' : '—') + '</td>' +
       '<td>' + renderPertinence(p.pertinence) + '</td>' +
       '<td>' + renderTel(p.telephone) + '</td>' +
+      '<td>' + renderEmail(p.email) + '</td>' +
+      '<td>' + renderPushBadges(p) + '</td>' +
       '<td style="color:var(--text-2);">' + esc(relativeDate(p.lastContact)) + '</td>' +
       '<td class="num mono" style="color:var(--text-2);">' + esc(shortDate(p.nextFollowUp)) + '</td>' +
       '<td><div style="display:flex;gap:4px;flex-wrap:wrap;">' + renderTags(p.tags) + '</div></td>' +
@@ -145,6 +165,7 @@
         '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-push="' + p.id + '" title="Pousser">' +
           '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>' +
         '</button>' +
+        '<a class="btn btn-sm" href="/v30/prospect/' + p.id + '" title="Ouvrir la fiche">Voir</a>' +
       '</div></td>' +
     '</tr>';
   }
@@ -153,7 +174,7 @@
     var tbody = document.querySelector('[data-v30-rows]');
     if (!tbody) return;
     if (STATE.prospects.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10"><div class="v30-pp-empty">Aucun prospect pour ces filtres.</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12"><div class="v30-pp-empty">Aucun prospect pour ces filtres.</div></td></tr>';
       return;
     }
     tbody.innerHTML = STATE.prospects.map(renderRow).join('');
