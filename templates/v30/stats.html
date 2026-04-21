@@ -2,6 +2,10 @@
 {% block title %}Stats & Rapport — Prosp'Up v30{% endblock %}
 {% block page_id %}v30-stats{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/rapport_doc.css?v={{ static_hash('css/v30/rapport_doc.css') }}">
+{% endblock %}
+
 {% block content %}
 {% import "_partials/v30/icon.html" as ui %}
 
@@ -74,19 +78,92 @@
 
   </div>
 
-  {# ─── Panel : Rapport ─── #}
+  {# ─── Panel : Rapport WYSIWYG ─── #}
   <div data-v30-stats-panel="rapport" hidden>
-    <div class="card" style="padding:20px;text-align:center;">
-      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;">Rapport hebdomadaire</div>
-      <div style="font-size:12.5px;color:var(--text-2);max-width:480px;margin:0 auto 14px;line-height:1.6;">
-        L'éditeur WYSIWYG du rapport hebdomadaire reste sur la page <b>Rapport legacy</b>.
-        Dans v30, Stats et Rapport seront fusionnés en un éditeur unique qui injecte
-        automatiquement les charts générés côté client (SPEC §3.9).
+
+    <div class="v30-rep-toolbar">
+      <div class="segmented" role="tablist" data-v30-rep-weeks>
+        <button type="button" class="active" data-week="current" role="tab"
+                aria-selected="true">Semaine en cours</button>
+        <button type="button" data-week="prev" role="tab" aria-selected="false">
+          Semaine précédente
+        </button>
       </div>
-      <a class="btn btn-accent" href="/rapport">
-        {{ ui.icon('report', 13) }} Ouvrir le rapport legacy
-      </a>
+      <span class="muted mono" data-v30-rep-range>—</span>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-rep-refresh>
+        {{ ui.icon('zap', 13) }} Rafraîchir
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-rep-copy>
+        {{ ui.icon('bookmark', 13) }} Copier Markdown
+      </button>
+      <button type="button" class="btn btn-accent" data-v30-rep-pdf>
+        {{ ui.icon('arrowD', 13) }} Exporter PDF
+      </button>
     </div>
+
+    <article class="v30-rep-doc" data-v30-rep-doc>
+
+      <header class="v30-rep-doc__header">
+        <div class="v30-rep-doc__eyebrow">Rapport hebdomadaire</div>
+        <h1 class="v30-rep-doc__title" contenteditable="true" data-v30-rep-ce="title"
+            data-placeholder="Titre du rapport">Rapport hebdomadaire</h1>
+        <div class="v30-rep-doc__author" contenteditable="true" data-v30-rep-ce="author"
+             data-placeholder="Auteur · équipe · client">—</div>
+      </header>
+
+      <section class="v30-rep-sec">
+        <h2>Résumé</h2>
+        <div class="v30-rep-sec__ce" contenteditable="true" data-v30-rep-ce="summary"
+             data-placeholder="Résumé éditorial de la semaine (wins, blockers, focus)"></div>
+      </section>
+
+      <section class="v30-rep-sec">
+        <h2>KPI de la semaine</h2>
+        <div class="v30-rep-kpis" data-v30-rep-kpis>
+          {% for _ in range(4) %}
+          <div class="v30-rep-kpi">
+            <div class="skel" style="width:60%;height:11px;"></div>
+            <div class="skel" style="width:40%;height:22px;margin-top:6px;"></div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="v30-rep-sec">
+        <h2>Top entreprises</h2>
+        <div class="v30-rep-table" data-v30-rep-top-companies>
+          <div class="empty" style="padding:12px;">Chargement…</div>
+        </div>
+      </section>
+
+      <section class="v30-rep-sec">
+        <h2>Top pushés (destinataires)</h2>
+        <div class="v30-rep-table" data-v30-rep-top-pushed>
+          <div class="empty" style="padding:12px;">Chargement…</div>
+        </div>
+      </section>
+
+      <section class="v30-rep-sec">
+        <h2>Évolution push</h2>
+        <div class="v30-rep-sparkline" data-v30-rep-push-trend>
+          <div class="empty" style="padding:12px;">Chargement…</div>
+        </div>
+      </section>
+
+      <section class="v30-rep-sec">
+        <h2>Notes &amp; commentaires</h2>
+        <div class="v30-rep-sec__ce" contenteditable="true" data-v30-rep-ce="notes"
+             data-placeholder="Notes libres — autosave local, inclus dans l'export."></div>
+      </section>
+
+      <footer class="v30-rep-doc__footer">
+        <span class="muted" style="font-size:11px;">
+          Généré depuis ProspUp · <span data-v30-rep-savehint>Autosave local</span>
+        </span>
+      </footer>
+
+    </article>
   </div>
 
 </div>
