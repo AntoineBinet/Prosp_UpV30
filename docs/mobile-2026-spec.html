@@ -1,0 +1,2075 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProspUp Mobile 2026 — Concept iOS 26</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; overflow: hidden; }
+  * { box-sizing: border-box; }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+// ═══════════════════════════════════════════════════════════════════════════
+// TOKENS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const T = {
+  accent: '#FF6B35',
+  accentSoft: 'rgba(255,107,53,0.12)',
+  accentDim: 'rgba(255,107,53,0.6)',
+  status: {
+    appele:        { fg: '#60A5FA', bg: 'rgba(59,130,246,0.15)',  dot: '#3B82F6' },
+    rdv:           { fg: '#4ADE80', bg: 'rgba(34,197,94,0.15)',   dot: '#22C55E' },
+    prospecte:     { fg: '#C084FC', bg: 'rgba(168,85,247,0.15)',  dot: '#A855F7' },
+    messagerie:    { fg: '#FBBF24', bg: 'rgba(245,158,11,0.15)',  dot: '#F59E0B' },
+    rappeler:      { fg: '#FB923C', bg: 'rgba(249,115,22,0.15)',  dot: '#F97316' },
+    pasInteresse:  { fg: '#F87171', bg: 'rgba(239,68,68,0.15)',   dot: '#EF4444' },
+    neutre:        { fg: '#94A3B8', bg: 'rgba(148,163,184,0.15)', dot: '#64748B' },
+  },
+};
+
+const darkTokens = {
+  bg: '#000000', bg2: '#0A0A0D', bg3: '#121217', bg4: '#1C1C22',
+  text: '#F5F5F7', text2: 'rgba(235,235,245,0.6)', text3: 'rgba(235,235,245,0.35)', text4: 'rgba(235,235,245,0.18)',
+  border: 'rgba(255,255,255,0.06)', border2: 'rgba(255,255,255,0.10)',
+  divider: 'rgba(84,84,88,0.4)',
+  glass: 'rgba(28,28,34,0.72)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+  glassShine: 'inset 0.5px 0.5px 0 rgba(255,255,255,0.08), inset -0.5px -0.5px 0 rgba(255,255,255,0.03)',
+};
+
+const lightTokens = {
+  bg: '#F6F5F2', bg2: '#FAF9F6', bg3: '#FFFFFF', bg4: '#F0EFEB',
+  text: '#1A1916', text2: 'rgba(60,60,67,0.65)', text3: 'rgba(60,60,67,0.35)', text4: 'rgba(60,60,67,0.18)',
+  border: 'rgba(0,0,0,0.06)', border2: 'rgba(0,0,0,0.10)',
+  divider: 'rgba(60,60,67,0.10)',
+  glass: 'rgba(255,255,255,0.72)',
+  glassBorder: 'rgba(0,0,0,0.06)',
+  glassShine: 'inset 0.5px 0.5px 0 rgba(255,255,255,0.9), inset -0.5px -0.5px 0 rgba(0,0,0,0.03)',
+};
+
+const theme = (mode) => mode === 'dark' ? darkTokens : lightTokens;
+const font = '-apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif';
+const fontMono = 'ui-monospace, "SF Mono", Menlo, monospace';
+const R = { sm: 8, md: 12, lg: 18, xl: 24, pill: 999 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PROSPECTS = [
+  { id: 1, first: 'Camille', last: 'Moreau', company: 'Dassault Systèmes', role: 'Responsable R&D Robotique', status: 'rdv', pertinence: 5, phone: '06 12 34 56 78', email: 'c.moreau@dassault.fr', linkedin: true, followupDue: false, rdv: 'Jeudi 14h', lastContact: 'il y a 2j', tags: ['ROS2', 'Embedded', 'C++'], notes: 'Projet cobots chaîne de montage — recrute 3 ingé.' },
+  { id: 2, first: 'Thomas', last: 'Leroy', company: 'Thales Alenia Space', role: 'Technical Lead Embarqué', status: 'appele', pertinence: 4, phone: '07 88 22 11 03', email: 't.leroy@thalesgroup.com', linkedin: true, followupDue: true, rdv: null, lastContact: 'il y a 5j', tags: ['RTOS', 'Spatial'], notes: 'Relance prévue mardi — attend retour DG.' },
+  { id: 3, first: 'Sophie', last: 'Chen', company: 'Airbus Defence', role: 'Head of Systems Engineering', status: 'prospecte', pertinence: 5, phone: '06 45 78 91 22', email: 's.chen@airbus.com', linkedin: true, followupDue: false, rdv: null, lastContact: '—', tags: ['Systems', 'MBSE', 'Leadership'], notes: 'Contact chaleureux, à relancer sous 2 semaines.' },
+  { id: 4, first: 'Nicolas', last: 'Dupont', company: 'Safran Electronics', role: 'Firmware Engineer Sr.', status: 'messagerie', pertinence: 3, phone: '06 99 00 11 22', email: 'n.dupont@safran.fr', linkedin: false, followupDue: true, rdv: null, lastContact: 'il y a 10j', tags: ['Firmware', 'ARM'], notes: 'Messagerie pleine — essayer LinkedIn.' },
+  { id: 5, first: 'Léa', last: 'Bernard', company: 'Schneider Electric', role: 'Embedded SW Manager', status: 'rappeler', pertinence: 4, phone: '07 11 22 33 44', email: 'l.bernard@se.com', linkedin: true, followupDue: true, rdv: null, lastContact: 'il y a 3j', tags: ['IoT', 'Management', 'Yocto'], notes: "A demandé rappel à 17h aujourd'hui." },
+  { id: 6, first: 'Antoine', last: 'Roux', company: 'Renault Group', role: 'ADAS Software Lead', status: 'rdv', pertinence: 5, phone: '06 55 44 33 22', email: 'a.roux@renault.com', linkedin: true, followupDue: false, rdv: 'Lundi 10h', lastContact: 'il y a 1j', tags: ['AUTOSAR', 'ADAS'], notes: 'Préparer fiche pré-RDV avec IA.' },
+  { id: 7, first: 'Maxime', last: 'Petit', company: 'STMicroelectronics', role: 'Principal Engineer', status: 'prospecte', pertinence: 4, phone: '07 12 45 78 99', email: 'm.petit@st.com', linkedin: true, followupDue: false, rdv: null, lastContact: '—', tags: ['SoC', 'Hardware'], notes: '' },
+  { id: 8, first: 'Clara', last: 'Martin', company: 'Naval Group', role: 'CTO Systèmes Navals', status: 'pasInteresse', pertinence: 2, phone: '06 00 00 00 00', email: 'c.martin@naval-group.com', linkedin: false, followupDue: false, rdv: null, lastContact: 'il y a 30j', tags: ['Leadership'], notes: 'Pas de besoin sur 2026.' },
+];
+
+const STATUS_META = {
+  appele:       { label: 'Appelé',         color: 'appele' },
+  rdv:          { label: 'RDV',            color: 'rdv' },
+  prospecte:    { label: 'Prospecté',      color: 'prospecte' },
+  messagerie:   { label: 'Messagerie',     color: 'messagerie' },
+  rappeler:     { label: 'À rappeler',     color: 'rappeler' },
+  pasInteresse: { label: 'Pas intéressé',  color: 'pasInteresse' },
+  neutre:       { label: '—',              color: 'neutre' },
+};
+
+const COMPANIES = [
+  { id: 1, name: 'Dassault Systèmes', logo: 'DS', sector: 'Industrial Software',  city: 'Vélizy',  prospects: 12, activeDeals: 3,  lastTouch: 'il y a 2j', accent: '#005386' },
+  { id: 2, name: 'Thales Alenia Space', logo: 'TA', sector: 'Aerospace & Defence', city: 'Cannes',  prospects: 8,  activeDeals: 1,  lastTouch: 'il y a 5j', accent: '#004B87' },
+  { id: 3, name: 'Airbus Defence',     logo: 'AD', sector: 'Aerospace',            city: 'Toulouse',prospects: 15, activeDeals: 4,  lastTouch: 'il y a 1j', accent: '#00205B' },
+  { id: 4, name: 'Safran Electronics', logo: 'SE', sector: 'Aerospace',            city: 'Massy',   prospects: 6,  activeDeals: 0,  lastTouch: 'il y a 10j', accent: '#CE0E2D' },
+  { id: 5, name: 'Schneider Electric', logo: 'SC', sector: 'Energy',              city: 'Rueil',    prospects: 9,  activeDeals: 2,  lastTouch: 'il y a 3j', accent: '#3DCD58' },
+  { id: 6, name: 'Renault Group',      logo: 'RG', sector: 'Automotive',          city: 'Boulogne', prospects: 11, activeDeals: 2,  lastTouch: 'il y a 1j', accent: '#FFC300' },
+  { id: 7, name: 'STMicroelectronics', logo: 'ST', sector: 'Semiconductors',      city: 'Crolles',  prospects: 7,  activeDeals: 1,  lastTouch: 'il y a 7j', accent: '#03234B' },
+];
+
+const CANDIDATES = [
+  { id: 1, name: 'Arthur Delattre',  role: 'Ingénieur Embarqué Senior', skills: ['C++', 'ROS2', 'Linux', 'Yocto'], tjm: 650, exp: 8, match: 94, city: 'Paris',     avail: 'Immédiate' },
+  { id: 2, name: 'Inès Bouaziz',     role: 'Firmware Engineer',          skills: ['STM32', 'RTOS', 'ARM', 'C'], tjm: 580, exp: 5, match: 88, city: 'Lyon',      avail: '2 sem.' },
+  { id: 3, name: 'Victor Fontaine',  role: 'Tech Lead Robotique',        skills: ['ROS2', 'Python', 'SLAM', 'Gazebo'], tjm: 720, exp: 11, match: 86, city: 'Toulouse', avail: '1 mois' },
+  { id: 4, name: 'Julie Lopez',      role: 'DevOps Embarqué',            skills: ['Yocto', 'CI/CD', 'Buildroot', 'Linux'], tjm: 620, exp: 7, match: 82, city: 'Nantes',   avail: '3 sem.' },
+  { id: 5, name: 'Karim Benali',     role: 'Software Architect',         skills: ['C++20', 'AUTOSAR', 'SysML'], tjm: 780, exp: 13, match: 79, city: 'Boulogne', avail: 'Immédiate' },
+];
+
+const OBJECTIVES = [
+  { id: 'calls', label: 'Appels',        done: 18, target: 25, color: '#60A5FA' },
+  { id: 'mails', label: 'Emails',        done: 32, target: 40, color: '#FBBF24' },
+  { id: 'rdv',   label: 'RDV pris',      done: 4,  target: 5,  color: '#4ADE80' },
+  { id: 'news',  label: 'Nouveaux',      done: 7,  target: 10, color: '#C084FC' },
+];
+
+const XP = { level: 14, current: 2340, next: 3000, streak: 7, todayXp: 180 };
+
+const ACTIVITY = [
+  { when: '09:24', icon: '📞', text: 'Appel — Camille Moreau', sub: 'Dassault Systèmes · 12 min', kind: 'call' },
+  { when: '10:12', icon: '✉️', text: 'Email envoyé — Thomas Leroy', sub: 'Template : Prise de contact ESN', kind: 'mail' },
+  { when: '11:03', icon: '📅', text: 'RDV confirmé — Antoine Roux', sub: 'Lundi 10h · visio', kind: 'rdv' },
+  { when: '13:45', icon: '🔁', text: 'Relance — Léa Bernard', sub: 'Rappel programmé à 17h', kind: 'follow' },
+  { when: '14:22', icon: '⭐', text: 'Pertinence ↑ — Sophie Chen', sub: '4★ → 5★', kind: 'edit' },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHELL — iPhone frame, status bar, dynamic island, tab bar
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEVICE_W = 402;
+const DEVICE_H = 874;
+
+function StatusBar({ dark, time = '9:41' }) {
+  const c = dark ? '#fff' : '#000';
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '18px 32px 0', height: 54, boxSizing: 'border-box', pointerEvents: 'none',
+    }}>
+      <span style={{ fontFamily: font, fontWeight: 600, fontSize: 16, color: c, letterSpacing: -0.2 }}>{time}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx=".6" fill={c}/><rect x="4.5" y="4.5" width="3" height="6.5" rx=".6" fill={c}/><rect x="9" y="2" width="3" height="9" rx=".6" fill={c}/><rect x="13.5" y="-.5" width="3" height="11.5" rx=".6" fill={c}/></svg>
+        <svg width="15" height="11" viewBox="0 0 15 11"><path d="M7.5 3C9.6 3 11.5 3.8 13 5.2l1-1C12.3 2.7 10 1.5 7.5 1.5S2.7 2.7 1 4.2l1 1C3.5 3.8 5.4 3 7.5 3z" fill={c}/><path d="M7.5 6c1.3 0 2.4.5 3.3 1.3l1-1C10.7 5.2 9.2 4.5 7.5 4.5S4.3 5.2 3.2 6.3l1 1C5.1 6.5 6.2 6 7.5 6z" fill={c}/><circle cx="7.5" cy="9.5" r="1.3" fill={c}/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12"><rect x=".5" y=".5" width="21" height="11" rx="3" stroke={c} strokeOpacity=".4" fill="none"/><rect x="2" y="2" width="18" height="8" rx="1.5" fill={c}/><path d="M23 4v4c.7-.2 1.2-.9 1.2-2S23.7 4.2 23 4z" fill={c} opacity=".4"/></svg>
+      </div>
+    </div>
+  );
+}
+
+function DynamicIsland({ expanded, label, accent, dark }) {
+  return (
+    <div style={{
+      position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
+      height: 37, background: '#000', borderRadius: 24,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 40, overflow: 'hidden',
+      width: expanded ? 220 : 126,
+      transition: 'width .3s cubic-bezier(.32,1.08,.62,1)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+      color: '#fff', fontFamily: font, fontSize: 12, fontWeight: 600,
+      gap: 8, padding: expanded ? '0 14px' : 0,
+    }}>
+      {expanded && (
+        <>
+          <span style={{ width: 8, height: 8, borderRadius: 4, background: accent || '#FF6B35', boxShadow: `0 0 8px ${accent || '#FF6B35'}` }} />
+          <span style={{ flex: 1, textAlign: 'left', opacity: .9, whiteSpace: 'nowrap' }}>{label}</span>
+          <span style={{ fontSize: 11, opacity: .5, fontVariantNumeric: 'tabular-nums' }}>LIVE</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function HomeIndicator({ dark }) {
+  return (
+    <div style={{
+      position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 60,
+      height: 34, display: 'flex', justifyContent: 'center', alignItems: 'flex-end',
+      paddingBottom: 9, pointerEvents: 'none',
+    }}>
+      <div style={{ width: 134, height: 5, borderRadius: 100, background: dark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.25)' }} />
+    </div>
+  );
+}
+
+function Device({ children, dark = true, island = null, fill }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <div style={{
+      width: DEVICE_W, height: DEVICE_H, borderRadius: 52,
+      position: 'relative', overflow: 'hidden',
+      background: fill || t.bg,
+      boxShadow: dark
+        ? '0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04)'
+        : '0 40px 80px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06)',
+      fontFamily: font, WebkitFontSmoothing: 'antialiased',
+      color: t.text,
+    }}>
+      <StatusBar dark={dark} />
+      <DynamicIsland dark={dark} expanded={!!island} label={island?.label} accent={island?.accent} />
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', paddingTop: 54 }}>
+        {children}
+      </div>
+      <HomeIndicator dark={dark} />
+    </div>
+  );
+}
+
+function Glass({ children, dark, style = {}, radius = 999, padding }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <div style={{
+      position: 'relative', borderRadius: radius, overflow: 'hidden',
+      padding, display: 'inline-flex', alignItems: 'center',
+      ...style,
+    }}>
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: radius,
+        background: t.glass,
+        backdropFilter: 'blur(24px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+        boxShadow: t.glassShine,
+        border: `0.5px solid ${t.glassBorder}`,
+      }} />
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', width: '100%' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+const TABS = [
+  { id: 'dashboard', label: 'Dashboard', icon: 'home' },
+  { id: 'prospects', label: 'Prospects', icon: 'people' },
+  { id: 'prosp',     label: 'Prosp',     icon: 'bolt', primary: true },
+  { id: 'entreprises', label: 'Sociétés', icon: 'building' },
+  { id: 'stats',     label: 'Stats',     icon: 'chart' },
+];
+
+function TabIcon({ name, color, size = 22 }) {
+  const s = size;
+  const stroke = color;
+  switch (name) {
+    case 'home':
+      return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M4 11.5L12 5l8 6.5V19a2 2 0 01-2 2h-3v-6h-6v6H6a2 2 0 01-2-2v-7.5z" stroke={stroke} strokeWidth="1.8" strokeLinejoin="round"/></svg>;
+    case 'people':
+      return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3.5" stroke={stroke} strokeWidth="1.8"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/><circle cx="17" cy="7" r="2.8" stroke={stroke} strokeWidth="1.6"/><path d="M15 14c3.3 0 6 2.2 6 5" stroke={stroke} strokeWidth="1.6" strokeLinecap="round"/></svg>;
+    case 'bolt':
+      return <svg width={s+2} height={s+2} viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill={stroke}/></svg>;
+    case 'building':
+      return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="2" stroke={stroke} strokeWidth="1.8"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/></svg>;
+    case 'chart':
+      return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/><rect x="7"  y="12" width="2.8" height="5" rx="1" fill={stroke}/><rect x="12" y="8"  width="2.8" height="9" rx="1" fill={stroke}/><rect x="17" y="4"  width="2.8" height="13" rx="1" fill={stroke}/></svg>;
+  }
+  return null;
+}
+
+function TabBar({ active = 'dashboard', dark = true, onTab }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const idx = TABS.findIndex(x => x.id === active);
+  return (
+    <div style={{
+      position: 'absolute', bottom: 16, left: 12, right: 12, zIndex: 50,
+      height: 64,
+    }}>
+      <Glass dark={dark} radius={28} style={{
+        height: '100%', width: '100%', padding: 4,
+        boxShadow: dark ? '0 10px 30px rgba(0,0,0,0.45)' : '0 10px 30px rgba(0,0,0,0.08)',
+      }}>
+        <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex' }}>
+          <div style={{
+            position: 'absolute', top: 0, bottom: 0,
+            width: `${100 / TABS.length}%`,
+            left: `${(idx * 100) / TABS.length}%`,
+            transition: 'left .35s cubic-bezier(.32,1.08,.62,1)',
+            padding: 6, boxSizing: 'border-box', pointerEvents: 'none',
+          }}>
+            <div style={{
+              width: '100%', height: '100%', borderRadius: 20,
+              background: T.accentSoft,
+              boxShadow: 'inset 0 0 0 0.5px rgba(255,107,53,0.22)',
+            }} />
+          </div>
+          {TABS.map((tab) => {
+            const isActive = tab.id === active;
+            const color = isActive ? T.accent : t.text2;
+            return (
+              <button key={tab.id} onClick={() => onTab && onTab(tab.id)}
+                style={{
+                  flex: 1, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: 2,
+                  border: 'none', background: 'transparent',
+                  cursor: 'pointer', padding: 0, color,
+                  fontFamily: font, fontSize: 10, fontWeight: 600, letterSpacing: 0.1,
+                  position: 'relative', zIndex: 1,
+                }}>
+                <TabIcon name={tab.icon} color={color} size={tab.primary ? 24 : 22} />
+                <span style={{ opacity: isActive ? 1 : 0.8 }}>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Glass>
+    </div>
+  );
+}
+
+function LargeHeader({ title, subtitle, dark, leading, trailing }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <div style={{ padding: '8px 20px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, minHeight: 36 }}>
+        <div>{leading}</div>
+        <div style={{ display: 'flex', gap: 8 }}>{trailing}</div>
+      </div>
+      <h1 style={{
+        margin: 0, fontSize: 34, fontWeight: 700, letterSpacing: -0.8,
+        color: t.text, lineHeight: 1.1,
+      }}>{title}</h1>
+      {subtitle && <div style={{
+        marginTop: 4, fontSize: 14, color: t.text2, fontWeight: 400, letterSpacing: -0.1,
+      }}>{subtitle}</div>}
+    </div>
+  );
+}
+
+function Scroll({ children, dark, hasTabBar = true, pad = true }) {
+  return (
+    <div style={{
+      flex: 1, overflow: 'auto',
+      paddingBottom: hasTabBar ? 96 : 34,
+      WebkitOverflowScrolling: 'touch',
+    }}>{children}</div>
+  );
+}
+
+function IconBtn({ children, dark, size = 36, onClick }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <button onClick={onClick} style={{
+      width: size, height: size, borderRadius: size / 2,
+      background: t.glass, border: `0.5px solid ${t.glassBorder}`,
+      backdropFilter: 'blur(20px) saturate(180%)',
+      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: t.text, cursor: 'pointer', padding: 0,
+    }}>{children}</button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREEN LOGIN
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ScreenLogin({ dark = true }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const [user, setUser] = React.useState('antoine');
+  const [pwd, setPwd] = React.useState('••••••••');
+
+  return (
+    <Device dark={dark}>
+      <div aria-hidden style={{
+        position: 'absolute', top: 80, left: '-20%', width: '140%', height: 380,
+        background: 'radial-gradient(ellipse at center, rgba(255,107,53,0.28) 0%, rgba(255,107,53,0) 60%)',
+        filter: 'blur(20px)', pointerEvents: 'none', zIndex: 1,
+      }} />
+      <div aria-hidden style={{
+        position: 'absolute', bottom: 120, right: '-30%', width: 400, height: 400, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(255,140,66,0.15) 0%, rgba(255,140,66,0) 70%)',
+        filter: 'blur(40px)', pointerEvents: 'none', zIndex: 1,
+      }} />
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '40px 28px 28px', position: 'relative', zIndex: 2 }}>
+        <div style={{ marginTop: 60, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12,
+            background: `linear-gradient(135deg, ${T.accent}, #FF8C42)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 8px 24px rgba(255,107,53,0.35)',
+            color: '#fff', fontWeight: 800, fontSize: 20, letterSpacing: -0.5,
+          }}>P</div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: t.text, letterSpacing: -0.3 }}>ProspUp</div>
+            <div style={{ fontSize: 11, color: t.text3, letterSpacing: 0.5, textTransform: 'uppercase' }}>Up Technologies</div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 48 }}>
+          <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, letterSpacing: -0.8, color: t.text, lineHeight: 1.1 }}>
+            Bon retour,<br/>
+            <span style={{ color: T.accent }}>Antoine.</span>
+          </h1>
+          <div style={{ marginTop: 10, fontSize: 15, color: t.text2, lineHeight: 1.4, letterSpacing: -0.1 }}>
+            Reprends ta session Mode Prosp<br/>là où tu l'avais laissée.
+          </div>
+        </div>
+
+        <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <LoginField dark={dark} label="Identifiant" value={user} onChange={setUser} icon="user" />
+          <LoginField dark={dark} label="Mot de passe" value={pwd} onChange={setPwd} icon="lock" type="password" />
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+            <span style={{ fontSize: 13, color: T.accent, fontWeight: 500 }}>Mot de passe oublié ?</span>
+          </div>
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        <button style={{
+          width: '100%', height: 54, borderRadius: 18, border: 'none',
+          background: T.accent, color: '#fff',
+          fontFamily: font, fontSize: 16, fontWeight: 600, letterSpacing: -0.2,
+          boxShadow: '0 10px 24px rgba(255,107,53,0.35), inset 0 1px 0 rgba(255,255,255,0.18)',
+          cursor: 'pointer', marginTop: 24,
+        }}>Se connecter</button>
+
+        <div style={{
+          marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          color: t.text2, fontSize: 13,
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M4 7V5a1 1 0 011-1h2M17 4h2a1 1 0 011 1v2M20 17v2a1 1 0 01-1 1h-2M7 20H5a1 1 0 01-1-1v-2" stroke={t.text2} strokeWidth="1.8" strokeLinecap="round"/>
+            <circle cx="9" cy="10.5" r=".8" fill={t.text2}/>
+            <circle cx="15" cy="10.5" r=".8" fill={t.text2}/>
+            <path d="M12 10v4h-1M10 16c1 .8 3 .8 4 0" stroke={t.text2} strokeWidth="1.4" strokeLinecap="round" fill="none"/>
+          </svg>
+          Face ID disponible
+        </div>
+
+        <div style={{ marginTop: 18, textAlign: 'center', fontSize: 11, color: t.text3, letterSpacing: 0.4 }}>
+          v29.8 · prospup.work
+        </div>
+      </div>
+    </Device>
+  );
+}
+
+function LoginField({ dark, label, value, onChange, icon, type = 'text' }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <label style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      height: 56, padding: '0 16px',
+      background: t.bg3, borderRadius: 16,
+      border: `0.5px solid ${t.border}`,
+    }}>
+      <span style={{ color: t.text3 }}>
+        {icon === 'user' ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.8"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.8"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+        )}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 11, color: t.text3, letterSpacing: 0.3, textTransform: 'uppercase', fontWeight: 500 }}>{label}</div>
+        <div style={{ fontSize: 16, color: t.text, fontWeight: 500, letterSpacing: -0.2, marginTop: 1 }}>
+          {value}
+        </div>
+      </div>
+    </label>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREEN DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+
+function RingXP({ dark, value, max, level }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const size = 148, stroke = 10, r = (size - stroke) / 2;
+  const C = 2 * Math.PI * r;
+  const pct = value / max;
+  return (
+    <div style={{ position: 'relative', width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size/2} cy={size/2} r={r} stroke={t.bg4} strokeWidth={stroke} fill="none" />
+        <circle cx={size/2} cy={size/2} r={r} stroke="url(#xpGrad)" strokeWidth={stroke}
+          strokeLinecap="round" fill="none"
+          strokeDasharray={`${C*pct} ${C}`} />
+        <defs>
+          <linearGradient id="xpGrad" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor="#FF6B35" />
+            <stop offset="100%" stopColor="#FFB088" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontSize: 11, color: t.text3, letterSpacing: 1, fontWeight: 600 }}>NIVEAU</div>
+        <div style={{ fontSize: 40, fontWeight: 700, color: t.text, letterSpacing: -1, lineHeight: 1 }}>{level}</div>
+        <div style={{ fontSize: 11, color: t.text2, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{value} / {max} XP</div>
+      </div>
+    </div>
+  );
+}
+
+function ObjBar({ dark, obj }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const pct = Math.min(1, obj.done / obj.target);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{obj.label}</span>
+        <span style={{ fontSize: 13, color: t.text2, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
+          <span style={{ color: t.text, fontWeight: 600 }}>{obj.done}</span>
+          <span style={{ opacity: .5 }}> / {obj.target}</span>
+        </span>
+      </div>
+      <div style={{ height: 6, borderRadius: 3, background: t.bg4, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct*100}%`, background: obj.color, borderRadius: 3, transition: 'width .5s' }} />
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({ dark, title, trailing, trailingAccent }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '22px 20px 10px' }}>
+      <div style={{ fontSize: 13, color: t.text2, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>{title}</div>
+      {trailing && <div style={{ fontSize: 13, color: trailingAccent ? T.accent : t.text3, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{trailing}</div>}
+    </div>
+  );
+}
+
+function QuickAction({ dark, icon, title, sub, accent }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const ic = accent ? '#fff' : T.accent;
+  return (
+    <button style={{
+      border: 'none', textAlign: 'left',
+      padding: 14, borderRadius: 18,
+      background: accent ? `linear-gradient(135deg, ${T.accent}, #FF8C42)` : t.bg3,
+      boxShadow: accent ? '0 8px 20px rgba(255,107,53,0.3)' : 'none',
+      cursor: 'pointer', color: accent ? '#fff' : t.text,
+      display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start',
+      fontFamily: font,
+    }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: 10,
+        background: accent ? 'rgba(255,255,255,0.2)' : T.accentSoft,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', color: ic,
+      }}>
+        {icon === 'bolt' && <svg width="16" height="16" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg>}
+        {icon === 'phone' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 4l3-1 2 5-2 1c1 2.5 3 4.5 5.5 5.5l1-2 5 2-1 3c-8 0-14-6-14-14z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg>}
+        {icon === 'sparkles' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z" fill="currentColor"/></svg>}
+        {icon === 'plus' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>}
+      </div>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: -0.2 }}>{title}</div>
+        <div style={{ fontSize: 11, opacity: accent ? 0.85 : 0.55, marginTop: 2 }}>{sub}</div>
+      </div>
+    </button>
+  );
+}
+
+function ScreenDashboard({ dark = true, onTab, active = 'dashboard' }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const totalDone = OBJECTIVES.reduce((s,o) => s + o.done, 0);
+  const totalTarget = OBJECTIVES.reduce((s,o) => s + o.target, 0);
+  const pct = Math.round(totalDone/totalTarget*100);
+
+  return (
+    <Device dark={dark} island={{ label: 'Rappel — Léa Bernard · 17h00', accent: T.accent }}>
+      <Scroll dark={dark}>
+        <LargeHeader dark={dark} title="Bonjour,"
+          subtitle={<span>Mardi 21 avril · <span style={{ color: T.accent, fontWeight: 600 }}>Série de {XP.streak} jours 🔥</span></span>}
+          trailing={
+            <>
+              <IconBtn dark={dark}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+              </IconBtn>
+              <IconBtn dark={dark}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 8a6 6 0 1112 0v5l2 3H4l2-3V8zM9 19a3 3 0 006 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </IconBtn>
+            </>
+          } />
+
+        <div style={{ margin: '8px 16px 0' }}>
+          <div style={{
+            borderRadius: 24, padding: 20, position: 'relative', overflow: 'hidden',
+            background: dark
+              ? 'linear-gradient(135deg, #1a1410 0%, #0f0e0c 100%)'
+              : 'linear-gradient(135deg, #FFF6F0 0%, #FDECE1 100%)',
+            border: `0.5px solid ${dark ? 'rgba(255,107,53,0.18)' : 'rgba(255,107,53,0.12)'}`,
+            display: 'flex', alignItems: 'center', gap: 20,
+          }}>
+            <RingXP dark={dark} value={XP.current} max={XP.next} level={XP.level} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, color: t.text3, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>Aujourd'hui</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: t.text, letterSpacing: -0.8, marginTop: 2 }}>
+                +{XP.todayXp} <span style={{ fontSize: 14, color: T.accent, fontWeight: 600 }}>XP</span>
+              </div>
+              <div style={{ marginTop: 10, fontSize: 12, color: t.text2, lineHeight: 1.45 }}>
+                Plus que <b style={{ color: t.text }}>{XP.next - XP.current} XP</b> pour le niveau {XP.level + 1}.
+              </div>
+              <div style={{
+                marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '4px 10px', borderRadius: 999,
+                background: T.accentSoft, color: T.accent,
+                fontSize: 11, fontWeight: 600, letterSpacing: 0.2,
+              }}>
+                <span style={{ width: 5, height: 5, borderRadius: 3, background: T.accent, boxShadow: `0 0 6px ${T.accent}` }} />
+                Objectif du jour {pct}%
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <SectionTitle dark={dark} title="Objectifs de la semaine" trailing={`${totalDone}/${totalTarget}`} />
+        <div style={{ margin: '0 16px', padding: 16, borderRadius: 20, background: t.bg3, border: `0.5px solid ${t.border}` }}>
+          <div style={{ display: 'grid', gap: 14 }}>
+            {OBJECTIVES.map(o => <ObjBar key={o.id} dark={dark} obj={o} />)}
+          </div>
+        </div>
+
+        <SectionTitle dark={dark} title="Actions rapides" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, margin: '0 16px' }}>
+          <QuickAction dark={dark} accent icon="bolt" title="Mode Prosp" sub="Reprendre — 17/42" />
+          <QuickAction dark={dark} icon="phone" title="Focus" sub="6 relances dues" />
+          <QuickAction dark={dark} icon="sparkles" title="Scrapping IA" sub="Enrichir fiche" />
+          <QuickAction dark={dark} icon="plus" title="Ajouter" sub="Prospect · Société" />
+        </div>
+
+        <SectionTitle dark={dark} title="Activité du jour" trailing="Tout voir" trailingAccent />
+        <div style={{ margin: '0 16px 20px', padding: 4, borderRadius: 20, background: t.bg3, border: `0.5px solid ${t.border}` }}>
+          {ACTIVITY.map((a, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+              borderBottom: i < ACTIVITY.length - 1 ? `0.5px solid ${t.divider}` : 'none',
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: t.bg4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 16,
+              }}>{a.icon}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: t.text, fontWeight: 500, letterSpacing: -0.1 }}>{a.text}</div>
+                <div style={{ fontSize: 12, color: t.text2, marginTop: 1 }}>{a.sub}</div>
+              </div>
+              <div style={{ fontSize: 12, color: t.text3, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{a.when}</div>
+            </div>
+          ))}
+        </div>
+      </Scroll>
+
+      <TabBar dark={dark} active={active} onTab={onTab} />
+    </Device>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREEN PROSPECTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function StarRating({ n, dark }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <span style={{ display: 'inline-flex', gap: 1 }}>
+      {[1,2,3,4,5].map(i => (
+        <svg key={i} width="10" height="10" viewBox="0 0 12 12">
+          <path d="M6 1l1.5 3.2 3.5.4-2.6 2.4.7 3.5L6 8.9l-3.1 1.6.7-3.5L1 4.6l3.5-.4L6 1z"
+            fill={i <= n ? T.accent : t.text4} />
+        </svg>
+      ))}
+    </span>
+  );
+}
+
+function ProspectCard({ dark, p, onClick }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const s = T.status[p.status];
+  return (
+    <button onClick={onClick} style={{
+      width: '100%', textAlign: 'left', border: 'none',
+      background: t.bg3, borderRadius: 18,
+      padding: 0, cursor: 'pointer',
+      boxShadow: '0 1px 0 rgba(255,255,255,0.02)',
+      fontFamily: font, color: t.text, position: 'relative',
+      overflow: 'hidden', display: 'flex',
+    }}>
+      <div style={{ width: 4, background: s.dot, flexShrink: 0 }} />
+      <div style={{ flex: 1, padding: '12px 14px', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {p.first} {p.last}
+          </div>
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase',
+            padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap',
+            background: s.bg, color: s.fg,
+          }}>{STATUS_META[p.status].label}</span>
+        </div>
+        <div style={{ fontSize: 12.5, color: t.text2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 6 }}>
+          {p.company} · {p.role}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <StarRating n={p.pertinence} dark={dark} />
+          {p.followupDue && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
+              background: 'rgba(239,68,68,0.15)', color: '#F87171', letterSpacing: 0.3 }}>RELANCE</span>
+          )}
+          {p.rdv && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
+              background: 'rgba(34,197,94,0.15)', color: '#4ADE80', letterSpacing: 0.3 }}>📅 {p.rdv}</span>
+          )}
+          {p.phone && (
+            <span style={{ color: t.text3, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M4 4l3-1 2 5-2 1c1 2.5 3 4.5 5.5 5.5l1-2 5 2-1 3c-8 0-14-6-14-14z" stroke="currentColor" strokeWidth="2"/></svg>
+            </span>
+          )}
+          {p.email && (
+            <span style={{ color: t.text3 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8"/><path d="M3 7l9 6 9-6" stroke="currentColor" strokeWidth="1.8"/></svg>
+            </span>
+          )}
+          {p.linkedin && (
+            <span style={{ color: '#0A66C2' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h4v4H4zM4 10h4v10H4zM10 10h4v2c.7-1.5 2.5-2.4 4-2.4 3 0 5 2 5 5V20h-4v-4.4c0-1.7-.6-2.6-2-2.6s-2 1-2 2.6V20h-4V10z"/></svg>
+            </span>
+          )}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', paddingRight: 14, color: t.text4 }}>
+        <svg width="10" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/></svg>
+      </div>
+    </button>
+  );
+}
+
+const CHIPS = [
+  { id: 'all', label: 'Tous', count: 142 },
+  { id: 'urgent', label: '⚡ Urgent', count: 6 },
+  { id: 'rdv', label: 'RDV', count: 9 },
+  { id: 'appele', label: 'Appelé', count: 34 },
+  { id: 'prospecte', label: 'Prospecté', count: 58 },
+  { id: 'rappeler', label: 'À rappeler', count: 12 },
+];
+
+function ScreenProspects({ dark = true, onTab, onOpen, active = 'prospects' }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const [chip, setChip] = React.useState('all');
+
+  return (
+    <Device dark={dark}>
+      <LargeHeader dark={dark} title="Prospects" subtitle="142 actifs · 58 archivés"
+        trailing={
+          <>
+            <IconBtn dark={dark}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            </IconBtn>
+            <IconBtn dark={dark}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            </IconBtn>
+          </>
+        } />
+
+      <div style={{ padding: '0 16px 10px' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          height: 40, padding: '0 14px', borderRadius: 14,
+          background: t.bg4, color: t.text3, fontSize: 15,
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+          <span>Rechercher un prospect, entreprise…</span>
+          <div style={{ flex: 1 }} />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 8l3-4h8l3 4M4 8h16l-2 11a2 2 0 01-2 2H8a2 2 0 01-2-2L4 8z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+        {CHIPS.map(c => {
+          const on = chip === c.id;
+          return (
+            <button key={c.id} onClick={() => setChip(c.id)} style={{
+              flexShrink: 0, padding: '7px 14px', borderRadius: 999,
+              border: `0.5px solid ${on ? 'rgba(255,107,53,0.3)' : t.border2}`,
+              background: on ? T.accentSoft : t.bg3,
+              color: on ? T.accent : t.text,
+              fontSize: 13, fontWeight: on ? 600 : 500, cursor: 'pointer',
+              fontFamily: font, display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+              {c.label}
+              <span style={{
+                fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 999,
+                background: on ? 'rgba(255,107,53,0.2)' : t.bg4,
+                color: on ? T.accent : t.text2, fontVariantNumeric: 'tabular-nums',
+              }}>{c.count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <Scroll dark={dark}>
+        <div style={{ margin: '0 16px 10px', padding: '10px 12px', borderRadius: 14,
+          background: dark ? 'rgba(255,107,53,0.08)' : 'rgba(255,107,53,0.06)',
+          border: `0.5px solid rgba(255,107,53,0.18)`,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="#fff"/></svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, color: t.text, fontWeight: 600 }}>Mode Prosp en cours — 17/42</div>
+            <div style={{ fontSize: 11, color: t.text2 }}>Reprendre avec les filtres actifs</div>
+          </div>
+          <svg width="10" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" stroke={T.accent} strokeWidth="2" fill="none" strokeLinecap="round"/></svg>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '0 16px' }}>
+          {PROSPECTS.map(p => <ProspectCard key={p.id} dark={dark} p={p} onClick={() => onOpen && onOpen(p)} />)}
+        </div>
+
+        <div style={{ textAlign: 'center', padding: '20px 0', color: t.text3, fontSize: 12 }}>
+          — Fin de la liste · 142 prospects —
+        </div>
+      </Scroll>
+
+      <TabBar dark={dark} active={active} onTab={onTab} />
+    </Device>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREEN DETAIL — bottom-sheet prospect
+// ═══════════════════════════════════════════════════════════════════════════
+
+function DetailAction({ dark, icon, label, primary }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const bg = primary ? T.accent : t.bg3;
+  const col = primary ? '#fff' : t.text;
+  return (
+    <button style={{
+      border: 'none', cursor: 'pointer', fontFamily: font,
+      padding: '12px 0', borderRadius: 14, background: bg, color: col,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+      boxShadow: primary ? '0 6px 16px rgba(255,107,53,0.35)' : 'none',
+    }}>
+      <span style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {icon === 'phone' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 4l3-1 2 5-2 1c1 2.5 3 4.5 5.5 5.5l1-2 5 2-1 3c-8 0-14-6-14-14z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/></svg>}
+        {icon === 'mail' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8"/><path d="M3 7l9 6 9-6" stroke="currentColor" strokeWidth="1.8"/></svg>}
+        {icon === 'in' && <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h4v4H4zM4 10h4v10H4zM10 10h4v2c.7-1.5 2.5-2.4 4-2.4 3 0 5 2 5 5V20h-4v-4.4c0-1.7-.6-2.6-2-2.6s-2 1-2 2.6V20h-4V10z"/></svg>}
+        {icon === 'spark' && <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" fill="currentColor"/></svg>}
+      </span>
+      <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: -0.1 }}>{label}</span>
+    </button>
+  );
+}
+
+function DetailCard({ dark, title, trailing, children }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '0 6px 8px' }}>
+        <div style={{ fontSize: 12, color: t.text3, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{title}</div>
+        {trailing}
+      </div>
+      <div style={{ padding: '4px 14px', borderRadius: 18, background: t.bg3, border: `0.5px solid ${t.border}` }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ dark, label, value, mono, accent, action }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: `0.5px solid ${t.divider}`, gap: 12 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 11, color: t.text3, letterSpacing: 0.3, textTransform: 'uppercase', fontWeight: 600 }}>{label}</div>
+        <div style={{ fontSize: 14, color: accent ? T.accent : t.text, fontFamily: mono ? fontMono : font, fontWeight: 500, marginTop: 1 }}>{value}</div>
+      </div>
+      {action === 'call' && (
+        <button style={{ border: 'none', background: T.accentSoft, color: T.accent, width: 36, height: 36, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 4l3-1 2 5-2 1c1 2.5 3 4.5 5.5 5.5l1-2 5 2-1 3c-8 0-14-6-14-14z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/></svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ScreenDetail({ dark = true, p }) {
+  const t = theme(dark ? 'dark' : 'light');
+  p = p || PROSPECTS[0];
+  const s = T.status[p.status];
+
+  return (
+    <Device dark={dark}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1 }} />
+
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, top: 60, zIndex: 2,
+        background: t.bg2, borderRadius: '24px 24px 0 0',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        boxShadow: '0 -10px 40px rgba(0,0,0,0.35)',
+      }}>
+        <div style={{ padding: '8px 0', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: 40, height: 5, borderRadius: 3, background: t.text4 }} />
+        </div>
+
+        <div style={{ padding: '8px 20px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 18,
+              background: `linear-gradient(135deg, ${s.dot}, ${s.fg})`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontWeight: 700, fontSize: 20, letterSpacing: -0.5,
+              boxShadow: `0 8px 20px ${s.dot}55`,
+            }}>{p.first[0]}{p.last[0]}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.5, color: t.text }}>
+                {p.first} {p.last}
+              </div>
+              <div style={{ fontSize: 13, color: t.text2, marginTop: 2 }}>
+                {p.role} · {p.company}
+              </div>
+            </div>
+            <StarRating n={p.pertinence} dark={dark} />
+          </div>
+
+          <div style={{ display: 'flex', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
+              background: s.bg, color: s.fg, textTransform: 'uppercase', letterSpacing: 0.4 }}>{STATUS_META[p.status].label}</span>
+            {p.followupDue && <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', color: '#F87171' }}>Relance due</span>}
+            {p.rdv && <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8, background: 'rgba(34,197,94,0.15)', color: '#4ADE80' }}>📅 {p.rdv}</span>}
+            <span style={{ fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8, background: t.bg4, color: t.text2 }}>{p.lastContact}</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, padding: '0 16px 14px' }}>
+          <DetailAction dark={dark} icon="phone" label="Appeler" primary />
+          <DetailAction dark={dark} icon="mail" label="Email" />
+          <DetailAction dark={dark} icon="in" label="LinkedIn" />
+          <DetailAction dark={dark} icon="spark" label="IA" />
+        </div>
+
+        <div style={{ flex: 1, overflow: 'auto', padding: '0 16px 40px' }}>
+          <DetailCard dark={dark} title="Coordonnées">
+            <DetailRow dark={dark} label="Téléphone" value={p.phone} mono action="call" />
+            <DetailRow dark={dark} label="Email" value={p.email} mono />
+            <DetailRow dark={dark} label="LinkedIn" value={p.linkedin ? 'Profil lié' : '—'} accent={p.linkedin} />
+          </DetailCard>
+
+          <DetailCard dark={dark} title="Notes" trailing={<span style={{ color: T.accent, fontSize: 12, fontWeight: 500 }}>Éditer</span>}>
+            <div style={{ padding: '4px 0', fontSize: 14, color: t.text, lineHeight: 1.5, letterSpacing: -0.1 }}>
+              {p.notes || '—'}
+            </div>
+          </DetailCard>
+
+          <DetailCard dark={dark} title="Compétences" trailing={<span style={{ color: T.accent, fontSize: 12, fontWeight: 500 }}>+ Ajouter</span>}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {p.tags.map(tg => (
+                <span key={tg} style={{
+                  padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 500,
+                  background: t.bg4, color: t.text,
+                  border: `0.5px solid ${t.border2}`,
+                }}>{tg}</span>
+              ))}
+            </div>
+          </DetailCard>
+
+          <DetailCard dark={dark} title="Historique">
+            {[
+              { when: "Aujourd'hui 10:12", icon: '✉️', text: 'Email envoyé — Prise de contact ESN', tone: '#FBBF24' },
+              { when: 'Hier 14:30',          icon: '📞', text: 'Appel 12 min — intérêt confirmé', tone: '#4ADE80' },
+              { when: '18 avril',            icon: '⭐', text: 'Pertinence mise à 5/5', tone: T.accent },
+              { when: '15 avril',            icon: '➕', text: 'Ajouté via import Excel', tone: '#94A3B8' },
+            ].map((e, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: i < 3 ? `0.5px solid ${t.divider}` : 'none' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: t.bg4, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14 }}>{e.icon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, color: t.text, fontWeight: 500 }}>{e.text}</div>
+                  <div style={{ fontSize: 11, color: t.text3, marginTop: 1 }}>{e.when}</div>
+                </div>
+              </div>
+            ))}
+          </DetailCard>
+        </div>
+      </div>
+    </Device>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREEN PROSP — swipeable card stack
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ProspCard({ dark, p, depth, style }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const s = T.status[p.status];
+  return (
+    <div style={{
+      position: 'absolute', left: 20, right: 20, top: 0,
+      height: 420, borderRadius: 28, overflow: 'hidden',
+      background: dark
+        ? `linear-gradient(160deg, ${t.bg3}, ${t.bg2})`
+        : 'linear-gradient(160deg, #FFFFFF, #FAF9F6)',
+      border: `0.5px solid ${t.border2}`,
+      boxShadow: depth === 0
+        ? (dark ? '0 30px 60px rgba(0,0,0,0.5)' : '0 30px 60px rgba(0,0,0,0.12)')
+        : 'none',
+      padding: 22, display: 'flex', flexDirection: 'column',
+      fontFamily: font, color: t.text,
+      ...style,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: 20,
+          background: `linear-gradient(135deg, ${s.dot}, ${s.fg})`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontWeight: 700, fontSize: 22, letterSpacing: -0.5,
+          boxShadow: `0 10px 24px ${s.dot}55`,
+        }}>{p.first[0]}{p.last[0]}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.5, lineHeight: 1.1 }}>
+            {p.first}<br/>{p.last}
+          </div>
+        </div>
+        <StarRating n={p.pertinence} dark={dark} />
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <div style={{ fontSize: 11, color: t.text3, letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600 }}>Entreprise</div>
+        <div style={{ fontSize: 17, color: t.text, fontWeight: 600, letterSpacing: -0.3, marginTop: 2 }}>{p.company}</div>
+        <div style={{ fontSize: 13, color: t.text2, marginTop: 1 }}>{p.role}</div>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 14 }}>
+        {p.tags.map(tg => (
+          <span key={tg} style={{
+            padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+            background: t.bg4, color: t.text2, border: `0.5px solid ${t.border}`,
+          }}>{tg}</span>
+        ))}
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      <div style={{
+        marginTop: 14, padding: '14px 16px', borderRadius: 18,
+        background: dark ? 'rgba(255,107,53,0.1)' : 'rgba(255,107,53,0.08)',
+        border: `0.5px solid rgba(255,107,53,0.2)`,
+        display: 'flex', alignItems: 'center', gap: 12,
+      }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 4l3-1 2 5-2 1c1 2.5 3 4.5 5.5 5.5l1-2 5 2-1 3c-8 0-14-6-14-14z" stroke="#fff" strokeWidth="2" strokeLinejoin="round"/></svg>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, color: t.text3, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>Ligne directe</div>
+          <div style={{ fontFamily: fontMono, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: -0.2, marginTop: 2 }}>{p.phone}</div>
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: s.bg, color: s.fg }}>{STATUS_META[p.status].label}</span>
+      </div>
+
+      <div style={{ marginTop: 10, fontSize: 12, color: t.text3, textAlign: 'center', letterSpacing: 0.2 }}>
+        ← Suivant · Décrocher → · ↑ Voir fiche
+      </div>
+    </div>
+  );
+}
+
+function ActionCircle({ dark, kind, onClick, big }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const size = big ? 64 : 48;
+  const config = {
+    skip: { bg: t.bg3, color: t.text2, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M6 18L18 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/></svg> },
+    note: { bg: t.bg3, color: t.text2, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 3h10l4 4v14a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.8"/><path d="M8 12h8M8 16h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg> },
+    call: { bg: T.accent, color: '#fff', icon: <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 4l3-1 2 5-2 1c1 2.5 3 4.5 5.5 5.5l1-2 5 2-1 3c-8 0-14-6-14-14z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/></svg> },
+    mail: { bg: t.bg3, color: t.text2, icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8"/><path d="M3 7l9 6 9-6" stroke="currentColor" strokeWidth="1.8"/></svg> },
+    star: { bg: t.bg3, color: '#FBBF24', icon: <svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 2l3 7 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-7z" fill="currentColor"/></svg> },
+  }[kind];
+  return (
+    <button onClick={onClick} style={{
+      width: size, height: size, borderRadius: size/2,
+      background: config.bg, color: config.color,
+      border: kind === 'call' ? 'none' : `0.5px solid ${t.border2}`,
+      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: kind === 'call' ? '0 10px 24px rgba(255,107,53,0.4)' : '0 2px 6px rgba(0,0,0,0.1)',
+    }}>{config.icon}</button>
+  );
+}
+
+function ScreenProsp({ dark = true, onTab, active = 'prosp' }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const [idx, setIdx] = React.useState(0);
+  const [decision, setDecision] = React.useState(null);
+  const queue = PROSPECTS.slice(idx, idx + 3);
+  const current = queue[0];
+  const done = idx, total = 42;
+
+  const decide = (kind) => {
+    setDecision(kind);
+    setTimeout(() => { setDecision(null); setIdx(i => Math.min(i + 1, PROSPECTS.length - 1)); }, 280);
+  };
+
+  if (!current) return null;
+
+  return (
+    <Device dark={dark} fill={dark ? '#050505' : '#F6F5F2'}>
+      <div aria-hidden style={{
+        position: 'absolute', top: 100, left: '10%', right: '10%', height: 400,
+        background: 'radial-gradient(ellipse at center, rgba(255,107,53,0.2), transparent 70%)',
+        filter: 'blur(30px)', pointerEvents: 'none', zIndex: 0,
+      }} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px 14px' }}>
+        <IconBtn dark={dark}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </IconBtn>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, color: t.text3, letterSpacing: 0.6, textTransform: 'uppercase', fontWeight: 600 }}>Mode Prosp</div>
+          <div style={{ fontSize: 15, color: t.text, fontWeight: 600, letterSpacing: -0.2 }}>Filtre : Aerospace FR · 5★</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6,
+          padding: '6px 12px', borderRadius: 999, background: T.accentSoft, color: T.accent,
+          fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ width: 6, height: 6, borderRadius: 3, background: T.accent, boxShadow: `0 0 8px ${T.accent}` }} />
+          {done + 1} / {total}
+        </div>
+      </div>
+
+      <div style={{ margin: '0 16px 18px', height: 3, borderRadius: 2, background: t.bg4, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${((done+1)/total)*100}%`, background: `linear-gradient(90deg, ${T.accent}, #FF8C42)`, transition: 'width .35s' }} />
+      </div>
+
+      <div style={{ flex: 1, position: 'relative', padding: '0 20px', zIndex: 1 }}>
+        {queue.slice().reverse().map((p, i) => {
+          const depth = queue.length - 1 - i;
+          const isFront = depth === 0;
+          const swing = decision && isFront
+            ? (decision === 'skip' ? -24 : decision === 'call' ? 24 : 0)
+            : 0;
+          const opacity = decision && isFront ? 0 : 1;
+          return (
+            <ProspCard key={p.id + '-' + idx + '-' + depth} dark={dark} p={p}
+              depth={depth}
+              style={{
+                transform: `translateY(${depth*8}px) scale(${1 - depth*0.04}) rotate(${swing}deg) translateX(${swing * 8}px)`,
+                opacity,
+                transition: 'transform .28s cubic-bezier(.32,1.08,.62,1), opacity .28s',
+                zIndex: 10 - depth,
+              }} />
+          );
+        })}
+      </div>
+
+      <div style={{ padding: '16px 20px 96px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
+        <ActionCircle dark={dark} kind="skip"    onClick={() => decide('skip')} />
+        <ActionCircle dark={dark} kind="note"    onClick={() => decide('note')} />
+        <ActionCircle dark={dark} kind="call"    onClick={() => decide('call')} big />
+        <ActionCircle dark={dark} kind="mail"    onClick={() => decide('mail')} />
+        <ActionCircle dark={dark} kind="star"    onClick={() => decide('star')} />
+      </div>
+
+      <TabBar dark={dark} active={active} onTab={onTab} />
+    </Device>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREEN COMPANIES
+// ═══════════════════════════════════════════════════════════════════════════
+
+function MiniStat({ dark, v, l, highlight }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
+      <span style={{ fontSize: 13, fontWeight: 700, color: highlight ? T.accent : t.text, fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+      <span style={{ fontSize: 11, color: t.text3 }}>{l}</span>
+    </div>
+  );
+}
+
+function CompanyRow({ dark, c }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: 12, borderRadius: 16, background: t.bg3,
+      border: `0.5px solid ${t.border}`,
+    }}>
+      <div style={{
+        width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+        background: c.accent,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#fff', fontWeight: 700, fontSize: 14, letterSpacing: 0.5,
+        boxShadow: `0 4px 12px ${c.accent}55`,
+      }}>{c.logo}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: t.text, letterSpacing: -0.2 }}>{c.name}</div>
+        <div style={{ fontSize: 12, color: t.text2, marginTop: 1 }}>
+          {c.sector} · {c.city}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+          <MiniStat dark={dark} v={c.prospects} l="prospects" />
+          <MiniStat dark={dark} v={c.activeDeals} l="deals" highlight={c.activeDeals > 0} />
+        </div>
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: 10, color: t.text3, letterSpacing: 0.3, textTransform: 'uppercase', fontWeight: 600 }}>Activité</div>
+        <div style={{ fontSize: 11, color: t.text2, marginTop: 2 }}>{c.lastTouch}</div>
+      </div>
+    </div>
+  );
+}
+
+function ScreenCompanies({ dark = true, onTab, active = 'entreprises' }) {
+  const t = theme(dark ? 'dark' : 'light');
+
+  return (
+    <Device dark={dark}>
+      <LargeHeader dark={dark} title="Sociétés" subtitle="68 actives · 7 secteurs"
+        trailing={
+          <>
+            <IconBtn dark={dark}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+            </IconBtn>
+            <IconBtn dark={dark}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            </IconBtn>
+          </>
+        } />
+
+      <div style={{ margin: '0 16px 14px', padding: 3, borderRadius: 12, background: t.bg4, display: 'flex' }}>
+        {['Toutes', 'Favoris', 'Récentes'].map((x, i) => (
+          <button key={x} style={{
+            flex: 1, height: 32, border: 'none', cursor: 'pointer', fontFamily: font,
+            borderRadius: 9, background: i === 0 ? t.bg3 : 'transparent',
+            color: i === 0 ? t.text : t.text2, fontWeight: i === 0 ? 600 : 500, fontSize: 13,
+            boxShadow: i === 0 ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+          }}>{x}</button>
+        ))}
+      </div>
+
+      <Scroll dark={dark}>
+        <div style={{ display: 'grid', gap: 10, padding: '0 16px' }}>
+          {COMPANIES.map(c => <CompanyRow key={c.id} dark={dark} c={c} />)}
+        </div>
+        <div style={{ padding: 20, textAlign: 'center', color: t.text3, fontSize: 12 }}>— Fin —</div>
+      </Scroll>
+
+      <TabBar dark={dark} active={active} onTab={onTab} />
+    </Device>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREEN SOURCING IA
+// ═══════════════════════════════════════════════════════════════════════════
+
+function MatchRing({ score, color, dark }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const s = 48, stroke = 4, r = (s - stroke) / 2;
+  const C = 2 * Math.PI * r;
+  return (
+    <div style={{ position: 'relative', width: s, height: s, flexShrink: 0 }}>
+      <svg width={s} height={s} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={s/2} cy={s/2} r={r} stroke={t.bg4} strokeWidth={stroke} fill="none"/>
+        <circle cx={s/2} cy={s/2} r={r} stroke={color} strokeWidth={stroke} fill="none"
+          strokeLinecap="round" strokeDasharray={`${C*score/100} ${C}`} />
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: t.text, fontVariantNumeric: 'tabular-nums' }}>
+        {score}
+      </div>
+    </div>
+  );
+}
+
+function CandidateCard({ dark, c }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const matchColor = c.match >= 90 ? '#4ADE80' : c.match >= 80 ? '#FBBF24' : '#FB923C';
+  return (
+    <div style={{
+      padding: 14, borderRadius: 18, background: t.bg3,
+      border: `0.5px solid ${t.border}`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <MatchRing score={c.match} color={matchColor} dark={dark} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: t.text, letterSpacing: -0.2, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: matchColor, letterSpacing: 0.3 }}>{c.match}% MATCH</span>
+          </div>
+          <div style={{ fontSize: 12.5, color: t.text2, marginTop: 1 }}>{c.role} · {c.city}</div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+            {c.skills.slice(0, 4).map(s => (
+              <span key={s} style={{
+                padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                background: t.bg4, color: t.text, border: `0.5px solid ${t.border}`,
+              }}>{s}</span>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 11, color: t.text2 }}>
+            <span><b style={{ color: t.text, fontVariantNumeric: 'tabular-nums' }}>{c.tjm}€</b>/j</span>
+            <span><b style={{ color: t.text }}>{c.exp} ans</b> xp</span>
+            <span style={{ color: c.avail === 'Immédiate' ? '#4ADE80' : t.text2 }}>{c.avail}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScreenSourcing({ dark = true, onTab, active = 'prosp' }) {
+  const t = theme(dark ? 'dark' : 'light');
+
+  return (
+    <Device dark={dark}>
+      <LargeHeader dark={dark} title="Sourcing IA" subtitle="Matching pour Dassault · R&D Robotique"
+        trailing={
+          <IconBtn dark={dark}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+          </IconBtn>
+        } />
+
+      <div style={{ margin: '0 16px 14px', padding: 14, borderRadius: 18,
+        background: `linear-gradient(135deg, ${T.accentSoft}, transparent)`,
+        border: `0.5px solid rgba(255,107,53,0.2)`,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z" fill="#fff"/></svg>
+          </div>
+          <div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>Brief analysé par IA</div>
+        </div>
+        <div style={{ fontSize: 13, color: t.text2, lineHeight: 1.5 }}>
+          <b style={{ color: t.text }}>Ingénieur Embarqué</b> · C++, ROS2, Linux · 5+ ans · Paris/remote · <b style={{ color: T.accent }}>TJM 600-750€</b>
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+          <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(34,197,94,0.15)', color: '#4ADE80', fontWeight: 700, letterSpacing: 0.3 }}>24 CV ANALYSÉS</span>
+          <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: t.bg4, color: t.text2, fontWeight: 600 }}>il y a 3 min</span>
+        </div>
+      </div>
+
+      <div style={{ padding: '0 20px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <div style={{ fontSize: 12, color: t.text2, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>Top candidats</div>
+        <div style={{ fontSize: 12, color: T.accent, fontWeight: 500 }}>Par match %</div>
+      </div>
+
+      <Scroll dark={dark}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px' }}>
+          {CANDIDATES.map(c => <CandidateCard key={c.id} dark={dark} c={c} />)}
+        </div>
+        <div style={{ padding: 20, textAlign: 'center', color: t.text3, fontSize: 12 }}>5 sur 24 affichés · voir tout</div>
+      </Scroll>
+
+      <TabBar dark={dark} active={active} onTab={onTab} />
+    </Device>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREEN STATS — KPIs, chart, leaderboard
+// ═══════════════════════════════════════════════════════════════════════════
+
+const CHART_DATA = [
+  { day: 'L', calls: 14, rdv: 2 },
+  { day: 'M', calls: 22, rdv: 3 },
+  { day: 'M', calls: 18, rdv: 1 },
+  { day: 'J', calls: 28, rdv: 4 },
+  { day: 'V', calls: 25, rdv: 3 },
+  { day: 'S', calls: 5,  rdv: 0 },
+  { day: 'D', calls: 0,  rdv: 0 },
+];
+
+function Kpi({ dark, label, value, delta, up, accent }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <div style={{
+      padding: 16, borderRadius: 18,
+      background: accent
+        ? (dark ? 'linear-gradient(135deg, rgba(255,107,53,0.15), rgba(255,107,53,0.04))' : 'linear-gradient(135deg, rgba(255,107,53,0.08), rgba(255,107,53,0.02))')
+        : t.bg3,
+      border: `0.5px solid ${accent ? 'rgba(255,107,53,0.2)' : t.border}`,
+    }}>
+      <div style={{ fontSize: 11, color: t.text3, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: accent ? T.accent : t.text, letterSpacing: -0.8, marginTop: 4, lineHeight: 1 }}>{value}</div>
+      <div style={{ marginTop: 6, fontSize: 11, color: up ? '#4ADE80' : '#F87171', fontWeight: 600 }}>
+        {up ? '↗' : '↘'} {delta} <span style={{ color: t.text3, fontWeight: 500 }}>vs S-1</span>
+      </div>
+    </div>
+  );
+}
+
+function Chart({ data, dark }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const W = 300, H = 140, pad = 8;
+  const max = Math.max(...data.map(d => d.calls));
+  const bw = (W - pad*2) / data.length;
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H + 24}`} style={{ display: 'block' }}>
+      {[0.25, 0.5, 0.75, 1].map(f => (
+        <line key={f} x1={pad} x2={W-pad} y1={H - H*f} y2={H - H*f} stroke={t.divider} strokeDasharray="2 3" strokeWidth="0.5"/>
+      ))}
+      {data.map((d, i) => {
+        const x = pad + i * bw + bw/2;
+        const hCalls = (d.calls / max) * H * 0.9;
+        const hRdv = (d.rdv / 5) * H * 0.9;
+        return (
+          <g key={i}>
+            <rect x={x - 10} y={H - hCalls} width="7" height={hCalls} rx="3" fill={T.accent}/>
+            <rect x={x + 3} y={H - hRdv} width="7" height={hRdv} rx="3" fill="#4ADE80"/>
+            <text x={x} y={H + 16} textAnchor="middle" fontSize="10" fill={t.text2} fontFamily={font} fontWeight="500">{d.day}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function Legend({ color, label }) {
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'currentColor', opacity: 0.8 }}>
+      <span style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
+      <span style={{ fontSize: 11, fontWeight: 500 }}>{label}</span>
+    </div>
+  );
+}
+
+function ScreenStats({ dark = true, onTab, active = 'stats' }) {
+  const t = theme(dark ? 'dark' : 'light');
+
+  return (
+    <Device dark={dark}>
+      <LargeHeader dark={dark} title="Stats"
+        subtitle="Semaine 17 · du 14 au 20 avril"
+        trailing={
+          <Glass dark={dark} radius={10} padding="6px 10px" style={{ fontSize: 12, color: t.text, fontWeight: 500 }}>
+            Semaine
+            <svg width="10" height="6" viewBox="0 0 10 6" style={{ marginLeft: 6 }}><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round"/></svg>
+          </Glass>
+        } />
+
+      <Scroll dark={dark}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, margin: '0 16px' }}>
+          <Kpi dark={dark} label="Appels" value="112" delta="+23%" up />
+          <Kpi dark={dark} label="RDV pris" value="13" delta="+18%" up />
+          <Kpi dark={dark} label="Taux décro." value="41%" delta="-4%" />
+          <Kpi dark={dark} label="Pipeline" value="€84k" delta="+12%" up accent />
+        </div>
+
+        <SectionTitle dark={dark} title="Activité · 7 jours" trailing="Comparer" trailingAccent />
+        <div style={{ margin: '0 16px', padding: 18, borderRadius: 20, background: t.bg3, border: `0.5px solid ${t.border}` }}>
+          <Chart data={CHART_DATA} dark={dark} />
+          <div style={{ display: 'flex', gap: 16, marginTop: 14, fontSize: 11 }}>
+            <Legend color={T.accent} label="Appels" />
+            <Legend color="#4ADE80" label="RDV pris" />
+          </div>
+        </div>
+
+        <SectionTitle dark={dark} title="Classement équipe" trailing="#2 sur 8" trailingAccent />
+        <div style={{ margin: '0 16px 20px', borderRadius: 20, background: t.bg3, border: `0.5px solid ${t.border}`, overflow: 'hidden' }}>
+          {[
+            { rank: 1, name: 'Julien M.',   xp: 3820, me: false },
+            { rank: 2, name: 'Antoine (toi)', xp: 2340, me: true },
+            { rank: 3, name: 'Paul R.',     xp: 2180, me: false },
+            { rank: 4, name: 'Sofia L.',    xp: 1920, me: false },
+          ].map((r, i) => (
+            <div key={r.rank} style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+              background: r.me ? T.accentSoft : 'transparent',
+              borderBottom: i < 3 ? `0.5px solid ${t.divider}` : 'none',
+            }}>
+              <div style={{
+                width: 26, height: 26, borderRadius: 8,
+                background: r.rank === 1 ? 'linear-gradient(135deg,#FBBF24,#F59E0B)' : r.me ? T.accent : t.bg4,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, fontWeight: 700,
+                color: r.rank === 1 ? '#000' : r.me ? '#fff' : t.text2,
+              }}>{r.rank}</div>
+              <div style={{ flex: 1, fontSize: 14, color: t.text, fontWeight: r.me ? 600 : 500, letterSpacing: -0.2 }}>{r.name}</div>
+              <div style={{ fontSize: 13, color: r.me ? T.accent : t.text, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{r.xp.toLocaleString('fr-FR')} XP</div>
+            </div>
+          ))}
+        </div>
+      </Scroll>
+
+      <TabBar dark={dark} active={active} onTab={onTab} />
+    </Device>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREEN SETTINGS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function Group({ dark, children }) {
+  const t = theme(dark ? 'dark' : 'light');
+  return (
+    <div style={{ margin: '0 16px', borderRadius: 16, background: t.bg3, border: `0.5px solid ${t.border}`, overflow: 'hidden' }}>
+      {children}
+    </div>
+  );
+}
+
+function settingIcon(name, color) {
+  const c = color;
+  switch (name) {
+    case 'theme': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke={c} strokeWidth="1.8"/><path d="M12 3v18" stroke={c} strokeWidth="1.8"/><path d="M12 3a9 9 0 010 18z" fill={c}/></svg>;
+    case 'color': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" fill={c}/></svg>;
+    case 'text': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M8 6v13M16 10v9M12 10h8" stroke={c} strokeWidth="1.8" strokeLinecap="round"/></svg>;
+    case 'bolt': return <svg width="16" height="16" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill={c}/></svg>;
+    case 'auto': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 11-3-6.7M21 3v5h-5" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case 'rec':  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" fill={c}/><circle cx="12" cy="12" r="8" stroke={c} strokeWidth="1.6"/></svg>;
+    case 'filter': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 5h18l-7 9v6l-4-2v-4L3 5z" stroke={c} strokeWidth="1.8" strokeLinejoin="round"/></svg>;
+    case 'linkedin': return <svg width="16" height="16" viewBox="0 0 24 24" fill={c}><path d="M4 4h4v4H4zM4 10h4v10H4zM10 10h4v2c.7-1.5 2.5-2.4 4-2.4 3 0 5 2 5 5V20h-4v-4.4c0-1.7-.6-2.6-2-2.6s-2 1-2 2.6V20h-4V10z"/></svg>;
+    case 'cal':  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="2" stroke={c} strokeWidth="1.8"/><path d="M3 10h18M8 3v4M16 3v4" stroke={c} strokeWidth="1.8" strokeLinecap="round"/></svg>;
+    case 'phone': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 4l3-1 2 5-2 1c1 2.5 3 4.5 5.5 5.5l1-2 5 2-1 3c-8 0-14-6-14-14z" stroke={c} strokeWidth="1.8"/></svg>;
+    case 'zap':  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 4l-2 7h4l-2 9 9-11h-5l2-5H7z" stroke={c} strokeWidth="1.6" strokeLinejoin="round"/></svg>;
+    case 'lock': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="11" rx="2" stroke={c} strokeWidth="1.8"/><path d="M8 10V7a4 4 0 018 0v3" stroke={c} strokeWidth="1.8"/></svg>;
+    case 'bell': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 8a6 6 0 1112 0v5l2 3H4l2-3V8zM9 19a3 3 0 006 0" stroke={c} strokeWidth="1.8" strokeLinecap="round"/></svg>;
+    case 'help': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke={c} strokeWidth="1.8"/><path d="M9 9a3 3 0 116 0c0 2-3 2-3 4M12 17v.5" stroke={c} strokeWidth="1.8" strokeLinecap="round"/></svg>;
+    case 'out':  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 4H5a1 1 0 00-1 1v14a1 1 0 001 1h4M16 8l4 4-4 4M10 12h10" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+  }
+}
+
+function SettingRow({ dark, icon, label, value, onClick, last, danger, connected, swatch }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const color = danger ? '#F87171' : t.text;
+  return (
+    <button onClick={onClick} style={{
+      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+      padding: '13px 14px', border: 'none', background: 'transparent',
+      borderBottom: last ? 'none' : `0.5px solid ${t.divider}`,
+      cursor: 'pointer', fontFamily: font, textAlign: 'left',
+    }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: 8,
+        background: danger ? 'rgba(239,68,68,0.12)' : T.accentSoft,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: danger ? '#F87171' : T.accent, flexShrink: 0,
+      }}>{settingIcon(icon, 'currentColor')}</div>
+      <span style={{ flex: 1, fontSize: 14.5, color, fontWeight: 500, letterSpacing: -0.2 }}>{label}</span>
+      {swatch && <span style={{ width: 16, height: 16, borderRadius: 4, background: swatch, border: `0.5px solid ${t.border2}` }}/>}
+      {value && (
+        <span style={{ fontSize: 13, color: connected ? '#4ADE80' : t.text2, fontWeight: 500 }}>
+          {connected && <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: 3, background: '#4ADE80', marginRight: 6, verticalAlign: 'middle' }}/>}
+          {value}
+        </span>
+      )}
+      <svg width="8" height="12" viewBox="0 0 8 12"><path d="M1 1l6 5-6 5" stroke={t.text4} strokeWidth="1.8" fill="none" strokeLinecap="round"/></svg>
+    </button>
+  );
+}
+
+function ToggleRow({ dark, icon, label, on: initialOn }) {
+  const t = theme(dark ? 'dark' : 'light');
+  const [on, setOn] = React.useState(initialOn);
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px',
+      borderBottom: `0.5px solid ${t.divider}`,
+    }}>
+      <div style={{ width: 28, height: 28, borderRadius: 8, background: T.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.accent, flexShrink: 0 }}>
+        {settingIcon(icon, 'currentColor')}
+      </div>
+      <span style={{ flex: 1, fontSize: 14.5, color: t.text, fontWeight: 500, letterSpacing: -0.2 }}>{label}</span>
+      <button onClick={() => setOn(!on)} style={{
+        width: 46, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer',
+        background: on ? T.accent : t.bg4,
+        position: 'relative', transition: 'background .2s',
+      }}>
+        <div style={{
+          position: 'absolute', top: 2, left: on ? 20 : 2,
+          width: 24, height: 24, borderRadius: 12, background: '#fff',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          transition: 'left .2s',
+        }} />
+      </button>
+    </div>
+  );
+}
+
+function ScreenSettings({ dark = true, onTab, active = 'dashboard', onToggleTheme }) {
+  const t = theme(dark ? 'dark' : 'light');
+
+  return (
+    <Device dark={dark}>
+      <LargeHeader dark={dark} title="Réglages"
+        leading={<div style={{ color: T.accent, fontSize: 15, fontWeight: 500 }}>← Retour</div>} />
+
+      <Scroll dark={dark}>
+        <div style={{ margin: '0 16px', padding: 16, borderRadius: 20, background: t.bg3, border: `0.5px solid ${t.border}`, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 28,
+            background: `linear-gradient(135deg, ${T.accent}, #FF8C42)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 700, fontSize: 20, letterSpacing: -0.5,
+          }}>AM</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 17, fontWeight: 600, color: t.text, letterSpacing: -0.3 }}>Antoine Marchand</div>
+            <div style={{ fontSize: 12, color: t.text2, marginTop: 1 }}>antoine@up-technologies.fr</div>
+            <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 8px', borderRadius: 6, background: T.accentSoft, color: T.accent, fontSize: 10, fontWeight: 700, letterSpacing: 0.4 }}>
+              UP TECHNOLOGIES · NIV 14
+            </div>
+          </div>
+          <svg width="10" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" stroke={t.text3} strokeWidth="2" fill="none" strokeLinecap="round"/></svg>
+        </div>
+
+        <SectionTitle dark={dark} title="Apparence" />
+        <Group dark={dark}>
+          <SettingRow dark={dark} icon="theme" label="Thème" value={dark ? 'Sombre' : 'Clair'} onClick={onToggleTheme} />
+          <SettingRow dark={dark} icon="color" label="Couleur d'accent" swatch={T.accent} value="Orange" />
+          <SettingRow dark={dark} icon="text" label="Taille du texte" value="Par défaut" last />
+        </Group>
+
+        <SectionTitle dark={dark} title="Mode Prosp" />
+        <Group dark={dark}>
+          <ToggleRow dark={dark} icon="bolt" label="Vibrations tactiles" on />
+          <ToggleRow dark={dark} icon="auto" label="Auto-appel après 3s" on={false} />
+          <ToggleRow dark={dark} icon="rec" label="Enregistrement appels" on />
+          <SettingRow dark={dark} icon="filter" label="Filtres par défaut" value="5★ · Aero FR" last />
+        </Group>
+
+        <SectionTitle dark={dark} title="Intégrations" />
+        <Group dark={dark}>
+          <SettingRow dark={dark} icon="linkedin" label="LinkedIn Sales" value="Connecté" connected />
+          <SettingRow dark={dark} icon="cal" label="Google Calendar" value="Connecté" connected />
+          <SettingRow dark={dark} icon="phone" label="Aircall" value="Non connecté" />
+          <SettingRow dark={dark} icon="zap" label="n8n Workflows" value="3 actifs" last />
+        </Group>
+
+        <SectionTitle dark={dark} title="Compte" />
+        <Group dark={dark}>
+          <SettingRow dark={dark} icon="lock" label="Sécurité & Face ID" />
+          <SettingRow dark={dark} icon="bell" label="Notifications" />
+          <SettingRow dark={dark} icon="help" label="Aide & support" />
+          <SettingRow dark={dark} icon="out" label="Déconnexion" danger last />
+        </Group>
+
+        <div style={{ textAlign: 'center', padding: '16px 0 30px', fontSize: 11, color: t.text3, letterSpacing: 0.4 }}>
+          ProspUp v29.8 · build 2026.04
+        </div>
+      </Scroll>
+
+      <TabBar dark={dark} active={active} onTab={onTab} />
+    </Device>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DESIGN CANVAS — Figma-ish pan/zoom viewport with sections + focus overlay
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DC = {
+  bg: '#f0eee9',
+  grid: 'rgba(0,0,0,0.06)',
+  label: 'rgba(60,50,40,0.7)',
+  title: 'rgba(40,30,20,0.85)',
+  subtitle: 'rgba(60,50,40,0.6)',
+  font: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+};
+
+if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
+  const s = document.createElement('style');
+  s.id = 'dc-styles';
+  s.textContent = [
+    '.dc-card{transition:box-shadow .15s,transform .15s}',
+    '.dc-card *{scrollbar-width:none}',
+    '.dc-card *::-webkit-scrollbar{display:none}',
+    '.dc-labelrow{display:flex;align-items:center;gap:4px;height:24px}',
+    '.dc-labeltext{cursor:pointer;border-radius:4px;padding:3px 6px;display:flex;align-items:center;transition:background .12s}',
+    '.dc-labeltext:hover{background:rgba(0,0,0,.05)}',
+    '.dc-expand{position:absolute;bottom:100%;right:0;margin-bottom:5px;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
+    '  width:22px;height:22px;border-radius:5px;border:none;cursor:pointer;padding:0;',
+    '  background:transparent;color:rgba(60,50,40,.7);display:flex;align-items:center;justify-content:center}',
+    '.dc-expand:hover{background:rgba(0,0,0,.06);color:#2a251f}',
+    '[data-dc-slot]:hover .dc-expand{opacity:1}',
+  ].join('\n');
+  document.head.appendChild(s);
+}
+
+const DCCtx = React.createContext(null);
+
+function DesignCanvas({ children, minScale = 0.1, maxScale = 8, style = {} }) {
+  const [focus, setFocus] = React.useState(null);
+
+  const registry = {};
+  const sectionMeta = {};
+  const sectionOrder = [];
+  React.Children.forEach(children, (sec) => {
+    if (!sec || sec.type !== DCSection) return;
+    const sid = sec.props.id ?? sec.props.title;
+    if (!sid) return;
+    sectionOrder.push(sid);
+    const srcIds = [];
+    React.Children.forEach(sec.props.children, (ab) => {
+      if (!ab || ab.type !== DCArtboard) return;
+      const aid = ab.props.id ?? ab.props.label;
+      if (!aid) return;
+      registry[`${sid}/${aid}`] = { sectionId: sid, artboard: ab };
+      srcIds.push(aid);
+    });
+    sectionMeta[sid] = {
+      title: sec.props.title,
+      subtitle: sec.props.subtitle,
+      slotIds: srcIds,
+    };
+  });
+
+  const api = React.useMemo(() => ({ setFocus }), []);
+
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setFocus(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  return (
+    <DCCtx.Provider value={api}>
+      <DCViewport minScale={minScale} maxScale={maxScale} style={style}>{children}</DCViewport>
+      {focus && registry[focus] && (
+        <DCFocusOverlay entry={registry[focus]} sectionMeta={sectionMeta} sectionOrder={sectionOrder} focus={focus} setFocus={setFocus} />
+      )}
+    </DCCtx.Provider>
+  );
+}
+
+function DCViewport({ children, minScale, maxScale, style }) {
+  const vpRef = React.useRef(null);
+  const worldRef = React.useRef(null);
+  const tf = React.useRef({ x: 0, y: 0, scale: 1 });
+
+  const apply = React.useCallback(() => {
+    const { x, y, scale } = tf.current;
+    const el = worldRef.current;
+    if (el) el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+  }, []);
+
+  React.useEffect(() => {
+    const vp = vpRef.current;
+    if (!vp) return;
+
+    const zoomAt = (cx, cy, factor) => {
+      const r = vp.getBoundingClientRect();
+      const px = cx - r.left, py = cy - r.top;
+      const t = tf.current;
+      const next = Math.min(maxScale, Math.max(minScale, t.scale * factor));
+      const k = next / t.scale;
+      t.x = px - (px - t.x) * k;
+      t.y = py - (py - t.y) * k;
+      t.scale = next;
+      apply();
+    };
+
+    const isMouseWheel = (e) =>
+      e.deltaMode !== 0 ||
+      (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 40);
+
+    let isGesturing = false;
+
+    const onWheel = (e) => {
+      e.preventDefault();
+      if (isGesturing) return;
+      if (e.ctrlKey) {
+        zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));
+      } else if (isMouseWheel(e)) {
+        zoomAt(e.clientX, e.clientY, Math.exp(-Math.sign(e.deltaY) * 0.18));
+      } else {
+        tf.current.x -= e.deltaX;
+        tf.current.y -= e.deltaY;
+        apply();
+      }
+    };
+
+    let gsBase = 1;
+    const onGestureStart = (e) => { e.preventDefault(); isGesturing = true; gsBase = tf.current.scale; };
+    const onGestureChange = (e) => {
+      e.preventDefault();
+      zoomAt(e.clientX, e.clientY, (gsBase * e.scale) / tf.current.scale);
+    };
+    const onGestureEnd = (e) => { e.preventDefault(); isGesturing = false; };
+
+    let drag = null;
+    const onPointerDown = (e) => {
+      const onBg = !e.target.closest('[data-dc-slot]');
+      if (!(e.button === 1 || (e.button === 0 && onBg))) return;
+      e.preventDefault();
+      vp.setPointerCapture(e.pointerId);
+      drag = { id: e.pointerId, lx: e.clientX, ly: e.clientY };
+      vp.style.cursor = 'grabbing';
+    };
+    const onPointerMove = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      tf.current.x += e.clientX - drag.lx;
+      tf.current.y += e.clientY - drag.ly;
+      drag.lx = e.clientX; drag.ly = e.clientY;
+      apply();
+    };
+    const onPointerUp = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      vp.releasePointerCapture(e.pointerId);
+      drag = null;
+      vp.style.cursor = '';
+    };
+
+    vp.addEventListener('wheel', onWheel, { passive: false });
+    vp.addEventListener('gesturestart', onGestureStart, { passive: false });
+    vp.addEventListener('gesturechange', onGestureChange, { passive: false });
+    vp.addEventListener('gestureend', onGestureEnd, { passive: false });
+    vp.addEventListener('pointerdown', onPointerDown);
+    vp.addEventListener('pointermove', onPointerMove);
+    vp.addEventListener('pointerup', onPointerUp);
+    vp.addEventListener('pointercancel', onPointerUp);
+    return () => {
+      vp.removeEventListener('wheel', onWheel);
+      vp.removeEventListener('gesturestart', onGestureStart);
+      vp.removeEventListener('gesturechange', onGestureChange);
+      vp.removeEventListener('gestureend', onGestureEnd);
+      vp.removeEventListener('pointerdown', onPointerDown);
+      vp.removeEventListener('pointermove', onPointerMove);
+      vp.removeEventListener('pointerup', onPointerUp);
+      vp.removeEventListener('pointercancel', onPointerUp);
+    };
+  }, [apply, minScale, maxScale]);
+
+  const gridSvg = `url("data:image/svg+xml,%3Csvg width='120' height='120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M120 0H0v120' fill='none' stroke='${encodeURIComponent(DC.grid)}' stroke-width='1'/%3E%3C/svg%3E")`;
+  return (
+    <div ref={vpRef} className="design-canvas"
+      style={{
+        height: '100vh', width: '100vw',
+        background: DC.bg, overflow: 'hidden',
+        overscrollBehavior: 'none', touchAction: 'none',
+        position: 'relative', fontFamily: DC.font, boxSizing: 'border-box',
+        ...style,
+      }}>
+      <div ref={worldRef}
+        style={{
+          position: 'absolute', top: 0, left: 0,
+          transformOrigin: '0 0', willChange: 'transform',
+          width: 'max-content', minWidth: '100%', minHeight: '100%',
+          padding: '60px 0 80px',
+        }}>
+        <div style={{ position: 'absolute', inset: -6000, backgroundImage: gridSvg, backgroundSize: '120px 120px', pointerEvents: 'none', zIndex: -1 }} />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DCSection({ id, title, subtitle, children, gap = 48 }) {
+  const all = React.Children.toArray(children);
+  const artboards = all.filter((c) => c && c.type === DCArtboard);
+  return (
+    <div data-dc-section={id} style={{ marginBottom: 80, position: 'relative' }}>
+      <div style={{ padding: '0 60px 56px' }}>
+        <div style={{ fontSize: 28, fontWeight: 600, color: DC.title, letterSpacing: -0.4, marginBottom: 6 }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 16, color: DC.subtitle }}>{subtitle}</div>}
+      </div>
+      <div style={{ display: 'flex', gap, padding: '0 60px', alignItems: 'flex-start', width: 'max-content' }}>
+        {artboards.map((ab) => (
+          <DCArtboardFrame key={ab.props.id ?? ab.props.label} sectionId={id} artboard={ab} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DCArtboard() { return null; }
+
+function DCArtboardFrame({ sectionId, artboard }) {
+  const ctx = React.useContext(DCCtx);
+  const { id: rawId, label, width = 260, height = 480, children, style = {} } = artboard.props;
+  const id = rawId ?? label;
+  const onFocus = () => ctx && ctx.setFocus(`${sectionId}/${id}`);
+
+  return (
+    <div data-dc-slot={id} style={{ position: 'relative', flexShrink: 0 }}>
+      <div className="dc-labelrow" style={{ position: 'absolute', bottom: '100%', left: -4, marginBottom: 4, color: DC.label }}>
+        <div className="dc-labeltext" onClick={onFocus} title="Click to focus">
+          <span style={{ fontSize: 15, fontWeight: 500, color: DC.label, lineHeight: 1 }}>{label}</span>
+        </div>
+      </div>
+      <button className="dc-expand" onClick={onFocus} onPointerDown={(e) => e.stopPropagation()} title="Focus">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M7 1h4v4M5 11H1V7M11 1L7.5 4.5M1 11l3.5-3.5"/></svg>
+      </button>
+      <div className="dc-card"
+        style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: '#fff', ...style }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DCFocusOverlay({ entry, sectionMeta, sectionOrder, focus, setFocus }) {
+  const { sectionId, artboard } = entry;
+  const meta = sectionMeta[sectionId];
+  const peers = meta.slotIds;
+  const aid = artboard.props.id ?? artboard.props.label;
+  const idx = peers.indexOf(aid);
+  const secIdx = sectionOrder.indexOf(sectionId);
+
+  const go = (d) => { const n = peers[(idx + d + peers.length) % peers.length]; if (n) setFocus(`${sectionId}/${n}`); };
+  const goSection = (d) => {
+    const ns = sectionOrder[(secIdx + d + sectionOrder.length) % sectionOrder.length];
+    const first = sectionMeta[ns] && sectionMeta[ns].slotIds[0];
+    if (first) setFocus(`${ns}/${first}`);
+  };
+
+  React.useEffect(() => {
+    const k = (e) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); go(1); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); goSection(-1); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); goSection(1); }
+    };
+    document.addEventListener('keydown', k);
+    return () => document.removeEventListener('keydown', k);
+  });
+
+  const { width = 260, height = 480, children } = artboard.props;
+  const [vp, setVp] = React.useState({ w: window.innerWidth, h: window.innerHeight });
+  React.useEffect(() => { const r = () => setVp({ w: window.innerWidth, h: window.innerHeight }); window.addEventListener('resize', r); return () => window.removeEventListener('resize', r); }, []);
+  const scale = Math.max(0.1, Math.min((vp.w - 200) / width, (vp.h - 260) / height, 2));
+
+  const [ddOpen, setDd] = React.useState(false);
+  const Arrow = ({ dir, onClick }) => (
+    <button onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{ position: 'absolute', top: '50%', [dir]: 28, transform: 'translateY(-50%)',
+        border: 'none', background: 'rgba(255,255,255,.08)', color: 'rgba(255,255,255,.9)',
+        width: 44, height: 44, borderRadius: 22, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .15s' }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.18)')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.08)')}>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path d={dir === 'left' ? 'M11 3L5 9l6 6' : 'M7 3l6 6-6 6'} /></svg>
+    </button>
+  );
+
+  return ReactDOM.createPortal(
+    <div onClick={() => setFocus(null)}
+      onWheel={(e) => e.preventDefault()}
+      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(24,20,16,.6)', backdropFilter: 'blur(14px)',
+        fontFamily: DC.font, color: '#fff' }}>
+
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 72, display: 'flex', alignItems: 'flex-start', padding: '16px 20px 0', gap: 16 }}>
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => setDd((o) => !o)}
+            style={{ border: 'none', background: 'transparent', color: '#fff', cursor: 'pointer', padding: '6px 8px',
+              borderRadius: 6, textAlign: 'left', fontFamily: 'inherit' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: -0.3 }}>{meta.title}</span>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" style={{ opacity: .7 }}><path d="M2 4l3.5 3.5L9 4"/></svg>
+            </span>
+            {meta.subtitle && <span style={{ display: 'block', fontSize: 13, opacity: .6, fontWeight: 400, marginTop: 2 }}>{meta.subtitle}</span>}
+          </button>
+          {ddOpen && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#2a251f', borderRadius: 8,
+              boxShadow: '0 8px 32px rgba(0,0,0,.4)', padding: 4, minWidth: 200, zIndex: 10 }}>
+              {sectionOrder.map((sid) => (
+                <button key={sid} onClick={() => { setDd(false); const f = sectionMeta[sid].slotIds[0]; if (f) setFocus(`${sid}/${f}`); }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
+                    background: sid === sectionId ? 'rgba(255,255,255,.1)' : 'transparent', color: '#fff',
+                    padding: '8px 12px', borderRadius: 5, fontSize: 14, fontWeight: sid === sectionId ? 600 : 400, fontFamily: 'inherit' }}>
+                  {sectionMeta[sid].title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ flex: 1 }} />
+        <button onClick={() => setFocus(null)}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.12)')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          style={{ border: 'none', background: 'transparent', color: 'rgba(255,255,255,.7)', width: 32, height: 32,
+            borderRadius: 16, fontSize: 20, cursor: 'pointer', lineHeight: 1, transition: 'background .12s' }}>×</button>
+      </div>
+
+      <div style={{ position: 'absolute', top: 64, bottom: 56, left: 100, right: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ width: width * scale, height: height * scale, position: 'relative' }}>
+          <div style={{ width, height, transform: `scale(${scale})`, transformOrigin: 'top left', background: '#fff', borderRadius: 2, overflow: 'hidden',
+            boxShadow: '0 20px 80px rgba(0,0,0,.4)' }}>
+            {children}
+          </div>
+        </div>
+        <div onClick={(e) => e.stopPropagation()} style={{ fontSize: 14, fontWeight: 500, opacity: .85, textAlign: 'center' }}>
+          {artboard.props.label}
+          <span style={{ opacity: .5, marginLeft: 10, fontVariantNumeric: 'tabular-nums' }}>{idx + 1} / {peers.length}</span>
+        </div>
+      </div>
+
+      <Arrow dir="left" onClick={() => go(-1)} />
+      <Arrow dir="right" onClick={() => go(1)} />
+
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 8 }}>
+        {peers.map((p, i) => (
+          <button key={p} onClick={() => setFocus(`${sectionId}/${p}`)}
+            style={{ border: 'none', padding: 0, cursor: 'pointer', width: 6, height: 6, borderRadius: 3,
+              background: i === idx ? '#fff' : 'rgba(255,255,255,.3)' }} />
+        ))}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// APP
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FRAME_W = DEVICE_W + 20;
+const FRAME_H = DEVICE_H + 20;
+
+function Frame({ children }) {
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#1a1816', padding: 10, overflow: 'hidden' }}>
+      {children}
+    </div>
+  );
+}
+
+function App() {
+  const [dark, setDark] = React.useState(true);
+
+  return (
+    <DesignCanvas>
+      <DCSection id="overview" title="ProspUp Mobile 2026" subtitle="Concept iOS 26 · Liquid Glass · Dark-first · Orange UP Technologies">
+        <DCArtboard id="login" label="01 · Connexion" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenLogin dark={dark} /></Frame>
+        </DCArtboard>
+        <DCArtboard id="dashboard" label="02 · Tableau de bord" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenDashboard dark={dark} active="dashboard" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="prospects" label="03 · Prospects" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenProspects dark={dark} active="prospects" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="detail" label="04 · Fiche prospect" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenDetail dark={dark} p={PROSPECTS[0]} /></Frame>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="core" title="Mode Prosp & Sourcing" subtitle="Les deux expériences signature — focus + matching IA">
+        <DCArtboard id="prosp" label="05 · Mode Prosp (stack)" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenProsp dark={dark} active="prosp" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="companies" label="06 · Sociétés" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenCompanies dark={dark} active="entreprises" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="sourcing" label="07 · Sourcing IA" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenSourcing dark={dark} active="prosp" /></Frame>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="deep" title="Stats & Réglages" subtitle="Gamification, classement équipe, personnalisation">
+        <DCArtboard id="stats" label="08 · Stats" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenStats dark={dark} active="stats" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="settings" label="09 · Réglages" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenSettings dark={dark} active="dashboard" onToggleTheme={() => setDark(d => !d)} /></Frame>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="light" title="Variante claire" subtitle="Même langage, warm off-white — Apple Notes / Mail 2026">
+        <DCArtboard id="dash-light" label="Dashboard · Clair" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenDashboard dark={false} active="dashboard" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="prospects-light" label="Prospects · Clair" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenProspects dark={false} active="prospects" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="detail-light" label="Fiche · Clair" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenDetail dark={false} p={PROSPECTS[0]} /></Frame>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

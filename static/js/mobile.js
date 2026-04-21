@@ -45,58 +45,62 @@
     nav.setAttribute('role', 'navigation');
     nav.setAttribute('aria-label', 'Navigation mobile');
 
+    // 2026 — 5 tabs matching the iOS 26 prototype. The center tab (Prosp)
+    // uses a bolt icon and a slightly larger size via the --primary modifier.
     var tabs = [
-      { page: 'dashboard', href: '/dashboard', icon: window.icon ? window.icon('chart', {size:20}) : '', label: 'Stats' },
-      { page: 'prospects', href: '/',          icon: window.icon ? window.icon('users', {size:20}) : '', label: 'Prospects' },
-      { page: 'focus',     href: '/focus',     icon: window.icon ? window.icon('target', {size:20}) : '', label: 'Focus' },
-      { page: 'calendar',  href: '/calendrier',icon: window.icon ? window.icon('calendar', {size:20}) : '', label: 'Agenda' }
+      { page: 'dashboard', href: '/dashboard',           icon: window.icon ? window.icon('home',     {size: 22}) : '', label: 'Dashboard' },
+      { page: 'prospects', href: '/',                    icon: window.icon ? window.icon('users',    {size: 22}) : '', label: 'Prospects' },
+      { page: 'mode-prosp',href: '/prospects/mode-prosp',icon: window.icon ? window.icon('zap',      {size: 24}) : '', label: 'Prosp', primary: true },
+      { page: 'companies', href: '/entreprises',         icon: window.icon ? window.icon('building', {size: 22}) : '', label: 'Sociétés' },
+      { page: 'stats',     href: '/stats',               icon: window.icon ? window.icon('chart',    {size: 22}) : '', label: 'Stats' }
     ];
 
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();
     var currentPath = window.location.pathname;
 
-    tabs.forEach(function (t) {
+    // Inner wrapper holds the sliding pill + the tabs themselves, so the pill
+    // sits behind via absolute positioning and z-index.
+    var inner = document.createElement('div');
+    inner.className = 'm26-tabbar-inner';
+
+    var pill = document.createElement('div');
+    pill.className = 'm26-tab-pill';
+    pill.setAttribute('aria-hidden', 'true');
+    inner.appendChild(pill);
+
+    var activeIdx = -1;
+    tabs.forEach(function (t, i) {
       var a = document.createElement('a');
       a.href = t.href;
-      a.className = 'm-tab';
+      a.className = 'm-tab m26-tab' + (t.primary ? ' m26-tab--primary' : '');
       a.setAttribute('data-page', t.page);
 
       var isActive = (t.page === currentPage) ||
                      (t.href === currentPath) ||
                      (t.href === '/' && currentPath === '/');
-      if (isActive) a.classList.add('active');
+      if (isActive) { a.classList.add('active'); activeIdx = i; }
 
       a.innerHTML =
-        '<span class="m-tab-icon">' + t.icon + '</span>' +
-        '<span class="m-tab-label">' + t.label + '</span>';
+        '<span class="m-tab-icon m26-tab-icon">' + t.icon + '</span>' +
+        '<span class="m-tab-label m26-tab-label">' + escapeHtml(t.label) + '</span>';
 
       a.addEventListener('click', handleNavClick);
-      nav.appendChild(a);
+      inner.appendChild(a);
     });
 
-    // Profile button
-    var profileBtn = document.createElement('button');
-    profileBtn.type = 'button';
-    profileBtn.className = 'm-tab';
-    profileBtn.onclick = function () {
-      if (typeof openUserMenu === 'function') openUserMenu();
-    };
-
-    var initial = 'A';
-    if (window.AppAuth && window.AppAuth.user) {
-      initial = ((window.AppAuth.user.display_name || window.AppAuth.user.username || '').charAt(0) || 'A').toUpperCase();
+    // Position the pill under the active tab. When no tab matches (e.g. we
+    // are on a page not in the bar like Réglages), hide the pill entirely
+    // rather than leave it stuck on tab 0.
+    if (activeIdx < 0) {
+      pill.style.display = 'none';
+    } else {
+      var slot = 100 / tabs.length;
+      pill.style.left = 'calc(' + (activeIdx * slot) + '% + 4px)';
+      pill.style.width = 'calc(' + slot + '% - 8px)';
     }
 
-    profileBtn.innerHTML =
-      '<span class="m-tab-avatar" id="m-avatar">' + initial + '</span>' +
-      '<span class="m-tab-label">Profil</span>';
-
-    nav.appendChild(profileBtn);
+    nav.appendChild(inner);
     document.body.appendChild(nav);
-
-    // Sync avatar after sidebar-ready
-    document.addEventListener('sidebar-ready', syncAvatar);
-    setTimeout(syncAvatar, 1200);
   }
 
   function syncAvatar() {
