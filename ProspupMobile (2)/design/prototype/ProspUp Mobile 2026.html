@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProspUp Mobile 2026 — Concept iOS 26</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; overflow: hidden; }
+  * { box-sizing: border-box; }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="src/tokens.jsx"></script>
+<script type="text/babel" src="src/data.jsx"></script>
+<script type="text/babel" src="src/shell.jsx"></script>
+<script type="text/babel" src="src/screen-login.jsx"></script>
+<script type="text/babel" src="src/screen-dashboard.jsx"></script>
+<script type="text/babel" src="src/screen-prospects.jsx"></script>
+<script type="text/babel" src="src/screen-detail.jsx"></script>
+<script type="text/babel" src="src/screen-prosp.jsx"></script>
+<script type="text/babel" src="src/screen-companies.jsx"></script>
+<script type="text/babel" src="src/screen-sourcing.jsx"></script>
+<script type="text/babel" src="src/screen-stats.jsx"></script>
+<script type="text/babel" src="src/screen-settings.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+// ─────────────────────────────────────────────────────────────
+// ProspUp 2026 — Design canvas assembly
+// 9 écrans dans 3 sections : Onboarding, Core, Deep
+// Dark par défaut, chaque écran a son équivalent clair en option
+// ─────────────────────────────────────────────────────────────
+
+const FRAME_W = DEVICE_W + 20;  // 422
+const FRAME_H = DEVICE_H + 20;  // 894
+
+function Frame({ children }) {
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#1a1816', padding: 10, overflow: 'hidden' }}>
+      {children}
+    </div>
+  );
+}
+
+function App() {
+  const [dark, setDark] = React.useState(true);
+
+  return (
+    <DesignCanvas>
+      <DCSection id="overview" title="ProspUp Mobile 2026" subtitle="Concept iOS 26 · Liquid Glass · Dark-first · Orange UP Technologies">
+        <DCArtboard id="login" label="01 · Connexion" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenLogin dark={dark} /></Frame>
+        </DCArtboard>
+        <DCArtboard id="dashboard" label="02 · Tableau de bord" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenDashboard dark={dark} active="dashboard" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="prospects" label="03 · Prospects" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenProspects dark={dark} active="prospects" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="detail" label="04 · Fiche prospect" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenDetail dark={dark} p={PROSPECTS[0]} /></Frame>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="core" title="Mode Prosp & Sourcing" subtitle="Les deux expériences signature — focus + matching IA">
+        <DCArtboard id="prosp" label="05 · Mode Prosp (stack)" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenProsp dark={dark} active="prosp" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="companies" label="06 · Sociétés" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenCompanies dark={dark} active="entreprises" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="sourcing" label="07 · Sourcing IA" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenSourcing dark={dark} active="prosp" /></Frame>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="deep" title="Stats & Réglages" subtitle="Gamification, classement équipe, personnalisation">
+        <DCArtboard id="stats" label="08 · Stats" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenStats dark={dark} active="stats" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="settings" label="09 · Réglages" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenSettings dark={dark} active="dashboard" onToggleTheme={() => setDark(d => !d)} /></Frame>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="light" title="Variante claire" subtitle="Même langage, warm off-white — Apple Notes / Mail 2026">
+        <DCArtboard id="dash-light" label="Dashboard · Clair" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenDashboard dark={false} active="dashboard" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="prospects-light" label="Prospects · Clair" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenProspects dark={false} active="prospects" /></Frame>
+        </DCArtboard>
+        <DCArtboard id="detail-light" label="Fiche · Clair" width={FRAME_W} height={FRAME_H}>
+          <Frame><ScreenDetail dark={false} p={PROSPECTS[0]} /></Frame>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
