@@ -2,6 +2,32 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.0-alpha] — 2026-04-21
+
+### UI v30 — étape 3 (branchement Dashboard + écran Prospects)
+
+- **Dashboard v3 branché** sur les vraies données via `static/js/v30/dashboard.js` :
+  `/api/dashboard` pour hero KPIs, goals, feed activité ; `/api/dashboard/pipeline-stages`
+  pour pipeline + priorités IA ; `/api/tasks?status=pending` pour l'action center
+  "À faire". Plus aucune donnée mockée (sauf streak, faute de table dédiée).
+  `page_v30_dashboard()` passe désormais `display_name`, `user_initials` et les
+  compteurs sidebar réels.
+- **Prospects v30** — preview sur `/v30/prospects` :
+  - 3 vues switchables : Table (densité 32px, 10 colonnes incluant Mobile avec
+    pastille de disponibilité, Pertinence en 5 barres), Kanban (5 statuts,
+    cartes compactes), Split (320px liste + panel détail).
+  - Bulk bar flottante (fond `var(--text)`) apparaissant dès une sélection :
+    Pousser · Email IA · Tel IA · Tag · Assigner · Effacer.
+  - Recherche fuzzy inline branchée sur `GET /api/search` (debounce 200 ms).
+  - Pagination offset-based (50/page).
+  - Sélection multi-lignes (checkbox + cocher tout).
+  - Bulk tags branché sur `POST /api/prospects/bulk-status-tags` ; push bulk
+    redirige vers `/push?ids=…` faute d'endpoint bulk-push.
+  - Clic sur une ligne → redirection vers la fiche legacy `/?prospect=id`
+    (la fiche v30 viendra dans un commit ultérieur).
+- Nouveau fichier JS chargé defer, aucun framework. Nouveau CSS
+  `static/css/v30/prospects.css`. `APP_VERSION` bumpée 29.9 → 30.0-alpha.
+
 ## [29.9] — 2026-04-21
 
 ### UI v30 — étape 3 (écrans 1 & 2)
