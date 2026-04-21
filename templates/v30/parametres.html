@@ -1,0 +1,130 @@
+{% extends "v30/base.html" %}
+{% block title %}Paramètres — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-parametres{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/parametres.css?v={{ static_hash('css/v30/parametres.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-params" data-v30-params>
+
+  <div class="v30-params__topbar">
+    <div>
+      <div class="v30-params__eyebrow">Personnalisation</div>
+      <h1 class="v30-params__title"><span class="serif">Paramètres.</span></h1>
+      <div class="v30-params__sub">Configuration IA, objectifs, serveur, compte.</div>
+    </div>
+    <div class="v30-spacer"></div>
+    <a class="btn" href="/parametres">
+      {{ ui.icon('link', 13) }} Ouvrir la page complète
+    </a>
+  </div>
+
+  <div class="v30-params__grid">
+
+    {# Opt-out v30 → v29 #}
+    <div class="v30-params__card v30-params__card--opt-out">
+      <div class="v30-params__card-head">
+        {{ ui.icon('sparkles', 16) }}
+        <h3>Revenir à l'ancienne interface</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Bascule vers l'interface v29. Tes données restent intactes. Tu peux revenir
+        à la v30 à tout moment depuis Paramètres v29.
+      </p>
+      <a class="btn" href="#" data-v30-opt-out>Revenir en v29</a>
+    </div>
+
+    {# Configuration IA #}
+    <a class="v30-params__card" href="/parametres#aiConfigSection">
+      <div class="v30-params__card-head">
+        {{ ui.icon('sparkles', 16) }}
+        <h3>Configuration IA</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Modèle Ollama local, clé Tavily pour la recherche web, timeout.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    {# Objectifs / gamification #}
+    <a class="v30-params__card" href="/parametres#goals">
+      <div class="v30-params__card-head">
+        {{ ui.icon('chart', 16) }}
+        <h3>Objectifs &amp; Gamification</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Cibles hebdo/mensuelles (prospects contactés, RDV, pushs). Affichage dashboard.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    {# Gestion des données #}
+    <a class="v30-params__card" href="/parametres#backupSection">
+      <div class="v30-params__card-head">
+        {{ ui.icon('inbox', 16) }}
+        <h3>Sauvegardes &amp; données</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Snapshots journaliers, export JSON, restauration.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    {# Notifications #}
+    <a class="v30-params__card" href="/parametres#notifications">
+      <div class="v30-params__card-head">
+        {{ ui.icon('bell', 16) }}
+        <h3>Notifications navigateur</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Push natif pour les relances à faire et les tâches du jour.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    {# Mise à jour serveur (admin) #}
+    {% if current_user and current_user.role == 'admin' %}
+    <a class="v30-params__card" href="/parametres#deployUpdateSection">
+      <div class="v30-params__card-head">
+        {{ ui.icon('arrowU', 16) }}
+        <h3>Mise à jour du serveur</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        <span class="v30-params__admin-badge">Admin</span>
+        Pull git + restart + rollback depuis l'app.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+    {% endif %}
+
+    {# Mon compte #}
+    <a class="v30-params__card" href="/parametres#change-password">
+      <div class="v30-params__card-head">
+        {{ ui.icon('user', 16) }}
+        <h3>Mon compte</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Changer le mot de passe, profil, première connexion.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    {# À propos #}
+    <a class="v30-params__card" href="/parametres#about">
+      <div class="v30-params__card-head">
+        {{ ui.icon('bulb', 16) }}
+        <h3>À propos</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Version <span class="mono">{{ app_version }}</span>, commit, release notes.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+  </div>
+</div>
+{% endblock %}

@@ -4806,6 +4806,30 @@ def page_v30_stats():
     )
 
 
+@app.get("/v30/parametres")
+@login_required
+def page_v30_parametres():
+    """Paramètres v30 — hub cards + liens vers /parametres#section legacy."""
+    uid = _uid()
+    current_user = _get_current_user() or {}
+    user_initials = "AB"
+    if uid:
+        dn = (current_user.get("display_name") or current_user.get("username") or "").strip()
+        if dn:
+            parts = [p for p in dn.split() if p]
+            user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
+    return render_template(
+        "v30/parametres.html",
+        active="parametres",
+        crumbs=["Prosp'Up", "Paramètres"],
+        counts={},
+        pinned=[],
+        user_initials=user_initials,
+        current_user=current_user,
+        app_version=APP_VERSION,
+    )
+
+
 @app.get("/v30/users")
 @login_required
 @role_required('admin')

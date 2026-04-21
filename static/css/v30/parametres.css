@@ -1,0 +1,83 @@
+/* ProspUp v30 — Paramètres (hub) */
+
+.v30-params { display: flex; flex-direction: column; gap: 16px; }
+
+.v30-params__topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.v30-params__eyebrow {
+  font-size: 10.5px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.v30-params__title {
+  margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
+  letter-spacing: -.01em;
+}
+.v30-params__title .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; }
+.v30-params__sub { font-size: 12.5px; color: var(--text-2); }
+
+.v30-params__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.v30-params__card {
+  position: relative;
+  padding: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform .12s, border-color .12s;
+  min-height: 140px;
+}
+.v30-params__card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+}
+.v30-params__card-head {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--accent);
+}
+.v30-params__card-head h3 {
+  margin: 0; font-size: 14px; font-weight: 600; color: var(--text);
+}
+.v30-params__card-desc {
+  margin: 0; font-size: 12.5px; color: var(--text-2); line-height: 1.6;
+}
+.v30-params__card-arrow {
+  position: absolute; top: 16px; right: 16px;
+  color: var(--text-3);
+  transition: color .12s, transform .12s;
+}
+.v30-params__card:hover .v30-params__card-arrow {
+  color: var(--accent);
+  transform: translateX(2px);
+}
+.v30-params__card--opt-out {
+  background: linear-gradient(135deg, color-mix(in oklch, var(--accent) 10%, var(--surface)), var(--surface));
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+}
+.v30-params__card--opt-out .btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.v30-params__admin-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in oklch, var(--warn, #f59e0b) 18%, transparent);
+  color: var(--warn, #f59e0b);
+  margin-right: 4px;
+  vertical-align: middle;
+  letter-spacing: .03em;
+}
