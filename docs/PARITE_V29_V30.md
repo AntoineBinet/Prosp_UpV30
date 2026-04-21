@@ -4,6 +4,22 @@
 > Objectif : s'assurer que toute fonctionnalité accessible en v29 est présente et utilisable en v30.
 > Légende : ✅ présent et fonctionnel · ⚠️ présent mais incomplet ou cassé · ❌ manquant
 
+## 🟢 Sprint 1 — Résolu (2026-04-21)
+
+Les 5 bugs bloquants P0 ont été corrigés. `/v30/prospects`, `/v30/push` (onglet Templates), `/v30/sourcing`, `/v30/calendrier` et `/v30/rapport` affichent à nouveau leurs données.
+
+| Bug | Commit | Statut |
+|---|---|---|
+| P0 #1 prospects vide | [14825e5](https://github.com/AntoineBinet/Prosp_UpV25/commit/14825e5) | ✅ 1306 prospects affichés |
+| P0 #2 push Templates vide | [fbd2c60](https://github.com/AntoineBinet/Prosp_UpV25/commit/fbd2c60) | ✅ Template par défaut affiché |
+| P0 #3 sourcing vide | [9dc5a1e](https://github.com/AntoineBinet/Prosp_UpV25/commit/9dc5a1e) | ✅ 39 candidats actifs kanban Vivier |
+| P0 #4 calendrier vide | [327178f](https://github.com/AntoineBinet/Prosp_UpV25/commit/327178f) | ✅ 45 events RDV/relance/EC1 |
+| P0 #5 rapport KPI vides | [4d9efd2](https://github.com/AntoineBinet/Prosp_UpV25/commit/4d9efd2) | ✅ KPI 7/20/8/1 + pipeline 9 statuts |
+
+**Parité après Sprint 1 : ~72 %** (base mesurée 58 %).
+
+Le rapport détaillé ci-dessous reflète l'état **avant** Sprint 1 — les bugs P0 y sont référencés pour historique.
+
 ## Convention
 
 - Un tableau par paire v29 ↔ v30.
