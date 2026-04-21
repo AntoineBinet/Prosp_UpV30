@@ -4,7 +4,15 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
 ## [30.0-alpha] — 2026-04-21
 
-### UI v30 — étape 3 (Dashboard branché + écrans Prospects & Fiche prospect)
+### UI v30 — étape 3 (Dashboard branché + Prospects + Fiche prospect + Entreprises)
+
+- **Entreprises v30** — preview sur `/v30/entreprises` :
+  - Topbar : titre + compteur + recherche inline + Filtres + Ajouter.
+  - 4 KPI (Total entreprises · En pipeline · Total prospects · Actives 30j) en Instrument Serif.
+  - Table 8 colonnes : Entreprise (logo 28×28 + nom), Site, Prospects (accent), RDV/Propale, Gagnés, Dernier contact, Tags (2+extra), lien clic → `/v30/entreprise/<id>` (la fiche entreprise v30 viendra après).
+  - Branchée sur `GET /api/data` (réutilise le style prospects.css) ; agrégation par `company_id` côté client (total / piped / won / max lastContact).
+  - Recherche fuzzy client-side (groupe + site + tags), debounce 150 ms.
+  - Note : le schéma `companies` n'a pas `secteur`/`effectif`/`CA` du JSX de référence — la colonne JSX "CA prévu" a été remplacée par un comptage `Gagnés`. Ajout éventuel en migration DB plus tard si demandé.
 
 - **Fiche prospect v30** — preview sur `/v30/prospect/<id>` :
   - Header : avatar 56 px, nom éditable inline, pill statut, chips email/tél/LinkedIn, actions Pousser / Appeler / Planifier.
