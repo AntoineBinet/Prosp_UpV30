@@ -4497,6 +4497,45 @@ def page_v30_login():
     return render_template("v30/login.html", app_version=APP_VERSION)
 
 
+@app.get("/v30/entreprises")
+def page_v30_entreprises():
+    """Entreprises v30 (SPEC §3.5). Rendu serveur du chrome ; données
+    chargées côté client via /api/data (liste companies + prospects),
+    agrégation par company_id (total prospects, RDV/propale, gagnés,
+    dernier contact) dans static/js/v30/entreprises.js."""
+    uid = _uid()
+    user_initials = "AB"
+    if uid:
+        u = _get_current_user() or {}
+        dn = (u.get("display_name") or u.get("username") or "").strip()
+        if dn:
+            parts = [p for p in dn.split() if p]
+            user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
+    counts = {}
+    try:
+        with _conn() as conn:
+            counts["prospects"] = conn.execute(
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+            ).fetchone()[0]
+            counts["entreprises"] = conn.execute(
+                "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
+            ).fetchone()[0]
+            counts["candidats"] = conn.execute(
+                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+            ).fetchone()[0]
+    except Exception:
+        counts = {}
+    return render_template(
+        "v30/entreprises.html",
+        active="entreprises",
+        crumbs=["Prosp'Up", "Entreprises"],
+        counts=counts,
+        pinned=[],
+        user_initials=user_initials,
+        app_version=APP_VERSION,
+    )
+
+
 @app.get("/v30/prospect/<int:pid>")
 def page_v30_prospect_detail(pid):
     """Fiche prospect v30 (SPEC §3.4). Rendu serveur du chrome ;
