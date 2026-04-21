@@ -33,6 +33,7 @@
   <link rel="stylesheet" href="/static/css/v30/components.css?v={{ static_hash('css/v30/components.css') }}">
   <link rel="stylesheet" href="/static/css/v30/chrome.css?v={{ static_hash('css/v30/chrome.css') }}">
   <link rel="stylesheet" href="/static/css/v30/palette.css?v={{ static_hash('css/v30/palette.css') }}">
+  <link rel="stylesheet" href="/static/css/v30/shortcuts.css?v={{ static_hash('css/v30/shortcuts.css') }}">
 
   {% block extra_head %}{% endblock %}
 </head>
@@ -52,9 +53,13 @@
   {# ─── Command palette ⌘K (global) ─── #}
   {% include "_partials/v30/palette.html" %}
 
+  {# ─── Help modal (?) + raccourcis globaux ─── #}
+  {% include "_partials/v30/help_modal.html" %}
+
   {% block modals %}{% endblock %}
 
   <script defer src="/static/js/v30/palette.js?v={{ static_hash('js/v30/palette.js') }}"></script>
+  <script defer src="/static/js/v30/shortcuts.js?v={{ static_hash('js/v30/shortcuts.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
