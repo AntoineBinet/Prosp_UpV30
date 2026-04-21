@@ -6,6 +6,18 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
 ### UI v30 — étape 3 (Dashboard branché + Prospects + Fiche prospect + Entreprises)
 
+- **Opt-in/out v29 ↔ v30** (client-only, SPEC §5.3) :
+  - Sidebar v30 : nouveau bouton `v29` dans le footer qui bascule vers la page legacy équivalente avec mapping intelligent (`/v30/prospects` → `/`, `/v30/prospect/42` → `/?prospect=42`, etc.).
+  - base.html legacy : charge `static/js/v30/opt-in.js` qui affiche une bannière flottante discrète « Nouvelle interface v30 disponible → Essayer » (auto-hide 15 s, dismissible, persisté en localStorage).
+  - Choix utilisateur stocké dans `localStorage.prospup_ui_mode` (`v29` | `v30`). Aucun backend modifié.
+
+- **Raccourcis clavier globaux v30** (SPEC §2.3) :
+  - Command palette : `⌘K` / `Ctrl+K` / `/`.
+  - Navigation chainée `G + {D,P,E,S,F,U,T}` (Dashboard / Prospects / Entreprises / Sourcing / Focus / pUsh / sTats) avec hint flottant 1.5 s.
+  - `C` ouvre la palette (section Actions rapides), `⇧T` bascule le thème, `[` toggle la sidebar, `⌘B` active le focus mode (sidebar cachée, persisté localStorage), `?` ouvre le modal aide.
+  - Modal d'aide complet listant tous les raccourcis + placeholders pour les raccourcis de tableau (J/K/X/E, à brancher quand les tables v30 implémenteront la navigation clavier).
+  - Ignore proprement les saisies dans input/textarea/contenteditable et dans la palette elle-même.
+
 - **Fiche candidat v30** — preview sur `/v30/candidat/<cid>` :
   - Header : avatar + nom éditable inline + badge status + chips (LinkedIn, Source) + actions Générer DC / Pousser / More.
   - Main col : card Compétences (parsée depuis `candidates.tech` ou `skills`, barres 1-5 à niveau par défaut 3 faute de schéma dédié) + card Disponibilités 8 semaines (dérivée du champ `status` — Placé = toutes "placed", En entretien = 2 premières busy puis libre, sinon toutes libre).

@@ -39,7 +39,8 @@
 - [x] Endpoint `GET /api/search` (réutilise l'existant, pas besoin d'en créer)
 - [x] Sections : Actions rapides · Aller à… · Résultats (Prospects + Entreprises + Candidats)
 - [x] Raccourcis globaux : `⌘K` / `Ctrl+K` ouvrir, `↑↓` + `Enter` naviguer, `⌘+Enter` nouvel onglet, `Esc` fermer, action « Basculer thème »
-- [ ] À faire encore : raccourcis chainés `G+D`, `G+P`, `G+E`, `G+F`, `G+S` (goto), `C` (créer), `[` (toggle sidebar), `?` (modal aide), `⌘B` (focus mode), `J/K/X/E` (tables)
+- [x] Raccourcis chainés `G + {D,P,E,S,F,U,T}` (goto), `C` (créer), `[` (toggle sidebar), `?` (modal aide), `⌘B` (focus mode), `/` (palette alternative), `⇧T` (thème)
+- [ ] Raccourcis tableaux `J/K/X/E` (nav lignes + select + edit) — à brancher quand les tables v30 implémenteront la nav clavier
 
 ## Étape 5 · Polish & QA
 
@@ -47,7 +48,7 @@
 - [ ] Toasts, skeletons, empty states cohérents
 - [ ] Responsive desktop 1440 (rien ne doit casser <1280)
 - [ ] Tests Playwright adaptés (14 specs)
-- [ ] Flag `V30_UI` côté serveur + Paramètres > Affichage toggle
+- [~] Flag UI client-only (localStorage `prospup_ui_mode`) + bouton `v29` dans la sidebar v30 + bannière opt-in sur les pages legacy. Un flag serveur Flask reste à faire si on veut forcer le mode à la connexion.
 - [ ] PR `feat/ui-v30` → `main` avec récap + captures light + dark
 
 ## Étape 6 · Back-office
