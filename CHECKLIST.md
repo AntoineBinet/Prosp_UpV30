@@ -28,7 +28,7 @@
 - [x] **Prospects** (`screens/prospects.jsx` → `templates/v30/prospects.html`) — preview sur `/v30/prospects`. 3 vues Table/Kanban/Split + bulk bar. Branché sur `/api/search` (liste + fuzzy), `/api/prospects/bulk-status-tags`. Pagination offset-based. **Clic ligne → fiche legacy** pour l'instant, la fiche v30 arrive ensuite.
 - [x] **Fiche prospect** (`prospect-detail.jsx` → `templates/v30/prospect_detail.html`) — route `/v30/prospect/<id>`. Header éditable inline, tabs Aperçu/Timeline/Push/IA, drawer IA 480px. Branchée sur `/api/prospect/timeline` + `/api/prospects/bulk-edit` pour l'edit-in-place. Clic liste → v30 (plus legacy).
 - [x] **Entreprises** (`screens/entreprises.jsx` → `templates/v30/entreprises.html`) — route `/v30/entreprises`. Topbar + 4 KPI Instrument Serif + table 8 colonnes. Branché sur `GET /api/data`, agrégation par company_id (total / piped / won / lastContact). Recherche fuzzy client-side. Fiche entreprise dédiée (clic sur une ligne → `/v30/entreprise/<id>`) à faire.
-- [ ] **Push** (`screens/push.jsx`) — Campagnes / Templates / Historique + wizard 3 étapes
+- [~] **Push** (`screens/push.jsx` → `templates/v30/push.html`) — route `/v30/push`. **Templates + Historique branchés** sur `/api/templates` et `/api/data`. **Campagnes** : empty state + wizard preview non interactif (demande migration DB `push_campaigns`, SPEC §5.2, en attente de validation user).
 - [ ] **Sourcing** (`screens/sourcing.jsx`) — kanban + grille + matching par push
 - [ ] **Fiche candidat** — compétences (niveaux) + DC + calendrier dispo
 - [ ] **Stats + Rapport fusionnés** (`screens/stats.jsx`)

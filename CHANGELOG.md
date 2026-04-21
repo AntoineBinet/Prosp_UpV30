@@ -6,6 +6,12 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
 ### UI v30 — étape 3 (Dashboard branché + Prospects + Fiche prospect + Entreprises)
 
+- **Push v30** — preview sur `/v30/push` :
+  - Topbar : titre + segmented Campagnes/Templates/Historique + bouton accent « Nouvelle campagne ».
+  - Panel **Campagnes** : empty state expliquant que la table `push_campaigns` (SPEC §5.2) est à créer + wizard preview 3 étapes (Cible / Message / Envoi) **non interactif**. Migration DB proposée dans un futur commit avec validation utilisateur (HANDOFF §5 interdit toute migration sans accord explicite).
+  - Panel **Templates** : grid 3 colonnes, cartes avec nom + tags + preview body mono + stats (Utilisé / Ouverture). Lazy-load via `GET /api/templates`.
+  - Panel **Historique** : timeline groupée par jour (jusqu'à 10 derniers jours, 40 lignes/jour). Push logs récupérés via `/api/data` + jointure client-side prospect → company. Statut `envoyé`/`ouvert`/`répondu` dérivé de `openedAt`/`repliedAt`. Canal mail/linkedin badge.
+  - Bouton « Nouvelle campagne » → redirige vers la page Push legacy en attendant la migration DB.
 - **Entreprises v30** — preview sur `/v30/entreprises` :
   - Topbar : titre + compteur + recherche inline + Filtres + Ajouter.
   - 4 KPI (Total entreprises · En pipeline · Total prospects · Actives 30j) en Instrument Serif.
