@@ -1093,7 +1093,7 @@ async function _bulkChangeStatus(selectedSet, selectId, reloadFns) {
 async function _bulkDelete(selectedSet, reloadFns) {
     if (!selectedSet.size) return;
     const ids = [...selectedSet];
-    if (!confirm(`⚠️ Supprimer ${ids.length} candidat(s) sélectionné(s) ?\nCette action peut être annulée.`)) return;
+    if (!confirm(`Supprimer ${ids.length} candidat(s) sélectionné(s) ?\nCette action peut être annulée.`)) return;
     let done = 0;
     for (const id of ids) {
         const res = await fetch('/api/candidates/delete', {

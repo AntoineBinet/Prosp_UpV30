@@ -7856,7 +7856,7 @@ tags.forEach((t, idx) => {
     const tagColor = _tagColor(t);
     chip.style.cssText = `background:${tagColor}18;color:${tagColor};border:1px solid ${tagColor}30;`;
     chip.title = inRef ? 'Référentiel Up Technologies' : 'Tag personnalisé (hors référentiel)';
-    chip.innerHTML = `<span>${escapeHtml(t)}${inRef ? '' : ' <span style="opacity:.5;font-size:10px;">✱</span>'}</span><button type="button" class="tag-x" title="Retirer">×</button>`;
+    chip.innerHTML = `<span>${escapeHtml(t)}${inRef ? '' : ' <span style="opacity:.5;font-size:10px;">*</span>'}</span><button type="button" class="tag-x" title="Retirer">×</button>`;
     chip.querySelector('button').addEventListener('click', () => {
         tags.splice(idx, 1);
         tags = normalizeTags(tags);
@@ -9929,8 +9929,8 @@ function _renderIAPreview() {
                     <button class="ia-accept ${f.accepted ? 'active' : ''}" onclick="iaToggleField(${i}, true)">Accepter</button>
                     <button class="ia-ignore ${!f.accepted ? 'active' : ''}" onclick="iaToggleField(${i}, false)">Ignorer</button>
                 ` : `
-                    <button class="ia-accept active" onclick="iaToggleField(${i}, true)">${window.icon ? window.icon('check', {size:12}) : '✓'}</button>
-                    <button class="ia-ignore" onclick="iaToggleField(${i}, false)">${window.icon ? window.icon('x', {size:12}) : '✕'}</button>
+                    <button class="ia-accept active" onclick="iaToggleField(${i}, true)">${window.icon ? window.icon('check', {size:12}) : ''}</button>
+                    <button class="ia-ignore" onclick="iaToggleField(${i}, false)">${window.icon ? window.icon('x', {size:12}) : ''}</button>
                 `}
             </div>
         </div>`;
