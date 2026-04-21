@@ -1,0 +1,95 @@
+{% extends "v30/base.html" %}
+{% block title %}Stats & Rapport — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-stats{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div data-v30-stats>
+
+  {# ─── Topbar ─── #}
+  <div class="v30-push-topbar">
+    <h1>Stats &amp; Rapport</h1>
+    <div class="segmented" role="tablist" data-v30-stats-tabs>
+      <button type="button" class="active" data-tab="dashboard" role="tab" aria-selected="true">Tableau de bord</button>
+      <button type="button" data-tab="rapport" role="tab" aria-selected="false">Rapport</button>
+    </div>
+    <div class="v30-spacer"></div>
+    <div class="segmented" data-v30-stats-period>
+      <button type="button" data-period="7">7j</button>
+      <button type="button" class="active" data-period="30">30j</button>
+      <button type="button" data-period="90">90j</button>
+      <button type="button" data-period="all">Tout</button>
+    </div>
+    <a class="btn btn-sm" href="/stats">
+      {{ ui.icon('arrowR', 13) }} Graphiques détaillés
+    </a>
+  </div>
+
+  {# ─── Panel : Tableau de bord ─── #}
+  <div data-v30-stats-panel="dashboard">
+
+    <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;margin-bottom:16px;">
+      {% for k in [
+        {'key':'push',  'label':'Push envoyés'},
+        {'key':'open',  'label':"Taux d'ouverture"},
+        {'key':'reply', 'label':'Taux de réponse'},
+        {'key':'rdv',   'label':'RDV obtenus'}
+      ] %}
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px;color:var(--text-3);letter-spacing:0.06em;text-transform:uppercase;">{{ k.label }}</div>
+        <div class="serif num" style="font-size:32px;line-height:1.1;margin-top:4px;" data-kpi="{{ k.key }}">
+          <span class="skel" style="width:80px;height:32px;display:inline-block;"></span>
+        </div>
+        <div style="font-size:11.5px;color:var(--success);margin-top:2px;" data-kpi-delta="{{ k.key }}">&nbsp;</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# Top entreprises — réutilise /api/data agrégé #}
+    <div class="card" style="padding:16px;">
+      <div class="card-title" style="margin-bottom:12px;">Top entreprises (nombre de prospects)</div>
+      <div data-v30-stats-top>
+        {% for _ in range(5) %}
+        <div style="display:grid;grid-template-columns:140px 1fr 60px;gap:10px;align-items:center;padding:6px 0;">
+          <span class="skel" style="height:12px;"></span>
+          <div class="skel" style="height:14px;"></div>
+          <span class="skel" style="height:12px;"></span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card" style="padding:20px;margin-top:16px;border:1px dashed var(--border-strong);text-align:center;">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;">Graphiques détaillés</div>
+      <div style="font-size:12.5px;color:var(--text-2);max-width:480px;margin:0 auto 10px;line-height:1.6;">
+        Les 8 charts Chart.js (funnel, heatmap, top pushés, répartition urgence…) restent
+        sur la page <b>Stats legacy</b> pour l'instant. Migration complète dans un commit
+        ultérieur.
+      </div>
+      <a class="btn btn-accent" href="/stats">
+        {{ ui.icon('chart', 13) }} Ouvrir les graphiques détaillés
+      </a>
+    </div>
+
+  </div>
+
+  {# ─── Panel : Rapport ─── #}
+  <div data-v30-stats-panel="rapport" hidden>
+    <div class="card" style="padding:20px;text-align:center;">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;">Rapport hebdomadaire</div>
+      <div style="font-size:12.5px;color:var(--text-2);max-width:480px;margin:0 auto 14px;line-height:1.6;">
+        L'éditeur WYSIWYG du rapport hebdomadaire reste sur la page <b>Rapport legacy</b>.
+        Dans v30, Stats et Rapport seront fusionnés en un éditeur unique qui injecte
+        automatiquement les charts générés côté client (SPEC §3.9).
+      </div>
+      <a class="btn btn-accent" href="/rapport">
+        {{ ui.icon('report', 13) }} Ouvrir le rapport legacy
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<script defer src="/static/js/v30/stats.js?v={{ static_hash('js/v30/stats.js') }}"></script>
+{% endblock %}
