@@ -1,0 +1,97 @@
+{% extends "v30/base.html" %}
+{% block title %}Entreprises — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-entreprises{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/prospects.css?v={{ static_hash('css/v30/prospects.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div data-v30-entreprises>
+
+  {# ─── Page topbar ─── #}
+  <div class="v30-pp-topbar">
+    <h1>
+      Entreprises
+      <span class="v30-pp-count num" data-field="total">—</span>
+    </h1>
+    <div class="v30-spacer"></div>
+    <div class="v30-pp-search" style="width:280px;">
+      <span class="v30-pp-search__icon">{{ ui.icon('search') }}</span>
+      <input type="search" class="input" placeholder="Rechercher une entreprise…" data-v30-search
+             aria-label="Rechercher dans les entreprises">
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm">
+      {{ ui.icon('filter', 13) }} Filtres
+    </button>
+    <button type="button" class="btn btn-sm" data-v30-add>
+      {{ ui.icon('plus', 13) }} Ajouter
+    </button>
+  </div>
+
+  {# ─── KPI row ─── #}
+  <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;padding:16px 0;">
+    {% for k in [
+      {'key':'total',     'label':'Total entreprises'},
+      {'key':'piped',     'label':'En pipeline'},
+      {'key':'prospects', 'label':'Total prospects'},
+      {'key':'last',      'label':'Actives (30 j)'}
+    ] %}
+    <div class="card" style="padding:14px;">
+      <div style="font-size:11px;color:var(--text-3);letter-spacing:0.06em;text-transform:uppercase;">{{ k.label }}</div>
+      <div class="serif num" style="font-size:28px;line-height:1.1;margin-top:4px;" data-kpi="{{ k.key }}">
+        <span class="skel" style="width:56px;height:28px;display:inline-block;"></span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ─── Table ─── #}
+  <div class="v30-pp-table-wrap">
+    <div class="v30-pp-table-scroll">
+      <table class="table v30-pp-table">
+        <thead>
+          <tr>
+            <th style="padding-left:14px;">Entreprise</th>
+            <th>Site</th>
+            <th>Prospects</th>
+            <th>RDV / Propale</th>
+            <th>Gagnés</th>
+            <th>Dernier contact</th>
+            <th>Tags</th>
+            <th style="width:48px;"></th>
+          </tr>
+        </thead>
+        <tbody data-v30-rows>
+          {% for _ in range(8) %}
+          <tr>
+            <td style="padding-left:14px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="skel" style="width:28px;height:28px;border-radius:6px;"></span>
+                <span class="skel" style="width:140px;height:13px;display:inline-block;"></span>
+              </div>
+            </td>
+            <td><span class="skel" style="width:100px;height:12px;display:inline-block;"></span></td>
+            <td><span class="skel" style="width:30px;height:12px;display:inline-block;"></span></td>
+            <td><span class="skel" style="width:30px;height:12px;display:inline-block;"></span></td>
+            <td><span class="skel" style="width:30px;height:12px;display:inline-block;"></span></td>
+            <td><span class="skel" style="width:60px;height:12px;display:inline-block;"></span></td>
+            <td><span class="skel" style="width:80px;height:16px;display:inline-block;"></span></td>
+            <td></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="v30-pp-pagin" data-v30-pagination>
+      <span data-field="range">— sur —</span>
+      <div></div>
+    </div>
+  </div>
+
+</div>
+
+<script defer src="/static/js/v30/entreprises.js?v={{ static_hash('js/v30/entreprises.js') }}"></script>
+{% endblock %}
