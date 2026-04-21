@@ -1,0 +1,111 @@
+/* ProspUp v30 — Sourcing (candidats) */
+
+.v30-sc-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.v30-sc-topbar h1 {
+  font-size: 22px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--text);
+}
+.v30-sc-topbar__count {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+/* ─── Match banner ─── */
+.v30-sc-match {
+  padding: 10px 14px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in oklch, var(--accent) 25%, transparent);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+}
+:root[data-theme="dark"] .v30-sc-match {
+  color: oklch(0.85 0.12 258);
+}
+
+/* ─── Kanban ─── */
+.v30-sc-kanban {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(220px, 1fr));
+  gap: 12px;
+}
+.v30-sc-col {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 460px;
+}
+.v30-sc-col__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 2px;
+}
+.v30-sc-col__dot { width: 6px; height: 6px; border-radius: 3px; }
+.v30-sc-col__title { font-size: 12px; font-weight: 600; color: var(--text); }
+.v30-sc-col__count { font-size: 11px; color: var(--text-3); }
+
+.v30-sc-card {
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: border-color var(--dur-1), background var(--dur-1);
+}
+.v30-sc-card:hover { background: var(--surface-2); border-color: var(--border-strong); }
+
+.v30-sc-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v30-sc-card__name  { font-size: 12.5px; font-weight: 500; color: var(--text); }
+.v30-sc-card__role  { font-size: 11px; color: var(--text-3); }
+.v30-sc-card__skills {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.v30-sc-card__skills .badge {
+  font-size: 10px; height: 18px;
+}
+.v30-sc-card__meta {
+  font-size: 10.5px;
+  color: var(--text-3);
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── Grille ─── */
+.v30-sc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .v30-sc-kanban { grid-template-columns: repeat(3, minmax(200px, 1fr)); }
+}
+@media (max-width: 900px) {
+  .v30-sc-kanban { grid-template-columns: 1fr; }
+}
