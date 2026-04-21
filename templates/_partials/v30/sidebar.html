@@ -13,17 +13,17 @@
 {% set pinned = pinned or [] %}
 
 {% set nav_items = [
-  { 'id': 'dashboard', 'icon': 'home',     'label': 'Dashboard', 'href': '/dashboard' },
+  { 'id': 'dashboard', 'icon': 'home',     'label': 'Dashboard', 'href': '/v30/dashboard' },
   { 'id': 'focus',     'icon': 'focus',    'label': 'Focus',     'href': '/focus' },
   { 'id': 'calendar',  'icon': 'calendar', 'label': 'Calendrier','href': '/calendrier' },
-  { 'id': 'push',      'icon': 'send',     'label': 'Push',      'href': '/push' },
-  { 'id': 'stats',     'icon': 'chart',    'label': 'Stats',     'href': '/stats' },
+  { 'id': 'push',      'icon': 'send',     'label': 'Push',      'href': '/v30/push' },
+  { 'id': 'stats',     'icon': 'chart',    'label': 'Stats',     'href': '/v30/stats' },
   { 'id': 'rapport',   'icon': 'report',   'label': 'Rapport',   'href': '/rapport' }
 ] %}
 {% set record_items = [
-  { 'id': 'prospects',   'icon': 'users',    'label': 'Prospects',   'href': '/' },
-  { 'id': 'entreprises', 'icon': 'building', 'label': 'Entreprises', 'href': '/entreprises' },
-  { 'id': 'candidats',   'icon': 'user',     'label': 'Candidats',   'href': '/sourcing' }
+  { 'id': 'prospects',   'icon': 'users',    'label': 'Prospects',   'href': '/v30/prospects' },
+  { 'id': 'entreprises', 'icon': 'building', 'label': 'Entreprises', 'href': '/v30/entreprises' },
+  { 'id': 'candidats',   'icon': 'user',     'label': 'Candidats',   'href': '/v30/sourcing' }
 ] %}
 
 <aside class="v30-sidebar" aria-label="Navigation principale">
