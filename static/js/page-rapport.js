@@ -18,7 +18,7 @@ async function loadRapport() {
     const week = weekEl?.value || '';
     const content = document.getElementById('rapportContent');
     
-    content.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">⏳ Chargement…</div>';
+    content.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">Chargement…</div>';
 
     try {
         const url = week ? `/api/rapport-hebdo?week=${encodeURIComponent(week)}` : '/api/rapport-hebdo';
@@ -28,7 +28,7 @@ async function loadRapport() {
         _rapportData = json.data;
         renderRapport(_rapportData);
     } catch (e) {
-        content.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">❌ Erreur de chargement</div>';
+        content.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">Erreur de chargement</div>';
         console.error(e);
     }
 }
@@ -41,8 +41,8 @@ function renderRapport(d) {
         { value: kpi.relances, label: 'Relances', color: '#f59e0b' },
         { value: kpi.notes, label: "Notes d'appel", color: '#3b82f6' },
         { value: kpi.push_total, label: 'Push envoyés', color: '#8b5cf6' },
-        { value: kpi.push_email, label: '✉️ Email', color: '#6366f1' },
-        { value: kpi.push_linkedin, label: '💼 LinkedIn', color: '#0077b5' },
+        { value: kpi.push_email, label: 'Email', color: '#6366f1' },
+        { value: kpi.push_linkedin, label: 'LinkedIn', color: '#0077b5' },
         { value: kpi.rdv, label: 'RDV obtenus', color: '#22c55e' },
         { value: kpi.overdue, label: 'Relances retard', color: '#ef4444' },
         { value: kpi.conversion_pct + '%', label: 'Conversion', color: '#32b8c6' },
@@ -50,7 +50,7 @@ function renderRapport(d) {
         { value: kpi.total_prospects, label: 'Total prospects', color: '#64748b' },
     ];
 
-    let html = `<div style="font-size:18px;font-weight:800;margin-bottom:12px;">📋 ${escHtml(d.week_label)}</div>`;
+    let html = `<div style="font-size:18px;font-weight:800;margin-bottom:12px;">${window.icon ? window.icon('clipboard', {size:16}) : ''} ${escHtml(d.week_label)}</div>`;
 
     // KPI Grid
     html += '<div class="rapport-kpi-grid">';
@@ -64,7 +64,7 @@ function renderRapport(d) {
 
     // Pipeline distribution
     html += '<div class="rapport-section">';
-    html += '<div class="rapport-section-title">📊 Répartition pipeline</div>';
+    html += `<div class="rapport-section-title">${window.icon ? window.icon('chart', {size:14}) : ''} Répartition pipeline</div>`;
     const total = kpi.total_prospects || 1;
     html += '<div class="rapport-stat-bar">';
     const statusOrder = ["Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Prospecté", "Pas intéressé"];
@@ -88,7 +88,7 @@ function renderRapport(d) {
     // Companies touched
     if (d.touched_companies && d.touched_companies.length) {
         html += '<div class="rapport-section">';
-        html += `<div class="rapport-section-title">🏢 Entreprises actives cette semaine (${d.touched_companies.length})</div>`;
+        html += `<div class="rapport-section-title">${window.icon ? window.icon('building', {size:14}) : ''} Entreprises actives cette semaine (${d.touched_companies.length})</div>`;
         html += '<div class="rapport-company-tags">';
         d.touched_companies.forEach(c => {
             html += `<span class="rapport-company-tag">${escHtml(c)}</span>`;
@@ -99,7 +99,7 @@ function renderRapport(d) {
     // Notes detail
     if (d.notes_detail && d.notes_detail.length) {
         html += '<div class="rapport-section">';
-        html += `<div class="rapport-section-title">📝 Notes d'appel (${d.notes_detail.length})</div>`;
+        html += `<div class="rapport-section-title">${window.icon ? window.icon('note', {size:14}) : ''} Notes d'appel (${d.notes_detail.length})</div>`;
         html += '<table class="rapport-table"><thead><tr><th>Date</th><th>Prospect</th><th>Statut</th><th>Contenu</th></tr></thead><tbody>';
         d.notes_detail.forEach(n => {
             html += `<tr>
@@ -115,7 +115,7 @@ function renderRapport(d) {
     // Push detail
     if (d.push_detail && d.push_detail.length) {
         html += '<div class="rapport-section">';
-        html += `<div class="rapport-section-title">📤 Push envoyés (${d.push_detail.length})</div>`;
+        html += `<div class="rapport-section-title">${window.icon ? window.icon('send', {size:14}) : ''} Push envoyés (${d.push_detail.length})</div>`;
         const byChannel = {};
         d.push_detail.forEach(p => {
             const ch = p.channel || 'autre';
@@ -123,8 +123,8 @@ function renderRapport(d) {
         });
         html += '<div style="display:flex;gap:14px;font-size:12px;margin-bottom:8px;">';
         Object.entries(byChannel).forEach(([ch, count]) => {
-            const icon = ch === 'email' ? '✉️' : (ch === 'linkedin' ? '💼' : '📤');
-            html += `<span>${icon} ${escHtml(ch)}: <strong>${count}</strong></span>`;
+            const chIcon = ch === 'email' ? (window.icon ? window.icon('mail', {size:13}) : '') : (ch === 'linkedin' ? (window.icon ? window.icon('linkedin', {size:13}) : '') : (window.icon ? window.icon('send', {size:13}) : ''));
+            html += `<span>${chIcon} ${escHtml(ch)}: <strong>${count}</strong></span>`;
         });
         html += '</div>';
 
@@ -149,21 +149,21 @@ function generateMarkdown() {
     const d = _rapportData;
     const kpi = d.kpi;
     
-    let md = `# 📋 Rapport Hebdomadaire — Up Technologies\n`;
+    let md = `# Rapport Hebdomadaire — Up Technologies\n`;
     md += `## ${d.week_label}\n\n`;
 
-    md += `### 📊 KPIs\n\n`;
+    md += `### KPIs\n\n`;
     md += `| Indicateur | Valeur |\n|---|---|\n`;
     md += `| Relances | ${kpi.relances} |\n`;
     md += `| Notes d'appel | ${kpi.notes} |\n`;
-    md += `| Push envoyés | ${kpi.push_total} (✉️ ${kpi.push_email} / 💼 ${kpi.push_linkedin}) |\n`;
+    md += `| Push envoyés | ${kpi.push_total} (Email: ${kpi.push_email} / LinkedIn: ${kpi.push_linkedin}) |\n`;
     md += `| RDV | ${kpi.rdv} |\n`;
     md += `| Relances en retard | ${kpi.overdue} |\n`;
     md += `| Taux de conversion | ${kpi.conversion_pct}% |\n`;
     md += `| Entreprises actives | ${kpi.companies_touched} |\n`;
     md += `| Total prospects | ${kpi.total_prospects} |\n\n`;
 
-    md += `### 📊 Pipeline\n\n`;
+    md += `### Pipeline\n\n`;
     const statusOrder = ["Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Prospecté", "Pas intéressé"];
     statusOrder.forEach(s => {
         const count = d.statuts[s] || 0;
@@ -172,7 +172,7 @@ function generateMarkdown() {
     md += `\n`;
 
     if (d.touched_companies && d.touched_companies.length) {
-        md += `### 🏢 Entreprises actives (${d.touched_companies.length})\n\n`;
+        md += `### Entreprises actives (${d.touched_companies.length})\n\n`;
         const safeCompanies = d.touched_companies.map(c => (c != null ? String(c) : '').replace(/\r\n|\r|\n/g, ' ').trim());
         md += safeCompanies.join(', ') + '\n\n';
     }
@@ -182,7 +182,7 @@ function generateMarkdown() {
         return s.slice(0, 80);
     }
     if (d.notes_detail && d.notes_detail.length) {
-        md += `### 📝 Notes d'appel (${d.notes_detail.length})\n\n`;
+        md += `### Notes d'appel (${d.notes_detail.length})\n\n`;
         md += `| Date | Prospect | Statut | Résumé |\n|---|---|---|---|\n`;
         d.notes_detail.forEach(n => {
             md += `| ${mdCell(n.date?.slice(0, 10))} | ${mdCell(n.name)} | ${mdCell(n.statut)} | ${mdCell(n.content)} |\n`;
@@ -191,7 +191,7 @@ function generateMarkdown() {
     }
 
     if (d.push_detail && d.push_detail.length) {
-        md += `### 📤 Push (${d.push_detail.length})\n\n`;
+        md += `### Push (${d.push_detail.length})\n\n`;
         const byChannel = {};
         d.push_detail.forEach(p => { byChannel[p.channel || 'autre'] = (byChannel[p.channel || 'autre'] || 0) + 1; });
         Object.entries(byChannel).forEach(([ch, count]) => {

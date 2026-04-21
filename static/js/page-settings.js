@@ -77,14 +77,14 @@
         });
         const j = await res.json();
         if (j && j.ok) {
-          setStatus('✅ Enregistré');
-          if (typeof showToast === 'function') showToast('✅ Objectifs sauvegardés', 'success');
+          setStatus('Enregistré');
+          if (typeof showToast === 'function') showToast('Objectifs sauvegardés', 'success');
         } else {
-          setStatus('❌ Erreur');
-          if (typeof showToast === 'function') showToast('❌ Erreur sauvegarde', 'error');
+          setStatus('Erreur');
+          if (typeof showToast === 'function') showToast('Erreur sauvegarde', 'error');
         }
       } catch (e) {
-        setStatus('❌ Erreur réseau');
+        setStatus('Erreur réseau');
       }
       setTimeout(() => setStatus(''), 3000);
     }
@@ -100,14 +100,14 @@
         });
         const j = await res.json();
         if (j && j.ok) {
-          if (typeof showToast === 'function') showToast('✅ Objectifs restaurés', 'success');
+          if (typeof showToast === 'function') showToast('Objectifs restaurés', 'success');
           await loadConfig();
-          setStatus('✅ Par défaut');
+          setStatus('Par défaut');
         } else {
-          setStatus('❌ Erreur');
+          setStatus('Erreur');
         }
       } catch (e) {
-        setStatus('❌ Erreur réseau');
+        setStatus('Erreur réseau');
       }
       setTimeout(() => setStatus(''), 3000);
     }
@@ -208,7 +208,7 @@
             return;
           }
           api.setPrefs({ enabled: true, hour: hour });
-          if (statusEl) statusEl.textContent = '✅ Rappels activés (à ' + hour + 'h).';
+          if (statusEl) statusEl.textContent = 'Rappels activés (à ' + hour + 'h).';
           if (typeof showToast === 'function') showToast('Rappels enregistrés', 'success');
         });
       } else {
@@ -267,13 +267,13 @@ async function saveLinkedinTemplate() {
         });
         const data = await res.json();
         if (data.ok) {
-            if (status) status.textContent = '✅ Template sauvegardé';
-            if (typeof showToast === 'function') showToast('✅ Template LinkedIn sauvegardé', 'success');
+            if (status) status.textContent = 'Template sauvegardé';
+            if (typeof showToast === 'function') showToast('Template LinkedIn sauvegardé', 'success');
         } else {
-            if (status) status.textContent = '❌ Erreur';
+            if (status) status.textContent = 'Erreur';
         }
     } catch(e) {
-        if (status) status.textContent = '❌ Erreur réseau';
+        if (status) status.textContent = 'Erreur réseau';
     }
     setTimeout(() => { if (status) status.textContent = ''; }, 3000);
 }
@@ -298,7 +298,7 @@ async function runSystemVerify() {
     
     // Désactiver le bouton pendant la vérification
     btn.disabled = true;
-    btn.textContent = '⏳ Vérification en cours...';
+    btn.textContent = 'Vérification en cours...';
     resultsEl.style.display = 'none';
     
     try {
@@ -312,18 +312,18 @@ async function runSystemVerify() {
             data = await res.json();
         } catch (_) {
             // La réponse n'est pas du JSON (ex: page HTML 504 du proxy)
-            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur réseau (HTTP ${res.status}) — le serveur n'a pas répondu correctement. Réessayez dans quelques secondes.</div>`;
+            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">Erreur réseau (HTTP ${res.status}) — le serveur n'a pas répondu correctement. Réessayez dans quelques secondes.</div>`;
             resultsEl.style.display = 'block';
             btn.disabled = false;
-            btn.textContent = '🔍 Lancer la vérification';
+            btn.textContent = 'Lancer la vérification';
             return;
         }
 
         if (!res.ok) {
-            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur: ${data.error || 'Erreur inconnue'}</div>`;
+            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">Erreur: ${data.error || 'Erreur inconnue'}</div>`;
             resultsEl.style.display = 'block';
             btn.disabled = false;
-            btn.textContent = '🔍 Lancer la vérification';
+            btn.textContent = 'Lancer la vérification';
             return;
         }
         
@@ -344,12 +344,12 @@ async function runSystemVerify() {
         let allOk = true;
         for (const [key, label] of Object.entries(checkLabels)) {
             const check = checks[key] || { ok: false, message: 'Non vérifié' };
-            const icon = check.ok ? '✅' : '❌';
+            const statusIcon = check.ok ? (window.icon ? window.icon('check', {size:16}) : '') : (window.icon ? window.icon('x', {size:16}) : '');
             const color = check.ok ? '#22c55e' : '#ef4444';
             allOk = allOk && check.ok;
-            
+
             html += `<div style="display:flex;align-items:start;gap:10px;padding:10px;border-radius:8px;background:var(--color-surface);border:1px solid ${check.ok ? 'rgba(34,197,94,.2)' : 'rgba(239,68,68,.2)'};">`;
-            html += `<span style="font-size:18px;">${icon}</span>`;
+            html += `<span style="color:${color};">${statusIcon}</span>`;
             html += `<div style="flex:1;">`;
             html += `<div style="font-weight:600;margin-bottom:4px;color:${color};">${label}</div>`;
             html += `<div style="font-size:12px;color:var(--color-text-secondary);">${check.message || 'OK'}</div>`;
@@ -359,7 +359,7 @@ async function runSystemVerify() {
         // Résumé global
         html += '<div style="margin-top:12px;padding:12px;border-radius:8px;background:' + (allOk ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)') + ';border:1px solid ' + (allOk ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)') + ';">';
         html += '<div style="font-weight:600;color:' + (allOk ? '#22c55e' : '#ef4444') + ';">';
-        html += allOk ? '✅ Tous les systèmes fonctionnent correctement' : '❌ Certains systèmes nécessitent une attention';
+        html += allOk ? 'Tous les systèmes fonctionnent correctement' : 'Certains systèmes nécessitent une attention';
         html += '</div>';
         if (data.exit_code !== undefined) {
             html += `<div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px;">Code de sortie: ${data.exit_code}</div>`;
@@ -368,12 +368,12 @@ async function runSystemVerify() {
         
         // Afficher stdout/stderr si disponible et non vide
         if (data.stdout && data.stdout.trim()) {
-            html += '<details style="margin-top:12px;"><summary style="cursor:pointer;font-size:12px;color:var(--color-text-secondary);">📋 Sortie standard</summary>';
+            html += '<details style="margin-top:12px;"><summary style="cursor:pointer;font-size:12px;color:var(--color-text-secondary);">Sortie standard</summary>';
             html += `<pre style="margin-top:8px;padding:8px;background:var(--color-surface);border-radius:6px;font-size:11px;overflow-x:auto;max-height:200px;overflow-y:auto;">${escapeHtml(data.stdout)}</pre>`;
             html += '</details>';
         }
         if (data.stderr && data.stderr.trim()) {
-            html += '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:var(--color-text-secondary);">⚠️ Erreurs</summary>';
+            html += '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:var(--color-text-secondary);">Erreurs</summary>';
             html += `<pre style="margin-top:8px;padding:8px;background:rgba(239,68,68,.1);border-radius:6px;font-size:11px;overflow-x:auto;max-height:200px;overflow-y:auto;color:#ef4444;">${escapeHtml(data.stderr)}</pre>`;
             html += '</details>';
         }
@@ -384,17 +384,17 @@ async function runSystemVerify() {
         
         // Toast de confirmation
         if (typeof showToast === 'function') {
-            showToast(allOk ? '✅ Vérification terminée — tout fonctionne' : '⚠️ Vérification terminée — voir les détails', allOk ? 'success' : 'warning');
+            showToast(allOk ? 'Vérification terminée — tout fonctionne' : 'Vérification terminée — voir les détails', allOk ? 'success' : 'warning');
         }
     } catch (e) {
-        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur réseau: ${e.message}</div>`;
+        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">Erreur réseau: ${e.message}</div>`;
         resultsEl.style.display = 'block';
         if (typeof showToast === 'function') {
             showToast('Erreur lors de la vérification', 'error');
         }
     } finally {
         btn.disabled = false;
-        btn.textContent = '🔍 Lancer la vérification';
+        btn.textContent = 'Lancer la vérification';
     }
 }
 
@@ -422,7 +422,7 @@ function copySystemLogs() {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(logsText).then(() => {
             if (typeof showToast === 'function') {
-                showToast('✅ Logs copiés dans le presse-papier', 'success');
+                showToast('Logs copiés dans le presse-papier', 'success');
             }
         }).catch(err => {
             console.error('Erreur copie presse-papier:', err);
@@ -445,12 +445,12 @@ function fallbackCopy(text) {
     try {
         document.execCommand('copy');
         if (typeof showToast === 'function') {
-            showToast('✅ Logs copiés dans le presse-papier', 'success');
+            showToast('Logs copiés dans le presse-papier', 'success');
         }
     } catch (err) {
         console.error('Erreur copie fallback:', err);
         if (typeof showToast === 'function') {
-            showToast('❌ Erreur lors de la copie', 'error');
+            showToast('Erreur lors de la copie', 'error');
         }
     }
     document.body.removeChild(textarea);
@@ -467,9 +467,9 @@ async function showSystemLogs() {
     if (!btn || !resultsEl) return;
     
     btn.disabled = true;
-    btn.textContent = '⏳ Chargement...';
+    btn.textContent = 'Chargement...';
     resultsEl.style.display = 'block';
-    resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--color-text-secondary);">⏳ Chargement des logs...</div>';
+    resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--color-text-secondary);">Chargement des logs...</div>';
     
     try {
         const lines = 100; // Nombre de lignes à afficher
@@ -479,9 +479,9 @@ async function showSystemLogs() {
         const data = await res.json();
         
         if (!res.ok) {
-            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur: ${data.error || 'Erreur inconnue'}</div>`;
+            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">Erreur: ${data.error || 'Erreur inconnue'}</div>`;
             btn.disabled = false;
-            btn.textContent = '📋 Voir les logs serveur';
+            btn.textContent = 'Voir les logs serveur';
             return;
         }
         
@@ -491,8 +491,8 @@ async function showSystemLogs() {
         let html = '<div style="display:grid;gap:12px;">';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">';
         html += '<div style="display:flex;align-items:center;gap:8px;">';
-        html += '<h4 style="margin:0;font-size:15px;font-weight:600;">📋 Logs serveur (dernières ' + data.lines.length + ' lignes)</h4>';
-        html += '<button class="btn btn-secondary btn-sm" onclick="copySystemLogs()" style="font-size:11px;padding:4px 10px;" title="Copier les logs dans le presse-papier">📋 Copier</button>';
+        html += '<h4 style="margin:0;font-size:15px;font-weight:600;">Logs serveur (dernières ' + data.lines.length + ' lignes)</h4>';
+        html += '<button class="btn btn-secondary btn-sm" onclick="copySystemLogs()" style="font-size:11px;padding:4px 10px;" title="Copier les logs dans le presse-papier">Copier</button>';
         html += '</div>';
         html += '<div style="font-size:12px;color:var(--color-text-secondary);">Total: ' + data.total_lines + ' lignes • Taille: ' + Math.round(data.file_size / 1024) + ' KB</div>';
         html += '</div>';
@@ -516,7 +516,7 @@ async function showSystemLogs() {
         });
         
         html += '</div>';
-        html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px;">💡 Les logs sont mis à jour en temps réel. Rechargez pour voir les dernières entrées.</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px;">Les logs sont mis à jour en temps réel. Rechargez pour voir les dernières entrées.</div>';
         html += '</div>';
         
         // Stocker le texte brut pour la copie
@@ -525,16 +525,16 @@ async function showSystemLogs() {
         resultsEl.innerHTML = html;
         
         if (typeof showToast === 'function') {
-            showToast('✅ Logs chargés', 'success');
+            showToast('Logs chargés', 'success');
         }
     } catch (e) {
-        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur réseau: ${e.message}</div>`;
+        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">Erreur réseau: ${e.message}</div>`;
         if (typeof showToast === 'function') {
             showToast('Erreur lors du chargement des logs', 'error');
         }
     } finally {
         btn.disabled = false;
-        btn.textContent = '📋 Voir les logs serveur';
+        btn.textContent = 'Voir les logs serveur';
     }
 }
 
@@ -547,9 +547,9 @@ async function checkDeployment() {
     if (!btn || !resultsEl) return;
     
     btn.disabled = true;
-    btn.textContent = '⏳ Vérification...';
+    btn.textContent = 'Vérification...';
     resultsEl.style.display = 'block';
-    resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--color-text-secondary);">⏳ Vérification du déploiement...</div>';
+    resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--color-text-secondary);">Vérification du déploiement...</div>';
     
     try {
         const res = await fetch('/api/system/check-deployment', {
@@ -558,32 +558,32 @@ async function checkDeployment() {
         const data = await res.json();
         
         if (!res.ok) {
-            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur: ${data.error || 'Erreur inconnue'}</div>`;
+            resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">Erreur: ${data.error || 'Erreur inconnue'}</div>`;
             btn.disabled = false;
-            btn.textContent = '🔎 Vérifier le déploiement';
+            btn.textContent = 'Vérifier le déploiement';
             return;
         }
         
         let html = '<div style="display:grid;gap:12px;">';
-        html += '<h4 style="margin:0 0 12px 0;font-size:15px;font-weight:600;">🔎 État du déploiement</h4>';
+        html += '<h4 style="margin:0 0 12px 0;font-size:15px;font-weight:600;">État du déploiement</h4>';
         
         const checks = [
-            { key: 'verify_script_exists', label: 'Script de vérification (verify_all.py)', icon: '🐍' },
-            { key: 'html_section_exists', label: 'Section HTML (parametres.html)', icon: '📄' },
-            { key: 'js_function_exists', label: 'Fonction JavaScript (page-settings.js)', icon: '⚙️' },
+            { key: 'verify_script_exists', label: 'Script de vérification (verify_all.py)', icon: 'file' },
+            { key: 'html_section_exists', label: 'Section HTML (parametres.html)', icon: 'file' },
+            { key: 'js_function_exists', label: 'Fonction JavaScript (page-settings.js)', icon: 'settings' },
         ];
         
         let allOk = true;
         for (const check of checks) {
             const ok = data[check.key] || false;
             allOk = allOk && ok;
-            const icon = ok ? '✅' : '❌';
+            const depIcon = ok ? (window.icon ? window.icon('check', {size:16}) : '') : (window.icon ? window.icon('x', {size:16}) : '');
             const color = ok ? '#22c55e' : '#ef4444';
-            
+
             html += `<div style="display:flex;align-items:start;gap:10px;padding:10px;border-radius:8px;background:var(--color-surface);border:1px solid ${ok ? 'rgba(34,197,94,.2)' : 'rgba(239,68,68,.2)'};">`;
-            html += `<span style="font-size:18px;">${icon}</span>`;
+            html += `<span style="color:${color};">${depIcon}</span>`;
             html += `<div style="flex:1;">`;
-            html += `<div style="font-weight:600;margin-bottom:4px;color:${color};">${check.icon} ${check.label}</div>`;
+            html += `<div style="font-weight:600;margin-bottom:4px;color:${color};">${window.icon ? window.icon(check.icon, {size:13}) : ''} ${check.label}</div>`;
             html += `<div style="font-size:12px;color:var(--color-text-secondary);">${ok ? 'Présent' : 'Manquant'}</div>`;
             html += `</div></div>`;
         }
@@ -610,7 +610,7 @@ async function checkDeployment() {
         const isUpToDate = allOk && data.all_deployed;
         html += '<div style="margin-top:12px;padding:12px;border-radius:8px;background:' + (isUpToDate ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)') + ';border:1px solid ' + (isUpToDate ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)') + ';">';
         html += '<div style="font-weight:600;color:' + (isUpToDate ? '#22c55e' : '#ef4444') + ';">';
-        html += isUpToDate ? '✅ Code déployé correctement' : '❌ Code non déployé ou incomplet';
+        html += isUpToDate ? 'Code déployé correctement' : 'Code non déployé ou incomplet';
         html += '</div>';
         if (!isUpToDate) {
             html += '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;">';
@@ -624,16 +624,16 @@ async function checkDeployment() {
         resultsEl.innerHTML = html;
         
         if (typeof showToast === 'function') {
-            showToast((allOk && data.all_deployed) ? '✅ Code déployé' : '⚠️ Code non déployé', (allOk && data.all_deployed) ? 'success' : 'warning');
+            showToast((allOk && data.all_deployed) ? 'Code déployé' : 'Code non déployé', (allOk && data.all_deployed) ? 'success' : 'warning');
         }
     } catch (e) {
-        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur réseau: ${e.message}</div>`;
+        resultsEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">Erreur réseau: ${e.message}</div>`;
         if (typeof showToast === 'function') {
             showToast('Erreur lors de la vérification', 'error');
         }
     } finally {
         btn.disabled = false;
-        btn.textContent = '🔎 Vérifier le déploiement';
+        btn.textContent = 'Vérifier le déploiement';
     }
 }
 
@@ -649,16 +649,16 @@ async function restartServer() {
     if (!btn || !statusEl) return;
     
     // Demander confirmation
-    if (!confirm('⚠️ Êtes-vous sûr de vouloir redémarrer le serveur ?\n\nL\'application sera temporairement indisponible pendant quelques secondes.')) {
+    if (!confirm('Êtes-vous sûr de vouloir redémarrer le serveur ?\n\nL\'application sera temporairement indisponible pendant quelques secondes.')) {
         return;
     }
     
     btn.disabled = true;
-    btn.textContent = '⏳ Redémarrage en cours...';
+    btn.textContent = 'Redémarrage en cours...';
     statusEl.style.display = 'block';
     statusEl.style.background = 'var(--color-surface-2)';
     statusEl.style.border = '1px solid var(--color-border)';
-    statusEl.innerHTML = '<div style="color:var(--color-text-secondary);">⏳ Redémarrage du serveur en cours... Veuillez patienter.</div>';
+    statusEl.innerHTML = '<div style="color:var(--color-text-secondary);">Redémarrage du serveur en cours... Veuillez patienter.</div>';
     
     try {
         const res = await fetch('/api/deploy/restart', {
@@ -670,9 +670,9 @@ async function restartServer() {
         if (!res.ok) {
             statusEl.style.background = 'rgba(239,68,68,.08)';
             statusEl.style.border = '1px solid rgba(239,68,68,.3)';
-            statusEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur: ${data.error || 'Erreur inconnue'}</div>`;
+            statusEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">Erreur: ${data.error || 'Erreur inconnue'}</div>`;
             btn.disabled = false;
-            btn.textContent = '🔄 Redémarrer le serveur';
+            btn.textContent = 'Redémarrer le serveur';
             if (typeof showToast === 'function') {
                 showToast('Erreur lors du redémarrage', 'error');
             }
@@ -682,7 +682,7 @@ async function restartServer() {
         // Afficher le message de succès
         statusEl.style.background = 'rgba(34,197,94,.08)';
         statusEl.style.border = '1px solid rgba(34,197,94,.3)';
-        statusEl.innerHTML = '<div style="color:#22c55e;font-weight:600;">✅ Redémarrage programmé</div><div style="margin-top:8px;font-size:12px;color:var(--color-text-secondary);">Le serveur va redémarrer dans 5 secondes. La page va se recharger automatiquement...</div>';
+        statusEl.innerHTML = '<div style="color:#22c55e;font-weight:600;">Redémarrage programmé</div><div style="margin-top:8px;font-size:12px;color:var(--color-text-secondary);">Le serveur va redémarrer dans 5 secondes. La page va se recharger automatiquement...</div>';
         
         if (typeof showToast === 'function') {
             showToast('Redémarrage programmé — rechargement dans 5 secondes', 'success');
@@ -696,9 +696,9 @@ async function restartServer() {
     } catch (e) {
         statusEl.style.background = 'rgba(239,68,68,.08)';
         statusEl.style.border = '1px solid rgba(239,68,68,.3)';
-        statusEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">❌ Erreur réseau: ${e.message}</div>`;
+        statusEl.innerHTML = `<div style="color:#ef4444;font-weight:600;">Erreur réseau: ${e.message}</div>`;
         btn.disabled = false;
-        btn.textContent = '🔄 Redémarrer le serveur';
+        btn.textContent = 'Redémarrer le serveur';
         if (typeof showToast === 'function') {
             showToast('Erreur réseau lors du redémarrage', 'error');
         }
@@ -896,26 +896,26 @@ async function triggerBackup() {
     if (!btn) return;
 
     btn.disabled = true;
-    btn.textContent = '⏳ Backup en cours…';
+    btn.textContent = 'Backup en cours…';
     if (statusEl) statusEl.textContent = '';
 
     try {
         const res = await fetch('/api/admin/backup/trigger', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
         const data = await res.json();
         if (data.ok) {
-            if (statusEl) { statusEl.textContent = '✅ Backup créé'; statusEl.style.color = '#22c55e'; }
+            if (statusEl) { statusEl.textContent = 'Backup créé'; statusEl.style.color = '#22c55e'; }
             if (typeof showToast === 'function') showToast('Backup créé avec succès', 'success');
             await loadBackupInfo();
         } else {
-            if (statusEl) { statusEl.textContent = '❌ ' + (data.error || 'Erreur'); statusEl.style.color = '#ef4444'; }
+            if (statusEl) { statusEl.textContent = (data.error || 'Erreur'); statusEl.style.color = '#ef4444'; }
             if (typeof showToast === 'function') showToast('Erreur lors du backup', 'error');
         }
     } catch (e) {
-        if (statusEl) { statusEl.textContent = '❌ Erreur réseau'; statusEl.style.color = '#ef4444'; }
+        if (statusEl) { statusEl.textContent = 'Erreur réseau'; statusEl.style.color = '#ef4444'; }
         if (typeof showToast === 'function') showToast('Erreur réseau', 'error');
     } finally {
         btn.disabled = false;
-        btn.textContent = '💾 Déclencher un backup maintenant';
+        btn.textContent = 'Déclencher un backup maintenant';
     }
 }
 

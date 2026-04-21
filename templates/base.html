@@ -43,14 +43,14 @@
     
     <!-- Bouton flottant Assistant virtuel (disponible partout) -->
     <button class="fab fab-icon-only" id="dashAssistantFab" onclick="toggleAssistantChat()" title="Assistant virtuel" style="display:none;">
-      <span class="fab-icon">🤖</span>
+      <i data-icon="robot" data-size="20" aria-hidden="true"></i>
     </button>
 
     <!-- Fenêtre de chat Assistant (s'ouvre depuis le bouton) -->
     <div id="assistantChatWindow" class="assistant-chat-window">
       <div class="assistant-chat-header">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;">🤖</span>
+          <i data-icon="robot" data-size="20" aria-hidden="true"></i>
           <span style="font-weight:600;font-size:14px;">Assistant virtuel</span>
         </div>
         <button type="button" class="assistant-chat-close" onclick="toggleAssistantChat()" title="Fermer">×</button>
@@ -104,7 +104,7 @@
       <div class="user-menu-content">
         <!-- Toggle thème -->
         <div class="user-menu-item user-menu-theme-row" id="userMenuThemeToggle" onclick="window.toggleTheme && toggleTheme(); _updateUserMenuThemeLabel();">
-          <span class="user-menu-icon" id="userMenuThemeIcon">☀️</span>
+          <span class="user-menu-icon" id="userMenuThemeIcon"><i data-icon="sun" data-size="16" aria-hidden="true"></i></span>
           <span id="userMenuThemeLabel" class="user-menu-theme-label">Mode sombre</span>
           <span class="user-menu-theme-switch" aria-hidden="true">
             <span class="user-menu-theme-track">

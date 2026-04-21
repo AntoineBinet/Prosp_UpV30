@@ -79,7 +79,7 @@
         <label class="filter-label" for="uPassword">Mot de passe <span id="pwHint">(requis)</span></label>
         <div class="input-with-toggle">
           <input id="uPassword" name="password" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" minlength="8" pattern="^(?=.*[A-Za-z])(?=.*\d).{8,}$" oninput="updatePwConfirmVisibility()" onblur="validateUserPassword()">
-          <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Afficher / masquer">👁️</button>
+          <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Afficher / masquer" aria-label="Afficher / masquer"><i data-icon="eye" data-size="16" aria-hidden="true"></i></button>
         </div>
         <span id="pwReqHint" style="font-size:11px;color:var(--color-text-secondary,#94a3b8);margin-top:4px;display:block;">Min. 8 caractères, au moins 1 lettre et 1 chiffre.</span>
       </div>
@@ -87,15 +87,15 @@
         <label class="filter-label" for="uPasswordConfirm">Confirmer le mot de passe</label>
         <div class="input-with-toggle">
           <input id="uPasswordConfirm" name="password_confirm" type="password" placeholder="••••••••" class="filter-input" style="width:100%;" autocomplete="new-password" oninput="validateUserPassword()">
-          <button type="button" class="pw-toggle" id="pwConfirmToggleBtn" onclick="toggleConfirmVisibility()" title="Afficher / masquer">👁️</button>
+          <button type="button" class="pw-toggle" id="pwConfirmToggleBtn" onclick="toggleConfirmVisibility()" title="Afficher / masquer" aria-label="Afficher / masquer"><i data-icon="eye" data-size="16" aria-hidden="true"></i></button>
         </div>
         <span id="pwMismatchMsg" style="display:none;font-size:12px;color:#ef4444;margin-top:4px;">Les deux mots de passe ne correspondent pas.</span>
       </div>
       <div>
         <label class="filter-label">Rôle</label>
         <select id="uRole" class="filter-select" style="width:100%;">
-          <option value="admin">🔑 Admin — accès total</option>
-          <option value="editor" selected>✏️ Éditeur — lecture + modification</option>
+          <option value="admin">Admin — accès total</option>
+          <option value="editor" selected>Éditeur — lecture + modification</option>
         </select>
       </div>
       <div></div>
@@ -116,7 +116,7 @@
 
 {% block page_scripts %}
 <script>
-const ROLE_LABELS = {admin:'🔑 Admin', editor:'✏️ Éditeur'};
+const ROLE_LABELS = {admin:'Admin', editor:'Éditeur'};
 const ROLE_COLORS = {admin:'#6366f1', editor:'#f59e0b'};
 let _isAdmin = false;
 let _currentUserId = null;
@@ -147,10 +147,10 @@ async function loadUsers() {
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        ${_isAdmin ? `<button class="btn btn-secondary" onclick='editUser(${JSON.stringify(u)})'>✏️ Modifier</button>` : ''}
-        ${_isAdmin && u.role!=='admin' ? `<button class="btn btn-secondary" onclick='viewUserData(${u.id})' title="Voir les données">👁️ Voir</button>` : ''}
-        ${_isAdmin && Number(u.id)!==Number(_currentUserId) ? `<button class="btn btn-primary" onclick='reassignUserDataToMe(${u.id})' title="Réattribuer prospects + entreprises">↩️ Réattribuer à moi</button>` : ''}
-        ${_isAdmin && u.role!=='admin' ? `<button class="btn btn-danger" onclick='deleteUser(${u.id},"${u.username}")'>🗑️</button>` : ''}
+        ${_isAdmin ? `<button class="btn btn-secondary" onclick='editUser(${JSON.stringify(u)})'>${window.icon?window.icon('edit',{size:13}):''} Modifier</button>` : ''}
+        ${_isAdmin && u.role!=='admin' ? `<button class="btn btn-secondary" onclick='viewUserData(${u.id})' title="Voir les données">${window.icon?window.icon('eye',{size:13}):''} Voir</button>` : ''}
+        ${_isAdmin && Number(u.id)!==Number(_currentUserId) ? `<button class="btn btn-primary" onclick='reassignUserDataToMe(${u.id})' title="Réattribuer prospects + entreprises">${window.icon?window.icon('refreshCw',{size:13}):''} Réattribuer à moi</button>` : ''}
+        ${_isAdmin && u.role!=='admin' ? `<button class="btn btn-danger" onclick='deleteUser(${u.id},"${u.username}")'>${window.icon?window.icon('trash',{size:13}):''}</button>` : ''}
       </div>
     </div>
   `).join('');
@@ -163,7 +163,7 @@ async function viewUserData(userId) {
     if (data.ok) {
       const u = data.user;
       const s = data.stats;
-      showToast('📊 ' + (u.display_name || u.username) + ' — Prospects: ' + s.prospects + ', Candidats: ' + s.candidates, 'info', 5000);
+      showToast((u.display_name || u.username) + ' — Prospects: ' + s.prospects + ', Candidats: ' + s.candidates, 'info', 5000);
     }
   } catch(e) {
     showToast('Erreur lors du chargement des données', 'error');
@@ -198,11 +198,11 @@ async function reassignUserDataToMe(fromUserId) {
   });
   const j = await r.json().catch(()=>({ok:false,error:'Erreur serveur'}));
   if (!r.ok || !j.ok) {
-    showToast('❌ ' + (j.error || 'Erreur'), 'error');
+    showToast((j.error || 'Erreur'), 'error');
     return;
   }
   const moved = j.moved || {};
-  showToast(`✅ ${moved.prospects || 0} prospect(s) et ${moved.companies || 0} entreprise(s) réattribués à vous.`, 'success', 6000);
+  showToast(`${moved.prospects || 0} prospect(s) et ${moved.companies || 0} entreprise(s) réattribués à vous.`, 'success', 6000);
   await loadUsers();
 }
 
@@ -211,11 +211,11 @@ function togglePasswordVisibility() {
   const btn = document.getElementById('pwToggleBtn');
   if (el.type === 'password') {
     el.type = 'text';
-    btn.textContent = '🙈';
+    btn.innerHTML = window.icon ? window.icon('eyeOff', {size:16}) : '';
     btn.title = 'Masquer';
   } else {
     el.type = 'password';
-    btn.textContent = '👁️';
+    btn.innerHTML = window.icon ? window.icon('eye', {size:16}) : '';
     btn.title = 'Afficher';
   }
 }
@@ -225,11 +225,11 @@ function toggleConfirmVisibility() {
   const btn = document.getElementById('pwConfirmToggleBtn');
   if (el.type === 'password') {
     el.type = 'text';
-    btn.textContent = '🙈';
+    btn.innerHTML = window.icon ? window.icon('eyeOff', {size:16}) : '';
     btn.title = 'Masquer';
   } else {
     el.type = 'password';
-    btn.textContent = '👁️';
+    btn.innerHTML = window.icon ? window.icon('eye', {size:16}) : '';
     btn.title = 'Afficher';
   }
 }
@@ -323,8 +323,8 @@ function openUserModal() {
   passwordConfirmField.value = '';
   passwordField.type = 'password';
   passwordConfirmField.type = 'password';
-  document.getElementById('pwToggleBtn').textContent = '👁️';
-  document.getElementById('pwConfirmToggleBtn').textContent = '👁️';
+  document.getElementById('pwToggleBtn').innerHTML = window.icon ? window.icon('eye', {size:16}) : '';
+  document.getElementById('pwConfirmToggleBtn').innerHTML = window.icon ? window.icon('eye', {size:16}) : '';
   document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
   document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.remove('pw-mismatch');
   document.getElementById('pwMismatchMsg').style.display = 'none';
@@ -363,8 +363,8 @@ function editUser(u) {
   passwordConfirmField.value = '';
   passwordField.type = 'password';
   passwordConfirmField.type = 'password';
-  document.getElementById('pwToggleBtn').textContent = '👁️';
-  document.getElementById('pwConfirmToggleBtn').textContent = '👁️';
+  document.getElementById('pwToggleBtn').innerHTML = window.icon ? window.icon('eye', {size:16}) : '';
+  document.getElementById('pwConfirmToggleBtn').innerHTML = window.icon ? window.icon('eye', {size:16}) : '';
   document.getElementById('uPassword').closest('.input-with-toggle').classList.remove('pw-mismatch');
   document.getElementById('uPasswordConfirm').closest('.input-with-toggle').classList.remove('pw-mismatch');
   document.getElementById('pwMismatchMsg').style.display = 'none';
@@ -461,20 +461,20 @@ async function saveUser() {
 
   const r = await fetch('/api/users/save', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
   const j = await r.json().catch(()=>({ok:false,error:'Erreur serveur'}));
-  if (!r.ok || !j.ok) { showToast('❌ ' + (j.error || 'Erreur'), 'error'); return; }
+  if (!r.ok || !j.ok) { showToast((j.error || 'Erreur'), 'error'); return; }
 
   closeUserModal();
   await loadUsers();
-  showToast('✅ Utilisateur enregistré', 'success');
+  showToast('Utilisateur enregistré', 'success');
 }
 
 async function deleteUser(id, username) {
   if (!confirm('Supprimer @' + username + ' ?')) return;
   const r = await fetch('/api/users/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id: parseInt(id, 10) }) });
   const j = await r.json().catch(()=>({ok:false,error:'Erreur serveur'}));
-  if (!r.ok || !j.ok) { showToast('❌ ' + (j.error || 'Erreur'), 'error'); return; }
+  if (!r.ok || !j.ok) { showToast((j.error || 'Erreur'), 'error'); return; }
   await loadUsers();
-  showToast('✅ Utilisateur supprimé', 'success');
+  showToast('Utilisateur supprimé', 'success');
 }
 
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeUserModal(); });

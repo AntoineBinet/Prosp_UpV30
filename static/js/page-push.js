@@ -6,9 +6,9 @@ let __pushDetail = null;
 
 function pushChannelLabel(ch) {
     const s = (ch || '').trim().toLowerCase();
-    if (s === 'linkedin') return '🔗 LinkedIn';
-    if (s === 'other') return '📨 Autre';
-    return '✉️ Email';
+    if (s === 'linkedin') return (window.icon ? window.icon('linkedin', {size:13}) : '') + ' LinkedIn';
+    if (s === 'other') return (window.icon ? window.icon('send', {size:13}) : '') + ' Autre';
+    return (window.icon ? window.icon('mail', {size:13}) : '') + ' Email';
 }
 
 async function reloadPushLogs() {
@@ -25,7 +25,7 @@ async function reloadPushLogs() {
         __pushLogs = [];
         applyPushFilters();
         if (window.showToast) {
-            showToast(`❌ Impossible de charger l'historique des push: ${err.message}`, 'error');
+            showToast(`Impossible de charger l'historique des push: ${err.message}`, 'error');
         } else {
             throw err; // Re-throw si showToast n'est pas disponible
         }
@@ -78,11 +78,11 @@ function renderPushTable() {
             <td data-label="Email"><span class="table-cell-clamp" title="${escapeHtml(l.to_email || l.prospect_email || '')}">${escapeHtml(l.to_email || l.prospect_email || '')}</span></td>
             <td data-label="Sujet"><span class="table-cell-clamp" title="${escapeHtml(safeStr(l.subject))}">${escapeHtml(safeStr(l.subject) || '—')}</span></td>
             <td data-label="Consultant(s)"><span class="table-cell-clamp" title="${escapeHtml(consultants)}">${escapeHtml(consultants)}</span></td>
-            <td data-label="Canal">${escapeHtml(pushChannelLabel(l.channel))}</td>
+            <td data-label="Canal">${pushChannelLabel(l.channel)}</td>
             <td data-label="Actions">
                 <div class="table-actions-inline">
-                    <button class="mini-action" onclick="openPushDetail(${l.id})">👁️</button>
-                    <button class="mini-action danger" onclick="deletePushLog(${l.id})">🗑️</button>
+                    <button class="mini-action" onclick="openPushDetail(${l.id})">${window.icon ? window.icon('eye', {size:13}) : ''}</button>
+                    <button class="mini-action danger" onclick="deletePushLog(${l.id})">${window.icon ? window.icon('trash', {size:13}) : ''}</button>
                 </div>
             </td>
         `;
@@ -113,7 +113,7 @@ function openPushDetail(id) {
             <div><strong>Prospect:</strong> ${escapeHtml(l.prospect_name || '')}</div>
             <div><strong>Entreprise:</strong> ${escapeHtml(company)}</div>
             <div><strong>Email:</strong> ${escapeHtml(l.to_email || l.prospect_email || '')}</div>
-            <div><strong>Canal:</strong> ${escapeHtml(pushChannelLabel(l.channel))}</div>
+            <div><strong>Canal:</strong> ${pushChannelLabel(l.channel)}</div>
             <div><strong>Template:</strong> ${escapeHtml(l.template_name || '—')}</div>
             <div><strong>Consultant(s):</strong> ${escapeHtml(detailConsultants)}</div>
         </div>
@@ -149,7 +149,7 @@ function closePushDetail() {
 async function deletePushLog(id) {
     const l = __pushLogs.find(x => x.id === id);
     const label = l ? `${safeStr(l.prospect_name)} — ${safeStr(l.sentAt || l.createdAt)}` : `ID ${id}`;
-    if (!confirm(`⚠️ Supprimer ce push ?\n\n${label}`)) return;
+    if (!confirm(`Supprimer ce push ?\n\n${label}`)) return;
 
     try {
         const res = await fetch('/api/push-logs/delete', {
@@ -320,7 +320,7 @@ function _updateCatTplBadge(catId) {
     const files = __catFilesData[catId] || [];
     const has = files.length > 0;
     badge.className = `push-cat-badge ${has ? 'has' : 'none'}`;
-    badge.textContent = has ? '📧 Template chargé' : '📧 Aucun template';
+    badge.innerHTML = (window.icon ? window.icon('mail', {size:12}) : '') + ' ' + (has ? 'Template chargé' : 'Aucun template');
 }
 
 function _updateCatCandBadge(catId) {
@@ -331,7 +331,7 @@ function _updateCatCandBadge(catId) {
     const n = (cat.candidate1_id ? 1 : 0) + (cat.candidate2_id ? 1 : 0);
     const text = n === 0 ? 'Aucun candidat' : n === 1 ? '1 candidat sélectionné' : '2 candidats sélectionnés';
     badge.className = `push-cat-badge ${n > 0 ? 'has' : 'none'}`;
-    badge.textContent = '👤 ' + text;
+    badge.innerHTML = (window.icon ? window.icon('userSingle', {size:12}) : '') + ' ' + text;
 }
 
 function _renderModalCatFiles(catId) {
@@ -357,13 +357,13 @@ function _renderModalCatFiles(catId) {
     }
     box.innerHTML = files.map(f => `
         <div style="display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--color-border);">
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;" title="${escapeHtml(f.name)}">📄 ${escapeHtml(f.name)} <span class="muted" style="font-size:10px;">${(f.size/1024).toFixed(0)} Ko</span></span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;" title="${escapeHtml(f.name)}">${window.icon ? window.icon('file', {size:13}) : ''} ${escapeHtml(f.name)} <span class="muted" style="font-size:10px;">${(f.size/1024).toFixed(0)} Ko</span></span>
             <div style="display:flex;gap:2px;flex-shrink:0;">
-                <a href="${escapeHtml(f.url)}" download="${escapeHtml(f.name)}" style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:13px;padding:2px 6px;text-decoration:none;display:inline-flex;align-items:center;" title="Télécharger ce template">📥</a>
+                <a href="${escapeHtml(f.url)}" download="${escapeHtml(f.name)}" style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:13px;padding:2px 6px;text-decoration:none;display:inline-flex;align-items:center;" title="Télécharger ce template">${window.icon ? window.icon('download', {size:13}) : ''}</a>
                 <label style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:13px;padding:2px 6px;display:inline-flex;align-items:center;" title="Remplacer ce template">
-                    🔄<input type="file" accept=".msg,.eml,.oft" style="display:none;" onchange="replaceCatTemplate(${catId}, '${escapeHtml(f.name)}', this)">
+                    ${window.icon ? window.icon('refreshCw', {size:13}) : ''}<input type="file" accept=".msg,.eml,.oft" style="display:none;" onchange="replaceCatTemplate(${catId}, '${escapeHtml(f.name)}', this)">
                 </label>
-                <button onclick="deleteCatTemplate(${catId}, '${escapeHtml(f.name)}')" style="background:none;border:none;cursor:pointer;color:var(--color-danger,#ef4444);font-size:13px;padding:2px 6px;" title="Supprimer ce template">🗑️</button>
+                <button onclick="deleteCatTemplate(${catId}, '${escapeHtml(f.name)}')" style="background:none;border:none;cursor:pointer;color:var(--color-danger,#ef4444);font-size:13px;padding:2px 6px;" title="Supprimer ce template">${window.icon ? window.icon('trash', {size:13}) : ''}</button>
             </div>
         </div>
     `).join('');
@@ -382,10 +382,10 @@ async function uploadCatTemplate(catId, input) {
             showToast('Template ajouté !', 'success');
             loadCatFiles(catId);
         } else {
-            showToast('❌ ' + (data.error || 'Erreur upload'), 'error');
+            showToast(data.error || 'Erreur upload', 'error');
         }
     } catch (e) {
-        showToast('❌ Erreur réseau : ' + e.message, 'error');
+        showToast('Erreur réseau : ' + e.message, 'error');
     } finally {
         input.value = '';
     }
@@ -406,10 +406,10 @@ async function replaceCatTemplate(catId, oldName, input) {
             showToast('Template remplacé !', 'success');
             loadCatFiles(catId);
         } else {
-            showToast('❌ ' + (data.error || 'Erreur'), 'error');
+            showToast(data.error || 'Erreur', 'error');
         }
     } catch (e) {
-        showToast('❌ Erreur réseau : ' + e.message, 'error');
+        showToast('Erreur réseau : ' + e.message, 'error');
     } finally {
         input.value = '';
     }
@@ -428,10 +428,10 @@ async function deleteCatTemplate(catId, filename) {
             showToast('Template supprimé', 'success');
             loadCatFiles(catId);
         } else {
-            showToast('❌ ' + (data.error || 'Erreur'), 'error');
+            showToast(data.error || 'Erreur', 'error');
         }
     } catch (e) {
-        showToast('❌ Erreur réseau : ' + e.message, 'error');
+        showToast('Erreur réseau : ' + e.message, 'error');
     }
 }
 
@@ -443,12 +443,12 @@ function _catCandidateSlotHtml(cat, slot) {
         ? `<span style="font-size:12px;">${escapeHtml(name || '')}${role ? ' · <span style="color:var(--color-text-secondary);">' + escapeHtml(role) + '</span>' : ''}</span>`
         : `<span class="muted" style="font-size:12px;">Non défini</span>`;
     const clearBtn = cid
-        ? `<button onclick="clearCatCandidate(${cat.id},${slot})" style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:11px;padding:2px 4px;" title="Effacer">✕</button>`
+        ? `<button onclick="clearCatCandidate(${cat.id},${slot})" style="background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:11px;padding:2px 4px;" title="Effacer">${window.icon ? window.icon('x', {size:11}) : ''}</button>`
         : '';
     return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
         <span style="font-size:11px;color:var(--color-text-secondary);min-width:72px;flex-shrink:0;">Candidat ${slot} :</span>
         <span style="flex:1;">${label}</span>
-        <button onclick="editCatCandidate(${cat.id},${slot})" style="background:none;border:none;cursor:pointer;font-size:11px;padding:2px 6px;" title="Modifier">✏️</button>
+        <button onclick="editCatCandidate(${cat.id},${slot})" style="background:none;border:none;cursor:pointer;font-size:11px;padding:2px 6px;" title="Modifier">${window.icon ? window.icon('edit', {size:11}) : ''}</button>
         ${clearBtn}
     </div>`;
 }
@@ -469,8 +469,8 @@ function catCard(cat) {
             ${shortDesc ? `<div class="push-cat-tooltip">${escapeHtml(shortDesc)}</div>` : ''}
             <div class="push-cat-card-title">${escapeHtml(cat.name)} ${auto}</div>
             <div class="push-cat-card-badges">
-                <span class="push-cat-badge ${nCandidates > 0 ? 'has' : 'none'}" id="catCandBadge_${cat.id}">👤 ${escapeHtml(candText)}</span>
-                <span class="push-cat-badge loading" id="catTplBadge_${cat.id}">📧 …</span>
+                <span class="push-cat-badge ${nCandidates > 0 ? 'has' : 'none'}" id="catCandBadge_${cat.id}">${window.icon ? window.icon('userSingle', {size:12}) : ''} ${escapeHtml(candText)}</span>
+                <span class="push-cat-badge loading" id="catTplBadge_${cat.id}">${window.icon ? window.icon('mail', {size:12}) : ''} …</span>
             </div>
         </div>
     `;
@@ -502,8 +502,8 @@ function openCatDetail(catId) {
         </div>
         <div style="margin-bottom:18px;padding-top:16px;border-top:1px solid var(--color-border);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.6px;">👤 Candidats par défaut</div>
-                <button onclick="autoSuggestCandidates(${catId})" style="font-size:11px;padding:3px 10px;background:var(--color-surface-2,rgba(255,255,255,0.06));border:1px solid var(--color-border);border-radius:8px;cursor:pointer;" title="Suggérer automatiquement les 2 meilleurs candidats">🔁 Auto</button>
+                <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.6px;">${window.icon ? window.icon('userSingle', {size:12}) : ''} Candidats par défaut</div>
+                <button onclick="autoSuggestCandidates(${catId})" style="font-size:11px;padding:3px 10px;background:var(--color-surface-2,rgba(255,255,255,0.06));border:1px solid var(--color-border);border-radius:8px;cursor:pointer;" title="Suggérer automatiquement les 2 meilleurs candidats">${window.icon ? window.icon('refreshCw', {size:11}) : ''} Auto</button>
             </div>
             <div id="catCandidateSlots_${catId}">
                 ${_catCandidateSlotHtml(cat, 1)}
@@ -512,9 +512,9 @@ function openCatDetail(catId) {
         </div>
         <div style="padding-top:16px;border-top:1px solid var(--color-border);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.6px;">📧 Templates email (.msg)</div>
+                <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.6px;">${window.icon ? window.icon('mail', {size:12}) : ''} Templates email (.msg)</div>
                 <label style="cursor:pointer;font-size:11px;padding:4px 10px;background:var(--color-surface-2,rgba(255,255,255,0.06));border:1px solid var(--color-border);border-radius:8px;display:flex;align-items:center;gap:4px;" title="Ajouter un template .msg">
-                    📤 Ajouter
+                    ${window.icon ? window.icon('send', {size:12}) : ''} Ajouter
                     <input type="file" accept=".msg,.eml,.oft" style="display:none;" onchange="uploadCatTemplate(${catId}, this)">
                 </label>
             </div>
@@ -562,7 +562,7 @@ async function autoSuggestCandidates(catId) {
         showToast('Recherche des meilleurs candidats…', 'info', 2000);
         const res = await fetch(`/api/push-categories/${catId}/match-candidates`);
         const data = await res.json();
-        if (!data.ok) { showToast('❌ ' + (data.error || 'Erreur'), 'error'); return; }
+        if (!data.ok) { showToast(data.error || 'Erreur', 'error'); return; }
         const top2 = (data.candidates || []).slice(0, 2);
         await saveCatCandidates(catId, top2[0]?.id || null, top2[1]?.id || null);
         // Mettre à jour __categories et re-render les slots
@@ -581,7 +581,7 @@ async function autoSuggestCandidates(catId) {
         if (top2.length === 0) showToast('Aucun candidat trouvé pour ces mots-clés', 'warning');
         else showToast(`${top2.length} candidat(s) suggéré(s) automatiquement`, 'success');
     } catch (e) {
-        showToast('❌ Erreur : ' + e.message, 'error');
+        showToast('Erreur : ' + e.message, 'error');
     }
 }
 
@@ -603,8 +603,8 @@ async function editCatCandidate(catId, slot) {
                 <option value="">— Aucun —</option>
                 ${options}
             </select>
-            <button onclick="confirmCatCandidate(${catId},${slot},${otherId})" style="font-size:12px;padding:3px 10px;border-radius:6px;border:none;background:var(--color-primary,#f97316);color:#fff;cursor:pointer;">✔</button>
-            <button onclick="cancelEditCatCandidate(${catId})" style="font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid var(--color-border);background:none;cursor:pointer;">✕</button>
+            <button onclick="confirmCatCandidate(${catId},${slot},${otherId})" style="font-size:12px;padding:3px 10px;border-radius:6px;border:none;background:var(--color-primary,#f97316);color:#fff;cursor:pointer;">${window.icon ? window.icon('check', {size:12}) : ''}</button>
+            <button onclick="cancelEditCatCandidate(${catId})" style="font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid var(--color-border);background:none;cursor:pointer;">${window.icon ? window.icon('x', {size:12}) : ''}</button>
         </div>`;
 }
 
@@ -706,19 +706,19 @@ async function saveCat() {
 
 async function scanPushs() {
     const btn = __catEl('btnScanPushs');
-    if (btn) btn.textContent = '⏳ Scan en cours...';
+    if (btn) btn.textContent = 'Scan en cours...';
     try {
         const res = await fetch('/api/push-categories/scan', { method: 'POST' });
         const data = await res.json();
         if (data.ok) {
             showToast('Scan terminé ! Dossiers : ' + (data.found?.join(', ') || 'aucun') + ' — Nouvelles catégories : ' + (data.created || 0), 'success', 5000);
         } else {
-            showToast('❌ ' + (data.error || 'Erreur'), 'error');
+            showToast(data.error || 'Erreur', 'error');
         }
     } catch (e) {
-        showToast('❌ Erreur: ' + e.message, 'error');
+        showToast('Erreur: ' + e.message, 'error');
     }
-    if (btn) btn.textContent = '🔄 Scanner pushs/';
+    if (btn) btn.innerHTML = (window.icon ? window.icon('refreshCw', {size:13}) : '') + ' Scanner pushs/';
     await loadCategories();
 }
 
@@ -804,8 +804,8 @@ function _renderCatProspectsList(data) {
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                 <div style="font-weight:700;font-size:13px;">${escapeHtml(p.name)}${scoreBar}</div>
                 <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-                    <button onclick="_openProspectFromCategory(${p.id}, __catProspectsCatId)" title="Voir la fiche complète (catégorie pré-sélectionnée)" style="background:none;border:1px solid var(--color-border);border-radius:6px;cursor:pointer;font-size:11px;padding:3px 8px;color:var(--color-text);">👁️ Fiche</button>
-                    <button onclick="_catProspectSendEmail(${p.id})" title="Envoyer un email push" style="background:none;border:1px solid var(--color-border);border-radius:6px;cursor:pointer;font-size:11px;padding:3px 8px;color:var(--color-text);">✉️ Email</button>
+                    <button onclick="_openProspectFromCategory(${p.id}, __catProspectsCatId)" title="Voir la fiche complète (catégorie pré-sélectionnée)" style="background:none;border:1px solid var(--color-border);border-radius:6px;cursor:pointer;font-size:11px;padding:3px 8px;color:var(--color-text);">${window.icon ? window.icon('eye', {size:11}) : ''} Fiche</button>
+                    <button onclick="_catProspectSendEmail(${p.id})" title="Envoyer un email push" style="background:none;border:1px solid var(--color-border);border-radius:6px;cursor:pointer;font-size:11px;padding:3px 8px;color:var(--color-text);">${window.icon ? window.icon('mail', {size:11}) : ''} Email</button>
                 </div>
             </div>
             <div style="font-size:11px;color:var(--color-text-secondary);">
@@ -834,7 +834,7 @@ async function _catProspectSendEmail(prospectId) {
             ? data.prospects.find(x => x.id === prospectId)
             : null;
         if (p && p.email) window.location.href = 'mailto:' + encodeURIComponent(p.email);
-        else showToast('⚠️ Email introuvable pour ce prospect.', 'warning');
+        else showToast('Email introuvable pour ce prospect.', 'warning');
     }
 }
 
@@ -942,7 +942,7 @@ async function saveTemplate() {
             body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if (!data.ok) { showToast('❌ ' + (data.error || 'Erreur'), 'error'); return; }
+        if (!data.ok) { showToast(data.error || 'Erreur', 'error'); return; }
         document.getElementById('tplId').value = data.id;
         const btnDel = document.getElementById('tplBtnDelete');
         if (btnDel) btnDel.style.display = '';
@@ -950,7 +950,7 @@ async function saveTemplate() {
         await _loadTemplates();
         if (data.id) _renderTplList();
     } catch (e) {
-        showToast('❌ Erreur : ' + e.message, 'error');
+        showToast('Erreur : ' + e.message, 'error');
     }
 }
 
@@ -966,12 +966,12 @@ async function deleteTemplate() {
             body: JSON.stringify({ id: Number(id) })
         });
         const data = await res.json();
-        if (!data.ok) { showToast('❌ ' + (data.error || 'Erreur'), 'error'); return; }
+        if (!data.ok) { showToast(data.error || 'Erreur', 'error'); return; }
         showToast('Template supprimé', 'success');
         _tplShowEditor(false);
         await _loadTemplates();
     } catch (e) {
-        showToast('❌ Erreur : ' + e.message, 'error');
+        showToast('Erreur : ' + e.message, 'error');
     }
 }
 

@@ -15,11 +15,11 @@ function dayLabel(iso) {
     const tomorrow = addDaysISO(t, 1);
     const weekEnd = addDaysISO(t, 7);
     if (!iso) return '—';
-    if (iso < t) return '⛔ En retard';
-    if (iso === t) return '📌 Aujourd’hui';
-    if (iso === tomorrow) return '🕘 Demain';
-    if (iso <= weekEnd) return '📅 Cette semaine';
-    return '🗓️ Plus tard';
+    if (iso < t) return (window.icon ? window.icon(‘ban’, {size:13}) : ‘’) + ‘ En retard’;
+    if (iso === t) return (window.icon ? window.icon(‘mapPin’, {size:13}) : ‘’) + ‘ Aujourd\’hui’;
+    if (iso === tomorrow) return (window.icon ? window.icon(‘clock’, {size:13}) : ‘’) + ‘ Demain’;
+    if (iso <= weekEnd) return (window.icon ? window.icon(‘calendar’, {size:13}) : ‘’) + ‘ Cette semaine’;
+    return (window.icon ? window.icon(‘calendar’, {size:13}) : ‘’) + ‘ Plus tard’;
 }
 
 function groupKey(iso) {
@@ -87,7 +87,7 @@ function renderFocus(items) {
             renderEmpty(container, {
                 icon: 'target',
                 title: 'Rien à faire aujourd\'hui',
-                desc: 'Toutes les relances sont à jour. Prenez un café ☕',
+                desc: 'Toutes les relances sont à jour.',
             });
         } else {
             container.innerHTML = '<div class="card"><div class="muted">Aucune relance pour ce filtre.</div></div>';
@@ -96,11 +96,11 @@ function renderFocus(items) {
     }
 
     const sections = [
-        { key:'late', title:'⛔ En retard' },
-        { key:'today', title:'📌 Aujourd’hui' },
-        { key:'tomorrow', title:'🕘 Demain' },
-        { key:'week', title:'📅 Cette semaine' },
-        { key:'later', title:'🗓️ Plus tard' },
+        { key:’late’,     title:(window.icon ? window.icon(‘ban’, {size:14}) : ‘’) + ‘ En retard’ },
+        { key:’today’,    title:(window.icon ? window.icon(‘mapPin’, {size:14}) : ‘’) + ‘ Aujourd\’hui’ },
+        { key:’tomorrow’, title:(window.icon ? window.icon(‘clock’, {size:14}) : ‘’) + ‘ Demain’ },
+        { key:’week’,     title:(window.icon ? window.icon(‘calendar’, {size:14}) : ‘’) + ‘ Cette semaine’ },
+        { key:’later’,    title:(window.icon ? window.icon(‘calendar’, {size:14}) : ‘’) + ‘ Plus tard’ },
     ];
 
     sections.forEach(sec => {
@@ -116,8 +116,8 @@ function renderFocus(items) {
             const prio = Number(it.priority || 0);
             const prioBadge = prio >= 3 ? '<span class="badge badge-danger">P3</span>' : (prio === 2 ? '<span class="badge badge-warning">P2</span>' : (prio === 1 ? '<span class="badge">P1</span>' : '<span class="badge">P0</span>'));
             // The email icon copies the email address to the clipboard instead of opening the mail client.
-            const emailBtn = it.email ? `<a class="mini-action" href="javascript:void(0)" onclick="copyEmailToClipboard('${escapeHtml(it.email).replace(/'/g,"\\'")}')" title="Copier l'email">✉️</a>` : '';
-            const telBtn = it.telephone ? `<a class="mini-action" href="tel:${escapeHtml(it.telephone)}" title="Appeler">📞</a>` : '';
+            const emailBtn = it.email ? `<a class="mini-action" href="javascript:void(0)" onclick="copyEmailToClipboard('${escapeHtml(it.email).replace(/'/g,"\\'")}')" title="Copier l'email" aria-label="Copier l'email">${window.icon ? window.icon('mail', {size:14}) : ''}</a>` : '';
+            const telBtn = it.telephone ? `<a class="mini-action" href="tel:${escapeHtml(it.telephone)}" title="Appeler" aria-label="Appeler">${window.icon ? window.icon('phone', {size:14}) : ''}</a>` : '';
 
             return `
               <tr class="focus-row">
@@ -136,9 +136,9 @@ function renderFocus(items) {
                 <td class="focus-cell focus-cell-actions" data-label="Actions" style="text-align:right; white-space:nowrap;">
                   ${telBtn}
                   ${emailBtn}
-                  <button class="mini-action" onclick="viewDetail(${it.id})" title="Voir la fiche">👁️</button>
+                  <button class="mini-action" onclick="viewDetail(${it.id})" title="Voir la fiche" aria-label="Voir la fiche">${window.icon ? window.icon('eye', {size:14}) : ''}</button>
                   <button class="mini-action" onclick="focusBump(${it.id}, 2)" title="Décaler +2j">+2j</button>
-                  <button class="mini-action" onclick="focusDone(${it.id})" title="Marquer fait">✅</button>
+                  <button class="mini-action" onclick="focusDone(${it.id})" title="Marquer fait" aria-label="Marquer fait">${window.icon ? window.icon('checkCircle', {size:14}) : ''}</button>
                 </td>
               </tr>
             `;
@@ -275,7 +275,7 @@ function _taskDueBadge(dueDate) {
     let cls = 'todo-due-badge';
     if (dueDate < today) cls += ' overdue';
     else if (dueDate === today) cls += ' today';
-    return `<span class="${cls}">📅 ${dueDate}</span>`;
+    return `<span class="${cls}">${window.icon ? window.icon('calendar', {size:12}) : ''} ${dueDate}</span>`;
 }
 
 function _taskLinkedNames(linked) {
@@ -286,13 +286,13 @@ function _taskLinkedNames(linked) {
     if (pIds.length && typeof data !== 'undefined' && data.prospects) {
         for (const pid of pIds) {
             const p = data.prospects.find(x => x.id === pid);
-            if (p) parts.push(`<span class="todo-linked prospect" title="Prospect">👤 ${escapeHtml(p.name)}</span>`);
+            if (p) parts.push(`<span class="todo-linked prospect" title="Prospect">${window.icon ? window.icon('userSingle', {size:12}) : ''} ${escapeHtml(p.name)}</span>`);
         }
     }
     if (cIds.length && typeof data !== 'undefined' && data.candidates) {
         for (const cid of cIds) {
             const c = data.candidates.find(x => x.id === cid);
-            if (c) parts.push(`<span class="todo-linked candidate" title="Candidat">🎓 ${escapeHtml(c.name)}</span>`);
+            if (c) parts.push(`<span class="todo-linked candidate" title="Candidat">${window.icon ? window.icon('graduation', {size:12}) : ''} ${escapeHtml(c.name)}</span>`);
         }
     }
     return parts.join(' ');
@@ -324,9 +324,9 @@ function renderTasks(tasks, container, archived) {
                     ${linkedHtml ? `<div class="todo-linked-row">${linkedHtml}</div>` : ''}
                 </div>
                 <div class="todo-actions">
-                    <button class="mini-action" onclick="copyTaskForTeams(${t.id})" title="Copier pour Teams">📋</button>
-                    <button class="mini-action" onclick="openTaskModal(${t.id})" title="Modifier">✏️</button>
-                    <button class="mini-action" onclick="deleteTask(${t.id})" title="Supprimer">🗑️</button>
+                    <button class="mini-action" onclick="copyTaskForTeams(${t.id})" title="Copier pour Teams" aria-label="Copier pour Teams">${window.icon ? window.icon('clipboard', {size:14}) : ''}</button>
+                    <button class="mini-action" onclick="openTaskModal(${t.id})" title="Modifier" aria-label="Modifier">${window.icon ? window.icon('edit', {size:14}) : ''}</button>
+                    <button class="mini-action" onclick="deleteTask(${t.id})" title="Supprimer" aria-label="Supprimer">${window.icon ? window.icon('trash', {size:14}) : ''}</button>
                 </div>
             </div>`;
     }).join('');
@@ -581,7 +581,7 @@ async function deleteTask(taskId) {
 function toggleArchivedView() {
     __todoShowArchived = !__todoShowArchived;
     const btn = document.getElementById('btnShowArchived');
-    if (btn) btn.textContent = __todoShowArchived ? '← Tâches en cours' : '📁 Archives';
+    if (btn) btn.textContent = __todoShowArchived ? '← Tâches en cours' : 'Archives';
     loadTasks();
 }
 

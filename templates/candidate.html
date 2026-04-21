@@ -349,8 +349,8 @@
 
     <div class="form-group" style="margin-top:16px; padding-top:16px; border-top:1px solid var(--color-border);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <label>🤖 Phrase de présentation (push)</label>
-        <button class="btn btn-secondary btn-sm" id="btnGeneratePresentationAI" type="button" onclick="generatePresentationAI()" style="font-size:12px;">🤖 Générer IA</button>
+        <label><i data-icon="robot" data-size="13" aria-hidden="true"></i> Phrase de présentation (push)</label>
+        <button class="btn btn-secondary btn-sm" id="btnGeneratePresentationAI" type="button" onclick="generatePresentationAI()" style="font-size:12px;"><i data-icon="robot" data-size="13" aria-hidden="true"></i> Générer IA</button>
       </div>
       <textarea id="viewPresentationText" class="autosave-field" rows="3"
         placeholder="Phrase de présentation utilisée lors des push emails. Cliquez 'Générer IA' pour la créer automatiquement depuis le dossier de compétences."
@@ -359,7 +359,7 @@
     </div>
 
     <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; align-items:center;">
-      <button id="btnIA_candidate_0" class="btn btn-secondary" type="button" onclick="handleCandidateIAButton()" style="font-size:13px;">🤖 Scrapping IA</button>
+      <button id="btnIA_candidate_0" class="btn btn-secondary" type="button" onclick="handleCandidateIAButton()" style="font-size:13px;"><i data-icon="robot" data-size="13" aria-hidden="true"></i> Scrapping IA</button>
       <button class="btn btn-secondary" type="button" id="btnReload"><i data-icon="clock" data-size="14" aria-hidden="true"></i> Recharger</button>
       <button class="btn btn-primary" type="submit"><i data-icon="check" data-size="14" aria-hidden="true"></i> Enregistrer</button>
     </div>
@@ -441,7 +441,7 @@
   <div class="modal-backdrop"></div>
   <div class="modal-content" style="max-width:460px; text-align:center;">
     <div class="modal-header" style="border-bottom:none; justify-content:center; padding-bottom:0;">
-      <h2 id="ficheProgressTitle" style="font-size:16px;">🤖 Scan IA en cours…</h2>
+      <h2 id="ficheProgressTitle" style="font-size:16px;"><i data-icon="robot" data-size="16" aria-hidden="true"></i> Scan IA en cours…</h2>
     </div>
     <div class="modal-body" style="padding-top:12px;">
       <div style="margin-bottom:12px;" id="ficheProgressEmoji"><i data-icon="file" data-size="36" aria-hidden="true"></i></div>

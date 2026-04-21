@@ -46,10 +46,10 @@
     nav.setAttribute('aria-label', 'Navigation mobile');
 
     var tabs = [
-      { page: 'dashboard', href: '/dashboard', icon: '📊', label: 'Stats' },
-      { page: 'prospects', href: '/',          icon: '👥', label: 'Prospects' },
-      { page: 'focus',     href: '/focus',     icon: '🎯', label: 'Focus' },
-      { page: 'calendar',  href: '/calendrier',icon: '📅', label: 'Agenda' }
+      { page: 'dashboard', href: '/dashboard', icon: window.icon ? window.icon('chart', {size:20}) : '', label: 'Stats' },
+      { page: 'prospects', href: '/',          icon: window.icon ? window.icon('users', {size:20}) : '', label: 'Prospects' },
+      { page: 'focus',     href: '/focus',     icon: window.icon ? window.icon('target', {size:20}) : '', label: 'Focus' },
+      { page: 'calendar',  href: '/calendrier',icon: window.icon ? window.icon('calendar', {size:20}) : '', label: 'Agenda' }
     ];
 
     var currentPage = (document.body.getAttribute('data-page') || '').toLowerCase();
@@ -126,10 +126,10 @@
     options.id = 'm-fab-options';
 
     var items = [
-      { action: 'add-prospect', label: 'Prospect',    icon: '👤', bg: '#FF6B35' },
-      { action: 'add-candidate', label: 'Candidat',   icon: '💼', bg: '#4ECDC4' },
-      { action: 'assistant-ia',  label: 'Assistant IA',icon: '🤖', bg: '#22C55E' },
-      { action: 'mode-prosp',    label: 'Mode Prosp',  icon: '🃏', bg: '#F59E0B' }
+      { action: 'add-prospect',  label: 'Prospect',     icon: window.icon ? window.icon('userSingle', {size:18}) : '', bg: '#FF6B35' },
+      { action: 'add-candidate', label: 'Candidat',     icon: window.icon ? window.icon('briefcase', {size:18}) : '', bg: '#4ECDC4' },
+      { action: 'assistant-ia',  label: 'Assistant IA', icon: window.icon ? window.icon('robot', {size:18}) : '',     bg: '#22C55E' },
+      { action: 'mode-prosp',    label: 'Mode Prosp',   icon: window.icon ? window.icon('cards', {size:18}) : '',      bg: '#F59E0B' }
     ];
 
     items.forEach(function (item) {
@@ -296,13 +296,13 @@
       html +=
         '<div class="m-swipe-wrap" data-pid="' + pid + '">' +
           '<div class="m-swipe-actions m-swipe-actions-left">' +
-            (tel ? '<button class="m-swipe-action call" onclick="window.open(\'tel:' + esc(tel) + '\')"><span class="m-swipe-action-icon">📞</span><span class="m-swipe-action-label">Appeler</span></button>' : '') +
-            (email ? '<button class="m-swipe-action email" onclick="window.open(\'mailto:' + esc(email) + '\')"><span class="m-swipe-action-icon">✉️</span><span class="m-swipe-action-label">Email</span></button>' : '') +
-            (!tel && !email ? '<span class="m-swipe-action" style="background:#64748B;color:white;min-width:64px;opacity:0.5"><span class="m-swipe-action-icon">🚫</span><span class="m-swipe-action-label">Aucun</span></span>' : '') +
+            (tel ? '<button class="m-swipe-action call" onclick="window.open(\'tel:' + esc(tel) + '\')"><span class="m-swipe-action-icon">' + (window.icon ? window.icon('phone', {size:18}) : '') + '</span><span class="m-swipe-action-label">Appeler</span></button>' : '') +
+            (email ? '<button class="m-swipe-action email" onclick="window.open(\'mailto:' + esc(email) + '\')"><span class="m-swipe-action-icon">' + (window.icon ? window.icon('mail', {size:18}) : '') + '</span><span class="m-swipe-action-label">Email</span></button>' : '') +
+            (!tel && !email ? '<span class="m-swipe-action" style="background:#64748B;color:white;min-width:64px;opacity:0.5"><span class="m-swipe-action-icon">' + (window.icon ? window.icon('ban', {size:18}) : '') + '</span><span class="m-swipe-action-label">Aucun</span></span>' : '') +
           '</div>' +
           '<div class="m-swipe-actions m-swipe-actions-right">' +
-            '<button class="m-swipe-action status" data-pid="' + pid + '" onclick="window._mCycleStatus(' + pid + ')"><span class="m-swipe-action-icon">🔄</span><span class="m-swipe-action-label">Statut</span></button>' +
-            '<button class="m-swipe-action log" onclick="if(typeof viewDetail===\'function\')viewDetail(' + pid + ')"><span class="m-swipe-action-icon">📝</span><span class="m-swipe-action-label">Fiche</span></button>' +
+            '<button class="m-swipe-action status" data-pid="' + pid + '" onclick="window._mCycleStatus(' + pid + ')"><span class="m-swipe-action-icon">' + (window.icon ? window.icon('refreshCw', {size:18}) : '') + '</span><span class="m-swipe-action-label">Statut</span></button>' +
+            '<button class="m-swipe-action log" onclick="if(typeof viewDetail===\'function\')viewDetail(' + pid + ')"><span class="m-swipe-action-icon">' + (window.icon ? window.icon('note', {size:18}) : '') + '</span><span class="m-swipe-action-label">Fiche</span></button>' +
           '</div>' +
           '<div class="m-card-inner m-card" onclick="if(typeof viewDetail===\'function\')viewDetail(' + pid + ')">' +
             '<div class="m-card-accent s-' + sm.slug + '"></div>' +

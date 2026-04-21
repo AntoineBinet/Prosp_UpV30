@@ -421,7 +421,7 @@
     };
 
     window.qaGenerateWithOllama = function (multiple) {
-        if (!_qaType) { showToast('⚠️ Sélectionnez un type d\'abord', 'warning'); return; }
+        if (!_qaType) { showToast('Sélectionnez un type d\'abord', 'warning'); return; }
         _qaMode = multiple ? 'multiple' : 'single';
         const contextEl = document.getElementById('qaContextInput');
         const context = (contextEl && contextEl.value && contextEl.value.trim()) ? contextEl.value.trim() : '';
@@ -738,10 +738,10 @@
 
     window.qaParse = function () {
         const raw = document.getElementById('qaPasteTextarea').value.trim();
-        if (!raw) { showToast('⚠️ Collez le retour de l\'IA', 'warning'); return; }
+        if (!raw) { showToast('Collez le retour de l\'IA', 'warning'); return; }
         const result = _tryParseQARaw(raw, _qaType);
         if (!result.ok) {
-            showToast('⚠️ Format non reconnu. Modifiez le JSON ci-dessous puis réessayez.', 'warning');
+            showToast('Format non reconnu. Modifiez le JSON ci-dessous puis réessayez.', 'warning');
             return;
         }
         _qaParsed = result.parsed;
@@ -885,11 +885,11 @@
             panel.style.cssText = 'position:fixed;bottom:20px;right:20px;width:500px;max-height:400px;background:var(--color-surface);border:2px solid var(--color-primary);border-radius:8px;padding:12px;z-index:10000;box-shadow:0 4px 12px rgba(0,0,0,0.3);overflow:auto;font-size:11px;font-family:monospace;';
             panel.innerHTML = `
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <strong style="color:var(--color-primary);">🔍 Debug IA — Retour brut</strong>
+                    <strong style="color:var(--color-primary);">${window.icon ? window.icon('search', {size:13}) : ''} Debug IA — Retour brut</strong>
                     <button onclick="document.getElementById('qaIADebugPanel').style.display='none'" style="background:none;border:none;color:var(--color-text);cursor:pointer;font-size:16px;padding:0 8px;">×</button>
                 </div>
                 <div style="margin-bottom:8px;">
-                    <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="font-size:10px;padding:4px 8px;background:var(--color-bg-secondary);border:1px solid var(--color-border);border-radius:4px;cursor:pointer;">📋 Voir le prompt</button>
+                    <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="font-size:10px;padding:4px 8px;background:var(--color-bg-secondary);border:1px solid var(--color-border);border-radius:4px;cursor:pointer;">${window.icon ? window.icon('clipboard', {size:11}) : ''} Voir le prompt</button>
                     <pre id="qaDebugPrompt" style="display:none;background:var(--color-bg-secondary);padding:8px;border-radius:4px;margin-top:4px;white-space:pre-wrap;word-wrap:break-word;max-height:150px;overflow:auto;font-size:10px;">${(prompt || '').substring(0, 1000)}${(prompt || '').length > 1000 ? '...' : ''}</pre>
                 </div>
                 <div style="margin-bottom:8px;">
@@ -897,7 +897,7 @@
                     <pre id="qaDebugRawText" style="background:var(--color-bg-secondary);padding:8px;border-radius:4px;margin-top:4px;white-space:pre-wrap;word-wrap:break-word;max-height:200px;overflow:auto;font-size:10px;border:1px solid var(--color-border);">${_escDebugText(rawText || '')}</pre>
                 </div>
                 <div style="font-size:10px;color:var(--color-muted);">
-                    💡 Ce panneau montre le retour brut de l'IA avant parsing. Vérifiez si l'IA a bien extrait les données.
+                    Ce panneau montre le retour brut de l'IA avant parsing. Vérifiez si l'IA a bien extrait les données.
                 </div>
             `;
             document.body.appendChild(panel);
@@ -970,14 +970,14 @@
         document.getElementById('qaStep4Preview').style.display = '';
         const labels = { prospect: 'Prospect', company: 'Entreprise', candidate: 'Candidat' };
         document.getElementById('qaPreviewTitle').textContent =
-            `✅ ${items.length} ${labels[_qaType]}(s) — vérifiez et modifiez les champs puis créez`;
+            `${items.length} ${labels[_qaType]}(s) — vérifiez et modifiez les champs puis créez`;
 
         const container = document.getElementById('qaPreviewList');
         container.innerHTML = items.map((item, i) => {
             if (_qaType === 'prospect') {
                 const tagsVal = Array.isArray(item.tags) ? item.tags.join(', ') : (item.tags || '');
                 const isDup = _isDuplicateInData(item);
-                const dupBadge = isDup ? `<span style="background:rgba(220,38,38,.15);color:#ef4444;border:1px solid #ef4444;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;">⚠️ Doublon probable</span>` : '';
+                const dupBadge = isDup ? `<span style="background:rgba(220,38,38,.15);color:#ef4444;border:1px solid #ef4444;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;">${window.icon ? window.icon('alertTri', {size:11}) : ''} Doublon probable</span>` : '';
                 const missingName = !(item.name || item.nom);
                 const cardBorder = missingName ? 'border:2px solid #ef4444;' : '';
                 return `<div class="card qa-preview-item" data-index="${i}" style="padding:14px;margin-bottom:12px;${cardBorder}">
@@ -1094,7 +1094,7 @@
     // ─── Create all (lit les valeurs depuis le formulaire de validation) ───
     window.qaCreateAll = async function () {
         const items = _getPreviewItemsFromDOM();
-        if (!items || items.length === 0) { showToast('⚠️ Aucun élément sélectionné', 'warning'); return; }
+        if (!items || items.length === 0) { showToast('Aucun élément sélectionné', 'warning'); return; }
 
         if (_qaType === 'prospect') {
             const prospectsToCheck = items.map(item => ({
@@ -1155,11 +1155,11 @@
             const label = created === 1 ? '1 prospect créé' : `${created} prospects créés`;
             const errPart = errors > 0 ? ` — ${errors} erreur(s)` : '';
             showToast(
-                `✅ ${label}${errPart} — <a href="#" onclick="viewDetail(${firstCreatedId});return false;" style="color:inherit;text-decoration:underline;">Voir le premier</a>`,
+                `${label}${errPart} — <a href="#" onclick="viewDetail(${firstCreatedId});return false;" style="color:inherit;text-decoration:underline;">Voir le premier</a>`,
                 'success', 5000
             );
         } else {
-            showToast(`✅ ${created} créé(s)${errors > 0 ? ` — ${errors} erreur(s)` : ''}`, created > 0 ? 'success' : 'warning');
+            showToast(`${created} créé(s)${errors > 0 ? ` — ${errors} erreur(s)` : ''}`, created > 0 ? 'success' : 'warning');
         }
 
         // Refresh data
@@ -1280,13 +1280,13 @@
         const context = (contextEl && contextEl.value && contextEl.value.trim()) ? contextEl.value.trim() : '';
         const prompt = multiple ? _buildMultiPrompt(type, context) : _buildSinglePrompt(type, context);
         navigator.clipboard.writeText(prompt).then(() => {
-            showToast('🤖 Prompt copié ! Collez-le dans votre IA favorite.', 'success', 4000);
+            showToast('Prompt copié ! Collez-le dans votre IA favorite.', 'success', 4000);
         }).catch(() => {
             const ta = document.createElement('textarea');
             ta.value = prompt; ta.style.cssText = 'position:fixed;left:-9999px;';
             document.body.appendChild(ta); ta.select(); document.execCommand('copy');
             document.body.removeChild(ta);
-            showToast('🤖 Prompt copié !', 'success', 3000);
+            showToast('Prompt copié !', 'success', 3000);
         });
     }
 
@@ -1340,7 +1340,7 @@
             
             extractionInstructions = `IMPORTANT : Le contexte contient un lien LinkedIn (${context}).
 
-⚠️ LinkedIn bloque souvent l'accès direct aux profils via API. Utilise ces stratégies :
+ATTENTION: LinkedIn bloque souvent l'accès direct aux profils via API. Utilise ces stratégies :
 
 1. **Recherche web par nom + entreprise** : 
    ${extractedName ? `- Nom extrait de l'URL : "${extractedName}"` : '- Nom à extraire de l\'URL LinkedIn'}
@@ -1381,7 +1381,7 @@ Si tu ne peux pas évaluer à partir des informations disponibles, utilise "" (c
 Réponds UNIQUEMENT par un objet JSON valide, sans aucun texte avant ou après, sans \`\`\` ni markdown.
 Utilise exactement les clés de l'exemple. Pour un prospect : name, fonction, entreprise, telephone, email, linkedin, tags, metier, pertinence, secteur, notes. Limite "tags" à 12 éléments max. IMPORTANT : "pertinence" doit être "1", "2", "3", "4" ou "5" (chaîne de caractères), jamais autre chose.
 
-⚠️ RÈGLES IMPORTANTES :
+RÈGLES IMPORTANTES :
 - N'invente JAMAIS d'informations qui ne sont pas visibles dans le contexte fourni
 - Si une information n'est pas disponible (téléphone, email, etc.), utilise "" (chaîne vide) au lieu d'inventer
 - Pour les tags, utilise uniquement ceux qui correspondent réellement au profil (domaines techniques mentionnés)
@@ -1428,7 +1428,7 @@ ${jsonFormats[type]}`;
         if (hasLinkedInUrls) {
             extractionInstructions = `IMPORTANT : Le contexte contient des liens LinkedIn.
 
-⚠️ LinkedIn bloque souvent l'accès direct aux profils via API. Utilise ces stratégies :
+ATTENTION: LinkedIn bloque souvent l'accès direct aux profils via API. Utilise ces stratégies :
 
 1. **Recherche par nom + entreprise** : Pour chaque lien "linkedin.com/in/nom-profil", cherche sur le web "nom-profil LinkedIn [nom entreprise]" pour trouver des informations publiques.
 
@@ -1465,7 +1465,7 @@ Réponds UNIQUEMENT par un array JSON valide, sans aucun texte avant ou après, 
 Limite les tableaux "tags" / "skills" à 12 éléments par fiche pour éviter la troncature.
 IMPORTANT : "pertinence" doit être "1", "2", "3", "4" ou "5" (chaîne de caractères) pour chaque prospect, jamais autre chose.
 
-⚠️ RÈGLES IMPORTANTES :
+RÈGLES IMPORTANTES :
 - N'invente JAMAIS d'informations qui ne sont pas visibles dans le contexte fourni
 - Si une information n'est pas disponible, utilise "" (chaîne vide) au lieu d'inventer
 - Pour les tags, utilise uniquement ceux qui correspondent réellement aux profils
@@ -1669,7 +1669,7 @@ Exemple : ${jsonFormats[type]}`;
         } else {
             let html = '<table style="width:100%;border-collapse:collapse;">';
             html += '<thead><tr style="position:sticky;top:0;background:var(--color-surface-2);font-size:11px;">' +
-                '<th style="padding:5px 6px;text-align:left;font-weight:600;">✓</th>' +
+                '<th style="padding:5px 6px;text-align:left;font-weight:600;">Sél.</th>' +
                 '<th style="padding:5px 6px;text-align:left;font-weight:600;">Prospect</th>' +
                 '<th style="padding:5px 6px;text-align:left;font-weight:600;">Téléphone actuel → nouveau</th>' +
                 '<th style="padding:5px 6px;text-align:left;font-weight:600;">Email actuel → nouveau</th>' +
@@ -1714,7 +1714,7 @@ Exemple : ${jsonFormats[type]}`;
         const btn = document.getElementById('qaContactsApplyBtn');
         if (!btn) return;
         const count = _contactsMatches.filter(m => m.selected).length;
-        btn.textContent = count > 0 ? `✅ Appliquer (${count} prospect${count > 1 ? 's' : ''})` : '✅ Appliquer les mises à jour';
+        btn.textContent = count > 0 ? `Appliquer (${count} prospect${count > 1 ? 's' : ''})` : 'Appliquer les mises à jour';
         btn.disabled = count === 0;
     }
 

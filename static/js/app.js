@@ -648,18 +648,13 @@ async function updateAIButtonLabels() {
             
             // Patterns à remplacer - utiliser des remplacements plus sûrs
             if (/Générer avec l'IA \(un seul\)/i.test(text)) {
-                newText = '🤖 Générer avec ' + safeModelName + ' (un seul)';
+                newText = 'Générer avec ' + safeModelName + ' (un seul)';
             } else if (/Générer avec l'IA \(plusieurs\)/i.test(text)) {
-                newText = '🤖 Générer avec ' + safeModelName + ' (plusieurs)';
+                newText = 'Générer avec ' + safeModelName + ' (plusieurs)';
             } else if (/Générer avec Ollama/i.test(text) && !/Générer avec Ollama \(/i.test(text)) {
                 newText = text.replace(/Générer avec Ollama/i, 'Générer avec ' + safeModelName);
             } else if (/Générer avec l'IA/i.test(text) && !/Générer avec l'IA \(/i.test(text)) {
-                // Remplacer "l'IA" par le nom du modèle, en préservant l'emoji si présent
-                const hasEmoji = /🤖/.test(text);
                 newText = text.replace(/Générer avec l'IA/i, 'Générer avec ' + safeModelName);
-                if (hasEmoji && !/🤖/.test(newText)) {
-                    newText = '🤖 ' + newText.replace(/^🤖\s*/, '');
-                }
             }
             
             // Ne mettre à jour que si le texte a changé et est valide
@@ -685,7 +680,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // ═══════════════════════════════════════════════════════════════════
 const AppAuth = {
     user: null,
-    ROLE_LABELS: {admin:'🔑 Admin', editor:'✏️ Éditeur', reader:'👁️ Lecteur'},
+    ROLE_LABELS: {admin:'Admin', editor:'Éditeur', reader:'Lecteur'},
     async init() {
         try {
             const r = await fetch('/api/auth/me');
@@ -710,7 +705,7 @@ const AppAuth = {
                     <div class="user-session-name">${name}</div>
                     <div class="user-session-role">${typeof escapeHtml === 'function' ? escapeHtml(label) : label}</div>
                 </div>
-                <button onclick="AppAuth.logout()" title="Déconnexion" class="user-session-logout">⏻</button>
+                <button onclick="AppAuth.logout()" title="Déconnexion" class="user-session-logout">${window.icon ? window.icon('x', {size:14}) : ''}</button>
             </div>`;
         
         // v25: badge utilisateur uniquement dans le header (plus dans la sidebar)
@@ -768,7 +763,7 @@ const AppAuth = {
             if (opts && ['POST','PUT','DELETE'].includes((opts.method||'').toUpperCase())) {
                 const path = typeof url === 'string' ? url : url.toString();
                 if (!path.includes('/api/auth/') && !path.includes('/api/saved-views')) {
-                    if (typeof showToast === 'function') showToast('🔒 Accès en lecture seule', 'warning');
+                    if (typeof showToast === 'function') showToast('Accès en lecture seule', 'warning');
                     return Promise.resolve(new Response(JSON.stringify({ok:false,error:'Lecture seule'}), {status:403}));
                 }
             }
@@ -811,7 +806,7 @@ function telLink(phone, label) {
     const clean = phone.replace(/[^\d+]/g, '');
     const display = label || phone;
     // Always render as link — on desktop it opens phone app, on mobile it dials
-    return `<a href="tel:${clean}" class="tel-link" title="Appeler ${display}">📞 ${display}</a>`;
+    return `<a href="tel:${clean}" class="tel-link" title="Appeler ${display}">${window.icon ? window.icon('phone', {size:13}) : ''} ${display}</a>`;
 }
 
 const data = {
@@ -892,15 +887,15 @@ function saveToServerAsync(opts) {
                 throw new Error(msg);
             });
         }
-        showToast('✓ Sauvegardé', 'success');
+        showToast('Sauvegardé', 'success');
     });
 }
 
 function saveToServer(opts) {
     saveToServerAsync(opts).catch(err => {
         console.error('Erreur sauvegarde serveur :', err);
-        if (window.showToast) showToast('❌ Sauvegarde échouée : ' + (err.message || err), 'error', 5000);
-        showToast(err && err.message ? err.message : "⚠ Erreur de sauvegarde — vérifiez que app.py est lancé", 'error');
+        if (window.showToast) showToast('Sauvegarde échouée : ' + (err.message || err), 'error', 5000);
+        showToast(err && err.message ? err.message : "Erreur de sauvegarde — vérifiez que app.py est lancé", 'error');
     });
 }
 
@@ -923,7 +918,7 @@ async function handleApiError(res, context) {
         }
         console.error(`[${context}] ${errorMsg} (HTTP ${res.status})`);
         if (window.showToast) {
-            showToast(`❌ ${context}: ${errorMsg}`, 'error');
+            showToast(`${context}: ${errorMsg}`, 'error');
         }
         return null;
     }
@@ -932,7 +927,7 @@ async function handleApiError(res, context) {
     } catch (e) {
         console.error(`[${context}] Erreur parsing JSON:`, e);
         if (window.showToast) {
-            showToast(`❌ ${context}: Erreur de format de réponse`, 'error');
+            showToast(`${context}: Erreur de format de réponse`, 'error');
         }
         return null;
     }
@@ -2018,7 +2013,7 @@ let selectedCompanies = new Set();
 // Pagination state
 let _pageSize = parseInt(localStorage.getItem('prospup_pageSize') || '50', 10);
 let _currentPage = 1;
-// Multi-status exclusion filter (UI: 🚫 Exclure)
+// Multi-status exclusion filter (UI: Exclure)
 let excludedStatuses = new Set();
 let sortKey = 'lastContact';
 let companySortKey = 'groupe';
@@ -2528,7 +2523,7 @@ function setupListeners() {
                         // Sinon, on renvoie vers la page principale
                         window.location.href = '/?imported=1';
                     }
-                    showToast('✅ Données importées et fusionnées !', 'success');
+                    showToast('Données importées et fusionnées !', 'success');
                 } else {
                     showToast('JSON invalide : attendu {companies:[...], prospects:[...]}', 'error');
                 }
@@ -2611,7 +2606,7 @@ function deleteCompany(companyId) {
         if (c.tags === undefined || c.tags === null) c.tags = [];
     });
     if (isUnassignedCompany(companyId)) {
-        showToast('⚠️ Impossible de supprimer cette entreprise.', 'warning');
+        showToast('Impossible de supprimer cette entreprise.', 'warning');
         return;
     }
     const company = data.companies.find(c => c.id === companyId);
@@ -2641,8 +2636,8 @@ function deleteCompany(companyId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: companyId })
-    }).then(r => { if (!r.ok) showToast('❌ Suppression impossible', 'error'); })
-      .catch(() => showToast('❌ Erreur réseau', 'error'));
+    }).then(r => { if (!r.ok) showToast('Suppression impossible', 'error'); })
+      .catch(() => showToast('Erreur réseau', 'error'));
 
     // Toast avec bouton Annuler (10 secondes)
     showUndoToast(`Entreprise supprimée\u00a0: ${companyLabel}`, 'company', companyId, async () => {
@@ -2655,9 +2650,9 @@ function deleteCompany(companyId) {
             await loadData();
             refreshCompaniesUI();
             filterProspects();
-            showToast('↩️ Entreprise restaurée', 'success', 2500);
+            showToast('Entreprise restaurée', 'success', 2500);
         } else {
-            showToast('❌ Impossible d\'annuler', 'error');
+            showToast('Impossible d\'annuler', 'error');
         }
     });
 }
@@ -2700,7 +2695,7 @@ function viewProspectsForCompany(companyId) {
 
 function beginCompanyNotesInline(companyId) {
     if (isUnassignedCompany(companyId)) {
-        showToast('⚠️ Cette entreprise ne peut pas être modifiée.', 'warning');
+        showToast('Cette entreprise ne peut pas être modifiée.', 'warning');
         return;
     }
     inlineCompanyNotesEditingId = companyId;
@@ -2726,7 +2721,7 @@ function saveCompanyNotesInline(companyId) {
 
 function beginCompanyFieldInline(companyId, field) {
     if (isUnassignedCompany(companyId)) {
-        showToast('⚠️ Cette entreprise ne peut pas être modifiée.', 'warning');
+        showToast('Cette entreprise ne peut pas être modifiée.', 'warning');
         return;
     }
     if (inlineCompanyFieldEditing) return;
@@ -3070,7 +3065,7 @@ function _renderCompaniesInternal(tbody, q) {
             notesSnippet = `
                 <div class="company-note-snippet" title="Cliquer pour modifier la note" onclick="event.stopPropagation(); beginCompanyNotesInline(${company.id});">
                     <span class="note-text">${snippetText}</span>
-                    <span class="company-note-edit">✎</span>
+                    <span class="company-note-edit">${window.icon ? window.icon('edit', {size:12}) : ''}</span>
                 </div>
             `;
         }
@@ -3150,16 +3145,16 @@ function _renderCompaniesInternal(tbody, q) {
             <td class="center company-actions-cell">
                 <div class="company-actions-group">
                     <button class="btn-action btn-action-view" title="Voir la fiche entreprise" onclick="event.stopPropagation(); openCompanySheet(${company.id}, 'view');">
-                        <span class="btn-action-icon">🏢</span>
+                        <span class="btn-action-icon">${window.icon ? window.icon('briefcase', {size:14}) : ''}</span>
                     </button>
                     <button class="btn-action btn-action-prospects" title="Voir prospects" onclick="event.stopPropagation(); viewProspectsForCompany(${company.id});">
-                        <span class="btn-action-icon">👥</span>
+                        <span class="btn-action-icon">${window.icon ? window.icon('users', {size:14}) : ''}</span>
                     </button>
                     <button class="btn-action btn-action-edit" title="Modifier" onclick="event.stopPropagation(); openEditCompanyModal(${company.id});">
-                        <span class="btn-action-icon">✏️</span>
+                        <span class="btn-action-icon">${window.icon ? window.icon('edit', {size:14}) : ''}</span>
                     </button>
                     <button class="btn-action btn-action-delete" title="Supprimer" onclick="event.stopPropagation(); deleteCompany(${company.id});" ${company.id === unassignedId ? 'disabled' : ''}>
-                        <span class="btn-action-icon">🗑️</span>
+                        <span class="btn-action-icon">${window.icon ? window.icon('trash', {size:14}) : ''}</span>
                     </button>
                 </div>
             </td>
@@ -3341,8 +3336,8 @@ function renderActiveFilterChips() {
     if (getFilterVal('pushFilter')) add('Push: ' + gv('pushFilter'), "document.getElementById('pushFilter').value='';filterProspects()");
     if (getFilterVal('followupFilter')) add('Relance: ' + gv('followupFilter'), "document.getElementById('followupFilter').value='';filterProspects()");
     if (getFilterVal('priorityFilter')) add('Priorité: P' + getFilterVal('priorityFilter'), "document.getElementById('priorityFilter').value='';filterProspects()");
-    filterTags.forEach((t, i) => add('🏷️ ' + t, `removeFilterTag(${i})`));
-    if (excludedStatuses && excludedStatuses.size) add('🚫 ' + excludedStatuses.size + ' exclu(s)', "excludedStatuses.clear();filterProspects()");
+    filterTags.forEach((t, i) => add(t, `removeFilterTag(${i})`));
+    if (excludedStatuses && excludedStatuses.size) add(excludedStatuses.size + ' exclu(s)', "excludedStatuses.clear();filterProspects()");
 
     bar.innerHTML = chips.join('');
     bar.style.display = chips.length ? 'flex' : 'none';
@@ -3354,7 +3349,7 @@ function renderActiveFilterChips() {
 
     // update toggle button
     const btn = document.getElementById('btnToggleFilters');
-    if (btn) btn.innerHTML = n ? `⚙️ Filtres <span class="filter-badge">${n}</span>` : '⚙️ Filtres';
+    if (btn) btn.innerHTML = (window.icon ? window.icon('settings', {size:14}) : '') + (n ? ` Filtres <span class="filter-badge">${n}</span>` : ' Filtres');
 }
 
 function resetAllFilters() {
@@ -3388,7 +3383,7 @@ function archiveProspect(id) {
     const p = data.prospects.find(x => x.id === id);
     if (!p) return;
     const label = p.name || 'Ce prospect';
-    if (!confirm(`📁 Archiver "${label}" ?`)) return;
+    if (!confirm(`Archiver "${label}" ?`)) return;
     p.is_archived = 1;
     saveToServer();
     if (typeof window.pushUndo === 'function') {
@@ -3405,7 +3400,7 @@ function archiveProspect(id) {
     closeDetail();
     filterProspects();
     
-    showToast(`📁 ${label} archivé`, 'success');
+    showToast(`${label} archivé`, 'success');
 }
 // Alias pour compatibilité
 const moveToContacts = archiveProspect;
@@ -3428,7 +3423,7 @@ function unarchiveProspect(id) {
     }
     closeDetail();
     filterProspects();
-    showToast(`👥 ${_name} restauré dans les prospects`, 'success');
+    showToast(`${_name} restauré dans les prospects`, 'success');
 }
 // Alias pour compatibilité
 const restoreFromContacts = unarchiveProspect;
@@ -3466,10 +3461,10 @@ function filterProspects() {
     if (currentView === 'actions') {
         baseProspects = baseProspects.filter(p => ['À rappeler', 'Rendez-vous', 'Messagerie'].includes(p.statut));
         const viewTitleEl = document.getElementById('viewTitle');
-        if (viewTitleEl) viewTitleEl.textContent = '⏰ Actions à faire';
+        if (viewTitleEl) viewTitleEl.textContent = 'Actions à faire';
     } else {
         const viewTitleEl = document.getElementById('viewTitle');
-        if (viewTitleEl) viewTitleEl.textContent = _showArchived ? '📁 Archivés' : '👥 Tous les prospects';
+        if (viewTitleEl) viewTitleEl.textContent = _showArchived ? 'Archivés' : 'Tous les prospects';
     }
     syncStatsCardsMode();
 
@@ -3763,9 +3758,9 @@ async function confirmMergeCompanies() {
         await loadFromServer();
         refreshCompaniesUI();
         filterProspects();
-        showToast(`✅ Entreprise(s) fusionnée(s)`, 'success');
+        showToast(`Entreprise(s) fusionnée(s)`, 'success');
     } catch (err) {
-        showToast('❌ Erreur lors de la fusion : ' + (err.message || err), 'error');
+        showToast('Erreur lors de la fusion : ' + (err.message || err), 'error');
     }
 }
 
@@ -3796,7 +3791,7 @@ async function applyBulkStatus() {
     filterProspects(); // refresh list & stats
     selectedProspects.clear();
     updateBulkBar();
-    showToast(`✅ ${updated} prospect(s) mis à jour`, 'success');
+    showToast(`${updated} prospect(s) mis à jour`, 'success');
 }
 
 async function applyBulkPertinence() {
@@ -3826,7 +3821,7 @@ async function applyBulkPertinence() {
     filterProspects();
     selectedProspects.clear();
     updateBulkBar();
-    showToast(`✅ ${updated} prospect(s) mis à jour`, 'success');
+    showToast(`${updated} prospect(s) mis à jour`, 'success');
 }
 
 function openBulkEditModal() {
@@ -3858,22 +3853,22 @@ function bulkEditUpdateValueInput() {
     if (field === 'statut') {
         html += `<select id="bulkEditValue" style="width:100%;">
             <option value="">-- Choisir --</option>
-            <option value="Appelé">📞 Appelé</option>
-            <option value="Rendez-vous">🤝 Rendez-vous</option>
-            <option value="Prospecté">🎯 Prospecté</option>
-            <option value="Messagerie">💬 Messagerie</option>
-            <option value="À rappeler">📞 À rappeler</option>
-            <option value="Pas d'actions">✓ Pas d'actions</option>
-            <option value="Pas intéressé">❌ Pas intéressé</option>
+            <option value="Appelé">Appelé</option>
+            <option value="Rendez-vous">Rendez-vous</option>
+            <option value="Prospecté">Prospecté</option>
+            <option value="Messagerie">Messagerie</option>
+            <option value="À rappeler">À rappeler</option>
+            <option value="Pas d'actions">Pas d'actions</option>
+            <option value="Pas intéressé">Pas intéressé</option>
         </select>`;
     } else if (field === 'pertinence') {
         html += `<select id="bulkEditValue" style="width:100%;">
             <option value="">-- Choisir --</option>
-            <option value="5">⭐⭐⭐⭐⭐</option>
-            <option value="4">⭐⭐⭐⭐</option>
-            <option value="3">⭐⭐⭐</option>
-            <option value="2">⭐⭐</option>
-            <option value="1">⭐</option>
+            <option value="5">5 — Très haute</option>
+            <option value="4">4 — Haute</option>
+            <option value="3">3 — Normale</option>
+            <option value="2">2 — Basse</option>
+            <option value="1">1 — Très basse</option>
         </select>`;
     } else if (field === 'fixedMetier') {
         html += `<select id="bulkEditValue" style="width:100%;">
@@ -3918,7 +3913,7 @@ async function applyBulkEdit() {
     selectedProspects.clear();
     updateBulkBar();
     closeBulkEditModal();
-    showToast(`✅ ${updated} prospect(s) mis à jour`, 'success');
+    showToast(`${updated} prospect(s) mis à jour`, 'success');
 }
 
 async function applyBulkCompany() {
@@ -3946,7 +3941,7 @@ async function applyBulkCompany() {
     filterProspects();
     selectedProspects.clear();
     updateBulkBar();
-    showToast(`✅ ${updated} prospect(s) déplacé(s)`, 'success');
+    showToast(`${updated} prospect(s) déplacé(s)`, 'success');
 }
 
 async function applyBulkRelance() {
@@ -4052,7 +4047,7 @@ async function applyBulkRelanceDone() {
 async function deleteSelectedProspects() {
     const count = selectedProspects.size;
     if (count === 0) return;
-    if (!confirm(`⚠️ Supprimer définitivement ${count} prospect(s) ?`)) return;
+    if (!confirm(`Supprimer définitivement ${count} prospect(s) ?`)) return;
 
     const ids = Array.from(selectedProspects);
     const total = ids.length;
@@ -4075,7 +4070,7 @@ async function deleteSelectedProspects() {
     await saveToServerAsync({ confirmMassDelete: true });
     filterProspects();
     updateBulkBar();
-    showToast(`✅ ${deleted} prospect(s) supprimé(s)`, 'success');
+    showToast(`${deleted} prospect(s) supprimé(s)`, 'success');
 }
 
 // todayISO() est défini dans les helpers globaux (en haut du fichier).
@@ -4104,7 +4099,7 @@ function setRelanceFromInfo(prospectId, days) {
     saveToServer();
     const valEl = document.getElementById('detailRelanceValue');
     if (valEl) {
-        valEl.innerHTML = '<span class="relance-date-row">' + escapeHtml(p.nextFollowUp) + '<button type="button" class="relance-check-btn" onclick="clearRelanceFromInfo(' + prospectId + ')" title="Marquer comme relancé (supprime la date)">✓</button></span>';
+        valEl.innerHTML = '<span class="relance-date-row">' + escapeHtml(p.nextFollowUp) + '<button type="button" class="relance-check-btn" onclick="clearRelanceFromInfo(' + prospectId + ')" title="Marquer comme relancé (supprime la date)">' + (window.icon ? window.icon('check', {size:13}) : '') + '</button></span>';
     }
     try { filterProspects(); } catch (e) {}
     if (typeof showToast === 'function') showToast('Relance programmée : ' + p.nextFollowUp, 'success');
@@ -4162,16 +4157,16 @@ function getStatusMeta(statut) {
     const s = String(statut || '').toLowerCase();
     if (!s) return { icon: '•', slug: 'none', label: '' };
 
-    if (s.includes('messagerie')) return { icon: '💬', slug: 'messagerie', label: 'Messagerie' };
-    if (s.includes('rendez')) return { icon: '🤝', slug: 'rdv', label: 'RDV' };
-    if (s.includes('prospecté') || s.includes('prospecte')) return { icon: '🎯', slug: 'prospecte', label: 'Prospecté' };
-    if (s.includes('à rappeler') || s.includes('rappeler')) return { icon: '⏳', slug: 'rappeler', label: 'À rappeler' };
-    if (s.includes('appel')) return { icon: '📞', slug: 'appele', label: 'Appelé' };
-    if (s.includes('pas intéress')) return { icon: '❌', slug: 'pas-interesse', label: 'Pas intéressé' };
-    if (s.includes("pas d'actions") || s.includes('pas dactions')) return { icon: '✓', slug: 'pas-actions', label: 'Pas d\'actions' };
-    if (s.includes('prospect')) return { icon: '📋', slug: 'prospectes', label: 'Prospectés' };
+    if (s.includes('messagerie')) return { slug: 'messagerie', label: 'Messagerie' };
+    if (s.includes('rendez')) return { slug: 'rdv', label: 'RDV' };
+    if (s.includes('prospecté') || s.includes('prospecte')) return { slug: 'prospecte', label: 'Prospecté' };
+    if (s.includes('à rappeler') || s.includes('rappeler')) return { slug: 'rappeler', label: 'À rappeler' };
+    if (s.includes('appel')) return { slug: 'appele', label: 'Appelé' };
+    if (s.includes('pas intéress')) return { slug: 'pas-interesse', label: 'Pas intéressé' };
+    if (s.includes("pas d'actions") || s.includes('pas dactions')) return { slug: 'pas-actions', label: 'Pas d\'actions' };
+    if (s.includes('prospect')) return { slug: 'prospectes', label: 'Prospectés' };
 
-    return { icon: '•', slug: 'autre', label: (statut || '').slice(0, 12) };
+    return { slug: 'autre', label: (statut || '').slice(0, 12) };
 }
 
 // Formate une date RDV pour l'affichage dans le badge (format compact)
@@ -4223,7 +4218,7 @@ function renderFollowupMini(p) {
     const iso = (p && p.nextFollowUp) ? String(p.nextFollowUp).trim() : '';
     if (!iso) return '';
     const due = iso <= todayISO();
-    return `<span class="followup-mini ${due ? 'due' : 'ok'}" title="Relance">${due ? '⚠️' : '📅'} ${escapeHtml(iso)}</span>`;
+    return `<span class="followup-mini ${due ? 'due' : 'ok'}" title="Relance">${due ? (window.icon ? window.icon('alertTri', {size:12}) : '') : (window.icon ? window.icon('calendar', {size:12}) : '')} ${escapeHtml(iso)}</span>`;
 }
 
 function renderPushMini(p) {
@@ -4233,8 +4228,8 @@ function renderPushMini(p) {
     const liSent = (p && p.pushLinkedInSentAt) ? String(p.pushLinkedInSentAt).trim() : '';
 
     const parts = [];
-    if (hasEmail) parts.push(`<span class="push-mini ${emailSent ? 'yes' : 'no'}" title="Push email">${emailSent ? '✉️✅' : '✉️'}</span>`);
-    if (hasLi) parts.push(`<span class="push-mini ${liSent ? 'yes' : 'no'}" title="Push LinkedIn">${liSent ? 'in✅' : 'in'}</span>`);
+    if (hasEmail) parts.push(`<span class="push-mini ${emailSent ? 'yes' : 'no'}" title="Push email">${window.icon ? window.icon('mail', {size:12}) : ''}</span>`);
+    if (hasLi) parts.push(`<span class="push-mini ${liSent ? 'yes' : 'no'}" title="Push LinkedIn">${window.icon ? window.icon('linkedin', {size:12}) : 'in'}</span>`);
     return parts.join('');
 }
 
@@ -4354,11 +4349,11 @@ function _renderProspectsImpl() {
         if (noDataAtAll) {
             tbody.innerHTML = `<tr><td colspan="13">
                 <div style="text-align:center;padding:60px 20px;">
-                    <div style="font-size:48px;margin-bottom:16px;">📋</div>
+                    <div style="font-size:48px;margin-bottom:16px;">${window.icon ? window.icon('clipboard', {size:48}) : ''}</div>
                     <div style="font-size:18px;font-weight:600;margin-bottom:8px;color:var(--color-text,#e2e8f0)">Aucun prospect pour l'instant</div>
                     <div style="color:var(--color-text-secondary,#94a3b8);font-size:14px;margin-bottom:24px;">Commencez par importer une liste ou ajouter votre premier prospect.</div>
                     <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-                        <button class="btn btn-primary" onclick="openImportListModal && openImportListModal()">📥 Importer une liste Excel</button>
+                        <button class="btn btn-primary" onclick="openImportListModal && openImportListModal()">${window.icon ? window.icon('download', {size:13}) : ''} Importer une liste Excel</button>
                         <button class="btn btn-secondary" onclick="openNewProspectModal && openNewProspectModal()">+ Ajouter un prospect</button>
                     </div>
                 </div>
@@ -4366,7 +4361,7 @@ function _renderProspectsImpl() {
         } else {
             tbody.innerHTML = '<tr><td colspan="13">' +
                 '<div style="text-align:center;padding:48px 20px;">' +
-                '<div style="font-size:40px;margin-bottom:12px;">🔍</div>' +
+                '<div style="font-size:40px;margin-bottom:12px;display:flex;justify-content:center;">' + (window.icon ? window.icon('search', {size:40}) : '') + '</div>' +
                 '<div style="font-size:16px;font-weight:600;margin-bottom:6px;color:var(--color-text,#e2e8f0)">Aucun résultat</div>' +
                 '<div style="color:var(--color-text-secondary,#94a3b8);font-size:13px;margin-bottom:16px;">Aucun prospect ne correspond aux filtres actifs.</div>' +
                 '<button class="btn btn-secondary" style="min-height:44px;font-size:14px;" onclick="resetFilters && resetFilters()">Réinitialiser les filtres</button>' +
@@ -4427,7 +4422,7 @@ function _renderProspectsImpl() {
         const telRaw = (prospect.telephone && String(prospect.telephone).trim()) ? String(prospect.telephone).trim() : '';
         const telShort = telRaw.slice(0, 20);
         const mobileMetaParts = [];
-        if (telShort) mobileMetaParts.push('<span class="prospect-card-mobile-tel">📞 ' + escapeHtml(telShort) + '</span>');
+        if (telShort) mobileMetaParts.push('<span class="prospect-card-mobile-tel">' + (window.icon ? window.icon('phone', {size:11}) : '') + ' ' + escapeHtml(telShort) + '</span>');
         const followupMini = renderFollowupMini(prospect);
         if (followupMini) mobileMetaParts.push(followupMini);
         const mobileMeta = mobileMetaParts.join(' ');
@@ -4461,11 +4456,11 @@ function _renderProspectsImpl() {
         if (companyName) metaBits.push(escapeHtml(companyName));
         if (fonctionMobile) metaBits.push(fonctionMobile);
         if (pert > 0) metaBits.push('<span class="pmc-stars">' + '★'.repeat(pert) + '</span>');
-        if (telShort) metaBits.push('<span class="pmc-tel">📞 ' + escapeHtml(telShort) + '</span>');
+        if (telShort) metaBits.push('<span class="pmc-tel">' + (window.icon ? window.icon('phone', {size:11}) : '') + ' ' + escapeHtml(telShort) + '</span>');
         // Date RDV ou relance urgente — au plus un indicateur
         if (prospect.statut === 'Rendez-vous' && prospect.rdvDate) {
             const rdvFmt = formatRdvDateForBadge(prospect.rdvDate);
-            if (rdvFmt) metaBits.push('<span class="pmc-rdv">📅 ' + escapeHtml(rdvFmt) + '</span>');
+            if (rdvFmt) metaBits.push('<span class="pmc-rdv">' + (window.icon ? window.icon('calendar', {size:11}) : '') + ' ' + escapeHtml(rdvFmt) + '</span>');
         } else if (followupMini) {
             metaBits.push(followupMini);
         }
@@ -4477,8 +4472,8 @@ function _renderProspectsImpl() {
 
         // Actions swipe droite (révèle gauche) : Appeler + Email
         let swipeLeftBtns = '';
-        if (telRaw) swipeLeftBtns += '<button class="pmc-action pmc-action-call" type="button" onclick="event.stopPropagation();callNumberById(' + pid + ')"><span class="pmc-action-icon">📞</span><span class="pmc-action-label">Appeler</span></button>';
-        if (emailRaw) swipeLeftBtns += '<button class="pmc-action pmc-action-email" type="button" onclick="event.stopPropagation();quickEmailProspect(' + pid + ')"><span class="pmc-action-icon">📧</span><span class="pmc-action-label">Email</span></button>';
+        if (telRaw) swipeLeftBtns += '<button class="pmc-action pmc-action-call" type="button" onclick="event.stopPropagation();callNumberById(' + pid + ')"><span class="pmc-action-icon">' + (window.icon ? window.icon('phone', {size:18}) : '') + '</span><span class="pmc-action-label">Appeler</span></button>';
+        if (emailRaw) swipeLeftBtns += '<button class="pmc-action pmc-action-email" type="button" onclick="event.stopPropagation();quickEmailProspect(' + pid + ')"><span class="pmc-action-icon">' + (window.icon ? window.icon('mail', {size:18}) : '') + '</span><span class="pmc-action-label">Email</span></button>';
         const swipeLeftHtml = hasContact
             ? '<div class="pmc-actions-left">' + swipeLeftBtns + '</div>'
             : '<div class="pmc-actions-left pmc-no-contact"></div>';
@@ -4508,7 +4503,7 @@ function _renderProspectsImpl() {
                 if (diffDays <= 3) {
                     row3Parts.push('<span class="pmc-relance pmc-relance-soon">● +' + diffDays + 'j</span>');
                 } else {
-                    row3Parts.push('<span class="pmc-relance pmc-relance-ok">📅 ' + nfu.slice(5).replace('-', '/') + '</span>');
+                    row3Parts.push('<span class="pmc-relance pmc-relance-ok">' + (window.icon ? window.icon('calendar', {size:11}) : '') + ' ' + nfu.slice(5).replace('-', '/') + '</span>');
                 }
             }
         }
@@ -4520,8 +4515,8 @@ function _renderProspectsImpl() {
             '<div class="pmc-swipe-wrap">' +
             swipeLeftHtml +
             '<div class="pmc-actions-right">' +
-            '<button class="pmc-action pmc-action-log" type="button" onclick="event.stopPropagation();quickLogCall(' + pid + ')"><span class="pmc-action-icon">✓</span><span class="pmc-action-label">Appelé</span></button>' +
-            '<button class="pmc-action pmc-action-relance" type="button" onclick="event.stopPropagation();quickScheduleFollowup(' + pid + ')"><span class="pmc-action-icon">📅</span><span class="pmc-action-label">Relance</span></button>' +
+            '<button class="pmc-action pmc-action-log" type="button" onclick="event.stopPropagation();quickLogCall(' + pid + ')"><span class="pmc-action-icon">' + (window.icon ? window.icon('check', {size:18}) : '') + '</span><span class="pmc-action-label">Appelé</span></button>' +
+            '<button class="pmc-action pmc-action-relance" type="button" onclick="event.stopPropagation();quickScheduleFollowup(' + pid + ')"><span class="pmc-action-icon">' + (window.icon ? window.icon('calendar', {size:18}) : '') + '</span><span class="pmc-action-label">Relance</span></button>' +
             '</div>' +
             '<div class="pmc-content pmc-enter">' +
             '<div class="pmc-accent"></div>' +
@@ -4554,7 +4549,7 @@ function _renderProspectsImpl() {
             '</td>' +
             '<td>' + (prospect.id || '') + '</td>' +
             '<td class="name-cell-with-tel">' + '<span class="name-cell">' + displayName + '</span>' +
-            (telRaw ? '<a href="javascript:void(0)" class="phone-dot has-phone" onclick="event.stopPropagation();callNumberById(' + pid + ')" title="Appeler">📞</a>' : '') + '</td>' +
+            (telRaw ? '<a href="javascript:void(0)" class="phone-dot has-phone" onclick="event.stopPropagation();callNumberById(' + pid + ')" title="Appeler">' + (window.icon ? window.icon('phone', {size:13}) : '') + '</a>' : '') + '</td>' +
             '<td>' + (companyName ? escapeHtml(companyName) : '—') + '</td>' +
             '<td>' + fonctionStr + '</td>' +
             '<td class="stars-cell" title="Pertinence">' + stars + '</td>' +
@@ -4667,7 +4662,7 @@ function quickScheduleFollowup(prospectId) {
     sheet.id = 'quickRelanceSheet';
     sheet.className = 'swipe-status-sheet';
     sheet.innerHTML = '<div class="swipe-status-sheet-inner">' +
-        '<div class="swipe-status-title">📅 Planifier une relance</div>' +
+        '<div class="swipe-status-title">' + (window.icon ? window.icon('calendar', {size:16}) : '') + ' Planifier une relance</div>' +
         '<button class="swipe-status-btn" style="--status-color:#F97316" onclick="applyQuickRelance(' + prospectId + ',\'' + fmt(d1) + '\')" type="button">Demain — ' + fmt(d1) + '</button>' +
         '<button class="swipe-status-btn" style="--status-color:#F59E0B" onclick="applyQuickRelance(' + prospectId + ',\'' + fmt(d3) + '\')" type="button">Dans 3 jours — ' + fmt(d3) + '</button>' +
         '<button class="swipe-status-btn" style="--status-color:#3B82F6" onclick="applyQuickRelance(' + prospectId + ',\'' + fmt(d7) + '\')" type="button">Dans 1 semaine — ' + fmt(d7) + '</button>' +
@@ -4735,7 +4730,7 @@ function quickLogCall(prospectId) {
     prospect.lastContact = nowISO();
     saveToServer();
     if (window.haptic) window.haptic(40);
-    if (window.showToast) window.showToast('Statut → Appelé ✓', 'success', 2500);
+    if (window.showToast) window.showToast('Statut → Appelé', 'success', 2500);
     setTimeout(filterProspects, 350); // re-render after flash
 }
 
@@ -4793,7 +4788,7 @@ function applySwipeStatus(prospectId, slug) {
     prospect.lastContact = nowISO();
     saveToServer();
     if (window.haptic) window.haptic(40);
-    if (window.showToast) window.showToast('Statut → ' + newStatus + ' ✓', 'success', 2500);
+    if (window.showToast) window.showToast('Statut → ' + newStatus, 'success', 2500);
     setTimeout(filterProspects, 260); // wait for sheet close animation
 }
 
@@ -4804,9 +4799,9 @@ function _renderProspectsDirect() {
 
 function renderEmailCell(p) {
     const email = (p && p.email) ? String(p.email).trim() : '';
-    if (!email) return '<span class="email-indicator no-email" title="Pas d\'email">✉️</span>';
+    if (!email) return '<span class="email-indicator no-email" title="Pas d\'email">' + (window.icon ? window.icon('mail', {size:13}) : '') + '</span>';
     const escaped = escapeHtml(email).replace(/'/g, "\\'");
-    return `<span class="email-indicator has-email" onclick="copyEmailToClipboard('${escaped}')" title="${escapeHtml(email)} — Cliquer pour copier">✉️</span>`;
+    return `<span class="email-indicator has-email" onclick="copyEmailToClipboard('${escaped}')" title="${escapeHtml(email)} — Cliquer pour copier">${window.icon ? window.icon('mail', {size:13}) : ''}</span>`;
 }
 
 function renderPushCell(p) {
@@ -4818,10 +4813,10 @@ function renderPushCell(p) {
 
     // Make the push icons interactive: clicking the envelope calls openEmailForProspect(id), clicking "in" copies a LinkedIn message.
     if (hasEmail) {
-        parts.push(`<span class="push-badge ${emailSent ? 'push-yes' : 'push-no'}" title="Email${emailSent ? (' · ' + escapeHtml(emailSent)) : ''}" onclick="openEmailForProspect(${p.id})" style="cursor:pointer;">✉️${emailSent ? '✅' : ''}</span>`);
+        parts.push(`<span class="push-badge ${emailSent ? 'push-yes' : 'push-no'}" title="Email${emailSent ? (' · ' + escapeHtml(emailSent)) : ''}" onclick="openEmailForProspect(${p.id})" style="cursor:pointer;">${window.icon ? window.icon('mail', {size:13}) : ''}${emailSent ? (window.icon ? window.icon('checkCircle', {size:11}) : '') : ''}</span>`);
     }
     if (hasLi) {
-        parts.push(`<span class="push-badge ${liSent ? 'push-yes' : 'push-no'}" title="LinkedIn${liSent ? (' · ' + escapeHtml(liSent)) : ''}" onclick="copyLinkedInForProspect(${p.id})" style="cursor:pointer;margin-left:6px;">in${liSent ? '✅' : ''}</span>`);
+        parts.push(`<span class="push-badge ${liSent ? 'push-yes' : 'push-no'}" title="LinkedIn${liSent ? (' · ' + escapeHtml(liSent)) : ''}" onclick="copyLinkedInForProspect(${p.id})" style="cursor:pointer;margin-left:6px;">in${liSent ? (window.icon ? window.icon('checkCircle', {size:11}) : '') : ''}</span>`);
     }
     if (!parts.length) return '<span class="push-badge push-na" title="Pas de canal">—</span>';
 
@@ -5025,7 +5020,7 @@ function updateOverdueAlerts(prospects) {
                 var parts = [];
                 if (overdueCount > 0) parts.push(overdueCount + ' relance' + (overdueCount > 1 ? 's' : '') + ' en retard');
                 if (dueTodayCount > 0) parts.push(dueTodayCount + ' à faire aujourd\'hui');
-                bannerTextEl.textContent = '⚠️ ' + parts.join(' · ');
+                bannerTextEl.innerHTML = (window.icon ? window.icon('alertTri', {size:14}) : '') + ' ' + parts.join(' · ');
                 bannerEl.style.display = 'flex';
             } else {
                 bannerEl.style.display = 'none';
@@ -5090,7 +5085,7 @@ async function viewDetail(id) {
     const avatarInner = photoUrl
         ? `<img class="detail-avatar-img" src="${photoUrl}?t=${Date.now()}" alt="${escapeHtml(initials)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="detail-avatar" style="background:${heroColor};display:none;">${escapeHtml(initials)}</div>`
         : `<div class="detail-avatar" style="background:${heroColor};">${escapeHtml(initials)}</div>`;
-    const avatarHtml = `<div class="detail-avatar-wrap" onclick="triggerPhotoUpload(${prospect.id})" title="Cliquer pour changer la photo">${avatarInner}<div class="detail-avatar-overlay">📷</div></div>`;
+    const avatarHtml = `<div class="detail-avatar-wrap" onclick="triggerPhotoUpload(${prospect.id})" title="Cliquer pour changer la photo">${avatarInner}<div class="detail-avatar-overlay">${window.icon ? window.icon('camera', {size:16}) : ''}</div></div>`;
 
     // Company link → open quick company view popup
     const companyLink = company
@@ -5108,7 +5103,7 @@ async function viewDetail(id) {
     if (prospect.callNotes && prospect.callNotes.length > 0) {
         notesHtml = prospect.callNotes.map((note, idx) => `
             <div class="detail-note-card">
-                <button class="detail-note-del" title="Supprimer" onclick="deleteCallNote(${id}, ${idx})">🗑️</button>
+                <button class="detail-note-del" title="Supprimer" onclick="deleteCallNote(${id}, ${idx})">${window.icon ? window.icon('trash', {size:13}) : ''}</button>
                 <div class="detail-note-date">${escapeHtml(note.date || '')}</div>
                 <div class="detail-note-text">${escapeHtml(note.content || '').split('\n').join('<br>')}</div>
             </div>
@@ -5145,25 +5140,25 @@ async function viewDetail(id) {
         </div>
 
         <div class="detail-quick-actions">
-            <button class="btn btn-success" onclick="callNumberById(${prospect.id})" ${prospect.telephone ? '' : 'disabled'} title="Appeler le prospect (ouvre l'application téléphone)">📞 Appeler</button>
+            <button class="btn btn-success" onclick="callNumberById(${prospect.id})" ${prospect.telephone ? '' : 'disabled'} title="Appeler le prospect (ouvre l'application téléphone)">${window.icon ? window.icon('phone', {size:14}) : ''} Appeler</button>
             ${prospect.email
-                ? `<button class="btn btn-secondary push-email-btn" id="btnEmailProspect_${prospect.id}" onclick="handleEmailProspect(${prospect.id})" title="Générer le push email (Outlook ou .eml)">✉️ Push</button>`
-                : `<button class="btn btn-secondary" disabled title="Email non renseigné">✉️ Email</button>`}
-            <button class="btn btn-primary" onclick="openTeamsInvite(${prospect.id})" title="Copier le profil formaté pour une invitation Teams">📅 Teams</button>
-            ${prospect.linkedin ? `<button class="btn btn-secondary" onclick="copyLinkedInForProspect(${prospect.id})" title="Copier le lien LinkedIn dans le presse-papier">📋 LinkedIn</button>` : ''}
-            <button class="btn btn-secondary" onclick="downloadVcf(${prospect.id})" title="Télécharger la fiche contact (.vcf)">📇 vCard</button>
-            <button class="btn btn-secondary" onclick="handleScanIA(${prospect.id})" title="Rechercher des informations supplémentaires sur internet via l'IA pour enrichir la fiche" data-help-section="scrapping-ia">🔍 Scan IA</button>
+                ? `<button class="btn btn-secondary push-email-btn" id="btnEmailProspect_${prospect.id}" onclick="handleEmailProspect(${prospect.id})" title="Générer le push email (Outlook ou .eml)">${window.icon ? window.icon('mail', {size:14}) : ''} Push</button>`
+                : `<button class="btn btn-secondary" disabled title="Email non renseigné">${window.icon ? window.icon('mail', {size:14}) : ''} Email</button>`}
+            <button class="btn btn-primary" onclick="openTeamsInvite(${prospect.id})" title="Copier le profil formaté pour une invitation Teams">${window.icon ? window.icon('calendar', {size:14}) : ''} Teams</button>
+            ${prospect.linkedin ? `<button class="btn btn-secondary" onclick="copyLinkedInForProspect(${prospect.id})" title="Copier le lien LinkedIn dans le presse-papier">${window.icon ? window.icon('clipboard', {size:14}) : ''} LinkedIn</button>` : ''}
+            <button class="btn btn-secondary" onclick="downloadVcf(${prospect.id})" title="Télécharger la fiche contact (.vcf)">${window.icon ? window.icon('userSingle', {size:14}) : ''} vCard</button>
+            <button class="btn btn-secondary" onclick="handleScanIA(${prospect.id})" title="Rechercher des informations supplémentaires sur internet via l'IA pour enrichir la fiche" data-help-section="scrapping-ia">${window.icon ? window.icon('search', {size:14}) : ''} Scan IA</button>
         </div>
-        ${(prospect.nextAction || '').trim() ? `<div class="detail-next-action-banner" role="status"><strong>🎯 Prochaine action :</strong> ${escapeHtml(prospect.nextAction)}</div>` : ''}
+        ${(prospect.nextAction || '').trim() ? `<div class="detail-next-action-banner" role="status"><strong>${window.icon ? window.icon('target', {size:14}) : ''} Prochaine action :</strong> ${escapeHtml(prospect.nextAction)}</div>` : ''}
 
         <!-- FRISE CHRONOLOGIQUE (gamification pipeline) -->
         <div id="friseContainer_${prospect.id}"></div>
 
         <div class="detail-tabs">
             <button class="detail-tab active" onclick="switchDetailTab(this,'tab-info')">Infos</button>
-            <button class="detail-tab" onclick="switchDetailTab(this,'tab-push')">📤 Push</button>
-            ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">📋 RDV</button>` : ''}
-            <button class="detail-tab" onclick="switchDetailTab(this,'tab-edit')">✏️ Modifier</button>
+            <button class="detail-tab" onclick="switchDetailTab(this,'tab-push')">${window.icon ? window.icon('send', {size:13}) : ''} Push</button>
+            ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="detail-tab" onclick="switchDetailTab(this,'tab-rdv');loadRdvChecklist(${prospect.id})">${window.icon ? window.icon('clipboard', {size:13}) : ''} RDV</button>` : ''}
+            <button class="detail-tab" onclick="switchDetailTab(this,'tab-edit')">${window.icon ? window.icon('edit', {size:13}) : ''} Modifier</button>
         </div>
 
         <!-- TAB: Infos -->
@@ -5173,18 +5168,18 @@ async function viewDetail(id) {
                 <div class="detail-info-item"><div class="detail-info-label">Email</div><div class="detail-info-value">${prospect.email ? `<a href="javascript:void(0)" onclick="copyEmailToClipboard('${escapeHtml(prospect.email)}')" title="Cliquer pour copier l'email" style="cursor:pointer;">${escapeHtml(prospect.email)}</a>` : '—'}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">LinkedIn</div><div class="detail-info-value">${prospect.linkedin ? `<a href="${escapeHtml(prospect.linkedin)}" target="_blank">Voir le profil</a>` : '—'}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Dernier contact</div><div class="detail-info-value"><span id="detailLastContact">${escapeHtml(formatLastContact(prospect.lastContact))}</span></div></div>
-                <div class="detail-info-item" id="detailRelanceRow"><div class="detail-info-label">Relance</div><div class="detail-info-value" id="detailRelanceValue">${(prospect.nextFollowUp || '').trim() ? '<span class="relance-date-row">' + escapeHtml(prospect.nextFollowUp) + '<button type="button" class="relance-check-btn" onclick="clearRelanceFromInfo(' + id + ')" title="Marquer comme relancé (supprime la date)">✓</button></span>' : '<div class="relance-shortcuts"><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 3)" title="Aujourd\'hui + 3 jours">+3j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 7)" title="Aujourd\'hui + 7 jours">+7j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 30)" title="Aujourd\'hui + 30 jours">+30j</button></div><span class="muted">—</span>'}</div></div>
+                <div class="detail-info-item" id="detailRelanceRow"><div class="detail-info-label">Relance</div><div class="detail-info-value" id="detailRelanceValue">${(prospect.nextFollowUp || '').trim() ? '<span class="relance-date-row">' + escapeHtml(prospect.nextFollowUp) + '<button type="button" class="relance-check-btn" onclick="clearRelanceFromInfo(' + id + ')" title="Marquer comme relancé (supprime la date)">' + (window.icon ? window.icon('check', {size:12}) : '') + '</button></span>' : '<div class="relance-shortcuts"><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 3)" title="Aujourd\'hui + 3 jours">+3j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 7)" title="Aujourd\'hui + 7 jours">+7j</button><button type="button" class="relance-shortcut-btn" onclick="setRelanceFromInfo(' + id + ', 30)" title="Aujourd\'hui + 30 jours">+30j</button></div><span class="muted">—</span>'}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Next action</div><div class="detail-info-value">${escapeHtml(prospect.nextAction || '—')}</div></div>
                 <div class="detail-info-item"><div class="detail-info-label">Priorité</div><div class="detail-info-value">P${prospect.priority ?? 2}</div></div>
-                ${prospect.rdvDate ? `<div class="detail-info-item"><div class="detail-info-label">📅 Date RDV</div><div class="detail-info-value">${escapeHtml(prospect.rdvDate)} <button class="mini-action" onclick="copyRdvForTeams(${prospect.id})" title="Copier RDV pour Teams" style="margin-left:6px;font-size:11px;">📋 Teams</button></div></div>` : ''}
+                ${prospect.rdvDate ? `<div class="detail-info-item"><div class="detail-info-label">${window.icon ? window.icon('calendar', {size:13}) : ''} Date RDV</div><div class="detail-info-value">${escapeHtml(prospect.rdvDate)} <button class="mini-action" onclick="copyRdvForTeams(${prospect.id})" title="Copier RDV pour Teams" style="margin-left:6px;font-size:11px;">${window.icon ? window.icon('clipboard', {size:12}) : ''} Teams</button></div></div>` : ''}
                 <div class="detail-info-item full"><div class="detail-info-label">Compétences</div><div class="detail-info-value" id="detailTagsContainer">${_renderTagsPreview(prospect.tags, prospect.id)}</div></div>
-                ${showMetier ? `<div class="detail-info-item full" id="metierSection"><div class="detail-info-label">🏗️ Métier suggéré</div><div class="detail-info-value" id="metierSuggestions">${renderMetierSection(prospect)}</div></div>` : ''}
+                ${showMetier ? `<div class="detail-info-item full" id="metierSection"><div class="detail-info-label">${window.icon ? window.icon('briefcase', {size:13}) : ''} Métier suggéré</div><div class="detail-info-value" id="metierSuggestions">${renderMetierSection(prospect)}</div></div>` : ''}
                 <div class="detail-info-item full"><div class="detail-info-label">Notes</div><div class="detail-info-value" style="white-space:pre-wrap;">${escapeHtml(prospect.notes || '—')}</div></div>
             </div>
 
             <!-- Notes / Suivi — composant NotesTimeline (v27.x PARTIE 1) -->
             <div class="nt-section detail-section-card" style="margin-top:14px;">
-                <div class="detail-section-title">📝 Notes / Suivi</div>
+                <div class="detail-section-title">${window.icon ? window.icon('edit', {size:14}) : ''} Notes / Suivi</div>
                 <div id="ntBox_${id}"></div>
             </div>
         </div>
@@ -5200,7 +5195,7 @@ async function viewDetail(id) {
             <!-- Onglets des réunions précédentes -->
             <div id="meetingsTabsContainer" style="margin-bottom:16px;display:none;">
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--color-border);">
-                    <button class="btn btn-secondary btn-sm" onclick="switchMeetingTab(null, ${prospect.id})" id="meetingTab_current" style="background:var(--color-primary);color:#fff;">📋 Grille actuelle</button>
+                    <button class="btn btn-secondary btn-sm" onclick="switchMeetingTab(null, ${prospect.id})" id="meetingTab_current" style="background:var(--color-primary);color:#fff;">${window.icon ? window.icon('clipboard', {size:13}) : ''} Grille actuelle</button>
                     <div id="meetingsTabsList"></div>
                 </div>
                 <div id="meetingDetailView" style="display:none;">
@@ -5212,14 +5207,14 @@ async function viewDetail(id) {
             <div id="rdvChecklistContainer">
                 <div class="rdv-checklist-header">
                     <div class="rdv-checklist-title">
-                        <span>📋 Grille de qualification</span>
+                        <span>${window.icon ? window.icon('clipboard', {size:13}) : ''} Grille de qualification</span>
                         <span class="rdv-checklist-progress" id="rdvProgress">0 / 0</span>
                     </div>
                     <div class="rdv-checklist-actions">
-                        <button class="btn btn-primary btn-sm" id="btnPreMeetingIA_${prospect.id}" onclick="handlePreMeetingIA(${prospect.id})" title="Générer une fiche de préparation RDV avec IA" data-help-section="scrapping-ia" style="background:#2980B9;border-color:#2980B9;">📋 Avant réunion IA</button>
-                        <button class="btn btn-primary btn-sm" id="btnPostMeetingIA_${prospect.id}" onclick="handlePostMeetingIA(${prospect.id})" title="Générer un compte-rendu IA et pré-remplir les champs" data-help-section="scrapping-ia">🤖 Après réunion IA</button>
-                        <button class="btn btn-secondary btn-sm" onclick="copyRdvChecklist(${prospect.id})" title="Copier dans le presse-papier">📋 Copier</button>
-                        <button class="btn btn-secondary btn-sm" onclick="resetRdvChecklist(${prospect.id})" title="Réinitialiser toutes les réponses">🔄 Reset</button>
+                        <button class="btn btn-primary btn-sm" id="btnPreMeetingIA_${prospect.id}" onclick="handlePreMeetingIA(${prospect.id})" title="Générer une fiche de préparation RDV avec IA" data-help-section="scrapping-ia" style="background:#2980B9;border-color:#2980B9;">${window.icon ? window.icon('clipboard', {size:13}) : ''} Avant réunion IA</button>
+                        <button class="btn btn-primary btn-sm" id="btnPostMeetingIA_${prospect.id}" onclick="handlePostMeetingIA(${prospect.id})" title="Générer un compte-rendu IA et pré-remplir les champs" data-help-section="scrapping-ia">${window.icon ? window.icon('robot', {size:13}) : ''} Après réunion IA</button>
+                        <button class="btn btn-secondary btn-sm" onclick="copyRdvChecklist(${prospect.id})" title="Copier dans le presse-papier">${window.icon ? window.icon('clipboard', {size:13}) : ''} Copier</button>
+                        <button class="btn btn-secondary btn-sm" onclick="resetRdvChecklist(${prospect.id})" title="Réinitialiser toutes les réponses">${window.icon ? window.icon('refreshCw', {size:13}) : ''} Reset</button>
                     </div>
                 </div>
                 <div class="rdv-checklist-bar-wrap"><div class="rdv-checklist-bar" id="rdvProgressBar"></div></div>
@@ -5240,7 +5235,7 @@ async function viewDetail(id) {
                     <div class="detail-info-item"><label class="detail-info-label">Téléphone</label><input id="editTel" type="text" value="${escapeHtml(prospect.telephone || '')}" class="detail-edit-input"></div>
                     <div class="detail-info-item"><label class="detail-info-label">Email</label><input id="editEmail" type="email" value="${escapeHtml(prospect.email || '')}" class="detail-edit-input"></div>
                     <div class="detail-info-item"><label class="detail-info-label">LinkedIn</label><input id="editLinkedin" type="text" value="${escapeHtml(prospect.linkedin || '')}" class="detail-edit-input"></div>
-                    <div class="detail-info-item"><label class="detail-info-label">Photo</label><div style="display:flex;gap:8px;align-items:center;margin-top:4px;"><button type="button" class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="triggerPhotoUpload(${prospect.id})">📷 ${photoUrl ? 'Changer' : 'Ajouter'}</button>${photoUrl ? `<button type="button" class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="deleteProspectPhoto(${prospect.id})">🗑️ Supprimer</button>` : ''}</div></div>
+                    <div class="detail-info-item"><label class="detail-info-label">Photo</label><div style="display:flex;gap:8px;align-items:center;margin-top:4px;"><button type="button" class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="triggerPhotoUpload(${prospect.id})">${window.icon ? window.icon('camera', {size:13}) : ''} ${photoUrl ? 'Changer' : 'Ajouter'}</button>${photoUrl ? `<button type="button" class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="deleteProspectPhoto(${prospect.id})">${window.icon ? window.icon('trash', {size:13}) : ''} Supprimer</button>` : ''}</div></div>
                     <div class="detail-info-item"><label class="detail-info-label">Dernier contact</label><input id="editLastContact" type="datetime-local" value="${(() => { const v = prospect.lastContact || nowISO(); return v.length === 10 ? v + 'T00:00' : v.slice(0, 16); })()}" class="detail-edit-input"></div>
                     <div class="detail-info-item">
                         <label class="detail-info-label">Relance</label>
@@ -5252,9 +5247,9 @@ async function viewDetail(id) {
                         <input id="editNextFollowUp" type="date" value="${prospect.nextFollowUp || ''}" class="detail-edit-input">
                     </div>
                     <div class="detail-info-item"><label class="detail-info-label">Next action</label><input id="editNextAction" type="text" value="${escapeHtml(prospect.nextAction || '')}" class="detail-edit-input" placeholder="Ex: Relancer dans 1 semaine"><div id="editNextActionSuggestions" class="next-action-suggestions">${getNextActionSuggestionsHtml(prospect.statut)}</div></div>
-                    <div class="detail-info-item"><label class="detail-info-label">📅 Date RDV</label><input id="editRdvDate" type="datetime-local" value="${prospect.rdvDate || ''}" class="detail-edit-input"></div>
+                    <div class="detail-info-item"><label class="detail-info-label">Date RDV</label><input id="editRdvDate" type="datetime-local" value="${prospect.rdvDate || ''}" class="detail-edit-input"></div>
                     <div class="detail-info-item"><label class="detail-info-label">Priorité</label><select id="editPriority" class="detail-edit-input"><option value="1" ${String(prospect.priority)==='1'?'selected':''}>P1 (haute)</option><option value="2" ${String(prospect.priority)==='2'||prospect.priority==null?'selected':''}>P2 (normal)</option><option value="3" ${String(prospect.priority)==='3'?'selected':''}>P3 (basse)</option></select></div>
-                    <div class="detail-info-item"><label class="detail-info-label">Pertinence</label><select id="editPertinence" class="detail-edit-input"><option value="5" ${String(prospect.pertinence)==='5'?'selected':''}>⭐⭐⭐⭐⭐</option><option value="4" ${String(prospect.pertinence)==='4'?'selected':''}>⭐⭐⭐⭐</option><option value="3" ${String(prospect.pertinence)==='3'?'selected':''}>⭐⭐⭐</option><option value="2" ${String(prospect.pertinence)==='2'?'selected':''}>⭐⭐</option><option value="1" ${String(prospect.pertinence)==='1'?'selected':''}>⭐</option></select></div>
+                    <div class="detail-info-item"><label class="detail-info-label">Pertinence</label><select id="editPertinence" class="detail-edit-input"><option value="5" ${String(prospect.pertinence)==='5'?'selected':''}>5 — Très haute</option><option value="4" ${String(prospect.pertinence)==='4'?'selected':''}>4 — Haute</option><option value="3" ${String(prospect.pertinence)==='3'?'selected':''}>3 — Normale</option><option value="2" ${String(prospect.pertinence)==='2'?'selected':''}>2 — Basse</option><option value="1" ${String(prospect.pertinence)==='1'?'selected':''}>1 — Très basse</option></select></div>
                 </div>
                 <div style="margin-top:16px;">
                     <label class="detail-info-label">Statut</label>
@@ -5270,12 +5265,12 @@ async function viewDetail(id) {
                     </select>
                 </div>
                 <div style="margin-top:16px;">
-                    <label class="detail-info-label" style="display:flex;align-items:center;gap:8px;">Compétences <button id="btnAutoTags_${prospect.id}" type="button" class="btn btn-secondary" onclick="handleAutoTags(${prospect.id})" title="Générer des tags automatiquement via Tavily + Ollama (basé sur le poste, l'entreprise, LinkedIn…)" style="font-size:11px;padding:3px 10px;font-weight:600;">✨ Ajouter Auto</button></label>
+                    <label class="detail-info-label" style="display:flex;align-items:center;gap:8px;">Compétences <button id="btnAutoTags_${prospect.id}" type="button" class="btn btn-secondary" onclick="handleAutoTags(${prospect.id})" title="Générer des tags automatiquement via Tavily + Ollama (basé sur le poste, l'entreprise, LinkedIn…)" style="font-size:11px;padding:3px 10px;font-weight:600;">${window.icon ? window.icon('robot', {size:12}) : ''} Ajouter Auto</button></label>
                     <input id="editTagsValue" type="hidden" value="${escapeHtml(JSON.stringify(prospect.tags || []))}">
                     <div id="editTagsEditor" class="tag-editor-host" style="margin-top:6px;"></div>
                 </div>
                 <div style="margin-top:16px;">
-                    <label class="detail-info-label">🏗️ Métier (fixé manuellement)</label>
+                    <label class="detail-info-label">${window.icon ? window.icon('briefcase', {size:13}) : ''} Métier (fixé manuellement)</label>
                     <select id="editMetier" class="detail-edit-input" style="margin-top:6px;">
                         <option value="">— Auto (basé sur les tags)</option>
                         ${buildMetierOptionsHtml(prospect.fixedMetier)}
@@ -5286,7 +5281,7 @@ async function viewDetail(id) {
                     <textarea id="editNotes" rows="4" class="detail-edit-input" style="margin-top:6px;min-height:80px;resize:vertical;">${escapeHtml(prospect.notes || '')}</textarea>
                 </div>
                 <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--color-border);">
-                    <button id="btnIA_prospect_${prospect.id}" class="btn btn-secondary" onclick="handleIAButton('prospect', ${prospect.id})" title="Enrichir la fiche avec l'IA" data-help-section="scrapping-ia" style="font-size:13px;">🤖 Scrapping IA</button>
+                    <button id="btnIA_prospect_${prospect.id}" class="btn btn-secondary" onclick="handleIAButton('prospect', ${prospect.id})" title="Enrichir la fiche avec l'IA" data-help-section="scrapping-ia" style="font-size:13px;">${window.icon ? window.icon('robot', {size:13}) : ''} Scrapping IA</button>
                     <div class="muted" style="margin-top:6px; font-size:11px;">1er clic = copier le prompt · 2e clic = coller le retour IA pour pré-remplir</div>
                 </div>
             </div>
@@ -5294,14 +5289,14 @@ async function viewDetail(id) {
 
         <div class="detail-footer">
             <div style="display:flex;gap:8px;">
-                <button class="btn btn-danger" onclick="deleteProspect(${id})" title="Supprimer définitivement">🗑️</button>
-                ${prospect.is_archived ? `<button class="btn btn-primary" onclick="unarchiveProspect(${id})" title="Désarchiver" style="font-size:12px;">👥 Désarchiver</button>` : `<button class="btn btn-secondary" onclick="archiveProspect(${id})" title="Archiver ce prospect" style="font-size:12px;">📁 Archiver</button>`}
-                ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">💾 Enregistrer réunion</button>` : ''}
+                <button class="btn btn-danger" onclick="deleteProspect(${id})" title="Supprimer définitivement">${window.icon ? window.icon('trash', {size:14}) : ''}</button>
+                ${prospect.is_archived ? `<button class="btn btn-primary" onclick="unarchiveProspect(${id})" title="Désarchiver" style="font-size:12px;">${window.icon ? window.icon('users', {size:13}) : ''} Désarchiver</button>` : `<button class="btn btn-secondary" onclick="archiveProspect(${id})" title="Archiver ce prospect" style="font-size:12px;">${window.icon ? window.icon('archive', {size:13}) : ''} Archiver</button>`}
+                ${['Rendez-vous','Prospecté'].includes(prospect.statut) ? `<button class="btn btn-success" id="btnSaveMeeting_${prospect.id}" onclick="saveMeeting(${prospect.id})" title="Enregistrer la grille de qualification comme réunion" style="font-size:12px;display:none;">${window.icon ? window.icon('save', {size:13}) : ''} Enregistrer réunion</button>` : ''}
             </div>
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-secondary" onclick="closeDetail()">Fermer</button>
-                <button class="btn btn-primary" onclick="saveDetail(${id})">💾 Enregistrer</button>
-                <button class="btn btn-primary" onclick="saveDetail(${id}, { closeAfterSave: true })" title="Enregistrer et fermer la fiche">💾 Enregistrer et fermer</button>
+                <button class="btn btn-primary" onclick="saveDetail(${id})">${window.icon ? window.icon('save', {size:14}) : ''} Enregistrer</button>
+                <button class="btn btn-primary" onclick="saveDetail(${id}, { closeAfterSave: true })" title="Enregistrer et fermer la fiche">${window.icon ? window.icon('save', {size:14}) : ''} Enregistrer et fermer</button>
             </div>
         </div>
     `;
@@ -5481,12 +5476,12 @@ function showRdvDatePicker(prospectId, callback) {
     
     overlay.innerHTML = `
         <div class="rdv-date-modal-content">
-            <h3 style="margin-bottom:4px;font-size:16px;">📅 Date du rendez-vous</h3>
+            <h3 style="margin-bottom:4px;font-size:16px;">${window.icon ? window.icon('calendar', {size:16}) : ''} Date du rendez-vous</h3>
             <p class="muted" style="font-size:13px;margin-bottom:8px;">Choisissez la date et l'heure du RDV avec ce prospect.</p>
             <input type="datetime-local" class="rdv-date-input" id="rdvDateInput" value="${existingDate || today + 'T10:00'}">
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closeRdvDatePicker(false)">Passer</button>
-                <button class="btn btn-primary" onclick="closeRdvDatePicker(true)">✅ Confirmer</button>
+                <button class="btn btn-primary" onclick="closeRdvDatePicker(true)">${window.icon ? window.icon('check', {size:13}) : ''} Confirmer</button>
             </div>
         </div>
     `;
@@ -5543,12 +5538,12 @@ function showRelanceDatePicker(prospectId, callback) {
     
     overlay.innerHTML = `
         <div class="rdv-date-modal-content">
-            <h3 style="margin-bottom:4px;font-size:16px;">📅 Date de relance</h3>
+            <h3 style="margin-bottom:4px;font-size:16px;">${window.icon ? window.icon('calendar', {size:16}) : ''} Date de relance</h3>
             <p class="muted" style="font-size:13px;margin-bottom:8px;">Choisissez la date à laquelle vous souhaitez rappeler ce prospect.</p>
             <input type="date" class="rdv-date-input" id="relanceDateInput" value="${existing || today}">
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closeRelanceDatePicker(false)">Passer</button>
-                <button class="btn btn-primary" onclick="closeRelanceDatePicker(true)">✅ Confirmer</button>
+                <button class="btn btn-primary" onclick="closeRelanceDatePicker(true)">${window.icon ? window.icon('check', {size:13}) : ''} Confirmer</button>
             </div>
         </div>
     `;
@@ -5731,8 +5726,8 @@ function renderKanban() {
 "Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Prospecté", "Pas intéressé"
     ];
     const statusEmoji = {
-"Pas d'actions": '📋', 'Appelé': '📞', 'Messagerie': '💬',
-'À rappeler': '🔁', 'Rendez-vous': '🤝', 'Prospecté': '🎯', 'Pas intéressé': '❌'
+"Pas d'actions": window.icon ? window.icon('clipboard', {size:13}) : '', 'Appelé': window.icon ? window.icon('phone', {size:13}) : '', 'Messagerie': window.icon ? window.icon('mail', {size:13}) : '',
+'À rappeler': window.icon ? window.icon('refreshCw', {size:13}) : '', 'Rendez-vous': window.icon ? window.icon('users', {size:13}) : '', 'Prospecté': window.icon ? window.icon('target', {size:13}) : '', 'Pas intéressé': window.icon ? window.icon('x', {size:13}) : ''
     };
 
     const grouped = {};
@@ -5753,7 +5748,7 @@ function renderKanban() {
             let followupHtml = '';
             if (p.nextFollowUp) {
                 const isDue = p.nextFollowUp <= todayStr;
-                followupHtml = `<span class="kanban-card-followup ${isDue ? 'due' : 'ok'}">${isDue ? '⚠' : '📅'} ${escapeHtml(p.nextFollowUp)}</span>`;
+                followupHtml = `<span class="kanban-card-followup ${isDue ? 'due' : 'ok'}">${isDue ? (window.icon ? window.icon('alertTri', {size:12}) : '') : (window.icon ? window.icon('calendar', {size:12}) : '')} ${escapeHtml(p.nextFollowUp)}</span>`;
             }
             return `
                 <div class="kanban-card" draggable="true" data-id="${p.id}"
@@ -5767,7 +5762,7 @@ function renderKanban() {
                     </div>
                     <div class="kanban-card-actions">
                         <button onclick="viewDetail(${p.id})" title="Voir fiche">Voir</button>
-                        ${p.telephone ? `<button onclick="callNumberById(${p.id})" title="Appeler">📞</button>` : ''}
+                        ${p.telephone ? `<button onclick="callNumberById(${p.id})" title="Appeler">${window.icon ? window.icon('phone', {size:13}) : ''}</button>` : ''}
                     </div>
                 </div>
             `;
@@ -5835,7 +5830,7 @@ function deleteCallNote(prospectId, noteIndex) {
     if (!note) return;
 
     const preview = (note.content || '').slice(0, 120);
-    if (!confirm(`⚠️ Supprimer cette note ?\n\n${note.date || ''} - ${preview}${(note.content || '').length > 120 ? '…' : ''}`)) return;
+    if (!confirm(`Supprimer cette note ?\n\n${note.date || ''} - ${preview}${(note.content || '').length > 120 ? '…' : ''}`)) return;
 
     prospect.callNotes.splice(noteIndex, 1);
 
@@ -5894,7 +5889,7 @@ function saveDetail(id, options = {}) {
     
     // Auto-prompt rdvDate si passage en Rendez-vous sans date
     if (newStatut === 'Rendez-vous' && prospect.statut !== 'Rendez-vous' && !prospect.rdvDate) {
-        const rdvInput = prompt('📅 Date et heure du RDV (format : AAAA-MM-JJ HH:MM)\nEx: 2026-02-16 16:00\n\n(Laisser vide pour définir plus tard)');
+        const rdvInput = prompt('Date et heure du RDV (format : AAAA-MM-JJ HH:MM)\nEx: 2026-02-16 16:00\n\n(Laisser vide pour définir plus tard)');
         if (rdvInput && rdvInput.trim()) {
             // Convert to datetime-local format
             const clean = rdvInput.trim().replace(' ', 'T');
@@ -5913,7 +5908,7 @@ function saveDetail(id, options = {}) {
     markUnsaved();
 
     if (!closeAfterSave) {
-        showToast('✓ Fiche enregistrée', 'success');
+        showToast('Fiche enregistrée', 'success');
     }
 
     if (refreshAfterSave) {
@@ -6058,7 +6053,7 @@ async function openCompanySheet(companyId, mode) {
         setCompanySheetMode(mode || 'view');
     } catch (e) {
         console.error(e);
-        showToast("❌ Impossible de charger la fiche entreprise.", 'error');
+        showToast("Impossible de charger la fiche entreprise.", 'error');
         closeCompanySheet();
     }
 }
@@ -6124,7 +6119,7 @@ async function saveCompanySheet(e) {
     };
 
     if (!payload.groupe.trim() || !payload.site.trim()) {
-        showToast('⚠️ Groupe et Site sont obligatoires.', 'warning');
+        showToast('Groupe et Site sont obligatoires.', 'warning');
         return;
     }
 
@@ -6140,12 +6135,12 @@ async function saveCompanySheet(e) {
 
         syncCompanyCacheFromPayload(payload);
         if (window.__APP_PAGE__ === 'companies') refreshCompaniesUI();
-        showToast('✅ Entreprise mise à jour', 'success');
+        showToast('Entreprise mise à jour', 'success');
         await loadCompanySheet(companyId);
         setCompanySheetMode(companySheetState.mode);
     } catch (err) {
         console.error(err);
-        showToast('❌ Impossible d’enregistrer la fiche entreprise', 'error');
+        showToast('Impossible d’enregistrer la fiche entreprise', 'error');
     }
 }
 
@@ -6168,7 +6163,7 @@ function openCompanyQuickView(companyId) {
     const notes = (company.notes || '').trim();
 
     const phoneDisplay = phone
-        ? `<a href="tel:${phone.replace(/\s/g,'')}" class="btn btn-success btn-sm" style="text-decoration:none;font-size:12px;padding:5px 12px;">📞 ${escapeHtml(phone)}</a>`
+        ? `<a href="tel:${phone.replace(/\s/g,'')}" class="btn btn-success btn-sm" style="text-decoration:none;font-size:12px;padding:5px 12px;">${window.icon ? window.icon('phone', {size:13}) : ''} ${escapeHtml(phone)}</a>`
         : '<span class="muted">Non renseigné</span>';
     const websiteDisplay = website
         ? `<a href="${escapeHtml(website.startsWith('http') ? website : ('https://' + website))}" target="_blank" rel="noopener" style="color:var(--color-primary);font-size:13px;">${escapeHtml(website)}</a>`
@@ -6185,38 +6180,38 @@ function openCompanyQuickView(companyId) {
             <div class="company-quickview-modal">
                 <div class="company-quickview-header">
                     <div>
-                        <div style="font-size:18px;font-weight:700;">🏢 ${escapeHtml(company.groupe || '')}</div>
+                        <div style="font-size:18px;font-weight:700;">${window.icon ? window.icon('building', {size:18}) : ''} ${escapeHtml(company.groupe || '')}</div>
                         <div style="font-size:13px;opacity:.8;margin-top:2px;">${escapeHtml(company.site || '')}</div>
                     </div>
-                    <button class="company-quickview-close" onclick="closeCompanyQuickView()">✕</button>
+                    <button class="company-quickview-close" onclick="closeCompanyQuickView()">${window.icon ? window.icon('x', {size:14}) : '×'}</button>
                 </div>
 
                 <div class="company-quickview-body">
                     <div class="company-quickview-row">
-                        <div class="company-quickview-label">📞 Standard</div>
+                        <div class="company-quickview-label">${window.icon ? window.icon('phone', {size:13}) : ''} Standard</div>
                         <div class="company-quickview-value">${phoneDisplay}</div>
                     </div>
                     <div class="company-quickview-row">
-                        <div class="company-quickview-label">🌐 Site</div>
+                        <div class="company-quickview-label">${window.icon ? window.icon('globe', {size:13}) : ''} Site</div>
                         <div class="company-quickview-value">${websiteDisplay}</div>
                     </div>
                     <div class="company-quickview-row">
-                        <div class="company-quickview-label">🔗 LinkedIn</div>
+                        <div class="company-quickview-label">${window.icon ? window.icon('linkedin', {size:13}) : ''} LinkedIn</div>
                         <div class="company-quickview-value">${linkedinDisplay}</div>
                     </div>
                     <div class="company-quickview-row">
-                        <div class="company-quickview-label">👥 Prospects</div>
+                        <div class="company-quickview-label">${window.icon ? window.icon('users', {size:13}) : ''} Prospects</div>
                         <div class="company-quickview-value">${prospects.length} prospect${prospects.length > 1 ? 's' : ''}</div>
                     </div>
                     <div class="company-quickview-row" style="flex-direction:column;align-items:stretch;">
-                        <div class="company-quickview-label" style="margin-bottom:6px;">📝 Notes</div>
+                        <div class="company-quickview-label" style="margin-bottom:6px;">${window.icon ? window.icon('edit', {size:13}) : ''} Notes</div>
                         <div>${notesDisplay}</div>
                     </div>
                 </div>
 
                 <div class="company-quickview-footer" style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
-                    <button class="btn btn-secondary" type="button" onclick="closeCompanyQuickView(); viewProspectsForCompany(${companyId});">👥 Voir prospects entreprise</button>
-                    <button class="btn btn-primary" type="button" onclick="closeCompanyQuickView(); openEditCompanyModal(${companyId});">✏️ Modifier entreprise</button>
+                    <button class="btn btn-secondary" type="button" onclick="closeCompanyQuickView(); viewProspectsForCompany(${companyId});">${window.icon ? window.icon('users', {size:13}) : ''} Voir prospects entreprise</button>
+                    <button class="btn btn-primary" type="button" onclick="closeCompanyQuickView(); openEditCompanyModal(${companyId});">${window.icon ? window.icon('edit', {size:13}) : ''} Modifier entreprise</button>
                 </div>
             </div>
         </div>
@@ -6237,7 +6232,7 @@ async function deleteProspect(id) {
     const company = data.companies.find(c => c.id === prospect.company_id);
     const label = `${prospect.name} (${company?.groupe || 'Entreprise inconnue'})`;
 
-    if (!confirm(`⚠️ Supprimer ce prospect ?\n\n${label}`)) return;
+    if (!confirm(`Supprimer ce prospect ?\n\n${label}`)) return;
 
     // Mise à jour UI immédiate
     data.prospects = data.prospects.filter(p => p.id !== id);
@@ -6253,9 +6248,9 @@ async function deleteProspect(id) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
         });
-        if (!res.ok) { showToast('❌ Suppression impossible', 'error'); return; }
+        if (!res.ok) { showToast('Suppression impossible', 'error'); return; }
     } catch (e) {
-        showToast('❌ Erreur réseau', 'error');
+        showToast('Erreur réseau', 'error');
         return;
     }
 
@@ -6269,9 +6264,9 @@ async function deleteProspect(id) {
         if ((await r.json()).ok) {
             await loadData();
             filterProspects();
-            showToast('↩️ Prospect restauré', 'success', 2500);
+            showToast('Prospect restauré', 'success', 2500);
         } else {
-            showToast('❌ Impossible d\'annuler', 'error');
+            showToast('Impossible d\'annuler', 'error');
         }
     });
 }
@@ -6307,7 +6302,7 @@ function openCallChoice(phones, prospectId) {
     phones.forEach((p) => {
         const btn = document.createElement('button');
         btn.className = 'btn btn-primary';
-        btn.textContent = `📞 ${p}`;
+        btn.textContent = p;
         btn.style.width = '100%';
         btn.onclick = async () => {
             closeCallChoice();
@@ -6518,7 +6513,7 @@ async function copyForTeams(text, label) {
         document.body.removeChild(ta);
     }
     if (typeof showToast === 'function') {
-        showToast('📋 Teams : ' + (label || 'copié'), 'success', 2500);
+        showToast('Teams : ' + (label || 'copié'), 'success', 2500);
     }
 }
 
@@ -6670,14 +6665,14 @@ async function onPushCategoryChange(prospectId, value) {
                     const t = fdata.files[0];
                     templateBox.innerHTML = `
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <span>📧 ${escapeHtml(t.name)}</span>
+                            <span>${window.icon ? window.icon('mail', {size:13}) : ''} ${escapeHtml(t.name)}</span>
                             <span class="muted" style="font-size:11px;">${(t.size/1024).toFixed(0)} Ko</span>
                         </div>`;
                     window._currentPushTemplate = t.name;
                 } else {
                     // Plusieurs templates : dropdown de sélection
                     const options = fdata.files.map(t =>
-                        `<option value="${escapeHtml(t.name)}">📧 ${escapeHtml(t.name)} (${(t.size/1024).toFixed(0)} Ko)</option>`
+                        `<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)} (${(t.size/1024).toFixed(0)} Ko)</option>`
                     ).join('');
                     templateBox.innerHTML = `<select class="template-select" style="width:100%;"
                         onchange="window._currentPushTemplate=this.value;updatePushGenerateButton(${prospectId})">
@@ -6790,16 +6785,16 @@ async function updatePushCandidates(prospectId) {
             return idxA - idxB;
         });
 
-        const _optLine = c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' — ' + escapeHtml(c.role) : ''}${c.dossier_competence_pdf || c.has_dc ? ' 📄' : ''}</option>`;
+        const _optLine = c => `<option value="${c.id}">${escapeHtml(c.name)}${c.role ? ' — ' + escapeHtml(c.role) : ''}${c.dossier_competence_pdf || c.has_dc ? ' [DC]' : ''}</option>`;
         let html = '';
         if (grouped.recommended.length > 0) {
-            html += `<optgroup label="⭐ Recommandés (catégorie)">` + grouped.recommended.map(_optLine).join('') + '</optgroup>';
+            html += `<optgroup label="Recommandés (catégorie)">` + grouped.recommended.map(_optLine).join('') + '</optgroup>';
         }
         if (grouped.withDc.length > 0) {
-            html += `<optgroup label="📄 Avec DC (hors catégorie)">` + grouped.withDc.map(_optLine).join('') + '</optgroup>';
+            html += `<optgroup label="Avec DC (hors catégorie)">` + grouped.withDc.map(_optLine).join('') + '</optgroup>';
         }
         if (grouped.others.length > 0) {
-            html += `<optgroup label="👤 Autres candidats">` + grouped.others.map(_optLine).join('') + '</optgroup>';
+            html += `<optgroup label="Autres candidats">` + grouped.others.map(_optLine).join('') + '</optgroup>';
         }
         return html;
     };
@@ -6875,7 +6870,7 @@ async function updatePushCandidates(prospectId) {
         <svg width="10" height="10" viewBox="0 0 10 10" style="animation:spin 1s linear infinite;flex-shrink:0">
             <circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20" stroke-dashoffset="5"/>
         </svg>
-        ⭐ Analyse IA en cours…
+        Analyse IA en cours…
     </span>`;
     if (!document.getElementById('push-reco-keyframes')) {
         const s = document.createElement('style');
@@ -6974,7 +6969,7 @@ async function generatePush(prospectId) {
                 errorMsg = res.statusText || errorMsg;
             }
             console.error('Erreur génération push:', errorMsg);
-            showToast(`❌ Erreur lors de la génération du push: ${errorMsg}`, 'error', 6000);
+            showToast(`Erreur lors de la génération du push: ${errorMsg}`, 'error', 6000);
             return;
         }
 
@@ -6982,12 +6977,12 @@ async function generatePush(prospectId) {
         if (ct.includes('application/json')) {
             // Brouillon créé dans Outlook → réponse JSON
             const data = await res.json();
-            showToast(data.message || '✅ Brouillon créé — vérifiez vos Brouillons Outlook', 'success', 6000);
+            showToast(data.message || 'Brouillon créé — vérifiez vos Brouillons Outlook', 'success', 6000);
         } else {
             // Fallback .eml → téléchargement du fichier
             const blob = await res.blob();
             if (!blob || blob.size === 0) {
-                showToast('❌ Le fichier généré est vide', 'error');
+                showToast('Le fichier généré est vide', 'error');
                 return;
             }
             const cd = res.headers.get('content-disposition') || '';
@@ -6998,11 +6993,11 @@ async function generatePush(prospectId) {
             a.href = url; a.download = downloadName;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-            showToast('📥 Email téléchargé (.eml avec PJ) — ouvrir pour envoyer', 'success', 5000);
+            showToast('Email téléchargé (.eml avec PJ) — ouvrir pour envoyer', 'success', 5000);
         }
     } catch (e) {
         console.error('Erreur génération push:', e);
-        showToast(`❌ Erreur lors de la génération du push: ${e.message || 'Erreur réseau ou serveur'}`, 'error', 6000);
+        showToast(`Erreur lors de la génération du push: ${e.message || 'Erreur réseau ou serveur'}`, 'error', 6000);
     }
 }
 
@@ -7044,29 +7039,29 @@ function _buildPushTabHtml(prospectId, prospect) {
     return `
     <div class="detail-section-card" style="margin-bottom:14px;">
         <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-            <span>🏷️ Catégorie push</span>
-            <button class="btn btn-secondary btn-sm" onclick="openPushCategoryManager()" style="font-size:12px;padding:4px 10px;">⚙️ Gérer</button>
+            <span>${window.icon ? window.icon('tag', {size:13}) : ''} Catégorie push</span>
+            <button class="btn btn-secondary btn-sm" onclick="openPushCategoryManager()" style="font-size:12px;padding:4px 10px;">${window.icon ? window.icon('settings', {size:12}) : ''} Gérer</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <div style="flex:1;min-width:180px;">${catSelect}</div>
             <button class="btn btn-secondary btn-sm" id="btnSonarSuggestCat_${prospectId}"
                     onclick="sonarSuggestCategory(${prospectId})"
                     title="L'IA suggère une catégorie selon l'entreprise et le poste (recherche web si Tavily configuré)">
-                💡 Suggestion IA
+                ${window.icon ? window.icon('bulb', {size:13}) : ''} Suggestion IA
             </button>
         </div>
         <div id="sonarCatSuggestion_${prospectId}" style="margin-top:8px;display:none;"></div>
     </div>
 
     <div class="detail-section-card" id="ptTemplateSection_${prospectId}" style="margin-bottom:14px;${!prospect.push_category_id ? 'display:none;' : ''}">
-        <div class="detail-section-title">📧 Template email</div>
+        <div class="detail-section-title">${window.icon ? window.icon('mail', {size:14}) : ''} Template email</div>
         <div id="ptTemplateBox_${prospectId}">
             <div class="muted">Sélectionnez une catégorie pour voir les templates disponibles.</div>
         </div>
     </div>
 
     <div class="detail-section-card" style="margin-bottom:14px;${!prospect.push_category_id ? 'display:none;' : ''}" id="ptCandidatesSection_${prospectId}">
-        <div class="detail-section-title">👤 Candidats & pièces jointes</div>
+        <div class="detail-section-title">${window.icon ? window.icon('userSingle', {size:14}) : ''} Candidats & pièces jointes</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
             <div style="flex:1;min-width:140px;">
                 <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:3px;">Candidat 1</label>
@@ -7086,7 +7081,7 @@ function _buildPushTabHtml(prospectId, prospect) {
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                     <span class="muted" style="font-size:12px;">Présentation — Candidat 1 <span style="opacity:.6;">(depuis fiche candidat)</span></span>
                     <button class="btn btn-secondary btn-sm" onclick="_generateDescriptionAI(1)" style="font-size:11px;padding:2px 8px;" title="Régénérer via Ollama (écrase la phrase de la fiche candidat)">
-                        ♻️ Régénérer
+                        Régénérer
                     </button>
                 </div>
                 <textarea id="pushDescText_1" class="push-desc-textarea" rows="3"
@@ -7098,7 +7093,7 @@ function _buildPushTabHtml(prospectId, prospect) {
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                     <span class="muted" style="font-size:12px;">Présentation — Candidat 2 <span style="opacity:.6;">(depuis fiche candidat)</span></span>
                     <button class="btn btn-secondary btn-sm" onclick="_generateDescriptionAI(2)" style="font-size:11px;padding:2px 8px;" title="Régénérer via Ollama (écrase la phrase de la fiche candidat)">
-                        ♻️ Régénérer
+                        Régénérer
                     </button>
                 </div>
                 <textarea id="pushDescText_2" class="push-desc-textarea" rows="3"
@@ -7110,33 +7105,33 @@ function _buildPushTabHtml(prospectId, prospect) {
     </div>
 
     <div id="ptGenerateSection_${prospectId}" style="${!prospect.push_category_id ? 'display:none;' : ''}margin-bottom:14px;">
-        ${noEmail ? '<div class="pt-warning">⚠️ Email prospect non renseigné — l\'email sera généré avec le champ destinataire vide.</div>' : ''}
+        ${noEmail ? '<div class="pt-warning">' + (window.icon ? window.icon('alertTri', {size:13}) : '') + ' Email prospect non renseigné — l\'email sera généré avec le champ destinataire vide.</div>' : ''}
         <button class="btn btn-primary" id="btnGeneratePush" onclick="generatePushFromTab(${prospectId})" disabled style="width:100%;">
-            📧 Générer le push email
+            ${window.icon ? window.icon('mail', {size:14}) : ''} Générer le push email
         </button>
         <div class="muted" style="font-size:11px;margin-top:4px;text-align:center;">Le brouillon apparaît dans vos Brouillons Outlook avec les PJ — prêt à envoyer depuis n'importe où</div>
     </div>
 
     <div class="detail-section-card" id="candidateMatchSection" style="margin-bottom:14px;${!prospect.push_category_id ? 'display:none;' : ''}">
-        <div class="detail-section-title">🎯 Pertinence des candidats (référence IA)</div>
+        <div class="detail-section-title">${window.icon ? window.icon('target', {size:14}) : ''} Pertinence des candidats (référence IA)</div>
         <div id="unifiedCandidateList"><span class="muted">Analyse des compétences en cours…</span></div>
     </div>
 
     <div class="detail-section-card">
-        <div class="detail-section-title">📊 Historique push</div>
+        <div class="detail-section-title">${window.icon ? window.icon('chart', {size:14}) : ''} Historique push</div>
         <div class="detail-info-grid">
             <div class="detail-info-item">
                 <div class="detail-info-label">Push email</div>
                 <div class="detail-info-value">
-                    <span id="detailPushSent">${prospect.email ? (prospect.pushEmailSentAt ? ('✅ ' + String(prospect.pushEmailSentAt).slice(0, 10)) : '🕒 Non envoyé') : '—'}</span>
-                    ${(prospect.email && prospect.pushEmailSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${prospectId},'email')">↩️</button>` : ''}
+                    <span id="detailPushSent">${prospect.email ? (prospect.pushEmailSentAt ? ((window.icon ? window.icon('checkCircle', {size:12}) : '') + ' ' + String(prospect.pushEmailSentAt).slice(0, 10)) : 'Non envoyé') : '—'}</span>
+                    ${(prospect.email && prospect.pushEmailSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${prospectId},'email')" title="Annuler">${window.icon ? window.icon('refreshCw', {size:12}) : ''}</button>` : ''}
                 </div>
             </div>
             <div class="detail-info-item">
                 <div class="detail-info-label">Push LinkedIn</div>
                 <div class="detail-info-value">
-                    <span id="detailPushLinkedInSent">${prospect.linkedin ? (prospect.pushLinkedInSentAt ? ('✅ ' + String(prospect.pushLinkedInSentAt).slice(0, 10)) : '🕒 Non envoyé') : '—'}</span>
-                    ${(prospect.linkedin && prospect.pushLinkedInSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${prospectId},'linkedin')">↩️</button>` : ''}
+                    <span id="detailPushLinkedInSent">${prospect.linkedin ? (prospect.pushLinkedInSentAt ? ((window.icon ? window.icon('checkCircle', {size:12}) : '') + ' ' + String(prospect.pushLinkedInSentAt).slice(0, 10)) : 'Non envoyé') : '—'}</span>
+                    ${(prospect.linkedin && prospect.pushLinkedInSentAt) ? ` <button class="mini-link-btn" onclick="undoLastPush(${prospectId},'linkedin')" title="Annuler">${window.icon ? window.icon('refreshCw', {size:12}) : ''}</button>` : ''}
                 </div>
             </div>
         </div>
@@ -7263,15 +7258,15 @@ async function _saveDescriptionToCandidate(slot) {
         });
         if (statusEl) {
             if (res.ok) {
-                statusEl.textContent = '✓ Sauvegardé';
+                statusEl.textContent = 'Sauvegardé';
                 setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
             } else {
-                statusEl.textContent = '⚠ Erreur sauvegarde';
+                statusEl.textContent = 'Erreur sauvegarde';
             }
         }
     } catch (e) {
         console.warn('Erreur sauvegarde description candidat:', e);
-        if (statusEl) statusEl.textContent = '⚠ Erreur réseau';
+        if (statusEl) statusEl.textContent = 'Erreur réseau';
     }
 }
 
@@ -7404,7 +7399,7 @@ async function generatePushFromTab(prospectId) {
         if (!res.ok) {
             let msg = `Erreur HTTP ${res.status}`;
             try { const e = await res.json(); msg = e.error || msg; } catch (_) {}
-            showToast(`❌ ${msg}`, 'error', 6000);
+            showToast(`${msg}`, 'error', 6000);
             return;
         }
 
@@ -7412,11 +7407,11 @@ async function generatePushFromTab(prospectId) {
         if (ct2.includes('application/json')) {
             // Brouillon créé dans Outlook
             const data = await res.json();
-            showToast(data.message || '✅ Brouillon créé — vérifiez vos Brouillons Outlook', 'success', 6000);
+            showToast(data.message || 'Brouillon créé — vérifiez vos Brouillons Outlook', 'success', 6000);
         } else {
             // Fallback .eml → téléchargement
             const blob = await res.blob();
-            if (!blob || blob.size === 0) { showToast('❌ Fichier généré vide', 'error'); return; }
+            if (!blob || blob.size === 0) { showToast('Fichier généré vide', 'error'); return; }
             const cd2 = res.headers.get('content-disposition') || '';
             const fnMatch2 = cd2.match(/filename[^;=\n]*=(['\"]?)([^'\";\n]*)\1/);
             const downloadName2 = fnMatch2 ? fnMatch2[2] : `push_${prospect.name}.eml`;
@@ -7431,7 +7426,7 @@ async function generatePushFromTab(prospectId) {
         if (btnEmailHdr) {
             btnEmailHdr.classList.remove('push-email-loading');
             btnEmailHdr.classList.add('push-email-success');
-            btnEmailHdr.innerHTML = '✓ Prêt';
+            btnEmailHdr.innerHTML = 'Prêt';
             setTimeout(() => {
                 btnEmailHdr.classList.remove('push-email-success');
                 btnEmailHdr.innerHTML = origEmailLabel;
@@ -7457,13 +7452,13 @@ async function generatePushFromTab(prospectId) {
             prospect.pushEmailSentAt = now;
             const sentEl = document.getElementById('detailPushSent');
             if (sentEl) {
-                sentEl.innerHTML = '✅ ' + now;
+                sentEl.innerHTML = (window.icon ? window.icon('checkCircle', {size:12}) : '') + ' ' + now;
                 // Ajouter le bouton undo s'il n'existe pas déjà
                 const sentContainer = sentEl.closest('.detail-info-value');
                 if (sentContainer && !sentContainer.querySelector('.undo-push-btn')) {
                     const undoBtn = document.createElement('button');
                     undoBtn.className = 'mini-link-btn undo-push-btn';
-                    undoBtn.textContent = '↩️';
+                    undoBtn.innerHTML = window.icon ? window.icon('refreshCw', {size:12}) : '↩';
                     undoBtn.onclick = () => undoLastPush(prospectId, 'email');
                     sentContainer.appendChild(undoBtn);
                 }
@@ -7476,7 +7471,7 @@ async function generatePushFromTab(prospectId) {
             ? `Push téléchargé · Email copié : ${prospect.email}`
             : 'Push généré et téléchargé !', 'success', 5000);
     } catch (e) {
-        showToast(`❌ Erreur: ${e.message || 'Erreur réseau'}`, 'error', 6000);
+        showToast(`Erreur: ${e.message || 'Erreur réseau'}`, 'error', 6000);
     } finally {
         if (btnGenerate)  { btnGenerate.disabled = false; btnGenerate.innerHTML = origGenLabel; }
         if (btnEmailHdr && btnEmailHdr.classList.contains('push-email-loading')) {
@@ -7506,11 +7501,11 @@ function _updateEmailBtnState(prospectId) {
     if (pushReady) {
         btn.classList.add('push-email-ready');
         btn.title = `Push prêt — Template : ${window._currentPushTemplate}`;
-        btn.innerHTML = '✉️ Email ✓';
+        btn.innerHTML = (window.icon ? window.icon('mail', {size:14}) : '') + ' Email';
     } else {
         btn.classList.remove('push-email-ready');
         btn.title = 'Configurer le push dans l\'onglet Push';
-        btn.innerHTML = '✉️ Email';
+        btn.innerHTML = (window.icon ? window.icon('mail', {size:14}) : '') + ' Email';
     }
     if (btnGenerate) btnGenerate.disabled = !pushReady;
 }
@@ -7535,7 +7530,7 @@ async function sonarSuggestCategory(prospectId) {
     }
 
     suggBox.style.display = 'block';
-    suggBox.innerHTML = '<span class="muted">💡 Analyse en cours…</span>';
+    suggBox.innerHTML = '<span class="muted">Analyse en cours…</span>';
 
     try {
         const prompt = `Société : "${societeName}", Poste : "${poste}". Parmi les catégories suivantes : ${(pushCategories || []).map(c => c.name).join(', ')}. Quelle catégorie de push email est la plus pertinente ? Réponds uniquement avec le nom de catégorie exact, sans explication.`;
@@ -7560,7 +7555,7 @@ async function sonarSuggestCategory(prospectId) {
             suggBox.innerHTML = `
                 <button class="btn btn-secondary btn-sm pt-sonar-badge"
                         onclick="applySonarCatSuggestion(${prospectId}, ${matchedCat.id}, '${escapeHtml(matchedCat.name)}')">
-                    💡 Suggestion IA : <strong>${escapeHtml(matchedCat.name)}</strong> — cliquer pour sélectionner
+                    ${window.icon ? window.icon('bulb', {size:13}) : ''} Suggestion IA : <strong>${escapeHtml(matchedCat.name)}</strong> — cliquer pour sélectionner
                 </button>`;
         } else {
             suggBox.innerHTML = `<span class="muted">Suggestion : « ${escapeHtml(suggestion)} » (catégorie non trouvée)</span>`;
@@ -7607,9 +7602,9 @@ function openPushCategoryManager() {
     modal.innerHTML = `
         <div class="modal-content" style="max-width:700px;">
             <button class="modal-close" onclick="closePushCategoryManager()">×</button>
-            <h2 style="margin-top:0;">⚙️ Gérer les catégories push</h2>
+            <h2 style="margin-top:0;">${window.icon ? window.icon('settings', {size:16}) : ''} Gérer les catégories push</h2>
             <div style="margin-bottom:20px;">
-                <button class="btn btn-primary" onclick="createNewPushCategory()">➕ Nouvelle catégorie</button>
+                <button class="btn btn-primary" onclick="createNewPushCategory()">${window.icon ? window.icon('plus', {size:13}) : ''} Nouvelle catégorie</button>
             </div>
             <div id="pushCategoryManagerList">
                 <span class="muted">Chargement…</span>
@@ -7647,8 +7642,8 @@ async function loadPushCategoryManager() {
                             ${cat.keywords && cat.keywords.length ? `<div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;">Mots-clés: ${escapeHtml(cat.keywords.join(', '))}</div>` : ''}
                         </div>
                         <div style="display:flex;gap:8px;">
-                            <button class="btn btn-secondary btn-sm" onclick="uploadPushTemplate(${cat.id}, '${escapeHtml(cat.name)}')" style="font-size:11px;">📤 Upload template</button>
-                            <button class="btn btn-danger btn-sm" onclick="deletePushCategory(${cat.id})" style="font-size:11px;">🗑️</button>
+                            <button class="btn btn-secondary btn-sm" onclick="uploadPushTemplate(${cat.id}, '${escapeHtml(cat.name)}')" style="font-size:11px;">${window.icon ? window.icon('upload', {size:12}) : ''} Upload template</button>
+                            <button class="btn btn-danger btn-sm" onclick="deletePushCategory(${cat.id})" style="font-size:11px;">${window.icon ? window.icon('trash', {size:12}) : ''}</button>
                         </div>
                     </div>
                     <div id="pushCatFiles_${cat.id}" style="margin-top:8px;font-size:11px;color:var(--color-text-secondary);">
@@ -7747,7 +7742,7 @@ function createNewPushCategory() {
     })
     .catch(err => {
         console.error('Erreur création catégorie push:', err);
-        showToast(`❌ Erreur lors de la création: ${err.message || 'Erreur inconnue'}`, 'error');
+        showToast(`Erreur lors de la création: ${err.message || 'Erreur inconnue'}`, 'error');
     });
 }
 
@@ -7781,7 +7776,7 @@ function uploadPushTemplate(catId, catName) {
             }
         } catch (e) {
             console.error('Erreur upload template push:', e);
-            showToast(`❌ Erreur upload: ${e.message || 'Erreur réseau'}`, 'error');
+            showToast(`Erreur upload: ${e.message || 'Erreur réseau'}`, 'error');
         }
     };
     input.click();
@@ -7814,7 +7809,7 @@ function deletePushCategory(catId) {
     })
     .catch(err => {
         console.error('Erreur suppression catégorie push:', err);
-        showToast(`❌ Erreur lors de la suppression: ${err.message || 'Erreur inconnue'}`, 'error');
+        showToast(`Erreur lors de la suppression: ${err.message || 'Erreur inconnue'}`, 'error');
     });
 }
 
@@ -7999,9 +7994,9 @@ function renderMetierSection(prospect) {
     if (prospect.fixedMetier) {
 const parts = prospect.fixedMetier.split(' > ');
 return `<div class="metier-fixed-badge">
-    <span class="metier-fixed-icon">📌</span>
+    <span class="metier-fixed-icon">${window.icon ? window.icon('mapPin', {size:14}) : ''}</span>
     <span><strong>${escapeHtml(parts[0] || '')}</strong> › ${escapeHtml(parts[1] || '')}</span>
-    <button class="mini-link-btn" onclick="clearFixedMetier(${prospect.id})" title="Retirer le métier fixé">✕</button>
+    <button class="mini-link-btn" onclick="clearFixedMetier(${prospect.id})" title="Retirer le métier fixé">${window.icon ? window.icon('x', {size:12}) : '×'}</button>
 </div>`;
     }
 
@@ -8031,17 +8026,17 @@ return '<span class="muted">Ajoutez des compétences pour obtenir des suggestion
                             const barWidth = Math.max(m.score, 8);
                             const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
                             const fullPath = m.category + ' > ' + m.specialty;
-                            const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                            const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">' + (window.icon ? window.icon('robot', {size:10}) : '') + '</span>' : '';
                             // Phase 1: Afficher les matches sémantiques
                             const semanticInfo = (m.semanticMatches && m.semanticMatches.length > 0)
-                                ? `<div style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🔗 Sémantique: ${m.semanticMatches.map(sm => escapeHtml(sm.tag + ' ≈ ' + sm.refTag)).join(', ')}</div>`
+                                ? `<div style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">Sémantique: ${m.semanticMatches.map(sm => escapeHtml(sm.tag + ' ≈ ' + sm.refTag)).join(', ')}</div>`
                                 : '';
                             return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
     <div class="metier-suggestion-header">
-        <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
+        <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${window.icon ? window.icon(m.categoryIcon, {size:14}) : ''}</span>
         <span class="metier-suggestion-name"><strong>${escapeHtml(m.category)}</strong> › ${escapeHtml(m.specialty)}</span>
         <span class="metier-suggestion-score">${m.score}%${integratedBadge}</span>
-        ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
+        ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">` + (window.icon ? window.icon('mapPin', {size:12}) : '') + `</button>` : ''}
     </div>
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
     ${semanticInfo}
@@ -8060,10 +8055,10 @@ const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
 const fullPath = m.category + ' > ' + m.specialty;
 return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
     <div class="metier-suggestion-header">
-        <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
+        <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${window.icon ? window.icon(m.categoryIcon, {size:14}) : ''}</span>
         <span class="metier-suggestion-name"><strong>${escapeHtml(m.category)}</strong> › ${escapeHtml(m.specialty)}</span>
         <span class="metier-suggestion-score">${m.score}%</span>
-        ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
+        ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">` + (window.icon ? window.icon('mapPin', {size:12}) : '') + `</button>` : ''}
     </div>
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
 </div>`;
@@ -8105,17 +8100,17 @@ async function refreshMetierSuggestions() {
                         const barWidth = Math.max(m.score, 8);
                         const opacity = i === 0 ? 1 : (i === 1 ? 0.7 : 0.5);
                         const fullPath = m.category + ' > ' + m.specialty;
-                        const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">🤖</span>' : '';
+                        const integratedBadge = m.hasIntegratedTags ? ' <span style="font-size:10px;opacity:0.7;" title="Tags intégrés via IA">' + (window.icon ? window.icon('robot', {size:10}) : '') + '</span>' : '';
                         // Phase 1: Afficher les matches sémantiques
                         const semanticInfo = (m.semanticMatches && m.semanticMatches.length > 0)
-                            ? `<div style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🔗 Sémantique: ${m.semanticMatches.map(sm => escapeHtml(sm.tag + ' ≈ ' + sm.refTag)).join(', ')}</div>`
+                            ? `<div style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">Sémantique: ${m.semanticMatches.map(sm => escapeHtml(sm.tag + ' ≈ ' + sm.refTag)).join(', ')}</div>`
                             : '';
                         return `<div class="metier-suggestion" style="opacity:${opacity};" title="${m.matched}/${m.total} tags matchés: ${m.matchedTags.join(', ')}">
     <div class="metier-suggestion-header">
-        <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${m.categoryIcon}</span>
+        <span class="metier-suggestion-icon" style="color:${m.categoryColor}">${window.icon ? window.icon(m.categoryIcon, {size:14}) : ''}</span>
         <span class="metier-suggestion-name"><strong>${escapeHtml(m.category)}</strong> › ${escapeHtml(m.specialty)}</span>
         <span class="metier-suggestion-score">${m.score}%${integratedBadge}</span>
-        ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">📌</button>` : ''}
+        ${prospect.id ? `<button class="mini-link-btn" onclick="fixMetier(${prospect.id}, '${escapeHtml(fullPath).replace(/'/g, "\\'")}')">` + (window.icon ? window.icon('mapPin', {size:12}) : '') + `</button>` : ''}
     </div>
     <div class="metier-bar-bg"><div class="metier-bar-fill" style="width:${barWidth}%;background:${m.categoryColor};"></div></div>
     ${semanticInfo}
@@ -8136,7 +8131,7 @@ async function refreshMetierSuggestions() {
                     const inRef = refSet.has(tLower);
                     const integrated = integrations[tLower] && integrations[tLower].category;
                     let title = inRef ? 'Référentiel Up Technologies' : (integrated ? 'Tag intégré via IA dans ' + integrations[tLower].category : 'Tag personnalisé (hors référentiel)');
-                    let badge = inRef ? '' : (integrated ? ' 🤖' : ' *');
+                    let badge = inRef ? '' : (integrated ? ' ' + (window.icon ? window.icon('robot', {size:10}) : '') : ' *');
                     return `<span class="tag-pill${inRef ? '' : ' tag-pill-custom'}" title="${title}">${escapeHtml(t)}${badge}</span>`;
                 }).join(' ');
             }
@@ -8148,7 +8143,7 @@ function buildMetierOptionsHtml(currentValue) {
     if (typeof METIERS_DATA === 'undefined') return '';
     let html = '';
     METIERS_DATA.forEach(m => {
-html += `<optgroup label="${m.icon} ${m.name}">`;
+html += `<optgroup label="${m.name}">`;
 m.specialties.forEach(sp => {
     const val = m.name + ' > ' + sp.name;
     html += `<option value="${escapeHtml(val)}" ${currentValue === val ? 'selected' : ''}>${sp.name}</option>`;
@@ -8191,7 +8186,7 @@ function _ensurePushModal() {
     modal.innerHTML = `
         <div class="modal-content" style="max-width:700px;">
             <button class="modal-close" onclick="closePushSelectModal()">×</button>
-            <h2 style="margin-top:0;">📤 Envoyer un push</h2>
+            <h2 style="margin-top:0;">${window.icon ? window.icon('send', {size:16}) : ''} Envoyer un push</h2>
             <div style="margin-bottom:20px;">
                 <label style="display:block;margin-bottom:8px;font-weight:600;">Catégorie push (optionnel)</label>
                 <select id="pushModalCategory" class="input" style="width:100%;">
@@ -8223,16 +8218,16 @@ function _ensurePushModal() {
                 </select>
             </div>
             <div style="margin-bottom:20px;padding:12px;background:var(--color-bg-secondary);border-radius:8px;border:1px solid var(--color-border);">
-                <label style="display:block;margin-bottom:8px;font-weight:600;">💬 Message personnalisé (Phase 1: IA)</label>
+                <label style="display:block;margin-bottom:8px;font-weight:600;">Message personnalisé (Phase 1: IA)</label>
                 <textarea id="pushModalMessage" rows="6" style="width:100%;border:1px solid var(--color-border);border-radius:6px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;" placeholder="Le message sera généré automatiquement par l'IA ou vous pouvez le saisir manuellement..."></textarea>
                 <div style="display:flex;gap:8px;margin-top:8px;">
-                    <button class="btn btn-secondary" onclick="generatePushMessageWithAI()" style="font-size:12px;padding:6px 12px;">🤖 Générer avec l'IA</button>
-                    <button class="btn btn-secondary" onclick="generatePushMessageVariants()" style="font-size:12px;padding:6px 12px;">🔄 Générer 3 variantes</button>
+                    <button class="btn btn-secondary" onclick="generatePushMessageWithAI()" style="font-size:12px;padding:6px 12px;">${window.icon ? window.icon('robot', {size:13}) : ''} Générer avec l'IA</button>
+                    <button class="btn btn-secondary" onclick="generatePushMessageVariants()" style="font-size:12px;padding:6px 12px;">${window.icon ? window.icon('refreshCw', {size:13}) : ''} Générer 3 variantes</button>
                 </div>
             </div>
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closePushSelectModal()">Annuler</button>
-                <button class="btn btn-primary" onclick="confirmPushSend()">📤 Envoyer</button>
+                <button class="btn btn-primary" onclick="confirmPushSend()">${window.icon ? window.icon('send', {size:13}) : ''} Envoyer</button>
             </div>
         </div>
     `;
@@ -8245,15 +8240,15 @@ async function openPushSelectModal(prospectId, channel = 'email') {
     _pushModalChannel = channel;
     const p = data.prospects.find(x => x.id === prospectId);
     if (!p) {
-        showToast("⚠️ Prospect introuvable.", 'warning');
+        showToast("Prospect introuvable.", 'warning');
         return;
     }
     if (channel === 'email' && !p.email) {
-        showToast("⚠️ Aucun email renseigné pour ce prospect.", 'warning');
+        showToast("Aucun email renseigné pour ce prospect.", 'warning');
         return;
     }
     if (channel === 'linkedin' && !p.linkedin) {
-        showToast("⚠️ Aucun LinkedIn renseigné pour ce prospect.", 'warning');
+        showToast("Aucun LinkedIn renseigné pour ce prospect.", 'warning');
         return;
     }
 
@@ -8392,7 +8387,7 @@ async function generatePushMessageWithAI() {
     if (!_pushModalProspectId) return;
     const p = data.prospects.find(x => x.id === _pushModalProspectId);
     if (!p) {
-        showToast("⚠️ Prospect introuvable.", 'error');
+        showToast("Prospect introuvable.", 'error');
         return;
     }
     
@@ -8432,10 +8427,10 @@ async function generatePushMessageWithAI() {
         const text = await callOllama(prompt, { timeoutMs: 60000, stream: false });
         if (messageEl && text) {
             messageEl.value = text.trim();
-            showToast('✅ Message généré avec l\'IA !', 'success', 3000);
+            showToast('Message généré avec l\'IA !', 'success', 3000);
         }
     } catch (e) {
-        showToast('❌ Erreur génération IA : ' + (e.message || 'Erreur inconnue'), 'error', 5000);
+        showToast('Erreur génération IA : ' + (e.message || 'Erreur inconnue'), 'error', 5000);
         if (messageEl) messageEl.value = '';
     }
 }
@@ -8444,7 +8439,7 @@ async function generatePushMessageVariants() {
     if (!_pushModalProspectId) return;
     const p = data.prospects.find(x => x.id === _pushModalProspectId);
     if (!p) {
-        showToast("⚠️ Prospect introuvable.", 'error');
+        showToast("Prospect introuvable.", 'error');
         return;
     }
     
@@ -8490,10 +8485,10 @@ async function generatePushMessageVariants() {
             } else {
                 messageEl.value = text.trim();
             }
-            showToast('✅ 3 variantes générées avec l\'IA !', 'success', 3000);
+            showToast('3 variantes générées avec l\'IA !', 'success', 3000);
         }
     } catch (e) {
-        showToast('❌ Erreur génération IA : ' + (e.message || 'Erreur inconnue'), 'error', 5000);
+        showToast('Erreur génération IA : ' + (e.message || 'Erreur inconnue'), 'error', 5000);
         if (messageEl) messageEl.value = '';
     }
 }
@@ -8545,17 +8540,17 @@ async function confirmPushSend() {
     // Validation 1: Vérifier que le prospect existe toujours
     const p = data.prospects.find(x => x.id === _pushModalProspectId);
     if (!p || (typeof validateProspectExists === 'function' && !validateProspectExists(_pushModalProspectId))) {
-        showToast("⚠️ Prospect introuvable.", 'error');
+        showToast("Prospect introuvable.", 'error');
         return;
     }
     
     const channel = _pushModalChannel || 'email';
     if (channel === 'email' && !p.email) {
-        showToast("⚠️ Aucun email renseigné.", 'error');
+        showToast("Aucun email renseigné.", 'error');
         return;
     }
     if (channel === 'linkedin' && !p.linkedin) {
-        showToast("⚠️ Aucun LinkedIn renseigné.", 'error');
+        showToast("Aucun LinkedIn renseigné.", 'error');
         return;
     }
 
@@ -8569,7 +8564,7 @@ async function confirmPushSend() {
     if (catId) {
         const catValid = typeof validatePushCategory === 'function' ? await validatePushCategory(parseInt(catId, 10)) : true;
         if (!catValid) {
-            showToast("⚠️ Catégorie invalide ou inaccessible.", 'error');
+            showToast("Catégorie invalide ou inaccessible.", 'error');
             return;
         }
     }
@@ -8578,14 +8573,14 @@ async function confirmPushSend() {
     if (candidateId1) {
         const cand1Valid = typeof validateCandidateExists === 'function' ? await validateCandidateExists(parseInt(candidateId1, 10)) : true;
         if (!cand1Valid) {
-            showToast("⚠️ Candidat 1 introuvable.", 'error');
+            showToast("Candidat 1 introuvable.", 'error');
             return;
         }
     }
     if (candidateId2) {
         const cand2Valid = typeof validateCandidateExists === 'function' ? await validateCandidateExists(parseInt(candidateId2, 10)) : true;
         if (!cand2Valid) {
-            showToast("⚠️ Candidat 2 introuvable.", 'error');
+            showToast("Candidat 2 introuvable.", 'error');
             return;
         }
     }
@@ -8675,17 +8670,17 @@ async function confirmPushSend() {
                     if (openData.ok) {
                         templateOpened = true;
                     } else {
-                        showToast(`⚠️ Impossible d'ouvrir le template : ${openData.error || 'erreur inconnue'}`, 'warning', 5000);
+                        showToast(`Impossible d'ouvrir le template : ${openData.error || 'erreur inconnue'}`, 'warning', 5000);
                     }
                 } else {
-                    showToast("⚠️ Aucun fichier template (.msg/.eml) trouvé dans cette catégorie.", 'warning', 4000);
+                    showToast("Aucun fichier template (.msg/.eml) trouvé dans cette catégorie.", 'warning', 4000);
                 }
             } else {
-                showToast(`⚠️ Erreur chargement catégorie (HTTP ${res.status})`, 'warning');
+                showToast(`Erreur chargement catégorie (HTTP ${res.status})`, 'warning');
             }
         } catch (e) {
             console.warn('Error opening push file', e);
-            showToast(`⚠️ Erreur réseau : ${e.message}`, 'warning');
+            showToast(`Erreur réseau : ${e.message}`, 'warning');
         }
     }
 
@@ -8721,7 +8716,7 @@ async function confirmPushSend() {
     // Vérifier à nouveau que le prospect existe avant de continuer (éviter race condition)
     const pCheck = data.prospects.find(x => x.id === _pushModalProspectId);
     if (!pCheck) {
-        showToast("⚠️ Prospect introuvable (données modifiées).", 'error');
+        showToast("Prospect introuvable (données modifiées).", 'error');
         return;
     }
 
@@ -8775,16 +8770,16 @@ async function confirmPushSend() {
         if (channel === 'email') {
             try {
                 const el = document.getElementById('detailPushSent');
-                if (el) el.textContent = '✅ ' + String(sentAt).slice(0, 10);
+                if (el) el.textContent = String(sentAt).slice(0, 10);
             } catch (e) {}
         } else if (channel === 'linkedin') {
             try {
                 const el = document.getElementById('detailPushLinkedInSent');
-                if (el) el.textContent = '✅ ' + sentAt;
+                if (el) el.textContent = sentAt;
             } catch (e) {}
         }
     } else {
-        showToast("⚠️ Push enregistré localement mais erreur lors de l'enregistrement du log.", 'warning', 5000);
+        showToast("Push enregistré localement mais erreur lors de l'enregistrement du log.", 'warning', 5000);
     }
 
     closePushSelectModal();
@@ -8792,12 +8787,12 @@ async function confirmPushSend() {
     // Feedback
     if (channel === 'email') {
         if (templateOpened) {
-            showToast(`✅ Email ${p.email} copié ! Template Outlook ouvert. Collez l'email dans "À:".`, 'success', 6000);
+            showToast(`Email ${p.email} copié ! Template Outlook ouvert. Collez l'email dans "À:".`, 'success', 6000);
         } else {
-            showToast(`📋 Email ${p.email} copié dans le presse-papier.`, 'info', 4000);
+            showToast(`Email ${p.email} copié dans le presse-papier.`, 'info', 4000);
         }
     } else if (channel === 'linkedin') {
-        showToast(`📋 Message LinkedIn copié ! Profil ouvert dans un nouvel onglet.`, 'success', 4000);
+        showToast(`Message LinkedIn copié ! Profil ouvert dans un nouvel onglet.`, 'success', 4000);
     }
 }
 
@@ -8813,7 +8808,7 @@ async function openEmailForProspect(prospectId) {
         emailBtn.disabled = true;
         emailBtn.style.opacity = '0.6';
         emailBtn.style.cursor = 'wait';
-        const loadingText = emailBtn.textContent?.includes('Email') ? '⏳ Ouverture...' : '⏳';
+        const loadingText = emailBtn.textContent?.includes('Email') ? 'Ouverture...' : '…';
         if (emailBtn.textContent) emailBtn.textContent = loadingText;
         else if (emailBtn.innerHTML) emailBtn.innerHTML = loadingText;
     }
@@ -8824,7 +8819,7 @@ async function openEmailForProspect(prospectId) {
         await openPushSelectModal(prospectId);
     } catch (e) {
         console.error('Erreur ouverture modale email', e);
-        showToast('❌ Erreur lors de l\'ouverture de la modale email', 'error');
+        showToast('Erreur lors de l\'ouverture de la modale email', 'error');
     } finally {
         // Restaurer le bouton après un court délai (pour que l'utilisateur voie le feedback)
         setTimeout(() => {
@@ -9338,7 +9333,7 @@ function handleIAButton(type, id) {
         openIAImportModal(type, id);
         showToast('IA indisponible. Vous pouvez coller manuellement le retour ci-dessous.', 'warning', 6000);
     }).finally(function () {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Scrapping IA'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = (window.icon ? window.icon('robot', {size:14}) : '') + ' Scrapping IA'; }
     });
 }
 
@@ -9354,7 +9349,7 @@ function handleScanIA(prospectId) {
     if (btn) { 
         btn.disabled = true; 
         const originalText = btn.textContent;
-        btn.textContent = '🔍 Recherche…';
+        btn.textContent = 'Recherche…';
         callOllama(prompt, { webSearch: true }).then(function (text) {
             openIAImportModalWithText('prospect', prospectId, text);
         }).catch(function () {
@@ -9444,12 +9439,12 @@ Règles impératives :
 /** Déclenche la génération automatique de tags via Tavily + Ollama. */
 function handleAutoTags(prospectId) {
     const btn = document.getElementById(`btnAutoTags_${prospectId}`);
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
 
     const prompt = getAutoTagsPromptProspect(prospectId);
     if (!prompt) {
         showToast('Données introuvables pour ce prospect.', 'warning');
-        if (btn) { btn.disabled = false; btn.textContent = '✨ Ajouter Auto'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = (window.icon ? window.icon('robot', {size:13}) : '') + ' Ajouter Auto'; }
         return;
     }
 
@@ -9476,7 +9471,7 @@ function handleAutoTags(prospectId) {
     }).catch(function () {
         showToast('IA indisponible. Utilisez le Scrapping IA pour ajouter des tags manuellement.', 'warning', 5000);
     }).finally(function () {
-        if (btn) { btn.disabled = false; btn.textContent = '✨ Ajouter Auto'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = (window.icon ? window.icon('robot', {size:13}) : '') + ' Ajouter Auto'; }
     });
 }
 
@@ -9489,19 +9484,19 @@ function _ensureAutoTagsModal() {
     <div id="modalAutoTags" class="modal" role="dialog" aria-modal="true" aria-label="Tags suggérés par IA">
         <div class="modal-content" style="max-width:500px;">
             <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <span id="autoTagsModalTitle">✨ Tags suggérés par IA</span>
-                <button class="btn btn-secondary" onclick="closeAutoTagsModal()" style="font-size:14px;padding:4px 10px;" aria-label="Fermer">✕</button>
+                <span id="autoTagsModalTitle">Tags suggérés par IA</span>
+                <button class="btn btn-secondary" onclick="closeAutoTagsModal()" style="font-size:14px;padding:4px 10px;" aria-label="Fermer">${window.icon ? window.icon('x', {size:14}) : '×'}</button>
             </div>
             <p class="muted" style="font-size:12px;margin:12px 0 8px;">Sélectionnez les tags à ajouter. Les tags déjà présents sur la fiche sont exclus automatiquement.</p>
             <div id="autoTagsSuggestions" style="display:flex;flex-wrap:wrap;gap:10px;min-height:40px;margin-bottom:16px;"></div>
             <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;border-top:1px solid var(--color-border);padding-top:12px;">
                 <div style="display:flex;gap:6px;">
-                    <button class="btn btn-secondary" onclick="autoTagsToggleAll(true)" style="font-size:12px;padding:4px 10px;">✅ Tout</button>
-                    <button class="btn btn-secondary" onclick="autoTagsToggleAll(false)" style="font-size:12px;padding:4px 10px;">❌ Aucun</button>
+                    <button class="btn btn-secondary" onclick="autoTagsToggleAll(true)" style="font-size:12px;padding:4px 10px;">${window.icon ? window.icon('check', {size:12}) : ''} Tout</button>
+                    <button class="btn btn-secondary" onclick="autoTagsToggleAll(false)" style="font-size:12px;padding:4px 10px;">${window.icon ? window.icon('x', {size:12}) : ''} Aucun</button>
                 </div>
                 <div style="display:flex;gap:8px;">
                     <button class="btn btn-secondary" onclick="closeAutoTagsModal()">Annuler</button>
-                    <button class="btn btn-primary" onclick="applyAutoTags()">💾 Ajouter les tags sélectionnés</button>
+                    <button class="btn btn-primary" onclick="applyAutoTags()">${window.icon ? window.icon('save', {size:13}) : ''} Ajouter les tags sélectionnés</button>
                 </div>
             </div>
         </div>
@@ -9525,7 +9520,7 @@ function openAutoTagsModal(prospectId, suggestedTags) {
     _ensureAutoTagsModal();
 
     const title = document.getElementById('autoTagsModalTitle');
-    if (title) title.textContent = `✨ Tags suggérés — ${p ? escapeHtml(p.name) : ''}`;
+    if (title) title.textContent = `Tags suggérés — ${p ? escapeHtml(p.name) : ''}`;
 
     const container = document.getElementById('autoTagsSuggestions');
     if (container) {
@@ -9632,15 +9627,15 @@ function _ensureIAModal() {
     <div id="modalIAImport" class="modal">
         <div class="modal-content">
             <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <span id="iaModalTitle">📥 Import retour IA</span>
-                <button class="btn btn-secondary" onclick="closeIAImportModal()" style="font-size:14px;padding:4px 10px;">✕</button>
+                <span id="iaModalTitle">Import retour IA</span>
+                <button class="btn btn-secondary" onclick="closeIAImportModal()" style="font-size:14px;padding:4px 10px;" aria-label="Fermer">${window.icon ? window.icon('x', {size:14}) : '×'}</button>
             </div>
             <div id="iaStep1" style="margin-top:16px;">
                 <p class="muted" style="font-size:12px;margin-bottom:8px;">Résultat Ollama ou collez manuellement le retour d'une IA ci-dessous, puis cliquez "Analyser".</p>
                 <textarea id="iaImportTextarea" placeholder="FONCTION: Responsable Bureau d'Études&#10;TELEPHONE: 04 72 xx xx xx&#10;EMAIL: jean@example.com&#10;TAGS: C/C++, FPGA, VHDL&#10;..."></textarea>
                 <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
                     <button class="btn btn-secondary" onclick="closeIAImportModal()">Annuler</button>
-                    <button class="btn btn-primary" onclick="parseIAImportModal()">🔍 Analyser</button>
+                    <button class="btn btn-primary" onclick="parseIAImportModal()">${window.icon ? window.icon('search', {size:13}) : ''} Analyser</button>
                 </div>
             </div>
             <div id="iaStep2" style="margin-top:16px;display:none;">
@@ -9650,9 +9645,9 @@ function _ensureIAModal() {
                 <div style="display:flex;gap:8px;margin-top:16px;justify-content:space-between;">
                     <button class="btn btn-secondary" onclick="iaBackToStep1()">← Modifier le texte</button>
                     <div style="display:flex;gap:8px;">
-                        <button class="btn btn-secondary" onclick="iaToggleAll(false)">❌ Tout ignorer</button>
-                        <button class="btn btn-secondary" onclick="iaToggleAll(true)">✅ Tout accepter</button>
-                        <button class="btn btn-primary" onclick="applyIAImport()">💾 Appliquer</button>
+                        <button class="btn btn-secondary" onclick="iaToggleAll(false)">${window.icon ? window.icon('x', {size:12}) : ''} Tout ignorer</button>
+                        <button class="btn btn-secondary" onclick="iaToggleAll(true)">${window.icon ? window.icon('check', {size:12}) : ''} Tout accepter</button>
+                        <button class="btn btn-primary" onclick="applyIAImport()">${window.icon ? window.icon('save', {size:13}) : ''} Appliquer</button>
                     </div>
                 </div>
             </div>
@@ -9677,7 +9672,7 @@ function openIAImportModal(type, id) {
     document.getElementById('iaStep2').style.display = 'none';
     document.getElementById('iaManagersPreview').style.display = 'none';
     const titles = { prospect: 'prospect', candidate: 'candidat', company: 'entreprise' };
-    document.getElementById('iaModalTitle').textContent = `📥 Import IA — Fiche ${titles[type] || type}`;
+    document.getElementById('iaModalTitle').textContent = `Import IA — Fiche ${titles[type] || type}`;
     const modal = document.getElementById('modalIAImport');
     if (modal) {
         if (window.openModal) {
@@ -9780,7 +9775,7 @@ function _getExistingData(type, id) {
 
 function parseIAImportModal() {
     const text = document.getElementById('iaImportTextarea').value.trim();
-    if (!text) { showToast('⚠️ Collez le retour de l\'IA d\'abord.', 'warning'); return; }
+    if (!text) { showToast('Collez le retour de l\'IA d\'abord.', 'warning'); return; }
 
     const fieldMap = _getFieldMap(_iaCurrentType);
     const existing = _getExistingData(_iaCurrentType, _iaCurrentId);
@@ -9808,7 +9803,7 @@ function parseIAImportModal() {
     if (currentKey) _processField(currentKey, currentValue, fieldMap, existing, fields, managers);
 
     if (fields.length === 0 && managers.length === 0) {
-        showToast('⚠️ Aucun champ reconnu. Vérifiez le format (CLÉ: valeur).', 'warning');
+        showToast('Aucun champ reconnu. Vérifiez le format (CLÉ: valeur).', 'warning');
         return;
     }
 
@@ -9921,7 +9916,7 @@ function _renderIAPreview() {
 
     _iaParsedFields.forEach((f, i) => {
         const statusClass = f.isNew ? 'new-field' : (f.isConflict ? 'conflict' : 'add-field');
-        const statusText = f.isNew ? '✨ Nouveau' : (f.isConflict ? '⚡ Conflit' : '➕ Ajout');
+        const statusText = f.isNew ? 'Nouveau' : (f.isConflict ? 'Conflit' : 'Ajout');
         html += `<div class="ia-field-row" id="iaRow_${i}">
             <div class="ia-field-label">${f.mapping.label}</div>
             <div class="ia-field-values">
@@ -9934,8 +9929,8 @@ function _renderIAPreview() {
                     <button class="ia-accept ${f.accepted ? 'active' : ''}" onclick="iaToggleField(${i}, true)">Accepter</button>
                     <button class="ia-ignore ${!f.accepted ? 'active' : ''}" onclick="iaToggleField(${i}, false)">Ignorer</button>
                 ` : `
-                    <button class="ia-accept active" onclick="iaToggleField(${i}, true)">✓</button>
-                    <button class="ia-ignore" onclick="iaToggleField(${i}, false)">✕</button>
+                    <button class="ia-accept active" onclick="iaToggleField(${i}, true)">${window.icon ? window.icon('check', {size:12}) : '✓'}</button>
+                    <button class="ia-ignore" onclick="iaToggleField(${i}, false)">${window.icon ? window.icon('x', {size:12}) : '✕'}</button>
                 `}
             </div>
         </div>`;
@@ -9946,7 +9941,7 @@ function _renderIAPreview() {
     // Managers
     const mgContainer = document.getElementById('iaManagersPreview');
     if (_iaParsedManagers.length > 0) {
-        let mhtml = '<div style="font-weight:700;margin-bottom:8px;">👥 Managers détectés</div>';
+        let mhtml = '<div style="font-weight:700;margin-bottom:8px;">' + (window.icon ? window.icon('users', {size:14}) : '') + ' Managers détectés</div>';
         _iaParsedManagers.forEach((m, i) => {
             mhtml += `<div class="ia-manager-row">
                 <span>${_escIA(m.name)}${m.fonction ? ' — ' + _escIA(m.fonction) : ''}</span>
@@ -9983,7 +9978,7 @@ function iaToggleAll(accept) {
 // ─── Apply import ───
 async function applyIAImport() {
     const accepted = _iaParsedFields.filter(f => f.accepted);
-    if (accepted.length === 0) { showToast('ℹ️ Aucun champ sélectionné.', 'info'); return; }
+    if (accepted.length === 0) { showToast('Aucun champ sélectionné.', 'info'); return; }
 
     if (_iaCurrentType === 'prospect') _applyProspectIA(accepted);
     else if (_iaCurrentType === 'candidate') _applyCandidateIA(accepted);
@@ -10006,7 +10001,7 @@ async function applyIAImport() {
     } catch (e) { console.warn('IA log failed', e); }
 
     closeIAImportModal();
-    showToast(`✅ ${accepted.length} champ(s) importé(s) depuis l'IA !`, 'success', 4000);
+    showToast(`${accepted.length} champ(s) importé(s) depuis l'IA !`, 'success', 4000);
     // Rafraîchir la vue si des prospects ont été mis à jour
     if (_iaCurrentType === 'prospect' && typeof renderProspects === 'function') {
         try { renderProspects(); } catch(e) {}
@@ -10194,7 +10189,7 @@ async function iaCreateProspectFromManager(index) {
         companyId = p ? p.company_id : null;
     }
     if (!companyId) {
-        showToast('⚠️ Entreprise introuvable.', 'warning');
+        showToast('Entreprise introuvable.', 'warning');
         return;
     }
 
@@ -10204,7 +10199,7 @@ async function iaCreateProspectFromManager(index) {
         p.name.toLowerCase() === m.name.toLowerCase()
     );
     if (existing) {
-        showToast(`⚠️ ${m.name} existe déjà dans cette entreprise.`, 'warning');
+        showToast(`${m.name} existe déjà dans cette entreprise.`, 'warning');
         return;
     }
 
@@ -10222,7 +10217,7 @@ async function iaCreateProspectFromManager(index) {
         lastContact: '',
         nextFollowUp: '',
         priority: 2,
-        notes: '🤖 Créé depuis scrapping IA entreprise',
+        notes: 'Créé depuis scrapping IA entreprise',
         callNotes: [],
         pushEmailSentAt: '',
         tags: [],
@@ -10235,11 +10230,11 @@ async function iaCreateProspectFromManager(index) {
 
     // Disable button
     const btn = event.target;
-    btn.textContent = '✅ Créé';
+    btn.textContent = 'Créé';
     btn.disabled = true;
     btn.style.opacity = '0.5';
 
-    showToast(`✅ Prospect "${m.name}" créé !`, 'success', 3000);
+    showToast(`Prospect "${m.name}" créé !`, 'success', 3000);
 }
 
 // ─── Company scraping prompt ───
@@ -10312,15 +10307,15 @@ function _ensureBulkIAModal() {
     <div id="modalBulkIA" class="modal">
         <div class="modal-content">
             <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <span id="bulkIATitle" style="font-weight:700;">📧 Enrichissement IA en masse</span>
-                <button class="btn btn-secondary" onclick="closeBulkIAModal()" style="font-size:14px;padding:4px 10px;">✕</button>
+                <span id="bulkIATitle" style="font-weight:700;">${window.icon ? window.icon('mail', {size:14}) : ''} Enrichissement IA en masse</span>
+                <button class="btn btn-secondary" onclick="closeBulkIAModal()" style="font-size:14px;padding:4px 10px;" aria-label="Fermer">${window.icon ? window.icon('x', {size:14}) : '×'}</button>
             </div>
 
             <!-- Tabs (only for tel mode) -->
             <div id="bulkIATabs" style="display:none;margin-top:12px;border-bottom:1px solid var(--border-color);">
-                <button class="bulk-ia-tab active" data-tab="ollama" onclick="switchBulkIATab('ollama')">🤖 Ollama</button>
-                <button class="bulk-ia-tab" data-tab="paste" onclick="switchBulkIATab('paste')">📋 Coller</button>
-                <button class="bulk-ia-tab" data-tab="csv" onclick="switchBulkIATab('csv')">📄 CSV</button>
+                <button class="bulk-ia-tab active" data-tab="ollama" onclick="switchBulkIATab('ollama')">${window.icon ? window.icon('robot', {size:13}) : ''} Ollama</button>
+                <button class="bulk-ia-tab" data-tab="paste" onclick="switchBulkIATab('paste')">${window.icon ? window.icon('clipboard', {size:13}) : ''} Coller</button>
+                <button class="bulk-ia-tab" data-tab="csv" onclick="switchBulkIATab('csv')">${window.icon ? window.icon('file', {size:13}) : ''} CSV</button>
             </div>
 
             <!-- Step 1: Ollama (existing) -->
@@ -10329,8 +10324,8 @@ function _ensureBulkIAModal() {
                     <strong>Étape 1 :</strong> Générez avec Ollama (local) ou copiez le prompt pour une autre IA.
                 </p>
                 <div class="bulk-ia-prompt-box" id="bulkIAPromptBox">
-                    <button class="copy-prompt-btn" onclick="runBulkIAWithOllama()" id="bulkIAOllamaBtn">🤖 Générer avec l'IA</button>
-                    <button class="copy-prompt-btn" onclick="copyBulkIAPrompt()">📋 Copier</button>
+                    <button class="copy-prompt-btn" onclick="runBulkIAWithOllama()" id="bulkIAOllamaBtn">${window.icon ? window.icon('robot', {size:13}) : ''} Générer avec l'IA</button>
+                    <button class="copy-prompt-btn" onclick="copyBulkIAPrompt()">${window.icon ? window.icon('clipboard', {size:13}) : ''} Copier</button>
                     <pre id="bulkIAPromptText" style="margin:0;white-space:pre-wrap;font-size:12px;"></pre>
                 </div>
                 <p class="muted" style="font-size:12px;margin-top:14px;margin-bottom:8px;">
@@ -10339,7 +10334,7 @@ function _ensureBulkIAModal() {
                 <textarea id="bulkIAResultTextarea" placeholder="Collez ici le retour de l'IA..."></textarea>
                 <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
                     <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
-                    <button class="btn btn-primary" onclick="parseBulkIAResult()">🔍 Analyser</button>
+                    <button class="btn btn-primary" onclick="parseBulkIAResult()">${window.icon ? window.icon('search', {size:13}) : ''} Analyser</button>
                 </div>
             </div>
 
@@ -10351,7 +10346,7 @@ function _ensureBulkIAModal() {
                 <textarea id="bulkIAPasteTextarea" placeholder="Exemple :&#10;Nicolas Mugnier / +33 4 37 59 09 80&#10;Herve Pays / +33 4 37 59 09 80 / +33 6 15 23 65 89&#10;Sebastien Chapacou / +33 6 12 34 56 78" style="min-height:200px;font-family:monospace;font-size:12px;"></textarea>
                 <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
                     <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
-                    <button class="btn btn-primary" onclick="parseBulkIAPaste()">🔍 Analyser</button>
+                    <button class="btn btn-primary" onclick="parseBulkIAPaste()">${window.icon ? window.icon('search', {size:13}) : ''} Analyser</button>
                 </div>
             </div>
 
@@ -10368,7 +10363,7 @@ function _ensureBulkIAModal() {
                         <option value=",">Virgule (,)</option>
                         <option value="\t">Tabulation</option>
                     </select>
-                    <button class="btn btn-secondary" onclick="suggestBulkIACsvMappingWithOllama()" id="bulkIACsvSuggestOllamaBtn" style="font-size:12px;padding:6px 12px;">🤖 Vérifier format avec Ollama</button>
+                    <button class="btn btn-secondary" onclick="suggestBulkIACsvMappingWithOllama()" id="bulkIACsvSuggestOllamaBtn" style="font-size:12px;padding:6px 12px;">${window.icon ? window.icon('robot', {size:13}) : ''} Vérifier format avec Ollama</button>
                 </div>
                 <input type="file" id="bulkIACsvFile" accept=".csv,.txt" style="display:none;">
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('bulkIACsvFile').click()">Choisir un fichier CSV</button>
@@ -10377,7 +10372,7 @@ function _ensureBulkIAModal() {
                     <div id="bulkIACsvMappingGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;"></div>
                     <div style="display:flex;gap:8px;justify-content:flex-end;">
                         <button class="btn btn-secondary" onclick="closeBulkIAModal()">Annuler</button>
-                        <button class="btn btn-primary" onclick="parseBulkIACsv()">🔍 Analyser</button>
+                        <button class="btn btn-primary" onclick="parseBulkIACsv()">${window.icon ? window.icon('search', {size:13}) : ''} Analyser</button>
                     </div>
                 </div>
             </div>
@@ -10391,7 +10386,7 @@ function _ensureBulkIAModal() {
                     <table class="bulk-ia-results-table">
                         <thead>
                             <tr>
-                                <th style="width:30px;">✓</th>
+                                <th style="width:30px;"></th>
                                 <th>Prospect</th>
                                 <th>Entreprise</th>
                                 <th id="bulkIAResultHeader">Email</th>
@@ -10405,7 +10400,7 @@ function _ensureBulkIAModal() {
                     <button class="btn btn-secondary" onclick="bulkIABackToStep1()">← Modifier</button>
                     <div style="display:flex;gap:8px;">
                         <span id="bulkIAFoundCount" class="muted" style="font-size:12px;align-self:center;"></span>
-                        <button class="btn btn-primary" onclick="applyBulkIA()">💾 Appliquer</button>
+                        <button class="btn btn-primary" onclick="applyBulkIA()">${window.icon ? window.icon('save', {size:13}) : ''} Appliquer</button>
                     </div>
                 </div>
             </div>
@@ -10426,7 +10421,7 @@ let _bulkIACsvData = null; // {headers, rows}
 // ─── Enrichissement IA en masse ───────────────────────────────────────────────
 async function bulkEnrichWithIA() {
     if (selectedProspects.size === 0) {
-        showToast('⚠️ Sélectionnez des prospects d\'abord.', 'warning');
+        showToast('Sélectionnez des prospects d\'abord.', 'warning');
         return;
     }
     const ids = Array.from(selectedProspects);
@@ -10491,13 +10486,13 @@ async function bulkEnrichWithIA() {
 
             if (applied.length > 0) {
                 successCount++;
-                summary.push(`✅ ${p.name} : ${applied.join(', ')}`);
+                summary.push(`${p.name} : ${applied.join(', ')}`);
             } else {
-                summary.push(`ℹ️ ${p.name} : aucun champ nouveau`);
+                summary.push(`${p.name} : aucun champ nouveau`);
             }
         } catch (e) {
             failCount++;
-            summary.push(`❌ ${p.name} : ${e.message || 'Erreur IA'}`);
+            summary.push(`${p.name} : ${e.message || 'Erreur IA'}`);
         }
 
         done++;
@@ -10525,8 +10520,8 @@ async function bulkEnrichWithIA() {
     }
     modal.innerHTML = `<div class="modal-content" style="max-width:520px;">
         <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
-            <span>🤖 Résumé enrichissement IA</span>
-            <button class="btn btn-secondary" onclick="this.closest('.modal').classList.remove('active')" style="font-size:14px;padding:4px 10px;">✕</button>
+            <span>${window.icon ? window.icon('robot', {size:14}) : ''} Résumé enrichissement IA</span>
+            <button class="btn btn-secondary" onclick="this.closest('.modal').classList.remove('active')" style="font-size:14px;padding:4px 10px;" aria-label="Fermer">${window.icon ? window.icon('x', {size:14}) : '×'}</button>
         </div>
         <div style="margin-top:14px;font-size:13px;">
             <p><strong>${successCount}</strong> prospect(s) enrichi(s) · <strong>${failCount}</strong> échec(s)</p>
@@ -10543,7 +10538,7 @@ async function bulkEnrichWithIA() {
 
 function openBulkIAModal(mode) {
     if (selectedProspects.size === 0) {
-        showToast('⚠️ Sélectionnez des prospects d\'abord.', 'warning');
+        showToast('Sélectionnez des prospects d\'abord.', 'warning');
         return;
     }
     _ensureBulkIAModal();
@@ -10568,7 +10563,7 @@ function openBulkIAModal(mode) {
     });
 
     if (_bulkIAProspects.length === 0) {
-        showToast('⚠️ Aucun prospect valide sélectionné.', 'warning');
+        showToast('Aucun prospect valide sélectionné.', 'warning');
         return;
     }
     
@@ -10578,8 +10573,7 @@ function openBulkIAModal(mode) {
     }
 
     // Update title
-    const icon = mode === 'email' ? '📧' : '📞';
-    document.getElementById('bulkIATitle').textContent = `${icon} Trouver les ${fieldLabel}s — ${_bulkIAProspects.length} prospect(s)`;
+    document.getElementById('bulkIATitle').textContent = `Trouver les ${fieldLabel}s — ${_bulkIAProspects.length} prospect(s)`;
     document.getElementById('bulkIAResultHeader').textContent = fieldLabel;
 
     // Show tabs only for tel mode
@@ -10707,7 +10701,7 @@ async function runBulkIAWithOllama() {
     } catch (e) {
         showToast('Génération IA échouée. Collez manuellement le retour ci-dessous.', 'warning', 5000);
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Générer avec l\'IA'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = (window.icon ? window.icon('robot', {size:13}) : '') + ' Générer avec l\'IA'; }
     }
 }
 
@@ -10720,13 +10714,13 @@ function copyBulkIAPrompt() {
         ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;';
         document.body.appendChild(ta); ta.select(); document.execCommand('copy');
         document.body.removeChild(ta);
-        showToast('📋 Prompt copié !', 'success', 3000);
+        showToast('Prompt copié !', 'success', 3000);
     });
 }
 
 function parseBulkIAResult() {
     const text = document.getElementById('bulkIAResultTextarea').value.trim();
-    if (!text) { showToast('⚠️ Collez le retour de l\'IA d\'abord.', 'warning'); return; }
+    if (!text) { showToast('Collez le retour de l\'IA d\'abord.', 'warning'); return; }
 
     const isEmail = _bulkIAMode === 'email';
     const fieldKey = isEmail ? 'EMAIL' : 'TELEPHONE';
@@ -10754,7 +10748,7 @@ function parseBulkIAResult() {
 // Parse pasted manual data (format: "Nom / Numéro" or "Nom / Numéro1 / Numéro2")
 function parseBulkIAPaste() {
     const text = document.getElementById('bulkIAPasteTextarea').value.trim();
-    if (!text) { showToast('⚠️ Collez les numéros d\'abord.', 'warning'); return; }
+    if (!text) { showToast('Collez les numéros d\'abord.', 'warning'); return; }
 
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     const results = [];
@@ -10868,12 +10862,12 @@ async function suggestBulkIACsvMappingWithOllama() {
     } catch (e) {
         showToast('Ollama indisponible ou réponse invalide. Vérifiez le mapping manuellement.', 'warning', 5000);
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Vérifier format avec Ollama'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = (window.icon ? window.icon('robot', {size:13}) : '') + ' Vérifier format avec Ollama'; }
     }
 }
 
 function parseBulkIACsv() {
-    if (!_bulkIACsvData) { showToast('⚠️ Importez un fichier CSV d\'abord.', 'warning'); return; }
+    if (!_bulkIACsvData) { showToast('Importez un fichier CSV d\'abord.', 'warning'); return; }
     
     const selects = document.querySelectorAll('.bulk-ia-csv-map-select');
     const nameCols = [];
@@ -10887,12 +10881,12 @@ function parseBulkIACsv() {
     });
     
     if (nameCols.length === 0) {
-        showToast('⚠️ Mappez au moins une colonne "Nom du prospect".', 'warning');
+        showToast('Mappez au moins une colonne "Nom du prospect".', 'warning');
         return;
     }
     
     if (telCols.length === 0) {
-        showToast('⚠️ Mappez au moins une colonne "Téléphone".', 'warning');
+        showToast('Mappez au moins une colonne "Téléphone".', 'warning');
         return;
     }
     
@@ -10947,7 +10941,7 @@ function _displayBulkIAResults(results) {
         if (hasValue) foundCount++;
 
         const statusClass = hasValue ? 'found' : 'not-found';
-        const statusText = hasValue ? '✅ Trouvé' : '—';
+        const statusText = hasValue ? 'Trouvé' : '—';
         const currentNote = p.current ? ` (actuel : ${_escIA(p.current)})` : '';
 
         html += `<tr>
@@ -10990,7 +10984,7 @@ async function applyBulkIA() {
     });
 
     if (updates.length === 0) {
-        showToast('ℹ️ Aucune donnée à appliquer.', 'info');
+        showToast('Aucune donnée à appliquer.', 'info');
         return;
     }
 
@@ -11033,7 +11027,7 @@ async function applyBulkIA() {
 
     closeBulkIAModal();
     filterProspects();
-    showToast(`✅ ${applied} ${label} ajouté(s) via IA !`, 'success', 5000);
+    showToast(`${applied} ${label} ajouté(s) via IA !`, 'success', 5000);
 }
 
 // Copy email address to clipboard (from email hyperlink)
@@ -11041,7 +11035,7 @@ async function applyBulkIA() {
 async function openPushFile(prospectId, filename) {
     const p = data.prospects.find(x => x.id === prospectId);
     if (!p || !p.push_category_id) {
-        showToast('⚠️ Sélectionnez une catégorie push d\'abord.', 'warning');
+        showToast('Sélectionnez une catégorie push d\'abord.', 'warning');
         return;
     }
     try {
@@ -11052,18 +11046,18 @@ async function openPushFile(prospectId, filename) {
         });
         const data2 = await res.json();
         if (data2.ok) {
-            showToast('✅ Template ouvert dans Outlook !', 'success', 3000);
+            showToast('Template ouvert dans Outlook !', 'success', 3000);
         } else {
-            showToast('❌ ' + (data2.error || 'Erreur'), 'error');
+            showToast('' + (data2.error || 'Erreur'), 'error');
         }
     } catch (e) {
-        showToast('❌ Erreur: ' + e.message, 'error');
+        showToast('Erreur: ' + e.message, 'error');
     }
 }
 
 function copyEmailToClipboard(email) {
     navigator.clipboard.writeText(email).then(() => {
-        showToast('📋 Email copié : ' + email, 'success', 2500);
+        showToast('Email copié : ' + email, 'success', 2500);
     }).catch(() => {
         // fallback
         const ta = document.createElement('textarea');
@@ -11074,7 +11068,7 @@ function copyEmailToClipboard(email) {
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-        showToast('📋 Email copié : ' + email, 'success', 2500);
+        showToast('Email copié : ' + email, 'success', 2500);
     });
 }
 
@@ -11188,7 +11182,7 @@ console.warn("push-logs/add (linkedin) error", e);
     }
 
     // feedback
-    showToast("✅ Message InMail copié + LinkedIn ouvert !", 'success');
+    showToast("Message InMail copié + LinkedIn ouvert !", 'success');
 }
 
 
@@ -11200,14 +11194,14 @@ async function undoLastPush(prospectId, channel) {
 
     const current = (channel === 'linkedin') ? (p.pushLinkedInSentAt || '') : (p.pushEmailSentAt || '');
     if (!current) {
-showToast("ℹ️ Aucun push à annuler.", "info");
+showToast("Aucun push à annuler.", "info");
 return;
     }
 
     const company = data.companies.find(c => c.id === p.company_id);
     const label = `${p.name} (${company?.groupe || 'Sans entreprise'})\nDernier push (${channel}): ${current}`;
 
-    if (!confirm(`⚠️ Annuler le dernier push ?\n\n${label}\n\nCela supprimera l'entrée dans le suivi des push et retirera la mention "Push envoyé".`)) return;
+    if (!confirm(`Annuler le dernier push ?\n\n${label}\n\nCela supprimera l'entrée dans le suivi des push et retirera la mention "Push envoyé".`)) return;
 
     // 1) Supprimer le dernier log serveur + nettoyer pushEmailSentAt côté DB
     try {
@@ -11239,7 +11233,7 @@ if (channel === 'linkedin') {
 } else {
     const el = document.getElementById('detailPushSent');
     if (el) {
-        el.textContent = '🕒 Non envoyé';
+        el.textContent = 'Non envoyé';
         const container = el.closest('.detail-info-value');
         if (container) {
             container.querySelectorAll('.undo-push-btn, .mini-link-btn').forEach(b => b.remove());
@@ -11442,7 +11436,7 @@ function debouncedCheckAddDuplicate() {
                 const name = existingP ? existingP.name : '?';
                 const co = existingCo ? existingCo.groupe : '';
                 dupWarn.style.display = 'flex';
-                dupWarn.textContent = `⚠️ Doublon probable : ${name}${co ? ' (' + co + ')' : ''}`;
+                dupWarn.textContent = `Doublon probable : ${name}${co ? ' (' + co + ')' : ''}`;
             } else {
                 dupWarn.style.display = 'none';
             }
@@ -11481,7 +11475,7 @@ function closeNewCompanyInlineModal() {
 function saveNewCompanyInline() {
     const groupe = document.getElementById('newCoGroupe')?.value.trim() || '';
     const site = document.getElementById('newCoSite')?.value.trim() || '';
-    if (!groupe) { showToast('⚠️ Le nom de l\'entreprise est requis', 'warning'); return; }
+    if (!groupe) { showToast('Le nom de l\'entreprise est requis', 'warning'); return; }
 
     // Vérifier si l'entreprise existe déjà
     const existing = data.companies.find(c =>
@@ -11492,7 +11486,7 @@ function saveNewCompanyInline() {
         const sel = document.getElementById('inputCompany');
         if (sel) sel.value = existing.id;
         closeNewCompanyInlineModal();
-        showToast('ℹ️ Entreprise existante sélectionnée', 'info');
+        showToast('Entreprise existante sélectionnée', 'info');
         return;
     }
 
@@ -11507,7 +11501,7 @@ function saveNewCompanyInline() {
     if (sel) sel.value = newId;
 
     closeNewCompanyInlineModal();
-    showToast(`✅ Entreprise "${groupe}" créée`, 'success');
+    showToast(`Entreprise "${groupe}" créée`, 'success');
 }
 
 function saveProspect(e) {
@@ -11597,7 +11591,7 @@ function _doSaveProspect(newProspect) {
     saveToServerAsync().then(() => {
         showToast('Prospect ajouté — Voir dans Focus →', 'success');
     }).catch(() => {
-        showToast('⚠️ Erreur lors de la sauvegarde', 'error');
+        showToast('Erreur lors de la sauvegarde', 'error');
     });
 }
 
@@ -11605,7 +11599,7 @@ function _showAddDuplicateConfirm(dup, onConfirm) {
     const dupWarn = document.getElementById('addDuplicateWarning');
     if (dupWarn) {
         dupWarn.style.display = 'flex';
-        dupWarn.innerHTML = `⚠️ Doublon probable : <strong style="margin:0 4px;">${escapeHtml(dup.name)}</strong> (${escapeHtml(dup.company || '')})
+        dupWarn.innerHTML = `Doublon probable : <strong style="margin:0 4px;">${escapeHtml(dup.name)}</strong> (${escapeHtml(dup.company || '')})
             <span style="margin-left:auto;display:flex;gap:8px;">
                 <button type="button" class="btn btn-sm" onclick="document.getElementById('addDuplicateWarning').style.display='none'">Annuler</button>
                 <button type="button" class="btn btn-sm btn-primary" id="btnAddAnyway">Ajouter quand même</button>
@@ -11613,7 +11607,7 @@ function _showAddDuplicateConfirm(dup, onConfirm) {
         const btnAnyway = document.getElementById('btnAddAnyway');
         if (btnAnyway) btnAnyway.onclick = () => { dupWarn.style.display = 'none'; onConfirm(); };
     } else {
-        if (confirm(`⚠️ Doublon probable : ${dup.name} (${dup.company || ''})\n\nAjouter quand même ?`)) {
+        if (confirm(`Doublon probable : ${dup.name} (${dup.company || ''})\n\nAjouter quand même ?`)) {
             onConfirm();
         }
     }
@@ -11722,7 +11716,7 @@ function openEditCompanyModal(companyId) {
     if (!company) return;
 
     if (isUnassignedCompany(companyId)) {
-        showToast('⚠️ L\'entreprise "Sans entreprise" ne peut pas être modifiée.', 'warning');
+        showToast('L\'entreprise "Sans entreprise" ne peut pas être modifiée.', 'warning');
         return;
     }
     openCompanySheet(companyId, 'edit');
@@ -11996,18 +11990,18 @@ function mergeImportedData(imported) {
 
     saveToServer();
     filterProspects();
-    showToast(`✅ Import terminé : ${created} créé(s), ${updated} mis à jour.`, 'success', 5000);
+    showToast(`Import terminé : ${created} créé(s), ${updated} mis à jour.`, 'success', 5000);
 }
 
 
 // ====== Onboarding : popup bienvenue + visite guidée (nouveaux utilisateurs) ======
 const ONBOARDING_STEPS = [
-    { id: 'welcome', title: 'Bienvenue sur Prosp\'Up', icon: '👋', body: 'Votre CRM pour la prospection B2B et le sourcing. Tout au même endroit : prospects, relances, RDV et candidats.' },
-    { id: 'prospects', title: 'Vos prospects', icon: '👥', body: 'Cette page liste tous vos contacts. Recherchez, filtrez par entreprise ou statut, et cliquez sur une ligne pour ouvrir la fiche détaillée.' },
-    { id: 'import', title: 'Importer ou ajouter', icon: '📥', body: 'Importez votre liste Excel ou CSV en un clic, ou ajoutez des prospects un par un. Le bouton « + Prospect » en bas à droite ouvre le formulaire d\'ajout.' },
-    { id: 'focus', title: 'Focus & relances', icon: '🎯', body: 'La page Focus affiche les prospects à relancer et les RDV à venir. Idéal pour prioriser vos actions du jour.' },
-    { id: 'dashboard', title: 'Dashboard', icon: '📊', body: 'Le Dashboard résume votre activité : KPIs, prochaines actions, objectifs. Parfait pour un coup d\'œil le matin.' },
-    { id: 'actions', title: 'Prêt à démarrer ?', icon: '🚀', body: 'Importez votre liste existante ou ajoutez votre premier prospect. Vous pourrez toujours accéder au guide depuis Aide.' }
+    { id: 'welcome', title: 'Bienvenue sur Prosp\'Up', icon: 'users', body: 'Votre CRM pour la prospection B2B et le sourcing. Tout au même endroit : prospects, relances, RDV et candidats.' },
+    { id: 'prospects', title: 'Vos prospects', icon: 'users', body: 'Cette page liste tous vos contacts. Recherchez, filtrez par entreprise ou statut, et cliquez sur une ligne pour ouvrir la fiche détaillée.' },
+    { id: 'import', title: 'Importer ou ajouter', icon: 'download', body: 'Importez votre liste Excel ou CSV en un clic, ou ajoutez des prospects un par un. Le bouton « + Prospect » en bas à droite ouvre le formulaire d\'ajout.' },
+    { id: 'focus', title: 'Focus & relances', icon: 'calendar', body: 'La page Focus affiche les prospects à relancer et les RDV à venir. Idéal pour prioriser vos actions du jour.' },
+    { id: 'dashboard', title: 'Dashboard', icon: 'chart', body: 'Le Dashboard résume votre activité : KPIs, prochaines actions, objectifs. Parfait pour un coup d\'œil le matin.' },
+    { id: 'actions', title: 'Prêt à démarrer ?', icon: 'zap', body: 'Importez votre liste existante ou ajoutez votre premier prospect. Vous pourrez toujours accéder au guide depuis Aide.' }
 ];
 
 function _ensureOnboardingModal() {
@@ -12021,7 +12015,7 @@ function _ensureOnboardingModal() {
     <div class="modal-content onboarding-modal-content">
         <button type="button" class="onboarding-close" onclick="closeOnboardingModal(false)" title="Fermer">×</button>
         <div id="onboardingSlide" class="onboarding-slide">
-            <div class="onboarding-step-icon" id="onboardingStepIcon">👋</div>
+            <div class="onboarding-step-icon" id="onboardingStepIcon"></div>
             <h2 class="onboarding-step-title" id="onboardingStepTitle">${welcomeTitle}</h2>
             <p class="onboarding-step-body" id="onboardingStepBody">Votre CRM pour la prospection B2B et le sourcing. Tout au même endroit : prospects, relances, RDV et candidats.</p>
             <div class="onboarding-progress" id="onboardingProgress"></div>
@@ -12029,8 +12023,8 @@ function _ensureOnboardingModal() {
                 <button type="button" class="btn btn-secondary" id="onboardingBtnPrev" onclick="onboardingPrev()" style="display:none;">← Précédent</button>
                 <button type="button" class="btn btn-primary" id="onboardingBtnNext" onclick="onboardingNext()">Suivant →</button>
                 <div id="onboardingFinalActions" style="display:none;">
-                    <button type="button" class="btn btn-primary" onclick="onboardingDoneThenRedirect('/?openImport=1');">📥 Importer ma liste</button>
-                    <button type="button" class="btn btn-primary" onclick="onboardingDoneThenRedirect('/?add=1');">➕ Ajouter un prospect</button>
+                    <button type="button" class="btn btn-primary" onclick="onboardingDoneThenRedirect('/?openImport=1');">${window.icon ? window.icon('download', {size:14}) : ''} Importer ma liste</button>
+                    <button type="button" class="btn btn-primary" onclick="onboardingDoneThenRedirect('/?add=1');">${window.icon ? window.icon('plus', {size:14}) : ''} Ajouter un prospect</button>
                     <a href="/help" class="btn btn-secondary" onclick="event.preventDefault(); closeOnboardingModal(true); window.location.href='/help';">Je découvrirai plus tard</a>
                 </div>
             </div>
@@ -12058,11 +12052,11 @@ function _renderOnboardingStep(index) {
     if (isWelcome) {
         titleEl.textContent = welcomeTitle;
         bodyEl.textContent = step.body;
-        iconEl.textContent = step.icon;
+        iconEl.innerHTML = window.icon ? window.icon(step.icon, {size:36}) : step.icon;
     } else {
         titleEl.textContent = step.title;
         bodyEl.textContent = step.body;
-        iconEl.textContent = step.icon;
+        iconEl.innerHTML = window.icon ? window.icon(step.icon, {size:36}) : step.icon;
     }
     btnPrev.style.display = index <= 0 ? 'none' : '';
     const isLast = index >= ONBOARDING_STEPS.length - 1;
@@ -12304,7 +12298,7 @@ async function bootstrap(page) {
             var b = document.createElement('div');
             b.id = 'mustChangePwBanner';
             b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#f59e0b;color:#1c1917;padding:14px 20px;text-align:center;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3);';
-            b.innerHTML = '🔐 Sécurité : changez votre mot de passe avant de commencer. &nbsp;<button onclick="if(typeof openUserMenu === \'function\') { openUserMenu(); setTimeout(function() { openUserMenuOption(\'changePassword\'); }, 300); }" style="background:#1c1917;color:#fef3c7;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600;">Changer maintenant</button>';
+            b.innerHTML = (window.icon ? window.icon('lock', {size:14}) : '') + ' Sécurité : changez votre mot de passe avant de commencer. &nbsp;<button onclick="if(typeof openUserMenu === \'function\') { openUserMenu(); setTimeout(function() { openUserMenuOption(\'changePassword\'); }, 300); }" style="background:#1c1917;color:#fef3c7;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600;">Changer maintenant</button>';
             document.body.prepend(b);
         }, 200);
     }
@@ -12473,8 +12467,8 @@ function exportSelectedVCF() {
 }
 
 async function resetAllData() {
-    if (!confirm("⚠️ ATTENTION : Réinitialiser TOUTES les données ?\n\nCela va :\n• Créer un snapshot de sauvegarde\n• Supprimer la base actuelle\n• Recharger les données du fichier initial (potentiellement ancien)\n\nUtilise plutôt « Restaurer un snapshot » si tu veux revenir à un état précis.")) return;
-    if (!confirm("🔴 DERNIÈRE CHANCE : Es-tu vraiment sûr ?\n\nTes données actuelles seront perdues (un snapshot sera créé au cas où).")) return;
+    if (!confirm("ATTENTION : Réinitialiser TOUTES les données ?\n\nCela va :\n• Créer un snapshot de sauvegarde\n• Supprimer la base actuelle\n• Recharger les données du fichier initial (potentiellement ancien)\n\nUtilise plutôt « Restaurer un snapshot » si tu veux revenir à un état précis.")) return;
+    if (!confirm("DERNIÈRE CHANCE : Es-tu vraiment sûr ?\n\nTes données actuelles seront perdues (un snapshot sera créé au cas où).")) return;
     try {
         const res = await fetch('/api/reset', { method: 'POST' });
         const body = await res.json().catch(() => ({}));
@@ -12512,7 +12506,7 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
         return;
     }
 
-    listBox.innerHTML = '<span class="muted">🔍 Recherche de candidats…</span>';
+    listBox.innerHTML = '<span class="muted">Recherche de candidats…</span>';
 
     try {
         // Phase 1: Ajouter paramètre pour activer explications IA
@@ -12552,11 +12546,11 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
             }).join(' ');
 
             const linkedinBtn = c.linkedin
-                ? `<a href="${escapeHtml(c.linkedin)}" target="_blank" class="bestmatch-link" title="Voir LinkedIn" onclick="event.stopPropagation()">🔗</a>`
+                ? `<a href="${escapeHtml(c.linkedin)}" target="_blank" class="bestmatch-link" title="Voir LinkedIn" onclick="event.stopPropagation()">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>`
                 : '';
             const phone = (c.phone || '').trim();
             const telBtn = phone
-                ? `<a href="tel:${escapeHtml(phone)}" class="bestmatch-tel" title="Appeler" onclick="event.stopPropagation()">📞</a>`
+                ? `<a href="tel:${escapeHtml(phone)}" class="bestmatch-tel" title="Appeler" onclick="event.stopPropagation()">${window.icon ? window.icon('phone', {size:13}) : ''}</a>`
                 : '';
             const viewFicheUrl = `/candidate?id=${c.id}`;
             const scoreDetails = [];
@@ -12569,26 +12563,26 @@ async function loadUnifiedCandidates(prospectId, tags, pushCategoryId) {
             // Phase 1: Afficher les matches sémantiques
             const semanticMatches = c.semantic_matches || [];
             const semanticInfo = semanticMatches.length > 0 
-                ? `<div class="bestmatch-semantic" style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">🤖 Sémantique: ${semanticMatches.map(m => escapeHtml(m)).join(', ')}</div>`
+                ? `<div class="bestmatch-semantic" style="font-size:10px;color:var(--color-primary);margin-top:4px;opacity:0.8;">Sémantique: ${semanticMatches.map(m => escapeHtml(m)).join(', ')}</div>`
                 : '';
             
             // Phase 1: Afficher l'explication IA si disponible
             const aiExplanation = c.ai_explanation 
-                ? `<div class="bestmatch-explanation" style="margin-top:8px;padding:8px;background:var(--color-bg-secondary);border-radius:6px;font-size:11px;line-height:1.4;color:var(--color-text-secondary);border-left:3px solid var(--color-primary);">🤖 <strong>Pourquoi ce match :</strong> ${escapeHtml(c.ai_explanation)}</div>`
+                ? `<div class="bestmatch-explanation" style="margin-top:8px;padding:8px;background:var(--color-bg-secondary);border-radius:6px;font-size:11px;line-height:1.4;color:var(--color-text-secondary);border-left:3px solid var(--color-primary);"><strong>Pourquoi ce match :</strong> ${escapeHtml(c.ai_explanation)}</div>`
                 : '';
 
             return `
                 <a href="${viewFicheUrl}" class="bestmatch-card bestmatch-card-link${idx === 0 ? ' bestmatch-top' : ''}" title="Ouvrir la fiche candidat">
                     <div class="bestmatch-header">
                         <div class="bestmatch-name">
-                            ${idx === 0 ? '<span class="bestmatch-crown">👑</span>' : ''}
+                            ${idx === 0 ? '<span class="bestmatch-crown">' + (window.icon ? window.icon('star', {size:13}) : '') + '</span>' : ''}
                             <strong>${escapeHtml(c.name)}</strong>
                             ${linkedinBtn}
                             ${telBtn}
                         </div>
                         <span class="bestmatch-score" title="${scoreDetails.join(' · ')}">${c.pct}%</span>
                     </div>
-                    <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · 📍 ' + escapeHtml(c.location) : ''}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
+                    <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · ' + escapeHtml(c.location) : ''}${c.tech ? ' · ' + escapeHtml(c.tech) : ''}</div>
                     <div class="bestmatch-skills">${skillsHtml || '<span class="muted">Aucune compétence renseignée</span>'}</div>
                     <div class="bestmatch-matched">${(c.matched_tags || []).length} compétence${(c.matched_tags || []).length > 1 ? 's' : ''} en commun : ${(c.matched_tags || []).map(t => escapeHtml(t)).join(', ')}</div>
                     ${semanticInfo}
@@ -12653,11 +12647,11 @@ function loadSelectedCandidates(prospectId) {
     }
     
     listEl.innerHTML = selectedCandidates.map(c => {
-        const linkedinBtn = c.linkedin ? `<a href="${escapeHtml(c.linkedin)}" target="_blank" class="bestmatch-link" title="Voir LinkedIn" onclick="event.stopPropagation()">🔗</a>` : '';
+        const linkedinBtn = c.linkedin ? `<a href="${escapeHtml(c.linkedin)}" target="_blank" class="bestmatch-link" title="Voir LinkedIn" onclick="event.stopPropagation()">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : '';
         const phone = (c.phone || '').trim();
-        const telBtn = phone ? `<a href="tel:${escapeHtml(phone)}" class="bestmatch-tel" title="Appeler" onclick="event.stopPropagation()">📞</a>` : '';
+        const telBtn = phone ? `<a href="tel:${escapeHtml(phone)}" class="bestmatch-tel" title="Appeler" onclick="event.stopPropagation()">${window.icon ? window.icon('phone', {size:13}) : ''}</a>` : '';
         const viewFicheUrl = `/candidate?id=${c.id}`;
-        
+
         return `
             <div class="bestmatch-card" style="margin-bottom:8px;">
                 <div class="bestmatch-header">
@@ -12665,10 +12659,10 @@ function loadSelectedCandidates(prospectId) {
                         <strong>${escapeHtml(c.name)}</strong>
                         ${linkedinBtn}
                         ${telBtn}
-                        <button class="btn btn-secondary btn-sm" onclick="removeSelectedCandidate(${prospectId}, ${c.id})" style="margin-left:8px;font-size:11px;padding:2px 8px;">✕ Retirer</button>
+                        <button class="btn btn-secondary btn-sm" onclick="removeSelectedCandidate(${prospectId}, ${c.id})" style="margin-left:8px;font-size:11px;padding:2px 8px;">${window.icon ? window.icon('x', {size:11}) : '×'} Retirer</button>
                     </div>
                 </div>
-                <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · 📍 ' + escapeHtml(c.location) : ''}</div>
+                <div class="bestmatch-role">${escapeHtml(c.role || '')}${c.location ? ' · ' + escapeHtml(c.location) : ''}</div>
                 <div style="margin-top:4px;">
                     <a href="${viewFicheUrl}" class="btn btn-secondary btn-sm" style="font-size:11px;padding:2px 8px;">Voir la fiche →</a>
                 </div>
@@ -12686,7 +12680,7 @@ function openCandidateSelector(prospectId) {
         <div class="modal-content" style="max-width:600px;max-height:80vh;overflow-y:auto;">
             <div class="modal-header">
                 <h3>Parcourir et sélectionner des candidats</h3>
-                <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+                <button class="modal-close" onclick="this.closest('.modal-overlay').remove()" aria-label="Fermer">${window.icon ? window.icon('x', {size:14}) : '×'}</button>
             </div>
             <div class="modal-body">
                 <div style="margin-bottom:12px;">
@@ -12769,7 +12763,7 @@ async function loadCandidateSelectorList(prospectId) {
                 <label for="${checkboxId}" style="flex:1;cursor:pointer;">
                     <strong>${escapeHtml(c.name)}</strong>
                     ${c.role ? `<div style="font-size:12px;color:var(--color-text-secondary);">${escapeHtml(c.role)}</div>` : ''}
-                    ${c.location ? `<div style="font-size:11px;color:var(--color-text-secondary);">📍 ${escapeHtml(c.location)}</div>` : ''}
+                    ${c.location ? `<div style="font-size:11px;color:var(--color-text-secondary);">${escapeHtml(c.location)}</div>` : ''}
                 </label>
             </div>
         `;
@@ -12804,7 +12798,7 @@ function saveSelectedCandidates(prospectId) {
     if (modal) modal.remove();
     
     if (typeof showToast === 'function') {
-        showToast(`✅ ${selectedIds.length} candidat${selectedIds.length > 1 ? 's' : ''} sélectionné${selectedIds.length > 1 ? 's' : ''}`, 'success');
+        showToast(`${selectedIds.length} candidat${selectedIds.length > 1 ? 's' : ''} sélectionné${selectedIds.length > 1 ? 's' : ''}`, 'success');
     }
 }
 
@@ -12965,14 +12959,14 @@ async function copyRdvChecklist(prospectId) {
     const prospect = (data?.prospects || []).find(p => p.id === prospectId);
     const company = prospect ? (data?.companies || []).find(c => c.id === prospect.company_id) : null;
     const header = prospect
-? `📋 RDV – ${prospect.name}${company ? ' (' + company.groupe + ')' : ''}`
-: '📋 RDV – Grille de qualification';
+? `RDV – ${prospect.name}${company ? ' (' + company.groupe + ')' : ''}`
+: 'RDV – Grille de qualification';
     const date = new Date().toLocaleDateString('fr-FR');
 
     let lines = [header, `Date : ${date}`, '─'.repeat(50), ''];
     themes.forEach(t => {
 const d = _rdvData[t.key] || {};
-const check = d.checked ? '✅' : '⬜';
+const check = d.checked ? '[x]' : '[ ]';
 lines.push(`${check} ${t.theme}`);
 lines.push(`   Q: ${t.question}`);
 lines.push(`   R: ${d.reponse || '—'}`);
@@ -12984,7 +12978,7 @@ lines.push('');
 
     try {
 await navigator.clipboard.writeText(lines.join('\n'));
-showToast('📋 Checklist copiée !');
+showToast('Checklist copiée !');
     } catch (e) {
 // fallback
 const ta = document.createElement('textarea');
@@ -12993,7 +12987,7 @@ document.body.appendChild(ta);
 ta.select();
 document.execCommand('copy');
 document.body.removeChild(ta);
-showToast('📋 Checklist copiée !');
+showToast('Checklist copiée !');
     }
 }
 
@@ -13028,7 +13022,7 @@ function renderMeetingsTabs(prospectId) {
     container.style.display = 'block';
     tabsList.innerHTML = _meetingsList.map(m => 
         `<button class="btn btn-secondary btn-sm meeting-tab-btn" onclick="switchMeetingTab(${m.id}, ${prospectId})" id="meetingTab_${m.id}" title="${escapeHtml(m.title)} — ${escapeHtml(m.date)}">
-            📅 ${escapeHtml(m.date)} — ${escapeHtml(m.title.length > 30 ? m.title.substring(0, 30) + '…' : m.title)}
+            ${window.icon ? window.icon('calendar', {size:12}) : ''} ${escapeHtml(m.date)} — ${escapeHtml(m.title.length > 30 ? m.title.substring(0, 30) + '…' : m.title)}
         </button>`
     ).join('');
 }
@@ -13080,15 +13074,15 @@ async function displayMeetingDetail(meetingId) {
             <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;">
                 <div>
                     <h3 style="margin:0 0 8px 0;color:var(--color-primary);">${escapeHtml(meeting.title)}</h3>
-                    <div style="color:var(--color-text-secondary);font-size:13px;">📅 ${escapeHtml(meeting.date)}</div>
+                    <div style="color:var(--color-text-secondary);font-size:13px;">${window.icon ? window.icon('calendar', {size:13}) : ''} ${escapeHtml(meeting.date)}</div>
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="exportMeetingPDF(${meetingId})" title="Exporter en PDF">📄 PDF</button>
+                <button class="btn btn-secondary btn-sm" onclick="exportMeetingPDF(${meetingId})" title="Exporter en PDF">${window.icon ? window.icon('file', {size:13}) : ''} PDF</button>
             </div>
         </div>
     `;
     
     if (meeting.checklist_data) {
-        html += '<div style="margin-top:20px;"><h4 style="color:var(--color-primary);margin-bottom:12px;">📋 Grille de qualification</h4>';
+        html += '<div style="margin-top:20px;"><h4 style="color:var(--color-primary);margin-bottom:12px;">' + (window.icon ? window.icon('clipboard', {size:14}) : '') + ' Grille de qualification</h4>';
         for (const [key, data] of Object.entries(meeting.checklist_data)) {
             if (!data || !data.reponse || !data.reponse.trim()) continue;
             const theme = themesDict[key];
@@ -13107,7 +13101,7 @@ async function displayMeetingDetail(meetingId) {
     if (meeting.notes) {
         html += `
             <div style="margin-top:20px;padding:14px;background:var(--color-surface-2);border-radius:10px;border-left:4px solid #f59e0b;">
-                <h4 style="color:#f59e0b;margin:0 0 10px 0;">📝 Notes complémentaires</h4>
+                <h4 style="color:#f59e0b;margin:0 0 10px 0;">${window.icon ? window.icon('edit', {size:14}) : ''} Notes complémentaires</h4>
                 <div style="color:var(--color-text);white-space:pre-wrap;line-height:1.6;">${escapeHtml(meeting.notes)}</div>
             </div>
         `;
@@ -13122,14 +13116,14 @@ function exportMeetingPDF(meetingId) {
 
 async function saveMeeting(prospectId) {
     if (!_rdvData || !_rdvProspectId || _rdvProspectId !== prospectId) {
-        showToast('⚠️ Veuillez d\'abord remplir la grille de qualification', 'warning');
+        showToast('Veuillez d\'abord remplir la grille de qualification', 'warning');
         return;
     }
     
     // Vérifier qu'il y a au moins un champ rempli
     const hasData = Object.values(_rdvData).some(d => d && d.reponse && d.reponse.trim());
     if (!hasData) {
-        showToast('⚠️ La grille est vide. Remplissez au moins un champ avant d\'enregistrer.', 'warning');
+        showToast('La grille est vide. Remplissez au moins un champ avant d\'enregistrer.', 'warning');
         return;
     }
     
@@ -13142,7 +13136,7 @@ async function saveMeeting(prospectId) {
     const btn = document.getElementById(`btnSaveMeeting_${prospectId}`);
     if (btn) {
         btn.disabled = true;
-        btn.textContent = '💾 Enregistrement...';
+        btn.textContent = 'Enregistrement...';
     }
     
     try {
@@ -13159,7 +13153,7 @@ async function saveMeeting(prospectId) {
         });
         const j = await res.json();
         if (j.ok) {
-            showToast('✅ Réunion enregistrée !', 'success', 3000);
+            showToast('Réunion enregistrée !', 'success', 3000);
             // Recharger les réunions
             await loadMeetings(prospectId);
             // Optionnel : vider la grille après enregistrement
@@ -13167,15 +13161,15 @@ async function saveMeeting(prospectId) {
                 await resetRdvChecklist(prospectId);
             }
         } else {
-            showToast('❌ Erreur : ' + (j.error || 'Impossible d\'enregistrer'), 'error');
+            showToast('Erreur : ' + (j.error || 'Impossible d\'enregistrer'), 'error');
         }
     } catch (e) {
-        showToast('❌ Erreur réseau', 'error');
+        showToast('Erreur réseau', 'error');
         console.error(e);
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = '💾 Enregistrer réunion';
+            btn.textContent = 'Enregistrer réunion';
         }
     }
 }
@@ -13297,17 +13291,17 @@ function _ensurePreMeetingModal() {
     <div id="modalPreMeetingIA" class="modal">
         <div class="modal-content">
             <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <span>📋 Génération fiche préparation RDV</span>
-                <button class="btn btn-secondary" onclick="closePreMeetingModal()" style="font-size:14px;padding:4px 10px;">✕</button>
+                <span>${window.icon ? window.icon('clipboard', {size:14}) : ''} Génération fiche préparation RDV</span>
+                <button class="btn btn-secondary" onclick="closePreMeetingModal()" style="font-size:14px;padding:4px 10px;" aria-label="Fermer">${window.icon ? window.icon('x', {size:14}) : '×'}</button>
             </div>
             <div style="margin-top:16px;">
                 <div id="preMeetingProgressLog" class="progress-log" style="display:none;"></div>
                 <div id="preMeetingFallback" style="display:none;margin-top:16px;">
-                    <h4 style="color:var(--color-warning);margin-bottom:8px;">⚠️ Ollama n'a pas pu générer la fiche</h4>
+                    <h4 style="color:var(--color-warning);margin-bottom:8px;">${window.icon ? window.icon('alertTri', {size:14}) : ''} Ollama n'a pas pu générer la fiche</h4>
                     <p class="muted" style="font-size:12px;margin-bottom:8px;">Copie ce prompt dans une autre IA (ChatGPT, Claude, etc.) :</p>
                     <textarea id="preMeetingPromptText" rows="20" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border:1px solid var(--color-border);border-radius:4px;background:var(--color-bg-secondary);color:var(--color-text);"></textarea>
                     <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
-                        <button class="btn btn-secondary" onclick="copyPreMeetingPrompt()">📋 Copier le prompt</button>
+                        <button class="btn btn-secondary" onclick="copyPreMeetingPrompt()">${window.icon ? window.icon('clipboard', {size:13}) : ''} Copier le prompt</button>
                         <button class="btn btn-secondary" onclick="closePreMeetingModal()">Fermer</button>
                     </div>
                 </div>
@@ -13324,7 +13318,7 @@ function openPreMeetingModal(prospectId) {
     const fallbackDiv = document.getElementById('preMeetingFallback');
 
     logDiv.style.display = 'block';
-    logDiv.innerHTML = '<span style="color:#58a6ff;">⏳ Analyse IA en cours…</span>';
+    logDiv.innerHTML = '<span style="color:#58a6ff;">Analyse IA en cours…</span>';
     fallbackDiv.style.display = 'none';
 
     if (window.openModal) {
@@ -13336,7 +13330,7 @@ function openPreMeetingModal(prospectId) {
     const btn = document.getElementById(`btnPreMeetingIA_${prospectId}`);
     if (btn) {
         btn.disabled = true;
-        btn.textContent = '⏳ Analyse en cours...';
+        btn.textContent = 'Analyse en cours...';
     }
 
     const evtSource = new EventSource(`/api/prospect/${prospectId}/infos-rdv-stream`);
@@ -13354,7 +13348,7 @@ function openPreMeetingModal(prospectId) {
             lastStepEl.classList.remove('active');
             lastStepEl.classList.add('done');
             const spinner = lastStepEl.querySelector('.step-spinner');
-            if (spinner) spinner.outerHTML = '<span style="color:#22c55e;">✓</span>';
+            if (spinner) spinner.outerHTML = '<span style="color:#22c55e;">' + (window.icon ? window.icon('check', {size:13}) : '') + '</span>';
         }
         const step = document.createElement('div');
         step.className = 'progress-step ' + (cssClass || 'active');
@@ -13381,7 +13375,7 @@ function openPreMeetingModal(prospectId) {
             const data = JSON.parse(event.data);
 
             if (data.type === 'start') {
-                addStep('🔍', data.message || 'Analyse en cours…', 'active');
+                addStep('', data.message || 'Analyse en cours…', 'active');
             } else if (data.type === 'status') {
                 if (data.provider === 'tavily') usedTavily = true;
                 // Marquer l'étape précédente comme terminée et ajouter le statut
@@ -13389,11 +13383,11 @@ function openPreMeetingModal(prospectId) {
                     lastStepEl.classList.remove('active');
                     lastStepEl.classList.add('done');
                     const spinner = lastStepEl.querySelector('.step-spinner');
-                    if (spinner) spinner.outerHTML = '<span style="color:#22c55e;">✓</span>';
+                    if (spinner) spinner.outerHTML = '<span style="color:#22c55e;">' + (window.icon ? window.icon('check', {size:13}) : '') + '</span>';
                 }
                 const step = document.createElement('div');
                 step.className = 'progress-step done';
-                step.innerHTML = '📊 ' + escapeHtml(data.message) + ' <span style="color:#22c55e;">✓</span>';
+                step.innerHTML = escapeHtml(data.message) + ' <span style="color:#22c55e;">' + (window.icon ? window.icon('check', {size:13}) : '') + '</span>';
                 logDiv.appendChild(step);
             } else if (data.type === 'token') {
                 fullResponse += (data.content || '');
@@ -13407,7 +13401,7 @@ function openPreMeetingModal(prospectId) {
                     lastStepEl.classList.remove('active');
                     lastStepEl.classList.add('done');
                     const spinner = lastStepEl.querySelector('.step-spinner');
-                    if (spinner) spinner.outerHTML = '<span style="color:#22c55e;">✓</span>';
+                    if (spinner) spinner.outerHTML = '<span style="color:#22c55e;">' + (window.icon ? window.icon('check', {size:13}) : '') + '</span>';
                 }
 
                 // Supprimer le compteur de caractères
@@ -13417,7 +13411,7 @@ function openPreMeetingModal(prospectId) {
                 // Badge résumé des providers utilisés
                 const badgeClass = usedTavily ? 'tavily' : 'ollama';
                 const badgeLabel = usedTavily ? 'Tavily + Ollama' : 'Ollama';
-                const badgeHtml = `<div class="progress-badge ${badgeClass}">✅ Fiche générée — ${badgeLabel}</div>`;
+                const badgeHtml = `<div class="progress-badge ${badgeClass}">Fiche générée — ${badgeLabel}</div>`;
 
                 // Parser et afficher la fiche formatée
                 let ficheHtml = '';
@@ -13442,7 +13436,7 @@ function openPreMeetingModal(prospectId) {
 
                 if (btn) {
                     btn.disabled = false;
-                    btn.textContent = '📋 Avant réunion IA';
+                    btn.textContent = 'Avant réunion IA';
                 }
             } else if (data.type === 'error') {
                 evtSource.close();
@@ -13452,12 +13446,12 @@ function openPreMeetingModal(prospectId) {
                     lastStepEl.classList.remove('active');
                     lastStepEl.classList.add('error');
                     const spinner = lastStepEl.querySelector('.step-spinner');
-                    if (spinner) spinner.outerHTML = '<span>✗</span>';
+                    if (spinner) spinner.outerHTML = '<span>' + (window.icon ? window.icon('x', {size:13}) : '') + '</span>';
                 }
 
                 const step = document.createElement('div');
                 step.className = 'progress-step error';
-                step.innerHTML = '❌ IA indisponible';
+                step.innerHTML = 'IA indisponible';
                 logDiv.appendChild(step);
 
                 if (data.fallback_prompt) {
@@ -13466,7 +13460,7 @@ function openPreMeetingModal(prospectId) {
                 }
                 if (btn) {
                     btn.disabled = false;
-                    btn.textContent = '📋 Avant réunion IA';
+                    btn.textContent = 'Avant réunion IA';
                 }
             }
         } catch (e) {
@@ -13478,11 +13472,11 @@ function openPreMeetingModal(prospectId) {
         evtSource.close();
         const step = document.createElement('div');
         step.className = 'progress-step error';
-        step.innerHTML = '❌ Erreur de connexion au serveur';
+        step.innerHTML = 'Erreur de connexion au serveur';
         logDiv.appendChild(step);
         if (btn) {
             btn.disabled = false;
-            btn.textContent = '📋 Avant réunion IA';
+            btn.textContent = 'Avant réunion IA';
         }
     };
 }
@@ -13507,7 +13501,7 @@ function formatRdvFiche(data, prospectId, pdfUrl) {
     }
 
     const downloadBtn = pdfUrl
-        ? `<a href="${pdfUrl}" style="display:inline-block;margin-top:12px;padding:8px 16px;background:#f36f21;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:bold">⬇ Télécharger le PDF</a>`
+        ? `<a href="${pdfUrl}" style="display:inline-block;margin-top:12px;padding:8px 16px;background:#f36f21;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:bold">Télécharger le PDF</a>`
         : '';
 
     return `<div style="font-family:sans-serif;line-height:1.6;color:#e5e7eb;padding:4px 8px;font-size:13px">
@@ -13527,7 +13521,7 @@ function formatRdvFiche(data, prospectId, pdfUrl) {
             <p>${esc(ctx.description || '—')}</p>
             ${Array.isArray(ctx.metiers_autour) && ctx.metiers_autour.length
                 ? `<p><strong>Métiers autour :</strong></p><ul style="margin:0 0 6px;padding-left:18px">${listItems(ctx.metiers_autour)}</ul>` : ''}
-            ${ctx.conclusion_matching ? `<p style="color:#f36f21">➜ ${esc(ctx.conclusion_matching)}</p>` : ''}
+            ${ctx.conclusion_matching ? `<p style="color:#f36f21">${esc(ctx.conclusion_matching)}</p>` : ''}
         `)}
 
         ${section('3. Besoins probables (angle UpTechnologie)', `
@@ -13543,7 +13537,7 @@ function formatRdvFiche(data, prospectId, pdfUrl) {
         `)}
 
         <h3 style="color:#f36f21;margin:16px 0 8px;font-size:14px">SECTION 2 – CHECKLIST RDV</h3>
-        <p style="color:#9ca3af;font-size:12px">✓ Checklist complète incluse dans le PDF</p>
+        <p style="color:#9ca3af;font-size:12px">Checklist complète incluse dans le PDF</p>
 
         ${downloadBtn}
     </div>`;
@@ -13578,22 +13572,22 @@ function _ensurePostMeetingModal() {
     <div id="modalPostMeetingIA" class="modal">
         <div class="modal-content">
             <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <span>📥 Import compte-rendu de réunion</span>
-                <button class="btn btn-secondary" onclick="closePostMeetingModal()" style="font-size:14px;padding:4px 10px;">✕</button>
+                <span>${window.icon ? window.icon('upload', {size:14}) : ''} Import compte-rendu de réunion</span>
+                <button class="btn btn-secondary" onclick="closePostMeetingModal()" style="font-size:14px;padding:4px 10px;" aria-label="Fermer">${window.icon ? window.icon('x', {size:14}) : '×'}</button>
             </div>
             <div id="pmStep1" style="margin-top:16px;">
                 <p class="muted" style="font-size:12px;margin-bottom:12px;">Déposez votre compte-rendu de réunion (PDF, Word, Excel) ou collez le texte ci-dessous.</p>
                 <div style="margin-bottom:12px;">
                     <input type="file" id="pmFileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" style="display:none;" onchange="handlePostMeetingFile(event)">
-                    <button class="btn btn-primary" onclick="document.getElementById('pmFileInput').click()" style="width:100%;padding:12px;font-size:14px;">📎 Déposer un fichier (PDF, Word, Excel...)</button>
+                    <button class="btn btn-primary" onclick="document.getElementById('pmFileInput').click()" style="width:100%;padding:12px;font-size:14px;">${window.icon ? window.icon('upload', {size:14}) : ''} Déposer un fichier (PDF, Word, Excel...)</button>
                     <div id="pmFileInfo" style="margin-top:8px;font-size:12px;color:var(--color-text-secondary);display:none;"></div>
                 </div>
                 <div style="text-align:center;margin:12px 0;color:var(--color-text-secondary);font-size:12px;">OU</div>
                 <textarea id="pmImportTextarea" style="width:100%;min-height:200px;font-family:monospace;font-size:12px;" placeholder="Collez ici le texte du compte-rendu ou le JSON retourné par l'IA..." oninput="checkAndAutoParseJSON()"></textarea>
                 <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
                     <button class="btn btn-secondary" onclick="closePostMeetingModal()">Annuler</button>
-                    <button class="btn btn-secondary" id="pmParseBtn" onclick="parsePostMeetingImport()" style="display:none;">📋 Analyser le JSON</button>
-                    <button class="btn btn-primary" id="pmAnalyzeBtn" onclick="processPostMeetingContent()">🤖 Analyser avec Ollama</button>
+                    <button class="btn btn-secondary" id="pmParseBtn" onclick="parsePostMeetingImport()" style="display:none;">${window.icon ? window.icon('search', {size:13}) : ''} Analyser le JSON</button>
+                    <button class="btn btn-primary" id="pmAnalyzeBtn" onclick="processPostMeetingContent()">${window.icon ? window.icon('robot', {size:13}) : ''} Analyser avec Ollama</button>
                 </div>
             </div>
             <div id="pmStep2" style="margin-top:16px;display:none;">
@@ -13601,7 +13595,7 @@ function _ensurePostMeetingModal() {
                 <div id="pmFieldsPreview"></div>
                 <div style="display:flex;gap:8px;margin-top:16px;justify-content:space-between;">
                     <button class="btn btn-secondary" onclick="pmBackToStep1()">← Modifier</button>
-                    <button class="btn btn-primary" onclick="applyPostMeetingImport()">💾 Appliquer</button>
+                    <button class="btn btn-primary" onclick="applyPostMeetingImport()">${window.icon ? window.icon('save', {size:13}) : ''} Appliquer</button>
                 </div>
             </div>
         </div>
@@ -13655,7 +13649,7 @@ async function handlePostMeetingFile(event) {
     
     const fileInfo = document.getElementById('pmFileInfo');
     fileInfo.style.display = 'block';
-    fileInfo.textContent = `📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB) — Analyse en cours...`;
+    fileInfo.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB) — Analyse en cours...`;
     
     const formData = new FormData();
     formData.append('file', file);
@@ -13669,16 +13663,16 @@ async function handlePostMeetingFile(event) {
         const json = await res.json();
         if (json.ok && json.text) {
             document.getElementById('pmImportTextarea').value = json.text;
-            fileInfo.textContent = `✅ ${file.name} — Texte extrait (${json.text.length} caractères)`;
+            fileInfo.textContent = `${file.name} — Texte extrait (${json.text.length} caractères)`;
             // v26: Vérifier si le texte extrait contient déjà un JSON valide
             checkAndAutoParseJSON();
             showToast('Fichier analysé. Si un JSON est détecté, utilisez "Analyser le JSON", sinon "Analyser avec Ollama".', 'success', 5000);
         } else {
-            fileInfo.textContent = `❌ Erreur : ${json.error || 'Impossible d\'extraire le texte'}`;
+            fileInfo.textContent = `Erreur : ${json.error || 'Impossible d\'extraire le texte'}`;
             showToast('Erreur lors de l\'extraction du texte du fichier', 'error', 5000);
         }
     } catch (e) {
-        fileInfo.textContent = `❌ Erreur réseau`;
+        fileInfo.textContent = `Erreur réseau`;
         showToast('Erreur lors de l\'upload du fichier', 'error', 5000);
         console.error(e);
     }
@@ -13688,7 +13682,7 @@ async function processPostMeetingContent() {
     const textarea = document.getElementById('pmImportTextarea');
     const content = (textarea?.value || '').trim();
     if (!content) {
-        showToast('⚠️ Veuillez déposer un fichier ou coller le texte du compte-rendu.', 'warning');
+        showToast('Veuillez déposer un fichier ou coller le texte du compte-rendu.', 'warning');
         return;
     }
     
@@ -13697,7 +13691,7 @@ async function processPostMeetingContent() {
     if (jsonStr) {
         try {
             JSON.parse(jsonStr);
-            showToast('✅ JSON valide détecté. Analyse en cours...', 'success', 2000);
+            showToast('JSON valide détecté. Analyse en cours...', 'success', 2000);
             // Parser directement sans passer par Ollama
             await parsePostMeetingImport();
             return;
@@ -13709,7 +13703,7 @@ async function processPostMeetingContent() {
     const btn = document.getElementById('pmAnalyzeBtn');
     if (btn) {
         btn.disabled = true;
-        btn.textContent = '🤖 Analyse en cours...';
+        btn.textContent = 'Analyse en cours...';
     }
     
     try {
@@ -13728,12 +13722,12 @@ async function processPostMeetingContent() {
             if (resultJson) {
                 await parsePostMeetingImport();
             } else {
-                showToast('⚠️ Réponse Ollama reçue mais format JSON non détecté. Vérifiez le contenu.', 'warning', 5000);
+                showToast('Réponse Ollama reçue mais format JSON non détecté. Vérifiez le contenu.', 'warning', 5000);
             }
         }
     } catch (e) {
         if (e.message === 'Timeout') {
-            showToast('⏱️ Ollama a pris trop de temps. Le JSON peut être partiel — essayez de l\'analyser manuellement avec le bouton "Analyser le JSON".', 'warning', 8000);
+            showToast('Ollama a pris trop de temps. Le JSON peut être partiel — essayez de l\'analyser manuellement avec le bouton "Analyser le JSON".', 'warning', 8000);
         } else {
             showToast('Ollama indisponible. Si vous avez déjà un JSON, utilisez le bouton "Analyser le JSON".', 'warning', 6000);
         }
@@ -13741,7 +13735,7 @@ async function processPostMeetingContent() {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = '🤖 Analyser avec Ollama';
+            btn.innerHTML = (window.icon ? window.icon('robot', {size:13}) : '') + ' Analyser avec Ollama';
         }
     }
 }
@@ -13832,7 +13826,7 @@ function checkAndAutoParseJSON() {
             JSON.parse(jsonStr);
             // JSON valide détecté — afficher le bouton
             parseBtn.style.display = '';
-            parseBtn.textContent = '📋 Analyser le JSON détecté';
+            parseBtn.textContent = 'Analyser le JSON détecté';
         } catch (e) {
             parseBtn.style.display = 'none';
         }
@@ -13898,12 +13892,12 @@ function extractJSONFromText(text) {
 
 async function parsePostMeetingImport() {
     const raw = (document.getElementById('pmImportTextarea')?.value || '').trim();
-    if (!raw) { showToast('⚠️ Collez le JSON retourné par l\'IA.', 'warning'); return; }
+    if (!raw) { showToast('Collez le JSON retourné par l\'IA.', 'warning'); return; }
 
     // v26: Utiliser la fonction d'extraction robuste
     const jsonStr = extractJSONFromText(raw);
     if (!jsonStr) {
-        showToast('❌ JSON invalide ou introuvable. Vérifiez le format ou utilisez "Analyser avec Ollama" pour extraire depuis du texte brut.', 'error', 6000);
+        showToast('JSON invalide ou introuvable. Vérifiez le format ou utilisez "Analyser avec Ollama" pour extraire depuis du texte brut.', 'error', 6000);
         return;
     }
 
@@ -13911,7 +13905,7 @@ async function parsePostMeetingImport() {
     try { 
         parsed = JSON.parse(jsonStr); 
     } catch(e) {
-        showToast('❌ JSON invalide : ' + (e.message || 'Erreur de parsing'), 'error', 5000);
+        showToast('JSON invalide : ' + (e.message || 'Erreur de parsing'), 'error', 5000);
         console.error('JSON parsing error:', e, 'Extracted:', jsonStr);
         return;
     }
@@ -13924,15 +13918,15 @@ async function parsePostMeetingImport() {
 
     // Build preview
     const FIELD_LABELS = {
-        compte_rendu: '📝 Compte-rendu',
-        next_action: '🎯 Prochaine action',
-        next_follow_up: '📅 Prochaine relance',
-        statut: '📊 Statut',
-        tags: '🏷️ Tags',
-        pertinence: '⭐ Pertinence',
-        notes_enrichies: '📋 Notes enrichies',
-        profils_a_proposer: '👤 Profils à proposer',
-        besoins_identifies: '💡 Besoins identifiés'
+        compte_rendu: 'Compte-rendu',
+        next_action: 'Prochaine action',
+        next_follow_up: 'Prochaine relance',
+        statut: 'Statut',
+        tags: 'Tags',
+        pertinence: 'Pertinence',
+        notes_enrichies: 'Notes enrichies',
+        profils_a_proposer: 'Profils à proposer',
+        besoins_identifies: 'Besoins identifiés'
     };
 
     _pmFieldAccepted = {};
@@ -13957,7 +13951,7 @@ async function parsePostMeetingImport() {
     // Réponses de la grille
     if (_pmChecklistResponses && Object.keys(_pmChecklistResponses).length > 0) {
         html += `<div style="margin-top:16px;padding-top:16px;border-top:2px solid var(--color-border);">
-            <div style="font-weight:700;font-size:14px;margin-bottom:8px;">📋 Grille de qualification</div>`;
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px;">${window.icon ? window.icon('clipboard', {size:14}) : ''} Grille de qualification</div>`;
         const themes = await _ensureRdvThemes();
         _pmChecklistAccepted = {}; // Réinitialiser les acceptations
         for (const [key, value] of Object.entries(_pmChecklistResponses)) {
@@ -13981,7 +13975,7 @@ async function parsePostMeetingImport() {
     }
 
     if (!html) {
-        showToast('⚠️ Aucun champ détecté dans le JSON.', 'warning');
+        showToast('Aucun champ détecté dans le JSON.', 'warning');
         return;
     }
 
@@ -14085,12 +14079,12 @@ async function applyPostMeetingImport() {
         });
 
         closePostMeetingModal();
-        showToast('✅ Compte-rendu appliqué ! Fiche mise à jour.', 'success', 5000);
+        showToast('Compte-rendu appliqué ! Fiche mise à jour.', 'success', 5000);
         filterProspects(); // rafraîchir la liste (statut peut avoir changé)
         viewDetail(_pmProspectId); // refresh the detail modal
     } catch(e) {
         console.error(e);
-        showToast('❌ Erreur lors de la sauvegarde.', 'error');
+        showToast('Erreur lors de la sauvegarde.', 'error');
     }
 }
 
@@ -14100,16 +14094,16 @@ function callProspect(id) {
     const p = data.prospects.find(x => x.id === id);
     if (!p) return;
     const tel = (p.telephone || '').trim();
-    if (!tel) { showToast('⚠️ Aucun numéro renseigné', 'warning'); return; }
+    if (!tel) { showToast('Aucun numéro renseigné', 'warning'); return; }
     const clean = tel.replace(/[^\d+]/g, '');
     window.location.href = 'tel:' + clean;
-    showToast('📞 Appel de ' + (p.name || ''), 'info', 2000);
+    showToast('Appel de ' + (p.name || ''), 'info', 2000);
 }
 
 function pushEmail(id) {
     const p = data.prospects.find(x => x.id === id);
     if (!p) return;
-    if (!(p.email || '').trim()) { showToast('⚠️ Aucun email renseigné', 'warning'); return; }
+    if (!(p.email || '').trim()) { showToast('Aucun email renseigné', 'warning'); return; }
     viewDetail(id);
     // Auto-scroll to push section after detail opens
     setTimeout(function() {
@@ -14139,7 +14133,7 @@ function bumpFollowup(id, days) {
 
     saveToServer();
     renderProspects();
-    showToast('📅 Relance +' + days + 'j pour ' + (p.name || ''), 'success', 2500);
+    showToast('Relance +' + days + 'j pour ' + (p.name || ''), 'success', 2500);
 }
 
 // ═══ Expose data for v8 global search ═══
@@ -14365,7 +14359,7 @@ function _updateUserMenuThemeLabel() {
                     document.documentElement.getAttribute('data-theme') === 'dark';
     const icon  = document.getElementById('userMenuThemeIcon');
     const label = document.getElementById('userMenuThemeLabel');
-    if (icon)  icon.textContent  = isDark ? '☀️' : '🌙';
+    if (icon)  icon.innerHTML  = window.icon ? window.icon(isDark ? 'sun' : 'moon', {size:16}) : '';
     if (label) label.textContent = isDark ? 'Mode clair' : 'Mode sombre';
 }
 
@@ -14549,13 +14543,13 @@ async function userMenuChangePassword() {
     
     if (!oldPw || !newPw || !newPw2) {
         status.style.color = '#ef4444';
-        status.textContent = '⚠️ Tous les champs sont requis.';
+        status.textContent = 'Tous les champs sont requis.';
         return;
     }
     
     if (newPw !== newPw2) {
         status.style.color = '#ef4444';
-        status.textContent = '⚠️ Les mots de passe ne correspondent pas.';
+        status.textContent = 'Les mots de passe ne correspondent pas.';
         return;
     }
     
@@ -14568,11 +14562,11 @@ async function userMenuChangePassword() {
         const j = await res.json();
         if (j.ok) {
             status.style.color = '#22c55e';
-            status.textContent = '✅ Mot de passe changé avec succès !';
+            status.textContent = 'Mot de passe changé avec succès !';
             document.getElementById('userMenuOldPw').value = '';
             document.getElementById('userMenuNewPw').value = '';
             document.getElementById('userMenuNewPw2').value = '';
-            if (typeof showToast === 'function') showToast('✅ Mot de passe mis à jour', 'success');
+            if (typeof showToast === 'function') showToast('Mot de passe mis à jour', 'success');
             // Effacer le flag de changement de mdp obligatoire et retirer le bandeau
             sessionStorage.removeItem('pending_password_change');
             var banner = document.getElementById('mustChangePwBanner');
@@ -14582,11 +14576,11 @@ async function userMenuChangePassword() {
             }, 1500);
         } else {
             status.style.color = '#ef4444';
-            status.textContent = '⚠️ ' + (j.error || 'Erreur');
+            status.textContent = j.error || 'Erreur';
         }
     } catch(e) {
         status.style.color = '#ef4444';
-        status.textContent = '⚠️ Erreur réseau';
+        status.textContent = 'Erreur réseau';
     }
 }
 
@@ -14601,7 +14595,7 @@ async function loadUsersFromAPI() {
         const isAdmin = payload.is_admin === true;
         const currentUserId = Number(payload.current_user_id || 0) || null;
         
-        const ROLE_LABELS = {admin:'🔑 Admin', editor:'✏️ Éditeur'};
+        const ROLE_LABELS = {admin:'Admin', editor:'Éditeur'};
         const ROLE_COLORS = {admin:'#6366f1', editor:'#f59e0b'};
         
         // Stocker les données pour les fonctions editUser, deleteUser, etc.
@@ -14624,10 +14618,10 @@ async function loadUsersFromAPI() {
                     </div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;">
-                    ${isAdmin ? `<button class="btn btn-secondary" onclick='userMenuEditUser(${JSON.stringify(u)})'>✏️ Modifier</button>` : ''}
-                    ${isAdmin && u.role!=='admin' ? `<button class="btn btn-secondary" onclick='userMenuViewUserData(${u.id})' title="Voir les données">👁️ Voir</button>` : ''}
-                    ${isAdmin && Number(u.id)!==Number(currentUserId) ? `<button class="btn btn-primary" onclick='userMenuReassignUserDataToMe(${u.id})' title="Réattribuer prospects + entreprises">↩️ Réattribuer à moi</button>` : ''}
-                    ${isAdmin && u.role!=='admin' ? `<button class="btn btn-danger" onclick='userMenuDeleteUser(${u.id},"${escapedUsername}")'>🗑️</button>` : ''}
+                    ${isAdmin ? `<button class="btn btn-secondary" onclick='userMenuEditUser(${JSON.stringify(u)})'>${window.icon ? window.icon('edit', {size:13}) : ''} Modifier</button>` : ''}
+                    ${isAdmin && u.role!=='admin' ? `<button class="btn btn-secondary" onclick='userMenuViewUserData(${u.id})' title="Voir les données">${window.icon ? window.icon('eye', {size:13}) : ''} Voir</button>` : ''}
+                    ${isAdmin && Number(u.id)!==Number(currentUserId) ? `<button class="btn btn-primary" onclick='userMenuReassignUserDataToMe(${u.id})' title="Réattribuer prospects + entreprises">${window.icon ? window.icon('refreshCw', {size:13}) : ''} Réattribuer à moi</button>` : ''}
+                    ${isAdmin && u.role!=='admin' ? `<button class="btn btn-danger" onclick='userMenuDeleteUser(${u.id},"${escapedUsername}")'>${window.icon ? window.icon('trash', {size:13}) : ''}</button>` : ''}
                 </div>
             </div>
         `;
@@ -14694,15 +14688,15 @@ function userMenuSaveUser() {
     const isActive = document.getElementById('uActive').checked;
 
     if (!username) {
-        showToast('⚠️ Identifiant requis', 'warning');
+        showToast('Identifiant requis', 'warning');
         return;
     }
     if (!id && !password) {
-        showToast('⚠️ Mot de passe requis', 'warning');
+        showToast('Mot de passe requis', 'warning');
         return;
     }
     if (password && password !== passwordConfirm) {
-        showToast('⚠️ Les deux mots de passe ne correspondent pas', 'warning');
+        showToast('Les deux mots de passe ne correspondent pas', 'warning');
         return;
     }
 
@@ -14719,12 +14713,12 @@ function userMenuSaveUser() {
         if (j.ok) {
             userMenuCloseUserModal();
             if (typeof loadUsers === 'function') loadUsers();
-            showToast('✅ Utilisateur enregistré', 'success');
+            showToast('Utilisateur enregistré', 'success');
         } else {
-            showToast('❌ ' + (j.error || 'Erreur'), 'error');
+            showToast('' + (j.error || 'Erreur'), 'error');
         }
     })
-    .catch(() => showToast('❌ Erreur réseau', 'error'));
+    .catch(() => showToast('Erreur réseau', 'error'));
 }
 
 // Exposer les fonctions globalement pour le popup
@@ -14784,13 +14778,13 @@ function userMenuReassignUserDataToMe(fromUserId) {
         .then(j => {
             if (j.ok) {
                 const moved = j.moved || {};
-                showToast(`✅ ${moved.prospects || 0} prospect(s) et ${moved.companies || 0} entreprise(s) réattribués à vous.`, 'success', 6000);
+                showToast(`${moved.prospects || 0} prospect(s) et ${moved.companies || 0} entreprise(s) réattribués à vous.`, 'success', 6000);
                 loadUsersFromAPI();
             } else {
-                showToast('❌ ' + (j.error || 'Erreur'), 'error');
+                showToast('' + (j.error || 'Erreur'), 'error');
             }
         })
-        .catch(e => showToast('❌ Erreur réseau', 'error'));
+        .catch(e => showToast('Erreur réseau', 'error'));
     }
 }
 
@@ -14807,13 +14801,13 @@ function userMenuDeleteUser(id, username) {
         .then(r => r.json())
         .then(j => {
             if (j.ok) {
-                showToast('✅ Utilisateur supprimé', 'success');
+                showToast('Utilisateur supprimé', 'success');
                 loadUsersFromAPI();
             } else {
-                showToast('❌ ' + (j.error || 'Erreur'), 'error');
+                showToast('' + (j.error || 'Erreur'), 'error');
             }
         })
-        .catch(e => showToast('❌ Erreur réseau', 'error'));
+        .catch(e => showToast('Erreur réseau', 'error'));
     }
 }
 
@@ -14937,13 +14931,13 @@ document.addEventListener('keydown', function(e) {
                         if (typeof loadData === 'function') await loadData();
                         if (typeof filterProspects === 'function') filterProspects();
                         if (typeof refreshCompaniesUI === 'function') refreshCompaniesUI();
-                        showToast('↩️ Annulé', 'success', 2500);
+                        showToast('Annulé', 'success', 2500);
                     } else {
-                        showToast('❌ Impossible d\'annuler', 'error');
+                        showToast('Impossible d\'annuler', 'error');
                     }
                 }
             } catch (_e) {
-                showToast('❌ Erreur réseau', 'error');
+                showToast('Erreur réseau', 'error');
             }
         });
 
@@ -14966,9 +14960,9 @@ document.addEventListener('keydown', function(e) {
                         if (typeof loadData === 'function') await loadData();
                         if (typeof filterProspects === 'function') filterProspects();
                         if (typeof refreshCompaniesUI === 'function') refreshCompaniesUI();
-                        showToast('↩️ Annulé', 'success', 2500);
+                        showToast('Annulé', 'success', 2500);
                     } else {
-                        showToast('❌ Impossible d\'annuler', 'error');
+                        showToast('Impossible d\'annuler', 'error');
                     }
                 }
             }, { silent: true });
@@ -15048,14 +15042,14 @@ document.addEventListener('keydown', function(e) {
         el.id = 'vb-banner';
         el.innerHTML =
             '<div class="vb-row">' +
-            '<span style="font-size:20px;flex-shrink:0">🔄</span>' +
+            '<span style="font-size:20px;flex-shrink:0;display:flex;align-items:center;">' + (window.icon ? window.icon('refreshCw', {size:20}) : '') + '</span>' +
             '<div class="vb-text">' +
             '<div class="vb-title">Mise à jour appliquée — confirmation requise</div>' +
             '<div class="vb-sub">Rollback automatique si non confirmée dans le délai imparti</div>' +
             '</div>' +
             '<div class="vb-cd" id="vb-cd">' + _fmt(data.remaining_seconds) + '</div>' +
-            '<button class="vb-ok" id="vb-ok">✓ L\'app fonctionne</button>' +
-            (hasErr ? '<button class="vb-log" id="vb-log">⚠ Erreur précédente</button>' : '') +
+            '<button class="vb-ok" id="vb-ok">' + (window.icon ? window.icon('check', {size:14}) : '') + ' L\'app fonctionne</button>' +
+            (hasErr ? '<button class="vb-log" id="vb-log">' + (window.icon ? window.icon('alertTri', {size:14}) : '') + ' Erreur précédente</button>' : '') +
             '</div>' +
             (hasErr ? '<div class="vb-err" id="vb-err"><strong style="color:#f87171">Dernière erreur de validation :</strong><pre>' + JSON.stringify(data.last_error, null, 2).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre></div>' : '');
 
@@ -15072,7 +15066,7 @@ document.addEventListener('keydown', function(e) {
                 cdEl.textContent = '0:00';
                 cdEl.classList.add('urgent');
                 el.classList.add('rollback');
-                el.querySelector('.vb-title').textContent = '⚠ Rollback automatique en cours…';
+                el.querySelector('.vb-title').textContent = 'Rollback automatique en cours…';
                 return;
             }
             cdEl.textContent = _fmt(rem);
@@ -15082,7 +15076,7 @@ document.addEventListener('keydown', function(e) {
         // Confirm button
         document.getElementById('vb-ok').addEventListener('click', function () {
             fetch('/api/deploy/confirm-validation', { method: 'POST' })
-                .then(function () { _removeBanner(); if (window.showToast) window.showToast('✅ Mise à jour confirmée !', 'success', 4000); })
+                .then(function () { _removeBanner(); if (window.showToast) window.showToast('Mise à jour confirmée !', 'success', 4000); })
                 .catch(function () { if (window.showToast) window.showToast('Erreur de confirmation', 'error'); });
         });
 
@@ -15135,11 +15129,11 @@ document.addEventListener('keydown', function(e) {
 // ══════════════════════════════════════════════════════════════════════
 
 const FRISE_STAGES = [
-    { key: 'appel',       label: 'Appel\nProsp',    icon: '📞', color: '#64748b' },
-    { key: 'rdv',         label: 'RDV\nProsp',      icon: '🤝', color: '#f59e0b' },
-    { key: 'besoin',      label: 'Besoin\nQualifié', icon: '💡', color: '#3b82f6' },
-    { key: 'reunion_tech',label: 'Réunion\nTech',   icon: '⚙️', color: '#8b5cf6' },
-    { key: 'contrat',     label: 'Contrat\nSigné',  icon: '🏆', color: '#22c55e' },
+    { key: 'appel',       label: 'Appel\nProsp',    icon: 'phone',    color: '#64748b' },
+    { key: 'rdv',         label: 'RDV\nProsp',      icon: 'handshake',color: '#f59e0b' },
+    { key: 'besoin',      label: 'Besoin\nQualifié', icon: 'bulb',    color: '#3b82f6' },
+    { key: 'reunion_tech',label: 'Réunion\nTech',   icon: 'settings', color: '#8b5cf6' },
+    { key: 'contrat',     label: 'Contrat\nSigné',  icon: 'trophy',   color: '#22c55e' },
 ];
 
 const FRISE_STAGE_LABELS = {
@@ -15210,7 +15204,7 @@ function _buildFriseHtml(prospectId, stage, hasRt, hasContrat) {
     const stepsHtml = FRISE_STAGES.map((s, i) => {
         const state = i < stage ? 'completed' : (i === stage ? 'active' : 'future');
         const delay = i * 60;
-        const dotContent = state === 'completed' ? '✓' : s.icon;
+        const dotContent = state === 'completed' ? (window.icon ? window.icon('check', {size:12}) : '') : (window.icon ? window.icon(s.icon, {size:14}) : s.icon);
         const labelLines = s.label.split('\n').map(l => escapeHtml(l)).join('<br>');
 
         let step = `<div class="prospect-frise-step ${state}" style="animation-delay:${delay}ms">` +
@@ -15227,9 +15221,9 @@ function _buildFriseHtml(prospectId, stage, hasRt, hasContrat) {
     // Boutons d'avancement contextuels
     let advanceBtns = '';
     if (stage === 2 && !hasRt) {
-        advanceBtns = `<button class="prospect-frise-advance-btn" onclick="logProspectStage(${prospectId},'reunion_tech')" title="Marquer la réunion technique comme réalisée">⚙️ Marquer RT faite</button>`;
+        advanceBtns = `<button class="prospect-frise-advance-btn" onclick="logProspectStage(${prospectId},'reunion_tech')" title="Marquer la réunion technique comme réalisée">${window.icon ? window.icon('settings', {size:13}) : ''} Marquer RT faite</button>`;
     } else if (stage === 3 && !hasContrat) {
-        advanceBtns = `<button class="prospect-frise-advance-btn btn-contrat" onclick="logProspectStage(${prospectId},'contrat_signe')" title="Marquer le contrat comme signé">🏆 Contrat signé !</button>`;
+        advanceBtns = `<button class="prospect-frise-advance-btn btn-contrat" onclick="logProspectStage(${prospectId},'contrat_signe')" title="Marquer le contrat comme signé">${window.icon ? window.icon('trophy', {size:13}) : ''} Contrat signé !</button>`;
     }
 
     const actionsHtml = advanceBtns ? `<div class="prospect-frise-actions">${advanceBtns}</div>` : '';
@@ -15256,7 +15250,7 @@ async function logProspectStage(prospectId, stage) {
         }
         // Célébration
         _friseConfetti();
-        if (window.showToast) window.showToast('🎉 ' + LABELS[stage] + ' validé(e) !', 'success', 3500);
+        if (window.showToast) window.showToast('' + LABELS[stage] + ' validé(e) !', 'success', 3500);
 
         // Recharger la frise
         const prospect = (window.prospects || []).find(p => p.id === prospectId);

@@ -54,8 +54,8 @@
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
           <div style="font-weight:800;">${id ? ('#' + id) : 'Nouvelle opportunité'}</div>
           <div style="display:flex; gap:8px;">
-            <button class="btn btn-primary" onclick="window.__oppSave(${id})">💾</button>
-            <button class="btn btn-danger" onclick="window.__oppDelete(${id})" ${id? '':'disabled'}>🗑️</button>
+            <button class="btn btn-primary" onclick="window.__oppSave(${id})">${window.icon ? window.icon('save', {size:14}) : ''}</button>
+            <button class="btn btn-danger" onclick="window.__oppDelete(${id})" ${id? '':'disabled'}>${window.icon ? window.icon('trash', {size:14}) : ''}</button>
           </div>
         </div>
 
@@ -130,8 +130,8 @@
       .map(p=>{
         const open = `/?open=${Number(p.id)}`;
         // The email icon now copies the address to the clipboard instead of opening the mail application.
-        const mail = p.email ? `<a class="mini-action" href="javascript:void(0)" onclick="copyEmailToClipboard('${safeText(p.email).replace(/'/g,"\\'")}')" title="Copier l'email">✉️</a>` : '';
-        const tel = p.telephone ? `<a class="mini-action" href="tel:${safeText(p.telephone)}" title="Appeler">📞</a>` : '';
+        const mail = p.email ? `<a class="mini-action" href="javascript:void(0)" onclick="copyEmailToClipboard('${safeText(p.email).replace(/'/g,"\\'")}')" title="Copier l'email">${window.icon ? window.icon('mail', {size:13}) : ''}</a>` : '';
+        const tel = p.telephone ? `<a class="mini-action" href="tel:${safeText(p.telephone)}" title="Appeler">${window.icon ? window.icon('phone', {size:13}) : ''}</a>` : '';
         const li = p.linkedin ? `<a class="mini-action" href="${safeText(p.linkedin)}" target="_blank" title="LinkedIn">in</a>` : '';
         return `
           <tr>
@@ -141,7 +141,7 @@
             <td>${p.nextFollowUp ? `<span class="badge">${safeText(p.nextFollowUp)}</span>` : '<span class="muted">—</span>'}</td>
             <td style="text-align:right; white-space:nowrap;">
               ${tel}${mail}${li}
-              <a class="mini-action" href="${open}" title="Ouvrir fiche">👁️</a>
+              <a class="mini-action" href="${open}" title="Ouvrir fiche">${window.icon ? window.icon('eye', {size:13}) : ''}</a>
             </td>
           </tr>
         `;

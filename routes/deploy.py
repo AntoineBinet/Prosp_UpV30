@@ -286,18 +286,18 @@ def api_deploy_pull():
                 try:
                     last_commit_file = APP_DIR / ".last_commit_hash"
                     last_commit_file.write_text(local_hash_full, encoding="utf-8")
-                    yield f"data: {json.dumps({'step': 'log', 'line': f'✅ Commit actuel sauvegardé ({local_hash}) pour rollback possible'}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'step': 'log', 'line': f'Commit actuel sauvegardé ({local_hash}) pour rollback possible'}, ensure_ascii=False)}\n\n"
                 except Exception as e:
                     logger.warning("Failed to save last commit hash: %s", e)
 
             # ── SAFETY: Créer un snapshot DB automatique avant mise à jour ──
             try:
-                yield f"data: {json.dumps({'step': 'log', 'line': '💾 Création snapshot DB automatique avant mise à jour...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'step': 'log', 'line': 'Création snapshot DB automatique avant mise à jour...'}, ensure_ascii=False)}\n\n"
                 snapshot_file = create_snapshot(label="before_update", is_auto=False)
-                yield f"data: {json.dumps({'step': 'log', 'line': f'✅ Snapshot créé: {snapshot_file}'}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'step': 'log', 'line': f'Snapshot créé: {snapshot_file}'}, ensure_ascii=False)}\n\n"
             except Exception as e:
                 logger.warning("Failed to create snapshot before update: %s", e)
-                yield f"data: {json.dumps({'step': 'log', 'line': f'⚠️ Impossible de créer snapshot: {e}'}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'step': 'log', 'line': f'Impossible de créer snapshot: {e}'}, ensure_ascii=False)}\n\n"
 
             # Fichiers sous logs/ souvent verrouillés par l'app : on les ignore pour le pull
             log_paths = []
@@ -360,7 +360,7 @@ def api_deploy_pull():
             )
             cur_branch = (branch_cp.stdout or "").strip() if branch_cp.returncode == 0 else ""
             if cur_branch and cur_branch != "main":
-                yield f"data: {json.dumps({'step': 'log', 'line': f'⚠️ Branche actuelle: {cur_branch} → checkout main'}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'step': 'log', 'line': f'Branche actuelle: {cur_branch} → checkout main'}, ensure_ascii=False)}\n\n"
                 co = subprocess.run(
                     ["git", "checkout", "main"],
                     cwd=str(APP_DIR), capture_output=True, text=True, timeout=5,
@@ -386,7 +386,7 @@ def api_deploy_pull():
                     if line.strip():
                         yield f"data: {json.dumps({'step': 'log', 'line': line.strip()}, ensure_ascii=False)}\n\n"
             if pull.returncode != 0:
-                yield f"data: {json.dumps({'step': 'log', 'line': '⚠️ Fast-forward impossible — forçage sync sur origin/main (git reset --hard)...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'step': 'log', 'line': 'Fast-forward impossible — forçage sync sur origin/main (git reset --hard)...'}, ensure_ascii=False)}\n\n"
                 logger.warning("Deploy pull: ff-only failed, falling back to git reset --hard origin/main")
                 reset = subprocess.run(
                     ["git", "reset", "--hard", "origin/main"],
@@ -404,7 +404,7 @@ def api_deploy_pull():
                             cwd=str(APP_DIR), capture_output=True, timeout=5,
                         )
                     return
-                yield f"data: {json.dumps({'step': 'log', 'line': '✅ Synchronisation forcée sur origin/main réussie'}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'step': 'log', 'line': 'Synchronisation forcée sur origin/main réussie'}, ensure_ascii=False)}\n\n"
 
             for p in log_paths:
                 subprocess.run(
@@ -433,7 +433,7 @@ def api_deploy_pull():
             # ── SAFETY: Installer les nouvelles dépendances avant le redémarrage ──
             req_file = APP_DIR / "requirements.txt"
             if req_file.exists():
-                yield f"data: {json.dumps({'step': 'log', 'line': '📦 Installation des dépendances (pip install)...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'step': 'log', 'line': 'Installation des dépendances (pip install)...'}, ensure_ascii=False)}\n\n"
                 try:
                     pip_result = subprocess.run(
                         [sys.executable, "-m", "pip", "install", "-r", str(req_file),
@@ -444,16 +444,16 @@ def api_deploy_pull():
                         timeout=120,
                     )
                     if pip_result.returncode == 0:
-                        yield f"data: {json.dumps({'step': 'log', 'line': '✅ Dépendances à jour'}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'step': 'log', 'line': 'Dépendances à jour'}, ensure_ascii=False)}\n\n"
                     else:
                         err_pip = (pip_result.stderr or pip_result.stdout or "").strip()[:300]
-                        yield f"data: {json.dumps({'step': 'log', 'line': f'⚠️ pip install partiel (app redémarre quand même): {err_pip}'}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'step': 'log', 'line': f'pip install partiel (app redémarre quand même): {err_pip}'}, ensure_ascii=False)}\n\n"
                         logger.warning("Deploy pull: pip install partiel: %s", err_pip)
                 except subprocess.TimeoutExpired:
-                    yield f"data: {json.dumps({'step': 'log', 'line': '⚠️ pip install timeout — redémarrage quand même'}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'step': 'log', 'line': 'pip install timeout — redémarrage quand même'}, ensure_ascii=False)}\n\n"
                     logger.warning("Deploy pull: pip install timeout")
                 except Exception as e_pip:
-                    yield f"data: {json.dumps({'step': 'log', 'line': f'⚠️ pip install erreur: {e_pip}'}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'step': 'log', 'line': f'pip install erreur: {e_pip}'}, ensure_ascii=False)}\n\n"
                     logger.warning("Deploy pull: pip install erreur: %s", e_pip)
 
             logger.info("Deploy pull: mise à jour appliquée, redémarrage demandé")
@@ -564,4 +564,4 @@ def api_deploy_confirm_validation():
     except Exception:
         pass
     logger.info("Mise à jour post-pull validée par l'utilisateur")
-    return jsonify(ok=True, message="Mise à jour validée ✓")
+    return jsonify(ok=True, message="Mise à jour validée")

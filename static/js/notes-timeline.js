@@ -7,14 +7,14 @@
 'use strict';
 
 const NT_TYPE_ICONS = {
-    call:      '📞',
-    call_note: '📞',
-    push:      '📧',
-    done:      '✅',
-    rdv:       '📅',
-    linkedin:  '🔗',
-    event:     '📌',
-    note_libre:'📝',
+    call:      'phone',
+    call_note: 'phone',
+    push:      'mail',
+    done:      'checkCircle',
+    rdv:       'calendar',
+    linkedin:  'linkedin',
+    event:     'mapPin',
+    note_libre:'note',
 };
 
 const NT_TYPE_LABELS = {
@@ -55,7 +55,7 @@ function initNotesTimeline(containerId, options = {}) {
                 <span id="nt-count-${containerId}" style="font-size:12px;color:var(--color-text-secondary);"></span>
                 <button type="button" class="btn btn-primary nt-add-btn"
                         onclick="ntAddNote('${containerId}','${entityType}',${entityId})">
-                    ➕ Ajouter une note
+                    ${window.icon ? window.icon('plus', {size:14}) : '+'} Ajouter une note
                 </button>
             </div>
         </div>
@@ -173,7 +173,8 @@ async function ntAddNote(containerId, entityType, entityId) {
 function _ntRenderItem(event, options = {}) {
     const { entityType = '', entityId = 0, canDelete = false } = options;
     const type    = event.type || 'event';
-    const icon    = NT_TYPE_ICONS[type]  || '📌';
+    const iconName = NT_TYPE_ICONS[type] || 'mapPin';
+    const icon    = window.icon ? window.icon(iconName, {size:14}) : iconName;
     const label   = NT_TYPE_LABELS[type] || type;
     const dotCls  = NT_TYPE_DOT[type]    || '';
     const esc     = (typeof escapeHtml === 'function') ? escapeHtml : (s => s);
@@ -191,7 +192,7 @@ function _ntRenderItem(event, options = {}) {
     const escapedDate    = JSON.stringify(event.date || '');
     const escapedContent = JSON.stringify(event.content || '');
     const deleteBtn = canDeleteNote
-        ? `<button class="nt-del-btn" title="Supprimer cette note" onclick="ntDeleteNote('${entityType}',${entityId},${escapedDate},${escapedContent},this)" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:14px;padding:2px 4px;border-radius:4px;opacity:0.5;transition:opacity 0.15s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">🗑️</button>`
+        ? `<button class="nt-del-btn" title="Supprimer cette note" onclick="ntDeleteNote('${entityType}',${entityId},${escapedDate},${escapedContent},this)" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-secondary);font-size:14px;padding:2px 4px;border-radius:4px;opacity:0.5;transition:opacity 0.15s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">${window.icon ? window.icon('trash', {size:14}) : ''}</button>`
         : '';
 
     return `
@@ -261,7 +262,7 @@ function _ntRefreshCount(containerId, value, increment = false) {
         count = Math.max(0, current + value);
     }
     el.dataset.noteCount = String(count);
-    el.textContent = count > 0 ? `💬 ${count} note${count > 1 ? 's' : ''}` : '';
+    el.innerHTML = count > 0 ? `${window.icon ? window.icon('chat', {size:12}) : ''} ${count} note${count > 1 ? 's' : ''}` : '';
 }
 
 function _ntMetaHtml(meta, type) {

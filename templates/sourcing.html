@@ -25,7 +25,7 @@
 <!-- Pipeline -->
 <section id="panelPipeline">
   <div class="controls">
-    <input id="candSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech, notes...)" aria-label="Rechercher un candidat" />
+    <input id="candSearch" type="text" placeholder="Rechercher (nom, rôle, tech, notes...)" aria-label="Rechercher un candidat" />
     <select id="candStatusFilter">
       <option value="">Tous les statuts</option>
       <optgroup label="Opérationnel">
@@ -36,7 +36,7 @@
         <option value="freelance">Freelance</option>
       </optgroup>
     </select>
-    <input id="candSkillsFilter" type="text" placeholder="🎯 Filtrer compétences (ex: RTOS, AUTOSAR)" />
+    <input id="candSkillsFilter" type="text" placeholder="Filtrer compétences (ex: RTOS, AUTOSAR)" />
     <a class="btn btn-secondary btn-link-inline" href="/api/candidates/export.csv" target="_blank"><i data-icon="download" data-size="14" aria-hidden="true"></i><span> Export CSV</span></a>
   </div>
 
@@ -105,7 +105,7 @@
 <!-- LinkedIn -->
 <section id="panelLinkedin" style="display:none;">
   <div class="controls">
-    <input id="linkedinSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les candidats LinkedIn" />
+    <input id="linkedinSearch" type="text" placeholder="Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les candidats LinkedIn" />
     <select id="linkedinStatusFilter">
       <option value="">Tous les statuts</option>
       <option value="nouveau">Nouveau / A traiter</option>
@@ -179,7 +179,7 @@
 <!-- En mission / Contrat -->
 <section id="panelMission" style="display:none;">
   <div class="controls">
-    <input id="missionSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les missions" />
+    <input id="missionSearch" type="text" placeholder="Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les missions" />
     <select id="missionStatusFilter">
       <option value="">Tous</option>
       <option value="valide_contrat">Validé / Contrat</option>
@@ -252,7 +252,7 @@
 <!-- Archivés / Refusés -->
 <section id="panelArchive" style="display:none;">
   <div class="controls">
-    <input id="archiveSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les archivés" />
+    <input id="archiveSearch" type="text" placeholder="Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les archivés" />
     <select id="archiveStatusFilter">
       <option value="">Tous les refus</option>
       <option value="nok_prequal">NOK Préqual</option>
@@ -327,7 +327,7 @@
 <!-- Hors Aura -->
 <section id="panelHorsAura" style="display:none;">
   <div class="controls">
-    <input id="horsAuraSearch" type="text" placeholder="🔍 Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les candidats hors Aura" />
+    <input id="horsAuraSearch" type="text" placeholder="Rechercher (nom, rôle, tech...)" aria-label="Rechercher dans les candidats hors Aura" />
   </div>
 
   <!-- Barre d'actions en masse Hors Aura -->
@@ -397,7 +397,7 @@
   <div class="card" style="padding:24px; max-width:860px; margin-top:16px;">
 
     <div style="margin-bottom:28px;">
-      <div style="font-weight:700; font-size:15px; margin-bottom:6px;">🤖 Prompt de présentation IA</div>
+      <div style="font-weight:700; font-size:15px; margin-bottom:6px;"><i data-icon="robot" data-size="15" aria-hidden="true"></i> Prompt de présentation IA</div>
       <p class="muted" style="font-size:13px; margin-bottom:10px;">
         Utilisé pour générer la phrase de présentation depuis le DC PDF. Laissez vide pour utiliser le prompt par défaut intégré.<br>
         Variables disponibles : <code>{prenom}</code> (prénom du candidat), <code>{pdf_text}</code> (texte extrait du DC).
@@ -428,7 +428,7 @@
         Génère les phrases de présentation pour tous les candidats ayant un DC mais pas encore de phrase. Traitement séquentiel — peut prendre plusieurs minutes selon le nombre de candidats et la vitesse d'Ollama.
       </p>
       <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <button class="btn btn-secondary" onclick="bulkGenerateDescriptions()" id="btnBulkGenerate">🤖 Générer les introductions manquantes</button>
+        <button class="btn btn-secondary" onclick="bulkGenerateDescriptions()" id="btnBulkGenerate"><i data-icon="robot" data-size="13" aria-hidden="true"></i> Générer les introductions manquantes</button>
         <div id="bulkGenProgress" style="font-size:13px;"></div>
       </div>
     </div>
@@ -584,7 +584,7 @@
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
         <button type="button" class="btn btn-secondary" onclick="closeWizardCandModal()">Annuler</button>
         <button type="button" class="btn btn-primary" id="wizardBtnAnalyze" onclick="wizardAnalyzeDC()" disabled>
-          🤖 Analyser le document
+          <i data-icon="robot" data-size="13" aria-hidden="true"></i> Analyser le document
         </button>
       </div>
     </div>
@@ -602,26 +602,26 @@
         <div class="form-group">
           <label>Prénom</label>
           <input id="wizardPrenom" placeholder="Jean">
-          <span id="wizardPrenom_badge" class="ai-extracted-badge" style="display:none;">✨ Extrait automatiquement</span>
+          <span id="wizardPrenom_badge" class="ai-extracted-badge" style="display:none;"><i data-icon="sparkles" data-size="11" aria-hidden="true"></i> Extrait automatiquement</span>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Titre / Rôle</label>
           <input id="wizardTitre" placeholder="Ingénieur Logiciel Embarqué">
-          <span id="wizardTitre_badge" class="ai-extracted-badge" style="display:none;">✨ Extrait automatiquement</span>
+          <span id="wizardTitre_badge" class="ai-extracted-badge" style="display:none;"><i data-icon="sparkles" data-size="11" aria-hidden="true"></i> Extrait automatiquement</span>
         </div>
         <div class="form-group">
           <label>Années d'expérience</label>
           <input id="wizardAnnees" type="number" min="0" max="50" placeholder="5">
-          <span id="wizardAnnees_badge" class="ai-extracted-badge" style="display:none;">✨ Extrait automatiquement</span>
+          <span id="wizardAnnees_badge" class="ai-extracted-badge" style="display:none;"><i data-icon="sparkles" data-size="11" aria-hidden="true"></i> Extrait automatiquement</span>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Domaine principal</label>
           <input id="wizardDomaine" placeholder="Systèmes embarqués, automobile...">
-          <span id="wizardDomaine_badge" class="ai-extracted-badge" style="display:none;">✨ Extrait automatiquement</span>
+          <span id="wizardDomaine_badge" class="ai-extracted-badge" style="display:none;"><i data-icon="sparkles" data-size="11" aria-hidden="true"></i> Extrait automatiquement</span>
         </div>
         <div class="form-group">
           <label>Rôle (liste candidats)</label>
@@ -631,13 +631,13 @@
       <div class="form-group">
         <label>Tags compétences (séparés par virgule)</label>
         <input id="wizardTags" placeholder="C/C++, RTOS, AUTOSAR, Linux...">
-        <span id="wizardTags_badge" class="ai-extracted-badge" style="display:none;">✨ Extrait automatiquement</span>
+        <span id="wizardTags_badge" class="ai-extracted-badge" style="display:none;"><i data-icon="sparkles" data-size="11" aria-hidden="true"></i> Extrait automatiquement</span>
       </div>
 
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
         <button type="button" class="btn btn-secondary" onclick="wizardGoBack()">← Retour</button>
         <button type="button" class="btn btn-primary" id="wizardBtnCreate" onclick="wizardCreateCandidate()">
-          ✅ Créer la fiche
+          <i data-icon="checkCircle" data-size="13" aria-hidden="true"></i> Créer la fiche
         </button>
       </div>
     </div>

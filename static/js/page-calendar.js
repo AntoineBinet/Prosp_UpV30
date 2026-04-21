@@ -13,7 +13,7 @@ function _isoDate(d) {
 
 async function loadCalendar() {
     const grid = document.getElementById('calGrid');
-    if (grid) grid.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">⏳ Chargement du calendrier…</div>';
+    if (grid) grid.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">Chargement du calendrier…</div>';
     try {
         const res = await fetch('/api/calendar_events');
         const json = await res.json();
@@ -32,7 +32,7 @@ async function loadCalendar() {
         renderCalendar();
     } catch(e) {
         console.error('Calendar error:', e);
-        document.getElementById('calGrid').innerHTML = '<div class="card muted" style="padding:20px">❌ Erreur de chargement</div>';
+        document.getElementById('calGrid').innerHTML = '<div class="card muted" style="padding:20px">Erreur de chargement</div>';
     }
 }
 
@@ -88,22 +88,22 @@ function renderMonth() {
             const isOverdue = ev.type === 'relance' && isPast;
             const isExternal = ev.type === 'external';
             let cls = 'cal-ev-rdv';
-            let icon = '🤝';
+            let icon = window.icon ? window.icon('handshake', {size:12}) : '';
             if (ev.type === 'ec1') {
                 cls = 'cal-ev-ec1';
-                icon = '📞';
+                icon = window.icon ? window.icon('phone', {size:12}) : '';
             } else if (ev.type === 'ec2') {
                 cls = 'cal-ev-ec2';
-                icon = '📞📞';
+                icon = (window.icon ? window.icon('phone', {size:12}) : '') + (window.icon ? window.icon('phone', {size:12}) : '');
             } else if (isExternal) {
                 cls = 'cal-ev-external';
-                icon = '📅';
+                icon = window.icon ? window.icon('calendar', {size:12}) : '';
             } else if (isOverdue) {
                 cls = 'cal-ev-overdue';
-                icon = '⚠️';
+                icon = window.icon ? window.icon('alertTri', {size:12}) : '';
             } else if (ev.type === 'relance') {
                 cls = 'cal-ev-relance';
-                icon = '🔄';
+                icon = window.icon ? window.icon('refreshCw', {size:12}) : '';
             }
             const time = ev.time ? `<span class="cal-ev-time">${ev.time}</span>` : '';
             const href = ev.url ? ev.url : `/?open=${ev.id}`;
@@ -146,19 +146,19 @@ function _openCalDayDetail(iso) {
             const isPast = iso < _isoDate(new Date());
             const isOverdue = ev.type === 'relance' && isPast;
             let typeLabel = 'RDV';
-            let icon = '🤝';
+            let icon = window.icon ? window.icon('handshake', {size:14}) : '';
             if (ev.type === 'ec1') {
                 typeLabel = 'EC1';
-                icon = '📞';
+                icon = window.icon ? window.icon('phone', {size:14}) : '';
             } else if (ev.type === 'ec2') {
                 typeLabel = 'EC2';
-                icon = '📞📞';
+                icon = (window.icon ? window.icon('phone', {size:14}) : '') + (window.icon ? window.icon('phone', {size:14}) : '');
             } else if (isOverdue) {
                 typeLabel = 'Relance (en retard)';
-                icon = '⚠️';
+                icon = window.icon ? window.icon('alertTri', {size:14}) : '';
             } else if (ev.type === 'relance') {
                 typeLabel = 'Relance';
-                icon = '🔄';
+                icon = window.icon ? window.icon('refreshCw', {size:14}) : '';
             }
             const href = ev.url || (ev.id ? `/?open=${ev.id}` : '#');
             const time = ev.time ? ev.time + ' — ' : '';
@@ -241,19 +241,19 @@ function renderWeek() {
             dayEvents.forEach(ev => {
                 const isOverdue = ev.type === 'relance' && isPast;
                 let cls = 'cal-ev-rdv';
-                let icon = '🤝';
+                let icon = window.icon ? window.icon('handshake', {size:12}) : '';
                 if (ev.type === 'ec1') {
                     cls = 'cal-ev-ec1';
-                    icon = '📞';
+                    icon = window.icon ? window.icon('phone', {size:12}) : '';
                 } else if (ev.type === 'ec2') {
                     cls = 'cal-ev-ec2';
-                    icon = '📞📞';
+                    icon = (window.icon ? window.icon('phone', {size:12}) : '') + (window.icon ? window.icon('phone', {size:12}) : '');
                 } else if (isOverdue) {
                     cls = 'cal-ev-overdue';
-                    icon = '⚠️';
+                    icon = window.icon ? window.icon('alertTri', {size:12}) : '';
                 } else if (ev.type === 'relance') {
                     cls = 'cal-ev-relance';
-                    icon = '🔄';
+                    icon = window.icon ? window.icon('refreshCw', {size:12}) : '';
                 }
                 const time = ev.time ? `<span class="cal-ev-time">${ev.time}</span>` : '';
                 const href = ev.url ? ev.url : `/?open=${ev.id}`;
@@ -333,10 +333,10 @@ function importICSFile(file) {
         try {
             const events = parseICS(e.target.result);
             _importedEvents = events;
-            showToast(`✅ ${events.length} événement(s) importé(s)`, 'success');
+            showToast(`${events.length} événement(s) importé(s)`, 'success');
             renderCalendar();
         } catch(err) {
-            showToast('❌ Erreur de parsing ICS: ' + err.message, 'error');
+            showToast('Erreur de parsing ICS: ' + err.message, 'error');
         }
     };
     reader.readAsText(file);
@@ -407,7 +407,7 @@ const _calObserver = new MutationObserver(function() {
                     badge.className = 'cal-event ics-event ics-event-' + ev.summary.replace(/\s/g, '_').substring(0, 20);
                     badge.style.cssText = 'background:#6366f1;color:#fff;font-size:10px;padding:2px 6px;border-radius:6px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;max-width:100%;';
                     badge.textContent = (ev.startTime ? ev.startTime + ' ' : '') + ev.summary;
-                    badge.title = ev.summary + (ev.location ? '\n📍 ' + ev.location : '') + (ev.description ? '\n' + ev.description : '');
+                    badge.title = ev.summary + (ev.location ? '\n' + ev.location : '') + (ev.description ? '\n' + ev.description : '');
                     cell.appendChild(badge);
                 }
             }

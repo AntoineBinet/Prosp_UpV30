@@ -160,7 +160,7 @@ function renderProspectGroups() {
                   <td style="text-align:right; white-space:nowrap;">
                     <button class="mini-action" onclick="mergeProspectIntoSelected(${idx}, ${p.id})">Fusionner →</button>
                     <button class="mini-action" type="button" onclick="excludeProspectFromGroup(${idx}, ${p.id})">Exclure</button>
-                    <a class="mini-action" href="/?open=${p.id}">👁️</a>
+                    <a class="mini-action" href="/?open=${p.id}">${window.icon ? window.icon('eye', {size:13}) : 'Voir'}</a>
                   </td>
                 </tr>
               `;
@@ -226,8 +226,8 @@ function renderCompanyGroups() {
                   <td style="text-align:right; white-space:nowrap;">
                     <button class="mini-action" onclick="mergeCompanyIntoSelected(${idx}, ${c.id})">Fusionner →</button>
                     <button class="mini-action" type="button" onclick="excludeCompanyFromGroup(${idx}, ${c.id})">Exclure</button>
-                    <a class="mini-action" href="/entreprises?openCompany=${c.id}">👁️</a>
-                    <a class="mini-action" href="/?company=${c.id}">👥</a>
+                    <a class="mini-action" href="/entreprises?openCompany=${c.id}">${window.icon ? window.icon('eye', {size:13}) : 'Voir'}</a>
+                    <a class="mini-action" href="/?company=${c.id}">${window.icon ? window.icon('users', {size:13}) : 'Prospects'}</a>
                   </td>
                 </tr>
               `;
