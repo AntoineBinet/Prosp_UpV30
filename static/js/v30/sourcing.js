@@ -169,7 +169,14 @@
     bindMatchClose();
     bindAdd();
     fetchJSON('/api/candidates').then(function (res) {
-      STATE.candidates = (res && (res.candidates || res.items || [])) || [];
+      // /api/candidates renvoie un array direct. Fallback defensif sinon.
+      var list = Array.isArray(res)
+        ? res
+        : ((res && (res.candidates || res.items)) || []);
+      // Ignore les candidats archives (comme v29)
+      STATE.candidates = list.filter(function (c) {
+        return !c.is_archived && !c.deleted_at;
+      });
       renderCount();
       renderPipeline();
     }).catch(function (err) {
