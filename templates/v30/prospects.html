@@ -11,6 +11,18 @@
 
 <div data-v30-prospects>
 
+  {# Banniere relances en retard (parite v29) — masquee si 0 #}
+  <div class="v30-pp-banner" data-v30-pp-banner hidden>
+    <span class="v30-pp-banner__icon" aria-hidden="true">⚠</span>
+    <span>
+      <strong data-field="count">0</strong> relance<span data-field="plural">s</span> en retard
+    </span>
+    <a class="btn btn-sm" href="/v30/focus">Voir Focus →</a>
+    <button type="button" class="v30-pp-banner__close" data-v30-pp-banner-close
+            aria-label="Fermer la bannière">×</button>
+  </div>
+
+
   {# ─── Sticky page topbar ─── #}
   <div class="v30-pp-topbar">
     <h1>

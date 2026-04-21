@@ -49,6 +49,30 @@
 }
 .v30-pp-views::-webkit-scrollbar { height: 0; }
 
+/* Banniere relances en retard (parite v29) */
+.v30-pp-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  margin: 10px 0 6px;
+  background: oklch(0.25 0.06 30 / 0.35);
+  border: 1px solid oklch(0.5 0.15 30 / 0.5);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 13px;
+}
+.v30-pp-banner__icon {
+  color: var(--warn, #f59e0b);
+  font-size: 14px;
+}
+.v30-pp-banner .btn { margin-left: auto; }
+.v30-pp-banner__close {
+  background: transparent; border: 0; cursor: pointer;
+  color: var(--text-3); font-size: 18px; line-height: 1;
+  width: 24px; height: 24px;
+  border-radius: 4px;
+}
+.v30-pp-banner__close:hover { background: var(--surface-2); color: var(--text); }
+
 /* KPI cards (parite v29) */
 .v30-pp-kpis {
   display: grid;
