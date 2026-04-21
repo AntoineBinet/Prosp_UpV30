@@ -25,11 +25,16 @@
     return isoWeek(d);
   }
 
+  // /api/rapport-hebdo retourne { ok, data: { kpi, statuts, push_detail,
+  // notes_detail, touched_companies, week_label, start, end } }.
+  // On normalise en lisant toujours `data` (le wrap).
+
   function renderRange(data) {
     var el = $('[data-field="week-range"]');
     if (!el) return;
-    var from = data && data.week && data.week.from;
-    var to = data && data.week && data.week.to;
+    if (data && data.week_label) { el.textContent = data.week_label; return; }
+    var from = (data && data.start) || (data && data.week && data.week.from);
+    var to = (data && data.end) || (data && data.week && data.week.to);
     if (from && to) el.textContent = 'Du ' + from + ' au ' + to;
     else el.textContent = STATE.week || '—';
   }
@@ -37,20 +42,21 @@
   function renderKpis(data) {
     var host = $('[data-v30-rapport-kpis]');
     if (!host) return;
-    var kpis = (data && data.kpis) || {};
+    var k = (data && data.kpi) || {};
     var cards = [
-      { label: 'Prospects contactés', value: kpis.prospects_contacted, delta: kpis.prospects_delta },
-      { label: 'RDV planifiés', value: kpis.rdv_scheduled, delta: kpis.rdv_delta },
-      { label: 'Pushs envoyés', value: kpis.pushs_sent, delta: kpis.pushs_delta },
-      { label: 'Appels passés', value: kpis.calls_made, delta: kpis.calls_delta }
+      { label: 'Entreprises contactées', value: k.companies_touched },
+      { label: 'RDV planifiés',          value: k.rdv },
+      { label: 'Pushs envoyés',          value: k.push_total,
+        sub: (k.push_email != null && k.push_linkedin != null)
+          ? (k.push_email + ' email · ' + k.push_linkedin + ' LinkedIn') : '' },
+      { label: 'Relances en retard',     value: k.overdue }
     ];
     host.innerHTML = cards.map(function (c) {
       var val = c.value != null ? c.value : '—';
-      var delta = c.delta != null ? (c.delta >= 0 ? '+' + c.delta : c.delta) + ' vs. sem. précédente' : '';
       return '<div class="v30-kpi-card">' +
         '<div class="v30-kpi-card__label">' + esc(c.label) + '</div>' +
         '<div class="v30-kpi-card__value num">' + esc(val) + '</div>' +
-        (delta ? '<div class="v30-kpi-card__delta">' + esc(delta) + '</div>' : '') +
+        (c.sub ? '<div class="v30-kpi-card__delta">' + esc(c.sub) + '</div>' : '') +
       '</div>';
     }).join('');
   }
@@ -58,16 +64,32 @@
   function renderActivity(data) {
     var host = $('[data-v30-rapport-activity]');
     if (!host) return;
-    var items = (data && data.activity) || [];
+    // Fusion push_detail + notes_detail + touched_companies en activite.
+    var items = [];
+    (data && data.push_detail || []).forEach(function (p) {
+      items.push({
+        when: p.date || '',
+        title: 'Push ' + (p.channel || '—'),
+        value: p.prospect_name || ('prospect #' + (p.prospect_id || ''))
+      });
+    });
+    (data && data.notes_detail || []).forEach(function (n) {
+      items.push({
+        when: n.date || '',
+        title: 'Note d\'appel',
+        value: n.prospect_name || ('prospect #' + (n.prospect_id || ''))
+      });
+    });
     if (!items.length) {
       host.innerHTML = '<div class="empty" style="padding:20px;">Aucune activité cette semaine.</div>';
       return;
     }
+    items.sort(function (a, b) { return (a.when < b.when) ? 1 : -1; });
     host.innerHTML = items.slice(0, 20).map(function (it) {
       return '<div class="v30-rapport-row">' +
-        '<span class="v30-rapport-row__when">' + esc(it.when || it.date || '') + '</span>' +
-        '<span class="v30-rapport-row__label">' + esc(it.title || it.type || '') + '</span>' +
-        '<span class="v30-rapport-row__value">' + esc(it.value || it.detail || '') + '</span>' +
+        '<span class="v30-rapport-row__when">' + esc(it.when) + '</span>' +
+        '<span class="v30-rapport-row__label">' + esc(it.title) + '</span>' +
+        '<span class="v30-rapport-row__value">' + esc(it.value) + '</span>' +
       '</div>';
     }).join('');
   }
@@ -75,16 +97,17 @@
   function renderPipeline(data) {
     var host = $('[data-v30-rapport-pipeline]');
     if (!host) return;
-    var items = (data && data.pipeline) || [];
-    if (!items.length) {
+    var statuts = (data && data.statuts) || {};
+    var keys = Object.keys(statuts).sort(function (a, b) { return statuts[b] - statuts[a]; });
+    if (!keys.length) {
       host.innerHTML = '<div class="empty" style="padding:20px;">Aucune étape remontée.</div>';
       return;
     }
-    host.innerHTML = items.map(function (it) {
+    host.innerHTML = keys.map(function (label) {
       return '<div class="v30-rapport-row">' +
-        '<span class="v30-rapport-row__when">' + esc(it.stage || '') + '</span>' +
-        '<span class="v30-rapport-row__label">' + esc(it.label || it.title || '') + '</span>' +
-        '<span class="v30-rapport-row__value num">' + esc(it.count != null ? it.count : '') + '</span>' +
+        '<span class="v30-rapport-row__when"></span>' +
+        '<span class="v30-rapport-row__label">' + esc(label) + '</span>' +
+        '<span class="v30-rapport-row__value num">' + esc(statuts[label]) + '</span>' +
       '</div>';
     }).join('');
   }
@@ -94,7 +117,8 @@
     WEEK_KEY = 'prospup_rapport_' + STATE.week;
     return fetchJSON('/api/rapport-hebdo?week=' + encodeURIComponent(STATE.week))
       .then(function (res) {
-        STATE.data = res || {};
+        // L'API emballe dans { data, ok }. On passe l'objet data partout.
+        STATE.data = (res && res.data) || res || {};
         renderRange(STATE.data);
         renderKpis(STATE.data);
         renderActivity(STATE.data);
@@ -147,13 +171,18 @@
 
   function toMarkdown() {
     var d = STATE.data || {};
-    var lines = ['# Rapport hebdomadaire · ' + (STATE.week || '')];
-    var k = d.kpis || {};
+    var lines = ['# Rapport hebdomadaire · ' + (d.week_label || STATE.week || '')];
+    var k = d.kpi || {};
     lines.push('', '## KPI');
     Object.keys(k).forEach(function (key) { lines.push('- ' + key + ' : ' + k[key]); });
-    (d.activity || []).slice(0, 15).forEach(function (it) {
-      lines.push('- ' + (it.when || '') + ' — ' + (it.title || '') + ' · ' + (it.value || it.detail || ''));
-    });
+    var statuts = d.statuts || {};
+    if (Object.keys(statuts).length) {
+      lines.push('', '## Répartition pipeline');
+      Object.keys(statuts).forEach(function (s) { lines.push('- ' + s + ' : ' + statuts[s]); });
+    }
+    if ((d.touched_companies || []).length) {
+      lines.push('', '## Entreprises contactées', (d.touched_companies || []).map(function (c) { return '- ' + c; }).join('\n'));
+    }
     var notes = ($('[data-v30-rapport-notes]') || {}).innerText || '';
     if (notes.trim()) lines.push('', '## Notes', notes);
     return lines.join('\n');
