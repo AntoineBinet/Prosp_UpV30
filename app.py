@@ -4806,6 +4806,26 @@ def page_v30_stats():
     )
 
 
+@app.get("/v30/metiers")
+@login_required
+@role_required('admin')
+def page_v30_metiers():
+    """Métiers IA v30 — admin only, miroir /metiers."""
+    u = _get_current_user() or {}
+    dn = (u.get("display_name") or u.get("username") or "AB").strip()
+    parts = [p for p in dn.split() if p]
+    user_initials = ("".join(p[0].upper() for p in parts[:2]) or dn[:2].upper())
+    return render_template(
+        "v30/metiers.html",
+        active="metiers",
+        crumbs=["Prosp'Up", "Métiers IA"],
+        counts={},
+        pinned=[],
+        user_initials=user_initials,
+        app_version=APP_VERSION,
+    )
+
+
 @app.get("/v30/help")
 def page_v30_help():
     """Aide v30 — cartes vers sections + raccourci pour ouvrir la modal raccourcis."""

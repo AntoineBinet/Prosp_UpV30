@@ -1,0 +1,37 @@
+{% extends "v30/base.html" %}
+{% block title %}Métiers IA — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-metiers{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/metiers.css?v={{ static_hash('css/v30/metiers.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-metiers" data-v30-metiers>
+
+  <div class="v30-metiers__topbar">
+    <div>
+      <div class="v30-metiers__eyebrow">Référentiels</div>
+      <h1 class="v30-metiers__title"><span class="serif">Métiers &amp; tags IA.</span></h1>
+      <div class="v30-metiers__sub">
+        Métiers personnalisés utilisés par l'IA pour la catégorisation.
+      </div>
+    </div>
+    <div class="v30-spacer"></div>
+    <button type="button" class="btn btn-accent" data-v30-metier-add>
+      {{ ui.icon('plus', 13) }} Ajouter
+    </button>
+  </div>
+
+  <div class="card card-flush">
+    <div class="v30-metiers__list" data-v30-metiers-list>
+      <div class="empty" style="padding:24px;">Chargement…</div>
+    </div>
+  </div>
+
+</div>
+
+<script defer src="/static/js/v30/metiers.js?v={{ static_hash('js/v30/metiers.js') }}"></script>
+{% endblock %}
