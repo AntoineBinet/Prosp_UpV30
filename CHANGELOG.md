@@ -2,6 +2,21 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [29.9] — 2026-04-21
+
+### Fix mobile — refonte liquid glass (29.8)
+
+La refonte mobile iOS 26 (v29.8) cassait l'affichage sur iPhone : la liste des prospects ne s'affichait plus, les panneaux du dashboard et la table « Entreprises chaudes » étaient rognés à droite, et le speed-dial FAB débordait du viewport.
+
+- **Prospects** : `static/css/mobile.css` masquait l'intégralité de `.table-wrapper` sur mobile (`display:none`), alors que `static/js/app.js` embarque déjà une carte `.prospect-card-mobile` (classes `.pmc-*`) dans le 1er `<td>` de chaque ligne. Règle remplacée par un décorticage de la table (thead masqué, colonnes desktop cachées, 1re colonne plein largeur) + ajout des styles `.pmc-*` manquants (cartes, swipe actions, avatars colorés, statuts, relances, étoiles, séparateurs, groupages, flash succès, lumière).
+- **Stats « Entreprises chaudes »** : `td::before` en `flex: 0 0 42%` coupait « SCORE » verticalement lettre par lettre sur petites cartes. Passage à `flex: 0 0 auto; min-width: 40%; max-width: 55%` avec `white-space: nowrap` + ellipsis.
+- **Dashboard** : `.dv2-card-header` autorise le wrap, `.dv2-card-badge` contraint à une largeur max avec ellipsis, `.dv2-pipeline-legend` wrap forcé, `.dv2-chart-wrap` contraint en hauteur/largeur sur mobile.
+- **FAB speed-dial** : `.m-fab-options` borné à `calc(100vw - 32px)` pour empêcher les labels de fuir à gauche du viewport, labels contraints par `max-width` + ellipsis.
+
+### Version
+
+- `APP_VERSION` 29.8 → 29.9.
+
 ## [29.7] — 2026-04-18
 
 ### Nettoyage

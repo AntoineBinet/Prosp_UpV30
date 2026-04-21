@@ -251,6 +251,9 @@
     position: fixed;
     bottom: calc(156px + env(safe-area-inset-bottom, 0px));
     right: 16px;
+    /* Largeur bornée pour que le speed-dial ne s'étende pas sur toute la */
+    /* largeur de l'écran (labels qui fuient à gauche sur iPhone).       */
+    max-width: calc(100vw - 32px);
     display: flex;
     flex-direction: column;
     align-items: flex-end;
@@ -261,8 +264,11 @@
 
   .m-fab-option {
     display: flex;
+    flex-direction: row;
     align-items: center;
+    justify-content: flex-end;
     gap: 10px;
+    max-width: 100%;
     opacity: 0;
     transform: translateY(16px) scale(0.85);
     transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -293,6 +299,11 @@
     border-radius: 20px;
     white-space: nowrap;
     letter-spacing: 0.2px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+    flex: 0 1 auto;
+    max-width: calc(100vw - 90px);
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .m-fab-option-btn {
@@ -343,11 +354,74 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PROSPECT CARDS — Mobile card layout (replaces table)
+   PROSPECT CARDS — Mobile card layout (replaces desktop table)
+   Le JS (app.js) embarque déjà une carte .prospect-card-mobile
+   (classes .pmc-*) à l'intérieur du 1er <td> de chaque ligne. Il
+   suffit donc de masquer les autres colonnes et le <thead> pour
+   n'afficher que la carte.
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  /* Hide desktop table on prospects page */
-  body[data-page="prospects"] .table-wrapper { display: none !important; }
+  /* Retirer la décoration de table sur mobile */
+  body[data-page="prospects"] .table-wrapper {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    padding: 0;
+    overflow: visible;
+  }
+  body[data-page="prospects"] .table-wrapper table {
+    min-width: 0 !important; /* override style.css:4134 */
+    width: 100%;
+    display: block;
+    background: transparent;
+  }
+  body[data-page="prospects"] .table-wrapper thead { display: none !important; }
+  body[data-page="prospects"] .table-wrapper tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 12px;
+    background: transparent;
+  }
+  body[data-page="prospects"] .table-wrapper tbody tr.prospect-row {
+    display: block;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+  }
+  /* Masquer toutes les colonnes desktop sauf la 1ère (qui porte la carte) */
+  body[data-page="prospects"] .table-wrapper tbody tr.prospect-row > td {
+    display: none !important;
+  }
+  body[data-page="prospects"] .table-wrapper tbody tr.prospect-row > td.prospect-td-check {
+    display: block !important;
+    padding: 0;
+    border: none;
+    background: transparent;
+    width: 100%;
+  }
+  /* La checkbox "desktop" est remplacée par .pmc-check dans la carte */
+  body[data-page="prospects"] .table-wrapper .desktop-checkbox { display: none !important; }
+  /* Groupage par statut : en-tête de section */
+  body[data-page="prospects"] .table-wrapper tbody tr.pmc-group-header-row { display: block; }
+  body[data-page="prospects"] .table-wrapper tr.pmc-group-header-row > td.pmc-group-header-cell {
+    display: block !important;
+    padding: 10px 4px 4px;
+    border: none;
+    background: transparent;
+  }
+  /* Lignes état-vide / chargement (colspan=13) */
+  body[data-page="prospects"] .table-wrapper tbody tr:not(.prospect-row):not(.pmc-group-header-row) {
+    display: block;
+  }
+  body[data-page="prospects"] .table-wrapper tbody tr:not(.prospect-row):not(.pmc-group-header-row) > td {
+    display: block !important;
+    width: 100%;
+    padding: 20px 12px;
+    border: none;
+  }
 
   /* Card container */
   .m-cards {
@@ -1060,6 +1134,255 @@
     justify-content: center;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PROSPECT MOBILE CARD (.pmc-*) — rendu carte utilisé par app.js
+   Structure produite : .prospect-card-mobile > .pmc-swipe-wrap >
+     .pmc-actions-left, .pmc-actions-right, .pmc-content >
+       .pmc-accent, .pmc-check, .pmc-co-avatar, .pmc-body, .pmc-chevron
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .prospect-card-mobile {
+    display: block;
+    width: 100%;
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    animation: pmcFadeIn .3s ease both;
+    animation-delay: var(--enter-delay, 0ms);
+  }
+  @keyframes pmcFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .pmc-swipe-wrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    touch-action: pan-y;
+    isolation: isolate;
+  }
+
+  .pmc-actions-left,
+  .pmc-actions-right {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    z-index: 0;
+  }
+  .pmc-actions-left  { left: 0; }
+  .pmc-actions-right { right: 0; }
+  .pmc-no-contact { display: none; }
+
+  .pmc-action {
+    min-width: 72px;
+    border: none;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 0 14px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pmc-action-call    { background: #22C55E; }
+  .pmc-action-email   { background: #3B82F6; }
+  .pmc-action-log     { background: #10B981; }
+  .pmc-action-relance { background: #F59E0B; }
+  .pmc-action-icon { line-height: 1; display: inline-flex; }
+  .pmc-action-label { font-size: 11px; letter-spacing: 0.1px; }
+
+  .pmc-content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    z-index: 1;
+    will-change: transform;
+    transition: transform .12s ease, background .12s ease;
+  }
+  .pmc-content:active { background: rgba(255, 255, 255, 0.07); }
+
+  .pmc-accent {
+    width: 4px;
+    align-self: stretch;
+    border-radius: 2px;
+    flex-shrink: 0;
+    background: #475569;
+  }
+  .pmc-s-appele        .pmc-accent { background: #3B82F6; }
+  .pmc-s-rdv           .pmc-accent { background: #22C55E; }
+  .pmc-s-prospecte     .pmc-accent { background: #A855F7; }
+  .pmc-s-messagerie    .pmc-accent { background: #F59E0B; }
+  .pmc-s-rappeler      .pmc-accent { background: #F97316; }
+  .pmc-s-pas-interesse .pmc-accent { background: #EF4444; }
+  .pmc-s-pas-actions   .pmc-accent { background: #64748B; }
+  .pmc-s-autre         .pmc-accent { background: #94A3B8; }
+
+  .pmc-check { flex-shrink: 0; display: inline-flex; align-items: center; }
+  .pmc-check input[type="checkbox"] { width: 18px; height: 18px; }
+
+  .pmc-co-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .pmc-co-c0 { background: linear-gradient(135deg, #FF6B35, #FF8C42); }
+  .pmc-co-c1 { background: linear-gradient(135deg, #3B82F6, #60A5FA); }
+  .pmc-co-c2 { background: linear-gradient(135deg, #22C55E, #4ADE80); }
+  .pmc-co-c3 { background: linear-gradient(135deg, #A855F7, #C084FC); }
+  .pmc-co-c4 { background: linear-gradient(135deg, #F59E0B, #FBBF24); }
+  .pmc-co-c5 { background: linear-gradient(135deg, #EF4444, #F87171); }
+
+  .pmc-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .pmc-row1 { display: flex; align-items: center; gap: 8px; }
+  .pmc-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text, #F5F5F7);
+  }
+  .pmc-pill {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.08);
+    color: rgba(235, 235, 245, 0.8);
+  }
+  .pmc-s-appele        .pmc-pill { background: rgba(59,130,246,0.15);  color: #60A5FA; }
+  .pmc-s-rdv           .pmc-pill { background: rgba(34,197,94,0.15);   color: #4ADE80; }
+  .pmc-s-prospecte     .pmc-pill { background: rgba(168,85,247,0.15);  color: #C084FC; }
+  .pmc-s-messagerie    .pmc-pill { background: rgba(245,158,11,0.15);  color: #FBBF24; }
+  .pmc-s-rappeler      .pmc-pill { background: rgba(249,115,22,0.15);  color: #FB923C; }
+  .pmc-s-pas-interesse .pmc-pill { background: rgba(239,68,68,0.15);   color: #F87171; }
+  .pmc-s-pas-actions   .pmc-pill { background: rgba(100,116,139,0.15); color: #94A3B8; }
+
+  .pmc-row2,
+  .pmc-row3 {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--color-text-secondary, rgba(235, 235, 245, 0.6));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pmc-row2 .pmc-company,
+  .pmc-row2 .pmc-fonction {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .pmc-company { font-weight: 500; color: var(--color-text, #F5F5F7); }
+  .pmc-sep { opacity: 0.5; flex-shrink: 0; }
+
+  .pmc-relance {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 5px;
+    flex-shrink: 0;
+  }
+  .pmc-relance-overdue { background: rgba(239,68,68,0.15);  color: #F87171; }
+  .pmc-relance-today   { background: rgba(249,115,22,0.15); color: #FB923C; }
+  .pmc-relance-soon    { background: rgba(245,158,11,0.12); color: #FBBF24; }
+  .pmc-relance-ok      { color: var(--color-text-secondary, rgba(235, 235, 245, 0.45)); }
+
+  .pmc-pert-stars { font-size: 11px; color: #FBBF24; letter-spacing: 1px; flex-shrink: 0; }
+  .pmc-stars      { font-size: 11px; color: #FBBF24; letter-spacing: 1px; }
+  .pmc-tel        { font-size: 11px; color: var(--color-text-secondary); }
+  .pmc-rdv        { font-size: 11px; color: #4ADE80; font-weight: 600; flex-shrink: 0; }
+
+  .pmc-chevron {
+    flex-shrink: 0;
+    font-size: 18px;
+    line-height: 1;
+    color: rgba(235, 235, 245, 0.2);
+    padding-right: 2px;
+  }
+
+  /* En-tête de groupe (statut) */
+  .pmc-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pmc-group-dot {
+    width: 8px; height: 8px; border-radius: 4px;
+    background: var(--group-color, #64748b);
+    flex-shrink: 0;
+  }
+  .pmc-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--color-text-secondary, rgba(235, 235, 245, 0.7));
+  }
+  .pmc-group-count {
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    color: var(--color-text, rgba(235,235,245,0.8));
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Flash visuel sur mise à jour */
+  .pmc-flash-success .pmc-content {
+    background: rgba(34,197,94,0.20) !important;
+    transition: background .6s;
+  }
+}
+
+/* Light mode : ajuster les couleurs de fond & texte */
+@media (max-width: 900px) and (prefers-color-scheme: light) {
+  .pmc-content {
+    background: rgba(17, 24, 39, 0.04);
+    border-color: rgba(17, 24, 39, 0.08);
+  }
+  .pmc-content:active { background: rgba(17, 24, 39, 0.08); }
+  .pmc-chevron { color: rgba(17, 24, 39, 0.25); }
+}
+html[data-theme="light"] .pmc-content {
+  background: rgba(17, 24, 39, 0.04);
+  border-color: rgba(17, 24, 39, 0.08);
+}
+html[data-theme="light"] .pmc-chevron { color: rgba(17, 24, 39, 0.25); }
 
 /* ═══════════════════════════════════════════════════════════════
    PRINT — Hide mobile elements
