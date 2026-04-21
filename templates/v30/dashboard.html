@@ -69,18 +69,22 @@
   {# ─── Hero ─── #}
   <section class="v30-hero">
     <div>
-      <div class="v30-hero__eyebrow">Lundi 21 avril · Semaine 17</div>
-      <h1 class="v30-hero__title">Bonjour, Antoine.</h1>
-      <p class="v30-hero__subtitle">
-        Tu as <b>4 relances</b> en retard et <b>3 RDV</b> aujourd'hui.
+      <div class="v30-hero__eyebrow" data-v30-dash="hero-date">—</div>
+      <h1 class="v30-hero__title">
+        Bonjour, <span data-v30-dash="hero-name">{{ display_name or 'Antoine' }}</span>.
+      </h1>
+      <p class="v30-hero__subtitle" data-v30-dash="hero-subtitle">
+        <span class="skel" style="display:inline-block;width:240px;height:13px;"></span>
       </p>
     </div>
-    <div class="v30-hero__kpis">
-      {% for k in hero_kpis %}
-      <div class="v30-hero-kpi">
+    <div class="v30-hero__kpis" data-v30-dash="hero-kpis">
+      {% for k in [{'key':'rdv','label':'RDV sem.'},{'key':'push','label':'Push'},{'key':'contacts','label':'Contacts'}] %}
+      <div class="v30-hero-kpi" data-kpi="{{ k.key }}">
         <div class="v30-hero-kpi__label">{{ k.label }}</div>
-        <div class="v30-hero-kpi__value num">{{ k.value }}</div>
-        <div class="v30-hero-kpi__delta{% if k.neg %} is-neg{% endif %}">{{ k.delta }} vs sem-1</div>
+        <div class="v30-hero-kpi__value num" data-field="value">
+          <span class="skel" style="display:inline-block;width:56px;height:36px;"></span>
+        </div>
+        <div class="v30-hero-kpi__delta" data-field="delta">&nbsp;</div>
       </div>
       {% endfor %}
       <div class="card v30-streak">
@@ -88,7 +92,7 @@
           <div class="v30-streak__icon">{{ ui.icon('flame', 16) }}</div>
           <div>
             <div class="v30-streak__label">Série active</div>
-            <div class="v30-streak__value">7 jours · <span class="v30-streak__xp">+240 XP</span></div>
+            <div class="v30-streak__value" data-v30-dash="streak">7 jours · <span class="v30-streak__xp">+240 XP</span></div>
           </div>
         </div>
       </div>
@@ -98,90 +102,77 @@
   {# ─── Bento row 1 : Action center · Pipeline · Goals ─── #}
   <div class="v30-bento-1">
 
-    {# Action center #}
+    {# Action center — branché sur /api/tasks + /api/dashboard #}
     <div class="card card-flush">
       <div class="tabs" style="padding: 0 16px;" role="tablist" data-v30-ac>
         <button type="button" class="active" data-tab="todo" role="tab" aria-selected="true">
-          À faire <span class="tab-count">12</span>
+          À faire <span class="tab-count" data-field="count">—</span>
         </button>
         <button type="button" data-tab="rdv" role="tab" aria-selected="false">
-          RDV aujourd'hui <span class="tab-count">3</span>
+          RDV aujourd'hui <span class="tab-count" data-field="count">—</span>
         </button>
         <button type="button" data-tab="late" role="tab" aria-selected="false">
-          En retard <span class="tab-count">4</span>
+          En retard <span class="tab-count" data-field="count">—</span>
         </button>
       </div>
-      {% for panel in [{'key': 'todo', 'items': ac_todo}, {'key': 'rdv', 'items': ac_rdv}, {'key': 'late', 'items': ac_late}] %}
-      <div data-panel="{{ panel.key }}"{% if not loop.first %} hidden{% endif %}>
-        {% for it in panel['items'] %}
+      {% for key in ['todo','rdv','late'] %}
+      <div data-panel="{{ key }}"{% if not loop.first %} hidden{% endif %} data-v30-ac-panel>
         <div class="v30-ac__row">
-          <span class="avatar">{% for w in it.name.split(' ') %}{{ w[0] }}{% endfor %}</span>
+          <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
           <div style="min-width: 0;">
-            <div class="v30-ac__name truncate">{{ it.name }}</div>
-            <div class="v30-ac__sub truncate">{{ it.co }} · {{ it.time }}</div>
+            <div class="skel" style="width:60%;height:13px;margin-bottom:4px;"></div>
+            <div class="skel" style="width:40%;height:11px;"></div>
           </div>
-          <span class="status {{ it.pill }}">{{ it.label }}</span>
-          <button type="button" class="btn btn-ghost btn-sm btn-icon" aria-label="Ouvrir">
-            {{ ui.icon('arrowR') }}
-          </button>
+          <span class="skel" style="width:56px;height:18px;border-radius:999px;"></span>
+          <span></span>
         </div>
-        {% endfor %}
       </div>
       {% endfor %}
     </div>
 
-    {# Pipeline #}
-    <div class="card">
+    {# Pipeline — branché sur /api/dashboard/pipeline-stages #}
+    <div class="card" data-v30-pipeline>
       <div class="row-sb" style="margin-bottom: 14px;">
         <div class="card-title">Pipeline</div>
-        <span class="muted" style="font-size: 12px;">685 prospects actifs</span>
+        <span class="muted" style="font-size: 12px;" data-field="total">—</span>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        {% for s in pipeline %}
-        {% set pct = ((s.n * 100) / pipe_max) | round(0, 'floor') | int %}
+      <div data-field="rows" style="display: flex; flex-direction: column; gap: 8px;">
+        {% for _ in range(5) %}
         <div class="v30-pipeline__row">
-          <span class="v30-pipeline__stage">{{ s.name }}</span>
-          <div class="v30-pipeline__bar">
-            <div class="v30-pipeline__fill" style="width: {{ pct }}%; background: {{ s.bg }};"></div>
-            <span class="v30-pipeline__num num" style="color: {{ s.fg }};">{{ s.n }}</span>
-          </div>
-          <span class="v30-pipeline__pct mono num">{{ pct }}%</span>
+          <span class="skel" style="height:12px;"></span>
+          <div class="skel" style="height:22px;border-radius:4px;"></div>
+          <span class="skel" style="height:12px;width:40px;"></span>
         </div>
         {% endfor %}
       </div>
     </div>
 
-    {# Goals #}
-    <div class="card v30-goals">
+    {# Goals — branché sur /api/dashboard → goals.daily #}
+    <div class="card v30-goals" data-v30-goals>
       <div class="row-sb" style="margin-bottom: 8px;">
-        <div class="card-title">Objectifs</div>
-        <button type="button" class="btn btn-ghost btn-sm btn-icon" aria-label="Paramètres objectifs">
+        <div class="card-title">Objectifs du jour</div>
+        <a href="/parametres" class="btn btn-ghost btn-sm btn-icon" title="Paramètres objectifs" aria-label="Paramètres objectifs">
           {{ ui.icon('cog', 13) }}
-        </button>
+        </a>
       </div>
       <div class="v30-goals__ring">
-        <svg width="120" height="120" viewBox="0 0 120 120" aria-label="Progression {{ goal_pct }} %">
-          <circle cx="60" cy="60" r="{{ ring_r }}" fill="none" stroke="var(--surface-2)" stroke-width="10"/>
-          <circle cx="60" cy="60" r="{{ ring_r }}" fill="none" stroke="var(--accent)" stroke-width="10"
+        <svg width="120" height="120" viewBox="0 0 120 120" aria-label="Progression" data-field="ring">
+          <circle cx="60" cy="60" r="44" fill="none" stroke="var(--surface-2)" stroke-width="10"/>
+          <circle data-field="ring-arc" cx="60" cy="60" r="44" fill="none" stroke="var(--accent)" stroke-width="10"
                   stroke-linecap="round"
-                  stroke-dasharray="{{ ring_c }}" stroke-dashoffset="{{ ring_offset }}"
+                  stroke-dasharray="276.46" stroke-dashoffset="276.46"
                   transform="rotate(-90 60 60)"/>
-          <text x="60" y="64" text-anchor="middle" font-family="var(--font-serif)" font-size="30" fill="var(--text)">
-            {{ goal_pct }}%
-          </text>
+          <text data-field="ring-pct" x="60" y="64" text-anchor="middle" font-family="var(--font-serif)" font-size="30" fill="var(--text)">—</text>
         </svg>
       </div>
-      <div class="v30-goals__list">
-        {% for g in goals %}
-        {% set gpct = ((g.val * 100) / g['max']) | round(0, 'floor') | int %}
+      <div class="v30-goals__list" data-field="list">
+        {% for _ in range(3) %}
         <div class="v30-goal__row">
           <div class="v30-goal__head">
-            <span>{{ g.label }}</span>
-            <span class="mono num"><b>{{ g.val }}</b>/{{ g['max'] }}</span>
+            <span><span class="skel" style="width:60px;height:12px;display:inline-block;"></span></span>
+            <span><span class="skel" style="width:40px;height:12px;display:inline-block;"></span></span>
           </div>
-          <div class="v30-goal__track">
-            <div class="v30-goal__fill" style="width: {{ gpct }}%;"></div>
-          </div>
+          <div class="v30-goal__track"><div class="v30-goal__fill" style="width: 0%;"></div></div>
         </div>
         {% endfor %}
       </div>
@@ -192,52 +183,43 @@
   {# ─── Bento row 2 : Priorités IA · Activité récente ─── #}
   <div class="v30-bento-2">
 
-    {# Priorités IA #}
-    <div class="card card-flush">
+    {# Priorités IA — branché sur /api/dashboard/pipeline-stages → priority_prospects #}
+    <div class="card card-flush" data-v30-priorities>
       <div class="card-header">
         <div class="card-title">{{ ui.icon('sparkles') }} Priorités IA</div>
-        <button type="button" class="btn btn-ghost btn-sm">
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-refresh>
           {{ ui.icon('clock', 13) }} Rafraîchir
         </button>
       </div>
-      <div>
-        {% for it in priorities %}
-        {% set pill = 'badge-danger' if it.urg == 'haut' else 'badge-warn' if it.urg == 'moyen' else 'badge-info' %}
+      <div data-field="rows">
+        {% for _ in range(5) %}
         <div class="v30-prio__row">
-          <span class="avatar">{% for w in it.name.split(' ') %}{{ w[0] }}{% endfor %}</span>
+          <span class="skel" style="width:28px;height:28px;border-radius:50%;"></span>
           <div>
-            <div class="v30-prio__name">
-              {{ it.name }} <span class="v30-prio__co">· {{ it.co }}</span>
-            </div>
-            <div class="v30-prio__reason">{{ it.reason }}</div>
+            <div class="skel" style="width:55%;height:13px;margin-bottom:4px;"></div>
+            <div class="skel" style="width:85%;height:12px;"></div>
           </div>
           <div class="v30-prio__tail">
-            <span class="badge {{ pill }}">{{ it.urg }}</span>
-            <button type="button" class="btn btn-sm">Ouvrir</button>
+            <span class="skel" style="width:40px;height:16px;"></span>
+            <span class="skel" style="width:60px;height:22px;"></span>
           </div>
         </div>
         {% endfor %}
       </div>
     </div>
 
-    {# Activité récente #}
-    <div class="card card-flush">
+    {# Activité récente — branché sur /api/dashboard → feed (push + rdv + notes) #}
+    <div class="card card-flush" data-v30-activity>
       <div class="card-header">
         <div class="card-title">Activité récente</div>
-        <button type="button" class="btn btn-ghost btn-sm">Tout voir</button>
+        <a href="/activity" class="btn btn-ghost btn-sm">Tout voir</a>
       </div>
-      <div class="v30-timeline">
-        {% for e in activity %}
-        {% set dot_color = {
-          'push':   'var(--accent)',
-          'rdv':    'oklch(0.50 0.15 280)',
-          'note':   'var(--text-3)',
-          'status': 'var(--success)'
-        }.get(e.tag, 'var(--text-3)') %}
+      <div class="v30-timeline" data-field="rows">
+        {% for _ in range(6) %}
         <div class="v30-timeline__row">
-          <span class="v30-timeline__time mono">{{ e.t }}</span>
-          <span class="v30-timeline__dot" style="background: {{ dot_color }};"></span>
-          <div class="v30-timeline__text">{{ e.text }}</div>
+          <span class="skel" style="width:34px;height:11px;"></span>
+          <span class="skel" style="width:10px;height:10px;border-radius:50%;margin-top:4px;"></span>
+          <div class="skel" style="width:80%;height:13px;"></div>
         </div>
         {% endfor %}
       </div>
