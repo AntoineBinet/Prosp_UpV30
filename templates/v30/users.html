@@ -1,0 +1,76 @@
+{% extends "v30/base.html" %}
+{% block title %}Utilisateurs — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-users{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/users.css?v={{ static_hash('css/v30/users.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-users" data-v30-users>
+  <div class="v30-users__topbar">
+    <div>
+      <div class="v30-users__eyebrow">Administration</div>
+      <h1 class="v30-users__title">
+        <span class="serif">Utilisateurs.</span>
+      </h1>
+      <div class="v30-users__sub" data-field="sub">Gérer les comptes, rôles et mots de passe.</div>
+    </div>
+    <div class="v30-spacer"></div>
+    <button type="button" class="btn btn-accent" data-v30-users-new>
+      {{ ui.icon('plus', 13) }} Nouvel utilisateur
+    </button>
+  </div>
+
+  <div class="v30-users__grid" data-v30-users-grid>
+    <div class="empty" style="padding:24px;">Chargement…</div>
+  </div>
+</div>
+
+{# Modale création / édition #}
+<div class="v30-users__modal-bd" data-v30-user-bd hidden></div>
+<div class="v30-users__modal" data-v30-user-modal role="dialog" aria-modal="true"
+     aria-label="Gestion utilisateur" hidden>
+  <header class="v30-users__modal-head">
+    <h2 data-v30-user-title>Nouvel utilisateur</h2>
+    <button type="button" class="btn btn-ghost btn-icon" data-v30-user-close aria-label="Fermer">
+      {{ ui.icon('x') }}
+    </button>
+  </header>
+  <div class="v30-users__modal-body">
+    <label class="v30-field">
+      <span class="v30-field__label">Nom d'utilisateur</span>
+      <input type="text" class="v30-input" data-v30-user-username autocomplete="off">
+    </label>
+    <label class="v30-field">
+      <span class="v30-field__label">Nom d'affichage</span>
+      <input type="text" class="v30-input" data-v30-user-display autocomplete="off">
+    </label>
+    <label class="v30-field">
+      <span class="v30-field__label">Rôle</span>
+      <select class="v30-input" data-v30-user-role>
+        <option value="editor">Éditeur</option>
+        <option value="admin">Administrateur</option>
+      </select>
+    </label>
+    <label class="v30-field">
+      <span class="v30-field__label">Mot de passe <span class="muted" style="font-size:11px;">(laisser vide pour ne pas changer)</span></span>
+      <input type="password" class="v30-input" data-v30-user-password autocomplete="new-password">
+    </label>
+    <label class="v30-field" style="flex-direction:row;align-items:center;gap:8px;">
+      <input type="checkbox" data-v30-user-active checked>
+      <span class="v30-field__label" style="margin:0;">Compte actif</span>
+    </label>
+  </div>
+  <footer class="v30-users__modal-foot">
+    <button type="button" class="btn btn-ghost" data-v30-user-close>Annuler</button>
+    <div class="v30-spacer"></div>
+    <button type="button" class="btn" data-v30-user-delete hidden>Supprimer</button>
+    <button type="button" class="btn btn-accent" data-v30-user-save>Enregistrer</button>
+  </footer>
+</div>
+
+<script defer src="/static/js/v30/users.js?v={{ static_hash('js/v30/users.js') }}"></script>
+{% endblock %}

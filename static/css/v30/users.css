@@ -1,0 +1,94 @@
+/* ProspUp v30 — Utilisateurs (admin) */
+
+.v30-users { display: flex; flex-direction: column; gap: 16px; }
+
+.v30-users__topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 0 10px; border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.v30-users__eyebrow {
+  font-size: 10.5px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.v30-users__title {
+  margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
+  letter-spacing: -.01em;
+}
+.v30-users__title .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; }
+.v30-users__sub { font-size: 12.5px; color: var(--text-2); }
+
+.v30-users__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.v30-users__card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform .12s;
+}
+.v30-users__card:hover { transform: translateY(-1px); }
+.v30-users__card-head { display: flex; align-items: center; gap: 10px; }
+.v30-users__card-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--surface-2); color: var(--text);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 14px;
+  border: 1px solid var(--border);
+}
+.v30-users__card-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.v30-users__card-user { font-size: 11.5px; color: var(--text-3); }
+.v30-users__card-role {
+  font-size: 10.5px; padding: 2px 8px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.v30-users__card-role.is-admin {
+  background: color-mix(in oklch, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 25%, transparent);
+}
+.v30-users__card-meta { font-size: 11.5px; color: var(--text-3); }
+.v30-users__card-inactive { opacity: .55; }
+
+/* Modale */
+.v30-users__modal-bd {
+  position: fixed; inset: 0;
+  background: color-mix(in oklch, black 55%, transparent);
+  backdrop-filter: blur(3px);
+  z-index: 110;
+}
+.v30-users__modal-bd[hidden], .v30-users__modal[hidden] { display: none !important; }
+.v30-users__modal {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(480px, 94vw); max-height: 92vh; overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px -20px rgba(0,0,0,.45);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+}
+.v30-users__modal-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+}
+.v30-users__modal-head h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
+.v30-users__modal-body {
+  padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.v30-users__modal-foot {
+  padding: 12px 18px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
