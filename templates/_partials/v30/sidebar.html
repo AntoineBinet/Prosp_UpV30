@@ -25,6 +25,17 @@
   { 'id': 'entreprises', 'icon': 'building', 'label': 'Entreprises', 'href': '/v30/entreprises' },
   { 'id': 'candidats',   'icon': 'user',     'label': 'Candidats',   'href': '/v30/sourcing' }
 ] %}
+{% set tool_items = [
+  { 'id': 'collab',      'icon': 'link',     'label': 'Collaboration', 'href': '/v30/collab' },
+  { 'id': 'duplicates',  'icon': 'kanban',   'label': 'Doublons',      'href': '/v30/duplicates' },
+  { 'id': 'dc',          'icon': 'report',   'label': 'DC Generator',  'href': '/v30/dc' }
+] %}
+{% set admin_items = [
+  { 'id': 'users',       'icon': 'user',     'label': 'Utilisateurs',  'href': '/v30/users' },
+  { 'id': 'snapshots',   'icon': 'inbox',    'label': 'Snapshots',     'href': '/v30/snapshots' },
+  { 'id': 'activity',    'icon': 'clock',    'label': 'Journal',       'href': '/v30/activity' },
+  { 'id': 'metiers',     'icon': 'tag',      'label': 'Métiers IA',    'href': '/v30/metiers' }
+] %}
 
 <aside class="v30-sidebar" aria-label="Navigation principale">
 
@@ -63,6 +74,36 @@
       </a>
     {% endfor %}
   </div>
+
+  <div class="v30-sidebar__section">
+    <div class="v30-sidebar__title">Outils</div>
+    {% for it in tool_items %}
+      {% set is_active = (active == it.id) %}
+      <a class="v30-sb-item{% if is_active %} is-active{% endif %}"
+         href="{{ it.href }}"
+         {% if is_active %}aria-current="page"{% endif %}>
+        {% if is_active %}<span class="v30-sb-item__rail" aria-hidden="true"></span>{% endif %}
+        {{ ui.icon(it.icon) }}
+        <span class="v30-sb-item__label">{{ it.label }}</span>
+      </a>
+    {% endfor %}
+  </div>
+
+  {% if current_user and current_user.role == 'admin' %}
+  <div class="v30-sidebar__section">
+    <div class="v30-sidebar__title">Admin</div>
+    {% for it in admin_items %}
+      {% set is_active = (active == it.id) %}
+      <a class="v30-sb-item{% if is_active %} is-active{% endif %}"
+         href="{{ it.href }}"
+         {% if is_active %}aria-current="page"{% endif %}>
+        {% if is_active %}<span class="v30-sb-item__rail" aria-hidden="true"></span>{% endif %}
+        {{ ui.icon(it.icon) }}
+        <span class="v30-sb-item__label">{{ it.label }}</span>
+      </a>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   {% if pinned %}
   <div class="v30-sidebar__section">
