@@ -86,12 +86,19 @@
 
   function loadTemplates() {
     return fetchJSON('/api/templates').then(function (res) {
-      STATE.templates = (res && (res.templates || res.items || res.data || [])) || [];
-      if (!Array.isArray(STATE.templates) && typeof STATE.templates === 'object') {
-        // Certains endpoints retournent un dict
-        STATE.templates = Object.keys(STATE.templates).map(function (k) {
-          var v = STATE.templates[k]; v.name = v.name || k; return v;
-        });
+      // /api/templates renvoie un array direct. Fallback defensif sur
+      // res.templates / res.items / res.data au cas ou, puis dict.
+      if (Array.isArray(res)) {
+        STATE.templates = res;
+      } else if (res && typeof res === 'object') {
+        STATE.templates = res.templates || res.items || res.data || [];
+        if (!Array.isArray(STATE.templates) && typeof STATE.templates === 'object') {
+          STATE.templates = Object.keys(STATE.templates).map(function (k) {
+            var v = STATE.templates[k]; v.name = v.name || k; return v;
+          });
+        }
+      } else {
+        STATE.templates = [];
       }
       renderTemplates();
     }).catch(function (err) {
