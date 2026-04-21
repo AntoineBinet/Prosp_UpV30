@@ -1,0 +1,85 @@
+{% extends "v30/base.html" %}
+{% block title %}Candidats — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-sourcing{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/sourcing.css?v={{ static_hash('css/v30/sourcing.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div data-v30-sourcing>
+
+  {# ─── Topbar ─── #}
+  <div class="v30-sc-topbar">
+    <h1>Candidats</h1>
+    <span class="v30-sc-topbar__count" data-field="count">—</span>
+    <div class="v30-spacer"></div>
+    <div class="segmented" role="tablist" data-v30-sc-view>
+      <button type="button" class="active" data-view="pipeline" role="tab" aria-selected="true">
+        {{ ui.icon('kanban', 13) }} Pipeline
+      </button>
+      <button type="button" data-view="grid" role="tab" aria-selected="false">
+        {{ ui.icon('table', 13) }} Grille
+      </button>
+    </div>
+    <button type="button" class="btn btn-sm" data-v30-add>
+      {{ ui.icon('plus', 13) }} Ajouter
+    </button>
+  </div>
+
+  {# ─── Match banner (placeholder informatif) ─── #}
+  <div class="v30-sc-match" data-v30-sc-match hidden>
+    {{ ui.icon('sparkles') }}
+    <span>
+      Matching actif pour <b data-field="match-name">—</b> — <span data-field="match-count">0</span> candidats correspondent
+    </span>
+    <div class="v30-spacer"></div>
+    <button type="button" class="btn btn-sm" data-v30-sc-match-filters>Voir filtres</button>
+    <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-sc-match-close aria-label="Fermer">
+      {{ ui.icon('x', 12) }}
+    </button>
+  </div>
+
+  {# ─── Vue Pipeline (kanban 5 cols) ─── #}
+  <div data-v30-sc-panel="pipeline">
+    <div class="v30-sc-kanban" data-v30-sc-kanban>
+      {% for _ in range(5) %}
+      <div class="v30-sc-col">
+        <div class="v30-sc-col__head">
+          <span class="skel v30-sc-col__dot"></span>
+          <span class="skel" style="width:80px;height:12px;display:inline-block;"></span>
+        </div>
+        {% for _ in range(3) %}
+        <div class="v30-sc-card">
+          <div class="v30-sc-card__head">
+            <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
+            <div style="flex:1;min-width:0;">
+              <div class="skel" style="width:80%;height:12px;margin-bottom:4px;"></div>
+              <div class="skel" style="width:60%;height:11px;"></div>
+            </div>
+            <span class="skel" style="width:32px;height:14px;border-radius:6px;"></span>
+          </div>
+          <div class="v30-sc-card__skills">
+            <span class="skel" style="width:40px;height:16px;"></span>
+            <span class="skel" style="width:50px;height:16px;"></span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ─── Vue Grille ─── #}
+  <div data-v30-sc-panel="grid" hidden>
+    <div class="v30-sc-grid" data-v30-sc-grid>
+      <div class="empty" style="grid-column:1/-1;padding:20px;">Chargement…</div>
+    </div>
+  </div>
+
+</div>
+
+<script defer src="/static/js/v30/sourcing.js?v={{ static_hash('js/v30/sourcing.js') }}"></script>
+{% endblock %}
