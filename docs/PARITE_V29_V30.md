@@ -16,9 +16,25 @@ Les 5 bugs bloquants P0 ont été corrigés. `/v30/prospects`, `/v30/push` (ongl
 | P0 #4 calendrier vide | [327178f](https://github.com/AntoineBinet/Prosp_UpV25/commit/327178f) | ✅ 45 events RDV/relance/EC1 |
 | P0 #5 rapport KPI vides | [4d9efd2](https://github.com/AntoineBinet/Prosp_UpV25/commit/4d9efd2) | ✅ KPI 7/20/8/1 + pipeline 9 statuts |
 
-**Parité après Sprint 1 : ~72 %** (base mesurée 58 %).
+## 🟢 Sprint 2 — Résolu (2026-04-21)
 
-Le rapport détaillé ci-dessous reflète l'état **avant** Sprint 1 — les bugs P0 y sont référencés pour historique.
+7 manques fonctionnels P1 rattrapés.
+
+| Feature | Commit | Statut |
+|---|---|---|
+| P1 sidebar élargie (Outils + Admin role-aware) | [35503ab](https://github.com/AntoineBinet/Prosp_UpV25/commit/35503ab) | ✅ 13 liens nav (vs 9 avant) |
+| P1 Prospects 4 KPI cards | [e182585](https://github.com/AntoineBinet/Prosp_UpV25/commit/e182585) | ✅ Total/Appelables/RDV/Prospectés |
+| P1 Prospects colonnes Email/Push/Voir | [9f2bcc2](https://github.com/AntoineBinet/Prosp_UpV25/commit/9f2bcc2) | ✅ table 12 cols (vs 10) |
+| P1 Candidat bloc Informations | [1907aef](https://github.com/AntoineBinet/Prosp_UpV25/commit/1907aef) | ✅ 10 champs (Statut/Rôle/Tech/Email/LI/…) |
+| P1 Activity colonnes Entité + Détails | [e94e598](https://github.com/AntoineBinet/Prosp_UpV25/commit/e94e598) | ✅ 5 cols (vs 4) |
+| P1 Stats 8 KPI + Entreprises chaudes | [3067989](https://github.com/AntoineBinet/Prosp_UpV25/commit/3067989) | ✅ 8 KPI + table score/RDV/retard |
+| P1 Dashboard boutons +KPI/Export | [7054ff0](https://github.com/AntoineBinet/Prosp_UpV25/commit/7054ff0) | ✅ redirect /dashboard#kpi-manual |
+
+**Parité après Sprint 2 : ~90 %** (base 58 %, Sprint 1 72 %).
+
+Reste au Sprint 3 (polish) : menu avatar, bannière relances, Entreprises vue Cartes, Rapport picker semaine, Focus bloc Tâches, Paramètres natifs.
+
+Le rapport détaillé ci-dessous reflète l'état **avant** Sprint 1 — les bugs P0/P1 y sont référencés pour historique.
 
 ## Convention
 
