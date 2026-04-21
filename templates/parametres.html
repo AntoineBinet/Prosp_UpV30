@@ -17,6 +17,33 @@
   <div class="content-title">Paramètres & export</div>
 </div>
 
+<div class="settings-section" id="v30-switch" style="border:1px solid #818cf8;background:linear-gradient(135deg, rgba(129,140,248,0.08), rgba(99,102,241,0.04));">
+  <h3 style="display:flex;align-items:center;gap:8px;">
+    <i data-icon="sparkles" data-size="14" aria-hidden="true"></i>
+    Nouvelle interface v30
+    <span style="display:inline-block;background:#818cf8;color:#fff;font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;letter-spacing:0.04em;text-transform:uppercase;">Bêta</span>
+  </h3>
+  <p class="muted" style="margin:6px 0 12px;font-size:13px;line-height:1.5;">
+    Refonte complète de l'interface : design dense &amp; respirant (Linear/Attio-like), palette de commandes ⌘K,
+    raccourcis clavier, dark/light parité, 11 écrans redessinés. Tu peux revenir à l'ancienne version à tout moment
+    via le bouton <b>v29</b> dans la sidebar v30.
+  </p>
+  <div class="settings-group">
+    <button class="btn btn-primary" onclick="switchToV30()" style="background:#818cf8;border-color:#818cf8;">
+      <i data-icon="sparkles" data-size="14" aria-hidden="true"></i> Essayer la v30
+    </button>
+    <a class="btn btn-secondary btn-link-inline" href="/v30/dashboard" onclick="try{localStorage.setItem('prospup_ui_mode','v30');}catch(e){}">
+      Ouvrir directement le Dashboard v30
+    </a>
+  </div>
+  <script>
+    function switchToV30(){
+      try{ localStorage.setItem('prospup_ui_mode','v30'); }catch(e){}
+      window.location.href='/v30/dashboard';
+    }
+  </script>
+</div>
+
 <div class="settings-section">
   <h3><i data-icon="archive" data-size="14" aria-hidden="true"></i> Gestion des données</h3>
   <div class="settings-group">
