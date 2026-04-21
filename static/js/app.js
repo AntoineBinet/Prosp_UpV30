@@ -5069,7 +5069,7 @@ async function viewDetail(id) {
     if (!prospect) return;
 
     const company = data.companies.find(c => c.id === prospect.company_id);
-    const pert = parseInt(prospect.pertinence, 10) || 3;
+    const pert = Math.min(5, Math.max(0, parseInt(prospect.pertinence, 10) || 3));
     const stars = '★'.repeat(pert) + '☆'.repeat(5 - pert);
 
     // Status color map
