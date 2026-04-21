@@ -33,6 +33,11 @@
 - [x] **Fiche candidat** (`prospect-detail.jsx` candidate variant → `templates/v30/candidate_detail.html`) — route `/v30/candidat/<cid>`. Header éditable inline + Compétences (barres 1-5) + Dispo 8 semaines (dérivée du status) + Missions (via `/api/candidates/<id>/experiences`) + Notes éditables. Niveaux réels / vraie dispo / matching par campagne = migrations DB futures.
 - [~] **Stats + Rapport** (`screens/stats.jsx` → `templates/v30/stats.html`) — route `/v30/stats`. Topbar + period filter + 4 KPI + Top entreprises hydratés. Les 8 charts Chart.js et l'éditeur Rapport WYSIWYG restent sur `/stats` et `/rapport` legacy en attendant migration complète.
 
+## Écrans secondaires v30
+
+- [x] **Focus** → `/v30/focus` (3 colonnes overdue / today / upcoming, hero éditorial)
+- [x] **Calendrier** → `/v30/calendrier` (grille mois, nav < > Today, events RDV/relance/EC1)
+
 ## Étape 4 · Command Palette ⌘K
 
 - [x] Composant `static/js/v30/palette.js` (`window.ProspPalette.open()`)

@@ -6,6 +6,20 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
 ### UI v30 — étape 3 (Dashboard branché + Prospects + Fiche prospect + Entreprises)
 
+- **Focus v30** — preview sur `/v30/focus` :
+  - Hero éditorial Instrument Serif 40 px (« Focus du jour. ») + date en français + sous-titre dynamique (nb relances en retard, nb RDV aujourd'hui).
+  - 3 colonnes : « En retard » (`overdue_list`), « Aujourd'hui » (`feed.rdv`), « À venir » (`upcoming_rdv`).
+  - Réutilise le style `.v30-ac__row` du Dashboard pour la cohérence visuelle.
+  - Clic ligne → `/v30/prospect/<id>`.
+
+- **Calendrier v30** — preview sur `/v30/calendrier` :
+  - Grille mois 7×6 (lundi-dimanche) avec navigation `<` / `>` / `Aujourd'hui`.
+  - Cellule du jour en pastille accent, cellules hors mois courant grisées.
+  - Events hydratés via `GET /api/calendar_events` (prospects.rdvDate / nextFollowUp + candidate EC1).
+  - 3 types visuels avec barre colorée à gauche : RDV (violet) · Relance (warn) · EC1 (success).
+  - Limite 3 events par cellule avec overflow « +N autres ».
+  - Sidebar v30 : `Focus` et `Calendrier` pointent maintenant vers `/v30/focus` et `/v30/calendrier`. Palette ⌘K + raccourci `G+F` alignés.
+
 - **Opt-in/out v29 ↔ v30** (client-only, SPEC §5.3) :
   - Sidebar v30 : nouveau bouton `v29` dans le footer qui bascule vers la page legacy équivalente avec mapping intelligent (`/v30/prospects` → `/`, `/v30/prospect/42` → `/?prospect=42`, etc.).
   - base.html legacy : charge `static/js/v30/opt-in.js` qui affiche une bannière flottante discrète « Nouvelle interface v30 disponible → Essayer » (auto-hide 15 s, dismissible, persisté en localStorage).
