@@ -12451,6 +12451,93 @@ def api_views_delete():
     return jsonify({"ok": True})
 
 
+# ════════════════════════════════════════════════════════════
+# v30 — Rapport : export PDF
+# ════════════════════════════════════════════════════════════
+
+@app.post("/api/rapport/export-pdf")
+@login_required
+def api_rapport_export_pdf():
+    """Convertit le markdown du rapport v30 en PDF via ReportLab.
+
+    Payload : { week, html, markdown }
+    Retourne : application/pdf (attachment).
+    """
+    err = _require_same_origin()
+    if err:
+        return err
+    payload = request.get_json(force=True, silent=True) or {}
+    week = (payload.get("week") or "").strip() or datetime.date.today().isoformat()
+    markdown_src = payload.get("markdown") or ""
+    if not markdown_src.strip():
+        return jsonify(ok=False, error="markdown is required"), 400
+
+    from io import BytesIO
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        rightMargin=1.8 * cm, leftMargin=1.8 * cm,
+        topMargin=1.6 * cm, bottomMargin=1.6 * cm,
+    )
+    styles = getSampleStyleSheet()
+
+    def S(name, parent="Normal", **kw):
+        return ParagraphStyle(name, parent=styles[parent], **kw)
+
+    NAVY = colors.HexColor("#1A1A2E")
+    ACCENT = colors.HexColor("#6366F1")
+    MUTED = colors.HexColor("#6B7280")
+    sTitle = S("RapTitle", fontName="Helvetica-Bold", fontSize=18,
+               textColor=NAVY, spaceAfter=6, leading=22)
+    sSub = S("RapSub", fontName="Helvetica-Oblique", fontSize=10,
+             textColor=MUTED, spaceAfter=16, leading=14)
+    sH2 = S("RapH2", fontName="Helvetica-Bold", fontSize=13,
+            textColor=NAVY, spaceBefore=12, spaceAfter=4, leading=16)
+    sBody = S("RapBody", fontName="Helvetica", fontSize=10.5,
+              textColor=colors.black, spaceAfter=4, leading=14, alignment=4)
+    sBullet = S("RapBullet", fontName="Helvetica", fontSize=10,
+                textColor=colors.black, spaceAfter=2, leading=13, leftIndent=12)
+
+    story = []
+    # Parse markdown simple : #/##/### en titres, - en bullets, blanc en paragraphe
+    lines = markdown_src.splitlines()
+    for raw in lines:
+        line = raw.rstrip()
+        if not line.strip():
+            story.append(Spacer(1, 6))
+            continue
+        if line.startswith("# "):
+            txt = line[2:].strip()
+            story.append(Paragraph(txt, sTitle))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=ACCENT, spaceAfter=8))
+        elif line.startswith("## "):
+            story.append(Paragraph(line[3:].strip(), sH2))
+        elif line.startswith("### "):
+            story.append(Paragraph(line[4:].strip(), sH2))
+        elif line.strip().startswith("- ") or line.strip().startswith("* "):
+            story.append(Paragraph("• " + line.strip()[2:], sBullet))
+        elif line.startswith("*") and line.endswith("*") and len(line) > 2:
+            story.append(Paragraph(line.strip("*"), sSub))
+        else:
+            safe = line.replace("<", "&lt;").replace(">", "&gt;")
+            story.append(Paragraph(safe, sBody))
+
+    try:
+        doc.build(story)
+    except Exception as e:
+        logger.exception("export-pdf build failed: %s", e)
+        return jsonify(ok=False, error=str(e)), 500
+
+    buffer.seek(0)
+    from flask import send_file
+    return send_file(
+        buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"rapport-{week}.pdf",
+    )
+
+
 # v30 — REST delete (miroir de /api/views/delete POST body)
 @app.delete("/api/views/<int:vid>")
 def api_views_delete_rest(vid: int):
