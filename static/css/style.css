@@ -10541,13 +10541,18 @@ a.tel-link:hover { text-decoration: underline; }
     body[data-page="push"] .table-wrapper td::before,
     body[data-page="stats"] .table-wrapper td::before {
         content: attr(data-label);
-        flex: 0 0 42%;
+        flex: 0 0 auto;
+        min-width: 40%;
+        max-width: 55%;
         font-size: 10px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: .4px;
         color: var(--color-text-secondary);
         line-height: 1.35;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     body[data-page="sourcing"] .table-wrapper td > *,

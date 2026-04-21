@@ -160,6 +160,44 @@
   .dv2-hero { padding: 4px 0 12px; }
   .dv2-greeting { font-size: 20px; }
   .dv2-hero-right { width: 100%; justify-content: space-between; }
+
+  /* Réduit les paddings des cards pour éviter le débordement horizontal */
+  .dv2-card { padding: 14px; }
+
+  /* Le header d'une card doit autoriser le wrap si le badge est long */
+  .dv2-card-header {
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .dv2-card-title { font-size: 13px; flex: 1 1 auto; min-width: 0; }
+  .dv2-card-badge {
+    font-size: 10px;
+    padding: 3px 8px;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 1 auto;
+  }
+
+  /* Pipeline légende : forcer le wrap + gap réduits */
+  .dv2-pipeline-legend {
+    gap: 6px 12px;
+    width: 100%;
+  }
+  .dv2-pipeline-legend-item {
+    font-size: 10px;
+    min-width: 0;
+  }
+
+  /* Stats charts : hauteur réduite pour éviter l'overflow Chart.js */
+  .dv2-chart-wrap { height: 180px; max-width: 100%; overflow: hidden; }
+  .dv2-chart-wrap canvas { max-width: 100%; }
+
+  /* Priorités IA : graphique également contraint */
+  .dv2-priorities-chart-wrap,
+  .dv2-activity-chart-wrap { max-width: 100%; overflow: hidden; }
 }
 
 /* ─── Card Base ─── */
