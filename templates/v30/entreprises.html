@@ -17,6 +17,14 @@
       Entreprises
       <span class="v30-pp-count num" data-field="total">—</span>
     </h1>
+    <div class="segmented" role="tablist" data-v30-ent-view>
+      <button type="button" class="active" data-view="table" role="tab" aria-selected="true">
+        {{ ui.icon('table', 13) }} Liste
+      </button>
+      <button type="button" data-view="cards" role="tab" aria-selected="false">
+        {{ ui.icon('kanban', 13) }} Cartes
+      </button>
+    </div>
     <div class="v30-spacer"></div>
     <div class="v30-pp-search" style="width:280px;">
       <span class="v30-pp-search__icon">{{ ui.icon('search') }}</span>
@@ -48,8 +56,11 @@
     {% endfor %}
   </div>
 
+  {# ─── Vue Cartes (parite v29) ─── #}
+  <div class="v30-ent-grid" data-v30-ent-panel="cards" hidden></div>
+
   {# ─── Table ─── #}
-  <div class="v30-pp-table-wrap">
+  <div class="v30-pp-table-wrap" data-v30-ent-panel="table">
     <div class="v30-pp-table-scroll">
       <table class="table v30-pp-table">
         <thead>

@@ -49,6 +49,54 @@
 }
 .v30-pp-views::-webkit-scrollbar { height: 0; }
 
+/* Grille cartes entreprises (parite v29) */
+.v30-ent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  padding: 10px 0;
+}
+.v30-ent-card {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color .15s, transform .15s;
+}
+.v30-ent-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.v30-ent-card__head { display: flex; gap: 10px; align-items: center; }
+.v30-ent-card__logo {
+  width: 36px; height: 36px; flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 12px;
+}
+.v30-ent-card__title-box { min-width: 0; flex: 1; }
+.v30-ent-card__title { font-weight: 500; font-size: 14px; color: var(--text); }
+.v30-ent-card__site { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.v30-ent-card__stats {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 4px; padding: 6px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.v30-ent-card__stat { display: flex; flex-direction: column; align-items: center; }
+.v30-ent-card__stat-v {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: 22px; color: var(--text); line-height: 1.1;
+}
+.v30-ent-card__stat-l {
+  font-size: 10px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.v30-ent-card__tags { display: flex; gap: 3px; flex-wrap: wrap; }
+.v30-ent-card__foot { font-size: 11px; }
+
 /* Banniere relances en retard (parite v29) */
 .v30-pp-banner {
   display: flex; align-items: center; gap: 10px;

@@ -149,6 +149,58 @@
     }
   }
 
+  // ─── Vue Cartes (parite v29) ─────────────────────────────
+  function renderCards(rows) {
+    var host = document.querySelector('[data-v30-ent-panel="cards"]');
+    if (!host) return;
+    if (rows.length === 0) {
+      host.innerHTML = '<div class="v30-pp-empty" style="padding:40px;text-align:center;">Aucune entreprise pour ce filtre.</div>';
+      return;
+    }
+    host.innerHTML = rows.map(function (r) {
+      var tagsHtml = (r.tags || []).slice(0, 3).map(function (t) {
+        return '<span class="badge" style="font-size:10px;">' + esc(t) + '</span>';
+      }).join(' ');
+      var extra = (r.tags || []).length - 3;
+      if (extra > 0) tagsHtml += ' <span class="badge muted" style="font-size:10px;">+' + extra + '</span>';
+      return '<a class="v30-ent-card" href="/v30/entreprise/' + r.id + '">' +
+        '<div class="v30-ent-card__head">' +
+          '<span class="v30-ent-card__logo">' + esc(initials(r.groupe)) + '</span>' +
+          '<div class="v30-ent-card__title-box">' +
+            '<div class="v30-ent-card__title truncate">' + esc(r.groupe || '—') + '</div>' +
+            '<div class="v30-ent-card__site truncate">' + esc(r.site || '—') + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="v30-ent-card__stats">' +
+          '<div class="v30-ent-card__stat"><span class="v30-ent-card__stat-v num">' + r.total + '</span><span class="v30-ent-card__stat-l">prosp</span></div>' +
+          '<div class="v30-ent-card__stat"><span class="v30-ent-card__stat-v num">' + (r.piped || 0) + '</span><span class="v30-ent-card__stat-l">RDV/propale</span></div>' +
+          '<div class="v30-ent-card__stat"><span class="v30-ent-card__stat-v num">' + (r.won || 0) + '</span><span class="v30-ent-card__stat-l">gagnés</span></div>' +
+        '</div>' +
+        (tagsHtml ? '<div class="v30-ent-card__tags">' + tagsHtml + '</div>' : '') +
+        '<div class="v30-ent-card__foot muted">' + esc(relativeDate(r.lastContact)) + '</div>' +
+      '</a>';
+    }).join('');
+  }
+
+  function bindViewSwitch() {
+    var seg = document.querySelector('[data-v30-ent-view]');
+    if (!seg) return;
+    seg.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-view]');
+      if (!btn) return;
+      var v = btn.dataset.view;
+      seg.querySelectorAll('button[data-view]').forEach(function (b) {
+        var active = (b === btn);
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      document.querySelectorAll('[data-v30-ent-panel]').forEach(function (p) {
+        p.hidden = (p.dataset.v30EntPanel !== v);
+      });
+      if (v === 'cards') renderCards(STATE.filtered);
+    });
+  }
+
   // ─── Recherche ────────────────────────────────────────────
   function applyFilter(q) {
     q = (q || '').trim().toLowerCase();
@@ -158,6 +210,8 @@
           || (r.tags || []).some(function (t) { return t.toLowerCase().indexOf(q) >= 0; });
     });
     renderRows(STATE.filtered);
+    var cardsPanel = document.querySelector('[data-v30-ent-panel="cards"]');
+    if (cardsPanel && !cardsPanel.hidden) renderCards(STATE.filtered);
     renderPagination(STATE.filtered);
   }
 
@@ -174,6 +228,7 @@
   // ─── Init ─────────────────────────────────────────────────
   function init() {
     bindSearch();
+    bindViewSwitch();
     fetchJSON('/api/data').then(function (res) {
       STATE.companies = (res && res.companies) || [];
       STATE.prospects = (res && res.prospects) || [];
