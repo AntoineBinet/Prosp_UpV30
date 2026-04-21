@@ -4499,18 +4499,49 @@ def page_v30_login():
 
 @app.get("/v30/dashboard")
 def page_v30_dashboard():
-    """Preview du Dashboard v3 (hero éditorial, bento, rings, priorités IA).
-    SPEC §3.2. Rendu sur données mockées — pas de requête DB pour l'instant."""
+    """Dashboard v3 (SPEC §3.2). Rendu serveur du chrome + hero ;
+    les bloks dynamiques (KPIs, action center, pipeline, objectifs,
+    priorités IA, activité) sont peuplés côté client par les
+    endpoints existants /api/dashboard, /api/dashboard/pipeline-stages,
+    /api/tasks."""
+    uid = _uid()
+    display_name = ""
+    user_initials = "AB"
+    if uid:
+        u = _get_current_user() or {}
+        dn = (u.get("display_name") or u.get("username") or "").strip()
+        display_name = dn
+        if dn:
+            parts = [p for p in dn.split() if p]
+            user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
+
+    # Compteurs sidebar — lightweight; pas fatal si indispo
+    counts = {}
+    try:
+        with _conn() as conn:
+            counts["prospects"] = conn.execute(
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
+                (uid,),
+            ).fetchone()[0]
+            counts["entreprises"] = conn.execute(
+                "SELECT COUNT(*) FROM companies WHERE owner_id=?;",
+                (uid,),
+            ).fetchone()[0]
+            counts["candidats"] = conn.execute(
+                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
+                (uid,),
+            ).fetchone()[0]
+    except Exception:
+        counts = {}
+
     return render_template(
         "v30/dashboard.html",
         active="dashboard",
         crumbs=["Prosp'Up", "Dashboard"],
-        counts={"prospects": 1247, "entreprises": 342, "candidats": 89, "focus": 12},
-        pinned=[
-            {"id": "cap", "label": "Capgemini",    "sub": "12 prospects"},
-            {"id": "sfr", "label": "SFR Business", "sub": "4 prospects"},
-        ],
-        user_initials="AB",
+        counts=counts,
+        pinned=[],
+        user_initials=user_initials,
+        display_name=display_name,
         app_version=APP_VERSION,
     )
 
