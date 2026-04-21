@@ -25,12 +25,12 @@
     var ts = tables();
     for (var i = 0; i < ts.length; i++) {
       var r = ts[i].querySelector('[data-id].is-active');
-      if (r) return { table: ts[i], row: r, rows: rowsFor(ts[i]) };
+      if (r) return { table: ts[i], row: r, rows: rowsFor(ts[i]), existed: true };
     }
     // Aucun row actif : on active le premier de la première table visible
     for (var j = 0; j < ts.length; j++) {
       var rows = rowsFor(ts[j]);
-      if (rows.length) { rows[0].classList.add('is-active'); return { table: ts[j], row: rows[0], rows: rows }; }
+      if (rows.length) { rows[0].classList.add('is-active'); return { table: ts[j], row: rows[0], rows: rows, existed: false }; }
     }
     return null;
   }
@@ -93,8 +93,9 @@
     if (!ctx) return;
     var idx = ctx.rows.indexOf(ctx.row);
 
-    if (key === 'j') setActive(ctx.rows, idx + 1);
-    else if (key === 'k') setActive(ctx.rows, idx - 1);
+    // Si on vient d'activer la 1ere ligne (aucune active avant), J ne doit pas avancer
+    if (key === 'j') setActive(ctx.rows, ctx.existed ? idx + 1 : idx);
+    else if (key === 'k') setActive(ctx.rows, ctx.existed ? idx - 1 : idx);
     else if (key === 'x') toggleCheckbox(ctx.row);
     else if (key === 'e') editRow(ctx.row);
     else if (e.key === 'Enter') openRow(ctx.row);
