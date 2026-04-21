@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "29.9"
+APP_VERSION = "30.0-alpha"
 import os
 import subprocess
 import traceback
@@ -4495,6 +4495,49 @@ def page_v30_login():
     if session.get('user_id'):
         return redirect('/v30/preview')
     return render_template("v30/login.html", app_version=APP_VERSION)
+
+
+@app.get("/v30/prospects")
+def page_v30_prospects():
+    """Prospects v30 (SPEC §3.3). Rendu serveur du chrome uniquement ;
+    le tableau est hydraté côté client via /api/search (liste + fuzzy)
+    et les bulks via /api/prospects/bulk-*. Voir
+    static/js/v30/prospects.js."""
+    uid = _uid()
+    user_initials = "AB"
+    if uid:
+        u = _get_current_user() or {}
+        dn = (u.get("display_name") or u.get("username") or "").strip()
+        if dn:
+            parts = [p for p in dn.split() if p]
+            user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
+
+    counts = {}
+    try:
+        with _conn() as conn:
+            counts["prospects"] = conn.execute(
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
+                (uid,),
+            ).fetchone()[0]
+            counts["entreprises"] = conn.execute(
+                "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
+            ).fetchone()[0]
+            counts["candidats"] = conn.execute(
+                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
+                (uid,),
+            ).fetchone()[0]
+    except Exception:
+        counts = {}
+
+    return render_template(
+        "v30/prospects.html",
+        active="prospects",
+        crumbs=["Prosp'Up", "Prospects"],
+        counts=counts,
+        pinned=[],
+        user_initials=user_initials,
+        app_version=APP_VERSION,
+    )
 
 
 @app.get("/v30/dashboard")
