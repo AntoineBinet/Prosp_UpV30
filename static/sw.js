@@ -1,9 +1,10 @@
-// Prosp'Up Service Worker v30 — mobile 2026 refresh (liquid glass shell)
-const CACHE = 'prospup-v30';
+// Prosp'Up Service Worker v30 — liquid glass shell + v30 UX refresh
+const CACHE = 'prospup-v30.0-beta-shell';
 const API_CACHE = 'prospup-api-v23.4';
 const API_TTL = 5 * 60 * 1000; // 5 minutes
 
 const SHELL = [
+  // Legacy v29 shell (toujours servi pour les users restés sur v29)
   '/static/css/style.css',
   '/static/css/mobile.css',
   '/static/css/mobile-2026.css',
@@ -26,6 +27,36 @@ const SHELL = [
   '/static/js/page-quickadd.js',
   '/static/js/page-import.js',
   '/static/js/mode-prosp-tab.js',
+  // v30 CSS
+  '/static/css/v30/tokens.css',
+  '/static/css/v30/chrome.css',
+  '/static/css/v30/components.css',
+  '/static/css/v30/dashboard.css',
+  '/static/css/v30/prospects.css',
+  '/static/css/v30/prospect_detail.css',
+  '/static/css/v30/candidate_detail.css',
+  '/static/css/v30/push.css',
+  '/static/css/v30/calendar.css',
+  '/static/css/v30/sourcing.css',
+  '/static/css/v30/palette.css',
+  '/static/css/v30/shortcuts.css',
+  // v30 JS
+  '/static/js/v30/opt-in.js',
+  '/static/js/v30/palette.js',
+  '/static/js/v30/shortcuts.js',
+  '/static/js/v30/dashboard.js',
+  '/static/js/v30/focus.js',
+  '/static/js/v30/calendar.js',
+  '/static/js/v30/prospects.js',
+  '/static/js/v30/prospect_detail.js',
+  '/static/js/v30/prospect_detail_render.js',
+  '/static/js/v30/prospect_detail_ui.js',
+  '/static/js/v30/entreprises.js',
+  '/static/js/v30/candidate_detail.js',
+  '/static/js/v30/push.js',
+  '/static/js/v30/sourcing.js',
+  '/static/js/v30/stats.js',
+  // Assets partagés
   '/static/icon-192.png',
   '/static/icon-512.png',
   '/static/favicon.ico',
