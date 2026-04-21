@@ -1,13 +1,18 @@
-// Prosp'Up Service Worker v28 — enhanced caching + offline fallback + HTML stale-while-revalidate
-const CACHE = 'prospup-v29';
+// Prosp'Up Service Worker v30 — mobile 2026 refresh (liquid glass shell)
+const CACHE = 'prospup-v30';
 const API_CACHE = 'prospup-api-v23.4';
 const API_TTL = 5 * 60 * 1000; // 5 minutes
 
 const SHELL = [
   '/static/css/style.css',
+  '/static/css/mobile.css',
+  '/static/css/mobile-2026.css',
+  '/static/css/mobile-2026-screens.css',
+  '/static/css/mode-prosp.css',
   '/static/js/app.js',
   '/static/js/sidebar.js',
   '/static/js/v8-features.js',
+  '/static/js/mobile-2026.js',
   '/static/js/notifications.js',
   '/static/js/metiers-data.js',
   '/static/js/page-dashboard-v2.js',
@@ -21,7 +26,6 @@ const SHELL = [
   '/static/js/page-quickadd.js',
   '/static/js/page-import.js',
   '/static/js/mode-prosp-tab.js',
-  '/static/css/mode-prosp.css',
   '/static/icon-192.png',
   '/static/icon-512.png',
   '/static/favicon.ico',

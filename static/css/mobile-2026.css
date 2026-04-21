@@ -1,0 +1,611 @@
+/* =========================================================================
+   ProspUp Mobile 2026 — Shell, tokens, tab bar, dynamic island
+   iOS 26 Liquid Glass direction · Dark-first OLED · Orange #FF6B35
+   Spec: docs/mobile-2026-spec.html
+   ========================================================================= */
+
+@media (max-width: 900px) {
+
+/* ---- Tokens ------------------------------------------------------------ */
+
+:root,
+html[data-theme="dark"],
+html[data-theme="dark"] body {
+  --m26-accent:        #FF6B35;
+  --m26-accent-soft:   rgba(255, 107, 53, 0.12);
+  --m26-accent-dim:    rgba(255, 107, 53, 0.60);
+  --m26-accent-grad:   linear-gradient(135deg, #FF6B35, #FF8C42);
+
+  /* Status colors (unchanged from existing data schema) */
+  --m26-st-appele-fg: #60A5FA; --m26-st-appele-bg: rgba(59,130,246,0.15); --m26-st-appele-dot: #3B82F6;
+  --m26-st-rdv-fg:    #4ADE80; --m26-st-rdv-bg:    rgba(34,197,94,0.15);  --m26-st-rdv-dot:    #22C55E;
+  --m26-st-prospecte-fg: #C084FC; --m26-st-prospecte-bg: rgba(168,85,247,0.15); --m26-st-prospecte-dot: #A855F7;
+  --m26-st-messagerie-fg: #FBBF24; --m26-st-messagerie-bg: rgba(245,158,11,0.15); --m26-st-messagerie-dot: #F59E0B;
+  --m26-st-rappeler-fg:  #FB923C; --m26-st-rappeler-bg:  rgba(249,115,22,0.15); --m26-st-rappeler-dot:  #F97316;
+  --m26-st-pasint-fg:    #F87171; --m26-st-pasint-bg:    rgba(239,68,68,0.15);  --m26-st-pasint-dot:    #EF4444;
+
+  /* Dark surface palette (default) */
+  --m26-bg:  #000000;
+  --m26-bg2: #0A0A0D;
+  --m26-bg3: #121217;
+  --m26-bg4: #1C1C22;
+
+  --m26-text:  #F5F5F7;
+  --m26-text2: rgba(235, 235, 245, 0.60);
+  --m26-text3: rgba(235, 235, 245, 0.35);
+  --m26-text4: rgba(235, 235, 245, 0.18);
+
+  --m26-border:  rgba(255, 255, 255, 0.06);
+  --m26-border2: rgba(255, 255, 255, 0.10);
+  --m26-divider: rgba(84, 84, 88, 0.40);
+
+  /* Liquid glass */
+  --m26-glass: rgba(28, 28, 34, 0.72);
+  --m26-glass-border: rgba(255, 255, 255, 0.08);
+  --m26-glass-shine:
+    inset 0.5px 0.5px 0 rgba(255, 255, 255, 0.08),
+    inset -0.5px -0.5px 0 rgba(255, 255, 255, 0.03);
+
+  /* Radii */
+  --m26-r-sm: 8px;
+  --m26-r-md: 12px;
+  --m26-r-lg: 18px;
+  --m26-r-xl: 24px;
+  --m26-r-pill: 999px;
+
+  /* Typography */
+  --m26-font: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  --m26-font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* Light theme overrides (warm off-white — Apple Notes / Mail 2026) */
+html[data-theme="light"],
+html[data-theme="light"] body {
+  --m26-bg:  #F6F5F2;
+  --m26-bg2: #FAF9F6;
+  --m26-bg3: #FFFFFF;
+  --m26-bg4: #F0EFEB;
+
+  --m26-text:  #1A1916;
+  --m26-text2: rgba(60, 60, 67, 0.65);
+  --m26-text3: rgba(60, 60, 67, 0.35);
+  --m26-text4: rgba(60, 60, 67, 0.18);
+
+  --m26-border:  rgba(0, 0, 0, 0.06);
+  --m26-border2: rgba(0, 0, 0, 0.10);
+  --m26-divider: rgba(60, 60, 67, 0.10);
+
+  --m26-glass: rgba(255, 255, 255, 0.72);
+  --m26-glass-border: rgba(0, 0, 0, 0.06);
+  --m26-glass-shine:
+    inset 0.5px 0.5px 0 rgba(255, 255, 255, 0.9),
+    inset -0.5px -0.5px 0 rgba(0, 0, 0, 0.03);
+}
+
+/* Auto-follow system when no explicit data-theme is set */
+@media (prefers-color-scheme: light) {
+  html:not([data-theme]) {
+    --m26-bg:  #F6F5F2;
+    --m26-bg2: #FAF9F6;
+    --m26-bg3: #FFFFFF;
+    --m26-bg4: #F0EFEB;
+    --m26-text:  #1A1916;
+    --m26-text2: rgba(60, 60, 67, 0.65);
+    --m26-text3: rgba(60, 60, 67, 0.35);
+    --m26-text4: rgba(60, 60, 67, 0.18);
+    --m26-border:  rgba(0, 0, 0, 0.06);
+    --m26-border2: rgba(0, 0, 0, 0.10);
+    --m26-divider: rgba(60, 60, 67, 0.10);
+    --m26-glass: rgba(255, 255, 255, 0.72);
+    --m26-glass-border: rgba(0, 0, 0, 0.06);
+    --m26-glass-shine:
+      inset 0.5px 0.5px 0 rgba(255, 255, 255, 0.9),
+      inset -0.5px -0.5px 0 rgba(0, 0, 0, 0.03);
+  }
+}
+
+/* ---- Base — apply warm OLED background & SF typography to mobile ------- */
+
+body,
+.main-content,
+main {
+  background: var(--m26-bg) !important;
+  color: var(--m26-text);
+  font-family: var(--m26-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Neutralise the legacy .header (becomes empty slot, large title takes over) */
+body.m26-enabled > header,
+body.m26-enabled .header {
+  background: transparent !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  min-height: calc(12px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) 12px 0 !important;
+}
+body.m26-enabled .header-left .header-title,
+body.m26-enabled .header-center { display: none; }
+
+/* ---- Large Header (iOS large-title style) ------------------------------ */
+
+.m26-header {
+  padding: 8px 20px 12px;
+  font-family: var(--m26-font);
+}
+.m26-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  margin-bottom: 4px;
+}
+.m26-header-leading { display: flex; align-items: center; gap: 8px; }
+.m26-header-trailing { display: flex; gap: 8px; }
+
+.m26-title {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  color: var(--m26-text);
+  line-height: 1.1;
+}
+.m26-subtitle {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--m26-text2);
+  font-weight: 400;
+  letter-spacing: -0.1px;
+}
+.m26-subtitle .m26-accent { color: var(--m26-accent); font-weight: 600; }
+
+.m26-back {
+  color: var(--m26-accent);
+  font-size: 15px;
+  font-weight: 500;
+  background: none;
+  border: none;
+  padding: 4px 8px 4px 0;
+  cursor: pointer;
+  font-family: var(--m26-font);
+}
+
+/* ---- Glass container (reusable) ---------------------------------------- */
+
+.m26-glass {
+  position: relative;
+  border-radius: var(--m26-r-pill);
+  overflow: hidden;
+}
+.m26-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--m26-glass);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: var(--m26-glass-shine);
+  border: 0.5px solid var(--m26-glass-border);
+  pointer-events: none;
+}
+.m26-glass > * { position: relative; z-index: 1; }
+
+/* ---- Glass circular icon button ---------------------------------------- */
+
+.m26-icon-btn {
+  width: 36px; height: 36px;
+  border-radius: 18px;
+  background: var(--m26-glass);
+  border: 0.5px solid var(--m26-glass-border);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--m26-text);
+  cursor: pointer;
+  padding: 0;
+  transition: transform .15s, background .15s;
+}
+.m26-icon-btn:active { transform: scale(0.92); }
+.m26-icon-btn svg { width: 18px; height: 18px; }
+
+/* ---- Bottom Tab Bar — liquid glass, 5 tabs, sliding pill --------------- */
+/* Overrides the legacy .m-tabbar declared in mobile.css.                   */
+
+.m-tabbar,
+.m26-tabbar {
+  position: fixed !important;
+  left: 12px !important;
+  right: 12px !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+  height: 64px !important;
+  z-index: 9000;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  display: flex;
+  font-family: var(--m26-font);
+}
+
+.m-tabbar::before,
+.m26-tabbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 28px;
+  background: var(--m26-glass);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    var(--m26-glass-shine),
+    0 10px 30px rgba(0, 0, 0, 0.45);
+  border: 0.5px solid var(--m26-glass-border);
+  pointer-events: none;
+}
+html[data-theme="light"] .m-tabbar::before,
+html[data-theme="light"] .m26-tabbar::before {
+  box-shadow:
+    var(--m26-glass-shine),
+    0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+.m26-tabbar-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.m26-tab-pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: calc(100% / 5 - 8px);
+  left: 8px;
+  border-radius: 20px;
+  background: var(--m26-accent-soft);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 107, 53, 0.22);
+  transition: left .35s cubic-bezier(.32, 1.08, .62, 1);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Tab button — replaces legacy .m-tab style */
+.m-tabbar .m-tab,
+.m26-tabbar .m26-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: none;
+  background: transparent !important;
+  cursor: pointer;
+  padding: 0;
+  color: var(--m26-text2);
+  font-family: var(--m26-font);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  position: relative;
+  z-index: 1;
+  text-decoration: none;
+  min-width: 0;
+}
+.m-tabbar .m-tab.active,
+.m-tabbar .m-tab[aria-current="page"],
+.m26-tabbar .m26-tab.active {
+  color: var(--m26-accent) !important;
+  background: transparent !important;
+}
+
+.m-tabbar .m-tab-icon,
+.m26-tab-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  transition: transform .15s;
+}
+.m-tabbar .m-tab.active .m-tab-icon,
+.m26-tabbar .m26-tab.active .m26-tab-icon {
+  transform: scale(1.08);
+}
+/* Primary tab (center — Prosp) gets a slightly larger bolt icon */
+.m26-tabbar .m26-tab--primary .m26-tab-icon { width: 24px; height: 24px; }
+
+.m-tabbar .m-tab-label,
+.m26-tab-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  opacity: 0.8;
+  color: currentColor;
+}
+.m-tabbar .m-tab.active .m-tab-label,
+.m26-tabbar .m26-tab.active .m26-tab-label { opacity: 1; }
+
+/* Remove old active pill dot indicator from legacy mobile.css */
+.m-tabbar .m-tab.active::after,
+.m-tabbar .m-tab.active::before { display: none !important; }
+
+/* Hide legacy avatar tab (we replace it with hamburger in header) */
+.m-tabbar .m-tab-avatar { display: none !important; }
+
+/* ---- Dynamic Island (simulated at top of screen) ----------------------- */
+
+.m26-dynamic-island {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 11px) + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  height: 37px;
+  background: #000;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9500;
+  overflow: hidden;
+  transition: width .3s cubic-bezier(.32, 1.08, .62, 1), padding .3s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: var(--m26-font);
+  font-size: 12px;
+  font-weight: 600;
+  gap: 8px;
+  width: 126px;
+  padding: 0;
+  pointer-events: none;
+  user-select: none;
+}
+.m26-dynamic-island.is-expanded {
+  width: 260px;
+  padding: 0 14px;
+  pointer-events: auto;
+}
+.m26-dynamic-island .m26-di-dot {
+  width: 8px; height: 8px; border-radius: 4px;
+  background: var(--m26-accent);
+  box-shadow: 0 0 8px var(--m26-accent);
+  flex-shrink: 0;
+}
+.m26-dynamic-island .m26-di-label {
+  flex: 1;
+  text-align: left;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+.m26-dynamic-island .m26-di-live {
+  font-size: 11px;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+.m26-dynamic-island:not(.is-expanded) .m26-di-dot,
+.m26-dynamic-island:not(.is-expanded) .m26-di-label,
+.m26-dynamic-island:not(.is-expanded) .m26-di-live { display: none; }
+
+/* ---- Common containers / cards ---------------------------------------- */
+
+.m26-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 22px 20px 10px;
+}
+.m26-section-title-label {
+  font-size: 13px;
+  color: var(--m26-text2);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 600;
+}
+.m26-section-title-trail {
+  font-size: 13px;
+  color: var(--m26-text3);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.m26-section-title-trail.is-accent { color: var(--m26-accent); }
+
+.m26-card {
+  background: var(--m26-bg3);
+  border-radius: var(--m26-r-lg);
+  border: 0.5px solid var(--m26-border);
+  padding: 16px;
+  font-family: var(--m26-font);
+  color: var(--m26-text);
+}
+.m26-card--flush { padding: 4px 14px; }
+
+/* ---- Search bar --------------------------------------------------------- */
+
+.m26-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: var(--m26-bg4);
+  color: var(--m26-text3);
+  font-size: 15px;
+  font-family: var(--m26-font);
+  border: none;
+  margin: 0 16px 10px;
+}
+.m26-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--m26-text);
+  font-size: 15px;
+  font-family: var(--m26-font);
+  min-width: 0;
+}
+.m26-search input::placeholder { color: var(--m26-text3); }
+
+/* ---- Filter chips ------------------------------------------------------- */
+
+.m26-chips {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.m26-chips::-webkit-scrollbar { display: none; }
+
+.m26-chip {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: var(--m26-r-pill);
+  border: 0.5px solid var(--m26-border2);
+  background: var(--m26-bg3);
+  color: var(--m26-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--m26-font);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background .15s, border-color .15s;
+}
+.m26-chip[aria-pressed="true"],
+.m26-chip.is-active {
+  background: var(--m26-accent-soft);
+  border-color: rgba(255, 107, 53, 0.3);
+  color: var(--m26-accent);
+  font-weight: 600;
+}
+.m26-chip-count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--m26-r-pill);
+  background: var(--m26-bg4);
+  color: var(--m26-text2);
+  font-variant-numeric: tabular-nums;
+}
+.m26-chip[aria-pressed="true"] .m26-chip-count,
+.m26-chip.is-active .m26-chip-count {
+  background: rgba(255, 107, 53, 0.2);
+  color: var(--m26-accent);
+}
+
+/* ---- Status pill (used in cards + detail) ------------------------------ */
+
+.m26-status {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+.m26-status--appele       { background: var(--m26-st-appele-bg);       color: var(--m26-st-appele-fg); }
+.m26-status--rdv          { background: var(--m26-st-rdv-bg);          color: var(--m26-st-rdv-fg); }
+.m26-status--prospecte    { background: var(--m26-st-prospecte-bg);    color: var(--m26-st-prospecte-fg); }
+.m26-status--messagerie   { background: var(--m26-st-messagerie-bg);   color: var(--m26-st-messagerie-fg); }
+.m26-status--rappeler     { background: var(--m26-st-rappeler-bg);     color: var(--m26-st-rappeler-fg); }
+.m26-status--pasInteresse { background: var(--m26-st-pasint-bg);       color: var(--m26-st-pasint-fg); }
+
+/* ---- Star rating (pertinence) ------------------------------------------ */
+
+.m26-stars { display: inline-flex; gap: 1px; }
+.m26-stars svg { width: 10px; height: 10px; }
+.m26-stars svg.is-off path { fill: var(--m26-text4); }
+.m26-stars svg.is-on path { fill: var(--m26-accent); }
+
+/* ---- Primary button (accent) ------------------------------------------- */
+
+.m26-btn {
+  width: 100%;
+  height: 54px;
+  border-radius: 18px;
+  border: none;
+  background: var(--m26-accent);
+  color: #fff;
+  font-family: var(--m26-font);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  box-shadow:
+    0 10px 24px rgba(255, 107, 53, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  transition: transform .1s ease;
+}
+.m26-btn:active { transform: scale(0.98); }
+.m26-btn--ghost {
+  background: var(--m26-bg3);
+  color: var(--m26-text);
+  box-shadow: none;
+  border: 0.5px solid var(--m26-border);
+}
+
+/* ---- Page wrapper (adds bottom padding for floating tab bar) ---------- */
+
+body.m26-enabled main,
+body.m26-enabled .main-content,
+body.m26-enabled .page-content {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Hide old bottom nav dot, old active-indicator, old avatar */
+body.m26-enabled .m-tabbar .m-tab-avatar,
+body.m26-enabled .m-tab-active-dot { display: none !important; }
+
+/* Hide legacy sidebar-trigger hamburger from top-left — we move nav to topbar */
+/* (kept accessible via .m26-menu-btn in header) */
+
+.m26-menu-btn {
+  width: 36px; height: 36px;
+  border-radius: 18px;
+  background: var(--m26-glass);
+  border: 0.5px solid var(--m26-glass-border);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--m26-text);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ---- Toast (align with proto palette) ---------------------------------- */
+body.m26-enabled .toast {
+  background: var(--m26-glass) !important;
+  color: var(--m26-text) !important;
+  border: 0.5px solid var(--m26-glass-border) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  box-shadow:
+    var(--m26-glass-shine),
+    0 10px 30px rgba(0, 0, 0, 0.35) !important;
+  border-radius: 14px !important;
+}
+
+} /* end @media (max-width: 900px) */
