@@ -452,10 +452,27 @@
     });
   }
 
+  // Boutons hero : KPI manuel + Export (parite v29).
+  // La modale "KPI manuel" et l'export sont implementes cote legacy —
+  // on redirige vers /dashboard avec un hash qui declenche l'ouverture.
+  function bindHeroActions() {
+    var btnKpi = $('[data-v30-dash-kpi-manual]');
+    if (btnKpi) btnKpi.addEventListener('click', function () {
+      window.location.href = '/dashboard#kpi-manual';
+    });
+    var btnExport = $('[data-v30-dash-export]');
+    if (btnExport) btnExport.addEventListener('click', function () {
+      window.location.href = '/dashboard#export';
+    });
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { hydrate(); bindRefresh(); });
+    document.addEventListener('DOMContentLoaded', function () {
+      hydrate(); bindRefresh(); bindHeroActions();
+    });
   } else {
     hydrate();
     bindRefresh();
+    bindHeroActions();
   }
 })();

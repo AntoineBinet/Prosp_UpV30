@@ -1,6 +1,26 @@
 // Dashboard V2 — Bento Grid Redesign
 // Scoped to [data-page="dashboard_v2"]
 
+// Hash-based auto-open (used when /v30/dashboard redirects back to legacy
+// for modal-driven actions). Runs once when hash matches.
+(function () {
+  function tryHashAction() {
+    var h = (window.location.hash || '').toLowerCase();
+    if (h === '#kpi-manual' && typeof dv2_openManualKpiModal === 'function') {
+      dv2_openManualKpiModal();
+      history.replaceState(null, '', window.location.pathname);
+    } else if (h === '#export' && typeof dv2_exportDayRecap === 'function') {
+      dv2_exportDayRecap();
+      history.replaceState(null, '', window.location.pathname);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(tryHashAction, 400); });
+  } else {
+    setTimeout(tryHashAction, 400);
+  }
+})();
+
 // ─── Constants ───
 var DV2_STATUS_ORDER = ["Pas d'actions", "Appele", "A rappeler", "Messagerie", "Rendez-vous", "Prospecte", "Pas interesse"];
 var DV2_STATUS_COLORS = {

@@ -40,6 +40,13 @@
   color: var(--text-3);
   margin: 4px 0 0;
 }
+
+.v30-hero__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
 .v30-hero__subtitle b {
   color: var(--text);
   font-weight: 600;

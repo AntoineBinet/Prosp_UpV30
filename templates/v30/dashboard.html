@@ -23,6 +23,16 @@
       <p class="v30-hero__subtitle" data-v30-dash="hero-subtitle">
         <span class="skel" style="display:inline-block;width:240px;height:13px;"></span>
       </p>
+      <div class="v30-hero__actions">
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-dash-kpi-manual
+                title="Ajouter un KPI manuel (appel, note, push hors app)">
+          {{ ui.icon('plus', 13) }} KPI manuel
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-dash-export
+                title="Exporter les données du dashboard">
+          {{ ui.icon('arrowD', 13) }} Export
+        </button>
+      </div>
     </div>
     <div class="v30-hero__kpis" data-v30-dash="hero-kpis">
       {% for k in [{'key':'rdv','label':'RDV sem.'},{'key':'push','label':'Push'},{'key':'contacts','label':'Contacts'}] %}
