@@ -1,0 +1,192 @@
+{% extends "v30/base.html" %}
+{% block title %}Prospects — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-prospects{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/prospects.css?v={{ static_hash('css/v30/prospects.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div data-v30-prospects>
+
+  {# ─── Sticky page topbar ─── #}
+  <div class="v30-pp-topbar">
+    <h1>
+      Prospects
+      <span class="v30-pp-count num" data-field="total">—</span>
+    </h1>
+    <div class="segmented" role="tablist" data-v30-view>
+      <button type="button" class="active" data-view="table" role="tab" aria-selected="true">
+        {{ ui.icon('table', 13) }} Table
+      </button>
+      <button type="button" data-view="kanban" role="tab" aria-selected="false">
+        {{ ui.icon('kanban', 13) }} Kanban
+      </button>
+      <button type="button" data-view="split" role="tab" aria-selected="false">
+        {{ ui.icon('split', 13) }} Split
+      </button>
+    </div>
+    <div class="v30-spacer"></div>
+    <button type="button" class="btn btn-ghost btn-sm" data-v30-filters>
+      {{ ui.icon('filter', 13) }} Filtres
+      <span class="badge" data-field="active" hidden>0</span>
+    </button>
+    <button type="button" class="btn btn-ghost btn-sm" data-v30-columns>
+      {{ ui.icon('cog', 13) }} Colonnes
+    </button>
+    <button type="button" class="btn btn-sm" data-v30-add>
+      {{ ui.icon('plus', 13) }} Ajouter
+    </button>
+  </div>
+
+  {# ─── Saved views pills + search ─── #}
+  <div class="v30-pp-views">
+    <button type="button" class="v30-pill is-active" data-view-filter="all">
+      Tous <span class="mono num" data-field="count">—</span>
+    </button>
+    <button type="button" class="v30-pill" data-view-filter="mine">
+      Mes prospects <span class="mono num" data-field="count">—</span>
+    </button>
+    <button type="button" class="v30-pill" data-view-filter="relance">
+      À relancer <span class="mono num" data-field="count">—</span>
+    </button>
+    <button type="button" class="v30-pill" data-view-filter="hot">
+      Hot <span class="mono num" data-field="count">—</span>
+    </button>
+    <button type="button" class="btn btn-ghost btn-sm">
+      {{ ui.icon('plus', 12) }} Vue
+    </button>
+    <div class="v30-spacer"></div>
+    <div class="v30-pp-search">
+      <span class="v30-pp-search__icon">{{ ui.icon('search') }}</span>
+      <input type="search" class="input" placeholder="Rechercher…" data-v30-search
+             aria-label="Rechercher dans les prospects">
+    </div>
+  </div>
+
+  {# ─── View: Table ─── #}
+  <div data-v30-view-panel="table">
+    <div class="v30-pp-table-wrap">
+      <div class="v30-pp-table-scroll">
+        <table class="table v30-pp-table">
+          <thead>
+            <tr>
+              <th style="width:32px;padding-left:14px;">
+                <input type="checkbox" data-v30-select-all aria-label="Tout sélectionner">
+              </th>
+              <th style="width:240px;">Nom</th>
+              <th>Entreprise</th>
+              <th>Statut</th>
+              <th>Pertinence</th>
+              <th>Mobile</th>
+              <th>Dernière action</th>
+              <th>Prochain RDV</th>
+              <th>Tags</th>
+              <th style="width:96px;"></th>
+            </tr>
+          </thead>
+          <tbody data-v30-rows>
+            {% for _ in range(10) %}
+            <tr>
+              <td style="padding-left:14px;"><span class="skel" style="width:16px;height:16px;border-radius:3px;display:inline-block;"></span></td>
+              <td>
+                <div class="v30-pp-name">
+                  <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
+                  <div>
+                    <div class="skel" style="width:140px;height:13px;margin-bottom:4px;"></div>
+                    <div class="skel" style="width:90px;height:11px;"></div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="skel" style="width:100px;height:12px;display:inline-block;"></span></td>
+              <td><span class="skel" style="width:70px;height:18px;border-radius:999px;display:inline-block;"></span></td>
+              <td><span class="skel" style="width:40px;height:12px;display:inline-block;"></span></td>
+              <td><span class="skel" style="width:120px;height:12px;display:inline-block;"></span></td>
+              <td><span class="skel" style="width:60px;height:12px;display:inline-block;"></span></td>
+              <td><span class="skel" style="width:50px;height:12px;display:inline-block;"></span></td>
+              <td><span class="skel" style="width:80px;height:16px;display:inline-block;"></span></td>
+              <td></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="v30-pp-pagin" data-v30-pagination>
+        <span data-field="range">— sur —</span>
+        <div style="display:flex;gap:4px;">
+          <button type="button" class="btn btn-ghost btn-sm btn-icon" data-field="prev" aria-label="Page précédente">
+            {{ ui.icon('chevL', 12) }}
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm btn-icon" data-field="next" aria-label="Page suivante">
+            {{ ui.icon('chevR', 12) }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ─── View: Kanban ─── #}
+  <div data-v30-view-panel="kanban" hidden>
+    <div class="v30-pp-kanban" data-v30-kanban>
+      {% for _ in range(5) %}
+      <div class="v30-pp-kcol">
+        <div class="v30-pp-kcol__head">
+          <span class="skel v30-pp-kcol__dot"></span>
+          <span class="skel" style="width:80px;height:12px;display:inline-block;"></span>
+        </div>
+        {% for _ in range(3) %}
+        <div class="v30-pp-kcard">
+          <div class="skel" style="width:60%;height:13px;margin-bottom:4px;"></div>
+          <div class="skel" style="width:45%;height:11px;"></div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ─── View: Split ─── #}
+  <div data-v30-view-panel="split" hidden>
+    <div class="v30-pp-split">
+      <div class="v30-pp-split__list" data-v30-split-list>
+        {% for _ in range(8) %}
+        <div class="v30-pp-split__row">
+          <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
+          <div style="flex:1;min-width:0;">
+            <div class="skel" style="width:75%;height:12px;margin-bottom:4px;"></div>
+            <div class="skel" style="width:55%;height:11px;"></div>
+          </div>
+          <span class="skel" style="width:50px;height:14px;border-radius:999px;"></span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="v30-pp-split__detail" data-v30-split-detail>
+        <div class="empty">Sélectionne un prospect dans la liste pour voir le détail.</div>
+      </div>
+    </div>
+  </div>
+
+  {# ─── Bulk bar (hidden par défaut) ─── #}
+  <div class="v30-bulk" data-v30-bulk hidden>
+    <div class="v30-bulk__inner">
+      <span class="v30-bulk__count">
+        {{ ui.icon('check', 12) }}
+        <span data-field="n">0</span> sélectionnés
+      </span>
+      <span class="v30-bulk__sep"></span>
+      <button type="button" class="v30-bulk__btn" data-action="push">{{ ui.icon('send', 13) }} Pousser</button>
+      <button type="button" class="v30-bulk__btn" data-action="email-ai">{{ ui.icon('sparkles', 13) }} Email IA</button>
+      <button type="button" class="v30-bulk__btn" data-action="tel-ai">{{ ui.icon('phone', 13) }} Tel IA</button>
+      <button type="button" class="v30-bulk__btn" data-action="tag">{{ ui.icon('tag', 13) }} Tag</button>
+      <button type="button" class="v30-bulk__btn" data-action="assign">{{ ui.icon('users', 13) }} Assigner</button>
+      <span class="v30-bulk__sep"></span>
+      <button type="button" class="v30-bulk__btn" data-action="clear">{{ ui.icon('x', 13) }} Effacer</button>
+    </div>
+  </div>
+
+</div>
+
+<script defer src="/static/js/v30/prospects.js?v={{ static_hash('js/v30/prospects.js') }}"></script>
+{% endblock %}
