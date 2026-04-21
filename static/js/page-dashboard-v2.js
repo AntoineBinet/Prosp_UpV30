@@ -222,19 +222,19 @@ function dv2_renderPerformance(data) {
 
   // KPI Chips — pour une semaine passée, affiche le total semaine comme valeur principale
   var chips = [
-    { key: 'contacts', icon: '\uD83D\uDCDE', label: 'Contacts',
+    { key: 'contacts', icon: window.icon ? window.icon('phone', {size:14}) : '', label: 'Contacts',
       value: isPast ? weekContacts : todayContacts,
       weekVal: weekContacts, prevVal: prevContacts, color: DV2_KPI_COLORS.contacts,
       sub: isPast ? weekContacts + ' cette semaine' : (t.calls || 0) + ' appels trac\u00e9s' },
-    { key: 'notes', icon: '\uD83D\uDCDD', label: 'Notes',
+    { key: 'notes', icon: window.icon ? window.icon('note', {size:14}) : '', label: 'Notes',
       value: isPast ? w.notes : t.notes,
       weekVal: w.notes, prevVal: pw.notes, color: DV2_KPI_COLORS.notes,
       sub: w.notes + ' cette semaine' },
-    { key: 'push', icon: '\uD83D\uDCE4', label: 'Push',
+    { key: 'push', icon: window.icon ? window.icon('send', {size:14}) : '', label: 'Push',
       value: isPast ? w.push_total : t.push_total,
       weekVal: w.push_total, prevVal: pw.push_total, color: DV2_KPI_COLORS.push,
       sub: (w.push_email || 0) + ' emails + ' + (w.push_linkedin || 0) + ' linkedin' },
-    { key: 'rdv', icon: '\uD83E\uDD1D', label: 'RDV',
+    { key: 'rdv', icon: window.icon ? window.icon('handshake', {size:14}) : '', label: 'RDV',
       value: isPast ? (w.rdv_total || 0) : data.pipeline.rdv,
       weekVal: isPast ? (w.rdv_total || 0) : data.pipeline.rdv, prevVal: 0,
       color: DV2_KPI_COLORS.rdv,
@@ -490,7 +490,7 @@ window.dv2_switchTab = dv2_switchTab;
 async function dv2_toggleTask(taskId, btn) {
   try {
     btn.disabled = true;
-    btn.innerHTML = '&#x23F3;';
+    btn.innerHTML = window.icon ? window.icon('hourglass', {size:14}) : '…';
     var res = await fetch('/api/tasks/done', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -666,7 +666,7 @@ function dv2_renderActivity(feed, weekDays) {
   (feed.notes || []).forEach(function(n) {
     items.push({
       time: (n.date || '').slice(11, 16) || '--',
-      icon: '\uD83D\uDCDD',
+      icon: window.icon ? window.icon('note', {size:14}) : '',
       cls: 'note',
       text: '<strong>' + dv2_esc(n.prospect_name) + '</strong>',
       detail: dv2_esc((n.content || '').slice(0, 100)),
@@ -698,7 +698,7 @@ function dv2_renderActivity(feed, weekDays) {
     }
     items.push({
       time: (r.createdAt || '').slice(11, 16) || '--',
-      icon: '\uD83D\uDCC5',
+      icon: window.icon ? window.icon('calendar', {size:14}) : '',
       cls: 'rdv',
       text: '<span class="dv2-feed-type" style="color:#22c55e">RDV</span> <strong>' + dv2_esc(r.prospect_name) + '</strong>' +
             (r.company_name ? ' <span style="opacity:0.7">— ' + dv2_esc(r.company_name) + '</span>' : ''),
@@ -713,7 +713,7 @@ function dv2_renderActivity(feed, weekDays) {
   if (!items.length) {
     var emptyMsg = _dv2_weekOffset < 0 ? 'Aucune activit\u00e9 cette semaine-l\u00e0' : 'Aucune activit\u00e9 aujourd\'hui';
     feedEl.innerHTML = '<div class="dv2-empty-activity">' +
-      '<div class="dv2-empty-activity-icon">\uD83D\uDE80</div>' +
+      '<div class="dv2-empty-activity-icon">' + (window.icon ? window.icon('zap', {size:24}) : '') + '</div>' +
       '<div class="dv2-empty-activity-text">' + emptyMsg + '</div>' +
       (_dv2_weekOffset === 0 ? '<div class="dv2-empty-activity-cta"><a href="/" class="dv2-action-btn">Prospects</a> <a href="/focus" class="dv2-action-btn">Focus</a></div>' : '') +
     '</div>';
