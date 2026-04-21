@@ -77,6 +77,44 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
 - `30.0-alpha` → `30.0-beta`.
 
+### Migration des pages legacy restantes vers v30 (Phase 3)
+
+10 nouvelles routes v30 couvrant toutes les pages legacy :
+
+- **`/v30/rapport`** : rapport hebdomadaire éditorial (KPI + activité + pipeline
+  + notes libres WYSIWYG autosave localStorage).
+- **`/v30/users`** (admin) : grille de cartes user + modale CRUD branchée sur
+  `/api/users(/save|/delete)`.
+- **`/v30/parametres`** : hub 8 cartes (opt-out v29, config IA, objectifs,
+  sauvegardes, notifications, mise à jour serveur, mon compte, à propos) avec
+  liens vers `/parametres#<section>` legacy.
+- **`/v30/snapshots`** (admin) : liste avec filename/date/taille, boutons
+  create/restore/delete branchés sur `/api/snapshots`.
+- **`/v30/activity`** (admin) : table filtrable (utilisateur + action)
+  paginée sur `/api/activity`.
+- **`/v30/collab`** : hub 3 cartes vers `/collab#share-company`, `#my-shared`,
+  `#shared-with-me`.
+- **`/v30/duplicates`** : hub 3 cartes vers `/duplicates#companies|prospects|ignored`.
+- **`/v30/metiers`** (admin) : liste + add/delete des `custom_metiers`.
+- **`/v30/help`** : 8 cartes vers `/help#<ancre>` + astuces + bouton raccourcis.
+- **`/v30/dc`** + `/v30/dc/<cid>` : hub générateur DC avec liens directs.
+
+### Navigation v30 enrichie
+
+- **Sidebar** : lien Rapport → `/v30/rapport` (au lieu de `/rapport` legacy),
+  bouton Paramètres → `/v30/parametres`, ajout bouton Aide dans le footer.
+- **Palette ⌘K** : 9 nouvelles entrées (Rapport, Paramètres, Utilisateurs,
+  Snapshots, Activité, Collaboration, Doublons, Métiers IA, Aide).
+- **Raccourcis** : ajout `G+R` (rapport), `G+A` (agenda/calendrier), `G+H` (aide).
+- **Opt-out v30 → v29** : mapping complet des 10 nouvelles routes vers leur
+  équivalent legacy dans `opt-in.js`.
+
+### SW v30.0-beta-shell-2
+
+Pre-cache mis à jour avec 7 nouveaux CSS (rapport, users, parametres, activity,
+snapshots, help, metiers) et 5 nouveaux JS (rapport, users, activity, snapshots,
+metiers). Bump `CACHE` pour forcer re-cache.
+
 ---
 
 ## [30.0-alpha] — 2026-04-21

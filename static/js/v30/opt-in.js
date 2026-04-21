@@ -39,6 +39,18 @@
       else if (path.indexOf('/v30/push') === 0)         target = '/push';
       else if (path.indexOf('/v30/stats') === 0)        target = '/stats';
       else if (path.indexOf('/v30/dashboard') === 0)    target = '/dashboard';
+      else if (path.indexOf('/v30/rapport') === 0)      target = '/rapport';
+      else if (path.indexOf('/v30/users') === 0)        target = '/users';
+      else if (path.indexOf('/v30/parametres') === 0)   target = '/parametres';
+      else if (path.indexOf('/v30/snapshots') === 0)    target = '/snapshots';
+      else if (path.indexOf('/v30/activity') === 0)     target = '/activity';
+      else if (path.indexOf('/v30/collab') === 0)       target = '/collab';
+      else if (path.indexOf('/v30/duplicates') === 0)   target = '/duplicates';
+      else if (path.indexOf('/v30/metiers') === 0)      target = '/metiers';
+      else if (path.indexOf('/v30/help') === 0)         target = '/help';
+      else if (path.indexOf('/v30/dc') === 0)           target = '/dc_generator' + (path.split('/').pop() && /^\d+$/.test(path.split('/').pop()) ? '?candidate=' + path.split('/').pop() : '');
+      else if (path.indexOf('/v30/focus') === 0)        target = '/focus';
+      else if (path.indexOf('/v30/calendrier') === 0)   target = '/calendar';
       window.location.href = target;
     });
   }

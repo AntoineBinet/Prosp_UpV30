@@ -37,6 +37,16 @@
 
 - [x] **Focus** → `/v30/focus` (3 colonnes overdue / today / upcoming, hero éditorial)
 - [x] **Calendrier** → `/v30/calendrier` (grille mois, nav < > Today, events RDV/relance/EC1)
+- [x] **Rapport** → `/v30/rapport` (topbar + KPI + activité + pipeline + notes WYSIWYG autosave)
+- [x] **Utilisateurs** → `/v30/users` (admin) : cartes + modale CRUD
+- [x] **Paramètres** → `/v30/parametres` : hub 8 cartes (opt-out v29 inclus)
+- [x] **Snapshots** → `/v30/snapshots` (admin) : liste + create/restore/delete
+- [x] **Activité** → `/v30/activity` (admin) : table filtrable paginée
+- [x] **Collaboration** → `/v30/collab` : hub 3 cartes
+- [x] **Doublons** → `/v30/duplicates` : hub 3 cartes
+- [x] **Métiers IA** → `/v30/metiers` (admin) : liste + add/delete
+- [x] **Aide** → `/v30/help` : 8 cartes + astuces + bouton raccourcis
+- [x] **Dossier de compétence** → `/v30/dc[/<cid>]` : hub + lien vers /dc_generator
 
 ## Étape 4 · Command Palette ⌘K
 

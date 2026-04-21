@@ -16,9 +16,18 @@
     { label: 'Entreprises', sub: 'Comptes',              icon: 'building', href: '/v30/entreprises' },
     { label: 'Candidats',   sub: 'Pipeline sourcing',    icon: 'user',     href: '/v30/sourcing' },
     { label: 'Push',        sub: 'Campagnes & templates',icon: 'send',     href: '/v30/push' },
-    { label: 'Stats',       sub: 'Tableau de bord + rapport', icon: 'chart', href: '/v30/stats' },
+    { label: 'Stats',       sub: 'Tableau de bord',      icon: 'chart',    href: '/v30/stats' },
+    { label: 'Rapport',     sub: 'Rapport hebdomadaire', icon: 'report',   href: '/v30/rapport' },
     { label: 'Focus',       sub: 'Mode concentration',   icon: 'focus',    href: '/v30/focus' },
-    { label: 'Calendrier',  sub: 'RDV & relances',       icon: 'calendar', href: '/v30/calendrier' }
+    { label: 'Calendrier',  sub: 'RDV & relances',       icon: 'calendar', href: '/v30/calendrier' },
+    { label: 'Paramètres',  sub: 'Configuration & compte', icon: 'cog',    href: '/v30/parametres' },
+    { label: 'Utilisateurs',sub: 'Gestion des comptes (admin)', icon: 'users', href: '/v30/users' },
+    { label: 'Snapshots',   sub: 'Sauvegardes DB (admin)',icon: 'bookmark', href: '/v30/snapshots' },
+    { label: 'Activité',    sub: "Journal d'actions (admin)", icon: 'clock', href: '/v30/activity' },
+    { label: 'Collaboration', sub: 'Partage entreprises',  icon: 'users', href: '/v30/collab' },
+    { label: 'Doublons',    sub: 'Détection & fusion',   icon: 'filter',   href: '/v30/duplicates' },
+    { label: 'Métiers IA',  sub: 'Référentiels IA (admin)', icon: 'tag',   href: '/v30/metiers' },
+    { label: 'Aide',        sub: 'Guide utilisateur',    icon: 'bulb',     href: '/v30/help' }
   ];
 
   function esc(s) {

@@ -17,7 +17,10 @@
     s: '/v30/sourcing',
     f: '/v30/focus',
     u: '/v30/push',
-    t: '/v30/stats'
+    t: '/v30/stats',
+    r: '/v30/rapport',
+    a: '/v30/calendrier',
+    h: '/v30/help'
   };
 
   var state = { gotoArmed: false, gotoTimer: null };
