@@ -30,7 +30,7 @@
 - [x] **Entreprises** (`screens/entreprises.jsx` → `templates/v30/entreprises.html`) — route `/v30/entreprises`. Topbar + 4 KPI Instrument Serif + table 8 colonnes. Branché sur `GET /api/data`, agrégation par company_id (total / piped / won / lastContact). Recherche fuzzy client-side. Fiche entreprise dédiée (clic sur une ligne → `/v30/entreprise/<id>`) à faire.
 - [~] **Push** (`screens/push.jsx` → `templates/v30/push.html`) — route `/v30/push`. **Templates + Historique branchés** sur `/api/templates` et `/api/data`. **Campagnes** : empty state + wizard preview non interactif (demande migration DB `push_campaigns`, SPEC §5.2, en attente de validation user).
 - [x] **Sourcing** (`screens/sourcing.jsx` → `templates/v30/sourcing.html`) — route `/v30/sourcing`. Kanban 5 statuts (mapping défensif sur `candidates.status`) + vue Grille. Branché sur `GET /api/candidates`.
-- [ ] **Fiche candidat** — compétences (niveaux) + DC + calendrier dispo **(à faire)**
+- [x] **Fiche candidat** (`prospect-detail.jsx` candidate variant → `templates/v30/candidate_detail.html`) — route `/v30/candidat/<cid>`. Header éditable inline + Compétences (barres 1-5) + Dispo 8 semaines (dérivée du status) + Missions (via `/api/candidates/<id>/experiences`) + Notes éditables. Niveaux réels / vraie dispo / matching par campagne = migrations DB futures.
 - [~] **Stats + Rapport** (`screens/stats.jsx` → `templates/v30/stats.html`) — route `/v30/stats`. Topbar + period filter + 4 KPI + Top entreprises hydratés. Les 8 charts Chart.js et l'éditeur Rapport WYSIWYG restent sur `/stats` et `/rapport` legacy en attendant migration complète.
 
 ## Étape 4 · Command Palette ⌘K

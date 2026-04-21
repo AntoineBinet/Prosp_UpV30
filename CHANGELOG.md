@@ -6,6 +6,14 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
 ### UI v30 — étape 3 (Dashboard branché + Prospects + Fiche prospect + Entreprises)
 
+- **Fiche candidat v30** — preview sur `/v30/candidat/<cid>` :
+  - Header : avatar + nom éditable inline + badge status + chips (LinkedIn, Source) + actions Générer DC / Pousser / More.
+  - Main col : card Compétences (parsée depuis `candidates.tech` ou `skills`, barres 1-5 à niveau par défaut 3 faute de schéma dédié) + card Disponibilités 8 semaines (dérivée du champ `status` — Placé = toutes "placed", En entretien = 2 premières busy puis libre, sinon toutes libre).
+  - Aside col : Campagnes match (placeholder, requiert `push_campaigns`) + Missions passées (via `/api/candidates/<id>/experiences`) + Notes éditables inline.
+  - Ownership vérifié server-side (`owner_id + deleted_at`) avec redirection `/v30/sourcing` si inaccessible.
+  - Inline-edit via `PUT /api/candidates/<id>` (fallback `POST /api/candidates/<id>/update`).
+  - Note : niveaux de compétences 1-5 réels, dispo éditable et matching par campagne nécessitent des migrations DB (documentées en SPEC §3.8 et §5.2).
+
 - **Command palette ⌘K v30** — disponible globalement sur toutes les pages v30 (SPEC §2.2) :
   - Ouverture via `⌘K` / `Ctrl+K` ou clic sur le bouton `data-v30-cmdk` de la topbar.
   - Fuzzy search sur `/api/search` (prospects + entreprises + candidats) avec debounce 180 ms.
