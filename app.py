@@ -4497,6 +4497,37 @@ def page_v30_login():
     return render_template("v30/login.html", app_version=APP_VERSION)
 
 
+@app.get("/v30/focus")
+def page_v30_focus():
+    """Focus v30 — vue concentration 3 colonnes (overdue / today / upcoming)
+    hydratée via /api/dashboard."""
+    uid = _uid()
+    user_initials = "AB"
+    if uid:
+        u = _get_current_user() or {}
+        dn = (u.get("display_name") or u.get("username") or "").strip()
+        if dn:
+            parts = [p for p in dn.split() if p]
+            user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
+    counts = {}
+    try:
+        with _conn() as conn:
+            counts["prospects"] = conn.execute(
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+            ).fetchone()[0]
+    except Exception:
+        pass
+    return render_template(
+        "v30/focus.html",
+        active="focus",
+        crumbs=["Prosp'Up", "Focus"],
+        counts=counts,
+        pinned=[],
+        user_initials=user_initials,
+        app_version=APP_VERSION,
+    )
+
+
 @app.get("/v30/candidat/<int:cid>")
 def page_v30_candidate_detail(cid):
     """Fiche candidat v30 (SPEC §3.8). Rendu serveur minimal ; les

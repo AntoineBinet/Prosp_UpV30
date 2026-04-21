@@ -1,0 +1,93 @@
+{% extends "v30/base.html" %}
+{% block title %}Focus — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-focus{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div data-v30-focus>
+
+  {# ─── Header hero ─── #}
+  <section style="padding:8px 0 24px;">
+    <div style="font-size:11.5px;color:var(--text-3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;"
+         data-field="date">—</div>
+    <h1 class="serif" style="font-size:40px;line-height:1.05;margin:0;color:var(--text);">
+      Focus du jour.
+    </h1>
+    <p class="muted" style="margin:4px 0 0;font-size:13px;" data-field="subtitle">
+      <span class="skel" style="width:320px;height:13px;display:inline-block;"></span>
+    </p>
+  </section>
+
+  {# ─── Colonne unique 3 blocs : Overdue · Aujourd'hui · À venir ─── #}
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+
+    <div class="card card-flush" data-v30-focus-col="overdue">
+      <div class="card-header">
+        <div class="card-title" style="display:flex;align-items:center;gap:6px;">
+          <span class="badge-dot" style="background:var(--danger);"></span>
+          En retard <span class="tab-count" data-field="count">—</span>
+        </div>
+      </div>
+      <div data-field="rows">
+        {% for _ in range(3) %}
+        <div class="v30-ac__row">
+          <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
+          <div style="flex:1;min-width:0;">
+            <div class="skel" style="width:60%;height:13px;margin-bottom:4px;"></div>
+            <div class="skel" style="width:40%;height:11px;"></div>
+          </div>
+          <span class="skel" style="width:56px;height:18px;border-radius:999px;"></span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card card-flush" data-v30-focus-col="today">
+      <div class="card-header">
+        <div class="card-title" style="display:flex;align-items:center;gap:6px;">
+          <span class="badge-dot" style="background:var(--accent);"></span>
+          Aujourd'hui <span class="tab-count" data-field="count">—</span>
+        </div>
+      </div>
+      <div data-field="rows">
+        {% for _ in range(3) %}
+        <div class="v30-ac__row">
+          <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
+          <div style="flex:1;min-width:0;">
+            <div class="skel" style="width:70%;height:13px;margin-bottom:4px;"></div>
+            <div class="skel" style="width:50%;height:11px;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card card-flush" data-v30-focus-col="upcoming">
+      <div class="card-header">
+        <div class="card-title" style="display:flex;align-items:center;gap:6px;">
+          <span class="badge-dot" style="background:var(--success);"></span>
+          À venir <span class="tab-count" data-field="count">—</span>
+        </div>
+      </div>
+      <div data-field="rows">
+        {% for _ in range(3) %}
+        <div class="v30-ac__row">
+          <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
+          <div style="flex:1;min-width:0;">
+            <div class="skel" style="width:70%;height:13px;margin-bottom:4px;"></div>
+            <div class="skel" style="width:50%;height:11px;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{# Réutilise les styles .v30-ac__row de dashboard.css pour les lignes #}
+<link rel="stylesheet" href="/static/css/v30/dashboard.css?v={{ static_hash('css/v30/dashboard.css') }}">
+
+<script defer src="/static/js/v30/focus.js?v={{ static_hash('js/v30/focus.js') }}"></script>
+{% endblock %}
