@@ -5786,6 +5786,149 @@ def api_candidate_certifications_post(candidate_id: int):
     return jsonify({"ok": True, "id": cert_id})
 
 
+# ════════════════════════════════════════════════════════════
+# v30 — Candidate skills + availability (granularité fine)
+# ════════════════════════════════════════════════════════════
+
+def _cand_owned_row(conn, candidate_id: int, uid: int):
+    return conn.execute(
+        "SELECT id, tech FROM candidates WHERE id=? AND owner_id=?;",
+        (candidate_id, uid),
+    ).fetchone()
+
+
+@app.get("/api/candidates/<int:candidate_id>/skills")
+def api_cand_skills_get(candidate_id: int):
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        cand = _cand_owned_row(conn, candidate_id, uid)
+        if not cand:
+            return jsonify(ok=False, error="not_found"), 404
+        rows = conn.execute(
+            "SELECT id, name, category, level FROM candidate_skills "
+            "WHERE candidate_id=? ORDER BY category, name;",
+            (candidate_id,),
+        ).fetchall()
+        skills = [dict(r) for r in rows]
+        # Backfill depuis candidates.tech si aucune skill enregistrée
+        if not skills and cand.get("tech"):
+            tech_list = [t.strip() for t in str(cand["tech"]).split(",") if t.strip()]
+            for name in tech_list[:40]:
+                try:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO candidate_skills (candidate_id, name, category, level) "
+                        "VALUES (?,?,?,?);",
+                        (candidate_id, name, "Compétences", 3),
+                    )
+                except Exception:
+                    pass
+            skills = [dict(r) for r in conn.execute(
+                "SELECT id, name, category, level FROM candidate_skills "
+                "WHERE candidate_id=? ORDER BY category, name;", (candidate_id,)
+            ).fetchall()]
+    return jsonify(ok=True, skills=skills)
+
+
+@app.post("/api/candidates/<int:candidate_id>/skills")
+def api_cand_skills_post(candidate_id: int):
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    err = _require_same_origin()
+    if err:
+        return err
+    payload = request.get_json(force=True, silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return jsonify(ok=False, error="name is required"), 400
+    category = (payload.get("category") or "").strip() or None
+    level = max(1, min(5, int(payload.get("level") or 3)))
+    with _conn() as conn:
+        cand = _cand_owned_row(conn, candidate_id, uid)
+        if not cand:
+            return jsonify(ok=False, error="not_found"), 404
+        try:
+            conn.execute(
+                "INSERT INTO candidate_skills (candidate_id, name, category, level) "
+                "VALUES (?,?,?,?) "
+                "ON CONFLICT(candidate_id, name) DO UPDATE SET "
+                "  category=excluded.category, level=excluded.level;",
+                (candidate_id, name, category, level),
+            )
+        except Exception as e:
+            return jsonify(ok=False, error=str(e)), 400
+        row = conn.execute(
+            "SELECT id, name, category, level FROM candidate_skills "
+            "WHERE candidate_id=? AND name=?;",
+            (candidate_id, name),
+        ).fetchone()
+    return jsonify(ok=True, skill=dict(row) if row else None)
+
+
+@app.delete("/api/candidates/<int:candidate_id>/skills/<int:skill_id>")
+def api_cand_skills_delete(candidate_id: int, skill_id: int):
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    err = _require_same_origin()
+    if err:
+        return err
+    with _conn() as conn:
+        cand = _cand_owned_row(conn, candidate_id, uid)
+        if not cand:
+            return jsonify(ok=False, error="not_found"), 404
+        conn.execute(
+            "DELETE FROM candidate_skills WHERE id=? AND candidate_id=?;",
+            (skill_id, candidate_id),
+        )
+    return jsonify(ok=True)
+
+
+@app.get("/api/candidates/<int:candidate_id>/availability")
+def api_cand_avail_get(candidate_id: int):
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        cand = _cand_owned_row(conn, candidate_id, uid)
+        if not cand:
+            return jsonify(ok=False, error="not_found"), 404
+        rows = conn.execute(
+            "SELECT week_iso, status FROM candidate_availability "
+            "WHERE candidate_id=? ORDER BY week_iso;",
+            (candidate_id,),
+        ).fetchall()
+    return jsonify(ok=True, availability=[dict(r) for r in rows])
+
+
+@app.post("/api/candidates/<int:candidate_id>/availability")
+def api_cand_avail_post(candidate_id: int):
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    err = _require_same_origin()
+    if err:
+        return err
+    payload = request.get_json(force=True, silent=True) or {}
+    week_iso = (payload.get("week_iso") or "").strip()
+    status = (payload.get("status") or "").strip().lower()
+    if not week_iso or status not in ("libre", "busy", "placed"):
+        return jsonify(ok=False, error="week_iso + status (libre|busy|placed) requis"), 400
+    with _conn() as conn:
+        cand = _cand_owned_row(conn, candidate_id, uid)
+        if not cand:
+            return jsonify(ok=False, error="not_found"), 404
+        conn.execute(
+            "INSERT INTO candidate_availability (candidate_id, week_iso, status) "
+            "VALUES (?,?,?) "
+            "ON CONFLICT(candidate_id, week_iso) DO UPDATE SET status=excluded.status;",
+            (candidate_id, week_iso, status),
+        )
+    return jsonify(ok=True)
+
+
 @app.get("/api/candidates/<int:candidate_id>/dossier-competence")
 def api_candidate_dossier_competence(candidate_id: int):
     """Serve the competence dossier PDF for a candidate."""
