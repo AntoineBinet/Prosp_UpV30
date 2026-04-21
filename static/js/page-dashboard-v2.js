@@ -75,12 +75,12 @@ function dv2_sparklineSVG(values, color, w, h) {
 
 function dv2_emojiForRatio(r) {
   var x = Math.max(0, Math.min(1, Number(r) || 0));
-  if (x >= 1) return '&#x1F3C6;';
-  if (x >= 0.8) return '&#x1F525;';
-  if (x >= 0.6) return '&#x1F929;';
-  if (x >= 0.4) return '&#x1F60E;';
-  if (x >= 0.2) return '&#x1F642;';
-  return '&#x1F976;';
+  if (x >= 1)   return window.icon ? window.icon('trophy',    {size:16}) : '';
+  if (x >= 0.8) return window.icon ? window.icon('zap',       {size:16}) : '';
+  if (x >= 0.6) return window.icon ? window.icon('star',      {size:16}) : '';
+  if (x >= 0.4) return window.icon ? window.icon('check',     {size:16}) : '';
+  if (x >= 0.2) return window.icon ? window.icon('target',    {size:16}) : '';
+  return window.icon ? window.icon('alertTri', {size:16}) : '';
 }
 
 // ─── Week navigation helpers ───
@@ -244,7 +244,7 @@ function dv2_renderPerformance(data) {
   // Overdue chip (5th, alert style) — uniquement pour la semaine courante
   if (!isPast && data.pipeline.overdue > 0) {
     chips.push({
-      key: 'overdue', icon: '\u26A0\uFE0F', label: 'En retard', value: data.pipeline.overdue,
+      key: 'overdue', icon: window.icon ? window.icon('alertTri', {size:14}) : '', label: 'En retard', value: data.pipeline.overdue,
       weekVal: data.pipeline.overdue, prevVal: 0, color: '#ef4444',
       sub: (data.pipeline.due_today || 0) + ' a faire aujourd\'hui',
       alert: true
@@ -434,7 +434,7 @@ function dv2_renderActions(overdueList, tasks, rdvList) {
           if (t.due_date < new Date().toISOString().slice(0, 10)) dueCls = ' overdue';
         }
         return '<div class="dv2-action-row" data-task-id="' + t.id + '">' +
-          '<button class="dv2-task-check" onclick="dv2_toggleTask(' + t.id + ', this)" title="Valider">&#x2713;</button>' +
+          '<button class="dv2-task-check" onclick="dv2_toggleTask(' + t.id + ', this)" title="Valider">' + (window.icon ? window.icon('check', {size:13}) : '') + '</button>' +
           '<div class="dv2-task-info">' +
             '<div class="dv2-task-title">' + dv2_esc(t.title) + '</div>' +
             (t.comment ? '<div class="dv2-task-comment">' + dv2_esc(t.comment.slice(0, 60)) + '</div>' : '') +
@@ -516,7 +516,7 @@ async function dv2_toggleTask(taskId, btn) {
     }, 350);
   } catch(e) {
     btn.disabled = false;
-    btn.innerHTML = '&#x2713;';
+    btn.innerHTML = window.icon ? window.icon('check', {size:13}) : '';
     if (typeof showToast === 'function') showToast('Erreur: ' + (e.message || 'Inconnue'), 'error');
   }
 }
@@ -675,7 +675,7 @@ function dv2_renderActivity(feed, weekDays) {
     });
   });
   (feed.push || []).forEach(function(p) {
-    var ch = p.channel === 'email' ? '\u2709\uFE0F' : (p.channel === 'linkedin' ? '\uD83D\uDCBC' : '\uD83D\uDCE4');
+    var ch = p.channel === 'email' ? (window.icon ? window.icon('mail', {size:14}) : '') : (p.channel === 'linkedin' ? (window.icon ? window.icon('linkedin', {size:14}) : '') : (window.icon ? window.icon('send', {size:14}) : ''));
     var label = p.channel === 'email' ? 'Email' : (p.channel === 'linkedin' ? 'LinkedIn' : 'Push');
     items.push({
       time: (p.createdAt || '').slice(11, 16) || '--',
