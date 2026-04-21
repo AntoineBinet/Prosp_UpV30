@@ -1038,7 +1038,7 @@ def _verify_refresh_token(raw_token):
 @login_required
 @role_required('admin')
 def page_users():
-    return render_template("users.html", static_hashes=_static_hashes)
+    return render_template("legacy/users.html", static_hashes=_static_hashes)
 
 @app.get("/api/users")
 @login_required
@@ -4561,12 +4561,12 @@ def restore_snapshot(filename: str) -> None:
 
 @app.get("/")
 def home():
-    return render_template("index.html", static_hashes=_static_hashes)
+    return render_template("legacy/index.html", static_hashes=_static_hashes)
 
 
 @app.get("/entreprises")
 def page_entreprises():
-    return render_template("entreprises.html", static_hashes=_static_hashes)
+    return render_template("legacy/entreprises.html", static_hashes=_static_hashes)
 
 @app.get("/company")
 def page_company():
@@ -4576,44 +4576,44 @@ def page_company():
 
 @app.get("/parametres")
 def page_parametres():
-    return render_template("parametres.html", static_hashes=_static_hashes)
+    return render_template("legacy/parametres.html", static_hashes=_static_hashes)
 
 
 
 
 @app.get("/sourcing")
 def page_sourcing():
-    return render_template("sourcing.html", static_hashes=_static_hashes)
+    return render_template("legacy/sourcing.html", static_hashes=_static_hashes)
 
 
 @app.get("/candidat")
 def page_candidat():
     """Fiche candidat (détail). Utilise le query param ?id=..."""
-    return render_template("candidate.html", static_hashes=_static_hashes)
+    return render_template("legacy/candidate.html", static_hashes=_static_hashes)
 
 
 @app.get("/push")
 def page_push():
-    return render_template("push.html", static_hashes=_static_hashes)
+    return render_template("legacy/push.html", static_hashes=_static_hashes)
 
 @app.get("/stats")
 def page_stats():
-    return render_template("stats.html", static_hashes=_static_hashes)
+    return render_template("legacy/stats.html", static_hashes=_static_hashes)
 
 
 @app.get("/duplicates")
 def page_duplicates():
-    return render_template("duplicates.html", static_hashes=_static_hashes)
+    return render_template("legacy/duplicates.html", static_hashes=_static_hashes)
 
 
 @app.get("/focus")
 def page_focus():
-    return render_template("focus.html", static_hashes=_static_hashes)
+    return render_template("legacy/focus.html", static_hashes=_static_hashes)
 
 
 @app.get("/snapshots")
 def page_snapshots():
-    return render_template("snapshots.html", static_hashes=_static_hashes)
+    return render_template("legacy/snapshots.html", static_hashes=_static_hashes)
 
 
 @app.get("/activity")
@@ -4621,27 +4621,27 @@ def page_snapshots():
 @role_required('admin')
 def page_activity():
     """Journal d'activité multi-utilisateurs — admin only (v27.10)."""
-    return render_template("activity.html", static_hashes=_static_hashes)
+    return render_template("legacy/activity.html", static_hashes=_static_hashes)
 
 
 @app.get("/help")
 def page_help():
-    return render_template("help.html", static_hashes=_static_hashes)
+    return render_template("legacy/help.html", static_hashes=_static_hashes)
 
 
 @app.get("/aide")
 def page_aide():
-    return render_template("help.html", static_hashes=_static_hashes)
+    return render_template("legacy/help.html", static_hashes=_static_hashes)
 
 
 @app.get("/metiers")
 def page_metiers():
-    return render_template("metiers.html", static_hashes=_static_hashes)
+    return render_template("legacy/metiers.html", static_hashes=_static_hashes)
 
 
 @app.get("/prospects/mode-prosp")
 def page_mode_prosp():
-    return render_template("mode_prosp.html", static_hashes=_static_hashes)
+    return render_template("legacy/mode_prosp.html", static_hashes=_static_hashes)
 
 
 @app.get("/v30/preview")
@@ -14830,7 +14830,7 @@ def api_export_day():
 
 @app.get("/rapport")
 def page_rapport():
-    return render_template("rapport.html", static_hashes=_static_hashes)
+    return render_template("legacy/rapport.html", static_hashes=_static_hashes)
 
 
 @app.get("/api/rapport-hebdo")
@@ -15220,14 +15220,14 @@ def api_metiers_batch_confirm_tags():
 
 @app.get("/calendrier")
 def page_calendar():
-    return render_template("calendrier.html", static_hashes=_static_hashes)
+    return render_template("legacy/calendrier.html", static_hashes=_static_hashes)
 
 
 @app.get("/collab")
 @login_required
 def page_collab():
     """Page de collaboration."""
-    return render_template("collab.html", static_hashes=_static_hashes)
+    return render_template("legacy/collab.html", static_hashes=_static_hashes)
 
 
 @app.get("/api/calendar_events")
@@ -15387,7 +15387,7 @@ def api_calendar_events_external():
 
 @app.get("/dashboard")
 def page_dashboard():
-    return render_template("dashboard_v2.html", static_hashes=_static_hashes)
+    return render_template("legacy/dashboard_v2.html", static_hashes=_static_hashes)
 
 
 # Gamified goals helpers are extracted in services/dashboard_goals.py.
@@ -18455,7 +18455,7 @@ def api_assistant_action():
 @login_required
 def dc_generator():
     """Page principale DC Generator (sans candidat pré-sélectionné)"""
-    return render_template('dc_generator.html', candidate=None)
+    return render_template('legacy/dc_generator.html', candidate=None)
 
 
 @app.route('/candidates/<int:candidate_id>/dc-generator')
@@ -18469,7 +18469,7 @@ def dc_generator_candidate(candidate_id):
         ).fetchone()
     if not candidate:
         abort(404)
-    return render_template('dc_generator.html', candidate=dict(candidate))
+    return render_template('legacy/dc_generator.html', candidate=dict(candidate))
 
 
 @app.route('/dc-generator/template')
