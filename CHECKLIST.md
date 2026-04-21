@@ -55,7 +55,7 @@
 - [x] Sections : Actions rapides · Aller à… · Résultats (Prospects + Entreprises + Candidats)
 - [x] Raccourcis globaux : `⌘K` / `Ctrl+K` ouvrir, `↑↓` + `Enter` naviguer, `⌘+Enter` nouvel onglet, `Esc` fermer, action « Basculer thème »
 - [x] Raccourcis chainés `G + {D,P,E,S,F,U,T}` (goto), `C` (créer), `[` (toggle sidebar), `?` (modal aide), `⌘B` (focus mode), `/` (palette alternative), `⇧T` (thème)
-- [ ] Raccourcis tableaux `J/K/X/E` (nav lignes + select + edit) — à brancher quand les tables v30 implémenteront la nav clavier
+- [x] Raccourcis tableaux `J/K/X/E/Enter` (nav lignes + select + edit + ouvrir) — branchés via `static/js/v30/table_nav.js` sur `/v30/prospects` et `/v30/entreprises`
 
 ## Étape 5 · Polish & QA
 

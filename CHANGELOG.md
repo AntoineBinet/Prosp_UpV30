@@ -77,6 +77,19 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
 - `30.0-alpha` → `30.0-beta`.
 
+### Navigation clavier tables J/K/X/E/Enter (Phase 5, SPEC §2.3)
+
+- `static/js/v30/table_nav.js` : écoute `keydown` global (skip si input focus),
+  active une ligne `[data-id].is-active` dans tout conteneur `[data-v30-table-nav]`.
+- `J` / `K` : ligne suivante / précédente avec `scrollIntoView` (`nearest`).
+- `X` : toggle checkbox de la ligne active + dispatch `change`.
+- `E` : focus sur la zone inline éditable de la ligne (fallback : ouvre la fiche).
+- `Enter` : déclenche `[data-v30-open]` (= clic sur le lien de nom).
+- Branché sur `/v30/prospects` et `/v30/entreprises` via `data-v30-table-nav` sur le `<tbody>`.
+- CSS `.v30-pp-table tr.is-active` : inset 3px accent + background teinté.
+- Modal d'aide : retire le "(futurs)" sur la section Tables, ajoute la ligne
+  « Ouvrir la fiche ↵ ».
+
 ### Rapport WYSIWYG dans /v30/stats (Phase 4, SPEC §3.9)
 
 - Onglet **Rapport** de `/v30/stats` : document éditorial centré (max 820px)
