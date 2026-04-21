@@ -11457,6 +11457,221 @@ def api_push_logs_delete():
     return jsonify({"ok": True})
 
 
+# ════════════════════════════════════════════════════════════
+# v30 — Push campaigns (brouillon + audience + envoi)
+# ════════════════════════════════════════════════════════════
+
+def _campaign_row_to_dict(row) -> dict:
+    d = dict(row)
+    for k in ("filters_json", "stats_json"):
+        raw = d.get(k)
+        if raw:
+            try:
+                d[k[:-5]] = json.loads(raw) if isinstance(raw, str) else raw
+            except Exception:
+                d[k[:-5]] = None
+        else:
+            d[k[:-5]] = None
+    return d
+
+
+@app.get("/api/push-campaigns")
+def api_push_campaigns_list():
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM push_campaigns WHERE owner_id=? ORDER BY id DESC;",
+            (uid,),
+        ).fetchall()
+    return jsonify([_campaign_row_to_dict(r) for r in rows])
+
+
+@app.post("/api/push-campaigns")
+def api_push_campaigns_create():
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    err = _require_same_origin()
+    if err:
+        return err
+    payload = request.get_json(force=True, silent=True) or {}
+    name = (payload.get("name") or "").strip() or "Campagne sans nom"
+    category_id = payload.get("category_id")
+    template_id = payload.get("template_id")
+    filters = payload.get("filters")
+    scheduled_at = payload.get("scheduled_at")
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO push_campaigns (owner_id, name, category_id, template_id, "
+            "filters_json, scheduled_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?);",
+            (uid, name,
+             int(category_id) if category_id else None,
+             int(template_id) if template_id else None,
+             json.dumps(filters) if filters else None,
+             scheduled_at, now, now),
+        )
+        cid = cur.lastrowid
+        row = conn.execute("SELECT * FROM push_campaigns WHERE id=?;", (cid,)).fetchone()
+    return jsonify(ok=True, campaign=_campaign_row_to_dict(row))
+
+
+@app.put("/api/push-campaigns/<int:cid>")
+def api_push_campaigns_update(cid: int):
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    err = _require_same_origin()
+    if err:
+        return err
+    payload = request.get_json(force=True, silent=True) or {}
+    fields = []
+    params: list = []
+    if "name" in payload:
+        fields.append("name=?"); params.append((payload["name"] or "").strip())
+    if "category_id" in payload:
+        fields.append("category_id=?"); params.append(payload["category_id"] or None)
+    if "template_id" in payload:
+        fields.append("template_id=?"); params.append(payload["template_id"] or None)
+    if "filters" in payload:
+        fields.append("filters_json=?"); params.append(json.dumps(payload["filters"]) if payload["filters"] else None)
+    if "scheduled_at" in payload:
+        fields.append("scheduled_at=?"); params.append(payload["scheduled_at"])
+    if not fields:
+        return jsonify(ok=False, error="Aucun champ à mettre à jour"), 400
+    fields.append("updated_at=?")
+    params.append(datetime.datetime.now().isoformat(timespec="seconds"))
+    params.extend([cid, uid])
+    with _conn() as conn:
+        conn.execute(
+            f"UPDATE push_campaigns SET {', '.join(fields)} WHERE id=? AND owner_id=?;",
+            params,
+        )
+        row = conn.execute(
+            "SELECT * FROM push_campaigns WHERE id=? AND owner_id=?;", (cid, uid)
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Campagne introuvable"), 404
+    return jsonify(ok=True, campaign=_campaign_row_to_dict(row))
+
+
+@app.delete("/api/push-campaigns/<int:cid>")
+def api_push_campaigns_delete(cid: int):
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    err = _require_same_origin()
+    if err:
+        return err
+    with _conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM push_campaigns WHERE id=? AND owner_id=?;", (cid, uid)
+        )
+        deleted = cur.rowcount
+    return jsonify(ok=True, deleted=deleted)
+
+
+def _apply_campaign_filters(conn, uid: int, filters: dict) -> list[dict]:
+    """Retourne la liste des prospects matchant les filtres de la campagne."""
+    where = ["p.owner_id=?", "(p.deleted_at IS NULL)"]
+    params: list = [uid]
+    f = filters or {}
+    # Statut
+    if f.get("statut"):
+        vals = f["statut"] if isinstance(f["statut"], list) else [f["statut"]]
+        where.append(f"p.statut IN ({','.join(['?']*len(vals))})")
+        params.extend(vals)
+    # Pertinence min
+    if f.get("pertinence_min") is not None:
+        where.append("COALESCE(p.pertinence,0)>=?"); params.append(int(f["pertinence_min"]))
+    # Tags (LIKE)
+    if f.get("tags"):
+        tags = f["tags"] if isinstance(f["tags"], list) else [f["tags"]]
+        for t in tags:
+            where.append("COALESCE(p.tags,'') LIKE ?"); params.append(f"%{t}%")
+    # A relancer
+    if f.get("a_relancer"):
+        where.append("(p.statut IN ('Relance à faire','Relancer'))")
+    # Limit
+    limit = int(f.get("limit") or 500)
+    q = (
+        "SELECT p.id, p.name, p.email, p.phone, p.statut, p.tags, "
+        "c.groupe AS company_name "
+        "FROM prospects p LEFT JOIN companies c ON c.id=p.company_id "
+        "WHERE " + " AND ".join(where) + " ORDER BY p.id DESC LIMIT ?;"
+    )
+    params.append(limit)
+    rows = conn.execute(q, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/push-campaigns/<int:cid>/recipients-preview")
+def api_push_campaigns_recipients(cid: int):
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT filters_json FROM push_campaigns WHERE id=? AND owner_id=?;",
+            (cid, uid),
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Campagne introuvable"), 404
+        filters = {}
+        raw = row["filters_json"]
+        if raw:
+            try:
+                filters = json.loads(raw) if isinstance(raw, str) else raw
+            except Exception:
+                filters = {}
+        prospects = _apply_campaign_filters(conn, uid, filters)
+    return jsonify(ok=True, count=len(prospects), prospects=prospects)
+
+
+@app.post("/api/push-campaigns/<int:cid>/send")
+def api_push_campaigns_send(cid: int):
+    """Marque la campagne comme envoyée et crée un push_log par destinataire (tracking)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    err = _require_same_origin()
+    if err:
+        return err
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM push_campaigns WHERE id=? AND owner_id=?;", (cid, uid)
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Campagne introuvable"), 404
+        filters = {}
+        if row["filters_json"]:
+            try:
+                filters = json.loads(row["filters_json"])
+            except Exception:
+                filters = {}
+        recipients = _apply_campaign_filters(conn, uid, filters)
+        count = 0
+        for p in recipients:
+            conn.execute(
+                "INSERT INTO push_logs (prospect_id, sentAt, channel, to_email, "
+                "subject, body, template_id, createdAt, campaign_id) "
+                "VALUES (?,?,?,?,?,?,?,?,?);",
+                (p["id"], now, "campaign", p.get("email") or "",
+                 row["name"], "", row["template_id"], now, cid),
+            )
+            count += 1
+        stats = {"sent": count, "recipients": len(recipients)}
+        conn.execute(
+            "UPDATE push_campaigns SET sent_at=?, stats_json=?, updated_at=? WHERE id=?;",
+            (now, json.dumps(stats), now, cid),
+        )
+    return jsonify(ok=True, sent=count, recipients=len(recipients))
+
+
+
 # ====== Push tracking & analytics API (v26.6) ======
 @app.get("/api/push/track")
 def api_push_track():
