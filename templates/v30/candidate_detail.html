@@ -1,0 +1,111 @@
+{% extends "v30/base.html" %}
+{% block title %}{{ candidate_name or 'Fiche candidat' }} — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-candidate-detail{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/prospect_detail.css?v={{ static_hash('css/v30/prospect_detail.css') }}">
+<link rel="stylesheet" href="/static/css/v30/candidate_detail.css?v={{ static_hash('css/v30/candidate_detail.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-fp" data-v30-fc data-candidate-id="{{ candidate_id }}">
+
+  {# ─── Header ─── #}
+  <div class="v30-fp-header" data-v30-fc-header>
+    <span class="avatar avatar-lg v30-fp-header__avatar" data-field="initials">
+      <span class="skel" style="width:36px;height:18px;"></span>
+    </span>
+    <div>
+      <div class="v30-fp-header__title-row">
+        <h1 class="v30-fp-header__name v30-fp-editable" data-field="name" data-v30-edit="name" tabindex="0">
+          <span class="skel" style="width:200px;height:22px;display:inline-block;"></span>
+        </h1>
+        <span data-field="status-pill"></span>
+        <span class="v30-fp-saved-check" data-v30-saved-check aria-live="polite">
+          {{ ui.icon('check', 14) }}
+        </span>
+      </div>
+      <div class="v30-fp-header__meta" data-field="meta">
+        <span class="skel" style="width:280px;height:12px;display:inline-block;"></span>
+      </div>
+      <div class="v30-fp-header__chips" data-field="chips"></div>
+    </div>
+    <div class="v30-fp-header__actions">
+      <button type="button" class="btn btn-accent" data-v30-fc-action="dc">
+        {{ ui.icon('report', 13) }} Générer DC
+      </button>
+      <button type="button" class="btn" data-v30-fc-action="push">
+        {{ ui.icon('send', 13) }} Pousser
+      </button>
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-fc-action="more" aria-label="Plus">
+        {{ ui.icon('dot3') }}
+      </button>
+    </div>
+  </div>
+
+  {# ─── Body 2 cols ─── #}
+  <div class="v30-fp-body">
+
+    {# Main : Compétences + Disponibilités #}
+    <div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-title" style="margin-bottom:10px;">Compétences</div>
+        <div data-v30-fc-skills>
+          <div class="skel" style="width:80%;height:24px;margin-bottom:8px;"></div>
+          <div class="skel" style="width:70%;height:24px;margin-bottom:8px;"></div>
+          <div class="skel" style="width:60%;height:24px;"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row-sb" style="margin-bottom:10px;">
+          <div class="card-title">Disponibilités · 8 prochaines semaines</div>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-edit-dispo>Éditer</button>
+        </div>
+        <div class="v30-fc-dispo" data-v30-fc-dispo>
+          {% for _ in range(8) %}
+          <div class="v30-fc-dispo__cell">
+            <div class="skel" style="height:10px;width:60%;margin:0 auto 4px;"></div>
+            <div class="skel" style="height:11px;width:70%;margin:0 auto;"></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {# Aside : Campagnes match + Missions passées #}
+    <aside style="display:flex;flex-direction:column;gap:12px;">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:8px;">Campagnes match</div>
+        <div data-v30-fc-campaigns>
+          <div class="empty" style="padding:12px;font-size:12px;">
+            Matching par campagne — table <code class="mono">push_campaigns</code> à créer (SPEC §5.2).
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:8px;">Missions passées</div>
+        <div data-v30-fc-missions>
+          <div class="skel" style="width:80%;height:13px;margin-bottom:6px;"></div>
+          <div class="skel" style="width:70%;height:13px;margin-bottom:6px;"></div>
+          <div class="skel" style="width:60%;height:13px;"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label">Notes</div>
+        <div class="v30-fp-editable" data-field="notes" data-v30-edit="notes"
+             style="font-size:12.5px;color:var(--text-2);line-height:1.6;min-height:1.4em;">
+          <span class="skel" style="width:90%;height:12px;"></span>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<script defer src="/static/js/v30/candidate_detail.js?v={{ static_hash('js/v30/candidate_detail.js') }}"></script>
+{% endblock %}
