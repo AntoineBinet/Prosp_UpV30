@@ -31,7 +31,7 @@
 - [x] **Push** (`screens/push.jsx` → `templates/v30/push.html`) — route `/v30/push`. **Templates + Historique + Campagnes** branchés. Table `push_campaigns` + endpoints CRUD + `/recipients-preview` + `/send`. Wizard 3 étapes (Cible → Message → Envoi) interactif.
 - [x] **Sourcing** (`screens/sourcing.jsx` → `templates/v30/sourcing.html`) — route `/v30/sourcing`. Kanban 5 statuts (mapping défensif sur `candidates.status`) + vue Grille. Branché sur `GET /api/candidates`.
 - [x] **Fiche candidat** (`prospect-detail.jsx` candidate variant → `templates/v30/candidate_detail.html`) — route `/v30/candidat/<cid>`. Header éditable inline + Compétences (barres 1-5 **cliquables**, tables `candidate_skills`) + Dispo 8 semaines (cycle `libre→busy→placed`, table `candidate_availability`) + Missions + Notes éditables.
-- [~] **Stats + Rapport** (`screens/stats.jsx` → `templates/v30/stats.html`) — route `/v30/stats`. Topbar + period filter + 4 KPI + Top entreprises hydratés. Les 8 charts Chart.js et l'éditeur Rapport WYSIWYG restent sur `/stats` et `/rapport` legacy en attendant migration complète.
+- [x] **Stats + Rapport** (`screens/stats.jsx` → `templates/v30/stats.html`) — route `/v30/stats`. Topbar + period filter + 4 KPI + Top entreprises. **Onglet Rapport** : éditeur WYSIWYG complet (zones contenteditable, sections auto KPI/Top/Trend, autosave local, export PDF via `/api/rapport/export-pdf`). Les 8 charts Chart.js détaillés restent sur `/stats` legacy.
 
 ## Écrans secondaires v30
 

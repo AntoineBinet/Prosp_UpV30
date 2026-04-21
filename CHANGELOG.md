@@ -77,6 +77,24 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
 - `30.0-alpha` → `30.0-beta`.
 
+### Rapport WYSIWYG dans /v30/stats (Phase 4, SPEC §3.9)
+
+- Onglet **Rapport** de `/v30/stats` : document éditorial centré (max 820px)
+  avec zones `contenteditable` : titre, auteur, résumé, notes.
+- Sections auto-injectées depuis `/api/rapport-hebdo` :
+  KPI semaine, Top entreprises (10), Top pushés (10), Évolution push (sparkline
+  HTML pur, barres CSS).
+- Autosave `contenteditable` vers `localStorage` clé `prospup_rapport_<YYYY-Wnn>`
+  (debounce 350 ms), hint « Sauvegardé hh:mm » pendant 2.5 s.
+- Toolbar : toggle `semaine en cours` / `semaine précédente`, rafraîchir,
+  **Copier Markdown** (clipboard), **Exporter PDF**.
+- Nouvel endpoint `POST /api/rapport/export-pdf` : reçoit `{ week, html, markdown }`,
+  parse le markdown (#/##, bullets, italic) et génère un PDF ReportLab A4
+  (titres Navy, accent violet, Helvetica). Retourne le fichier en attachment.
+- Fallback : si l'export échoue, redirige vers `/rapport?export=pdf&week=...` legacy.
+- Chargement **lazy** : le rapport n'est hydraté qu'au premier clic sur l'onglet
+  (ou si l'URL contient `#rapport`).
+
 ### Migration des pages legacy restantes vers v30 (Phase 3)
 
 10 nouvelles routes v30 couvrant toutes les pages legacy :
