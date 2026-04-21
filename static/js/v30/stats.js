@@ -126,11 +126,243 @@
     });
   }
 
+  // ═══════════════════════════════════════════════════════
+  // Rapport WYSIWYG (tab "Rapport")
+  // ═══════════════════════════════════════════════════════
+  var REP = { week: null, key: null, data: null };
+
+  function isoWeek(d) {
+    var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    var day = t.getUTCDay() || 7;
+    t.setUTCDate(t.getUTCDate() + 4 - day);
+    var y1 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+    var w = Math.ceil(((t - y1) / 86400000 + 1) / 7);
+    return t.getUTCFullYear() + '-W' + String(w).padStart(2, '0');
+  }
+  function weekParam(which) {
+    var d = new Date();
+    if (which === 'prev') d.setDate(d.getDate() - 7);
+    return isoWeek(d);
+  }
+
+  function repRenderRange() {
+    var el = document.querySelector('[data-v30-rep-range]');
+    if (!el) return;
+    var r = REP.data && REP.data.week;
+    if (r && r.from && r.to) el.textContent = 'Du ' + r.from + ' au ' + r.to;
+    else el.textContent = REP.week || '—';
+  }
+  function repRenderKpis() {
+    var host = document.querySelector('[data-v30-rep-kpis]');
+    if (!host) return;
+    var k = (REP.data && REP.data.kpis) || {};
+    var cards = [
+      { label: 'Prospects contactés', value: k.prospects_contacted, delta: k.prospects_delta },
+      { label: 'RDV planifiés',       value: k.rdv_scheduled,      delta: k.rdv_delta },
+      { label: 'Pushs envoyés',       value: k.pushs_sent,         delta: k.pushs_delta },
+      { label: 'Appels passés',       value: k.calls_made,         delta: k.calls_delta }
+    ];
+    host.innerHTML = cards.map(function (c) {
+      var val = c.value != null ? c.value : '—';
+      var delta = c.delta != null ? ((c.delta >= 0 ? '+' : '') + c.delta + ' vs. sem. précédente') : '';
+      return '<div class="v30-rep-kpi">' +
+        '<div class="v30-rep-kpi__label">' + esc(c.label) + '</div>' +
+        '<div class="v30-rep-kpi__value num">' + esc(val) + '</div>' +
+        (delta ? '<div class="v30-rep-kpi__delta">' + esc(delta) + '</div>' : '') +
+      '</div>';
+    }).join('');
+  }
+  function repRenderTable(hostSel, items, k1, k2, lbl1, lbl2) {
+    var host = document.querySelector(hostSel);
+    if (!host) return;
+    items = items || [];
+    if (!items.length) {
+      host.innerHTML = '<div class="empty" style="padding:12px;">Aucune donnée.</div>';
+      return;
+    }
+    var head = '<div class="v30-rep-row" style="font-weight:600;color:var(--text-3);border-bottom:1px solid var(--border);padding-bottom:4px;">' +
+      '<span>' + esc(lbl1 || 'Nom') + '</span>' +
+      '<span style="text-align:right;">' + esc(k1 || 'Valeur') + '</span>' +
+      (k2 ? '<span style="text-align:right;">' + esc(k2) + '</span>' : '<span></span>') +
+    '</div>';
+    host.innerHTML = head + items.slice(0, 10).map(function (it) {
+      return '<div class="v30-rep-row">' +
+        '<span class="v30-rep-row__label">' + esc(it.name || it.label || it.groupe || '—') + '</span>' +
+        '<span class="v30-rep-row__v1">' + esc(it[k1] != null ? it[k1] : '—') + '</span>' +
+        (k2 ? '<span class="v30-rep-row__v2">' + esc(it[k2] != null ? it[k2] : '—') + '</span>' : '<span></span>') +
+      '</div>';
+    }).join('');
+  }
+  function repRenderTrend() {
+    var host = document.querySelector('[data-v30-rep-push-trend]');
+    if (!host) return;
+    var trend = (REP.data && REP.data.push_trend) || [];
+    if (!trend.length) {
+      host.innerHTML = '<div class="empty" style="padding:12px;">Pas assez de données pour un graphique.</div>';
+      return;
+    }
+    var max = Math.max.apply(null, trend.map(function (p) { return p.count || 0; })) || 1;
+    host.innerHTML = trend.map(function (p) {
+      var pct = ((p.count || 0) / max) * 100;
+      return '<div class="v30-rep-sparkline__bar" data-label="' + esc(p.label || '') +
+             '" style="height:' + Math.max(4, pct) + '%;">' +
+             '<span>' + (p.count || 0) + '</span></div>';
+    }).join('');
+  }
+
+  function repLoadCE() {
+    if (!REP.key) return;
+    try {
+      var saved = JSON.parse(localStorage.getItem(REP.key) || '{}');
+      ['title', 'author', 'summary', 'notes'].forEach(function (f) {
+        var el = document.querySelector('[data-v30-rep-ce="' + f + '"]');
+        if (el && saved[f] != null) el.innerHTML = saved[f];
+      });
+    } catch (_) {}
+  }
+  function repSaveCE() {
+    if (!REP.key) return;
+    var data = {};
+    ['title', 'author', 'summary', 'notes'].forEach(function (f) {
+      var el = document.querySelector('[data-v30-rep-ce="' + f + '"]');
+      if (el) data[f] = el.innerHTML;
+    });
+    try {
+      localStorage.setItem(REP.key, JSON.stringify(data));
+      var hint = document.querySelector('[data-v30-rep-savehint]');
+      if (hint) {
+        hint.textContent = 'Sauvegardé ' + new Date().toLocaleTimeString('fr-FR').slice(0,5);
+        setTimeout(function () { hint.textContent = 'Autosave local'; }, 2500);
+      }
+    } catch (_) {}
+  }
+
+  function repLoad(which) {
+    REP.week = weekParam(which);
+    REP.key = 'prospup_rapport_' + REP.week;
+    return fetchJSON('/api/rapport-hebdo?week=' + encodeURIComponent(REP.week))
+      .then(function (res) {
+        REP.data = res || {};
+        repRenderRange();
+        repRenderKpis();
+        repRenderTable('[data-v30-rep-top-companies]', REP.data.top_companies, 'pushs', 'prospects', 'Entreprise', 'Pushs · Prospects');
+        repRenderTable('[data-v30-rep-top-pushed]', REP.data.top_pushed, 'count', null, 'Prospect', 'Pushs');
+        repRenderTrend();
+        repLoadCE();
+      })
+      .catch(function (err) {
+        console.error('[v30 rapport]', err);
+      });
+  }
+
+  function repToMarkdown() {
+    var d = REP.data || {};
+    var getCE = function (f) {
+      var el = document.querySelector('[data-v30-rep-ce="' + f + '"]');
+      return el ? (el.innerText || '').trim() : '';
+    };
+    var lines = ['# ' + (getCE('title') || 'Rapport hebdomadaire') + ' · ' + (REP.week || '')];
+    if (getCE('author')) lines.push('*' + getCE('author') + '*');
+    if (getCE('summary')) lines.push('', '## Résumé', getCE('summary'));
+    var k = d.kpis || {};
+    if (Object.keys(k).length) {
+      lines.push('', '## KPI de la semaine');
+      Object.keys(k).forEach(function (key) {
+        if (!/delta$/.test(key)) lines.push('- **' + key + '** : ' + k[key]);
+      });
+    }
+    if ((d.top_companies || []).length) {
+      lines.push('', '## Top entreprises');
+      d.top_companies.slice(0, 10).forEach(function (c) {
+        lines.push('- ' + (c.name || c.groupe) + ' — ' + (c.pushs || 0) + ' push · ' + (c.prospects || 0) + ' prosp');
+      });
+    }
+    if ((d.top_pushed || []).length) {
+      lines.push('', '## Top pushés');
+      d.top_pushed.slice(0, 10).forEach(function (p) { lines.push('- ' + (p.name || p.label) + ' (' + (p.count || 0) + ')'); });
+    }
+    if (getCE('notes')) lines.push('', '## Notes', getCE('notes'));
+    return lines.join('\n');
+  }
+
+  function repBindToolbar() {
+    var seg = document.querySelector('[data-v30-rep-weeks]');
+    if (seg) seg.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-week]');
+      if (!b) return;
+      seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('active', x === b); });
+      repLoad(b.dataset.week);
+    });
+    var refresh = document.querySelector('[data-v30-rep-refresh]');
+    if (refresh) refresh.addEventListener('click', function () {
+      var active = document.querySelector('[data-v30-rep-weeks] button.active');
+      repLoad(active ? active.dataset.week : 'current');
+    });
+    var copy = document.querySelector('[data-v30-rep-copy]');
+    if (copy) copy.addEventListener('click', function () {
+      var md = repToMarkdown();
+      navigator.clipboard.writeText(md).then(function () {
+        if (window.showToast) window.showToast('Markdown copié', 'success');
+      });
+    });
+    var pdf = document.querySelector('[data-v30-rep-pdf]');
+    if (pdf) pdf.addEventListener('click', function () {
+      var doc = document.querySelector('[data-v30-rep-doc]');
+      if (!doc) return;
+      // Envoie le HTML + markdown au back pour conversion ReportLab
+      fetch('/api/rapport/export-pdf', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          week: REP.week,
+          html: doc.outerHTML,
+          markdown: repToMarkdown()
+        })
+      }).then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.blob();
+      }).then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'rapport-' + (REP.week || 'semaine') + '.pdf';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      }).catch(function (err) {
+        alert('Export PDF : ' + err.message + '. Bascule vers la page legacy.');
+        window.location.href = '/rapport?export=pdf&week=' + encodeURIComponent(REP.week || '');
+      });
+    });
+
+    // Autosave CE on input (debounced)
+    var t = null;
+    document.addEventListener('input', function (e) {
+      if (!e.target.matches || !e.target.matches('[data-v30-rep-ce]')) return;
+      clearTimeout(t);
+      t = setTimeout(repSaveCE, 350);
+    });
+  }
+
+  // Expose loader pour tab switch (chargé quand on clique sur l'onglet Rapport)
+  var repLoaded = false;
+  function repMaybeLoad() {
+    if (repLoaded) return;
+    repLoaded = true;
+    repLoad('current');
+  }
+
   function init() {
     bindTabs();
     bindPeriod();
     loadKPIs();
     loadTop();
+    repBindToolbar();
+
+    // Hook tab click : charge le rapport à la première ouverture
+    var tabBtn = document.querySelector('[data-v30-stats-tabs] button[data-tab="rapport"]');
+    if (tabBtn) tabBtn.addEventListener('click', repMaybeLoad);
+    // Si l'ancre #rapport pointe déjà sur le tab, charge direct
+    if (location.hash === '#rapport') repMaybeLoad();
   }
 
   if (document.readyState === 'loading') {
