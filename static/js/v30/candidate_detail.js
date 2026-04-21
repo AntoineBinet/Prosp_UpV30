@@ -82,6 +82,38 @@
     document.title = (c.name || 'Candidat') + " — Prosp'Up v30";
   }
 
+  // ─── Bloc Informations (parite v29 : STATUT/RÔLE/LOCALISATION/etc.) ──
+  function renderInfo(c) {
+    var host = $('[data-v30-fc-info]');
+    if (!host || !c) return;
+    var mailto = c.email ? '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' : '—';
+    var telto = c.phone ? '<a href="tel:' + esc(String(c.phone).replace(/\s/g, '')) + '">' + esc(c.phone) + '</a>' : '—';
+    var lnk = c.linkedin
+      ? '<a href="' + esc(c.linkedin) + '" target="_blank" rel="noopener">' +
+        esc(c.linkedin.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')) + '</a>'
+      : '—';
+    var tech = c.tech || (Array.isArray(c.skills) && c.skills.length
+      ? c.skills.slice(0, 6).join(', ') : '') || '—';
+    var rows = [
+      ['Statut',       c.status || 'nouveau'],
+      ['Rôle',         c.role || '—'],
+      ['Localisation', c.location || '—'],
+      ['Expérience',   c.years_experience || c.annees_experience || c.seniority || '—'],
+      ['Secteur',      c.sector || c.domaine_principal || '—'],
+      ['Source',       c.source || '—'],
+      ['Tech',         tech],
+      ['Téléphone',    telto,   true],
+      ['Email',        mailto,  true],
+      ['LinkedIn',     lnk,     true]
+    ];
+    host.innerHTML = rows.map(function (r) {
+      return '<div class="v30-fc-info-item">' +
+        '<div class="v30-fc-info-item__label">' + esc(r[0]) + '</div>' +
+        '<div class="v30-fc-info-item__value">' + (r[2] ? r[1] : esc(r[1])) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
   // ─── Skills ──────────────────────────────────────────────
   //   Backend : table candidate_skills (nom, catégorie, level 1-5)
   //   Clic sur une barre -> change le level. Clic sur '+' -> prompt nouveau.
@@ -325,6 +357,7 @@
       var exps = both[1] && (both[1].experiences || both[1].items || both[1] || []);
       STATE.experiences = Array.isArray(exps) ? exps : [];
       renderHeader(STATE.candidate);
+      renderInfo(STATE.candidate);
       renderMissions();
       // Charge skills + availability via nouveaux endpoints v30
       loadSkills();
