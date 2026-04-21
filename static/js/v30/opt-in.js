@@ -55,7 +55,51 @@
     });
   }
 
-  // ─── Legacy : bannière opt-in discrète ────────────────────
+  // ─── Mapping legacy → v30 (miroir de bindOptOut) ─────────
+  function legacyToV30(path, search) {
+    var q = new URLSearchParams(search || '');
+    var pid = q.get('prospect');
+    var cid = q.get('id');
+    if (path === '/' || path === '/index.html') {
+      return pid ? '/v30/prospect/' + pid : '/v30/prospects';
+    }
+    if (path === '/dashboard')        return '/v30/dashboard';
+    if (path === '/entreprises')      return '/v30/entreprises';
+    if (path === '/sourcing')         return '/v30/sourcing';
+    if (path === '/candidat' && cid)  return '/v30/candidat/' + cid;
+    if (path === '/push')             return '/v30/push';
+    if (path === '/stats')            return '/v30/stats';
+    if (path === '/rapport')          return '/v30/rapport';
+    if (path === '/users')            return '/v30/users';
+    if (path === '/parametres')       return '/v30/parametres';
+    if (path === '/snapshots')        return '/v30/snapshots';
+    if (path === '/activity')         return '/v30/activity';
+    if (path === '/collab')           return '/v30/collab';
+    if (path === '/duplicates')       return '/v30/duplicates';
+    if (path === '/metiers')          return '/v30/metiers';
+    if (path === '/help')             return '/v30/help';
+    if (path === '/focus')            return '/v30/focus';
+    if (path === '/calendrier')       return '/v30/calendrier';
+    return null;
+  }
+
+  // ─── Redirect auto legacy → v30 (sauf si opt-out v29) ────
+  function autoRedirectToV30() {
+    if (isV30Page()) return false;
+    var q = new URLSearchParams(location.search || '');
+    // Escape hatch : ?force_v29=1 sur l'URL laisse l'utilisateur en legacy
+    if (q.get('force_v29') === '1') return false;
+    if (getMode() === 'v29') return false; // user a explicite v29
+    var target = legacyToV30(location.pathname, location.search);
+    if (!target) return false;
+    setMode('v30');
+    // Preserve les query params utiles (change_password, etc.)
+    if (q.toString()) target += (target.indexOf('?') >= 0 ? '&' : '?') + q.toString();
+    window.location.replace(target);
+    return true;
+  }
+
+  // ─── Legacy : bannière opt-in discrète (fallback si pas de mapping) ──
   function renderLegacyBanner() {
     if (isV30Page()) return;
     if (getMode() === 'v29') return; // utilisateur a explicitement choisi v29
@@ -118,9 +162,13 @@
     if (isV30Page()) {
       setMode('v30');
       bindOptOut();
-    } else {
-      renderLegacyBanner();
+      return;
     }
+    // Page legacy : tente de rediriger vers v30 (sauf opt-out).
+    // Si la redirection est faite, on arrete ici (la page va recharger).
+    if (autoRedirectToV30()) return;
+    // Sinon (pas de mapping, ou opt-out v29) : affiche la banniere opt-in.
+    renderLegacyBanner();
   }
 
   if (document.readyState === 'loading') {

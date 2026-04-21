@@ -227,7 +227,13 @@ async function doLogin(e) {
         });
         const data = await resp.json();
         if (data.ok) {
-            window.location.href = data.must_change_password ? '/parametres?change_password=1' : '/dashboard';
+            // v30 est l'interface par defaut ; opt-out client via
+            // localStorage.prospup_ui_mode === 'v29'.
+            var optOut = false;
+            try { optOut = localStorage.getItem('prospup_ui_mode') === 'v29'; } catch (_) {}
+            var target = optOut ? '/dashboard' : '/v30/dashboard';
+            if (data.must_change_password) target = '/parametres?change_password=1';
+            window.location.href = target;
         } else {
             err.textContent = (data.error || 'Erreur de connexion');
             err.classList.add('show');

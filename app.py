@@ -902,7 +902,10 @@ def server_error(e):
 @app.get("/login")
 def page_login():
     if session.get('user_id'):
-        return redirect('/dashboard')
+        # v30 est l'interface par defaut depuis 30.1. L'opt-out client
+        # (localStorage.prospup_ui_mode === 'v29') est gere par base.html
+        # legacy qui redirige vers l'equivalent legacy si necessaire.
+        return redirect('/v30/dashboard')
     return send_from_directory(APP_DIR, "login.html")
 
 # v23.4: Simple in-memory rate limiter for login (IP-based)
