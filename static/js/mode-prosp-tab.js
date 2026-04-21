@@ -121,7 +121,7 @@ window.mpClose = function () {
     function buildCardHtml(p) {
         var company = getCompany(p.company_id);
         var companyName = company ? (company.groupe || '') + (company.site ? ' (' + company.site + ')' : '') : '';
-        var pert = parseInt(p.pertinence, 10) || 3;
+        var pert = Math.min(5, Math.max(0, parseInt(p.pertinence, 10) || 3));
         var stars = '\u2605'.repeat(pert) + '\u2606'.repeat(5 - pert);
         var heroColor = STATUS_COLORS[p.statut] || '#64748b';
         var initials = (p.name || '??').split(/\s+/).map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
