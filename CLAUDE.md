@@ -1,21 +1,25 @@
 # ProspUp — CRM Prospection B2B (Up Technologies)
 
-> **Version courante** : 29.7 (APP_VERSION dans app.py) — voir [CHANGELOG.md](CHANGELOG.md) pour l'historique récent.
+> **Version courante** : 30.1 (APP_VERSION dans app.py) — voir [CHANGELOG.md](CHANGELOG.md) pour l'historique récent.
+> **Interface par défaut** : v30 (depuis 30.1). L'UI v29 reste pleinement accessible via le bouton « v29 » de la sidebar v30, la carte « Revenir à l'ancienne interface » dans `/v30/parametres`, ou l'URL `?force_v29=1` (escape hatch).
 
 ## Stack technique
 - **Backend** : Flask (app.py ~17 500 lignes), SQLite, Waitress WSGI en prod, ReportLab pour génération PDF, python-docx pour DOCX
-- **Frontend** : Vanilla JS (pas de framework), templates Jinja2 (20 pages), Chart.js (stats uniquement)
-- **CSS** : Glassmorphism dark theme (`style.css` ~12 500 lignes), `prefers-color-scheme` pour light mode
+- **Frontend** : Vanilla JS (pas de framework), templates Jinja2 (v30 + legacy), Chart.js (stats uniquement)
+- **CSS** : Glassmorphism dark theme legacy (`style.css` ~12 500 lignes) + design system v30 (`static/css/v30/*.css`), `prefers-color-scheme` pour light mode
 - **PWA** : Service Worker (`static/sw.js`), manifest, offline.html
 - **Hébergement** : Cloudflare Tunnel → prospup.work, port 8000
-- **Tests E2E** : Playwright (Chromium), 14 specs (desktop + mobile Pixel 5)
+- **Tests E2E** : Playwright (Chromium), 14+ specs desktop + mobile Pixel 5
 
 ## Architecture fichiers
 ```
 app.py                  # Backend Flask monolithique — routes, API, auth, DB
 routes/                 # Blueprints (ai.py, auth.py, deploy.py)
 services/               # Logique métier (dashboard_goals.py)
-templates/              # 20 pages HTML Jinja2
+templates/
+  legacy/               # Templates v29 (dashboard_v2, index, entreprises, …)
+  v30/                  # Templates v30 (dashboard, prospects, candidate_detail, …)
+  _partials/            # Partials (v30/topbar, v30/sidebar, v30/palette, …)
 static/
   css/
     style.css            # Style principal (~12 500 lignes)

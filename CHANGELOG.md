@@ -2,6 +2,56 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.1] — 2026-04-21 · Bascule v30 par défaut + parité v29 complétée
+
+### v30 devient l'interface par défaut
+
+- **Serveur** : `/login` redirige vers `/v30/dashboard` (au lieu de `/dashboard`).
+- **Login client** : `login.html` pose `window.location.href = '/v30/dashboard'` après login, sauf si `localStorage.prospup_ui_mode === 'v29'`.
+- **Redirect auto legacy → v30** : `static/js/v30/opt-in.js` ajoute un `autoRedirectToV30()` qui détecte les routes legacy et redirige vers l'équivalent v30, sauf si :
+  - `localStorage.prospup_ui_mode === 'v29'` (opt-out explicite), ou
+  - URL contient `?force_v29=1` (escape hatch).
+- **Nouveau mapping** legacy → v30 : 18 routes gérées (`/` → `/v30/prospects`, `/dashboard` → `/v30/dashboard`, etc.). Pas de mapping = stay legacy.
+- **v29 reste 100 % accessible** via le bouton `v29` dans la sidebar v30, ou via `/parametres?force_v29=1`.
+
+### Templates v29 déplacés dans `templates/legacy/`
+
+- 22 templates déplacés via `git mv` (historique préservé) : `activity.html`, `base.html`, `calendrier.html`, `candidate.html`, `collab.html`, `company.html`, `dashboard_v2.html`, `dc_generator.html`, `duplicates.html`, `entreprises.html`, `focus.html`, `help.html`, `index.html`, `metiers.html`, `mode_prosp.html`, `parametres.html`, `push.html`, `rapport.html`, `snapshots.html`, `sourcing.html`, `stats.html`, `users.html`.
+- `app.py` : tous les `render_template("xxx.html")` → `render_template("legacy/xxx.html")`.
+- Les 20 templates qui étendent `base.html` sont mis à jour vers `{% extends "legacy/base.html" %}`.
+- **Pas touché** : `templates/v30/`, `templates/_partials/`.
+
+### Sprint 2 — P1 complétés (rattrapage manques v29)
+
+- **Sidebar v30 élargie** : 2 nouvelles sections (Outils : Collaboration, Doublons, DC Generator ; Admin role-aware : Utilisateurs, Snapshots, Journal, Métiers IA).
+- **Prospects** : 4 KPI cards (Total / Appelables / RDV / Prospectés) + colonnes Email / Push / Voir (table 12 colonnes).
+- **Fiche candidat** : bloc Informations avec 10 champs (Statut / Rôle / Localisation / Expérience / Secteur / Source / Tech / Téléphone / Email / LinkedIn).
+- **Activity** : colonnes Entité (avec lien fiche) + Détails (parse JSON).
+- **Stats** : 8 KPI (Prospects / Entreprises / Appels / Push / RDV / À rappeler / Relances retard / Notes d'appel) + table Entreprises chaudes avec score.
+- **Dashboard** : boutons `+ KPI manuel` et `Export` qui redirigent vers la modale legacy (`/dashboard#kpi-manual`).
+
+### Sprint 3 — P2 polish
+
+- **Topbar v30** : menu avatar cliquable (Paramètres / Aide / Déconnexion).
+- **/v30/prospects** : bannière relances en retard (dismissible via sessionStorage).
+- **/v30/entreprises** : toggle Liste / Cartes avec grille de cartes dense (logo / 3 stats / tags / dernier contact).
+- **/v30/focus** : bloc Tâches CRUD (ajouter / fait / supprimer en double-clic) branché sur `/api/tasks`.
+- **/v30/rapport** + **/v30/stats tab Rapport** : picker de semaine ISO libre (`<input type="week">`) en plus des pills En cours / Précédente.
+
+### Sprint 1 — P0 fix fetch
+
+- **prospects.js** : `/api/data` au lieu de `/api/search?q=` vide — liste tous les prospects.
+- **push.js** : accepte array direct de `/api/templates`.
+- **sourcing.js** : accepte array direct de `/api/candidates`.
+- **calendar.js** : lit `res.events` au lieu de `res.prospects`.
+- **rapport.js** : lit `res.data.kpi` (singulier) avec mapping clés correctes.
+
+### APP_VERSION
+
+- `30.0` → `30.1`.
+
+---
+
 ## [30.0] — 2026-04-21
 
 ### Release v30 complète

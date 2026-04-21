@@ -63,8 +63,8 @@
 - [ ] Toasts, skeletons, empty states cohérents
 - [ ] Responsive desktop 1440 (rien ne doit casser <1280)
 - [ ] Tests Playwright adaptés (14 specs)
-- [~] Flag UI client-only (localStorage `prospup_ui_mode`) + bouton `v29` dans la sidebar v30 + bannière opt-in sur les pages legacy. Un flag serveur Flask reste à faire si on veut forcer le mode à la connexion.
-- [ ] PR `feat/ui-v30` → `main` avec récap + captures light + dark
+- [x] Flag UI client-only (localStorage `prospup_ui_mode`) + bouton `v29` dans la sidebar v30 + bannière opt-in sur les pages legacy + **redirect serveur + client vers v30 par défaut** (v30.1, escape hatch `?force_v29=1`).
+- [x] PR `feat/ui-v30` → `main` avec récap + captures light + dark (v30.1, voir docs/PARITE_V29_V30.md + docs/PR_v30.md)
 
 ## Étape 6 · Back-office
 
