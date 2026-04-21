@@ -2,6 +2,25 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.0] — 2026-04-21
+
+### Release v30 complète
+
+Bump `APP_VERSION` de `30.0-beta` à `30.0`. Toutes les pages legacy majeures
+migrent vers v30 (sidebar, palette, shortcuts, opt-in à jour). Les migrations
+DB sont additives et backupées automatiquement.
+
+### Tests Playwright additionnels
+
+- `tests/e2e/v30-routes.spec.js` : smoke test sur les 18 routes `/v30/*` (200 + shell).
+- `tests/e2e/v30-rapport.spec.js` : ouverture tab Rapport + autosave + export PDF.
+- `tests/e2e/v30-table-nav.spec.js` : J/K/X sur lignes injectées.
+
+Total : 13 specs v30 (dashboard, prospects, fiche, palette, shortcuts, routes,
+rapport, table-nav, push-campaigns à venir).
+
+---
+
 ## [30.0-beta] — 2026-04-21
 
 ### Filet : Service Worker + tests v30
