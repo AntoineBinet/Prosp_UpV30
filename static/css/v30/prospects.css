@@ -49,6 +49,28 @@
 }
 .v30-pp-views::-webkit-scrollbar { height: 0; }
 
+/* KPI cards (parite v29) */
+.v30-pp-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 6px;
+}
+.v30-pp-kpis .v30-kpi-card {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 12px;
+}
+.v30-pp-kpis .v30-kpi-card__label {
+  font-size: 11px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.v30-pp-kpis .v30-kpi-card__value {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: 28px; color: var(--text); margin-top: 6px; line-height: 1;
+}
+
 .v30-pill {
   background: transparent;
   border: 1px solid transparent;

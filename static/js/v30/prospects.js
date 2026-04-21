@@ -318,6 +318,7 @@
         return true;
       });
       STATE.total = filtered.length;
+      STATE.allForKpis = all; // garde le dataset non filtre pour les KPI
       // Pagination client-side (utile surtout pour /api/data qui renvoie tout)
       var start = STATE.offset || 0;
       var end = start + (STATE.limit || 50);
@@ -325,6 +326,7 @@
       renderAll();
       updatePagination();
       updateCounts();
+      updateKpis();
     }).catch(function (err) {
       console.error('[v30 prospects] fetch failed:', err);
     });
@@ -356,6 +358,35 @@
     if (totalEl) totalEl.textContent = STATE.total.toLocaleString('fr-FR');
     var allEl = document.querySelector('.v30-pp-views [data-view-filter="all"] [data-field="count"]');
     if (allEl) allEl.textContent = STATE.total.toLocaleString('fr-FR');
+  }
+
+  // KPI cards : Total / Appelables / RDV / Prospectes (parite v29)
+  function isCallable(p) {
+    var tel = p && p.telephone ? String(p.telephone) : '';
+    return !!tel && /\d/.test(tel);
+  }
+  function updateKpis() {
+    var host = document.querySelector('[data-v30-pp-kpis]');
+    if (!host) return;
+    var all = STATE.allForKpis || [];
+    var total = all.length;
+    var callable = 0, rdv = 0, prospectes = 0;
+    for (var i = 0; i < all.length; i++) {
+      var p = all[i];
+      if (isCallable(p)) callable++;
+      var s = (p.statut || '').toLowerCase();
+      if (s === 'rendez-vous' || p.rdvDate) rdv++;
+      if (s === 'prospecté' || s === 'prospecte') prospectes++;
+    }
+    var fmt = function (n) { return n.toLocaleString('fr-FR'); };
+    var set = function (key, v) {
+      var el = host.querySelector('[data-kpi="' + key + '"]');
+      if (el) el.textContent = fmt(v);
+    };
+    set('total', total);
+    set('callable', callable);
+    set('rdv', rdv);
+    set('prospectes', prospectes);
   }
 
   // ─── View switch (table / kanban / split) ───────────────────
