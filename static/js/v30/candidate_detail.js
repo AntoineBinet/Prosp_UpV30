@@ -7,7 +7,7 @@
   var CID = Number(fc.dataset.candidateId || 0);
   if (!CID) return;
 
-  var STATE = { candidate: null, experiences: [] };
+  var STATE = { candidate: null, experiences: [], skills: [], availability: {} };
 
   function $(s) { return document.querySelector(s); }
   function esc(s) {
@@ -83,67 +83,143 @@
   }
 
   // ─── Skills ──────────────────────────────────────────────
-  //   candidates.tech : CSV ou JSON array, sans niveau dans le schéma legacy
-  //   → niveau "—" / 3 par défaut.
-  //   SPEC §3.8 demande niveaux 1-5 éditables (migration future)
-  function renderSkills(c) {
+  //   Backend : table candidate_skills (nom, catégorie, level 1-5)
+  //   Clic sur une barre -> change le level. Clic sur '+' -> prompt nouveau.
+  function renderSkills() {
     var host = $('[data-v30-fc-skills]');
     if (!host) return;
-    var skills = parseList(c && (c.skills || c.tech));
-    if (!skills.length) {
-      host.innerHTML = '<div class="empty" style="padding:12px;font-size:12px;">Aucune compétence renseignée.</div>';
-      return;
+    var skills = STATE.skills || [];
+    // Groupe par catégorie
+    var groups = {};
+    skills.forEach(function (s) {
+      var cat = s.category || 'Compétences';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(s);
+    });
+    var cats = Object.keys(groups);
+    if (!cats.length) {
+      host.innerHTML = '<div class="empty" style="padding:12px;font-size:12px;">Aucune compétence renseignée.</div>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-add-skill>+ Ajouter</button>';
+    } else {
+      host.innerHTML = cats.map(function (cat) {
+        return '<div class="v30-fc-skills-group">' +
+          '<div class="v30-fc-skills-cat">' + esc(cat) + '</div>' +
+          '<div class="v30-fc-skills-row">' +
+            groups[cat].map(function (s) {
+              var bars = '';
+              for (var i = 1; i <= 5; i++) {
+                bars += '<span class="v30-fc-skill__bar' + (i <= s.level ? ' is-on' : '') +
+                        '" data-skill-bar="' + s.id + '" data-level="' + i + '"></span>';
+              }
+              return '<div class="v30-fc-skill" data-skill-id="' + s.id + '">' +
+                '<span>' + esc(s.name) + '</span>' +
+                '<span class="v30-fc-skill__bars">' + bars + '</span>' +
+                '<button type="button" class="v30-fc-skill__x" data-skill-delete="' + s.id +
+                '" aria-label="Supprimer">×</button>' +
+              '</div>';
+            }).join('') +
+          '</div>' +
+        '</div>';
+      }).join('') +
+      '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-add-skill style="margin-top:8px;">+ Ajouter</button>';
     }
-    // Regroupement naïf : si pas de catégorie, on met tout dans "Compétences"
-    // SPEC §3.8 : tags par catégorie avec niveau éditable → migration future
-    host.innerHTML = '<div class="v30-fc-skills-group">' +
-      '<div class="v30-fc-skills-cat">Compétences</div>' +
-      '<div class="v30-fc-skills-row">' +
-        skills.map(function (s) {
-          var name = s.name || s;
-          var lvl = s.level != null ? Number(s.level) : 3;
-          var bars = '';
-          for (var i = 1; i <= 5; i++) {
-            bars += '<span class="v30-fc-skill__bar' + (i <= lvl ? ' is-on' : '') + '"></span>';
-          }
-          return '<div class="v30-fc-skill">' +
-            '<span>' + esc(name) + '</span>' +
-            '<span class="v30-fc-skill__bars">' + bars + '</span>' +
-          '</div>';
-        }).join('') +
-      '</div>' +
-    '</div>';
+
+    // Bind clic sur barre pour changer le level
+    host.querySelectorAll('[data-skill-bar]').forEach(function (bar) {
+      bar.addEventListener('click', function () {
+        var sid = Number(bar.dataset.skillBar);
+        var lvl = Number(bar.dataset.level);
+        var sk = (STATE.skills || []).find(function (x) { return x.id === sid; });
+        if (!sk) return;
+        fetchPostJSON('/api/candidates/' + CID + '/skills', {
+          name: sk.name, category: sk.category, level: lvl
+        }).then(function () {
+          sk.level = lvl;
+          renderSkills();
+          flashSaved();
+        });
+      });
+    });
+    host.querySelectorAll('[data-skill-delete]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var sid = btn.dataset.skillDelete;
+        if (!confirm('Supprimer cette compétence ?')) return;
+        fetch('/api/candidates/' + CID + '/skills/' + sid, { method: 'DELETE', credentials: 'same-origin' })
+          .then(loadSkills);
+      });
+    });
+    var addBtn = host.querySelector('[data-v30-fc-add-skill]');
+    if (addBtn) addBtn.addEventListener('click', function () {
+      var name = prompt('Nom de la compétence (ex: Kubernetes) :');
+      if (!name) return;
+      fetchPostJSON('/api/candidates/' + CID + '/skills', {
+        name: name, category: 'Compétences', level: 3
+      }).then(loadSkills);
+    });
+  }
+
+  function loadSkills() {
+    return fetchJSON('/api/candidates/' + CID + '/skills').then(function (res) {
+      STATE.skills = (res && res.skills) || [];
+      renderSkills();
+    }).catch(function () { STATE.skills = []; renderSkills(); });
   }
 
   // ─── Disponibilités 8 semaines ───────────────────────────
-  //   Pas de table disponibilité dans le schéma → on dérive du champ status :
-  //   Placé → toutes "placed", En entretien → 2 premières busy puis libre,
-  //   Vivier/Libre → toutes libre. Migration future pour vraie dispo.
-  function renderDispo(c) {
+  //   Backend : table candidate_availability (week_iso, status).
+  //   Clic -> cycle libre → busy → placed → libre.
+  function isoWeek(d) {
+    var target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    var day = target.getUTCDay() || 7;
+    target.setUTCDate(target.getUTCDate() + 4 - day);
+    var y1 = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+    var w = Math.ceil(((target - y1) / 86400000 + 1) / 7);
+    return target.getUTCFullYear() + '-W' + String(w).padStart(2, '0');
+  }
+  function nextStatus(s) { return s === 'libre' ? 'busy' : s === 'busy' ? 'placed' : 'libre'; }
+
+  function renderDispo() {
     var host = $('[data-v30-fc-dispo]');
     if (!host) return;
     var now = new Date();
-    var baseWeek = (function () {
-      var target = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-      var day = target.getUTCDay() || 7;
-      target.setUTCDate(target.getUTCDate() + 4 - day);
-      var y1 = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
-      return Math.ceil(((target - y1) / 86400000 + 1) / 7);
-    })();
-    var statuses = [];
-    var s = (c && c.status) || 'Vivier';
-    for (var i = 0; i < 8; i++) {
-      if (s === 'Placé')       statuses.push('placed');
-      else if (s === 'En entretien' && i < 2) statuses.push('busy');
-      else                     statuses.push('libre');
-    }
+    var fallback = (STATE.candidate && STATE.candidate.status) || 'Vivier';
+    var defaultSt = fallback === 'Placé' ? 'placed' : fallback === 'En entretien' ? 'busy' : 'libre';
     var LABELS = { libre: 'Libre', busy: 'Mission', placed: 'Placé' };
-    host.innerHTML = statuses.map(function (st, i) {
-      return '<div class="v30-fc-dispo__cell is-' + st + '">' +
-        '<div class="v30-fc-dispo__week mono">S' + (baseWeek + i) + '</div>' +
-        '<div class="v30-fc-dispo__label">' + LABELS[st] + '</div>' +
-      '</div>';
-    }).join('');
+    var cells = [];
+    for (var i = 0; i < 8; i++) {
+      var d = new Date(now.getTime() + i * 7 * 86400000);
+      var wk = isoWeek(d);
+      var st = STATE.availability[wk] || defaultSt;
+      cells.push(
+        '<div class="v30-fc-dispo__cell is-' + st + '" data-week="' + wk + '" data-status="' + st + '">' +
+          '<div class="v30-fc-dispo__week mono">' + wk.split('-W')[1].replace(/^0/, 'S') + '</div>' +
+          '<div class="v30-fc-dispo__label">' + LABELS[st] + '</div>' +
+        '</div>'
+      );
+    }
+    host.innerHTML = cells.join('');
+    host.querySelectorAll('[data-week]').forEach(function (cell) {
+      cell.addEventListener('click', function () {
+        var wk = cell.dataset.week;
+        var cur = cell.dataset.status || defaultSt;
+        var nxt = nextStatus(cur);
+        fetchPostJSON('/api/candidates/' + CID + '/availability', { week_iso: wk, status: nxt })
+          .then(function () {
+            STATE.availability[wk] = nxt;
+            renderDispo();
+            flashSaved();
+          });
+      });
+    });
+  }
+
+  function loadAvailability() {
+    return fetchJSON('/api/candidates/' + CID + '/availability').then(function (res) {
+      STATE.availability = {};
+      ((res && res.availability) || []).forEach(function (a) { STATE.availability[a.week_iso] = a.status; });
+      renderDispo();
+    }).catch(function () { STATE.availability = {}; renderDispo(); });
   }
 
   // ─── Missions (experiences) ──────────────────────────────
@@ -249,9 +325,10 @@
       var exps = both[1] && (both[1].experiences || both[1].items || both[1] || []);
       STATE.experiences = Array.isArray(exps) ? exps : [];
       renderHeader(STATE.candidate);
-      renderSkills(STATE.candidate);
-      renderDispo(STATE.candidate);
       renderMissions();
+      // Charge skills + availability via nouveaux endpoints v30
+      loadSkills();
+      loadAvailability();
     }).catch(function (err) {
       console.error('[v30 fiche candidat] load failed:', err);
     });

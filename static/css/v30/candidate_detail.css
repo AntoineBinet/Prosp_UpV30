@@ -90,3 +90,23 @@
 .v30-fc-campaign:first-of-type { border-top: 0; }
 .v30-fc-campaign__name { font-size: 12.5px; font-weight: 500; color: var(--text); }
 .v30-fc-campaign__sub  { font-size: 11px; color: var(--text-3); }
+
+/* ─── Interactions skills + dispo ─── */
+.v30-fc-skill__bar { cursor: pointer; }
+.v30-fc-skill__bar:hover { opacity: .85; }
+.v30-fc-skill__x {
+  margin-left: 6px;
+  background: transparent;
+  border: 0;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.v30-fc-skill:hover .v30-fc-skill__x { opacity: .85; }
+.v30-fc-skill__x:hover { color: var(--danger); opacity: 1; }
+.v30-fc-dispo__cell { cursor: pointer; transition: transform .12s; }
+.v30-fc-dispo__cell:hover { transform: translateY(-1px); }
