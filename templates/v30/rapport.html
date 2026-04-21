@@ -1,0 +1,84 @@
+{% extends "v30/base.html" %}
+{% block title %}Rapport hebdomadaire — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-rapport{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/rapport.css?v={{ static_hash('css/v30/rapport.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-rapport" data-v30-rapport>
+
+  <div class="v30-rapport__topbar">
+    <div>
+      <div class="v30-rapport__eyebrow">Rapport</div>
+      <h1 class="v30-rapport__title">
+        <span class="serif">Rapport hebdomadaire.</span>
+      </h1>
+      <div class="v30-rapport__sub" data-field="week-range">—</div>
+    </div>
+    <div class="v30-spacer"></div>
+    <div class="segmented" role="tablist" data-v30-rapport-weeks>
+      <button type="button" class="active" data-week="current" role="tab"
+              aria-selected="true">Semaine en cours</button>
+      <button type="button" data-week="prev" role="tab" aria-selected="false">
+        Semaine précédente
+      </button>
+    </div>
+    <button type="button" class="btn" data-v30-rapport-copy>
+      {{ ui.icon('copy', 13) }} Copier Markdown
+    </button>
+    <button type="button" class="btn btn-accent" data-v30-rapport-pdf>
+      {{ ui.icon('download', 13) }} Exporter PDF
+    </button>
+  </div>
+
+  <div class="v30-rapport__grid">
+
+    <section class="card">
+      <div class="card-title">KPI semaine</div>
+      <div class="v30-rapport__kpis" data-v30-rapport-kpis>
+        {% for _ in range(4) %}
+        <div class="v30-kpi-card">
+          <div class="skel" style="width:60%;height:11px;"></div>
+          <div class="skel" style="width:40%;height:22px;margin-top:6px;"></div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card card-flush">
+      <div class="card-header">
+        <div class="card-title">Activité</div>
+      </div>
+      <div class="v30-rapport__list" data-v30-rapport-activity>
+        <div class="empty" style="padding:20px;">Chargement…</div>
+      </div>
+    </section>
+
+    <section class="card card-flush">
+      <div class="card-header">
+        <div class="card-title">Pipeline</div>
+      </div>
+      <div class="v30-rapport__list" data-v30-rapport-pipeline>
+        <div class="empty" style="padding:20px;">Chargement…</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row-sb">
+        <div class="card-title">Notes libres</div>
+        <span class="muted" style="font-size:11px;">Autosave local</span>
+      </div>
+      <div contenteditable="true" class="v30-rapport__notes" data-v30-rapport-notes
+           aria-label="Notes libres du rapport"
+           data-placeholder="Ajoute tes commentaires, wins, blockers…"></div>
+    </section>
+
+  </div>
+</div>
+
+<script defer src="/static/js/v30/rapport.js?v={{ static_hash('js/v30/rapport.js') }}"></script>
+{% endblock %}
