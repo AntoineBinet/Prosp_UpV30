@@ -1,5 +1,23 @@
 /* ProspUp v30 — Rapport WYSIWYG (dans /v30/stats tab Rapport) */
 
+/* ─── Entreprises chaudes (tab Tableau de bord) ─── */
+.v30-stats-hot__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px 90px 60px 110px 70px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.v30-stats-hot__row:last-child { border-bottom: 0; }
+.v30-stats-hot__row--head {
+  font-size: 11px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .06em;
+  background: var(--surface-2);
+}
+.v30-stats-hot__row .num { text-align: right; }
+
 .v30-rep-toolbar {
   display: flex;
   align-items: center;

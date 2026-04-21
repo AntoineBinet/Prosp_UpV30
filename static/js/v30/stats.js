@@ -64,29 +64,66 @@
   function loadKPIs() {
     var qs = STATE.period === 'all' ? '' : ('?days=' + encodeURIComponent(STATE.period));
     fetchJSON('/api/stats' + qs).then(function (res) {
-      var d = (res && res.data) || res || {};
-      // Structure probable (voir app.py /api/stats) :
-      //   d.pushTotal, d.openRate, d.replyRate, d.rdvCount, ...
-      // Fallbacks défensifs pour couvrir d'éventuelles variations.
-      var push = d.pushTotal != null ? d.pushTotal : (d.push_total || d.push || 0);
-      var open = d.openRate  != null ? d.openRate  : (d.open_rate  || 0);
-      var reply= d.replyRate != null ? d.replyRate : (d.reply_rate || 0);
-      var rdv  = d.rdvCount  != null ? d.rdvCount  : (d.rdv_count  || d.rdv || 0);
-      setKPI('push',  Number(push).toLocaleString('fr-FR'));
-      setKPI('open',  typeof open  === 'number' ? Math.round(open)  + '%' : open  || '—');
-      setKPI('reply', typeof reply === 'number' ? Math.round(reply) + '%' : reply || '—');
-      setKPI('rdv',   Number(rdv).toLocaleString('fr-FR'));
+      // /api/stats renvoie directement totals, activity, hotCompanies, rdv, pushes, overdue, statusCounts.
+      var d = res || {};
+      var fmt = function (v) { return Number(v || 0).toLocaleString('fr-FR'); };
+      var totals = d.totals || {};
+      var activity = d.activity || {};
+      var statusCounts = d.statusCounts || {};
+      setKPI('total',     fmt(totals.prospects || d.total_prospects));
+      setKPI('companies', fmt(totals.companies));
+      setKPI('calls',     fmt(activity.calls != null ? activity.calls : d.calls));
+      setKPI('push',      fmt(activity.pushes != null ? activity.pushes : d.pushes));
+      setKPI('rdv',       fmt(d.rdv != null ? d.rdv : statusCounts.Rendezvous));
+      setKPI('callback',  fmt(statusCounts.A_rappeler || statusCounts['À rappeler']));
+      setKPI('overdue',   fmt(d.overdue));
+      setKPI('notes',     fmt(activity.callNotes != null ? activity.callNotes : 0));
+      // Recharge les entreprises chaudes depuis la meme reponse
+      renderHot(d.hotCompanies || d.hot_companies || []);
     }).catch(function (err) {
       console.error('[v30 stats] /api/stats failed:', err);
       // Fallback : /api/dashboard pour au moins Push + RDV
       fetchJSON('/api/dashboard').then(function (res) {
         var d = (res && res.data) || {};
-        setKPI('push',  ((d.week  && d.week.push_total)  || 0).toLocaleString('fr-FR'));
-        setKPI('rdv',   ((d.week  && d.week.rdv_total)   || 0).toLocaleString('fr-FR'));
-        setKPI('open',  '—');
-        setKPI('reply', '—');
+        setKPI('push', ((d.week && d.week.push_total) || 0).toLocaleString('fr-FR'));
+        setKPI('rdv',  ((d.week && d.week.rdv_total)  || 0).toLocaleString('fr-FR'));
+        ['total','companies','calls','callback','overdue','notes'].forEach(function (k) { setKPI(k, '—'); });
       }).catch(function () {});
     });
+  }
+
+  // ─── Entreprises chaudes (remplace le bar chart) ─────────
+  function renderHot(rows) {
+    var host = document.querySelector('[data-v30-stats-hot]');
+    if (!host) return;
+    rows = rows || [];
+    if (!rows.length) {
+      host.innerHTML = '<div class="empty" style="padding:16px;">Aucune entreprise active sur la période.</div>';
+      return;
+    }
+    var head = '<div class="v30-stats-hot__row v30-stats-hot__row--head">' +
+      '<span>Entreprise</span>' +
+      '<span class="num">Score</span>' +
+      '<span class="num">Prospects</span>' +
+      '<span class="num">RDV</span>' +
+      '<span class="num">Relances retard</span>' +
+      '<span></span>' +
+    '</div>';
+    host.innerHTML = head + rows.slice(0, 10).map(function (r) {
+      var copyAddr = esc(r.groupe || '') + (r.site ? ' · ' + esc(r.site) : '');
+      return '<div class="v30-stats-hot__row">' +
+        '<span class="truncate"><strong>' + esc(r.groupe || '—') + '</strong>' +
+          (r.site ? '<span class="muted" style="margin-left:6px;">' + esc(r.site) + '</span>' : '') +
+        '</span>' +
+        '<span class="num mono">' + esc(r.score != null ? r.score : '—') + '</span>' +
+        '<span class="num mono">' + esc(r.prospectCount != null ? r.prospectCount : '—') + '</span>' +
+        '<span class="num mono">' + esc(r.rdvCount != null ? r.rdvCount : '—') + '</span>' +
+        '<span class="num mono">' + esc(r.lateFollowups != null ? r.lateFollowups : '—') + '</span>' +
+        '<span>' +
+          '<a class="btn btn-ghost btn-sm" href="/v30/entreprises" title="Ouvrir">Voir</a>' +
+        '</span>' +
+      '</div>';
+    }).join('');
   }
 
   // ─── Top entreprises (nb prospects) ──────────────────────
@@ -355,7 +392,6 @@
     bindTabs();
     bindPeriod();
     loadKPIs();
-    loadTop();
     repBindToolbar();
 
     // Hook tab click : charge le rapport à la première ouverture
