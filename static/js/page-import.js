@@ -27,18 +27,18 @@ function _ensureImportListModal() {
     <div id="modalImportList" class="modal">
         <div class="modal-content" style="max-width:620px;">
             <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <span>📥 Importer ma liste de prospection</span>
-                <button class="btn btn-secondary" onclick="closeImportListModal()" style="font-size:14px;padding:4px 10px;">✕</button>
+                <span>${window.icon ? window.icon('download', {size:16}) : ''} Importer ma liste de prospection</span>
+                <button class="btn btn-secondary" onclick="closeImportListModal()" style="font-size:14px;padding:4px 10px;" aria-label="Fermer">${window.icon ? window.icon('x', {size:14}) : ''}</button>
             </div>
             <div class="modal-body" style="padding:16px 0;">
                 <div id="importListStepChoice">
                     <p class="muted" style="margin-bottom:14px;">Choisissez comment importer vos prospects (Excel, CSV ou collage).</p>
                     <div class="import-list-tabs">
-                        <button type="button" class="import-list-tab active" data-tab="excel">📊 Fichier Excel</button>
-                        <button type="button" class="import-list-tab" data-tab="csv">📄 Fichier CSV</button>
-                        <button type="button" class="import-list-tab" data-tab="paste">📋 Coller (CSV)</button>
-                        <button type="button" class="import-list-tab" data-tab="ia">🤖 Retour IA</button>
-                        <button type="button" class="import-list-tab" data-tab="lusha">🔵 Enrichment Lusha</button>
+                        <button type="button" class="import-list-tab active" data-tab="excel">${window.icon ? window.icon('chart', {size:13}) : ''} Fichier Excel</button>
+                        <button type="button" class="import-list-tab" data-tab="csv">${window.icon ? window.icon('file', {size:13}) : ''} Fichier CSV</button>
+                        <button type="button" class="import-list-tab" data-tab="paste">${window.icon ? window.icon('clipboard', {size:13}) : ''} Coller (CSV)</button>
+                        <button type="button" class="import-list-tab" data-tab="ia">${window.icon ? window.icon('robot', {size:13}) : ''} Retour IA</button>
+                        <button type="button" class="import-list-tab" data-tab="lusha">${window.icon ? window.icon('search', {size:13}) : ''} Enrichment Lusha</button>
                     </div>
                     <div id="importListPaneExcel" class="import-list-pane active">
                         <input type="file" id="importListFileExcel" accept=".xlsx,.xls" style="display:none;">
@@ -70,7 +70,7 @@ function _ensureImportListModal() {
                     <div id="importListPanePaste" class="import-list-pane" style="display:none;">
                         <p class="muted" style="font-size:12px;margin-bottom:8px;">Collez ici le contenu copié depuis Excel (une ligne par prospect, première ligne = en-têtes).</p>
                         <textarea id="importListPasteArea" rows="8" style="width:100%;border:1px solid var(--color-border);border-radius:8px;padding:10px;font-size:12px;font-family:monospace;resize:vertical;" placeholder="Nom;Entreprise;Fonction;Téléphone;Email&#10;Jean Dupont;ACME;Directeur;06...;jean@..."></textarea>
-                        <button type="button" class="btn btn-primary" style="margin-top:10px;" onclick="parseImportListPaste()">🔍 Analyser</button>
+                        <button type="button" class="btn btn-primary" style="margin-top:10px;" onclick="parseImportListPaste()">${window.icon ? window.icon('search', {size:13}) : ''} Analyser</button>
                     </div>
                     <div id="importListPaneIa" class="import-list-pane" style="display:none;">
                         <p class="muted" style="margin-bottom:12px;">Utilisez l’outil « Ajout IA » pour coller un retour Ollama local ou copier-coller (JSON ou texte).</p>
@@ -98,15 +98,15 @@ function _ensureImportListModal() {
                     <div id="importListPreviewTable" style="max-height:280px;overflow:auto;border:1px solid var(--color-border);border-radius:8px;"></div>
                     <div style="display:flex;gap:10px;margin-top:14px;">
                         <button type="button" class="btn btn-secondary" onclick="importListBackToMapping()">← Retour</button>
-                        <button type="button" class="btn btn-secondary" id="importListReformatAllBtn" onclick="openImportListReformatAllModal()" style="display:none;">🤖 Reformater plusieurs colonnes</button>
-                        <button type="button" class="btn btn-primary" onclick="applyImportList()">✅ Importer</button>
+                        <button type="button" class="btn btn-secondary" id="importListReformatAllBtn" onclick="openImportListReformatAllModal()" style="display:none;">${window.icon ? window.icon('robot', {size:13}) : ''} Reformater plusieurs colonnes</button>
+                        <button type="button" class="btn btn-primary" onclick="applyImportList()">${window.icon ? window.icon('checkCircle', {size:13}) : ''} Importer</button>
                     </div>
                 </div>
                 <div id="modalImportListReformat" class="modal" style="z-index:1150;">
                     <div class="modal-content" style="max-width:560px;">
                         <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
                             <span id="importListReformatTitle">Reformater avec l’IA</span>
-                            <button type="button" class="btn btn-secondary" onclick="closeImportListReformatModal()" style="padding:4px 10px;">✕</button>
+                            <button type="button" class="btn btn-secondary" onclick="closeImportListReformatModal()" style="padding:4px 10px;" aria-label="Fermer">${window.icon ? window.icon('x', {size:13}) : ''}</button>
                         </div>
                         <div class="modal-body">
                             <p class="muted" style="font-size:12px;margin-bottom:8px;">Générez avec Ollama (local) ou copiez le prompt dans une IA puis collez le résultat ci-dessous.</p>
@@ -127,8 +127,8 @@ function _ensureImportListModal() {
                 <div id="modalImportListReformatAll" class="modal" style="z-index:1150;">
                     <div class="modal-content" style="max-width:600px;">
                         <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
-                            <span>🤖 Reformater plusieurs colonnes avec l'IA</span>
-                            <button type="button" class="btn btn-secondary" onclick="closeImportListReformatAllModal()" style="padding:4px 10px;">✕</button>
+                            <span>${window.icon ? window.icon('robot', {size:16}) : ''} Reformater plusieurs colonnes avec l'IA</span>
+                            <button type="button" class="btn btn-secondary" onclick="closeImportListReformatAllModal()" style="padding:4px 10px;" aria-label="Fermer">${window.icon ? window.icon('x', {size:13}) : ''}</button>
                         </div>
                         <div class="modal-body">
                             <p class="muted" style="font-size:12px;margin-bottom:12px;">Sélectionnez les colonnes à reformater en une seule fois. Ollama normalisera toutes les colonnes sélectionnées.</p>
@@ -536,14 +536,14 @@ function importListGoPreview() {
     
     // Détecter les problèmes de données
     const issues = _detectDataIssues(previewRows);
-    const issuesHtml = issues.length > 0 ? `<div style="background:var(--color-bg-secondary);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;"><strong>💡 Suggestions d'amélioration :</strong><ul style="margin:8px 0 0 0;padding-left:20px;">${issues.map(i => `<li style="margin:4px 0;">${i.message} — <button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 6px;" onclick="openImportListReformatModal('${i.field}')">Reformater ${(IMPORT_LIST_FIELDS.find(f => f.value === i.field) || {}).label || i.field}</button></li>`).join('')}</ul></div>` : '';
+    const issuesHtml = issues.length > 0 ? `<div style="background:var(--color-bg-secondary);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;"><strong>${window.icon ? window.icon('bulb', {size:13}) : ''} Suggestions d'amélioration :</strong><ul style="margin:8px 0 0 0;padding-left:20px;">${issues.map(i => `<li style="margin:4px 0;">${i.message} — <button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 6px;" onclick="openImportListReformatModal('${i.field}')">Reformater ${(IMPORT_LIST_FIELDS.find(f => f.value === i.field) || {}).label || i.field}</button></li>`).join('')}</ul></div>` : '';
     
     const reformatCols = ['name', 'groupe', 'fonction', 'telephone', 'email'];
     const btns = document.getElementById('importListReformatButtons');
     btns.innerHTML = issuesHtml + reformatCols.map(c => {
         const label = (IMPORT_LIST_FIELDS.find(f => f.value === c) || {}).label || c;
         const hasIssue = issues.some(i => i.field === c);
-        return `<button type="button" class="btn ${hasIssue ? 'btn-warning' : 'btn-secondary'}" style="font-size:12px;padding:4px 10px;" onclick="openImportListReformatModal('${c}')">🤖 Reformater ${label}${hasIssue ? ' ⚠️' : ''}</button>`;
+        return `<button type="button" class="btn ${hasIssue ? 'btn-warning' : 'btn-secondary'}" style="font-size:12px;padding:4px 10px;" onclick="openImportListReformatModal('${c}')">${window.icon ? window.icon('robot', {size:12}) : ''} Reformater ${label}${hasIssue ? ' ' + (window.icon ? window.icon('alertTri', {size:11}) : '') : ''}</button>`;
     }).join('');
     
     // Afficher le bouton de reformatage multi-colonnes si plusieurs colonnes ont des données
@@ -778,7 +778,7 @@ function applyImportList() {
         filterProspects();
         renderProspects();
         populateCompanySelects();
-        showToast(`✅ ${created} prospect(s) importé(s). Retrouvez votre liste ci-dessous.`, 'success', 6000);
+        showToast(`${created} prospect(s) importé(s). Retrouvez votre liste ci-dessous.`, 'success', 6000);
     }).catch(err => showToast('Erreur sauvegarde: ' + (err && err.message), 'error'));
 }
 

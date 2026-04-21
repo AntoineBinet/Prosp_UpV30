@@ -54,15 +54,15 @@
   <div class="stats-grid" id="statsCards"></div>
 
   <div class="content-header" style="margin-top: 18px;">
-    <div class="content-title">🤖 Insights IA</div>
+    <div class="content-title"><i data-icon="robot" data-size="16" aria-hidden="true"></i> Insights IA</div>
     <div class="controls">
-      <button class="btn btn-primary" id="btnGenerateInsights" style="flex:0 0 auto; width:auto !important;">✨ Générer insights</button>
+      <button class="btn btn-primary" id="btnGenerateInsights" style="flex:0 0 auto; width:auto !important;"><i data-icon="sparkles" data-size="14" aria-hidden="true"></i> Générer insights</button>
     </div>
   </div>
 
   <div id="insightsSection" class="card" style="display:none; margin-bottom: 18px;">
     <div id="insightsLoading" style="display:none; padding: 20px; text-align: center; color: var(--color-text-secondary);">
-      <div>🔄 Génération des insights en cours…</div>
+      <div><i data-icon="refreshCw" data-size="14" aria-hidden="true"></i> Génération des insights en cours…</div>
     </div>
     <div id="insightsContent" style="display:none;">
       <div id="insightsSummary" style="margin-bottom: 16px; padding: 12px; background: rgba(34,197,94,0.1); border-left: 3px solid #22c55e; border-radius: 4px;">
@@ -78,7 +78,7 @@
         <ul id="insightsRecommendationsList" style="margin: 0; padding-left: 20px; font-size: 13px;"></ul>
       </div>
       <div id="insightsBenchmarks" style="display:none;">
-        <h4 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">📈 Benchmarking</h4>
+        <h4 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;"><i data-icon="trendingUp" data-size="14" aria-hidden="true"></i> Benchmarking</h4>
         <div id="insightsBenchmarksText" style="font-size: 13px;"></div>
       </div>
     </div>
@@ -121,7 +121,7 @@
       <canvas id="chartPush"></canvas>
     </div>
     <div class="chart-card">
-      <h3>🤝 RDV obtenus par mois</h3>
+      <h3><i data-icon="handshake" data-size="14" aria-hidden="true"></i> RDV obtenus par mois</h3>
       <canvas id="chartRdv"></canvas>
     </div>
     <div class="chart-card">
@@ -133,7 +133,7 @@
       <canvas id="chartFunnel"></canvas>
     </div>
     <div class="chart-card">
-      <h3>📈 Évolution du portefeuille (12 semaines)</h3>
+      <h3><i data-icon="trendingUp" data-size="14" aria-hidden="true"></i> Évolution du portefeuille (12 semaines)</h3>
       <canvas id="chartPortfolio"></canvas>
     </div>
     <div class="chart-card full">
@@ -145,7 +145,7 @@
       <canvas id="chartCalls"></canvas>
     </div>
     <div class="chart-card full">
-      <h3>⚡ Activité hebdomadaire (appels + notes + push)</h3>
+      <h3><i data-icon="activity" data-size="14" aria-hidden="true"></i> Activité hebdomadaire (appels + notes + push)</h3>
       <canvas id="chartActivityWeek"></canvas>
     </div>
   </div>
@@ -165,7 +165,7 @@
         <strong>Rappel :</strong> Vous n'avez pas encore exporté votre suivi activité cette semaine.
         <button class="btn btn-primary btn-sm" id="btnExportFromAlert" style="margin-left:10px;"><i data-icon="download" data-size="14" aria-hidden="true"></i> Exporter maintenant</button>
       </div>
-      <button class="mini-action" id="btnDismissExportAlert" title="Masquer">✕</button>
+      <button class="mini-action" id="btnDismissExportAlert" title="Masquer" aria-label="Masquer"><i data-icon="x" data-size="14" aria-hidden="true"></i></button>
     </div>
   </div>
 

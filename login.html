@@ -55,7 +55,7 @@ body{min-height:100vh;display:flex;align-items:center;justify-content:center;fon
         <div class="field pw-field">
             <label for="password">Mot de passe</label>
             <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
-            <button type="button" class="pw-toggle" id="pwToggle" title="Afficher / masquer" onclick="togglePw()">👁️</button>
+            <button type="button" class="pw-toggle" id="pwToggle" title="Afficher / masquer" onclick="togglePw()"><i data-icon="eye" data-size="14"></i></button>
         </div>
         <button type="submit" class="btn-login" id="btnLogin">Se connecter</button>
     </form>
@@ -66,7 +66,7 @@ function togglePw() {
     const btn = document.getElementById('pwToggle');
     const show = inp.type === 'password';
     inp.type = show ? 'text' : 'password';
-    btn.textContent = show ? '🙈' : '👁️';
+    btn.innerHTML = show ? (window.icon ? window.icon('eyeOff', {size:14}) : '') : (window.icon ? window.icon('eye', {size:14}) : '');
 }
 
 // Initialiser la validation du formulaire de login
@@ -109,11 +109,11 @@ async function doLogin(e) {
         if (data.ok) {
             window.location.href = data.must_change_password ? '/parametres?change_password=1' : '/dashboard';
         } else {
-            err.textContent = '⚠️ ' + (data.error || 'Erreur de connexion');
+            err.textContent = (data.error || 'Erreur de connexion');
             err.classList.add('show');
         }
     } catch(ex) {
-        err.textContent = '⚠️ Erreur réseau';
+        err.textContent = 'Erreur réseau';
         err.classList.add('show');
     } finally {
         btn.disabled = false;

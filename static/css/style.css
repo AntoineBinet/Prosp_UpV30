@@ -966,7 +966,7 @@ a.btn:visited {
 
 /* Animation checkmark pour .btn-success après succès */
 .btn-success.success-animated::before {
-    content: '✓';
+    content: '\2713';
     position: absolute;
     left: 50%;
     top: 50%;
@@ -991,7 +991,7 @@ a.btn:visited {
 }
 
 .btn-success-feedback::after {
-    content: '✓';
+    content: '\2713';
     position: absolute;
     left: 50%;
     top: 50%;
@@ -6419,7 +6419,7 @@ input[type="checkbox"]:hover {
   text-overflow: clip !important;
 }
 
-/* ---- Mini buttons (followup +7j, +30j, ✖) ---- */
+/* ---- Mini buttons (followup +7j, +30j, close) ---- */
 .mini-btn {
   display: inline-flex;
   align-items: center;
@@ -7441,7 +7441,7 @@ body[data-page="candidate"] #fabAdd {
   .assistant-chat-window.open {
     transform: translateX(0) scale(1);
   }
-  /* Masquer le bouton 🤖 flottant sur desktop — accessible via Speed Dial "Assistant IA" */
+  /* Masquer le bouton robot flottant sur desktop — accessible via Speed Dial "Assistant IA" */
   #dashAssistantFab {
     display: none !important;
   }

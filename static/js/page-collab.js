@@ -55,7 +55,7 @@ function renderCollaborators() {
     }
 
     if (Object.keys(byCollaborator).length === 0) {
-        container.innerHTML = '<div class="card"><div class="muted">Aucun collaborateur avec des entreprises partagées. Cliquez sur "➕ Ajouter collaborateur" pour commencer.</div></div>';
+        container.innerHTML = '<div class="card"><div class="muted">Aucun collaborateur avec des entreprises partagées. Cliquez sur "+ Ajouter collaborateur" pour commencer.</div></div>';
         return;
     }
 
@@ -73,8 +73,8 @@ function renderCollaborators() {
                             <div class="muted" style="font-size: 11px; margin-top: 4px;">Partagé le ${formatDate(share.shared_at)}</div>
                         </div>
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary btn-sm js-view-prospects" data-company-id="${share.company_id}" data-company-name="${escapeHtml(companyName)}" data-from-user-id="" data-sharer-name="" title="Voir les prospects">👁️ Prospects</button>
-                            <button class="btn btn-danger btn-sm" onclick="unshareCompany(${share.id}, '${escapeHtml(companyName)}')" title="Retirer le partage">🗑️</button>
+                            <button class="btn btn-secondary btn-sm js-view-prospects" data-company-id="${share.company_id}" data-company-name="${escapeHtml(companyName)}" data-from-user-id="" data-sharer-name="" title="Voir les prospects">${window.icon ? window.icon('eye', {size:13}) : ''} Prospects</button>
+                            <button class="btn btn-danger btn-sm" onclick="unshareCompany(${share.id}, '${escapeHtml(companyName)}')" title="Retirer le partage">${window.icon ? window.icon('trash', {size:13}) : ''}</button>
                         </div>
                     </div>
                 </div>
@@ -88,7 +88,7 @@ function renderCollaborators() {
                         <div style="font-weight: 800; font-size: 16px;">${escapeHtml(user.display_name || user.username || 'Inconnu')}</div>
                         <div class="muted" style="font-size: 12px;">${escapeHtml(user.username || '')}</div>
                     </div>
-                    <button class="btn btn-primary btn-sm" onclick="openAddCollaboratorModal(${user.id})" title="Partager une entreprise">➕ Partager entreprise</button>
+                    <button class="btn btn-primary btn-sm" onclick="openAddCollaboratorModal(${user.id})" title="Partager une entreprise">${window.icon ? window.icon('plus', {size:13}) : ''} Partager entreprise</button>
                 </div>
                 <div>
                     ${companies.length > 0 ? companiesHtml : '<div class="muted" style="padding: 8px;">Aucune entreprise partagée avec ce collaborateur.</div>'}
@@ -120,7 +120,7 @@ function renderReceivedCompanies() {
                             Partagé par <strong>${escapeHtml(sharerName)}</strong> le ${formatDate(share.shared_at)}
                         </div>
                     </div>
-                    <button class="btn btn-secondary btn-sm js-view-prospects" data-company-id="${share.company_id}" data-company-name="${escapeHtml(companyName)}" data-from-user-id="${share.from_user_id || ''}" data-sharer-name="${escapeHtml(sharerName)}" title="Voir les prospects">👁️ Prospects</button>
+                    <button class="btn btn-secondary btn-sm js-view-prospects" data-company-id="${share.company_id}" data-company-name="${escapeHtml(companyName)}" data-from-user-id="${share.from_user_id || ''}" data-sharer-name="${escapeHtml(sharerName)}" title="Voir les prospects">${window.icon ? window.icon('eye', {size:13}) : ''} Prospects</button>
                 </div>
             </div>
         `;
@@ -201,18 +201,18 @@ async function loadAllSharedProspects() {
                         <div style="flex:1;">
                             <span style="font-weight:600;">${escapeHtml(p.name || '')}${sharerBadge}</span>${statutBadge}
                             ${p.fonction ? `<span class="muted" style="font-size:11px;margin-left:8px;">${escapeHtml(p.fonction)}</span>` : ''}
-                            ${p.telephone ? `<span class="muted" style="font-size:11px;margin-left:8px;">📞 ${escapeHtml(p.telephone)}</span>` : ''}
-                            ${p.email ? `<span class="muted" style="font-size:11px;margin-left:8px;">✉️ ${escapeHtml(p.email)}</span>` : ''}
+                            ${p.telephone ? `<span class="muted" style="font-size:11px;margin-left:8px;">${window.icon ? window.icon('phone', {size:11}) : ''} ${escapeHtml(p.telephone)}</span>` : ''}
+                            ${p.email ? `<span class="muted" style="font-size:11px;margin-left:8px;">${window.icon ? window.icon('mail', {size:11}) : ''} ${escapeHtml(p.email)}</span>` : ''}
                         </div>
                         <div style="display:flex;gap:6px;">
-                            ${p.telephone ? `<a href="tel:${escapeHtml(p.telephone)}" class="mini-action" title="Appeler">📞</a>` : ''}
-                            ${p.email ? `<a href="mailto:${escapeHtml(p.email)}" class="mini-action" title="Email">✉️</a>` : ''}
-                            ${p.linkedin ? `<a href="${escapeHtml(p.linkedin)}" target="_blank" class="mini-action" title="LinkedIn">💼</a>` : ''}
+                            ${p.telephone ? `<a href="tel:${escapeHtml(p.telephone)}" class="mini-action" title="Appeler">${window.icon ? window.icon('phone', {size:13}) : ''}</a>` : ''}
+                            ${p.email ? `<a href="mailto:${escapeHtml(p.email)}" class="mini-action" title="Email">${window.icon ? window.icon('mail', {size:13}) : ''}</a>` : ''}
+                            ${p.linkedin ? `<a href="${escapeHtml(p.linkedin)}" target="_blank" class="mini-action" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                             <button class="btn btn-secondary btn-sm js-edit-shared-prospect"
                                 data-prospect-id="${p.id}"
                                 data-company-id="${p.shared_company_id}"
                                 data-prospect-json="${escapeHtml(prospectDataJson)}"
-                                title="Modifier">✏️</button>
+                                title="Modifier">${window.icon ? window.icon('edit', {size:13}) : ''}</button>
                         </div>
                     </div>
                 `;
@@ -401,7 +401,7 @@ async function viewSharedCompanyProspects(companyId, companyName, fromUserId, sh
             const tagsHtml = tags.length > 0 ? `<div style="margin-top: 4px;">${tags.map(t => `<span class="badge" style="margin-right: 4px;">${escapeHtml(t)}</span>`).join('')}</div>` : '';
             const sharerBadge = displaySharerName ? `<span class="badge" style="background: rgba(120,80,255,0.25); color: #a78bfa; margin-left: 8px; font-size: 10px;">${escapeHtml(displaySharerName)}</span>` : '';
             const prospectDataJson = JSON.stringify({statut: p.statut, notes: p.notes, lastContact: p.lastContact, nextFollowUp: p.nextFollowUp, pertinence: p.pertinence, nextAction: p.nextAction});
-            const editBtn = isReceived ? `<button class="btn btn-secondary btn-sm" onclick='openEditSharedProspectModal(${p.id}, ${escapeHtml(prospectDataJson)})' title="Modifier">✏️</button>` : '';
+            const editBtn = isReceived ? `<button class="btn btn-secondary btn-sm" onclick='openEditSharedProspectModal(${p.id}, ${escapeHtml(prospectDataJson)})' title="Modifier">${window.icon ? window.icon('edit', {size:13}) : ''}</button>` : '';
 
             return `
                 <div class="card" style="margin-bottom: 12px; padding: 12px;" id="shared-prospect-${p.id}">
@@ -409,16 +409,16 @@ async function viewSharedCompanyProspects(companyId, companyName, fromUserId, sh
                         <div style="flex: 1;">
                             <div style="font-weight: 600;">${escapeHtml(p.name || '')}${sharerBadge}</div>
                             ${p.fonction ? `<div class="muted" style="font-size: 12px;">${escapeHtml(p.fonction)}</div>` : ''}
-                            ${p.email ? `<div class="muted" style="font-size: 11px; margin-top: 4px;">✉️ ${escapeHtml(p.email)}</div>` : ''}
-                            ${p.telephone ? `<div class="muted" style="font-size: 11px;">📞 ${escapeHtml(p.telephone)}</div>` : ''}
+                            ${p.email ? `<div class="muted" style="font-size: 11px; margin-top: 4px;">${window.icon ? window.icon('mail', {size:11}) : ''} ${escapeHtml(p.email)}</div>` : ''}
+                            ${p.telephone ? `<div class="muted" style="font-size: 11px;">${window.icon ? window.icon('phone', {size:11}) : ''} ${escapeHtml(p.telephone)}</div>` : ''}
                             ${p.statut ? `<div style="margin-top: 4px;"><span class="badge">${escapeHtml(p.statut)}</span></div>` : ''}
                             ${tagsHtml}
                             ${p.notes ? `<div class="muted" style="font-size: 11px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">${escapeHtml(p.notes)}</div>` : ''}
                         </div>
                         <div style="display: flex; gap: 4px; flex-wrap: wrap; align-items: flex-start;">
-                            ${p.email ? `<a href="mailto:${escapeHtml(p.email)}" class="mini-action" title="Envoyer un email">✉️</a>` : ''}
-                            ${p.telephone ? `<a href="tel:${escapeHtml(p.telephone)}" class="mini-action" title="Appeler">📞</a>` : ''}
-                            ${p.linkedin ? `<a href="${escapeHtml(p.linkedin)}" target="_blank" class="mini-action" title="LinkedIn">💼</a>` : ''}
+                            ${p.email ? `<a href="mailto:${escapeHtml(p.email)}" class="mini-action" title="Envoyer un email">${window.icon ? window.icon('mail', {size:13}) : ''}</a>` : ''}
+                            ${p.telephone ? `<a href="tel:${escapeHtml(p.telephone)}" class="mini-action" title="Appeler">${window.icon ? window.icon('phone', {size:13}) : ''}</a>` : ''}
+                            ${p.linkedin ? `<a href="${escapeHtml(p.linkedin)}" target="_blank" class="mini-action" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                             ${editBtn}
                         </div>
                     </div>

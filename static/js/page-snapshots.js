@@ -38,8 +38,8 @@ async function listSnapshots() {
           <td>${escapeHtml(bytesToHuman(s.size || 0))}</td>
           <td>${escapeHtml(s.mtime || '')}</td>
           <td style="text-align:right; display:flex; gap:8px; justify-content:flex-end;">
-            <button class="mini-action" onclick="restoreSnapshot('${escapeHtml(s.filename)}')">♻️ Restaurer</button>
-            <button class="mini-action danger" onclick="deleteSnapshot('${escapeHtml(s.filename)}')">🗑️ Supprimer</button>
+            <button class="mini-action" onclick="restoreSnapshot('${escapeHtml(s.filename)}')">${window.icon ? window.icon('refreshCw', {size:12}) : ''} Restaurer</button>
+            <button class="mini-action danger" onclick="deleteSnapshot('${escapeHtml(s.filename)}')">${window.icon ? window.icon('trash', {size:12}) : ''} Supprimer</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -65,7 +65,7 @@ async function createSnapshot() {
 
 async function restoreSnapshot(filename) {
     if (!filename) return;
-    if (!confirm(`⚠️ Restaurer ce snapshot ?\n\n${filename}\n\nUne sauvegarde before_restore sera créée.`)) return;
+    if (!confirm(`Restaurer ce snapshot ?\n\n${filename}\n\nUne sauvegarde before_restore sera créée.`)) return;
 
     const res = await fetch('/api/snapshots/restore', {
         method: 'POST',
@@ -83,7 +83,7 @@ async function restoreSnapshot(filename) {
 
 async function deleteSnapshot(filename) {
     if (!filename) return;
-    if (!confirm(`⚠️ Supprimer ce snapshot ?\n\n${filename}`)) return;
+    if (!confirm(`Supprimer ce snapshot ?\n\n${filename}`)) return;
 
     const res = await fetch('/api/snapshots/delete', {
         method: 'POST',
@@ -96,7 +96,7 @@ async function deleteSnapshot(filename) {
         return;
     }
     if (typeof showToast === 'function') {
-        showToast('✅ Snapshot supprimé', 'success');
+        showToast('Snapshot supprimé', 'success');
     }
     await listSnapshots();
 }

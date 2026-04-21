@@ -7,7 +7,7 @@
 const METIERS_DATA = [
   {
     name: "Ingénierie Logicielle",
-    icon: "💻",
+    icon: "briefcase",
     color: "#6366f1",
     specialties: [
       {
@@ -134,7 +134,7 @@ const METIERS_DATA = [
   },
   {
     name: "Ingénierie Électronique",
-    icon: "⚡",
+    icon: "zap",
     color: "#f59e0b",
     specialties: [
       {
@@ -226,7 +226,7 @@ const METIERS_DATA = [
   },
   {
     name: "Ingénierie Système",
-    icon: "🔧",
+    icon: "tool",
     color: "#22c55e",
     specialties: [
       {
@@ -324,7 +324,7 @@ const METIERS_DATA = [
   },
   {
     name: "Life Science",
-    icon: "🧬",
+    icon: "sparkles",
     color: "#ec4899",
     specialties: [
       {

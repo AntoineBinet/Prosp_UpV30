@@ -42,7 +42,7 @@
         
         <div class="controls" id="mainControls">
             <div class="search-input-wrapper" style="position:relative;flex:1;">
-                <input type="text" id="searchInput" placeholder="🔍 Rechercher (nom, entreprise…)" aria-label="Rechercher un prospect" style="width:100%;padding-right:32px;">
+                <input type="text" id="searchInput" placeholder="Rechercher (nom, entreprise…)" aria-label="Rechercher un prospect" style="width:100%;padding-right:32px;">
                 <button type="button" id="btnClearSearch" class="search-clear-btn" onclick="clearSearchInput()" title="Effacer la recherche" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--color-text-secondary);cursor:pointer;font-size:18px;line-height:1;padding:4px;display:none;">×</button>
             </div>
             <button class="btn btn-secondary filter-toggle-btn" id="btnToggleFilters" type="button" title="Afficher les filtres" data-help-section="prospects"><i data-icon="filter" data-size="14" aria-hidden="true"></i><span> Filtres</span></button>
@@ -87,11 +87,11 @@
                     <label class="filter-label">Pertinence</label>
                     <select id="pertinenceFilter" class="filter-select">
                         <option value="">Toutes</option>
-                        <option value="5">⭐⭐⭐⭐⭐</option>
-                        <option value="4">⭐⭐⭐⭐</option>
-                        <option value="3">⭐⭐⭐</option>
-                        <option value="2">⭐⭐</option>
-                        <option value="1">⭐</option>
+                        <option value="5">5 ★★★★★</option>
+                        <option value="4">4 ★★★★</option>
+                        <option value="3">3 ★★★</option>
+                        <option value="2">2 ★★</option>
+                        <option value="1">1 ★</option>
                     </select>
                 </div>
                 <div class="filter-group">
@@ -390,7 +390,7 @@
 <div class="modal" role="dialog" aria-modal="true" id="modalNewCompanyInline" aria-label="Nouvelle entreprise" style="z-index:1100;">
     <div class="modal-content" style="max-width:400px;">
         <div class="modal-header">
-            <span>🏢 Nouvelle entreprise</span>
+            <span><i data-icon="building" data-size="14" aria-hidden="true"></i> Nouvelle entreprise</span>
             <button class="modal-close" onclick="closeNewCompanyInlineModal()" aria-label="Fermer">&times;</button>
         </div>
         <div style="padding:16px 0 0;">
@@ -421,7 +421,7 @@
 <div class="modal" role="dialog" aria-modal="true" id="modalStats" aria-labelledby="modalStatsTitle">
     <div class="modal-content">
         <div class="modal-header">
-            <span id="modalStatsTitle">📊 Statistiques</span>
+            <span id="modalStatsTitle"><i data-icon="chart" data-size="14" aria-hidden="true"></i> Statistiques</span>
             <button class="modal-close" onclick="closeStatsModal()" aria-label="Fermer">&times;</button>
         </div>
         <div id="statsContent"></div>
@@ -457,7 +457,7 @@
                 <div id="companyTagsEditor" class="tag-editor-host"></div>
             </div>
             <div id="companyIASection" style="display:none; padding-top:12px; border-top:1px solid var(--color-border); margin-bottom:12px;">
-                <button id="btnIA_company_0" class="btn btn-secondary" onclick="handleIAButton('company', parseInt(document.getElementById('inputCompanyId').value))" title="Enrichir l'entreprise avec l'IA" data-help-section="scrapping-ia" style="font-size:13px;">🤖 Scrapping IA</button>
+                <button id="btnIA_company_0" class="btn btn-secondary" onclick="handleIAButton('company', parseInt(document.getElementById('inputCompanyId').value))" title="Enrichir l'entreprise avec l'IA" data-help-section="scrapping-ia" style="font-size:13px;"><i data-icon="robot" data-size="13" aria-hidden="true"></i> Scrapping IA</button>
                 <div class="muted" style="margin-top:4px; font-size:11px;">1er clic = copier le prompt · 2e clic = coller le retour IA</div>
             </div>
             <div class="btn-group">
@@ -485,7 +485,7 @@
 <!-- Modal Modifier en masse -->
 <div class="modal" role="dialog" aria-modal="true" id="modalBulkEdit" aria-labelledby="modalBulkEditTitle">
     <div class="modal-content" style="max-width:460px;position:relative;">
-        <button class="modal-close" onclick="closeBulkEditModal()" aria-label="Fermer">✕</button>
+        <button class="modal-close" onclick="closeBulkEditModal()" aria-label="Fermer"><i data-icon="x" data-size="14" aria-hidden="true"></i></button>
         <h2 id="modalBulkEditTitle"><i data-icon="edit" data-size="16" aria-hidden="true"></i> Modifier en masse</h2>
         <p id="bulkEditInfo" style="color:var(--color-text-secondary);margin-bottom:16px;"></p>
         <div style="margin-bottom:12px;">
@@ -510,10 +510,10 @@
 <div class="modal" role="dialog" aria-modal="true" id="modalQuickAdd" aria-labelledby="modalQuickAddTitle">
     <div class="modal-content" style="max-width:560px;position:relative;">
         <div id="qaOllamaOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.75);border-radius:12px;z-index:10;flex-direction:column;align-items:center;justify-content:center;color:var(--color-text);padding:20px;text-align:center;">
-            <div style="font-size:32px;margin-bottom:12px;">⏳</div>
+            <div style="font-size:32px;margin-bottom:12px;"><i data-icon="hourglass" data-size="32" aria-hidden="true"></i></div>
             <div id="qaOllamaOverlayTitle" style="font-weight:600;margin-bottom:6px;">Génération en cours…</div>
             <div id="qaOllamaOverlayDetail" class="muted" style="font-size:12px;margin-bottom:8px;">Cela peut prendre plusieurs minutes. Ne fermez pas la fenêtre.</div>
-            <div id="qaOllamaWebBadge" style="display:none;font-size:11px;background:rgba(var(--color-primary-rgb,124,58,237),.2);border:1px solid var(--color-primary,#7c3aed);border-radius:20px;padding:2px 10px;margin-bottom:8px;">🌐 Recherche web activée</div>
+            <div id="qaOllamaWebBadge" style="display:none;font-size:11px;background:rgba(var(--color-primary-rgb,124,58,237),.2);border:1px solid var(--color-primary,#7c3aed);border-radius:20px;padding:2px 10px;margin-bottom:8px;"><i data-icon="globe" data-size="11" aria-hidden="true"></i> Recherche web activée</div>
             <div id="qaOllamaLivePhase" style="font-size:11px;color:var(--color-primary);margin-bottom:10px;"></div>
             <pre id="qaOllamaLiveText" style="display:none;max-height:120px;overflow:auto;font-size:10px;text-align:left;background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;width:100%;max-width:480px;white-space:pre-wrap;word-break:break-all;"></pre>
             <button id="qaOverlayCancelBtn" class="btn btn-secondary" style="margin-top:14px;font-size:12px;" onclick="qaOverlayCancel()">Annuler</button>
@@ -533,7 +533,7 @@
                     <div class="muted" style="font-size:11px;margin-top:3px;">Saisie directe</div>
                 </div>
                 <div class="qa-card" data-method="ia" onclick="qaPickMethod('ia')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
-                    <div style="font-size:28px;margin-bottom:6px;">🤖</div>
+                    <div style="font-size:28px;margin-bottom:6px;"><i data-icon="robot" data-size="28" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:13px;">Ajout via IA</div>
                     <div class="muted" style="font-size:11px;margin-top:3px;">IA locale ou cloud</div>
                 </div>
@@ -548,7 +548,7 @@
                     <div class="muted" style="font-size:11px;margin-top:3px;">Import candidat VSA</div>
                 </div>
                 <div class="qa-card" data-method="contacts" onclick="qaPickMethod('contacts')" style="flex:1;padding:18px 12px;border-radius:12px;border:2px solid var(--color-border);background:var(--color-surface);cursor:pointer;text-align:center;transition:all .2s;position:relative;">
-                    <div style="font-size:28px;margin-bottom:6px;">📲</div>
+                    <div style="font-size:28px;margin-bottom:6px;"><i data-icon="smartphone" data-size="28" aria-hidden="true"></i></div>
                     <div style="font-weight:700;font-size:13px;">Enrichir contacts</div>
                     <div class="muted" style="font-size:11px;margin-top:3px;">Importer tél / emails</div>
                 </div>
@@ -605,15 +605,15 @@
             <p class="muted" style="font-size:12px;margin-bottom:6px;">2) Contexte pour l'IA (recommandé) — lien LinkedIn, nom + entreprise, ou texte. Sans contexte, l'IA génèrera un exemple :</p>
             <textarea id="qaContextInput" rows="3" style="width:100%;border:1px solid var(--color-border);border-radius:8px;padding:8px;font-size:12px;background:var(--color-surface);color:var(--color-text);resize:vertical;margin-bottom:8px;" placeholder="Option 1 : Lien LinkedIn&#10;https://linkedin.com/in/nom-profil&#10;&#10;Option 2 : Nom + entreprise&#10;Jean Dupont, Responsable R&amp;D chez Acme&#10;&#10;Option 3 : Copiez-collez le contenu visible de la page LinkedIn (nom, poste, entreprise, etc.)"></textarea>
             <p class="muted" style="font-size:11px;margin-top:0;margin-bottom:14px;color:var(--color-warning);">
-                ⚠️ <strong>LinkedIn bloque souvent l'accès direct via API.</strong> Si le lien ne fonctionne pas, copiez-collez le texte visible de la page LinkedIn (nom, poste, entreprise, localisation) dans le champ ci-dessus. L'IA utilisera ces infos pour compléter la fiche.
+                <i data-icon="alertTri" data-size="13" aria-hidden="true"></i> <strong>LinkedIn bloque souvent l'accès direct via API.</strong> Si le lien ne fonctionne pas, copiez-collez le texte visible de la page LinkedIn (nom, poste, entreprise, localisation) dans le champ ci-dessus. L'IA utilisera ces infos pour compléter la fiche.
             </p>
             <p class="muted" style="font-size:12px;margin-bottom:10px;">3) Générez avec l’IA (Ollama + Tavily recherche web si configuré) :</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;">
                 <button class="btn btn-secondary" onclick="qaBackToStep0()">← Retour</button>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button class="btn btn-secondary" onclick="closeQuickAddModal()">Annuler</button>
-                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(false)">🤖 Générer (un seul)</button>
-                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(true)">🤖 Générer (plusieurs)</button>
+                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(false)"><i data-icon="robot" data-size="13" aria-hidden="true"></i> Générer (un seul)</button>
+                    <button class="btn btn-primary" onclick="qaGenerateWithOllama(true)"><i data-icon="robot" data-size="13" aria-hidden="true"></i> Générer (plusieurs)</button>
                 </div>
             </div>
         </div>
@@ -677,7 +677,7 @@
 </div>
 <style>
     .qa-card:hover, .qa-card.active { border-color: var(--color-primary) !important; background: rgba(var(--color-primary-rgb),.08) !important; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(var(--color-primary-rgb),.15); }
-    .qa-card.active::after { content: '✓'; position: absolute; top: 6px; right: 8px; color: var(--color-primary); font-weight: 800; font-size: 16px; }
+    .qa-card.active::after { content: ''; position: absolute; top: 6px; right: 8px; }
     .qa-card[data-method] { cursor: pointer; }
     </style>
 {% endblock %}
@@ -688,15 +688,15 @@
   <div class="fab-options" id="fab-options">
     <div class="fab-option" data-action="mode-prosp">
       <span class="fab-option-label">Mode Prosp</span>
-      <button class="fab-option-btn" style="background:#F59E0B;" aria-label="Mode Prosp">🃏</button>
+      <button class="fab-option-btn" style="background:#F59E0B;" aria-label="Mode Prosp"><i data-icon="shuffle" data-size="18" aria-hidden="true"></i></button>
     </div>
     <div class="fab-option" data-action="assistant-ia">
       <span class="fab-option-label">Assistant IA</span>
-      <button class="fab-option-btn" style="background:#22C55E;" aria-label="Assistant IA">🤖</button>
+      <button class="fab-option-btn" style="background:#22C55E;" aria-label="Assistant IA"><i data-icon="robot" data-size="18" aria-hidden="true"></i></button>
     </div>
     <div class="fab-option" data-action="add-candidate">
       <span class="fab-option-label">Candidat</span>
-      <button class="fab-option-btn" style="background:#4ECDC4;" aria-label="Ajouter un candidat">💼</button>
+      <button class="fab-option-btn" style="background:#4ECDC4;" aria-label="Ajouter un candidat"><i data-icon="briefcase" data-size="18" aria-hidden="true"></i></button>
     </div>
     <div class="fab-option" data-action="add-prospect">
       <span class="fab-option-label">Prospect</span>
@@ -738,7 +738,7 @@
     <div id="vsaImportError" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:var(--color-surface-2);color:var(--color-danger);font-size:12px;"></div>
 
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;">
-      <button class="btn btn-primary" id="btnVsaExtractOllama" disabled>🤖 Extraire avec Ollama</button>
+      <button class="btn btn-primary" id="btnVsaExtractOllama" disabled><i data-icon="robot" data-size="13" aria-hidden="true"></i> Extraire avec Ollama</button>
       <button class="btn btn-secondary" id="btnVsaPreFillAnyway" style="display:none;">Pré-remplir quand même</button>
     </div>
     <p class="muted" style="font-size:11px;">

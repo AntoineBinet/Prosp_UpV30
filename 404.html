@@ -64,8 +64,8 @@
     Si ce problème survient après une mise à jour, utilisez les boutons ci-dessous.</p>
     <div class="actions">
       <a href="/dashboard" class="btn btn-home">Retour au Dashboard</a>
-      <button id="btnUpdate" class="btn btn-update" onclick="triggerUpdate()">🔄 MAJ + Redémarrage</button>
-      <button id="btnRollback" class="btn btn-rollback" onclick="triggerRollback()">⏪ Rollback</button>
+      <button id="btnUpdate" class="btn btn-update" onclick="triggerUpdate()">MAJ + Redémarrage</button>
+      <button id="btnRollback" class="btn btn-rollback" onclick="triggerRollback()">Rollback</button>
     </div>
     <div id="updateStatus" class="update-status"></div>
     <div id="retryInfo" class="retry-info"></div>
@@ -112,25 +112,25 @@
         const data = await res.json();
 
         if (data.ok) {
-          showStatus('success', '✅ ' + (data.message || 'Mise à jour appliquée ! Redémarrage automatique en cours…'));
-          btn.innerHTML = '✅ MAJ effectuée';
+          showStatus('success', (data.message || 'Mise à jour appliquée ! Redémarrage automatique en cours…'));
+          btn.innerHTML = 'MAJ effectuée';
           scheduleReload(RELOAD_DELAY);
         } else {
-          showStatus('error', '❌ ' + (data.error || 'Échec de la mise à jour'));
+          showStatus('error', (data.error || 'Échec de la mise à jour'));
           btn.disabled = false;
-          btn.innerHTML = '🔄 MAJ + Redémarrage';
+          btn.innerHTML = 'MAJ + Redémarrage';
         }
       } catch (e) {
-        showStatus('error', '❌ Erreur réseau : ' + e.message + '<br>Le serveur ne répond peut-être plus. Retry automatique…');
+        showStatus('error', 'Erreur réseau : ' + e.message + '<br>Le serveur ne répond peut-être plus. Retry automatique…');
         btn.disabled = false;
-        btn.innerHTML = '🔄 MAJ + Redémarrage';
+        btn.innerHTML = 'MAJ + Redémarrage';
         retryReload();
       }
     }
 
     async function triggerRollback() {
       const btn = document.getElementById('btnRollback');
-      if (!confirm('⚠️ Revenir au commit précédent ? Le serveur redémarrera.')) return;
+      if (!confirm('Revenir au commit précédent ? Le serveur redémarrera.')) return;
 
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span>Rollback…';
@@ -144,18 +144,18 @@
         const data = await res.json();
 
         if (data.ok) {
-          showStatus('success', '✅ ' + (data.message || 'Rollback effectué !'));
-          btn.innerHTML = '✅ Rollback effectué';
+          showStatus('success', (data.message || 'Rollback effectué !'));
+          btn.innerHTML = 'Rollback effectué';
           scheduleReload(RELOAD_DELAY);
         } else {
-          showStatus('error', '❌ ' + (data.error || 'Échec du rollback'));
+          showStatus('error', (data.error || 'Échec du rollback'));
           btn.disabled = false;
-          btn.innerHTML = '⏪ Rollback';
+          btn.innerHTML = 'Rollback';
         }
       } catch (e) {
-        showStatus('error', '❌ Erreur réseau : ' + e.message);
+        showStatus('error', 'Erreur réseau : ' + e.message);
         btn.disabled = false;
-        btn.innerHTML = '⏪ Rollback';
+        btn.innerHTML = 'Rollback';
         retryReload();
       }
     }

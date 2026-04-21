@@ -329,10 +329,10 @@ function renderCandidateTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
-                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                 ${descActionBtn}
-                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">🧭</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">🧭</button>`}
-                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
+                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</button>`}
+                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">${window.icon ? window.icon('trash', {size:13}) : ''}</button>
               </div>
             </td>
         `;
@@ -353,7 +353,7 @@ function quickUploadDC(candidateId) {
         document.body.removeChild(input);
         if (!file) return;
         const btn = document.querySelector(`#candTableBody tr[data-candidate-id="${candidateId}"] .dc-upload-btn`);
-        if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+        if (btn) { btn.textContent = '…'; btn.disabled = true; }
         const fd = new FormData();
         fd.append('dc', file);
         fd.append('candidate_id', candidateId);
@@ -388,21 +388,21 @@ function quickUploadDC(candidateId) {
 /**
  * Retourne le bouton IA pour la colonne Actions (remplace EC1).
  * - DC absent → '' (rien)
- * - DC présent + description générée → ✨ (régénérer au clic)
- * - DC présent + pas de description → 🤖 cliquable pour générer
+ * - DC présent + description générée → sparkles (régénérer au clic)
+ * - DC présent + pas de description → robot cliquable pour générer
  */
 function _buildDescActionBtn(c) {
     if (!c.has_dc) return '';
     if (c.description_push && c.description_push.trim()) {
-        return `<button class="mini-action desc-gen-btn" onclick="event.stopPropagation();quickGenerateDescription(${c.id})" title="Phrase IA rédigée — cliquer pour régénérer" style="opacity:.7;">✨</button>`;
+        return `<button class="mini-action desc-gen-btn" onclick="event.stopPropagation();quickGenerateDescription(${c.id})" title="Phrase IA rédigée — cliquer pour régénérer" style="opacity:.7;">${window.icon ? window.icon('sparkles', {size:13}) : ''}</button>`;
     }
-    return `<button class="mini-action desc-gen-btn" onclick="event.stopPropagation();quickGenerateDescription(${c.id})" title="Générer la phrase de présentation IA depuis le DC">🤖</button>`;
+    return `<button class="mini-action desc-gen-btn" onclick="event.stopPropagation();quickGenerateDescription(${c.id})" title="Générer la phrase de présentation IA depuis le DC">${window.icon ? window.icon('robot', {size:13}) : ''}</button>`;
 }
 
 async function quickGenerateDescription(candidateId) {
     // Trouver le bouton dans le tableau (toutes les tables)
     const btn = document.querySelector(`tr[data-candidate-id="${candidateId}"] .desc-gen-btn`);
-    if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+    if (btn) { btn.innerHTML = window.icon ? window.icon('refreshCw', {size:13}) : '…'; btn.disabled = true; }
     try {
         const res = await fetch(`/api/candidates/${candidateId}/generate-description`, {
             method: 'POST',
@@ -421,7 +421,7 @@ async function quickGenerateDescription(candidateId) {
             if (tr) {
                 const descBtnEl = tr.querySelector('.desc-gen-btn');
                 if (descBtnEl) {
-                    descBtnEl.textContent = '✨';
+                    descBtnEl.innerHTML = window.icon ? window.icon('sparkles', {size:13}) : '';
                     descBtnEl.style.opacity = '0.7';
                     descBtnEl.title = 'Phrase IA rédigée — cliquer pour régénérer';
                     descBtnEl.disabled = false;
@@ -430,11 +430,11 @@ async function quickGenerateDescription(candidateId) {
             showToast('Phrase de présentation générée !', 'success');
         } else {
             showToast(json.error || 'Erreur génération (vérifiez qu\'Ollama est actif)', 'error');
-            if (btn) { btn.textContent = '🤖 Intro'; btn.disabled = false; }
+            if (btn) { btn.textContent = 'Intro'; btn.disabled = false; }
         }
     } catch(e) {
         showToast('Erreur réseau : ' + (e?.message || e), 'error');
-        if (btn) { btn.textContent = '🤖 Intro'; btn.disabled = false; }
+        if (btn) { btn.textContent = 'Intro'; btn.disabled = false; }
     }
 }
 
@@ -564,10 +564,10 @@ function renderArchiveTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
-                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                 ${descActionBtn}
-                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">🧭</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">🧭</button>`}
-                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
+                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</button>`}
+                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">${window.icon ? window.icon('trash', {size:13}) : ''}</button>
               </div>
             </td>
         `;
@@ -654,10 +654,10 @@ function renderMissionTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
-                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                 ${descActionBtn}
-                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">🧭</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">🧭</button>`}
-                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
+                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</button>`}
+                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">${window.icon ? window.icon('trash', {size:13}) : ''}</button>
               </div>
             </td>
         `;
@@ -743,10 +743,10 @@ function renderHorsAuraTable() {
             <td>${escapeHtml(updatedAt)}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
-                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                 ${descActionBtn}
-                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">🧭</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">🧭</button>`}
-                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
+                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</button>`}
+                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">${window.icon ? window.icon('trash', {size:13}) : ''}</button>
               </div>
             </td>
         `;
@@ -833,10 +833,10 @@ function renderLinkedinTable() {
             <td data-label="MAJ">${escapeHtml((c.updatedAt || c.createdAt || '').slice(0, 10))}</td>
             <td data-label="Actions">
               <div class="table-actions-inline">
-                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">🔗</a>` : ''}
+                ${c.linkedin ? `<a class="mini-action" href="${escapeHtml(c.linkedin)}" target="_blank" title="LinkedIn">${window.icon ? window.icon('linkedin', {size:13}) : ''}</a>` : ''}
                 ${descActionBtn}
-                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">🧭</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">🧭</button>`}
-                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">🗑️</button>
+                ${c.vsa_url ? `<a class="mini-action" href="${escapeHtml(c.vsa_url)}" target="_blank" title="Profil VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</a>` : `<button class="mini-action" disabled style="opacity:0.25;cursor:default;" title="Pas de lien VSA">${window.icon ? window.icon('globe', {size:13}) : ''}</button>`}
+                <button class="mini-action danger" onclick="deleteCandidate(${c.id})">${window.icon ? window.icon('trash', {size:13}) : ''}</button>
               </div>
             </td>
         `;
@@ -946,7 +946,7 @@ async function saveCandidate(e) {
 async function deleteCandidate(id) {
     const c = __candidates.find(x => x.id === id);
     const label = c ? safeStr(c.name) : `ID ${id}`;
-    if (!confirm(`⚠️ Supprimer ce candidat ?\n\n${label}`)) return;
+    if (!confirm(`Supprimer ce candidat ?\n\n${label}`)) return;
 
     const res = await fetch('/api/candidates/delete', {
         method: 'POST',
@@ -975,9 +975,9 @@ async function deleteCandidate(id) {
             if ((await r.json()).ok) {
                 await loadCandidates();
                 applyCandidateFilters();
-                showToast('↩️ Candidat restauré', 'success', 2500);
+                showToast('Candidat restauré', 'success', 2500);
             } else {
-                showToast('❌ Impossible d\'annuler', 'error');
+                showToast('Impossible d\'annuler', 'error');
             }
         });
     }
@@ -1056,7 +1056,7 @@ async function applyBulkCandidateStatus() {
 async function deleteSelectedCandidates() {
     if (!__selectedCandidates.size) return;
     const ids = [...__selectedCandidates];
-    if (!confirm(`⚠️ Supprimer ${ids.length} candidat(s) sélectionné(s) ?\nCette action peut être annulée.`)) return;
+    if (!confirm(`Supprimer ${ids.length} candidat(s) sélectionné(s) ?\nCette action peut être annulée.`)) return;
     let done = 0;
     for (const id of ids) {
         const res = await fetch('/api/candidates/delete', {
@@ -1101,7 +1101,7 @@ window.openVsaImportModal = function openVsaImportModal() {
     if (prefillBtn) prefillBtn.style.display = 'none';
     if (extractBtn) {
         extractBtn.disabled = true;
-        extractBtn.textContent = '🤖 Extraire avec Ollama';
+        extractBtn.textContent = 'Extraire avec Ollama';
     }
     if (typeof _vsaImportToggleExtractButton === 'function') {
         _vsaImportToggleExtractButton();
@@ -1190,8 +1190,8 @@ function _ensureVsaValidationModal() {
     <div id="modalVsaValidation" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
         <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
             <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <span style="font-size: 18px; font-weight: 600;">✅ Validation des données extraites</span>
-                <button class="modal-close" onclick="closeVsaValidationModal()" aria-label="Fermer" style="font-size:14px;padding:4px 10px;background:none;border:none;color:var(--color-text);cursor:pointer;">✕</button>
+                <span style="font-size: 18px; font-weight: 600;">Validation des données extraites</span>
+                <button class="modal-close" onclick="closeVsaValidationModal()" aria-label="Fermer" style="font-size:14px;padding:4px 10px;background:none;border:none;color:var(--color-text);cursor:pointer;">${window.icon ? window.icon('x', {size:14}) : '×'}</button>
             </div>
             <div style="margin-top:16px;">
                 <p class="muted" style="font-size:12px;margin-bottom:16px;">Vérifiez les champs extraits. Vous pouvez modifier chaque valeur avant de créer le candidat.</p>
@@ -1199,7 +1199,7 @@ function _ensureVsaValidationModal() {
                 <div style="display:flex;gap:8px;margin-top:20px;justify-content:space-between;flex-wrap:wrap;">
                     <button class="btn btn-secondary" onclick="closeVsaValidationModal()">Annuler</button>
                     <div style="display:flex;gap:8px;">
-                        <button class="btn btn-primary" onclick="applyVsaImport()">💾 Créer le candidat</button>
+                        <button class="btn btn-primary" onclick="applyVsaImport()">${window.icon ? window.icon('save', {size:14}) : ''} Créer le candidat</button>
                     </div>
                 </div>
             </div>
@@ -1438,7 +1438,7 @@ async function _vsaImportExtractWithOllama() {
     
     if (btn) { 
         btn.disabled = true; 
-        btn.textContent = '⏳ Extraction en cours…';
+        btn.textContent = 'Extraction en cours…';
     }
     if (errEl) { 
         errEl.style.display = 'none'; 
@@ -1448,7 +1448,7 @@ async function _vsaImportExtractWithOllama() {
 
     const prompt = typeof getVsaExtractionPrompt === 'function' ? getVsaExtractionPrompt(content) : '';
     if (!prompt) {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 Extraire avec l\'IA'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Extraire avec l\'IA'; }
         return;
     }
     
@@ -1495,7 +1495,7 @@ async function _vsaImportExtractWithOllama() {
     } finally {
         if (btn) { 
             btn.disabled = false; 
-            btn.textContent = '🤖 Extraire avec l\'IA'; 
+            btn.textContent = 'Extraire avec l\'IA';
             _vsaImportToggleExtractButton(); 
         }
     }
@@ -1522,7 +1522,7 @@ function _showVsaLoadingOverlay() {
             color: var(--color-text, #fff);
         `;
         overlay.innerHTML = `
-            <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
+            <div style="font-size: 48px; margin-bottom: 16px;">${window.icon ? window.icon('hourglass', {size:48}) : ''}</div>
             <div style="font-weight: 600; margin-bottom: 8px; font-size: 18px;">Extraction en cours…</div>
             <div style="font-size: 14px; opacity: 0.8;">L'IA analyse le contenu VSA. Cela peut prendre quelques instants.</div>
         `;
@@ -1589,7 +1589,7 @@ async function saveSettingsTab() {
         candidate_description_prompt: (promptEl?.value ?? '').trim(),
         candidate_pdf_max_chars: parseInt(maxCharsEl?.value) || 6000,
     };
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Enregistrement…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
     try {
         const res = await fetch('/api/ai/config', {
             method: 'POST',
@@ -1605,7 +1605,7 @@ async function saveSettingsTab() {
     } catch(e) {
         showToast('Erreur réseau : ' + (e?.message || e), 'error');
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '💾 Enregistrer les paramètres'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer les paramètres'; }
     }
 }
 
@@ -1660,7 +1660,7 @@ async function bulkGenerateDescriptions() {
     if (__bulkGenRunning) return;
     const targets = __candidates.filter(c => c.has_dc && !(c.description_push && c.description_push.trim()));
     if (targets.length === 0) {
-        showToast('Tous les candidats avec DC ont déjà une phrase de présentation ✨', 'success');
+        showToast('Tous les candidats avec DC ont déjà une phrase de présentation', 'success');
         return;
     }
     if (!confirm(`Générer les phrases de présentation pour ${targets.length} candidat(s) ?\n\nOpération séquentielle — environ ${targets.length * 20}–${targets.length * 60} secondes selon Ollama.`)) return;
@@ -1668,7 +1668,7 @@ async function bulkGenerateDescriptions() {
     __bulkGenRunning = true;
     const btn = document.getElementById('btnBulkGenerate');
     const progress = document.getElementById('bulkGenProgress');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération en cours…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Génération en cours…'; }
 
     let done = 0, errors = 0;
     for (const cand of targets) {
@@ -1684,7 +1684,7 @@ async function bulkGenerateDescriptions() {
                 const tr = document.querySelector(`tr[data-candidate-id="${cand.id}"]`);
                 if (tr) {
                     const btn2 = tr.querySelector('.desc-gen-btn');
-                    if (btn2) { btn2.textContent = '✨'; btn2.style.opacity = '0.7'; btn2.title = 'Phrase IA rédigée — cliquer pour régénérer'; }
+                    if (btn2) { btn2.innerHTML = window.icon ? window.icon('sparkles', {size:13}) : ''; btn2.style.opacity = '0.7'; btn2.title = 'Phrase IA rédigée — cliquer pour régénérer'; }
                 }
                 done++;
             } else {
@@ -1696,8 +1696,8 @@ async function bulkGenerateDescriptions() {
     }
 
     __bulkGenRunning = false;
-    if (btn) { btn.disabled = false; btn.textContent = '🤖 Générer les introductions manquantes'; }
-    if (progress) progress.textContent = `✅ ${done} générée(s)${errors ? ` · ❌ ${errors} échec(s)` : ''}`;
+    if (btn) { btn.disabled = false; btn.textContent = 'Générer les introductions manquantes'; }
+    if (progress) progress.textContent = `${done} générée(s)${errors ? ` · ${errors} échec(s)` : ''}`;
     showToast(`Génération terminée : ${done} réussie(s)${errors ? ', ' + errors + ' échec(s)' : ''}`, errors ? 'warning' : 'success');
 }
 
@@ -1726,10 +1726,10 @@ async function saveCandidateFolderSettings() {
         });
         const j = await res.json();
         if (j.ok) {
-            if (statusEl) statusEl.textContent = '✅ Enregistré';
-            if (typeof showToast === 'function') showToast('✅ Dossier candidats enregistré', 'success');
-        } else { if (statusEl) statusEl.textContent = '❌ Erreur'; }
-    } catch (e) { if (statusEl) statusEl.textContent = '❌ Erreur réseau'; }
+            if (statusEl) statusEl.textContent = 'Enregistré';
+            if (typeof showToast === 'function') showToast('Dossier candidats enregistré', 'success');
+        } else { if (statusEl) statusEl.textContent = 'Erreur'; }
+    } catch (e) { if (statusEl) statusEl.textContent = 'Erreur réseau'; }
     setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
 }
 
@@ -1738,7 +1738,7 @@ async function scanCandidateFolder() {
     const resultEl = document.getElementById('sourceFromFolderResult');
     if (!resultEl) return;
     resultEl.style.display = 'block';
-    resultEl.innerHTML = '<span class="muted">⏳ Scan en cours…</span>';
+    resultEl.innerHTML = '<span class="muted">Scan en cours…</span>';
     try {
         const res = await fetch('/api/candidates/source-from-folder');
         const j = await res.json();
@@ -1758,7 +1758,7 @@ async function scanCandidateFolder() {
             html += '<div class="card" style="padding:10px 12px;margin-bottom:8px;">';
             html += '<strong>' + escapeHtml(item.folderName) + '</strong>';
             if (files) html += '<div class="muted" style="font-size:11px;margin-top:4px;">' + escapeHtml(files + more) + '</div>';
-            html += '<div style="margin-top:8px;"><a href="/?openQuickAdd=1&type=candidate&context=' + encodeURIComponent(item.folderName) + '" class="btn btn-primary btn-sm">🤖 Créer fiche avec Ajout IA</a></div>';
+            html += '<div style="margin-top:8px;"><a href="/?openQuickAdd=1&type=candidate&context=' + encodeURIComponent(item.folderName) + '" class="btn btn-primary btn-sm">' + (window.icon ? window.icon('robot', {size:13}) : '') + ' Créer fiche avec Ajout IA</a></div>';
             html += '</div>';
         });
         resultEl.innerHTML = html;
@@ -1816,7 +1816,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateCandSortIndicators();
     } catch (err) {
         console.error(err);
-        showToast("❌ Impossible de charger les candidats. Vérifiez que le serveur Python est lancé (app.py).", 'error');
+        showToast("Impossible de charger les candidats. Vérifiez que le serveur Python est lancé (app.py).", 'error');
     }
 
     // URL param: editCandidate
@@ -1874,7 +1874,7 @@ function wizardOnFileChange(input) {
     if (!file) return;
     __wizardDcFile = file;
     const fn = document.getElementById('wizardDcFileName');
-    fn.textContent = '📄 ' + file.name;
+    fn.textContent = file.name;
     fn.style.display = 'block';
     document.getElementById('wizardBtnAnalyze').disabled = false;
 }
@@ -1889,7 +1889,7 @@ function wizardHandleDrop(event) {
     }
     __wizardDcFile = file;
     const fn = document.getElementById('wizardDcFileName');
-    fn.textContent = '📄 ' + file.name;
+    fn.textContent = file.name;
     fn.style.display = 'block';
     document.getElementById('wizardBtnAnalyze').disabled = false;
 }

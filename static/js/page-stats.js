@@ -65,7 +65,7 @@ const STATUS_COLORS = {
 const STATUS_ORDER = ["Pas d'actions", "Appelé", "Messagerie", "À rappeler", "Rendez-vous", "Prospecté", "Pas intéressé"];
 
 const PERT_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#32b8c6'];
-const PERT_LABELS = ['⭐', '⭐⭐', '⭐⭐⭐', '⭐⭐⭐⭐', '⭐⭐⭐⭐⭐'];
+const PERT_LABELS = ['1 ★', '2 ★', '3 ★', '4 ★', '5 ★'];
 
 function getChartDefaults() {
     // Detect dark mode
@@ -428,8 +428,8 @@ async function loadStats() {
               <td data-label="Relances en retard">${escapeHtml(String(h.lateFollowups ?? 0))}</td>
               <td data-label="Actions">
                 <div class="table-actions-inline">
-                  <a class="mini-action" href="/?company=${h.company_id}" title="Voir prospects">👥</a>
-                  <a class="mini-action" href="/entreprises?openCompany=${h.company_id}" title="Ouvrir entreprise">🏢</a>
+                  <a class="mini-action" href="/?company=${h.company_id}" title="Voir prospects">${window.icon ? window.icon('users', {size:13}) : ''}</a>
+                  <a class="mini-action" href="/entreprises?openCompany=${h.company_id}" title="Ouvrir entreprise">${window.icon ? window.icon('building', {size:13}) : ''}</a>
                 </div>
               </td>
             `;
@@ -475,7 +475,7 @@ async function loadCharts() {
             const el = document.getElementById(id);
             if (el) {
                 el.parentElement.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:180px;color:var(--color-text-secondary);font-size:13px;text-align:center;">
-                    📊 Charts indisponibles<br><small>Vérifiez votre connexion internet<br>pour charger Chart.js</small></div>`;
+                    Charts indisponibles<br><small>Vérifiez votre connexion internet<br>pour charger Chart.js</small></div>`;
             }
         });
         return;
@@ -486,7 +486,7 @@ async function loadCharts() {
     _chartsMsg.id = '_chartsLoadingMsg';
     _chartsMsg.className = 'muted';
     _chartsMsg.style.cssText = 'text-align:center;padding:30px;font-size:13px;';
-    _chartsMsg.textContent = '⏳ Chargement des graphiques…';
+    _chartsMsg.textContent = 'Chargement des graphiques…';
     if (_chartsArea) {
         _chartsArea.style.display = 'none';
         _chartsArea.insertAdjacentElement('beforebegin', _chartsMsg);
@@ -539,7 +539,7 @@ async function loadCharts() {
         {
             destroyChart('chartPertinence');
             const pert = d.pertinenceDistribution || {};
-            const labels = ['⭐', '⭐⭐', '⭐⭐⭐', '⭐⭐⭐⭐', '⭐⭐⭐⭐⭐'];
+            const labels = ['1 ★', '2 ★', '3 ★', '4 ★', '5 ★'];
             const values = ['1','2','3','4','5'].map(k => pert[k] || 0);
             _hideIfEmpty('chartPertinence', values);
             const palette = ['#94a3b8', '#f59e0b', '#eab308', '#f97316', '#ef4444'];
@@ -1280,7 +1280,7 @@ async function generateInsights() {
     error.style.display = 'none';
     if (btn) {
         btn.disabled = true;
-        btn.textContent = '⏳ Génération…';
+        btn.textContent = 'Génération…';
     }
     
     try {
@@ -1386,7 +1386,7 @@ async function generateInsights() {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = '✨ Générer insights';
+            btn.textContent = 'Générer insights';
         }
     }
 }

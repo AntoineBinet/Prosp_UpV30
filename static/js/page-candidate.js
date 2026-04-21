@@ -122,18 +122,18 @@ function renderCandidateTabs() {
           <div class="candidate-tab-panel-inner">
             <div class="form-row">
               <div class="form-group" style="flex:1 1 320px;">
-                <label>📅 Date & heure de l'entretien (remonte dans le Calendrier)</label>
+                <label>${window.icon ? window.icon('calendar', {size:13}) : ''} Date &amp; heure de l'entretien (remonte dans le Calendrier)</label>
                 <input class="ec1-datetime" type="datetime-local" value="${escapeHtml(interviewAt)}" />
               </div>
             </div>
             <div class="ec1-checklist">${rows}</div>
             <div class="form-group" style="margin-top:12px;">
-              <label>📝 Note (EC1)</label>
+              <label>${window.icon ? window.icon('note', {size:13}) : ''} Note (EC1)</label>
               <textarea class="ec1-note-textarea" rows="4" placeholder="Résumé, points forts, points de vigilance…">${escapeHtml(data.__note || '')}</textarea>
             </div>
             <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px;">
-              <button type="button" class="btn btn-secondary" onclick="resetCurrentEC1Tab()">↩️ Réinitialiser</button>
-              <button type="button" class="btn btn-primary" onclick="saveCurrentTab(true)">💾 Sauver</button>
+              <button type="button" class="btn btn-secondary" onclick="resetCurrentEC1Tab()"><i data-icon="refreshCw" data-size="13" aria-hidden="true"></i> Réinitialiser</button>
+              <button type="button" class="btn btn-primary" onclick="saveCurrentTab(true)"><i data-icon="save" data-size="13" aria-hidden="true"></i> Sauver</button>
             </div>
           </div>
         </div>`;
@@ -142,10 +142,10 @@ function renderCandidateTabs() {
     return `
       <div class="candidate-tab-panel" id="candidateTabPanel_${id}" data-tab-index="${idx}" style="${show}">
         <div class="candidate-tab-panel-inner">
-          <label>📝 Note libre</label>
+          <label>${window.icon ? window.icon('note', {size:13}) : ''} Note libre</label>
           <textarea class="note-libre-textarea" rows="8" placeholder="Saisissez votre note…">${escapeHtml(content)}</textarea>
           <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px;">
-            <button type="button" class="btn btn-primary" onclick="saveCurrentTab(true)">💾 Sauver</button>
+            <button type="button" class="btn btn-primary" onclick="saveCurrentTab(true)"><i data-icon="save" data-size="13" aria-hidden="true"></i> Sauver</button>
           </div>
         </div>
       </div>`;
@@ -212,10 +212,10 @@ async function saveCurrentTab(showToastOnSuccess) {
       });
       if (!putRes.ok) throw new Error(await putRes.text().catch(() => 'PUT failed'));
       __candidateTabs[__activeTabIndex].id = tabId;
-      if (showToastOnSuccess && typeof showToast === 'function') showToast('✅ Onglet créé et sauvegardé', 'success');
+      if (showToastOnSuccess && typeof showToast === 'function') showToast('Onglet créé et sauvegardé', 'success');
     } catch (e) {
       console.error('Tab create/save error', e);
-      if (typeof showToast === 'function') showToast('❌ Erreur sauvegarde', 'error');
+      if (typeof showToast === 'function') showToast('Erreur sauvegarde', 'error');
     }
     return;
   }
@@ -227,15 +227,15 @@ async function saveCurrentTab(showToastOnSuccess) {
       body: JSON.stringify({ payload: __candidateTabs[__activeTabIndex].payload })
     });
     if (!res.ok) throw new Error(await res.text().catch(() => 'HTTP ' + res.status));
-    if (showToastOnSuccess && typeof showToast === 'function') showToast('✅ Sauvegardé', 'success');
+    if (showToastOnSuccess && typeof showToast === 'function') showToast('Sauvegardé', 'success');
   } catch (e) {
     console.error('Tab save error', e);
-    if (typeof showToast === 'function') showToast('❌ Erreur sauvegarde', 'error');
+    if (typeof showToast === 'function') showToast('Erreur sauvegarde', 'error');
   }
 }
 
 function resetCurrentEC1Tab() {
-  if (!confirm('↩️ Réinitialiser ce formulaire EC1 ?')) return;
+  if (!confirm('Réinitialiser ce formulaire EC1 ?')) return;
   const tab = getActiveTab();
   if (!tab || tab.type !== 'ec1') return;
   __candidateTabs[__activeTabIndex] = { ...tab, payload: { interviewAt: null, data: blankEC1Data() } };
@@ -277,10 +277,10 @@ async function createNewTab(type) {
     __candidateTabs.push(j.tab);
     __activeTabIndex = __candidateTabs.length - 1;
     renderCandidateTabs();
-    if (typeof showToast === 'function') showToast('✅ Nouvel onglet créé', 'success');
+    if (typeof showToast === 'function') showToast('Nouvel onglet créé', 'success');
   } catch (e) {
     console.error('Create tab error', e);
-    if (typeof showToast === 'function') showToast('❌ Erreur création onglet', 'error');
+    if (typeof showToast === 'function') showToast('Erreur création onglet', 'error');
   }
 }
 
@@ -335,11 +335,11 @@ async function addCandidateTimelineEvent() {
     });
     const j = await res.json();
     if (!j?.ok) throw new Error(j.error || 'API');
-    if (typeof showToast === 'function') showToast('✅ Événement ajouté', 'success');
+    if (typeof showToast === 'function') showToast('Événement ajouté', 'success');
     await loadCandidateTimeline();
   } catch (e) {
     console.error('Add timeline event error', e);
-    if (typeof showToast === 'function') showToast('❌ Erreur', 'error');
+    if (typeof showToast === 'function') showToast('Erreur', 'error');
   }
 }
 
@@ -376,17 +376,18 @@ function uniqCaseInsensitive(arr) {
 
 function candStatusLabel(s) {
     const v = (s || '').toLowerCase();
-    if (v === 'a_sourcer') return '🧲 À sourcer';
-    if (v === 'a_contacter') return '📨 À contacter';
-    if (v === 'en_cours') return '⏳ En cours';
-    if (v === 'ec1') return '📞 EC1';
-    if (v === 'ec2') return '📞📞 EC2';
-    if (v === 'ed') return '📋 ED';
-    if (v === 'interesse') return '✅ Intéressé';
-    if (v === 'mission') return '🚀 Mission';
-    if (v === 'refuse') return '❌ Refusé';
-    if (v === 'embauche') return '🎉 Embauché';
-    if (v === 'archive') return '📦 Archivé';
+    const ic = window.icon || (() => '');
+    if (v === 'a_sourcer')   return ic('magnet', {size:13}) + ' À sourcer';
+    if (v === 'a_contacter') return ic('send', {size:13}) + ' À contacter';
+    if (v === 'en_cours')    return ic('hourglass', {size:13}) + ' En cours';
+    if (v === 'ec1')         return ic('phone', {size:13}) + ' EC1';
+    if (v === 'ec2')         return ic('phone', {size:13}) + ic('phone', {size:13}) + ' EC2';
+    if (v === 'ed')          return ic('clipboard', {size:13}) + ' ED';
+    if (v === 'interesse')   return ic('checkCircle', {size:13}) + ' Intéressé';
+    if (v === 'mission')     return ic('zap', {size:13}) + ' Mission';
+    if (v === 'refuse')      return ic('xCircle', {size:13}) + ' Refusé';
+    if (v === 'embauche')    return ic('star', {size:13}) + ' Embauché';
+    if (v === 'archive')     return ic('archive', {size:13}) + ' Archivé';
     return s || '—';
 }
 
@@ -466,8 +467,8 @@ function startInlineEdit(key) {
 
     valEl.innerHTML = `<div style="display:flex;gap:6px;align-items:flex-start;width:100%;">
         ${inputHtml}
-        <button class="btn btn-primary btn-sm" onclick="saveInlineEdit('${key}')" style="flex-shrink:0;">✓</button>
-        <button class="btn btn-secondary btn-sm" onclick="renderViewMode()" style="flex-shrink:0;">✕</button>
+        <button class="btn btn-primary btn-sm" onclick="saveInlineEdit('${key}')" style="flex-shrink:0;">${window.icon ? window.icon('check', {size:13}) : ''}</button>
+        <button class="btn btn-secondary btn-sm" onclick="renderViewMode()" style="flex-shrink:0;">${window.icon ? window.icon('x', {size:13}) : ''}</button>
     </div>`;
 
     const inp = document.getElementById('cand-inline-input');
@@ -493,8 +494,8 @@ function startInlineEditPermis() {
         <label style="display:flex;align-items:center;gap:4px;font-weight:400;cursor:pointer;">
             <input type="checkbox" id="cand-inline-vehicule" ${vh?'checked':''} /> Véhicule
         </label>
-        <button class="btn btn-primary btn-sm" onclick="saveInlineEditPermis()">✓</button>
-        <button class="btn btn-secondary btn-sm" onclick="renderViewMode()">✕</button>
+        <button class="btn btn-primary btn-sm" onclick="saveInlineEditPermis()">${window.icon ? window.icon('check', {size:13}) : ''}</button>
+        <button class="btn btn-secondary btn-sm" onclick="renderViewMode()">${window.icon ? window.icon('x', {size:13}) : ''}</button>
     </div>`;
 }
 
@@ -530,7 +531,7 @@ function saveInlineEdit(key) {
 }
 
 function _editBtn(key, label) {
-    return `<button class="cand-edit-btn" onclick="startInlineEdit('${key}')" title="Modifier ${label}" aria-label="Modifier ${label}">✏️</button>`;
+    return `<button class="cand-edit-btn" onclick="startInlineEdit('${key}')" title="Modifier ${label}" aria-label="Modifier ${label}">${window.icon ? window.icon('edit', {size:13}) : ''}</button>`;
 }
 
 function _makeRow(key, label, valueHtml) {
@@ -596,8 +597,8 @@ function renderViewMode() {
     // Permis/Véhicule : seulement si au moins un est à 1 (explicitement coché)
     const hasPermis = __cand.permis_conduire === 1 || __cand.vehicule === 1;
     const permisDisplay = [
-        __cand.permis_conduire === 1 ? '✅ Permis' : null,
-        __cand.vehicule === 1 ? '✅ Véhicule' : null,
+        __cand.permis_conduire === 1 ? 'Permis' : null,
+        __cand.vehicule === 1 ? 'Véhicule' : null,
     ].filter(Boolean).join(' · ') || '—';
 
     const entretienFields = [
@@ -632,7 +633,7 @@ function renderViewMode() {
                 return `<div class="cand-view-row" id="cand-row-_permis">
                     <div class="cand-view-label">${f.label}</div>
                     <div class="cand-view-value" id="cand-val-permis">${f.val}</div>
-                    <button class="cand-edit-btn" onclick="startInlineEditPermis()" title="Modifier permis/véhicule">✏️</button>
+                    <button class="cand-edit-btn" onclick="startInlineEditPermis()" title="Modifier permis/véhicule">${window.icon ? window.icon('edit', {size:13}) : ''}</button>
                 </div>`;
             }
             return _makeRow(f.key, f.label, f.val);
@@ -657,7 +658,7 @@ function renderViewMode() {
             if (refSection) refSection.style.display = '';
             refContent.innerHTML = `<div style="display:flex;gap:8px;align-items:flex-start;">
                 <div id="cand-val-references_candidat" style="flex:1;white-space:pre-wrap;">${escapeHtml(__cand.references_candidat)}</div>
-                <button class="cand-edit-btn" onclick="startInlineEdit('references_candidat')" title="Modifier références">✏️</button>
+                <button class="cand-edit-btn" onclick="startInlineEdit('references_candidat')" title="Modifier références">${window.icon ? window.icon('edit', {size:13}) : ''}</button>
             </div>`;
         } else {
             if (refSection) refSection.style.display = 'none';
@@ -671,7 +672,7 @@ function renderViewMode() {
             if (avisSection) avisSection.style.display = '';
             avisContent.innerHTML = `<div style="display:flex;gap:8px;align-items:flex-start;">
                 <div id="cand-val-avis_perso" style="flex:1;white-space:pre-wrap;">${escapeHtml(__cand.avis_perso)}</div>
-                <button class="cand-edit-btn" onclick="startInlineEdit('avis_perso')" title="Modifier avis perso">✏️</button>
+                <button class="cand-edit-btn" onclick="startInlineEdit('avis_perso')" title="Modifier avis perso">${window.icon ? window.icon('edit', {size:13}) : ''}</button>
             </div>`;
         } else {
             if (avisSection) avisSection.style.display = 'none';
@@ -681,10 +682,10 @@ function renderViewMode() {
     // Archive btn label
     if (archiveBtn) {
         if (__cand.is_archived || safeStr(__cand.status).toLowerCase() === 'archive') {
-            archiveBtn.textContent = '♻️ Désarchiver';
+            archiveBtn.innerHTML = (window.icon ? window.icon('refreshCw', {size:13}) : '') + ' Désarchiver';
             archiveBtn.onclick = unarchiveCandidate;
         } else {
-            archiveBtn.textContent = '📦 Archiver';
+            archiveBtn.innerHTML = (window.icon ? window.icon('archive', {size:13}) : '') + ' Archiver';
             archiveBtn.onclick = archiveCandidate;
         }
     }
@@ -702,7 +703,7 @@ async function loadCandidateDcStatus() {
     // Injecter le bouton DC Generator
     const btnZone = document.getElementById('dcGeneratorBtnZone');
     if (btnZone) {
-        btnZone.innerHTML = `<a href="/candidates/${__cand.id}/dc-generator" class="btn btn-secondary btn-sm" style="font-size:12px; text-decoration:none;">📄 Générer dossier Up</a>`;
+        btnZone.innerHTML = `<a href="/candidates/${__cand.id}/dc-generator" class="btn btn-secondary btn-sm" style="font-size:12px; text-decoration:none;">${window.icon ? window.icon('file', {size:13}) : ''} Générer dossier Up</a>`;
     }
 
     try {
@@ -712,13 +713,16 @@ async function loadCandidateDcStatus() {
         if (j.has_dc) {
             const fileLinks = (j.files || []).map(f => {
                 const url = `/api/candidates/${__cand.id}/dossier-competence`;
-                return `<a href="${url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;">⬇️ Télécharger${j.files.length > 1 ? ' (' + escapeHtml(f) + ')' : ''}</a>`;
+                return `<a href="${url}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;">${window.icon ? window.icon('download', {size:13}) : ''} Télécharger${j.files.length > 1 ? ' (' + escapeHtml(f) + ')' : ''}</a>`;
             }).join('');
             const firstName = j.files[0] || '';
-            el.innerHTML = `<span class="badge badge-success" style="font-size:12px;">✅ DC disponible</span>${fileLinks}<button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcRenameInline(this,'${escapeHtml(firstName).replace(/'/g,"\\'")}')">✏️ Renommer</button><button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcUploadModal()">🔄 Remplacer</button><button class="btn btn-danger btn-sm" style="font-size:12px;margin-left:8px;" onclick="deleteDcFile()">🗑️ Supprimer</button>`;
+            el.innerHTML = '<span class="badge badge-success" style="font-size:12px;">' + (window.icon ? window.icon('checkCircle', {size:12}) : '') + ' DC disponible</span>' + fileLinks
+                + '<button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcRenameInline(this,\'' + escapeHtml(firstName).replace(/'/g, "\\'") + '\')">' + (window.icon ? window.icon('edit', {size:13}) : '') + ' Renommer</button>'
+                + '<button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcUploadModal()">' + (window.icon ? window.icon('refreshCw', {size:13}) : '') + ' Remplacer</button>'
+                + '<button class="btn btn-danger btn-sm" style="font-size:12px;margin-left:8px;" onclick="deleteDcFile()">' + (window.icon ? window.icon('trash', {size:13}) : '') + ' Supprimer</button>';
         } else {
-            el.innerHTML = `<span class="badge" style="background:rgba(245,158,11,.15);color:#f59e0b;font-size:12px;">⚠ DC manquant</span>
-                <button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcUploadModal()">➕ Ajouter le DC</button>`;
+            el.innerHTML = '<span class="badge" style="background:rgba(245,158,11,.15);color:#f59e0b;font-size:12px;">' + (window.icon ? window.icon('alertTri', {size:12}) : '') + ' DC manquant</span>'
+                + '<button class="btn btn-secondary btn-sm" style="font-size:12px;margin-left:8px;" onclick="openDcUploadModal()">' + (window.icon ? window.icon('plus', {size:13}) : '') + ' Ajouter le DC</button>';
         }
     } catch (e) {
         el.innerHTML = '<span class="muted">Statut DC indisponible.</span>';
@@ -733,8 +737,8 @@ function openDcRenameInline(btn, currentName) {
         wrap.style.cssText = 'display:inline-flex;align-items:center;gap:4px;margin-left:8px;';
         wrap.innerHTML = `
             <input id="dcRenameInput" value="${escapeHtml(sanitized)}" style="font-size:12px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:220px;" />
-            <button class="btn btn-primary btn-sm" id="dcRenameSaveBtn" style="font-size:12px;">✅</button>
-            <button class="btn btn-secondary btn-sm" id="dcRenameCancelBtn" style="font-size:12px;">✕</button>`;
+            <button class="btn btn-primary btn-sm" id="dcRenameSaveBtn" style="font-size:12px;">${window.icon ? window.icon('check', {size:13}) : ''}</button>
+            <button class="btn btn-secondary btn-sm" id="dcRenameCancelBtn" style="font-size:12px;">${window.icon ? window.icon('x', {size:13}) : ''}</button>`;
         return wrap;
     })());
     const inp = document.getElementById('dcRenameInput');
@@ -802,7 +806,7 @@ function dcUploadOnFileChange(input) {
     if (!file) return;
     __dcUploadFile = file;
     const fn = document.getElementById('dcUploadFileName');
-    if (fn) { fn.textContent = '📄 ' + file.name; fn.style.display = 'block'; }
+    if (fn) { fn.textContent = file.name; fn.style.display = 'block'; }
     const btn = document.getElementById('dcUploadBtnSave');
     if (btn) btn.disabled = false;
 }
@@ -817,7 +821,7 @@ function dcUploadHandleDrop(event) {
     }
     __dcUploadFile = file;
     const fn = document.getElementById('dcUploadFileName');
-    if (fn) { fn.textContent = '📄 ' + file.name; fn.style.display = 'block'; }
+    if (fn) { fn.textContent = file.name; fn.style.display = 'block'; }
     const btn = document.getElementById('dcUploadBtnSave');
     if (btn) btn.disabled = false;
 }
@@ -836,7 +840,7 @@ async function saveDcUpload() {
             if (typeof showToast === 'function') showToast('Erreur : ' + (j.error || res.status), 'error');
             return;
         }
-        if (typeof showToast === 'function') showToast('✅ DC enregistré', 'success');
+        if (typeof showToast === 'function') showToast('DC enregistré', 'success');
         closeDcUploadModal();
         loadCandidateDcStatus();
     } catch (e) {
@@ -1132,7 +1136,7 @@ function wireCompanySearch() {
 function triggerAutoSave(immediate) {
     if (__autoSaveTimer) clearTimeout(__autoSaveTimer);
     const status = document.getElementById('autoSaveStatus');
-    if (status) status.textContent = '💾 Modifications...';
+    if (status) status.innerHTML = (window.icon ? window.icon('save', {size:12}) : '') + ' Modifications...';
 
     const delay = immediate ? 0 : 1200;
     __autoSaveTimer = setTimeout(async () => {
@@ -1152,10 +1156,10 @@ async function doAutoSave() {
             body: JSON.stringify(payload)
         });
         if (!res.ok) {
-            if (status) status.textContent = '❌ Erreur sauvegarde';
+            if (status) status.textContent = 'Erreur sauvegarde';
             return;
         }
-        if (status) status.textContent = '✅ Sauvegardé';
+        if (status) status.innerHTML = (window.icon ? window.icon('checkCircle', {size:12}) : '') + ' Sauvegardé';
         // Update local __cand
         Object.assign(__cand, payload);
         // Update header
@@ -1172,7 +1176,7 @@ async function doAutoSave() {
         setTimeout(() => { if (status) status.textContent = '—'; }, 3000);
     } catch (e) {
         console.error(e);
-        if (status) status.textContent = '❌ Erreur réseau';
+        if (status) status.textContent = 'Erreur réseau';
     }
 }
 
@@ -1226,7 +1230,7 @@ function checkMissionArchive() {
     if (__missionPrompted) return;
     __missionPrompted = true;
     setTimeout(() => {
-        if (confirm('🚀 Ce candidat est en mission !\n\nVoulez-vous l\'archiver automatiquement ?')) {
+        if (confirm('Ce candidat est en mission !\n\nVoulez-vous l\'archiver automatiquement ?')) {
             document.getElementById('fStatus').value = 'archive';
             __cand.is_archived = 1;
             triggerAutoSave(true);
@@ -1238,7 +1242,7 @@ function updateHeader() {
     const name = document.getElementById('fName')?.value || __cand?.name || '';
     const role = document.getElementById('fRole')?.value || __cand?.role || '';
     const loc = document.getElementById('fLocation')?.value || __cand?.location || '';
-    document.getElementById('candTitle').textContent = name ? `👤 ${name}` : '👤 Candidat';
+    document.getElementById('candTitle').textContent = name ? name : 'Candidat';
     document.getElementById('candMeta').textContent = `${role}${role && loc ? ' · ' : ''}${loc}`;
 }
 
@@ -1246,7 +1250,7 @@ function updateHeader() {
 
 async function archiveCandidate() {
     if (!__cand?.id) return;
-    if (!confirm('📦 Archiver ce candidat ?')) return;
+    if (!confirm('Archiver ce candidat ?')) return;
     __cand.is_archived = 1;
     __cand.status = 'archive';
     const payload = { ...__cand, is_archived: 1, status: 'archive' };
@@ -1256,7 +1260,7 @@ async function archiveCandidate() {
         body: JSON.stringify(payload)
     });
     await loadCandidate();
-    if (typeof showToast === 'function') showToast('📦 Candidat archivé', 'success');
+    if (typeof showToast === 'function') showToast('Candidat archivé', 'success');
 }
 
 async function unarchiveCandidate() {
@@ -1270,7 +1274,7 @@ async function unarchiveCandidate() {
         body: JSON.stringify(payload)
     });
     await loadCandidate();
-    if (typeof showToast === 'function') showToast('♻️ Candidat restauré', 'success');
+    if (typeof showToast === 'function') showToast('Candidat restauré', 'success');
 }
 
 // ═══ Load ═══
@@ -1474,7 +1478,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (typeof showToast === 'function') showToast('IA indisponible. Collez manuellement le retour ci-dessous.', 'warning', 6000);
             })
             .finally(function () {
-                if (btn) { btn.disabled = false; btn.textContent = '🤖 Scrapping IA'; }
+                if (btn) { btn.disabled = false; btn.innerHTML = (window.icon ? window.icon('robot', {size:13}) : '') + ' Scrapping IA'; }
             });
     };
 
@@ -1534,13 +1538,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (bar) bar.style.width = pct + '%';
         if (pctEl) pctEl.textContent = pct + '%';
         if (label && lbl) lbl.textContent = label;
-        if (emoji && emo) emo.textContent = emoji;
+        if (emoji && emo) emo.innerHTML = window.icon ? window.icon(emoji, {size:36}) : '';
     }
 
     function _animateProgressTo(target, label, emoji, durationMs) {
         if (_ficheProgressTimer) clearInterval(_ficheProgressTimer);
         if (label) { const lbl = document.getElementById('ficheProgressLabel'); if (lbl) lbl.textContent = label; }
-        if (emoji) { const emo = document.getElementById('ficheProgressEmoji'); if (emo) emo.textContent = emoji; }
+        if (emoji) { const emo = document.getElementById('ficheProgressEmoji'); if (emo) emo.innerHTML = window.icon ? window.icon(emoji, {size:36}) : ''; }
         const start = _ficheProgress;
         const steps = Math.max(1, Math.round(durationMs / 60));
         let step = 0;
@@ -1556,7 +1560,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function _openProgressModal() {
         _ficheProgress = 0;
-        _setFicheProgress(0, 'Lecture du fichier Excel…', '📄');
+        _setFicheProgress(0, 'Lecture du fichier Excel…', 'file');
         const m = document.getElementById('modalFicheProgress');
         if (m) { if (window.openModal) window.openModal(m); else m.classList.add('active'); }
     }
@@ -1587,7 +1591,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const checked = rawVal === 1 || rawVal === true || rawVal === '1' ? 'checked' : '';
                 inputHtml = `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
                     <input type="checkbox" id="ficheReview_${def.key}" ${checked} style="width:16px;height:16px;" />
-                    <span style="font-size:13px;">${checked ? '✅ Oui' : '❌ Non'}</span>
+                    <span style="font-size:13px;">${checked ? 'Oui' : 'Non'}</span>
                 </label>`;
             } else if (def.type === 'textarea') {
                 inputHtml = `<textarea id="ficheReview_${def.key}" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;font-size:13px;">${escapeHtml(displayVal)}</textarea>`;
@@ -1608,7 +1612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const chk = document.getElementById('ficheReview_' + def.key);
             if (chk) chk.addEventListener('change', function() {
                 const span = this.nextElementSibling;
-                if (span) span.textContent = this.checked ? '✅ Oui' : '❌ Non';
+                if (span) span.textContent = this.checked ? 'Oui' : 'Non';
             });
         });
 
@@ -1654,7 +1658,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         triggerAutoSave(true);
         window.closeFicheReviewModal();
         renderViewMode();
-        if (typeof showToast === 'function') showToast('✅ Données enregistrées', 'success', 4000);
+        if (typeof showToast === 'function') showToast('Données enregistrées', 'success', 4000);
     };
 
     window.parseFicheEntretien = async function(input) {
@@ -1663,19 +1667,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         input.value = '';
 
         _openProgressModal();
-        _animateProgressTo(25, 'Lecture du fichier Excel…', '📄', 600);
+        _animateProgressTo(25, 'Lecture du fichier Excel…', 'file', 600);
 
         const fd = new FormData();
         fd.append('file', file);
 
-        _animateProgressTo(55, 'Envoi à l\'IA…', '🤖', 1200);
+        _animateProgressTo(55, 'Envoi à l\'IA…', 'robot', 1200);
 
         let json;
         try {
             const fetchPromise = fetch('/api/candidates/parse-fiche-entretien', { method: 'POST', body: fd });
             // Animate to 85% while waiting
             await new Promise(r => setTimeout(r, 1500));
-            _animateProgressTo(85, 'Analyse et extraction des données…', '🔍', 2000);
+            _animateProgressTo(85, 'Analyse et extraction des données…', 'search', 2000);
             const res = await fetchPromise;
             json = await res.json();
         } catch (e) {
@@ -1690,7 +1694,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        _animateProgressTo(100, 'Extraction terminée !', '✅', 400);
+        _animateProgressTo(100, 'Extraction terminée !', 'checkCircle', 400);
         await new Promise(r => setTimeout(r, 600));
         _closeProgressModal();
 
@@ -1730,7 +1734,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (json.ok && json.description) {
                 textarea.value = json.description;
                 __cand.description_push = json.description;
-                if (statusEl) statusEl.textContent = '✅ Phrase générée et sauvegardée';
+                if (statusEl) statusEl.innerHTML = (window.icon ? window.icon('checkCircle', {size:12}) : '') + ' Phrase générée et sauvegardée';
                 if (typeof showToast === 'function') showToast('Phrase de présentation générée !', 'success');
             } else {
                 textarea.value = __cand.description_push || '';
@@ -1740,7 +1744,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             textarea.value = __cand.description_push || '';
             if (typeof showToast === 'function') showToast(`Erreur: ${e.message}`, 'error');
         } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Générer IA'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = (window.icon ? window.icon('robot', {size:13}) : '') + ' Générer IA'; }
         }
     };
 
@@ -1776,7 +1780,7 @@ async function loadCandidateFolder() {
 
         if (!j.ok) {
             if (j.no_config) {
-                pathEl.innerHTML = '⚠️ Chemin non configuré. <a href="/parametres" style="color:var(--color-primary);">Configurer dans Paramètres</a>';
+                pathEl.innerHTML = (window.icon ? window.icon('alertTri', {size:14}) : '') + ' Chemin non configuré. <a href="/parametres" style="color:var(--color-primary);">Configurer dans Paramètres</a>';
                 listEl.innerHTML = '';
             } else {
                 pathEl.textContent = j.error || 'Erreur';
@@ -1788,7 +1792,7 @@ async function loadCandidateFolder() {
         pathEl.textContent = j.folder || '';
 
         if (!j.exists) {
-            listEl.innerHTML = '<div class="muted">📁 Dossier introuvable sur le disque. Vérifiez le chemin ou le format du nom.</div>';
+            listEl.innerHTML = '<div class="muted">Dossier introuvable sur le disque. Vérifiez le chemin ou le format du nom.</div>';
             return;
         }
 
@@ -1797,16 +1801,17 @@ async function loadCandidateFolder() {
             return;
         }
 
-        const icons = { '.pdf': '📄', '.docx': '📝', '.doc': '📝', '.xlsx': '📊', '.xls': '📊', '.pptx': '📊',
-                        '.jpg': '🖼️', '.jpeg': '🖼️', '.png': '🖼️', '.msg': '📧', '.eml': '📧', '.txt': '📃', '.zip': '📦' };
+        const fileIconMap = { '.pdf': 'file', '.docx': 'file', '.doc': 'file', '.xlsx': 'chart', '.xls': 'chart', '.pptx': 'chart',
+                        '.jpg': 'file', '.jpeg': 'file', '.png': 'file', '.msg': 'mail', '.eml': 'mail', '.txt': 'file', '.zip': 'archive' };
 
         listEl.innerHTML = j.files.map(f => {
-            const icon = f.is_dir ? '📁' : (icons[f.ext] || '📄');
+            const iconName = f.is_dir ? 'folder' : (fileIconMap[f.ext] || 'file');
+            const fileIcon = window.icon ? window.icon(iconName, {size:16}) : iconName;
             const size = f.is_dir ? '' : _formatSize(f.size);
             return `<div style="display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;cursor:pointer;transition:background .15s;"
                          onmouseenter="this.style.background='var(--color-surface-2)'" onmouseleave="this.style.background=''"
                          onclick="openCandidateFile('${_jsEsc(f.path)}')">
-                <span style="font-size:16px;">${icon}</span>
+                <span style="display:flex;align-items:center;">${fileIcon}</span>
                 <span style="flex:1;font-size:13px;font-weight:500;">${_esc(f.name)}</span>
                 ${size ? `<span class="muted" style="font-size:11px;">${size}</span>` : ''}
             </div>`;
@@ -1833,7 +1838,7 @@ async function openCandidateFolder() {
     try {
         await fetch(`/api/candidate-folder/${id}/open`, { method: 'POST' });
     } catch (e) {
-        if (typeof showToast === 'function') showToast('⚠️ Impossible d\'ouvrir le dossier', 'warning');
+        if (typeof showToast === 'function') showToast('Impossible d\'ouvrir le dossier', 'warning');
     }
 }
 
@@ -1845,7 +1850,7 @@ async function openCandidateFile(path) {
             body: JSON.stringify({ path: path, candidate_id: __cand ? __cand.id : null })
         });
     } catch (e) {
-        if (typeof showToast === 'function') showToast('⚠️ Impossible d\'ouvrir le fichier', 'warning');
+        if (typeof showToast === 'function') showToast('Impossible d\'ouvrir le fichier', 'warning');
     }
 }
 
@@ -1910,12 +1915,12 @@ function selectCandidatePushTarget(prospectId) {
 }
 
 async function executeCandidatePush() {
-    if (!__cand) { showToast('⚠️ Aucun candidat chargé.', 'warning'); return; }
-    if (!__pushSelectedProspectId) { showToast('⚠️ Sélectionnez un prospect.', 'warning'); return; }
+    if (!__cand) { showToast('Aucun candidat chargé.', 'warning'); return; }
+    if (!__pushSelectedProspectId) { showToast('Sélectionnez un prospect.', 'warning'); return; }
 
     await loadPushProspects();
     const prospect = __pushProspects.find(p => p.id === __pushSelectedProspectId);
-    if (!prospect) { showToast('⚠️ Prospect introuvable.', 'warning'); return; }
+    if (!prospect) { showToast('Prospect introuvable.', 'warning'); return; }
 
     const byCompany = new Map((__companies || []).map(c => [Number(c.id), c]));
     const company = byCompany.get(Number(prospect.company_id));
@@ -1937,7 +1942,7 @@ async function executeCandidatePush() {
         });
         const j = await res.json();
         if (j.ok) {
-            showToast(`✅ ${__cand.name} proposé à ${prospect.name} !`, 'success', 4000);
+            showToast(`${__cand.name} proposé à ${prospect.name} !`, 'success', 4000);
             // Auto-copy "PREFIX - Company" for Teams Planner (v22.1)
             const teamsText = `${typeof getTeamsPrefix === 'function' ? getTeamsPrefix() : '???'} - ${companyLabel}`;
             if (typeof copyForTeams === 'function') copyForTeams(teamsText, teamsText);
@@ -1946,10 +1951,10 @@ async function executeCandidatePush() {
             document.getElementById('candidatePushResults').innerHTML = '';
             loadCandidatePushHistory();
         } else {
-            showToast('❌ ' + (j.error || 'Erreur'), 'error');
+            showToast(j.error || 'Erreur', 'error');
         }
     } catch(e) {
-        showToast('❌ Erreur réseau : ' + e.message, 'error');
+        showToast('Erreur réseau : ' + e.message, 'error');
     }
 }
 
@@ -1975,7 +1980,7 @@ async function loadCandidatePushHistory() {
                         <span class="muted" style="font-size:11px;"> — ${_cn}</span>
                     </div>
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <button class="mini-action" title="Copier pour Teams" onclick="event.stopPropagation();if(typeof copyForTeams==='function'){const t=(typeof getTeamsPrefix==='function'?getTeamsPrefix():'???')+' - ${_cn.replace(/'/g,"\\'")}';copyForTeams(t,t);}">📋</button>
+                        <button class="mini-action" title="Copier pour Teams" onclick="event.stopPropagation();if(typeof copyForTeams==='function'){const t=(typeof getTeamsPrefix==='function'?getTeamsPrefix():'???')+' - ${_cn.replace(/'/g,"\\'")}';copyForTeams(t,t);}">${window.icon ? window.icon('clipboard', {size:13}) : ''}</button>
                         <span class="muted" style="font-size:11px;">${escapeHtml(p.createdAt || '')}</span>
                     </div>
                 </div>`;
@@ -1988,7 +1993,7 @@ async function loadCandidatePushHistory() {
 
 // Copy candidate profile for Teams (v22.1)
 function copyCandidateForTeams() {
-    if (!__cand) { if (typeof showToast === 'function') showToast('⚠️ Aucun candidat chargé.', 'warning'); return; }
+    if (!__cand) { if (typeof showToast === 'function') showToast('Aucun candidat chargé.', 'warning'); return; }
     const prefix = typeof getTeamsPrefix === 'function' ? getTeamsPrefix() : '???';
     let text = `[${prefix}] Profil : ${__cand.name || '—'}`;
     if (__cand.role) text += `\nRôle : ${__cand.role}`;

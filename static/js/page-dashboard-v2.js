@@ -868,10 +868,10 @@ function dv2_openManualKpiModal() {
     var daily = (goals.daily || {}).items || {};
     var weekly = (goals.weekly || {}).items || {};
     var chips = [];
-    if (daily.rdv) chips.push('<span style="color:#22c55e">📅 RDV aujourd\'hui : <strong>' + daily.rdv.count + '</strong></span>');
-    if (weekly.rdv) chips.push('<span style="color:#22c55e">📅 RDV semaine : <strong>' + weekly.rdv.count + '</strong></span>');
-    if (daily.push) chips.push('<span style="color:#8b5cf6">📤 Push aujourd\'hui : <strong>' + daily.push.count + '</strong></span>');
-    if (weekly.push) chips.push('<span style="color:#8b5cf6">📤 Push semaine : <strong>' + weekly.push.count + '</strong></span>');
+    if (daily.rdv) chips.push('<span style="color:#22c55e">' + (window.icon ? window.icon('calendar', {size:13}) : '') + ' RDV aujourd\'hui : <strong>' + daily.rdv.count + '</strong></span>');
+    if (weekly.rdv) chips.push('<span style="color:#22c55e">' + (window.icon ? window.icon('calendar', {size:13}) : '') + ' RDV semaine : <strong>' + weekly.rdv.count + '</strong></span>');
+    if (daily.push) chips.push('<span style="color:#8b5cf6">' + (window.icon ? window.icon('send', {size:13}) : '') + ' Push aujourd\'hui : <strong>' + daily.push.count + '</strong></span>');
+    if (weekly.push) chips.push('<span style="color:#8b5cf6">' + (window.icon ? window.icon('send', {size:13}) : '') + ' Push semaine : <strong>' + weekly.push.count + '</strong></span>');
     if (chips.length) {
       statsEl.innerHTML = chips.join('');
       summaryEl.style.display = '';
@@ -1235,11 +1235,11 @@ function dv2_renderStats(chartsData) {
 // ─── Tunnel de Vente — Pipeline Gamification (v29.0) ───
 
 var DV2_JOURNEY_STAGES = [
-  { key: 'appel',        label: 'Appel Prosp',      icon: '📞', color: '#64748b' },
-  { key: 'rdv',          label: 'RDV Prosp',         icon: '🤝', color: '#f59e0b' },
-  { key: 'besoin',       label: 'Besoin Qualifié',   icon: '💡', color: '#3b82f6' },
-  { key: 'reunion_tech', label: 'Réunion Technique', icon: '⚙️', color: '#8b5cf6' },
-  { key: 'contrat',      label: 'Contrat Signé',     icon: '🏆', color: '#22c55e' },
+  { key: 'appel',        label: 'Appel Prosp',      icon: 'phone',     color: '#64748b' },
+  { key: 'rdv',          label: 'RDV Prosp',         icon: 'handshake', color: '#f59e0b' },
+  { key: 'besoin',       label: 'Besoin Qualifié',   icon: 'bulb',      color: '#3b82f6' },
+  { key: 'reunion_tech', label: 'Réunion Technique', icon: 'settings',  color: '#8b5cf6' },
+  { key: 'contrat',      label: 'Contrat Signé',     icon: 'trophy',    color: '#22c55e' },
 ];
 
 async function dv2_loadJourney() {
@@ -1267,7 +1267,7 @@ function dv2_renderJourneyFunnel(data) {
   if (badgeEl) badgeEl.textContent = total + ' prospect' + (total !== 1 ? 's' : '');
 
   if (!total) {
-    stagesEl.innerHTML = '<div class="dv2-journey-empty"><span class="dv2-journey-empty-icon">📭</span>Aucun prospect.</div>';
+    stagesEl.innerHTML = '<div class="dv2-journey-empty"><span class="dv2-journey-empty-icon">' + (window.icon ? window.icon('mail', {size:24}) : '') + '</span>Aucun prospect.</div>';
     return;
   }
 
@@ -1275,7 +1275,7 @@ function dv2_renderJourneyFunnel(data) {
     var n = stages[s.key] || 0;
     var pct = total ? Math.round((n / total) * 100) : 0;
     return '<div class="dv2-journey-stage" style="animation-delay:' + (i * 80) + 'ms">' +
-      '<div class="dv2-journey-stage-icon">' + s.icon + '</div>' +
+      '<div class="dv2-journey-stage-icon">' + (window.icon ? window.icon(s.icon, {size:18}) : s.icon) + '</div>' +
       '<div class="dv2-journey-stage-info">' +
         '<div class="dv2-journey-stage-label">' + dv2_esc(s.label) + '</div>' +
         '<div class="dv2-journey-stage-bar">' +
@@ -1300,7 +1300,7 @@ function dv2_renderJourneyProspects(prospects) {
 
   if (!prospects || !prospects.length) {
     el.innerHTML = '<div class="dv2-journey-empty">' +
-      '<span class="dv2-journey-empty-icon">🎯</span>' +
+      '<span class="dv2-journey-empty-icon">' + (window.icon ? window.icon('target', {size:24}) : '') + '</span>' +
       'Aucun prospect en attente de progression.<br>' +
       '<span style="font-size:11px;opacity:.7;">Ajoutez des réunions pour faire avancer vos prospects !</span>' +
     '</div>';
@@ -1308,7 +1308,7 @@ function dv2_renderJourneyProspects(prospects) {
   }
 
   var STAGE_CLASSES = { besoin: 's-besoin', reunion_tech: 's-reunion_tech' };
-  var STAGE_LABELS  = { besoin: '💡 Besoin', reunion_tech: '⚙️ Réunion Tech' };
+  var STAGE_LABELS  = { besoin: (window.icon ? window.icon('bulb', {size:12}) : '') + ' Besoin', reunion_tech: (window.icon ? window.icon('settings', {size:12}) : '') + ' Réunion Tech' };
 
   el.innerHTML = prospects.map(function(p, i) {
     var stageClass = STAGE_CLASSES[p.stage] || '';

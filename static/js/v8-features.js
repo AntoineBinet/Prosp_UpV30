@@ -29,11 +29,11 @@
         duration = duration || 3500;
         const container = _ensureToastContainer();
 
-        const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+        const iconNames = { success: 'checkCircle', error: 'xCircle', warning: 'alertTri', info: 'info' };
         const toast = document.createElement('div');
         toast.className = 'toast toast-' + type;
         toast.innerHTML = `
-            <span class="toast-icon">${icons[type] || 'ℹ️'}</span>
+            <span class="toast-icon">${window.icon ? window.icon(iconNames[type] || 'info', {size:16}) : ''}</span>
             <span class="toast-msg">${_escToastHtml(message)}</span>
             <button class="toast-close" onclick="this.parentElement.classList.add('toast-exit');setTimeout(()=>this.parentElement.remove(),300)">&times;</button>
             <div class="toast-progress"><div class="toast-progress-bar" style="animation-duration:${duration}ms"></div></div>
@@ -63,9 +63,9 @@
     window.alert = function (msg) {
         msg = String(msg || '');
         let type = 'info';
-        if (msg.startsWith('✅') || msg.includes('succès') || msg.includes('copié') || msg.includes('sauveg')) type = 'success';
-        else if (msg.startsWith('❌') || msg.includes('erreur') || msg.includes('Erreur') || msg.includes('Impossible')) type = 'error';
-        else if (msg.startsWith('⚠️') || msg.includes('Aucun')) type = 'warning';
+        if (msg.includes('succès') || msg.includes('copié') || msg.includes('sauveg')) type = 'success';
+        else if (msg.includes('erreur') || msg.includes('Erreur') || msg.includes('Impossible')) type = 'error';
+        else if (msg.includes('Aucun')) type = 'warning';
         window.showToast(msg, type, type === 'error' ? 5000 : 3500);
     };
 
@@ -84,7 +84,7 @@
         _searchOverlay.innerHTML = `
             <div class="gsearch-modal">
                 <div class="gsearch-header">
-                    <span class="gsearch-icon">🔍</span>
+                    <span class="gsearch-icon">${window.icon ? window.icon('search', {size:18}) : ''}</span>
                     <input type="text" class="gsearch-input" placeholder="Rechercher un prospect, une entreprise, un tag…" autofocus>
                     <kbd class="gsearch-kbd">ESC</kbd>
                 </div>
@@ -249,7 +249,7 @@
             return _escToastHtml(text).replace(regex, '<mark>$1</mark>');
         };
 
-        const icons = { prospect: '👤', company: '🏢', candidate: '🧲', push: '📤' };
+        const icons = { prospect: window.icon ? window.icon('userSingle', {size:14}) : '', company: window.icon ? window.icon('building', {size:14}) : '', candidate: window.icon ? window.icon('briefcase', {size:14}) : '', push: window.icon ? window.icon('send', {size:14}) : '' };
         const typeLabels = { prospect: 'Prospect', company: 'Entreprise', candidate: 'Candidat', push: 'Push' };
         const links = {
             prospect: function (r) { return '/?open=' + r.id; },
@@ -259,7 +259,7 @@
         };
 
         const html = results.slice(0, 15).map(function (r, i) {
-            const icon = icons[r.type] || '📄';
+            const icon = icons[r.type] || (window.icon ? window.icon('file', {size:14}) : '');
             const typeLabel = typeLabels[r.type] || r.type;
             const link = (links[r.type] || links.prospect)(r);
             var meta = r.type === 'prospect'
@@ -334,13 +334,12 @@
         const btn = document.getElementById('themeToggleBtn');
         if (btn) {
             const current = document.documentElement.getAttribute('data-theme');
-            const icon = (current === 'light') ? '☀️' : '🌙';
-            // Check if spans exist (sidebar collapse wraps them)
+            const themeIconHtml = (current === 'light') ? (window.icon ? window.icon('sun', {size:16}) : '') : (window.icon ? window.icon('moon', {size:16}) : '');
             const iconSpan = btn.querySelector('.nav-icon');
             if (iconSpan) {
-                iconSpan.textContent = icon;
+                iconSpan.innerHTML = themeIconHtml;
             } else {
-                btn.textContent = icon + ' Thème';
+                btn.innerHTML = themeIconHtml + ' Thème';
             }
         }
     }
@@ -358,13 +357,13 @@
         _updateThemeColor(next);
 
         // Update ALL toggle buttons (sidebar + collapsed)
-        const icon = next === 'light' ? '☀️' : '🌙';
+        const newThemeIconHtml = next === 'light' ? (window.icon ? window.icon('sun', {size:16}) : '') : (window.icon ? window.icon('moon', {size:16}) : '');
         document.querySelectorAll('#themeToggleBtn').forEach(function (btn) {
             const iconSpan = btn.querySelector('.nav-icon');
             if (iconSpan) {
-                iconSpan.textContent = icon;
+                iconSpan.innerHTML = newThemeIconHtml;
             } else {
-                btn.textContent = icon + ' Thème';
+                btn.innerHTML = newThemeIconHtml + ' Thème';
             }
         });
 
@@ -464,7 +463,7 @@
         } else {
             document.body.appendChild(btn);
         }
-        btn.innerHTML = '🔍';
+        btn.innerHTML = window.icon ? window.icon('search', {size:16}) : '';
         btn.title = 'Recherche rapide (Ctrl+K)';
         btn.setAttribute('data-help-section', 'recherche');
         btn.onclick = _openGlobalSearch;
@@ -570,7 +569,7 @@
         try {
             await action.fn();
             if (!action.silent) {
-                window.showToast('↩️ Annulé : ' + action.description, 'success', 3000);
+                window.showToast('Annulé : ' + action.description, 'success', 3000);
             }
         } catch (e) {
             window.showToast('Erreur lors de l\'annulation', 'error');
@@ -613,7 +612,7 @@
         a.download = 'prospects_export_' + new Date().toISOString().slice(0, 10) + '.csv';
         a.click();
         URL.revokeObjectURL(url);
-        window.showToast('📁 Export CSV téléchargé', 'success');
+        window.showToast('Export CSV téléchargé', 'success');
     };
 
     window.exportCurrentViewJSON = function () {
@@ -625,7 +624,7 @@
         a.download = 'prospects_' + new Date().toISOString().slice(0, 10) + '.json';
         a.click();
         URL.revokeObjectURL(url);
-        window.showToast('📁 Export JSON téléchargé', 'success');
+        window.showToast('Export JSON téléchargé', 'success');
     };
 
     window.printCurrentView = function () {
@@ -835,11 +834,11 @@
                 })).length;
 
                 if (rdvToday > 0) {
-                    window.showToast('🤝 ' + rdvToday + ' RDV aujourd\'hui !', 'success', 5000);
+                    window.showToast(rdvToday + ' RDV aujourd\'hui !', 'success', 5000);
                 }
                 if (overdue > 0) {
                     setTimeout(function () {
-                        window.showToast('⚠️ ' + overdue + ' relances en retard', 'warning', 5000);
+                        window.showToast(overdue + ' relances en retard', 'warning', 5000);
                     }, 800);
                 }
             })
@@ -856,7 +855,7 @@
         var header = document.querySelector('.content-header') || document.querySelector('header');
         if (!header) return;
 
-        var crumbs = [{ label: '🏠', href: '/dashboard' }];
+        var crumbs = [{ label: 'Accueil', href: '/dashboard' }];
         var pageMap = {
             'dashboard': { label: 'Dashboard' },
             'prospects': { label: 'Prospects' },
@@ -922,13 +921,13 @@
         panel.querySelector('.qp-title').textContent = _escToastHtml(prospect.name || 'Sans nom');
         panel.querySelector('.qp-body').innerHTML =
             '<div class="qp-status" style="background:' + statusColor + '">' + _escToastHtml(prospect.statut || 'N/A') + '</div>' +
-            (company ? '<div class="qp-field"><strong>🏢</strong> ' + _escToastHtml(company.groupe || '') + '</div>' : '') +
-            (prospect.fonction ? '<div class="qp-field"><strong>💼</strong> ' + _escToastHtml(prospect.fonction) + '</div>' : '') +
-            (prospect.email ? '<div class="qp-field"><strong>📧</strong> <a href="mailto:' + _escToastHtml(prospect.email) + '">' + _escToastHtml(prospect.email) + '</a></div>' : '') +
-            (prospect.telephone ? '<div class="qp-field"><strong>📞</strong> <a href="tel:' + _escToastHtml(prospect.telephone) + '">' + _escToastHtml(prospect.telephone) + '</a></div>' : '') +
-            (prospect.linkedin ? '<div class="qp-field"><strong>🔗</strong> <a href="' + _escToastHtml(prospect.linkedin) + '" target="_blank">LinkedIn</a></div>' : '') +
-            (prospect.nextFollowUp ? '<div class="qp-field"><strong>📅</strong> Relance: ' + _escToastHtml(prospect.nextFollowUp.slice(0, 10)) + '</div>' : '') +
-            (prospect.nextAction ? '<div class="qp-field"><strong>📝</strong> ' + _escToastHtml(prospect.nextAction) + '</div>' : '') +
+            (company ? '<div class="qp-field"><span class="qp-icon">' + (window.icon ? window.icon('building', {size:13}) : '') + '</span> ' + _escToastHtml(company.groupe || '') + '</div>' : '') +
+            (prospect.fonction ? '<div class="qp-field"><span class="qp-icon">' + (window.icon ? window.icon('briefcase', {size:13}) : '') + '</span> ' + _escToastHtml(prospect.fonction) + '</div>' : '') +
+            (prospect.email ? '<div class="qp-field"><span class="qp-icon">' + (window.icon ? window.icon('mail', {size:13}) : '') + '</span> <a href="mailto:' + _escToastHtml(prospect.email) + '">' + _escToastHtml(prospect.email) + '</a></div>' : '') +
+            (prospect.telephone ? '<div class="qp-field"><span class="qp-icon">' + (window.icon ? window.icon('phone', {size:13}) : '') + '</span> <a href="tel:' + _escToastHtml(prospect.telephone) + '">' + _escToastHtml(prospect.telephone) + '</a></div>' : '') +
+            (prospect.linkedin ? '<div class="qp-field"><span class="qp-icon">' + (window.icon ? window.icon('linkedin', {size:13}) : '') + '</span> <a href="' + _escToastHtml(prospect.linkedin) + '" target="_blank">LinkedIn</a></div>' : '') +
+            (prospect.nextFollowUp ? '<div class="qp-field"><span class="qp-icon">' + (window.icon ? window.icon('calendar', {size:13}) : '') + '</span> Relance: ' + _escToastHtml(prospect.nextFollowUp.slice(0, 10)) + '</div>' : '') +
+            (prospect.nextAction ? '<div class="qp-field"><span class="qp-icon">' + (window.icon ? window.icon('note', {size:13}) : '') + '</span> ' + _escToastHtml(prospect.nextAction) + '</div>' : '') +
             '<div class="qp-actions">' +
             '<a href="/?open=' + prospect.id + '" class="btn btn-primary btn-sm">Ouvrir la fiche</a>' +
             '</div>';
@@ -952,7 +951,7 @@
             container.appendChild(confetti);
         }
         setTimeout(function () { container.remove(); }, 3000);
-        window.showToast('🎉 Prospect gagné ! Bravo !', 'success', 4000);
+        window.showToast('Prospect gagné ! Bravo !', 'success', 4000);
     }
     window._celebrate = _celebrate;
 

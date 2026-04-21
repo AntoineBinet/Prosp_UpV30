@@ -187,7 +187,7 @@ def _call_ai_web(prompt: str, timeout: int = 120) -> str:
             result = _call_ollama_direct(enriched_prompt, config, timeout)
             sources = search_results.get("sources", [])
             if sources:
-                result += "\n\n📎 Sources :\n" + "\n".join(f"- {s['title']}: {s['url']}" for s in sources[:5])
+                result += "\n\nSources :\n" + "\n".join(f"- {s['title']}: {s['url']}" for s in sources[:5])
             logger.info("IA web: Tavily+Ollama réussi (%d caractères)", len(result))
             return result
         except Exception as e:
@@ -449,7 +449,7 @@ def _stream_tavily_ollama_sse(prompt: str, model_override: str | None, config: d
     yield from _stream_ollama_sse(enriched_prompt, model_override, config, timeout)
     sources = search_results.get("sources", [])
     if sources:
-        citations_text = "\n\n📎 Sources :\n" + "\n".join(f"- {s['title']}: {s['url']}" for s in sources[:5])
+        citations_text = "\n\nSources :\n" + "\n".join(f"- {s['title']}: {s['url']}" for s in sources[:5])
         yield f"data: {json.dumps({'type': 'token', 'text': citations_text, 'done': False}, ensure_ascii=False)}\n\n"
 
 # Cache temporaire en mémoire pour les analyses RDV (clé: "{uid}_{prospect_id}")
@@ -3625,7 +3625,7 @@ def upsert_all(data: Dict[str, Any]) -> None:
                                 _c_name = _c_row[0] if _c_row else ""
                                 _prefix = _get_user_prefix(uid)
                                 _card = _build_adaptive_card(
-                                    "📅 RDV pris",
+                                    "RDV pris",
                                     [("Prospect", _p_name), ("Entreprise", _c_name), ("Date RDV", new_rdv), ("Consultant", _prefix)],
                                     [{"title": "Voir prospect", "url": f"https://prospup.work/entreprises?highlight={pid}"}]
                                 )
@@ -6031,7 +6031,7 @@ def api_candidate_push_add():
     try:
         prefix = _get_user_prefix(uid)
         card = _build_adaptive_card(
-            "📤 Push candidat",
+            "Push candidat",
             [("Candidat", candidate_name), ("Prospect", prospect_name), ("Entreprise", company_name), ("Consultant", prefix), ("Date", event_date)],
             [{"title": "Voir dans Prosp'Up", "url": f"https://prospup.work/candidate?id={cid_i}"}]
         )
@@ -6909,7 +6909,7 @@ def api_push_generate():
                 result = _save_to_outlook_drafts(template_path, prospect_dict, candidates_data, attachment_paths)
                 msg = f"Brouillon créé dans Outlook ({result['pj_count']} PJ) — vérifiez vos Brouillons"
                 if missing_email:
-                    msg += " ⚠️ Email prospect manquant"
+                    msg += " — Email prospect manquant"
                 if result.get("pj_errors"):
                     msg += f" — PJ en erreur: {', '.join(result['pj_errors'])}"
                 return jsonify(ok=True, method="outlook_drafts", message=msg, **result)
@@ -11360,7 +11360,7 @@ def api_tasks_save():
             try:
                 prefix = _get_user_prefix(uid)
                 card = _build_adaptive_card(
-                    "📝 Nouvelle tâche",
+                    "Nouvelle tâche",
                     [("Titre", title), ("Échéance", due_date or "—"), ("Commentaire", (comment or "—")[:150]), ("Consultant", prefix)],
                     [{"title": "Ouvrir Focus", "url": "https://prospup.work/focus"}]
                 )
@@ -12029,7 +12029,7 @@ def api_prospect_mark_done():
             c_name = c_row["groupe"] if c_row else ""
             prefix = _get_user_prefix(uid)
             card = _build_adaptive_card(
-                "✅ Compte-rendu",
+                "Compte-rendu",
                 [("Prospect", p_name), ("Entreprise", c_name), ("Résumé", (note or "—")[:200]),
                  ("Next action", next_action or "—"), ("Relance", next_follow or "—"), ("Consultant", prefix)],
                 [{"title": "Voir prospect", "url": f"https://prospup.work/entreprises?highlight={pid}"}]
@@ -12313,7 +12313,7 @@ def api_ia_enrichment_log():
 
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     today = datetime.datetime.now().strftime("%Y-%m-%d")
-    title = f"🤖 Enrichissement IA — {field_count} champ(s)"
+    title = f"Enrichissement IA — {field_count} champ(s)"
     content = f"Champs mis à jour : {fields_updated}"
     meta = json.dumps({"source": "ia_import", "field_count": field_count}, ensure_ascii=False)
 
@@ -13295,27 +13295,17 @@ def _excel_map_pertinence(val: str | None) -> str | None:
     if not val:
         return None
     s = str(val).strip()
-    # Déjà au bon format (contient des étoiles)
-    if "⭐" in s:
-        return s
     mapping = {
         "À contacter": "Pas d'actions",
         "A contacter": "Pas d'actions",
         "Appelé": "Appelé",
-        "📞 Appelé": "Appelé",
         "A rappeler": "À rappeler",
         "À rappeler": "À rappeler",
-        "📞 A rappeler": "À rappeler",
-        "📞 À rappeler": "À rappeler",
         "Rendez-vous": "Rendez-vous",
-        "🤝 Rendez-vous": "Rendez-vous",
         "Prospecté": "Prospecté",
-        "🎯 Prospecté": "Prospecté",
         "Messagerie": "Messagerie",
-        "💬 Messagerie": "Messagerie",
         "Pas intéressé": "Pas intéressé",
         "Pas interesse": "Pas intéressé",
-        "❌ Pas intéressé": "Pas intéressé",
     }
     return mapping.get(s, s)
 
@@ -13323,33 +13313,25 @@ def _excel_map_statut(val: str | None) -> str | None:
     if not val:
         return None
     s = str(val).strip()
-    # Normaliser vers les libellés "simples" (sans emojis) utilisés dans l'UI.
+    # Normaliser vers les libellés "simples" utilisés dans l'UI.
     mapping = {
         "À contacter": "Pas d'actions",
         "A contacter": "Pas d'actions",
         "□ Pas d'actions": "Pas d'actions",
 
         "Appelé": "Appelé",
-        "📞 Appelé": "Appelé",
 
         "A rappeler": "À rappeler",
         "À rappeler": "À rappeler",
-        "📞 A rappeler": "À rappeler",
-        "📞 À rappeler": "À rappeler",
 
         "Rendez-vous": "Rendez-vous",
-        "🤝 Rendez-vous": "Rendez-vous",
-
 
         "Prospecté": "Prospecté",
-        "🎯 Prospecté": "Prospecté",
 
         "Messagerie": "Messagerie",
-        "💬 Messagerie": "Messagerie",
 
         "Pas intéressé": "Pas intéressé",
         "Pas interesse": "Pas intéressé",
-        "❌ Pas intéressé": "Pas intéressé",
     }
     return mapping.get(s, s)
 
@@ -14801,7 +14783,7 @@ def build_fiche_rdv_pdf(prospect: Dict[str, Any], company: Dict[str, Any], ollam
                 story.append(bullet(m))
     if contexte_entreprise.get("conclusion_matching"):
         story.append(Paragraph(
-            '➜ ' + contexte_entreprise.get("conclusion_matching", ""),
+            contexte_entreprise.get("conclusion_matching", ""),
             sLink
         ))
     story.append(Spacer(1, 5))
@@ -15380,7 +15362,7 @@ def meetings_export_pdf(meeting_id):
         </style>
     </head>
     <body>
-        <h1>📋 Compte-rendu de réunion</h1>
+        <h1>Compte-rendu de réunion</h1>
         <div class="header">
             <div class="info-row"><span class="info-label">Date :</span> {escape_html(str(row["date"] or ""))}</div>
             <div class="info-row"><span class="info-label">Titre :</span> {escape_html(str(row["title"] or ""))}</div>
@@ -15566,7 +15548,7 @@ def api_prospect_download_rdv_pdf(prospect_id: int):
     
     # Parser le JSON depuis la réponse Ollama
     # Extraction robuste : équilibrage des accolades pour ignorer le texte
-    # autour du JSON (📎 Sources, commentaires…) que Tavily/Ollama peut ajouter.
+    # autour du JSON (Sources, commentaires…) que Tavily/Ollama peut ajouter.
     def _extract_json_from_text(text):
         """Extrait le premier objet JSON complet depuis un texte potentiellement pollué."""
         import re as _re
