@@ -159,6 +159,124 @@
     tbody.innerHTML = STATE.prospects.map(renderRow).join('');
   }
 
+  // ─── Rendu Kanban ────────────────────────────────────────────
+  var KANBAN_COLS = [
+    { statuts: ["Pas d'actions", 'Prospecté'], t: 'Prospecter',  col: 'var(--info)' },
+    { statuts: ['Contacté'],                     t: 'Contacté',    col: 'var(--accent)' },
+    { statuts: ['Rendez-vous'],                  t: 'RDV',          col: 'oklch(0.50 0.15 280)' },
+    { statuts: ['Proposition', 'À rappeler'],   t: 'Proposition', col: 'oklch(0.50 0.14 75)' },
+    { statuts: ['Gagné'],                        t: 'Gagné',        col: 'var(--success)' }
+  ];
+
+  function renderKanban() {
+    var host = document.querySelector('[data-v30-kanban]');
+    if (!host) return;
+    var buckets = KANBAN_COLS.map(function () { return []; });
+    STATE.prospects.forEach(function (p) {
+      var idx = KANBAN_COLS.findIndex(function (c) { return c.statuts.indexOf(p.statut) >= 0; });
+      if (idx < 0) idx = 0;
+      buckets[idx].push(p);
+    });
+    host.innerHTML = KANBAN_COLS.map(function (c, i) {
+      var items = buckets[i];
+      var body = items.length === 0
+        ? '<div class="v30-pp-empty" style="padding:16px 8px;font-size:12px;">—</div>'
+        : items.map(function (p) {
+            var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
+            return '<a class="v30-pp-kcard" href="#" data-v30-open="' + p.id + '">' +
+              '<div class="v30-pp-kcard__name truncate">' + esc(p.name || '—') + '</div>' +
+              '<div class="v30-pp-kcard__co truncate">' + esc(coName) + '</div>' +
+              '<div class="v30-pp-kcard__foot">' +
+                renderTags(p.tags) +
+                '<span class="v30-spacer"></span>' +
+              '</div>' +
+            '</a>';
+          }).join('');
+      return '<div class="v30-pp-kcol">' +
+        '<div class="v30-pp-kcol__head">' +
+          '<span class="v30-pp-kcol__dot" style="background:' + c.col + ';"></span>' +
+          '<span class="v30-pp-kcol__title">' + esc(c.t) + '</span>' +
+          '<span class="v30-pp-kcol__count num">' + items.length + '</span>' +
+        '</div>' +
+        body +
+      '</div>';
+    }).join('');
+  }
+
+  // ─── Rendu Split (liste + panel) ────────────────────────────
+  function renderSplit() {
+    var list = document.querySelector('[data-v30-split-list]');
+    if (!list) return;
+    if (STATE.prospects.length === 0) {
+      list.innerHTML = '<div class="v30-pp-empty">Aucun prospect.</div>';
+      return;
+    }
+    list.innerHTML = STATE.prospects.map(function (p, i) {
+      var cls = statusClass(p.statut);
+      var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
+      return '<a class="v30-pp-split__row" href="#" data-v30-split-open="' + p.id + '">' +
+        '<span class="avatar">' + esc(initials(p.name)) + '</span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div class="truncate" style="font-size:12.5px;font-weight:500;">' + esc(p.name || '—') + '</div>' +
+          '<div class="truncate" style="font-size:11px;color:var(--text-3);">' + esc(coName) + '</div>' +
+        '</div>' +
+        (p.statut ? '<span class="status ' + cls + '" style="font-size:10px;padding:1px 6px;">' + esc(p.statut) + '</span>' : '') +
+      '</a>';
+    }).join('');
+  }
+
+  function renderSplitDetail(p) {
+    var host = document.querySelector('[data-v30-split-detail]');
+    if (!host) return;
+    if (!p) {
+      host.innerHTML = '<div class="empty">Sélectionne un prospect dans la liste pour voir le détail.</div>';
+      return;
+    }
+    var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
+    host.innerHTML =
+      '<div style="display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">' +
+        '<span class="avatar avatar-lg">' + esc(initials(p.name)) + '</span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:18px;font-weight:500;">' + esc(p.name || '—') + '</div>' +
+          '<div style="font-size:12px;color:var(--text-3);">' + esc(p.fonction || '') + (coName ? ' · ' + esc(coName) : '') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:16px;display:grid;grid-template-columns:1fr 240px;gap:16px;">' +
+        '<div>' +
+          '<div class="label">Notes</div>' +
+          '<div class="card" style="padding:12px;font-size:12.5px;color:var(--text-2);">' +
+            (p.notes ? esc(p.notes) : '<span class="muted">Aucune note.</span>') +
+          '</div>' +
+          '<div class="label" style="margin-top:14px;">Statut</div>' +
+          '<div>' + (p.statut ? '<span class="status ' + statusClass(p.statut) + '">' + esc(p.statut) + '</span>' : '—') + '</div>' +
+        '</div>' +
+        '<div class="stack gap-2">' +
+          '<div class="card" style="padding:12px;">' +
+            '<div class="label">Contact</div>' +
+            '<div style="font-size:12px;color:var(--text-2);display:grid;gap:6px;">' +
+              (p.email ? '<div>' + esc(p.email) + '</div>' : '') +
+              (p.telephone ? '<div class="mono">' + esc(p.telephone) + '</div>' : '') +
+              (p.linkedin ? '<div class="truncate"><a href="' + esc(p.linkedin) + '" target="_blank" rel="noopener">LinkedIn</a></div>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="card" style="padding:12px;">' +
+            '<div class="label">Tags</div>' +
+            '<div style="display:flex;gap:4px;flex-wrap:wrap;">' + renderTags(p.tags) + '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // ─── Bulk bar ────────────────────────────────────────────────
+  function renderBulk() {
+    var bar = document.querySelector('[data-v30-bulk]');
+    if (!bar) return;
+    var n = STATE.selected.size;
+    bar.hidden = (n === 0);
+    var count = bar.querySelector('[data-field="n"]');
+    if (count) count.textContent = n;
+  }
+
   // Export
   global.ProspV30 = {
     STATE: STATE,
@@ -170,6 +288,10 @@
     fetchJSON: fetchJSON,
     fetchPostJSON: fetchPostJSON,
     renderTable: renderTable,
-    renderPertinence: renderPertinence
+    renderPertinence: renderPertinence,
+    renderKanban: renderKanban,
+    renderSplit: renderSplit,
+    renderSplitDetail: renderSplitDetail,
+    renderBulk: renderBulk
   };
 })(window);
