@@ -28,9 +28,9 @@
 - [x] **Prospects** (`screens/prospects.jsx` → `templates/v30/prospects.html`) — preview sur `/v30/prospects`. 3 vues Table/Kanban/Split + bulk bar. Branché sur `/api/search` (liste + fuzzy), `/api/prospects/bulk-status-tags`. Pagination offset-based. **Clic ligne → fiche legacy** pour l'instant, la fiche v30 arrive ensuite.
 - [x] **Fiche prospect** (`prospect-detail.jsx` → `templates/v30/prospect_detail.html`) — route `/v30/prospect/<id>`. Header éditable inline, tabs Aperçu/Timeline/Push/IA, drawer IA 480px. Branchée sur `/api/prospect/timeline` + `/api/prospects/bulk-edit` pour l'edit-in-place. Clic liste → v30 (plus legacy).
 - [x] **Entreprises** (`screens/entreprises.jsx` → `templates/v30/entreprises.html`) — route `/v30/entreprises`. Topbar + 4 KPI Instrument Serif + table 8 colonnes. Branché sur `GET /api/data`, agrégation par company_id (total / piped / won / lastContact). Recherche fuzzy client-side. Fiche entreprise dédiée (clic sur une ligne → `/v30/entreprise/<id>`) à faire.
-- [~] **Push** (`screens/push.jsx` → `templates/v30/push.html`) — route `/v30/push`. **Templates + Historique branchés** sur `/api/templates` et `/api/data`. **Campagnes** : empty state + wizard preview non interactif (demande migration DB `push_campaigns`, SPEC §5.2, en attente de validation user).
+- [x] **Push** (`screens/push.jsx` → `templates/v30/push.html`) — route `/v30/push`. **Templates + Historique + Campagnes** branchés. Table `push_campaigns` + endpoints CRUD + `/recipients-preview` + `/send`. Wizard 3 étapes (Cible → Message → Envoi) interactif.
 - [x] **Sourcing** (`screens/sourcing.jsx` → `templates/v30/sourcing.html`) — route `/v30/sourcing`. Kanban 5 statuts (mapping défensif sur `candidates.status`) + vue Grille. Branché sur `GET /api/candidates`.
-- [x] **Fiche candidat** (`prospect-detail.jsx` candidate variant → `templates/v30/candidate_detail.html`) — route `/v30/candidat/<cid>`. Header éditable inline + Compétences (barres 1-5) + Dispo 8 semaines (dérivée du status) + Missions (via `/api/candidates/<id>/experiences`) + Notes éditables. Niveaux réels / vraie dispo / matching par campagne = migrations DB futures.
+- [x] **Fiche candidat** (`prospect-detail.jsx` candidate variant → `templates/v30/candidate_detail.html`) — route `/v30/candidat/<cid>`. Header éditable inline + Compétences (barres 1-5 **cliquables**, tables `candidate_skills`) + Dispo 8 semaines (cycle `libre→busy→placed`, table `candidate_availability`) + Missions + Notes éditables.
 - [~] **Stats + Rapport** (`screens/stats.jsx` → `templates/v30/stats.html`) — route `/v30/stats`. Topbar + period filter + 4 KPI + Top entreprises hydratés. Les 8 charts Chart.js et l'éditeur Rapport WYSIWYG restent sur `/stats` et `/rapport` legacy en attendant migration complète.
 
 ## Écrans secondaires v30
@@ -58,10 +58,15 @@
 
 ## Étape 6 · Back-office
 
-- [ ] Migration DB : table `saved_views (id, owner_id, page, name, filters_json, columns_json, is_shared)`
-- [ ] Migration DB : table `push_campaigns (id, owner_id, name, category_id, template_id, filters_json, scheduled_at, sent_at, stats_json)`
-- [ ] Endpoint `POST /api/views/save` (vues custom prospects)
-- [ ] Service Worker : refresh cache manifest avec nouveaux assets
+- [x] Migration DB : `saved_views` enrichi (`owner_id`, `filters_json`, `columns_json`, `is_shared`, backfill depuis `state`)
+- [x] Migration DB : table `push_campaigns` (+ index `owner_id`)
+- [x] Migration DB : tables `candidate_skills` (UNIQUE candidate_id+name, level 1-5) + `candidate_availability` (UNIQUE candidate_id+week_iso)
+- [x] Migration DB : `push_logs.campaign_id` (+ index)
+- [x] Backup automatique avant migration (`scripts/v30_backup.py` + `docs/ROLLBACK_V30.md`)
+- [x] Endpoint `POST /api/views/save` (déjà présent) + nouveau `DELETE /api/views/<id>`
+- [x] Service Worker : refresh cache manifest avec nouveaux assets v30 (12 CSS + 15 JS)
+- [x] Endpoints `/api/push-campaigns` (CRUD + recipients-preview + send)
+- [x] Endpoints `/api/candidates/<cid>/skills` (CRUD) + `/availability` (CRUD)
 
 ---
 

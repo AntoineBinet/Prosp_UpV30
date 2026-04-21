@@ -2,6 +2,83 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.0-beta] — 2026-04-21
+
+### Filet : Service Worker + tests v30
+
+- **SW v30.0-beta-shell** : ajout des 12 CSS et 15 JS de `/static/{css,js}/v30/`
+  au pre-cache (`SHELL`), bump `CACHE` pour forcer le re-cache au prochain load.
+- **5 specs Playwright v30** (`tests/e2e/v30-*.spec.js`) :
+  - `v30-dashboard` : chrome v30, titre, hydratation
+  - `v30-prospects` : chrome, segmented switch, ligne ou empty state
+  - `v30-prospect-detail` : header hydraté + 4 tabs
+  - `v30-palette` : ⌘K / Ctrl+K / recherche / Escape
+  - `v30-shortcuts` : G+P, G+D, ?, [ (focus toggle)
+
+### Migrations DB additives (avec backup automatique)
+
+- **`scripts/v30_backup.py`** : `backup_all_databases(reason)` copie
+  `data/prospects.db` + `data/auth.db` + `data/user_<id>/prospects.db` dans
+  `data/backups/v30_migration/<timestamp>/` avec `manifest.json`. CLI :
+  `python -m scripts.v30_backup`. Doc : [docs/ROLLBACK_V30.md](docs/ROLLBACK_V30.md).
+- **`_migrate_v30_all()` au démarrage** : si une des nouvelles tables manque,
+  backup puis apply sur DB principale + chaque DB per-user :
+  - `push_campaigns` (id, owner_id, name, category_id, template_id,
+    filters_json, scheduled_at, sent_at, stats_json, created_at, updated_at)
+    + index `owner_id`.
+  - `candidate_skills` (candidate_id + name UNIQUE, category, level 1-5).
+  - `candidate_availability` (candidate_id + week_iso UNIQUE, status).
+  - `saved_views` : ajout `owner_id`, `filters_json`, `columns_json`,
+    `is_shared` (backfill `filters_json` depuis `state` si présent).
+  - `push_logs.campaign_id` (+ index) pour tracking des envois par campagne.
+
+### Push campaigns (SPEC §5.2)
+
+- Endpoints :
+  - `GET /api/push-campaigns` → liste user
+  - `POST /api/push-campaigns` → crée brouillon
+  - `PUT /api/push-campaigns/<id>` → maj name / filters / category_id /
+    template_id / scheduled_at
+  - `POST /api/push-campaigns/<id>/recipients-preview` → retourne prospects
+    matchant `filters_json` (statut, pertinence_min, tags, a_relancer, limit)
+  - `POST /api/push-campaigns/<id>/send` → crée un `push_log` par destinataire
+    avec `campaign_id` + maj `sent_at` / `stats_json`
+  - `DELETE /api/push-campaigns/<id>`
+- Front :
+  - `/v30/push` : grille des campagnes + modal wizard 3 étapes (Cible →
+    Message → Envoi) branché sur les endpoints.
+  - Création en brouillon à l'ouverture, audience live, envoi depuis le wizard.
+
+### Saved views (Prospects)
+
+- Pills `Tous` / `Mes prospects` / `À relancer` / `Hot` cliquables : filtre
+  client-side dans `loadProspects` (pas de changement d'API).
+- Bouton `+ Vue` : POST `/api/views/save` avec `{ q, filter }` puis rafraîchit
+  la liste dynamique.
+- Ajout `DELETE /api/views/<id>` (REST miroir de `/api/views/delete`).
+- Chips dynamiques avec bouton `×` pour supprimer une vue sauvegardée.
+
+### Candidate skills + availability (Option B, SPEC §3.8)
+
+- Endpoints :
+  - `GET /api/candidates/<cid>/skills` (backfill depuis `candidates.tech` au
+    1er appel si aucune skill)
+  - `POST /api/candidates/<cid>/skills` (upsert name+category+level)
+  - `DELETE /api/candidates/<cid>/skills/<sid>`
+  - `GET /api/candidates/<cid>/availability`
+  - `POST /api/candidates/<cid>/availability` (week_iso + status
+    libre|busy|placed)
+- Front `/v30/candidat/<cid>` :
+  - Skills groupés par catégorie, clic sur une barre change le level (1-5),
+    bouton `+ Ajouter` (prompt) + `×` au hover pour supprimer.
+  - Grille 8 semaines ISO : clic cycle `libre → busy → placed → libre`.
+
+### APP_VERSION
+
+- `30.0-alpha` → `30.0-beta`.
+
+---
+
 ## [30.0-alpha] — 2026-04-21
 
 ### UI v30 — étape 3 (Dashboard branché + Prospects + Fiche prospect + Entreprises)
