@@ -8,61 +8,8 @@
 
 {% block content %}
 {% import "_partials/v30/icon.html" as ui %}
-
-{# Données mockées (reprises du JSX) — à brancher sur des endpoints Flask plus tard #}
-{% set hero_kpis = [
-  {'label': 'RDV sem.',  'value': '8',   'delta': '+2',  'neg': false},
-  {'label': 'Push',      'value': '47',  'delta': '+12', 'neg': false},
-  {'label': 'Contacts',  'value': '124', 'delta': '−3',  'neg': true}
-] %}
-{% set ac_todo = [
-  {'name': 'Marie Dubois',   'co': 'Capgemini',        'time': "Aujourd'hui · 14h", 'pill': 'status-meeting',  'label': 'RDV préparer'},
-  {'name': 'Thomas Martin',  'co': 'Sopra Steria',     'time': 'Il y a 3 jours',    'pill': 'status-contact',  'label': 'Relance'},
-  {'name': 'Julie Bernard',  'co': 'Atos',             'time': 'Demain',            'pill': 'status-proposal', 'label': 'Propale'},
-  {'name': 'Alex Petit',     'co': 'Orange Business',  'time': 'Vendredi',          'pill': 'status-new',      'label': 'Qualifier'}
-] %}
-{% set ac_rdv = [
-  {'name': 'Marie Dubois', 'co': 'Capgemini',  'time': '14:00 · Téams',   'pill': 'status-meeting', 'label': 'Dans 2h'},
-  {'name': 'Sophie Leroy', 'co': 'Thales',     'time': '16:30 · Bureaux', 'pill': 'status-meeting', 'label': 'Dans 4h'},
-  {'name': 'Paul Moreau',  'co': 'BNP Paribas','time': '18:00 · Call',    'pill': 'status-meeting', 'label': 'Ce soir'}
-] %}
-{% set ac_late = [
-  {'name': 'Eric Durand',   'co': 'AXA Tech',        'time': 'Retard 12j', 'pill': 'status-lost',    'label': 'À sauver'},
-  {'name': 'Claire Girard', 'co': 'Renault Digital', 'time': 'Retard 8j',  'pill': 'status-contact', 'label': 'Relance'}
-] %}
-{% set pipeline = [
-  {'name': 'Prospecter',   'n': 420, 'bg': 'var(--info-soft)',                 'fg': 'var(--info)'},
-  {'name': 'Contacté',     'n': 186, 'bg': 'var(--accent-soft)',               'fg': 'var(--accent)'},
-  {'name': 'RDV',          'n':  54, 'bg': 'oklch(0.92 0.05 280)',             'fg': 'oklch(0.50 0.15 280)'},
-  {'name': 'Proposition',  'n':  18, 'bg': 'var(--warn-soft)',                 'fg': 'oklch(0.50 0.14 75)'},
-  {'name': 'Gagné',        'n':   7, 'bg': 'var(--success-soft)',              'fg': 'var(--success)'}
-] %}
-{% set pipe_max = 420 %}
-{% set goals = [
-  {'label': 'Push',     'val': 8,  'max': 10},
-  {'label': 'RDV',      'val': 3,  'max': 4},
-  {'label': 'Contacts', 'val': 22, 'max': 30}
-] %}
-{% set priorities = [
-  {'name': 'Isabelle Renard', 'co': 'Thales Group',      'reason': "Ouvert l'email 3× sans répondre — relance idéale maintenant.", 'urg': 'haut'},
-  {'name': 'Kévin Lefèvre',   'co': 'Airbus Defence',    'reason': 'RDV prévu vendredi, aucune prépa envoyée.',                   'urg': 'haut'},
-  {'name': 'Laure Giraud',    'co': 'Safran',            'reason': 'Embauche active côté C++ embarqué — match parfait.',          'urg': 'moyen'},
-  {'name': 'Mohamed Ben',     'co': 'Dassault Systemes', 'reason': 'Changement de poste récent détecté sur LinkedIn.',            'urg': 'moyen'},
-  {'name': 'Chloé Marchand',  'co': 'EDF DTEAM',         'reason': 'Dernier contact > 45j, scoring en baisse.',                   'urg': 'bas'}
-] %}
-{% set activity = [
-  {'t': '14:02', 'tag': 'push',   'text': 'Campagne « Embarqué Q2 » envoyée à 18 prospects.'},
-  {'t': '13:45', 'tag': 'rdv',    'text': 'RDV Marie Dubois (Capgemini) déplacé au 23/04.'},
-  {'t': '11:20', 'tag': 'note',   'text': 'Note ajoutée sur Thomas Martin — « Attente budget Q3 ».'},
-  {'t': '10:08', 'tag': 'status', 'text': 'Julie Bernard passée de Contacté → Proposition.'},
-  {'t': '09:30', 'tag': 'push',   'text': "Alex Petit a ouvert l'email « Opportunité Safran »."},
-  {'t': '09:12', 'tag': 'note',   'text': '6 prospects importés depuis fichier_prospection.xlsx.'}
-] %}
-{% set goal_pct = 73 %}
-{% set ring_r = 44 %}
-{# stroke-dasharray / offset — r * 2 * π et offset pour arriver au pct #}
-{% set ring_c = 276.4601 %}{# = 2 * pi * 44 #}
-{% set ring_offset = (ring_c * (1 - goal_pct / 100.0))|round(2) %}
+{# Données hydratées par static/js/v30/dashboard.js depuis :
+   GET /api/dashboard · GET /api/dashboard/pipeline-stages · GET /api/tasks #}
 
 <div class="v30-dash">
 
@@ -228,25 +175,5 @@
   </div>
 </div>
 
-{# ─── Tabs Action Center : switch client-side ─── #}
-<script>
-(function(){
-  var host = document.querySelector('[data-v30-ac]');
-  if (!host) return;
-  var card = host.closest('.card');
-  host.addEventListener('click', function(e){
-    var btn = e.target.closest('button[data-tab]');
-    if (!btn) return;
-    var key = btn.dataset.tab;
-    host.querySelectorAll('button[data-tab]').forEach(function(b){
-      var active = (b === btn);
-      b.classList.toggle('active', active);
-      b.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-    card.querySelectorAll('[data-panel]').forEach(function(p){
-      p.hidden = (p.dataset.panel !== key);
-    });
-  });
-})();
-</script>
+<script defer src="/static/js/v30/dashboard.js?v={{ static_hash('js/v30/dashboard.js') }}"></script>
 {% endblock %}
