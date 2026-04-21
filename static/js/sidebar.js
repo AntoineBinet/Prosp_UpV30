@@ -249,12 +249,15 @@
                         _attachNavLoading(ca, child.href);
                         if (child.helpSection) ca.setAttribute('data-help-section', child.helpSection);
                         if (child.page === currentPage) ca.classList.add('active');
-                        var caIcon = document.createElement('i');
-                        caIcon.setAttribute('data-icon', child.icon);
-                        caIcon.setAttribute('data-size', '16');
-                        caIcon.setAttribute('aria-hidden', 'true');
-                        ca.appendChild(caIcon);
-                        ca.appendChild(document.createTextNode('\u00a0' + child.label));
+                        var caIconWrap = document.createElement('span');
+                        caIconWrap.className = 'nav-sub-icon';
+                        caIconWrap.setAttribute('aria-hidden', 'true');
+                        caIconWrap.innerHTML = window.icon ? window.icon(child.icon, {size:14}) : '';
+                        ca.appendChild(caIconWrap);
+                        var caLabel = document.createElement('span');
+                        caLabel.className = 'nav-label';
+                        caLabel.textContent = child.label;
+                        ca.appendChild(caLabel);
                         sub.appendChild(ca);
                     });
 
