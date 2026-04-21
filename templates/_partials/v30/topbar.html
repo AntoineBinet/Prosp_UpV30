@@ -47,5 +47,31 @@
   <button type="button" class="btn btn-ghost btn-icon" title="Notifications" aria-label="Notifications">
     {{ ui.icon('bell') }}
   </button>
-  <span class="avatar" aria-label="Compte" title="Compte">{{ (user_initials or 'AB')|upper }}</span>
+  <div class="v30-avatar-menu" data-v30-avatar-menu>
+    <button type="button" class="avatar v30-avatar-menu__trigger"
+            data-v30-avatar-trigger
+            aria-haspopup="menu" aria-expanded="false"
+            title="Mon compte">{{ (user_initials or 'AB')|upper }}</button>
+    <div class="v30-avatar-menu__dropdown" role="menu" hidden>
+      <div class="v30-avatar-menu__head">
+        <div class="v30-avatar-menu__name">{{ display_name or 'Mon compte' }}</div>
+        {% if current_user and current_user.role %}
+        <div class="v30-avatar-menu__role muted">
+          {{ current_user.role|capitalize }}
+        </div>
+        {% endif %}
+      </div>
+      <a class="v30-avatar-menu__item" role="menuitem" href="/v30/parametres">
+        {{ ui.icon('cog', 13) }} Paramètres
+      </a>
+      <a class="v30-avatar-menu__item" role="menuitem" href="/v30/help">
+        {{ ui.icon('bulb', 13) }} Aide
+      </a>
+      <div class="v30-avatar-menu__sep"></div>
+      <button type="button" class="v30-avatar-menu__item v30-avatar-menu__item--danger"
+              role="menuitem" data-v30-logout>
+        {{ ui.icon('logout', 13) }} Déconnexion
+      </button>
+    </div>
+  </div>
 </header>
