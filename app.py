@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "30.0-alpha"
+APP_VERSION = "30.0-beta"
 import os
 import subprocess
 import traceback
@@ -2662,6 +2662,177 @@ def _migrate_call_logs_to_user_db(user_id: int, user_db: Path) -> None:
         print(f"[OK] {len(rows)} call_logs récupérés depuis DB globale vers {user_db}")
     except Exception as e:
         print(f"[WARN] Migration call_logs ({user_db}): {e}")
+
+
+def _v30_schema_sql() -> str:
+    """Schémas additifs v30 (push_campaigns, saved_views colonnes, skills, availability)."""
+    return '''
+    CREATE TABLE IF NOT EXISTS push_campaigns (
+        id           INTEGER PRIMARY KEY,
+        owner_id     INTEGER NOT NULL,
+        name         TEXT NOT NULL,
+        category_id  INTEGER,
+        template_id  INTEGER,
+        filters_json TEXT,
+        scheduled_at TEXT,
+        sent_at      TEXT,
+        stats_json   TEXT,
+        created_at   TEXT NOT NULL,
+        updated_at   TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_campaigns_owner ON push_campaigns(owner_id);
+
+    CREATE TABLE IF NOT EXISTS candidate_skills (
+        id           INTEGER PRIMARY KEY,
+        candidate_id INTEGER NOT NULL,
+        name         TEXT NOT NULL,
+        category     TEXT,
+        level        INTEGER NOT NULL DEFAULT 3,
+        UNIQUE(candidate_id, name)
+    );
+    CREATE INDEX IF NOT EXISTS idx_cand_skills_cid ON candidate_skills(candidate_id);
+
+    CREATE TABLE IF NOT EXISTS candidate_availability (
+        id           INTEGER PRIMARY KEY,
+        candidate_id INTEGER NOT NULL,
+        week_iso     TEXT NOT NULL,
+        status       TEXT NOT NULL,
+        UNIQUE(candidate_id, week_iso)
+    );
+    CREATE INDEX IF NOT EXISTS idx_cand_avail_cid ON candidate_availability(candidate_id);
+    '''
+
+
+def _v30_apply_migrations(conn) -> list[str]:
+    """Applique les migrations v30 sur une connexion DB. Retourne la liste des changements effectués."""
+    done: list[str] = []
+    # 1. Tables additives
+    cur = conn.cursor()
+    existing = {r[0] for r in cur.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+    for t in ("push_campaigns", "candidate_skills", "candidate_availability"):
+        if t not in existing:
+            done.append(f"create:{t}")
+    conn.executescript(_v30_schema_sql())
+    conn.commit()
+
+    # 2. saved_views : ajouter colonnes v30 (owner_id, filters_json, columns_json, is_shared)
+    try:
+        sv_cols = {r[1] for r in cur.execute("PRAGMA table_info(saved_views);").fetchall()}
+        if sv_cols:
+            if "owner_id" not in sv_cols:
+                cur.execute("ALTER TABLE saved_views ADD COLUMN owner_id INTEGER;")
+                done.append("alter:saved_views.owner_id")
+            if "filters_json" not in sv_cols:
+                cur.execute("ALTER TABLE saved_views ADD COLUMN filters_json TEXT;")
+                done.append("alter:saved_views.filters_json")
+            if "columns_json" not in sv_cols:
+                cur.execute("ALTER TABLE saved_views ADD COLUMN columns_json TEXT;")
+                done.append("alter:saved_views.columns_json")
+            if "is_shared" not in sv_cols:
+                cur.execute("ALTER TABLE saved_views ADD COLUMN is_shared INTEGER DEFAULT 0;")
+                done.append("alter:saved_views.is_shared")
+            # Backfill filters_json depuis state si ancienne colonne présente
+            if "state" in sv_cols and "filters_json" in sv_cols:
+                cur.execute(
+                    "UPDATE saved_views SET filters_json = state "
+                    "WHERE filters_json IS NULL AND state IS NOT NULL;"
+                )
+                if cur.rowcount:
+                    done.append(f"backfill:saved_views.filters_json({cur.rowcount})")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_saved_views_owner_page "
+                "ON saved_views(owner_id, page);"
+            )
+    except Exception as e:
+        print(f"[v30_migrate] WARN saved_views ({e})")
+
+    # 3. push_logs : ajouter colonne campaign_id
+    try:
+        pl_cols = {r[1] for r in cur.execute("PRAGMA table_info(push_logs);").fetchall()}
+        if pl_cols and "campaign_id" not in pl_cols:
+            cur.execute("ALTER TABLE push_logs ADD COLUMN campaign_id INTEGER;")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_push_logs_campaign "
+                "ON push_logs(campaign_id);"
+            )
+            done.append("alter:push_logs.campaign_id")
+    except Exception as e:
+        print(f"[v30_migrate] WARN push_logs ({e})")
+
+    conn.commit()
+    return done
+
+
+def _v30_needs_migration() -> bool:
+    """Retourne True si au moins une des nouvelles tables v30 n'existe pas dans la DB principale."""
+    try:
+        with _conn() as conn:
+            rows = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name IN ('push_campaigns','candidate_skills','candidate_availability');"
+            ).fetchall()
+            return len(rows) < 3
+    except Exception:
+        return True
+
+
+def _migrate_v30_all() -> None:
+    """Orchestre la migration v30 : backup si nécessaire, puis apply sur toutes les DB."""
+    need = _v30_needs_migration()
+    if need:
+        try:
+            from scripts.v30_backup import backup_all_databases
+            backup_path = backup_all_databases(reason="v30_auto_migration")
+            if backup_path:
+                print(f"[v30_migrate] Backup pre-migration : {backup_path}")
+        except Exception as e:
+            print(f"[v30_migrate] WARN backup impossible ({e}) — on continue quand meme")
+
+    # DB principale
+    try:
+        with _conn() as conn:
+            changes = _v30_apply_migrations(conn)
+            if changes:
+                print(f"[v30_migrate] main: {', '.join(changes)}")
+    except Exception as e:
+        print(f"[v30_migrate] ERR main DB: {e}")
+
+    # DBs per-user (filtre sur existence + user valide)
+    if not DATA_DIR.exists():
+        return
+    try:
+        valid_ids: set[int] = set()
+        try:
+            with _auth_conn() as ac:
+                for row in ac.execute("SELECT id FROM users;").fetchall():
+                    valid_ids.add(int(row["id"]))
+        except Exception:
+            pass
+        for p in DATA_DIR.iterdir():
+            if not p.is_dir() or not p.name.startswith("user_"):
+                continue
+            try:
+                uid = int(p.name.replace("user_", "", 1))
+            except ValueError:
+                continue
+            if valid_ids and uid not in valid_ids:
+                continue
+            user_db = p / "prospects.db"
+            if not user_db.exists():
+                continue
+            try:
+                c2 = sqlite3.connect(user_db)
+                c2.row_factory = sqlite3.Row
+                changes = _v30_apply_migrations(c2)
+                c2.close()
+                if changes:
+                    print(f"[v30_migrate] user_{uid}: {', '.join(changes)}")
+            except Exception as e:
+                print(f"[v30_migrate] ERR user_{uid}: {e}")
+    except Exception as e:
+        print(f"[v30_migrate] WARN per-user loop ({e})")
 
 
 def _migrate_all_user_dbs() -> None:
@@ -17895,6 +18066,7 @@ if __name__ == "__main__":
     _migrate_users_schema()
     _migrate_candidate_statuses(DB_PATH)
     _migrate_all_user_dbs()
+    _migrate_v30_all()
     load_initial_data_if_needed()
 
     # Vérifier si une validation post-update est en attente (app redémarrée après un pull)
