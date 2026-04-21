@@ -19,6 +19,35 @@
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
   }
 
+  function parseDetails(raw) {
+    if (!raw) return '';
+    try {
+      var obj = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!obj || typeof obj !== 'object') return String(raw);
+      return Object.keys(obj).map(function (k) {
+        return k + ' ' + obj[k];
+      }).join(' · ');
+    } catch (_) { return String(raw); }
+  }
+
+  function renderEntity(r) {
+    var t = r.entity_type;
+    if (!t && !r.entity_label) return '—';
+    var label = r.entity_label || '';
+    var id = r.entity_id != null ? ' #' + r.entity_id : '';
+    // Lien click si type connu (parite v29 : clic -> ouvrir la fiche)
+    var href = '';
+    if (t === 'prospect' && r.entity_id) href = '/v30/prospect/' + r.entity_id;
+    else if (t === 'candidate' && r.entity_id) href = '/v30/candidat/' + r.entity_id;
+    else if (t === 'company' && r.entity_id) href = '/v30/entreprises';
+    var inner = '<span class="muted">' + esc(t || '—') + '</span> ' +
+                '<span>' + esc(label) + '</span>' +
+                '<span class="muted mono">' + esc(id) + '</span>';
+    return href
+      ? '<a href="' + href + '" style="color:inherit;text-decoration:none;">' + inner + '</a>'
+      : inner;
+  }
+
   function render(rows) {
     var host = $('[data-v30-activity-list]');
     if (!rows.length) {
@@ -30,7 +59,8 @@
         '<span class="v30-activity-row__when">' + esc(fmt(r.createdAt || r.created_at || r.timestamp)) + '</span>' +
         '<span class="v30-activity-row__user">' + esc(r.display_name || r.username || ('user#' + (r.user_id||''))) + '</span>' +
         '<span class="v30-activity-row__what">' + esc(r.action || '') + '</span>' +
-        '<span class="v30-activity-row__target">' + esc(r.target || r.detail || '') + '</span>' +
+        '<span class="v30-activity-row__entity">' + renderEntity(r) + '</span>' +
+        '<span class="v30-activity-row__detail muted">' + esc(parseDetails(r.details || r.detail)) + '</span>' +
       '</div>';
     }).join('');
   }
