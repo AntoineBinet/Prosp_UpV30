@@ -4,6 +4,19 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
 ## [30.0-alpha] — 2026-04-21
 
+### UI v30 — étape 3 (Dashboard branché + écrans Prospects & Fiche prospect)
+
+- **Fiche prospect v30** — preview sur `/v30/prospect/<id>` :
+  - Header : avatar 56 px, nom éditable inline, pill statut, chips email/tél/LinkedIn, actions Pousser / Appeler / Planifier.
+  - Layout 2 cols : main (tabs Aperçu / Timeline / Push / IA) + aside (Détails, Tags, Entreprise).
+  - **Edit-in-place** sur Nom, Notes, Fonction, Email, Téléphone via `POST /api/prospects/bulk-edit` (ids=[pid], field, value). Enter pour sauver, Esc pour annuler, checkmark vert 1.2 s.
+  - Timeline Activité branchée sur `/api/prospect/timeline?id=X` (push / RDV / notes / status change, dots colorés par type).
+  - Tab Push : liste des pushs avec badge channel.
+  - **Drawer IA** (480 px) avec backdrop + Esc pour fermer ; placeholder pour Scraping / Avant-RDV / Après-RDV (branchement complet dans un commit ultérieur).
+  - Route Flask : ownership vérifié via `owner_id + deleted_at`, redirection vers `/v30/prospects` si inaccessible.
+  - `prospects.js` : redirection clic ligne/carte désormais vers `/v30/prospect/<id>` (plus vers la fiche legacy).
+  - 3 fichiers JS chargés defer : `prospect_detail.js` (helpers + fetch), `prospect_detail_render.js` (rendu), `prospect_detail_ui.js` (events + drawer). Architecture modulaire pour éviter les gros fichiers.
+
 ### UI v30 — étape 3 (branchement Dashboard + écran Prospects)
 
 - **Dashboard v3 branché** sur les vraies données via `static/js/v30/dashboard.js` :

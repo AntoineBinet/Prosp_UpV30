@@ -26,7 +26,7 @@
 - [x] **Login** (`screens/login-palette.jsx` → `templates/v30/login.html`) — preview sur `/v30/login`, formulaire fonctionnel (POST `/api/auth/login`)
 - [x] **Dashboard v3** (`screens/dashboard.jsx` → `templates/v30/dashboard.html`) — preview sur `/v30/dashboard`, hero + bento 2:2:1 (Action center · Pipeline · Goals ring SVG) + bento 1:1 (Priorités IA · Activité). **Branché sur `/api/dashboard` + `/api/dashboard/pipeline-stages` + `/api/tasks`** via `static/js/v30/dashboard.js`
 - [x] **Prospects** (`screens/prospects.jsx` → `templates/v30/prospects.html`) — preview sur `/v30/prospects`. 3 vues Table/Kanban/Split + bulk bar. Branché sur `/api/search` (liste + fuzzy), `/api/prospects/bulk-status-tags`. Pagination offset-based. **Clic ligne → fiche legacy** pour l'instant, la fiche v30 arrive ensuite.
-- [ ] **Fiche prospect** (`prospect-detail.jsx`) — edit-in-place + tabs + drawer IA
+- [x] **Fiche prospect** (`prospect-detail.jsx` → `templates/v30/prospect_detail.html`) — route `/v30/prospect/<id>`. Header éditable inline, tabs Aperçu/Timeline/Push/IA, drawer IA 480px. Branchée sur `/api/prospect/timeline` + `/api/prospects/bulk-edit` pour l'edit-in-place. Clic liste → v30 (plus legacy).
 - [ ] **Entreprises** (`screens/entreprises.jsx`) — table + fiche dédiée (pas de Kanban)
 - [ ] **Push** (`screens/push.jsx`) — Campagnes / Templates / Historique + wizard 3 étapes
 - [ ] **Sourcing** (`screens/sourcing.jsx`) — kanban + grille + matching par push
