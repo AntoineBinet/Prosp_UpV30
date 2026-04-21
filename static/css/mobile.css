@@ -1202,14 +1202,18 @@
     align-items: center;
     gap: 10px;
     padding: 12px 10px;
-    background: rgba(255, 255, 255, 0.04);
+    /* Fond OPAQUE — sinon les swipe actions (pmc-actions-*) derrière */
+    /* transparaissent à travers la carte au repos.                    */
+    background: var(--color-surface, #121217);
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 16px;
     z-index: 1;
+    width: 100%;
+    box-sizing: border-box;
     will-change: transform;
     transition: transform .12s ease, background .12s ease;
   }
-  .pmc-content:active { background: rgba(255, 255, 255, 0.07); }
+  .pmc-content:active { background: var(--color-surface-2, #1C1C22); }
 
   .pmc-accent {
     width: 4px;
@@ -1379,10 +1383,99 @@
   .pmc-chevron { color: rgba(17, 24, 39, 0.25); }
 }
 html[data-theme="light"] .pmc-content {
-  background: rgba(17, 24, 39, 0.04);
+  background: #ffffff;
   border-color: rgba(17, 24, 39, 0.08);
 }
+html[data-theme="light"] .pmc-content:active { background: #f5f5f7; }
 html[data-theme="light"] .pmc-chevron { color: rgba(17, 24, 39, 0.25); }
+
+/* ═══════════════════════════════════════════════════════════════
+   PROSPECT STATUS CHIPS — barre horizontale de filtres par statut
+   (#prospectStatusChips, classes .psc-chip) — manquait complètement
+   dans le CSS, rendues par défaut en blanc.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .prospect-status-chips {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 0 0 12px;
+    margin: 0 -12px; /* déborde le padding du .content-header */
+    padding-left: 12px;
+    padding-right: 12px;
+    width: auto;
+    flex-basis: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .prospect-status-chips::-webkit-scrollbar { display: none; }
+
+  .psc-chip {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text, #F5F5F7);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.1px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .psc-chip:active { transform: scale(0.96); }
+  .psc-chip i, .psc-chip svg { display: inline-flex; align-items: center; }
+
+  .psc-chip.psc-chip-active {
+    background: rgba(255, 107, 53, 0.12);
+    border-color: rgba(255, 107, 53, 0.3);
+    color: #FF6B35;
+    font-weight: 600;
+  }
+
+  .psc-chip-urgent {
+    color: #F87171;
+    border-color: rgba(239, 68, 68, 0.25);
+  }
+  .psc-chip-urgent.psc-chip-active {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #F87171;
+  }
+}
+html[data-theme="light"] .psc-chip {
+  background: #ffffff;
+  border-color: rgba(17, 24, 39, 0.1);
+  color: var(--color-text, #1A1916);
+}
+html[data-theme="light"] .psc-chip.psc-chip-active {
+  background: rgba(255, 107, 53, 0.08);
+  border-color: rgba(255, 107, 53, 0.35);
+  color: #D85F1C;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STATS CARDS mobile — indication visuelle de scroll horizontal
+   (.stats est déjà en overflow-x:auto sur mobile — style.css:3069)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  body[data-page="prospects"] .stats {
+    position: relative;
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 90%, transparent 100%);
+            mask-image: linear-gradient(to right, #000 0, #000 90%, transparent 100%);
+    padding-right: 32px;
+    padding-bottom: 4px;
+  }
+  body[data-page="prospects"] .stats .stat-card {
+    flex: 0 0 auto !important;
+    min-width: 140px !important;
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    PRINT — Hide mobile elements

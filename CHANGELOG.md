@@ -2,6 +2,20 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [29.9.1] — 2026-04-21
+
+### Fix mobile (suite 29.9)
+
+- **Cartes prospects** : `.pmc-content` avait un fond `rgba(255,255,255,0.04)` laissant transparaître les actions de swipe (Appeler vert, Email bleu) à travers la carte au repos. Passage à `background: var(--color-surface)` opaque + `width: 100%` pour couvrir entièrement le swipe-wrap.
+- **Filtres statut prospects** (`.psc-chip` / `.prospect-status-chips`) : **aucun CSS n'existait** → pills blanches par défaut sur fond sombre. Ajout du style pill sombre + actif orange, scroll horizontal, variante urgents rouge, overrides thème clair.
+- **Dashboard header card** : le badge « 5 actions cette semaine » débordait. Passage du header en `flex-direction: column` sur mobile → titre et badge empilés.
+- **KPI chips performance** : grid items saturés par le min-content (sparkline SVG 60×22). Ajout de `min-width: 0`, réduction sparkline à 44×18, masquage complet sous 380px, truncation des labels/sub.
+- **Stats cards prospects** (`.stats` horizontal scroll) : ajout d'un masque CSS (fade à droite) pour indiquer le scroll + `min-width: 140px` fixe par card pour un rendu uniforme.
+
+### Version
+
+- `APP_VERSION` 29.9 → 29.9.1.
+
 ## [29.9] — 2026-04-21
 
 ### Fix mobile — refonte liquid glass (29.8)

@@ -164,21 +164,23 @@
   /* Réduit les paddings des cards pour éviter le débordement horizontal */
   .dv2-card { padding: 14px; }
 
-  /* Le header d'une card doit autoriser le wrap si le badge est long */
+  /* Header de card : empilé en colonne pour éviter que le badge long */
+  /* (« 5 actions cette semaine ») déborde à droite de la card.        */
   .dv2-card-header {
-    gap: 8px;
-    flex-wrap: wrap;
+    flex-direction: column;
     align-items: flex-start;
+    gap: 4px;
+    margin-bottom: 10px;
   }
-  .dv2-card-title { font-size: 13px; flex: 1 1 auto; min-width: 0; }
+  .dv2-card-title { font-size: 14px; }
   .dv2-card-badge {
+    align-self: flex-start;
     font-size: 10px;
-    padding: 3px 8px;
+    padding: 2px 8px;
     max-width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex: 0 1 auto;
   }
 
   /* Pipeline légende : forcer le wrap + gap réduits */
@@ -198,6 +200,28 @@
   /* Priorités IA : graphique également contraint */
   .dv2-priorities-chart-wrap,
   .dv2-activity-chart-wrap { max-width: 100%; overflow: hidden; }
+
+  /* KPI chips (Performance) : éviter overflow de la grille */
+  .dv2-kpi-chips { gap: 8px; grid-template-columns: 1fr 1fr; }
+  .dv2-kpi-chip {
+    min-width: 0; /* autorise le grid item à rétrécir sous 1fr */
+    padding: 10px 12px;
+    gap: 8px;
+    overflow: hidden;
+  }
+  .dv2-kpi-chip-value { font-size: 20px; }
+  .dv2-kpi-chip-label,
+  .dv2-kpi-chip-sub {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 10.5px;
+  }
+  /* Sparkline optionnelle : masquée sur écrans très étroits */
+  .dv2-kpi-chip .dv2-sparkline svg { width: 44px; height: 18px; }
+}
+@media (max-width: 380px) {
+  .dv2-kpi-chip .dv2-sparkline { display: none; }
 }
 
 /* ─── Card Base ─── */
