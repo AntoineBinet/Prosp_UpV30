@@ -127,13 +127,8 @@
     </div>
     {% endif %}
 
-  </div>{# /v30-params__grid #}
-
-  {# ─── Mon compte + À propos (toujours en bas) ─── #}
-  <div class="v30-params__grid" style="margin-top:12px;">
-
-    {# Mon compte #}
-    <a class="v30-params__card" href="/parametres#change-password">
+    {# Mon compte — order:100 force placement après la section Mise à jour #}
+    <a class="v30-params__card" href="/parametres#change-password" style="order:100;">
       <div class="v30-params__card-head">
         {{ ui.icon('user', 16) }}
         <h3>Mon compte</h3>
@@ -144,8 +139,8 @@
       <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
     </a>
 
-    {# À propos #}
-    <a class="v30-params__card" href="/parametres#about">
+    {# À propos — order:100 force placement après la section Mise à jour #}
+    <a class="v30-params__card" href="/parametres#about" style="order:100;">
       <div class="v30-params__card-head">
         {{ ui.icon('bulb', 16) }}
         <h3>À propos</h3>
