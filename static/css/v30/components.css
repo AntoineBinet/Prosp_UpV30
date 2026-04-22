@@ -189,12 +189,20 @@
   content: ""; width: 6px; height: 6px; border-radius: 50%;
   background: currentColor;
 }
-.status-new       { color: var(--info); background: var(--info-soft); border-color: transparent; }
-.status-contact   { color: oklch(0.50 0.14 220); background: var(--info-soft); border-color: transparent; }
-.status-meeting   { color: oklch(0.45 0.14 258); background: var(--accent-soft); border-color: transparent; }
-.status-proposal  { color: oklch(0.45 0.14 75); background: var(--warn-soft); border-color: transparent; }
-.status-won       { color: var(--success); background: var(--success-soft); border-color: transparent; }
-.status-lost      { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+.status-new       { color: var(--info);             background: var(--info-soft);    border-color: transparent; }
+.status-contact   { color: oklch(0.50 0.14 220);   background: var(--info-soft);    border-color: transparent; }
+.status-meeting   { color: oklch(0.45 0.14 258);   background: var(--accent-soft);  border-color: transparent; }
+.status-proposal  { color: oklch(0.45 0.14 75);    background: var(--warn-soft);    border-color: transparent; }
+.status-won       { color: var(--success);          background: var(--success-soft); border-color: transparent; }
+.status-lost      { color: var(--danger);           background: var(--danger-soft);  border-color: transparent; }
+/* Statuts prospects v30 */
+.status-idle      { color: oklch(0.44 0.05 250);   background: oklch(0.94 0.02 250); border-color: transparent; }
+.status-prosp     { color: oklch(0.40 0.15 195);   background: oklch(0.94 0.05 195); border-color: transparent; }
+.status-called    { color: oklch(0.40 0.14 165);   background: oklch(0.94 0.05 165); border-color: transparent; }
+.status-voicemail { color: oklch(0.43 0.12 270);   background: oklch(0.94 0.04 270); border-color: transparent; }
+.status-callback  { color: oklch(0.44 0.16 55);    background: oklch(0.95 0.06 55);  border-color: transparent; }
+.status-rdv       { color: oklch(0.40 0.16 290);   background: oklch(0.94 0.06 290); border-color: transparent; }
+.status-cold      { color: oklch(0.46 0.10 20);    background: oklch(0.96 0.03 20);  border-color: transparent; }
 
 :root[data-theme="dark"] .status-new      { color: oklch(0.82 0.12 220); }
 :root[data-theme="dark"] .status-contact  { color: oklch(0.82 0.12 220); }
@@ -202,6 +210,13 @@
 :root[data-theme="dark"] .status-proposal { color: oklch(0.82 0.14 75); }
 :root[data-theme="dark"] .status-won      { color: oklch(0.80 0.14 155); }
 :root[data-theme="dark"] .status-lost     { color: oklch(0.80 0.15 25); }
+:root[data-theme="dark"] .status-idle      { color: oklch(0.72 0.05 250); background: oklch(0.26 0.03 250); }
+:root[data-theme="dark"] .status-prosp     { color: oklch(0.80 0.13 195); background: oklch(0.26 0.05 195); }
+:root[data-theme="dark"] .status-called    { color: oklch(0.80 0.12 165); background: oklch(0.26 0.05 165); }
+:root[data-theme="dark"] .status-voicemail { color: oklch(0.78 0.10 270); background: oklch(0.26 0.05 270); }
+:root[data-theme="dark"] .status-callback  { color: oklch(0.82 0.14 55);  background: oklch(0.28 0.07 55); }
+:root[data-theme="dark"] .status-rdv       { color: oklch(0.82 0.14 290); background: oklch(0.26 0.07 290); }
+:root[data-theme="dark"] .status-cold      { color: oklch(0.76 0.08 20);  background: oklch(0.26 0.04 20); }
 
 /* ─────────── Segmented control ─────────── */
 .segmented {
