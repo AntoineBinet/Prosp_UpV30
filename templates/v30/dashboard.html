@@ -98,6 +98,21 @@
           </div>
           {% endfor %}
         </div>
+        <div class="v30-perf__breakdown" data-field="breakdown">
+          <div class="v30-perf__breakdown-head">
+            <span>Activité détaillée</span>
+            <span class="v30-perf__breakdown-total" data-field="breakdown-total">— actions</span>
+          </div>
+          <div class="v30-perf__breakdown-rows" data-field="breakdown-rows">
+            {% for _ in range(4) %}
+            <div class="v30-perf__breakdown-row">
+              <span class="skel" style="width:50px;height:11px;display:inline-block;"></span>
+              <div class="skel" style="height:6px;border-radius:3px;"></div>
+              <span class="skel" style="width:20px;height:11px;display:inline-block;"></span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
       </div>
 
       {# Tabs Action center intégrés — branchés sur /api/tasks + /api/dashboard #}

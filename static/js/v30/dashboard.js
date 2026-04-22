@@ -575,6 +575,38 @@
 
     renderPerformanceChart(days, w);
     renderPerfInsights(data, days, pw);
+    renderPerfBreakdown(w);
+  }
+
+  function renderPerfBreakdown(w) {
+    var host = document.querySelector('[data-v30-perf] [data-field="breakdown"]');
+    if (!host) return;
+    var contacts = (w.calls || 0) > 0 ? w.calls : Math.max(w.relances || 0, w.notes || 0);
+    var metrics = [
+      { label: 'Contacts', value: contacts,           color: PERF_COLORS.contacts },
+      { label: 'Push',     value: w.push_total || 0,  color: PERF_COLORS.push },
+      { label: 'Notes',    value: w.notes || 0,       color: PERF_COLORS.notes },
+      { label: 'RDV',      value: w.rdv_total || 0,   color: PERF_COLORS.rdv }
+    ];
+    var total = metrics.reduce(function (s, m) { return s + m.value; }, 0);
+    var max = Math.max(1, Math.max.apply(null, metrics.map(function (m) { return m.value; })));
+    var esc = function (s) { var e = document.createElement('span'); e.textContent = s == null ? '' : String(s); return e.innerHTML; };
+
+    var totalEl = host.querySelector('[data-field="breakdown-total"]');
+    if (totalEl) totalEl.textContent = total + ' action' + (total > 1 ? 's' : '');
+
+    var rowsEl = host.querySelector('[data-field="breakdown-rows"]');
+    if (!rowsEl) return;
+    rowsEl.innerHTML = metrics.map(function (m) {
+      var pct = Math.round((m.value / max) * 100);
+      return '<div class="v30-perf__breakdown-row">' +
+        '<span class="v30-perf__breakdown-label">' + esc(m.label) + '</span>' +
+        '<div class="v30-perf__breakdown-bar">' +
+          '<div class="v30-perf__breakdown-fill" style="width:' + pct + '%;background:' + m.color + ';"></div>' +
+        '</div>' +
+        '<span class="v30-perf__breakdown-value num">' + esc(m.value) + '</span>' +
+      '</div>';
+    }).join('');
   }
 
   function renderPerfInsights(data, days, prevWeek) {
