@@ -305,6 +305,9 @@
     var triggerBtn = document.querySelector('[data-v30-cmdk]');
     if (triggerBtn) triggerBtn.addEventListener('click', open);
 
+    var createBtn = document.querySelector('[data-v30-create]');
+    if (createBtn) createBtn.addEventListener('click', open);
+
     var bd = document.querySelector('[data-v30-palette-backdrop]');
     if (bd) bd.addEventListener('click', close);
 

@@ -617,10 +617,10 @@ def _after_request(response):
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-        "style-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "img-src 'self' data: blob:; "
         "connect-src 'self' https://api.tavily.com; "
-        "font-src 'self'; "
+        "font-src 'self' https://fonts.gstatic.com; "
         "frame-ancestors 'self'"
     )
 
