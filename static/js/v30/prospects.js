@@ -88,6 +88,12 @@
     return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
   }
 
+  function nameHue(name) {
+    var h = 0, s = String(name || '');
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return Math.abs(h) % 6;
+  }
+
   function relativeDate(iso) {
     if (!iso) return '—';
     try {
@@ -198,9 +204,7 @@
   function renderEmail(email) {
     if (!email) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
     var clean = String(email).trim();
-    return '<a class="v30-pp-email truncate" href="mailto:' + esc(clean) + '" title="' + esc(clean) + '" ' +
-      'style="display:inline-block;max-width:180px;color:var(--text-2);font-size:12px;">' +
-      esc(clean) + '</a>';
+    return '<a class="v30-pp-email" href="mailto:' + esc(clean) + '" title="' + esc(clean) + '">' + esc(clean) + '</a>';
   }
 
   function renderPushBadges(p) {
@@ -221,17 +225,21 @@
         return '<td style="padding-left:14px;">' +
           '<input type="checkbox" data-v30-row-select' + (STATE.selected.has(p.id) ? ' checked' : '') + ' aria-label="Sélectionner">' +
           '</td>';
-      case 'name':
+      case 'name': {
+        var sub = [];
+        if (coName)      sub.push('<span class="v30-pp-name__co">' + esc(coName) + '</span>');
+        if (p.fonction)  sub.push(esc(p.fonction));
         return '<td>' +
           '<a class="v30-pp-name" href="#" data-v30-open="' + p.id + '">' +
-            '<span class="avatar">' + esc(initials(p.name)) + '</span>' +
-            '<div>' +
+            '<span class="avatar v30-pp-avatar" data-hue="' + nameHue(p.name) + '">' + esc(initials(p.name)) + '</span>' +
+            '<div style="min-width:0;">' +
               '<div class="v30-pp-name__value truncate">' + esc(p.name || '—') + '</div>' +
-              '<div class="v30-pp-name__role truncate">' + esc(p.fonction || '') + '</div>' +
+              (sub.length ? '<div class="v30-pp-name__sub truncate">' + sub.join(' · ') + '</div>' : '') +
             '</div>' +
           '</a>' +
         '</td>';
-      case 'company':    return '<td class="truncate" style="max-width:160px;">' + esc(coName) + '</td>';
+      }
+      case 'company':    return '<td class="truncate" style="font-size:12.5px;color:var(--text-2);max-width:130px;">' + esc(coName) + '</td>';
       case 'statut':     return '<td>' + (p.statut ? '<span class="status ' + cls + '">' + esc(p.statut) + '</span>' : '—') + '</td>';
       case 'pertinence': return '<td>' + renderPertinence(p.pertinence) + '</td>';
       case 'tel':        return '<td>' + renderTel(p.telephone) + '</td>';
@@ -264,8 +272,8 @@
   }
 
   var COL_WIDTHS = {
-    select: 32, name: 185, company: 130, statut: 95, pertinence: 72,
-    tel: 108, email: 128, push: 55, lastContact: 95, relance: 88, tags: 88, actions: 60
+    select: 32, name: 200, company: 115, statut: 98, pertinence: 70,
+    tel: 130, email: 130, push: 52, lastContact: 92, relance: 82, tags: 90, actions: 62
   };
 
   function renderTableHead() {
