@@ -131,14 +131,17 @@
 
   function statusClass(statut) {
     var map = {
-      'Rendez-vous':  'status-meeting',
-      'Prospecté':    'status-new',
-      "Pas d'actions": 'status-new',
-      'Contacté':     'status-contact',
-      'À rappeler':   'status-proposal',
-      'Proposition':  'status-proposal',
-      'Gagné':        'status-won',
-      'Perdu':        'status-lost'
+      "Pas d'actions": 'status-idle',
+      'Prospecté':     'status-prosp',
+      'Appelé':        'status-called',
+      'Messagerie':    'status-voicemail',
+      'À rappeler':    'status-callback',
+      'Rendez-vous':   'status-rdv',
+      'Pas intéressé': 'status-cold',
+      'Contacté':      'status-contact',
+      'Proposition':   'status-proposal',
+      'Gagné':         'status-won',
+      'Perdu':         'status-lost'
     };
     return map[statut] || '';
   }
