@@ -13439,14 +13439,14 @@ def api_prospects_bulk_edit():
     ids = payload.get("ids")
     field = payload.get("field", "")
     value = payload.get("value")
-    ALLOWED_FIELDS = ["fonction", "statut", "pertinence", "fixedMetier"]
+    ALLOWED_FIELDS = ["fonction", "statut", "pertinence", "fixedMetier", "notes"]
     if not ids or not isinstance(ids, list):
         return jsonify(ok=False, error="ids (array) required"), 400
     if field not in ALLOWED_FIELDS:
         return jsonify(ok=False, error=f"field must be one of {ALLOWED_FIELDS}"), 400
-    if value is None or str(value).strip() == "":
+    if value is None or (str(value).strip() == "" and field != "notes"):
         return jsonify(ok=False, error="value required"), 400
-    value = str(value).strip()
+    value = str(value).strip() if value is not None else ""
     updated = 0
     errors = []
     with _conn() as conn:
