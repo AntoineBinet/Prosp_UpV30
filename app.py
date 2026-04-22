@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "30.3"
+APP_VERSION = "30.4"
 import os
 import subprocess
 import traceback
@@ -4770,7 +4770,11 @@ def page_v30_candidate_detail(cid):
     return render_template(
         "v30/candidate_detail.html",
         active="candidats",
-        crumbs=["Prosp'Up", "Candidats", row["name"] or "Fiche"],
+        crumbs=[
+            {"label": "Prosp'Up", "href": "/v30/dashboard"},
+            {"label": "Candidats", "href": "/v30/sourcing"},
+            row["name"] or "Fiche",
+        ],
         counts=counts,
         pinned=[],
         user_initials=user_initials,
@@ -5183,7 +5187,11 @@ def page_v30_prospect_detail(pid):
     return render_template(
         "v30/prospect_detail.html",
         active="prospects",
-        crumbs=["Prosp'Up", "Prospects", row["name"] or "Fiche"],
+        crumbs=[
+            {"label": "Prosp'Up", "href": "/v30/dashboard"},
+            {"label": "Prospects", "href": "/v30/prospects"},
+            row["name"] or "Fiche",
+        ],
         counts=counts,
         pinned=[],
         user_initials=user_initials,

@@ -2,6 +2,15 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.4] — 2026-04-22 · Fil d'Ariane cliquable
+
+Les éléments parents du fil d'Ariane (`Prosp'Up`, `Prospects`, `Candidats`…) sont désormais cliquables sur les fiches détail, pour revenir en arrière en un clic.
+
+### Changements
+- **`templates/_partials/v30/topbar.html`** : le composant `crumbs` accepte désormais soit une chaîne (comportement actuel, non cliquable), soit un dict `{label, href}` (rendu en `<a>` cliquable). Le dernier item reste toujours non cliquable (page courante).
+- **`app.py`** : fiches prospect (`/v30/prospect/<id>`) et candidat (`/v30/candidat/<id>`) passent maintenant `Prosp'Up → /v30/dashboard` et `Prospects → /v30/prospects` / `Candidats → /v30/sourcing` comme dicts.
+- **`static/css/v30/chrome.css`** : style `.v30-crumbs__item--link` (hover = souligné + surface-2, focus visible).
+
 ## [30.3] — 2026-04-22 · Persistance des filtres prospects v30
 
 Depuis que la fiche prospect est une page plein écran (et non plus une popup), revenir sur `/v30/prospects` remettait tous les filtres à zéro. Correction : la recherche, les pills (vues built-in + vues sauvegardées), les filtres avancés (statuts, pertinence min, tags, dates de relance, téléphonables, entreprise) et le tri sont désormais persistés dans `localStorage` (clé `v30.prospects.filters`).

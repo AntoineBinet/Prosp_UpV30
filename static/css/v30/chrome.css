@@ -161,6 +161,24 @@
   font-weight: 500;
 }
 
+.v30-crumbs__item--link {
+  color: var(--text-3);
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.v30-crumbs__item--link:hover,
+.v30-crumbs__item--link:focus-visible {
+  color: var(--text);
+  background-color: var(--surface-2, rgba(255, 255, 255, 0.06));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .v30-cmdk {
   width: 360px;
   height: 30px;

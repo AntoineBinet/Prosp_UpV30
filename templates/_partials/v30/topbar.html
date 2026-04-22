@@ -12,10 +12,17 @@
     <span class="v30-logo" aria-hidden="true">P</span>
     <nav class="v30-crumbs" aria-label="Fil d'Ariane">
       {% for c in crumbs %}
+        {% set is_dict = c is mapping %}
+        {% set label = c.label if is_dict else c %}
+        {% set href = c.href if is_dict else None %}
         {% if not loop.first %}
           <span class="v30-crumbs__sep">{{ ui.icon('chevR', 12) }}</span>
         {% endif %}
-        <span class="v30-crumbs__item{% if loop.last %} is-current{% endif %}">{{ c }}</span>
+        {% if href and not loop.last %}
+          <a class="v30-crumbs__item v30-crumbs__item--link" href="{{ href }}">{{ label }}</a>
+        {% else %}
+          <span class="v30-crumbs__item{% if loop.last %} is-current{% endif %}">{{ label }}</span>
+        {% endif %}
       {% endfor %}
     </nav>
   </div>
