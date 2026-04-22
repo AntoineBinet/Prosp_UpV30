@@ -281,7 +281,7 @@
     });
   }
 
-  // ─── Actions header (push / schedule / more) ────────────────
+  // ─── Actions header (push / schedule / appeler / more) ──────
   function bindHeaderActions() {
     document.addEventListener('click', function (e) {
       var btn = e.target.closest('[data-v30-action]');
@@ -295,6 +295,22 @@
         e.stopPropagation();
         openMoreMenu(btn);
       }
+    });
+
+    // Log-call sur le bouton "Appeler" (a[data-field="tel-link"])
+    document.addEventListener('click', function (e) {
+      var link = e.target.closest('[data-field="tel-link"]');
+      if (!link) return;
+      FP.fetchPostJSON('/api/prospect/log-call', { prospect_id: FP.ID })
+        .then(function (res) {
+          if (!res || !res.ok) return;
+          var now = res.lastContact || new Date().toISOString();
+          if (FP.STATE.prospect) {
+            FP.STATE.prospect.lastContact = now;
+            R.aside(FP.STATE.prospect);
+          }
+        })
+        .catch(function () {});
     });
   }
 
