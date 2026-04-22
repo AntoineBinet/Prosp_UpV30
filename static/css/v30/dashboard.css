@@ -765,6 +765,27 @@
   flex-shrink: 0;
 }
 
+/* ─── Focus page responsive (focus.html utilise .v30-focus-cols) ─── */
+.v30-focus__title {
+  font-size: 40px;
+  line-height: 1.05;
+  margin: 0;
+  color: var(--text);
+}
+.v30-focus__subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.v30-focus-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .v30-focus__title { font-size: 28px; }
+  .v30-focus-cols { grid-template-columns: 1fr; gap: 12px; }
+}
+
 /* Responsive fallback */
 @media (max-width: 1100px) {
   .v30-bento-0 { grid-template-columns: 1fr; }
@@ -783,4 +804,34 @@
 @media (max-width: 720px) {
   .v30-objs__top { grid-template-columns: 1fr; justify-items: center; }
   .v30-objs__legend { width: 100%; }
+}
+
+/* ─── Dashboard mobile adjustments ─── */
+@media (max-width: 900px) {
+  .v30-hero { padding: 4px 0 16px; }
+  .v30-hero__title { font-size: 24px; }
+  .v30-hero__kpis { gap: 16px; }
+  .v30-hero-kpi__value { font-size: 28px; }
+  .v30-hero__actions { margin-top: 8px; }
+
+  /* Streak card moins de padding */
+  .v30-streak { padding: 10px 12px; }
+
+  /* Insights row : 1 colonne si trop serré */
+  .v30-perf__insights { grid-template-columns: 1fr; gap: 6px; }
+  .v30-perf__insight { padding: 8px 10px; }
+  .v30-perf__insight-value { font-size: 18px; }
+
+  /* Performance chips : 1 colonne plus lisible */
+  .v30-perf__chips { grid-template-columns: 1fr; }
+
+  /* Performance chart moins haut */
+  .v30-perf__chart { min-height: 140px; max-height: 180px; }
+
+  /* Objectifs card padding réduit */
+  .v30-objs { padding: 12px; }
+  .v30-objs__top { grid-template-columns: 1fr; justify-items: center; gap: 12px; }
+
+  /* Timeline */
+  .v30-timeline { padding: 8px 10px; }
 }

@@ -1,6 +1,47 @@
-/* ProspUp v30 — Topbar : menu avatar + notification bell */
+/* ProspUp v30 — Topbar : menu avatar + notification bell + burger mobile */
 (function () {
   'use strict';
+
+  /* ─── Burger → Sidebar drawer (mobile) ─── */
+  var burger   = document.querySelector('[data-v30-burger]');
+  var sidebar  = document.getElementById('v30-sidebar');
+  var backdrop = document.querySelector('[data-v30-sidebar-backdrop]');
+  if (burger && sidebar && backdrop) {
+    function openDrawer() {
+      sidebar.classList.add('is-open');
+      backdrop.classList.add('is-open');
+      backdrop.hidden = false;
+      burger.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeDrawer() {
+      sidebar.classList.remove('is-open');
+      backdrop.classList.remove('is-open');
+      burger.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+      setTimeout(function () {
+        if (!backdrop.classList.contains('is-open')) backdrop.hidden = true;
+      }, 220);
+    }
+    burger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (sidebar.classList.contains('is-open')) closeDrawer();
+      else openDrawer();
+    });
+    backdrop.addEventListener('click', closeDrawer);
+    // Ferme le drawer dès qu'on clique sur un lien de la sidebar
+    sidebar.addEventListener('click', function (e) {
+      var link = e.target.closest('a');
+      if (link) closeDrawer();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && sidebar.classList.contains('is-open')) closeDrawer();
+    });
+    // Ferme automatiquement quand on repasse en desktop
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 900 && sidebar.classList.contains('is-open')) closeDrawer();
+    });
+  }
 
   /* ─── Notification bell ─── */
   var notifRoot = document.querySelector('[data-v30-notif]');

@@ -111,4 +111,20 @@
 }
 @media (max-width: 900px) {
   .v30-sc-kanban { grid-template-columns: 1fr; }
+  .v30-sc-topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .v30-sc-topbar h1 { font-size: 20px; flex: 0 0 100%; }
+  .v30-sc-topbar__count { flex: 1 0 auto; }
+  .v30-sc-topbar .segmented { flex-wrap: wrap; }
+  .v30-sc-topbar .btn > span:not(.badge) { display: none; }
+  .v30-sc-topbar [data-sc-search] { flex: 1 1 auto; min-width: 120px; }
+
+  .v30-sc-match {
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    font-size: 11.5px;
+  }
 }

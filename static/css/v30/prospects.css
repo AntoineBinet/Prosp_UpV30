@@ -108,12 +108,16 @@
 
 
 /* KPI cards (parite v29) */
-.v30-pp-kpis {
+.v30-pp-kpis,
+.v30-ent-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin: 14px 0 6px;
 }
+.v30-ent-kpis { padding: 16px 0; }
+.v30-ent-kpis .card { padding: 14px; }
+.v30-ent-kpis .serif { font-size: 28px; line-height: 1.1; margin-top: 4px; }
 .v30-pp-kpis .v30-kpi-card {
   padding: 12px 14px;
   border: 1px solid var(--border);
@@ -635,4 +639,94 @@
   .v30-pp-kanban { grid-template-columns: 1fr; }
   .v30-pp-split  { grid-template-columns: 1fr; }
   .v30-pp-split__list { border-right: 0; border-bottom: 1px solid var(--border); }
+
+  /* Topbar de page : wrapping + scroll horizontal de la barre de boutons */
+  .v30-pp-topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 0;
+  }
+  .v30-pp-topbar h1 { font-size: 20px; flex: 0 0 100%; }
+  .v30-pp-topbar .segmented { flex: 0 0 auto; }
+  .v30-pp-topbar .v30-spacer { flex: 1 0 0; }
+  .v30-pp-topbar .btn { white-space: nowrap; }
+  .v30-pp-topbar .btn > span:not(.badge):not(.mono) { /* hide button labels */ }
+
+  /* KPIs : 2 cols sur mobile */
+  .v30-pp-kpis,
+  .v30-ent-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .v30-pp-kpis .v30-kpi-card,
+  .v30-ent-kpis .card { padding: 10px 12px; }
+  .v30-pp-kpis .v30-kpi-card__value,
+  .v30-ent-kpis .serif { font-size: 22px !important; }
+
+  /* Table générique : pas de table-layout fixed pour laisser respirer */
+  .v30-pp-table-wrap { border-radius: 8px; }
+  .v30-pp-table { table-layout: auto; }
+  .v30-pp-table th, .v30-pp-table td {
+    padding: 10px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* Views pills : ligne scrollable */
+  .v30-pp-views {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 10px 0;
+  }
+  .v30-pp-views::-webkit-scrollbar { display: none; }
+  .v30-pp-views > * { flex-shrink: 0; }
+  .v30-pp-views .v30-pp-search { width: 180px; min-width: 140px; }
+
+  /* Search pleine largeur quand possible */
+  .v30-pp-search { width: 100%; }
+
+  /* Table : scroll horizontal avec indication */
+  .v30-pp-table-scroll {
+    max-height: calc(100vh - 320px);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Footer pagination : moins de padding */
+  .v30-pp-pagin { padding: 8px 10px; flex-wrap: wrap; gap: 6px; }
+
+  /* Banner filter restored : reste dans l'écran */
+  .v30-pp-restored-banner {
+    margin: 10px 8px !important;
+    padding: 8px 10px !important;
+    font-size: 11.5px;
+  }
+  .v30-pp-restored-banner > span { font-size: 11.5px !important; }
+  /* Cellule td empty state: ne pas forcer une largeur minimale */
+  .v30-pp-table td .v30-pp-empty,
+  .v30-pp-table td .v30-pp-restored-banner {
+    position: sticky;
+    left: 0;
+    max-width: calc(100vw - 52px);
+  }
+}
+
+@media (max-width: 600px) {
+  /* Masque les boutons moins essentiels pour laisser respirer */
+  .v30-pp-topbar [data-v30-columns],
+  .v30-pp-topbar [data-v30-import],
+  .v30-pp-topbar [data-v30-export],
+  .v30-pp-topbar [data-v30-flt-clear-all],
+  .v30-pp-topbar a[href*="archives"] { display: none; }
+
+  /* Les boutons principaux deviennent icon-only */
+  .v30-pp-topbar [data-v30-filters] span:not(.badge),
+  .v30-pp-topbar [data-v30-mode-prosp] span,
+  .v30-pp-topbar [data-v30-add] span { display: none; }
+
+  /* View switcher : icon-only */
+  .v30-pp-topbar .segmented button {
+    padding: 6px 10px;
+  }
 }

@@ -318,24 +318,106 @@
 :root[data-theme="dark"] .v30-theme-toggle__sun { display: inline-flex; }
 :root[data-theme="dark"] .v30-theme-toggle__moon { display: none; }
 
+/* ─────────── Burger button (mobile only) ─────────── */
+.v30-burger { display: none; }
+
+/* ─────────── Sidebar drawer backdrop (mobile only) ─────────── */
+.v30-sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 45;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.v30-sidebar-backdrop.is-open {
+  display: block;
+  opacity: 1;
+}
+
 /* ─────────── Responsive (mobile fallback) ─────────── */
 @media (max-width: 900px) {
+  .v30-burger { display: inline-flex; flex-shrink: 0; }
+
+  /* Sidebar devient un drawer caché par défaut */
   .v30-sidebar {
-    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 85vw;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.22s var(--ease);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+    overflow-y: auto;
+    padding-top: 16px;
+  }
+  .v30-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  /* Topbar : hide the kbd, hide the cmdk "C" shortcut, hide Create label on very small */
+  .v30-topbar {
+    gap: 6px;
+    padding: 0 8px;
   }
   .v30-topbar__brand {
     min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
   }
+  .v30-logo { display: none; }
+  .v30-crumbs {
+    font-size: 13px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .v30-crumbs__item {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  /* N'afficher que le dernier crumb sur mobile */
+  .v30-crumbs__item:not(.is-current),
+  .v30-crumbs__sep { display: none; }
+
   .v30-cmdk {
     width: auto;
-    flex: 1;
-    min-width: 120px;
+    flex: 0 0 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    justify-content: center;
   }
+  .v30-cmdk__label { gap: 0; }
   .v30-cmdk__label span:not(svg) {
     display: none;
   }
   .v30-cmdk__kbd {
     display: none;
+  }
+
+  /* Bouton Créer : icône seule pour gagner de la place */
+  .v30-topbar [data-v30-create] {
+    padding: 0 8px;
+    gap: 4px;
+  }
+  .v30-topbar [data-v30-create] > span:not(.kbd) { display: none; }
+  .v30-topbar [data-v30-create] .kbd.v30-kbd-trailing { display: none; }
+
+  /* Espacement autour des contrôles */
+  .v30-notif__trigger, .v30-avatar-menu__trigger {
+    flex-shrink: 0;
+  }
+
+  /* Réduit le padding du contenu */
+  .v30-main__inner {
+    padding: 14px 14px;
   }
 }
 

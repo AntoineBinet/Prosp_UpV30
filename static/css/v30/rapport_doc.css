@@ -17,6 +17,21 @@
   background: var(--surface-2);
 }
 .v30-stats-hot__row .num { text-align: right; }
+.v30-stats-hot__row > *:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .v30-stats-hot { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .v30-stats-hot__row {
+    min-width: 600px;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+}
 
 .v30-rep-toolbar {
   display: flex;

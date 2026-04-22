@@ -19,6 +19,17 @@
 }
 .v30-push-topbar .btn { flex-shrink: 0; white-space: nowrap; }
 
+@media (max-width: 900px) {
+  .v30-push-topbar {
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 10px 0 0;
+  }
+  .v30-push-topbar h1 { font-size: 20px; flex: 0 0 100%; }
+  .v30-push-topbar .segmented { flex-wrap: wrap; }
+  .v30-push-topbar .v30-spacer { flex: 1 0 0; }
+}
+
 /* ─── Campagnes : liste cartes horizontales ─── */
 .v30-camp-card {
   padding: 16px;

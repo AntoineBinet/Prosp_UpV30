@@ -9,6 +9,12 @@
 .v30-chart-full{grid-column:1/-1;}
 .v30-chart-card .card-title{font-size:13px;font-weight:600;margin-bottom:12px;}
 .v30-chart-card canvas{max-height:280px;}
+.v30-stats-kpis{display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;margin-bottom:16px;}
+@media(max-width:900px){
+  .v30-stats-kpis{grid-template-columns:repeat(2, 1fr); gap:8px;}
+  .v30-stats-kpis .card{padding:10px 12px;}
+  .v30-stats-kpis .serif{font-size:22px !important;}
+}
 @media(max-width:700px){.v30-charts-grid{grid-template-columns:1fr;}.v30-chart-full{grid-column:1;}}
 </style>
 {% endblock %}
@@ -37,7 +43,7 @@
   {# ─── Panel : Tableau de bord ─── #}
   <div data-v30-stats-panel="dashboard">
 
-    <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;margin-bottom:16px;">
+    <div class="v30-stats-kpis">
       {% for k in [
         {'key':'total',  'label':'Prospects total'},
         {'key':'companies','label':'Entreprises'},
