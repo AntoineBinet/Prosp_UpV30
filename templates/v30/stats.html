@@ -4,6 +4,13 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="/static/css/v30/rapport_doc.css?v={{ static_hash('css/v30/rapport_doc.css') }}">
+<style>
+.v30-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.v30-chart-full{grid-column:1/-1;}
+.v30-chart-card .card-title{font-size:13px;font-weight:600;margin-bottom:12px;}
+.v30-chart-card canvas{max-height:280px;}
+@media(max-width:700px){.v30-charts-grid{grid-template-columns:1fr;}.v30-chart-full{grid-column:1;}}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -25,9 +32,6 @@
       <button type="button" data-period="90">90j</button>
       <button type="button" data-period="all">Tout</button>
     </div>
-    <a class="btn btn-sm" href="/stats?force_v29=1" title="Graphiques Chart.js disponibles sur la v29 (portage à venir)">
-      {{ ui.icon('arrowR', 13) }} Graphiques détaillés (v29)
-    </a>
   </div>
 
   {# ─── Panel : Tableau de bord ─── #}
@@ -74,16 +78,51 @@
       </div>
     </div>
 
-    <div class="card" style="padding:20px;margin-top:16px;border:1px dashed var(--border-strong);text-align:center;">
-      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;">Graphiques détaillés</div>
-      <div style="font-size:12.5px;color:var(--text-2);max-width:480px;margin:0 auto 10px;line-height:1.6;">
-        Les 8 charts Chart.js (funnel, heatmap, top pushés, répartition urgence…) restent
-        sur la page <b>Stats legacy</b> pour l'instant. Migration complète dans un commit
-        ultérieur.
+    {# ─── Graphiques Chart.js ─── #}
+    <div style="margin-top:16px;">
+      <div id="v30ChartsLoader" style="text-align:center;padding:30px;font-size:13px;color:var(--text-3);">Chargement des graphiques…</div>
+      <div class="v30-charts-grid" id="v30ChartsGrid" style="display:none;">
+        <div class="card v30-chart-card">
+          <div class="card-title">Répartition par statut</div>
+          <canvas id="chartStatus"></canvas>
+        </div>
+        <div class="card v30-chart-card">
+          <div class="card-title">Distribution pertinence</div>
+          <canvas id="chartPertinence"></canvas>
+        </div>
+        <div class="card v30-chart-card v30-chart-full">
+          <div class="card-title">Push envoyés par semaine (12 dernières)</div>
+          <canvas id="chartPush"></canvas>
+        </div>
+        <div class="card v30-chart-card">
+          <div class="card-title">RDV obtenus par mois</div>
+          <canvas id="chartRdv"></canvas>
+        </div>
+        <div class="card v30-chart-card">
+          <div class="card-title">Top entreprises</div>
+          <canvas id="chartCompanies"></canvas>
+        </div>
+        <div class="card v30-chart-card">
+          <div class="card-title">Taux de conversion par étape</div>
+          <canvas id="chartFunnel"></canvas>
+        </div>
+        <div class="card v30-chart-card">
+          <div class="card-title">Évolution du portefeuille (12 semaines)</div>
+          <canvas id="chartPortfolio"></canvas>
+        </div>
+        <div class="card v30-chart-card v30-chart-full">
+          <div class="card-title">Top compétences demandées</div>
+          <canvas id="chartTags"></canvas>
+        </div>
+        <div class="card v30-chart-card v30-chart-full">
+          <div class="card-title">Appels passés par semaine (12 dernières)</div>
+          <canvas id="chartCalls"></canvas>
+        </div>
+        <div class="card v30-chart-card v30-chart-full">
+          <div class="card-title">Activité hebdomadaire (appels + notes + push)</div>
+          <canvas id="chartActivityWeek"></canvas>
+        </div>
       </div>
-      <a class="btn btn-accent" href="/stats?force_v29=1">
-        {{ ui.icon('chart', 13) }} Ouvrir les graphiques détaillés (v29)
-      </a>
     </div>
 
   </div>
