@@ -199,14 +199,11 @@
     if (phones.length <= 1) {
       var clean = phones.length ? normTel(phones[0]) : String(tel).replace(/\s/g, '');
       var label = phones.length ? phones[0] : String(tel);
-      return '<a class="v30-pp-tel" href="tel:' + esc(clean) + '" title="Appeler">' +
-        badge + '<span class="v30-pp-tel__number">' + esc(label) + '</span>' +
-      '</a>';
+      return '<a class="v30-pp-tel" href="tel:' + esc(clean) + '" title="' + esc(label) + '">' + badge + '</a>';
     }
     return '<div class="v30-pp-tel v30-pp-tel--multi" data-v30-tel-multi' +
-        ' title="' + phones.length + ' numéros — cliquer pour choisir">' +
+        ' title="' + phones.length + ' numéros">' +
       badge +
-      '<span class="v30-pp-tel__number">' + esc(phones[0]) + '</span>' +
       '<span class="v30-pp-tel__arrow">▾</span>' +
       '<div class="v30-pp-tel-drop" hidden>' +
         phones.map(function (ph) {
@@ -256,20 +253,13 @@
         return '<td style="padding-left:14px;">' +
           '<input type="checkbox" data-v30-row-select' + (STATE.selected.has(p.id) ? ' checked' : '') + ' aria-label="Sélectionner">' +
           '</td>';
-      case 'name': {
-        var sub = [];
-        if (coName)      sub.push('<span class="v30-pp-name__co">' + esc(coName) + '</span>');
-        if (p.fonction)  sub.push(esc(p.fonction));
+      case 'name':
         return '<td>' +
           '<a class="v30-pp-name" href="#" data-v30-open="' + p.id + '">' +
-            '<span class="avatar v30-pp-avatar" data-hue="' + nameHue(p.name) + '">' + esc(initials(p.name)) + '</span>' +
-            '<div style="min-width:0;">' +
-              '<div class="v30-pp-name__value truncate">' + esc(p.name || '—') + '</div>' +
-              (sub.length ? '<div class="v30-pp-name__sub truncate">' + sub.join(' · ') + '</div>' : '') +
-            '</div>' +
+            '<span class="avatar v30-pp-avatar">' + esc(initials(p.name)) + '</span>' +
+            '<div class="v30-pp-name__value truncate">' + esc(p.name || '—') + '</div>' +
           '</a>' +
         '</td>';
-      }
       case 'company':    return '<td class="truncate" style="font-size:12.5px;color:var(--text-2);max-width:130px;">' + esc(coName) + '</td>';
       case 'statut':     return '<td>' + (p.statut ? '<span class="status ' + cls + '">' + esc(p.statut) + '</span>' : '—') + '</td>';
       case 'pertinence': return '<td>' + renderPertinence(p.pertinence) + '</td>';
@@ -319,7 +309,7 @@
 
   var COL_WIDTHS = {
     select: 32, name: 200, company: 115, statut: 98, pertinence: 70,
-    tel: 130, email: 130, push: 52, lastContact: 92, relance: 82, tags: 90, actions: 62
+    tel: 44, email: 130, push: 52, lastContact: 92, relance: 82, tags: 90, actions: 62
   };
 
   function renderTableHead() {
@@ -1095,11 +1085,10 @@
   }
   function updateFilterBadge() {
     var host = document.querySelector('[data-v30-filters] [data-field="active"]');
-    if (!host) return;
+    var clearBtn = document.querySelector('[data-v30-flt-clear-all]');
     var n = countActiveFilters();
-    if (n === 0) { host.hidden = true; return; }
-    host.hidden = false;
-    host.textContent = n;
+    if (host) { host.hidden = (n === 0); if (n > 0) host.textContent = n; }
+    if (clearBtn) clearBtn.hidden = (n === 0);
   }
   function openFiltersModal() {
     var m = getModal('filters');
@@ -1149,6 +1138,17 @@
       STATE.offset = 0;
       updateFilterBadge();
       closeModal(getModal('filters'));
+      savePersistedFilters();
+      loadProspects();
+    });
+    var clearAll = document.querySelector('[data-v30-flt-clear-all]');
+    if (clearAll) clearAll.addEventListener('click', function () {
+      STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
+      STATE.q = '';
+      var inp = document.querySelector('[data-v30-search]');
+      if (inp) inp.value = '';
+      STATE.offset = 0;
+      updateFilterBadge();
       savePersistedFilters();
       loadProspects();
     });

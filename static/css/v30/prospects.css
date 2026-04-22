@@ -250,13 +250,6 @@
   color: var(--text-2);
 }
 
-/* Avatar color variants */
-.v30-pp-avatar[data-hue="0"] { background: oklch(0.48 0.13 250); color: #fff; border-color: transparent; }
-.v30-pp-avatar[data-hue="1"] { background: oklch(0.47 0.12 145); color: #fff; border-color: transparent; }
-.v30-pp-avatar[data-hue="2"] { background: oklch(0.52 0.16 30);  color: #fff; border-color: transparent; }
-.v30-pp-avatar[data-hue="3"] { background: oklch(0.49 0.14 320); color: #fff; border-color: transparent; }
-.v30-pp-avatar[data-hue="4"] { background: oklch(0.47 0.13 200); color: #fff; border-color: transparent; }
-.v30-pp-avatar[data-hue="5"] { background: oklch(0.50 0.13 65);  color: #fff; border-color: transparent; }
 
 /* Pertinence bars (5 barres croissantes) */
 .v30-pertinence {
