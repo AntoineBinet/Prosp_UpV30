@@ -178,7 +178,6 @@
 }
 .v30-pp-table td {
   padding: 9px 10px;
-  overflow: hidden;
 }
 .v30-pp-email {
   display: block;
@@ -248,16 +247,12 @@
   font-size: 11.5px;
 }
 
-/* Actions row (hover-revealed) */
+/* Actions row */
 .v30-pp-actions {
   display: flex;
   gap: 2px;
   justify-content: flex-end;
-  opacity: 0;
-  transition: opacity var(--dur-1);
 }
-.v30-pp-table tr:hover .v30-pp-actions,
-.v30-pp-table tr.is-selected .v30-pp-actions { opacity: 1; }
 
 /* Footer pagination */
 .v30-pp-pagin {
