@@ -131,8 +131,9 @@
     rdv_taken:    'oklch(0.50 0.15 280)',
     reunion_tech: 'oklch(0.50 0.15 280)',
     contrat_signe:'var(--success)',
+    call:         'oklch(0.55 0.15 220)',
     call_note:    'oklch(0.55 0.15 220)',
-    note:         'var(--text-3)',
+    note:         'oklch(0.55 0.12 60)',
     status_change:'var(--success)',
     event:        'var(--text-3)'
   };
@@ -156,12 +157,13 @@
       var when = FP.relativeTime(e.date);
       var title = e.title || (e.type || 'Événement');
       var body = e.content || '';
+      var bodyHtml = body ? FP.esc(body).replace(/\n/g, '<br>') : '';
       return '<div class="v30-fp-ev">' +
         '<span class="v30-fp-ev__time mono">' + FP.esc(when) + '</span>' +
         '<span class="v30-fp-ev__dot" style="background:' + color + ';"></span>' +
         '<div>' +
           '<div class="v30-fp-ev__title">' + FP.esc(title) + '</div>' +
-          (body ? '<div class="v30-fp-ev__body">' + FP.esc(body) + '</div>' : '') +
+          (bodyHtml ? '<div class="v30-fp-ev__body">' + bodyHtml + '</div>' : '') +
         '</div>' +
       '</div>';
     }).join('');

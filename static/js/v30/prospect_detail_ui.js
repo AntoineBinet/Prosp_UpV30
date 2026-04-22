@@ -239,6 +239,65 @@
     });
   }
 
+  // ─── Éditer notes rapides ────────────────────────────────────
+  function bindEditNotes() {
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('[data-v30-edit-notes]')) return;
+      var notesEl = document.querySelector('[data-v30-edit="notes"]');
+      if (!notesEl) return;
+      notesEl.click();
+      notesEl.focus();
+    });
+  }
+
+  // ─── Ajouter une note dans la timeline ──────────────────────
+  function bindAddNote() {
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-add-note]')) {
+        var form = document.querySelector('[data-v30-note-form]');
+        if (!form) return;
+        form.style.display = 'block';
+        var ta = form.querySelector('[data-v30-note-text]');
+        if (ta) ta.focus();
+        return;
+      }
+      if (e.target.closest('[data-v30-note-cancel]')) {
+        var form = document.querySelector('[data-v30-note-form]');
+        if (form) {
+          form.style.display = 'none';
+          var ta = form.querySelector('[data-v30-note-text]');
+          if (ta) ta.value = '';
+        }
+        return;
+      }
+      if (e.target.closest('[data-v30-note-save]')) {
+        var form = document.querySelector('[data-v30-note-form]');
+        if (!form) return;
+        var ta = form.querySelector('[data-v30-note-text]');
+        var text = ta ? ta.value.trim() : '';
+        if (!text) { if (ta) ta.focus(); return; }
+        var saveBtn = form.querySelector('[data-v30-note-save]');
+        if (saveBtn) saveBtn.disabled = true;
+        FP.fetchPostJSON('/api/prospect/events/add', {
+          prospect_id: FP.ID,
+          title: 'Note',
+          content: text
+        }).then(function (res) {
+          if (!res || !res.ok) throw new Error('Échec');
+          form.style.display = 'none';
+          if (ta) ta.value = '';
+          return FP.loadTimeline();
+        }).then(function () {
+          flashSaved();
+        }).catch(function (err) {
+          alert('Erreur lors de l\'ajout de la note : ' + (err.message || ''));
+        }).finally(function () {
+          if (saveBtn) saveBtn.disabled = false;
+        });
+      }
+    });
+  }
+
   // ─── Drawer IA ──────────────────────────────────────────────
   function openDrawer(title, bodyHtml) {
     var bd = document.querySelector('[data-v30-drawer-backdrop]');
@@ -320,6 +379,8 @@
     bindStatusEdit();
     bindTabs();
     bindActivityFilter();
+    bindEditNotes();
+    bindAddNote();
     bindDrawer();
     bindHeaderActions();
     FP.loadTimeline();

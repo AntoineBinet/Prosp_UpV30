@@ -9160,6 +9160,35 @@ def api_prospect_log_stage():
     return jsonify(ok=True, stage=stage, date=today)
 
 
+@app.post("/api/prospect/events/add")
+def api_prospect_events_add():
+    """Ajoute un événement manuel (note) à la timeline d'un prospect."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    pid = payload.get("prospect_id")
+    if not pid:
+        return jsonify(ok=False, error="prospect_id requis"), 400
+    try:
+        pid_i = int(pid)
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="prospect_id invalide"), 400
+    if not _prospect_owned(pid_i):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    title = (payload.get("title") or "").strip() or "Note"
+    content = (payload.get("content") or "").strip()
+    etype = "note"
+    date = datetime.datetime.now().isoformat()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO prospect_events (prospect_id, date, type, title, content, createdAt)"
+            " VALUES (?, ?, ?, ?, ?, ?);",
+            (pid_i, date, etype, title, content, date),
+        )
+    return jsonify(ok=True, date=date)
+
+
 @app.get("/api/dashboard/pipeline-stages")
 def api_dashboard_pipeline_stages():
     """Retourne la distribution des prospects par étape de pipeline (frise chronologique)."""
