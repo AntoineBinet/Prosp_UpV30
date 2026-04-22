@@ -85,10 +85,22 @@
         <div class="card card-flush" style="margin-top:12px;">
           <div class="card-header">
             <div class="card-title">Activité</div>
-            <div style="display:flex;gap:4px;" data-v30-fp-filter>
-              <button type="button" class="btn btn-ghost btn-sm active" data-filter="all">Tous</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-filter="push">Push</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-filter="note">Notes</button>
+            <div style="display:flex;gap:4px;align-items:center;">
+              <div style="display:flex;gap:4px;" data-v30-fp-filter>
+                <button type="button" class="btn btn-ghost btn-sm active" data-filter="all">Tous</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-filter="push">Push</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-filter="note">Notes</button>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" data-v30-add-note style="margin-left:4px;">+ Note</button>
+            </div>
+          </div>
+          <div data-v30-note-form style="display:none;padding:10px 16px 4px;border-bottom:1px solid var(--border);">
+            <textarea data-v30-note-text rows="3"
+              style="width:100%;resize:vertical;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-1);font-family:inherit;"
+              placeholder="Ajouter une note…"></textarea>
+            <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
+              <button type="button" class="btn btn-ghost btn-sm" data-v30-note-cancel>Annuler</button>
+              <button type="button" class="btn btn-accent btn-sm" data-v30-note-save>Enregistrer</button>
             </div>
           </div>
           <div class="v30-fp-timeline" data-v30-fp-events>
