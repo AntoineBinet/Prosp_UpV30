@@ -208,7 +208,6 @@
           '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-ai="' + p.id + '" title="Enrichir via IA">' +
             '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 4 4 2-4 2-2 4-2-4-4-2 4-2z"/></svg>' +
           '</button>' +
-          '<a class="btn btn-sm" href="/v30/prospect/' + p.id + '" title="Ouvrir la fiche">Voir</a>' +
         '</div></td>';
       default: return '';
     }
@@ -221,12 +220,12 @@
   function renderRow(p) {
     var sel = STATE.selected.has(p.id);
     var cells = activeCols().map(function (c) { return cellFor(p, c.key); }).join('');
-    return '<tr class="' + (sel ? 'is-selected' : '') + '" data-id="' + p.id + '">' + cells + '</tr>';
+    return '<tr class="' + (sel ? 'is-selected' : '') + '" data-id="' + p.id + '" data-v30-open="' + p.id + '">' + cells + '</tr>';
   }
 
   var COL_WIDTHS = {
     select: 32, name: 185, company: 130, statut: 95, pertinence: 72,
-    tel: 108, email: 128, push: 55, lastContact: 95, relance: 88, tags: 88, actions: 98
+    tel: 108, email: 128, push: 55, lastContact: 95, relance: 88, tags: 88, actions: 60
   };
 
   function renderTableHead() {
@@ -582,6 +581,8 @@
     document.addEventListener('click', function (e) {
       var a = e.target.closest('[data-v30-open]');
       if (!a) return;
+      // Ne pas naviguer si on clique sur un élément interactif dans la ligne
+      if (e.target.closest('button, input, a[href]:not([data-v30-open])')) return;
       e.preventDefault();
       var id = a.dataset.v30Open;
       window.location.href = '/v30/prospect/' + encodeURIComponent(id);

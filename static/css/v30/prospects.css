@@ -176,14 +176,42 @@
 .v30-pp-table {
   table-layout: fixed;
 }
+.v30-pp-table th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-3);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
 .v30-pp-table td {
-  padding: 9px 10px;
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.v30-pp-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.v30-pp-table tbody tr[data-v30-open] {
+  cursor: pointer;
+  transition: background .1s;
+}
+.v30-pp-table tbody tr[data-v30-open]:hover td {
+  background: color-mix(in oklch, var(--accent) 4%, var(--surface));
 }
 .v30-pp-email {
   display: block;
 }
 .v30-pp-table tr.is-selected td {
   background: color-mix(in oklch, var(--accent) 8%, var(--surface));
+}
+.v30-pp-table tr.is-selected[data-v30-open]:hover td {
+  background: color-mix(in oklch, var(--accent) 12%, var(--surface));
 }
 
 .v30-pp-name {
