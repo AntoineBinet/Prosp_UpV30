@@ -89,6 +89,15 @@
         <div class="v30-perf__chart" data-field="chart">
           <div class="skel" style="width:100%;height:110px;border-radius:8px;"></div>
         </div>
+        <div class="v30-perf__insights" data-field="insights">
+          {% for _ in range(3) %}
+          <div class="v30-perf__insight">
+            <div class="v30-perf__insight-label"><span class="skel" style="width:70px;height:10px;display:inline-block;"></span></div>
+            <div class="v30-perf__insight-value"><span class="skel" style="width:40px;height:20px;display:inline-block;"></span></div>
+            <div class="v30-perf__insight-sub"><span class="skel" style="width:60px;height:10px;display:inline-block;"></span></div>
+          </div>
+          {% endfor %}
+        </div>
       </div>
 
       {# Tabs Action center intégrés — branchés sur /api/tasks + /api/dashboard #}

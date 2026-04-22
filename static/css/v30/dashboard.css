@@ -502,9 +502,57 @@
   width: 100%;
   min-width: 0;
   min-height: 110px;
-  max-height: 260px;
+  max-height: 180px;
 }
 .v30-perf__chart canvas { width: 100% !important; height: 100% !important; }
+
+/* ─── Insights row sous le chart ─── */
+.v30-perf__insights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  flex: 0 0 auto;
+}
+.v30-perf__insight {
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v30-perf__insight-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.v30-perf__insight-label svg { opacity: .8; }
+.v30-perf__insight-value {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  line-height: 1.1;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v30-perf__insight-sub {
+  font-size: 10.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v30-perf__insight--positive .v30-perf__insight-value { color: var(--success); }
+.v30-perf__insight--negative .v30-perf__insight-value { color: var(--danger); }
 
 
 /* ─── Objectifs card ─── */

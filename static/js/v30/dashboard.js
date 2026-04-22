@@ -574,6 +574,85 @@
     }
 
     renderPerformanceChart(days, w);
+    renderPerfInsights(data, days, pw);
+  }
+
+  function renderPerfInsights(data, days, prevWeek) {
+    var host = document.querySelector('[data-v30-perf] [data-field="insights"]');
+    if (!host) return;
+    var pipeline = data.pipeline || {};
+    var w = data.week || {};
+    var esc = function (s) { var e = document.createElement('span'); e.textContent = s == null ? '' : String(s); return e.innerHTML; };
+
+    // 1. Meilleur jour : day with max (contacts + push)
+    var bestDay = null, bestScore = -1;
+    (days || []).forEach(function (d) {
+      var c = (d.calls || 0) > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0);
+      var p = d.push || 0;
+      var score = c + p;
+      if (score > bestScore) { bestScore = score; bestDay = d; }
+    });
+    var bestDayLabel = bestDay && bestScore > 0 ? dayShort(bestDay.date) : '—';
+    var bestDaySub = bestScore > 0 ? (bestScore + ' action' + (bestScore > 1 ? 's' : '')) : 'Pas d\'activité';
+
+    // 2. Série active : nb de jours consécutifs depuis aujourd'hui avec activité > 0
+    var streak = 0;
+    for (var i = (days || []).length - 1; i >= 0; i--) {
+      var dd = days[i];
+      var hasActivity = (dd.calls || 0) + (dd.notes || 0) + (dd.push || 0) + (dd.rdv || 0) > 0;
+      if (hasActivity) streak++;
+      else break;
+    }
+    var streakSub = (days || []).length > 0 ? (days.length + ' jour' + (days.length > 1 ? 's' : '') + ' actif' + (days.length > 1 ? 's' : '') + ' sem.') : '';
+    // Recount total active days in week for sub
+    var activeDays = (days || []).filter(function (d) {
+      return (d.calls || 0) + (d.notes || 0) + (d.push || 0) + (d.rdv || 0) > 0;
+    }).length;
+    streakSub = activeDays + ' jour' + (activeDays > 1 ? 's' : '') + ' actif' + (activeDays > 1 ? 's' : '') + ' sem.';
+
+    // 3. Conversion RDV : part de prospects en statut Rendez-vous sur le pipeline actif
+    var total = pipeline.total || 0;
+    var rdv = pipeline.rdv || 0;
+    var convPct = total > 0 ? Math.round((rdv / total) * 1000) / 10 : 0;
+    var convDelta = '';
+    if (prevWeek && prevWeek.push_total != null) {
+      var thisPush = w.push_total || 0;
+      var prevPush = prevWeek.push_total || 0;
+      if (prevPush > 0) {
+        var diff = Math.round(((thisPush - prevPush) / prevPush) * 100);
+        convDelta = (diff >= 0 ? '+' : '') + diff + '% push vs sem-1';
+      }
+    }
+
+    var insights = [
+      {
+        label: 'Meilleur jour',
+        value: bestDayLabel,
+        sub: bestDaySub,
+        icon: '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+      },
+      {
+        label: 'Série active',
+        value: streak + (streak <= 1 ? ' jour' : ' jours'),
+        sub: streakSub,
+        modifier: streak >= 3 ? 'positive' : ''
+      },
+      {
+        label: 'Conversion RDV',
+        value: convPct + '%',
+        sub: convDelta || (rdv + ' sur ' + total),
+        modifier: convPct >= 10 ? 'positive' : (convPct === 0 ? 'negative' : '')
+      }
+    ];
+
+    host.innerHTML = insights.map(function (it) {
+      var cls = 'v30-perf__insight' + (it.modifier ? ' v30-perf__insight--' + it.modifier : '');
+      return '<div class="' + cls + '">' +
+        '<div class="v30-perf__insight-label">' + (it.icon || '') + esc(it.label) + '</div>' +
+        '<div class="v30-perf__insight-value num">' + esc(it.value) + '</div>' +
+        '<div class="v30-perf__insight-sub">' + esc(it.sub) + '</div>' +
+      '</div>';
+    }).join('');
   }
 
   function renderPerformanceChart(days, week) {
