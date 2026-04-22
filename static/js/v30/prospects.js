@@ -475,10 +475,19 @@
   }
 
   function updateCounts() {
+    var all = STATE.allForKpis || [];
     var totalEl = document.querySelector('[data-v30-prospects] [data-field="total"]');
     if (totalEl) totalEl.textContent = STATE.total.toLocaleString('fr-FR');
     var allEl = document.querySelector('.v30-pp-views [data-view-filter="all"] [data-field="count"]');
-    if (allEl) allEl.textContent = STATE.total.toLocaleString('fr-FR');
+    if (allEl) allEl.textContent = all.length.toLocaleString('fr-FR');
+    var relanceEl = document.querySelector('.v30-pp-views [data-view-filter="relance"] [data-field="count"]');
+    if (relanceEl) relanceEl.textContent = all.filter(function (p) {
+      return /(relanc|relance|À rappeler|A rappeler|rappeler)/i.test(p.statut || '');
+    }).length.toLocaleString('fr-FR');
+    var hotEl = document.querySelector('.v30-pp-views [data-view-filter="hot"] [data-field="count"]');
+    if (hotEl) hotEl.textContent = all.filter(function (p) {
+      return parseInt(p.pertinence, 10) >= 4;
+    }).length.toLocaleString('fr-FR');
   }
 
   // KPI cards : Total / Appelables / RDV / Prospectes (parite v29)
@@ -727,9 +736,13 @@
 
   // ─── Pills (Tous / Mes / A relancer / Hot + saved views) ────
   function applyViewFilter(name) {
-    // Filtres built-in : on patch STATE.filters puis on reload
     STATE.filter = name;
+    STATE.q = '';
+    STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
     STATE.offset = 0;
+    var inp = document.querySelector('[data-v30-search]');
+    if (inp) inp.value = '';
+    updateFilterBadge();
     loadProspects();
   }
 
@@ -739,6 +752,7 @@
         document.querySelectorAll('.v30-pp-views [data-view-filter]').forEach(function (b) {
           b.classList.toggle('is-active', b === btn);
         });
+        document.querySelectorAll('[data-saved-view-id]').forEach(function (b) { b.classList.remove('is-active'); });
         applyViewFilter(btn.dataset.viewFilter);
       });
     });
@@ -762,7 +776,11 @@
         var inp = document.querySelector('[data-v30-search]');
         if (inp) inp.value = STATE.q;
         STATE.filter = st.filter || 'all';
+        STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
         STATE.offset = 0;
+        document.querySelectorAll('.v30-pp-views [data-view-filter]').forEach(function (b) { b.classList.remove('is-active'); });
+        document.querySelectorAll('[data-saved-view-id]').forEach(function (b) { b.classList.toggle('is-active', b === btn); });
+        updateFilterBadge();
         loadProspects();
       });
     });
