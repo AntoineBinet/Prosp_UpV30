@@ -16,6 +16,7 @@
     { key: 'tags', label: 'Tags' },
     { key: 'actions', label: 'Actions', fixed: true }
   ];
+  var SORTABLE_COLS = ['name', 'company', 'statut', 'pertinence', 'lastContact', 'relance'];
   var DEFAULT_COLS = ALL_COLS.map(function (c) { return c.key; });
   var STATUS_OPTIONS = ["Pas d'actions", 'Appelé', 'À rappeler', 'Rendez-vous', 'Prospecté', 'Messagerie', 'Pas intéressé'];
 
@@ -50,6 +51,7 @@
       callableOnly: false,
       companyId: null
     },
+    sort: { key: '', dir: 'asc' },
     bulkAction: null
   };
 
@@ -114,6 +116,23 @@
       method: 'POST',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(body || {})
+    });
+  }
+
+  function sortArray(arr, key, dir) {
+    return arr.slice().sort(function (a, b) {
+      var va, vb;
+      switch (key) {
+        case 'name':        va = String(a.name || '').toLowerCase();        vb = String(b.name || '').toLowerCase(); break;
+        case 'company':     va = String(a.company_groupe || STATE.companies[a.company_id] || '').toLowerCase(); vb = String(b.company_groupe || STATE.companies[b.company_id] || '').toLowerCase(); break;
+        case 'statut':      va = String(a.statut || '').toLowerCase();      vb = String(b.statut || '').toLowerCase(); break;
+        case 'pertinence':  va = parseInt(a.pertinence, 10) || 0;           vb = parseInt(b.pertinence, 10) || 0;   break;
+        case 'lastContact': va = a.lastContact ? String(a.lastContact).slice(0, 10) : '';   vb = b.lastContact ? String(b.lastContact).slice(0, 10) : '';   break;
+        case 'relance':     va = a.nextFollowUp ? String(a.nextFollowUp).slice(0, 10) : ''; vb = b.nextFollowUp ? String(b.nextFollowUp).slice(0, 10) : ''; break;
+        default: return 0;
+      }
+      var cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return dir === 'desc' ? -cmp : cmp;
     });
   }
 
@@ -232,10 +251,18 @@
     var thead = document.querySelector('.v30-pp-table thead tr');
     if (!thead) return;
     var cols = activeCols();
+    var sortKey = STATE.sort && STATE.sort.key;
+    var sortDir = STATE.sort && STATE.sort.dir;
     var html = cols.map(function (c) {
       var w = COL_WIDTHS[c.key];
       var style = w ? 'width:' + w + 'px;' : '';
       if (c.key === 'select') return '<th style="' + style + 'padding-left:14px;"><input type="checkbox" data-v30-select-all aria-label="Tout sélectionner"></th>';
+      if (SORTABLE_COLS.indexOf(c.key) >= 0) {
+        var arrow = sortKey === c.key
+          ? (sortDir === 'asc' ? ' <span style="opacity:.7;font-size:10px;">↑</span>' : ' <span style="opacity:.7;font-size:10px;">↓</span>')
+          : ' <span style="opacity:.25;font-size:10px;">↕</span>';
+        return '<th style="' + style + 'cursor:pointer;user-select:none;" data-sort-key="' + c.key + '" title="Trier">' + esc(c.label) + arrow + '</th>';
+      }
       return '<th' + (style ? ' style="' + style + '"' : '') + '>' + esc(c.label) + '</th>';
     }).join('');
     thead.innerHTML = html;
@@ -439,6 +466,7 @@
       });
       STATE.total = filtered.length;
       STATE.allForKpis = all; // garde le dataset non filtre pour les KPI
+      if (STATE.sort && STATE.sort.key) filtered = sortArray(filtered, STATE.sort.key, STATE.sort.dir);
       // Pagination client-side (utile surtout pour /api/data qui renvoie tout)
       var start = STATE.offset || 0;
       var end = start + (STATE.limit || 50);
@@ -735,6 +763,23 @@
     });
   }
 
+  // ─── Tri colonnes ────────────────────────────────────────────
+  function bindSort() {
+    document.addEventListener('click', function (e) {
+      var th = e.target.closest('th[data-sort-key]');
+      if (!th) return;
+      var key = th.dataset.sortKey;
+      if (STATE.sort.key === key) {
+        STATE.sort.dir = STATE.sort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        STATE.sort.key = key;
+        STATE.sort.dir = 'asc';
+      }
+      STATE.offset = 0;
+      loadProspects();
+    });
+  }
+
   // ─── Pills (Tous / Mes / A relancer / Hot + saved views) ────
   function applyViewFilter(name) {
     STATE.filter = name;
@@ -777,7 +822,15 @@
         var inp = document.querySelector('[data-v30-search]');
         if (inp) inp.value = STATE.q;
         STATE.filter = st.filter || 'all';
-        STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
+        STATE.filters = {
+          statuts: st.statuts || [],
+          pertMin: st.pertMin || 0,
+          tags: st.tags || [],
+          relanceFrom: st.relanceFrom || '',
+          relanceTo: st.relanceTo || '',
+          callableOnly: !!st.callableOnly,
+          companyId: st.companyId || null
+        };
         STATE.offset = 0;
         document.querySelectorAll('.v30-pp-views [data-view-filter]').forEach(function (b) { b.classList.remove('is-active'); });
         document.querySelectorAll('[data-saved-view-id]').forEach(function (b) { b.classList.toggle('is-active', b === btn); });
@@ -816,7 +869,17 @@
         body: JSON.stringify({
           page: 'prospects',
           name: name,
-          state: { q: STATE.q || '', filter: STATE.filter || 'all' }
+          state: {
+              q: STATE.q || '',
+              filter: STATE.filter || 'all',
+              statuts: STATE.filters.statuts || [],
+              pertMin: STATE.filters.pertMin || 0,
+              tags: STATE.filters.tags || [],
+              relanceFrom: STATE.filters.relanceFrom || '',
+              relanceTo: STATE.filters.relanceTo || '',
+              callableOnly: !!STATE.filters.callableOnly,
+              companyId: STATE.filters.companyId || null
+            }
         })
       }).then(function (r) { return r.json(); })
         .then(function (res) {
@@ -876,6 +939,17 @@
       return '<option value="' + esc(n) + '">';
     }).join('');
   }
+  function populateCompanyFilter() {
+    var sel = document.querySelector('[data-v30-flt-company]');
+    if (!sel) return;
+    var cur = String(STATE.filters.companyId || '');
+    var ids = Object.keys(STATE.companies).filter(function (id) { return STATE.companies[id]; });
+    ids.sort(function (a, b) { return STATE.companies[a].localeCompare(STATE.companies[b], 'fr', { sensitivity: 'base' }); });
+    sel.innerHTML = '<option value="">Toutes les entreprises</option>' +
+      ids.map(function (id) { return '<option value="' + esc(id) + '">' + esc(STATE.companies[id]) + '</option>'; }).join('');
+    if (cur) sel.value = cur;
+  }
+
   function bindAdd() {
     var btn = document.querySelector('[data-v30-add]');
     if (btn) btn.addEventListener('click', function () {
@@ -930,6 +1004,7 @@
     if (F.tags && F.tags.length) n++;
     if (F.relanceFrom || F.relanceTo) n++;
     if (F.callableOnly) n++;
+    if (F.companyId) n++;
     return n;
   }
   function updateFilterBadge() {
@@ -949,6 +1024,8 @@
     });
     var pm = m.querySelector('[data-v30-flt-pert-min]'); if (pm) pm.value = String(F.pertMin || 0);
     var tg = m.querySelector('[data-v30-flt-tags]');   if (tg) tg.value = (F.tags || []).join(', ');
+    populateCompanyFilter();
+    var cp = m.querySelector('[data-v30-flt-company]'); if (cp) cp.value = String(F.companyId || '');
     var rf = m.querySelector('[data-v30-flt-relance-from]'); if (rf) rf.value = F.relanceFrom || '';
     var rt = m.querySelector('[data-v30-flt-relance-to]');   if (rt) rt.value = F.relanceTo || '';
     var co = m.querySelector('[data-v30-flt-callable]'); if (co) co.checked = !!F.callableOnly;
@@ -964,13 +1041,15 @@
       m.querySelectorAll('[data-v30-flt-statut] input[type=checkbox]:checked').forEach(function (cb) { statuts.push(cb.value); });
       var tagsRaw = (m.querySelector('[data-v30-flt-tags]') || {}).value || '';
       var tags = tagsRaw.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+      var compEl = m.querySelector('[data-v30-flt-company]');
       STATE.filters = {
         statuts: statuts,
         pertMin: parseInt((m.querySelector('[data-v30-flt-pert-min]') || {}).value || '0', 10),
         tags: tags,
         relanceFrom: (m.querySelector('[data-v30-flt-relance-from]') || {}).value || '',
         relanceTo: (m.querySelector('[data-v30-flt-relance-to]') || {}).value || '',
-        callableOnly: !!(m.querySelector('[data-v30-flt-callable]') || {}).checked
+        callableOnly: !!(m.querySelector('[data-v30-flt-callable]') || {}).checked,
+        companyId: compEl && compEl.value ? Number(compEl.value) : null
       };
       STATE.offset = 0;
       updateFilterBadge();
@@ -979,7 +1058,7 @@
     });
     var reset = document.querySelector('[data-v30-flt-reset]');
     if (reset) reset.addEventListener('click', function () {
-      STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false };
+      STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
       STATE.offset = 0;
       updateFilterBadge();
       closeModal(getModal('filters'));
@@ -1350,6 +1429,7 @@
     bindBulk();
     bindSearch();
     bindPagination();
+    bindSort();
     bindBuiltinPills();
     bindSaveView();
     bindModalDismiss();
