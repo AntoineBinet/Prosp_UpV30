@@ -55,7 +55,9 @@
 
 .v30-hero__title {
   font-size: 28px;
-  font-weight: 500;
+  font-weight: 400;
+  font-family: var(--font-serif);
+  font-style: italic;
   margin: 0;
   letter-spacing: -0.4px;
   color: var(--text);
