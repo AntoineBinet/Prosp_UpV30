@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "30.7"
+APP_VERSION = "30.2"
 import os
 import subprocess
 import traceback
@@ -4974,6 +4974,7 @@ def page_v30_parametres():
         user_initials=user_initials,
         current_user=current_user,
         app_version=APP_VERSION,
+        app_dir=str(APP_DIR),
     )
 
 

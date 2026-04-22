@@ -12,6 +12,23 @@
 .v30-params__card--wide:hover { transform: none; }
 
 /* ─── Section Déploiement ─────────────────────────── */
+.v30-deploy__path {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+.v30-deploy__path code {
+  background: transparent;
+  padding: 0;
+  color: var(--text);
+  word-break: break-all;
+}
+
 .v30-deploy__actions {
   display: flex;
   flex-wrap: wrap;

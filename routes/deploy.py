@@ -226,6 +226,10 @@ def api_deploy_pull():
 
     def generate():
         try:
+            # v30.2 : log explicite du dossier cible pour éviter les confusions
+            # (ancien vs nouveau répertoire quand plusieurs clones coexistent).
+            yield f"data: {json.dumps({'step': 'log', 'line': f'Dossier cible : {APP_DIR}'}, ensure_ascii=False)}\n\n"
+
             cp = subprocess.run(
                 ["git", "rev-parse", "--git-dir"],
                 cwd=str(APP_DIR),
@@ -236,6 +240,14 @@ def api_deploy_pull():
             if cp.returncode != 0:
                 yield f"data: {json.dumps({'step': 'error', 'error': 'Pas un dépôt git'}, ensure_ascii=False)}\n\n"
                 return
+
+            # Récupère l'URL du remote pour confirmer qu'on pointe bien vers le bon repo
+            remote_cp = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                cwd=str(APP_DIR), capture_output=True, text=True, timeout=2,
+            )
+            if remote_cp.returncode == 0:
+                yield f"data: {json.dumps({'step': 'log', 'line': f'Remote origin : {remote_cp.stdout.strip()}'}, ensure_ascii=False)}\n\n"
 
             yield f"data: {json.dumps({'step': 'fetch', 'message': 'git fetch --prune origin main...'}, ensure_ascii=False)}\n\n"
             fetch = subprocess.run(

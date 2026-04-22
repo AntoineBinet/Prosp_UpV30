@@ -2,6 +2,18 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.2] — 2026-04-22 · Vérification visuelle MAJ + affichage du dossier cible
+
+**Note** : le numéro `APP_VERSION` redescend volontairement de 30.7 à 30.2 pour servir de **marqueur visuel** dans la sidebar v30. Après que tu auras lancé la mise à jour depuis la v29 (une dernière fois), la sidebar affichera « v30.2 » — preuve que le nouveau dossier a bien été tiré. Le code embarque toutes les phases 1 à 5 + le bouton de MAJ v30 natif (30.3 à 30.7 cumulés).
+
+### Vérification du dossier cible
+- `templates/v30/parametres.html` : affichage du chemin `APP_DIR` (dossier où tourne `app.py`) directement dans la section Mise à jour, avec une note « Vérifie que c'est bien le nouveau dossier v30 avant de lancer la mise à jour ».
+- `app.py:page_v30_parametres` : passe `app_dir=str(APP_DIR)` au template.
+- `routes/deploy.py:api_deploy_pull` : au début du SSE, log deux lignes explicites :
+  - `Dossier cible : <chemin absolu>`
+  - `Remote origin : <URL git>`
+  Ces lignes apparaissent en haut de la zone de logs pendant le pull.
+
 ## [30.7] — 2026-04-22 · Mise à jour serveur native en v30 (admin)
 
 Fin de la dernière raison de quitter la v30 : le bouton « Mettre à jour et redémarrer » (Paramètres > Mise à jour du serveur) fonctionne désormais directement dans `/v30/parametres`, sans détour par la v29.
