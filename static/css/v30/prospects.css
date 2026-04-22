@@ -212,15 +212,17 @@
 .v30-pp-table tbody tr[data-v30-open]:hover td:first-child {
   box-shadow: inset 2px 0 0 var(--accent);
 }
-.v30-pp-email {
-  display: block;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-2);
-  font-size: 12px;
+.v30-pp-email-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  color: var(--text-3);
+  text-decoration: none;
+  transition: background .12s, color .12s;
 }
+.v30-pp-email-icon:hover { background: var(--surface-2); color: var(--text); }
 .v30-pp-table tr.is-selected td {
   background: color-mix(in oklch, var(--accent) 8%, var(--surface));
 }
