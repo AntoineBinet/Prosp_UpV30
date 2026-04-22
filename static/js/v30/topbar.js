@@ -70,7 +70,7 @@
             '<div class="v30-notif-item__icon v30-notif-item__icon--info">' + ICON_CLOCK + '</div>' +
             '<div class="v30-notif-item__body">' +
               ‘<div class="v30-notif-item__label">’ + dueToday + ‘ relance’ + (dueToday > 1 ? ‘s’ : ‘’) + " aujourd’hui</div>" +
-              ‘<div class="v30-notif-item__sub">À traiter d’ici la fin de la journée</div>’ +
+              ‘<div class="v30-notif-item__sub">À traiter avant la fin de la journée</div>’ +
               '<div class="v30-notif-item__cta"><a class="btn btn-sm" href="/v30/focus">Voir Focus →</a></div>' +
             '</div>' +
           '</div>'
