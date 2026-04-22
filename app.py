@@ -9073,7 +9073,7 @@ def api_prospect_timeline():
         return s
 
     events = sorted(events, key=_key, reverse=True)[:120]
-    return jsonify({"ok": True, "events": events})
+    return jsonify({"ok": True, "prospect": dict(p), "events": events})
 
 
 @app.post("/api/prospect/log-call")
