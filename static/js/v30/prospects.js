@@ -228,13 +228,9 @@
   function renderTags(tagsRaw) {
     var tags = parseTags(tagsRaw);
     if (!tags.length) return '';
-    var shown = tags.slice(0, 2);
-    var extra = tags.length - 2;
-    var html = shown.map(function (t) { return '<span class="badge">' + esc(t) + '</span>'; }).join(' ');
-    if (extra > 0) {
-      html += ' <span class="badge v30-pp-tags-more" data-v30-tags-all="' + esc(JSON.stringify(tags)) + '">+' + extra + '</span>';
-    }
-    return html;
+    var first = '<span class="badge"><span style="max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(tags[0]) + '</span></span>';
+    if (tags.length === 1) return first;
+    return first + ' <span class="badge v30-pp-tags-more" data-v30-tags-all="' + esc(JSON.stringify(tags)) + '">+' + (tags.length - 1) + '</span>';
   }
 
   function renderEmail(email) {
@@ -247,12 +243,18 @@
 
   function renderPushBadges(p) {
     var parts = [];
-    if (p.pushEmailSentAt) parts.push('<span class="badge" title="Push email envoyé le ' + esc(p.pushEmailSentAt) + '"' +
-      ' style="font-size:10px;padding:1px 6px;">✉</span>');
-    if (p.pushLinkedInSentAt) parts.push('<span class="badge" title="Push LinkedIn envoyé le ' + esc(p.pushLinkedInSentAt) + '"' +
-      ' style="font-size:10px;padding:1px 6px;">in</span>');
+    if (p.pushEmailSentAt) {
+      parts.push('<span class="badge badge-info v30-pp-push-badge" title="Push email · ' + esc(p.pushEmailSentAt) + '">' +
+        '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>' +
+        'Email</span>');
+    }
+    if (p.pushLinkedInSentAt) {
+      parts.push('<span class="badge badge-accent v30-pp-push-badge" title="Push LinkedIn · ' + esc(p.pushLinkedInSentAt) + '">' +
+        '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>' +
+        'Li</span>');
+    }
     if (!parts.length) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
-    return '<div style="display:inline-flex;gap:3px;">' + parts.join('') + '</div>';
+    return '<div style="display:inline-flex;gap:4px;flex-wrap:wrap;">' + parts.join('') + '</div>';
   }
 
   function cellFor(p, key) {
