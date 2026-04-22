@@ -448,7 +448,6 @@
       updatePagination();
       updateCounts();
       updateKpis();
-      updateOverdueBanner();
     }).catch(function (err) {
       console.error('[v30 prospects] fetch failed:', err);
     });
@@ -480,40 +479,6 @@
     if (totalEl) totalEl.textContent = STATE.total.toLocaleString('fr-FR');
     var allEl = document.querySelector('.v30-pp-views [data-view-filter="all"] [data-field="count"]');
     if (allEl) allEl.textContent = STATE.total.toLocaleString('fr-FR');
-  }
-
-  // Banniere relances en retard (parite v29)
-  function updateOverdueBanner() {
-    var banner = document.querySelector('[data-v30-pp-banner]');
-    if (!banner) return;
-    if (sessionStorage.getItem('v30_pp_banner_closed') === '1') { banner.hidden = true; return; }
-    var all = STATE.allForKpis || [];
-    var today = new Date();
-    today.setHours(0, 0, 0, 0);
-    var overdue = 0;
-    for (var i = 0; i < all.length; i++) {
-      var nf = all[i].nextFollowUp;
-      if (!nf) continue;
-      try {
-        var d = new Date(nf);
-        if (!isNaN(d.getTime()) && d < today) overdue++;
-      } catch (_) {}
-    }
-    if (overdue === 0) { banner.hidden = true; return; }
-    banner.hidden = false;
-    var c = banner.querySelector('[data-field="count"]');
-    if (c) c.textContent = overdue;
-    var p = banner.querySelector('[data-field="plural"]');
-    if (p) p.textContent = overdue > 1 ? 's' : '';
-  }
-  function bindBannerClose() {
-    var btn = document.querySelector('[data-v30-pp-banner-close]');
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      var banner = document.querySelector('[data-v30-pp-banner]');
-      if (banner) banner.hidden = true;
-      sessionStorage.setItem('v30_pp_banner_closed', '1');
-    });
   }
 
   // KPI cards : Total / Appelables / RDV / Prospectes (parite v29)
@@ -1368,7 +1333,6 @@
     bindPagination();
     bindBuiltinPills();
     bindSaveView();
-    bindBannerClose();
     bindModalDismiss();
     bindAdd();
     bindFilters();
