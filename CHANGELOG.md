@@ -2,6 +2,18 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.7] — 2026-04-22 · Mise à jour serveur native en v30 (admin)
+
+Fin de la dernière raison de quitter la v30 : le bouton « Mettre à jour et redémarrer » (Paramètres > Mise à jour du serveur) fonctionne désormais directement dans `/v30/parametres`, sans détour par la v29.
+
+### Changements
+- **`templates/v30/parametres.html`** : la carte hub « Mise à jour du serveur » est remplacée par une section inline complète (pleine largeur) visible uniquement pour les admins. Contient 3 boutons (Mettre à jour / Rollback / Redémarrer), un indicateur de statut, une zone de logs et un `<details>` « Problème ? Utiliser la v29 » avec lien `?force_v29=1` (le fallback reste accessible tant que la procédure n'a pas été complètement éprouvée).
+- **`static/js/v30/parametres.js`** (nouveau, ~160 l) : câble les 3 boutons sur les endpoints existants `/api/deploy/pull` (SSE streaming avec logs temps réel), `/api/deploy/rollback` et `/api/deploy/restart`. Redémarrage suivi d'un reload auto après 12 s.
+- **`static/css/v30/parametres.css`** : pattern `.v30-params__card--wide` réutilisable + styles dédiés `.v30-deploy__*` (actions, results, log pre, fallback details).
+
+### Backend
+- **Aucune modification** — les endpoints `/api/deploy/*` existent déjà (blueprint `routes/deploy.py`).
+
 ## [30.6] — 2026-04-22 · Consolidation détails + liens v30 (phase 5)
 
 Phase finale du cycle v30 : la plupart des pages de détail (Prospect detail, Candidate detail, Users, Snapshots, Activity, Métiers) étaient déjà 100 % câblées en v30 depuis 30.1. Cette phase consolide les redirections restantes pour que l'expérience reste en v30 partout où c'est possible.

@@ -86,19 +86,42 @@
       <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
     </a>
 
-    {# Mise à jour serveur (admin) #}
+    {# Mise à jour serveur (admin) — section inline complète #}
     {% if current_user and current_user.role == 'admin' %}
-    <a class="v30-params__card" href="/parametres#deployUpdateSection">
+    <div class="v30-params__card v30-params__card--wide v30-deploy" data-v30-deploy>
       <div class="v30-params__card-head">
         {{ ui.icon('arrowU', 16) }}
         <h3>Mise à jour du serveur</h3>
+        <span class="v30-params__admin-badge" style="margin-left:auto;">Admin</span>
       </div>
       <p class="v30-params__card-desc">
-        <span class="v30-params__admin-badge">Admin</span>
-        Pull git + restart + rollback depuis l'app.
+        Pull Git (<code class="mono">origin/main</code>) + snapshot DB automatique + redémarrage en ~10 s. En cas de problème, utilise le bouton Rollback (revient au commit précédent) ou bascule sur l'interface v29.
       </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
+      <div class="v30-deploy__actions">
+        <button type="button" class="btn btn-primary btn-sm" data-v30-deploy-pull>
+          {{ ui.icon('arrowU', 13) }} Mettre à jour et redémarrer
+        </button>
+        <button type="button" class="btn btn-sm" data-v30-deploy-rollback>
+          {{ ui.icon('arrowD', 13) }} Rollback
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-deploy-restart title="Redémarrer sans pull">
+          {{ ui.icon('clock', 13) }} Redémarrer
+        </button>
+        <div class="v30-spacer"></div>
+        <span class="muted" style="font-size:11.5px;" data-v30-deploy-status></span>
+      </div>
+      <div class="v30-deploy__results" data-v30-deploy-results hidden>
+        <pre class="v30-deploy__log" data-v30-deploy-log></pre>
+        <div data-v30-deploy-summary></div>
+      </div>
+      <details class="v30-deploy__fallback">
+        <summary class="muted" style="font-size:11.5px;cursor:pointer;">Problème ? Utiliser la version v29 (fallback)</summary>
+        <p class="muted" style="font-size:11.5px;margin:6px 0 0;">
+          <a href="/parametres?force_v29=1#deployUpdateSection" style="color:var(--accent);">Ouvrir la section Mise à jour v29</a>
+          — recommandé uniquement si la v30 échoue.
+        </p>
+      </details>
+    </div>
     {% endif %}
 
     {# Mon compte #}
@@ -127,4 +150,8 @@
 
   </div>
 </div>
+
+{% if current_user and current_user.role == 'admin' %}
+<script defer src="/static/js/v30/parametres.js?v={{ static_hash('js/v30/parametres.js') }}"></script>
+{% endif %}
 {% endblock %}
