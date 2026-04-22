@@ -718,7 +718,7 @@
         return;
       }
       if (!ids.length) { toast('Aucun prospect sélectionné', 'warning'); return; }
-      if (action === 'push') { window.location.href = '/push?ids=' + ids.join(','); return; }
+      if (action === 'push') { window.location.href = '/v30/push?ids=' + ids.join(','); return; }
       openBulkModal(action, ids);
     });
     var apply = document.querySelector('[data-v30-bulk-apply]');

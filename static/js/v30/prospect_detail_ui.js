@@ -150,12 +150,12 @@
       if (!btn) return;
       var act = btn.dataset.v30Action;
       if (act === 'push') {
-        window.location.href = '/push?ids=' + FP.ID;
+        window.location.href = '/v30/push?ids=' + FP.ID;
       } else if (act === 'schedule') {
-        window.location.href = '/calendrier?prospect=' + FP.ID;
+        window.location.href = '/v30/calendrier';
       } else if (act === 'more') {
-        // Menu minimaliste : ouvrir la fiche legacy
-        window.location.href = '/?prospect=' + FP.ID;
+        // Menu minimaliste : fallback vers la fiche legacy (édition avancée)
+        window.location.href = '/?prospect=' + FP.ID + '&force_v29=1';
       }
     });
   }

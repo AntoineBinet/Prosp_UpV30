@@ -381,7 +381,7 @@
         setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
       }).catch(function (err) {
         alert('Export PDF : ' + err.message + '. Bascule vers la page legacy.');
-        window.location.href = '/rapport?export=pdf&week=' + encodeURIComponent(REP.week || '');
+        window.location.href = '/rapport?export=pdf&week=' + encodeURIComponent(REP.week || '') + '&force_v29=1';
       });
     });
 

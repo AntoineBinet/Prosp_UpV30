@@ -2,6 +2,26 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.6] — 2026-04-22 · Consolidation détails + liens v30 (phase 5)
+
+Phase finale du cycle v30 : la plupart des pages de détail (Prospect detail, Candidate detail, Users, Snapshots, Activity, Métiers) étaient déjà 100 % câblées en v30 depuis 30.1. Cette phase consolide les redirections restantes pour que l'expérience reste en v30 partout où c'est possible.
+
+### Redirections v30 natives
+- `prospect_detail_ui.js` : bouton Pousser → `/v30/push?ids=<id>`, bouton Planifier → `/v30/calendrier`. Le bouton « Plus » bascule explicitement en v29 (`?force_v29=1`) pour l'édition avancée.
+- `candidate_detail.js` : bouton DC → `/v30/dc?candidate=<id>`, bouton Pousser → `/v30/push?candidate=<id>`, bouton « Plus » → v29 avec `?force_v29=1`.
+- `prospects.js` : bulk « Pousser » → `/v30/push?ids=<ids>` (au lieu de `/push`).
+- `rapport.js` + `stats.js` : fallback export PDF → `/rapport?force_v29=1` (le flux Markdown→PDF complet reste côté v29 pour l'instant).
+
+### Pages « hub » restant par design
+Les pages admin-lourdes ou peu utilisées restent en v30 uniquement comme hubs qui renvoient vers les parcours complets v29 — c'est un choix architectural documenté, pas une régression :
+- **Duplicates** (`/v30/duplicates`) — merge wizard complexe, reste sur `/duplicates` legacy.
+- **Collab** (`/v30/collab`) — partage entreprises/prospects, reste sur `/collab` legacy.
+- **DC Generator** (`/v30/dc`) — génération DOCX candidat, reste sur `/dc_generator` legacy.
+- **Paramètres** (`/v30/parametres`) — hub 7 cartes → `/parametres#section` legacy (IA config, objectifs, snapshots, notifications, déploiement, mot de passe, à propos).
+
+### État final v30 (après phases 1 à 5)
+Fonctionnel en v30 natif : **Dashboard, Prospects (+ Mode Prosp), Entreprises, Sourcing/Candidats, Focus, Calendrier, Push (campagnes + templates), Stats (KPI), Rapport, Prospect detail, Candidate detail, Users, Snapshots, Activity, Métiers**. Reste en v29 (hub v30) : merge doublons, collab avancée, DC generator, paramètres admin, graphiques Chart.js détaillés.
+
 ## [30.5] — 2026-04-22 · Focus + Calendrier + Push templates (phase 4)
 
 Pages de flux quotidien : actions rapides câblées sans remplacer les parties déjà fonctionnelles. Stats et Rapport étaient déjà OK (à 95 % et 100 %).

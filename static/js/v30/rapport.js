@@ -215,8 +215,8 @@
     var btn = $('[data-v30-rapport-pdf]');
     if (!btn) return;
     btn.addEventListener('click', function () {
-      // Fallback : ouvre la page legacy pour l'export PDF existant
-      window.location.href = '/rapport?export=pdf&week=' + encodeURIComponent(STATE.week || '');
+      // Fallback : ouvre la page legacy pour l'export PDF existant (flux complet Markdown→PDF).
+      window.location.href = '/rapport?export=pdf&week=' + encodeURIComponent(STATE.week || '') + '&force_v29=1';
     });
   }
 
