@@ -343,7 +343,7 @@
   color: var(--text);
 }
 
-/* ─────────── Bento 0 : [Performance + Action center] · Objectifs (v30.7) ─────────── */
+/* ─────────── Bento 0 : Performance+tasks fusionnés · Objectifs (v30.8) ─────────── */
 .v30-bento-0 {
   display: grid;
   grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
@@ -351,17 +351,40 @@
   margin-bottom: 16px;
   align-items: stretch;
 }
-.v30-bento-0__left {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
 
-/* ─── Performance card ─── */
+/* ─── Performance card (fusionnée avec tasks) ─── */
 .v30-perf {
   padding: 14px 16px 10px;
   min-width: 0;
+}
+.v30-perf--merged {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.v30-perf--merged .v30-perf__body {
+  padding: 14px 16px 6px;
+}
+.v30-perf__divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0 0;
+}
+.v30-perf__tabs {
+  border-bottom: 1px solid var(--border);
+}
+.v30-perf__tabpanel {
+  max-height: 300px;
+  overflow-y: auto;
+}
+.v30-perf__tabpanel::-webkit-scrollbar { width: 6px; }
+.v30-perf__tabpanel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.v30-perf__tabpanel .empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-3);
 }
 .v30-perf__topbar {
   display: grid;
@@ -474,20 +497,6 @@
 }
 .v30-perf__chart canvas { width: 100% !important; height: 110px !important; }
 
-/* ─── Action center (bento-0 left stacked) ─── */
-.v30-ac-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.v30-ac-card > [data-v30-ac-panel] {
-  flex: 1;
-  overflow-y: auto;
-  max-height: 340px;
-}
-.v30-ac-card > [data-v30-ac-panel]::-webkit-scrollbar { width: 6px; }
-.v30-ac-card > [data-v30-ac-panel]::-webkit-scrollbar-thumb { background: var(--surface-3, var(--border)); border-radius: 3px; }
 
 /* ─── Objectifs card ─── */
 .v30-objs {

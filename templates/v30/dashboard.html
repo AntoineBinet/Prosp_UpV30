@@ -60,10 +60,9 @@
   {# ─── Bento row 0 : [Performance + Action center stack] · Objectifs (v30.7) ─── #}
   <div class="v30-bento-0">
 
-    <div class="v30-bento-0__left">
-
-      {# Performance — KPI chips + chart compact #}
-      <div class="card v30-perf" data-v30-perf>
+    {# Performance + Action center fusionnés dans une seule card (v30.8) #}
+    <div class="card card-flush v30-perf v30-perf--merged" data-v30-perf>
+      <div class="v30-perf__body">
         <div class="v30-perf__topbar">
           <div class="card-title">Performance</div>
           <div class="v30-perf__weeknav" data-v30-perf-nav>
@@ -92,34 +91,32 @@
         </div>
       </div>
 
-      {# Action center — branché sur /api/tasks + /api/dashboard #}
-      <div class="card card-flush v30-ac-card">
-        <div class="tabs" style="padding: 0 16px;" role="tablist" data-v30-ac>
-          <button type="button" class="active" data-tab="todo" role="tab" aria-selected="true">
-            À faire <span class="tab-count" data-field="count">—</span>
-          </button>
-          <button type="button" data-tab="rdv" role="tab" aria-selected="false">
-            RDV aujourd'hui <span class="tab-count" data-field="count">—</span>
-          </button>
-          <button type="button" data-tab="late" role="tab" aria-selected="false">
-            En retard <span class="tab-count" data-field="count">—</span>
-          </button>
-        </div>
-        {% for key in ['todo','rdv','late'] %}
-        <div data-panel="{{ key }}"{% if not loop.first %} hidden{% endif %} data-v30-ac-panel>
-          <div class="v30-ac__row">
-            <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
-            <div style="min-width: 0;">
-              <div class="skel" style="width:60%;height:13px;margin-bottom:4px;"></div>
-              <div class="skel" style="width:40%;height:11px;"></div>
-            </div>
-            <span class="skel" style="width:56px;height:18px;border-radius:999px;"></span>
-            <span></span>
-          </div>
-        </div>
-        {% endfor %}
+      {# Tabs Action center intégrés — branchés sur /api/tasks + /api/dashboard #}
+      <div class="v30-perf__divider"></div>
+      <div class="tabs v30-perf__tabs" style="padding: 0 16px;" role="tablist" data-v30-ac>
+        <button type="button" class="active" data-tab="todo" role="tab" aria-selected="true">
+          À faire <span class="tab-count" data-field="count">—</span>
+        </button>
+        <button type="button" data-tab="rdv" role="tab" aria-selected="false">
+          RDV aujourd'hui <span class="tab-count" data-field="count">—</span>
+        </button>
+        <button type="button" data-tab="late" role="tab" aria-selected="false">
+          En retard <span class="tab-count" data-field="count">—</span>
+        </button>
       </div>
-
+      {% for key in ['todo','rdv','late'] %}
+      <div data-panel="{{ key }}"{% if not loop.first %} hidden{% endif %} data-v30-ac-panel class="v30-perf__tabpanel">
+        <div class="v30-ac__row">
+          <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
+          <div style="min-width: 0;">
+            <div class="skel" style="width:60%;height:13px;margin-bottom:4px;"></div>
+            <div class="skel" style="width:40%;height:11px;"></div>
+          </div>
+          <span class="skel" style="width:56px;height:18px;border-radius:999px;"></span>
+          <span></span>
+        </div>
+      </div>
+      {% endfor %}
     </div>
 
     {# Objectifs — rings + listes daily / weekly avec XP (colonne droite pleine hauteur) #}
