@@ -154,13 +154,13 @@
 /* ─────────── Bento rows ─────────── */
 .v30-bento-1 {
   display: grid;
-  grid-template-columns: 2fr 2fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
   gap: 16px;
   margin-bottom: 16px;
 }
 .v30-bento-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 16px;
 }
 
@@ -343,17 +343,35 @@
   color: var(--text);
 }
 
-/* ─────────── Bento 0 : Performance + Objectifs (v30.6) ─────────── */
+/* ─────────── Bento 0 : [Performance + Action center] · Objectifs (v30.7) ─────────── */
 .v30-bento-0 {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
   gap: 16px;
   margin-bottom: 16px;
+  align-items: stretch;
+}
+.v30-bento-0__left {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
 /* ─── Performance card ─── */
-.v30-perf { padding: 16px; min-width: 0; }
-.v30-perf__head { margin-bottom: 6px; }
+.v30-perf {
+  padding: 14px 16px 10px;
+  min-width: 0;
+}
+.v30-perf__topbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  min-width: 0;
+}
+.v30-perf__topbar .card-title { white-space: nowrap; }
 .v30-perf__badge {
   display: inline-flex; align-items: center;
   padding: 3px 10px;
@@ -362,29 +380,30 @@
   background: var(--accent-soft);
   border-radius: 999px;
   white-space: nowrap;
+  justify-self: end;
 }
 .v30-perf__weeknav {
   display: flex; align-items: center; justify-content: center;
-  gap: 8px; margin: 4px 0 14px;
+  gap: 6px;
   color: var(--text-2);
 }
 .v30-perf__weeklabel {
   font-family: var(--font-serif);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text);
-  min-width: 120px;
+  min-width: 110px;
   text-align: center;
 }
 .v30-perf__chips {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
 }
 .v30-perf__chip {
   --chip-color: var(--accent);
   position: relative;
-  padding: 12px 14px;
+  padding: 8px 10px 8px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
@@ -393,8 +412,9 @@
     "val spark"
     "label spark"
     "sub sub";
-  grid-template-columns: 1fr auto;
-  gap: 2px 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 10px;
+  row-gap: 0;
   align-items: center;
   overflow: hidden;
   min-width: 0;
@@ -402,33 +422,35 @@
 .v30-perf__chip::before {
   content: "";
   position: absolute;
-  left: 0; top: 0; bottom: 0;
+  left: 0; top: 6px; bottom: 6px;
   width: 3px;
   background: var(--chip-color);
-  border-radius: 3px 0 0 3px;
+  border-radius: 3px;
 }
 .v30-perf__chip-val {
   grid-area: val;
   font-family: var(--font-serif);
-  font-size: 28px; line-height: 1;
+  font-size: 22px; line-height: 1.05;
   color: var(--text);
 }
 .v30-perf__chip-label {
   grid-area: label;
-  font-size: 12px; color: var(--text-2);
+  font-size: 11.5px;
+  color: var(--text-2);
   display: flex; align-items: center; gap: 6px;
   flex-wrap: wrap;
+  margin-top: 1px;
 }
 .v30-perf__chip-sub {
   grid-area: sub;
   font-size: 10.5px;
   color: var(--text-3);
-  margin-top: 4px;
+  margin-top: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.v30-perf__chip-spark { grid-area: spark; }
+.v30-perf__chip-spark { grid-area: spark; align-self: center; }
 .v30-perf__chip-spark svg { display: block; opacity: 0.85; }
 .v30-perf__chip--alert {
   border-color: color-mix(in oklch, var(--danger) 40%, var(--border));
@@ -446,14 +468,35 @@
 .v30-perf__trend--flat { color: var(--text-3); }
 .v30-perf__chart {
   position: relative;
-  height: 160px;
+  height: 110px;
   width: 100%;
   min-width: 0;
 }
-.v30-perf__chart canvas { width: 100% !important; height: 160px !important; }
+.v30-perf__chart canvas { width: 100% !important; height: 110px !important; }
+
+/* ─── Action center (bento-0 left stacked) ─── */
+.v30-ac-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.v30-ac-card > [data-v30-ac-panel] {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 340px;
+}
+.v30-ac-card > [data-v30-ac-panel]::-webkit-scrollbar { width: 6px; }
+.v30-ac-card > [data-v30-ac-panel]::-webkit-scrollbar-thumb { background: var(--surface-3, var(--border)); border-radius: 3px; }
 
 /* ─── Objectifs card ─── */
-.v30-objs { padding: 16px; display: flex; flex-direction: column; min-width: 0; }
+.v30-objs {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
 .v30-objs__head { margin-bottom: 10px; }
 .v30-objs__top {
   display: grid;
@@ -503,7 +546,12 @@
 }
 .v30-objs__items {
   display: flex; flex-direction: column; gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 2px;
 }
+.v30-objs__items::-webkit-scrollbar { width: 6px; }
+.v30-objs__items::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 .v30-objs__scope {
   display: flex; align-items: center; justify-content: space-between;
   font-size: 10.5px;
@@ -586,10 +634,17 @@
 /* Responsive fallback */
 @media (max-width: 1100px) {
   .v30-bento-0 { grid-template-columns: 1fr; }
-  .v30-bento-1 { grid-template-columns: 1fr 1fr; }
-  .v30-bento-2 { grid-template-columns: 1fr; }
+  .v30-bento-1 { grid-template-columns: 1fr; }
   .v30-hero { grid-template-columns: 1fr; }
   .v30-hero__kpis { flex-wrap: wrap; }
+  .v30-perf__topbar {
+    grid-template-columns: auto 1fr;
+    grid-template-areas: "title badge" "nav nav";
+    row-gap: 8px;
+  }
+  .v30-perf__topbar .card-title { grid-area: title; }
+  .v30-perf__badge { grid-area: badge; }
+  .v30-perf__weeknav { grid-area: nav; justify-content: flex-start; }
 }
 @media (max-width: 720px) {
   .v30-objs__top { grid-template-columns: 1fr; justify-items: center; }

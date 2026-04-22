@@ -211,19 +211,42 @@
           }).join('');
     }
 
-    tabs.addEventListener('click', function (e) {
-      var btn = e.target.closest('button[data-tab]');
-      if (!btn) return;
-      var key = btn.dataset.tab;
-      $$('button[data-tab]', tabs).forEach(function (b) {
-        var act = (b === btn);
-        b.classList.toggle('active', act);
-        b.setAttribute('aria-selected', act ? 'true' : 'false');
+    if (!tabs._v30Bound) {
+      tabs.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-tab]');
+        if (!btn) return;
+        var key = btn.dataset.tab;
+        $$('button[data-tab]', tabs).forEach(function (b) {
+          var act = (b === btn);
+          b.classList.toggle('active', act);
+          b.setAttribute('aria-selected', act ? 'true' : 'false');
+        });
+        Object.keys(panels).forEach(function (k) {
+          if (panels[k]) panels[k].hidden = (k !== key);
+        });
       });
-      Object.keys(panels).forEach(function (k) {
-        if (panels[k]) panels[k].hidden = (k !== key);
-      });
-    });
+      tabs._v30Bound = true;
+    }
+
+    // Sélectionne automatiquement le premier onglet non vide
+    // (évite la carte "Aucune tâche en cours" sur l'onglet 1 si un autre a du contenu)
+    var counts = { todo: todos.length, rdv: rdvList.length, late: overdue.length };
+    var anyActiveCount = counts.todo + counts.rdv + counts.late;
+    if (anyActiveCount > 0) {
+      var activeTab = $('button[data-tab].active', tabs);
+      var activeKey = activeTab ? activeTab.dataset.tab : 'todo';
+      if (counts[activeKey] === 0) {
+        var fallback = counts.late > 0 ? 'late' : (counts.rdv > 0 ? 'rdv' : 'todo');
+        $$('button[data-tab]', tabs).forEach(function (b) {
+          var act = (b.dataset.tab === fallback);
+          b.classList.toggle('active', act);
+          b.setAttribute('aria-selected', act ? 'true' : 'false');
+        });
+        Object.keys(panels).forEach(function (k) {
+          if (panels[k]) panels[k].hidden = (k !== fallback);
+        });
+      }
+    }
   }
 
   // ─── Pipeline ─────────────────────────────────────────────────────

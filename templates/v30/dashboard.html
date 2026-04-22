@@ -57,40 +57,72 @@
     </div>
   </section>
 
-  {# ─── Bento row 0 : Performance · Objectifs (v30.6 — reprise des panneaux v29) ─── #}
+  {# ─── Bento row 0 : [Performance + Action center stack] · Objectifs (v30.7) ─── #}
   <div class="v30-bento-0">
 
-    {# Performance — KPI chips (Contacts, Notes, Push, RDV + En retard si pertinent) + chart semaine #}
-    <div class="card v30-perf" data-v30-perf>
-      <div class="row-sb v30-perf__head">
-        <div class="card-title">Performance</div>
-        <span class="v30-perf__badge" data-field="badge">—</span>
+    <div class="v30-bento-0__left">
+
+      {# Performance — KPI chips + chart compact #}
+      <div class="card v30-perf" data-v30-perf>
+        <div class="v30-perf__topbar">
+          <div class="card-title">Performance</div>
+          <div class="v30-perf__weeknav" data-v30-perf-nav>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-perf-prev aria-label="Semaine précédente">
+              {{ ui.icon('chevL') }}
+            </button>
+            <span class="v30-perf__weeklabel" data-field="weeklabel">Cette semaine</span>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-perf-next aria-label="Semaine suivante" disabled>
+              {{ ui.icon('chevR') }}
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-perf-today hidden>Aujourd'hui</button>
+          </div>
+          <span class="v30-perf__badge" data-field="badge">—</span>
+        </div>
+        <div class="v30-perf__chips" data-field="chips">
+          {% for _ in range(4) %}
+          <div class="v30-perf__chip">
+            <div class="v30-perf__chip-val"><span class="skel" style="width:36px;height:22px;display:inline-block;"></span></div>
+            <div class="v30-perf__chip-label"><span class="skel" style="width:60px;height:12px;display:inline-block;"></span></div>
+            <div class="v30-perf__chip-sub"><span class="skel" style="width:90px;height:10px;display:inline-block;"></span></div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="v30-perf__chart" data-field="chart">
+          <div class="skel" style="width:100%;height:110px;border-radius:8px;"></div>
+        </div>
       </div>
-      <div class="v30-perf__weeknav" data-v30-perf-nav>
-        <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-perf-prev aria-label="Semaine précédente">
-          {{ ui.icon('chevL') }}
-        </button>
-        <span class="v30-perf__weeklabel" data-field="weeklabel">Cette semaine</span>
-        <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-perf-next aria-label="Semaine suivante" disabled>
-          {{ ui.icon('chevR') }}
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" data-v30-perf-today hidden>Aujourd'hui</button>
-      </div>
-      <div class="v30-perf__chips" data-field="chips">
-        {% for _ in range(4) %}
-        <div class="v30-perf__chip">
-          <div class="v30-perf__chip-val"><span class="skel" style="width:36px;height:26px;display:inline-block;"></span></div>
-          <div class="v30-perf__chip-label"><span class="skel" style="width:60px;height:12px;display:inline-block;"></span></div>
-          <div class="v30-perf__chip-sub"><span class="skel" style="width:90px;height:10px;display:inline-block;"></span></div>
+
+      {# Action center — branché sur /api/tasks + /api/dashboard #}
+      <div class="card card-flush v30-ac-card">
+        <div class="tabs" style="padding: 0 16px;" role="tablist" data-v30-ac>
+          <button type="button" class="active" data-tab="todo" role="tab" aria-selected="true">
+            À faire <span class="tab-count" data-field="count">—</span>
+          </button>
+          <button type="button" data-tab="rdv" role="tab" aria-selected="false">
+            RDV aujourd'hui <span class="tab-count" data-field="count">—</span>
+          </button>
+          <button type="button" data-tab="late" role="tab" aria-selected="false">
+            En retard <span class="tab-count" data-field="count">—</span>
+          </button>
+        </div>
+        {% for key in ['todo','rdv','late'] %}
+        <div data-panel="{{ key }}"{% if not loop.first %} hidden{% endif %} data-v30-ac-panel>
+          <div class="v30-ac__row">
+            <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
+            <div style="min-width: 0;">
+              <div class="skel" style="width:60%;height:13px;margin-bottom:4px;"></div>
+              <div class="skel" style="width:40%;height:11px;"></div>
+            </div>
+            <span class="skel" style="width:56px;height:18px;border-radius:999px;"></span>
+            <span></span>
+          </div>
         </div>
         {% endfor %}
       </div>
-      <div class="v30-perf__chart" data-field="chart">
-        <div class="skel" style="width:100%;height:160px;border-radius:8px;"></div>
-      </div>
+
     </div>
 
-    {# Objectifs — rings (jour+semaine), level, XP + listes d'objectifs quotidiens et hebdo #}
+    {# Objectifs — rings + listes daily / weekly avec XP (colonne droite pleine hauteur) #}
     <div class="card v30-objs" data-v30-objs>
       <div class="row-sb v30-objs__head">
         <div class="card-title">Objectifs</div>
@@ -150,36 +182,8 @@
 
   </div>
 
-  {# ─── Bento row 1 : Action center · Pipeline ─── #}
+  {# ─── Bento row 1 : Pipeline · Priorités IA ─── #}
   <div class="v30-bento-1">
-
-    {# Action center — branché sur /api/tasks + /api/dashboard #}
-    <div class="card card-flush">
-      <div class="tabs" style="padding: 0 16px;" role="tablist" data-v30-ac>
-        <button type="button" class="active" data-tab="todo" role="tab" aria-selected="true">
-          À faire <span class="tab-count" data-field="count">—</span>
-        </button>
-        <button type="button" data-tab="rdv" role="tab" aria-selected="false">
-          RDV aujourd'hui <span class="tab-count" data-field="count">—</span>
-        </button>
-        <button type="button" data-tab="late" role="tab" aria-selected="false">
-          En retard <span class="tab-count" data-field="count">—</span>
-        </button>
-      </div>
-      {% for key in ['todo','rdv','late'] %}
-      <div data-panel="{{ key }}"{% if not loop.first %} hidden{% endif %} data-v30-ac-panel>
-        <div class="v30-ac__row">
-          <span class="skel" style="width:24px;height:24px;border-radius:50%;"></span>
-          <div style="min-width: 0;">
-            <div class="skel" style="width:60%;height:13px;margin-bottom:4px;"></div>
-            <div class="skel" style="width:40%;height:11px;"></div>
-          </div>
-          <span class="skel" style="width:56px;height:18px;border-radius:999px;"></span>
-          <span></span>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
 
     {# Pipeline — branché sur /api/dashboard/pipeline-stages #}
     <div class="card" data-v30-pipeline>
@@ -197,32 +201,6 @@
         {% endfor %}
       </div>
     </div>
-
-    {# Goals compact (legacy card, conservé en fallback si v30-objs absent) — caché par défaut #}
-    <div class="card v30-goals" data-v30-goals hidden>
-      <div class="row-sb" style="margin-bottom: 8px;">
-        <div class="card-title">Objectifs du jour</div>
-        <a href="/parametres" class="btn btn-ghost btn-sm btn-icon" title="Paramètres objectifs" aria-label="Paramètres objectifs">
-          {{ ui.icon('cog', 13) }}
-        </a>
-      </div>
-      <div class="v30-goals__ring">
-        <svg width="120" height="120" viewBox="0 0 120 120" aria-label="Progression" data-field="ring">
-          <circle cx="60" cy="60" r="44" fill="none" stroke="var(--surface-2)" stroke-width="10"/>
-          <circle data-field="ring-arc" cx="60" cy="60" r="44" fill="none" stroke="var(--accent)" stroke-width="10"
-                  stroke-linecap="round"
-                  stroke-dasharray="276.46" stroke-dashoffset="276.46"
-                  transform="rotate(-90 60 60)"/>
-          <text data-field="ring-pct" x="60" y="64" text-anchor="middle" font-family="var(--font-serif)" font-size="30" fill="var(--text)">—</text>
-        </svg>
-      </div>
-      <div class="v30-goals__list" data-field="list"></div>
-    </div>
-
-  </div>
-
-  {# ─── Bento row 2 : Priorités IA · Activité récente ─── #}
-  <div class="v30-bento-2">
 
     {# Priorités IA — branché sur /api/dashboard/pipeline-stages → priority_prospects #}
     <div class="card card-flush" data-v30-priorities>
@@ -249,7 +227,10 @@
       </div>
     </div>
 
-    {# Activité récente — branché sur /api/dashboard → feed (push + rdv + notes) #}
+  </div>
+
+  {# ─── Bento row 2 : Activité récente (pleine largeur) ─── #}
+  <div class="v30-bento-2">
     <div class="card card-flush" data-v30-activity>
       <div class="card-header">
         <div class="card-title">Activité récente</div>
@@ -265,7 +246,6 @@
         {% endfor %}
       </div>
     </div>
-
   </div>
 </div>
 
