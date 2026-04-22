@@ -2,6 +2,22 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.3] — 2026-04-22 · Mode Prosp porté en v30 (phase 2)
+
+Le deck 3D de prospection existe désormais en v30. Copie quasi-conforme de la logique v29 — le code métier (navigation, animations 3D, date picker, timeline, swipe, clavier) est **réutilisé tel quel** depuis `static/js/mode-prosp-tab.js`. Les APIs et le CSS `mode-prosp.css` sont réutilisés à 100 %.
+
+### Pages
+- **Nouveau** : `templates/v30/mode_prosp.html` — layout plein écran (pas de sidebar/topbar), charge `tokens.css` v30 + `mode-prosp.css` legacy.
+- **Nouveau** : route `GET /v30/mode-prosp` (app.py:4647) — rend le template v30, conserve le backend `/api/mode-prosp/start|data|save`.
+
+### JS
+- **Nouveau** : `static/js/v30/mode_prosp.js` — copie conforme de `static/js/mode-prosp-tab.js` (596 l). Aucune dépendance globale (haptic défini localement, pas de `callOllama`/`showToast`). Tous les sélecteurs DOM v29 sont conservés car le template est identique.
+
+### Intégration v30
+- **Palette (⌘K)** : l'entrée « Lancer Mode Prosp » passe d'un `href` direct vers une action intelligente qui POST `/api/mode-prosp/start` avec les prospects sélectionnés sur `/v30/prospects` (via `window.ProspV30.STATE.selected`), ou tous les prospects non archivés sinon, puis ouvre `/v30/mode-prosp?t=TOKEN` dans un nouvel onglet.
+- **Bouton Prospects** : nouveau bouton « Mode Prosp » dans la topbar de `/v30/prospects`, même logique (sélection → `mode-prosp/start` → nouvel onglet).
+- **Help** : mention mise à jour avec la nouvelle URL `/v30/mode-prosp`.
+
 ## [30.2] — 2026-04-22 · v30 fonctionnelle : Dashboard + Prospects (phase 1)
 
 La v30 n'est plus une coquille vide pour ces deux pages. Roadmap page-par-page documentée dans `.claude/plans/`.

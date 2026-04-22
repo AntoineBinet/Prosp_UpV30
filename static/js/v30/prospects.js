@@ -1319,6 +1319,29 @@
     if (apply) apply.addEventListener('click', applyAi);
   }
 
+  // ─── Mode Prosp (deck 3D) ─────────────────────────────────
+  function bindModeProsp() {
+    var btn = document.querySelector('[data-v30-mode-prosp]');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var ids = Array.from(STATE.selected);
+      if (!ids.length) {
+        // Aucune sélection : on prend tous les prospects filtrés courants (dataset complet non paginé).
+        var pool = STATE.allForKpis || STATE.prospects || [];
+        ids = pool.map(function (p) { return p.id; });
+      }
+      if (!ids.length) { toast('Aucun prospect à traiter', 'warning'); return; }
+      btn.disabled = true;
+      fetchPostJSON('/api/mode-prosp/start', { ids: ids })
+        .then(function (res) {
+          if (!res || !res.ok || !res.token) throw new Error((res && res.error) || 'Token manquant');
+          window.open('/v30/mode-prosp?t=' + encodeURIComponent(res.token), '_blank');
+        })
+        .catch(function (e) { toast('Mode Prosp : ' + e.message, 'error'); })
+        .then(function () { btn.disabled = false; });
+    });
+  }
+
   function init() {
     bindViewSwitch();
     bindSelection();
@@ -1337,6 +1360,7 @@
     bindImport();
     bindExport();
     bindAi();
+    bindModeProsp();
     updateFilterBadge();
     loadProspects();
     loadSavedViews();

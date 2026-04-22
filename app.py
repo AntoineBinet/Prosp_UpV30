@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "30.2"
+APP_VERSION = "30.3"
 import os
 import subprocess
 import traceback
@@ -4642,6 +4642,15 @@ def page_metiers():
 @app.get("/prospects/mode-prosp")
 def page_mode_prosp():
     return render_template("legacy/mode_prosp.html", static_hashes=_static_hashes)
+
+
+@app.get("/v30/mode-prosp")
+def page_v30_mode_prosp():
+    """v30 : Mode Prosp (deck 3D), layout plein écran sans sidebar.
+
+    Réutilise les APIs /api/mode-prosp/* (start/data/save) et le CSS legacy
+    `/static/css/mode-prosp.css` (autonome, pas de dépendance à base.html)."""
+    return render_template("v30/mode_prosp.html", static_hashes=_static_hashes)
 
 
 @app.get("/v30/preview")

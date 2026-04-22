@@ -7,7 +7,7 @@
   var ACTIONS = [
     { label: 'Créer un prospect',   sub: '',                         icon: 'plus',     k: 'P', href: '/v30/prospects?new=1' },
     { label: 'Nouvelle campagne',   sub: '',                         icon: 'send',     k: 'N', href: '/v30/push' },
-    { label: 'Lancer Mode Prosp',   sub: 'Deck 3D premium',          icon: 'sparkles', k: 'M', href: '/prospects/mode-prosp' },
+    { label: 'Lancer Mode Prosp',   sub: 'Deck 3D premium',          icon: 'sparkles', k: 'M', action: 'modeProsp' },
     { label: 'Basculer le thème',   sub: 'Clair / sombre',           icon: 'moon',     k: 'T', action: 'theme' }
   ];
   var PAGES = [
@@ -244,6 +244,44 @@
       document.documentElement.dataset.theme = next;
       try { localStorage.setItem('theme', next); } catch (_) {}
       close();
+      return;
+    }
+    if (item.action === 'modeProsp') {
+      close();
+      // Lance Mode Prosp sur la sélection courante si on est sur /v30/prospects,
+      // sinon sur tous les prospects du user (server-side via /api/data).
+      var sel = (window.ProspV30 && window.ProspV30.STATE && window.ProspV30.STATE.selected) || null;
+      var ids = sel ? Array.from(sel) : [];
+      var run = function (prospectIds) {
+        if (!prospectIds || !prospectIds.length) {
+          if (typeof window.showToast === 'function') window.showToast('Aucun prospect à traiter', 'warning');
+          return;
+        }
+        fetch('/api/mode-prosp/start', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: prospectIds })
+        }).then(function (r) { return r.json(); })
+          .then(function (res) {
+            if (!res || !res.ok || !res.token) throw new Error((res && res.error) || 'Token manquant');
+            window.open('/v30/mode-prosp?t=' + encodeURIComponent(res.token), '_blank');
+          })
+          .catch(function (e) {
+            if (typeof window.showToast === 'function') window.showToast('Mode Prosp : ' + e.message, 'error');
+          });
+      };
+      if (ids.length) { run(ids); return; }
+      // Pas de sélection : on récupère la liste complète du user.
+      fetch('/api/data', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          var all = (res && res.prospects) || [];
+          run(all.filter(function (p) { return !p.is_archived && !p.deleted_at; })
+                 .map(function (p) { return p.id; }));
+        })
+        .catch(function () {
+          if (typeof window.showToast === 'function') window.showToast('Impossible de charger les prospects', 'error');
+        });
       return;
     }
     if (item.href) {
