@@ -361,12 +361,7 @@
   display: flex;
   gap: 2px;
   justify-content: flex-end;
-  opacity: 0;
-  transition: opacity .15s;
 }
-tr[data-v30-open]:hover .v30-pp-actions,
-tr.is-active .v30-pp-actions,
-tr.is-selected .v30-pp-actions { opacity: 1; }
 
 /* Footer pagination */
 .v30-pp-pagin {
