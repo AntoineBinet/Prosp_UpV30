@@ -94,6 +94,21 @@
     return Math.abs(h) % 6;
   }
 
+  function splitPhones(tel) {
+    if (!tel) return [];
+    var m = String(tel).match(/\+?\d[\d\s().-]{6,}\d/g);
+    if (!m) return [];
+    var seen = {};
+    return m.map(function (s) { return s.trim().replace(/\s+/g, ' '); })
+      .filter(function (s) { if (seen[s]) return false; seen[s] = true; return true; });
+  }
+
+  function normTel(p) {
+    var plus = String(p).charAt(0) === '+';
+    var r = String(p).replace(/[^\d]/g, '');
+    return plus ? '+' + r : r;
+  }
+
   function relativeDate(iso) {
     if (!iso) return '—';
     try {
@@ -174,15 +189,31 @@
     return html + '</span>';
   }
 
+  var TEL_ICON_SM = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17v3a2 2 0 0 1-2 2 19 19 0 0 1-17-17 2 2 0 0 1 2-2h3l2 5-2 1a12 12 0 0 0 6 6l1-2 5 2z"/></svg>';
+  var TEL_ICON_MD = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 17v3a2 2 0 0 1-2 2 19 19 0 0 1-17-17 2 2 0 0 1 2-2h3l2 5-2 1a12 12 0 0 0 6 6l1-2 5 2z"/></svg>';
+
   function renderTel(tel) {
     if (!tel) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
-    var clean = String(tel).replace(/\s/g, '');
-    return '<a class="v30-pp-tel" href="tel:' + esc(clean) + '" title="Appeler">' +
-      '<span class="v30-pp-tel__badge">' +
-        '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17v3a2 2 0 0 1-2 2 19 19 0 0 1-17-17 2 2 0 0 1 2-2h3l2 5-2 1a12 12 0 0 0 6 6l1-2 5 2z"/></svg>' +
-      '</span>' +
-      '<span class="v30-pp-tel__number">' + esc(tel) + '</span>' +
-    '</a>';
+    var phones = splitPhones(tel);
+    var badge = '<span class="v30-pp-tel__badge">' + TEL_ICON_SM + '</span>';
+    if (phones.length <= 1) {
+      var clean = phones.length ? normTel(phones[0]) : String(tel).replace(/\s/g, '');
+      var label = phones.length ? phones[0] : String(tel);
+      return '<a class="v30-pp-tel" href="tel:' + esc(clean) + '" title="Appeler">' +
+        badge + '<span class="v30-pp-tel__number">' + esc(label) + '</span>' +
+      '</a>';
+    }
+    return '<div class="v30-pp-tel v30-pp-tel--multi" data-v30-tel-multi' +
+        ' title="' + phones.length + ' numéros — cliquer pour choisir">' +
+      badge +
+      '<span class="v30-pp-tel__number">' + esc(phones[0]) + '</span>' +
+      '<span class="v30-pp-tel__arrow">▾</span>' +
+      '<div class="v30-pp-tel-drop" hidden>' +
+        phones.map(function (ph) {
+          return '<a class="v30-pp-tel-opt" href="tel:' + esc(normTel(ph)) + '">' + esc(ph) + '</a>';
+        }).join('') +
+      '</div>' +
+    '</div>';
   }
 
   function renderTags(tagsRaw) {
@@ -248,15 +279,30 @@
       case 'lastContact': return '<td style="color:var(--text-2);">' + esc(relativeDate(p.lastContact)) + '</td>';
       case 'relance':    return '<td class="num mono" style="color:var(--text-2);">' + esc(shortDate(p.nextFollowUp)) + '</td>';
       case 'tags':       return '<td><div style="display:flex;gap:4px;flex-wrap:nowrap;overflow:hidden;">' + renderTags(p.tags) + '</div></td>';
-      case 'actions':
-        return '<td><div class="v30-pp-actions">' +
-          (p.telephone ? '<a class="btn btn-ghost btn-sm btn-icon" href="tel:' + esc(String(p.telephone).replace(/\s/g, '')) + '" title="Appeler">' +
-            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 17v3a2 2 0 0 1-2 2 19 19 0 0 1-17-17 2 2 0 0 1 2-2h3l2 5-2 1a12 12 0 0 0 6 6l1-2 5 2z"/></svg>' +
-          '</a>' : '') +
-          '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-ai="' + p.id + '" title="Enrichir via IA">' +
-            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 4 4 2-4 2-2 4-2-4-4-2 4-2z"/></svg>' +
-          '</button>' +
-        '</div></td>';
+      case 'actions': {
+        var actAi = '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-ai="' + p.id + '" title="Enrichir via IA">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 4 4 2-4 2-2 4-2-4-4-2 4-2z"/></svg>' +
+          '</button>';
+        var actTel = '';
+        if (p.telephone) {
+          var actPhones = splitPhones(p.telephone);
+          if (actPhones.length <= 1) {
+            var actClean = actPhones.length ? normTel(actPhones[0]) : String(p.telephone).replace(/\s/g, '');
+            actTel = '<a class="btn btn-ghost btn-sm btn-icon" href="tel:' + esc(actClean) + '" title="Appeler">' + TEL_ICON_MD + '</a>';
+          } else {
+            actTel = '<div class="btn btn-ghost btn-sm btn-icon v30-pp-tel--multi" data-v30-tel-multi' +
+              ' style="position:relative;" title="' + actPhones.length + ' numéros">' +
+              TEL_ICON_MD +
+              '<div class="v30-pp-tel-drop v30-pp-tel-drop--right" hidden>' +
+                actPhones.map(function (ph) {
+                  return '<a class="v30-pp-tel-opt" href="tel:' + esc(normTel(ph)) + '">' + esc(ph) + '</a>';
+                }).join('') +
+              '</div>' +
+            '</div>';
+          }
+        }
+        return '<td><div class="v30-pp-actions">' + actTel + actAi + '</div></td>';
+      }
       default: return '';
     }
   }
@@ -639,7 +685,7 @@
       var a = e.target.closest('[data-v30-open]');
       if (!a) return;
       // Ne pas naviguer si on clique sur un élément interactif dans la ligne
-      if (e.target.closest('button, input, a[href]:not([data-v30-open])')) return;
+      if (e.target.closest('button, input, a[href]:not([data-v30-open]), [data-v30-tel-multi]')) return;
       e.preventDefault();
       var id = a.dataset.v30Open;
       window.location.href = '/v30/prospect/' + encodeURIComponent(id);
@@ -1455,26 +1501,47 @@
   }
 
   function bindTelLog() {
+    function closeTelDrops() {
+      document.querySelectorAll('.v30-pp-tel-drop').forEach(function (d) { d.hidden = true; });
+    }
     document.addEventListener('click', function (e) {
+      // Tel link click → close picker + log call
       var link = e.target.closest('a[href^="tel:"]');
-      if (!link) return;
-      var row = link.closest('tr[data-id]');
-      var id = row ? Number(row.dataset.id) : 0;
-      if (!id) return;
-      fetch('/api/prospect/log-call', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prospect_id: id })
-      }).then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) {
-          if (!d || !d.ok || !d.lastContact) return;
-          var p = STATE.prospects.find(function (x) { return x.id === id; });
-          if (p) {
-            p.lastContact = d.lastContact;
-            var tr = document.querySelector('tr[data-id="' + id + '"]');
-            if (tr) tr.outerHTML = renderRow(p);
-          }
-        }).catch(function () {});
+      if (link) {
+        closeTelDrops();
+        var row = link.closest('tr[data-id]');
+        var id = row ? Number(row.dataset.id) : 0;
+        if (id) {
+          fetch('/api/prospect/log-call', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prospect_id: id })
+          }).then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+              if (!d || !d.ok || !d.lastContact) return;
+              var p = STATE.prospects.find(function (x) { return x.id === id; });
+              if (p) {
+                p.lastContact = d.lastContact;
+                var tr = document.querySelector('tr[data-id="' + id + '"]');
+                if (tr) tr.outerHTML = renderRow(p);
+              }
+            }).catch(function () {});
+        }
+        return;
+      }
+      // Multi-phone toggle → open/close dropdown
+      var multi = e.target.closest('[data-v30-tel-multi]');
+      if (multi) {
+        e.preventDefault();
+        var drop = multi.querySelector('.v30-pp-tel-drop');
+        if (!drop) return;
+        var wasHidden = drop.hidden;
+        closeTelDrops();
+        drop.hidden = !wasHidden;
+        return;
+      }
+      // Click elsewhere → close all dropdowns
+      closeTelDrops();
     });
   }
 
