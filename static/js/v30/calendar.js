@@ -81,9 +81,10 @@
       var isOther = d.getMonth() !== month;
       var isToday = iso === todayISO;
       var events = STATE.events[iso] || [];
-      var evHtml = events.slice(0, 3).map(function (ev) {
-        return '<a class="v30-cal__ev is-' + ev.type + '" href="' + esc(ev.href || '#') +
-               '" title="' + esc(ev.label) + '">' + esc(ev.label) + '</a>';
+      var evHtml = events.slice(0, 3).map(function (ev, evIdx) {
+        return '<button type="button" class="v30-cal__ev is-' + ev.type +
+               '" data-v30-cal-ev="' + iso + ':' + evIdx + '"' +
+               ' title="' + esc(ev.label) + '">' + esc(ev.label) + '</button>';
       }).join('');
       var more = events.length > 3
         ? '<button type="button" class="v30-cal__more" data-v30-cal-more="' + iso + '">+' + (events.length - 3) + ' autres</button>'
@@ -163,8 +164,51 @@
         e.preventDefault();
         e.stopPropagation();
         openDayPopup(more.dataset.v30CalMore, more);
+        return;
+      }
+      // BUG 26 : clic sur un événement → popup inline (pas de redirection brutale)
+      var evBtn = e.target.closest('[data-v30-cal-ev]');
+      if (evBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var parts = evBtn.dataset.v30CalEv.split(':');
+        var iso = parts[0];
+        var idx = parseInt(parts[1], 10) || 0;
+        openEventPopup(iso, idx, evBtn);
       }
     });
+  }
+
+  function openEventPopup(iso, idx, anchor) {
+    closeDayPopup();
+    var events = STATE.events[iso] || [];
+    var ev = events[idx];
+    if (!ev) return;
+    var pop = document.createElement('div');
+    pop.className = 'v30-cal__popup v30-cal__popup--ev';
+    pop.setAttribute('role', 'dialog');
+    var typeLabel = ev.type === 'ec1' ? 'EC1 candidat' : ev.type === 'relance' ? 'Relance à faire' : 'Rendez-vous';
+    pop.innerHTML =
+      '<div class="v30-cal__popup-head">' +
+        '<strong>' + esc(new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })) + '</strong>' +
+        '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-cal-popup-close aria-label="Fermer">×</button>' +
+      '</div>' +
+      '<div class="v30-cal__popup-body">' +
+        '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:4px;">' + esc(typeLabel) + '</div>' +
+        '<div style="font-size:13px;color:var(--text);margin-bottom:8px;word-break:break-word;">' + esc(ev.label) + '</div>' +
+        '<a class="btn btn-sm btn-accent" href="' + esc(ev.href || '#') + '" style="display:inline-flex;align-items:center;gap:6px;">Voir la fiche →</a>' +
+      '</div>';
+    document.body.appendChild(pop);
+    var r = anchor.getBoundingClientRect();
+    pop.style.position = 'fixed';
+    pop.style.zIndex = '90';
+    pop.style.top = Math.min(window.innerHeight - 180, r.bottom + 4) + 'px';
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - 320, r.left)) + 'px';
+    pop.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-cal-popup-close]')) closeDayPopup();
+    });
+    document.addEventListener('click', outsideClose, true);
+    document.addEventListener('keydown', escClose);
   }
 
   function init() {

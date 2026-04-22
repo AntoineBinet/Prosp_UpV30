@@ -49,6 +49,20 @@
 .v30-fp-header__actions {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+  max-width: 100%;
+}
+.v30-fp-header__actions .btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.v30-fp-header {
+  min-width: 0;
+}
+.v30-fp-header > div {
+  min-width: 0;
 }
 
 /* Editable name */
@@ -129,15 +143,27 @@
 /* ─────────── Aside rows ─────────── */
 .v30-fp-aside-row {
   display: grid;
-  grid-template-columns: 100px 1fr;
+  grid-template-columns: 100px minmax(0, 1fr);
   align-items: center;
   padding: 5px 0;
   font-size: 12px;
   border-top: 1px solid var(--border);
+  min-width: 0;
 }
 .v30-fp-aside-row:first-of-type { border-top: 0; }
 .v30-fp-aside-row__label { color: var(--text-3); }
-.v30-fp-aside-row__value { color: var(--text); }
+.v30-fp-aside-row__value {
+  color: var(--text);
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.v30-fp-aside-row__value a {
+  color: inherit;
+  text-decoration: none;
+  word-break: break-all;
+}
+.v30-fp-aside-row__value a:hover { text-decoration: underline; }
 
 /* Candidats recommandés */
 .v30-fp-cand {

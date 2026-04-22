@@ -291,6 +291,14 @@
 
     var listEl = host.querySelector('[data-field="list"]');
     if (!listEl) return;
+    // BUG 23 : si aucune target définie, afficher un CTA de configuration
+    if (totalTarget === 0) {
+      listEl.innerHTML = '<div class="empty" style="padding:12px 0;font-size:12.5px;color:var(--text-3);">' +
+        'Aucun objectif configuré. ' +
+        '<a href="/v30/parametres" style="color:var(--accent);">Configurer vos objectifs →</a>' +
+        '</div>';
+      return;
+    }
     listEl.innerHTML = list.map(function (it) {
       var d = items[it.key] || {};
       var count = d.count || 0, target = d.target || 0;

@@ -324,7 +324,7 @@
   }
 
   var COL_WIDTHS = {
-    select: 32, name: 200, company: 115, statut: 98, pertinence: 70,
+    select: 32, name: 200, company: 115, statut: 128, pertinence: 70,
     push: 52, lastContact: 92, relance: 82, tags: 110, actions: 90
   };
 
@@ -355,7 +355,14 @@
     renderTableHead();
     var colCount = activeCols().length;
     if (STATE.prospects.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="' + colCount + '"><div class="v30-pp-empty">Aucun prospect pour ces filtres.</div></td></tr>';
+      var extra = '';
+      if ((STATE.q || '').trim()) {
+        extra = '<div class="v30-pp-restored-banner" style="margin-top:10px;padding:10px 14px;border:1px solid var(--warn);background:color-mix(in oklch, var(--warn) 8%, var(--surface));border-radius:8px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;">' +
+          '<span style="font-size:12.5px;">Filtre actif restauré : <b>&laquo; ' + esc(STATE.q) + ' &raquo;</b></span>' +
+          '<button type="button" class="btn btn-sm" data-v30-clear-search>Effacer la recherche</button>' +
+          '</div>';
+      }
+      tbody.innerHTML = '<tr><td colspan="' + colCount + '"><div class="v30-pp-empty">Aucun prospect pour ces filtres.</div>' + extra + '</td></tr>';
       return;
     }
     tbody.innerHTML = STATE.prospects.map(renderRow).join('');
@@ -828,6 +835,15 @@
         loadProspects();
       }, 200);
     });
+    // BUG 6 : bouton "Effacer la recherche" du bandeau d'état vide
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('[data-v30-clear-search]')) return;
+      STATE.q = '';
+      STATE.offset = 0;
+      input.value = '';
+      savePersistedFilters();
+      loadProspects();
+    });
   }
 
   // ─── Pagination ─────────────────────────────────────────────
@@ -894,9 +910,14 @@
     if (!host) return;
     var activeId = STATE.activeSavedViewId;
     host.innerHTML = (STATE.savedViews || []).map(function (v) {
-      var cls = 'v30-pill' + (activeId && String(activeId) === String(v.id) ? ' is-active' : '');
+      var isActive = activeId && String(activeId) === String(v.id);
+      var cls = 'v30-pill' + (isActive ? ' is-active' : '');
+      // BUG 24 : si actif, le × désactive la vue ; sinon, il supprime (avec confirm)
+      var xAttrs = isActive
+        ? ' data-saved-view-deactivate="' + v.id + '" aria-label="Désactiver"'
+        : ' data-saved-view-delete="' + v.id + '" aria-label="Supprimer"';
       return '<button type="button" class="' + cls + '" data-saved-view-id="' + v.id + '">' +
-        esc(v.name) + ' <span class="v30-pill__x" data-saved-view-delete="' + v.id + '" aria-label="Supprimer">×</span>' +
+        esc(v.name) + ' <span class="v30-pill__x"' + xAttrs + '>×</span>' +
       '</button>';
     }).join('');
     if (activeId) {
@@ -905,6 +926,7 @@
     host.querySelectorAll('[data-saved-view-id]').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         if (e.target.closest('[data-saved-view-delete]')) return;
+        if (e.target.closest('[data-saved-view-deactivate]')) return;
         var v = (STATE.savedViews || []).find(function (x) { return x.id == btn.dataset.savedViewId; });
         if (!v) return;
         var st = v.state || {};
@@ -937,6 +959,19 @@
         if (!confirm('Supprimer cette vue ?')) return;
         fetch('/api/views/' + id, { method: 'DELETE', credentials: 'same-origin' })
           .then(loadSavedViews);
+      });
+    });
+    // BUG 24 : × sur une vue active → on désactive (reset "Tous") sans supprimer
+    host.querySelectorAll('[data-saved-view-deactivate]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        applyViewFilter('all');
+        var tousBtn = document.querySelector('.v30-pp-views [data-view-filter="all"]');
+        if (tousBtn) {
+          document.querySelectorAll('.v30-pp-views [data-view-filter]').forEach(function (b) {
+            b.classList.toggle('is-active', b === tousBtn);
+          });
+        }
       });
     });
   }
@@ -1655,6 +1690,17 @@
     updateFilterBadge();
     loadProspects();
     loadSavedViews();
+    // BUG 1 : Ouvrir le modal d'ajout si ?new=1 dans l'URL (depuis la palette)
+    try {
+      if (new URLSearchParams(window.location.search).get('new') === '1') {
+        var addModal = getModal('add');
+        if (addModal) {
+          populateCompaniesList();
+          openModal(addModal);
+          history.replaceState(null, '', window.location.pathname);
+        }
+      }
+    } catch (_) {}
   }
 
   if (document.readyState === 'loading') {

@@ -196,10 +196,36 @@
       label: 'Supprimer le prospect',
       danger: true,
       action: function () {
-        if (!confirm('Supprimer définitivement ce prospect ?')) return;
-        FP.fetchPostJSON('/api/prospects/delete', { id: FP.ID })
-          .then(function () { window.location.href = '/v30/prospects'; })
-          .catch(function (err) { alert('Erreur : ' + err.message); });
+        var pname = (FP.STATE.prospect && FP.STATE.prospect.name) || 'ce prospect';
+        var cancelled = false;
+        if (typeof window.showToast === 'function') {
+          window.showToast('Suppression de ' + pname + '… (annulable pendant 10s)', 'warning', 10000, {
+            action: {
+              label: 'Annuler',
+              onClick: function () {
+                cancelled = true;
+                if (typeof window.showToast === 'function') {
+                  window.showToast('Suppression annulée', 'info', 2000);
+                }
+              }
+            },
+            onExpire: function () {
+              if (cancelled) return;
+              FP.fetchPostJSON('/api/prospects/delete', { id: FP.ID })
+                .then(function () { window.location.href = '/v30/prospects'; })
+                .catch(function (err) {
+                  if (typeof window.showToast === 'function') {
+                    window.showToast('Erreur : ' + err.message, 'error', 4000);
+                  } else { alert('Erreur : ' + err.message); }
+                });
+            }
+          });
+        } else {
+          if (!confirm('Supprimer définitivement ' + pname + ' ?')) return;
+          FP.fetchPostJSON('/api/prospects/delete', { id: FP.ID })
+            .then(function () { window.location.href = '/v30/prospects'; })
+            .catch(function (err) { alert('Erreur : ' + err.message); });
+        }
       }
     });
 
@@ -349,7 +375,11 @@
       if (act === 'push') {
         window.location.href = '/v30/push?ids=' + FP.ID;
       } else if (act === 'schedule') {
-        window.location.href = '/v30/calendrier';
+        var p = FP.STATE.prospect || {};
+        var params = new URLSearchParams();
+        params.set('prospect', FP.ID);
+        if (p.name) params.set('prospect_name', p.name);
+        window.location.href = '/v30/calendrier?' + params.toString();
       } else if (act === 'more') {
         e.stopPropagation();
         openMoreMenu(btn);

@@ -234,7 +234,7 @@
       var sent = c.sent_at ? true : false;
       var stats = c.stats || {};
       var recipients = stats.recipients != null ? stats.recipients : '—';
-      return '<div class="v30-camp-card" data-campaign-id="' + c.id + '">' +
+      return '<div class="v30-camp-card" data-campaign-id="' + c.id + '" data-camp-open="' + c.id + '" role="button" tabindex="0" style="cursor:pointer;">' +
         '<div class="row-sb"><div class="v30-camp-card__name">' + esc(c.name) + '</div>' +
           '<span class="v30-camp-card__badge' + (sent ? ' is-sent' : '') + '">' +
           (sent ? 'Envoyée' : 'Brouillon') + '</span></div>' +
@@ -253,13 +253,77 @@
     }).join('');
     // Binder delete
     host.querySelectorAll('[data-camp-delete]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
         var id = btn.dataset.campDelete;
         if (!confirm('Supprimer cette campagne ?')) return;
         fetch('/api/push-campaigns/' + id, { method: 'DELETE', credentials: 'same-origin' })
           .then(function (r) { return r.json(); })
           .then(loadCampaigns);
       });
+    });
+    // BUG 8 : rendre les cartes cliquables → ouvre les détails inline
+    host.querySelectorAll('[data-camp-open]').forEach(function (card) {
+      card.addEventListener('click', function (e) {
+        if (e.target.closest('[data-camp-delete]')) return;
+        var id = card.dataset.campOpen;
+        openCampaignDetail(id);
+      });
+      card.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          card.click();
+        }
+      });
+    });
+  }
+
+  function openCampaignDetail(id) {
+    var c = (STATE.campaigns || []).filter(function (x) { return String(x.id) === String(id); })[0];
+    if (!c) return;
+    var existing = document.querySelector('[data-v30-camp-detail]');
+    if (existing) existing.remove();
+    var stats = c.stats || {};
+    var sent = c.sent_at ? true : false;
+    var bd = document.createElement('div');
+    bd.setAttribute('data-v30-camp-detail', '');
+    bd.setAttribute('role', 'dialog');
+    bd.setAttribute('aria-modal', 'true');
+    bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    bd.innerHTML =
+      '<div style="max-width:560px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;">' +
+          '<div><div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;">Campagne</div>' +
+          '<h2 style="margin:4px 0 0;font-size:18px;">' + esc(c.name || '—') + '</h2></div>' +
+          '<button type="button" class="btn btn-ghost btn-icon" data-camp-detail-close aria-label="Fermer">×</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
+          '<span class="v30-camp-card__badge' + (sent ? ' is-sent' : '') + '">' + (sent ? 'Envoyée' : 'Brouillon') + '</span>' +
+        '</div>' +
+        '<div style="font-size:13px;line-height:1.7;color:var(--text-2);">' +
+          '<div>Créée le <b>' + esc(fmtDate(c.created_at)) + '</b></div>' +
+          (c.sent_at ? '<div>Envoyée le <b>' + esc(fmtDate(c.sent_at)) + '</b></div>' : '') +
+          '<div>Audience : <b>' + (stats.recipients != null ? stats.recipients : '—') + '</b></div>' +
+          (stats.sent != null ? '<div>Envoyés : <b>' + stats.sent + '</b></div>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">' +
+          (sent ? '' : '<button type="button" class="btn btn-danger btn-sm" data-camp-detail-delete="' + c.id + '">Supprimer</button>') +
+          '<button type="button" class="btn" data-camp-detail-close>Fermer</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(bd);
+    bd.addEventListener('click', function (e) {
+      if (e.target === bd || e.target.closest('[data-camp-detail-close]')) bd.remove();
+      var del = e.target.closest('[data-camp-detail-delete]');
+      if (del) {
+        if (!confirm('Supprimer cette campagne ?')) return;
+        fetch('/api/push-campaigns/' + del.dataset.campDetailDelete, { method: 'DELETE', credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function () { bd.remove(); loadCampaigns(); });
+      }
+    });
+    document.addEventListener('keydown', function esc(e) {
+      if (e.key === 'Escape') { bd.remove(); document.removeEventListener('keydown', esc); }
     });
   }
 

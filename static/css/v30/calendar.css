@@ -28,7 +28,11 @@
   border-radius: 10px;
   overflow: hidden;
   background: var(--surface);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
+.v30-cal-topbar { min-width: 0; flex-wrap: wrap; }
 .v30-cal__head {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -86,6 +90,7 @@
 
 .v30-cal__ev {
   display: block;
+  width: 100%;
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 11px;
@@ -94,10 +99,14 @@
   color: var(--text);
   text-decoration: none;
   background: var(--surface-2);
+  border: 0;
   border-left: 2px solid var(--accent);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
 }
 .v30-cal__ev:hover { background: var(--surface-3); }
 .v30-cal__ev.is-rdv      { border-left-color: oklch(0.50 0.15 280); }

@@ -177,6 +177,25 @@
 .table tr:hover td { background: var(--surface-2); }
 .table tr.selected td { background: color-mix(in oklch, var(--accent) 8%, var(--surface)); }
 
+/* BUG 28 : normalise les topbars de page pour éviter que les boutons
+   de droite se fassent tronquer par le viewport */
+.v30-params__topbar,
+.v30-push-topbar,
+.v30-cal-topbar {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.v30-params__topbar .btn,
+.v30-push-topbar .btn,
+.v30-cal-topbar .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.v30-params__topbar > div:first-child {
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
 /* ─────────── Pipeline status pills ─────────── */
 .status {
   display: inline-flex; align-items: center; gap: 6px;
@@ -184,6 +203,8 @@
   font-size: 11px; font-weight: 500;
   background: var(--surface-2); color: var(--text-2);
   border: 1px solid var(--border);
+  white-space: nowrap;
+  max-width: 100%;
 }
 .status::before {
   content: ""; width: 6px; height: 6px; border-radius: 50%;

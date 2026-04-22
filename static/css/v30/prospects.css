@@ -84,12 +84,17 @@
 .v30-ent-card__title { font-weight: 500; font-size: 14px; color: var(--text); }
 .v30-ent-card__site { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
 .v30-ent-card__stats {
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px; padding: 6px 0;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+  width: 100%;
+  min-width: 0;
 }
-.v30-ent-card__stat { display: flex; flex-direction: column; align-items: center; }
+.v30-ent-card__stat {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 0; overflow: hidden;
+}
 .v30-ent-card__stat-v {
   font-family: "Instrument Serif", Georgia, serif;
   font-size: 22px; color: var(--text); line-height: 1.1;
@@ -176,6 +181,7 @@
 .v30-pp-table-scroll {
   max-height: calc(100vh - 260px);
   overflow-y: auto;
+  overflow-x: auto;
 }
 .v30-pp-table {
   table-layout: fixed;

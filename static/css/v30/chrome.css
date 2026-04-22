@@ -22,12 +22,14 @@
   flex: 1;
   overflow: auto;
   background: var(--bg);
+  min-width: 0;
 }
 
 .v30-main__inner {
   padding: 20px 24px;
   max-width: var(--content-max);
   margin: 0 auto;
+  min-width: 0;
 }
 
 .v30-main__inner.is-flush {

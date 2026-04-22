@@ -5,6 +5,8 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 18px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .v30-push-topbar h1 {
   font-size: 22px;
@@ -13,7 +15,9 @@
   font-style: italic;
   margin: 0;
   color: var(--text);
+  flex-shrink: 0;
 }
+.v30-push-topbar .btn { flex-shrink: 0; white-space: nowrap; }
 
 /* ─── Campagnes : liste cartes horizontales ─── */
 .v30-camp-card {

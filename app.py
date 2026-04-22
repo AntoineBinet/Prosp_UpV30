@@ -4681,7 +4681,8 @@ def page_v30_login():
 
 
 def _sidebar_counts(uid=None):
-    """Retourne le dict counts {prospects, entreprises, candidats} pour la sidebar v30."""
+    """Retourne le dict counts {prospects, entreprises, candidats} pour la sidebar v30.
+    BUG 11/27 : on exclut les prospects supprimés ET archivés (cohérent avec /v30/prospects client-side)."""
     if not uid:
         uid = _uid()
     if not uid:
@@ -4690,10 +4691,13 @@ def _sidebar_counts(uid=None):
         with _conn() as conn:
             return {
                 "prospects":  conn.execute(
-                    "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                    "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                    "AND (deleted_at IS NULL OR deleted_at='') "
+                    "AND (is_archived IS NULL OR is_archived=0);", (uid,)
                 ).fetchone()[0],
                 "entreprises": conn.execute(
-                    "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
+                    "SELECT COUNT(*) FROM companies WHERE owner_id=? "
+                    "AND (deleted_at IS NULL OR deleted_at='');", (uid,)
                 ).fetchone()[0],
                 "candidats":  conn.execute(
                     "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
@@ -4742,7 +4746,9 @@ def page_v30_focus():
     try:
         with _conn() as conn:
             counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') "
+                "AND (is_archived IS NULL OR is_archived=0);", (uid,)
             ).fetchone()[0]
     except Exception:
         pass
@@ -4824,7 +4830,9 @@ def page_v30_stats():
     try:
         with _conn() as conn:
             counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') "
+                "AND (is_archived IS NULL OR is_archived=0);", (uid,)
             ).fetchone()[0]
             counts["entreprises"] = conn.execute(
                 "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
@@ -5068,7 +5076,9 @@ def page_v30_sourcing():
     try:
         with _conn() as conn:
             counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') "
+                "AND (is_archived IS NULL OR is_archived=0);", (uid,)
             ).fetchone()[0]
             counts["entreprises"] = conn.execute(
                 "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
@@ -5110,7 +5120,9 @@ def page_v30_push():
     try:
         with _conn() as conn:
             counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') "
+                "AND (is_archived IS NULL OR is_archived=0);", (uid,)
             ).fetchone()[0]
             counts["entreprises"] = conn.execute(
                 "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
@@ -5149,7 +5161,9 @@ def page_v30_entreprises():
     try:
         with _conn() as conn:
             counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') "
+                "AND (is_archived IS NULL OR is_archived=0);", (uid,)
             ).fetchone()[0]
             counts["entreprises"] = conn.execute(
                 "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
@@ -5201,7 +5215,9 @@ def page_v30_prospect_detail(pid):
     try:
         with _conn() as conn:
             counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') "
+                "AND (is_archived IS NULL OR is_archived=0);",
                 (uid,),
             ).fetchone()[0]
     except Exception:
@@ -5243,7 +5259,9 @@ def page_v30_prospects():
     try:
         with _conn() as conn:
             counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') "
+                "AND (is_archived IS NULL OR is_archived=0);",
                 (uid,),
             ).fetchone()[0]
             counts["entreprises"] = conn.execute(
@@ -5261,6 +5279,44 @@ def page_v30_prospects():
         active="prospects",
         crumbs=["Prosp'Up", "Prospects"],
         counts=counts,
+        pinned=[],
+        user_initials=user_initials,
+        app_version=APP_VERSION,
+    )
+
+
+@app.get("/v30/prospects/archives")
+def page_v30_prospects_archives():
+    """BUG 29 : page des prospects archivés. Liste lecture seule avec action
+    Désarchiver. Utilise /api/data pour récupérer les archivés côté client."""
+    uid = _uid()
+    if not uid:
+        return redirect('/login')
+    user_initials = "AB"
+    u = _get_current_user() or {}
+    dn = (u.get("display_name") or u.get("username") or "").strip()
+    if dn:
+        parts = [p for p in dn.split() if p]
+        user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
+
+    counts = _sidebar_counts()
+    archived_count = 0
+    try:
+        with _conn() as conn:
+            archived_count = conn.execute(
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') AND is_archived=1;",
+                (uid,),
+            ).fetchone()[0]
+    except Exception:
+        pass
+
+    return render_template(
+        "v30/prospects_archives.html",
+        active="prospects",
+        crumbs=["Prosp'Up", "Prospects", "Archives"],
+        counts=counts,
+        archived_count=archived_count,
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -5290,7 +5346,9 @@ def page_v30_dashboard():
     try:
         with _conn() as conn:
             counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
+                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') "
+                "AND (is_archived IS NULL OR is_archived=0);",
                 (uid,),
             ).fetchone()[0]
             counts["entreprises"] = conn.execute(
@@ -9428,8 +9486,17 @@ def api_stats():
         return jsonify(ok=False, error="Non authentifié"), 401
 
     with _conn() as conn:
-        total_prospects = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=?;", (uid,)).fetchone()["n"]
-        total_companies = conn.execute("SELECT COUNT(*) AS n FROM companies WHERE owner_id=?;", (uid,)).fetchone()["n"]
+        # BUG 27 : total = actifs (non supprimés, non archivés) pour cohérence avec /v30/prospects
+        total_prospects = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? "
+            "AND (deleted_at IS NULL OR deleted_at='') "
+            "AND (is_archived IS NULL OR is_archived=0);",
+            (uid,),
+        ).fetchone()["n"]
+        total_companies = conn.execute(
+            "SELECT COUNT(*) AS n FROM companies WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
+            (uid,),
+        ).fetchone()["n"]
 
         # status counts (all time) — prospects de l'utilisateur uniquement
         rdv_total = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous';", (uid,)).fetchone()["n"]
@@ -9889,9 +9956,13 @@ def api_stats_predictions():
                 "rdv": rdv_count,
             })
     
-    # Récupérer les totaux actuels
+    # Récupérer les totaux actuels (BUG 27 : exclure aussi les archivés)
     with _conn() as conn:
-        total_prospects = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
+        total_prospects = conn.execute(
+            "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND deleted_at IS NULL "
+            "AND (is_archived IS NULL OR is_archived=0);",
+            (uid,),
+        ).fetchone()["n"]
         total_companies = conn.execute("SELECT COUNT(*) AS n FROM companies WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
         rdv_prospects = conn.execute("SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND statut='Rendez-vous' AND deleted_at IS NULL;", (uid,)).fetchone()["n"]
         overdue_count = conn.execute(
@@ -15039,10 +15110,14 @@ def api_rapport_hebdo():
     push_email = sum(1 for pl in week_push if pl.get("channel") == "email")
     push_linkedin = sum(1 for pl in week_push if pl.get("channel") == "linkedin")
 
-    # Status snapshot
+    # Status snapshot (BUG 17 : on regroupe les statuts vides sous "Autre" et on filtre les archivés/supprimés)
     statuts = {}
     for p in prospects:
-        s = p.get("statut") or "Inconnu"
+        if p.get("deleted_at") or p.get("is_archived"):
+            continue
+        s = (p.get("statut") or "").strip()
+        if not s or s.lower() == "inconnu":
+            s = "Autre"
         statuts[s] = statuts.get(s, 0) + 1
 
     rdv_count = statuts.get("Rendez-vous", 0)
@@ -15071,18 +15146,22 @@ def api_rapport_hebdo():
         for cid in week_company_ids if cid
     ]
 
-    # Activity detail
+    # Activity detail (BUG 16 : on inclut prospect_name partout)
     notes_detail = [{
+        "prospect_id": n.get("_pid"),
+        "prospect_name": n.get("_pname", ""),
         "name": n.get("_pname", ""),
         "statut": n.get("_statut", ""),
         "content": (n.get("content") or "")[:150],
         "date": n.get("date", ""),
     } for n in sorted(week_notes, key=lambda x: x.get("date", ""))]
 
+    prospects_by_id = {p["id"]: p for p in prospects}
     push_detail = [{
         "channel": pl.get("channel", ""),
         "date": (pl.get("sentAt") or "")[:10],
         "prospect_id": pl.get("prospect_id"),
+        "prospect_name": (prospects_by_id.get(pl.get("prospect_id"), {}) or {}).get("name", ""),
     } for pl in sorted(week_push, key=lambda x: x.get("sentAt", ""))]
 
     # Conversion rate
@@ -15574,7 +15653,13 @@ def api_dashboard():
         return jsonify(ok=False, error="Non authentifié"), 401
 
     with _conn() as conn:
-        prospects = conn.execute("SELECT * FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)).fetchall()
+        # BUG 27 : on exclut aussi les archivés pour cohérence KPIs dashboard
+        prospects = conn.execute(
+            "SELECT * FROM prospects WHERE owner_id=? "
+            "AND (deleted_at IS NULL OR deleted_at='') "
+            "AND (is_archived IS NULL OR is_archived=0);",
+            (uid,),
+        ).fetchall()
         push_logs = conn.execute(
             "SELECT l.* FROM push_logs l JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=? AND (p.deleted_at IS NULL OR p.deleted_at='');",
             (uid,),
@@ -18028,7 +18113,12 @@ def api_dashboard_adaptive():
     monday = (d_today - datetime.timedelta(days=d_today.weekday())).isoformat()
     
     with _conn() as conn:
-        prospects = conn.execute("SELECT * FROM prospects WHERE owner_id=? AND deleted_at IS NULL;", (uid,)).fetchall()
+        # BUG 27 : exclure les archivés pour cohérence total prospects
+        prospects = conn.execute(
+            "SELECT * FROM prospects WHERE owner_id=? AND deleted_at IS NULL "
+            "AND (is_archived IS NULL OR is_archived=0);",
+            (uid,),
+        ).fetchall()
         push_logs = conn.execute(
             "SELECT l.* FROM push_logs l JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=? WHERE l.sentAt >= ?;",
             (uid, monday),

@@ -31,6 +31,7 @@
   margin-bottom: 14px;
   font-size: 12.5px;
 }
+.v30-sc-match[hidden] { display: none !important; }
 :root[data-theme="dark"] .v30-sc-match {
   color: oklch(0.85 0.12 258);
 }

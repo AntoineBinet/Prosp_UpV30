@@ -1,0 +1,177 @@
+{% extends "v30/base.html" %}
+{% block title %}Archives — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-prospects-archives{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/prospects.css?v={{ static_hash('css/v30/prospects.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-pp" data-v30-archives>
+
+  <div class="v30-params__topbar">
+    <div>
+      <div class="v30-params__eyebrow">Corbeille douce</div>
+      <h1 class="v30-params__title"><span class="serif">Prospects archivés.</span></h1>
+      <div class="v30-params__sub">
+        <span data-field="archived-count">{{ archived_count }}</span> prospect{% if archived_count > 1 %}s{% endif %} archivé{% if archived_count > 1 %}s{% endif %}.
+        Un archivage est réversible : tu peux désarchiver à tout moment.
+      </div>
+    </div>
+    <div class="v30-spacer"></div>
+    <a class="btn" href="/v30/prospects">
+      {{ ui.icon('chevL', 13) }} Retour aux prospects
+    </a>
+  </div>
+
+  <div class="v30-pp-table-wrap" style="margin-top:16px;">
+    <div class="v30-pp-table-scroll">
+      <table class="table v30-pp-table">
+        <thead>
+          <tr>
+            <th style="padding-left:14px;">Nom</th>
+            <th>Entreprise</th>
+            <th>Statut</th>
+            <th>Tags</th>
+            <th>Dernier contact</th>
+            <th style="width:180px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody data-v30-archives-rows>
+          <tr>
+            <td colspan="6">
+              <div class="v30-pp-empty">Chargement des archives…</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function esc(s) {
+    var t = document.createElement('span');
+    t.textContent = s == null ? '' : String(s);
+    return t.innerHTML;
+  }
+  function initials(name) {
+    var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '??';
+    return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  }
+  function fetchJSON(url, opts) {
+    return fetch(url, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json' } }, opts || {}))
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+  function toast(msg, type) {
+    if (typeof window.showToast === 'function') window.showToast(msg, type || 'info');
+  }
+
+  var ROWS = [];
+  var COMPANIES = {};
+
+  function render() {
+    var tbody = document.querySelector('[data-v30-archives-rows]');
+    if (!tbody) return;
+    if (!ROWS.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="v30-pp-empty">Aucun prospect archivé.</div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = ROWS.map(function (p) {
+      var coName = (p.company_groupe || COMPANIES[p.company_id] || '').trim();
+      var tags = p.tags || [];
+      if (typeof tags === 'string') {
+        try { tags = JSON.parse(tags); } catch (_) { tags = tags.split(','); }
+      }
+      var tagsHtml = (tags || []).slice(0, 3).map(function (t) {
+        return '<span class="v30-tag">' + esc(String(t).trim()) + '</span>';
+      }).join('');
+      return '<tr data-pid="' + p.id + '">' +
+        '<td style="padding-left:14px;">' +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<span class="avatar">' + esc(initials(p.name)) + '</span>' +
+            '<a href="/v30/prospect/' + p.id + '" style="color:inherit;text-decoration:none;">' + esc(p.name || '—') + '</a>' +
+          '</div>' +
+        '</td>' +
+        '<td>' + esc(coName) + '</td>' +
+        '<td>' + esc(p.statut || '—') + '</td>' +
+        '<td><div style="display:flex;gap:3px;flex-wrap:wrap;">' + tagsHtml + '</div></td>' +
+        '<td>' + esc((p.lastContact || '').slice(0, 10) || '—') + '</td>' +
+        '<td>' +
+          '<button type="button" class="btn btn-sm" data-archive-restore="' + p.id + '">Désarchiver</button> ' +
+          '<button type="button" class="btn btn-sm btn-danger" data-archive-delete="' + p.id + '">Supprimer</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+    bindActions(tbody);
+    var count = document.querySelector('[data-field="archived-count"]');
+    if (count) count.textContent = ROWS.length;
+  }
+
+  function bindActions(scope) {
+    scope.querySelectorAll('[data-archive-restore]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = Number(btn.dataset.archiveRestore);
+        post('/api/prospects/bulk-archive', { ids: [id], archive: false })
+          .then(function () {
+            toast('Prospect désarchivé', 'success');
+            ROWS = ROWS.filter(function (r) { return r.id !== id; });
+            render();
+          })
+          .catch(function (e) { toast('Erreur : ' + e.message, 'error'); });
+      });
+    });
+    scope.querySelectorAll('[data-archive-delete]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = Number(btn.dataset.archiveDelete);
+        if (!confirm('Supprimer définitivement ce prospect archivé ? Cette action est irréversible.')) return;
+        post('/api/prospects/delete', { id: id })
+          .then(function () {
+            toast('Prospect supprimé', 'success');
+            ROWS = ROWS.filter(function (r) { return r.id !== id; });
+            render();
+          })
+          .catch(function (e) { toast('Erreur : ' + e.message, 'error'); });
+      });
+    });
+  }
+
+  function load() {
+    fetchJSON('/api/data')
+      .then(function (res) {
+        var all = (res && res.prospects) || [];
+        ROWS = all.filter(function (p) { return p.is_archived && !p.deleted_at; });
+        COMPANIES = {};
+        ((res && res.companies) || []).forEach(function (c) { COMPANIES[c.id] = c.groupe || c.name || ''; });
+        render();
+      })
+      .catch(function (err) {
+        console.error('[v30 archives]', err);
+        var tbody = document.querySelector('[data-v30-archives-rows]');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6"><div class="v30-pp-empty">Erreur de chargement.</div></td></tr>';
+      });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', load);
+  } else {
+    load();
+  }
+})();
+</script>
+{% endblock %}
