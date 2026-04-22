@@ -44,9 +44,26 @@
     <span>Créer</span>
     <span class="kbd v30-kbd-trailing">C</span>
   </button>
-  <button type="button" class="btn btn-ghost btn-icon" title="Notifications" aria-label="Notifications">
-    {{ ui.icon('bell') }}
-  </button>
+  <div class="v30-notif" data-v30-notif>
+    <button type="button" class="btn btn-ghost btn-icon v30-notif__trigger"
+            data-v30-notif-trigger
+            aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+      {{ ui.icon('bell') }}
+      <span class="v30-notif-badge" hidden aria-live="polite">0</span>
+    </button>
+    <div class="v30-notif-panel" role="dialog" aria-label="Notifications" hidden>
+      <div class="v30-notif-panel__head">
+        <span class="v30-notif-panel__title">Notifications</span>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm v30-notif-panel__close"
+                data-v30-notif-close aria-label="Fermer">
+          {{ ui.icon('x', 13) }}
+        </button>
+      </div>
+      <div class="v30-notif-panel__body" data-v30-notif-body>
+        <div class="v30-notif-empty">Chargement…</div>
+      </div>
+    </div>
+  </div>
   <div class="v30-avatar-menu" data-v30-avatar-menu>
     <button type="button" class="avatar v30-avatar-menu__trigger"
             data-v30-avatar-trigger

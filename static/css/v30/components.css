@@ -330,6 +330,15 @@
 .muted { color: var(--text-3); }
 .mono { font-family: var(--font-mono); }
 .serif { font-family: var(--font-serif); font-weight: 400; }
+
+/* Les titres de page (h1) utilisent la police Inter du dashboard, pas le serif */
+h1.serif,
+h1 > .serif {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: -0.4px;
+}
 .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .w-full { width: 100%; }
