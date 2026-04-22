@@ -379,36 +379,45 @@
   pointer-events: none;
   z-index: 40;
 }
+.v30-bulk[hidden] { display: none; }
 .v30-bulk__inner {
+  /* --bulk-bg / --bulk-fg : local tokens overridden per theme */
+  --bulk-bg: var(--ink-950);
+  --bulk-fg: var(--ink-0);
   pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--text);
-  color: var(--bg);
+  background: var(--bulk-bg);
+  color: var(--bulk-fg);
   padding: 8px 12px;
   border-radius: 12px;
   box-shadow: var(--shadow-pop);
   font-size: 12.5px;
   font-weight: 500;
 }
+:root[data-theme="dark"] .v30-bulk__inner {
+  --bulk-bg: oklch(0.26 0.014 258);
+  --bulk-fg: var(--text);
+  border: 1px solid oklch(0.34 0.015 258);
+}
 .v30-bulk__count {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 2px 8px;
-  background: color-mix(in oklch, var(--bg) 15%, transparent);
+  background: color-mix(in oklch, var(--bulk-fg) 15%, transparent);
   border-radius: 6px;
 }
 .v30-bulk__sep {
   width: 1px;
   height: 16px;
-  background: color-mix(in oklch, var(--bg) 20%, transparent);
+  background: color-mix(in oklch, var(--bulk-fg) 20%, transparent);
 }
 .v30-bulk__btn {
   background: transparent;
   border: 0;
-  color: var(--bg);
+  color: var(--bulk-fg);
   opacity: 0.9;
   font-size: 12.5px;
   font-weight: 500;
@@ -419,8 +428,8 @@
   border-radius: 6px;
   cursor: pointer;
 }
-.v30-bulk__btn:hover { opacity: 1; background: color-mix(in oklch, var(--bg) 10%, transparent); }
-.v30-bulk__btn--danger { color: color-mix(in oklch, var(--danger) 80%, #fff); }
+.v30-bulk__btn:hover { opacity: 1; background: color-mix(in oklch, var(--bulk-fg) 10%, transparent); }
+.v30-bulk__btn--danger { color: color-mix(in oklch, var(--danger) 80%, var(--bulk-fg)); }
 .v30-bulk__btn--danger:hover { background: color-mix(in oklch, var(--danger) 20%, transparent); }
 
 /* ─── Modales Prospects : grilles et chips ─── */
