@@ -416,15 +416,348 @@
       });
   }
 
+  // ─── Performance (v30.6 — reprise v29 dv2) ────────────────────────
+  var PERF_COLORS = {
+    contacts: '#f59e0b',
+    notes:    '#3b82f6',
+    push:     '#8b5cf6',
+    rdv:      '#22c55e',
+    overdue:  '#ef4444'
+  };
+  var PERF_STATE = { weekOffset: 0, chart: null };
+
+  function weekMonday(offset) {
+    var d = new Date(); d.setHours(0, 0, 0, 0);
+    var day = d.getDay();
+    var diff = (day === 0) ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff + (offset * 7));
+    return d;
+  }
+  function isoWeek(offset) {
+    var monday = weekMonday(offset);
+    var d = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate()));
+    var dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return d.getUTCFullYear() + '-W' + String(weekNo).padStart(2, '0');
+  }
+  function weekLabel(offset) {
+    if (offset === 0) return 'Cette semaine';
+    var monday = weekMonday(offset);
+    var sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6);
+    var fmt = function (d) {
+      return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+    };
+    return 'Sem. ' + fmt(monday) + ' → ' + fmt(sunday);
+  }
+  function trendBadge(current, previous) {
+    if (!previous || previous === 0) return '';
+    var diff = current - previous;
+    var pct = Math.round((diff / previous) * 100);
+    if (diff > 0) return '<span class="v30-perf__trend v30-perf__trend--up">+' + pct + '%</span>';
+    if (diff < 0) return '<span class="v30-perf__trend v30-perf__trend--down">' + pct + '%</span>';
+    return '<span class="v30-perf__trend v30-perf__trend--flat">=</span>';
+  }
+  function sparklineSVG(values, color, w, h) {
+    w = w || 60; h = h || 22;
+    if (!values || !values.length) return '';
+    var max = Math.max(1, Math.max.apply(null, values));
+    var pts = values.map(function (v, i) {
+      var x = values.length > 1 ? (i / (values.length - 1)) * w : w / 2;
+      var y = h - ((v / max) * (h - 4)) - 2;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+    var lastPt = pts[pts.length - 1].split(',');
+    return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true">' +
+      '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<circle cx="' + lastPt[0] + '" cy="' + lastPt[1] + '" r="2" fill="' + color + '"/>' +
+    '</svg>';
+  }
+  function dayShort(iso) {
+    var names = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    try { return names[new Date(iso + 'T00:00:00').getDay()]; } catch (_) { return iso; }
+  }
+
+  function renderPerformance(data) {
+    var root = $('[data-v30-perf]');
+    if (!root) return;
+    var t = data.today || {};
+    var w = data.week || {};
+    var pw = data.prev_week || {};
+    var days = (w && w.days) || [];
+    var isPast = !!data.is_past_week;
+
+    var todayContacts = (t.calls || 0) > 0 ? t.calls : Math.max(t.relances || 0, t.notes || 0);
+    var weekContacts = (w.calls || 0) > 0 ? w.calls : Math.max(w.relances || 0, w.notes || 0);
+    var prevContacts = Math.max(pw.relances || 0, pw.notes || 0);
+
+    var totalWeek = (weekContacts || 0) + (w.push_total || 0);
+    var badge = root.querySelector('[data-field="badge"]');
+    if (badge) badge.textContent = isPast ? weekLabel(PERF_STATE.weekOffset) : (totalWeek + ' actions cette semaine');
+
+    var pipeline = data.pipeline || {};
+    var chips = [
+      { key: 'contacts', color: PERF_COLORS.contacts, label: 'Contacts',
+        value: isPast ? weekContacts : todayContacts,
+        weekVal: weekContacts, prevVal: prevContacts,
+        sub: isPast ? (weekContacts + ' cette semaine') : ((t.calls || 0) + ' appels tracés') },
+      { key: 'notes', color: PERF_COLORS.notes, label: 'Notes',
+        value: isPast ? (w.notes || 0) : (t.notes || 0),
+        weekVal: w.notes || 0, prevVal: pw.notes || 0,
+        sub: (w.notes || 0) + ' cette semaine' },
+      { key: 'push', color: PERF_COLORS.push, label: 'Push',
+        value: isPast ? (w.push_total || 0) : (t.push_total || 0),
+        weekVal: w.push_total || 0, prevVal: pw.push_total || 0,
+        sub: (w.push_email || 0) + ' emails + ' + (w.push_linkedin || 0) + ' linkedin' },
+      { key: 'rdv', color: PERF_COLORS.rdv, label: 'RDV',
+        value: isPast ? (w.rdv_total || 0) : (pipeline.rdv || 0),
+        weekVal: isPast ? (w.rdv_total || 0) : (pipeline.rdv || 0), prevVal: 0,
+        sub: isPast ? 'RDV pris cette semaine' : ('sur ' + (pipeline.total || 0) + ' prospects') }
+    ];
+    if (!isPast && (pipeline.overdue || 0) > 0) {
+      chips.push({
+        key: 'overdue', color: PERF_COLORS.overdue, label: 'En retard',
+        value: pipeline.overdue,
+        weekVal: pipeline.overdue, prevVal: 0,
+        sub: (pipeline.due_today || 0) + ' à faire aujourd\'hui',
+        alert: true
+      });
+    }
+
+    var esc = function (s) { var el = document.createElement('span'); el.textContent = s == null ? '' : String(s); return el.innerHTML; };
+
+    var chipsEl = root.querySelector('[data-field="chips"]');
+    if (chipsEl) {
+      chipsEl.innerHTML = chips.map(function (c) {
+        var sparkVals = days.map(function (d) {
+          if (c.key === 'contacts') return (d.calls || 0) > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0);
+          if (c.key === 'notes') return d.notes || 0;
+          if (c.key === 'push') return d.push || 0;
+          if (c.key === 'rdv')  return d.rdv || 0;
+          return 0;
+        });
+        var spark = c.key !== 'overdue'
+          ? '<span class="v30-perf__chip-spark">' + sparklineSVG(sparkVals, c.color, 60, 22) + '</span>'
+          : '';
+        var trend = trendBadge(c.weekVal, c.prevVal);
+        return '<div class="v30-perf__chip' + (c.alert ? ' v30-perf__chip--alert' : '') + '" style="--chip-color:' + c.color + ';">' +
+          '<div class="v30-perf__chip-val num">' + esc(c.value) + '</div>' +
+          '<div class="v30-perf__chip-label">' + esc(c.label) + ' ' + trend + '</div>' +
+          '<div class="v30-perf__chip-sub">' + esc(c.sub) + '</div>' +
+          spark +
+        '</div>';
+      }).join('');
+    }
+
+    renderPerformanceChart(days, w);
+  }
+
+  function renderPerformanceChart(days, week) {
+    var host = document.querySelector('[data-v30-perf] [data-field="chart"]');
+    if (!host) return;
+    if (!days || !days.length) {
+      host.innerHTML = '<div class="empty" style="padding:28px 0;text-align:center;color:var(--text-3);font-size:12px;">Aucune donnée cette semaine.</div>';
+      return;
+    }
+    if (typeof Chart === 'undefined') {
+      host.innerHTML = '<div class="empty" style="padding:28px 0;text-align:center;color:var(--text-3);font-size:12px;">Chart.js non chargé.</div>';
+      return;
+    }
+    host.innerHTML = '<canvas></canvas>';
+    var canvas = host.querySelector('canvas');
+    var labels = days.map(function (d) { return dayShort(d.date); });
+    var contactsVals = days.map(function (d) { return (d.calls || 0) > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0); });
+    var pushVals = days.map(function (d) { return d.push || 0; });
+    var totalVals = days.map(function (d, i) { return contactsVals[i] + pushVals[i]; });
+
+    var textMuted = (getComputedStyle(document.documentElement).getPropertyValue('--text-3') || '#94a3b8').trim();
+
+    if (PERF_STATE.chart) { try { PERF_STATE.chart.destroy(); } catch (_) {} PERF_STATE.chart = null; }
+    PERF_STATE.chart = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Contacts', data: contactsVals,
+            backgroundColor: 'rgba(245, 158, 11, 0.7)',
+            borderRadius: 4, borderSkipped: false, stack: 'stack0'
+          },
+          {
+            label: 'Push', data: pushVals,
+            backgroundColor: 'rgba(139, 92, 246, 0.7)',
+            borderRadius: 4, borderSkipped: false, stack: 'stack0'
+          },
+          {
+            label: 'Total', data: totalVals,
+            type: 'line',
+            borderColor: textMuted,
+            borderWidth: 1.5,
+            pointRadius: 3,
+            pointBackgroundColor: textMuted,
+            fill: false, tension: 0.3, order: 0
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true, position: 'bottom',
+            labels: { boxWidth: 8, boxHeight: 8, borderRadius: 4, useBorderRadius: true, font: { size: 10, weight: '600' }, padding: 12, color: textMuted }
+          },
+          tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', padding: 8, cornerRadius: 8, displayColors: true, boxWidth: 8, boxHeight: 8, boxPadding: 3 }
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10, weight: '600' }, color: textMuted } },
+          y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.12)' }, ticks: { font: { size: 10 }, color: textMuted, stepSize: 1 } }
+        },
+        animation: { duration: 500 }
+      }
+    });
+  }
+
+  function updatePerfNav() {
+    var root = $('[data-v30-perf]');
+    if (!root) return;
+    var label = root.querySelector('[data-field="weeklabel"]');
+    var prev = root.querySelector('[data-v30-perf-prev]');
+    var next = root.querySelector('[data-v30-perf-next]');
+    var today = root.querySelector('[data-v30-perf-today]');
+    if (label) label.textContent = weekLabel(PERF_STATE.weekOffset);
+    if (prev) prev.disabled = PERF_STATE.weekOffset <= -52;
+    if (next) next.disabled = PERF_STATE.weekOffset >= 0;
+    if (today) today.hidden = PERF_STATE.weekOffset === 0;
+  }
+  function bindPerfNav() {
+    var root = $('[data-v30-perf]');
+    if (!root) return;
+    root.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-v30-perf-prev],[data-v30-perf-next],[data-v30-perf-today]');
+      if (!btn) return;
+      if (btn.matches('[data-v30-perf-prev]')) PERF_STATE.weekOffset = Math.max(-52, PERF_STATE.weekOffset - 1);
+      else if (btn.matches('[data-v30-perf-next]')) PERF_STATE.weekOffset = Math.min(0, PERF_STATE.weekOffset + 1);
+      else PERF_STATE.weekOffset = 0;
+      updatePerfNav();
+      var url = '/api/dashboard' + (PERF_STATE.weekOffset < 0 ? ('?week=' + encodeURIComponent(isoWeek(PERF_STATE.weekOffset))) : '');
+      fetchJSON(url)
+        .then(function (res) { renderPerformance((res && res.data) || {}); renderObjectifs((res && res.data && res.data.goals) || null); })
+        .catch(function () {});
+    });
+  }
+
+  // ─── Objectifs (rings + daily/weekly items avec XP) ──────────────
+  var OBJ_ICONS = {
+    done: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    star: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+    target: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+    alert: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+  };
+  function iconForRatio(ratio, done) {
+    if (done || ratio >= 1) return OBJ_ICONS.done;
+    if (ratio >= 0.6) return OBJ_ICONS.star;
+    if (ratio >= 0.2) return OBJ_ICONS.target;
+    return OBJ_ICONS.alert;
+  }
+  function barColorForRatio(r) {
+    if (r >= 1) return 'var(--success)';
+    if (r >= 0.6) return 'oklch(0.70 0.18 75)';
+    if (r >= 0.3) return 'oklch(0.68 0.17 45)';
+    return 'var(--danger)';
+  }
+
+  function renderObjectifs(goals) {
+    var root = $('[data-v30-objs]');
+    if (!root) return;
+    if (!goals || !goals.daily || !goals.weekly) {
+      var items = root.querySelector('[data-field="items"]');
+      if (items) items.innerHTML = '<div class="empty" style="padding:16px 0;text-align:center;color:var(--text-3);font-size:12px;">Objectifs indisponibles.</div>';
+      return;
+    }
+    var daily = goals.daily, weekly = goals.weekly;
+    var dayRatio = daily.xp_total ? Math.min(1, (daily.xp_current || 0) / daily.xp_total) : 0;
+    var wkRatio  = weekly.xp_total ? Math.min(1, (weekly.xp_current || 0) / weekly.xp_total) : 0;
+    var level = Math.floor((weekly.xp_current || 0) / 100) + 1;
+
+    // rings
+    var r1 = 52, r2 = 40;
+    var c1 = 2 * Math.PI * r1, c2 = 2 * Math.PI * r2;
+    var wkEl = root.querySelector('[data-field="ring-week"]');
+    var dyEl = root.querySelector('[data-field="ring-day"]');
+    if (wkEl) {
+      wkEl.setAttribute('stroke-dasharray', c1.toFixed(2));
+      wkEl.setAttribute('stroke-dashoffset', (c1 * (1 - wkRatio)).toFixed(2));
+    }
+    if (dyEl) {
+      dyEl.setAttribute('stroke-dasharray', c2.toFixed(2));
+      dyEl.setAttribute('stroke-dashoffset', (c2 * (1 - dayRatio)).toFixed(2));
+    }
+    var xpEl = root.querySelector('[data-field="xp"]');
+    var lvEl = root.querySelector('[data-field="level"]');
+    if (xpEl) xpEl.textContent = Math.round(weekly.xp_current || 0);
+    if (lvEl) lvEl.textContent = 'Lv ' + level;
+
+    var wPct = root.querySelector('[data-field="week-pct"]');
+    var dPct = root.querySelector('[data-field="day-pct"]');
+    if (wPct) wPct.textContent = Math.round(wkRatio * 100) + '%';
+    if (dPct) dPct.textContent = Math.round(dayRatio * 100) + '%';
+
+    var xpLine = root.querySelector('[data-field="xp-line"]');
+    if (xpLine) xpLine.textContent =
+      Math.round(daily.xp_current || 0) + '/' + Math.round(daily.xp_total || 0) + ' XP jour · ' +
+      Math.round(weekly.xp_current || 0) + '/' + Math.round(weekly.xp_total || 0) + ' XP semaine';
+
+    var esc = function (s) { var el = document.createElement('span'); el.textContent = s == null ? '' : String(s); return el.innerHTML; };
+    var itemsEl = root.querySelector('[data-field="items"]');
+    if (!itemsEl) return;
+    var html = '';
+    var totalItems = 0;
+    ['daily', 'weekly'].forEach(function (scope) {
+      var obj = goals[scope];
+      if (!obj || !obj.items) return;
+      var keys = Object.keys(obj.items).filter(function (k) { return Number(obj.items[k].target || 0) > 0; });
+      if (!keys.length) return;
+      totalItems += keys.length;
+      var title = scope === 'daily' ? 'Objectifs du jour' : 'Objectifs de la semaine';
+      var xpLabel = Math.round(obj.xp_current || 0) + '/' + Math.round(obj.xp_total || 0) + ' XP';
+      html += '<div class="v30-objs__scope">' + esc(title) + '<span class="v30-objs__scope-xp">' + esc(xpLabel) + '</span></div>';
+      keys.forEach(function (k) {
+        var it = obj.items[k];
+        var ratio = Math.max(0, Math.min(1, Number(it.ratio) || 0));
+        var done = !!it.done;
+        html += '<div class="v30-objs__item' + (done ? ' v30-objs__item--done' : '') + '">' +
+          '<span class="v30-objs__item-icon">' + iconForRatio(ratio, done) + '</span>' +
+          '<div class="v30-objs__item-body">' +
+            '<div class="v30-objs__item-top">' +
+              '<span class="v30-objs__item-label">' + esc(it.label || k) + '</span>' +
+              '<span class="v30-objs__item-count"><b>' + (it.count || 0) + '</b>/' + (it.target || 0) + '</span>' +
+            '</div>' +
+            '<div class="v30-objs__item-bar"><div class="v30-objs__item-fill" style="width:' + Math.round(ratio * 100) + '%;background:' + barColorForRatio(ratio) + ';"></div></div>' +
+            '<div class="v30-objs__item-meta">+' + Math.round(it.xp_earned || 0) + ' / ' + Math.round(it.xp || 0) + ' XP</div>' +
+          '</div>' +
+        '</div>';
+      });
+    });
+    if (!totalItems) {
+      html = '<div class="empty" style="padding:16px 0;text-align:center;color:var(--text-3);font-size:12px;">' +
+        'Aucun objectif configuré. <a href="/parametres#goals" style="color:var(--accent);">Configurer →</a>' +
+      '</div>';
+    }
+    itemsEl.innerHTML = html;
+  }
+
   function hydrate() {
-    fetchJSON('/api/dashboard')
+    var url = '/api/dashboard' + (PERF_STATE.weekOffset < 0 ? ('?week=' + encodeURIComponent(isoWeek(PERF_STATE.weekOffset))) : '');
+    fetchJSON(url)
       .then(function (res) {
         var data = (res && res.data) || {};
         renderHero(data);
+        renderPerformance(data);
+        renderObjectifs(data.goals);
         renderGoals(data.goals);
         renderActivity(data.feed);
-        // Action center RDV + En retard viennent de /api/dashboard ;
-        // À faire arrive via /api/tasks, combiner après.
         return Promise.all([Promise.resolve(data), fetchJSON('/api/tasks?status=pending').catch(function () { return { tasks: [] }; })]);
       })
       .then(function (both) {
@@ -560,13 +893,17 @@
     bindModalDismiss($('[data-v30-dash-kpi-modal]'));
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
-      hydrate(); bindRefresh(); bindHeroActions();
-    });
-  } else {
+  function initAll() {
     hydrate();
     bindRefresh();
     bindHeroActions();
+    bindPerfNav();
+    updatePerfNav();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAll);
+  } else {
+    initAll();
   }
 })();

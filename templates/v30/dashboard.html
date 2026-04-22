@@ -4,6 +4,7 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="/static/css/v30/dashboard.css?v={{ static_hash('css/v30/dashboard.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -56,7 +57,100 @@
     </div>
   </section>
 
-  {# ─── Bento row 1 : Action center · Pipeline · Goals ─── #}
+  {# ─── Bento row 0 : Performance · Objectifs (v30.6 — reprise des panneaux v29) ─── #}
+  <div class="v30-bento-0">
+
+    {# Performance — KPI chips (Contacts, Notes, Push, RDV + En retard si pertinent) + chart semaine #}
+    <div class="card v30-perf" data-v30-perf>
+      <div class="row-sb v30-perf__head">
+        <div class="card-title">Performance</div>
+        <span class="v30-perf__badge" data-field="badge">—</span>
+      </div>
+      <div class="v30-perf__weeknav" data-v30-perf-nav>
+        <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-perf-prev aria-label="Semaine précédente">
+          {{ ui.icon('chevL') }}
+        </button>
+        <span class="v30-perf__weeklabel" data-field="weeklabel">Cette semaine</span>
+        <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-perf-next aria-label="Semaine suivante" disabled>
+          {{ ui.icon('chevR') }}
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-perf-today hidden>Aujourd'hui</button>
+      </div>
+      <div class="v30-perf__chips" data-field="chips">
+        {% for _ in range(4) %}
+        <div class="v30-perf__chip">
+          <div class="v30-perf__chip-val"><span class="skel" style="width:36px;height:26px;display:inline-block;"></span></div>
+          <div class="v30-perf__chip-label"><span class="skel" style="width:60px;height:12px;display:inline-block;"></span></div>
+          <div class="v30-perf__chip-sub"><span class="skel" style="width:90px;height:10px;display:inline-block;"></span></div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="v30-perf__chart" data-field="chart">
+        <div class="skel" style="width:100%;height:160px;border-radius:8px;"></div>
+      </div>
+    </div>
+
+    {# Objectifs — rings (jour+semaine), level, XP + listes d'objectifs quotidiens et hebdo #}
+    <div class="card v30-objs" data-v30-objs>
+      <div class="row-sb v30-objs__head">
+        <div class="card-title">Objectifs</div>
+        <a href="/parametres#goals" class="btn btn-ghost btn-sm btn-icon" title="Paramètres objectifs" aria-label="Paramètres objectifs">
+          {{ ui.icon('cog', 13) }}
+        </a>
+      </div>
+
+      <div class="v30-objs__top">
+        <div class="v30-objs__rings" data-field="rings">
+          <svg viewBox="0 0 120 120" aria-label="Progression objectifs">
+            <circle class="v30-objs__ring-track" cx="60" cy="60" r="52"/>
+            <circle data-field="ring-week" class="v30-objs__ring-fill" cx="60" cy="60" r="52"
+                    stroke="var(--accent)" stroke-width="8" fill="none" stroke-linecap="round"
+                    transform="rotate(-90 60 60)"
+                    stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
+            <circle class="v30-objs__ring-track" cx="60" cy="60" r="40"/>
+            <circle data-field="ring-day" class="v30-objs__ring-fill" cx="60" cy="60" r="40"
+                    stroke="oklch(0.65 0.16 220)" stroke-width="8" fill="none" stroke-linecap="round"
+                    transform="rotate(-90 60 60)"
+                    stroke-dasharray="251.33" stroke-dashoffset="251.33"/>
+          </svg>
+          <div class="v30-objs__rings-center">
+            <div class="v30-objs__xp num" data-field="xp">—</div>
+            <div class="v30-objs__level" data-field="level">Lv —</div>
+          </div>
+        </div>
+        <div class="v30-objs__legend" data-field="legend">
+          <div class="v30-objs__legend-row">
+            <span class="v30-objs__legend-dot" style="background:var(--accent);"></span>
+            <span>Semaine</span>
+            <span class="num" data-field="week-pct">—%</span>
+          </div>
+          <div class="v30-objs__legend-row">
+            <span class="v30-objs__legend-dot" style="background:oklch(0.65 0.16 220);"></span>
+            <span>Jour</span>
+            <span class="num" data-field="day-pct">—%</span>
+          </div>
+          <div class="v30-objs__xp-line" data-field="xp-line">—/— XP jour · —/— XP semaine</div>
+        </div>
+      </div>
+
+      <div class="v30-objs__items" data-field="items">
+        <div class="skel" style="width:60%;height:12px;margin-bottom:8px;"></div>
+        {% for _ in range(3) %}
+        <div class="v30-objs__item">
+          <span class="skel" style="width:20px;height:20px;border-radius:4px;"></span>
+          <div style="flex:1;min-width:0;">
+            <div class="skel" style="width:65%;height:12px;margin-bottom:4px;"></div>
+            <div class="skel" style="width:100%;height:4px;"></div>
+          </div>
+          <span class="skel" style="width:30px;height:12px;display:inline-block;"></span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
+  {# ─── Bento row 1 : Action center · Pipeline ─── #}
   <div class="v30-bento-1">
 
     {# Action center — branché sur /api/tasks + /api/dashboard #}
@@ -104,8 +198,8 @@
       </div>
     </div>
 
-    {# Goals — branché sur /api/dashboard → goals.daily #}
-    <div class="card v30-goals" data-v30-goals>
+    {# Goals compact (legacy card, conservé en fallback si v30-objs absent) — caché par défaut #}
+    <div class="card v30-goals" data-v30-goals hidden>
       <div class="row-sb" style="margin-bottom: 8px;">
         <div class="card-title">Objectifs du jour</div>
         <a href="/parametres" class="btn btn-ghost btn-sm btn-icon" title="Paramètres objectifs" aria-label="Paramètres objectifs">
@@ -122,17 +216,7 @@
           <text data-field="ring-pct" x="60" y="64" text-anchor="middle" font-family="var(--font-serif)" font-size="30" fill="var(--text)">—</text>
         </svg>
       </div>
-      <div class="v30-goals__list" data-field="list">
-        {% for _ in range(3) %}
-        <div class="v30-goal__row">
-          <div class="v30-goal__head">
-            <span><span class="skel" style="width:60px;height:12px;display:inline-block;"></span></span>
-            <span><span class="skel" style="width:40px;height:12px;display:inline-block;"></span></span>
-          </div>
-          <div class="v30-goal__track"><div class="v30-goal__fill" style="width: 0%;"></div></div>
-        </div>
-        {% endfor %}
-      </div>
+      <div class="v30-goals__list" data-field="list"></div>
     </div>
 
   </div>
