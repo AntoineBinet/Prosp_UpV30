@@ -4,6 +4,20 @@
   var FP = window.ProspFP;
   if (!FP) return;
 
+  function splitPhonesDetail(tel) {
+    if (!tel) return [];
+    var m = String(tel).match(/\+?\d[\d\s().-]{6,}\d/g);
+    if (!m) return [];
+    var seen = {};
+    return m.map(function (s) { return s.trim().replace(/\s+/g, ' '); })
+      .filter(function (s) { if (seen[s]) return false; seen[s] = true; return true; });
+  }
+  function normTelDetail(ph) {
+    var plus = String(ph).charAt(0) === '+';
+    var r = String(ph).replace(/[^\d]/g, '');
+    return plus ? '+' + r : r;
+  }
+
   function renderHeader(p) {
     var h = FP.$('[data-v30-fp-header]');
     if (!h || !p) return;
@@ -37,9 +51,9 @@
     var telBtn = h.querySelector('[data-field="tel-link"]');
     if (telBtn) {
       if (p.telephone) {
-        telBtn.href = 'tel:' + String(p.telephone).replace(/\s/g, '');
         telBtn.hidden = false;
-        telBtn.onclick = function () {
+        var fpPhones = splitPhonesDetail(p.telephone);
+        function logFpCall() {
           fetch('/api/prospect/log-call', {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -51,7 +65,43 @@
               var aside = FP.$('[data-field="aside-last"]');
               if (aside) aside.textContent = FP.relativeTime(d.lastContact);
             }).catch(function () {});
-        };
+        }
+        if (fpPhones.length > 1) {
+          telBtn.href = '#';
+          telBtn.onclick = function (ev) {
+            ev.preventDefault();
+            var existing = document.querySelector('[data-v30-fp-tel-pick]');
+            if (existing) { existing.remove(); return; }
+            var pick = document.createElement('div');
+            pick.setAttribute('data-v30-fp-tel-pick', '');
+            pick.className = 'v30-pp-tel-drop';
+            pick.style.cssText = 'position:fixed;z-index:200;min-width:180px;';
+            var rect = telBtn.getBoundingClientRect();
+            pick.style.top = (rect.bottom + 4) + 'px';
+            pick.style.left = rect.left + 'px';
+            fpPhones.forEach(function (ph) {
+              var a = document.createElement('a');
+              a.className = 'v30-pp-tel-opt';
+              a.href = 'tel:' + normTelDetail(ph);
+              a.textContent = ph;
+              a.addEventListener('click', function () { logFpCall(); pick.remove(); });
+              pick.appendChild(a);
+            });
+            document.body.appendChild(pick);
+            setTimeout(function () {
+              function closeP(ev2) {
+                if (!pick.contains(ev2.target) && ev2.target !== telBtn) {
+                  pick.remove();
+                  document.removeEventListener('click', closeP);
+                }
+              }
+              document.addEventListener('click', closeP);
+            }, 10);
+          };
+        } else {
+          telBtn.href = 'tel:' + (fpPhones.length ? normTelDetail(fpPhones[0]) : String(p.telephone).replace(/\s/g, ''));
+          telBtn.onclick = logFpCall;
+        }
       } else { telBtn.hidden = true; }
     }
     document.title = (p.name || 'Fiche') + " — Prosp'Up v30";
