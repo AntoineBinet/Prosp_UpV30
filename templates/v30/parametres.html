@@ -99,7 +99,10 @@
       </p>
       <div class="v30-deploy__path muted">
         Dossier cible : <code class="mono">{{ app_dir or '—' }}</code><br>
-        <span style="font-size:11px;">Vérifie que c'est bien le nouveau dossier v30 avant de lancer la mise à jour.</span>
+        Remote origin : <code class="mono" data-v30-deploy-remote>chargement…</code>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-deploy-remote-change style="margin-left:8px;">Changer…</button>
+        <br>
+        <span style="font-size:11px;">Vérifie que c'est bien le nouveau dossier v30 et le bon repo GitHub avant de lancer la mise à jour.</span>
       </div>
       <div class="v30-deploy__actions">
         <button type="button" class="btn btn-primary btn-sm" data-v30-deploy-pull>

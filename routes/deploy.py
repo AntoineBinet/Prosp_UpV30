@@ -486,6 +486,76 @@ def api_deploy_pull():
     )
 
 
+# ── Gestion du remote Git (admin) ─────────────────────────────────
+# Permet de changer l'URL origin à distance, pratique quand on a
+# migré vers un nouveau repo GitHub sans accès physique au PC hébergeur.
+
+_ALLOWED_REMOTE_HOSTS = ("https://github.com/", "git@github.com:")
+
+
+@deploy_bp.get("/api/deploy/remote")
+@login_required
+@role_required('admin')
+def api_deploy_remote_get():
+    """Retourne l'URL du remote `origin` actuel (admin)."""
+    try:
+        cp = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=str(APP_DIR), capture_output=True, text=True, timeout=3,
+        )
+        if cp.returncode != 0:
+            return jsonify(ok=False, error=(cp.stderr or "Pas de remote origin").strip()), 400
+        return jsonify(ok=True, url=cp.stdout.strip(), app_dir=str(APP_DIR))
+    except Exception as e:
+        logger.exception("Deploy remote get error")
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@deploy_bp.post("/api/deploy/set-remote")
+@login_required
+@role_required('admin')
+def api_deploy_set_remote():
+    """Change l'URL du remote `origin` (admin).
+
+    Body JSON : `{ "url": "https://github.com/<owner>/<repo>.git" }`
+    Seules les URLs GitHub HTTPS/SSH sont autorisées (préfixe whitelist).
+    """
+    chk = _require_same_origin()
+    if chk:
+        return chk
+    from flask import request
+    payload = request.get_json(force=True, silent=True) or {}
+    url = (payload.get("url") or "").strip()
+    if not url:
+        return jsonify(ok=False, error="url requis"), 400
+    if not any(url.startswith(prefix) for prefix in _ALLOWED_REMOTE_HOSTS):
+        return jsonify(ok=False, error=f"URL non autorisée. Préfixe attendu : {', '.join(_ALLOWED_REMOTE_HOSTS)}"), 400
+    try:
+        # set-url (origin doit exister — sinon fallback add)
+        cp = subprocess.run(
+            ["git", "remote", "set-url", "origin", url],
+            cwd=str(APP_DIR), capture_output=True, text=True, timeout=5,
+        )
+        if cp.returncode != 0:
+            # Tentative d'ajout si pas encore de remote
+            cp2 = subprocess.run(
+                ["git", "remote", "add", "origin", url],
+                cwd=str(APP_DIR), capture_output=True, text=True, timeout=5,
+            )
+            if cp2.returncode != 0:
+                return jsonify(ok=False, error=(cp.stderr or cp2.stderr or "set-url failed").strip()), 500
+        # Vérifie la nouvelle URL
+        verify = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=str(APP_DIR), capture_output=True, text=True, timeout=3,
+        )
+        new_url = verify.stdout.strip() if verify.returncode == 0 else url
+        return jsonify(ok=True, url=new_url)
+    except Exception as e:
+        logger.exception("Deploy set-remote error")
+        return jsonify(ok=False, error=str(e)), 500
+
+
 @deploy_bp.post("/api/deploy/restart")
 @login_required
 @role_required('admin')

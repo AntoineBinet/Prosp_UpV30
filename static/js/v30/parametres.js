@@ -192,6 +192,50 @@
     }
   }
 
+  // ─── Remote Git (set-url à distance) ────────────────────────
+  async function loadRemote() {
+    var span = $('[data-v30-deploy-remote]');
+    if (!span) return;
+    try {
+      var res = await fetch('/api/deploy/remote', { credentials: 'same-origin' });
+      var data = await res.json();
+      if (data && data.ok) {
+        span.textContent = data.url || '—';
+        span.title = data.url || '';
+      } else {
+        span.textContent = 'erreur : ' + ((data && data.error) || 'inconnue');
+      }
+    } catch (e) { span.textContent = 'erreur : ' + e.message; }
+  }
+  async function changeRemote() {
+    var span = $('[data-v30-deploy-remote]');
+    var current = span ? span.textContent : '';
+    var next = prompt(
+      'Nouvelle URL du remote Git (origin).\nExemple : https://github.com/AntoineBinet/Prosp_UpV30.git',
+      current && current.indexOf('http') === 0 ? current : 'https://github.com/AntoineBinet/Prosp_UpV30.git'
+    );
+    if (!next) return;
+    next = next.trim();
+    if (!/^https:\/\/github\.com\/|^git@github\.com:/.test(next)) {
+      alert('URL non autorisée. Elle doit commencer par https://github.com/ ou git@github.com:');
+      return;
+    }
+    try {
+      var res = await fetch('/api/deploy/set-remote', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: next })
+      });
+      var data = await res.json();
+      if (!res.ok || !data.ok) throw new Error((data && data.error) || 'HTTP ' + res.status);
+      toast('Remote mis à jour : ' + data.url, 'success');
+      loadRemote();
+    } catch (e) {
+      toast('Erreur : ' + e.message, 'error');
+    }
+  }
+
   function bind() {
     var pull = $('[data-v30-deploy-pull]');
     if (pull) pull.addEventListener('click', doPull);
@@ -199,6 +243,9 @@
     if (roll) roll.addEventListener('click', doRollback);
     var rest = $('[data-v30-deploy-restart]');
     if (rest) rest.addEventListener('click', doRestart);
+    var chg = $('[data-v30-deploy-remote-change]');
+    if (chg) chg.addEventListener('click', changeRemote);
+    loadRemote();
   }
 
   if (document.readyState === 'loading') {
