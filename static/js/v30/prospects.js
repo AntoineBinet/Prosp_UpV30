@@ -1412,6 +1412,30 @@
     });
   }
 
+  function bindTelLog() {
+    document.addEventListener('click', function (e) {
+      var link = e.target.closest('a[href^="tel:"]');
+      if (!link) return;
+      var row = link.closest('tr[data-id]');
+      var id = row ? Number(row.dataset.id) : 0;
+      if (!id) return;
+      fetch('/api/prospect/log-call', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prospect_id: id })
+      }).then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d || !d.ok || !d.lastContact) return;
+          var p = STATE.prospects.find(function (x) { return x.id === id; });
+          if (p) {
+            p.lastContact = d.lastContact;
+            var tr = document.querySelector('tr[data-id="' + id + '"]');
+            if (tr) tr.outerHTML = renderRow(p);
+          }
+        }).catch(function () {});
+    });
+  }
+
   function readUrlFilters() {
     try {
       var params = new URLSearchParams(window.location.search);
@@ -1440,6 +1464,7 @@
     bindExport();
     bindAi();
     bindModeProsp();
+    bindTelLog();
     updateFilterBadge();
     loadProspects();
     loadSavedViews();

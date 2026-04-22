@@ -39,6 +39,19 @@
       if (p.telephone) {
         telBtn.href = 'tel:' + String(p.telephone).replace(/\s/g, '');
         telBtn.hidden = false;
+        telBtn.onclick = function () {
+          fetch('/api/prospect/log-call', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prospect_id: p.id })
+          }).then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+              if (!d || !d.ok || !d.lastContact) return;
+              p.lastContact = d.lastContact;
+              var aside = FP.$('[data-field="aside-last"]');
+              if (aside) aside.textContent = FP.relativeTime(d.lastContact);
+            }).catch(function () {});
+        };
       } else { telBtn.hidden = true; }
     }
     document.title = (p.name || 'Fiche') + " — Prosp'Up v30";
