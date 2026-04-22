@@ -2,6 +2,13 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.3] — 2026-04-22 · Persistance des filtres prospects v30
+
+Depuis que la fiche prospect est une page plein écran (et non plus une popup), revenir sur `/v30/prospects` remettait tous les filtres à zéro. Correction : la recherche, les pills (vues built-in + vues sauvegardées), les filtres avancés (statuts, pertinence min, tags, dates de relance, téléphonables, entreprise) et le tri sont désormais persistés dans `localStorage` (clé `v30.prospects.filters`).
+
+### Changements
+- **`static/js/v30/prospects.js`** : ajout de `loadPersistedFilters` / `savePersistedFilters` / `restorePersistedFilters` / `syncUiFromState`. Sauvegarde automatique sur apply/reset des filtres, sur frappe dans la recherche, sur clic de pill (built-in ou saved view) et sur changement de tri. Restauration au chargement avec synchronisation de l'input de recherche et de la pill active. Le param URL `?company=ID` reste prioritaire sur la valeur persistée.
+
 ## [30.2] — 2026-04-22 · Vérification visuelle MAJ + affichage du dossier cible
 
 **Note** : le numéro `APP_VERSION` redescend volontairement de 30.7 à 30.2 pour servir de **marqueur visuel** dans la sidebar v30. Après que tu auras lancé la mise à jour depuis la v29 (une dernière fois), la sidebar affichera « v30.2 » — preuve que le nouveau dossier a bien été tiré. Le code embarque toutes les phases 1 à 5 + le bouton de MAJ v30 natif (30.3 à 30.7 cumulés).

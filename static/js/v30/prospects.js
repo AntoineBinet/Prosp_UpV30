@@ -32,6 +32,27 @@
     try { localStorage.setItem('v30.prospects.cols', JSON.stringify(arr)); } catch (_) {}
   }
 
+  var FILTERS_KEY = 'v30.prospects.filters';
+  function loadPersistedFilters() {
+    try {
+      var raw = localStorage.getItem(FILTERS_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      return (obj && typeof obj === 'object') ? obj : null;
+    } catch (_) { return null; }
+  }
+  function savePersistedFilters() {
+    try {
+      localStorage.setItem(FILTERS_KEY, JSON.stringify({
+        q: STATE.q || '',
+        filter: STATE.filter || 'all',
+        savedViewId: STATE.activeSavedViewId || null,
+        filters: STATE.filters || {},
+        sort: STATE.sort || { key: '', dir: 'asc' }
+      }));
+    } catch (_) {}
+  }
+
   var STATE = {
     q: '',
     limit: 50,
@@ -743,6 +764,7 @@
       t = setTimeout(function () {
         STATE.q = input.value.trim();
         STATE.offset = 0;
+        savePersistedFilters();
         loadProspects();
       }, 200);
     });
@@ -776,6 +798,7 @@
         STATE.sort.dir = 'asc';
       }
       STATE.offset = 0;
+      savePersistedFilters();
       loadProspects();
     });
   }
@@ -785,10 +808,12 @@
     STATE.filter = name;
     STATE.q = '';
     STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
+    STATE.activeSavedViewId = null;
     STATE.offset = 0;
     var inp = document.querySelector('[data-v30-search]');
     if (inp) inp.value = '';
     updateFilterBadge();
+    savePersistedFilters();
     loadProspects();
   }
 
@@ -807,11 +832,16 @@
   function renderSavedPills() {
     var host = document.querySelector('[data-v30-saved-views]');
     if (!host) return;
+    var activeId = STATE.activeSavedViewId;
     host.innerHTML = (STATE.savedViews || []).map(function (v) {
-      return '<button type="button" class="v30-pill" data-saved-view-id="' + v.id + '">' +
+      var cls = 'v30-pill' + (activeId && String(activeId) === String(v.id) ? ' is-active' : '');
+      return '<button type="button" class="' + cls + '" data-saved-view-id="' + v.id + '">' +
         esc(v.name) + ' <span class="v30-pill__x" data-saved-view-delete="' + v.id + '" aria-label="Supprimer">×</span>' +
       '</button>';
     }).join('');
+    if (activeId) {
+      document.querySelectorAll('.v30-pp-views [data-view-filter]').forEach(function (b) { b.classList.remove('is-active'); });
+    }
     host.querySelectorAll('[data-saved-view-id]').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         if (e.target.closest('[data-saved-view-delete]')) return;
@@ -832,9 +862,11 @@
           companyId: st.companyId || null
         };
         STATE.offset = 0;
+        STATE.activeSavedViewId = btn.dataset.savedViewId;
         document.querySelectorAll('.v30-pp-views [data-view-filter]').forEach(function (b) { b.classList.remove('is-active'); });
         document.querySelectorAll('[data-saved-view-id]').forEach(function (b) { b.classList.toggle('is-active', b === btn); });
         updateFilterBadge();
+        savePersistedFilters();
         loadProspects();
       });
     });
@@ -1054,6 +1086,7 @@
       STATE.offset = 0;
       updateFilterBadge();
       closeModal(m);
+      savePersistedFilters();
       loadProspects();
     });
     var reset = document.querySelector('[data-v30-flt-reset]');
@@ -1062,6 +1095,7 @@
       STATE.offset = 0;
       updateFilterBadge();
       closeModal(getModal('filters'));
+      savePersistedFilters();
       loadProspects();
     });
   }
@@ -1444,7 +1478,39 @@
     } catch (_) {}
   }
 
+  function restorePersistedFilters() {
+    var saved = loadPersistedFilters();
+    if (!saved) return;
+    if (typeof saved.q === 'string') STATE.q = saved.q;
+    if (typeof saved.filter === 'string') STATE.filter = saved.filter;
+    STATE.activeSavedViewId = saved.savedViewId || null;
+    if (saved.filters && typeof saved.filters === 'object') {
+      STATE.filters = {
+        statuts: Array.isArray(saved.filters.statuts) ? saved.filters.statuts : [],
+        pertMin: Number(saved.filters.pertMin) || 0,
+        tags: Array.isArray(saved.filters.tags) ? saved.filters.tags : [],
+        relanceFrom: saved.filters.relanceFrom || '',
+        relanceTo: saved.filters.relanceTo || '',
+        callableOnly: !!saved.filters.callableOnly,
+        companyId: saved.filters.companyId || null
+      };
+    }
+    if (saved.sort && typeof saved.sort === 'object') {
+      STATE.sort = { key: saved.sort.key || '', dir: saved.sort.dir === 'desc' ? 'desc' : 'asc' };
+    }
+  }
+
+  function syncUiFromState() {
+    var inp = document.querySelector('[data-v30-search]');
+    if (inp) inp.value = STATE.q || '';
+    var active = STATE.activeSavedViewId ? null : (STATE.filter || 'all');
+    document.querySelectorAll('.v30-pp-views [data-view-filter]').forEach(function (b) {
+      b.classList.toggle('is-active', active != null && b.dataset.viewFilter === active);
+    });
+  }
+
   function init() {
+    restorePersistedFilters();
     readUrlFilters();
     bindViewSwitch();
     bindSelection();
@@ -1465,6 +1531,7 @@
     bindAi();
     bindModeProsp();
     bindTelLog();
+    syncUiFromState();
     updateFilterBadge();
     loadProspects();
     loadSavedViews();
