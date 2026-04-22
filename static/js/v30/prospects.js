@@ -199,7 +199,7 @@
       case 'push':       return '<td>' + renderPushBadges(p) + '</td>';
       case 'lastContact': return '<td style="color:var(--text-2);">' + esc(relativeDate(p.lastContact)) + '</td>';
       case 'relance':    return '<td class="num mono" style="color:var(--text-2);">' + esc(shortDate(p.nextFollowUp)) + '</td>';
-      case 'tags':       return '<td><div style="display:flex;gap:4px;flex-wrap:wrap;">' + renderTags(p.tags) + '</div></td>';
+      case 'tags':       return '<td><div style="display:flex;gap:4px;flex-wrap:nowrap;overflow:hidden;">' + renderTags(p.tags) + '</div></td>';
       case 'actions':
         return '<td><div class="v30-pp-actions">' +
           (p.telephone ? '<a class="btn btn-ghost btn-sm btn-icon" href="tel:' + esc(String(p.telephone).replace(/\s/g, '')) + '" title="Appeler">' +
@@ -224,15 +224,20 @@
     return '<tr class="' + (sel ? 'is-selected' : '') + '" data-id="' + p.id + '">' + cells + '</tr>';
   }
 
+  var COL_WIDTHS = {
+    select: 32, name: 185, company: 130, statut: 95, pertinence: 72,
+    tel: 108, email: 128, push: 55, lastContact: 95, relance: 88, tags: 88, actions: 98
+  };
+
   function renderTableHead() {
     var thead = document.querySelector('.v30-pp-table thead tr');
     if (!thead) return;
     var cols = activeCols();
     var html = cols.map(function (c) {
-      if (c.key === 'select') return '<th style="width:32px;padding-left:14px;"><input type="checkbox" data-v30-select-all aria-label="Tout sélectionner"></th>';
-      if (c.key === 'name') return '<th style="width:240px;">' + esc(c.label) + '</th>';
-      if (c.key === 'actions') return '<th style="width:120px;">' + esc(c.label) + '</th>';
-      return '<th>' + esc(c.label) + '</th>';
+      var w = COL_WIDTHS[c.key];
+      var style = w ? 'width:' + w + 'px;' : '';
+      if (c.key === 'select') return '<th style="' + style + 'padding-left:14px;"><input type="checkbox" data-v30-select-all aria-label="Tout sélectionner"></th>';
+      return '<th' + (style ? ' style="' + style + '"' : '') + '>' + esc(c.label) + '</th>';
     }).join('');
     thead.innerHTML = html;
   }
