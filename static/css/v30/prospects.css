@@ -310,6 +310,27 @@
   border-radius: 4px;
 }
 .v30-pp-tel--multi:hover { background: color-mix(in oklch, var(--accent) 8%, transparent); }
+
+/* Tags cell */
+.v30-pp-tags { display: flex; gap: 4px; align-items: center; overflow: hidden; }
+.v30-pp-tags-more { cursor: default; flex-shrink: 0; }
+
+/* Tags popover (position:fixed → non clippé par overflow:hidden du tableau) */
+.v30-pp-tags-tip {
+  position: fixed;
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.22);
+  padding: 8px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 260px;
+  pointer-events: none;
+}
+.v30-pp-tags-tip[hidden] { display: none; }
 .v30-pp-tel-drop {
   position: absolute;
   top: calc(100% + 4px);

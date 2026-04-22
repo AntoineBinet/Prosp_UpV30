@@ -8,8 +8,6 @@
     { key: 'company', label: 'Entreprise' },
     { key: 'statut', label: 'Statut' },
     { key: 'pertinence', label: 'Pertinence' },
-    { key: 'tel', label: 'Mobile' },
-    { key: 'email', label: 'Email' },
     { key: 'push', label: 'Push' },
     { key: 'lastContact', label: 'Dernière action' },
     { key: 'relance', label: 'Prochain RDV' },
@@ -192,6 +190,7 @@
     return html + '</span>';
   }
 
+  var EMAIL_ICON_MD = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>';
   var TEL_ICON_SM = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17v3a2 2 0 0 1-2 2 19 19 0 0 1-17-17 2 2 0 0 1 2-2h3l2 5-2 1a12 12 0 0 0 6 6l1-2 5 2z"/></svg>';
   var TEL_ICON_MD = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 17v3a2 2 0 0 1-2 2 19 19 0 0 1-17-17 2 2 0 0 1 2-2h3l2 5-2 1a12 12 0 0 0 6 6l1-2 5 2z"/></svg>';
 
@@ -216,19 +215,25 @@
     '</div>';
   }
 
-  function renderTags(tagsRaw) {
-    if (!tagsRaw) return '';
+  function parseTags(tagsRaw) {
+    if (!tagsRaw) return [];
     var tags = [];
     if (Array.isArray(tagsRaw)) tags = tagsRaw;
     else if (typeof tagsRaw === 'string') {
       try { tags = JSON.parse(tagsRaw); } catch (_) { tags = tagsRaw.split(',').map(function (s) { return s.trim(); }); }
     }
-    tags = tags.filter(Boolean);
+    return tags.filter(Boolean);
+  }
+
+  function renderTags(tagsRaw) {
+    var tags = parseTags(tagsRaw);
     if (!tags.length) return '';
     var shown = tags.slice(0, 2);
     var extra = tags.length - 2;
     var html = shown.map(function (t) { return '<span class="badge">' + esc(t) + '</span>'; }).join(' ');
-    if (extra > 0) html += ' <span class="badge muted">+' + extra + '</span>';
+    if (extra > 0) {
+      html += ' <span class="badge v30-pp-tags-more" data-v30-tags-all="' + esc(JSON.stringify(tags)) + '">+' + extra + '</span>';
+    }
     return html;
   }
 
@@ -271,12 +276,10 @@
       case 'company':    return '<td class="truncate" style="font-size:12.5px;color:var(--text-2);max-width:130px;">' + esc(coName) + '</td>';
       case 'statut':     return '<td>' + (p.statut ? '<span class="status ' + cls + '">' + esc(p.statut) + '</span>' : '—') + '</td>';
       case 'pertinence': return '<td>' + renderPertinence(p.pertinence) + '</td>';
-      case 'tel':        return '<td>' + renderTel(p.telephone) + '</td>';
-      case 'email':      return '<td>' + renderEmail(p.email) + '</td>';
       case 'push':       return '<td>' + renderPushBadges(p) + '</td>';
       case 'lastContact': return '<td style="color:var(--text-2);">' + esc(relativeDate(p.lastContact)) + '</td>';
       case 'relance':    return '<td class="num mono" style="color:var(--text-2);">' + esc(shortDate(p.nextFollowUp)) + '</td>';
-      case 'tags':       return '<td><div style="display:flex;gap:4px;flex-wrap:nowrap;overflow:hidden;">' + renderTags(p.tags) + '</div></td>';
+      case 'tags':       return '<td><div class="v30-pp-tags">' + renderTags(p.tags) + '</div></td>';
       case 'actions': {
         var actAi = '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-ai="' + p.id + '" title="Enrichir via IA">' +
           '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 4 4 2-4 2-2 4-2-4-4-2 4-2z"/></svg>' +
@@ -299,7 +302,10 @@
             '</div>';
           }
         }
-        return '<td><div class="v30-pp-actions">' + actTel + actAi + '</div></td>';
+        var actEmail = p.email
+          ? '<a class="btn btn-ghost btn-sm btn-icon" href="mailto:' + esc(String(p.email).trim()) + '" title="' + esc(String(p.email).trim()) + '">' + EMAIL_ICON_MD + '</a>'
+          : '';
+        return '<td><div class="v30-pp-actions">' + actTel + actEmail + actAi + '</div></td>';
       }
       default: return '';
     }
@@ -317,7 +323,7 @@
 
   var COL_WIDTHS = {
     select: 32, name: 200, company: 115, statut: 98, pertinence: 70,
-    tel: 44, email: 44, push: 52, lastContact: 92, relance: 82, tags: 90, actions: 62
+    push: 52, lastContact: 92, relance: 82, tags: 110, actions: 90
   };
 
   function renderTableHead() {
@@ -1508,6 +1514,34 @@
     });
   }
 
+  function bindTagsTip() {
+    var tip = document.createElement('div');
+    tip.className = 'v30-pp-tags-tip';
+    tip.hidden = true;
+    document.body.appendChild(tip);
+    document.addEventListener('mouseover', function (e) {
+      var el = e.target.closest('[data-v30-tags-all]');
+      if (!el) { tip.hidden = true; return; }
+      var tags = [];
+      try { tags = JSON.parse(el.dataset.v30TagsAll || '[]'); } catch (_) {}
+      if (!tags.length) return;
+      tip.innerHTML = tags.map(function (t) { return '<span class="badge">' + esc(t) + '</span>'; }).join(' ');
+      tip.hidden = false;
+      var r = el.getBoundingClientRect();
+      var th = tip.getBoundingClientRect().height;
+      var top = r.top - th - 6;
+      if (top < 6) top = r.bottom + 6;
+      var left = r.left;
+      var tw = tip.getBoundingClientRect().width;
+      if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
+      tip.style.top = top + 'px';
+      tip.style.left = left + 'px';
+    });
+    document.addEventListener('mouseout', function (e) {
+      if (e.target.closest('[data-v30-tags-all]') && !tip.contains(e.relatedTarget)) tip.hidden = true;
+    });
+  }
+
   function bindTelLog() {
     function closeTelDrops() {
       document.querySelectorAll('.v30-pp-tel-drop').forEach(function (d) { d.hidden = true; });
@@ -1614,6 +1648,7 @@
     bindAi();
     bindModeProsp();
     bindTelLog();
+    bindTagsTip();
     syncUiFromState();
     updateFilterBadge();
     loadProspects();
