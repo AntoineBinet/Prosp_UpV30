@@ -258,20 +258,16 @@
         return '<td style="padding-left:14px;">' +
           '<input type="checkbox" data-v30-row-select' + (STATE.selected.has(p.id) ? ' checked' : '') + ' aria-label="Sélectionner">' +
           '</td>';
-      case 'name': {
-        var sub = [];
-        if (coName)     sub.push('<span class="v30-pp-name__co">' + esc(coName) + '</span>');
-        if (p.fonction) sub.push(esc(p.fonction));
+      case 'name':
         return '<td>' +
           '<a class="v30-pp-name" href="#" data-v30-open="' + p.id + '">' +
             '<span class="avatar v30-pp-avatar">' + esc(initials(p.name)) + '</span>' +
             '<div style="min-width:0;">' +
               '<div class="v30-pp-name__value truncate">' + esc(p.name || '—') + '</div>' +
-              (sub.length ? '<div class="v30-pp-name__sub truncate">' + sub.join(' · ') + '</div>' : '') +
+              (p.fonction ? '<div class="v30-pp-name__sub truncate">' + esc(p.fonction) + '</div>' : '') +
             '</div>' +
           '</a>' +
         '</td>';
-      }
       case 'company':    return '<td class="truncate" style="font-size:12.5px;color:var(--text-2);max-width:130px;">' + esc(coName) + '</td>';
       case 'statut':     return '<td>' + (p.statut ? '<span class="status ' + cls + '">' + esc(p.statut) + '</span>' : '—') + '</td>';
       case 'pertinence': return '<td>' + renderPertinence(p.pertinence) + '</td>';

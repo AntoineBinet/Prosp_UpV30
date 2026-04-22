@@ -4680,6 +4680,29 @@ def page_v30_login():
     return render_template("v30/login.html", app_version=APP_VERSION)
 
 
+def _sidebar_counts(uid=None):
+    """Retourne le dict counts {prospects, entreprises, candidats} pour la sidebar v30."""
+    if not uid:
+        uid = _uid()
+    if not uid:
+        return {}
+    try:
+        with _conn() as conn:
+            return {
+                "prospects":  conn.execute(
+                    "SELECT COUNT(*) FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                ).fetchone()[0],
+                "entreprises": conn.execute(
+                    "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
+                ).fetchone()[0],
+                "candidats":  conn.execute(
+                    "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                ).fetchone()[0],
+            }
+    except Exception:
+        return {}
+
+
 @app.get("/v30/calendrier")
 def page_v30_calendar():
     """Calendrier v30 — grille mois avec RDV / relances / EC1 candidats.
@@ -4696,7 +4719,7 @@ def page_v30_calendar():
         "v30/calendar.html",
         active="calendar",
         crumbs=["Prosp'Up", "Calendrier"],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -4830,7 +4853,7 @@ def page_v30_collab():
         "v30/collab.html",
         active="collab",
         crumbs=["Prosp'Up", "Collaboration"],
-        counts={}, pinned=[],
+        counts=_sidebar_counts(), pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
     )
@@ -4848,7 +4871,7 @@ def page_v30_duplicates():
         "v30/duplicates.html",
         active="duplicates",
         crumbs=["Prosp'Up", "Doublons"],
-        counts={}, pinned=[],
+        counts=_sidebar_counts(), pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
     )
@@ -4867,7 +4890,7 @@ def page_v30_dc(cid: int | None = None):
         "v30/dc.html",
         active="dc",
         crumbs=["Prosp'Up", "Dossier de compétence"],
-        counts={}, pinned=[],
+        counts=_sidebar_counts(), pinned=[],
         user_initials=user_initials,
         cid=cid,
         app_version=APP_VERSION,
@@ -4887,7 +4910,7 @@ def page_v30_metiers():
         "v30/metiers.html",
         active="metiers",
         crumbs=["Prosp'Up", "Métiers IA"],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -4905,7 +4928,7 @@ def page_v30_help():
         "v30/help.html",
         active="help",
         crumbs=["Prosp'Up", "Aide"],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -4925,7 +4948,7 @@ def page_v30_snapshots():
         "v30/snapshots.html",
         active="snapshots",
         crumbs=["Prosp'Up", "Snapshots"],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -4946,7 +4969,7 @@ def page_v30_activity():
         "v30/activity.html",
         active="activity",
         crumbs=["Prosp'Up", "Activité"],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -4969,7 +4992,7 @@ def page_v30_parametres():
         "v30/parametres.html",
         active="parametres",
         crumbs=["Prosp'Up", "Paramètres"],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         current_user=current_user,
@@ -4995,7 +5018,7 @@ def page_v30_users():
         "v30/users.html",
         active="users",
         crumbs=["Prosp'Up", "Utilisateurs"],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -5017,7 +5040,7 @@ def page_v30_rapport():
         "v30/rapport.html",
         active="rapport",
         crumbs=["Prosp'Up", "Rapport"],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
