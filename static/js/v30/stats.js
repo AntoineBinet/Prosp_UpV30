@@ -394,6 +394,262 @@
     });
   }
 
+  // ═══════════════════════════════════════════════════════
+  // Charts Chart.js
+  // ═══════════════════════════════════════════════════════
+  var CHART_CDNS = [
+    'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.7/chart.umd.min.js',
+    'https://unpkg.com/chart.js@4.4.7/dist/chart.umd.min.js'
+  ];
+  var _chartInstances = {};
+  var _statsProspects = [];
+
+  function _loadChartJS() {
+    return new Promise(function (resolve) {
+      if (typeof Chart !== 'undefined') { resolve(true); return; }
+      var i = 0;
+      function tryNext() {
+        if (i >= CHART_CDNS.length) { resolve(false); return; }
+        var s = document.createElement('script');
+        s.src = CHART_CDNS[i++];
+        s.onload = function () { resolve(typeof Chart !== 'undefined'); };
+        s.onerror = tryNext;
+        document.head.appendChild(s);
+      }
+      tryNext();
+    });
+  }
+
+  function _destroyChart(id) {
+    if (_chartInstances[id]) { _chartInstances[id].destroy(); delete _chartInstances[id]; }
+  }
+
+  function _isDark() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function _chartColors() {
+    var dark = _isDark();
+    return {
+      text: dark ? '#e2e8f0' : '#334155',
+      grid: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+    };
+  }
+
+  function _hideChart(canvasId, values) {
+    var allZero = !values || values.every(function (v) { return !v; });
+    var el = document.getElementById(canvasId);
+    var card = el && el.closest('.v30-chart-card');
+    if (card) card.style.display = allZero ? 'none' : '';
+  }
+
+  function _renderCharts(d, colors) {
+    var palette8 = ['#64748b', '#f59e0b', '#3b82f6', '#ef4444', '#22c55e', '#94a3b8', '#8b5cf6', '#ec4899'];
+
+    // 1) Répartition par statut (Doughnut)
+    _destroyChart('chartStatus');
+    var statusLabels = Object.keys(d.statusDistribution || {});
+    var statusVals = Object.values(d.statusDistribution || {});
+    _hideChart('chartStatus', statusVals);
+    var ctxS = document.getElementById('chartStatus');
+    if (ctxS && statusVals.some(function (v) { return v; })) {
+      _chartInstances['chartStatus'] = new Chart(ctxS, {
+        type: 'doughnut',
+        data: { labels: statusLabels, datasets: [{ data: statusVals, backgroundColor: palette8.slice(0, statusLabels.length), borderWidth: 0 }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { padding: 14, font: { size: 12 } } } } }
+      });
+    }
+
+    // 2) Distribution pertinence (Polar Area)
+    _destroyChart('chartPertinence');
+    var pert = d.pertinenceDistribution || {};
+    var pertVals = ['1', '2', '3', '4', '5'].map(function (k) { return pert[k] || 0; });
+    _hideChart('chartPertinence', pertVals);
+    var ctxP = document.getElementById('chartPertinence');
+    if (ctxP && pertVals.some(function (v) { return v; })) {
+      _chartInstances['chartPertinence'] = new Chart(ctxP, {
+        type: 'polarArea',
+        data: { labels: ['1 ★', '2 ★', '3 ★', '4 ★', '5 ★'], datasets: [{ data: pertVals, backgroundColor: ['#94a3b8cc', '#f59e0bcc', '#eab308cc', '#f97316cc', '#ef4444cc'], borderWidth: 0 }] },
+        options: { responsive: true, scales: { r: { ticks: { display: false }, grid: { color: colors.grid } } }, plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } } } }
+      });
+    }
+
+    // 3) Push par semaine (Bar)
+    _destroyChart('chartPush');
+    var pushItems = d.pushPerWeek || [];
+    _hideChart('chartPush', pushItems.map(function (i) { return i.count; }));
+    var ctxPush = document.getElementById('chartPush');
+    if (ctxPush) {
+      _chartInstances['chartPush'] = new Chart(ctxPush, {
+        type: 'bar',
+        data: { labels: pushItems.map(function (i) { return i.label; }), datasets: [{ label: 'Push envoyés', data: pushItems.map(function (i) { return i.count; }), backgroundColor: '#32b8c6cc', borderRadius: 6, borderSkipped: false }] },
+        options: { responsive: true, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } } }, plugins: { legend: { display: false } } }
+      });
+    }
+
+    // 4) RDV par mois (Line)
+    _destroyChart('chartRdv');
+    var rdvItems = d.rdvPerMonth || [];
+    _hideChart('chartRdv', rdvItems.map(function (i) { return i.count; }));
+    var ctxRdv = document.getElementById('chartRdv');
+    if (ctxRdv) {
+      _chartInstances['chartRdv'] = new Chart(ctxRdv, {
+        type: 'line',
+        data: { labels: rdvItems.map(function (i) { return i.label; }), datasets: [{ label: 'RDV', data: rdvItems.map(function (i) { return i.count; }), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.15)', fill: true, tension: 0.35, pointRadius: 5, pointBackgroundColor: '#22c55e' }] },
+        options: { responsive: true, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } } }, plugins: { legend: { display: false } } }
+      });
+    }
+
+    // 5) Top entreprises (Horizontal Bar)
+    _destroyChart('chartCompanies');
+    var compItems = d.topCompanies || [];
+    _hideChart('chartCompanies', compItems.map(function (i) { return i.count; }));
+    var ctxComp = document.getElementById('chartCompanies');
+    if (ctxComp) {
+      _chartInstances['chartCompanies'] = new Chart(ctxComp, {
+        type: 'bar',
+        data: { labels: compItems.map(function (i) { return i.name; }), datasets: [{ label: 'Prospects', data: compItems.map(function (i) { return i.count; }), backgroundColor: ['#6366f1cc', '#8b5cf6cc', '#a78bfacc', '#c4b5fdcc', '#3b82f6cc', '#60a5facc', '#93c5fdcc', '#bfdbfecc'], borderRadius: 6, borderSkipped: false }] },
+        options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } }, y: { grid: { display: false } } }, plugins: { legend: { display: false } } }
+      });
+    }
+
+    // 6) Funnel de conversion (Bar)
+    _destroyChart('chartFunnel');
+    var statusOrder = ["Pas d'actions", 'Appelé', 'À rappeler', 'Messagerie', 'Rendez-vous', 'Prospecté', 'Pas intéressé'];
+    var statusCounts = d.statusDistribution || {};
+    var funnelData = statusOrder.map(function (s) { return statusCounts[s] || 0; });
+    _hideChart('chartFunnel', funnelData);
+    var ctxFunnel = document.getElementById('chartFunnel');
+    if (ctxFunnel && funnelData.some(function (v) { return v; })) {
+      _chartInstances['chartFunnel'] = new Chart(ctxFunnel, {
+        type: 'bar',
+        data: { labels: statusOrder, datasets: [{ data: funnelData, backgroundColor: ['#64748bcc', '#3b82f6cc', '#f59e0bcc', '#8b5cf6cc', '#22c55ecc', '#10b981cc', '#ef4444cc'], borderRadius: 8, borderSkipped: false }] },
+        options: { responsive: true, scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } } }, plugins: { legend: { display: false } } }
+      });
+    }
+
+    // 7) Évolution du portefeuille (Line)
+    _destroyChart('chartPortfolio');
+    var ctxPort = document.getElementById('chartPortfolio');
+    _hideChart('chartPortfolio', _statsProspects.length > 0 ? [1] : []);
+    if (ctxPort && _statsProspects.length > 0) {
+      var now = new Date();
+      var portWeeks = [];
+      var portLabels = [];
+      for (var w = 11; w >= 0; w--) {
+        var wEnd = new Date(now);
+        wEnd.setDate(now.getDate() - w * 7);
+        var dateStr = wEnd.toISOString().split('T')[0];
+        var cnt = _statsProspects.filter(function (p) { var lc = p.lastContact || ''; return lc && lc <= dateStr; }).length;
+        portWeeks.push(cnt || _statsProspects.length);
+        portLabels.push('S-' + w);
+      }
+      _chartInstances['chartPortfolio'] = new Chart(ctxPort, {
+        type: 'line',
+        data: { labels: portLabels, datasets: [{ label: 'Prospects actifs', data: portWeeks, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#6366f1' }] },
+        options: { responsive: true, scales: { x: { grid: { display: false } }, y: { beginAtZero: false, grid: { color: colors.grid } } }, plugins: { legend: { display: false } } }
+      });
+    }
+
+    // 8) Top compétences/tags (Horizontal Bar)
+    _destroyChart('chartTags');
+    var ctxTags = document.getElementById('chartTags');
+    if (ctxTags && _statsProspects.length > 0) {
+      var tagCounts = {};
+      _statsProspects.forEach(function (p) {
+        (p.tags || []).forEach(function (t) {
+          var k = (t || '').trim();
+          if (k) tagCounts[k] = (tagCounts[k] || 0) + 1;
+        });
+      });
+      var sortedTags = Object.keys(tagCounts).map(function (k) { return [k, tagCounts[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 15);
+      _hideChart('chartTags', sortedTags.map(function (s) { return s[1]; }));
+      if (sortedTags.length > 0) {
+        var tagPalette = ['#f36f21cc', '#3b82f6cc', '#22c55ecc', '#f59e0bcc', '#8b5cf6cc', '#ec4899cc', '#14b8a6cc', '#6366f1cc', '#ef4444cc', '#64748bcc', '#10b981cc', '#a855f7cc', '#f97316cc', '#06b6d4cc', '#84cc16cc'];
+        _chartInstances['chartTags'] = new Chart(ctxTags, {
+          type: 'bar',
+          data: { labels: sortedTags.map(function (s) { return s[0]; }), datasets: [{ data: sortedTags.map(function (s) { return s[1]; }), backgroundColor: tagPalette, borderRadius: 6, borderSkipped: false }] },
+          options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } }, plugins: { legend: { display: false } } }
+        });
+      }
+    }
+
+    // 9) Appels par semaine (Bar)
+    _destroyChart('chartCalls');
+    var actItems = d.activityPerWeek || [];
+    var callData = actItems.map(function (i) { return i.calls || 0; });
+    _hideChart('chartCalls', callData);
+    var ctxCalls = document.getElementById('chartCalls');
+    if (ctxCalls && callData.some(function (v) { return v; })) {
+      _chartInstances['chartCalls'] = new Chart(ctxCalls, {
+        type: 'bar',
+        data: { labels: actItems.map(function (i) { return i.label; }), datasets: [{ label: 'Appels passés', data: callData, backgroundColor: '#f59e0bcc', borderRadius: 6, borderSkipped: false }] },
+        options: { responsive: true, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } } }, plugins: { legend: { display: false } } }
+      });
+    }
+
+    // 10) Activité hebdo combinée : appels + notes + push (Stacked Bar)
+    _destroyChart('chartActivityWeek');
+    var noteData = actItems.map(function (i) { return i.callNotes || 0; });
+    var pushData2 = actItems.map(function (i) { return i.push || 0; });
+    var combined = callData.map(function (v, idx) { return v + noteData[idx] + pushData2[idx]; });
+    _hideChart('chartActivityWeek', combined);
+    var ctxAct = document.getElementById('chartActivityWeek');
+    if (ctxAct && combined.some(function (v) { return v; })) {
+      _chartInstances['chartActivityWeek'] = new Chart(ctxAct, {
+        type: 'bar',
+        data: {
+          labels: actItems.map(function (i) { return i.label; }),
+          datasets: [
+            { label: 'Appels', data: callData, backgroundColor: '#f59e0bcc', borderRadius: 4, borderSkipped: false, stack: 'activity' },
+            { label: "Notes d'appel", data: noteData, backgroundColor: '#6366f1cc', borderRadius: 4, borderSkipped: false, stack: 'activity' },
+            { label: 'Push', data: pushData2, backgroundColor: '#32b8c6cc', borderRadius: 4, borderSkipped: false, stack: 'activity' }
+          ]
+        },
+        options: { responsive: true, scales: { x: { grid: { display: false }, stacked: true }, y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid }, stacked: true } }, plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 }, usePointStyle: true } } } }
+      });
+    }
+  }
+
+  function loadCharts() {
+    var loader = document.getElementById('v30ChartsLoader');
+    var grid = document.getElementById('v30ChartsGrid');
+    if (!grid) return;
+
+    _loadChartJS().then(function (available) {
+      if (!available) {
+        if (loader) loader.textContent = 'Charts indisponibles — vérifiez votre connexion internet.';
+        return;
+      }
+      Promise.all([
+        fetch('/api/stats/charts', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }),
+        fetch('/api/data', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })
+      ]).then(function (results) {
+        var d = results[0];
+        var apiData = results[1];
+        if (!d || !d.ok) {
+          if (loader) loader.textContent = 'Impossible de charger les données des graphiques.';
+          return;
+        }
+        _statsProspects = (apiData && Array.isArray(apiData.prospects)) ? apiData.prospects : [];
+        var colors = _chartColors();
+        Chart.defaults.color = colors.text;
+        Chart.defaults.borderColor = colors.grid;
+        if (loader) loader.style.display = 'none';
+        grid.style.display = '';
+        _renderCharts(d, colors);
+      }).catch(function (err) {
+        console.error('[v30 charts]', err);
+        if (loader) loader.textContent = 'Erreur lors du chargement des graphiques.';
+      });
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // Rapport WYSIWYG (tab "Rapport")
+  // ═══════════════════════════════════════════════════════
+
   // Expose loader pour tab switch (chargé quand on clique sur l'onglet Rapport)
   var repLoaded = false;
   function repMaybeLoad() {
@@ -406,6 +662,7 @@
     bindTabs();
     bindPeriod();
     loadKPIs();
+    loadCharts();
     repBindToolbar();
 
     // Hook tab click : charge le rapport à la première ouverture
