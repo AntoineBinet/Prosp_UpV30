@@ -2,6 +2,13 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.5] — 2026-04-22 · Paramètres v30 · Mon compte + À propos remontés au-dessus de Mise à jour
+
+Sur `/v30/parametres`, les cartes « Mon compte » et « À propos » sont désormais rendues **avant** la section admin « Mise à jour du serveur ». La carte wide « Mise à jour » est placée en dernier (elle occupe une ligne entière), ce qui permet aux cartes utilisateur courantes de rester accessibles en haut de la grille.
+
+### Changements
+- **`templates/v30/parametres.html`** : réordonnancement DOM + suppression des `style="order:100;"` devenus inutiles.
+
 ## [30.4] — 2026-04-22 · Fil d'Ariane cliquable
 
 Les éléments parents du fil d'Ariane (`Prosp'Up`, `Prospects`, `Candidats`…) sont désormais cliquables sur les fiches détail, pour revenir en arrière en un clic.

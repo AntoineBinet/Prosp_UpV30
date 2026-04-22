@@ -82,7 +82,31 @@
       <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
     </a>
 
-    {# Mise à jour serveur (admin) — section inline complète #}
+    {# Mon compte #}
+    <a class="v30-params__card" href="/parametres#change-password">
+      <div class="v30-params__card-head">
+        {{ ui.icon('user', 16) }}
+        <h3>Mon compte</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Changer le mot de passe, profil, première connexion.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    {# À propos #}
+    <a class="v30-params__card" href="/parametres#about">
+      <div class="v30-params__card-head">
+        {{ ui.icon('bulb', 16) }}
+        <h3>À propos</h3>
+      </div>
+      <p class="v30-params__card-desc">
+        Version <span class="mono">{{ app_version }}</span>, commit, release notes.
+      </p>
+      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
+    </a>
+
+    {# Mise à jour serveur (admin) — section inline complète, placée en dernier #}
     {% if current_user and current_user.role == 'admin' %}
     <div class="v30-params__card v30-params__card--wide v30-deploy" data-v30-deploy>
       <div class="v30-params__card-head">
@@ -126,30 +150,6 @@
       </details>
     </div>
     {% endif %}
-
-    {# Mon compte — order:100 force placement après la section Mise à jour #}
-    <a class="v30-params__card" href="/parametres#change-password" style="order:100;">
-      <div class="v30-params__card-head">
-        {{ ui.icon('user', 16) }}
-        <h3>Mon compte</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Changer le mot de passe, profil, première connexion.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
-
-    {# À propos — order:100 force placement après la section Mise à jour #}
-    <a class="v30-params__card" href="/parametres#about" style="order:100;">
-      <div class="v30-params__card-head">
-        {{ ui.icon('bulb', 16) }}
-        <h3>À propos</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Version <span class="mono">{{ app_version }}</span>, commit, release notes.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
 
   </div>
 </div>
