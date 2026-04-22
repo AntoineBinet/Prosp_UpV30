@@ -2,6 +2,29 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.4] — 2026-04-22 · Entreprises + Sourcing en v30 (phase 3)
+
+### Entreprises (`/v30/entreprises`)
+- **Ajouter** : modale complète (groupe, site, phone, website, linkedin, industry, tags, notes) → nouveau `POST /api/companies/create` (manquait).
+- **Filtres** : panel (en pipeline / avec prospects / sans prospects / tags contient) avec badge compteur.
+- **Sélection multi** : checkboxes par ligne + « tout sélectionner ».
+- **Bulk bar** : **Fusionner** (exactement 2 sélectionnées) → dialog preview keep/source + swap → `POST /api/companies/merge`. **Supprimer** N entreprises → `POST /api/companies/delete` en boucle.
+- **Export XLSX** : `GET /api/export/xlsx`.
+- **Clic entreprise** : redirige sur `/v30/prospects?company=<id>` (nouveau filtre par company_id dans `prospects.js`).
+
+### Sourcing (`/v30/sourcing`)
+- **Recherche** : barre dans la topbar (nom/rôle/localisation/skills), debounce 150 ms.
+- **Ajouter** : modale complète (nom, rôle, séniorité, localisation, email, tel, LinkedIn, statut, skills, source, notes) → `POST /api/candidates/save`. Pour l'import PDF/IA/Lusha, renvoi vers v29.
+- **Filtres** : panel (statut multi, skills contient, localisation contient) avec badge compteur.
+- **Sélection multi** : checkbox par card (pipeline + grid).
+- **Bulk bar** : changer statut → `POST /api/candidates/bulk-update`, supprimer → `POST /api/candidates/delete` en boucle.
+
+### Backend
+- Ajout : `POST /api/companies/create` — crée une entreprise avec dedupe strict par groupe+site+owner (retourne `deduped: true` si déjà existante).
+
+### Prospects
+- Nouveau filtre `companyId` (depuis `?company=<id>` dans l'URL) → permet d'ouvrir la liste prospects filtrée par entreprise depuis `/v30/entreprises`.
+
 ## [30.3] — 2026-04-22 · Mode Prosp porté en v30 (phase 2)
 
 Le deck 3D de prospection existe désormais en v30. Copie quasi-conforme de la logique v29 — le code métier (navigation, animations 3D, date picker, timeline, swipe, clavier) est **réutilisé tel quel** depuis `static/js/mode-prosp-tab.js`. Les APIs et le CSS `mode-prosp.css` sont réutilisés à 100 %.

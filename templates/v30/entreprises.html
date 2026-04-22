@@ -31,10 +31,14 @@
       <input type="search" class="input" placeholder="Rechercher une entreprise…" data-v30-search
              aria-label="Rechercher dans les entreprises">
     </div>
-    <button type="button" class="btn btn-ghost btn-sm">
+    <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-filters>
       {{ ui.icon('filter', 13) }} Filtres
+      <span class="badge" data-field="active" hidden>0</span>
     </button>
-    <button type="button" class="btn btn-sm" data-v30-add>
+    <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-export title="Exporter la liste complète au format Excel">
+      {{ ui.icon('arrowD', 13) }} Exporter
+    </button>
+    <button type="button" class="btn btn-sm btn-primary" data-v30-ent-add>
       {{ ui.icon('plus', 13) }} Ajouter
     </button>
   </div>
@@ -56,7 +60,7 @@
     {% endfor %}
   </div>
 
-  {# ─── Vue Cartes (parite v29) ─── #}
+  {# ─── Vue Cartes ─── #}
   <div class="v30-ent-grid" data-v30-ent-panel="cards" hidden></div>
 
   {# ─── Table ─── #}
@@ -65,20 +69,24 @@
       <table class="table v30-pp-table">
         <thead>
           <tr>
-            <th style="padding-left:14px;">Entreprise</th>
+            <th style="width:32px;padding-left:14px;">
+              <input type="checkbox" data-v30-ent-select-all aria-label="Tout sélectionner">
+            </th>
+            <th>Entreprise</th>
             <th>Site</th>
             <th>Prospects</th>
             <th>RDV / Propale</th>
             <th>Gagnés</th>
             <th>Dernier contact</th>
             <th>Tags</th>
-            <th style="width:48px;"></th>
+            <th style="width:96px;">Actions</th>
           </tr>
         </thead>
         <tbody data-v30-rows data-v30-table-nav>
           {% for _ in range(8) %}
           <tr>
-            <td style="padding-left:14px;">
+            <td style="padding-left:14px;"><span class="skel" style="width:16px;height:16px;display:inline-block;"></span></td>
+            <td>
               <div style="display:flex;align-items:center;gap:8px;">
                 <span class="skel" style="width:28px;height:28px;border-radius:6px;"></span>
                 <span class="skel" style="width:140px;height:13px;display:inline-block;"></span>
@@ -102,6 +110,114 @@
     </div>
   </div>
 
+  {# ─── Bulk bar ─── #}
+  <div class="v30-bulk" data-v30-ent-bulk hidden>
+    <div class="v30-bulk__inner">
+      <span class="v30-bulk__count">
+        {{ ui.icon('check', 12) }}
+        <span data-field="n">0</span> sélectionnée(s)
+      </span>
+      <span class="v30-bulk__sep"></span>
+      <button type="button" class="v30-bulk__btn" data-action="merge" title="Fusionner deux entreprises (sélectionne exactement 2)">{{ ui.icon('link', 13) }} Fusionner</button>
+      <button type="button" class="v30-bulk__btn v30-bulk__btn--danger" data-action="delete">{{ ui.icon('x', 13) }} Supprimer</button>
+      <span class="v30-bulk__sep"></span>
+      <button type="button" class="v30-bulk__btn" data-action="clear">{{ ui.icon('x', 13) }} Effacer</button>
+    </div>
+  </div>
+
+</div>
+
+{# ─── Modales ─── #}
+
+{# Add #}
+<div class="v30-modal-bd" data-v30-pp-modal="ent-add" hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-ent-add-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-ent-add-title">{{ ui.icon('plus', 14) }} Nouvelle entreprise</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-grid-2">
+        <div class="v30-field"><label for="v30-ent-add-groupe">Groupe <span style="color:var(--danger);">*</span></label><input id="v30-ent-add-groupe" class="input" placeholder="Ex. ACME Corp" required></div>
+        <div class="v30-field"><label for="v30-ent-add-site">Site / ville</label><input id="v30-ent-add-site" class="input" placeholder="Ex. Paris"></div>
+        <div class="v30-field"><label for="v30-ent-add-phone">Téléphone</label><input id="v30-ent-add-phone" class="input" type="tel"></div>
+        <div class="v30-field"><label for="v30-ent-add-website">Site web</label><input id="v30-ent-add-website" class="input" placeholder="https://…"></div>
+        <div class="v30-field"><label for="v30-ent-add-linkedin">LinkedIn</label><input id="v30-ent-add-linkedin" class="input" placeholder="https://linkedin.com/company/…"></div>
+        <div class="v30-field"><label for="v30-ent-add-industry">Secteur</label><input id="v30-ent-add-industry" class="input" placeholder="Ex. SaaS B2B"></div>
+        <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-ent-add-tags">Tags (virgules)</label><input id="v30-ent-add-tags" class="input" placeholder="Ex. Tech, Scale-up"></div>
+        <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-ent-add-notes">Notes</label><textarea id="v30-ent-add-notes" class="textarea" rows="3"></textarea></div>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-ent-add-save>Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+{# Filters #}
+<div class="v30-modal-bd" data-v30-pp-modal="ent-filters" hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-ent-flt-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-ent-flt-title">{{ ui.icon('filter', 14) }} Filtres</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-field">
+        <label>Pipeline</label>
+        <div class="v30-chiprow">
+          <label class="v30-chip"><input type="checkbox" data-v30-ent-flt-piped> <span>En pipeline uniquement (RDV / Proposition / À rappeler)</span></label>
+        </div>
+      </div>
+      <div class="v30-field">
+        <label>Prospects</label>
+        <div class="v30-chiprow">
+          <label class="v30-chip"><input type="checkbox" data-v30-ent-flt-has> <span>Avec au moins 1 prospect</span></label>
+          <label class="v30-chip"><input type="checkbox" data-v30-ent-flt-empty> <span>Sans prospect (orphelines)</span></label>
+        </div>
+      </div>
+      <div class="v30-field">
+        <label for="v30-ent-flt-tags">Tags contient</label>
+        <input id="v30-ent-flt-tags" class="input" placeholder="Ex. Tech, Scale-up" data-v30-ent-flt-tags>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-flt-reset>Réinitialiser</button>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-ent-flt-apply>Appliquer</button>
+    </div>
+  </div>
+</div>
+
+{# Merge #}
+<div class="v30-modal-bd" data-v30-pp-modal="ent-merge" hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-ent-mg-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-ent-mg-title">{{ ui.icon('link', 14) }} Fusionner deux entreprises</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size:12.5px;margin:0 0 12px;">L'entreprise « source » sera supprimée et ses prospects réassignés vers l'entreprise « cible ».</p>
+      <div class="v30-grid-2">
+        <div class="v30-field">
+          <label>Garder (cible)</label>
+          <div data-v30-ent-merge-keep class="card" style="padding:10px;min-height:56px;"></div>
+        </div>
+        <div class="v30-field">
+          <label>Supprimer (source)</label>
+          <div data-v30-ent-merge-merge class="card" style="padding:10px;min-height:56px;"></div>
+        </div>
+      </div>
+      <label class="v30-chip" style="width:fit-content;margin-top:8px;">
+        <input type="checkbox" data-v30-ent-merge-swap> <span>Inverser cible / source</span>
+      </label>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-ent-merge-run>Fusionner</button>
+    </div>
+  </div>
 </div>
 
 <script defer src="/static/js/v30/entreprises.js?v={{ static_hash('js/v30/entreprises.js') }}"></script>

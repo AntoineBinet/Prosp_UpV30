@@ -4,6 +4,7 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="/static/css/v30/sourcing.css?v={{ static_hash('css/v30/sourcing.css') }}">
+<link rel="stylesheet" href="/static/css/v30/prospects.css?v={{ static_hash('css/v30/prospects.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -16,6 +17,11 @@
     <h1>Candidats</h1>
     <span class="v30-sc-topbar__count" data-field="count">—</span>
     <div class="v30-spacer"></div>
+    <div class="v30-pp-search" style="width:240px;">
+      <span class="v30-pp-search__icon">{{ ui.icon('search') }}</span>
+      <input type="search" class="input" placeholder="Rechercher…" data-v30-sc-search
+             aria-label="Rechercher un candidat">
+    </div>
     <div class="segmented" role="tablist" data-v30-sc-view>
       <button type="button" class="active" data-view="pipeline" role="tab" aria-selected="true">
         {{ ui.icon('kanban', 13) }} Pipeline
@@ -24,7 +30,11 @@
         {{ ui.icon('table', 13) }} Grille
       </button>
     </div>
-    <button type="button" class="btn btn-sm" data-v30-add>
+    <button type="button" class="btn btn-ghost btn-sm" data-v30-sc-filters>
+      {{ ui.icon('filter', 13) }} Filtres
+      <span class="badge" data-field="active" hidden>0</span>
+    </button>
+    <button type="button" class="btn btn-sm btn-primary" data-v30-sc-add>
       {{ ui.icon('plus', 13) }} Ajouter
     </button>
   </div>
@@ -79,6 +89,127 @@
     </div>
   </div>
 
+  {# ─── Bulk bar ─── #}
+  <div class="v30-bulk" data-v30-sc-bulk hidden>
+    <div class="v30-bulk__inner">
+      <span class="v30-bulk__count">
+        {{ ui.icon('check', 12) }}
+        <span data-field="n">0</span> sélectionné(s)
+      </span>
+      <span class="v30-bulk__sep"></span>
+      <button type="button" class="v30-bulk__btn" data-action="status">{{ ui.icon('check', 13) }} Statut</button>
+      <button type="button" class="v30-bulk__btn v30-bulk__btn--danger" data-action="delete">{{ ui.icon('x', 13) }} Supprimer</button>
+      <span class="v30-bulk__sep"></span>
+      <button type="button" class="v30-bulk__btn" data-action="clear">{{ ui.icon('x', 13) }} Effacer</button>
+    </div>
+  </div>
+
+</div>
+
+{# ─── Modales ─── #}
+
+{# Add #}
+<div class="v30-modal-bd" data-v30-pp-modal="sc-add" hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-sc-add-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-sc-add-title">{{ ui.icon('plus', 14) }} Nouveau candidat</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-grid-2">
+        <div class="v30-field"><label for="v30-sc-add-name">Nom complet <span style="color:var(--danger);">*</span></label><input id="v30-sc-add-name" class="input" required></div>
+        <div class="v30-field"><label for="v30-sc-add-role">Poste visé</label><input id="v30-sc-add-role" class="input" placeholder="Ex. Développeur full-stack"></div>
+        <div class="v30-field"><label for="v30-sc-add-seniority">Séniorité</label>
+          <select id="v30-sc-add-seniority" class="select">
+            <option value="">—</option>
+            <option>Junior</option><option>Confirmé</option><option>Senior</option><option>Lead</option><option>Manager</option>
+          </select>
+        </div>
+        <div class="v30-field"><label for="v30-sc-add-location">Localisation</label><input id="v30-sc-add-location" class="input" placeholder="Ex. Paris / remote"></div>
+        <div class="v30-field"><label for="v30-sc-add-email">Email</label><input id="v30-sc-add-email" class="input" type="email"></div>
+        <div class="v30-field"><label for="v30-sc-add-phone">Téléphone</label><input id="v30-sc-add-phone" class="input" type="tel"></div>
+        <div class="v30-field"><label for="v30-sc-add-linkedin">LinkedIn</label><input id="v30-sc-add-linkedin" class="input" placeholder="https://linkedin.com/in/…"></div>
+        <div class="v30-field"><label for="v30-sc-add-status">Statut</label>
+          <select id="v30-sc-add-status" class="select">
+            <option value="Vivier" selected>Vivier</option>
+            <option value="Qualifié">Qualifié</option>
+            <option value="Proposé">Proposé</option>
+            <option value="En entretien">En entretien</option>
+            <option value="Placé">Placé</option>
+          </select>
+        </div>
+        <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-sc-add-skills">Compétences (virgules)</label><input id="v30-sc-add-skills" class="input" placeholder="Ex. React, Node, AWS"></div>
+        <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-sc-add-source">Source</label><input id="v30-sc-add-source" class="input" placeholder="Ex. LinkedIn, cooptation"></div>
+        <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-sc-add-notes">Notes</label><textarea id="v30-sc-add-notes" class="textarea" rows="3"></textarea></div>
+      </div>
+      <p class="muted" style="font-size:11.5px;margin-top:10px;">Pour importer depuis un PDF/CV ou coller un retour IA, utilise <a href="/sourcing?force_v29=1" style="color:var(--accent);">l'interface v29</a>.</p>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-sc-add-save>Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+{# Filters #}
+<div class="v30-modal-bd" data-v30-pp-modal="sc-filters" hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-sc-flt-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-sc-flt-title">{{ ui.icon('filter', 14) }} Filtres candidats</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-field">
+        <label>Statut</label>
+        <div class="v30-chiprow" data-v30-sc-flt-status>
+          {% for s in ["Vivier", "Qualifié", "Proposé", "En entretien", "Placé"] %}
+          <label class="v30-chip"><input type="checkbox" value="{{ s }}"> <span>{{ s }}</span></label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="v30-field">
+        <label for="v30-sc-flt-skills">Compétences contient</label>
+        <input id="v30-sc-flt-skills" class="input" placeholder="Ex. React, AWS" data-v30-sc-flt-skills>
+      </div>
+      <div class="v30-field">
+        <label for="v30-sc-flt-location">Localisation contient</label>
+        <input id="v30-sc-flt-location" class="input" placeholder="Ex. Paris" data-v30-sc-flt-location>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-sc-flt-reset>Réinitialiser</button>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-sc-flt-apply>Appliquer</button>
+    </div>
+  </div>
+</div>
+
+{# Bulk status #}
+<div class="v30-modal-bd" data-v30-pp-modal="sc-bulk" hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-sc-bulk-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-sc-bulk-title">Changer de statut</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size:12.5px;margin:0 0 12px;">Appliquer un statut à <strong data-v30-sc-bulk-n>0</strong> candidat(s).</p>
+      <div class="v30-field">
+        <label for="v30-sc-bulk-val">Nouveau statut</label>
+        <select id="v30-sc-bulk-val" class="select">
+          <option value="Vivier">Vivier</option>
+          <option value="Qualifié">Qualifié</option>
+          <option value="Proposé">Proposé</option>
+          <option value="En entretien">En entretien</option>
+          <option value="Placé">Placé</option>
+        </select>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-sc-bulk-apply>Appliquer</button>
+    </div>
+  </div>
 </div>
 
 <script defer src="/static/js/v30/sourcing.js?v={{ static_hash('js/v30/sourcing.js') }}"></script>

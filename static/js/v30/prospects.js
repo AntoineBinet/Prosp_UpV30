@@ -47,7 +47,8 @@
       tags: [],
       relanceFrom: '',
       relanceTo: '',
-      callableOnly: false
+      callableOnly: false,
+      companyId: null
     },
     bulkAction: null
   };
@@ -423,6 +424,7 @@
             if (lower.indexOf(F.tags[ti].toLowerCase()) < 0) return false;
           }
         }
+        if (F.companyId && Number(p.company_id) !== Number(F.companyId)) return false;
         if (F.relanceFrom || F.relanceTo) {
           var nf = p.nextFollowUp ? String(p.nextFollowUp).slice(0, 10) : '';
           if (!nf) return false;
@@ -1342,7 +1344,16 @@
     });
   }
 
+  function readUrlFilters() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var cid = params.get('company');
+      if (cid) STATE.filters.companyId = Number(cid);
+    } catch (_) {}
+  }
+
   function init() {
+    readUrlFilters();
     bindViewSwitch();
     bindSelection();
     bindSplit();

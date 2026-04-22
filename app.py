@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "30.3"
+APP_VERSION = "30.4"
 import os
 import subprocess
 import traceback
@@ -6821,6 +6821,52 @@ def api_prospects_delete():
     _audit_log("soft_delete", "prospect", int(pid))
     log_activity('delete', 'prospect', int(pid), _name)
     return jsonify(ok=True)
+
+
+@app.post("/api/companies/create")
+@role_required('editor')
+def api_companies_create():
+    """v30.4 : créer une entreprise (sans prospect attaché). Retourne l'ID assigné."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    groupe = (payload.get("groupe") or "").strip()
+    if not groupe:
+        return jsonify(ok=False, error="groupe est requis"), 400
+    site = (payload.get("site") or "").strip()
+    phone = (payload.get("phone") or "").strip()
+    notes = (payload.get("notes") or "").strip()
+    website = (payload.get("website") or "").strip()
+    linkedin = (payload.get("linkedin") or "").strip()
+    industry = (payload.get("industry") or "").strip()
+    tags_raw = payload.get("tags")
+    if isinstance(tags_raw, list):
+        tags_json = json.dumps([str(t).strip() for t in tags_raw if str(t).strip()], ensure_ascii=False)
+    elif isinstance(tags_raw, str) and tags_raw.strip():
+        s = tags_raw.strip()
+        if s.startswith("["):
+            tags_json = s
+        else:
+            tags_json = json.dumps([t.strip() for t in s.split(",") if t.strip()], ensure_ascii=False)
+    else:
+        tags_json = "[]"
+    with _conn() as conn:
+        # Dedupe strict : même groupe + site + owner → on renvoie l'existant
+        row = conn.execute(
+            "SELECT id FROM companies WHERE owner_id=? AND LOWER(groupe)=LOWER(?) AND LOWER(COALESCE(site,''))=LOWER(?) AND deleted_at IS NULL;",
+            (uid, groupe, site)
+        ).fetchone()
+        if row:
+            return jsonify(ok=True, id=int(row["id"]), deduped=True)
+        max_id = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM companies WHERE owner_id=?;", (uid,)).fetchone()["m"]
+        new_id = int(max_id) + 1
+        conn.execute(
+            """INSERT INTO companies (id, groupe, site, phone, notes, tags, website, linkedin, industry, owner_id)
+               VALUES (?,?,?,?,?,?,?,?,?,?);""",
+            (new_id, groupe, site, phone, notes, tags_json, website, linkedin, industry, uid)
+        )
+    return jsonify(ok=True, id=new_id)
 
 
 @app.post("/api/companies/delete")
