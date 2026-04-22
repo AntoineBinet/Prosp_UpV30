@@ -452,18 +452,104 @@
     });
   }
 
-  // Boutons hero : KPI manuel + Export (parite v29).
-  // La modale "KPI manuel" et l'export sont implementes cote legacy —
-  // on redirige vers /dashboard avec un hash qui declenche l'ouverture.
+  function toast(msg, type) {
+    if (typeof window.showToast === 'function') window.showToast(msg, type || 'info');
+  }
+
+  function openModal(modal) {
+    if (!modal) return;
+    modal.hidden = false;
+    // force reflow for transition
+    void modal.offsetWidth;
+    modal.classList.add('is-open');
+    var first = modal.querySelector('input, select, textarea, button');
+    if (first) try { first.focus(); } catch (_) {}
+  }
+  function closeModal(modal) {
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    setTimeout(function () { modal.hidden = true; }, 160);
+  }
+  function bindModalDismiss(modal) {
+    if (!modal) return;
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal || e.target.closest('[data-v30-modal-close]')) {
+        closeModal(modal);
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.hidden) closeModal(modal);
+    });
+  }
+
+  function openKpiModal() {
+    var modal = $('[data-v30-dash-kpi-modal]');
+    if (!modal) return;
+    var today = new Date().toISOString().slice(0, 10);
+    var dateEl = $('#v30-dash-kpi-date');
+    if (dateEl) dateEl.value = today;
+    var countEl = $('#v30-dash-kpi-count');
+    if (countEl) countEl.value = '1';
+    var descEl = $('#v30-dash-kpi-desc');
+    if (descEl) descEl.value = '';
+    openModal(modal);
+  }
+
+  function saveKpi() {
+    var type = ($('#v30-dash-kpi-type') || {}).value || 'note';
+    var date = ($('#v30-dash-kpi-date') || {}).value || new Date().toISOString().slice(0, 10);
+    var count = parseInt(($('#v30-dash-kpi-count') || {}).value || '1', 10);
+    var desc = ($('#v30-dash-kpi-desc') || {}).value || '';
+    var btn = $('[data-v30-dash-kpi-save]');
+    if (btn) btn.disabled = true;
+    fetch('/api/manual-kpi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: type, date: date, count: count, description: desc })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.ok) {
+          toast('KPI enregistré', 'success');
+          closeModal($('[data-v30-dash-kpi-modal]'));
+          hydrate();
+        } else {
+          toast('Erreur : ' + ((data && data.error) || 'Inconnue'), 'error');
+        }
+      })
+      .catch(function (e) { toast('Erreur : ' + (e.message || 'réseau'), 'error'); })
+      .then(function () { if (btn) btn.disabled = false; });
+  }
+
+  function exportDay() {
+    var btn = $('[data-v30-dash-export]');
+    if (btn) btn.disabled = true;
+    fetch('/api/export/day')
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        if (!json || !json.ok) throw new Error((json && json.error) || 'Erreur');
+        var recap = json.recap || {};
+        var dateStr = recap.date || new Date().toISOString().slice(0, 10);
+        var blob = new Blob([JSON.stringify(recap, null, 2)], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'ProspUp_recap_' + dateStr + '.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast('Récap du jour téléchargé', 'success');
+      })
+      .catch(function (e) { toast(e.message || 'Erreur export', 'error'); })
+      .then(function () { if (btn) btn.disabled = false; });
+  }
+
   function bindHeroActions() {
     var btnKpi = $('[data-v30-dash-kpi-manual]');
-    if (btnKpi) btnKpi.addEventListener('click', function () {
-      window.location.href = '/dashboard#kpi-manual';
-    });
+    if (btnKpi) btnKpi.addEventListener('click', openKpiModal);
     var btnExport = $('[data-v30-dash-export]');
-    if (btnExport) btnExport.addEventListener('click', function () {
-      window.location.href = '/dashboard#export';
-    });
+    if (btnExport) btnExport.addEventListener('click', exportDay);
+    var btnSave = $('[data-v30-dash-kpi-save]');
+    if (btnSave) btnSave.addEventListener('click', saveKpi);
+    bindModalDismiss($('[data-v30-dash-kpi-modal]'));
   }
 
   if (document.readyState === 'loading') {

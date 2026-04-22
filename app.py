@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "30.1"
+APP_VERSION = "30.2"
 import os
 import subprocess
 import traceback
@@ -13462,6 +13462,35 @@ def api_prospects_bulk_status_tags():
             conn.execute(f"UPDATE prospects SET {', '.join(sets)} WHERE id=? AND owner_id=?;", vals)
             updated += 1
     _audit_log("bulk_status_tags", "prospect", new_value=json.dumps({"ids": ids[:20], "statut": new_statut, "add_tags": add_tags, "remove_tags": remove_tags}, ensure_ascii=False))
+    return jsonify(ok=True, updated=updated)
+
+
+@app.post("/api/prospects/bulk-archive")
+def api_prospects_bulk_archive():
+    """v30.2 : archive (ou désarchive) plusieurs prospects d'un coup."""
+    chk = _require_same_origin()
+    if chk:
+        return chk
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    ids = payload.get("ids")
+    archive = 1 if payload.get("archive", True) else 0
+    if not ids or not isinstance(ids, list):
+        return jsonify(ok=False, error="ids (array) required"), 400
+    updated = 0
+    with _conn() as conn:
+        for pid in ids:
+            try:
+                pid = int(pid)
+            except (TypeError, ValueError):
+                continue
+            row = conn.execute("SELECT id FROM prospects WHERE id=? AND owner_id=?;", (pid, uid)).fetchone()
+            if row:
+                conn.execute("UPDATE prospects SET is_archived=? WHERE id=? AND owner_id=?;", (archive, pid, uid))
+                updated += 1
+    _audit_log("bulk_archive", "prospect", new_value=json.dumps({"ids": ids[:20], "archive": archive}))
     return jsonify(ok=True, updated=updated)
 
 

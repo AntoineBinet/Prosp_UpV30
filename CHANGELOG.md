@@ -2,6 +2,29 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.2] — 2026-04-22 · v30 fonctionnelle : Dashboard + Prospects (phase 1)
+
+La v30 n'est plus une coquille vide pour ces deux pages. Roadmap page-par-page documentée dans `.claude/plans/`.
+
+### Dashboard v30
+- **KPI manuel** : modale native v30 (type/date/ajustement/description) → `POST /api/manual-kpi`. Fin du renvoi vers `/dashboard#kpi-manual` de la v29.
+- **Export jour** : téléchargement JSON direct depuis la v30 (`GET /api/export/day`). Fin du renvoi `/dashboard#export`.
+
+### Prospects v30
+- **Ajouter** : modale complète (nom, fonction, entreprise/site, tel, email, LinkedIn, pertinence, statut, tags, notes) → `POST /api/prospects/create`.
+- **Filtres** : panel v30 (statuts multi, pertinence ≥, tags contient, fenêtre relance, appelables uniquement) avec badge compteur sur le bouton. Filtrage in-memory côté client.
+- **Colonnes** : popover qui active/désactive chaque colonne de la table (select, nom et actions sont fixes). Persisté `localStorage.v30.prospects.cols`.
+- **Bulk bar étendue** : en plus de Tag/Push, ajout de Statut, Pertinence, Relance (date ou effacer), Archiver (nouveau `POST /api/prospects/bulk-archive`), Supprimer (soft delete avec undo 10 s).
+- **Export XLSX** : bouton direct → `GET /api/export/xlsx`.
+- **Import Excel** : modale 3 étapes (fichier → mapping auto → progression). Chargement à la demande de `xlsx.min.js`, auto-mapping des entêtes, POST ligne par ligne à `/api/prospects/create`. Pour l'import avancé (CSV, collage, IA, Lusha), renvoi vers la v29 pour l'instant.
+- **Scrapping IA par ligne** : bouton étoile sur chaque ligne → modale avec prompt éditable, toggle recherche web Tavily → `POST /api/ollama/generate`. La réponse JSON est parsée puis appliquée via les APIs bulk.
+
+### Design system
+- Nouveau pattern `.v30-modal-bd` / `.v30-modal` / `.v30-field` / `.v30-chip` / `.v30-chiprow` / `.v30-colgrid` / `.v30-progress` dans `static/css/v30/components.css` + `prospects.css`. Réutilisable par les futures phases (Mode Prosp, Entreprises, Sourcing…).
+
+### Backend (addition minimale)
+- `POST /api/prospects/bulk-archive` : archive/désarchive N prospects d'un coup (`{ids, archive: bool}`).
+
 ## [30.1] — 2026-04-21 · Bascule v30 par défaut + parité v29 complétée
 
 ### v30 devient l'interface par défaut
