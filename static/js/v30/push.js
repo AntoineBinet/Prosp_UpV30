@@ -401,10 +401,121 @@
     });
   }
 
+  // ─── Template CRUD ───────────────────────────────────────
+  function getTplModal() { return document.querySelector('[data-v30-pp-modal="tpl-edit"]'); }
+  function openTplModal(t) {
+    var m = getTplModal();
+    if (!m) return;
+    var mode = m.querySelector('[data-v30-tpl-mode]');
+    var del = m.querySelector('[data-v30-tpl-delete]');
+    var val = function (id, v) { var el = document.getElementById(id); if (el) el.value = v || ''; };
+    if (t) {
+      if (mode) mode.textContent = 'Modifier le template';
+      val('v30-tpl-name', t.name);
+      val('v30-tpl-subject', t.subject);
+      val('v30-tpl-body', t.body);
+      val('v30-tpl-li', t.linkedin_body || t.linkedinBody);
+      (m.querySelector('[data-v30-tpl-default]') || {}).checked = !!t.is_default;
+      if (del) del.hidden = false;
+      m.dataset.tid = t.id;
+    } else {
+      if (mode) mode.textContent = 'Nouveau template';
+      ['v30-tpl-name','v30-tpl-subject','v30-tpl-body','v30-tpl-li'].forEach(function (id) { val(id, ''); });
+      (m.querySelector('[data-v30-tpl-default]') || {}).checked = false;
+      if (del) del.hidden = true;
+      delete m.dataset.tid;
+    }
+    m.hidden = false; void m.offsetWidth; m.classList.add('is-open');
+    var f = document.getElementById('v30-tpl-name');
+    if (f) try { f.focus(); } catch (_) {}
+  }
+  function closeTplModal() {
+    var m = getTplModal();
+    if (!m) return;
+    m.classList.remove('is-open');
+    setTimeout(function () { m.hidden = true; }, 160);
+  }
+  function saveTpl() {
+    var m = getTplModal();
+    var val = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    var name = val('v30-tpl-name');
+    if (!name) { if (window.showToast) window.showToast('Nom requis', 'warning'); return; }
+    var payload = {
+      name: name,
+      subject: val('v30-tpl-subject'),
+      body: val('v30-tpl-body'),
+      linkedin_body: val('v30-tpl-li'),
+      is_default: (m.querySelector('[data-v30-tpl-default]') || {}).checked ? 1 : 0
+    };
+    if (m.dataset.tid) payload.id = Number(m.dataset.tid);
+    var btn = m.querySelector('[data-v30-tpl-save]');
+    if (btn) btn.disabled = true;
+    fetch('/api/templates/save', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+        if (window.showToast) window.showToast('Template enregistré', 'success');
+        closeTplModal();
+        loadTemplates();
+      })
+      .catch(function (e) { if (window.showToast) window.showToast('Erreur : ' + e.message, 'error'); })
+      .then(function () { if (btn) btn.disabled = false; });
+  }
+  function deleteTpl() {
+    var m = getTplModal();
+    if (!m.dataset.tid) return;
+    if (!confirm('Supprimer ce template ?')) return;
+    fetch('/api/templates/delete', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: Number(m.dataset.tid) })
+    }).then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+        if (window.showToast) window.showToast('Template supprimé', 'success');
+        closeTplModal();
+        loadTemplates();
+      })
+      .catch(function (e) { if (window.showToast) window.showToast('Erreur : ' + e.message, 'error'); });
+  }
+  function bindTemplates() {
+    document.addEventListener('click', function (e) {
+      var newT = e.target.closest('[data-v30-new-template]');
+      if (newT) { e.preventDefault(); openTplModal(null); return; }
+      var card = e.target.closest('.v30-tpl-card');
+      if (card && !card.classList.contains('v30-tpl-card__new')) {
+        // Vérifie qu'on a cliqué dans la card (pas sur bouton externe)
+        var titleEl = card.querySelector('[style*="font-weight:600"]') || card.firstElementChild;
+        var idx = Array.prototype.indexOf.call(card.parentElement.children, card);
+        if (idx >= 0 && STATE.templates[idx]) {
+          e.preventDefault();
+          openTplModal(STATE.templates[idx]);
+        }
+      }
+      var close = e.target.closest('[data-v30-modal-close]');
+      if (close && close.closest('[data-v30-pp-modal="tpl-edit"]')) { closeTplModal(); return; }
+      var bd = e.target.closest('.v30-modal-bd[data-v30-pp-modal="tpl-edit"]');
+      if (bd && e.target === bd) closeTplModal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var m = getTplModal();
+      if (m && !m.hidden) closeTplModal();
+    });
+    var saveBtn = document.querySelector('[data-v30-tpl-save]');
+    if (saveBtn) saveBtn.addEventListener('click', saveTpl);
+    var delBtn = document.querySelector('[data-v30-tpl-delete]');
+    if (delBtn) delBtn.addEventListener('click', deleteTpl);
+  }
+
   // ─── Init ────────────────────────────────────────────────
   function init() {
     bindTabs();
     bindWizard();
+    bindTemplates();
     loadCampaigns();
   }
 

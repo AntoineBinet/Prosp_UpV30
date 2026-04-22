@@ -30,15 +30,54 @@
   }
 
   function row(p, meta) {
-    return '<a class="v30-ac__row" href="/v30/prospect/' + p.id + '">' +
-      '<span class="avatar">' + esc(initials(p.name)) + '</span>' +
-      '<div style="min-width:0;">' +
-        '<div class="v30-ac__name truncate">' + esc(p.name || '—') + '</div>' +
-        '<div class="v30-ac__sub truncate">' + esc(meta || '') + '</div>' +
-      '</div>' +
+    return '<div class="v30-ac__row" data-v30-focus-row data-pid="' + p.id + '">' +
+      '<a href="/v30/prospect/' + p.id + '" style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;text-decoration:none;color:inherit;">' +
+        '<span class="avatar">' + esc(initials(p.name)) + '</span>' +
+        '<div style="min-width:0;">' +
+          '<div class="v30-ac__name truncate">' + esc(p.name || '—') + '</div>' +
+          '<div class="v30-ac__sub truncate">' + esc(meta || '') + '</div>' +
+        '</div>' +
+      '</a>' +
       (p.statut ? '<span class="status ' + statusClass(p.statut) + '">' + esc(p.statut) + '</span>' : '<span></span>') +
-      '<span></span>' +
-    '</a>';
+      '<div style="display:flex;gap:4px;">' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-v30-focus-bump="1" title="Reporter +1 jour">+1j</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-v30-focus-bump="7" title="Reporter +7 jours">+7j</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-v30-focus-done title="Marquer fait (efface la relance)">✓</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function addDays(iso, days) {
+    var d = iso ? new Date(iso) : new Date();
+    if (isNaN(d.getTime())) d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+  function bindFocusRowActions() {
+    document.addEventListener('click', function (e) {
+      var row = e.target.closest('[data-v30-focus-row]');
+      if (!row) return;
+      var pid = Number(row.dataset.pid);
+      if (!pid) return;
+      var bump = e.target.closest('[data-v30-focus-bump]');
+      var done = e.target.closest('[data-v30-focus-done]');
+      if (!bump && !done) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var t = typeof window.showToast === 'function' ? window.showToast : function () {};
+      var todayIso = new Date().toISOString().slice(0, 10);
+      if (bump) {
+        var days = Number(bump.dataset.v30FocusBump) || 1;
+        var nf = addDays(todayIso, days);
+        postJSON('/api/prospects/bulk-update', { ids: [pid], nextFollowUp: nf })
+          .then(function () { t('Relance reportée de +' + days + 'j', 'success'); load(); })
+          .catch(function () { t('Erreur', 'error'); });
+      } else if (done) {
+        postJSON('/api/prospects/bulk-update', { ids: [pid], nextFollowUp: null })
+          .then(function () { t('Relance effacée', 'success'); load(); })
+          .catch(function () { t('Erreur', 'error'); });
+      }
+    });
   }
 
   function renderCol(key, items, emptyText) {
@@ -156,10 +195,8 @@
     });
   }
 
-  function init() {
-    bindTasks();
-    loadTasks();
-    fetchJSON('/api/dashboard').then(function (res) {
+  function load() {
+    return fetchJSON('/api/dashboard').then(function (res) {
       var d = (res && res.data) || {};
       var sub = document.querySelector('[data-v30-focus] [data-field="subtitle"]');
       if (sub) {
@@ -193,6 +230,13 @@
     }).catch(function (err) {
       console.error('[v30 focus] /api/dashboard failed:', err);
     });
+  }
+
+  function init() {
+    bindTasks();
+    loadTasks();
+    bindFocusRowActions();
+    load();
   }
 
   if (document.readyState === 'loading') {

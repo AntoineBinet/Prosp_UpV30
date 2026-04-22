@@ -85,12 +85,14 @@
         return '<a class="v30-cal__ev is-' + ev.type + '" href="' + esc(ev.href || '#') +
                '" title="' + esc(ev.label) + '">' + esc(ev.label) + '</a>';
       }).join('');
-      var more = events.length > 3 ? '<span class="v30-cal__more">+' + (events.length - 3) + ' autres</span>' : '';
+      var more = events.length > 3
+        ? '<button type="button" class="v30-cal__more" data-v30-cal-more="' + iso + '">+' + (events.length - 3) + ' autres</button>'
+        : '';
       cells.push(
         '<div class="v30-cal__cell' +
           (isOther ? ' is-other-month' : '') +
           (isToday ? ' is-today' : '') +
-          '">' +
+          '" data-iso="' + iso + '">' +
           '<span class="v30-cal__num">' + d.getDate() + '</span>' +
           evHtml + more +
         '</div>'
@@ -98,6 +100,46 @@
     }
     grid.innerHTML = cells.join('');
   }
+
+  function openDayPopup(iso, anchor) {
+    closeDayPopup();
+    var events = STATE.events[iso] || [];
+    if (!events.length) return;
+    var pop = document.createElement('div');
+    pop.className = 'v30-cal__popup';
+    pop.setAttribute('role', 'dialog');
+    pop.innerHTML = '<div class="v30-cal__popup-head">' +
+      '<strong>' + esc(new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })) + '</strong>' +
+      '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-cal-popup-close aria-label="Fermer">×</button>' +
+      '</div>' +
+      '<div class="v30-cal__popup-body">' +
+      events.map(function (ev) {
+        return '<a class="v30-cal__ev is-' + ev.type + '" href="' + esc(ev.href || '#') + '">' + esc(ev.label) + '</a>';
+      }).join('') +
+      '</div>';
+    document.body.appendChild(pop);
+    var r = anchor.getBoundingClientRect();
+    pop.style.position = 'fixed';
+    pop.style.zIndex = '90';
+    pop.style.top = Math.min(window.innerHeight - 260, r.bottom + 4) + 'px';
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - 320, r.left)) + 'px';
+    pop.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-cal-popup-close]')) closeDayPopup();
+    });
+    document.addEventListener('click', outsideClose, true);
+    document.addEventListener('keydown', escClose);
+  }
+  function closeDayPopup() {
+    var pop = document.querySelector('.v30-cal__popup');
+    if (pop) pop.remove();
+    document.removeEventListener('click', outsideClose, true);
+    document.removeEventListener('keydown', escClose);
+  }
+  function outsideClose(e) {
+    if (e.target.closest('.v30-cal__popup') || e.target.closest('[data-v30-cal-more]')) return;
+    closeDayPopup();
+  }
+  function escClose(e) { if (e.key === 'Escape') closeDayPopup(); }
 
   function bind() {
     var prev = document.querySelector('[data-v30-cal-prev]');
@@ -114,6 +156,14 @@
     if (today) today.addEventListener('click', function () {
       STATE.cursor = new Date();
       renderGrid();
+    });
+    document.addEventListener('click', function (e) {
+      var more = e.target.closest('[data-v30-cal-more]');
+      if (more) {
+        e.preventDefault();
+        e.stopPropagation();
+        openDayPopup(more.dataset.v30CalMore, more);
+      }
     });
   }
 

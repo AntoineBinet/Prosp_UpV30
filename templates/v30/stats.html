@@ -25,8 +25,8 @@
       <button type="button" data-period="90">90j</button>
       <button type="button" data-period="all">Tout</button>
     </div>
-    <a class="btn btn-sm" href="/stats">
-      {{ ui.icon('arrowR', 13) }} Graphiques détaillés
+    <a class="btn btn-sm" href="/stats?force_v29=1" title="Graphiques Chart.js disponibles sur la v29 (portage à venir)">
+      {{ ui.icon('arrowR', 13) }} Graphiques détaillés (v29)
     </a>
   </div>
 
@@ -81,8 +81,8 @@
         sur la page <b>Stats legacy</b> pour l'instant. Migration complète dans un commit
         ultérieur.
       </div>
-      <a class="btn btn-accent" href="/stats">
-        {{ ui.icon('chart', 13) }} Ouvrir les graphiques détaillés
+      <a class="btn btn-accent" href="/stats?force_v29=1">
+        {{ ui.icon('chart', 13) }} Ouvrir les graphiques détaillés (v29)
       </a>
     </div>
 

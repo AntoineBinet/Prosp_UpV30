@@ -2,6 +2,30 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.5] — 2026-04-22 · Focus + Calendrier + Push templates (phase 4)
+
+Pages de flux quotidien : actions rapides câblées sans remplacer les parties déjà fonctionnelles. Stats et Rapport étaient déjà OK (à 95 % et 100 %).
+
+### Focus (`/v30/focus`)
+- **Actions rapides par ligne** : boutons « +1j », « +7j » (repousser la relance) et « ✓ » (marquer fait / effacer la relance) → `POST /api/prospects/bulk-update` avec `nextFollowUp` calculé ou `null`.
+- La liste est rechargée automatiquement après chaque action.
+
+### Calendrier (`/v30/calendrier`)
+- Le bouton « +N autres » devient cliquable et ouvre un popup ancré au jour avec la liste complète des événements (RDV / relances / EC1). Fermeture par clic extérieur, bouton × ou Échap.
+- CSS popup ajouté dans `static/css/v30/calendar.css`.
+
+### Push — Templates (`/v30/push` onglet Templates)
+- **Nouveau template** : carte « + » ouvre une modale complète (nom, objet email, corps email, message LinkedIn, défaut par défaut) → `POST /api/templates/save`.
+- **Modifier un template** : clic sur une carte existante pré-remplit la modale en mode édition avec bouton « Supprimer » → `POST /api/templates/delete`.
+- Variables documentées dans la modale : `{prenom}`, `{nom}`, `{entreprise}`, `{fonction}`.
+- Le wizard de campagne (déjà câblé en 30.1) est inchangé.
+
+### Stats (`/v30/stats`)
+- Liens vers Chart.js détaillés pointent désormais vers `/stats?force_v29=1` (la v29 reste source de vérité pour les graphiques — portage prévu en phase 6 ou plus tard).
+
+### Rapport (`/v30/rapport`)
+- Inchangé (déjà complet : KPI, notes autosave, copier Markdown, export PDF).
+
 ## [30.4] — 2026-04-22 · Entreprises + Sourcing en v30 (phase 3)
 
 ### Entreprises (`/v30/entreprises`)
