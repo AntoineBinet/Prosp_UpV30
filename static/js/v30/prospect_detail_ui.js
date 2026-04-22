@@ -5,6 +5,16 @@
   var R = window.ProspFPRender;
   if (!FP || !R) return;
 
+  var STATUTS = [
+    "Pas d'actions",
+    "Appelé",
+    "À rappeler",
+    "Rendez-vous",
+    "Prospecté",
+    "Messagerie",
+    "Pas intéressé"
+  ];
+
   // ─── Flash "saved" ──────────────────────────────────────────
   function flashSaved() {
     var el = document.querySelector('[data-v30-saved-check]');
@@ -13,7 +23,65 @@
     setTimeout(function () { el.classList.remove('is-visible'); }, 1200);
   }
 
-  // ─── Inline edit (click → contenteditable → Enter save / Esc cancel) ──
+  // ─── Floating picker (partagé statut + more menu) ────────────
+  var _activePicker = null;
+
+  function closePicker() {
+    if (_activePicker) {
+      _activePicker.remove();
+      _activePicker = null;
+    }
+  }
+
+  function buildPicker(items, anchorEl) {
+    var picker = document.createElement('div');
+    picker.className = 'v30-fp-picker';
+    picker.setAttribute('role', 'menu');
+
+    items.forEach(function (item) {
+      if (item.sep) {
+        var sep = document.createElement('div');
+        sep.className = 'v30-fp-picker__sep';
+        picker.appendChild(sep);
+        return;
+      }
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'v30-fp-picker__item' +
+        (item.active ? ' is-active' : '') +
+        (item.danger ? ' danger' : '');
+      btn.setAttribute('role', 'menuitem');
+      btn.innerHTML = item.html || FP.esc(item.label || '');
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        closePicker();
+        if (item.action) item.action();
+      });
+      picker.appendChild(btn);
+    });
+
+    // Position under the anchor
+    var rect = anchorEl.getBoundingClientRect();
+    picker.style.top = (rect.bottom + 4) + 'px';
+    // Align right edge for "more" button, left edge for statut
+    if (anchorEl.dataset.v30Action === 'more') {
+      picker.style.right = (window.innerWidth - rect.right) + 'px';
+    } else {
+      picker.style.left = rect.left + 'px';
+    }
+
+    document.body.appendChild(picker);
+    _activePicker = picker;
+
+    // Close on outside click
+    setTimeout(function () {
+      document.addEventListener('click', closePicker, { once: true, capture: true });
+    }, 0);
+
+    return picker;
+  }
+
+  // ─── Inline edit (click → contenteditable → Enter/Esc) ─────
   function bindInlineEdit() {
     document.addEventListener('click', function (e) {
       var el = e.target.closest('[data-v30-edit]');
@@ -39,7 +107,6 @@
         FP.saveField(field, newVal).then(function () {
           if (FP.STATE.prospect) FP.STATE.prospect[field] = newVal;
           flashSaved();
-          // Rafraîchit header + aside pour cohérence (ex: changement nom)
           R.header(FP.STATE.prospect);
           R.aside(FP.STATE.prospect);
         }).catch(function (err) {
@@ -66,6 +133,77 @@
       el.addEventListener('keydown', onKey);
       el.addEventListener('blur', onBlur);
     });
+  }
+
+  // ─── Statut picker ───────────────────────────────────────────
+  function bindStatusEdit() {
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-v30-statut-btn]');
+      if (!btn) return;
+      e.stopPropagation();
+      if (_activePicker) { closePicker(); return; }
+
+      var current = (FP.STATE.prospect && FP.STATE.prospect.statut) || '';
+      var items = STATUTS.map(function (s) {
+        return {
+          active: s === current,
+          html: '<span class="status ' + FP.statusClass(s) + '">' + FP.esc(s) + '</span>',
+          action: function () {
+            FP.saveField('statut', s).then(function () {
+              if (FP.STATE.prospect) FP.STATE.prospect.statut = s;
+              flashSaved();
+              R.header(FP.STATE.prospect);
+              R.aside(FP.STATE.prospect);
+            }).catch(function (err) {
+              alert('Échec : ' + err.message);
+            });
+          }
+        };
+      });
+      buildPicker(items, btn);
+    });
+
+    // Keyboard support (Enter/Space on the statut button)
+    document.addEventListener('keydown', function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset.v30StatutBtn !== undefined) {
+        e.preventDefault();
+        e.target.click();
+      }
+    });
+  }
+
+  // ─── More menu ───────────────────────────────────────────────
+  function openMoreMenu(anchorEl) {
+    if (_activePicker) { closePicker(); return; }
+    var p = FP.STATE.prospect || {};
+    var items = [];
+
+    if (p.linkedin) {
+      items.push({
+        label: 'Voir sur LinkedIn',
+        action: function () { window.open(p.linkedin, '_blank', 'noopener'); }
+      });
+    }
+    if (p.company_id) {
+      items.push({
+        label: "Ouvrir l'entreprise",
+        action: function () { window.location.href = '/entreprises#' + p.company_id; }
+      });
+    }
+    if (items.length) items.push({ sep: true });
+
+    items.push({
+      label: 'Supprimer le prospect',
+      danger: true,
+      action: function () {
+        if (!confirm('Supprimer définitivement ce prospect ?')) return;
+        FP.fetchPostJSON('/api/prospects/delete', { id: FP.ID })
+          .then(function () { window.location.href = '/v30/prospects'; })
+          .catch(function (err) { alert('Erreur : ' + err.message); });
+      }
+    });
+
+    buildPicker(items, anchorEl);
   }
 
   // ─── Tabs ───────────────────────────────────────────────────
@@ -154,8 +292,8 @@
       } else if (act === 'schedule') {
         window.location.href = '/v30/calendrier';
       } else if (act === 'more') {
-        // Menu minimaliste : fallback vers la fiche legacy (édition avancée)
-        window.location.href = '/?prospect=' + FP.ID + '&force_v29=1';
+        e.stopPropagation();
+        openMoreMenu(btn);
       }
     });
   }
@@ -163,6 +301,7 @@
   // ─── Init ───────────────────────────────────────────────────
   function init() {
     bindInlineEdit();
+    bindStatusEdit();
     bindTabs();
     bindActivityFilter();
     bindDrawer();

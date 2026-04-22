@@ -26,14 +26,17 @@
 
   function statusClass(statut) {
     var map = {
-      'Rendez-vous':  'status-meeting',
-      'Prospecté':    'status-new',
-      "Pas d'actions": 'status-new',
-      'Contacté':     'status-contact',
-      'À rappeler':   'status-proposal',
-      'Proposition':  'status-proposal',
-      'Gagné':        'status-won',
-      'Perdu':        'status-lost'
+      'Rendez-vous':    'status-meeting',
+      'Prospecté':      'status-new',
+      "Pas d'actions":  'status-new',
+      'Contacté':       'status-contact',
+      'Appelé':         'status-contact',
+      'Messagerie':     'status-contact',
+      'À rappeler':     'status-proposal',
+      'Proposition':    'status-proposal',
+      'Gagné':          'status-won',
+      'Perdu':          'status-lost',
+      'Pas intéressé':  'status-lost'
     };
     return map[statut] || '';
   }

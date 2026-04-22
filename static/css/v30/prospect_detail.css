@@ -209,6 +209,56 @@
   justify-content: flex-end;
 }
 
+/* ─────────── Floating picker (statut + more menu) ─────────── */
+.v30-fp-picker {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-pop);
+  z-index: 60;
+  min-width: 172px;
+  padding: 4px;
+  animation: v30-picker-in 0.12s var(--ease-smooth);
+}
+@keyframes v30-picker-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+.v30-fp-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12.5px;
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--text);
+  transition: background var(--dur-1);
+}
+.v30-fp-picker__item:hover { background: var(--surface-2); }
+.v30-fp-picker__item.is-active { background: var(--surface-2); font-weight: 500; }
+.v30-fp-picker__item.danger { color: var(--danger, oklch(0.55 0.20 15)); }
+.v30-fp-picker__sep {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 4px;
+}
+
+/* Clickable aside value (statut) */
+.v30-fp-aside-row__value--clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 1px 3px;
+  margin: -1px -3px;
+  transition: background var(--dur-1);
+}
+.v30-fp-aside-row__value--clickable:hover { background: var(--surface-2); }
+
 /* Responsive */
 @media (max-width: 1100px) {
   .v30-fp-body { grid-template-columns: 1fr; }
