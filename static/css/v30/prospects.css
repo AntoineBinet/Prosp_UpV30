@@ -29,12 +29,16 @@
 .v30-pp-topbar h1 {
   font-size: 18px;
   margin: 0;
-  font-weight: 600;
+  font-weight: 400;
+  font-family: var(--font-serif);
+  font-style: italic;
   color: var(--text);
 }
 .v30-pp-topbar h1 .v30-pp-count {
   color: var(--text-3);
   font-weight: 400;
+  font-family: var(--font-sans, Inter, sans-serif);
+  font-style: normal;
   font-variant-numeric: tabular-nums;
   margin-left: 6px;
 }
