@@ -232,7 +232,9 @@
   function renderEmail(email) {
     if (!email) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
     var clean = String(email).trim();
-    return '<a class="v30-pp-email" href="mailto:' + esc(clean) + '" title="' + esc(clean) + '">' + esc(clean) + '</a>';
+    return '<a class="v30-pp-email-icon" href="mailto:' + esc(clean) + '" title="' + esc(clean) + '">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>' +
+    '</a>';
   }
 
   function renderPushBadges(p) {
@@ -253,13 +255,20 @@
         return '<td style="padding-left:14px;">' +
           '<input type="checkbox" data-v30-row-select' + (STATE.selected.has(p.id) ? ' checked' : '') + ' aria-label="Sélectionner">' +
           '</td>';
-      case 'name':
+      case 'name': {
+        var sub = [];
+        if (coName)     sub.push('<span class="v30-pp-name__co">' + esc(coName) + '</span>');
+        if (p.fonction) sub.push(esc(p.fonction));
         return '<td>' +
           '<a class="v30-pp-name" href="#" data-v30-open="' + p.id + '">' +
             '<span class="avatar v30-pp-avatar">' + esc(initials(p.name)) + '</span>' +
-            '<div class="v30-pp-name__value truncate">' + esc(p.name || '—') + '</div>' +
+            '<div style="min-width:0;">' +
+              '<div class="v30-pp-name__value truncate">' + esc(p.name || '—') + '</div>' +
+              (sub.length ? '<div class="v30-pp-name__sub truncate">' + sub.join(' · ') + '</div>' : '') +
+            '</div>' +
           '</a>' +
         '</td>';
+      }
       case 'company':    return '<td class="truncate" style="font-size:12.5px;color:var(--text-2);max-width:130px;">' + esc(coName) + '</td>';
       case 'statut':     return '<td>' + (p.statut ? '<span class="status ' + cls + '">' + esc(p.statut) + '</span>' : '—') + '</td>';
       case 'pertinence': return '<td>' + renderPertinence(p.pertinence) + '</td>';
@@ -309,7 +318,7 @@
 
   var COL_WIDTHS = {
     select: 32, name: 200, company: 115, statut: 98, pertinence: 70,
-    tel: 44, email: 130, push: 52, lastContact: 92, relance: 82, tags: 90, actions: 62
+    tel: 44, email: 44, push: 52, lastContact: 92, relance: 82, tags: 90, actions: 62
   };
 
   function renderTableHead() {
