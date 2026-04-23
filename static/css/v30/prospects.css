@@ -157,6 +157,26 @@
 }
 .v30-pill .mono { opacity: 0.5; }
 
+/* ─────────── Bouton Filtres fusionné ─────────── */
+.v30-pp-flt-wrap {
+  display: flex;
+  align-items: center;
+}
+.v30-pp-flt-wrap [data-v30-filters] {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.v30-pp-flt-clear {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid var(--border);
+  padding-left: 5px;
+  padding-right: 5px;
+  min-width: 0;
+  color: var(--text-3);
+}
+.v30-pp-flt-clear:hover { color: var(--text); }
+
 /* ─────────── Recherche inline ─────────── */
 .v30-pp-search {
   position: relative;
@@ -714,14 +734,11 @@
 
 @media (max-width: 600px) {
   /* Masque les boutons moins essentiels pour laisser respirer */
-  .v30-pp-topbar [data-v30-columns],
   .v30-pp-topbar [data-v30-import],
   .v30-pp-topbar [data-v30-export],
-  .v30-pp-topbar [data-v30-flt-clear-all],
   .v30-pp-topbar a[href*="archives"] { display: none; }
 
   /* Les boutons principaux deviennent icon-only */
-  .v30-pp-topbar [data-v30-filters] span:not(.badge),
   .v30-pp-topbar [data-v30-mode-prosp] span,
   .v30-pp-topbar [data-v30-add] span { display: none; }
 

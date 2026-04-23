@@ -30,16 +30,6 @@
       </button>
     </div>
     <div class="v30-spacer"></div>
-    <button type="button" class="btn btn-ghost btn-sm" data-v30-filters>
-      {{ ui.icon('filter', 13) }} Filtres
-      <span class="badge" data-field="active" hidden>0</span>
-    </button>
-    <button type="button" class="btn btn-ghost btn-sm" data-v30-flt-clear-all hidden title="Effacer tous les filtres" style="color:var(--text-3);">
-      {{ ui.icon('x', 12) }} Filtres actifs
-    </button>
-    <button type="button" class="btn btn-ghost btn-sm" data-v30-columns>
-      {{ ui.icon('cog', 13) }} Colonnes
-    </button>
     <button type="button" class="btn btn-ghost btn-sm" data-v30-import title="Importer un fichier Excel">
       {{ ui.icon('arrowU', 13) }} Importer
     </button>
@@ -85,14 +75,29 @@
     <button type="button" class="v30-pill" data-view-filter="relance">
       À relancer <span class="mono num" data-field="count">—</span>
     </button>
-    <button type="button" class="v30-pill" data-view-filter="hot">
-      Hot <span class="mono num" data-field="count">—</span>
+    <button type="button" class="v30-pill" data-view-filter="rdv">
+      RDV <span class="mono num" data-field="count">—</span>
+    </button>
+    <button type="button" class="v30-pill" data-view-filter="prospecte">
+      Prospecté <span class="mono num" data-field="count">—</span>
     </button>
     <span data-v30-saved-views class="v30-saved-pills"></span>
     <button type="button" class="btn btn-ghost btn-sm" data-v30-save-view>
       {{ ui.icon('plus', 12) }} Vue
     </button>
     <div class="v30-spacer"></div>
+    <div class="v30-pp-flt-wrap">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-filters title="Filtres">
+        {{ ui.icon('filter', 12) }} Filtres
+        <span class="badge" data-field="active" hidden>0</span>
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon v30-pp-flt-clear" data-v30-flt-clear-all hidden aria-label="Effacer les filtres" title="Effacer tous les filtres">
+        {{ ui.icon('x', 11) }}
+      </button>
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-columns aria-label="Colonnes affichées" title="Colonnes">
+      {{ ui.icon('cog', 13) }}
+    </button>
     <div class="v30-pp-search">
       <span class="v30-pp-search__icon">{{ ui.icon('search') }}</span>
       <input type="search" class="input" placeholder="Rechercher…" data-v30-search
@@ -118,7 +123,7 @@
               <th>Email</th>
               <th>Push</th>
               <th>Dernière action</th>
-              <th>Prochain RDV</th>
+              <th>Relance</th>
               <th>Tags</th>
               <th style="width:120px;">Actions</th>
             </tr>
