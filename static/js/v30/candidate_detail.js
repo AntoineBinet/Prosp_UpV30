@@ -254,6 +254,93 @@
     }).catch(function () { STATE.availability = {}; renderDispo(); });
   }
 
+  // ─── Historique des envois (pushes) ─────────────────────
+  function formatPushDate(raw) {
+    if (!raw) return '—';
+    try {
+      var d = new Date(raw);
+      if (isNaN(d.getTime())) return esc(String(raw).slice(0, 10));
+      var dd = String(d.getDate()).padStart(2, '0');
+      var mm = String(d.getMonth() + 1).padStart(2, '0');
+      var yyyy = d.getFullYear();
+      var hh = String(d.getHours()).padStart(2, '0');
+      var mi = String(d.getMinutes()).padStart(2, '0');
+      return dd + '/' + mm + '/' + yyyy + ' ' + hh + ':' + mi;
+    } catch (_) {
+      return esc(String(raw).slice(0, 10));
+    }
+  }
+  function renderPushHistory(data) {
+    var host = $('[data-v30-fc-push-history]');
+    if (!host) return;
+    var pushes = (data && data.pushes) || [];
+    var companies = (data && data.companies) || [];
+    var total = (data && data.total) || pushes.length || 0;
+
+    var badge = $('[data-v30-fc-push-count]');
+    if (badge) {
+      if (total > 0) { badge.style.display = ''; badge.textContent = String(total); }
+      else { badge.style.display = 'none'; }
+    }
+
+    if (!pushes.length) {
+      host.innerHTML = '<div class="empty" style="padding:8px;font-size:12px;color:var(--text-3);">Aucun envoi enregistré pour ce candidat.</div>';
+      return;
+    }
+
+    var summaryHtml = '';
+    if (companies.length) {
+      summaryHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">' +
+        companies.slice(0, 8).map(function (c) {
+          var label = c.company_name && c.company_name !== '—' ? c.company_name : 'Société inconnue';
+          return '<span class="badge" title="' + esc(label) + '" style="font-size:11px;">' +
+            esc(label) + ' · ' + c.count + '</span>';
+        }).join('') +
+      '</div>';
+    }
+
+    var listHtml = pushes.slice(0, 20).map(function (p) {
+      var prospect = p.prospect_name || (p.prospect_id ? ('Prospect #' + p.prospect_id) : '—');
+      var company = p.company_name || '';
+      var prospectLink = p.prospect_id
+        ? '<a href="/v30/prospect/' + encodeURIComponent(p.prospect_id) + '" style="color:inherit;text-decoration:none;">' + esc(prospect) + '</a>'
+        : esc(prospect);
+      var channelLabel = p.channel === 'linkedin' ? 'LinkedIn'
+        : p.channel === 'other' ? 'Autre'
+        : p.channel === 'email' ? 'Email'
+        : '';
+      return '<div class="v30-fc-mission" style="padding:6px 0;border-bottom:1px solid var(--border, rgba(255,255,255,0.08));">' +
+        '<div class="v30-fc-mission__co" style="font-weight:600;">' + prospectLink + '</div>' +
+        (company ? '<div class="v30-fc-mission__role" style="font-size:12px;color:var(--text-2);">' + esc(company) + '</div>' : '') +
+        '<div class="v30-fc-mission__date" style="font-size:11px;color:var(--text-3);display:flex;gap:6px;align-items:center;">' +
+          '<span>' + formatPushDate(p.createdAt) + '</span>' +
+          (channelLabel ? '<span class="badge" style="font-size:10px;">' + channelLabel + '</span>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    var moreHtml = pushes.length > 20
+      ? '<div style="font-size:11px;color:var(--text-3);padding-top:6px;">… et ' + (pushes.length - 20) + ' autre(s).</div>'
+      : '';
+
+    host.innerHTML = summaryHtml + listHtml + moreHtml;
+  }
+  function loadPushHistory() {
+    var host = $('[data-v30-fc-push-history]');
+    if (!host) return;
+    fetchJSON('/api/candidate-push?candidate_id=' + CID)
+      .then(function (j) {
+        if (!j || j.ok === false) {
+          host.innerHTML = '<div class="empty" style="padding:8px;font-size:12px;color:var(--text-3);">Historique indisponible.</div>';
+          return;
+        }
+        renderPushHistory(j);
+      })
+      .catch(function () {
+        host.innerHTML = '<div class="empty" style="padding:8px;font-size:12px;color:var(--text-3);">Erreur de chargement de l\'historique.</div>';
+      });
+  }
+
   // ─── Missions (experiences) ──────────────────────────────
   function renderMissions() {
     var host = $('[data-v30-fc-missions]');
@@ -362,6 +449,7 @@
       // Charge skills + availability via nouveaux endpoints v30
       loadSkills();
       loadAvailability();
+      loadPushHistory();
     }).catch(function (err) {
       console.error('[v30 fiche candidat] load failed:', err);
     });
