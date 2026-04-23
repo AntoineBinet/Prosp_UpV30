@@ -29,6 +29,9 @@
       <button type="button" data-view="grid" role="tab" aria-selected="false">
         {{ ui.icon('table', 13) }} Grille
       </button>
+      <button type="button" data-view="inmails" role="tab" aria-selected="false">
+        {{ ui.icon('send', 13) }} InMails
+      </button>
     </div>
     <button type="button" class="btn btn-ghost btn-sm" data-v30-sc-filters>
       {{ ui.icon('filter', 13) }} Filtres
@@ -86,6 +89,30 @@
   <div data-v30-sc-panel="grid" hidden>
     <div class="v30-sc-grid" data-v30-sc-grid>
       <div class="empty" style="grid-column:1/-1;padding:20px;">Chargement…</div>
+    </div>
+  </div>
+
+  {# ─── Vue InMails LinkedIn ─── #}
+  <div data-v30-sc-panel="inmails" hidden>
+    <div class="v30-inmails">
+      <div class="v30-inmails__header">
+        <div class="v30-inmails__title">
+          {{ ui.icon('send', 14) }}
+          <span>InMails LinkedIn envoyés</span>
+          <span class="badge" data-inmails-count>0</span>
+        </div>
+        <p class="v30-inmails__subtitle">Enregistre ici les profils auxquels tu as envoyé un InMail — chaque entrée incrémente ton compteur sourcing du jour.</p>
+      </div>
+      <div class="v30-inmails__add">
+        <input type="url" class="input" placeholder="URL du profil LinkedIn (https://linkedin.com/in/…)" data-inmails-url>
+        <input type="text" class="input" placeholder="Note optionnelle" data-inmails-note>
+        <button type="button" class="btn btn-primary btn-sm" data-inmails-submit>
+          {{ ui.icon('plus', 13) }} Ajouter
+        </button>
+      </div>
+      <div class="v30-inmails__list" data-inmails-list>
+        <div class="empty" style="padding:24px 0;text-align:center;color:var(--text-3);">Chargement…</div>
+      </div>
     </div>
   </div>
 

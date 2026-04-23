@@ -846,6 +846,7 @@
     var esc = function (s) { var el = document.createElement('span'); el.textContent = s == null ? '' : String(s); return el.innerHTML; };
     var itemsEl = root.querySelector('[data-field="items"]');
     if (!itemsEl) return;
+    var OBJ_ACTIONS = { push: 'push_ready', rdv: 'rdv_ready', sourcing_contacted: 'sourcing' };
     var html = '';
     var totalItems = 0;
     ['daily', 'weekly'].forEach(function (scope) {
@@ -861,7 +862,9 @@
         var it = obj.items[k];
         var ratio = Math.max(0, Math.min(1, Number(it.ratio) || 0));
         var done = !!it.done;
-        html += '<div class="v30-objs__item' + (done ? ' v30-objs__item--done' : '') + '">' +
+        var action = OBJ_ACTIONS[k] || '';
+        var actionAttr = action ? ' data-obj-action="' + action + '" tabindex="0" role="button" title="Cliquer pour agir"' : '';
+        html += '<div class="v30-objs__item' + (done ? ' v30-objs__item--done' : '') + (action ? ' v30-objs__item--clickable' : '') + '"' + actionAttr + '>' +
           '<span class="v30-objs__item-icon">' + iconForRatio(ratio, done) + '</span>' +
           '<div class="v30-objs__item-body">' +
             '<div class="v30-objs__item-top">' +
@@ -880,6 +883,61 @@
       '</div>';
     }
     itemsEl.innerHTML = html;
+    bindObjItemClicks(itemsEl);
+  }
+
+  function bindObjItemClicks(itemsEl) {
+    itemsEl.addEventListener('click', function (e) {
+      var item = e.target.closest('[data-obj-action]');
+      if (!item) return;
+      var action = item.dataset.objAction;
+      if (action === 'push_ready') handleObjPush();
+      else if (action === 'rdv_ready') handleObjRdv();
+      else if (action === 'sourcing') handleObjSourcing();
+    });
+    itemsEl.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      var item = e.target.closest('[data-obj-action]');
+      if (!item) return;
+      e.preventDefault();
+      item.click();
+    });
+  }
+
+  function handleObjPush() {
+    fetchJSON('/api/prospects/quick-filter?preset=push_ready').then(function (res) {
+      if (!res || !res.ok || !res.ids || !res.ids.length) {
+        if (typeof showToast === 'function') showToast('Aucun prospect éligible au push (email dispo, pas de tél, push non envoyé)', 'info');
+        return;
+      }
+      window.location.href = '/v30/prospect/' + res.ids[0];
+    }).catch(function () {
+      if (typeof showToast === 'function') showToast('Erreur lors du filtrage', 'error');
+    });
+  }
+
+  function handleObjRdv() {
+    fetchJSON('/api/prospects/quick-filter?preset=rdv_ready').then(function (res) {
+      if (!res || !res.ok || !res.ids || !res.ids.length) {
+        if (typeof showToast === 'function') showToast('Aucun prospect éligible (Messagerie/Pas d\'actions/À rappeler avec téléphone)', 'info');
+        return;
+      }
+      return fetch('/api/mode-prosp/start', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: res.ids })
+        }).then(function (r) { return r.json(); }).then(function (r) {
+        if (!r || !r.ok || !r.token) throw new Error((r && r.error) || 'Token manquant');
+        window.open('/v30/mode-prosp?t=' + encodeURIComponent(r.token), '_blank');
+      });
+    }).catch(function (e) {
+      if (typeof showToast === 'function') showToast('Erreur Mode Prosp : ' + (e && e.message), 'error');
+    });
+  }
+
+  function handleObjSourcing() {
+    window.open('https://www.linkedin.com/talent/contract-chooser/?trk=nav_account_sub_nav_cap', '_blank');
+    window.location.href = '/v30/sourcing#inmails';
   }
 
   function hydrate() {

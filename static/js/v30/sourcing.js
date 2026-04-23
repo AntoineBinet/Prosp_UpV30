@@ -247,6 +247,7 @@
         p.hidden = (p.dataset.v30ScPanel !== v);
       });
       if (v === 'grid') renderGrid();
+      if (v === 'inmails') loadInmails();
     });
   }
 
@@ -404,6 +405,92 @@
     if (btn && banner) btn.addEventListener('click', function () { banner.hidden = true; });
   }
 
+  // ─── InMails LinkedIn ────────────────────────────────────
+  function loadInmails() {
+    var list = $('[data-inmails-list]');
+    if (!list) return;
+    list.innerHTML = '<div class="empty" style="padding:24px 0;text-align:center;color:var(--text-3);">Chargement…</div>';
+    fetchJSON('/api/linkedin-inmails').then(function (res) {
+      var entries = (res && res.entries) || [];
+      var countEl = $('[data-inmails-count]');
+      if (countEl) countEl.textContent = entries.length;
+      if (!entries.length) {
+        list.innerHTML = '<div class="empty v30-inmails__empty">Aucun InMail enregistré. Ajoute le premier ci-dessus !</div>';
+        return;
+      }
+      list.innerHTML = entries.map(function (e) {
+        var domain = '';
+        try { domain = new URL(e.url).hostname.replace('www.', ''); } catch (_) { domain = e.url; }
+        return '<div class="v30-inmails__item" data-inmail-id="' + esc(e.id) + '">' +
+          '<div class="v30-inmails__item-main">' +
+            '<a class="v30-inmails__item-url" href="' + esc(e.url) + '" target="_blank" rel="noopener">' + esc(domain) + '</a>' +
+            (e.note ? '<span class="v30-inmails__item-note">' + esc(e.note) + '</span>' : '') +
+          '</div>' +
+          '<span class="v30-inmails__item-date">' + esc(e.sent_at) + '</span>' +
+          '<button type="button" class="btn btn-ghost btn-sm btn-icon v30-inmails__item-del" data-del="' + esc(e.id) + '" aria-label="Supprimer">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>' +
+          '</button>' +
+        '</div>';
+      }).join('');
+    }).catch(function () {
+      list.innerHTML = '<div class="empty" style="color:var(--danger);padding:16px 0;">Erreur de chargement.</div>';
+    });
+  }
+
+  function bindInmails() {
+    var submitBtn = $('[data-inmails-submit]');
+    var list = $('[data-inmails-list]');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', function () {
+        var urlInput = $('[data-inmails-url]');
+        var noteInput = $('[data-inmails-note]');
+        var url = urlInput ? urlInput.value.trim() : '';
+        if (!url) { toast('URL manquante', 'warning'); return; }
+        submitBtn.disabled = true;
+        fetchPost('/api/linkedin-inmails', { url: url, note: noteInput ? noteInput.value.trim() : '' })
+          .then(function (res) {
+            if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+            if (urlInput) urlInput.value = '';
+            if (noteInput) noteInput.value = '';
+            toast('InMail enregistré ✓', 'success');
+            loadInmails();
+          })
+          .catch(function (e) { toast('Erreur : ' + e.message, 'error'); })
+          .then(function () { submitBtn.disabled = false; });
+      });
+    }
+    if (list) {
+      list.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-del]');
+        if (!btn) return;
+        var id = btn.dataset.del;
+        btn.disabled = true;
+        fetchJSON('/api/linkedin-inmails/' + id, { method: 'DELETE' })
+          .then(function (res) {
+            if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+            toast('Supprimé', 'success');
+            loadInmails();
+          })
+          .catch(function (e) { toast('Erreur : ' + e.message, 'error'); btn.disabled = false; });
+      });
+    }
+  }
+
+  function switchToView(v) {
+    var seg = $('[data-v30-sc-view]');
+    if (!seg) return;
+    seg.querySelectorAll('button[data-view]').forEach(function (b) {
+      var active = b.dataset.view === v;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-v30-sc-panel]').forEach(function (p) {
+      p.hidden = (p.dataset.v30ScPanel !== v);
+    });
+    if (v === 'grid') renderGrid();
+    if (v === 'inmails') loadInmails();
+  }
+
   // ─── Orchestration ───────────────────────────────────────
   function reload() {
     return fetchJSON('/api/candidates').then(function (res) {
@@ -428,7 +515,12 @@
     bindBulk();
     bindSelection();
     bindMatchClose();
-    reload();
+    bindInmails();
+    reload().then(function () {
+      if (window.location.hash === '#inmails') {
+        switchToView('inmails');
+      }
+    });
   }
 
   if (document.readyState === 'loading') {
