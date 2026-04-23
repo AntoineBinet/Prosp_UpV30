@@ -128,3 +128,100 @@
     font-size: 11.5px;
   }
 }
+
+/* ─── InMails LinkedIn ─── */
+.v30-inmails {
+  max-width: 720px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+.v30-inmails__header {
+  margin-bottom: 20px;
+}
+.v30-inmails__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+.v30-inmails__subtitle {
+  color: var(--text-3);
+  font-size: 12.5px;
+  margin: 0;
+  line-height: 1.5;
+}
+.v30-inmails__add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.v30-inmails__add .input:first-child {
+  flex: 2 1 220px;
+}
+.v30-inmails__add .input:nth-child(2) {
+  flex: 1 1 140px;
+}
+.v30-inmails__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v30-inmails__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: background .12s;
+}
+.v30-inmails__item:hover {
+  background: var(--surface-2);
+}
+.v30-inmails__item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v30-inmails__item-url {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+.v30-inmails__item-url:hover { text-decoration: underline; }
+.v30-inmails__item-note {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.v30-inmails__item-date {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.v30-inmails__item-del {
+  color: var(--text-3);
+  opacity: .6;
+  transition: opacity .12s, color .12s;
+  flex-shrink: 0;
+}
+.v30-inmails__item-del:hover {
+  opacity: 1;
+  color: var(--danger);
+}
+.v30-inmails__empty {
+  padding: 32px 0;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
+}

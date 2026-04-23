@@ -2114,6 +2114,19 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             CREATE INDEX IF NOT EXISTS idx_meeting_opportunities_owner ON meeting_opportunities(owner_id);
         ''')
 
+        # LinkedIn InMails (dashboard objectifs sourcing)
+        conn.executescript('''
+            CREATE TABLE IF NOT EXISTS linkedin_inmails (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                url        TEXT NOT NULL,
+                note       TEXT,
+                sent_at    TEXT NOT NULL,
+                owner_id   INTEGER NOT NULL,
+                created_at REAL
+            );
+            CREATE INDEX IF NOT EXISTS idx_linkedin_inmails_owner_date ON linkedin_inmails(owner_id, sent_at);
+        ''')
+
         # Seed default admin if no users exist
         user_count = conn.execute("SELECT COUNT(*) AS n FROM users;").fetchone()["n"]
         if user_count == 0:
@@ -2579,6 +2592,16 @@ def _migrate_user_db_schema(db_path: Path) -> None:
                     FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
                     FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
                 );
+
+                CREATE TABLE IF NOT EXISTS linkedin_inmails (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    url        TEXT NOT NULL,
+                    note       TEXT,
+                    sent_at    TEXT NOT NULL,
+                    owner_id   INTEGER NOT NULL,
+                    created_at REAL
+                );
+                CREATE INDEX IF NOT EXISTS idx_linkedin_inmails_owner_date ON linkedin_inmails(owner_id, sent_at);
             ''')
         except Exception as e:
             print(f"[WARN] Migration tables KPI manquantes ({db_path}): {e}")
@@ -3301,6 +3324,16 @@ def _init_user_db(user_id: int) -> Path:
             CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
             CREATE INDEX IF NOT EXISTS idx_call_logs_owner_date ON call_logs(owner_id, date);
             CREATE INDEX IF NOT EXISTS idx_call_logs_prospect ON call_logs(prospect_id);
+
+            CREATE TABLE IF NOT EXISTS linkedin_inmails (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                url        TEXT NOT NULL,
+                note       TEXT,
+                sent_at    TEXT NOT NULL,
+                owner_id   INTEGER NOT NULL,
+                created_at REAL
+            );
+            CREATE INDEX IF NOT EXISTS idx_linkedin_inmails_owner_date ON linkedin_inmails(owner_id, sent_at);
         ''')
 
         now = datetime.datetime.now().isoformat(timespec="seconds")
@@ -5444,6 +5477,42 @@ def mode_prosp_start():
         return jsonify(ok=False, error="Erreur serveur"), 500
     _mode_prosp_cleanup()
     return jsonify(ok=True, token=token)
+
+
+@app.get("/api/prospects/quick-filter")
+def api_prospects_quick_filter():
+    """Retourne des IDs de prospects selon un preset de filtres (usage: dashboard objectifs)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    preset = request.args.get('preset', '')
+    try:
+        with _conn() as conn:
+            if preset == 'push_ready':
+                rows = conn.execute(
+                    "SELECT id FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') "
+                    "AND (is_archived IS NULL OR is_archived=0) "
+                    "AND (pushEmailSentAt IS NULL OR pushEmailSentAt='') "
+                    "AND (pushLinkedInSentAt IS NULL OR pushLinkedInSentAt='') "
+                    "AND email IS NOT NULL AND email!='' "
+                    "AND (telephone IS NULL OR telephone='') "
+                    "ORDER BY RANDOM() LIMIT 1",
+                    (uid,)
+                ).fetchall()
+            elif preset == 'rdv_ready':
+                rows = conn.execute(
+                    "SELECT id FROM prospects WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') "
+                    "AND (is_archived IS NULL OR is_archived=0) "
+                    "AND statut IN ('Messagerie','Pas d''actions','À rappeler') "
+                    "AND telephone IS NOT NULL AND telephone!=''",
+                    (uid,)
+                ).fetchall()
+            else:
+                return jsonify(ok=False, error="preset inconnu"), 400
+        return jsonify(ok=True, ids=[r['id'] for r in rows])
+    except Exception as e:
+        logger.error("api_prospects_quick_filter: %s", e)
+        return jsonify(ok=False, error="Erreur serveur"), 500
 
 
 @app.get("/api/mode-prosp/data")
@@ -15749,6 +15818,19 @@ def api_dashboard():
             cand_contacted_week = 0
             cand_solid_week = 0
 
+        try:
+            inmails_today = conn.execute(
+                "SELECT COUNT(*) FROM linkedin_inmails WHERE owner_id=? AND sent_at=?",
+                (uid, today),
+            ).fetchone()[0]
+            inmails_week = conn.execute(
+                "SELECT COUNT(*) FROM linkedin_inmails WHERE owner_id=? AND sent_at BETWEEN ? AND ?",
+                (uid, monday, today),
+            ).fetchone()[0]
+        except Exception:
+            inmails_today = 0
+            inmails_week = 0
+
         # RDV events par jour de la semaine (pour les barres d'activité)
         try:
             rdv_rows = conn.execute(
@@ -15881,12 +15963,12 @@ def api_dashboard():
     goals_daily_counts = {
         "rdv": max(0, rdv_taken_today + int(manual_kpi_today.get("rdv", 0))),
         "push": max(0, count_push(today) + int(manual_kpi_today.get("push_email", 0)) + int(manual_kpi_today.get("push_linkedin", 0))),
-        "sourcing_contacted": max(0, cand_contacted_today + int(manual_kpi_today.get("sourcing", 0))),
+        "sourcing_contacted": max(0, cand_contacted_today + inmails_today + int(manual_kpi_today.get("sourcing", 0))),
     }
     goals_weekly_counts = {
         "rdv": max(0, rdv_taken_week + int(manual_kpi_week.get("rdv", 0))),
         "push": max(0, count_push_range(monday, today) + int(manual_kpi_week.get("push_email", 0)) + int(manual_kpi_week.get("push_linkedin", 0))),
-        "sourcing_contacted": max(0, cand_contacted_week + int(manual_kpi_week.get("sourcing", 0))),
+        "sourcing_contacted": max(0, cand_contacted_week + inmails_week + int(manual_kpi_week.get("sourcing", 0))),
         "sourcing_solid": max(0, cand_solid_week),
     }
     goals_payload = _build_goals_payload(
@@ -17509,6 +17591,61 @@ def api_manual_kpi_list():
         query += " ORDER BY date DESC, createdAt DESC LIMIT 200;"
         rows = conn.execute(query, params).fetchall()
     return jsonify(ok=True, entries=[dict(r) for r in rows])
+
+
+# ═══════════════════════════════════════════════════════
+# LinkedIn InMails (sourcing stats — dashboard objectifs)
+# ═══════════════════════════════════════════════════════
+
+@app.get("/api/linkedin-inmails")
+def api_linkedin_inmails_list():
+    """Liste les InMails LinkedIn de l'utilisateur, triés par date décroissante."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM linkedin_inmails WHERE owner_id=? ORDER BY sent_at DESC, created_at DESC LIMIT 500;",
+            (uid,)
+        ).fetchall()
+    return jsonify(ok=True, entries=[dict(r) for r in rows])
+
+
+@app.post("/api/linkedin-inmails")
+def api_linkedin_inmails_add():
+    """Enregistre un InMail LinkedIn envoyé (incrémente le compteur sourcing du jour)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    url = (payload.get("url") or "").strip()
+    if not url:
+        return jsonify(ok=False, error="URL manquante"), 400
+    note = (payload.get("note") or "").strip()
+    sent_at = (payload.get("sent_at") or datetime.datetime.now().strftime("%Y-%m-%d")).strip()
+    now_ts = time.time()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO linkedin_inmails (url, note, sent_at, owner_id, created_at) VALUES (?, ?, ?, ?, ?);",
+            (url, note or None, sent_at, uid, now_ts)
+        )
+    return jsonify(ok=True, message="InMail enregistré")
+
+
+@app.delete("/api/linkedin-inmails/<int:entry_id>")
+def api_linkedin_inmails_delete(entry_id: int):
+    """Supprime un InMail LinkedIn (seul le propriétaire peut le faire)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM linkedin_inmails WHERE id=? AND owner_id=?;", (entry_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Introuvable"), 404
+        conn.execute("DELETE FROM linkedin_inmails WHERE id=?;", (entry_id,))
+    return jsonify(ok=True)
 
 
 # ═══════════════════════════════════════════════════════
