@@ -7206,7 +7206,15 @@ def api_candidate_push_add():
 
 @app.get("/api/candidate-push")
 def api_candidate_push_list():
-    """Return history of candidate → prospect pushes for a given candidate."""
+    """Return full history of candidate → prospect pushes for a given candidate.
+
+    Unions two data sources:
+      1. push_logs (authoritative) where candidate_id1 or candidate_id2 match.
+      2. candidate_events (type='candidate_push') for historical coverage.
+
+    De-duplicates by (prospect_id, day) so entries shared across both sources
+    appear once. The response also includes a per-company aggregate.
+    """
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
@@ -7216,35 +7224,114 @@ def api_candidate_push_list():
     if not _candidate_owned(cid):
         return jsonify(ok=False, error="Accès refusé"), 403
 
-    with _conn() as conn:
-        rows = conn.execute(
-            """
-            SELECT date, title, meta, createdAt
-            FROM candidate_events
-            WHERE candidate_id=? AND type='candidate_push'
-            ORDER BY COALESCE(createdAt, date) DESC, id DESC;
-            """,
-            (int(cid),),
-        ).fetchall()
-
     pushes: list[dict[str, Any]] = []
-    for r in rows:
-        try:
-            meta = json.loads(r["meta"] or "{}")
-        except Exception:
-            meta = {}
-        pushes.append(
-            {
-                "candidate_id": cid,
-                "prospect_id": meta.get("prospect_id"),
-                "prospect_name": meta.get("prospect_name"),
-                "company_name": meta.get("company_name"),
-                "createdAt": r["createdAt"] or r["date"],
-                "title": r["title"],
-            }
-        )
+    seen: set[tuple] = set()
 
-    return jsonify(ok=True, pushes=pushes)
+    def _day(ts: str | None) -> str:
+        return (ts or "")[:10]
+
+    with _conn() as conn:
+        # 1) push_logs (primary source — every email/linkedin push with a candidate attached)
+        try:
+            rows = conn.execute(
+                """
+                SELECT pl.id            AS log_id,
+                       pl.prospect_id   AS prospect_id,
+                       pl.sentAt        AS sentAt,
+                       pl.createdAt     AS createdAt,
+                       pl.channel       AS channel,
+                       pl.subject       AS subject,
+                       p.name           AS prospect_name,
+                       c.groupe         AS company_groupe,
+                       c.site           AS company_site
+                  FROM push_logs pl
+                  LEFT JOIN prospects p ON p.id = pl.prospect_id AND p.owner_id = ?
+                  LEFT JOIN companies c ON c.id = p.company_id
+                 WHERE (pl.candidate_id1 = ? OR pl.candidate_id2 = ?)
+                 ORDER BY COALESCE(pl.sentAt, pl.createdAt) DESC, pl.id DESC;
+                """,
+                (uid, int(cid), int(cid)),
+            ).fetchall()
+        except Exception:
+            rows = []
+
+        for r in rows:
+            prospect_id = r["prospect_id"]
+            sent_at = r["sentAt"] or r["createdAt"]
+            company_parts = [r["company_groupe"] or "", r["company_site"] or ""]
+            company_name = " · ".join([p for p in company_parts if p]).strip()
+            key = (prospect_id, _day(sent_at))
+            seen.add(key)
+            pushes.append(
+                {
+                    "candidate_id": cid,
+                    "prospect_id": prospect_id,
+                    "prospect_name": r["prospect_name"],
+                    "company_name": company_name or None,
+                    "createdAt": sent_at,
+                    "channel": r["channel"],
+                    "subject": r["subject"],
+                    "source": "push_log",
+                }
+            )
+
+        # 2) candidate_events (fallback — legacy candidate-page triggered pushes)
+        try:
+            rows = conn.execute(
+                """
+                SELECT date, title, meta, createdAt
+                  FROM candidate_events
+                 WHERE candidate_id=? AND type='candidate_push'
+                 ORDER BY COALESCE(createdAt, date) DESC, id DESC;
+                """,
+                (int(cid),),
+            ).fetchall()
+        except Exception:
+            rows = []
+
+        for r in rows:
+            try:
+                meta = json.loads(r["meta"] or "{}")
+            except Exception:
+                meta = {}
+            prospect_id = meta.get("prospect_id")
+            sent_at = r["createdAt"] or r["date"]
+            key = (prospect_id, _day(sent_at))
+            if key in seen:
+                continue
+            seen.add(key)
+            pushes.append(
+                {
+                    "candidate_id": cid,
+                    "prospect_id": prospect_id,
+                    "prospect_name": meta.get("prospect_name"),
+                    "company_name": meta.get("company_name"),
+                    "createdAt": sent_at,
+                    "channel": None,
+                    "subject": None,
+                    "title": r["title"],
+                    "source": "event",
+                }
+            )
+
+    pushes.sort(key=lambda p: (p.get("createdAt") or ""), reverse=True)
+
+    # Aggregate per company for the summary badge.
+    by_company: dict[str, int] = {}
+    for p in pushes:
+        label = (p.get("company_name") or "").strip() or "—"
+        by_company[label] = by_company.get(label, 0) + 1
+    companies = sorted(
+        [{"company_name": k, "count": v} for k, v in by_company.items()],
+        key=lambda x: (-x["count"], x["company_name"].lower()),
+    )
+
+    return jsonify(
+        ok=True,
+        pushes=pushes,
+        total=len(pushes),
+        companies=companies,
+    )
 
 
 # ====== Templates API ======
