@@ -34,79 +34,296 @@
       <a class="btn" href="#" data-v30-opt-out>Revenir en v29</a>
     </div>
 
-    {# Configuration IA #}
-    <a class="v30-params__card" href="/parametres#aiConfigSection">
-      <div class="v30-params__card-head">
-        {{ ui.icon('sparkles', 16) }}
-        <h3>Configuration IA</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Modèle Ollama local, clé Tavily pour la recherche web, timeout.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
+    {# ─── 1. Configuration IA (admin) ──────────────────────────── #}
+    {% if current_user and current_user.role == 'admin' %}
+    <details class="v30-params__card v30-params__card--wide v30-params__collapse" data-v30-ai>
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('sparkles', 16) }}
+          <h3>Configuration IA</h3>
+          <span class="v30-params__admin-badge" style="margin-left:auto;">Admin</span>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Modèle Ollama local, clé Tavily pour la recherche web, fallback automatique.
+        </p>
+      </summary>
 
-    {# Objectifs / gamification #}
-    <a class="v30-params__card" href="/parametres#goals">
-      <div class="v30-params__card-head">
-        {{ ui.icon('chart', 16) }}
-        <h3>Objectifs &amp; Gamification</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Cibles hebdo/mensuelles (prospects contactés, RDV, pushs). Affichage dashboard.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
+      <div class="v30-params__form">
+        <div class="v30-params__grid-2">
+          <div class="v30-params__field">
+            <label class="v30-params__label">URL Ollama</label>
+            <input type="text" class="input" data-v30-ai-url placeholder="http://127.0.0.1:11434">
+          </div>
+          <div class="v30-params__field">
+            <label class="v30-params__label">Modèle Ollama</label>
+            <input type="text" class="input" data-v30-ai-model placeholder="llama3.2">
+          </div>
+        </div>
 
-    {# Gestion des données #}
-    <a class="v30-params__card" href="/parametres#backupSection">
-      <div class="v30-params__card-head">
-        {{ ui.icon('inbox', 16) }}
-        <h3>Sauvegardes &amp; données</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Snapshots journaliers, export JSON, restauration.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
+        <div class="v30-params__field">
+          <label class="v30-params__label">Clé API Tavily (recherche web)</label>
+          <div class="v30-params__row-input">
+            <input type="password" class="input" data-v30-ai-tavily placeholder="tvly-..." autocomplete="off">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-ai-tavily-toggle title="Afficher/masquer">
+              {{ ui.icon('eye', 13) }}
+            </button>
+          </div>
+          <p class="muted v30-params__hint">
+            1000 recherches gratuites/mois sur <a href="https://app.tavily.com" target="_blank" rel="noopener">app.tavily.com</a>.
+            Stockée dans <code class="mono">data/ai_config.json</code> (jamais versionnée).
+          </p>
+        </div>
 
-    {# Notifications #}
-    <a class="v30-params__card" href="/parametres#notifications">
-      <div class="v30-params__card-head">
-        {{ ui.icon('bell', 16) }}
-        <h3>Notifications navigateur</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Push natif pour les relances à faire et les tâches du jour.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
+        <label class="v30-params__check">
+          <input type="checkbox" data-v30-ai-fallback>
+          <span>Activer le fallback automatique (Ollama seul si Tavily échoue)</span>
+        </label>
 
-    {# Mon compte #}
-    <a class="v30-params__card" href="/users">
-      <div class="v30-params__card-head">
-        {{ ui.icon('user', 16) }}
-        <h3>Mon compte</h3>
+        <div class="v30-params__actions">
+          <button type="button" class="btn btn-primary btn-sm" data-v30-ai-save>Enregistrer</button>
+          <button type="button" class="btn btn-sm" data-v30-ai-test-ollama>Tester Ollama</button>
+          <button type="button" class="btn btn-sm" data-v30-ai-test-tavily>Tester Tavily</button>
+          <span class="muted v30-params__status" data-v30-ai-status></span>
+        </div>
       </div>
-      <p class="v30-params__card-desc">
-        Changer le mot de passe, profil, première connexion.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
+    </details>
+    {% endif %}
 
-    {# À propos #}
-    <a class="v30-params__card" href="/parametres#about">
-      <div class="v30-params__card-head">
-        {{ ui.icon('bulb', 16) }}
-        <h3>À propos</h3>
+    {# ─── 2. Objectifs & Gamification ─────────────────────────── #}
+    <details class="v30-params__card v30-params__card--wide v30-params__collapse" data-v30-goals>
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('chart', 16) }}
+          <h3>Objectifs &amp; Gamification</h3>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Cibles quotidiennes / hebdos (RDV, Push, Sourcing) affichées sur le Dashboard. Cible 0 = objectif masqué.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-params__grid-2">
+          <div class="v30-params__scope">
+            <h4 class="v30-params__scope-title">Objectifs quotidiens</h4>
+
+            <div class="v30-params__goal-row">
+              <div class="v30-params__goal-label">Prendre 1 RDV Prosp</div>
+              <div class="v30-params__goal-fields">
+                <input type="number" min="0" class="input" placeholder="Cible" data-v30-goal="daily.rdv.target">
+                <input type="number" min="0" class="input" placeholder="XP" data-v30-goal="daily.rdv.xp">
+              </div>
+            </div>
+            <div class="v30-params__goal-row">
+              <div class="v30-params__goal-label">3 push</div>
+              <div class="v30-params__goal-fields">
+                <input type="number" min="0" class="input" placeholder="Cible" data-v30-goal="daily.push.target">
+                <input type="number" min="0" class="input" placeholder="XP" data-v30-goal="daily.push.xp">
+              </div>
+            </div>
+            <div class="v30-params__goal-row">
+              <div class="v30-params__goal-label">Sourcing : contacter 3 candidats qualifiés</div>
+              <div class="v30-params__goal-fields">
+                <input type="number" min="0" class="input" placeholder="Cible" data-v30-goal="daily.sourcing_contacted.target">
+                <input type="number" min="0" class="input" placeholder="XP" data-v30-goal="daily.sourcing_contacted.xp">
+              </div>
+            </div>
+          </div>
+
+          <div class="v30-params__scope">
+            <h4 class="v30-params__scope-title">Objectifs hebdos</h4>
+
+            <div class="v30-params__goal-row">
+              <div class="v30-params__goal-label">Prendre 5 RDV Prosp</div>
+              <div class="v30-params__goal-fields">
+                <input type="number" min="0" class="input" placeholder="Cible" data-v30-goal="weekly.rdv.target">
+                <input type="number" min="0" class="input" placeholder="XP" data-v30-goal="weekly.rdv.xp">
+              </div>
+            </div>
+            <div class="v30-params__goal-row">
+              <div class="v30-params__goal-label">15 push</div>
+              <div class="v30-params__goal-fields">
+                <input type="number" min="0" class="input" placeholder="Cible" data-v30-goal="weekly.push.target">
+                <input type="number" min="0" class="input" placeholder="XP" data-v30-goal="weekly.push.xp">
+              </div>
+            </div>
+            <div class="v30-params__goal-row">
+              <div class="v30-params__goal-label">Sourcing : contacter 15 candidats qualifiés</div>
+              <div class="v30-params__goal-fields">
+                <input type="number" min="0" class="input" placeholder="Cible" data-v30-goal="weekly.sourcing_contacted.target">
+                <input type="number" min="0" class="input" placeholder="XP" data-v30-goal="weekly.sourcing_contacted.xp">
+              </div>
+            </div>
+            <div class="v30-params__goal-row">
+              <div class="v30-params__goal-label">Sourcing : 3 profils solides (EC1+)</div>
+              <div class="v30-params__goal-fields">
+                <input type="number" min="0" class="input" placeholder="Cible" data-v30-goal="weekly.sourcing_solid.target">
+                <input type="number" min="0" class="input" placeholder="XP" data-v30-goal="weekly.sourcing_solid.xp">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="v30-params__actions">
+          <button type="button" class="btn btn-primary btn-sm" data-v30-goals-save>Enregistrer</button>
+          <button type="button" class="btn btn-sm" data-v30-goals-reset>Restaurer par défaut</button>
+          <span class="muted v30-params__status" data-v30-goals-status></span>
+        </div>
       </div>
-      <p class="v30-params__card-desc">
-        Version <span class="mono">{{ app_version }}</span>, commit, release notes.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
+    </details>
 
-    {# Mise à jour serveur (admin) — section inline complète, placée en dernier #}
+    {# ─── 3. Sauvegardes & données ────────────────────────────── #}
+    <details class="v30-params__card v30-params__card--wide v30-params__collapse" data-v30-backup>
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('inbox', 16) }}
+          <h3>Sauvegardes &amp; données</h3>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Snapshots de la base SQLite (rétention 14 jours, auto 3h00). Export Excel, restauration manuelle.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-params__actions">
+          {% if current_user and current_user.role == 'admin' %}
+          <button type="button" class="btn btn-primary btn-sm" data-v30-snapshot-create>Créer un snapshot maintenant</button>
+          {% endif %}
+          <a class="btn btn-sm" href="/api/export/xlsx" download>Export Excel (.xlsx)</a>
+          <button type="button" class="btn btn-sm" data-v30-export-json>Export JSON</button>
+          <span class="muted v30-params__status" data-v30-backup-status></span>
+        </div>
+
+        <div class="v30-params__snapshots" data-v30-snapshots>
+          <h4 class="v30-params__scope-title">5 derniers snapshots</h4>
+          <ul class="v30-params__snapshots-list" data-v30-snapshots-list>
+            <li class="muted v30-params__empty">Chargement…</li>
+          </ul>
+        </div>
+      </div>
+    </details>
+
+    {# ─── 4. Notifications navigateur ─────────────────────────── #}
+    <details class="v30-params__card v30-params__card--wide v30-params__collapse" data-v30-notif>
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('bell', 16) }}
+          <h3>Notifications navigateur</h3>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Push natif pour les relances à faire et les tâches du jour. 1 rappel/jour à l'heure choisie.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <label class="v30-params__check">
+          <input type="checkbox" data-v30-notif-enabled>
+          <span>Activer les rappels</span>
+        </label>
+
+        <div class="v30-params__field">
+          <label class="v30-params__label">Heure du rappel</label>
+          <select class="input" data-v30-notif-hour>
+            {% for h in range(7, 19) %}
+            <option value="{{ h }}"{% if h == 9 %} selected{% endif %}>{{ '%02d' % h }}h</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="v30-params__actions">
+          <button type="button" class="btn btn-primary btn-sm" data-v30-notif-save>Enregistrer</button>
+          <span class="muted v30-params__status" data-v30-notif-status></span>
+        </div>
+      </div>
+    </details>
+
+    {# ─── 5. Mon compte ───────────────────────────────────────── #}
+    <details class="v30-params__card v30-params__card--wide v30-params__collapse" data-v30-account>
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('user', 16) }}
+          <h3>Mon compte</h3>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Changer le mot de passe. Min 8 caractères, au moins 1 chiffre et 1 lettre.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-params__field">
+          <label class="v30-params__label">Mot de passe actuel</label>
+          <input type="password" class="input" data-v30-pw-current autocomplete="current-password">
+        </div>
+        <div class="v30-params__grid-2">
+          <div class="v30-params__field">
+            <label class="v30-params__label">Nouveau mot de passe</label>
+            <input type="password" class="input" data-v30-pw-new autocomplete="new-password">
+          </div>
+          <div class="v30-params__field">
+            <label class="v30-params__label">Confirmation</label>
+            <input type="password" class="input" data-v30-pw-confirm autocomplete="new-password">
+          </div>
+        </div>
+
+        <div class="v30-params__actions">
+          <button type="button" class="btn btn-primary btn-sm" data-v30-pw-save>Changer le mot de passe</button>
+          <span class="muted v30-params__status" data-v30-pw-status></span>
+        </div>
+
+        {% if current_user and current_user.role == 'admin' %}
+        <p class="muted v30-params__hint" style="margin-top:10px;">
+          Gérer les autres utilisateurs : <a href="/v30/users">Utilisateurs &amp; équipe</a>.
+        </p>
+        {% endif %}
+      </div>
+    </details>
+
+    {# ─── 6. À propos ─────────────────────────────────────────── #}
+    <details class="v30-params__card v30-params__card--wide v30-params__collapse" data-v30-about>
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('bulb', 16) }}
+          <h3>À propos</h3>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Version <span class="mono">{{ app_version }}</span>, dernier commit, branche Git, stockage local.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-params__about">
+          <div class="v30-params__about-row">
+            <span class="v30-params__about-key">Version</span>
+            <span class="mono" data-v30-about-version>{{ app_version }}</span>
+          </div>
+          <div class="v30-params__about-row">
+            <span class="v30-params__about-key">Commit</span>
+            <span class="mono" data-v30-about-commit>—</span>
+            <span class="v30-params__version-dot" data-v30-about-dot title="État"></span>
+          </div>
+          <div class="v30-params__about-row">
+            <span class="v30-params__about-key">Branche</span>
+            <span class="mono" data-v30-about-branch>—</span>
+          </div>
+          <div class="v30-params__about-row">
+            <span class="v30-params__about-key">Date du commit</span>
+            <span class="mono" data-v30-about-date>—</span>
+          </div>
+        </div>
+        <ul class="v30-params__about-list muted">
+          <li>Stockage : base SQLite locale (aucune donnée ne quitte ce PC).</li>
+          <li>Sauvegardes : snapshots automatiques (3h00) + snapshots manuels.</li>
+          <li>Mise à jour : voir la section « Mise à jour du serveur » ci-dessous (admin).</li>
+        </ul>
+      </div>
+    </details>
+
+    {# ─── Mise à jour serveur (admin) — conservée telle quelle ─ #}
     {% if current_user and current_user.role == 'admin' %}
     <div class="v30-params__card v30-params__card--wide v30-deploy" data-v30-deploy>
       <div class="v30-params__card-head">
@@ -154,7 +371,6 @@
   </div>
 </div>
 
-{% if current_user and current_user.role == 'admin' %}
+<script defer src="/static/js/notifications.js?v={{ static_hash('js/notifications.js') }}"></script>
 <script defer src="/static/js/v30/parametres.js?v={{ static_hash('js/v30/parametres.js') }}"></script>
-{% endif %}
 {% endblock %}

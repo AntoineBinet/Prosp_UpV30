@@ -476,6 +476,388 @@
     }
   }
 
+  // ─── Import PDF/CV + Collage IA ──────────────────────────
+  var IMPORT_STATE = {
+    pdfFile: null,
+    pdfFields: null,
+    aiEntries: []
+  };
+
+  function importSwitchTab(tab) {
+    var tabs = document.querySelectorAll('[data-v30-src-tabs] [data-v30-src-tab]');
+    tabs.forEach(function (b) {
+      var on = b.dataset.v30SrcTab === tab;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-v30-src-panel]').forEach(function (p) {
+      p.hidden = (p.dataset.v30SrcPanel !== tab);
+    });
+  }
+
+  function openImportModal(initialTab) {
+    var m = getModal('sc-import');
+    if (!m) return;
+    importResetPdf();
+    var ta = $('[data-v30-src-ai-json]');
+    if (ta) ta.value = '';
+    var res = $('[data-v30-src-ai-result]');
+    if (res) { res.hidden = true; res.innerHTML = ''; }
+    importSwitchTab(initialTab || 'pdf');
+    openModal(m);
+  }
+
+  function importResetPdf() {
+    IMPORT_STATE.pdfFile = null;
+    IMPORT_STATE.pdfFields = null;
+    var input = $('[data-v30-src-pdf-file]');
+    if (input) input.value = '';
+    var name = $('[data-v30-src-pdf-filename]');
+    if (name) { name.hidden = true; name.textContent = ''; }
+    var run = $('[data-v30-src-pdf-run]');
+    if (run) { run.disabled = true; run.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5 5l3 3M16 16l3 3M5 19l3-3M16 8l3-3"/></svg> Analyser le PDF'; }
+    var reset = $('[data-v30-src-pdf-reset]');
+    if (reset) reset.hidden = true;
+    var result = $('[data-v30-src-pdf-result]');
+    if (result) { result.hidden = true; result.innerHTML = ''; }
+    var drop = $('[data-v30-src-drop]');
+    if (drop) drop.classList.remove('is-dragging');
+  }
+
+  function setPdfFile(f) {
+    if (!f) return;
+    if (!/\.pdf$/i.test(f.name)) {
+      toast('Seuls les PDF sont acceptés', 'warning');
+      return;
+    }
+    IMPORT_STATE.pdfFile = f;
+    var name = $('[data-v30-src-pdf-filename]');
+    if (name) {
+      name.textContent = f.name + ' (' + Math.round(f.size / 1024) + ' Ko)';
+      name.hidden = false;
+    }
+    var run = $('[data-v30-src-pdf-run]');
+    if (run) run.disabled = false;
+    var reset = $('[data-v30-src-pdf-reset]');
+    if (reset) reset.hidden = false;
+  }
+
+  function renderPdfResult(fields) {
+    var host = $('[data-v30-src-pdf-result]');
+    if (!host) return;
+    IMPORT_STATE.pdfFields = fields || {};
+    var tags = Array.isArray(fields.tags) ? fields.tags.join(', ') : (fields.tags || '');
+    host.innerHTML =
+      '<h4>Résultat de l\'analyse</h4>' +
+      '<dl class="v30-src-pdf-result__fields">' +
+        '<div><dt>Nom</dt><dd>' + esc(fields.name || '—') + '</dd></div>' +
+        '<div><dt>Prénom</dt><dd>' + esc(fields.prenom || '—') + '</dd></div>' +
+        '<div><dt>Titre</dt><dd>' + esc(fields.titre || '—') + '</dd></div>' +
+        '<div><dt>Rôle</dt><dd>' + esc(fields.role || '—') + '</dd></div>' +
+        '<div><dt>Années XP</dt><dd>' + esc(fields.annees_experience != null ? fields.annees_experience : '—') + '</dd></div>' +
+        '<div><dt>Domaine</dt><dd>' + esc(fields.domaine_principal || '—') + '</dd></div>' +
+        '<div style="grid-column:1/-1;"><dt>Compétences</dt><dd>' + esc(tags || '—') + '</dd></div>' +
+      '</dl>' +
+      '<div class="v30-src-pdf-result__actions">' +
+        '<button type="button" class="btn btn-primary btn-sm" data-v30-src-pdf-create>Créer le candidat</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-v30-src-pdf-edit>Modifier avant création</button>' +
+      '</div>';
+    host.hidden = false;
+  }
+
+  function runPdfAnalyze() {
+    var f = IMPORT_STATE.pdfFile;
+    if (!f) { toast('Sélectionne un PDF', 'warning'); return; }
+    var btn = $('[data-v30-src-pdf-run]');
+    if (!btn) return;
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Extraction IA en cours…';
+
+    var fd = new FormData();
+    fd.append('dc', f);
+
+    fetch('/api/candidates/extract-dc', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' },
+      body: fd
+    })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (out) {
+        if (out.status >= 200 && out.status < 300 && out.body && out.body.ok) {
+          renderPdfResult(out.body.fields || {});
+          toast('Analyse IA réussie', 'success');
+        } else {
+          var msg = (out.body && out.body.error) || ('HTTP ' + out.status);
+          toast('IA indisponible — création manuelle possible (' + msg + ')', 'warning');
+          renderPdfResult({}); // onglet de repli en saisie manuelle
+        }
+      })
+      .catch(function (e) {
+        toast('Erreur réseau : ' + (e && e.message ? e.message : 'inconnue'), 'error');
+      })
+      .then(function () {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+      });
+  }
+
+  function createCandidateFromPdf() {
+    var f = IMPORT_STATE.pdfFields || {};
+    var name = (f.name || '').trim();
+    if (!name) {
+      toast('Nom manquant — utilise « Modifier avant création »', 'warning');
+      return;
+    }
+    var tags = Array.isArray(f.tags) ? f.tags : (f.tags ? String(f.tags).split(',').map(function (x) { return x.trim(); }).filter(Boolean) : []);
+    var payload = {
+      name: name,
+      prenom: f.prenom || null,
+      titre: f.titre || null,
+      role: f.role || f.titre || null,
+      annees_experience: (f.annees_experience != null && f.annees_experience !== '') ? f.annees_experience : null,
+      domaine_principal: f.domaine_principal || null,
+      skills: tags,
+      tech: tags.join(', '),
+      status: 'Vivier',
+      source: 'Import PDF/CV'
+    };
+    var btn = $('[data-v30-src-pdf-create]');
+    if (btn) btn.disabled = true;
+
+    fetchPost('/api/candidates/save', payload)
+      .then(function (res) {
+        if (!res || !res.ok || !res.id) throw new Error((res && res.error) || 'Erreur');
+        var cid = res.id;
+        toast('Candidat créé — upload du PDF en cours…', 'success');
+        // Upload du DC sur le candidat créé
+        if (IMPORT_STATE.pdfFile) {
+          var fd = new FormData();
+          fd.append('dc', IMPORT_STATE.pdfFile);
+          fd.append('candidate_id', String(cid));
+          return fetch('/api/candidates/upload-dc', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+            body: fd
+          }).then(function () { return cid; }, function () { return cid; });
+        }
+        return cid;
+      })
+      .then(function (cid) {
+        closeModal(getModal('sc-import'));
+        window.location.href = '/v30/candidat/' + cid;
+      })
+      .catch(function (e) {
+        toast('Erreur : ' + e.message, 'error');
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  function editBeforeCreateFromPdf() {
+    var f = IMPORT_STATE.pdfFields || {};
+    var tags = Array.isArray(f.tags) ? f.tags.join(', ') : (f.tags || '');
+    closeModal(getModal('sc-import'));
+    setTimeout(function () {
+      var m = getModal('sc-add');
+      if (!m) return;
+      var nameEl = document.getElementById('v30-sc-add-name');
+      var roleEl = document.getElementById('v30-sc-add-role');
+      var skillsEl = document.getElementById('v30-sc-add-skills');
+      var sourceEl = document.getElementById('v30-sc-add-source');
+      var notesEl = document.getElementById('v30-sc-add-notes');
+      if (nameEl) nameEl.value = f.name || '';
+      if (roleEl) roleEl.value = f.role || f.titre || '';
+      if (skillsEl) skillsEl.value = tags;
+      if (sourceEl) sourceEl.value = 'Import PDF/CV';
+      if (notesEl) {
+        var meta = [];
+        if (f.prenom) meta.push('Prénom: ' + f.prenom);
+        if (f.titre) meta.push('Titre: ' + f.titre);
+        if (f.annees_experience != null) meta.push(f.annees_experience + ' ans d\'expérience');
+        if (f.domaine_principal) meta.push('Domaine: ' + f.domaine_principal);
+        if (meta.length) notesEl.value = meta.join(' · ');
+      }
+      openModal(m);
+    }, 180);
+  }
+
+  function bindImportPdf() {
+    var drop = $('[data-v30-src-drop]');
+    var input = $('[data-v30-src-pdf-file]');
+    if (drop && input) {
+      drop.addEventListener('click', function () { input.click(); });
+      drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('is-dragging'); });
+      drop.addEventListener('dragleave', function () { drop.classList.remove('is-dragging'); });
+      drop.addEventListener('drop', function (e) {
+        e.preventDefault();
+        drop.classList.remove('is-dragging');
+        var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) setPdfFile(f);
+      });
+      input.addEventListener('change', function () {
+        var f = input.files && input.files[0];
+        if (f) setPdfFile(f);
+      });
+    }
+    var run = $('[data-v30-src-pdf-run]');
+    if (run) run.addEventListener('click', runPdfAnalyze);
+    var reset = $('[data-v30-src-pdf-reset]');
+    if (reset) reset.addEventListener('click', importResetPdf);
+
+    // Actions résultat (délégation, éléments créés dynamiquement)
+    var resultHost = $('[data-v30-src-pdf-result]');
+    if (resultHost) {
+      resultHost.addEventListener('click', function (e) {
+        if (e.target.closest('[data-v30-src-pdf-create]')) createCandidateFromPdf();
+        else if (e.target.closest('[data-v30-src-pdf-edit]')) editBeforeCreateFromPdf();
+      });
+    }
+  }
+
+  // ─── Onglet IA (JSON) ──────────────────────────
+  function parseAiJson(raw) {
+    var text = String(raw || '').trim();
+    if (!text) return { error: 'Colle un JSON.' };
+    // Retirer les ``` éventuels
+    text = text.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').trim();
+    var parsed;
+    try { parsed = JSON.parse(text); }
+    catch (e) { return { error: 'JSON invalide : ' + e.message }; }
+    var list = Array.isArray(parsed) ? parsed : [parsed];
+    // Normaliser : clés fullName / full_name / Name → name
+    var normalized = list.map(function (o) {
+      if (!o || typeof o !== 'object') return null;
+      var n = {};
+      for (var k in o) { if (Object.prototype.hasOwnProperty.call(o, k)) n[k] = o[k]; }
+      if (!n.name) n.name = n.fullName || n.full_name || n.Name || n.nom || '';
+      return n;
+    }).filter(function (o) { return o && String(o.name || '').trim(); });
+    if (!normalized.length) return { error: 'Aucune entrée avec un nom trouvée.' };
+    return { entries: normalized };
+  }
+
+  function renderAiPreview(entries, errorMsg) {
+    var host = $('[data-v30-src-ai-result]');
+    if (!host) return;
+    if (errorMsg) {
+      host.innerHTML = '<div class="v30-src-ai-preview__err">' + esc(errorMsg) + '</div>';
+      host.hidden = false;
+      IMPORT_STATE.aiEntries = [];
+      return;
+    }
+    IMPORT_STATE.aiEntries = entries || [];
+    host.innerHTML =
+      '<h4>' + entries.length + ' candidat' + (entries.length > 1 ? 's' : '') + ' détecté' + (entries.length > 1 ? 's' : '') + '</h4>' +
+      '<ul>' + entries.map(function (c) {
+        var role = c.role || c.titre || c.position || c.poste || '';
+        return '<li>' +
+          '<span class="avatar">' + esc(initials(c.name)) + '</span>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div class="name truncate">' + esc(c.name) + '</div>' +
+            (role ? '<div class="role truncate">' + esc(role) + '</div>' : '') +
+          '</div>' +
+        '</li>';
+      }).join('') + '</ul>';
+    host.hidden = false;
+  }
+
+  function runAiPreview() {
+    var ta = $('[data-v30-src-ai-json]');
+    var out = parseAiJson(ta ? ta.value : '');
+    renderAiPreview(out.entries, out.error);
+  }
+
+  function aiEntryToPayload(c) {
+    var skillsRaw = c.skills || c.tags || c.tech || c.competences || [];
+    var skills = Array.isArray(skillsRaw)
+      ? skillsRaw.filter(Boolean).map(function (s) { return String(s).trim(); })
+      : String(skillsRaw).split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    var name = String(c.name || '').trim();
+    return {
+      name: name,
+      role: c.role || c.titre || c.position || c.poste || null,
+      titre: c.titre || null,
+      prenom: c.prenom || null,
+      seniority: c.seniority || c.niveau || null,
+      location: c.location || c.lieu || c.ville || null,
+      email: c.email || c.mail || null,
+      phone: c.phone || c.tel || c.telephone || null,
+      linkedin: c.linkedin || c.linkedIn || c.linkedin_url || null,
+      status: c.status || c.statut || 'Vivier',
+      source: c.source || 'Import IA',
+      notes: c.notes || c.comment || c.commentaire || null,
+      skills: skills,
+      tech: skills.join(', '),
+      annees_experience: (c.annees_experience != null && c.annees_experience !== '') ? c.annees_experience
+                         : (c.experience != null && c.experience !== '') ? c.experience : null,
+      domaine_principal: c.domaine_principal || c.domain || c.domaine || null
+    };
+  }
+
+  function runAiImport() {
+    var ta = $('[data-v30-src-ai-json]');
+    var out = parseAiJson(ta ? ta.value : '');
+    if (out.error) { renderAiPreview(null, out.error); return; }
+    var entries = out.entries;
+    renderAiPreview(entries);
+    var btn = $('[data-v30-src-ai-run]');
+    if (btn) btn.disabled = true;
+
+    var done = 0, errors = 0, i = 0, firstId = null;
+    function next() {
+      if (i >= entries.length) {
+        if (btn) btn.disabled = false;
+        toast(done + ' candidat(s) créé(s)' + (errors ? ', ' + errors + ' erreur(s)' : ''), errors ? 'warning' : 'success');
+        closeModal(getModal('sc-import'));
+        if (entries.length === 1 && firstId) {
+          window.location.href = '/v30/candidat/' + firstId;
+        } else {
+          reload();
+        }
+        return;
+      }
+      fetchPost('/api/candidates/save', aiEntryToPayload(entries[i]))
+        .then(function (res) {
+          if (res && res.ok && res.id) { done++; if (firstId == null) firstId = res.id; }
+          else errors++;
+        })
+        .catch(function () { errors++; })
+        .then(function () { i++; next(); });
+    }
+    next();
+  }
+
+  function bindImport() {
+    var btn = $('[data-v30-sc-import]');
+    if (btn) btn.addEventListener('click', function () { openImportModal('pdf'); });
+    // Lien depuis la modale "Add"
+    document.addEventListener('click', function (e) {
+      var link = e.target.closest('[data-v30-sc-open-import]');
+      if (link) {
+        e.preventDefault();
+        closeModal(getModal('sc-add'));
+        setTimeout(function () { openImportModal('pdf'); }, 180);
+      }
+    });
+    // Tabs
+    var tabsHost = $('[data-v30-src-tabs]');
+    if (tabsHost) {
+      tabsHost.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-v30-src-tab]');
+        if (!b) return;
+        importSwitchTab(b.dataset.v30SrcTab);
+      });
+    }
+    bindImportPdf();
+    // IA
+    var prev = $('[data-v30-src-ai-preview]');
+    if (prev) prev.addEventListener('click', runAiPreview);
+    var runAi = $('[data-v30-src-ai-run]');
+    if (runAi) runAi.addEventListener('click', runAiImport);
+  }
+
   function switchToView(v) {
     var seg = $('[data-v30-sc-view]');
     if (!seg) return;
@@ -516,6 +898,7 @@
     bindSelection();
     bindMatchClose();
     bindInmails();
+    bindImport();
     reload().then(function () {
       if (window.location.hash === '#inmails') {
         switchToView('inmails');

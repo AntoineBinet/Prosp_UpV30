@@ -215,8 +215,35 @@
     var btn = $('[data-v30-rapport-pdf]');
     if (!btn) return;
     btn.addEventListener('click', function () {
-      // Fallback : ouvre la page legacy pour l'export PDF existant (flux complet Markdown→PDF).
-      window.location.href = '/rapport?export=pdf&week=' + encodeURIComponent(STATE.week || '') + '&force_v29=1';
+      var originalLabel = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = 'Export en cours…';
+      fetch('/api/rapport/export-pdf', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          week: STATE.week || '',
+          markdown: toMarkdown()
+        })
+      }).then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.blob();
+      }).then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'rapport-' + (STATE.week || 'semaine') + '.pdf';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        if (window.showToast) window.showToast('PDF téléchargé', 'success');
+      }).catch(function (err) {
+        if (window.showToast) window.showToast('Export PDF : ' + err.message, 'error');
+        else alert('Export PDF : ' + err.message);
+      }).finally(function () {
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+      });
     });
   }
 

@@ -1372,8 +1372,8 @@
     });
   }
 
-  // ─── Import Excel ─────────────────────────────────────────
-  var IMP = { rows: [], headers: [], mapping: {} };
+  // ─── Import (Excel / CSV / Collage / IA) ──────────────────
+  var IMP = { rows: [], headers: [], mapping: {}, activeTab: 'file', aiItems: null };
   var IMP_FIELDS = [
     { value: '', label: '— Ignorer' },
     { value: 'name', label: 'Nom complet' },
@@ -1415,6 +1415,76 @@
       document.head.appendChild(s);
     });
   }
+
+  // ─── Parseurs texte ──────────────────────────────────────
+  function detectDelimiter(firstLine) {
+    var tab = (firstLine.match(/\t/g) || []).length;
+    var semi = (firstLine.match(/;/g) || []).length;
+    var pipe = (firstLine.match(/\|/g) || []).length;
+    var comma = (firstLine.match(/,/g) || []).length;
+    // Tab prioritaire si présent
+    if (tab > 0 && tab >= Math.max(semi, pipe, comma)) return '\t';
+    if (pipe >= Math.max(semi, comma) && pipe > 0) return '|';
+    if (semi >= comma && semi > 0) return ';';
+    if (comma > 0) return ',';
+    return '\t';
+  }
+  function parseCsvLine(line, sep) {
+    var cells = [];
+    var cur = '';
+    var inQuotes = false;
+    for (var j = 0; j < line.length; j++) {
+      var c = line[j];
+      if (c === '"') {
+        // Double quote à l'intérieur → quote littéral
+        if (inQuotes && line[j + 1] === '"') { cur += '"'; j++; }
+        else inQuotes = !inQuotes;
+      } else if (c === sep && !inQuotes) {
+        cells.push(cur.trim());
+        cur = '';
+      } else {
+        cur += c;
+      }
+    }
+    cells.push(cur.trim());
+    return cells;
+  }
+  function parseDelimitedText(text, opts) {
+    opts = opts || {};
+    // Normaliser les fins de ligne, retirer BOM
+    var clean = String(text || '').replace(/^\ufeff/, '');
+    var lines = clean.split(/\r?\n/).filter(function (l) { return l.trim().length > 0; });
+    if (lines.length === 0) return null;
+    var sep = opts.separator || detectDelimiter(lines[0]);
+    var headers = parseCsvLine(lines[0], sep).map(function (h) { return String(h || '').trim(); });
+    var rows = [];
+    for (var i = 1; i < lines.length; i++) {
+      var cells = parseCsvLine(lines[i], sep);
+      if (cells.some(function (c) { return String(c || '').trim().length > 0; })) rows.push(cells);
+    }
+    return { headers: headers, rows: rows, separator: sep };
+  }
+  function readFileAsText(file) {
+    // Tente UTF-8, puis fallback CP1252 (Windows) si caractères de remplacement détectés
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onerror = function () { reject(new Error('Lecture fichier impossible')); };
+      r.onload = function (e) {
+        var txt = e.target.result;
+        if (typeof txt === 'string' && txt.indexOf('\ufffd') !== -1) {
+          // Relecture en CP1252 (windows-1252)
+          var r2 = new FileReader();
+          r2.onerror = function () { resolve(txt); };
+          r2.onload = function (ee) { resolve(ee.target.result); };
+          try { r2.readAsText(file, 'windows-1252'); } catch (_) { resolve(txt); }
+        } else {
+          resolve(txt);
+        }
+      };
+      try { r.readAsText(file, 'utf-8'); } catch (err) { reject(err); }
+    });
+  }
+
   function renderImportMapping() {
     var host = document.querySelector('[data-v30-imp-mapping]');
     if (!host) return;
@@ -1433,28 +1503,206 @@
       sel.addEventListener('change', function () { IMP.mapping[sel.dataset.impCol] = sel.value; });
     });
   }
+  function showMappingStep() {
+    // Cache les 3 panels, affiche l'étape mapping
+    ['file','paste','ai'].forEach(function (p) {
+      var el = document.querySelector('[data-v30-imp-panel="' + p + '"]');
+      if (el) el.hidden = true;
+    });
+    var tabs = document.querySelector('[data-v30-imp-tabs]');
+    if (tabs) tabs.style.display = 'none';
+    var map = document.querySelector('[data-v30-imp-step="map"]');
+    if (map) map.hidden = false;
+    var c = document.querySelector('[data-v30-imp-count]');
+    if (c) c.textContent = IMP.rows.length;
+    renderImportMapping();
+    var run = document.querySelector('[data-v30-imp-run]');
+    if (run) run.hidden = false;
+  }
   function resetImportModal() {
-    IMP = { rows: [], headers: [], mapping: {} };
-    ['file','map','progress'].forEach(function (s) {
+    IMP = { rows: [], headers: [], mapping: {}, activeTab: 'file', aiItems: null };
+    ['map','progress'].forEach(function (s) {
       var el = document.querySelector('[data-v30-imp-step="' + s + '"]');
-      if (el) el.hidden = (s !== 'file');
+      if (el) el.hidden = true;
+    });
+    // Réaffiche les tabs + panel actif = file
+    var tabs = document.querySelector('[data-v30-imp-tabs]');
+    if (tabs) tabs.style.display = '';
+    document.querySelectorAll('[data-v30-imp-tab]').forEach(function (b) {
+      b.classList.toggle('is-active', b.dataset.v30ImpTab === 'file');
+    });
+    ['file','paste','ai'].forEach(function (p) {
+      var el = document.querySelector('[data-v30-imp-panel="' + p + '"]');
+      if (el) el.hidden = (p !== 'file');
     });
     var run = document.querySelector('[data-v30-imp-run]');
-    if (run) run.hidden = true;
+    if (run) { run.hidden = true; run.textContent = 'Importer'; run.disabled = false; }
     var file = document.querySelector('[data-v30-imp-file]');
     if (file) file.value = '';
+    var paste = document.querySelector('[data-v30-imp-paste-text]');
+    if (paste) paste.value = '';
+    var pHint = document.querySelector('[data-v30-imp-paste-hint]');
+    if (pHint) pHint.textContent = '';
+    var aiTa = document.querySelector('[data-v30-imp-ai-json]');
+    if (aiTa) aiTa.value = '';
+    var aiHint = document.querySelector('[data-v30-imp-ai-hint]');
+    if (aiHint) aiHint.textContent = '';
+    var aiPrev = document.querySelector('[data-v30-imp-ai-preview]');
+    if (aiPrev) aiPrev.hidden = true;
   }
+
+  // ─── Payloads & import run ────────────────────────────────
+  function normalizeAiEntry(obj) {
+    // Accepte plusieurs alias pour les clés
+    if (!obj || typeof obj !== 'object') return null;
+    function pick() {
+      for (var i = 0; i < arguments.length; i++) {
+        var k = arguments[i];
+        if (obj[k] != null && String(obj[k]).trim()) return String(obj[k]).trim();
+      }
+      return '';
+    }
+    var name = pick('name', 'nom', 'fullname', 'full_name', 'contact');
+    var prenom = pick('prenom', 'firstname', 'first_name', 'first');
+    if (prenom) name = (prenom + ' ' + name).trim();
+    var company = pick('company', 'company_groupe', 'entreprise', 'groupe', 'societe');
+    var site = pick('company_site', 'site', 'ville', 'city');
+    var fonction = pick('fonction', 'poste', 'title', 'role');
+    var tel = pick('telephone', 'tel', 'phone', 'mobile');
+    var email = pick('email', 'mail', 'e-mail');
+    var linkedin = pick('linkedin', 'li', 'linkedin_url');
+    var notes = pick('notes', 'note', 'commentaire');
+    var pertinence = pick('pertinence', 'score', 'priority');
+    var statut = pick('statut', 'status', 'etat');
+    var tagsRaw = obj.tags != null ? obj.tags : (obj.mots_cles != null ? obj.mots_cles : null);
+    var tags = [];
+    if (Array.isArray(tagsRaw)) tags = tagsRaw.map(function (t) { return String(t).trim(); }).filter(Boolean);
+    else if (typeof tagsRaw === 'string') tags = tagsRaw.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+    // Au minimum : name ou company
+    if (!name && !company) return null;
+    var out = {};
+    if (name) out.name = name;
+    if (company) out.company_groupe = company;
+    if (site) out.company_site = site;
+    if (fonction) out.fonction = fonction;
+    if (tel) out.telephone = tel;
+    if (email) out.email = email;
+    if (linkedin) out.linkedin = linkedin;
+    if (notes) out.notes = notes;
+    if (pertinence) out.pertinence = pertinence;
+    if (statut) out.statut = statut;
+    if (tags.length) out.tags = tags;
+    // Si pas de name mais company, on met company comme name fallback
+    if (!out.name && out.company_groupe) out.name = out.company_groupe;
+    return out;
+  }
+  function buildRowPayload(row) {
+    var payload = {};
+    var prenom = '';
+    Object.keys(IMP.mapping).forEach(function (idx) {
+      var field = IMP.mapping[idx];
+      if (!field) return;
+      var raw = row[idx];
+      if (raw == null) return;
+      var val = String(raw).trim();
+      if (!val) return;
+      if (field === 'prenom') { prenom = val; return; }
+      if (field === 'tags') {
+        payload.tags = val.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+      } else {
+        payload[field] = val;
+      }
+    });
+    if (prenom) payload.name = (prenom + ' ' + (payload.name || '')).trim();
+    return payload;
+  }
+  function runImportPayloads(payloads) {
+    var total = payloads.length;
+    if (!total) { toast('Aucun prospect à importer', 'warning'); return; }
+    // Masquer tous panels + tabs, afficher progress
+    ['file','paste','ai'].forEach(function (p) {
+      var el = document.querySelector('[data-v30-imp-panel="' + p + '"]');
+      if (el) el.hidden = true;
+    });
+    var tabs = document.querySelector('[data-v30-imp-tabs]');
+    if (tabs) tabs.style.display = 'none';
+    var mapStep = document.querySelector('[data-v30-imp-step="map"]');
+    if (mapStep) mapStep.hidden = true;
+    var prog = document.querySelector('[data-v30-imp-step="progress"]');
+    if (prog) prog.hidden = false;
+    var run = document.querySelector('[data-v30-imp-run]');
+    if (run) run.hidden = true;
+
+    var ok = 0, errors = 0, i = 0;
+    var bar = document.querySelector('[data-v30-imp-progress-bar]');
+    var txt = document.querySelector('[data-v30-imp-progress-text]');
+    function setProgress(n) {
+      if (bar) bar.style.width = Math.round(n * 100 / total) + '%';
+      if (txt) txt.textContent = 'Import : ' + n + ' / ' + total + '  (OK : ' + ok + ', erreurs : ' + errors + ')';
+    }
+    setProgress(0);
+    function next() {
+      if (i >= total) {
+        toast('Import terminé : ' + ok + ' ajouté(s), ' + errors + ' erreur(s)', errors ? 'warning' : 'success');
+        closeModal(getModal('import'));
+        loadProspects();
+        return;
+      }
+      var payload = payloads[i];
+      if (!payload || !payload.name) { errors++; i++; setProgress(i); setTimeout(next, 0); return; }
+      fetchPostJSON('/api/prospects/create', payload)
+        .then(function (res) { if (res && res.ok) ok++; else errors++; })
+        .catch(function () { errors++; })
+        .then(function () { i++; setProgress(i); setTimeout(next, 0); });
+    }
+    next();
+  }
+
   function bindImport() {
     var btn = document.querySelector('[data-v30-import]');
     if (btn) btn.addEventListener('click', function () {
       resetImportModal();
       openModal(getModal('import'));
     });
+
+    // Switch de tabs
+    document.querySelectorAll('[data-v30-imp-tab]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var name = b.dataset.v30ImpTab;
+        IMP.activeTab = name;
+        document.querySelectorAll('[data-v30-imp-tab]').forEach(function (x) {
+          x.classList.toggle('is-active', x === b);
+        });
+        ['file','paste','ai'].forEach(function (p) {
+          var el = document.querySelector('[data-v30-imp-panel="' + p + '"]');
+          if (el) el.hidden = (p !== name);
+        });
+      });
+    });
+
+    // Onglet fichier : Excel OU CSV selon extension
     var file = document.querySelector('[data-v30-imp-file]');
     if (file) file.addEventListener('change', function () {
       var f = file.files && file.files[0];
       if (!f) return;
+      var nameLower = (f.name || '').toLowerCase();
+      var isCsv = /\.csv$/.test(nameLower);
       toast('Chargement du fichier…', 'info');
+
+      if (isCsv) {
+        readFileAsText(f).then(function (txt) {
+          var raw = parseDelimitedText(txt, {});
+          if (!raw || !raw.rows.length) { toast('CSV vide ou illisible', 'warning'); return; }
+          IMP.headers = raw.headers;
+          IMP.rows = raw.rows;
+          IMP.mapping = {};
+          IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h); });
+          showMappingStep();
+        }).catch(function (err) { toast('Lecture CSV impossible : ' + err.message, 'error'); });
+        return;
+      }
+
+      // Excel
       ensureXLSX().then(function () {
         var reader = new FileReader();
         reader.onload = function (e) {
@@ -1467,11 +1715,7 @@
             IMP.rows = rows.slice(1).filter(function (r) { return r.some(function (v) { return String(v || '').trim(); }); });
             IMP.mapping = {};
             IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h); });
-            document.querySelector('[data-v30-imp-step="file"]').hidden = true;
-            document.querySelector('[data-v30-imp-step="map"]').hidden = false;
-            var c = document.querySelector('[data-v30-imp-count]'); if (c) c.textContent = IMP.rows.length;
-            renderImportMapping();
-            var run = document.querySelector('[data-v30-imp-run]'); if (run) run.hidden = false;
+            showMappingStep();
           } catch (err) {
             toast('Lecture impossible : ' + err.message, 'error');
           }
@@ -1479,56 +1723,87 @@
         reader.readAsArrayBuffer(f);
       }).catch(function (err) { toast(err.message, 'error'); });
     });
+
+    // Onglet collage texte
+    var pasteParse = document.querySelector('[data-v30-imp-paste-parse]');
+    if (pasteParse) pasteParse.addEventListener('click', function () {
+      var ta = document.querySelector('[data-v30-imp-paste-text]');
+      var hint = document.querySelector('[data-v30-imp-paste-hint]');
+      var text = ta ? (ta.value || '') : '';
+      if (!text.trim()) { toast('Colle au moins une ligne d\'en-têtes + une ligne de données', 'warning'); return; }
+      var raw = parseDelimitedText(text, {});
+      if (!raw || !raw.rows.length) {
+        if (hint) hint.textContent = '';
+        toast('Impossible d\'extraire au moins une ligne de données', 'warning');
+        return;
+      }
+      var sepLabel = raw.separator === '\t' ? 'tabulation' : (raw.separator === '|' ? 'pipe' : raw.separator);
+      if (hint) hint.textContent = raw.rows.length + ' ligne(s) — séparateur « ' + sepLabel + ' »';
+      IMP.headers = raw.headers;
+      IMP.rows = raw.rows;
+      IMP.mapping = {};
+      IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h); });
+      showMappingStep();
+    });
+
+    // Onglet collage IA (JSON)
+    var aiParse = document.querySelector('[data-v30-imp-ai-parse]');
+    if (aiParse) aiParse.addEventListener('click', function () {
+      var ta = document.querySelector('[data-v30-imp-ai-json]');
+      var hint = document.querySelector('[data-v30-imp-ai-hint]');
+      var prev = document.querySelector('[data-v30-imp-ai-preview]');
+      var prevCount = document.querySelector('[data-v30-imp-ai-count]');
+      var prevPre = document.querySelector('[data-v30-imp-ai-preview-pre]');
+      var text = ta ? (ta.value || '').trim() : '';
+      if (!text) { toast('Colle un JSON de prospects', 'warning'); return; }
+      // Tente de nettoyer fences markdown
+      var cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+      var data;
+      try { data = JSON.parse(cleaned); }
+      catch (err) {
+        // Tente d'extraire le premier array ou object
+        var mArr = cleaned.match(/\[[\s\S]*\]/);
+        var mObj = cleaned.match(/\{[\s\S]*\}/);
+        try { data = JSON.parse((mArr && mArr[0]) || (mObj && mObj[0]) || ''); }
+        catch (e2) { toast('JSON invalide : ' + err.message, 'error'); return; }
+      }
+      var arr = null;
+      if (Array.isArray(data)) arr = data;
+      else if (data && Array.isArray(data.prospects)) arr = data.prospects;
+      else if (data && typeof data === 'object') arr = [data];
+      if (!arr || !arr.length) { toast('Aucune entrée exploitable dans le JSON', 'warning'); return; }
+
+      var items = [];
+      var skipped = 0;
+      arr.forEach(function (it) {
+        var n = normalizeAiEntry(it);
+        if (n) items.push(n); else skipped++;
+      });
+      if (!items.length) { toast('Aucune entrée valide (name/company manquants)', 'warning'); return; }
+
+      IMP.aiItems = items;
+      if (hint) hint.textContent = items.length + ' prospect(s) prêt(s)' + (skipped ? (' — ' + skipped + ' ignoré(s)') : '');
+      if (prev) prev.hidden = false;
+      if (prevCount) prevCount.textContent = items.length;
+      if (prevPre) prevPre.textContent = JSON.stringify(items.slice(0, 3), null, 2);
+
+      // Reveal bouton importer
+      var run = document.querySelector('[data-v30-imp-run]');
+      if (run) { run.hidden = false; run.textContent = 'Importer ' + items.length + ' prospect(s)'; }
+    });
+
+    // Bouton "Importer" : route selon contexte (mapping ou aiItems)
     var run = document.querySelector('[data-v30-imp-run]');
     if (run) run.addEventListener('click', function () {
-      document.querySelector('[data-v30-imp-step="map"]').hidden = true;
-      document.querySelector('[data-v30-imp-step="progress"]').hidden = false;
-      run.hidden = true;
-      var rows = IMP.rows;
-      var total = rows.length;
-      var ok = 0, errors = 0, i = 0;
-      var bar = document.querySelector('[data-v30-imp-progress-bar]');
-      var txt = document.querySelector('[data-v30-imp-progress-text]');
-      function setProgress(n) {
-        if (bar) bar.style.width = Math.round(n * 100 / total) + '%';
-        if (txt) txt.textContent = 'Import : ' + n + ' / ' + total + '  (OK : ' + ok + ', erreurs : ' + errors + ')';
+      // Collage IA : payloads déjà construits
+      if (IMP.activeTab === 'ai' && Array.isArray(IMP.aiItems) && IMP.aiItems.length) {
+        runImportPayloads(IMP.aiItems);
+        return;
       }
-      setProgress(0);
-      function buildPayload(row) {
-        var payload = {};
-        var prenom = '';
-        Object.keys(IMP.mapping).forEach(function (idx) {
-          var field = IMP.mapping[idx];
-          if (!field) return;
-          var raw = row[idx];
-          if (raw == null) return;
-          var val = String(raw).trim();
-          if (!val) return;
-          if (field === 'prenom') { prenom = val; return; }
-          if (field === 'tags') {
-            payload.tags = val.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
-          } else {
-            payload[field] = val;
-          }
-        });
-        if (prenom) payload.name = (prenom + ' ' + (payload.name || '')).trim();
-        return payload;
-      }
-      function next() {
-        if (i >= total) {
-          toast('Import terminé : ' + ok + ' ajouté(s), ' + errors + ' erreur(s)', errors ? 'warning' : 'success');
-          closeModal(getModal('import'));
-          loadProspects();
-          return;
-        }
-        var payload = buildPayload(rows[i]);
-        if (!payload.name) { errors++; i++; setProgress(i); setTimeout(next, 0); return; }
-        fetchPostJSON('/api/prospects/create', payload)
-          .then(function (res) { if (res && res.ok) ok++; else errors++; })
-          .catch(function () { errors++; })
-          .then(function () { i++; setProgress(i); setTimeout(next, 0); });
-      }
-      next();
+      // Excel / CSV / Collage texte : build depuis mapping
+      var rows = IMP.rows || [];
+      var payloads = rows.map(buildRowPayload);
+      runImportPayloads(payloads);
     });
   }
 

@@ -37,6 +37,10 @@
       {{ ui.icon('filter', 13) }} Filtres
       <span class="badge" data-field="active" hidden>0</span>
     </button>
+    <button type="button" class="btn btn-ghost btn-sm" data-v30-sc-import title="Importer un CV ou coller un retour IA">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m6 9 6-6 6 6"/><path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/></svg>
+      Importer
+    </button>
     <button type="button" class="btn btn-sm btn-primary" data-v30-sc-add>
       {{ ui.icon('plus', 13) }} Ajouter
     </button>
@@ -169,7 +173,7 @@
         <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-sc-add-source">Source</label><input id="v30-sc-add-source" class="input" placeholder="Ex. LinkedIn, cooptation"></div>
         <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-sc-add-notes">Notes</label><textarea id="v30-sc-add-notes" class="textarea" rows="3"></textarea></div>
       </div>
-      <p class="muted" style="font-size:11.5px;margin-top:10px;">Pour importer depuis un PDF/CV ou coller un retour IA, utilise <a href="/sourcing?force_v29=1" style="color:var(--accent);">l'interface v29</a>.</p>
+      <p class="muted" style="font-size:11.5px;margin-top:10px;">Besoin d'importer un CV ou de coller un retour IA ? <a href="#" data-v30-sc-open-import style="color:var(--accent);">Ouvrir l'outil d'import</a>.</p>
     </div>
     <div class="v30-modal__foot">
       <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
@@ -208,6 +212,84 @@
       <div class="v30-spacer"></div>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
       <button type="button" class="btn btn-primary btn-sm" data-v30-sc-flt-apply>Appliquer</button>
+    </div>
+  </div>
+</div>
+
+{# Import PDF/CV + Collage IA #}
+<div class="v30-modal-bd" data-v30-pp-modal="sc-import" hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-sc-import-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-sc-import-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m6 9 6-6 6 6"/><path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/></svg>
+        Importer des candidats
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-src-import" data-v30-src-import>
+        <div class="segmented v30-src-import__tabs" role="tablist" data-v30-src-tabs>
+          <button type="button" class="active" role="tab" aria-selected="true" data-v30-src-tab="pdf">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            PDF / CV
+          </button>
+          <button type="button" role="tab" aria-selected="false" data-v30-src-tab="ai">
+            {{ ui.icon('sparkles', 13) }} Collage IA (JSON)
+          </button>
+        </div>
+
+        {# ─── Onglet PDF ─── #}
+        <div class="v30-src-panel" data-v30-src-panel="pdf">
+          <p class="muted" style="font-size:12.5px;margin:0 0 10px;">
+            Charge un dossier de compétences PDF — l'IA extraira nom, poste, années d'expérience, domaine et compétences. Tu pourras relire et ajuster avant création.
+          </p>
+          <div class="v30-src-drop" data-v30-src-drop>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m6 9 6-6 6 6"/><path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/></svg>
+            <div class="v30-src-drop__text">
+              <strong>Glisse ton PDF ici</strong>
+              <span class="muted">ou clique pour parcourir</span>
+            </div>
+            <input type="file" accept="application/pdf,.pdf" data-v30-src-pdf-file hidden>
+          </div>
+          <div class="v30-src-drop__file" data-v30-src-pdf-filename hidden></div>
+          <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+            <button type="button" class="btn btn-primary btn-sm" data-v30-src-pdf-run disabled>
+              {{ ui.icon('sparkles', 13) }} Analyser le PDF
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-src-pdf-reset hidden>Retirer</button>
+          </div>
+          <div class="v30-src-pdf-result" data-v30-src-pdf-result hidden></div>
+        </div>
+
+        {# ─── Onglet IA JSON ─── #}
+        <div class="v30-src-panel" data-v30-src-panel="ai" hidden>
+          <p class="muted" style="font-size:12.5px;margin:0 0 10px;">
+            Colle un JSON issu d'un retour IA (ChatGPT, Claude, Ollama, etc.). Accepte un objet unique ou un tableau pour créer plusieurs candidats d'un coup.
+          </p>
+          <div class="v30-field">
+            <label for="v30-sc-ai-json">JSON des candidats</label>
+            <textarea id="v30-sc-ai-json" class="textarea" data-v30-src-ai-json rows="10"
+              placeholder='{"name": "Jean Dupont", "role": "Développeur React", "email": "jean@exemple.com", "skills": ["React", "Node"]}
+
+ou
+
+[
+  {"name": "Alice Martin", "role": "Data engineer"},
+  {"name": "Paul Durand", "linkedin": "https://linkedin.com/in/paul"}
+]'></textarea>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-src-ai-preview>Prévisualiser</button>
+            <button type="button" class="btn btn-primary btn-sm" data-v30-src-ai-run>
+              {{ ui.icon('check', 13) }} Importer
+            </button>
+          </div>
+          <div class="v30-src-ai-preview" data-v30-src-ai-result hidden></div>
+        </div>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Fermer</button>
     </div>
   </div>
 </div>

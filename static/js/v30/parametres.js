@@ -1,8 +1,9 @@
-/* ProspUp v30 — Paramètres (admin) : déploiement inline (pull/restart/rollback) */
+/* ProspUp v30 — Paramètres : déploiement + sections natives V30 */
 (function () {
   'use strict';
 
-  function $(s) { return document.querySelector(s); }
+  function $(s, root) { return (root || document).querySelector(s); }
+  function $$(s, root) { return Array.prototype.slice.call((root || document).querySelectorAll(s)); }
   function esc(s) {
     var t = document.createElement('span');
     t.textContent = s == null ? '' : String(s);
@@ -236,7 +237,583 @@
     }
   }
 
-  function bind() {
+  // ══════════════════════════════════════════════════════════════
+  //  Helpers pour sections V30 natives
+  // ══════════════════════════════════════════════════════════════
+  function inlineStatus(selector, text, color) {
+    var el = typeof selector === 'string' ? $(selector) : selector;
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = color || '';
+  }
+  function clearInlineStatus(selector, delay) {
+    setTimeout(function () { inlineStatus(selector, ''); }, delay || 3500);
+  }
+  function safeInt(v) {
+    var n = parseInt(String(v == null ? '' : v), 10);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  1. Configuration IA
+  // ══════════════════════════════════════════════════════════════
+  async function aiLoad() {
+    var urlEl = $('[data-v30-ai-url]');
+    if (!urlEl) return; // section absente (non-admin)
+    try {
+      var res = await fetch('/api/ai/config', { credentials: 'same-origin' });
+      var j = await res.json();
+      if (!j || !j.ok) return;
+      var c = j.config || {};
+      urlEl.value = c.ollama_url || '';
+      var modelEl = $('[data-v30-ai-model]');
+      if (modelEl) modelEl.value = c.ollama_model || '';
+      var fb = $('[data-v30-ai-fallback]');
+      if (fb) fb.checked = c.fallback_enabled !== false;
+      var tav = $('[data-v30-ai-tavily]');
+      if (tav) {
+        tav.value = '';
+        tav.placeholder = c.tavily_api_key_set
+          ? (c.tavily_api_key_preview + ' (configurée)')
+          : 'tvly-...';
+      }
+    } catch (e) {
+      console.warn('AI config load:', e);
+    }
+  }
+  async function aiSave() {
+    var btn = $('[data-v30-ai-save]');
+    var st = '[data-v30-ai-status]';
+    inlineStatus(st, 'Enregistrement…', 'var(--text-2)');
+    if (btn) btn.disabled = true;
+    var payload = {
+      fallback_enabled: !!($('[data-v30-ai-fallback]') && $('[data-v30-ai-fallback]').checked),
+      ollama_url: (($('[data-v30-ai-url]') && $('[data-v30-ai-url]').value) || '').trim(),
+      ollama_model: (($('[data-v30-ai-model]') && $('[data-v30-ai-model]').value) || '').trim()
+    };
+    var tavilyKey = (($('[data-v30-ai-tavily]') && $('[data-v30-ai-tavily]').value) || '').trim();
+    if (tavilyKey) payload.tavily_api_key = tavilyKey;
+    try {
+      var res = await fetch('/api/ai/config', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Enregistré', 'var(--success)');
+      toast('Configuration IA enregistrée', 'success');
+      aiLoad();
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    if (btn) btn.disabled = false;
+    clearInlineStatus(st);
+  }
+  async function aiTest(target) {
+    var st = '[data-v30-ai-status]';
+    var label = target === 'tavily' ? 'Tavily' : 'Ollama';
+    inlineStatus(st, 'Test ' + label + '…', 'var(--text-2)');
+    var payload = { test_target: target };
+    // Permet de tester la valeur saisie sans avoir besoin de save avant
+    var urlEl = $('[data-v30-ai-url]');
+    if (urlEl && urlEl.value.trim()) payload.ollama_url = urlEl.value.trim();
+    var modelEl = $('[data-v30-ai-model]');
+    if (modelEl && modelEl.value.trim()) payload.ollama_model = modelEl.value.trim();
+    var tavEl = $('[data-v30-ai-tavily]');
+    if (tavEl && tavEl.value.trim()) payload.tavily_api_key = tavEl.value.trim();
+    try {
+      var res = await fetch('/api/ai/test', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var j = await res.json();
+      if (j && j.ok) {
+        var msg = label + ' OK' + (j.model ? ' (' + j.model + ')' : '');
+        inlineStatus(st, msg, 'var(--success)');
+        toast(msg, 'success');
+      } else {
+        inlineStatus(st, label + ' : ' + ((j && j.error) || 'échec'), 'var(--danger)');
+        toast(label + ' : ' + ((j && j.error) || 'échec'), 'error');
+      }
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    clearInlineStatus(st, 6000);
+  }
+  function bindAi() {
+    if (!$('[data-v30-ai-url]')) return;
+    var save = $('[data-v30-ai-save]');
+    if (save) save.addEventListener('click', aiSave);
+    var tOll = $('[data-v30-ai-test-ollama]');
+    if (tOll) tOll.addEventListener('click', function () { aiTest('ollama'); });
+    var tTav = $('[data-v30-ai-test-tavily]');
+    if (tTav) tTav.addEventListener('click', function () { aiTest('tavily'); });
+    var tog = $('[data-v30-ai-tavily-toggle]');
+    if (tog) tog.addEventListener('click', function () {
+      var inp = $('[data-v30-ai-tavily]');
+      if (!inp) return;
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    });
+    aiLoad();
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  2. Objectifs & Gamification
+  // ══════════════════════════════════════════════════════════════
+  var GOAL_LABELS = {
+    daily: {
+      rdv: 'Prendre 1 RDV Prosp',
+      push: '3 push',
+      sourcing_contacted: 'Sourcing : contacter 3 candidats qualifiés'
+    },
+    weekly: {
+      rdv: 'Prendre 5 RDV Prosp',
+      push: '15 push',
+      sourcing_contacted: 'Sourcing : contacter 15 candidats qualifiés',
+      sourcing_solid: 'Sourcing : 3 profils solides (EC1+)'
+    }
+  };
+  async function goalsLoad() {
+    if (!$('[data-v30-goal="daily.rdv.target"]')) return;
+    try {
+      var res = await fetch('/api/dashboard', { credentials: 'same-origin' });
+      var j = await res.json();
+      var cfg = j && j.ok && j.data && j.data.goals && j.data.goals.config ? j.data.goals.config : null;
+      if (!cfg) return;
+      ['daily', 'weekly'].forEach(function (scope) {
+        Object.keys(GOAL_LABELS[scope]).forEach(function (key) {
+          var o = (cfg[scope] && cfg[scope][key]) || {};
+          var tEl = $('[data-v30-goal="' + scope + '.' + key + '.target"]');
+          var xpEl = $('[data-v30-goal="' + scope + '.' + key + '.xp"]');
+          if (tEl) tEl.value = safeInt(o.target);
+          if (xpEl) xpEl.value = safeInt(o.xp);
+        });
+      });
+    } catch (e) {
+      console.warn('Goals load:', e);
+    }
+  }
+  function goalsBuildFromUI() {
+    var cfg = { daily: {}, weekly: {}, meta: { push_channels: 'any', xp_scale: 'linear' } };
+    ['daily', 'weekly'].forEach(function (scope) {
+      Object.keys(GOAL_LABELS[scope]).forEach(function (key) {
+        var tEl = $('[data-v30-goal="' + scope + '.' + key + '.target"]');
+        var xpEl = $('[data-v30-goal="' + scope + '.' + key + '.xp"]');
+        cfg[scope][key] = {
+          label: GOAL_LABELS[scope][key],
+          target: safeInt(tEl && tEl.value),
+          xp: safeInt(xpEl && xpEl.value)
+        };
+      });
+    });
+    return cfg;
+  }
+  async function goalsSave() {
+    var st = '[data-v30-goals-status]';
+    inlineStatus(st, 'Enregistrement…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/settings', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { goals_config: JSON.stringify(goalsBuildFromUI()) } })
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Enregistré', 'var(--success)');
+      toast('Objectifs sauvegardés', 'success');
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    clearInlineStatus(st);
+  }
+  async function goalsReset() {
+    if (!confirm('Restaurer les objectifs par défaut ?')) return;
+    var st = '[data-v30-goals-status]';
+    inlineStatus(st, 'Restauration…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/settings', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { goals_config: '' } })
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Valeurs par défaut', 'var(--success)');
+      toast('Objectifs restaurés', 'success');
+      await goalsLoad();
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    clearInlineStatus(st);
+  }
+  function bindGoals() {
+    if (!$('[data-v30-goal="daily.rdv.target"]')) return;
+    var s = $('[data-v30-goals-save]');
+    if (s) s.addEventListener('click', goalsSave);
+    var r = $('[data-v30-goals-reset]');
+    if (r) r.addEventListener('click', goalsReset);
+    goalsLoad();
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  3. Sauvegardes & données
+  // ══════════════════════════════════════════════════════════════
+  function formatBytes(n) {
+    if (!n && n !== 0) return '';
+    if (n < 1024) return n + ' o';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' Ko';
+    return (n / (1024 * 1024)).toFixed(1) + ' Mo';
+  }
+  function formatDate(iso) {
+    if (!iso) return '';
+    try {
+      var d = new Date(iso.replace(' ', 'T'));
+      if (isNaN(d.getTime())) return iso;
+      return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+    } catch (e) { return iso; }
+  }
+  async function snapshotsLoad() {
+    var ul = $('[data-v30-snapshots-list]');
+    if (!ul) return;
+    try {
+      var res = await fetch('/api/snapshots', { credentials: 'same-origin' });
+      var j = await res.json();
+      var items = (j && j.items) ? j.items.slice(0, 5) : [];
+      if (!items.length) {
+        ul.innerHTML = '<li class="muted v30-params__empty">Aucun snapshot pour le moment.</li>';
+        return;
+      }
+      var isAdmin = !!$('[data-v30-snapshot-create]');
+      ul.innerHTML = items.map(function (it) {
+        var fn = esc(it.filename);
+        var size = formatBytes(it.size);
+        var date = formatDate(it.mtime || it.modifiedAt);
+        var actions = isAdmin
+          ? '<button type="button" class="btn btn-ghost btn-sm" data-v30-snapshot-restore="' + fn + '">Restaurer</button>'
+            + ' <button type="button" class="btn btn-ghost btn-sm" data-v30-snapshot-delete="' + fn + '">Supprimer</button>'
+          : '';
+        return '<li class="v30-params__snapshot">'
+          + '<div class="v30-params__snapshot-meta">'
+          + '<span class="mono">' + fn + '</span>'
+          + '<span class="muted"> · ' + esc(date) + (size ? ' · ' + esc(size) : '') + '</span>'
+          + '</div>'
+          + '<div class="v30-params__snapshot-actions">' + actions + '</div>'
+          + '</li>';
+      }).join('');
+      // Bind per-item
+      $$('[data-v30-snapshot-restore]', ul).forEach(function (btn) {
+        btn.addEventListener('click', function () { snapshotRestore(btn.getAttribute('data-v30-snapshot-restore')); });
+      });
+      $$('[data-v30-snapshot-delete]', ul).forEach(function (btn) {
+        btn.addEventListener('click', function () { snapshotDelete(btn.getAttribute('data-v30-snapshot-delete')); });
+      });
+    } catch (e) {
+      ul.innerHTML = '<li class="muted v30-params__empty">Erreur : ' + esc(e.message) + '</li>';
+    }
+  }
+  async function snapshotCreate() {
+    var btn = $('[data-v30-snapshot-create]');
+    var st = '[data-v30-backup-status]';
+    if (btn) btn.disabled = true;
+    inlineStatus(st, 'Création en cours…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/snapshots/create', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: 'manual' })
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Snapshot créé', 'var(--success)');
+      toast('Snapshot créé : ' + (j.filename || ''), 'success');
+      await snapshotsLoad();
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    if (btn) btn.disabled = false;
+    clearInlineStatus(st);
+  }
+  async function snapshotRestore(filename) {
+    if (!filename) return;
+    if (!confirm('Restaurer ce snapshot ?\n\n' + filename + '\n\nUn snapshot de sécurité de la base actuelle sera créé avant l\'opération.')) return;
+    var st = '[data-v30-backup-status]';
+    inlineStatus(st, 'Restauration en cours…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/snapshots/restore', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: filename })
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Restauration OK', 'var(--success)');
+      toast('Snapshot restauré — rechargement', 'success');
+      setTimeout(function () { window.location.reload(); }, 1500);
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+  }
+  async function snapshotDelete(filename) {
+    if (!filename) return;
+    if (!confirm('Supprimer ce snapshot ?\n\n' + filename + '\n\nCette action est définitive.')) return;
+    var st = '[data-v30-backup-status]';
+    inlineStatus(st, 'Suppression…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/snapshots/delete', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: filename })
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Supprimé', 'var(--success)');
+      toast('Snapshot supprimé', 'success');
+      await snapshotsLoad();
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    clearInlineStatus(st);
+  }
+  async function exportJson() {
+    // Pas d'endpoint JSON dédié : on sérialise depuis /api/dashboard côté client (dump partiel).
+    var st = '[data-v30-backup-status]';
+    inlineStatus(st, 'Préparation de l\'export…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/dashboard', { credentials: 'same-origin' });
+      var j = await res.json();
+      var blob = new Blob([JSON.stringify(j, null, 2)], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      var stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.href = url;
+      a.download = 'prospup-dashboard-' + stamp + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      inlineStatus(st, 'Export JSON téléchargé', 'var(--success)');
+      toast('Export JSON téléchargé', 'success');
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    clearInlineStatus(st);
+  }
+  function bindBackup() {
+    if (!$('[data-v30-snapshots-list]')) return;
+    var c = $('[data-v30-snapshot-create]');
+    if (c) c.addEventListener('click', snapshotCreate);
+    var ej = $('[data-v30-export-json]');
+    if (ej) ej.addEventListener('click', exportJson);
+    // Charge la liste à l'ouverture du <details>
+    var details = document.querySelector('[data-v30-backup]');
+    if (details) {
+      details.addEventListener('toggle', function () {
+        if (details.open) snapshotsLoad();
+      });
+      if (details.open) snapshotsLoad();
+    } else {
+      snapshotsLoad();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  4. Notifications navigateur
+  // ══════════════════════════════════════════════════════════════
+  function notifGetPrefs() {
+    if (window.ProspUpNotifications && typeof window.ProspUpNotifications.getPrefs === 'function') {
+      return window.ProspUpNotifications.getPrefs();
+    }
+    try {
+      var raw = localStorage.getItem('prospup_notifications');
+      if (!raw) return { enabled: false, hour: 9 };
+      var o = JSON.parse(raw);
+      return {
+        enabled: !!o.enabled,
+        hour: typeof o.hour === 'number' ? Math.max(0, Math.min(23, o.hour)) : 9
+      };
+    } catch (e) { return { enabled: false, hour: 9 }; }
+  }
+  function notifLoad() {
+    var chk = $('[data-v30-notif-enabled]');
+    var sel = $('[data-v30-notif-hour]');
+    if (!chk || !sel) return;
+    var prefs = notifGetPrefs();
+    chk.checked = !!prefs.enabled;
+    sel.value = String(prefs.hour || 9);
+  }
+  async function notifSave() {
+    var chk = $('[data-v30-notif-enabled]');
+    var sel = $('[data-v30-notif-hour]');
+    var st = '[data-v30-notif-status]';
+    var enabled = !!(chk && chk.checked);
+    var hour = safeInt(sel && sel.value) || 9;
+
+    if (enabled && 'Notification' in window) {
+      if (Notification.permission !== 'granted') {
+        try {
+          var perm = await Notification.requestPermission();
+          if (perm !== 'granted') {
+            inlineStatus(st, 'Permission refusée', 'var(--danger)');
+            toast('Permission de notification refusée par le navigateur', 'error');
+            if (chk) chk.checked = false;
+            return;
+          }
+        } catch (e) {
+          inlineStatus(st, 'Erreur permission : ' + e.message, 'var(--danger)');
+          return;
+        }
+      }
+    }
+
+    var prefs = { enabled: enabled, hour: hour };
+    if (window.ProspUpNotifications && typeof window.ProspUpNotifications.setPrefs === 'function') {
+      window.ProspUpNotifications.setPrefs(prefs);
+    } else {
+      try { localStorage.setItem('prospup_notifications', JSON.stringify(prefs)); } catch (e) {}
+    }
+    inlineStatus(st, 'Enregistré', 'var(--success)');
+    toast('Préférences notifications enregistrées', 'success');
+    clearInlineStatus(st);
+  }
+  function bindNotif() {
+    if (!$('[data-v30-notif-enabled]')) return;
+    var s = $('[data-v30-notif-save]');
+    if (s) s.addEventListener('click', notifSave);
+    notifLoad();
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  5. Mon compte (changement de mot de passe)
+  // ══════════════════════════════════════════════════════════════
+  async function pwChange() {
+    var st = '[data-v30-pw-status]';
+    var cur = $('[data-v30-pw-current]');
+    var nw = $('[data-v30-pw-new]');
+    var cf = $('[data-v30-pw-confirm]');
+    if (!cur || !nw || !cf) return;
+    var oldPw = cur.value || '';
+    var newPw = nw.value || '';
+    var cfPw = cf.value || '';
+
+    if (!oldPw || !newPw || !cfPw) {
+      inlineStatus(st, 'Tous les champs sont requis', 'var(--danger)');
+      return;
+    }
+    if (newPw !== cfPw) {
+      inlineStatus(st, 'Les mots de passe ne correspondent pas', 'var(--danger)');
+      return;
+    }
+    if (newPw.length < 8) {
+      inlineStatus(st, 'Mot de passe trop court (min 8)', 'var(--danger)');
+      return;
+    }
+
+    var btn = $('[data-v30-pw-save]');
+    if (btn) btn.disabled = true;
+    inlineStatus(st, 'Envoi…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Mot de passe changé', 'var(--success)');
+      toast('Mot de passe mis à jour', 'success');
+      cur.value = ''; nw.value = ''; cf.value = '';
+      try { sessionStorage.removeItem('pending_password_change'); } catch (e) {}
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    if (btn) btn.disabled = false;
+    clearInlineStatus(st, 5000);
+  }
+  function bindAccount() {
+    var b = $('[data-v30-pw-save]');
+    if (b) b.addEventListener('click', pwChange);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  6. À propos (version / commit)
+  // ══════════════════════════════════════════════════════════════
+  var ABOUT_POLL_MS = 30000;
+  var _aboutTimer = null;
+  async function aboutLoad() {
+    var root = $('[data-v30-about]');
+    if (!root) return;
+    try {
+      var res = await fetch('/api/app-version', { credentials: 'same-origin' });
+      var j = await res.json();
+      if (!j) return;
+      var v = $('[data-v30-about-version]');
+      if (v) v.textContent = j.version || '—';
+      var c = $('[data-v30-about-commit]');
+      if (c) c.textContent = j.commit_hash || '—';
+      var br = $('[data-v30-about-branch]');
+      if (br) br.textContent = j.branch || '—';
+      var d = $('[data-v30-about-date]');
+      if (d) d.textContent = j.commit_date || '—';
+
+      var dot = $('[data-v30-about-dot]');
+      if (dot) {
+        var last = '';
+        try { last = localStorage.getItem('prospup_last_commit_hash') || ''; } catch (e) {}
+        if (!last) {
+          // Première visite : mémorise sans alerter
+          try { localStorage.setItem('prospup_last_commit_hash', j.commit_hash || ''); } catch (e) {}
+          dot.classList.remove('is-changed', 'is-loading');
+          dot.classList.add('is-ok');
+          dot.title = 'À jour';
+        } else if (j.commit_hash && j.commit_hash !== last) {
+          dot.classList.remove('is-ok', 'is-loading');
+          dot.classList.add('is-changed');
+          dot.title = 'Nouveau commit détecté (' + last + ' → ' + j.commit_hash + ')';
+        } else {
+          dot.classList.remove('is-changed', 'is-loading');
+          dot.classList.add('is-ok');
+          dot.title = 'À jour';
+        }
+      }
+    } catch (e) {
+      var dotErr = $('[data-v30-about-dot]');
+      if (dotErr) {
+        dotErr.classList.remove('is-ok', 'is-changed');
+        dotErr.classList.add('is-loading');
+        dotErr.title = 'Impossible de récupérer la version';
+      }
+    }
+  }
+  function bindAbout() {
+    if (!$('[data-v30-about]')) return;
+    aboutLoad();
+    if (_aboutTimer) clearInterval(_aboutTimer);
+    _aboutTimer = setInterval(aboutLoad, ABOUT_POLL_MS);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  Bind global
+  // ══════════════════════════════════════════════════════════════
+  function bindDeploy() {
     var pull = $('[data-v30-deploy-pull]');
     if (pull) pull.addEventListener('click', doPull);
     var roll = $('[data-v30-deploy-rollback]');
@@ -245,7 +822,17 @@
     if (rest) rest.addEventListener('click', doRestart);
     var chg = $('[data-v30-deploy-remote-change]');
     if (chg) chg.addEventListener('click', changeRemote);
-    loadRemote();
+    if ($('[data-v30-deploy-remote]')) loadRemote();
+  }
+
+  function bind() {
+    bindDeploy();
+    bindAi();
+    bindGoals();
+    bindBackup();
+    bindNotif();
+    bindAccount();
+    bindAbout();
   }
 
   if (document.readyState === 'loading') {

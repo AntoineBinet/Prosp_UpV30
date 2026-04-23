@@ -372,7 +372,7 @@
   </div>
 </div>
 
-{# Import Excel — version v30 simple (le wizard complet reste sur v29) #}
+{# Import prospects — Excel / CSV / Collage / IA (natif v30) #}
 <div class="v30-modal-bd" data-v30-pp-modal="import" hidden>
   <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-pp-imp-title">
     <div class="v30-modal__head">
@@ -380,15 +380,56 @@
       <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
     </div>
     <div class="v30-modal__body" data-v30-imp-body>
-      <div data-v30-imp-step="file">
-        <p class="muted" style="font-size: 12.5px; margin: 0 0 12px;">Charge un fichier <strong>.xlsx</strong> ou <strong>.xls</strong>. La première ligne doit contenir les en-têtes. Les colonnes seront auto-mappées (nom, entreprise, tel, email, fonction, linkedin).</p>
-        <input type="file" data-v30-imp-file accept=".xlsx,.xls" class="input">
-        <p class="muted" style="font-size: 11.5px; margin-top: 14px;">Pour l'import avancé (CSV, collage, IA, Lusha) utilise <a href="/?force_v29=1" style="color: var(--accent);">l'interface v29</a>.</p>
+      <div class="v30-imp-tabs" role="tablist" data-v30-imp-tabs>
+        <button type="button" role="tab" class="v30-imp-tab is-active" data-v30-imp-tab="file">Fichier (Excel / CSV)</button>
+        <button type="button" role="tab" class="v30-imp-tab" data-v30-imp-tab="paste">Collage texte</button>
+        <button type="button" role="tab" class="v30-imp-tab" data-v30-imp-tab="ai">Collage IA (JSON)</button>
       </div>
+
+      {# Onglet fichier (Excel + CSV) #}
+      <div data-v30-imp-panel="file">
+        <div data-v30-imp-step="file">
+          <p class="muted" style="font-size: 12.5px; margin: 0 0 12px;">Charge un fichier <strong>.xlsx</strong>, <strong>.xls</strong> ou <strong>.csv</strong>. La première ligne doit contenir les en-têtes. Les colonnes seront auto-mappées (nom, entreprise, tel, email, fonction, linkedin).</p>
+          <input type="file" data-v30-imp-file accept=".xlsx,.xls,.csv" class="input">
+          <p class="muted" style="font-size: 11.5px; margin-top: 10px;">Pour un fichier CSV : délimiteur détecté automatiquement (<code>,</code>, <code>;</code>, tabulation) avec fallback d'encodage CP1252 si nécessaire.</p>
+        </div>
+      </div>
+
+      {# Onglet collage texte #}
+      <div data-v30-imp-panel="paste" hidden>
+        <div data-v30-imp-step="paste-input">
+          <p class="muted" style="font-size: 12.5px; margin: 0 0 10px;">Colle ici un tableau (une ligne par prospect). Séparateur auto-détecté : tabulation, virgule, point-virgule ou pipe <code>|</code>. La première ligne doit contenir les en-têtes.</p>
+          <textarea data-v30-imp-paste-text class="textarea" rows="10" placeholder="Nom&#9;Entreprise&#9;Fonction&#9;Téléphone&#9;Email&#10;Jean Dupont&#9;Acme&#9;Directeur&#9;0606060606&#9;jean@acme.fr"></textarea>
+          <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+            <button type="button" class="btn btn-sm" data-v30-imp-paste-parse>Analyser</button>
+            <span class="muted" style="font-size: 11.5px;" data-v30-imp-paste-hint></span>
+          </div>
+        </div>
+      </div>
+
+      {# Onglet collage IA (JSON) #}
+      <div data-v30-imp-panel="ai" hidden>
+        <div data-v30-imp-step="ai-input">
+          <p class="muted" style="font-size: 12.5px; margin: 0 0 10px;">Colle ici la réponse JSON de ton IA. Formats acceptés : tableau <code>[{...}, ...]</code> ou objet <code>{"prospects": [...]}</code>. Clés reconnues : <code>name</code>, <code>company</code> (ou <code>company_groupe</code>), <code>fonction</code>, <code>telephone</code>, <code>email</code>, <code>linkedin</code>, <code>notes</code>, <code>tags</code>, <code>pertinence</code>, <code>statut</code>.</p>
+          <textarea data-v30-imp-ai-json class="textarea" rows="10" placeholder='[{"name": "Jean Dupont", "company": "Acme", "fonction": "Directeur", "email": "jean@acme.fr"}]'></textarea>
+          <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+            <button type="button" class="btn btn-sm" data-v30-imp-ai-parse>Valider</button>
+            <span class="muted" style="font-size: 11.5px;" data-v30-imp-ai-hint></span>
+          </div>
+          <div data-v30-imp-ai-preview style="margin-top: 10px;" hidden>
+            <p class="muted" style="font-size: 12px; margin: 0 0 6px;"><strong data-v30-imp-ai-count>0</strong> prospect(s) détecté(s). Aperçu :</p>
+            <pre class="v30-ai-raw" data-v30-imp-ai-preview-pre></pre>
+          </div>
+        </div>
+      </div>
+
+      {# Étape mapping (partagée par Excel / CSV / Collage texte) #}
       <div data-v30-imp-step="map" hidden>
         <p class="muted" style="font-size: 12.5px; margin: 0 0 10px;"><strong data-v30-imp-count>0</strong> lignes détectées. Associe les colonnes :</p>
         <div data-v30-imp-mapping class="v30-imp-mapping"></div>
       </div>
+
+      {# Étape progression (partagée) #}
       <div data-v30-imp-step="progress" hidden>
         <p style="margin: 0 0 10px;"><span data-v30-imp-progress-text>Import en cours…</span></p>
         <div class="v30-progress"><div class="v30-progress__bar" data-v30-imp-progress-bar></div></div>

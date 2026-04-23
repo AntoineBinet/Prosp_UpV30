@@ -241,6 +241,103 @@
   </div>
 </aside>
 
+{# ─── Modale IA : Scraping enrichissement ─── #}
+<div class="v30-modal-bd" data-v30-fp-modal="scrap" hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-fp-scrap-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-fp-scrap-title">{{ ui.icon('sparkles', 14) }} Scraping enrichissement</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-fp-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size: 12.5px; margin: 0 0 8px;">Prospect : <strong data-v30-fp-ai-name>—</strong></p>
+      <div class="v30-field">
+        <label for="v30-fp-scrap-prompt">Instruction (modifiable)</label>
+        <textarea id="v30-fp-scrap-prompt" class="textarea" rows="6" data-v30-fp-scrap-prompt></textarea>
+      </div>
+      <label class="v30-chip" style="width: fit-content;">
+        <input type="checkbox" data-v30-fp-scrap-web>
+        <span>Activer la recherche web (Tavily)</span>
+      </label>
+      <div data-v30-fp-scrap-raw-wrap style="margin-top: 12px;" hidden>
+        <label class="label">Réponse IA brute</label>
+        <pre class="v30-ai-raw" data-v30-fp-scrap-raw></pre>
+      </div>
+      <div data-v30-fp-scrap-diff-wrap style="margin-top: 12px;" hidden>
+        <label class="label">Champs détectés (coche pour appliquer)</label>
+        <div data-v30-fp-scrap-diff class="v30-fp-ai-diff"></div>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-modal-close>Fermer</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-scrap-copy hidden>Copier</button>
+      <div class="v30-spacer" style="flex:1;"></div>
+      <button type="button" class="btn btn-sm" data-v30-fp-scrap-run>Lancer l'analyse</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-fp-scrap-apply hidden>Appliquer</button>
+    </div>
+  </div>
+</div>
+
+{# ─── Modale IA : Avant RDV — fiche prépa ─── #}
+<div class="v30-modal-bd" data-v30-fp-modal="before" hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-fp-before-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-fp-before-title">{{ ui.icon('sparkles', 14) }} Avant RDV — fiche prépa</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-fp-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-fp-recap" data-v30-fp-before-recap>
+        <div class="v30-fp-recap__row"><span>Prospect</span><strong data-field="recap-name">—</strong></div>
+        <div class="v30-fp-recap__row"><span>Entreprise</span><strong data-field="recap-company">—</strong></div>
+        <div class="v30-fp-recap__row"><span>Statut</span><strong data-field="recap-statut">—</strong></div>
+        <div class="v30-fp-recap__row"><span>Prochain RDV</span><strong data-field="recap-rdv">—</strong></div>
+      </div>
+      <p class="muted" style="font-size: 12.5px; margin: 12px 0 8px;">
+        L'IA va analyser le prospect et son contexte pour générer une fiche de préparation au format PDF.
+      </p>
+      <div data-v30-fp-before-progress hidden>
+        <div class="v30-progress" style="margin: 8px 0;"><div class="v30-progress__bar" data-v30-fp-before-bar></div></div>
+        <pre class="v30-ai-raw" data-v30-fp-before-log style="max-height: 180px;"></pre>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-modal-close>Fermer</button>
+      <div class="v30-spacer" style="flex:1;"></div>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-fp-before-run>Générer et télécharger le PDF</button>
+    </div>
+  </div>
+</div>
+
+{# ─── Modale IA : Après RDV — compte-rendu ─── #}
+<div class="v30-modal-bd" data-v30-fp-modal="after" hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-fp-after-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-fp-after-title">{{ ui.icon('sparkles', 14) }} Après RDV — compte-rendu</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-fp-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size: 12.5px; margin: 0 0 8px;">Prospect : <strong data-v30-fp-ai-name2>—</strong></p>
+      <div class="v30-field">
+        <label for="v30-fp-after-notes">Notes du RDV (saisies libres)</label>
+        <textarea id="v30-fp-after-notes" class="textarea" rows="6" placeholder="Ex: Le prospect est intéressé par l'offre de formation, budget 3k€, décision fin du trimestre…" data-v30-fp-after-notes></textarea>
+      </div>
+      <div data-v30-fp-after-raw-wrap style="margin-top: 12px;" hidden>
+        <label class="label">Analyse IA brute</label>
+        <pre class="v30-ai-raw" data-v30-fp-after-raw></pre>
+      </div>
+      <div data-v30-fp-after-apply-wrap style="margin-top: 12px;" hidden>
+        <label class="label">Actions proposées</label>
+        <div data-v30-fp-after-apply class="v30-fp-ai-diff"></div>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-modal-close>Fermer</button>
+      <div class="v30-spacer" style="flex:1;"></div>
+      <button type="button" class="btn btn-sm" data-v30-fp-after-run>Analyser</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-fp-after-apply-btn hidden>Appliquer</button>
+    </div>
+  </div>
+</div>
+
 <script defer src="/static/js/v30/prospect_detail.js?v={{ static_hash('js/v30/prospect_detail.js') }}"></script>
 <script defer src="/static/js/v30/prospect_detail_render.js?v={{ static_hash('js/v30/prospect_detail_render.js') }}"></script>
 <script defer src="/static/js/v30/prospect_detail_ui.js?v={{ static_hash('js/v30/prospect_detail_ui.js') }}"></script>

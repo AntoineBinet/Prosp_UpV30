@@ -418,6 +418,142 @@
     });
   }
 
+  // ─── Floating picker (more menu) ─────────────────────────
+  var _activePicker = null;
+  function closePicker() {
+    if (_activePicker) {
+      _activePicker.remove();
+      _activePicker = null;
+    }
+  }
+  function buildPicker(items, anchorEl) {
+    var picker = document.createElement('div');
+    picker.className = 'v30-fp-picker';
+    picker.setAttribute('role', 'menu');
+    items.forEach(function (item) {
+      if (item.sep) {
+        var sep = document.createElement('div');
+        sep.className = 'v30-fp-picker__sep';
+        picker.appendChild(sep);
+        return;
+      }
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'v30-fp-picker__item' +
+        (item.danger ? ' danger' : '');
+      btn.setAttribute('role', 'menuitem');
+      btn.innerHTML = item.html || esc(item.label || '');
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        closePicker();
+        if (item.action) item.action();
+      });
+      picker.appendChild(btn);
+    });
+    var rect = anchorEl.getBoundingClientRect();
+    picker.style.top = (rect.bottom + 4) + 'px';
+    picker.style.right = (window.innerWidth - rect.right) + 'px';
+    document.body.appendChild(picker);
+    _activePicker = picker;
+    setTimeout(function () {
+      document.addEventListener('click', closePicker, { once: true, capture: true });
+    }, 0);
+    return picker;
+  }
+
+  function buildVcf(c) {
+    var lines = ['BEGIN:VCARD', 'VERSION:3.0'];
+    lines.push('FN:' + (c.name || ''));
+    var parts = String(c.name || '').trim().split(/\s+/);
+    if (parts.length >= 2) lines.push('N:' + parts.slice(1).join(' ') + ';' + parts[0]);
+    if (c.email)    lines.push('EMAIL:' + c.email);
+    if (c.phone)    lines.push('TEL:' + c.phone);
+    if (c.telephone)lines.push('TEL:' + c.telephone);
+    if (c.role)     lines.push('TITLE:' + c.role);
+    if (c.location) lines.push('ADR:;;;' + c.location + ';;;');
+    if (c.linkedin) lines.push('URL:' + c.linkedin);
+    if (c.notes)    lines.push('NOTE:' + String(c.notes).replace(/\r?\n/g, '\\n'));
+    lines.push('END:VCARD');
+    return lines.join('\r\n');
+  }
+
+  function downloadVcf() {
+    var c = STATE.candidate || {};
+    var vcf = buildVcf(c);
+    var blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var safeName = (c.name || 'candidat').replace(/[^a-z0-9_\- ]/gi, '').replace(/\s+/g, '_');
+    a.href = url; a.download = safeName + '.vcf';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    if (window.showToast) window.showToast('Fiche VCF téléchargée', 'success');
+  }
+
+  function archiveCandidate(archived) {
+    var label = archived ? 'Archiver' : 'Désarchiver';
+    if (!confirm(label + ' ce candidat ?')) return;
+    fetchPostJSON('/api/candidates/status', {
+      id: CID,
+      status: (STATE.candidate && STATE.candidate.status) || 'Vivier',
+      is_archived: archived ? 1 : 0
+    }).then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Échec');
+      if (window.showToast) window.showToast(label + ' OK', 'success');
+      if (STATE.candidate) STATE.candidate.is_archived = archived ? 1 : 0;
+    }).catch(function (err) {
+      if (window.showToast) window.showToast(label + ' : ' + err.message, 'error');
+      else alert(label + ' : ' + err.message);
+    });
+  }
+
+  function deleteCandidate() {
+    var name = (STATE.candidate && STATE.candidate.name) || 'ce candidat';
+    if (!confirm('Supprimer définitivement ' + name + ' ?')) return;
+    fetchPostJSON('/api/candidates/delete', { ids: [CID] })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Échec');
+        if (window.showToast) window.showToast('Candidat supprimé', 'success');
+        setTimeout(function () { window.location.href = '/v30/sourcing'; }, 500);
+      })
+      .catch(function (err) {
+        if (window.showToast) window.showToast('Suppression : ' + err.message, 'error');
+        else alert('Suppression : ' + err.message);
+      });
+  }
+
+  function openMoreMenu(anchorEl) {
+    if (_activePicker) { closePicker(); return; }
+    var c = STATE.candidate || {};
+    var items = [];
+    if (c.linkedin) {
+      items.push({
+        label: 'Voir sur LinkedIn',
+        action: function () { window.open(c.linkedin, '_blank', 'noopener'); }
+      });
+    }
+    items.push({
+      label: 'Télécharger le dossier DC',
+      action: function () { window.location.href = '/candidates/' + CID + '/dossier/download'; }
+    });
+    items.push({
+      label: 'Exporter VCF',
+      action: downloadVcf
+    });
+    items.push({ sep: true });
+    var isArchived = !!(c.is_archived);
+    items.push({
+      label: isArchived ? 'Désarchiver' : 'Archiver',
+      action: function () { archiveCandidate(!isArchived); }
+    });
+    items.push({
+      label: 'Supprimer le candidat',
+      danger: true,
+      action: deleteCandidate
+    });
+    buildPicker(items, anchorEl);
+  }
+
   // ─── Actions header ──────────────────────────────────────
   function bindActions() {
     document.addEventListener('click', function (e) {
@@ -426,7 +562,7 @@
       var act = btn.dataset.v30FcAction;
       if (act === 'dc')        window.location.href = '/v30/dc?candidate=' + CID;
       else if (act === 'push') window.location.href = '/v30/push?candidate=' + CID;
-      else if (act === 'more') window.location.href = '/candidate?id=' + CID + '&force_v29=1';
+      else if (act === 'more') { e.stopPropagation(); openMoreMenu(btn); }
     });
   }
 
