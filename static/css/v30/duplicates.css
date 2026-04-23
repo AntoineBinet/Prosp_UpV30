@@ -1,0 +1,187 @@
+/* ProspUp v30 — Doublons (natif) */
+
+.v30-dup { display: flex; flex-direction: column; gap: 18px; }
+
+/* ─── Topbar ─── */
+.v30-dup__topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 0 10px; border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.v30-dup__topbar > div:first-child { min-width: 0; flex: 1 1 220px; }
+.v30-dup__topbar .btn,
+.v30-dup__topbar .select,
+.v30-dup__topbar .input { flex-shrink: 0; }
+.v30-dup__eyebrow {
+  font-size: 10.5px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.v30-dup__title {
+  margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
+  letter-spacing: -.01em;
+}
+.v30-dup__title .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; }
+.v30-dup__sub { font-size: 12.5px; color: var(--text-2); }
+
+/* ─── Controls bar ─── */
+.v30-dup__controls {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+}
+.v30-dup__controls label {
+  font-size: 12px; color: var(--text-2);
+}
+.v30-dup__controls .select { width: auto; min-width: 120px; }
+.v30-dup__summary {
+  flex: 1; min-width: 220px; text-align: right;
+  font-size: 12px; color: var(--text-3);
+}
+
+/* ─── Info card ─── */
+.v30-dup__info {
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  font-size: 12.5px; color: var(--text-2);
+  line-height: 1.55;
+}
+
+/* ─── Section (prospects / companies) ─── */
+.v30-dup__section { display: flex; flex-direction: column; gap: 10px; }
+.v30-dup__section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+}
+.v30-dup__section-title {
+  margin: 0; font-size: 14px; font-weight: 600; color: var(--text);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.v30-dup__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 18px; padding: 0 6px;
+  font-size: 11px; font-weight: 500;
+  background: var(--surface-2); color: var(--text-3);
+  border-radius: 999px;
+}
+
+/* ─── Group card ─── */
+.v30-dup__group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.v30-dup__group-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap;
+}
+.v30-dup__group-title {
+  margin: 0; font-size: 13.5px; font-weight: 600; color: var(--text);
+}
+.v30-dup__group-meta {
+  font-size: 11.5px; color: var(--text-3);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.v30-dup__group-meta code {
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+/* ─── Table ─── */
+.v30-dup__table-wrap { overflow-x: auto; }
+.v30-dup__table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.v30-dup__table th {
+  text-align: left; font-weight: 500;
+  color: var(--text-3); font-size: 11.5px; letter-spacing: .02em;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  white-space: nowrap;
+}
+.v30-dup__table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: top;
+}
+.v30-dup__table tr:last-child td { border-bottom: 0; }
+.v30-dup__table tr:hover td { background: color-mix(in oklch, var(--surface-2) 50%, transparent); }
+
+.v30-dup__row-title { font-weight: 600; color: var(--text); }
+.v30-dup__row-sub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.v30-dup__row-id {
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-3);
+}
+
+.v30-dup__row-actions {
+  display: inline-flex; gap: 4px; white-space: nowrap;
+}
+.v30-dup__row-actions .btn { padding: 0 8px; height: 24px; font-size: 11.5px; }
+
+.v30-dup__keep-radio,
+.v30-dup__merge-check {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-2); cursor: pointer;
+}
+.v30-dup__keep-radio input,
+.v30-dup__merge-check input {
+  accent-color: var(--accent); margin: 0;
+}
+
+.v30-dup__group-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 4px;
+}
+
+/* ─── Empty ─── */
+.v30-dup__empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-3);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  font-size: 12.5px;
+}
+
+/* ─── Merge modal ─── */
+.v30-dup__merge-table {
+  width: 100%; border-collapse: collapse; font-size: 12.5px;
+}
+.v30-dup__merge-table th {
+  text-align: left; font-weight: 500;
+  color: var(--text-3); font-size: 11.5px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  position: sticky; top: 0; z-index: 1;
+}
+.v30-dup__merge-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.v30-dup__merge-val {
+  color: var(--text-2);
+  max-width: 220px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.v30-dup__merge-choice {
+  display: inline-flex; flex-direction: column; gap: 4px;
+}
+.v30-dup__merge-choice label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-2); cursor: pointer;
+}
+.v30-dup__merge-choice input { accent-color: var(--accent); margin: 0; }

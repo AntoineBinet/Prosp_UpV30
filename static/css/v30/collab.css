@@ -1,0 +1,157 @@
+/* ProspUp v30 — Collaboration (natif) */
+
+.v30-collab { display: flex; flex-direction: column; gap: 20px; }
+
+/* ─── Topbar ─── */
+.v30-collab__topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 0 10px; border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.v30-collab__topbar > div:first-child { min-width: 0; flex: 1 1 220px; }
+.v30-collab__topbar .btn { flex-shrink: 0; white-space: nowrap; }
+.v30-collab__eyebrow {
+  font-size: 10.5px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.v30-collab__title {
+  margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
+  letter-spacing: -.01em;
+}
+.v30-collab__title .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; }
+.v30-collab__sub { font-size: 12.5px; color: var(--text-2); }
+
+/* ─── Sections ─── */
+.v30-collab__section { display: flex; flex-direction: column; gap: 10px; }
+.v30-collab__section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+}
+.v30-collab__section-title {
+  margin: 0; font-size: 14px; font-weight: 600; color: var(--text);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.v30-collab__section-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 18px; padding: 0 6px;
+  font-size: 11px; font-weight: 500;
+  background: var(--surface-2); color: var(--text-3);
+  border-radius: 999px;
+}
+
+/* ─── Collaborator group card ─── */
+.v30-collab__group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.v30-collab__group-head {
+  display: flex; align-items: center; gap: 10px;
+}
+.v30-collab__group-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--surface-2); color: var(--text);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 13px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.v30-collab__group-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.v30-collab__group-user { font-size: 11.5px; color: var(--text-3); }
+.v30-collab__group-actions { margin-left: auto; display: flex; gap: 6px; }
+
+/* ─── Share row ─── */
+.v30-collab__share-list { display: flex; flex-direction: column; gap: 6px; }
+.v30-collab__share {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.v30-collab__share-main { flex: 1; min-width: 0; }
+.v30-collab__share-title { font-size: 13px; font-weight: 500; color: var(--text); }
+.v30-collab__share-meta { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.v30-collab__share-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* ─── Prospect row inside shared company ─── */
+.v30-collab__prospect {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.v30-collab__prospect:last-child { border-bottom: 0; }
+.v30-collab__prospect-main { flex: 1; min-width: 0; }
+.v30-collab__prospect-title {
+  font-size: 13px; font-weight: 500; color: var(--text);
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.v30-collab__prospect-sub {
+  font-size: 11.5px; color: var(--text-3); margin-top: 2px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.v30-collab__prospect-sub span { display: inline-flex; align-items: center; gap: 4px; }
+.v30-collab__prospect-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.v30-collab__mini {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  transition: background var(--dur-1), color var(--dur-1), border-color var(--dur-1);
+}
+.v30-collab__mini:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); }
+
+/* ─── Shared prospects group (received) ─── */
+.v30-collab__shared-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 14px 16px;
+  display: flex; flex-direction: column;
+}
+.v30-collab__shared-group-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.v30-collab__shared-group-title {
+  font-size: 14px; font-weight: 600; color: var(--text);
+}
+.v30-collab__badge-sharer {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
+}
+
+/* ─── Empty state ─── */
+.v30-collab__empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-3);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  font-size: 12.5px;
+}
+
+/* ─── Skeletons ─── */
+.v30-collab__skel {
+  height: 52px;
+  border-radius: var(--r-md);
+  background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2));
+  background-size: 200% 100%;
+  animation: v30-collab-skel 1.6s linear infinite;
+}
+@keyframes v30-collab-skel {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Modal tweaks ─── */
+.v30-collab__modal-field-list { display: flex; flex-direction: column; gap: 12px; }
+.v30-collab__modal-search {
+  margin-bottom: 6px;
+}

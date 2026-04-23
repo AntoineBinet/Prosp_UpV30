@@ -3,66 +3,98 @@
 {% block page_id %}v30-duplicates{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="/static/css/v30/parametres.css?v={{ static_hash('css/v30/parametres.css') }}">
+<link rel="stylesheet" href="/static/css/v30/duplicates.css?v={{ static_hash('css/v30/duplicates.css') }}">
 {% endblock %}
 
 {% block content %}
 {% import "_partials/v30/icon.html" as ui %}
 
-<div class="v30-params">
+<div class="v30-dup" data-v30-dup>
 
-  <div class="v30-params__topbar">
+  <div class="v30-dup__topbar">
     <div>
-      <div class="v30-params__eyebrow">Qualité données</div>
-      <h1 class="v30-params__title"><span class="serif">Détection de doublons.</span></h1>
-      <div class="v30-params__sub">
+      <div class="v30-dup__eyebrow">Qualité données</div>
+      <h1 class="v30-dup__title"><span class="serif">Détection de doublons.</span></h1>
+      <div class="v30-dup__sub">
         Repère et fusionne les doublons d'entreprises et de prospects.
       </div>
     </div>
-    <div class="v30-spacer"></div>
-    <a class="btn btn-accent" href="/duplicates">
-      {{ ui.icon('link', 13) }} Lancer l'analyse
-    </a>
   </div>
 
-  <div class="v30-params__grid">
-
-    <a class="v30-params__card" href="/duplicates?type=companies">
-      <div class="v30-params__card-head">
-        {{ ui.icon('building', 16) }}
-        <h3>Doublons d'entreprises</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Détection par nom + site, fusion en conservant le plus ancien et en
-        réattribuant les prospects/logs.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
-
-    <a class="v30-params__card" href="/duplicates?type=prospects">
-      <div class="v30-params__card-head">
-        {{ ui.icon('users', 16) }}
-        <h3>Doublons de prospects</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Détection par email, téléphone ou LinkedIn. Fusion manuelle après
-        comparaison côte-à-côte.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
-
-    <a class="v30-params__card" href="/duplicates?type=ignored">
-      <div class="v30-params__card-head">
-        {{ ui.icon('x', 16) }}
-        <h3>Paires ignorées</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Couples marqués comme non-doublons — consultables et réinitialisables.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
-
+  <div class="v30-dup__controls">
+    <label for="v30-dup-score">Seuil de similarité</label>
+    <select id="v30-dup-score" class="select" data-v30-dup-score>
+      <option value="0.7">0.70</option>
+      <option value="0.8">0.80</option>
+      <option value="0.85" selected>0.85</option>
+      <option value="0.9">0.90</option>
+      <option value="0.95">0.95</option>
+    </select>
+    <button type="button" class="btn btn-primary btn-sm" data-v30-dup-scan>
+      {{ ui.icon('search', 13) }} Scanner
+    </button>
+    <div class="v30-dup__summary" data-v30-dup-summary>—</div>
   </div>
+
+  <div class="v30-dup__info">
+    Fusion = création d'un historique propre (notes, tags, callNotes, push logs) + suppression de l'élément doublon.
+  </div>
+
+  {# ─── Doublons prospects ─── #}
+  <section class="v30-dup__section">
+    <div class="v30-dup__section-head">
+      <h2 class="v30-dup__section-title">
+        {{ ui.icon('users', 14) }} Doublons de prospects
+        <span class="v30-dup__count" data-v30-dup-pros-count>0</span>
+      </h2>
+    </div>
+    <div data-v30-dup-prospects>
+      <div class="v30-dup__empty">Cliquez sur « Scanner » pour détecter les doublons.</div>
+    </div>
+  </section>
+
+  {# ─── Doublons entreprises ─── #}
+  <section class="v30-dup__section">
+    <div class="v30-dup__section-head">
+      <h2 class="v30-dup__section-title">
+        {{ ui.icon('building', 14) }} Doublons d'entreprises
+        <span class="v30-dup__count" data-v30-dup-comp-count>0</span>
+      </h2>
+    </div>
+    <div data-v30-dup-companies>
+      <div class="v30-dup__empty">Cliquez sur « Scanner » pour détecter les doublons.</div>
+    </div>
+  </section>
 
 </div>
+
+{# ─── Modale fusion prospect (choix par champ) ─── #}
+<div class="v30-modal-bd" data-v30-pp-modal="dup-merge" hidden>
+  <div class="v30-modal v30-modal--xl" role="dialog" aria-modal="true" aria-labelledby="v30-dup-merge-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-dup-merge-title">
+        {{ ui.icon('link', 14) }} Fusionner deux prospects
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size:12.5px;margin:0 0 12px;">
+        <strong>Fiche A</strong> : prospect conservé (ID <span data-v30-dup-keep-id>—</span>).
+        <strong>Fiche B</strong> : prospect supprimé après fusion (ID <span data-v30-dup-merge-id>—</span>).
+        Choisissez la valeur à garder pour chaque champ.
+      </p>
+      <div data-v30-dup-merge-body>
+        <div class="muted">Chargement…</div>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-dup-merge-confirm>
+        {{ ui.icon('check', 13) }} Fusionner
+      </button>
+    </div>
+  </div>
+</div>
+
+<script defer src="/static/js/v30/duplicates.js?v={{ static_hash('js/v30/duplicates.js') }}"></script>
 {% endblock %}
