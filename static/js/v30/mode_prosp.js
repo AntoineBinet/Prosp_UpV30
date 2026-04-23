@@ -81,9 +81,9 @@ window.mpClose = function () {
         "Pas int\u00e9ress\u00e9": 'rgba(148,163,184,0.12)'
     };
 
-    var TL_ICONS = { call_note: '\uD83D\uDCDE', push: '\uD83D\uDCE7', done: '\u2705', rdv: '\uD83D\uDCC5', linkedin: '\uD83D\uDD17', event: '\uD83D\uDCCC', note_libre: '\uD83D\uDCDD' };
-    var TL_LABELS = { call_note: "Note d'appel", push: 'Push', done: 'Fait', rdv: 'RDV', linkedin: 'LinkedIn', event: '\u00c9v\u00e9nement', note_libre: 'Note' };
-    var TL_DOT = { call_note: 'call', push: 'push', done: 'done', rdv: 'rdv', linkedin: 'linkedin', note_libre: 'note', event: 'event' };
+    var TL_ICONS = { call_note: '\uD83D\uDCDE', push: '\uD83D\uDCE7', done: '\u2705', rdv: '\uD83D\uDCC5', linkedin: '\uD83D\uDD17', event: '\uD83D\uDCCC', note_libre: '\uD83D\uDCDD', call: '\uD83D\uDCDE', status_change: '\uD83D\uDD04' };
+    var TL_LABELS = { call_note: "Note d'appel", push: 'Push', done: 'Fait', rdv: 'RDV', linkedin: 'LinkedIn', event: '\u00c9v\u00e9nement', note_libre: 'Note', call: 'Appel sortant', status_change: 'Changement de statut' };
+    var TL_DOT = { call_note: 'call', push: 'push', done: 'done', rdv: 'rdv', linkedin: 'linkedin', note_libre: 'note', event: 'event', call: 'call', status_change: 'event' };
 
     // ── Init ──
     async function init() {
@@ -330,6 +330,7 @@ window.mpClose = function () {
                 feed.innerHTML = '<div class="mp-tl-empty">Timeline non disponible</div>';
             });
     }
+    window.mpLoadTimeline = mpLoadTimeline;
 
     function mpRenderTlItem(event) {
         var type = event.type || 'event';
@@ -485,6 +486,7 @@ window.mpClose = function () {
         if (!card) return;
         var body = card.querySelector('.mp-card-body');
         if (!body) return;
+        var oldStatut = (p.statut || '');
         var prospectData = { id: p.id };
         body.querySelectorAll('[data-field]').forEach(function (el) {
             var field = el.dataset.field;
@@ -493,6 +495,8 @@ window.mpClose = function () {
             prospectData[field] = val;
             p[field] = val;
         });
+        var newStatut = (prospectData.statut || '');
+        var statutChanged = (oldStatut !== newStatut);
         var savedIndex = currentIndex; // capture before any await — currentIndex may change if user navigates while fetch is in flight
         saving = true;
         var saveBtn = card.querySelector('.mp-save-btn');
@@ -511,6 +515,9 @@ window.mpClose = function () {
             setTimeout(function () { if (saveBtn) { saveBtn.textContent = 'Enregistrer'; saveBtn.disabled = false; } }, 1200);
             var heroEl = card.querySelector('.mp-card-hero');
             if (heroEl) heroEl.style.setProperty('--hero-color', STATUS_COLORS[p.statut] || '#64748b');
+            // Recharger la timeline uniquement si le statut a chang\u00e9, pour ne pas effacer
+            // une note DOM fra\u00eechement inject\u00e9e par mpAddNote
+            if (statutChanged && savedIndex === currentIndex) mpLoadTimeline(p.id);
         } catch (e) {
             if (saveBtn) { saveBtn.textContent = 'Erreur !'; saveBtn.disabled = false; }
             setTimeout(function () { if (saveBtn) saveBtn.textContent = 'Enregistrer'; }, 2000);
@@ -588,8 +595,8 @@ function mpLogCall(prospectId) {
               window.mpRefreshLastContact(prospectId, data.lastContact);
           }
           // Recharger la timeline pour afficher l'entrée "Appel sortant"
-          if (data.ok && typeof ntLoadFeed === 'function') {
-              ntLoadFeed('ntBox_' + prospectId, 'prospect', prospectId);
+          if (data.ok && typeof window.mpLoadTimeline === 'function') {
+              window.mpLoadTimeline(prospectId);
           }
       })
       .catch(function () {});

@@ -5626,6 +5626,19 @@ def mode_prosp_save():
                     )
         except Exception:
             pass
+        # Log status change event for timeline (notes & suivi)
+        try:
+            if "statut" in prospect:
+                new_statut = str(prospect.get("statut") or "").strip()
+                if new_statut and old_statut != new_statut:
+                    ev_at = datetime.datetime.now().isoformat()
+                    content_statut = f"{old_statut} → {new_statut}" if old_statut else new_statut
+                    conn.execute(
+                        "INSERT OR IGNORE INTO prospect_events (prospect_id, date, type, title, content, meta, createdAt) VALUES (?,?,?,?,?,?,?)",
+                        (pid, ev_at, "status_change", "Changement de statut", content_statut, None, ev_at),
+                    )
+        except Exception:
+            pass
         conn.commit()
         # Fetch updated prospect to return it
         row = conn.execute("SELECT * FROM prospects WHERE id = ? AND owner_id = ?", (pid, uid)).fetchone()
