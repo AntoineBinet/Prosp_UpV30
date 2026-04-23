@@ -429,6 +429,12 @@
   flex-direction: column;
   gap: 8px;
   min-height: 420px;
+  border: 1px solid transparent;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.v30-pp-kcol.is-drop-target {
+  border-color: var(--accent, #7c5cff);
+  background: color-mix(in oklab, var(--surface-2) 85%, var(--accent, #7c5cff) 15%);
 }
 .v30-pp-kcol__head {
   display: flex;
@@ -441,12 +447,39 @@
 }
 .v30-pp-kcol__title { font-size: 12px; font-weight: 600; color: var(--text); }
 .v30-pp-kcol__count { font-size: 11px; color: var(--text-3); }
+.v30-pp-kcol__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+  flex: 1;
+}
+.v30-pp-kcol__empty {
+  padding: 20px 8px;
+  font-size: 11.5px;
+  text-align: center;
+  color: var(--text-3);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+}
 
 .v30-pp-kcard {
   padding: 10px;
   border-radius: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow 120ms ease, transform 120ms ease, opacity 120ms ease;
+}
+.v30-pp-kcard:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.v30-pp-kcard:active { cursor: grabbing; }
+.v30-pp-kcard.is-dragging {
+  opacity: 0.4;
+  transform: scale(0.98);
 }
 .v30-pp-kcard__name { font-size: 13px; font-weight: 500; color: var(--text); }
 .v30-pp-kcard__co   { font-size: 11.5px; color: var(--text-3); margin-top: 1px; }

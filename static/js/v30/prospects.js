@@ -369,39 +369,53 @@
   }
 
   // ─── Rendu Kanban ────────────────────────────────────────────
+  // `primary`  : statut appliqué quand on drop une carte dans la colonne.
+  // `statuts`  : statuts (y.c. legacy) qui tombent dans la colonne au render.
   var KANBAN_COLS = [
-    { statuts: ["Pas d'actions", 'Prospecté'], t: 'Prospecter',  col: 'var(--info)' },
-    { statuts: ['Contacté'],                     t: 'Contacté',    col: 'var(--accent)' },
-    { statuts: ['Rendez-vous'],                  t: 'RDV',          col: 'oklch(0.50 0.15 280)' },
-    { statuts: ['Proposition', 'À rappeler'],   t: 'Proposition', col: 'oklch(0.50 0.14 75)' },
-    { statuts: ['Gagné'],                        t: 'Gagné',        col: 'var(--success)' }
+    { primary: "Pas d'actions", statuts: ["Pas d'actions", '', null, undefined],      t: 'À traiter',   col: 'var(--info)' },
+    { primary: 'Appelé',         statuts: ['Appelé', 'Messagerie', 'Contacté'],        t: 'Contacté',    col: 'var(--accent)' },
+    { primary: 'À rappeler',    statuts: ['À rappeler', 'A rappeler'],                t: 'À rappeler',  col: 'oklch(0.70 0.14 75)' },
+    { primary: 'Rendez-vous',    statuts: ['Rendez-vous'],                              t: 'RDV',         col: 'oklch(0.55 0.15 280)' },
+    { primary: 'Prospecté',      statuts: ['Prospecté', 'Pas intéressé', 'Gagné', 'Perdu', 'Proposition'], t: 'Prospecté', col: 'var(--success)' }
   ];
+
+  function kanbanColIndex(statut) {
+    for (var i = 0; i < KANBAN_COLS.length; i++) {
+      if (KANBAN_COLS[i].statuts.indexOf(statut) >= 0) return i;
+    }
+    return 0;
+  }
 
   function renderKanban() {
     var host = document.querySelector('[data-v30-kanban]');
     if (!host) return;
     var buckets = KANBAN_COLS.map(function () { return []; });
     STATE.prospects.forEach(function (p) {
-      var idx = KANBAN_COLS.findIndex(function (c) { return c.statuts.indexOf(p.statut) >= 0; });
-      if (idx < 0) idx = 0;
-      buckets[idx].push(p);
+      buckets[kanbanColIndex(p.statut)].push(p);
     });
     host.innerHTML = KANBAN_COLS.map(function (c, i) {
       var items = buckets[i];
-      var body = items.length === 0
-        ? '<div class="v30-pp-empty" style="padding:16px 8px;font-size:12px;">—</div>'
-        : items.map(function (p) {
-            var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
-            return '<a class="v30-pp-kcard" href="#" data-v30-open="' + p.id + '">' +
-              '<div class="v30-pp-kcard__name truncate">' + esc(p.name || '—') + '</div>' +
-              '<div class="v30-pp-kcard__co truncate">' + esc(coName) + '</div>' +
-              '<div class="v30-pp-kcard__foot">' +
-                renderTags(p.tags) +
-                '<span class="v30-spacer"></span>' +
-              '</div>' +
-            '</a>';
-          }).join('');
-      return '<div class="v30-pp-kcol">' +
+      var cards = items.map(function (p) {
+        var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
+        return '<div class="v30-pp-kcard" draggable="true"' +
+          ' data-v30-open="' + p.id + '"' +
+          ' data-v30-kcard-id="' + p.id + '"' +
+          ' data-v30-kcard-statut="' + esc(p.statut || '') + '"' +
+          ' role="button" tabindex="0">' +
+          '<div class="v30-pp-kcard__name truncate">' + esc(p.name || '—') + '</div>' +
+          '<div class="v30-pp-kcard__co truncate">' + esc(coName) + '</div>' +
+          '<div class="v30-pp-kcard__foot">' +
+            renderTags(p.tags) +
+            '<span class="v30-spacer"></span>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+      var body = '<div class="v30-pp-kcol__body" data-v30-kcol-drop="' + i + '">' +
+        (items.length === 0
+          ? '<div class="v30-pp-empty v30-pp-kcol__empty">Déposer ici</div>'
+          : cards) +
+        '</div>';
+      return '<div class="v30-pp-kcol" data-v30-kcol-idx="' + i + '" data-v30-kcol-statut="' + esc(c.primary) + '">' +
         '<div class="v30-pp-kcol__head">' +
           '<span class="v30-pp-kcol__dot" style="background:' + c.col + ';"></span>' +
           '<span class="v30-pp-kcol__title">' + esc(c.t) + '</span>' +
@@ -708,9 +722,93 @@
       if (!a) return;
       // Ne pas naviguer si on clique sur un élément interactif dans la ligne
       if (e.target.closest('button, input, a[href]:not([data-v30-open]), [data-v30-tel-multi]')) return;
+      // Ne pas naviguer si on vient de drop une carte kanban (évite l'open fantôme).
+      if (KANBAN_DND.suppressClickUntil && Date.now() < KANBAN_DND.suppressClickUntil) return;
       e.preventDefault();
       var id = a.dataset.v30Open;
       window.location.href = '/v30/prospect/' + encodeURIComponent(id);
+    });
+  }
+
+  // ─── Kanban : drag & drop ───────────────────────────────────
+  var KANBAN_DND = { dragId: null, fromCol: null, suppressClickUntil: 0 };
+
+  function bindKanbanDnd() {
+    var host = document.querySelector('[data-v30-kanban]');
+    if (!host) return;
+
+    host.addEventListener('dragstart', function (e) {
+      var card = e.target.closest('[data-v30-kcard-id]');
+      if (!card) return;
+      KANBAN_DND.dragId = Number(card.dataset.v30KcardId);
+      KANBAN_DND.fromCol = kanbanColIndex(card.dataset.v30KcardStatut || '');
+      card.classList.add('is-dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(KANBAN_DND.dragId)); } catch (_) {}
+      }
+    });
+
+    host.addEventListener('dragend', function (e) {
+      var card = e.target.closest('[data-v30-kcard-id]');
+      if (card) card.classList.remove('is-dragging');
+      host.querySelectorAll('.v30-pp-kcol.is-drop-target').forEach(function (el) {
+        el.classList.remove('is-drop-target');
+      });
+      KANBAN_DND.dragId = null;
+      KANBAN_DND.fromCol = null;
+    });
+
+    host.addEventListener('dragover', function (e) {
+      var col = e.target.closest('[data-v30-kcol-idx]');
+      if (!col || KANBAN_DND.dragId == null) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      host.querySelectorAll('.v30-pp-kcol.is-drop-target').forEach(function (el) {
+        if (el !== col) el.classList.remove('is-drop-target');
+      });
+      col.classList.add('is-drop-target');
+    });
+
+    host.addEventListener('dragleave', function (e) {
+      var col = e.target.closest('[data-v30-kcol-idx]');
+      if (!col) return;
+      // Ne retire le highlight que si on sort vraiment de la colonne.
+      if (col.contains(e.relatedTarget)) return;
+      col.classList.remove('is-drop-target');
+    });
+
+    host.addEventListener('drop', function (e) {
+      var col = e.target.closest('[data-v30-kcol-idx]');
+      if (!col || KANBAN_DND.dragId == null) return;
+      e.preventDefault();
+      col.classList.remove('is-drop-target');
+      var toIdx = Number(col.dataset.v30KcolIdx);
+      var id = KANBAN_DND.dragId;
+      var fromIdx = KANBAN_DND.fromCol;
+      KANBAN_DND.suppressClickUntil = Date.now() + 400;
+      KANBAN_DND.dragId = null;
+      KANBAN_DND.fromCol = null;
+      if (toIdx === fromIdx) return;
+      var newStatut = KANBAN_COLS[toIdx] && KANBAN_COLS[toIdx].primary;
+      if (!newStatut) return;
+      var p = STATE.prospects.find(function (x) { return Number(x.id) === Number(id); });
+      if (!p) return;
+      var prevStatut = p.statut;
+      p.statut = newStatut;
+      renderKanban();
+      renderTable();
+      fetchPostJSON('/api/prospects/bulk-edit', { ids: [id], field: 'statut', value: newStatut })
+        .then(function () {
+          toast('Statut → ' + newStatut, 'success');
+        })
+        .catch(function (err) {
+          var target = STATE.prospects.find(function (x) { return Number(x.id) === Number(id); });
+          if (target) target.statut = prevStatut;
+          renderKanban();
+          renderTable();
+          toast('Erreur : ' + (err && err.message || err), 'error');
+        });
     });
   }
 
@@ -1681,6 +1779,7 @@
     bindSelection();
     bindSplit();
     bindOpen();
+    bindKanbanDnd();
     bindBulk();
     bindSearch();
     bindPagination();
