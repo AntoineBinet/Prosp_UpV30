@@ -15101,7 +15101,10 @@ def api_rapport_hebdo():
     # New contacts this week (lastContact in range AND not before)
     new_relances_count = len(week_relances)
 
-    # Companies touched this week
+    # Companies touched this week + stats par entreprise
+    prospects_by_id = {p["id"]: p for p in prospects}
+    companies_map = {c["id"]: c for c in companies}
+
     week_company_ids = set()
     for n in week_notes:
         cid = n.get("_company_id")
@@ -15109,14 +15112,39 @@ def api_rapport_hebdo():
             week_company_ids.add(cid)
     for pl in week_push:
         pid = pl.get("prospect_id")
-        p = next((x for x in prospects if x["id"] == pid), None)
+        p = prospects_by_id.get(pid)
         if p:
             week_company_ids.add(p.get("company_id"))
-    companies_map = {c["id"]: c for c in companies}
-    touched_companies = [
-        (companies_map.get(cid, {}).get("groupe") or companies_map.get(cid, {}).get("site") or f"ID {cid}")
-        for cid in week_company_ids if cid
-    ]
+
+    # Compter pushs et relances par company_id pour la semaine
+    company_push_counts: dict = {}
+    for pl in week_push:
+        p = prospects_by_id.get(pl.get("prospect_id"))
+        if p and p.get("company_id"):
+            cid = p["company_id"]
+            company_push_counts[cid] = company_push_counts.get(cid, 0) + 1
+
+    company_relance_counts: dict = {}
+    for p in week_relances:
+        cid = p.get("company_id")
+        if cid:
+            company_relance_counts[cid] = company_relance_counts.get(cid, 0) + 1
+
+    def _company_name(cid):
+        c = companies_map.get(cid, {})
+        return c.get("groupe") or c.get("site") or f"ID {cid}"
+
+    top_companies = sorted(
+        [
+            {
+                "name": _company_name(cid),
+                "pushs": company_push_counts.get(cid, 0),
+                "prospects": company_relance_counts.get(cid, 0),
+            }
+            for cid in week_company_ids if cid
+        ],
+        key=lambda x: -(x["pushs"] + x["prospects"]),
+    )[:15]
 
     # Activity detail (BUG 16 : on inclut prospect_name partout)
     notes_detail = [{
@@ -15128,7 +15156,6 @@ def api_rapport_hebdo():
         "date": n.get("date", ""),
     } for n in sorted(week_notes, key=lambda x: x.get("date", ""))]
 
-    prospects_by_id = {p["id"]: p for p in prospects}
     push_detail = [{
         "channel": pl.get("channel", ""),
         "date": (pl.get("sentAt") or "")[:10],
@@ -15153,10 +15180,11 @@ def api_rapport_hebdo():
             "overdue": len(overdue),
             "conversion_pct": conversion_pct,
             "total_prospects": total,
-            "companies_touched": len(touched_companies),
+            "companies_touched": len(top_companies),
         },
         "statuts": statuts,
-        "touched_companies": sorted(touched_companies)[:15],
+        "top_companies": top_companies,
+        "touched_companies": [c["name"] for c in top_companies],
         "notes_detail": notes_detail[:20],
         "push_detail": push_detail[:20],
     })
