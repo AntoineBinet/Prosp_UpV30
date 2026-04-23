@@ -15961,13 +15961,22 @@ def api_dashboard():
             "statut": p.get("statut", ""),
             "company_id": p.get("company_id"),
         } for p in sorted(overdue, key=lambda x: x.get("nextFollowUp", ""))[:10]],
+        "today_appointments": [{
+            "prospect_id": p["id"],
+            "prospect_name": p.get("name", ""),
+            "company_name": p.get("company_groupe") or p.get("company_site") or "",
+            "rdvDate": p.get("rdvDate", ""),
+        } for p in sorted(
+            [p for p in prospects_list if (p.get("rdvDate") or "").strip()[:10] == today],
+            key=lambda x: x.get("rdvDate", "")
+        )],
         "upcoming_rdv": [{
             "id": p["id"],
             "name": p["name"],
             "rdvDate": p.get("rdvDate", ""),
             "statut": p.get("statut", ""),
         } for p in sorted(
-            [p for p in prospects_list if (p.get("rdvDate") or "").strip() >= today],
+            [p for p in prospects_list if (p.get("rdvDate") or "").strip()[:10] > today],
             key=lambda x: x.get("rdvDate", "")
         )[:5]],
     })
