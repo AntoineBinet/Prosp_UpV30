@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect width="32" height="32" rx="7.5" fill="url(#g)"/>
+  <!-- Letter P (compound path, evenodd) -->
+  <path fill-rule="evenodd" fill="white" d="
+    M7 7H20Q26.5 7 26.5 12.5Q26.5 18 20 18H11V25H7Z
+    M11 10.5H19Q23 10.5 23 12.5Q23 14.5 19 14.5H11Z
+  "/>
+</svg>
