@@ -10,7 +10,7 @@
     { key: 'pertinence', label: 'Pertinence' },
     { key: 'push', label: 'Push' },
     { key: 'lastContact', label: 'Dernière action' },
-    { key: 'relance', label: 'Prochain RDV' },
+    { key: 'relance', label: 'Relance' },
     { key: 'tags', label: 'Tags' },
     { key: 'actions', label: 'Actions', fixed: true }
   ];
@@ -525,8 +525,11 @@
       var filtered = all.filter(function (p) {
         if (filter === 'relance') {
           if (!/(relanc|relance|À rappeler|A rappeler|rappeler)/i.test(p.statut || '')) return false;
-        } else if (filter === 'hot') {
-          if (parseInt(p.pertinence, 10) < 4) return false;
+        } else if (filter === 'rdv') {
+          if ((p.statut || '').toLowerCase() !== 'rendez-vous') return false;
+        } else if (filter === 'prospecte') {
+          var s0 = (p.statut || '').toLowerCase();
+          if (s0 !== 'prospecté' && s0 !== 'prospecte') return false;
         }
         if (F.statuts && F.statuts.length && F.statuts.indexOf(p.statut) < 0) return false;
         if (F.pertMin && parseInt(p.pertinence, 10) < F.pertMin) return false;
@@ -600,9 +603,14 @@
     if (relanceEl) relanceEl.textContent = all.filter(function (p) {
       return /(relanc|relance|À rappeler|A rappeler|rappeler)/i.test(p.statut || '');
     }).length.toLocaleString('fr-FR');
-    var hotEl = document.querySelector('.v30-pp-views [data-view-filter="hot"] [data-field="count"]');
-    if (hotEl) hotEl.textContent = all.filter(function (p) {
-      return parseInt(p.pertinence, 10) >= 4;
+    var rdvEl = document.querySelector('.v30-pp-views [data-view-filter="rdv"] [data-field="count"]');
+    if (rdvEl) rdvEl.textContent = all.filter(function (p) {
+      return (p.statut || '').toLowerCase() === 'rendez-vous';
+    }).length.toLocaleString('fr-FR');
+    var prospecteEl = document.querySelector('.v30-pp-views [data-view-filter="prospecte"] [data-field="count"]');
+    if (prospecteEl) prospecteEl.textContent = all.filter(function (p) {
+      var s = (p.statut || '').toLowerCase();
+      return s === 'prospecté' || s === 'prospecte';
     }).length.toLocaleString('fr-FR');
   }
 
@@ -1195,7 +1203,8 @@
       loadProspects();
     });
     var clearAll = document.querySelector('[data-v30-flt-clear-all]');
-    if (clearAll) clearAll.addEventListener('click', function () {
+    if (clearAll) clearAll.addEventListener('click', function (e) {
+      e.stopPropagation();
       STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
       STATE.q = '';
       var inp = document.querySelector('[data-v30-search]');
@@ -1638,7 +1647,7 @@
     var saved = loadPersistedFilters();
     if (!saved) return;
     if (typeof saved.q === 'string') STATE.q = saved.q;
-    if (typeof saved.filter === 'string') STATE.filter = saved.filter;
+    if (typeof saved.filter === 'string') STATE.filter = saved.filter === 'hot' ? 'rdv' : saved.filter;
     STATE.activeSavedViewId = saved.savedViewId || null;
     if (saved.filters && typeof saved.filters === 'object') {
       STATE.filters = {
