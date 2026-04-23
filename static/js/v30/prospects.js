@@ -372,11 +372,11 @@
   // `primary`  : statut appliqué quand on drop une carte dans la colonne.
   // `statuts`  : statuts (y.c. legacy) qui tombent dans la colonne au render.
   var KANBAN_COLS = [
-    { primary: "Pas d'actions", statuts: ["Pas d'actions", '', null, undefined],      t: 'À traiter',   col: 'var(--info)' },
-    { primary: 'Appelé',         statuts: ['Appelé', 'Messagerie', 'Contacté'],        t: 'Contacté',    col: 'var(--accent)' },
-    { primary: 'À rappeler',    statuts: ['À rappeler', 'A rappeler'],                t: 'À rappeler',  col: 'oklch(0.70 0.14 75)' },
-    { primary: 'Rendez-vous',    statuts: ['Rendez-vous'],                              t: 'RDV',         col: 'oklch(0.55 0.15 280)' },
-    { primary: 'Prospecté',      statuts: ['Prospecté', 'Pas intéressé', 'Gagné', 'Perdu', 'Proposition'], t: 'Prospecté', col: 'var(--success)' }
+    { primary: "Pas d'actions", statuts: ["Pas d'actions", 'Messagerie', '', null, undefined], t: 'À traiter',   col: 'var(--info)' },
+    { primary: 'Appelé',         statuts: ['Appelé', 'Contacté', 'Pas intéressé'],               t: 'Contacté',    col: 'var(--accent)' },
+    { primary: 'À rappeler',    statuts: ['À rappeler', 'A rappeler'],                           t: 'À rappeler',  col: 'oklch(0.70 0.14 75)' },
+    { primary: 'Rendez-vous',    statuts: ['Rendez-vous'],                                         t: 'RDV',         col: 'oklch(0.55 0.15 280)' },
+    { primary: 'Prospecté',      statuts: ['Prospecté'],                                           t: 'Prospecté',   col: 'var(--success)' }
   ];
 
   function kanbanColIndex(statut) {
