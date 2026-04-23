@@ -2,6 +2,22 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.7] — 2026-04-23 · Prospects v30 · Regroupement des statuts dans le kanban
+
+La colonne « Prospecté » du kanban regroupait à tort « Pas intéressé », « Gagné », « Perdu », « Proposition » (142 items) alors que le statut canonique « Prospecté » n'en comptait que 8 (mismatch avec l'onglet de filtre). La colonne « Contacté » incluait « Messagerie » qui est plutôt un statut d'attente.
+
+### Nouveau regroupement
+- **À traiter** : `Pas d'actions`, `Messagerie`, (vide) — tout ce qui n'a pas encore reçu d'action effective.
+- **Contacté** : `Appelé`, `Contacté`, `Pas intéressé` — la prise de contact a eu lieu (positive ou négative).
+- **À rappeler** : `À rappeler` — inchangé.
+- **RDV** : `Rendez-vous` — inchangé.
+- **Prospecté** : `Prospecté` uniquement — section post-RDV à part entière.
+
+Conséquence : le compte de la colonne kanban « Prospecté » = compte de l'onglet « Prospecté » = KPI « PROSPECTÉS ». Idem pour RDV. Les statuts legacy `Gagné`/`Perdu`/`Proposition` (présents uniquement dans `templates/v30/preview.html`, pas dans les dropdowns réels) ne sont plus mappés — s'ils existaient en base ils tomberaient dans « À traiter » (fallback) mais `STATUS_OPTIONS` ne les expose pas.
+
+### Changements
+- **`static/js/v30/prospects.js:374`** — `KANBAN_COLS` : `Pas intéressé` déplacé de Prospecté → Contacté, `Messagerie` déplacé de Contacté → À traiter, `Gagné`/`Perdu`/`Proposition` retirés.
+
 ## [30.6] — 2026-04-23 · Prospects v30 · Comptes RDV / Prospecté cohérents (KPI, tabs, kanban)
 
 Sur `/v30/prospects`, les comptes affichés dans les trois zones (cartes KPI en haut, onglets de filtres, colonnes du kanban) divergeaient. Exemple observé : KPI « RDV 25 », tab « RDV 19 », colonne kanban « RDV 0 ». Idem pour « Prospecté ». Deux bugs corrigés.
