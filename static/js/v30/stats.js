@@ -305,9 +305,10 @@
             calls_made:          kpi.notes != null ? kpi.notes : null,
             prospects_delta: null, rdv_delta: null, pushs_delta: null, calls_delta: null
           },
-          top_companies: (d.touched_companies || []).map(function (name) {
-            return { name: name, pushs: '—', prospects: '—' };
-          }),
+          // top_companies vient directement de l'API avec pushs+prospects counts
+          top_companies: (d.top_companies || []).length
+            ? d.top_companies
+            : (d.touched_companies || []).map(function (name) { return { name: name, pushs: 0, prospects: 0 }; }),
           top_pushed: Object.keys(pushCounts)
             .sort(function (a, b) { return pushCounts[b] - pushCounts[a]; })
             .map(function (k) { return { name: k, count: pushCounts[k] }; }),
@@ -382,6 +383,43 @@
       navigator.clipboard.writeText(md).then(function () {
         if (window.showToast) window.showToast('Markdown copié', 'success');
       });
+    });
+    var genSummary = document.querySelector('[data-v30-rep-gen-summary]');
+    if (genSummary) genSummary.addEventListener('click', function () {
+      var k = (REP.data && REP.data.kpis) || {};
+      var raw = (REP.data && REP.data._raw) || {};
+      var kpi = raw.kpi || {};
+      var week = REP.week || '—';
+      var prompt = 'Tu es un assistant pour un cabinet de recrutement B2B (placement de consultants).\n' +
+        'Génère un résumé éditorial professionnel et concis de la semaine ' + week + ' en 2-3 phrases (en français), ' +
+        'basé sur ces chiffres :\n' +
+        '- Prospects contactés : ' + (k.prospects_contacted || 0) + '\n' +
+        '- RDV planifiés : ' + (k.rdv_scheduled || 0) + '\n' +
+        '- Pushs envoyés : ' + (k.pushs_sent || 0) + '\n' +
+        '- Notes d\'appel : ' + (k.calls_made || 0) + '\n' +
+        '- Entreprises touchées : ' + (kpi.companies_touched || 0) + '\n' +
+        '- Taux de conversion : ' + (kpi.conversion_pct || 0) + '%\n\n' +
+        'Style : direct, professionnel, sans bullshit. Inclus les points forts de la semaine. ' +
+        'Réponds uniquement avec le résumé, sans titre ni introduction.';
+      var summaryEl = document.querySelector('[data-v30-rep-ce="summary"]');
+      if (!summaryEl) return;
+      genSummary.disabled = true;
+      genSummary.textContent = 'Génération…';
+      (typeof callOllama === 'function' ? callOllama(prompt, { stream: false, timeoutMs: 60000 }) : Promise.reject('callOllama indisponible'))
+        .then(function (text) {
+          if (text && text.trim()) {
+            summaryEl.innerText = text.trim();
+            repSaveCE();
+            if (window.showToast) window.showToast('Résumé généré', 'success', 2000);
+          }
+        })
+        .catch(function (err) {
+          if (window.showToast) window.showToast('IA indisponible : ' + err, 'error', 4000);
+        })
+        .finally(function () {
+          genSummary.disabled = false;
+          genSummary.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Générer IA';
+        });
     });
     var xlsx = document.querySelector('[data-v30-rep-xlsx]');
     if (xlsx) xlsx.addEventListener('click', function () {

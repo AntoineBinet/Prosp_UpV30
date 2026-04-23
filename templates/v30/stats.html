@@ -177,7 +177,13 @@
       </header>
 
       <section class="v30-rep-sec">
-        <h2>Résumé</h2>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <h2 style="margin:0;">Résumé</h2>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-rep-gen-summary
+                  style="font-size:11px;padding:3px 8px;" title="Générer un résumé avec l'IA">
+            {{ ui.icon('zap', 11) }} Générer IA
+          </button>
+        </div>
         <div class="v30-rep-sec__ce" contenteditable="true" data-v30-rep-ce="summary"
              data-placeholder="Résumé éditorial de la semaine (wins, blockers, focus)"></div>
       </section>
