@@ -286,7 +286,34 @@
     if (picker) picker.value = REP.week;
     return fetchJSON('/api/rapport-hebdo?week=' + encodeURIComponent(REP.week))
       .then(function (res) {
-        REP.data = res || {};
+        // L'API retourne { ok, data: { start, end, kpi, touched_companies, push_detail, ... } }
+        var d = (res && res.data) || {};
+        var kpi = d.kpi || {};
+        // Grouper push_detail par prospect pour avoir un count
+        var pushCounts = {};
+        (d.push_detail || []).forEach(function (p) {
+          var k = p.prospect_name || '—';
+          pushCounts[k] = (pushCounts[k] || 0) + 1;
+        });
+        // Normaliser dans la forme attendue par les fonctions de rendu
+        REP.data = {
+          week: { from: d.start || '', to: d.end || '' },
+          kpis: {
+            prospects_contacted: kpi.relances != null ? kpi.relances : null,
+            rdv_scheduled:       kpi.rdv != null ? kpi.rdv : null,
+            pushs_sent:          kpi.push_total != null ? kpi.push_total : null,
+            calls_made:          kpi.notes != null ? kpi.notes : null,
+            prospects_delta: null, rdv_delta: null, pushs_delta: null, calls_delta: null
+          },
+          top_companies: (d.touched_companies || []).map(function (name) {
+            return { name: name, pushs: '—', prospects: '—' };
+          }),
+          top_pushed: Object.keys(pushCounts)
+            .sort(function (a, b) { return pushCounts[b] - pushCounts[a]; })
+            .map(function (k) { return { name: k, count: pushCounts[k] }; }),
+          push_trend: [],
+          _raw: d
+        };
         repRenderRange();
         repRenderKpis();
         repRenderTable('[data-v30-rep-top-companies]', REP.data.top_companies, 'pushs', 'prospects', 'Entreprise', 'Pushs · Prospects');
@@ -355,6 +382,17 @@
       navigator.clipboard.writeText(md).then(function () {
         if (window.showToast) window.showToast('Markdown copié', 'success');
       });
+    });
+    var xlsx = document.querySelector('[data-v30-rep-xlsx]');
+    if (xlsx) xlsx.addEventListener('click', function () {
+      var week = REP.week || isoWeek(new Date());
+      var a = document.createElement('a');
+      a.href = '/api/stats/export_weekly_xlsx?week=' + encodeURIComponent(week);
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      if (window.showToast) window.showToast('Export Excel en cours…', 'info', 2500);
     });
     var pdf = document.querySelector('[data-v30-rep-pdf]');
     if (pdf) pdf.addEventListener('click', function () {
