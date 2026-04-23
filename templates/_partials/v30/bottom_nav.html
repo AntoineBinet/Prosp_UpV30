@@ -1,0 +1,43 @@
+{# ============================================================
+   ProspUp v30 — Bottom navigation (mobile only, < 900px)
+   Concept iOS 26 · Liquid Glass · floating island
+   5 onglets : Dashboard / Prospects / Prosp / Sociétés / Stats
+   ============================================================ #}
+{% set bnav_active = active or '' %}
+{% set bnav_items = [
+  { 'id': 'dashboard',   'label': 'Dashboard', 'href': '/v30/dashboard',   'icon': 'home' },
+  { 'id': 'prospects',   'label': 'Prospects', 'href': '/v30/prospects',   'icon': 'people' },
+  { 'id': 'prosp',       'label': 'Prosp',     'href': '/v30/mode-prosp',  'icon': 'bolt', 'primary': true },
+  { 'id': 'entreprises', 'label': 'Sociétés',  'href': '/v30/entreprises', 'icon': 'building' },
+  { 'id': 'stats',       'label': 'Stats',     'href': '/v30/stats',       'icon': 'chart' }
+] %}
+
+<nav class="v30-bnav" aria-label="Navigation principale" role="navigation">
+  <div class="v30-bnav__glass">
+    {# pill indicateur qui glisse sous l'onglet actif #}
+    <div class="v30-bnav__pill" data-bnav-pill aria-hidden="true"></div>
+
+    {% for it in bnav_items %}
+      {% set is_active = (bnav_active == it.id) %}
+      <a href="{{ it.href }}"
+         class="v30-bnav__item{% if is_active %} is-active{% endif %}{% if it.primary %} is-primary{% endif %}"
+         data-bnav-item="{{ it.id }}"
+         {% if is_active %}aria-current="page"{% endif %}>
+        <span class="v30-bnav__icon" aria-hidden="true">
+          {% if it.icon == 'home' %}
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 11.5L12 5l8 6.5V19a2 2 0 01-2 2h-3v-6h-6v6H6a2 2 0 01-2-2v-7.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          {% elif it.icon == 'people' %}
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="17" cy="7" r="2.8" stroke="currentColor" stroke-width="1.6"/><path d="M15 14c3.3 0 6 2.2 6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          {% elif it.icon == 'bolt' %}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg>
+          {% elif it.icon == 'building' %}
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          {% elif it.icon == 'chart' %}
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="7" y="12" width="2.8" height="5" rx="1" fill="currentColor"/><rect x="12" y="8" width="2.8" height="9" rx="1" fill="currentColor"/><rect x="17" y="4" width="2.8" height="13" rx="1" fill="currentColor"/></svg>
+          {% endif %}
+        </span>
+        <span class="v30-bnav__label">{{ it.label }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</nav>

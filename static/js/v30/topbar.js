@@ -43,6 +43,32 @@
     });
   }
 
+  /* ─── Bottom nav : positionne la pill sous l'onglet actif ─── */
+  function positionBnavPill() {
+    var pill = document.querySelector('[data-bnav-pill]');
+    if (!pill) return;
+    var active = document.querySelector('.v30-bnav__item.is-active');
+    var glass = document.querySelector('.v30-bnav__glass');
+    if (!active || !glass) {
+      pill.style.opacity = '0';
+      return;
+    }
+    var rect = active.getBoundingClientRect();
+    var hostRect = glass.getBoundingClientRect();
+    var offset = rect.left - hostRect.left;
+    pill.style.opacity = '1';
+    pill.style.width = rect.width + 'px';
+    pill.style.transform = 'translateX(' + offset + 'px)';
+  }
+  if (document.querySelector('.v30-bnav')) {
+    // Position immédiate puis après layout (fonts, images)
+    positionBnavPill();
+    requestAnimationFrame(positionBnavPill);
+    window.addEventListener('resize', positionBnavPill);
+    window.addEventListener('orientationchange', positionBnavPill);
+    window.addEventListener('load', positionBnavPill);
+  }
+
   /* ─── Notification bell ─── */
   var notifRoot = document.querySelector('[data-v30-notif]');
   if (notifRoot) {

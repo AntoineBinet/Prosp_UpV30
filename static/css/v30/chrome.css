@@ -321,6 +321,105 @@
 /* ─────────── Burger button (mobile only) ─────────── */
 .v30-burger { display: none; }
 
+/* ─────────── Floating bottom nav (iOS 26 island, mobile only) ─────────── */
+.v30-bnav { display: none; }
+
+@media (max-width: 900px) {
+  .v30-bnav {
+    display: block;
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom, 12px));
+    z-index: 55;
+    height: 64px;
+    pointer-events: none;
+  }
+  .v30-bnav__glass {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 4px;
+    border-radius: 28px;
+    display: flex;
+    pointer-events: auto;
+    background: var(--v30-bnav-bg, rgba(28, 28, 34, 0.72));
+    border: 0.5px solid var(--v30-bnav-border, rgba(255, 255, 255, 0.08));
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45),
+                inset 0.5px 0.5px 0 rgba(255, 255, 255, 0.08),
+                inset -0.5px -0.5px 0 rgba(255, 255, 255, 0.03);
+  }
+  /* Variante claire */
+  :root[data-theme="light"] .v30-bnav__glass {
+    --v30-bnav-bg: rgba(255, 255, 255, 0.78);
+    --v30-bnav-border: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10),
+                inset 0.5px 0.5px 0 rgba(255, 255, 255, 0.6);
+  }
+
+  /* Pill indicateur (slide sous l'onglet actif) */
+  .v30-bnav__pill {
+    position: absolute;
+    top: 4px; bottom: 4px;
+    width: calc(20% - 0px);
+    left: 4px;
+    border-radius: 20px;
+    background: rgba(255, 107, 53, 0.12);
+    box-shadow: inset 0 0 0 0.5px rgba(255, 107, 53, 0.22);
+    transition: transform 0.35s cubic-bezier(0.32, 1.08, 0.62, 1);
+    transform: translateX(0);
+    pointer-events: none;
+  }
+
+  /* Items */
+  .v30-bnav__item {
+    flex: 1 1 0;
+    min-width: 0;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 0;
+    text-decoration: none;
+    color: rgba(235, 235, 245, 0.6);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+    transition: color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  :root[data-theme="light"] .v30-bnav__item {
+    color: rgba(60, 60, 67, 0.6);
+  }
+  .v30-bnav__item.is-active {
+    color: #FF6B35;
+  }
+  .v30-bnav__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+  }
+  .v30-bnav__label {
+    line-height: 1;
+  }
+
+  /* Quand le bottom-nav est présent, on pousse le contenu pour ne pas masquer */
+  .v30-app-shell { padding-bottom: calc(64px + 24px + env(safe-area-inset-bottom, 0px)); }
+  .v30-main { padding-bottom: 0; }
+
+  /* Topbar : safe-area-inset-top pour passer sous la Dynamic Island en standalone */
+  .v30-topbar {
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(48px + env(safe-area-inset-top, 0px));
+  }
+}
+
 /* ─────────── Sidebar drawer backdrop (mobile only) ─────────── */
 .v30-sidebar-backdrop {
   display: none;
