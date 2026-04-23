@@ -390,7 +390,11 @@
     var host = document.querySelector('[data-v30-kanban]');
     if (!host) return;
     var buckets = KANBAN_COLS.map(function () { return []; });
-    STATE.prospects.forEach(function (p) {
+    // Utilise filteredAll (liste complète filtrée+triée) et non STATE.prospects
+    // qui n'est que la page courante (pagination 50) — sinon les colonnes du
+    // kanban affichent des comptes faux (RDV=0, Prospecté=0, ...).
+    var pool = STATE.filteredAll || STATE.prospects || [];
+    pool.forEach(function (p) {
       buckets[kanbanColIndex(p.statut)].push(p);
     });
     host.innerHTML = KANBAN_COLS.map(function (c, i) {
@@ -643,7 +647,10 @@
       var p = all[i];
       if (isCallable(p)) callable++;
       var s = (p.statut || '').toLowerCase();
-      if (s === 'rendez-vous' || p.rdvDate) rdv++;
+      // Même définition que le filtre tab et le backend : statut exact.
+      // Ne pas inclure p.rdvDate (un prospect peut avoir une rdvDate même si
+      // son statut a changé ensuite — sinon KPI ≠ tab ≠ kanban).
+      if (s === 'rendez-vous') rdv++;
       if (s === 'prospecté' || s === 'prospecte') prospectes++;
     }
     var fmt = function (n) { return n.toLocaleString('fr-FR'); };

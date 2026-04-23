@@ -2,6 +2,14 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.6] — 2026-04-23 · Prospects v30 · Comptes RDV / Prospecté cohérents (KPI, tabs, kanban)
+
+Sur `/v30/prospects`, les comptes affichés dans les trois zones (cartes KPI en haut, onglets de filtres, colonnes du kanban) divergeaient. Exemple observé : KPI « RDV 25 », tab « RDV 19 », colonne kanban « RDV 0 ». Idem pour « Prospecté ». Deux bugs corrigés.
+
+### Changements
+- **`static/js/v30/prospects.js:646`** — `updateKpis()` comptait un RDV si `p.rdvDate` était renseigné, même quand le statut n'était plus « Rendez-vous ». On aligne désormais sur la définition utilisée par le filtre tab, le backend et la v29 : uniquement `statut === 'Rendez-vous'`.
+- **`static/js/v30/prospects.js:393`** — `renderKanban()` itérait sur `STATE.prospects` (page courante paginée à 50), donc les colonnes affichaient des comptes faux dès qu'un filtre ou une vue sauvegardée renvoyait > 50 résultats. On itère maintenant sur `STATE.filteredAll` (liste filtrée+triée complète, déjà calculée pour Mode Prosp). Le kanban reflète donc tout le set filtré, pas seulement la page courante.
+
 ## [30.5] — 2026-04-22 · Paramètres v30 · Mon compte + À propos remontés au-dessus de Mise à jour
 
 Sur `/v30/parametres`, les cartes « Mon compte » et « À propos » sont désormais rendues **avant** la section admin « Mise à jour du serveur ». La carte wide « Mise à jour » est placée en dernier (elle occupe une ligne entière), ce qui permet aux cartes utilisateur courantes de rester accessibles en haut de la grille.
