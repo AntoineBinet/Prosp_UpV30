@@ -201,10 +201,10 @@
       var sub = document.querySelector('[data-v30-focus] [data-field="subtitle"]');
       if (sub) {
         var overdue = (d.pipeline && d.pipeline.overdue) || 0;
-        var today = (d.pipeline && d.pipeline.due_today) || 0;
+        var rdvToday = (d.today_appointments || []).length;
         sub.innerHTML = 'Tu as <b style="color:var(--text);">' + overdue + ' relance' +
           (overdue > 1 ? 's' : '') + '</b> en retard et <b style="color:var(--text);">' +
-          today + ' RDV</b> aujourd\'hui.';
+          rdvToday + ' RDV</b> aujourd\'hui.';
       }
       var dateEl = document.querySelector('[data-field="date"]');
       if (dateEl) dateEl.textContent = fmtDateFR();
@@ -215,8 +215,8 @@
       });
       renderCol('overdue', overdueList, 'Pas de relance en retard.');
 
-      // Today (feed.rdv = RDV d'aujourd'hui)
-      var todayList = ((d.feed && d.feed.rdv) || []).map(function (r) {
+      // Today (today_appointments = RDV dont rdvDate = aujourd'hui)
+      var todayList = (d.today_appointments || []).map(function (r) {
         var p = { id: r.prospect_id, name: r.prospect_name, statut: 'Rendez-vous' };
         return row(p, (r.company_name ? r.company_name + ' · ' : '') + (r.rdvDate || ''));
       });
