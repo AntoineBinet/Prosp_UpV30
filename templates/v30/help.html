@@ -1,6 +1,6 @@
 {% extends "v30/base.html" %}
 {% block title %}Aide — Prosp'Up v30{% endblock %}
-{% block page_id %}v30-help{% endblock %}
+{% block page_id %}v30-aide{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="/static/css/v30/help.css?v={{ static_hash('css/v30/help.css') }}">
@@ -9,21 +9,21 @@
 {% block content %}
 {% import "_partials/v30/icon.html" as ui %}
 
-<div class="v30-help">
+<div class="v30-aide">
 
   {# ─── Hero ─────────────────────────────────────────────── #}
-  <div class="v30-help__topbar">
+  <div class="v30-aide__topbar">
     <div>
-      <div class="v30-help__eyebrow">Centre d'aide</div>
-      <h1 class="v30-help__title">
+      <div class="v30-aide__eyebrow">Centre d'aide</div>
+      <h1 class="v30-aide__title">
         <span class="serif">Besoin d'un coup de main&nbsp;?</span>
       </h1>
-      <div class="v30-help__sub">
+      <div class="v30-aide__sub">
         Démarrage rapide, workflow quotidien, raccourcis clavier et astuces pour
         tirer le meilleur de la v30.
       </div>
     </div>
-    <div class="v30-help__topbar-actions">
+    <div class="v30-aide__topbar-actions">
       <button type="button" class="btn btn-sm" data-v30-help-shortcuts
               title="Ouvrir la modale des raccourcis (?)">
         {{ ui.icon('command', 14) }} Raccourcis
@@ -35,12 +35,12 @@
   </div>
 
   {# ─── Callout raccourcis express ──────────────────────── #}
-  <section class="v30-help__quick">
-    <div class="v30-help__quick-head">
+  <section class="v30-aide__quick">
+    <div class="v30-aide__quick-head">
       {{ ui.icon('zap', 16) }}
       <h2>Aller vite</h2>
     </div>
-    <div class="v30-help__quick-grid">
+    <div class="v30-aide__quick-grid">
       <div><span class="kbd">⌘</span><span class="kbd">K</span><em>Palette de commandes</em></div>
       <div><span class="kbd">G</span> + <span class="kbd">lettre</span><em>Navigation rapide</em></div>
       <div><span class="kbd">/</span><em>Recherche globale</em></div>
@@ -51,81 +51,81 @@
   </section>
 
   {# ─── Sommaire (TOC) ──────────────────────────────────── #}
-  <div class="v30-help__grid">
-    <a class="v30-help__card" href="#demarrage">
-      <div class="v30-help__card-head">{{ ui.icon('zap', 16) }}<h3>Démarrage</h3></div>
+  <div class="v30-aide__grid">
+    <a class="v30-aide__card" href="#demarrage">
+      <div class="v30-aide__card-head">{{ ui.icon('zap', 16) }}<h3>Démarrage</h3></div>
       <p>Connexion, v30 par défaut, bascule v29, snapshot auto.</p>
     </a>
-    <a class="v30-help__card" href="#dashboard">
-      <div class="v30-help__card-head">{{ ui.icon('home', 16) }}<h3>Dashboard</h3></div>
+    <a class="v30-aide__card" href="#dashboard">
+      <div class="v30-aide__card-head">{{ ui.icon('home', 16) }}<h3>Dashboard</h3></div>
       <p>Action Center, pipeline, objectifs, priorités IA, activité.</p>
     </a>
-    <a class="v30-help__card" href="#focus-calendrier">
-      <div class="v30-help__card-head">{{ ui.icon('focus', 16) }}<h3>Focus &amp; Calendrier</h3></div>
+    <a class="v30-aide__card" href="#focus-calendrier">
+      <div class="v30-aide__card-head">{{ ui.icon('focus', 16) }}<h3>Focus &amp; Calendrier</h3></div>
       <p>Relances du jour, vue mois, événements colorés, quick actions.</p>
     </a>
-    <a class="v30-help__card" href="#prospects">
-      <div class="v30-help__card-head">{{ ui.icon('users', 16) }}<h3>Prospects</h3></div>
+    <a class="v30-aide__card" href="#prospects">
+      <div class="v30-aide__card-head">{{ ui.icon('users', 16) }}<h3>Prospects</h3></div>
       <p>3 vues, filtres persistants, bulk bar, édition inline.</p>
     </a>
-    <a class="v30-help__card" href="#fiche-prospect">
-      <div class="v30-help__card-head">{{ ui.icon('user', 16) }}<h3>Fiche prospect</h3></div>
+    <a class="v30-aide__card" href="#fiche-prospect">
+      <div class="v30-aide__card-head">{{ ui.icon('user', 16) }}<h3>Fiche prospect</h3></div>
       <p>Onglets, timeline, IA drawer, édition inline.</p>
     </a>
-    <a class="v30-help__card" href="#entreprises">
-      <div class="v30-help__card-head">{{ ui.icon('building', 16) }}<h3>Entreprises</h3></div>
+    <a class="v30-aide__card" href="#entreprises">
+      <div class="v30-aide__card-head">{{ ui.icon('building', 16) }}<h3>Entreprises</h3></div>
       <p>Liste, fusion, opportunités, export XLSX.</p>
     </a>
-    <a class="v30-help__card" href="#sourcing">
-      <div class="v30-help__card-head">{{ ui.icon('target', 16) }}<h3>Sourcing &amp; candidats</h3></div>
+    <a class="v30-aide__card" href="#sourcing">
+      <div class="v30-aide__card-head">{{ ui.icon('target', 16) }}<h3>Sourcing &amp; candidats</h3></div>
       <p>Pipeline 5 statuts, compétences, dispo 8 semaines.</p>
     </a>
-    <a class="v30-help__card" href="#push">
-      <div class="v30-help__card-head">{{ ui.icon('send', 16) }}<h3>Push &amp; Campagnes</h3></div>
+    <a class="v30-aide__card" href="#push">
+      <div class="v30-aide__card-head">{{ ui.icon('send', 16) }}<h3>Push &amp; Campagnes</h3></div>
       <p>Wizard 3 étapes, templates, variables, historique.</p>
     </a>
-    <a class="v30-help__card" href="#mode-prosp">
-      <div class="v30-help__card-head">{{ ui.icon('flame', 16) }}<h3>Mode Prosp</h3></div>
+    <a class="v30-aide__card" href="#mode-prosp">
+      <div class="v30-aide__card-head">{{ ui.icon('flame', 16) }}<h3>Mode Prosp</h3></div>
       <p>Deck 3D plein écran, swipe, clavier.</p>
     </a>
-    <a class="v30-help__card" href="#stats-rapport">
-      <div class="v30-help__card-head">{{ ui.icon('chart', 16) }}<h3>Stats &amp; Rapport</h3></div>
+    <a class="v30-aide__card" href="#stats-rapport">
+      <div class="v30-aide__card-head">{{ ui.icon('chart', 16) }}<h3>Stats &amp; Rapport</h3></div>
       <p>KPI période, top entreprises, rapport WYSIWYG.</p>
     </a>
-    <a class="v30-help__card" href="#ia">
-      <div class="v30-help__card-head">{{ ui.icon('sparkles', 16) }}<h3>IA &amp; Scraping</h3></div>
+    <a class="v30-aide__card" href="#ia">
+      <div class="v30-aide__card-head">{{ ui.icon('sparkles', 16) }}<h3>IA &amp; Scraping</h3></div>
       <p>Ollama local, Tavily web, avant/après-RDV.</p>
     </a>
-    <a class="v30-help__card" href="#import-excel">
-      <div class="v30-help__card-head">{{ ui.icon('inbox', 16) }}<h3>Import Excel</h3></div>
+    <a class="v30-aide__card" href="#import-excel">
+      <div class="v30-aide__card-head">{{ ui.icon('inbox', 16) }}<h3>Import Excel</h3></div>
       <p>Mapping auto, reformulation IA, colonnes supportées.</p>
     </a>
-    <a class="v30-help__card" href="#raccourcis">
-      <div class="v30-help__card-head">{{ ui.icon('command', 16) }}<h3>Raccourcis clavier</h3></div>
+    <a class="v30-aide__card" href="#raccourcis">
+      <div class="v30-aide__card-head">{{ ui.icon('command', 16) }}<h3>Raccourcis clavier</h3></div>
       <p>Global, navigation, tables, création.</p>
     </a>
-    <a class="v30-help__card" href="#parametres-admin">
-      <div class="v30-help__card-head">{{ ui.icon('cog', 16) }}<h3>Paramètres &amp; Admin</h3></div>
+    <a class="v30-aide__card" href="#parametres-admin">
+      <div class="v30-aide__card-head">{{ ui.icon('cog', 16) }}<h3>Paramètres &amp; Admin</h3></div>
       <p>Mise à jour native, snapshots, users, activité.</p>
     </a>
-    <a class="v30-help__card" href="#bonnes-pratiques">
-      <div class="v30-help__card-head">{{ ui.icon('bulb', 16) }}<h3>Bonnes pratiques</h3></div>
+    <a class="v30-aide__card" href="#bonnes-pratiques">
+      <div class="v30-aide__card-head">{{ ui.icon('bulb', 16) }}<h3>Bonnes pratiques</h3></div>
       <p>10 habitudes pour rester efficace au quotidien.</p>
     </a>
   </div>
 
   {# ─── 1. Démarrage ────────────────────────────────────── #}
-  <section class="v30-help__section" id="demarrage">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="demarrage">
+    <div class="v30-aide__section-head">
       {{ ui.icon('zap', 18) }}
       <h2><span class="serif">Démarrage.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Tout ce qu'il faut savoir pour ta première connexion et comprendre
       comment la v30 s'articule avec la v29.
     </p>
 
-    <ol class="v30-help__steps">
+    <ol class="v30-aide__steps">
       <li><b>URL :</b> <code class="mono">https://prosphup.work</code> (ou
         <code class="mono">http://localhost:8000</code> en local).</li>
       <li><b>Connexion :</b> identifiants par défaut
@@ -138,7 +138,7 @@
         <a href="/v30/parametres">Paramètres</a>.</li>
     </ol>
 
-    <div class="v30-help__callout v30-help__callout--info">
+    <div class="v30-aide__callout v30-aide__callout--info">
       <b>Besoin de l'ancienne interface ?</b> Depuis la sidebar, clique sur
       « Revenir à l'ancienne interface » (carte dans
       <a href="/v30/parametres">Paramètres</a>) ou ajoute
@@ -146,7 +146,7 @@
       données sont identiques — c'est juste un rendu différent.
     </div>
 
-    <div class="v30-help__try">
+    <div class="v30-aide__try">
       <a class="btn btn-primary btn-sm" href="/v30/dashboard">
         {{ ui.icon('arrowR', 13) }} Aller au dashboard
       </a>
@@ -154,17 +154,17 @@
   </section>
 
   {# ─── 2. Dashboard ─────────────────────────────────────── #}
-  <section class="v30-help__section" id="dashboard">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="dashboard">
+    <div class="v30-aide__section-head">
       {{ ui.icon('home', 18) }}
       <h2><span class="serif">Dashboard.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       La page d'accueil v30 rassemble en un seul écran ton Action Center,
       ton pipeline, tes objectifs et les priorités générées par l'IA.
     </p>
 
-    <ul class="v30-help__list">
+    <ul class="v30-aide__list">
       <li><b>Action Center</b> — trois colonnes&nbsp;: Tâches du jour, RDV,
         Retards. Chaque item est cliquable et ouvre la fiche concernée.</li>
       <li><b>Pipeline</b> — barre horizontale par stade (Vivier → Qualifié →
@@ -179,13 +179,13 @@
         (notes, changements de statut, pushs envoyés).</li>
     </ul>
 
-    <div class="v30-help__callout v30-help__callout--tip">
+    <div class="v30-aide__callout v30-aide__callout--tip">
       <b>Astuce :</b> les widgets du dashboard sont déplaçables en
       drag&nbsp;&amp;&nbsp;drop (desktop) — l'ordre est persisté par
       utilisateur.
     </div>
 
-    <div class="v30-help__try">
+    <div class="v30-aide__try">
       <a class="btn btn-primary btn-sm" href="/v30/dashboard">
         {{ ui.icon('arrowR', 13) }} Ouvrir le dashboard
       </a>
@@ -193,18 +193,18 @@
   </section>
 
   {# ─── 3. Focus & Calendrier ───────────────────────────── #}
-  <section class="v30-help__section" id="focus-calendrier">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="focus-calendrier">
+    <div class="v30-aide__section-head">
       {{ ui.icon('focus', 18) }}
       <h2><span class="serif">Focus &amp; Calendrier.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Focus te donne une vue chirurgicale des relances à faire. Calendrier
       te donne la vue mensuelle de tes RDV et échéances.
     </p>
 
-    <h3 class="v30-help__sub">Focus</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Focus</h3>
+    <ul class="v30-aide__list">
       <li>Trois piles&nbsp;: <b>En retard</b> (rouge), <b>Aujourd'hui</b>
         (orange), <b>À venir</b> (bleu).</li>
       <li><b>Quick actions</b> sur chaque ligne&nbsp;:
@@ -214,8 +214,8 @@
         sans refresh.</li>
     </ul>
 
-    <h3 class="v30-help__sub">Calendrier</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Calendrier</h3>
+    <ul class="v30-aide__list">
       <li>Vue mois (lundi → dimanche). Navigation
         <span class="kbd">&lt;</span> / <span class="kbd">&gt;</span> /
         <span class="kbd">Aujourd'hui</span>.</li>
@@ -225,7 +225,7 @@
         directement la fiche correspondante.</li>
     </ul>
 
-    <div class="v30-help__try">
+    <div class="v30-aide__try">
       <a class="btn btn-primary btn-sm" href="/v30/focus">
         {{ ui.icon('arrowR', 13) }} Ouvrir Focus
       </a>
@@ -236,18 +236,18 @@
   </section>
 
   {# ─── 4. Prospects ─────────────────────────────────────── #}
-  <section class="v30-help__section" id="prospects">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="prospects">
+    <div class="v30-aide__section-head">
       {{ ui.icon('users', 18) }}
       <h2><span class="serif">Prospects.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Le cœur de l'outil. Trois vues, des filtres qui se souviennent, une
       bulk bar pour agir sur des dizaines de prospects d'un clic.
     </p>
 
-    <h3 class="v30-help__sub">Les 3 vues</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Les 3 vues</h3>
+    <ul class="v30-aide__list">
       <li>{{ ui.icon('table', 14) }} <b>Table</b> — tableau dense, tri par
         colonne, toggle colonnes via l'icône engrenage.</li>
       <li>{{ ui.icon('kanban', 14) }} <b>Kanban</b> — par statut, drag pour
@@ -256,8 +256,8 @@
         sans quitter la page.</li>
     </ul>
 
-    <h3 class="v30-help__sub">Filtres &amp; vues enregistrées</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Filtres &amp; vues enregistrées</h3>
+    <ul class="v30-aide__list">
       <li>Pills de vues par défaut&nbsp;: <i>Tous</i>, <i>Mes prospects</i>,
         <i>À relancer</i>, <i>Chauds</i>.</li>
       <li>Bouton <span class="kbd">+</span> pour créer une vue custom à
@@ -266,8 +266,8 @@
         conservés d'une session à l'autre.</li>
     </ul>
 
-    <h3 class="v30-help__sub">Bulk bar &amp; édition inline</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Bulk bar &amp; édition inline</h3>
+    <ul class="v30-aide__list">
       <li>Sélectionne plusieurs lignes → la bulk bar flottante propose
         <i>Tag</i>, <i>Statut</i>, <i>Push</i>, <i>Supprimer</i>.</li>
       <li>Double-clic sur une cellule → édition inline (nom, fonction,
@@ -276,14 +276,14 @@
         (icône étoile) — ouvre la modale d'enrichissement.</li>
     </ul>
 
-    <div class="v30-help__callout v30-help__callout--tip">
+    <div class="v30-aide__callout v30-aide__callout--tip">
       <b>Clavier :</b> <span class="kbd">J</span>/<span class="kbd">K</span>
       pour naviguer, <span class="kbd">X</span> pour cocher,
       <span class="kbd">E</span> pour éditer en place,
       <span class="kbd">↵</span> pour ouvrir la fiche.
     </div>
 
-    <div class="v30-help__try">
+    <div class="v30-aide__try">
       <a class="btn btn-primary btn-sm" href="/v30/prospects">
         {{ ui.icon('arrowR', 13) }} Ouvrir Prospects
       </a>
@@ -291,17 +291,17 @@
   </section>
 
   {# ─── 5. Fiche prospect ────────────────────────────────── #}
-  <section class="v30-help__section" id="fiche-prospect">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="fiche-prospect">
+    <div class="v30-aide__section-head">
       {{ ui.icon('user', 18) }}
       <h2><span class="serif">Fiche prospect.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Tout ce qui concerne un prospect sur une seule page&nbsp;: infos,
       historique, pushs, enrichissement IA.
     </p>
 
-    <ul class="v30-help__list">
+    <ul class="v30-aide__list">
       <li><b>4 onglets</b>&nbsp;: <i>Vue d'ensemble</i>, <i>Timeline</i>,
         <i>Push</i>, <i>IA</i>.</li>
       <li><b>Édition inline</b>&nbsp;: clic sur n'importe quel champ
@@ -316,7 +316,7 @@
         En retard / Aujourd'hui / À venir dans Focus.</li>
     </ul>
 
-    <div class="v30-help__callout v30-help__callout--info">
+    <div class="v30-aide__callout v30-aide__callout--info">
       Le bouton <b>Avant RDV IA</b> génère un PDF d'une page
       (bio LinkedIn + actus + accroche) à imprimer ou partager avant
       ton rendez-vous.
@@ -324,17 +324,17 @@
   </section>
 
   {# ─── 6. Entreprises ──────────────────────────────────── #}
-  <section class="v30-help__section" id="entreprises">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="entreprises">
+    <div class="v30-aide__section-head">
       {{ ui.icon('building', 18) }}
       <h2><span class="serif">Entreprises.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Gère les comptes (cibles, clients, prospects chauds) et suis leurs
       opportunités commerciales.
     </p>
 
-    <ul class="v30-help__list">
+    <ul class="v30-aide__list">
       <li><b>Vues :</b> liste dense ou grille de cartes (toggle haut de
         page).</li>
       <li><b>Filtres :</b> pipeline, avec/sans prospects, tags techniques.
@@ -348,13 +348,13 @@
         tags consolidés).</li>
     </ul>
 
-    <div class="v30-help__callout v30-help__callout--tip">
+    <div class="v30-aide__callout v30-aide__callout--tip">
       <b>Astuce :</b> centraliser la stack technique dans les <i>tags
       entreprise</i> (et pas sur chaque prospect) évite les doublons
       et facilite le sourcing.
     </div>
 
-    <div class="v30-help__try">
+    <div class="v30-aide__try">
       <a class="btn btn-primary btn-sm" href="/v30/entreprises">
         {{ ui.icon('arrowR', 13) }} Ouvrir Entreprises
       </a>
@@ -362,26 +362,26 @@
   </section>
 
   {# ─── 7. Sourcing & candidats ─────────────────────────── #}
-  <section class="v30-help__section" id="sourcing">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="sourcing">
+    <div class="v30-aide__section-head">
       {{ ui.icon('target', 18) }}
       <h2><span class="serif">Sourcing &amp; candidats.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Pipeline de sourcing, matching prospects/candidats, requêtes
       booléennes LinkedIn générées à la volée.
     </p>
 
-    <h3 class="v30-help__sub">Pipeline 5 statuts</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Pipeline 5 statuts</h3>
+    <ul class="v30-aide__list">
       <li><b>À sourcer</b> → <b>Contacté</b> → <b>Qualifié</b> →
         <b>En mission</b> → <b>Archivé</b>.</li>
       <li>Vue kanban (drag) ou grille (vignettes).</li>
       <li>Bulk <i>Changement de statut</i> depuis la bulk bar.</li>
     </ul>
 
-    <h3 class="v30-help__sub">Import &amp; outils</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Import &amp; outils</h3>
+    <ul class="v30-aide__list">
       <li><b>Import LinkedIn CSV</b> — export Sales Nav direct.</li>
       <li><b>Intégration VSA</b> — sync candidats.</li>
       <li><b>Outil productivité</b> — sélectionne une entreprise, extrait
@@ -391,7 +391,7 @@
         Sourcing + message d'outreach pré-rédigé.</li>
     </ul>
 
-    <div class="v30-help__try">
+    <div class="v30-aide__try">
       <a class="btn btn-primary btn-sm" href="/v30/sourcing">
         {{ ui.icon('arrowR', 13) }} Ouvrir Sourcing
       </a>
@@ -399,16 +399,16 @@
   </section>
 
   {# ─── 7b. Fiche candidat ──────────────────────────────── #}
-  <section class="v30-help__section" id="fiche-candidat">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="fiche-candidat">
+    <div class="v30-aide__section-head">
       {{ ui.icon('user', 18) }}
       <h2><span class="serif">Fiche candidat.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Profil complet avec barres de compétences et grille de disponibilité
       sur 8 semaines.
     </p>
-    <ul class="v30-help__list">
+    <ul class="v30-aide__list">
       <li><b>Édition inline</b>&nbsp;: nom, fonction, séniorité, TJM,
         LinkedIn, téléphone, email.</li>
       <li><b>Compétences avec niveau</b> (1–5 barres) — autocomplete sur
@@ -423,18 +423,18 @@
   </section>
 
   {# ─── 8. Push & Campagnes ─────────────────────────────── #}
-  <section class="v30-help__section" id="push">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="push">
+    <div class="v30-aide__section-head">
       {{ ui.icon('send', 18) }}
       <h2><span class="serif">Push &amp; Campagnes.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Envoie des emails personnalisés à plusieurs prospects avec des
       templates réutilisables et des variables dynamiques.
     </p>
 
-    <h3 class="v30-help__sub">3 onglets</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">3 onglets</h3>
+    <ul class="v30-aide__list">
       <li><b>Campagnes</b> — wizard 3 étapes&nbsp;: <i>Cible</i> →
         <i>Message</i> → <i>Envoi</i>.</li>
       <li><b>Templates</b> — CRUD complet, éditeur riche, variables
@@ -446,7 +446,7 @@
         (mail / LinkedIn), export Excel, annulation d'un envoi récent.</li>
     </ul>
 
-    <div class="v30-help__callout v30-help__callout--info">
+    <div class="v30-aide__callout v30-aide__callout--info">
       <b>Catégories Push :</b> chaque dossier dans
       <code class="mono">pushs/</code> devient une catégorie (avec
       templates <code class="mono">.msg</code> / <code class="mono">.eml</code>).
@@ -454,7 +454,7 @@
       candidats.
     </div>
 
-    <div class="v30-help__try">
+    <div class="v30-aide__try">
       <a class="btn btn-primary btn-sm" href="/v30/push">
         {{ ui.icon('arrowR', 13) }} Ouvrir Push
       </a>
@@ -462,17 +462,17 @@
   </section>
 
   {# ─── 9. Mode Prosp ────────────────────────────────────── #}
-  <section class="v30-help__section" id="mode-prosp">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="mode-prosp">
+    <div class="v30-aide__section-head">
       {{ ui.icon('flame', 18) }}
       <h2><span class="serif">Mode Prosp.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Une expérience de prospection immersive en plein écran, inspirée des
       apps de matching&nbsp;: une carte 3D à la fois, swipe pour décider.
     </p>
 
-    <ul class="v30-help__list">
+    <ul class="v30-aide__list">
       <li><b>Accès :</b> palette <span class="kbd">⌘</span><span class="kbd">K</span>
         → « Lancer Mode Prosp », bouton sur la page Prospects, ou URL
         directe <code class="mono">/v30/mode-prosp</code>.</li>
@@ -484,7 +484,7 @@
       <li><b>Haptic</b> sur mobile à chaque swipe.</li>
     </ul>
 
-    <div class="v30-help__try">
+    <div class="v30-aide__try">
       <a class="btn btn-primary btn-sm" href="/v30/mode-prosp">
         {{ ui.icon('flame', 13) }} Lancer Mode Prosp
       </a>
@@ -492,18 +492,18 @@
   </section>
 
   {# ─── 10. Stats & Rapport ─────────────────────────────── #}
-  <section class="v30-help__section" id="stats-rapport">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="stats-rapport">
+    <div class="v30-aide__section-head">
       {{ ui.icon('chart', 18) }}
       <h2><span class="serif">Stats &amp; Rapport.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Suivi de ton activité et génération du rapport hebdomadaire — avec
       édition WYSIWYG et export PDF.
     </p>
 
-    <h3 class="v30-help__sub">Stats</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Stats</h3>
+    <ul class="v30-aide__list">
       <li>Filtre période&nbsp;: <b>7j / 30j / 90j / Tout</b>.</li>
       <li>4 KPI&nbsp;: <i>Pushs envoyés</i>, <i>Taux d'ouverture</i>,
         <i>Taux de réponse</i>, <i>RDV obtenus</i>.</li>
@@ -511,8 +511,8 @@
         relances + pushs + pertinence).</li>
     </ul>
 
-    <h3 class="v30-help__sub">Rapport éditorial</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Rapport éditorial</h3>
+    <ul class="v30-aide__list">
       <li>Mise en page éditoriale (max 820&nbsp;px), typographie serif.</li>
       <li>Zones <b>contenteditable</b>&nbsp;: titre, auteur, résumé,
         notes personnelles.</li>
@@ -523,7 +523,7 @@
       <li>Boutons&nbsp;: <i>Copier en Markdown</i>, <i>Exporter PDF</i>.</li>
     </ul>
 
-    <div class="v30-help__try">
+    <div class="v30-aide__try">
       <a class="btn btn-primary btn-sm" href="/v30/stats">
         {{ ui.icon('chart', 13) }} Voir les stats
       </a>
@@ -534,20 +534,20 @@
   </section>
 
   {# ─── 11. IA & Scraping ────────────────────────────────── #}
-  <section class="v30-help__section" id="ia">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="ia">
+    <div class="v30-aide__section-head">
       {{ ui.icon('sparkles', 18) }}
       <h2><span class="serif">IA &amp; Scraping.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       L'IA est partout dans l'app&nbsp;: enrichissement de fiches,
       préparation de RDV, compte-rendus, emails personnalisés,
       mapping Excel. Moteur local (Ollama) + recherche web optionnelle
       (Tavily).
     </p>
 
-    <h3 class="v30-help__sub">Stack</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Stack</h3>
+    <ul class="v30-aide__list">
       <li><b>Ollama</b> — local, gratuit, <code class="mono">http://127.0.0.1:11434</code>.
         Modèle par défaut&nbsp;: <code class="mono">llama3.2</code>. Aucune
         donnée ne sort de ton PC.</li>
@@ -558,8 +558,8 @@
         génère en citant ses sources.</li>
     </ul>
 
-    <h3 class="v30-help__sub">Entrées IA dans l'interface</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Entrées IA dans l'interface</h3>
+    <ul class="v30-aide__list">
       <li><b>Scrapping IA</b> (prospects / entreprises / candidats) — colle
         une bio, un profil LinkedIn, une page d'entreprise → les champs
         se remplissent.</li>
@@ -573,7 +573,7 @@
         et <i>Reformater champ</i> (normalisation une valeur par ligne).</li>
     </ul>
 
-    <div class="v30-help__callout v30-help__callout--warn">
+    <div class="v30-aide__callout v30-aide__callout--warn">
       <b>Tavily :</b> activer <code class="mono">webSearch</code> peut
       envoyer des infos prospect vers le cloud Tavily. À réserver aux
       entreprises publiques.
@@ -581,17 +581,17 @@
   </section>
 
   {# ─── 12. Import Excel ────────────────────────────────── #}
-  <section class="v30-help__section" id="import-excel">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="import-excel">
+    <div class="v30-aide__section-head">
       {{ ui.icon('inbox', 18) }}
       <h2><span class="serif">Import Excel.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Importe un fichier XLSX et laisse l'IA proposer le mapping des
       colonnes. Tu valides, tu ajustes, tu importes.
     </p>
 
-    <ul class="v30-help__list">
+    <ul class="v30-aide__list">
       <li><b>Colonnes supportées :</b> Nom, Prénom (combinables),
         Entreprise, Site, Fonction, Téléphone (fusion multi-colonnes),
         Email, LinkedIn, Notes, Tags, Pertinence, Statut, Date dernier
@@ -607,19 +607,19 @@
   </section>
 
   {# ─── 13. Raccourcis clavier ──────────────────────────── #}
-  <section class="v30-help__section" id="raccourcis">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="raccourcis">
+    <div class="v30-aide__section-head">
       {{ ui.icon('command', 18) }}
       <h2><span class="serif">Raccourcis clavier.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       La v30 se pilote presque entièrement au clavier. Appuie sur
       <span class="kbd">?</span> n'importe où pour afficher cette liste
       en modale.
     </p>
 
-    <h3 class="v30-help__sub">Globaux</h3>
-    <div class="v30-help__kbd-grid">
+    <h3 class="v30-aide__sub">Globaux</h3>
+    <div class="v30-aide__kbd-grid">
       <div><span class="kbd">⌘</span><span class="kbd">K</span> <em>Palette de commandes</em></div>
       <div><span class="kbd">/</span> <em>Recherche globale</em></div>
       <div><span class="kbd">?</span> <em>Modale raccourcis</em></div>
@@ -628,8 +628,8 @@
       <div><span class="kbd">[</span> <em>Replier la sidebar</em></div>
     </div>
 
-    <h3 class="v30-help__sub">Navigation (G + lettre)</h3>
-    <div class="v30-help__kbd-grid">
+    <h3 class="v30-aide__sub">Navigation (G + lettre)</h3>
+    <div class="v30-aide__kbd-grid">
       <div><span class="kbd">G</span><span class="kbd">D</span> <em>Dashboard</em></div>
       <div><span class="kbd">G</span><span class="kbd">P</span> <em>Prospects</em></div>
       <div><span class="kbd">G</span><span class="kbd">E</span> <em>Entreprises</em></div>
@@ -639,20 +639,20 @@
       <div><span class="kbd">G</span><span class="kbd">T</span> <em>Stats</em></div>
     </div>
 
-    <h3 class="v30-help__sub">Tables (Prospects / Entreprises)</h3>
-    <div class="v30-help__kbd-grid">
+    <h3 class="v30-aide__sub">Tables (Prospects / Entreprises)</h3>
+    <div class="v30-aide__kbd-grid">
       <div><span class="kbd">J</span> / <span class="kbd">K</span> <em>Ligne suivante / précédente</em></div>
       <div><span class="kbd">X</span> <em>Cocher la ligne</em></div>
       <div><span class="kbd">E</span> <em>Éditer en place</em></div>
       <div><span class="kbd">↵</span> <em>Ouvrir la fiche</em></div>
     </div>
 
-    <h3 class="v30-help__sub">Création</h3>
-    <div class="v30-help__kbd-grid">
+    <h3 class="v30-aide__sub">Création</h3>
+    <div class="v30-aide__kbd-grid">
       <div><span class="kbd">C</span> <em>Ouvrir la palette « Créer… »</em></div>
     </div>
 
-    <div class="v30-help__try">
+    <div class="v30-aide__try">
       <button type="button" class="btn btn-primary btn-sm" data-v30-help-shortcuts>
         {{ ui.icon('command', 13) }} Ouvrir la modale raccourcis
       </button>
@@ -660,19 +660,19 @@
   </section>
 
   {# ─── 14. Paramètres & Admin ──────────────────────────── #}
-  <section class="v30-help__section" id="parametres-admin">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="parametres-admin">
+    <div class="v30-aide__section-head">
       {{ ui.icon('cog', 18) }}
       <h2><span class="serif">Paramètres &amp; Admin.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Le hub <a href="/v30/parametres">Paramètres</a> regroupe la
       configuration IA, les objectifs, les sauvegardes et les actions
       admin.
     </p>
 
-    <h3 class="v30-help__sub">Cartes du hub</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Cartes du hub</h3>
+    <ul class="v30-aide__list">
       <li><b>Configuration IA</b> — modèle Ollama, clé Tavily, timeout.</li>
       <li><b>Objectifs &amp; gamification</b> — cibles hebdo (prospects
         contactés, RDV, pushs) affichées sur le dashboard.</li>
@@ -684,8 +684,8 @@
       <li><b>À propos</b> — version, commit, release notes.</li>
     </ul>
 
-    <h3 class="v30-help__sub">Admin</h3>
-    <ul class="v30-help__list">
+    <h3 class="v30-aide__sub">Admin</h3>
+    <ul class="v30-aide__list">
       <li><b>Mise à jour du serveur (native v30)</b> —
         <code class="mono">git pull origin main</code> + snapshot DB
         automatique + redémarrage en ~10&nbsp;s. Logs SSE temps réel.</li>
@@ -699,7 +699,7 @@
         liste, create / restore / delete, progression SSE.</li>
     </ul>
 
-    <div class="v30-help__callout v30-help__callout--info">
+    <div class="v30-aide__callout v30-aide__callout--info">
       <b>Multi-user :</b> chaque utilisateur a une DB isolée
       (<code class="mono">data/user_&lt;id&gt;/prospects.db</code>). Les
       admins voient tout ; les editors ne voient que leurs propres
@@ -708,16 +708,16 @@
   </section>
 
   {# ─── 15. Bonnes pratiques ────────────────────────────── #}
-  <section class="v30-help__section" id="bonnes-pratiques">
-    <div class="v30-help__section-head">
+  <section class="v30-aide__section" id="bonnes-pratiques">
+    <div class="v30-aide__section-head">
       {{ ui.icon('bulb', 18) }}
       <h2><span class="serif">Bonnes pratiques.</span></h2>
     </div>
-    <p class="v30-help__lead">
+    <p class="v30-aide__lead">
       Dix habitudes simples pour garder ta base propre et ton pipeline
       actif.
     </p>
-    <ol class="v30-help__steps">
+    <ol class="v30-aide__steps">
       <li>Renseigne toujours une <b>date de prochaine relance</b> dès la
         création — c'est ce qui alimente Focus.</li>
       <li>Centralise la <b>stack technique dans les tags entreprise</b>
@@ -741,16 +741,16 @@
   </section>
 
   {# ─── Pied de page ────────────────────────────────────── #}
-  <section class="v30-help__footer">
+  <section class="v30-aide__footer">
     <div>
-      <div class="v30-help__footer-title">Encore une question&nbsp;?</div>
-      <div class="v30-help__footer-sub">
+      <div class="v30-aide__footer-title">Encore une question&nbsp;?</div>
+      <div class="v30-aide__footer-sub">
         Appuie sur <span class="kbd">?</span> pour la modale raccourcis,
         ou ouvre la palette <span class="kbd">⌘</span><span class="kbd">K</span>
         et tape ce que tu cherches.
       </div>
     </div>
-    <div class="v30-help__footer-actions">
+    <div class="v30-aide__footer-actions">
       <a class="btn btn-ghost btn-sm" href="/v30/parametres">
         {{ ui.icon('cog', 13) }} Paramètres
       </a>
