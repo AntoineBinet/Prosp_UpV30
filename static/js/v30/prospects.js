@@ -555,6 +555,7 @@
       STATE.total = filtered.length;
       STATE.allForKpis = all; // garde le dataset non filtre pour les KPI
       if (STATE.sort && STATE.sort.key) filtered = sortArray(filtered, STATE.sort.key, STATE.sort.dir);
+      STATE.filteredAll = filtered; // liste filtrée+triée complète (avant pagination) — utilisée par Mode Prosp
       // Pagination client-side (utile surtout pour /api/data qui renvoie tout)
       var start = STATE.offset || 0;
       var end = start + (STATE.limit || 50);
@@ -1536,8 +1537,8 @@
     btn.addEventListener('click', function () {
       var ids = Array.from(STATE.selected);
       if (!ids.length) {
-        // Aucune sélection : on prend tous les prospects filtrés courants (dataset complet non paginé).
-        var pool = STATE.allForKpis || STATE.prospects || [];
+        // Aucune sélection : on prend les prospects filtrés+triés courants (dataset complet non paginé).
+        var pool = STATE.filteredAll || STATE.prospects || [];
         ids = pool.map(function (p) { return p.id; });
       }
       if (!ids.length) { toast('Aucun prospect à traiter', 'warning'); return; }

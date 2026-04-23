@@ -36,7 +36,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 16px;
+  padding: 0 20px;
   height: 48px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -44,11 +44,11 @@
   z-index: 30;
 }
 .mp-header-left { display: flex; align-items: center; gap: 10px; }
-.mp-logo { height: 18px; width: auto; opacity: 0.85; }
+.mp-logo { height: 18px; width: auto; opacity: 0.7; }
 .mp-title {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
+  font-weight: 500;
+  color: var(--text-2);
   letter-spacing: -0.005em;
 }
 .mp-header-center { flex: 1; text-align: center; min-width: 0; }
@@ -64,15 +64,16 @@
   font-size: 11.5px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 .mp-header-right { display: flex; align-items: center; gap: 6px; }
 .mp-close-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   height: 28px;
   padding: 0 10px;
-  background: var(--surface);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   color: var(--text-2);
@@ -91,16 +92,16 @@
   min-height: 0;
   overflow: hidden;
   background: var(--bg);
-  padding: 16px 60px;
+  padding: 20px 64px;
 }
 
-/* Ghost cards — discrètes, sobres (pas de shimmer/dot-pattern) */
+/* Ghost cards — sobres, juste là pour suggérer la pile */
 .mp-ghost {
   position: absolute;
-  top: 16px;
+  top: 20px;
   left: 50%;
-  width: min(calc(100% - 120px), 1100px);
-  height: calc(100% - 32px);
+  width: min(calc(100% - 128px), 1120px);
+  height: calc(100% - 40px);
   border-radius: var(--r-xl);
   pointer-events: none;
   transform-origin: top center;
@@ -109,20 +110,20 @@
   z-index: 1;
 }
 .mp-ghost-1 {
-  transform: translateX(-50%) translateY(6px) scaleX(0.985);
-  opacity: 0.6;
+  transform: translateX(-50%) translateY(5px) scaleX(0.988);
+  opacity: 0.55;
   z-index: 1;
 }
 .mp-ghost-2 {
-  transform: translateX(-50%) translateY(12px) scaleX(0.97);
-  opacity: 0.3;
+  transform: translateX(-50%) translateY(10px) scaleX(0.975);
+  opacity: 0.28;
   z-index: 0;
 }
 
 /* ─── Viewport ─── */
 .mp-viewport {
   position: absolute;
-  inset: 16px 60px;
+  inset: 20px 64px;
   overflow: hidden;
   display: flex;
   justify-content: center;
@@ -132,10 +133,10 @@
 /* ─── Card ─── */
 .mp-card {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1120px;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 352px;
   overflow: hidden;
   margin: 0 auto;
   border-radius: var(--r-xl);
@@ -146,24 +147,24 @@
   transition: box-shadow var(--dur-3);
 }
 
-/* ─── Animations de navigation (sobres, pas de 3D perspective) ─── */
+/* ─── Animations de navigation (sobres, légères) ─── */
 @keyframes mp-enter-next {
-  0%   { transform: translateX(24px); opacity: 0; }
+  0%   { transform: translateX(28px); opacity: 0; }
   100% { transform: translateX(0);    opacity: 1; }
 }
 @keyframes mp-enter-prev {
-  0%   { transform: translateX(-24px); opacity: 0; }
+  0%   { transform: translateX(-28px); opacity: 0; }
   100% { transform: translateX(0);     opacity: 1; }
 }
 @keyframes mp-enter-initial {
-  0%   { opacity: 0; transform: translateY(4px); }
+  0%   { opacity: 0; transform: translateY(6px); }
   100% { opacity: 1; transform: translateY(0); }
 }
 .mp-card.mp-entering-next { animation: mp-enter-next 0.22s var(--ease) both; }
 .mp-card.mp-entering-prev { animation: mp-enter-prev 0.22s var(--ease) both; }
 .mp-card.mp-entering-init { animation: mp-enter-initial 0.2s var(--ease) both; }
 
-/* ─── LEFT COLUMN: main ─── */
+/* ─── LEFT COLUMN ─── */
 .mp-card-main {
   display: flex;
   flex-direction: column;
@@ -176,20 +177,23 @@
 /* ─── Hero section ─── */
 .mp-card-hero {
   position: relative;
-  padding: 20px 24px 16px;
+  padding: 20px 24px 18px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  /* teinte subtile selon statut via --hero-color */
+  background: color-mix(in oklch, var(--hero-color, var(--accent)) 7%, var(--surface));
 }
+
+/* Barre colorée en haut du hero */
 .mp-card-hero-bg {
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 3px;
+  height: 2px;
   background: var(--hero-color, var(--accent));
-  opacity: 0.9;
   z-index: 0;
   border-radius: var(--r-xl) var(--r-xl) 0 0;
 }
+
 .mp-card-hero-content {
   position: relative;
   z-index: 1;
@@ -197,15 +201,17 @@
   align-items: flex-start;
   gap: 14px;
 }
-.mp-avatar-wrap { flex-shrink: 0; margin-top: 2px; }
+.mp-avatar-wrap { flex-shrink: 0; margin-top: 1px; }
+
+/* Avatar cohérent avec v30-fp-header__avatar */
 .mp-avatar {
   width: 52px; height: 52px;
   border-radius: 14px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 600;
+  font-size: 17px; font-weight: 600;
   color: #fff;
-  border: 1px solid var(--border);
   letter-spacing: -0.01em;
+  border: 1px solid rgba(0,0,0,0.15);
 }
 .mp-avatar-img {
   width: 52px; height: 52px;
@@ -216,14 +222,14 @@
 
 .mp-hero-info { flex: 1; min-width: 0; }
 .mp-hero-name {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 21px;
+  font-weight: 500;
   color: var(--text);
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   line-height: 1.2;
 }
 .mp-hero-sub {
@@ -237,19 +243,19 @@
 .mp-hero-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: nowrap;
 }
 .mp-hero-stars {
-  font-size: 12px;
-  color: oklch(0.75 0.14 75);
-  letter-spacing: 1px;
+  font-size: 11px;
+  color: oklch(0.72 0.14 75);
+  letter-spacing: 1.5px;
   flex-shrink: 0;
 }
 .mp-status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 11px;
   font-weight: 500;
   padding: 2px 8px;
@@ -259,7 +265,7 @@
 }
 .mp-status-badge::before {
   content: '';
-  width: 6px; height: 6px;
+  width: 5px; height: 5px;
   border-radius: 50%;
   background: currentColor;
   flex-shrink: 0;
@@ -268,47 +274,51 @@
 /* ─── Quick actions (hero top-right) ─── */
 .mp-quick-actions {
   display: flex;
-  gap: 6px;
+  gap: 5px;
   margin-left: auto;
   flex-shrink: 0;
   align-items: flex-start;
 }
+
+/* Boutons d'action rapide — style proche de .btn v30 */
 .mp-quick-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 32px;
-  min-width: 48px;
+  height: 28px;
+  min-width: 44px;
   padding: 0 10px;
   border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--border);
-  color: var(--text);
+  color: var(--text-2);
   text-decoration: none;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition: background var(--dur-1), border-color var(--dur-1), color var(--dur-1);
+  font-family: var(--font-sans);
 }
 .mp-quick-btn:hover {
   background: var(--surface-2);
   border-color: var(--border-strong);
+  color: var(--text);
 }
-.mp-quick-call:hover    { color: var(--success); border-color: var(--success); }
-.mp-quick-email:hover   { color: var(--info);    border-color: var(--info); }
-.mp-quick-linkedin:hover{ color: var(--accent);  border-color: var(--accent); }
+.mp-quick-call:hover    { color: var(--success);  border-color: var(--success); }
+.mp-quick-email:hover   { color: var(--info);     border-color: var(--info); }
+.mp-quick-linkedin:hover{ color: var(--accent);   border-color: var(--accent); }
 
 /* ─── Phone choice dropdown ─── */
 .mp-phone-choice {
   position: fixed;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   padding: 4px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   z-index: 9999;
   min-width: 220px;
   box-shadow: var(--shadow-pop);
@@ -335,13 +345,13 @@
 /* ─── Card body / form ─── */
 .mp-card-body {
   flex: 1;
-  padding: 16px 24px 20px;
+  padding: 18px 24px 20px;
   background: var(--surface);
 }
 .mp-field-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px 16px;
+  gap: 12px 18px;
 }
 .mp-field {
   display: flex;
@@ -349,38 +359,37 @@
   gap: 4px;
   min-width: 0;
 }
+
+/* Labels style v30 — sobre, pas de majuscules */
 .mp-label {
   font-size: 11px;
   font-weight: 500;
   color: var(--text-3);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 .mp-input {
   width: 100%;
   height: 30px;
   padding: 0 10px;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   color: var(--text);
-  font-size: 13px;
+  font-size: 12.5px;
   font-family: inherit;
-  transition: border-color var(--dur-1), box-shadow var(--dur-1);
+  transition: border-color var(--dur-1), box-shadow var(--dur-1), background var(--dur-1);
   box-sizing: border-box;
 }
-.mp-input:hover:not(:focus) { border-color: var(--border-strong); }
+.mp-input:hover:not(:focus) { border-color: var(--border-strong); background: var(--surface-3); }
 .mp-input:focus {
   outline: none;
+  background: var(--surface);
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 20%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
 }
 textarea.mp-input { height: auto; min-height: 64px; padding: 8px 10px; resize: vertical; }
 select.mp-input { cursor: pointer; }
-
-.mp-status-select {
-  font-weight: 500;
-  border-left-width: 3px;
-}
+.mp-status-select { font-weight: 500; border-left-width: 3px; }
 
 .mp-phone-links {
   display: flex;
@@ -406,13 +415,13 @@ select.mp-input { cursor: pointer; }
   justify-content: flex-end;
 }
 
-/* ─── Save button (uses btn-accent style) ─── */
+/* Bouton Enregistrer — identique à .btn-accent v30 */
 .mp-save-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 32px;
+  height: 30px;
   padding: 0 16px;
   background: var(--accent);
   border: 1px solid var(--accent);
@@ -420,14 +429,14 @@ select.mp-input { cursor: pointer; }
   border-radius: var(--r-md);
   font-size: 12.5px;
   font-weight: 500;
-  cursor: pointer;
   font-family: inherit;
+  cursor: pointer;
   transition: background var(--dur-1), border-color var(--dur-1), opacity var(--dur-1);
   letter-spacing: -0.005em;
 }
 .mp-save-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .mp-save-btn:active { opacity: 0.8; }
-.mp-save-btn:disabled { opacity: 0.5; cursor: wait; }
+.mp-save-btn:disabled { opacity: 0.45; cursor: wait; }
 
 /* ─── RIGHT COLUMN: Timeline ─── */
 .mp-card-timeline {
@@ -442,7 +451,7 @@ select.mp-input { cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 11px 16px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   background: var(--surface);
@@ -468,11 +477,11 @@ select.mp-input { cursor: pointer; }
 .mp-tl-input {
   width: 100%;
   box-sizing: border-box;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   color: var(--text);
-  padding: 8px 10px;
+  padding: 7px 10px;
   font-size: 12.5px;
   font-family: inherit;
   resize: none;
@@ -480,16 +489,19 @@ select.mp-input { cursor: pointer; }
 }
 .mp-tl-input:focus {
   outline: none;
+  background: var(--surface);
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 20%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
 }
+
+/* Bouton Ajouter — style .btn v30 */
 .mp-tl-add-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   margin-top: 6px;
-  height: 28px;
+  height: 26px;
   padding: 0 10px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -507,7 +519,7 @@ select.mp-input { cursor: pointer; }
 .mp-tl-feed {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 16px 16px 30px;
+  padding: 10px 16px 16px 32px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -517,7 +529,7 @@ select.mp-input { cursor: pointer; }
 .mp-tl-feed::before {
   content: '';
   position: absolute;
-  left: 20px;
+  left: 21px;
   top: 18px;
   bottom: 18px;
   width: 1px;
@@ -525,8 +537,8 @@ select.mp-input { cursor: pointer; }
 }
 .mp-tl-item {
   position: relative;
-  padding: 6px 0;
-  animation: mp-tlSlideIn 0.2s var(--ease) both;
+  padding: 5px 0;
+  animation: mp-tlSlideIn 0.18s var(--ease) both;
 }
 @keyframes mp-tlSlideIn {
   from { opacity: 0; transform: translateY(4px); }
@@ -534,14 +546,14 @@ select.mp-input { cursor: pointer; }
 }
 .mp-tl-dot {
   position: absolute;
-  left: -14px;
-  top: 11px;
-  width: 10px; height: 10px;
+  left: -15px;
+  top: 10px;
+  width: 8px; height: 8px;
   border-radius: 50%;
   background: var(--accent);
   border: 2px solid var(--surface-2);
 }
-.mp-tl-dot-call     { background: oklch(0.65 0.14 75); }
+.mp-tl-dot-call     { background: oklch(0.68 0.14 75); }
 .mp-tl-dot-push     { background: oklch(0.60 0.13 220); }
 .mp-tl-dot-done     { background: var(--success); }
 .mp-tl-dot-rdv      { background: oklch(0.55 0.16 290); }
@@ -553,17 +565,17 @@ select.mp-input { cursor: pointer; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: 8px 10px;
+  padding: 7px 10px;
   transition: background var(--dur-1);
 }
 .mp-tl-item:hover .mp-tl-body { background: var(--surface-3); }
 .mp-tl-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin-bottom: 2px;
 }
-.mp-tl-icon    { font-size: 11px; }
+.mp-tl-icon    { font-size: 10.5px; }
 .mp-tl-label   { font-size: 11.5px; font-weight: 500; color: var(--text); }
 .mp-tl-date    { font-size: 10.5px; color: var(--text-3); margin-left: auto; white-space: nowrap; }
 .mp-tl-content { font-size: 11.5px; color: var(--text-2); white-space: pre-wrap; line-height: 1.45; word-break: break-word; }
@@ -574,7 +586,7 @@ select.mp-input { cursor: pointer; }
   font-size: 12px;
 }
 
-/* ─── Date picker modal (uses v30 modal style) ─── */
+/* ─── Date picker modal ─── */
 .mp-date-modal {
   position: fixed;
   inset: 0;
@@ -599,9 +611,9 @@ select.mp-input { cursor: pointer; }
   max-width: 420px;
   width: 100%;
   box-shadow: var(--shadow-pop);
-  animation: mp-scaleIn 0.22s var(--ease);
+  animation: mp-scaleIn 0.2s var(--ease);
 }
-.mp-date-modal-title  { font-size: 14px; font-weight: 600; color: var(--text); margin: 0 0 4px; }
+.mp-date-modal-title  { font-size: 14px; font-weight: 600; color: var(--text); margin: 0 0 3px; }
 .mp-date-modal-sub    { font-size: 12.5px; color: var(--text-3); margin: 0 0 14px; }
 .mp-date-modal-input  { margin-bottom: 16px; }
 .mp-date-modal-actions{ display: flex; gap: 8px; justify-content: flex-end; }
@@ -620,19 +632,15 @@ select.mp-input { cursor: pointer; }
 }
 .mp-date-skip    { background: var(--surface); color: var(--text-2); }
 .mp-date-skip:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); }
-.mp-date-confirm {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-fg);
-}
+.mp-date-confirm { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 .mp-date-confirm:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
-/* ─── Navigation arrows (latérales) ─── */
+/* ─── Navigation arrows ─── */
 .mp-arrow {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 36px; height: 36px;
+  width: 34px; height: 34px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -655,9 +663,9 @@ select.mp-input { cursor: pointer; }
 .mp-arrow-prev:hover:not(:disabled) svg { transform: translateX(-1px); }
 .mp-arrow-next:hover:not(:disabled) svg { transform: translateX(1px); }
 .mp-arrow:active:not(:disabled) { opacity: 0.7; }
-.mp-arrow:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
-.mp-arrow-prev { left: 12px; }
-.mp-arrow-next { right: 12px; }
+.mp-arrow:disabled { opacity: 0.25; cursor: not-allowed; pointer-events: none; }
+.mp-arrow-prev { left: 14px; }
+.mp-arrow-next { right: 14px; }
 
 /* ─── Progress strip (footer) ─── */
 .mp-progress-strip {
@@ -666,14 +674,14 @@ select.mp-input { cursor: pointer; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 10px 60px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding: 9px 64px calc(9px + env(safe-area-inset-bottom, 0px));
   background: var(--surface);
   border-top: 1px solid var(--border);
   gap: 6px;
-  min-height: 42px;
+  min-height: 40px;
 }
 .mp-progress-bar {
-  width: 220px; height: 3px;
+  width: 200px; height: 2px;
   background: var(--surface-3);
   border-radius: 2px;
   overflow: hidden;
@@ -682,7 +690,7 @@ select.mp-input { cursor: pointer; }
   height: 100%;
   background: var(--accent);
   border-radius: 2px;
-  transition: width 0.35s var(--ease);
+  transition: width 0.3s var(--ease);
 }
 .mp-nav-dots {
   display: flex;
@@ -696,13 +704,13 @@ select.mp-input { cursor: pointer; }
   border-radius: 50%;
   background: var(--surface-3);
   cursor: pointer;
-  transition: background var(--dur-1), transform var(--dur-1);
+  transition: background var(--dur-1), transform var(--dur-2);
   padding: 0;
   border: none;
 }
 .mp-dot.active {
   background: var(--accent);
-  transform: scaleX(2.5);
+  transform: scaleX(2.8);
   border-radius: 2px;
 }
 .mp-dot:hover:not(.active) { background: var(--border-strong); }
@@ -725,13 +733,12 @@ select.mp-input { cursor: pointer; }
    MOBILE RESPONSIVE
    ═══════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  .mp-deck-stage { padding: 8px 8px; }
-  .mp-viewport { inset: 8px 8px; }
-  .mp-ghost { left: 50%; width: calc(100% - 16px); }
+  .mp-deck-stage { padding: 10px 10px; }
+  .mp-viewport { inset: 10px 10px; }
+  .mp-ghost { left: 50%; width: calc(100% - 20px); }
 
   .mp-card {
     grid-template-columns: minmax(0, 1fr);
-    /* Main prend l'espace restant, timeline entre 200px (min lisible) et 42vh */
     grid-template-rows: minmax(0, 1fr) minmax(200px, 42vh);
   }
   .mp-card-timeline {
@@ -741,10 +748,8 @@ select.mp-input { cursor: pointer; }
   }
   .mp-card-main { min-height: 0; }
 
-  /* Ghost cards cachées sur mobile */
   .mp-ghost { display: none; }
 
-  /* Arrows plus petites, repositionnées en bas */
   .mp-arrow { width: 32px; height: 32px; }
   .mp-arrow-prev { left: 6px; }
   .mp-arrow-next { right: 6px; }
@@ -752,8 +757,8 @@ select.mp-input { cursor: pointer; }
 
 @media (max-width: 768px) {
   .mp-header {
-    padding: 0 max(10px, env(safe-area-inset-right, 10px)) 0 max(10px, env(safe-area-inset-left, 10px));
-    height: max(42px, env(safe-area-inset-top, 0px) + 42px);
+    padding: 0 max(12px, env(safe-area-inset-right, 12px)) 0 max(12px, env(safe-area-inset-left, 12px));
+    height: max(44px, env(safe-area-inset-top, 0px) + 44px);
     padding-top: env(safe-area-inset-top, 0px);
     gap: 6px;
   }
@@ -765,9 +770,9 @@ select.mp-input { cursor: pointer; }
   .mp-card-hero { padding: 14px 16px 12px; }
   .mp-card-hero-content { gap: 10px; }
   .mp-avatar, .mp-avatar-img { width: 44px; height: 44px; border-radius: 12px; font-size: 15px; }
-  .mp-hero-name { font-size: 17px; }
+  .mp-hero-name { font-size: 18px; }
   .mp-hero-sub { font-size: 11.5px; }
-  .mp-quick-btn { height: 30px; min-width: 44px; font-size: 10.5px; padding: 0 8px; }
+  .mp-quick-btn { height: 28px; min-width: 40px; font-size: 10.5px; padding: 0 8px; }
 
   .mp-card-body { padding: 12px 16px 16px; }
   .mp-field-grid { grid-template-columns: 1fr 1fr; gap: 8px 12px; }
