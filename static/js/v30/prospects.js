@@ -901,6 +901,7 @@
         });
         document.querySelectorAll('[data-saved-view-id]').forEach(function (b) { b.classList.remove('is-active'); });
         applyViewFilter(btn.dataset.viewFilter);
+        renderSavedPills();
       });
     });
   }
@@ -945,11 +946,10 @@
         };
         STATE.offset = 0;
         STATE.activeSavedViewId = btn.dataset.savedViewId;
-        document.querySelectorAll('.v30-pp-views [data-view-filter]').forEach(function (b) { b.classList.remove('is-active'); });
-        document.querySelectorAll('[data-saved-view-id]').forEach(function (b) { b.classList.toggle('is-active', b === btn); });
         updateFilterBadge();
         savePersistedFilters();
         loadProspects();
+        renderSavedPills();
       });
     });
     host.querySelectorAll('[data-saved-view-delete]').forEach(function (btn) {
@@ -961,7 +961,7 @@
           .then(loadSavedViews);
       });
     });
-    // BUG 24 : × sur une vue active → on désactive (reset "Tous") sans supprimer
+    // × sur une vue active → on désactive (reset "Tous") sans supprimer
     host.querySelectorAll('[data-saved-view-deactivate]').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -972,6 +972,7 @@
             b.classList.toggle('is-active', b === tousBtn);
           });
         }
+        renderSavedPills();
       });
     });
   }
