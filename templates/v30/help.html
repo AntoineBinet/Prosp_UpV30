@@ -11,73 +11,760 @@
 
 <div class="v30-help">
 
+  {# ─── Hero ─────────────────────────────────────────────── #}
   <div class="v30-help__topbar">
     <div>
       <div class="v30-help__eyebrow">Centre d'aide</div>
-      <h1 class="v30-help__title"><span class="serif">Besoin d'un coup de main ?</span></h1>
+      <h1 class="v30-help__title">
+        <span class="serif">Besoin d'un coup de main&nbsp;?</span>
+      </h1>
       <div class="v30-help__sub">
-        Démarrage rapide, raccourcis clavier, guides détaillés.
+        Démarrage rapide, workflow quotidien, raccourcis clavier et astuces pour
+        tirer le meilleur de la v30.
       </div>
+    </div>
+    <div class="v30-help__topbar-actions">
+      <button type="button" class="btn btn-sm" data-v30-help-shortcuts
+              title="Ouvrir la modale des raccourcis (?)">
+        {{ ui.icon('command', 14) }} Raccourcis
+      </button>
+      <a class="btn btn-ghost btn-sm" href="/v30/parametres">
+        {{ ui.icon('cog', 14) }} Paramètres
+      </a>
     </div>
   </div>
 
+  {# ─── Callout raccourcis express ──────────────────────── #}
+  <section class="v30-help__quick">
+    <div class="v30-help__quick-head">
+      {{ ui.icon('zap', 16) }}
+      <h2>Aller vite</h2>
+    </div>
+    <div class="v30-help__quick-grid">
+      <div><span class="kbd">⌘</span><span class="kbd">K</span><em>Palette de commandes</em></div>
+      <div><span class="kbd">G</span> + <span class="kbd">lettre</span><em>Navigation rapide</em></div>
+      <div><span class="kbd">/</span><em>Recherche globale</em></div>
+      <div><span class="kbd">?</span><em>Modale raccourcis</em></div>
+      <div><span class="kbd">⇧</span><span class="kbd">T</span><em>Basculer le thème</em></div>
+      <div><span class="kbd">[</span><em>Replier la sidebar</em></div>
+    </div>
+  </section>
+
+  {# ─── Sommaire (TOC) ──────────────────────────────────── #}
   <div class="v30-help__grid">
-
-    <a class="v30-help__card" href="/help#demarrage">
+    <a class="v30-help__card" href="#demarrage">
       <div class="v30-help__card-head">{{ ui.icon('zap', 16) }}<h3>Démarrage</h3></div>
-      <p>Premiers pas, créer un prospect, pousser ses premiers emails.</p>
+      <p>Connexion, v30 par défaut, bascule v29, snapshot auto.</p>
     </a>
-
-    <a class="v30-help__card" href="/help#dashboard">
+    <a class="v30-help__card" href="#dashboard">
       <div class="v30-help__card-head">{{ ui.icon('home', 16) }}<h3>Dashboard</h3></div>
-      <p>KPI du jour, priorités IA, objectifs hebdomadaires.</p>
+      <p>Action Center, pipeline, objectifs, priorités IA, activité.</p>
     </a>
-
-    <a class="v30-help__card" href="/help#prospects">
+    <a class="v30-help__card" href="#focus-calendrier">
+      <div class="v30-help__card-head">{{ ui.icon('focus', 16) }}<h3>Focus &amp; Calendrier</h3></div>
+      <p>Relances du jour, vue mois, événements colorés, quick actions.</p>
+    </a>
+    <a class="v30-help__card" href="#prospects">
       <div class="v30-help__card-head">{{ ui.icon('users', 16) }}<h3>Prospects</h3></div>
-      <p>Import Excel, filtres, statuts, relances, bulk actions.</p>
+      <p>3 vues, filtres persistants, bulk bar, édition inline.</p>
     </a>
-
-    <a class="v30-help__card" href="/help#push">
+    <a class="v30-help__card" href="#fiche-prospect">
+      <div class="v30-help__card-head">{{ ui.icon('user', 16) }}<h3>Fiche prospect</h3></div>
+      <p>Onglets, timeline, IA drawer, édition inline.</p>
+    </a>
+    <a class="v30-help__card" href="#entreprises">
+      <div class="v30-help__card-head">{{ ui.icon('building', 16) }}<h3>Entreprises</h3></div>
+      <p>Liste, fusion, opportunités, export XLSX.</p>
+    </a>
+    <a class="v30-help__card" href="#sourcing">
+      <div class="v30-help__card-head">{{ ui.icon('target', 16) }}<h3>Sourcing &amp; candidats</h3></div>
+      <p>Pipeline 5 statuts, compétences, dispo 8 semaines.</p>
+    </a>
+    <a class="v30-help__card" href="#push">
       <div class="v30-help__card-head">{{ ui.icon('send', 16) }}<h3>Push &amp; Campagnes</h3></div>
-      <p>Templates, wizard campagne 3 étapes, suivi ouvertures.</p>
+      <p>Wizard 3 étapes, templates, variables, historique.</p>
     </a>
-
-    <a class="v30-help__card" href="/help#sourcing">
-      <div class="v30-help__card-head">{{ ui.icon('user', 16) }}<h3>Sourcing candidats</h3></div>
-      <p>Pipeline 5 statuts, compétences avec niveau, dispo 8 semaines.</p>
+    <a class="v30-help__card" href="#mode-prosp">
+      <div class="v30-help__card-head">{{ ui.icon('flame', 16) }}<h3>Mode Prosp</h3></div>
+      <p>Deck 3D plein écran, swipe, clavier.</p>
     </a>
-
-    <a class="v30-help__card" href="/help#ia">
+    <a class="v30-help__card" href="#stats-rapport">
+      <div class="v30-help__card-head">{{ ui.icon('chart', 16) }}<h3>Stats &amp; Rapport</h3></div>
+      <p>KPI période, top entreprises, rapport WYSIWYG.</p>
+    </a>
+    <a class="v30-help__card" href="#ia">
       <div class="v30-help__card-head">{{ ui.icon('sparkles', 16) }}<h3>IA &amp; Scraping</h3></div>
-      <p>Enrichissement prospect, avant/après-RDV, Email IA, web search.</p>
+      <p>Ollama local, Tavily web, avant/après-RDV.</p>
     </a>
-
-    <button type="button" class="v30-help__card" data-v30-help-shortcuts>
+    <a class="v30-help__card" href="#import-excel">
+      <div class="v30-help__card-head">{{ ui.icon('inbox', 16) }}<h3>Import Excel</h3></div>
+      <p>Mapping auto, reformulation IA, colonnes supportées.</p>
+    </a>
+    <a class="v30-help__card" href="#raccourcis">
       <div class="v30-help__card-head">{{ ui.icon('command', 16) }}<h3>Raccourcis clavier</h3></div>
-      <p>⌘K, G+P, /, ? et la navigation globale.</p>
-    </button>
-
-    <a class="v30-help__card" href="/docs/MODE_EMPLOI.md" target="_blank" rel="noopener">
-      <div class="v30-help__card-head">{{ ui.icon('report', 16) }}<h3>Manuel complet</h3></div>
-      <p>Guide utilisateur détaillé (markdown, 12 pages).</p>
+      <p>Global, navigation, tables, création.</p>
     </a>
-
+    <a class="v30-help__card" href="#parametres-admin">
+      <div class="v30-help__card-head">{{ ui.icon('cog', 16) }}<h3>Paramètres &amp; Admin</h3></div>
+      <p>Mise à jour native, snapshots, users, activité.</p>
+    </a>
+    <a class="v30-help__card" href="#bonnes-pratiques">
+      <div class="v30-help__card-head">{{ ui.icon('bulb', 16) }}<h3>Bonnes pratiques</h3></div>
+      <p>10 habitudes pour rester efficace au quotidien.</p>
+    </a>
   </div>
 
-  <section class="card v30-help__tips">
-    <div class="card-title">Astuces</div>
-    <ul>
-      <li><b>⌘ + K</b> (ou <b>Ctrl + K</b>) ouvre la palette de commandes depuis n'importe quelle page.</li>
-      <li><b>G</b> puis une lettre (D, P, E, S, F, U, T) navigue instantanément.</li>
-      <li>Sur les tables, active une ligne et appuie sur <b>E</b> pour éditer en place.</li>
-      <li>Clic long sur un prospect en mobile = menu contextuel.</li>
-      <li>Mode Prosp accessible via la palette (<code class="mono">⌘K</code> → « Lancer Mode Prosp »), le bouton sur la page Prospects, ou l'URL <code class="mono">/v30/mode-prosp</code> (session requise).</li>
+  {# ─── 1. Démarrage ────────────────────────────────────── #}
+  <section class="v30-help__section" id="demarrage">
+    <div class="v30-help__section-head">
+      {{ ui.icon('zap', 18) }}
+      <h2><span class="serif">Démarrage.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Tout ce qu'il faut savoir pour ta première connexion et comprendre
+      comment la v30 s'articule avec la v29.
+    </p>
+
+    <ol class="v30-help__steps">
+      <li><b>URL :</b> <code class="mono">https://prosphup.work</code> (ou
+        <code class="mono">http://localhost:8000</code> en local).</li>
+      <li><b>Connexion :</b> identifiants par défaut
+        <code class="mono">admin / admin</code> — à changer au premier
+        passage via <i>Mon compte</i>.</li>
+      <li><b>Interface :</b> la v30 est l'interface par défaut depuis la
+        release 30.1. Tu atterris sur <code class="mono">/v30/dashboard</code>.</li>
+      <li><b>Snapshot auto :</b> une sauvegarde de la base est créée au
+        premier démarrage du jour — restaurable à tout moment depuis
+        <a href="/v30/parametres">Paramètres</a>.</li>
+    </ol>
+
+    <div class="v30-help__callout v30-help__callout--info">
+      <b>Besoin de l'ancienne interface ?</b> Depuis la sidebar, clique sur
+      « Revenir à l'ancienne interface » (carte dans
+      <a href="/v30/parametres">Paramètres</a>) ou ajoute
+      <code class="mono">?force_v29=1</code> à n'importe quelle URL. Tes
+      données sont identiques — c'est juste un rendu différent.
+    </div>
+
+    <div class="v30-help__try">
+      <a class="btn btn-primary btn-sm" href="/v30/dashboard">
+        {{ ui.icon('arrowR', 13) }} Aller au dashboard
+      </a>
+    </div>
+  </section>
+
+  {# ─── 2. Dashboard ─────────────────────────────────────── #}
+  <section class="v30-help__section" id="dashboard">
+    <div class="v30-help__section-head">
+      {{ ui.icon('home', 18) }}
+      <h2><span class="serif">Dashboard.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      La page d'accueil v30 rassemble en un seul écran ton Action Center,
+      ton pipeline, tes objectifs et les priorités générées par l'IA.
+    </p>
+
+    <ul class="v30-help__list">
+      <li><b>Action Center</b> — trois colonnes&nbsp;: Tâches du jour, RDV,
+        Retards. Chaque item est cliquable et ouvre la fiche concernée.</li>
+      <li><b>Pipeline</b> — barre horizontale par stade (Vivier → Qualifié →
+        Proposé → En entretien → Placé). Les compteurs sont cliquables pour
+        filtrer la liste Prospects.</li>
+      <li><b>Objectifs &amp; gamification</b> — cibles hebdo (prospects
+        contactés, RDV, pushs). Configuration dans
+        <a href="/v30/parametres">Paramètres → Objectifs</a>.</li>
+      <li><b>Priorités IA</b> — suggestions générées par Ollama à partir
+        des prospects stagnants (score de pertinence, dernier contact).</li>
+      <li><b>Fil d'activité</b> — flux temps réel des dernières actions
+        (notes, changements de statut, pushs envoyés).</li>
     </ul>
+
+    <div class="v30-help__callout v30-help__callout--tip">
+      <b>Astuce :</b> les widgets du dashboard sont déplaçables en
+      drag&nbsp;&amp;&nbsp;drop (desktop) — l'ordre est persisté par
+      utilisateur.
+    </div>
+
+    <div class="v30-help__try">
+      <a class="btn btn-primary btn-sm" href="/v30/dashboard">
+        {{ ui.icon('arrowR', 13) }} Ouvrir le dashboard
+      </a>
+    </div>
+  </section>
+
+  {# ─── 3. Focus & Calendrier ───────────────────────────── #}
+  <section class="v30-help__section" id="focus-calendrier">
+    <div class="v30-help__section-head">
+      {{ ui.icon('focus', 18) }}
+      <h2><span class="serif">Focus &amp; Calendrier.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Focus te donne une vue chirurgicale des relances à faire. Calendrier
+      te donne la vue mensuelle de tes RDV et échéances.
+    </p>
+
+    <h3 class="v30-help__sub">Focus</h3>
+    <ul class="v30-help__list">
+      <li>Trois piles&nbsp;: <b>En retard</b> (rouge), <b>Aujourd'hui</b>
+        (orange), <b>À venir</b> (bleu).</li>
+      <li><b>Quick actions</b> sur chaque ligne&nbsp;:
+        <span class="kbd">+1j</span> / <span class="kbd">+7j</span> /
+        <span class="kbd">✓</span> (marquer fait).</li>
+      <li>Rechargement automatique après chaque action — tu enchaînes
+        sans refresh.</li>
+    </ul>
+
+    <h3 class="v30-help__sub">Calendrier</h3>
+    <ul class="v30-help__list">
+      <li>Vue mois (lundi → dimanche). Navigation
+        <span class="kbd">&lt;</span> / <span class="kbd">&gt;</span> /
+        <span class="kbd">Aujourd'hui</span>.</li>
+      <li>Événements colorés&nbsp;:
+        🤝 RDV, 🔄 relance, 📞 EC1/EC2 (entretiens candidat).</li>
+      <li>Popup <b>+N événements</b> quand un jour déborde — clic ouvre
+        directement la fiche correspondante.</li>
+    </ul>
+
+    <div class="v30-help__try">
+      <a class="btn btn-primary btn-sm" href="/v30/focus">
+        {{ ui.icon('arrowR', 13) }} Ouvrir Focus
+      </a>
+      <a class="btn btn-sm" href="/v30/calendrier">
+        {{ ui.icon('calendar', 13) }} Ouvrir Calendrier
+      </a>
+    </div>
+  </section>
+
+  {# ─── 4. Prospects ─────────────────────────────────────── #}
+  <section class="v30-help__section" id="prospects">
+    <div class="v30-help__section-head">
+      {{ ui.icon('users', 18) }}
+      <h2><span class="serif">Prospects.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Le cœur de l'outil. Trois vues, des filtres qui se souviennent, une
+      bulk bar pour agir sur des dizaines de prospects d'un clic.
+    </p>
+
+    <h3 class="v30-help__sub">Les 3 vues</h3>
+    <ul class="v30-help__list">
+      <li>{{ ui.icon('table', 14) }} <b>Table</b> — tableau dense, tri par
+        colonne, toggle colonnes via l'icône engrenage.</li>
+      <li>{{ ui.icon('kanban', 14) }} <b>Kanban</b> — par statut, drag pour
+        changer d'étape.</li>
+      <li>{{ ui.icon('split', 14) }} <b>Split</b> — liste + fiche à droite
+        sans quitter la page.</li>
+    </ul>
+
+    <h3 class="v30-help__sub">Filtres &amp; vues enregistrées</h3>
+    <ul class="v30-help__list">
+      <li>Pills de vues par défaut&nbsp;: <i>Tous</i>, <i>Mes prospects</i>,
+        <i>À relancer</i>, <i>Chauds</i>.</li>
+      <li>Bouton <span class="kbd">+</span> pour créer une vue custom à
+        partir des filtres actifs.</li>
+      <li><b>Persistance localStorage</b>&nbsp;: les filtres sont
+        conservés d'une session à l'autre.</li>
+    </ul>
+
+    <h3 class="v30-help__sub">Bulk bar &amp; édition inline</h3>
+    <ul class="v30-help__list">
+      <li>Sélectionne plusieurs lignes → la bulk bar flottante propose
+        <i>Tag</i>, <i>Statut</i>, <i>Push</i>, <i>Supprimer</i>.</li>
+      <li>Double-clic sur une cellule → édition inline (nom, fonction,
+        email, téléphone).</li>
+      <li>{{ ui.icon('sparkles', 14) }} <b>Scrapping IA</b> par ligne
+        (icône étoile) — ouvre la modale d'enrichissement.</li>
+    </ul>
+
+    <div class="v30-help__callout v30-help__callout--tip">
+      <b>Clavier :</b> <span class="kbd">J</span>/<span class="kbd">K</span>
+      pour naviguer, <span class="kbd">X</span> pour cocher,
+      <span class="kbd">E</span> pour éditer en place,
+      <span class="kbd">↵</span> pour ouvrir la fiche.
+    </div>
+
+    <div class="v30-help__try">
+      <a class="btn btn-primary btn-sm" href="/v30/prospects">
+        {{ ui.icon('arrowR', 13) }} Ouvrir Prospects
+      </a>
+    </div>
+  </section>
+
+  {# ─── 5. Fiche prospect ────────────────────────────────── #}
+  <section class="v30-help__section" id="fiche-prospect">
+    <div class="v30-help__section-head">
+      {{ ui.icon('user', 18) }}
+      <h2><span class="serif">Fiche prospect.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Tout ce qui concerne un prospect sur une seule page&nbsp;: infos,
+      historique, pushs, enrichissement IA.
+    </p>
+
+    <ul class="v30-help__list">
+      <li><b>4 onglets</b>&nbsp;: <i>Vue d'ensemble</i>, <i>Timeline</i>,
+        <i>Push</i>, <i>IA</i>.</li>
+      <li><b>Édition inline</b>&nbsp;: clic sur n'importe quel champ
+        (nom, fonction, email, téléphone, notes) pour éditer. Validation
+        par <span class="kbd">↵</span>, annulation par <span class="kbd">Esc</span>.</li>
+      <li><b>Timeline colorée</b>&nbsp;: points bleu (push), vert (RDV),
+        gris (note), orange (changement de statut).</li>
+      <li><b>IA drawer</b>&nbsp;:
+        <i>Scrapping</i> (enrichir champs), <i>Avant RDV</i> (fiche prépa
+        PDF), <i>Après RDV</i> (compte-rendu auto → champs mis à jour).</li>
+      <li><b>Date de prochaine relance</b>&nbsp;: pilote les statuts
+        En retard / Aujourd'hui / À venir dans Focus.</li>
+    </ul>
+
+    <div class="v30-help__callout v30-help__callout--info">
+      Le bouton <b>Avant RDV IA</b> génère un PDF d'une page
+      (bio LinkedIn + actus + accroche) à imprimer ou partager avant
+      ton rendez-vous.
+    </div>
+  </section>
+
+  {# ─── 6. Entreprises ──────────────────────────────────── #}
+  <section class="v30-help__section" id="entreprises">
+    <div class="v30-help__section-head">
+      {{ ui.icon('building', 18) }}
+      <h2><span class="serif">Entreprises.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Gère les comptes (cibles, clients, prospects chauds) et suis leurs
+      opportunités commerciales.
+    </p>
+
+    <ul class="v30-help__list">
+      <li><b>Vues :</b> liste dense ou grille de cartes (toggle haut de
+        page).</li>
+      <li><b>Filtres :</b> pipeline, avec/sans prospects, tags techniques.
+        KPI en entête (total / en pipeline / prospects liés).</li>
+      <li><b>Fusion :</b> sélectionne 2 entreprises → <i>Fusionner</i> →
+        wizard de consolidation (sites, tags, prospects).</li>
+      <li><b>Opportunités :</b> Identification → Qualification →
+        Proposition → Négociation → Gagné / Perdu. Timeline d'événements
+        par opportunité.</li>
+      <li><b>Export :</b> XLSX multi-colonnes (avec nb de prospects et
+        tags consolidés).</li>
+    </ul>
+
+    <div class="v30-help__callout v30-help__callout--tip">
+      <b>Astuce :</b> centraliser la stack technique dans les <i>tags
+      entreprise</i> (et pas sur chaque prospect) évite les doublons
+      et facilite le sourcing.
+    </div>
+
+    <div class="v30-help__try">
+      <a class="btn btn-primary btn-sm" href="/v30/entreprises">
+        {{ ui.icon('arrowR', 13) }} Ouvrir Entreprises
+      </a>
+    </div>
+  </section>
+
+  {# ─── 7. Sourcing & candidats ─────────────────────────── #}
+  <section class="v30-help__section" id="sourcing">
+    <div class="v30-help__section-head">
+      {{ ui.icon('target', 18) }}
+      <h2><span class="serif">Sourcing &amp; candidats.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Pipeline de sourcing, matching prospects/candidats, requêtes
+      booléennes LinkedIn générées à la volée.
+    </p>
+
+    <h3 class="v30-help__sub">Pipeline 5 statuts</h3>
+    <ul class="v30-help__list">
+      <li><b>À sourcer</b> → <b>Contacté</b> → <b>Qualifié</b> →
+        <b>En mission</b> → <b>Archivé</b>.</li>
+      <li>Vue kanban (drag) ou grille (vignettes).</li>
+      <li>Bulk <i>Changement de statut</i> depuis la bulk bar.</li>
+    </ul>
+
+    <h3 class="v30-help__sub">Import &amp; outils</h3>
+    <ul class="v30-help__list">
+      <li><b>Import LinkedIn CSV</b> — export Sales Nav direct.</li>
+      <li><b>Intégration VSA</b> — sync candidats.</li>
+      <li><b>Outil productivité</b> — sélectionne une entreprise, extrait
+        les mots-clés automatiquement, génère une requête booléenne
+        LinkedIn prête à coller.</li>
+      <li><b>Candidat du jour</b> — suggestion IA en page d'accueil
+        Sourcing + message d'outreach pré-rédigé.</li>
+    </ul>
+
+    <div class="v30-help__try">
+      <a class="btn btn-primary btn-sm" href="/v30/sourcing">
+        {{ ui.icon('arrowR', 13) }} Ouvrir Sourcing
+      </a>
+    </div>
+  </section>
+
+  {# ─── 7b. Fiche candidat ──────────────────────────────── #}
+  <section class="v30-help__section" id="fiche-candidat">
+    <div class="v30-help__section-head">
+      {{ ui.icon('user', 18) }}
+      <h2><span class="serif">Fiche candidat.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Profil complet avec barres de compétences et grille de disponibilité
+      sur 8 semaines.
+    </p>
+    <ul class="v30-help__list">
+      <li><b>Édition inline</b>&nbsp;: nom, fonction, séniorité, TJM,
+        LinkedIn, téléphone, email.</li>
+      <li><b>Compétences avec niveau</b> (1–5 barres) — autocomplete sur
+        le référentiel de 251 tags.</li>
+      <li><b>Grille dispo 8 semaines</b> — cases cliquables
+        (Disponible / Partiel / Occupé).</li>
+      <li><b>Expériences passées</b>, entreprises associées, notes à
+        sauvegarde automatique.</li>
+      <li><b>Scrapping IA</b> identique aux prospects (coller bio →
+        champs remplis).</li>
+    </ul>
+  </section>
+
+  {# ─── 8. Push & Campagnes ─────────────────────────────── #}
+  <section class="v30-help__section" id="push">
+    <div class="v30-help__section-head">
+      {{ ui.icon('send', 18) }}
+      <h2><span class="serif">Push &amp; Campagnes.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Envoie des emails personnalisés à plusieurs prospects avec des
+      templates réutilisables et des variables dynamiques.
+    </p>
+
+    <h3 class="v30-help__sub">3 onglets</h3>
+    <ul class="v30-help__list">
+      <li><b>Campagnes</b> — wizard 3 étapes&nbsp;: <i>Cible</i> →
+        <i>Message</i> → <i>Envoi</i>.</li>
+      <li><b>Templates</b> — CRUD complet, éditeur riche, variables
+        supportées <code class="mono">{prenom}</code>,
+        <code class="mono">{nom}</code>,
+        <code class="mono">{entreprise}</code>,
+        <code class="mono">{fonction}</code>.</li>
+      <li><b>Historique</b> — timeline groupée par jour, badges de canal
+        (mail / LinkedIn), export Excel, annulation d'un envoi récent.</li>
+    </ul>
+
+    <div class="v30-help__callout v30-help__callout--info">
+      <b>Catégories Push :</b> chaque dossier dans
+      <code class="mono">pushs/</code> devient une catégorie (avec
+      templates <code class="mono">.msg</code> / <code class="mono">.eml</code>).
+      Le matching par mots-clés suggère automatiquement les meilleurs
+      candidats.
+    </div>
+
+    <div class="v30-help__try">
+      <a class="btn btn-primary btn-sm" href="/v30/push">
+        {{ ui.icon('arrowR', 13) }} Ouvrir Push
+      </a>
+    </div>
+  </section>
+
+  {# ─── 9. Mode Prosp ────────────────────────────────────── #}
+  <section class="v30-help__section" id="mode-prosp">
+    <div class="v30-help__section-head">
+      {{ ui.icon('flame', 18) }}
+      <h2><span class="serif">Mode Prosp.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Une expérience de prospection immersive en plein écran, inspirée des
+      apps de matching&nbsp;: une carte 3D à la fois, swipe pour décider.
+    </p>
+
+    <ul class="v30-help__list">
+      <li><b>Accès :</b> palette <span class="kbd">⌘</span><span class="kbd">K</span>
+        → « Lancer Mode Prosp », bouton sur la page Prospects, ou URL
+        directe <code class="mono">/v30/mode-prosp</code>.</li>
+      <li><b>Deck 3D</b> plein écran, timeline picker (prospects à
+        relancer aujourd'hui / cette semaine / tous).</li>
+      <li><b>Interactions :</b> swipe gauche/droite (mobile), flèches
+        <span class="kbd">←</span> / <span class="kbd">→</span>
+        (desktop), <span class="kbd">Espace</span> pour marquer contacté.</li>
+      <li><b>Haptic</b> sur mobile à chaque swipe.</li>
+    </ul>
+
+    <div class="v30-help__try">
+      <a class="btn btn-primary btn-sm" href="/v30/mode-prosp">
+        {{ ui.icon('flame', 13) }} Lancer Mode Prosp
+      </a>
+    </div>
+  </section>
+
+  {# ─── 10. Stats & Rapport ─────────────────────────────── #}
+  <section class="v30-help__section" id="stats-rapport">
+    <div class="v30-help__section-head">
+      {{ ui.icon('chart', 18) }}
+      <h2><span class="serif">Stats &amp; Rapport.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Suivi de ton activité et génération du rapport hebdomadaire — avec
+      édition WYSIWYG et export PDF.
+    </p>
+
+    <h3 class="v30-help__sub">Stats</h3>
+    <ul class="v30-help__list">
+      <li>Filtre période&nbsp;: <b>7j / 30j / 90j / Tout</b>.</li>
+      <li>4 KPI&nbsp;: <i>Pushs envoyés</i>, <i>Taux d'ouverture</i>,
+        <i>Taux de réponse</i>, <i>RDV obtenus</i>.</li>
+      <li>Top entreprises chaudes (score pondéré
+        relances + pushs + pertinence).</li>
+    </ul>
+
+    <h3 class="v30-help__sub">Rapport éditorial</h3>
+    <ul class="v30-help__list">
+      <li>Mise en page éditoriale (max 820&nbsp;px), typographie serif.</li>
+      <li>Zones <b>contenteditable</b>&nbsp;: titre, auteur, résumé,
+        notes personnelles.</li>
+      <li><b>Auto-injection</b>&nbsp;: KPI de la semaine, top entreprises,
+        évolution push — tu édites, tu ne copies pas.</li>
+      <li><b>Autosave localStorage</b> à chaque frappe — le draft est
+        conservé si tu fermes l'onglet.</li>
+      <li>Boutons&nbsp;: <i>Copier en Markdown</i>, <i>Exporter PDF</i>.</li>
+    </ul>
+
+    <div class="v30-help__try">
+      <a class="btn btn-primary btn-sm" href="/v30/stats">
+        {{ ui.icon('chart', 13) }} Voir les stats
+      </a>
+      <a class="btn btn-sm" href="/v30/rapport">
+        {{ ui.icon('report', 13) }} Ouvrir le rapport
+      </a>
+    </div>
+  </section>
+
+  {# ─── 11. IA & Scraping ────────────────────────────────── #}
+  <section class="v30-help__section" id="ia">
+    <div class="v30-help__section-head">
+      {{ ui.icon('sparkles', 18) }}
+      <h2><span class="serif">IA &amp; Scraping.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      L'IA est partout dans l'app&nbsp;: enrichissement de fiches,
+      préparation de RDV, compte-rendus, emails personnalisés,
+      mapping Excel. Moteur local (Ollama) + recherche web optionnelle
+      (Tavily).
+    </p>
+
+    <h3 class="v30-help__sub">Stack</h3>
+    <ul class="v30-help__list">
+      <li><b>Ollama</b> — local, gratuit, <code class="mono">http://127.0.0.1:11434</code>.
+        Modèle par défaut&nbsp;: <code class="mono">llama3.2</code>. Aucune
+        donnée ne sort de ton PC.</li>
+      <li><b>Tavily</b> (optionnel, cloud) — recherche web pour enrichir
+        les prompts. Clé configurable dans
+        <a href="/v30/parametres">Paramètres → Configuration IA</a>.</li>
+      <li><b>Flux web search :</b> Tavily récupère les résultats → Ollama
+        génère en citant ses sources.</li>
+    </ul>
+
+    <h3 class="v30-help__sub">Entrées IA dans l'interface</h3>
+    <ul class="v30-help__list">
+      <li><b>Scrapping IA</b> (prospects / entreprises / candidats) — colle
+        une bio, un profil LinkedIn, une page d'entreprise → les champs
+        se remplissent.</li>
+      <li><b>Avant RDV IA</b> — fiche prépa PDF (bio, actus, accroche).</li>
+      <li><b>Après RDV IA</b> — compte-rendu en JSON → statut, prochaine
+        relance, notes mis à jour.</li>
+      <li><b>Email IA / Tel IA</b> — génération bulk depuis la bulk bar.</li>
+      <li><b>Ajout IA (Quick Add)</b> — 3 étapes (type + contexte →
+        génération → apply) pour créer prospect / entreprise / candidat.</li>
+      <li><b>Import Excel</b> — <i>Suggérer mapping</i> (header → champ)
+        et <i>Reformater champ</i> (normalisation une valeur par ligne).</li>
+    </ul>
+
+    <div class="v30-help__callout v30-help__callout--warn">
+      <b>Tavily :</b> activer <code class="mono">webSearch</code> peut
+      envoyer des infos prospect vers le cloud Tavily. À réserver aux
+      entreprises publiques.
+    </div>
+  </section>
+
+  {# ─── 12. Import Excel ────────────────────────────────── #}
+  <section class="v30-help__section" id="import-excel">
+    <div class="v30-help__section-head">
+      {{ ui.icon('inbox', 18) }}
+      <h2><span class="serif">Import Excel.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Importe un fichier XLSX et laisse l'IA proposer le mapping des
+      colonnes. Tu valides, tu ajustes, tu importes.
+    </p>
+
+    <ul class="v30-help__list">
+      <li><b>Colonnes supportées :</b> Nom, Prénom (combinables),
+        Entreprise, Site, Fonction, Téléphone (fusion multi-colonnes),
+        Email, LinkedIn, Notes, Tags, Pertinence, Statut, Date dernier
+        contact.</li>
+      <li><b>Auto-mapping</b> via <code class="mono">_guessMapping</code>
+        (heuristique sur les en-têtes).</li>
+      <li><b>Suggestion IA</b> si l'auto-mapping hésite.</li>
+      <li><b>Reformulation IA</b> par cellule (normaliser fonctions,
+        séparer prénom / nom, nettoyer emails).</li>
+      <li><b>Fixture de test</b>&nbsp;:
+        <code class="mono">tests/fixtures/fichier_prosp_test_user.xlsx</code>.</li>
+    </ul>
+  </section>
+
+  {# ─── 13. Raccourcis clavier ──────────────────────────── #}
+  <section class="v30-help__section" id="raccourcis">
+    <div class="v30-help__section-head">
+      {{ ui.icon('command', 18) }}
+      <h2><span class="serif">Raccourcis clavier.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      La v30 se pilote presque entièrement au clavier. Appuie sur
+      <span class="kbd">?</span> n'importe où pour afficher cette liste
+      en modale.
+    </p>
+
+    <h3 class="v30-help__sub">Globaux</h3>
+    <div class="v30-help__kbd-grid">
+      <div><span class="kbd">⌘</span><span class="kbd">K</span> <em>Palette de commandes</em></div>
+      <div><span class="kbd">/</span> <em>Recherche globale</em></div>
+      <div><span class="kbd">?</span> <em>Modale raccourcis</em></div>
+      <div><span class="kbd">⇧</span><span class="kbd">T</span> <em>Basculer thème</em></div>
+      <div><span class="kbd">⌘</span><span class="kbd">B</span> <em>Masquer la sidebar</em></div>
+      <div><span class="kbd">[</span> <em>Replier la sidebar</em></div>
+    </div>
+
+    <h3 class="v30-help__sub">Navigation (G + lettre)</h3>
+    <div class="v30-help__kbd-grid">
+      <div><span class="kbd">G</span><span class="kbd">D</span> <em>Dashboard</em></div>
+      <div><span class="kbd">G</span><span class="kbd">P</span> <em>Prospects</em></div>
+      <div><span class="kbd">G</span><span class="kbd">E</span> <em>Entreprises</em></div>
+      <div><span class="kbd">G</span><span class="kbd">S</span> <em>Sourcing</em></div>
+      <div><span class="kbd">G</span><span class="kbd">F</span> <em>Focus</em></div>
+      <div><span class="kbd">G</span><span class="kbd">U</span> <em>Push</em></div>
+      <div><span class="kbd">G</span><span class="kbd">T</span> <em>Stats</em></div>
+    </div>
+
+    <h3 class="v30-help__sub">Tables (Prospects / Entreprises)</h3>
+    <div class="v30-help__kbd-grid">
+      <div><span class="kbd">J</span> / <span class="kbd">K</span> <em>Ligne suivante / précédente</em></div>
+      <div><span class="kbd">X</span> <em>Cocher la ligne</em></div>
+      <div><span class="kbd">E</span> <em>Éditer en place</em></div>
+      <div><span class="kbd">↵</span> <em>Ouvrir la fiche</em></div>
+    </div>
+
+    <h3 class="v30-help__sub">Création</h3>
+    <div class="v30-help__kbd-grid">
+      <div><span class="kbd">C</span> <em>Ouvrir la palette « Créer… »</em></div>
+    </div>
+
+    <div class="v30-help__try">
+      <button type="button" class="btn btn-primary btn-sm" data-v30-help-shortcuts>
+        {{ ui.icon('command', 13) }} Ouvrir la modale raccourcis
+      </button>
+    </div>
+  </section>
+
+  {# ─── 14. Paramètres & Admin ──────────────────────────── #}
+  <section class="v30-help__section" id="parametres-admin">
+    <div class="v30-help__section-head">
+      {{ ui.icon('cog', 18) }}
+      <h2><span class="serif">Paramètres &amp; Admin.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Le hub <a href="/v30/parametres">Paramètres</a> regroupe la
+      configuration IA, les objectifs, les sauvegardes et les actions
+      admin.
+    </p>
+
+    <h3 class="v30-help__sub">Cartes du hub</h3>
+    <ul class="v30-help__list">
+      <li><b>Configuration IA</b> — modèle Ollama, clé Tavily, timeout.</li>
+      <li><b>Objectifs &amp; gamification</b> — cibles hebdo (prospects
+        contactés, RDV, pushs) affichées sur le dashboard.</li>
+      <li><b>Sauvegardes &amp; données</b> — snapshots journaliers,
+        export JSON, restauration.</li>
+      <li><b>Notifications navigateur</b> — push natif pour relances
+        et tâches du jour.</li>
+      <li><b>Mon compte</b> — changement de mot de passe, profil.</li>
+      <li><b>À propos</b> — version, commit, release notes.</li>
+    </ul>
+
+    <h3 class="v30-help__sub">Admin</h3>
+    <ul class="v30-help__list">
+      <li><b>Mise à jour du serveur (native v30)</b> —
+        <code class="mono">git pull origin main</code> + snapshot DB
+        automatique + redémarrage en ~10&nbsp;s. Logs SSE temps réel.</li>
+      <li><b>Rollback</b> — revient au commit précédent via
+        <code class="mono">.last_commit_hash</code>.</li>
+      <li><b>Gestion users</b> (<a href="/v30/users">/v30/users</a>) —
+        CRUD, assignation de rôles (admin / editor).</li>
+      <li><b>Journal d'activité</b> (<a href="/v30/activity">/v30/activity</a>) —
+        filtrable par user et action, lien vers la fiche concernée.</li>
+      <li><b>Snapshots</b> (<a href="/v30/snapshots">/v30/snapshots</a>) —
+        liste, create / restore / delete, progression SSE.</li>
+    </ul>
+
+    <div class="v30-help__callout v30-help__callout--info">
+      <b>Multi-user :</b> chaque utilisateur a une DB isolée
+      (<code class="mono">data/user_&lt;id&gt;/prospects.db</code>). Les
+      admins voient tout ; les editors ne voient que leurs propres
+      enregistrements.
+    </div>
+  </section>
+
+  {# ─── 15. Bonnes pratiques ────────────────────────────── #}
+  <section class="v30-help__section" id="bonnes-pratiques">
+    <div class="v30-help__section-head">
+      {{ ui.icon('bulb', 18) }}
+      <h2><span class="serif">Bonnes pratiques.</span></h2>
+    </div>
+    <p class="v30-help__lead">
+      Dix habitudes simples pour garder ta base propre et ton pipeline
+      actif.
+    </p>
+    <ol class="v30-help__steps">
+      <li>Renseigne toujours une <b>date de prochaine relance</b> dès la
+        création — c'est ce qui alimente Focus.</li>
+      <li>Centralise la <b>stack technique dans les tags entreprise</b>
+        (et pas sur chaque prospect).</li>
+      <li>Lance un <b>Scrapping IA</b> dès qu'une fiche est créée — gain
+        de temps énorme.</li>
+      <li>Associe tes prospects aux <b>catégories push</b> dès la
+        qualification.</li>
+      <li>Crée un <b>snapshot avant chaque bulk action</b> destructive.</li>
+      <li>Sauve tes <b>vues filtrées</b> fréquentes — la prochaine session
+        sera plus rapide.</li>
+      <li>Utilise <span class="kbd">⌘</span><span class="kbd">K</span>
+        plutôt que la souris — c'est plus rapide et fatigue moins.</li>
+      <li>Génère le <b>rapport hebdo</b> le vendredi — auto-injection
+        des KPI, tu n'écris que les notes.</li>
+      <li>Passe en <b>Mode Prosp</b> 15&nbsp;min par jour pour avaler le
+        backlog de relances.</li>
+      <li>Check <b>Focus</b> chaque matin — c'est la vue la plus
+        actionnable de l'app.</li>
+    </ol>
+  </section>
+
+  {# ─── Pied de page ────────────────────────────────────── #}
+  <section class="v30-help__footer">
+    <div>
+      <div class="v30-help__footer-title">Encore une question&nbsp;?</div>
+      <div class="v30-help__footer-sub">
+        Appuie sur <span class="kbd">?</span> pour la modale raccourcis,
+        ou ouvre la palette <span class="kbd">⌘</span><span class="kbd">K</span>
+        et tape ce que tu cherches.
+      </div>
+    </div>
+    <div class="v30-help__footer-actions">
+      <a class="btn btn-ghost btn-sm" href="/v30/parametres">
+        {{ ui.icon('cog', 13) }} Paramètres
+      </a>
+      <button type="button" class="btn btn-sm" data-v30-help-shortcuts>
+        {{ ui.icon('command', 13) }} Raccourcis
+      </button>
+    </div>
   </section>
 
 </div>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
   (function () {
     var btn = document.querySelector('[data-v30-help-shortcuts]');
