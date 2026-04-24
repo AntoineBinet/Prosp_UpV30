@@ -258,8 +258,12 @@
         var id = btn.dataset.campDelete;
         if (!confirm('Supprimer cette campagne ?')) return;
         fetch('/api/push-campaigns/' + id, { method: 'DELETE', credentials: 'same-origin' })
-          .then(function (r) { return r.json(); })
-          .then(loadCampaigns);
+          .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+          .then(loadCampaigns)
+          .catch(function (e) {
+            console.error('[v30 push] delete campaign failed:', e);
+            if (window.showToast) window.showToast('Suppression impossible', 'error');
+          });
       });
     });
     // BUG 8 : rendre les cartes cliquables → ouvre les détails inline
@@ -376,16 +380,20 @@
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filters: filters, name: wizEl('[data-wiz-name]').value || WIZ.campaign.name })
-    }).then(function (r) { return r.json(); })
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (res) { if (res.ok) WIZ.campaign = res.campaign; })
       .then(function () {
         return fetch('/api/push-campaigns/' + WIZ.campaign.id + '/recipients-preview', {
           method: 'POST', credentials: 'same-origin'
         });
       })
-      .then(function (r) { return r.json(); })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (res) {
         wizEl('[data-wiz-audience] .v30-wiz-audience__count').textContent = res.count != null ? res.count : '—';
+      })
+      .catch(function (e) {
+        console.error('[v30 push] refresh audience failed:', e);
+        if (window.showToast) window.showToast('Impossible de rafraîchir l’audience', 'error');
       });
   }
   function wizLoadCats() {
@@ -422,9 +430,15 @@
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Nouvelle campagne' })
-    }).then(function (r) { return r.json(); })
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (res) {
         if (res.ok) { WIZ.campaign = res.campaign; wizShowStep(1); wizRefreshAudience(); }
+        else throw new Error(res && res.error || 'erreur serveur');
+      })
+      .catch(function (e) {
+        console.error('[v30 push] create campaign failed:', e);
+        if (window.showToast) window.showToast('Impossible de créer la campagne', 'error');
+        wizClose(false);
       });
   }
   function wizClose(reload) {
@@ -437,12 +451,18 @@
     if (!WIZ.campaign) return;
     fetch('/api/push-campaigns/' + WIZ.campaign.id + '/send', {
       method: 'POST', credentials: 'same-origin'
-    }).then(function (r) { return r.json(); })
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (res) {
         if (res.ok) {
           if (window.showToast) window.showToast('Campagne envoyée (' + res.sent + ' destinataires)', 'success');
           wizClose(true);
+        } else {
+          throw new Error(res && res.error || 'erreur serveur');
         }
+      })
+      .catch(function (e) {
+        console.error('[v30 push] send campaign failed:', e);
+        if (window.showToast) window.showToast('Envoi de la campagne impossible', 'error');
       });
   }
   function bindWizard() {

@@ -5445,9 +5445,13 @@ def _mode_prosp_auth(token: str):
         except Exception:
             pass
         return None
+    try:
+        ids = json.loads(row['ids'])
+    except Exception:
+        ids = []
     return {
         'user_id': row['user_id'],
-        'ids': json.loads(row['ids']),
+        'ids': ids,
         'created_at': row['created_at']
     }
 
@@ -6202,8 +6206,9 @@ def api_cand_skills_get(candidate_id: int):
         ).fetchall()
         skills = [dict(r) for r in rows]
         # Backfill depuis candidates.tech si aucune skill enregistrée
-        if not skills and cand.get("tech"):
-            tech_list = [t.strip() for t in str(cand["tech"]).split(",") if t.strip()]
+        cand_tech = cand["tech"] if "tech" in cand.keys() else None
+        if not skills and cand_tech:
+            tech_list = [t.strip() for t in str(cand_tech).split(",") if t.strip()]
             for name in tech_list[:40]:
                 try:
                     conn.execute(

@@ -146,7 +146,7 @@
         host.innerHTML = '<div class="empty">Aucune donnée.</div>';
         return;
       }
-      var max = rows[0].count;
+      var max = Math.max(1, rows[0].count);
       host.innerHTML = rows.map(function (r) {
         var pct = Math.round((r.count / max) * 100);
         return '<div style="display:grid;grid-template-columns:140px 1fr 60px;gap:10px;align-items:center;padding:6px 0;font-size:12px;">' +
