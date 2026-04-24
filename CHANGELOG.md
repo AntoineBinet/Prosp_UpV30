@@ -2,6 +2,33 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.9] — 2026-04-24 · Push · Restauration mécanique v29 sous habillage v30
+
+La page `/v30/push` affichait un wizard « Nouvelle campagne » en 3 étapes (Cible / Message / Envoi) qui se cassait au premier clic avec la toast « Impossible de rafraîchir l'audience » (erreur sur `POST /api/push-campaigns/<id>/recipients-preview`). Le wizard imposait un modèle mental de campagne (table `push_campaigns`) étranger au flux réel des utilisateurs : catégories de compétences → templates `.msg` Outlook → matching prospects par mots-clés, qui fonctionnait très bien en v29. Cette version restaure intégralement la mécanique v29 dans l'UI v30.
+
+### Nouvelle UX (identique à la v29, design v30)
+- **Deux onglets** : « Catégories » (par défaut) + « Historique ». Le wizard et la table `push_campaigns` ne sont plus exposés.
+- **Barre d'actions** : « Templates texte » (modale d'édition) · « Scanner pushs/ » (détection des dossiers) · « Nouvelle catégorie ».
+- **Grille de catégories** : chaque carte expose le nom de la catégorie, un badge « auto » pour les catégories auto-détectées, un badge Candidats (0/1/2 sélectionnés) et un badge Templates (nombre de fichiers `.msg`). Tooltip au survol avec la description métier.
+- **Détail catégorie (modale)** : description, mots-clés, deux slots de candidats par défaut (bouton Auto pour suggérer les 2 meilleurs via `/api/push-categories/<id>/match-candidates`, édition manuelle via select, effacement), liste des templates `.msg` (upload, remplacement, téléchargement, suppression), boutons Prospects / Modifier / Supprimer en pied.
+- **Prospects suggérés (modale)** : liste des prospects scorés par `/api/push-categories/<id>/match-prospects`, avec pills de mots-clés matchés, fonction, entreprise, et boutons Fiche / Email.
+- **Historique** : recherche plein-texte + filtre par canal (email/LinkedIn/autre) + rafraîchissement, table responsive avec actions Voir (modale détail) et Supprimer.
+- **Templates texte (modale dédiée)** : liste à gauche, éditeur à droite (nom, sujet, corps email, corps LinkedIn, « par défaut »). CRUD via `/api/templates/save` et `/api/templates/delete`.
+- **Catégories built-in** auto-créées au premier chargement si absentes : `Simulation_Modélisation`, `Electrotechnique_Energie`, `Surete_Fonctionnement_SdF` (avec leurs mots-clés canoniques).
+
+### Aucune migration backend
+Toutes les routes consommées existaient déjà dans `app.py` : `/api/push-categories*`, `/api/push-categories/<id>/files` & `upload-template` & `delete-template`, `/api/push-categories/<id>/match-candidates` & `match-prospects` & `set-candidates`, `/api/templates*`, `/api/push-logs*`, `/api/candidates`. Le wizard cassé s'appuyait sur `/api/push-campaigns*` (toujours en base, non supprimé — peut être nettoyé ultérieurement, aucun front ne l'utilise).
+
+### Changements
+- **`templates/v30/push.html`** (272 lignes, réécrit) — topbar + 2 panneaux (Catégories / Historique) + 4 modales (détail catégorie, prospects suggérés, détail push, templates manager). Toutes les modales utilisent le pattern `v30-modal-bd` / `v30-modal--xl` (`components.css`), `role="dialog"`, `aria-modal`, `aria-labelledby`, et fermeture via `data-v30-modal-close` / Escape / clic fond.
+- **`static/js/v30/push.js`** (1016 lignes, réécrit) — IIFE en mode strict, port de la logique `page-push.js` sur des sélecteurs `data-v30-*`. Gestion locale des modales (`openModal`/`closeModal` avec classe `is-open` pour la transition), délégation d'événements par modale pour les slots candidats et la liste de fichiers, fallback robuste aux helpers globaux (`window.escapeHtml`, `window.showToast`, `window.icon`). Les catégories built-in sont créées via chaîne de `Promise` pour respecter l'ordre.
+- **`static/css/v30/push.css`** (réécrit) — nouveaux tokens de styles : `.v30-cat-grid`, `.v30-cat-card` (avec `:hover` tooltip via `.v30-cat-tooltip`), `.v30-cat-badge[.has|.none|.loading]`, `.v30-kw-pill[.matched]`, `.v30-cand-slot`, `.v30-cat-file`, `.v30-sg-prospect`, `.v30-pd-info` / `.v30-pd-block`, `.v30-tpl-item[.is-active]`. Table historique stylée via sélecteurs `[data-v30-push-panel="historique"] table/thead/tbody`. L'ancien CSS du wizard + campagnes est supprimé.
+
+### Notes de compatibilité
+- La route `/v30/push` n'a pas changé (même URL, même gabarit Jinja). Seuls le contenu du `<div>` interne, le JS et le CSS sont réécrits.
+- Les tables `push_campaigns` et `push_variants` restent présentes en base mais ne sont plus peuplées par le front v30 ; elles pourront être dépréciées au profit de `push_logs` dans une version ultérieure.
+- La route legacy `/push` (templates v29) reste pleinement fonctionnelle pour l'escape-hatch `?force_v29=1`.
+
 ## [30.8] — 2026-04-24 · Fiche prospect · Entreprise éditable + autocomplete global
 
 La fiche prospect affiche désormais l'entreprise dans la sidebar « Détails » (cliquable pour changer) et dans la carte latérale « Entreprise » (bouton « Changer »). Partout où une entreprise est saisie (fiche prospect, modale « Nouveau prospect »), un picker uniforme remplace les champs libres : liste filtrée des entreprises existantes + bouton « Ajouter une entreprise » en bas qui ouvre une mini-modale de création. Il n'est plus possible d'enregistrer un prospect avec un nom d'entreprise qui n'existe pas en base — l'utilisateur doit soit choisir une entrée, soit explicitement créer une nouvelle fiche entreprise.
