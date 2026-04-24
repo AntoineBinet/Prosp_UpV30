@@ -102,7 +102,13 @@
           telBtn.href = 'tel:' + (fpPhones.length ? normTelDetail(fpPhones[0]) : String(p.telephone).replace(/\s/g, ''));
           telBtn.onclick = logFpCall;
         }
-      } else { telBtn.hidden = true; }
+      } else {
+        telBtn.hidden = false;
+        telBtn.setAttribute('aria-disabled', 'true');
+        telBtn.setAttribute('title', 'Aucun numéro renseigné');
+        telBtn.removeAttribute('href');
+        telBtn.onclick = function(ev) { ev.preventDefault(); };
+      }
     }
     document.title = (p.name || 'Fiche') + " — Prosp'Up v30";
   }
