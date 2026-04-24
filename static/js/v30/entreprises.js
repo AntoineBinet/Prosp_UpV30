@@ -342,10 +342,58 @@
     });
   }
 
+  // ─── Champs étendus : mapping id HTML -> champ backend ────
+  // Couvre les 16 champs acceptés par /api/company/update
+  var ENT_FIELDS_BASIC = ['groupe', 'site', 'phone', 'website', 'linkedin', 'industry', 'notes'];
+  var ENT_FIELDS_EXTRA = ['size', 'city', 'country', 'address', 'stack', 'pain_points', 'budget', 'urgency'];
+  function htmlIdFor(prefix, field) {
+    // pain_points -> v30-ent-<prefix>-pain-points
+    return 'v30-ent-' + prefix + '-' + field.replace(/_/g, '-');
+  }
+
+  // ─── Tabs switching pour modales (Add + Edit) ────────────
+  function bindEntTabs(tabsHost, panelSelector) {
+    if (!tabsHost) return;
+    tabsHost.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-tab]');
+      if (!btn) return;
+      var key = btn.dataset.tab;
+      tabsHost.querySelectorAll('button[data-tab]').forEach(function (b) {
+        var active = (b === btn);
+        b.classList.toggle('is-active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      document.querySelectorAll(panelSelector).forEach(function (p) {
+        var name = panelSelector.match(/panel="([^"]+)"/) ? null : null;
+        p.hidden = (p.getAttribute('data-v30-ent-add-panel') !== key && p.getAttribute('data-v30-ent-edit-panel') !== key);
+      });
+    });
+  }
+  function bindTabs() {
+    bindEntTabs(document.querySelector('[data-v30-ent-add-tabs]'), '[data-v30-ent-add-panel]');
+    bindEntTabs(document.querySelector('[data-v30-ent-edit-tabs]'), '[data-v30-ent-edit-panel]');
+  }
+
   // ─── Add ─────────────────────────────────────────────────
   function bindAdd() {
     var btn = $('[data-v30-ent-add]');
-    if (btn) btn.addEventListener('click', function () { openModal(getModal('ent-add')); });
+    if (btn) btn.addEventListener('click', function () {
+      // Reset : on repasse sur le 1er onglet et on vide tous les champs
+      var addTabs = document.querySelector('[data-v30-ent-add-tabs]');
+      if (addTabs) {
+        addTabs.querySelectorAll('button[data-tab]').forEach(function (b, i) {
+          var active = (i === 0);
+          b.classList.toggle('is-active', active);
+          b.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+      }
+      document.querySelectorAll('[data-v30-ent-add-panel]').forEach(function (p, i) { p.hidden = (i !== 0); });
+      ENT_FIELDS_BASIC.concat(ENT_FIELDS_EXTRA).concat(['tags']).forEach(function (f) {
+        var el = document.getElementById(htmlIdFor('add', f));
+        if (el) el.value = '';
+      });
+      openModal(getModal('ent-add'));
+    });
     var save = $('[data-v30-ent-add-save]');
     if (save) save.addEventListener('click', function () {
       var val = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
@@ -353,7 +401,8 @@
       if (!groupe) { toast('Le groupe est obligatoire', 'warning'); return; }
       var tagsRaw = val('v30-ent-add-tags');
       var tags = tagsRaw ? tagsRaw.split(',').map(function (t) { return t.trim(); }).filter(Boolean) : [];
-      var payload = {
+      // Étape 1 : /api/companies/create accepte groupe, site, phone, notes, website, linkedin, industry, tags
+      var basePayload = {
         groupe: groupe,
         site: val('v30-ent-add-site'),
         phone: val('v30-ent-add-phone'),
@@ -363,15 +412,144 @@
         notes: val('v30-ent-add-notes'),
         tags: tags
       };
+      // Étape 2 (si besoin) : /api/company/update pour les champs étendus
+      var extra = {};
+      ENT_FIELDS_EXTRA.forEach(function (f) {
+        var v = val(htmlIdFor('add', f));
+        if (v) extra[f] = v;
+      });
       save.disabled = true;
-      fetchPost('/api/companies/create', payload)
+      fetchPost('/api/companies/create', basePayload)
         .then(function (res) {
           if (!res || !res.ok) throw new Error((res && res.error) || 'création impossible');
-          if (res.deduped) toast('Entreprise déjà existante (id ' + res.id + ')', 'info');
+          var createdId = res.id;
+          var deduped = !!res.deduped;
+          // Si on a des champs étendus, on les applique via /api/company/update
+          if (Object.keys(extra).length && createdId) {
+            return fetchPost('/api/company/update', Object.assign({ id: createdId }, extra))
+              .then(function () { return { id: createdId, deduped: deduped }; });
+          }
+          return { id: createdId, deduped: deduped };
+        })
+        .then(function (result) {
+          if (result.deduped) toast('Entreprise déjà existante (id ' + result.id + ')', 'info');
           else toast('Entreprise ajoutée', 'success');
           closeModal(getModal('ent-add'));
-          ['v30-ent-add-groupe','v30-ent-add-site','v30-ent-add-phone','v30-ent-add-website','v30-ent-add-linkedin','v30-ent-add-industry','v30-ent-add-notes','v30-ent-add-tags']
-            .forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
+          ENT_FIELDS_BASIC.concat(ENT_FIELDS_EXTRA).concat(['tags']).forEach(function (f) {
+            var el = document.getElementById(htmlIdFor('add', f));
+            if (el) el.value = '';
+          });
+          reload();
+        })
+        .catch(function (e) { toast('Erreur : ' + e.message, 'error'); })
+        .then(function () { save.disabled = false; });
+    });
+  }
+
+  // ─── Edit ────────────────────────────────────────────────
+  function populateEditModal(company, computed) {
+    var m = getModal('ent-edit');
+    if (!m) return;
+    var set = function (f, v) {
+      var el = document.getElementById(htmlIdFor('edit', f));
+      if (el) el.value = v == null ? '' : String(v);
+    };
+    set('groupe', company.groupe);
+    set('site', company.site);
+    set('phone', company.phone);
+    set('website', company.website);
+    set('linkedin', company.linkedin);
+    set('industry', company.industry);
+    set('notes', company.notes);
+    ENT_FIELDS_EXTRA.forEach(function (f) { set(f, company[f]); });
+    // Tags JSON -> liste virgule
+    var tagsArr = parseTags(company.tags);
+    var tagsEl = document.getElementById(htmlIdFor('edit', 'tags'));
+    if (tagsEl) tagsEl.value = tagsArr.join(', ');
+    // ID caché
+    var idEl = m.querySelector('[data-v30-ent-edit-id]');
+    if (idEl) idEl.value = company.id;
+    // Meta sub-text
+    var metaEl = m.querySelector('[data-v30-ent-edit-meta]');
+    if (metaEl) {
+      var parts = [];
+      if (company.groupe) parts.push(company.groupe);
+      if (company.site) parts.push(company.site);
+      var countTxt = (computed && computed.total != null) ? (computed.total + ' prospect' + (computed.total > 1 ? 's' : '')) : '';
+      if (countTxt) parts.push(countTxt);
+      metaEl.textContent = parts.join(' · ') || '—';
+    }
+    // Quick action links
+    var setQA = function (kind, href) {
+      var a = m.querySelector('[data-v30-ent-qa="' + kind + '"]');
+      if (!a) return;
+      if (!href) { a.hidden = true; return; }
+      a.hidden = false;
+      a.href = href;
+      var span = a.querySelector('span');
+      if (span && kind === 'phone') span.textContent = href.replace(/^tel:/, '');
+    };
+    setQA('phone', company.phone ? ('tel:' + String(company.phone).replace(/\s+/g, '')) : '');
+    setQA('website', company.website || '');
+    setQA('linkedin', company.linkedin || '');
+    var prospectsA = m.querySelector('[data-v30-ent-qa="prospects"]');
+    if (prospectsA) {
+      prospectsA.hidden = false;
+      prospectsA.href = '/v30/prospects?company=' + company.id;
+      var cnt = prospectsA.querySelector('[data-field="prospects-count"]');
+      if (cnt) cnt.textContent = (computed && computed.total != null) ? computed.total : 0;
+    }
+    // Reset tabs to first
+    var editTabs = document.querySelector('[data-v30-ent-edit-tabs]');
+    if (editTabs) {
+      editTabs.querySelectorAll('button[data-tab]').forEach(function (b, i) {
+        var active = (i === 0);
+        b.classList.toggle('is-active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+    }
+    document.querySelectorAll('[data-v30-ent-edit-panel]').forEach(function (p, i) { p.hidden = (i !== 0); });
+  }
+
+  function openEditFor(id) {
+    var cached = findRow(id);
+    fetchJSON('/api/company/full?id=' + encodeURIComponent(id))
+      .then(function (res) {
+        if (!res || !res.ok || !res.company) throw new Error((res && res.error) || 'Impossible de charger');
+        populateEditModal(res.company, cached || { total: (res.prospects || []).length });
+        openModal(getModal('ent-edit'));
+      })
+      .catch(function (e) {
+        console.error('[v30 entreprises] open edit failed:', e);
+        toast('Erreur : ' + e.message, 'error');
+      });
+  }
+
+  function bindEdit() {
+    var save = $('[data-v30-ent-edit-save]');
+    if (!save) return;
+    save.addEventListener('click', function () {
+      var m = getModal('ent-edit');
+      var idEl = m && m.querySelector('[data-v30-ent-edit-id]');
+      var id = idEl && idEl.value ? Number(idEl.value) : 0;
+      if (!id) { toast('Aucune entreprise sélectionnée', 'warning'); return; }
+      var val = function (field) {
+        var el = document.getElementById(htmlIdFor('edit', field));
+        return el ? el.value.trim() : '';
+      };
+      var groupe = val('groupe');
+      if (!groupe) { toast('Le groupe est obligatoire', 'warning'); return; }
+      var tagsRaw = val('tags');
+      var tags = tagsRaw ? tagsRaw.split(',').map(function (t) { return t.trim(); }).filter(Boolean) : [];
+      var payload = { id: id, groupe: groupe, tags: tags };
+      ENT_FIELDS_BASIC.forEach(function (f) { if (f !== 'groupe') payload[f] = val(f); });
+      ENT_FIELDS_EXTRA.forEach(function (f) { payload[f] = val(f); });
+      save.disabled = true;
+      fetchPost('/api/company/update', payload)
+        .then(function (res) {
+          if (!res || !res.ok) throw new Error((res && res.error) || 'mise à jour impossible');
+          toast('Entreprise mise à jour', 'success');
+          closeModal(getModal('ent-edit'));
           reload();
         })
         .catch(function (e) { toast('Erreur : ' + e.message, 'error'); })
@@ -467,7 +645,7 @@
     });
   }
 
-  // ─── Open entreprise : drawer simple (prospects liés) ────
+  // ─── Open entreprise : ouvre la modale Edit (fiche détaillée) ────
   function bindOpen() {
     document.addEventListener('click', function (e) {
       var t = e.target.closest('[data-v30-ent-open]');
@@ -475,8 +653,7 @@
       e.preventDefault();
       var id = Number(t.dataset.v30EntOpen);
       if (!id) return;
-      // Redirection vers la liste prospects filtrée par company
-      window.location.href = '/v30/prospects?company=' + id;
+      openEditFor(id);
     });
   }
 
@@ -502,7 +679,9 @@
     bindViewSwitch();
     bindModalDismiss();
     bindSelection();
+    bindTabs();
     bindAdd();
+    bindEdit();
     bindFilters();
     bindExport();
     bindBulk();
