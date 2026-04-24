@@ -2,6 +2,34 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.13] — 2026-04-24 · Push popup · custom combobox + optgroups DC + IA 2 passes
+
+Refonte de la section Contexte de la popup push :
+- **Bloc Consultants supprimé** de l'UI (il n'y avait qu'Antoine dans `/api/users/for-push` → inutile comme dropdown). Le `current_user_id` est chargé silencieusement et envoyé comme `consultant1_id` à `/api/push-logs/add`.
+- **Combobox custom** (remplace `<select>` natifs) : bouton déclencheur stylisé 40 px avec le nom + rôle + pill DC du candidat sélectionné, panel déroulant avec ombrage portée et optgroups.
+- **Optgroups** : « Suggérés par l'IA » (inséré après la 2ᵉ passe serveur) en tête, puis « ✓ DC présent » (candidats avec dossier de compétences), puis « Sans DC ». Chaque candidat affiche son nom + rôle + pill DC (icône check verte / croix grise).
+- **Chargement en 2 passes** :
+  1. Immédiat : `/api/candidates` → tous les candidats avec flag `has_dc`, groupés DC+/DC− dans le combobox.
+  2. Différé (ou au changement de catégorie) : `/api/prospect/<id>/best-candidates?push_category_id=X` → scoring serveur par tags/notes/catégorie. Les 5 meilleurs sont insérés en tête comme « Suggérés par l'IA ».
+- **Barre IA contextuelle** au-dessus des candidats avec le message « L'IA analyse <Prospect> pour la catégorie « <X> »… » + chrono mono. Masquée après 2,4 s.
+- **État vide initial** : les 2 combobox affichent « — Choisir un candidat — » (plus de pré-sélection automatique des `category_default_candidates`, l'utilisateur choisit explicitement).
+- Clic hors du combobox, clic sur une option ou Escape ferment le panel.
+
+### Changements
+- **`static/js/v30/push-modal.js`** :
+  - `ensureModal()` : bloc Consultants retiré, bloc Candidats remplacé par 2 `.v30pm-combo`, barre IA ajoutée en amont.
+  - Nouveaux helpers : `findCandidate()`, `renderComboLabel()`, `buildComboPanelHTML()`, `renderCombos()`, `openCombo()`, `closeCombos()`, `selectCandidate()`, `showIABar()/hideIABar()`.
+  - `loadBestCandidates()` + `reloadBestCandidates()` + `loadUsers()` **remplacés** par `loadAllCandidates()`, `loadAISuggestions(catId)`, `loadCurrentUser()`.
+  - `selectedValuesMulti()` : lit `STATE.selectedCand[1|2]` + `STATE.currentUserId` au lieu du DOM.
+  - `bindModalEvents()` : gère les clics combobox (button + option), ferme sur clic extérieur + Escape, déclenche `loadAISuggestions()` au changement de catégorie.
+- **`static/css/v30/push-modal.css`** :
+  - `.v30pm-ia-bar` + `.v30pm-ia-bar__msg/stats` (barre contextuelle avec pulse)
+  - `.v30pm-combo`, `.v30pm-combo__btn` (40 px, radius 12 px, focus ring accent)
+  - `.v30pm-combo__panel` (dropdown avec shadow portée)
+  - `.v30pm-combo__group`/`__group-label` (optgroups avec séparateurs)
+  - `.v30pm-combo__opt[.is-ai]` (option avec fond légèrement teinté pour les suggérés IA)
+  - `.v30pm-combo__dc[.--ok/.--ko]` (pill vert/gris pour DC présent/absent)
+
 ## [30.12] — 2026-04-24 · Push popup · fix URL endpoint prospect timeline
 
 Bug critique introduit en 30.10 : la popup appelait `/api/prospect/<id>/timeline` (URL path) alors que l'endpoint réel est `/api/prospect/timeline?id=<id>` (query param). Résultat : le `fetch` renvoyait 404, le `.then` ne s'exécutait jamais, rien ne se chargeait (prospect, catégories, candidats, consultants, templates) — la popup restait bloquée sur les skeletons.
