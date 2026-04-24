@@ -788,6 +788,8 @@
     var emailOutlookDraft = false;
     var emailOutlookMessage = '';
     var emailEmlDownloaded = false;
+    var emailPjCount = 0;
+    var emailExpectedPjCount = 0;
 
     var chain = Promise.resolve();
 
@@ -833,8 +835,13 @@
             return res.json().then(function (data) {
               emailOutlookDraft = true;
               emailOutlookMessage = (data && data.message) || 'Brouillon Outlook créé';
+              emailPjCount = (data && typeof data.pj_count === 'number') ? data.pj_count : 0;
+              emailExpectedPjCount = [vals.candidateId1, vals.candidateId2].filter(Boolean).length;
             });
           }
+          emailPjCount = parseInt(res.headers.get('X-PJ-Count') || '0', 10) || 0;
+          emailExpectedPjCount = parseInt(res.headers.get('X-Candidate-Count') || '0', 10)
+            || [vals.candidateId1, vals.candidateId2].filter(Boolean).length;
           return res.blob().then(function (blob) {
             if (!blob || blob.size === 0) throw new Error('Fichier email vide');
             var cd = res.headers.get('content-disposition') || '';
@@ -894,10 +901,21 @@
 
     chain.then(function () {
       if (channel === 'email') {
+        var pjMissing = emailExpectedPjCount > emailPjCount;
         if (emailOutlookDraft) {
-          toast((emailOutlookMessage || 'Brouillon Outlook créé') + ' — Email ' + p.email + ' copié.', 'success', 6000);
+          var okMsg = (emailOutlookMessage || 'Brouillon Outlook créé') + ' — Email ' + p.email + ' copié.';
+          if (pjMissing) {
+            toast(okMsg + ' ⚠ DC manquants (' + emailPjCount + '/' + emailExpectedPjCount + ') — vérifiez que le PDF est bien uploadé pour chaque candidat.', 'warning', 8000);
+          } else {
+            toast(okMsg, 'success', 6000);
+          }
         } else if (emailEmlDownloaded) {
-          toast('Email .eml téléchargé (DC en PJ) — ouvrir pour envoyer. Email ' + p.email + ' copié.', 'success', 6000);
+          var dlMsg = 'Email .eml téléchargé (' + emailPjCount + ' PJ) — ouvrir pour envoyer. Email ' + p.email + ' copié.';
+          if (pjMissing) {
+            toast(dlMsg + ' ⚠ DC manquants (' + emailPjCount + '/' + emailExpectedPjCount + ').', 'warning', 8000);
+          } else {
+            toast(dlMsg, 'success', 6000);
+          }
         } else {
           toast('Email ' + p.email + ' copié dans le presse-papier.', 'info', 4000);
         }
