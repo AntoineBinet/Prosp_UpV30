@@ -2,6 +2,22 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.10] — 2026-04-24 · Push depuis fiche prospect · popup v30 avec logique v29
+
+Le bouton « Pousser » de la fiche prospect v30 redirigeait bêtement vers `/v30/push?ids=<id>` — ce qui ne faisait rien d'utile puisque la page Push n'a pas d'UX de ciblage par prospect. Cette version introduit une popup v30 dédiée qui reprend exactement la mécanique v29 de `app.js:openPushSelectModal/confirmPushSend` : sélection de catégorie push, 2 candidats (filtrés par catégorie via `/api/prospect/<id>/best-candidates`), 2 consultants (`/api/users/for-push`), message personnalisé (avec bouton « IA » + bouton « 3 variantes » — Ollama), puis envoi qui copie l'email, ouvre le template `.msg` Outlook si une catégorie est choisie, télécharge les dossiers de compétences des candidats sélectionnés, et log dans `/api/push-logs/add`. Sur le canal LinkedIn : copie du message (custom IA ou template LinkedIn) et ouverture du profil dans un nouvel onglet.
+
+### Changements
+- **`static/js/v30/push-modal.js`** (nouveau, 593 lignes) — module global exposé sur `window.V30PushModal.open(prospectId, channel)`. IIFE strict, la modale est créée dynamiquement au premier appel. Les selects se chargent en parallèle. Le rechargement des candidats se déclenche au changement de catégorie. L'événement `v30-push-sent` est dispatché sur `document` après un envoi réussi pour que la page hôte puisse rafraîchir sa timeline.
+- **`templates/v30/base.html`** — chargement global de `push-modal.js` en `defer` (entre `company-picker.js` et `opt-in.js`).
+- **`static/js/v30/prospect_detail_ui.js`** :
+  - Bouton « Pousser » du header : `window.V30PushModal.open(FP.ID, 'email')` au lieu de la redirection `/v30/push?ids=...`.
+  - Menu « More » : nouvelle entrée « Push LinkedIn » si le prospect a un `linkedin` (`window.V30PushModal.open(FP.ID, 'linkedin')`).
+- **`static/js/v30/prospects.js`** — action `push` de la barre bulk : si un seul prospect est sélectionné, ouvre la popup ; sinon, toast d'avertissement.
+- **`static/css/v30/push.css`** — bloc `.v30-pm-prospect` (récap du prospect dans la modale).
+
+### Aucun changement backend
+Tous les endpoints consommés existaient déjà et étaient utilisés par le flux v29 : `/api/prospect/<id>/timeline`, `/api/push-categories`, `/api/prospect/<id>/best-candidates`, `/api/users/for-push`, `/api/settings`, `/api/push-categories/<id>/files`, `/api/pushs/open`, `/api/candidates/<id>`, `/api/candidates/<id>/dossier-competence`, `/api/push-logs/add`, `/api/ollama/generate-stream`.
+
 ## [30.9] — 2026-04-24 · Push · Restauration mécanique v29 sous habillage v30
 
 La page `/v30/push` affichait un wizard « Nouvelle campagne » en 3 étapes (Cible / Message / Envoi) qui se cassait au premier clic avec la toast « Impossible de rafraîchir l'audience » (erreur sur `POST /api/push-campaigns/<id>/recipients-preview`). Le wizard imposait un modèle mental de campagne (table `push_campaigns`) étranger au flux réel des utilisateurs : catégories de compétences → templates `.msg` Outlook → matching prospects par mots-clés, qui fonctionnait très bien en v29. Cette version restaure intégralement la mécanique v29 dans l'UI v30.
