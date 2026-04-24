@@ -930,7 +930,15 @@
         return;
       }
       if (!ids.length) { toast('Aucun prospect sélectionné', 'warning'); return; }
-      if (action === 'push') { window.location.href = '/v30/push?ids=' + ids.join(','); return; }
+      if (action === 'push') {
+        if (ids.length !== 1) { toast('Sélectionnez un seul prospect pour lancer un push ciblé', 'warning'); return; }
+        if (window.V30PushModal && typeof window.V30PushModal.open === 'function') {
+          window.V30PushModal.open(ids[0], 'email');
+        } else {
+          window.location.href = '/v30/push?ids=' + ids.join(',');
+        }
+        return;
+      }
       if (action === 'vcf') { exportSelectedVcf(ids); return; }
       if (action === 'enrich-ai') { openBulkEnrichAiModal(ids); return; }
       if (action === 'edit') { openBulkEditModal(ids); return; }

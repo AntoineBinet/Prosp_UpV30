@@ -258,6 +258,14 @@
         label: 'Voir sur LinkedIn',
         action: function () { window.open(p.linkedin, '_blank', 'noopener'); }
       });
+      items.push({
+        label: 'Push LinkedIn',
+        action: function () {
+          if (window.V30PushModal && typeof window.V30PushModal.open === 'function') {
+            window.V30PushModal.open(FP.ID, 'linkedin');
+          }
+        }
+      });
     }
     if (p.company_id) {
       items.push({
@@ -1003,7 +1011,13 @@
       if (!btn) return;
       var act = btn.dataset.v30Action;
       if (act === 'push') {
-        window.location.href = '/v30/push?ids=' + FP.ID;
+        // Popup v30 (logique v29) — chargé globalement via base.html
+        if (window.V30PushModal && typeof window.V30PushModal.open === 'function') {
+          window.V30PushModal.open(FP.ID, 'email');
+        } else {
+          // Fallback de secours si le module n'est pas chargé
+          window.location.href = '/v30/push?ids=' + FP.ID;
+        }
       } else if (act === 'schedule') {
         var p = FP.STATE.prospect || {};
         var params = new URLSearchParams();
