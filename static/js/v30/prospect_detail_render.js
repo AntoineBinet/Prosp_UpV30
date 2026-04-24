@@ -223,11 +223,27 @@
     host.innerHTML = pushes.map(function (p) {
       var meta = p.meta || {};
       var chan = meta.channel || (p.type === 'push_linkedin' ? 'linkedin' : 'email');
+      var candidates = meta.candidates || [];
+      var consultants = meta.consultants || [];
+      var details = '';
+      if (candidates.length) {
+        details += '<div style="font-size:11.5px;color:var(--text-2);margin-top:3px;">' +
+          '<span style="color:var(--text-3);">Consultant' + (candidates.length > 1 ? 's' : '') + ' proposé' + (candidates.length > 1 ? 's' : '') + ' :</span> ' +
+          candidates.map(function(n){ return FP.esc(n); }).join(', ') +
+        '</div>';
+      }
+      if (consultants.length) {
+        details += '<div style="font-size:11.5px;color:var(--text-2);margin-top:2px;">' +
+          '<span style="color:var(--text-3);">Envoyé par :</span> ' +
+          consultants.map(function(n){ return FP.esc(n); }).join(', ') +
+        '</div>';
+      }
       return '<div style="display:grid;grid-template-columns:80px 1fr auto;gap:10px;padding:8px 0;border-top:1px solid var(--border);align-items:start;">' +
         '<span class="mono" style="font-size:11px;color:var(--text-3);padding-top:2px;">' + FP.esc(FP.relativeTime(p.date)) + '</span>' +
         '<div>' +
           '<div style="font-size:12.5px;font-weight:500;">' + FP.esc(p.title || '—') + '</div>' +
           (p.content ? '<div style="font-size:12px;color:var(--text-2);">' + FP.esc(p.content) + '</div>' : '') +
+          details +
         '</div>' +
         '<span class="badge badge-accent">' + FP.esc(chan) + '</span>' +
       '</div>';
