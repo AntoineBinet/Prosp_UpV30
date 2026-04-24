@@ -93,32 +93,41 @@
             '<div data-v30pm-prospect></div>' +
           '</section>' +
 
-          // ─ Contexte (catégorie + candidats + consultants)
+          // ─ Contexte : catégorie + candidats (sur UNE ligne)
           '<section class="v30pm-section">' +
             '<div class="v30pm-section__label">' + ic('clipboard', 11) + ' Contexte</div>' +
             '<label class="v30-field">' +
               '<span class="v30-field__label">Catégorie push</span>' +
               '<select class="v30-input" data-v30pm-cat aria-label="Catégorie push"></select>' +
             '</label>' +
-            '<div class="v30pm-grid">' +
-              '<label class="v30-field">' +
-                '<span class="v30-field__label">Candidat 1</span>' +
-                '<select class="v30-input" data-v30pm-cand1 aria-label="Candidat 1"></select>' +
-              '</label>' +
-              '<label class="v30-field">' +
-                '<span class="v30-field__label">Candidat 2</span>' +
-                '<select class="v30-input" data-v30pm-cand2 aria-label="Candidat 2"></select>' +
-              '</label>' +
+
+            // Barre IA (progression scoring candidats)
+            '<div class="v30pm-ia-bar" data-v30pm-iabar>' +
+              '<span class="v30pm-ai-progress__pulse"></span>' +
+              '<span class="v30pm-ia-bar__msg" data-v30pm-iabar-msg>L\'IA réfléchit aux meilleurs candidats…</span>' +
+              '<span class="v30pm-ia-bar__stats" data-v30pm-iabar-stats></span>' +
             '</div>' +
-            '<div class="v30pm-grid">' +
-              '<label class="v30-field">' +
-                '<span class="v30-field__label">Consultant 1</span>' +
-                '<select class="v30-input" data-v30pm-cons1 aria-label="Consultant 1"></select>' +
-              '</label>' +
-              '<label class="v30-field">' +
-                '<span class="v30-field__label">Consultant 2</span>' +
-                '<select class="v30-input" data-v30pm-cons2 aria-label="Consultant 2"></select>' +
-              '</label>' +
+
+            '<div class="v30-field">' +
+              '<span class="v30-field__label">Candidats à proposer</span>' +
+              '<div class="v30pm-grid">' +
+                // Combobox custom 1
+                '<div class="v30pm-combo" data-v30pm-combo="1">' +
+                  '<button type="button" class="v30pm-combo__btn" data-v30pm-combo-btn="1" aria-haspopup="listbox" aria-expanded="false">' +
+                    '<span class="v30pm-combo__label" data-v30pm-combo-label="1">— Choisir un candidat —</span>' +
+                    '<span class="v30pm-combo__chev" aria-hidden="true">' + ic('chevronD', 12) + '</span>' +
+                  '</button>' +
+                  '<div class="v30pm-combo__panel" data-v30pm-combo-panel="1" role="listbox"></div>' +
+                '</div>' +
+                // Combobox custom 2
+                '<div class="v30pm-combo" data-v30pm-combo="2">' +
+                  '<button type="button" class="v30pm-combo__btn" data-v30pm-combo-btn="2" aria-haspopup="listbox" aria-expanded="false">' +
+                    '<span class="v30pm-combo__label" data-v30pm-combo-label="2">— Choisir un candidat —</span>' +
+                    '<span class="v30pm-combo__chev" aria-hidden="true">' + ic('chevronD', 12) + '</span>' +
+                  '</button>' +
+                  '<div class="v30pm-combo__panel" data-v30pm-combo-panel="2" role="listbox"></div>' +
+                '</div>' +
+              '</div>' +
             '</div>' +
           '</section>' +
 
@@ -162,16 +171,45 @@
         return;
       }
       if (e.target.closest('[data-v30pm-send]')) { send(); return; }
+      // Combobox : toggle panel
+      var cbBtn = e.target.closest('[data-v30pm-combo-btn]');
+      if (cbBtn) {
+        e.stopPropagation();
+        var slot = cbBtn.dataset.v30pmComboBtn;
+        var wrap = document.querySelector('[data-v30pm-combo="' + slot + '"]');
+        if (wrap && wrap.classList.contains('is-open')) closeCombos();
+        else openCombo(slot);
+        return;
+      }
+      // Combobox : option
+      var opt = e.target.closest('[data-v30pm-opt-id]');
+      if (opt) {
+        var s = opt.dataset.v30pmOptSlot;
+        selectCandidate(s, opt.dataset.v30pmOptId);
+        return;
+      }
+      // Clic hors combobox -> ferme
+      if (!e.target.closest('[data-v30pm-combo]')) closeCombos();
     });
     bd.addEventListener('change', function (e) {
       if (e.target.closest('[data-v30pm-cat]')) {
-        // Recharger best-candidates avec la catégorie choisie
-        reloadBestCandidates();
+        // Nouvelle passe IA pour la catégorie choisie
+        var cat = $sel('data-v30pm-cat');
+        loadAISuggestions(cat && cat.value ? cat.value : null);
       }
     });
-    // Escape
+    // Escape ferme d'abord un combobox ouvert, sinon la modale
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && bd.classList.contains('is-open')) close();
+      if (e.key !== 'Escape') return;
+      if (!bd.classList.contains('is-open')) return;
+      var anyOpen = bd.querySelector('[data-v30pm-combo].is-open');
+      if (anyOpen) { closeCombos(); return; }
+      close();
+    });
+    // Clic document hors modale -> ferme le combobox ouvert
+    document.addEventListener('click', function (e) {
+      if (!bd.classList.contains('is-open')) return;
+      if (!e.target.closest('[data-v30pm-combo]')) closeCombos();
     });
   }
 
@@ -296,71 +334,202 @@
     });
   }
 
-  function loadBestCandidates(catId) {
-    var sel1 = $sel('data-v30pm-cand1');
-    var sel2 = $sel('data-v30pm-cand2');
-    if (!sel1 || !sel2) return Promise.resolve();
-    renderSelectLoading(sel1, 'Recherche…');
-    renderSelectLoading(sel2, 'Recherche…');
-    var qs = catId ? ('?push_category_id=' + encodeURIComponent(catId)) : '';
-    return fetchJSON('/api/prospect/' + STATE.prospectId + '/best-candidates' + qs).then(function (j) {
-      var arr = (j && j.candidates) || [];
-      STATE.candidates = arr;
-      var options = '<option value="">— Aucun candidat —</option>' +
-        arr.map(function (c) {
-          var label = (c.name || '') + (c.role ? ' — ' + c.role : '');
-          return '<option value="' + c.id + '">' + esc(label) + '</option>';
-        }).join('');
-      sel1.innerHTML = options;
-      sel2.innerHTML = options;
-      if (j && j.category_default_candidates && arr.length) {
-        var def1 = j.category_default_candidates[0];
-        var def2 = j.category_default_candidates[1];
-        if (def1) sel1.value = String(def1);
-        if (def2) sel2.value = String(def2);
+  // ─── Candidats : combobox custom avec optgroups ──────────
+  // STATE additionnel :
+  //   STATE.allCandidates    : liste brute /api/candidates (avec has_dc)
+  //   STATE.aiSuggestions    : array d'ids triés retournés par best-candidates
+  //   STATE.selectedCand[1|2]: ids sélectionnés dans chaque combobox
+  STATE.allCandidates = [];
+  STATE.aiSuggestions = [];
+  STATE.selectedCand = { 1: null, 2: null };
+
+  function findCandidate(id) {
+    if (!id) return null;
+    for (var i = 0; i < STATE.allCandidates.length; i++) {
+      if (String(STATE.allCandidates[i].id) === String(id)) return STATE.allCandidates[i];
+    }
+    return null;
+  }
+
+  function renderComboLabel(slot) {
+    var btn = document.querySelector('[data-v30pm-combo-label="' + slot + '"]');
+    if (!btn) return;
+    var id = STATE.selectedCand[slot];
+    var c = findCandidate(id);
+    if (!c) {
+      btn.innerHTML = '<span style="color:var(--text-3);">— Choisir un candidat —</span>';
+      return;
+    }
+    var dc = c.has_dc ? '<span class="v30pm-combo__dc v30pm-combo__dc--ok" title="DC disponible">' + ic('checkCircle', 11) + ' DC</span>' : '';
+    btn.innerHTML = '<span class="v30pm-combo__name">' + esc(c.name || '') + '</span>' +
+      (c.role ? '<span class="v30pm-combo__role">' + esc(c.role) + '</span>' : '') +
+      dc;
+  }
+
+  function buildComboPanelHTML() {
+    var aiSet = {};
+    (STATE.aiSuggestions || []).forEach(function (id) { aiSet[String(id)] = true; });
+    var withDC = [];
+    var withoutDC = [];
+    STATE.allCandidates.forEach(function (c) {
+      if (c.has_dc) withDC.push(c);
+      else withoutDC.push(c);
+    });
+    function row(c, slot, extraCls) {
+      var dcPill = c.has_dc
+        ? '<span class="v30pm-combo__dc v30pm-combo__dc--ok" title="DC disponible">' + ic('checkCircle', 10) + '</span>'
+        : '<span class="v30pm-combo__dc v30pm-combo__dc--ko" title="Pas de DC">' + ic('x', 10) + '</span>';
+      return '<button type="button" class="v30pm-combo__opt ' + (extraCls || '') + '" role="option" data-v30pm-opt-id="' + c.id + '" data-v30pm-opt-slot="' + slot + '">' +
+        dcPill +
+        '<span class="v30pm-combo__opt-body">' +
+          '<span class="v30pm-combo__opt-name">' + esc(c.name || '') + '</span>' +
+          (c.role ? '<span class="v30pm-combo__opt-role">' + esc(c.role) + '</span>' : '') +
+        '</span>' +
+      '</button>';
+    }
+    function section(label, list, slot, cls) {
+      if (!list.length) return '';
+      return '<div class="v30pm-combo__group"><div class="v30pm-combo__group-label">' + label + '</div>' +
+        list.map(function (c) { return row(c, slot, cls); }).join('') +
+      '</div>';
+    }
+    return function (slot) {
+      var suggested = (STATE.aiSuggestions || [])
+        .map(function (id) { return findCandidate(id); })
+        .filter(Boolean);
+      var html = '';
+      // Option "aucun"
+      html += '<button type="button" class="v30pm-combo__opt v30pm-combo__opt--none" role="option" data-v30pm-opt-id="" data-v30pm-opt-slot="' + slot + '">' +
+        '<span class="v30pm-combo__opt-body"><span class="v30pm-combo__opt-name" style="color:var(--text-3);">— Aucun candidat —</span></span>' +
+      '</button>';
+      html += section(
+        '<span class="v30pm-combo__sparkle">' + ic('robot', 10) + '</span> Suggérés par l\'IA',
+        suggested, slot, 'is-ai');
+      html += section('✓ DC présent', withDC, slot);
+      html += section('Sans DC', withoutDC, slot);
+      if (!withDC.length && !withoutDC.length && !suggested.length) {
+        html += '<div class="v30pm-combo__empty">Aucun candidat disponible.</div>';
       }
-      restoreSelect(sel1);
-      restoreSelect(sel2);
-    }).catch(function () {
-      sel1.innerHTML = '<option value="">— Aucun candidat —</option>';
-      sel2.innerHTML = '<option value="">— Aucun candidat —</option>';
-      restoreSelect(sel1);
-      restoreSelect(sel2);
+      return html;
+    };
+  }
+
+  function renderCombos() {
+    var builder = buildComboPanelHTML();
+    [1, 2].forEach(function (slot) {
+      var panel = document.querySelector('[data-v30pm-combo-panel="' + slot + '"]');
+      if (panel) panel.innerHTML = builder(slot);
+      renderComboLabel(slot);
     });
   }
 
-  function reloadBestCandidates() {
-    var cat = $sel('data-v30pm-cat');
-    var catId = cat && cat.value ? cat.value : null;
-    loadBestCandidates(catId);
+  function openCombo(slot) {
+    [1, 2].forEach(function (s) {
+      var el = document.querySelector('[data-v30pm-combo="' + s + '"]');
+      if (el) el.classList.toggle('is-open', String(s) === String(slot));
+      var btn = document.querySelector('[data-v30pm-combo-btn="' + s + '"]');
+      if (btn) btn.setAttribute('aria-expanded', String(s) === String(slot) ? 'true' : 'false');
+    });
+  }
+  function closeCombos() {
+    [1, 2].forEach(function (s) {
+      var el = document.querySelector('[data-v30pm-combo="' + s + '"]');
+      if (el) el.classList.remove('is-open');
+      var btn = document.querySelector('[data-v30pm-combo-btn="' + s + '"]');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+  function selectCandidate(slot, id) {
+    STATE.selectedCand[slot] = id ? Number(id) : null;
+    renderComboLabel(slot);
+    closeCombos();
   }
 
-  function loadUsers() {
-    var sel1 = $sel('data-v30pm-cons1');
-    var sel2 = $sel('data-v30pm-cons2');
-    if (!sel1 || !sel2) return Promise.resolve();
-    renderSelectLoading(sel1, 'Chargement…');
-    renderSelectLoading(sel2, 'Chargement…');
-    return fetchJSON('/api/users/for-push').then(function (resp) {
-      var users = Array.isArray(resp) ? resp : (resp && resp.users) || [];
-      var currentUserId = resp && resp.current_user_id;
-      STATE.users = users;
-      STATE.currentUserId = currentUserId || null;
-      var options = '<option value="">— Aucun consultant —</option>' +
-        users.map(function (u) {
-          var label = u.display_name || u.username || ('Utilisateur ' + u.id);
-          return '<option value="' + u.id + '">' + esc(label) + '</option>';
-        }).join('');
-      sel1.innerHTML = options;
-      sel2.innerHTML = options;
-      if (currentUserId) sel1.value = String(currentUserId);
-      restoreSelect(sel1);
-      restoreSelect(sel2);
+  // ─── Barre IA (scoring candidats) ─────────────────────────
+  function showIABar(msg) {
+    var bar = $sel('data-v30pm-iabar');
+    if (bar) bar.classList.add('is-active');
+    var m = $sel('data-v30pm-iabar-msg');
+    if (m) m.textContent = msg || 'L\'IA réfléchit aux meilleurs candidats…';
+    updateIABarStats(0);
+  }
+  function updateIABarMsg(msg) {
+    var m = $sel('data-v30pm-iabar-msg');
+    if (m) m.textContent = msg;
+  }
+  function updateIABarStats(secs) {
+    var s = $sel('data-v30pm-iabar-stats');
+    if (s) s.textContent = secs ? secs.toFixed(1) + ' s' : '';
+  }
+  function hideIABar() {
+    var bar = $sel('data-v30pm-iabar');
+    if (bar) bar.classList.remove('is-active');
+  }
+
+  // ─── Loaders ──────────────────────────────────────────────
+  function loadAllCandidates() {
+    return fetchJSON('/api/candidates').then(function (resp) {
+      var arr = Array.isArray(resp) ? resp : (resp && resp.candidates) || [];
+      STATE.allCandidates = arr.sort(function (a, b) {
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      STATE.candidates = STATE.allCandidates; // compat avec buildAIPrompt
+      renderCombos();
     }).catch(function () {
-      sel1.innerHTML = '<option value="">— Aucun consultant —</option>';
-      sel2.innerHTML = '<option value="">— Aucun consultant —</option>';
-      restoreSelect(sel1);
-      restoreSelect(sel2);
+      STATE.allCandidates = [];
+      renderCombos();
+    });
+  }
+
+  function loadAISuggestions(catId) {
+    // Deuxième passe : scoring côté serveur (tags × 3 + notes + catégorie…).
+    // Affiche la barre IA contextuelle.
+    var p = STATE.prospect || {};
+    var cat = (STATE.categories || []).filter(function (c) { return String(c.id) === String(catId); })[0];
+    var ctxMsg = 'L\'IA analyse ' + (p.name ? esc(p.name) : 'ce prospect') +
+                 (cat ? ' pour la catégorie « ' + esc(cat.name) + ' »' : '') + '…';
+    showIABar(ctxMsg);
+    var startTs = Date.now();
+    var tick = setInterval(function () { updateIABarStats((Date.now() - startTs) / 1000); }, 150);
+    var qs = catId ? ('?push_category_id=' + encodeURIComponent(catId)) : '';
+    return fetchJSON('/api/prospect/' + STATE.prospectId + '/best-candidates' + qs).then(function (j) {
+      var arr = (j && j.candidates) || [];
+      // On garde les 5 meilleurs
+      STATE.aiSuggestions = arr.slice(0, 5).map(function (c) { return c.id; });
+      // Si certains candidats suggérés ne sont pas dans allCandidates (filtrage
+      // serveur différent), on les ajoute pour pouvoir les afficher.
+      arr.forEach(function (c) {
+        if (!findCandidate(c.id)) STATE.allCandidates.push(c);
+      });
+      renderCombos();
+      clearInterval(tick);
+      var elapsed = (Date.now() - startTs) / 1000;
+      if (arr.length) {
+        updateIABarMsg('✨ ' + arr.length + ' candidats suggérés par pertinence');
+        updateIABarStats(elapsed);
+        setTimeout(hideIABar, 2400);
+      } else {
+        updateIABarMsg('Aucune suggestion trouvée');
+        setTimeout(hideIABar, 2000);
+      }
+    }).catch(function () {
+      clearInterval(tick);
+      STATE.aiSuggestions = [];
+      renderCombos();
+      updateIABarMsg('Impossible de calculer les suggestions');
+      setTimeout(hideIABar, 2000);
+    });
+  }
+
+  function loadCurrentUser() {
+    // On charge juste current_user_id (pour envoyer comme consultant1_id à /api/push-logs/add).
+    // Pas d'UI pour les users — Antoine tout seul ne justifiait pas un dropdown.
+    return fetchJSON('/api/users/for-push').then(function (resp) {
+      STATE.users = (resp && resp.users) || [];
+      STATE.currentUserId = (resp && resp.current_user_id) || null;
+    }).catch(function () {
+      STATE.users = [];
+      STATE.currentUserId = null;
     });
   }
 
@@ -368,10 +537,10 @@
   function selectedValuesMulti() {
     return {
       catId: ($sel('data-v30pm-cat') || {}).value || null,
-      candidateId1: ($sel('data-v30pm-cand1') || {}).value || null,
-      candidateId2: ($sel('data-v30pm-cand2') || {}).value || null,
-      consultantId1: ($sel('data-v30pm-cons1') || {}).value || null,
-      consultantId2: ($sel('data-v30pm-cons2') || {}).value || null
+      candidateId1: STATE.selectedCand[1] || null,
+      candidateId2: STATE.selectedCand[2] || null,
+      consultantId1: STATE.currentUserId || null,
+      consultantId2: null
     };
   }
 
@@ -731,21 +900,24 @@
     STATE.company = null;
     STATE.candidates = [];
     STATE.users = [];
+    STATE.currentUserId = null;
+    STATE.allCandidates = [];
+    STATE.aiSuggestions = [];
+    STATE.selectedCand = { 1: null, 2: null };
     var bd = ensureModal();
     // Titre dynamique
     var title = bd.querySelector('[data-v30pm-title]');
     if (title) title.textContent = STATE.channel === 'linkedin' ? 'Push LinkedIn' : 'Push Email';
     // Reset form
     ['data-v30pm-message'].forEach(function (a) { var el = bd.querySelector('[' + a + ']'); if (el) el.value = ''; });
-    // Skeletons immédiats (prospect + tous les selects) pour un ressenti instantané
+    // Skeletons immédiats
     renderProspectSkeleton();
-    ['data-v30pm-cat', 'data-v30pm-cand1', 'data-v30pm-cand2', 'data-v30pm-cons1', 'data-v30pm-cons2'].forEach(function (a) {
-      renderSelectLoading(bd.querySelector('[' + a + ']'), '…');
-    });
-    // Reset progress IA
+    renderSelectLoading(bd.querySelector('[data-v30pm-cat]'), '…');
+    renderCombos();  // affiche l'état vide « aucun candidat disponible »
+    hideIABar();
     hideAIProgress();
     openBd(bd);
-    // Charger les données
+    // Charger les données en parallèle (sauf besoin de prospect pour l'IA contextuelle)
     getProspectInfo(prospectId).then(function (res) {
       STATE.prospect = res.prospect;
       STATE.company = res.company;
@@ -761,14 +933,17 @@
         return Promise.reject(new Error('no_linkedin'));
       }
       renderProspectInfo();
+      // Charger catégories, candidats complets et current user en parallèle
       return Promise.all([
-        loadPushCategories().then(function () {
-          var catSel = $sel('data-v30pm-cat');
-          var catId = catSel && catSel.value ? catSel.value : null;
-          return loadBestCandidates(catId);
-        }),
-        loadUsers()
-      ]);
+        loadPushCategories(),
+        loadAllCandidates(),
+        loadCurrentUser()
+      ]).then(function () {
+        // Si le prospect a une catégorie par défaut, déclencher la passe IA
+        var catSel = $sel('data-v30pm-cat');
+        var catId = catSel && catSel.value ? catSel.value : null;
+        if (catId) return loadAISuggestions(catId);
+      });
     }).catch(function (e) {
       if (e && e.message === 'no_email') return;
       if (e && e.message === 'no_linkedin') return;
