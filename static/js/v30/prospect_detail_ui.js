@@ -135,6 +135,43 @@
     });
   }
 
+  // ─── Company picker (édition en place) ──────────────────────
+  function bindCompanyEdit() {
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-v30-edit-company]');
+      if (!btn) return;
+      e.stopPropagation();
+      if (!window.CompanyPicker) return;
+      var p = FP.STATE.prospect || {};
+      window.CompanyPicker.openFloating(btn, {
+        currentId: p.company_id,
+        onSelect: function (co) {
+          FP.saveField('company_id', co.id).then(function () {
+            if (FP.STATE.prospect) {
+              FP.STATE.prospect.company_id = co.id;
+              FP.STATE.prospect.company_groupe = co.groupe;
+              FP.STATE.prospect.company_site = co.site;
+            }
+            flashSaved();
+            R.header(FP.STATE.prospect);
+            R.aside(FP.STATE.prospect);
+            if (typeof window.showToast === 'function') {
+              window.showToast('Entreprise mise à jour', 'success', 1800);
+            }
+          }).catch(function (err) {
+            alert('Échec : ' + (err.message || err));
+          });
+        }
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target.hasAttribute && e.target.hasAttribute('data-v30-edit-company')) {
+        e.preventDefault();
+        e.target.click();
+      }
+    });
+  }
+
   // ─── Statut picker ───────────────────────────────────────────
   function bindStatusEdit() {
     document.addEventListener('click', function (e) {
@@ -961,6 +998,7 @@
   // ─── Init ───────────────────────────────────────────────────
   function init() {
     bindInlineEdit();
+    bindCompanyEdit();
     bindStatusEdit();
     bindTabs();
     bindActivityFilter();
