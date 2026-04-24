@@ -20,7 +20,7 @@
       </div>
     </div>
     <div class="v30-spacer"></div>
-    <a class="btn btn-accent" href="{{ '/dc_generator?candidate=' ~ cid if cid else '/dc_generator' }}">
+    <a class="btn btn-accent" href="{{ '/dc-generator?candidate=' ~ cid if cid else '/dc-generator' }}">
       {{ ui.icon('link', 13) }} Ouvrir le générateur
     </a>
   </div>
@@ -30,11 +30,11 @@
     <div class="card-title">Candidat #{{ cid }}</div>
     <p class="muted" style="font-size:12.5px;line-height:1.7;margin-top:6px;">
       La génération complète (choix du template, mapping des variables, fusion
-      des expériences) reste sur la page <a href="/dc_generator?candidate={{ cid }}">générateur</a>.
+      des expériences) reste sur la page <a href="/dc-generator?candidate={{ cid }}">générateur</a>.
       La v30 l'embarquera progressivement.
     </p>
     <div style="margin-top:10px;display:flex;gap:8px;">
-      <a class="btn btn-accent" href="/dc_generator?candidate={{ cid }}">Lancer la génération</a>
+      <a class="btn btn-accent" href="/dc-generator?candidate={{ cid }}">Lancer la génération</a>
       <a class="btn" href="/v30/candidat/{{ cid }}">← Retour fiche candidat</a>
     </div>
   </section>
@@ -42,7 +42,7 @@
 
   <div class="v30-params__grid">
 
-    <a class="v30-params__card" href="/dc_generator">
+    <a class="v30-params__card" href="/dc-generator">
       <div class="v30-params__card-head">
         {{ ui.icon('report', 16) }}
         <h3>Templates DOCX</h3>

@@ -302,7 +302,7 @@
             prospects_contacted: kpi.relances != null ? kpi.relances : null,
             rdv_scheduled:       kpi.rdv != null ? kpi.rdv : null,
             pushs_sent:          kpi.push_total != null ? kpi.push_total : null,
-            calls_made:          kpi.notes != null ? kpi.notes : null,
+            calls_made:          kpi.calls != null ? kpi.calls : (kpi.notes != null ? kpi.notes : null),
             prospects_delta: null, rdv_delta: null, pushs_delta: null, calls_delta: null
           },
           // top_companies vient directement de l'API avec pushs+prospects counts

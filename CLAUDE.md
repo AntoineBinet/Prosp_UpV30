@@ -1,7 +1,7 @@
 # ProspUp — CRM Prospection B2B (Up Technologies)
 
-> **Version courante** : 30.1 (APP_VERSION dans app.py) — voir [CHANGELOG.md](CHANGELOG.md) pour l'historique récent.
-> **Interface par défaut** : v30 (depuis 30.1). L'UI v29 reste pleinement accessible via le bouton « v29 » de la sidebar v30, la carte « Revenir à l'ancienne interface » dans `/v30/parametres`, ou l'URL `?force_v29=1` (escape hatch).
+> **Version courante** : 31.0 (APP_VERSION dans app.py) — voir [CHANGELOG.md](CHANGELOG.md) pour l'historique récent.
+> **Interface par défaut** : v30/v31 (depuis 30.1). L'UI v29 reste pleinement accessible via le bouton « v29 » de la sidebar v30, la carte « Revenir à l'ancienne interface » dans `/v30/parametres`, ou l'URL `?force_v29=1` (escape hatch).
 
 ## Stack technique
 - **Backend** : Flask (app.py ~17 500 lignes), SQLite, Waitress WSGI en prod, ReportLab pour génération PDF, python-docx pour DOCX

@@ -254,12 +254,12 @@
     var host = $('[data-v30-pipeline]');
     if (!host) return;
 
-    // Mapping clé SQL/API → label + couleur
+    // Mapping clé SQL/API → label + couleur (aligné sur api_dashboard_pipeline_stages)
     var order = [
-      { key: 'appel',        label: 'Prospecter',   bg: 'var(--info-soft)',            fg: 'var(--info)' },
-      { key: 'rdv',          label: 'Contacté',     bg: 'var(--accent-soft)',          fg: 'var(--accent)' },
-      { key: 'besoin',       label: 'RDV',          bg: 'oklch(0.92 0.05 280)',        fg: 'oklch(0.50 0.15 280)' },
-      { key: 'reunion_tech', label: 'Proposition',  bg: 'var(--warn-soft)',            fg: 'oklch(0.50 0.14 75)' },
+      { key: 'appel',        label: 'À prospecter', bg: 'var(--info-soft)',            fg: 'var(--info)' },
+      { key: 'rdv',          label: 'RDV',          bg: 'var(--accent-soft)',          fg: 'var(--accent)' },
+      { key: 'besoin',       label: 'Besoin',       bg: 'oklch(0.92 0.05 280)',        fg: 'oklch(0.50 0.15 280)' },
+      { key: 'reunion_tech', label: 'Réunion tech', bg: 'var(--warn-soft)',            fg: 'oklch(0.50 0.14 75)' },
       { key: 'contrat',      label: 'Gagné',        bg: 'var(--success-soft)',         fg: 'var(--success)' }
     ];
     var counts = stages || {};

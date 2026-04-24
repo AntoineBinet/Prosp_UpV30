@@ -25,6 +25,7 @@
 .btn:hover { background: var(--surface-2); border-color: var(--border-strong); }
 .btn:active { background: var(--surface-3); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn[hidden] { display: none !important; }
 .btn svg { width: 14px; height: 14px; stroke-width: 1.5; }
 
 .btn-primary {
@@ -347,7 +348,8 @@
   padding: 12px 18px; border-top: 1px solid var(--border);
 }
 .v30-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-.v30-field > label {
+.v30-field > label,
+.v30-field__label {
   font-size: 12px; font-weight: 500; color: var(--text-2);
 }
 .v30-field > .hint {
@@ -356,6 +358,56 @@
 .v30-field .input,
 .v30-field .select,
 .v30-field .textarea { width: 100%; }
+
+/* Inputs v30 — uniformisés (dark + light) */
+.v30-input,
+.v30-select,
+.v30-textarea {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  width: 100%;
+  transition: border-color var(--dur-1), background var(--dur-1), box-shadow var(--dur-1);
+}
+.v30-input::placeholder,
+.v30-textarea::placeholder { color: var(--text-3); }
+.v30-input:hover,
+.v30-select:hover,
+.v30-textarea:hover { border-color: var(--border-strong); }
+.v30-input:focus,
+.v30-select:focus,
+.v30-textarea:focus {
+  outline: none;
+  border-color: color-mix(in oklch, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 20%, transparent);
+  background: var(--surface);
+}
+.v30-input:disabled,
+.v30-select:disabled,
+.v30-textarea:disabled { opacity: .55; cursor: not-allowed; }
+.v30-textarea { min-height: 80px; resize: vertical; }
+
+select.v30-input,
+.v30-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+  cursor: pointer;
+}
+
+/* Checkbox / radio v30 */
+.v30-field input[type="checkbox"],
+.v30-field input[type="radio"] {
+  width: 16px; height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
 
 /* ─────────── Utilities ─────────── */
 .stack { display: flex; flex-direction: column; }

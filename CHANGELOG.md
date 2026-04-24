@@ -2,6 +2,51 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [31.0] — 2026-04-25 · v31 · audit exhaustif desktop + mobile + corrections transverses
+
+Passage en v31 après un cycle complet de tests fonctionnels et visuels (simulation d'utilisateur sur 7 jours + balayage exhaustif desktop/mobile). Plusieurs bugs structurels (multi-user DB, labels pipeline, URLs cassées) corrigés.
+
+### Fixes multi-user (per-user DB)
+
+Nouvelles user-DB (`data/user_<id>/prospects.db`) créées incomplètes par `_init_user_db` → migrations manquantes appliquées automatiquement désormais :
+- **candidates** : ajout de toutes les colonnes v27-v28 (`prenom`, `titre`, `annees_experience`, `domaine_principal`, `description_push`, `disponibilite`, `mobilite`, `permis_conduire`, `vehicule`, `permis_travail`, `fonctions_recherchees`, `motif_recherche`, `avancement_recherches`, `remuneration_actuelle`, `pretentions_salariales`, `propal_a`, `eval_*`, `langues`, `references_candidat`, `avis_perso`, `dossier_path`, `dossier_generated_at`).
+- **push_categories** : `candidate1_id`, `candidate2_id` (v27.3).
+- **push_logs** : `sent_at_hour`, `sent_at_day_of_week`, `variant_id`, `opened_at`, `clicked_at`, `replied_at`, `tracking_pixel_id`, `campaign_id`.
+- **Tables créées si manquantes** : `mode_prosp_sessions`, `candidate_skills`, `candidate_availability`, `duplicate_ignores`, `embeddings_cache`.
+- `_init_user_db` appelle désormais `_migrate_user_db_schema` à la création pour garantir un schéma complet.
+
+### Fixes Python 3.13
+
+- `conn.lastrowid` → `cur = conn.execute(...); cur.lastrowid` dans `api_candidate_experiences_post`, `api_candidate_educations_post`, `api_candidate_certifications_post` (Python 3.13 requiert un Cursor pour `lastrowid`).
+
+### Fixes endpoints
+
+- **`GET /api/push-logs`** : le `LEFT JOIN users` cassait l'endpoint sur per-user DB (table `users` inexistante). Refacto : requête sans JOIN, enrichissement `consultant1/2_name` via `_auth_conn()`.
+- **`GET /api/stats` hot_companies** : filtrait pas les soft-deleted → affichait des entreprises fusionnées dans le tableau "Entreprises chaudes". Ajout `AND (c.deleted_at IS NULL OR c.deleted_at='')`.
+- **`GET /api/rapport-hebdo`** : KPI `calls` manquait → "APPELS PASSÉS" toujours à 0 dans le rapport. Ajout de `calls_count` via `call_logs` + adaptation front (`stats.js` lit maintenant `kpi.calls` avec fallback sur `kpi.notes`).
+- **`GET /api/search`** : prospects matchés sans lire `tags` ni nom d'entreprise associée. Ajout des clauses WHERE correspondantes.
+
+### Fixes UI v30
+
+- **Pipeline dashboard labels** (`dashboard.js:renderPipeline`) : mapping cassé — `rdv`→"Contacté", `besoin`→"RDV", `reunion_tech`→"Proposition". Corrigé : `appel`→"À prospecter", `rdv`→"RDV", `besoin`→"Besoin", `reunion_tech`→"Réunion tech", `contrat`→"Gagné".
+- **Modale "Nouvel utilisateur"** : inputs blancs en dark mode (CSS `.v30-input/.v30-select/.v30-textarea` manquants dans `components.css`) + bouton "Supprimer" visible en création (`[hidden]` surchargé par `display: inline-flex` du `.btn`). Styles globaux ajoutés + règle `.btn[hidden] { display: none !important; }`.
+- **Cartes candidat Sourcing** : "titre" affiché "—" car le JS lisait `c.role || c.seniority` alors que l'API renvoie `c.titre`. Fallback étendu.
+- **DC Generator URL** : `/dc_generator` partout dans les templates v30 → route Flask est `/dc-generator` (tiret). Corrigé dans `dc.html` et `opt-in.js`.
+
+### Mobile — Prospects en cartes
+
+- `prospects.css @media (max-width: 700px)` : le tableau 10 colonnes → scroll horizontal sur mobile, illisible. Transformation en cartes empilées (avatar + nom + statut / entreprise / tags / actions). Colonnes Pertinence / Push / Dernière action / Relance masquées sur mobile.
+
+### Page 404 — redesign v30
+
+`404.html` refait avec le design system v30 : fond `--bg`, carte surface avec border-radius 18px, titre `404` en Instrument Serif italic, boutons `btn`/`btn-accent`/`btn-danger`. Remplace l'ancien style gradient indigo/orange/rouge par une palette épurée cohérente avec le reste de l'app.
+
+### Tests réalisés
+
+7 jours de simulation d'usage par utilisateur de test isolé (DB séparée `data/user_<id>/`) + balayage desktop et mobile (Pixel 5 viewport) de : Dashboard, Prospects (cartes + Kanban + Split + Archives + bulk ops), détail prospect (timeline, notes, log-call, Pousser, Planifier, menu kebab), Entreprises (fusion + déplacement), Candidats (Pipeline + détail + skills + experiences), Push (catégories + matching auto IA + templates + historique + filtres canal), Stats (KPI + ranges), Rapport hebdo (KPI + Exporter PDF + Générer IA), Focus (tâches + relances), Calendrier, Mode Prosp (navigation cartes), Collaboration, Doublons (scan + fusion), DC Generator, Aide, Paramètres. IA Ollama enrichissement validée (15s response time).
+
+---
+
 ## [30.17] — 2026-04-24 · Push popup · auto-sélection Top IA + suppression section Message
 
 Tout le contenu du push vient déjà du template `.msg` Outlook. La section « Message » de la popup était redondante et générait de la confusion : on a `Générer avec l'IA`, `3 variantes`, progress bar streaming… pour finalement rien qui n'ait d'impact sur l'email réel (le .msg écrase le texte). Suppression complète. Par ailleurs, le preview « Top IA » dans le label des combobox pouvait laisser croire à une sélection réelle sans action associée.

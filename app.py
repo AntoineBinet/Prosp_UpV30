@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "30.17"
+APP_VERSION = "31.0"
 import os
 import subprocess
 import traceback
@@ -2386,17 +2386,42 @@ def _migrate_user_db_schema(db_path: Path) -> None:
                 conn.commit()
         except Exception as e:
             print(f"[WARN] Migration is_archived prospects ({db_path}): {e}")
-        # Migration: ajouter colonnes candidates (dossier_competence_pdf, description_push, etc.)
+        # Migration: ajouter colonnes candidates (schéma complet aligné sur la main DB)
         try:
             cand_cols = [r["name"] for r in conn.execute("PRAGMA table_info(candidates);").fetchall()]
-            if "dossier_competence_pdf" not in cand_cols:
-                conn.execute("ALTER TABLE candidates ADD COLUMN dossier_competence_pdf TEXT;")
-                conn.commit()
-            if "description_push" not in cand_cols:
-                conn.execute("ALTER TABLE candidates ADD COLUMN description_push TEXT;")
-                conn.commit()
-        except Exception:
-            pass
+            _cand_migrations = [
+                ("dossier_competence_pdf", "TEXT"),
+                ("description_push", "TEXT"),
+                ("prenom", "TEXT"),
+                ("titre", "TEXT"),
+                ("annees_experience", "INTEGER"),
+                ("domaine_principal", "TEXT"),
+                ("disponibilite", "TEXT"),
+                ("mobilite", "TEXT"),
+                ("permis_conduire", "INTEGER"),
+                ("vehicule", "INTEGER"),
+                ("permis_travail", "TEXT"),
+                ("fonctions_recherchees", "TEXT"),
+                ("motif_recherche", "TEXT"),
+                ("avancement_recherches", "TEXT"),
+                ("remuneration_actuelle", "TEXT"),
+                ("pretentions_salariales", "TEXT"),
+                ("propal_a", "TEXT"),
+                ("eval_technique", "TEXT"),
+                ("eval_personnalite", "TEXT"),
+                ("eval_communication", "TEXT"),
+                ("langues", "TEXT"),
+                ("references_candidat", "TEXT"),
+                ("avis_perso", "TEXT"),
+                ("dossier_path", "TEXT"),
+                ("dossier_generated_at", "DATETIME"),
+            ]
+            for col, typ in _cand_migrations:
+                if col not in cand_cols:
+                    conn.execute(f"ALTER TABLE candidates ADD COLUMN {col} {typ};")
+            conn.commit()
+        except Exception as e:
+            print(f"[WARN] Migration candidates columns ({db_path}): {e}")
         _migrate_candidate_tabs(conn)
         # Migration: créer custom_metiers si absent (v27.22 — tag management)
         try:
@@ -2427,7 +2452,7 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             conn.commit()
         except Exception:
             pass
-        # Migration v25.3+: ajouter colonnes traçabilité candidats/consultants à push_logs per-user
+        # Migration v25.3+: push_logs (traçabilité + analytics + tracking pixel) per-user
         try:
             pl_cols = {r["name"] for r in conn.execute("PRAGMA table_info(push_logs);").fetchall()}
             for col, typ in (
@@ -2435,12 +2460,82 @@ def _migrate_user_db_schema(db_path: Path) -> None:
                 ("candidate_id2", "INTEGER"),
                 ("consultant1_id", "INTEGER"),
                 ("consultant2_id", "INTEGER"),
+                ("sent_at_hour", "INTEGER"),
+                ("sent_at_day_of_week", "INTEGER"),
+                ("variant_id", "TEXT"),
+                ("opened_at", "TEXT"),
+                ("clicked_at", "TEXT"),
+                ("replied_at", "TEXT"),
+                ("tracking_pixel_id", "TEXT"),
+                ("campaign_id", "INTEGER"),
             ):
                 if col not in pl_cols:
                     conn.execute(f"ALTER TABLE push_logs ADD COLUMN {col} {typ};")
             conn.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] Migration push_logs columns ({db_path}): {e}")
+
+        # Migration v27.3: push_categories default candidate slots
+        try:
+            pc_cols = {r["name"] for r in conn.execute("PRAGMA table_info(push_categories);").fetchall()}
+            for col, typ in (
+                ("candidate1_id", "INTEGER"),
+                ("candidate2_id", "INTEGER"),
+            ):
+                if col not in pc_cols:
+                    conn.execute(f"ALTER TABLE push_categories ADD COLUMN {col} {typ};")
+            conn.commit()
+        except Exception as e:
+            print(f"[WARN] Migration push_categories candidates ({db_path}): {e}")
+
+        # Migration: tables diverses souvent absentes des vieilles per-user DBs
+        try:
+            conn.executescript('''
+                CREATE TABLE IF NOT EXISTS mode_prosp_sessions (
+                    token      TEXT PRIMARY KEY,
+                    user_id    INTEGER NOT NULL,
+                    ids        TEXT NOT NULL,
+                    created_at REAL NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS candidate_skills (
+                    id           INTEGER PRIMARY KEY,
+                    candidate_id INTEGER NOT NULL,
+                    name         TEXT NOT NULL,
+                    category     TEXT,
+                    level        INTEGER DEFAULT 3,
+                    UNIQUE(candidate_id, name),
+                    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+                );
+                CREATE TABLE IF NOT EXISTS candidate_availability (
+                    id           INTEGER PRIMARY KEY,
+                    candidate_id INTEGER NOT NULL,
+                    week_iso     TEXT NOT NULL,
+                    status       TEXT NOT NULL,
+                    UNIQUE(candidate_id, week_iso),
+                    FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+                );
+                CREATE TABLE IF NOT EXISTS duplicate_ignores (
+                    id             INTEGER PRIMARY KEY,
+                    owner_id       INTEGER NOT NULL,
+                    prospect_id_a  INTEGER NOT NULL,
+                    prospect_id_b  INTEGER NOT NULL,
+                    created_at     TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_duplicate_ignores_owner ON duplicate_ignores(owner_id);
+                CREATE TABLE IF NOT EXISTS embeddings_cache (
+                    id          INTEGER PRIMARY KEY,
+                    entity_type TEXT NOT NULL,
+                    entity_id   INTEGER,
+                    text_key    TEXT NOT NULL,
+                    embedding   TEXT NOT NULL,
+                    created_at  TEXT DEFAULT (datetime('now')),
+                    UNIQUE(entity_type, entity_id, text_key)
+                );
+                CREATE INDEX IF NOT EXISTS idx_embeddings_lookup ON embeddings_cache(entity_type, text_key);
+            ''')
+            conn.commit()
+        except Exception as e:
+            print(f"[WARN] Migration tables diverses ({db_path}): {e}")
         # Migration v29+: créer toutes les tables d'événements et KPI manquantes dans les DBs per-user existantes
         # Ces tables sont essentielles pour les KPIs et la gamification (prospect_events, candidate_events, etc.)
         try:
@@ -3397,6 +3492,12 @@ Cordialement,"""
 
     snap_dir = user_dir / "snapshots"
     snap_dir.mkdir(exist_ok=True)
+
+    try:
+        _migrate_user_db_schema(user_db)
+    except Exception as e:
+        print(f"[WARN] _migrate_user_db_schema sur nouvelle DB {user_db}: {e}")
+
     print(f"[OK] DB utilisateur creee : {user_db}")
     return user_db
 
@@ -6092,8 +6193,8 @@ def api_candidate_experiences_post(candidate_id: int):
             technologies = json.dumps(technologies, ensure_ascii=False)
         elif not isinstance(technologies, str):
             technologies = ""
-        conn.execute(
-            """INSERT INTO candidate_experiences 
+        cur = conn.execute(
+            """INSERT INTO candidate_experiences
                (candidate_id, company_name, role, start_date, end_date, description, technologies, owner_id, createdAt, updatedAt)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
             (
@@ -6109,7 +6210,7 @@ def api_candidate_experiences_post(candidate_id: int):
                 now,
             ),
         )
-        exp_id = conn.lastrowid
+        exp_id = cur.lastrowid
     return jsonify({"ok": True, "id": exp_id})
 
 
@@ -6148,8 +6249,8 @@ def api_candidate_educations_post(candidate_id: int):
         if not cand:
             return jsonify({"ok": False, "error": "not_found"}), 404
         now = datetime.datetime.now().isoformat()
-        conn.execute(
-            """INSERT INTO candidate_educations 
+        cur = conn.execute(
+            """INSERT INTO candidate_educations
                (candidate_id, degree, school, year, specialization, owner_id, createdAt, updatedAt)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
             (
@@ -6163,7 +6264,7 @@ def api_candidate_educations_post(candidate_id: int):
                 now,
             ),
         )
-        edu_id = conn.lastrowid
+        edu_id = cur.lastrowid
     return jsonify({"ok": True, "id": edu_id})
 
 
@@ -6202,8 +6303,8 @@ def api_candidate_certifications_post(candidate_id: int):
         if not cand:
             return jsonify({"ok": False, "error": "not_found"}), 404
         now = datetime.datetime.now().isoformat()
-        conn.execute(
-            """INSERT INTO candidate_certifications 
+        cur = conn.execute(
+            """INSERT INTO candidate_certifications
                (candidate_id, name, issuer, obtained_date, expiry_date, owner_id, createdAt, updatedAt)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
             (
@@ -6217,7 +6318,7 @@ def api_candidate_certifications_post(candidate_id: int):
                 now,
             ),
         )
-        cert_id = conn.lastrowid
+        cert_id = cur.lastrowid
     return jsonify({"ok": True, "id": cert_id})
 
 
@@ -9234,11 +9335,16 @@ def api_search():
                 SELECT p.*, c.groupe AS company_groupe, c.site AS company_site
                 FROM prospects p
                 LEFT JOIN companies c ON c.id = p.company_id
-                WHERE p.owner_id=? AND p.deleted_at IS NULL AND (p.name LIKE ? OR p.email LIKE ? OR p.telephone LIKE ? OR p.linkedin LIKE ? OR p.fonction LIKE ? OR p.notes LIKE ? OR p.callNotes LIKE ?)
+                WHERE p.owner_id=? AND p.deleted_at IS NULL AND (
+                    p.name LIKE ? OR p.email LIKE ? OR p.telephone LIKE ?
+                    OR p.linkedin LIKE ? OR p.fonction LIKE ? OR p.notes LIKE ?
+                    OR p.callNotes LIKE ? OR p.tags LIKE ?
+                    OR c.groupe LIKE ? OR c.site LIKE ?
+                )
                 ORDER BY p.id DESC
                 LIMIT ? OFFSET ?;
                 ''',
-                (uid, like, like, like, like, like, like, like, limit, offset),
+                (uid, like, like, like, like, like, like, like, like, like, like, limit, offset),
             ).fetchall()
         ]
         companies = [
@@ -9900,8 +10006,8 @@ def api_stats():
                      WHERE p2.company_id=c.id AND {push_range_cond}
                    ) AS pushes_recent
             FROM companies c
-            LEFT JOIN prospects p ON p.company_id=c.id AND p.owner_id=?
-            WHERE c.owner_id=?
+            LEFT JOIN prospects p ON p.company_id=c.id AND p.owner_id=? AND (p.deleted_at IS NULL OR p.deleted_at='')
+            WHERE c.owner_id=? AND (c.deleted_at IS NULL OR c.deleted_at='')
             GROUP BY c.id
             ORDER BY (rdv_count*5 + overdue_count*3 + pushes_recent*2) DESC
             LIMIT 10;
@@ -12028,19 +12134,35 @@ def api_push_logs_list():
                 p.name AS prospect_name,
                 p.email AS prospect_email,
                 c.groupe AS company_groupe,
-                c.site AS company_site,
-                COALESCE(u1.display_name, u1.username) AS consultant1_name,
-                COALESCE(u2.display_name, u2.username) AS consultant2_name
+                c.site AS company_site
             FROM push_logs l
             JOIN prospects p ON p.id = l.prospect_id AND p.owner_id=?
             LEFT JOIN companies c ON c.id = p.company_id
-            LEFT JOIN users u1 ON u1.id = l.consultant1_id
-            LEFT JOIN users u2 ON u2.id = l.consultant2_id
             ORDER BY l.id DESC;
             ''',
             (uid,),
         ).fetchall()
-    return jsonify([dict(r) for r in rows])
+    logs = [dict(r) for r in rows]
+    # Enrichir consultant1/2_name depuis la main DB (table users)
+    consultant_ids = {r["consultant1_id"] for r in logs if r.get("consultant1_id")} \
+                     | {r["consultant2_id"] for r in logs if r.get("consultant2_id")}
+    names_by_id = {}
+    if consultant_ids:
+        try:
+            with _auth_conn() as auth:
+                rows_u = auth.execute(
+                    "SELECT id, username, display_name FROM users WHERE id IN ({});".format(
+                        ",".join("?" * len(consultant_ids))
+                    ),
+                    tuple(consultant_ids),
+                ).fetchall()
+                names_by_id = {u["id"]: (u["display_name"] or u["username"]) for u in rows_u}
+        except Exception as e:
+            logger.warning("push-logs consultants enrichment: %s", e)
+    for r in logs:
+        r["consultant1_name"] = names_by_id.get(r.get("consultant1_id"))
+        r["consultant2_name"] = names_by_id.get(r.get("consultant2_id"))
+    return jsonify(logs)
 
 
 @app.post("/api/push-logs/add")
@@ -15402,6 +15524,14 @@ def api_rapport_hebdo():
             (uid,),
         ).fetchall()]
         companies = [dict(r) for r in conn.execute("SELECT * FROM companies WHERE owner_id=?;", (uid,)).fetchall()]
+        try:
+            calls_row = conn.execute(
+                "SELECT COUNT(*) AS n FROM call_logs WHERE owner_id=? AND date>=? AND date<=?;",
+                (uid, start, end),
+            ).fetchone()
+            calls_count = int(calls_row["n"]) if calls_row else 0
+        except Exception:
+            calls_count = 0
 
     # Parse call notes
     all_notes = []
@@ -15523,6 +15653,7 @@ def api_rapport_hebdo():
             "conversion_pct": conversion_pct,
             "total_prospects": total,
             "companies_touched": len(top_companies),
+            "calls": calls_count,
         },
         "statuts": statuts,
         "top_companies": top_companies,

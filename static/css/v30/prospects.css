@@ -811,3 +811,73 @@
     padding: 6px 10px;
   }
 }
+
+/* ─────────── Prospects mobile : table → cartes ─────────── */
+@media (max-width: 700px) {
+  .v30-pp-table-wrap { border: 0; background: transparent; }
+  .v30-pp-table-scroll {
+    overflow-x: visible;
+    max-height: none;
+  }
+  .v30-pp-table { table-layout: auto; border-collapse: separate; border-spacing: 0 8px; width: 100%; }
+  .v30-pp-table thead { display: none; }
+  .v30-pp-table tbody { display: block; }
+  .v30-pp-table tr {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "check name   statut"
+      "check comp   comp"
+      "check tags   tags"
+      "check action action";
+    column-gap: 10px;
+    row-gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+  }
+  .v30-pp-table tr:hover { background: var(--surface-2); }
+  .v30-pp-table td {
+    display: block;
+    padding: 0 !important;
+    border: 0 !important;
+    max-width: none !important;
+    white-space: normal !important;
+  }
+  .v30-pp-table td:nth-child(1) { grid-area: check; align-self: start; padding-top: 6px !important; }
+  .v30-pp-table td:nth-child(2) { grid-area: name; min-width: 0; }
+  .v30-pp-table td:nth-child(2) .v30-pp-name__value { font-size: 14px; }
+  .v30-pp-table td:nth-child(2) .v30-pp-name__sub { font-size: 11.5px; color: var(--text-3); }
+  .v30-pp-table td:nth-child(3) { grid-area: comp; font-size: 12px; color: var(--text-2); }
+  .v30-pp-table td:nth-child(4) { grid-area: statut; justify-self: end; align-self: start; }
+  .v30-pp-table td:nth-child(4) .status { font-size: 11px; padding: 2px 8px; }
+  /* Pertinence, Push, Dernière action, Relance : cachés sur mobile (on privilégie la lisibilité) */
+  .v30-pp-table td:nth-child(5),
+  .v30-pp-table td:nth-child(6),
+  .v30-pp-table td:nth-child(7),
+  .v30-pp-table td:nth-child(8) { display: none; }
+  .v30-pp-table td:nth-child(9) { grid-area: tags; font-size: 11.5px; }
+  .v30-pp-table td:nth-child(10) {
+    grid-area: action;
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    align-items: center;
+    padding-top: 4px !important;
+  }
+  /* Avatar légèrement réduit */
+  .v30-pp-table .v30-pp-avatar {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 12.5px;
+  }
+  .v30-pp-table .v30-pp-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  /* Toutes les cellules vides se cachent (évite les espaces dans les cartes) */
+  .v30-pp-table td:empty { display: none; }
+}

@@ -115,7 +115,7 @@
     var skills = parseSkills(c.skills || c.tech);
     var shown = skills.slice(0, 3);
     var extra = skills.length - 3;
-    var role = c.role || c.seniority || '—';
+    var role = c.titre || c.role || c.seniority || c.domaine_principal || '—';
     var location = c.location || '';
     var sel = STATE.selected.has(c.id);
     return '<div class="v30-sc-card' + (sel ? ' is-selected' : '') + '" data-id="' + c.id + '">' +
