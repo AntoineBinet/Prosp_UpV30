@@ -366,6 +366,26 @@ def _call_tavily_search(query: str, config: dict, timeout: int = 30, max_results
         logger.error("Tavily error: %s", str(e))
         raise
 
+def _fetch_linkedin_name(url: str) -> str | None:
+    """Récupère nom/prénom du profil LinkedIn via Tavily. Retourne None si indisponible."""
+    try:
+        config = _load_ai_config()
+        if not config.get("tavily_api_key"):
+            return None
+        results = _call_tavily_search(url, config, timeout=8, max_results=2)
+        for src in results.get("sources", []):
+            title = src.get("title", "")
+            if not title:
+                continue
+            # LinkedIn titles: "First Last - Role at Company | LinkedIn"
+            name = title.replace(" | LinkedIn", "").split(" - ")[0].strip()
+            if name and 2 < len(name) < 80:
+                return name
+    except Exception:
+        pass
+    return None
+
+
 def _build_web_enriched_prompt(original_prompt: str, search_results: dict) -> str:
     """Construit un prompt enrichi avec les résultats de recherche web Tavily."""
     context_parts = []
@@ -2800,6 +2820,15 @@ def _v30_apply_migrations(conn) -> list[str]:
             done.append("alter:push_logs.campaign_id")
     except Exception as e:
         print(f"[v30_migrate] WARN push_logs ({e})")
+
+    # 4. linkedin_inmails : ajouter colonne name (enrichissement Tavily)
+    try:
+        li_cols = {r[1] for r in cur.execute("PRAGMA table_info(linkedin_inmails);").fetchall()}
+        if li_cols and "name" not in li_cols:
+            cur.execute("ALTER TABLE linkedin_inmails ADD COLUMN name TEXT;")
+            done.append("alter:linkedin_inmails.name")
+    except Exception as e:
+        print(f"[v30_migrate] WARN linkedin_inmails ({e})")
 
     conn.commit()
     return done
@@ -17870,10 +17899,22 @@ def api_linkedin_inmails_add():
     sent_at = (payload.get("sent_at") or datetime.datetime.now().strftime("%Y-%m-%d")).strip()
     now_ts = time.time()
     with _conn() as conn:
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO linkedin_inmails (url, note, sent_at, owner_id, created_at) VALUES (?, ?, ?, ?, ?);",
             (url, note or None, sent_at, uid, now_ts)
         )
+        entry_id = cur.lastrowid
+
+    def _enrich():
+        name = _fetch_linkedin_name(url)
+        if name:
+            try:
+                with _conn() as c:
+                    c.execute("UPDATE linkedin_inmails SET name=? WHERE id=?;", (name, entry_id))
+            except Exception:
+                pass
+
+    threading.Thread(target=_enrich, daemon=True).start()
     return jsonify(ok=True, message="InMail enregistré")
 
 

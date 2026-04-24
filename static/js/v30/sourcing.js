@@ -423,7 +423,7 @@
         try { domain = new URL(e.url).hostname.replace('www.', ''); } catch (_) { domain = e.url; }
         return '<div class="v30-inmails__item" data-inmail-id="' + esc(e.id) + '">' +
           '<div class="v30-inmails__item-main">' +
-            '<a class="v30-inmails__item-url" href="' + esc(e.url) + '" target="_blank" rel="noopener">' + esc(domain) + '</a>' +
+            '<a class="v30-inmails__item-url" href="' + esc(e.url) + '" target="_blank" rel="noopener">' + esc(e.name || domain) + '</a>' +
             (e.note ? '<span class="v30-inmails__item-note">' + esc(e.note) + '</span>' : '') +
           '</div>' +
           '<span class="v30-inmails__item-date">' + esc(e.sent_at) + '</span>' +
@@ -454,6 +454,8 @@
             if (noteInput) noteInput.value = '';
             toast('InMail enregistré ✓', 'success');
             loadInmails();
+            // Rafraîchit après résolution Tavily (enrichissement nom en arrière-plan)
+            setTimeout(loadInmails, 5000);
           })
           .catch(function (e) { toast('Erreur : ' + e.message, 'error'); })
           .then(function () { submitBtn.disabled = false; });
