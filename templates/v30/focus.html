@@ -7,6 +7,19 @@
 
 <div data-v30-focus>
 
+  {# ─── Alerte export hebdo (jeudi, vendredi, samedi, dimanche) ─── #}
+  <div class="v30-focus-alert" role="alert" data-v30-export-alert hidden>
+    <span aria-hidden="true">{{ ui.icon('bell', 16) }}</span>
+    <div class="v30-focus-alert__msg">
+      <strong>Rappel :</strong> vous n'avez pas encore exporté votre suivi d'activité cette semaine.
+    </div>
+    <a href="/v30/stats" class="btn btn-primary btn-sm">
+      {{ ui.icon('chart', 13) }} Aller aux Stats
+    </a>
+    <button type="button" class="btn btn-ghost btn-sm btn-icon"
+            data-v30-export-dismiss aria-label="Masquer">{{ ui.icon('x', 13) }}</button>
+  </div>
+
   {# ─── Header hero ─── #}
   <section style="padding:8px 0 24px;">
     <div style="font-size:11.5px;color:var(--text-3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;"
@@ -85,7 +98,31 @@
 
   </div>
 
-  {# ─── Bloc Tâches (parite v29 : CRUD manuel) ─── #}
+  {# ─── Bloc Relances filtrables (parité v29 : dropdown période) ─── #}
+  <section class="card card-flush v30-focus-relances" data-v30-focus-relances>
+    <div class="card-header">
+      <div class="card-title" style="display:flex;align-items:center;gap:6px;">
+        {{ ui.icon('clock', 13) }}
+        Relances
+      </div>
+      <div class="v30-focus-relances__filter">
+        <label for="v30-focus-relances-period">Période</label>
+        <select id="v30-focus-relances-period" class="select" data-v30-focus-relances-period>
+          <option value="all">Toutes</option>
+          <option value="late">En retard</option>
+          <option value="today" selected>Aujourd'hui</option>
+          <option value="tomorrow">Demain</option>
+          <option value="week">Cette semaine</option>
+        </select>
+      </div>
+      <div class="v30-focus-relances__summary" data-v30-focus-relances-summary>—</div>
+    </div>
+    <div data-v30-focus-relances-list>
+      <div class="empty" style="padding:20px;font-size:12px;">Chargement…</div>
+    </div>
+  </section>
+
+  {# ─── Bloc Tâches (parité v29 : CRUD manuel complet) ─── #}
   <section class="card card-flush" data-v30-focus-tasks style="margin-top:16px;">
     <div class="card-header">
       <div class="card-title" style="display:flex;align-items:center;gap:6px;">
@@ -101,21 +138,65 @@
         {{ ui.icon('plus', 13) }} Ajouter
       </button>
     </div>
-    <form class="v30-tasks-form" data-v30-tasks-form hidden>
-      <input type="text" class="input" placeholder="Intitulé de la tâche…" required
-             data-v30-tasks-title aria-label="Intitulé">
-      <input type="date" class="input" data-v30-tasks-due aria-label="Échéance">
-      <button type="submit" class="btn btn-accent btn-sm">Enregistrer</button>
-      <button type="button" class="btn btn-ghost btn-sm" data-v30-tasks-cancel>Annuler</button>
-    </form>
     <div data-v30-tasks-list>
       <div class="empty" style="padding:20px;font-size:12px;">Chargement…</div>
     </div>
   </section>
 </div>
 
-{# Réutilise les styles .v30-ac__row de dashboard.css pour les lignes #}
-<link rel="stylesheet" href="/static/css/v30/dashboard.css?v={{ static_hash('css/v30/dashboard.css') }}">
+{# ─── Modale CRUD tâche : titre/commentaire/date + prospects/candidats liés ─── #}
+<div class="v30-modal-bd" data-v30-pp-modal="task-edit" hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-task-modal-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-task-modal-title">Nouvelle tâche</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <form class="v30-modal__body" data-v30-task-form>
+      <input type="hidden" data-v30-task-id value="">
+      <div class="v30-field">
+        <label for="v30-task-title" class="required">Titre</label>
+        <input type="text" id="v30-task-title" class="input" required
+               placeholder="Ex : Relancer prospect X" data-v30-task-title>
+      </div>
+      <div class="v30-field">
+        <label for="v30-task-comment">Commentaire</label>
+        <textarea id="v30-task-comment" class="textarea" rows="3"
+                  placeholder="Notes, contexte…" data-v30-task-comment></textarea>
+      </div>
+      <div class="v30-field">
+        <label for="v30-task-due">Date d'échéance</label>
+        <input type="date" id="v30-task-due" class="input" data-v30-task-due>
+      </div>
+      <div class="v30-field">
+        <label for="v30-task-prospects">Prospects affectés</label>
+        <input type="text" class="input v30-field__search" placeholder="Rechercher un prospect…"
+               data-v30-task-prospects-search aria-label="Filtrer la liste des prospects">
+        <select id="v30-task-prospects" class="select v30-field__multi" multiple
+                data-v30-task-prospects></select>
+        <div class="v30-field__hint">Ctrl+clic pour sélection multiple · tapez pour filtrer.</div>
+      </div>
+      <div class="v30-field">
+        <label for="v30-task-candidates">Candidats affectés</label>
+        <input type="text" class="input v30-field__search" placeholder="Rechercher un candidat…"
+               data-v30-task-candidates-search aria-label="Filtrer la liste des candidats">
+        <select id="v30-task-candidates" class="select v30-field__multi" multiple
+                data-v30-task-candidates></select>
+        <div class="v30-field__hint">Ctrl+clic pour sélection multiple · tapez pour filtrer.</div>
+      </div>
+    </form>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-task-save>
+        {{ ui.icon('check', 13) }} Enregistrer
+      </button>
+    </div>
+  </div>
+</div>
 
+{# Réutilise les styles .v30-ac__row + .v30-task-row de dashboard.css #}
+<link rel="stylesheet" href="/static/css/v30/dashboard.css?v={{ static_hash('css/v30/dashboard.css') }}">
+<link rel="stylesheet" href="/static/css/v30/focus.css?v={{ static_hash('css/v30/focus.css') }}">
+
+<script defer src="/static/js/v30/phone-picker.js?v={{ static_hash('js/v30/phone-picker.js') }}"></script>
 <script defer src="/static/js/v30/focus.js?v={{ static_hash('js/v30/focus.js') }}"></script>
 {% endblock %}

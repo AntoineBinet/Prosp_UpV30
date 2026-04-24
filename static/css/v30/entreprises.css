@@ -1,0 +1,75 @@
+/* ProspUp v30 — Entreprises : styles spécifiques (modale riche, tabs internes, fiche) */
+
+/* ─── Tabs internes modale ─── */
+.v30-ent-mtabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin: -4px -4px 14px;
+  padding: 0 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.v30-ent-mtabs::-webkit-scrollbar { display: none; }
+.v30-ent-mtabs button {
+  background: transparent;
+  border: 0;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  position: relative;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.v30-ent-mtabs button:hover { color: var(--text); }
+.v30-ent-mtabs button.is-active { color: var(--text); }
+.v30-ent-mtabs button.is-active::after {
+  content: "";
+  position: absolute;
+  left: 10px; right: 10px; bottom: -1px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+}
+
+/* ─── Panels tabs ─── */
+.v30-ent-mpanel[hidden] { display: none !important; }
+
+/* ─── Helpers de mise en page spécifiques à la fiche entreprise ─── */
+.v30-ent-field-full { grid-column: 1 / -1; }
+
+/* Sous-titre modale (contexte d'édition) */
+.v30-ent-sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin: -4px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Bandeau quick-actions (téléphone / website / linkedin) — aligne sur le design card */
+.v30-ent-qa {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 14px;
+}
+.v30-ent-qa a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  text-decoration: none;
+}
+.v30-ent-qa a:hover { color: var(--text); border-color: var(--border-strong); }
+.v30-ent-qa a[hidden] { display: none; }

@@ -219,11 +219,15 @@
         <span data-field="n">0</span> sélectionnés
       </span>
       <span class="v30-bulk__sep"></span>
+      <button type="button" class="v30-bulk__btn" data-action="edit" title="Modifier un champ en masse (statut, pertinence, fonction…)">{{ ui.icon('cog', 13) }} Modifier</button>
       <button type="button" class="v30-bulk__btn" data-action="statut">{{ ui.icon('check', 13) }} Statut</button>
       <button type="button" class="v30-bulk__btn" data-action="pertinence">{{ ui.icon('star', 13) }} Pertinence</button>
       <button type="button" class="v30-bulk__btn" data-action="relance">{{ ui.icon('calendar', 13) }} Relance</button>
       <button type="button" class="v30-bulk__btn" data-action="tag">{{ ui.icon('tag', 13) }} Tag</button>
       <button type="button" class="v30-bulk__btn" data-action="push">{{ ui.icon('send', 13) }} Pousser</button>
+      <span class="v30-bulk__sep"></span>
+      <button type="button" class="v30-bulk__btn" data-action="vcf" title="Télécharger une vCard (.vcf) des prospects sélectionnés">{{ ui.icon('arrowD', 13) }} Export VCF</button>
+      <button type="button" class="v30-bulk__btn" data-action="enrich-ai" title="Enrichir via IA (Ollama + recherche web) les prospects sélectionnés, séquentiellement">{{ ui.icon('sparkles', 13) }} Enrichir IA</button>
       <span class="v30-bulk__sep"></span>
       <button type="button" class="v30-bulk__btn" data-action="archive" title="Archiver les prospects sélectionnés">{{ ui.icon('inbox', 13) }} Archiver</button>
       <button type="button" class="v30-bulk__btn v30-bulk__btn--danger" data-action="delete">{{ ui.icon('x', 13) }} Supprimer</button>
@@ -291,8 +295,17 @@
     </div>
     <div class="v30-modal__body">
       <div class="v30-field">
-        <label>Statut</label>
+        <label>Statut (inclure)</label>
         <div class="v30-chiprow" data-v30-flt-statut>
+          {% for s in ["Pas d'actions", "Appelé", "À rappeler", "Rendez-vous", "Prospecté", "Messagerie", "Pas intéressé"] %}
+          <label class="v30-chip"><input type="checkbox" value="{{ s }}"> <span>{{ s }}</span></label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="v30-field">
+        <label>Exclure statuts</label>
+        <p class="muted" style="font-size:11.5px;margin:0 0 6px;">Masquer les prospects dont le statut figure ici (ex : « Pas intéressé », « Prospecté »).</p>
+        <div class="v30-chiprow" data-v30-flt-statut-exclude>
           {% for s in ["Pas d'actions", "Appelé", "À rappeler", "Rendez-vous", "Prospecté", "Messagerie", "Pas intéressé"] %}
           <label class="v30-chip"><input type="checkbox" value="{{ s }}"> <span>{{ s }}</span></label>
           {% endfor %}
@@ -440,6 +453,69 @@
       <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Fermer</button>
       <div class="v30-spacer"></div>
       <button type="button" class="btn btn-primary btn-sm" data-v30-imp-run hidden>Importer</button>
+    </div>
+  </div>
+</div>
+
+{# Bulk AI enrich — progress + résumé #}
+<div class="v30-modal-bd" data-v30-pp-modal="enrichAi" hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-pp-enrich-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-pp-enrich-title">{{ ui.icon('sparkles', 14) }} Enrichissement IA en masse</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size: 12.5px; margin: 0 0 10px;" data-v30-enrich-intro>
+        Lancer l'enrichissement IA (Ollama + recherche web Tavily) sur <strong data-v30-enrich-count>0</strong> prospect(s).
+        L'IA complète uniquement les champs vides (fonction, email, téléphone, linkedin, tags).
+      </p>
+      <label class="v30-chip" style="width: fit-content; margin-bottom: 10px;">
+        <input type="checkbox" data-v30-enrich-web checked> <span>Activer la recherche web (Tavily)</span>
+      </label>
+      <div data-v30-enrich-progress hidden>
+        <p style="margin: 0 0 6px;"><span data-v30-enrich-progress-text>0 / 0 traités</span></p>
+        <div class="v30-progress"><div class="v30-progress__bar" data-v30-enrich-progress-bar></div></div>
+        <div data-v30-enrich-current class="muted" style="font-size:12px;margin-top:6px;"></div>
+      </div>
+      <div data-v30-enrich-summary hidden style="margin-top: 12px;">
+        <p style="margin: 0 0 6px;"><strong data-v30-enrich-ok>0</strong> enrichi(s) · <strong data-v30-enrich-ko>0</strong> échec(s)</p>
+        <pre data-v30-enrich-lines class="v30-ai-raw"></pre>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close data-v30-enrich-cancel>Annuler</button>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-enrich-start>Lancer</button>
+    </div>
+  </div>
+</div>
+
+{# Bulk Edit — champ + valeur (parité V29 openBulkEditModal) #}
+<div class="v30-modal-bd" data-v30-pp-modal="bulkEdit" hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-pp-bulk-edit-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-pp-bulk-edit-title">{{ ui.icon('cog', 14) }} Modifier en masse</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size: 12.5px; margin: 0 0 12px;" data-v30-bulk-edit-info>0 prospect(s) sélectionné(s)</p>
+      <div class="v30-field">
+        <label for="v30-pp-bulk-edit-field">Champ à modifier <span class="required" style="color:var(--danger);">*</span></label>
+        <select id="v30-pp-bulk-edit-field" class="select" data-v30-bulk-edit-field>
+          <option value="">— Choisir un champ —</option>
+          <option value="statut">Statut</option>
+          <option value="pertinence">Pertinence</option>
+          <option value="fonction">Fonction</option>
+        </select>
+      </div>
+      <div class="v30-field" data-v30-bulk-edit-value-wrap>
+        <!-- rempli par JS selon le champ choisi -->
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-bulk-edit-apply>Appliquer à <span data-v30-bulk-edit-count>0</span> prospect(s)</button>
     </div>
   </div>
 </div>
