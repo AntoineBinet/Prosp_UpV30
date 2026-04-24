@@ -2,6 +2,44 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.14] — 2026-04-24 · Push popup · arrondi dropdown + score % + description IA par candidat
+
+Trois améliorations suite au retour utilisateur sur la popup push :
+
+### 1. Dropdown plus arrondi et plus visible
+- `.v30pm-combo__btn` : `border-radius` 12 → **16 px**, hauteur 40 → **44 px**, padding 12 → 14 px, hover avec background légèrement teinté.
+- `.v30pm-combo__panel` : `border-radius` 12 → **18 px**, ombre renforcée (`0 20px 50px -14px rgba(0,0,0,.35)` + halo accent 8%), border accent 25% (au lieu de border-strong).
+- `.v30pm-combo__opt` : `border-radius` 8 → **12 px**, padding 9 × 12 px (au lieu de 8 × 10).
+- `.v30pm-combo.is-open .v30pm-combo__btn` : halo focus `4 px accent 14%` (plus marqué).
+
+### 2. Pourcentage de pertinence IA sur chaque suggestion
+- `STATE.aiSuggestions` stocke désormais `[{id, pct}]` au lieu d'`[id]` (utilise `relevance_pct` retourné par `/api/prospect/<id>/best-candidates`).
+- Chaque option du groupe « Suggérés par l'IA » affiche une **pill accent avec le %** (ex. `87 %`) via la classe `.v30pm-combo__pct`.
+- `buildComboPanelHTML::row()` accepte maintenant un paramètre `pct` et rend la pill si `> 0`.
+
+### 3. Description IA par candidat (restauration du flow v29)
+Sous les 2 combobox, affichage de **cartes description** (`.v30pm-candcard`) qui apparaissent dès qu'un candidat est sélectionné :
+- **En-tête** : « Candidat 1 » (eyebrow) + nom · rôle + bouton « Générer IA » ou « Régénérer ».
+- **Textarea** pré-remplie avec `candidate.description_push` existant (analyse précédente) ou vide.
+- **Auto-save** sur `blur` → `POST /api/candidates/<id>/save-description`.
+- **Bouton Régénérer** → `POST /api/candidates/<id>/generate-description` (endpoint v29 existant qui analyse le PDF DC via Ollama). Statut inline (« Analyse du DC… » → « Description IA générée ✓ »).
+- **Candidats sans DC** : carte en pointillé avec message « Ce candidat n'a pas de dossier de compétences — impossible de générer automatiquement. » (pas de bouton Régénérer).
+- Cache local `STATE.candDescCache` pour ne pas perdre les éditions entre re-render.
+
+### Changements
+- **`static/css/v30/push-modal.css`** : arrondi combobox + ombre panel + `.v30pm-combo__pct` (pill accent %) + `.v30pm-candcard*` (cartes description avec textarea, bouton régénérer, statut, état sans DC).
+- **`static/js/v30/push-modal.js`** :
+  - `buildComboPanelHTML::row()` signature `(c, slot, extraCls, pct)` + rendu pill %.
+  - `loadAISuggestions()` stocke `{id, pct}` (lit `relevance_pct`).
+  - HTML modale : ajout de `<div class="v30pm-candcards" data-v30pm-candcards>` sous la grille combobox.
+  - Nouveaux helpers : `cachedDesc()`, `setCachedDesc()`, `renderCandCards()`, `setDescStatus()`, `regenerateCandDesc()`, `saveCandDesc()`.
+  - `selectCandidate()` appelle `renderCandCards()`.
+  - `bindModalEvents()` : nouveau handler click pour `[data-v30pm-regen]`, nouveau listener `blur` (en capture) pour auto-save des textarea.
+  - `open()` reset `STATE.candDescCache = {}` + vide le conteneur `[data-v30pm-candcards]`.
+
+### Aucun changement backend
+Les endpoints `/api/candidates/<id>/generate-description` et `/api/candidates/<id>/save-description` existent en v29 et v30 sans modification. Le champ `relevance_pct` est déjà retourné par `/api/prospect/<id>/best-candidates`.
+
 ## [30.13] — 2026-04-24 · Push popup · custom combobox + optgroups DC + IA 2 passes
 
 Refonte de la section Contexte de la popup push :

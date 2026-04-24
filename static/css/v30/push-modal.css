@@ -272,11 +272,11 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 12px;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -285,13 +285,16 @@
   text-align: left;
   transition: border-color var(--dur-1), background var(--dur-1), box-shadow var(--dur-1);
 }
-.v30pm-combo__btn:hover { border-color: var(--border-strong); }
+.v30pm-combo__btn:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in oklch, var(--surface) 50%, var(--surface-2));
+}
 .v30pm-combo.is-open .v30pm-combo__btn {
-  border-color: color-mix(in oklch, var(--accent) 55%, var(--border));
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 60%, var(--border));
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--accent) 14%, transparent);
 }
 .v30pm-combo__btn:focus-visible {
-  outline: 2px solid color-mix(in oklch, var(--accent) 50%, transparent);
+  outline: 2px solid color-mix(in oklch, var(--accent) 55%, transparent);
   outline-offset: 2px;
 }
 .v30pm-combo__label {
@@ -317,20 +320,23 @@
 /* ─── Combobox panel (liste) ─────────────────────────────── */
 .v30pm-combo__panel {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   left: 0;
   right: 0;
   z-index: 30;
-  max-height: 340px;
+  max-height: 360px;
   overflow-y: auto;
-  padding: 6px;
+  padding: 8px;
   background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  box-shadow: 0 12px 36px -12px rgba(0, 0, 0, 0.3), 0 4px 12px -4px rgba(0, 0, 0, 0.1);
+  border: 1px solid color-mix(in oklch, var(--accent) 25%, var(--border));
+  border-radius: 18px;
+  box-shadow:
+    0 20px 50px -14px rgba(0, 0, 0, 0.35),
+    0 8px 20px -8px rgba(0, 0, 0, 0.18),
+    0 0 0 4px color-mix(in oklch, var(--accent) 8%, transparent);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-4px) scale(0.98);
+  transform: translateY(-6px) scale(0.97);
   transform-origin: top center;
   transition: opacity var(--dur-1), transform var(--dur-1);
 }
@@ -360,10 +366,10 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
   color: var(--text);
   text-align: left;
@@ -437,4 +443,122 @@
   text-align: center;
   color: var(--text-3);
   font-size: 12px;
+}
+
+/* ─── Pill score IA (% relevance) ────────────────────────── */
+.v30pm-combo__pct {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 40px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  line-height: 1;
+  background: color-mix(in oklch, var(--accent) 16%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklch, var(--accent) 32%, transparent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Candidate description card (IA DC) ─────────────────── */
+.v30pm-candcards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.v30pm-candcard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  font-size: 12.5px;
+}
+.v30pm-candcard__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.v30pm-candcard__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 0;
+}
+.v30pm-candcard__title-idx {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+.v30pm-candcard__actions { display: flex; gap: 6px; flex-shrink: 0; }
+.v30pm-candcard__regen {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--accent) 28%, var(--border));
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background var(--dur-1), border-color var(--dur-1);
+}
+.v30pm-candcard__regen:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--accent) 16%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 45%, transparent);
+}
+.v30pm-candcard__regen:disabled { opacity: 0.55; cursor: wait; }
+.v30pm-candcard__status {
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-style: italic;
+  min-height: 14px;
+}
+.v30pm-candcard__status.is-saved { color: var(--success); }
+.v30pm-candcard__status.is-error { color: var(--danger); }
+.v30pm-candcard__textarea {
+  width: 100%;
+  min-height: 70px;
+  max-height: 180px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-family: inherit;
+}
+.v30pm-candcard__textarea:focus {
+  outline: 2px solid color-mix(in oklch, var(--accent) 45%, transparent);
+  outline-offset: 1px;
+  border-color: color-mix(in oklch, var(--accent) 50%, var(--border));
+}
+.v30pm-candcard__empty {
+  font-size: 11.5px;
+  color: var(--text-3);
+  padding: 4px 0;
+}
+.v30pm-candcard--no-dc {
+  background: color-mix(in oklch, var(--surface-2) 80%, transparent);
+  border-style: dashed;
 }

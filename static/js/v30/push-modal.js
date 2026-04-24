@@ -128,6 +128,8 @@
                   '<div class="v30pm-combo__panel" data-v30pm-combo-panel="2" role="listbox"></div>' +
                 '</div>' +
               '</div>' +
+              // Cartes description par candidat (apparaissent quand sélectionné)
+              '<div class="v30pm-candcards" data-v30pm-candcards></div>' +
             '</div>' +
           '</section>' +
 
@@ -171,6 +173,12 @@
         return;
       }
       if (e.target.closest('[data-v30pm-send]')) { send(); return; }
+      // Régénérer description IA du candidat
+      var regen = e.target.closest('[data-v30pm-regen]');
+      if (regen) {
+        regenerateCandDesc(Number(regen.dataset.v30pmRegen));
+        return;
+      }
       // Combobox : toggle panel
       var cbBtn = e.target.closest('[data-v30pm-combo-btn]');
       if (cbBtn) {
@@ -198,6 +206,14 @@
         loadAISuggestions(cat && cat.value ? cat.value : null);
       }
     });
+    // Auto-save description candidat (onBlur)
+    bd.addEventListener('blur', function (e) {
+      var ta = e.target.closest('[data-v30pm-desc]');
+      if (ta) {
+        var id = Number(ta.dataset.v30pmDesc);
+        if (id) saveCandDesc(id, ta.value || '');
+      }
+    }, true); // capture pour attraper le blur qui ne bubble pas
     // Escape ferme d'abord un combobox ouvert, sinon la modale
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
@@ -367,36 +383,45 @@
   }
 
   function buildComboPanelHTML() {
-    var aiSet = {};
-    (STATE.aiSuggestions || []).forEach(function (id) { aiSet[String(id)] = true; });
     var withDC = [];
     var withoutDC = [];
     STATE.allCandidates.forEach(function (c) {
       if (c.has_dc) withDC.push(c);
       else withoutDC.push(c);
     });
-    function row(c, slot, extraCls) {
+    function row(c, slot, extraCls, pct) {
       var dcPill = c.has_dc
         ? '<span class="v30pm-combo__dc v30pm-combo__dc--ok" title="DC disponible">' + ic('checkCircle', 10) + '</span>'
         : '<span class="v30pm-combo__dc v30pm-combo__dc--ko" title="Pas de DC">' + ic('x', 10) + '</span>';
+      var pctPill = (pct != null && pct > 0)
+        ? '<span class="v30pm-combo__pct" title="Score de pertinence">' + Math.round(pct) + '%</span>'
+        : '';
       return '<button type="button" class="v30pm-combo__opt ' + (extraCls || '') + '" role="option" data-v30pm-opt-id="' + c.id + '" data-v30pm-opt-slot="' + slot + '">' +
         dcPill +
         '<span class="v30pm-combo__opt-body">' +
           '<span class="v30pm-combo__opt-name">' + esc(c.name || '') + '</span>' +
           (c.role ? '<span class="v30pm-combo__opt-role">' + esc(c.role) + '</span>' : '') +
         '</span>' +
+        pctPill +
       '</button>';
     }
     function section(label, list, slot, cls) {
       if (!list.length) return '';
       return '<div class="v30pm-combo__group"><div class="v30pm-combo__group-label">' + label + '</div>' +
-        list.map(function (c) { return row(c, slot, cls); }).join('') +
+        list.map(function (item) {
+          if (item && typeof item === 'object' && 'candidate' in item) {
+            return row(item.candidate, slot, cls, item.pct);
+          }
+          return row(item, slot, cls);
+        }).join('') +
       '</div>';
     }
     return function (slot) {
-      var suggested = (STATE.aiSuggestions || [])
-        .map(function (id) { return findCandidate(id); })
-        .filter(Boolean);
+      // aiSuggestions : array de {id, pct}. On résout les candidats correspondants.
+      var suggested = (STATE.aiSuggestions || []).map(function (s) {
+        var c = findCandidate(s.id != null ? s.id : s);
+        return c ? { candidate: c, pct: (s && s.pct) || 0 } : null;
+      }).filter(Boolean);
       var html = '';
       // Option "aucun"
       html += '<button type="button" class="v30pm-combo__opt v30pm-combo__opt--none" role="option" data-v30pm-opt-id="" data-v30pm-opt-slot="' + slot + '">' +
@@ -442,7 +467,130 @@
   function selectCandidate(slot, id) {
     STATE.selectedCand[slot] = id ? Number(id) : null;
     renderComboLabel(slot);
+    renderCandCards();
     closeCombos();
+  }
+
+  // ─── Cartes description par candidat (IA sur DC) ─────────
+  // Cache : candId -> { description, dirty, savedAt }
+  STATE.candDescCache = {};
+
+  function cachedDesc(id) {
+    if (!id) return null;
+    if (STATE.candDescCache[id] != null) return STATE.candDescCache[id];
+    var c = findCandidate(id);
+    return (c && c.description_push) || '';
+  }
+  function setCachedDesc(id, text) {
+    STATE.candDescCache[id] = text;
+    var c = findCandidate(id);
+    if (c) c.description_push = text;
+  }
+
+  function renderCandCards() {
+    var host = $sel('data-v30pm-candcards');
+    if (!host) return;
+    var slots = [1, 2];
+    var html = '';
+    slots.forEach(function (slot) {
+      var id = STATE.selectedCand[slot];
+      if (!id) return;
+      var c = findCandidate(id);
+      if (!c) return;
+      var desc = cachedDesc(id);
+      var noDc = !c.has_dc;
+      var cls = 'v30pm-candcard' + (noDc ? ' v30pm-candcard--no-dc' : '');
+      html +=
+        '<div class="' + cls + '" data-v30pm-candcard="' + id + '">' +
+          '<div class="v30pm-candcard__head">' +
+            '<div class="v30pm-candcard__title">' +
+              '<span class="v30pm-candcard__title-idx">Candidat ' + slot + '</span>' +
+              '<span>' + esc(c.name || '—') +
+                (c.role ? ' · <span style="color:var(--text-3);font-weight:400;">' + esc(c.role) + '</span>' : '') +
+              '</span>' +
+            '</div>' +
+            '<div class="v30pm-candcard__actions">' +
+              (noDc
+                ? ''
+                : '<button type="button" class="v30pm-candcard__regen" data-v30pm-regen="' + id + '" aria-label="Régénérer la description IA depuis le DC">' +
+                    ic('robot', 11) + ' ' + (desc ? 'Régénérer' : 'Générer IA') +
+                  '</button>') +
+            '</div>' +
+          '</div>' +
+          (noDc
+            ? '<div class="v30pm-candcard__empty">Ce candidat n\'a pas de dossier de compétences — impossible de générer automatiquement.</div>'
+            : '<textarea class="v30pm-candcard__textarea" data-v30pm-desc="' + id + '" placeholder="Cliquez « Générer IA » pour analyser le dossier de compétences, ou rédigez manuellement…">' + esc(desc) + '</textarea>') +
+          '<div class="v30pm-candcard__status" data-v30pm-descstatus="' + id + '"></div>' +
+        '</div>';
+    });
+    host.innerHTML = html;
+  }
+
+  function setDescStatus(id, msg, cls) {
+    var el = document.querySelector('[data-v30pm-descstatus="' + id + '"]');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.className = 'v30pm-candcard__status' + (cls ? ' ' + cls : '');
+  }
+
+  function regenerateCandDesc(id) {
+    var c = findCandidate(id);
+    if (!c) return;
+    if (!c.has_dc) { toast('Ce candidat n\'a pas de DC', 'warning'); return; }
+    var btn = document.querySelector('[data-v30pm-regen="' + id + '"]');
+    var ta = document.querySelector('[data-v30pm-desc="' + id + '"]');
+    if (btn) btn.disabled = true;
+    setDescStatus(id, 'Analyse du DC en cours…');
+    if (ta) ta.value = 'Analyse du dossier de compétences en cours…';
+    fetch('/api/candidates/' + id + '/generate-description', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, data: j }; });
+    }).then(function (res) {
+      if (!res.ok || !res.data || !res.data.ok || !res.data.description) {
+        var err = (res.data && res.data.error) || ('Erreur ' + (res.data && res.data.status || ''));
+        if (ta) ta.value = cachedDesc(id);
+        setDescStatus(id, err, 'is-error');
+        toast(err, 'error');
+        return;
+      }
+      var text = String(res.data.description).trim();
+      if (ta) ta.value = text;
+      setCachedDesc(id, text);
+      setDescStatus(id, 'Description IA générée', 'is-saved');
+      setTimeout(function () { setDescStatus(id, ''); }, 2500);
+      toast('Description IA générée', 'success', 2500);
+      // Met à jour le label du combobox (inchangé, mais au cas où role arrive)
+      [1, 2].forEach(function (s) { if (STATE.selectedCand[s] === id) renderComboLabel(s); });
+    }).catch(function (e) {
+      if (ta) ta.value = cachedDesc(id);
+      setDescStatus(id, 'Erreur : ' + (e.message || 'inconnue'), 'is-error');
+      toast('Erreur IA : ' + e.message, 'error');
+    }).then(function () {
+      if (btn) btn.disabled = false;
+    });
+  }
+
+  function saveCandDesc(id, text) {
+    setCachedDesc(id, text);
+    setDescStatus(id, 'Sauvegarde…');
+    fetch('/api/candidates/' + id + '/save-description', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: text })
+    }).then(function (r) {
+      if (r.ok) {
+        setDescStatus(id, 'Sauvegardé', 'is-saved');
+        setTimeout(function () { setDescStatus(id, ''); }, 1800);
+      } else {
+        setDescStatus(id, 'Erreur sauvegarde', 'is-error');
+      }
+    }).catch(function () {
+      setDescStatus(id, 'Erreur réseau', 'is-error');
+    });
   }
 
   // ─── Barre IA (scoring candidats) ─────────────────────────
@@ -494,8 +642,10 @@
     var qs = catId ? ('?push_category_id=' + encodeURIComponent(catId)) : '';
     return fetchJSON('/api/prospect/' + STATE.prospectId + '/best-candidates' + qs).then(function (j) {
       var arr = (j && j.candidates) || [];
-      // On garde les 5 meilleurs
-      STATE.aiSuggestions = arr.slice(0, 5).map(function (c) { return c.id; });
+      // On garde les 5 meilleurs avec leur score (relevance_pct 0-100)
+      STATE.aiSuggestions = arr.slice(0, 5).map(function (c) {
+        return { id: c.id, pct: (c.relevance_pct != null ? c.relevance_pct : c.pct) || 0 };
+      });
       // Si certains candidats suggérés ne sont pas dans allCandidates (filtrage
       // serveur différent), on les ajoute pour pouvoir les afficher.
       arr.forEach(function (c) {
@@ -904,7 +1054,11 @@
     STATE.allCandidates = [];
     STATE.aiSuggestions = [];
     STATE.selectedCand = { 1: null, 2: null };
+    STATE.candDescCache = {};
     var bd = ensureModal();
+    // Vider les cartes de description éventuellement rendues
+    var cc = bd.querySelector('[data-v30pm-candcards]');
+    if (cc) cc.innerHTML = '';
     // Titre dynamique
     var title = bd.querySelector('[data-v30pm-title]');
     if (title) title.textContent = STATE.channel === 'linkedin' ? 'Push LinkedIn' : 'Push Email';
