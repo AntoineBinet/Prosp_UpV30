@@ -1,0 +1,241 @@
+/* ProspUp v30 — Modal « Pousser » (popup depuis fiche prospect / liste).
+ * Chargé globalement via base.html. Habille la modale créée par push-modal.js.
+ */
+
+/* ─── Dialog dimensions ──────────────────────────────────── */
+#v30PushModal .v30-modal--xl { max-width: 680px; }
+
+/* ─── Head ───────────────────────────────────────────────── */
+#v30PushModal .v30-modal__head {
+  align-items: flex-start;
+  padding-bottom: 10px;
+}
+#v30PushModal .v30pm-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+#v30PushModal .v30pm-head__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+#v30PushModal .v30pm-head__eyebrow {
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ─── Body sections ──────────────────────────────────────── */
+#v30PushModal .v30-modal__body {
+  padding: 14px 18px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.v30pm-section { display: flex; flex-direction: column; gap: 8px; }
+.v30pm-section__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ─── Destinataire card (prospect recap) ─────────────────── */
+.v30pm-recipient {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.v30pm-recipient__avatar {
+  width: 40px; height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.v30pm-recipient__body { flex: 1; min-width: 0; }
+.v30pm-recipient__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v30pm-recipient__meta {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v30pm-recipient__meta .mono { font-family: var(--font-mono); color: var(--text-2); }
+.v30pm-recipient__chan {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklch, var(--accent) 28%, transparent);
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.v30pm-recipient--skeleton { pointer-events: none; }
+.v30pm-recipient--skeleton .v30pm-recipient__avatar { background: var(--surface-3); color: transparent; }
+
+/* ─── Fields : grid compacte ─────────────────────────────── */
+.v30pm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.v30pm-grid--full { grid-template-columns: 1fr; }
+#v30PushModal .v30-field { margin: 0; }
+#v30PushModal .v30-input { height: 36px; }
+#v30PushModal textarea.v30-input { height: auto; }
+
+/* ─── Select custom look (flèche) ────────────────────────── */
+#v30PushModal select.v30-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+  cursor: pointer;
+}
+
+/* ─── Skeleton loading ──────────────────────────────────── */
+@keyframes v30pmShimmer {
+  0%   { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+.v30pm-skel {
+  display: block;
+  height: 36px;
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg,
+      var(--surface-2) 0%,
+      var(--surface-3) 50%,
+      var(--surface-2) 100%);
+  background-size: 400px 100%;
+  animation: v30pmShimmer 1.2s ease-in-out infinite;
+  border: 1px solid var(--border);
+}
+.v30pm-skel--text { height: 14px; border-radius: 6px; }
+.v30pm-skel--sm   { height: 11px; border-radius: 4px; }
+
+/* ─── Section Message : actions IA ───────────────────────── */
+.v30pm-msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.v30pm-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--accent) 28%, var(--border));
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background var(--dur-1), border-color var(--dur-1), transform var(--dur-1);
+}
+.v30pm-ai-btn:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 45%, transparent);
+}
+.v30pm-ai-btn:active { transform: translateY(1px); }
+.v30pm-ai-btn:disabled { opacity: 0.55; cursor: wait; }
+.v30pm-ai-btn svg { flex-shrink: 0; }
+
+/* ─── Progress bar (AI streaming) ────────────────────────── */
+.v30pm-ai-progress {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent) 25%, transparent);
+  border-radius: 10px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.v30pm-ai-progress.is-active { display: flex; }
+.v30pm-ai-progress__pulse {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: v30pmPulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes v30pmPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.6); opacity: 0.4; }
+}
+.v30pm-ai-progress__msg { flex: 1; min-width: 0; }
+.v30pm-ai-progress__stats {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Textarea dédiée message ─────────────────────────────── */
+#v30PushModal textarea[data-v30pm-message] {
+  min-height: 140px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+/* ─── Footer ─────────────────────────────────────────────── */
+#v30PushModal .v30-modal__foot {
+  padding-top: 12px;
+  gap: 8px;
+}
+#v30PushModal [data-v30pm-send] {
+  min-width: 130px;
+  height: 36px;
+  font-weight: 600;
+}
+
+/* ─── Responsive ─────────────────────────────────────────── */
+@media (max-width: 600px) {
+  #v30PushModal .v30-modal--xl { max-width: 94vw; }
+  .v30pm-grid { grid-template-columns: 1fr; }
+  .v30pm-recipient { flex-wrap: wrap; }
+  .v30pm-recipient__chan { margin-left: auto; }
+}
