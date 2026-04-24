@@ -2,6 +2,13 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.12] — 2026-04-24 · Push popup · fix URL endpoint prospect timeline
+
+Bug critique introduit en 30.10 : la popup appelait `/api/prospect/<id>/timeline` (URL path) alors que l'endpoint réel est `/api/prospect/timeline?id=<id>` (query param). Résultat : le `fetch` renvoyait 404, le `.then` ne s'exécutait jamais, rien ne se chargeait (prospect, catégories, candidats, consultants, templates) — la popup restait bloquée sur les skeletons.
+
+### Changements
+- **`static/js/v30/push-modal.js::getProspectInfo`** — URL corrigée en `/api/prospect/timeline?id=<pid>`. L'endpoint renvoie `{ok, prospect: {...+company_groupe, company_site joined}, events}`. Je synthétise un objet `company` à partir des champs aplatis (`company_id`, `company_groupe`, `company_site`) pour garder la compatibilité avec le reste du module (`buildAIPrompt`, `renderProspectInfo`, `send()`).
+
 ## [30.11] — 2026-04-24 · Push popup · refonte DA v30 + IA streaming live
 
 Refonte complète de la popup « Pousser » apparue en 30.10 : design v30 soigné (sections, avatar, skeletons animés, badge de canal, actions IA typées) et **IA en streaming** — les tokens s'affichent en direct dans le textarea au fur et à mesure qu'ils arrivent, avec une barre de progression temps réel (temps écoulé en secondes, nombre de caractères). Plus jamais la sensation « ça charge dans le vide ».
