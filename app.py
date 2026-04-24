@@ -9279,91 +9279,110 @@ def api_prospect_timeline():
     pid = request.args.get("id")
     if not pid:
         return jsonify({"ok": False, "error": "id is required"}), 400
+    try:
+        pid_int = int(pid)
+    except (ValueError, TypeError):
+        return jsonify({"ok": False, "error": "id invalide"}), 400
 
     uid = _uid()
     if not uid:
         return jsonify({"ok": False, "error": "Non authentifié"}), 401
-    with _conn() as conn:
-        p = conn.execute(
-            "SELECT p.*, c.groupe AS company_groupe, c.site AS company_site "
-            "FROM prospects p "
-            "LEFT JOIN companies c ON c.id = p.company_id AND c.owner_id = p.owner_id "
-            "WHERE p.id=? AND p.owner_id=?;",
-            (int(pid), uid)
-        ).fetchone()
-        if not p:
-            return jsonify({"ok": False, "error": "prospect not found"}), 404
 
-        # push logs
-        logs = [
-            dict(r)
-            for r in conn.execute(
-                "SELECT * FROM push_logs WHERE prospect_id=? ORDER BY id DESC LIMIT 80;",
-                (int(pid),),
-            ).fetchall()
-        ]
+    prospect_dict: dict = {}
+    logs: list = []
+    extra: list = []
+    cand_names: dict = {}
+    user_names: dict = {}
 
-        # v6: additional events
-        try:
-            extra = [
-                dict(r)
-                for r in conn.execute(
-                    "SELECT date, type, title, content, meta, createdAt FROM prospect_events WHERE prospect_id=? ORDER BY date DESC, id DESC LIMIT 80;",
-                    (int(pid),),
-                ).fetchall()
-            ]
-        except sqlite3.OperationalError as e:
-            logger.warning("prospect_events query failed: %s", e)
-            extra = []
+    try:
+        with _conn() as conn:
+            row = conn.execute(
+                "SELECT p.*, c.groupe AS company_groupe, c.site AS company_site "
+                "FROM prospects p "
+                "LEFT JOIN companies c ON c.id = p.company_id AND c.owner_id = p.owner_id "
+                "WHERE p.id=? AND p.owner_id=?;",
+                (pid_int, uid)
+            ).fetchone()
+            if not row:
+                return jsonify({"ok": False, "error": "prospect not found"}), 404
+            prospect_dict = dict(row)
 
-        # Resolve candidate & consultant names referenced in push logs
-        _cand_ids = set()
-        _user_ids = set()
-        for _l in logs:
-            for _f in ("candidate_id1", "candidate_id2"):
-                _v = _l.get(_f)
-                if _v:
-                    _cand_ids.add(int(_v))
-            for _f in ("consultant1_id", "consultant2_id"):
-                _v = _l.get(_f)
-                if _v:
-                    _user_ids.add(int(_v))
-
-        cand_names: dict = {}
-        if _cand_ids:
             try:
-                _ph = ",".join("?" * len(_cand_ids))
-                for _r in conn.execute(
-                    f"SELECT id, name FROM candidates WHERE id IN ({_ph});",
-                    list(_cand_ids),
-                ).fetchall():
-                    cand_names[int(_r["id"])] = _r["name"] or ""
-            except Exception:
-                pass
+                logs = [
+                    dict(r)
+                    for r in conn.execute(
+                        "SELECT * FROM push_logs WHERE prospect_id=? ORDER BY id DESC LIMIT 80;",
+                        (pid_int,),
+                    ).fetchall()
+                ]
+            except Exception as e:
+                logger.error("[timeline] push_logs query failed pid=%s: %s", pid_int, e)
 
-        user_names: dict = {}
-        if _user_ids:
             try:
-                _aconn = _auth_conn()
+                extra = [
+                    dict(r)
+                    for r in conn.execute(
+                        "SELECT date, type, title, content, meta, createdAt FROM prospect_events WHERE prospect_id=? ORDER BY date DESC, id DESC LIMIT 80;",
+                        (pid_int,),
+                    ).fetchall()
+                ]
+            except Exception as e:
+                logger.warning("[timeline] prospect_events query failed pid=%s: %s", pid_int, e)
+
+            _cand_ids: set = set()
+            _user_ids: set = set()
+            for _l in logs:
+                for _f in ("candidate_id1", "candidate_id2"):
+                    _v = _l.get(_f)
+                    if _v:
+                        try:
+                            _cand_ids.add(int(_v))
+                        except (ValueError, TypeError):
+                            pass
+                for _f in ("consultant1_id", "consultant2_id"):
+                    _v = _l.get(_f)
+                    if _v:
+                        try:
+                            _user_ids.add(int(_v))
+                        except (ValueError, TypeError):
+                            pass
+
+            if _cand_ids:
                 try:
-                    _ph = ",".join("?" * len(_user_ids))
-                    for _r in _aconn.execute(
-                        f"SELECT id, display_name, username FROM users WHERE id IN ({_ph});",
-                        list(_user_ids),
+                    _ph = ",".join("?" * len(_cand_ids))
+                    for _r in conn.execute(
+                        f"SELECT id, name FROM candidates WHERE id IN ({_ph});",
+                        list(_cand_ids),
                     ).fetchall():
-                        user_names[int(_r["id"])] = (
-                            _r["display_name"] or _r["username"] or f"user_{_r['id']}"
-                        )
-                finally:
-                    _aconn.close()
-            except Exception:
-                pass
+                        cand_names[int(_r["id"])] = _r["name"] or ""
+                except Exception as e:
+                    logger.warning("[timeline] candidates lookup failed: %s", e)
+
+            if _user_ids:
+                try:
+                    _aconn = _auth_conn()
+                    try:
+                        _ph = ",".join("?" * len(_user_ids))
+                        for _r in _aconn.execute(
+                            f"SELECT id, display_name, username FROM users WHERE id IN ({_ph});",
+                            list(_user_ids),
+                        ).fetchall():
+                            user_names[int(_r["id"])] = (
+                                _r["display_name"] or _r["username"] or f"user_{_r['id']}"
+                            )
+                    finally:
+                        _aconn.close()
+                except Exception as e:
+                    logger.warning("[timeline] user lookup failed: %s", e)
+
+    except Exception as e:
+        logger.exception("[timeline] unhandled error pid=%s uid=%s: %s", pid_int, uid, e)
+        return jsonify({"ok": False, "error": "Erreur interne"}), 500
 
     events = []
 
-    # callNotes from prospect row
     try:
-        call_notes = json.loads((p["callNotes"] or "[]"))
+        call_notes = json.loads((prospect_dict.get("callNotes") or "[]"))
         if isinstance(call_notes, list):
             for n in call_notes:
                 d = (n.get("date") if isinstance(n, dict) else "") or ""
@@ -9378,7 +9397,6 @@ def api_prospect_timeline():
     except Exception:
         pass
 
-    # extra events
     for e in extra:
         meta = None
         try:
@@ -9399,13 +9417,21 @@ def api_prospect_timeline():
         _candidates = []
         for _f in ("candidate_id1", "candidate_id2"):
             _cid = l.get(_f)
-            if _cid and int(_cid) in cand_names:
-                _candidates.append(cand_names[int(_cid)])
+            if _cid:
+                try:
+                    if int(_cid) in cand_names:
+                        _candidates.append(cand_names[int(_cid)])
+                except (ValueError, TypeError):
+                    pass
         _consultants = []
         for _f in ("consultant1_id", "consultant2_id"):
-            _uid = l.get(_f)
-            if _uid and int(_uid) in user_names:
-                _consultants.append(user_names[int(_uid)])
+            _cuid = l.get(_f)
+            if _cuid:
+                try:
+                    if int(_cuid) in user_names:
+                        _consultants.append(user_names[int(_cuid)])
+                except (ValueError, TypeError):
+                    pass
         events.append(
             {
                 "type": "push",
@@ -9421,13 +9447,11 @@ def api_prospect_timeline():
             }
         )
 
-    # sort date desc (string ISO)
     def _key(e):
-        s = str(e.get("date") or "")
-        return s
+        return str(e.get("date") or "")
 
     events = sorted(events, key=_key, reverse=True)[:120]
-    return jsonify({"ok": True, "prospect": dict(p), "events": events})
+    return jsonify({"ok": True, "prospect": prospect_dict, "events": events})
 
 
 @app.post("/api/prospect/log-call")
