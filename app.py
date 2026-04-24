@@ -366,24 +366,23 @@ def _call_tavily_search(query: str, config: dict, timeout: int = 30, max_results
         logger.error("Tavily error: %s", str(e))
         raise
 
-def _fetch_linkedin_name(url: str) -> str | None:
-    """Récupère nom/prénom du profil LinkedIn via Tavily. Retourne None si indisponible."""
+def _parse_linkedin_name(url: str) -> str | None:
+    """Extrait nom/prénom depuis une URL LinkedIn /in/slug. Retourne None pour les autres formats."""
     try:
-        config = _load_ai_config()
-        if not config.get("tavily_api_key"):
+        from urllib.parse import urlparse
+        path = urlparse(url).path
+        m = re.search(r'/in/([^/?#]+)', path)
+        if not m:
             return None
-        results = _call_tavily_search(url, config, timeout=8, max_results=2)
-        for src in results.get("sources", []):
-            title = src.get("title", "")
-            if not title:
-                continue
-            # LinkedIn titles: "First Last - Role at Company | LinkedIn"
-            name = title.replace(" | LinkedIn", "").split(" - ")[0].strip()
-            if name and 2 < len(name) < 80:
-                return name
+        parts = [p for p in m.group(1).strip('/').split('-') if p]
+        # Supprime le suffixe ID numérique LinkedIn (ex. "12345678")
+        if parts and re.fullmatch(r'\d{4,}', parts[-1]):
+            parts.pop()
+        if not parts:
+            return None
+        return ' '.join(p.capitalize() for p in parts)
     except Exception:
-        pass
-    return None
+        return None
 
 
 def _build_web_enriched_prompt(original_prompt: str, search_results: dict) -> str:
@@ -17898,24 +17897,31 @@ def api_linkedin_inmails_add():
     note = (payload.get("note") or "").strip()
     sent_at = (payload.get("sent_at") or datetime.datetime.now().strftime("%Y-%m-%d")).strip()
     now_ts = time.time()
+    name = _parse_linkedin_name(url)
     with _conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO linkedin_inmails (url, note, sent_at, owner_id, created_at) VALUES (?, ?, ?, ?, ?);",
-            (url, note or None, sent_at, uid, now_ts)
+        conn.execute(
+            "INSERT INTO linkedin_inmails (url, note, name, sent_at, owner_id, created_at) VALUES (?, ?, ?, ?, ?, ?);",
+            (url, note or None, name or None, sent_at, uid, now_ts)
         )
-        entry_id = cur.lastrowid
-
-    def _enrich():
-        name = _fetch_linkedin_name(url)
-        if name:
-            try:
-                with _conn() as c:
-                    c.execute("UPDATE linkedin_inmails SET name=? WHERE id=?;", (name, entry_id))
-            except Exception:
-                pass
-
-    threading.Thread(target=_enrich, daemon=True).start()
     return jsonify(ok=True, message="InMail enregistré")
+
+
+@app.patch("/api/linkedin-inmails/<int:entry_id>")
+def api_linkedin_inmails_update(entry_id: int):
+    """Met à jour le nom affiché d'un InMail LinkedIn."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    name = (payload.get("name") or "").strip() or None
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM linkedin_inmails WHERE id=? AND owner_id=?;", (entry_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Introuvable"), 404
+        conn.execute("UPDATE linkedin_inmails SET name=? WHERE id=?;", (name, entry_id))
+    return jsonify(ok=True)
 
 
 @app.delete("/api/linkedin-inmails/<int:entry_id>")

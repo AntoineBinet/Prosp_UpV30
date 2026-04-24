@@ -225,6 +225,39 @@
   color: var(--text-3);
   font-size: 13px;
 }
+.v30-inmails__name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.v30-inmails__name-edit {
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity .12s;
+  flex-shrink: 0;
+  padding: 2px 4px;
+}
+.v30-inmails__item:hover .v30-inmails__name-edit {
+  opacity: .7;
+}
+.v30-inmails__name-edit:hover { opacity: 1 !important; color: var(--accent); }
+.v30-inmails__name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  background: var(--bg-2, var(--surface-1));
+  color: var(--text-1);
+  font-size: 13px;
+  outline: none;
+}
+.v30-inmails__name-save {
+  padding: 2px 8px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
 
 /* ─── Import PDF/CV + Collage IA ─── */
 .v30-src-import__tabs {

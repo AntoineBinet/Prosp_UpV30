@@ -421,9 +421,15 @@
       list.innerHTML = entries.map(function (e) {
         var domain = '';
         try { domain = new URL(e.url).hostname.replace('www.', ''); } catch (_) { domain = e.url; }
+        var displayName = e.name || domain;
         return '<div class="v30-inmails__item" data-inmail-id="' + esc(e.id) + '">' +
           '<div class="v30-inmails__item-main">' +
-            '<a class="v30-inmails__item-url" href="' + esc(e.url) + '" target="_blank" rel="noopener">' + esc(e.name || domain) + '</a>' +
+            '<span class="v30-inmails__name-wrap">' +
+              '<a class="v30-inmails__item-url" href="' + esc(e.url) + '" target="_blank" rel="noopener">' + esc(displayName) + '</a>' +
+              '<button type="button" class="btn btn-ghost btn-sm btn-icon v30-inmails__name-edit" data-edit="' + esc(e.id) + '" data-href="' + esc(e.url) + '" data-name="' + esc(displayName) + '" aria-label="Modifier le nom" title="Modifier le nom">' +
+                '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
+              '</button>' +
+            '</span>' +
             (e.note ? '<span class="v30-inmails__item-note">' + esc(e.note) + '</span>' : '') +
           '</div>' +
           '<span class="v30-inmails__item-date">' + esc(e.sent_at) + '</span>' +
@@ -454,8 +460,6 @@
             if (noteInput) noteInput.value = '';
             toast('InMail enregistré ✓', 'success');
             loadInmails();
-            // Rafraîchit après résolution Tavily (enrichissement nom en arrière-plan)
-            setTimeout(loadInmails, 5000);
           })
           .catch(function (e) { toast('Erreur : ' + e.message, 'error'); })
           .then(function () { submitBtn.disabled = false; });
@@ -463,19 +467,68 @@
     }
     if (list) {
       list.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-del]');
-        if (!btn) return;
-        var id = btn.dataset.del;
-        btn.disabled = true;
-        fetchJSON('/api/linkedin-inmails/' + id, { method: 'DELETE' })
-          .then(function (res) {
-            if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
-            toast('Supprimé', 'success');
-            loadInmails();
-          })
-          .catch(function (e) { toast('Erreur : ' + e.message, 'error'); btn.disabled = false; });
+        // Supprimer
+        var delBtn = e.target.closest('[data-del]');
+        if (delBtn) {
+          var id = delBtn.dataset.del;
+          delBtn.disabled = true;
+          fetchJSON('/api/linkedin-inmails/' + id, { method: 'DELETE' })
+            .then(function (res) {
+              if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+              toast('Supprimé', 'success');
+              loadInmails();
+            })
+            .catch(function (e) { toast('Erreur : ' + e.message, 'error'); delBtn.disabled = false; });
+          return;
+        }
+        // Ouvrir édition
+        var editBtn = e.target.closest('[data-edit]');
+        if (editBtn) {
+          var id = editBtn.dataset.edit;
+          var currentName = editBtn.dataset.name;
+          var wrap = editBtn.closest('.v30-inmails__name-wrap');
+          wrap.innerHTML =
+            '<input class="v30-inmails__name-input" type="text" value="' + esc(currentName) + '" data-editing-id="' + esc(id) + '" />' +
+            '<button type="button" class="btn btn-sm v30-inmails__name-save" data-save-id="' + esc(id) + '" aria-label="Enregistrer">✓</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm v30-inmails__name-cancel" aria-label="Annuler">✕</button>';
+          var inp = wrap.querySelector('input');
+          if (inp) { inp.focus(); inp.select(); }
+          return;
+        }
+        // Sauvegarder
+        var saveBtn = e.target.closest('[data-save-id]');
+        if (saveBtn) {
+          var id = saveBtn.dataset.saveId;
+          var inp = saveBtn.closest('.v30-inmails__name-wrap').querySelector('input');
+          _saveInmailName(id, inp ? inp.value.trim() : '');
+          return;
+        }
+        // Annuler
+        if (e.target.closest('.v30-inmails__name-cancel')) {
+          loadInmails();
+        }
+      });
+      list.addEventListener('keydown', function (e) {
+        var inp = e.target.closest('.v30-inmails__name-input');
+        if (!inp) return;
+        if (e.key === 'Enter') { e.preventDefault(); _saveInmailName(inp.dataset.editingId, inp.value.trim()); }
+        if (e.key === 'Escape') { loadInmails(); }
       });
     }
+  }
+
+  function _saveInmailName(id, name) {
+    fetchJSON('/api/linkedin-inmails/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name })
+    }).then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+      loadInmails();
+    }).catch(function (err) {
+      toast('Erreur : ' + err.message, 'error');
+      loadInmails();
+    });
   }
 
   // ─── Import PDF/CV + Collage IA ──────────────────────────
