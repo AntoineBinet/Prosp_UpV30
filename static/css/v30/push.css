@@ -77,6 +77,7 @@
 
 /* ─── Editor catégorie inline ────────────────────────────── */
 .v30-cat-editor { display: flex; flex-direction: column; gap: 8px; }
+.v30-cat-editor[hidden] { display: none !important; }
 
 /* ─── Grid catégories ────────────────────────────────────── */
 .v30-cat-grid {
@@ -113,6 +114,9 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .v30-cat-card__auto {
   font-size: 9px;
