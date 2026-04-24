@@ -113,6 +113,9 @@
       var el = FP.$(sel);
       if (el) el.textContent = value || '—';
     };
+    set('[data-field="aside-company-name"]', p.company_groupe
+      ? (p.company_groupe + (p.company_site ? ' · ' + p.company_site : ''))
+      : null);
     set('[data-field="aside-fonction"]', p.fonction);
     set('[data-field="aside-email"]',    p.email);
     set('[data-field="aside-tel"]',      p.telephone);
@@ -157,18 +160,24 @@
 
     var coHost = FP.$('[data-field="aside-company"]');
     if (coHost) {
-      if (p.company_groupe) {
-        coHost.hidden = false;
-        var ini = coHost.querySelector('[data-field="company-initials"]');
-        if (ini) ini.textContent = FP.initials(p.company_groupe);
-        var nm  = coHost.querySelector('[data-field="company-name"]');
-        if (nm) nm.textContent = p.company_groupe;
-        var sub = coHost.querySelector('[data-field="company-sub"]');
-        if (sub) sub.textContent = p.company_site || '—';
-        var link = coHost.querySelector('[data-field="company-link"]');
-        if (link && p.company_id) link.href = '/entreprises#' + p.company_id;
+      coHost.hidden = false;
+      var link = coHost.querySelector('[data-field="company-link"]');
+      var empty = coHost.querySelector('[data-field="company-empty"]');
+      if (p.company_groupe && p.company_id) {
+        if (link) {
+          link.hidden = false;
+          var ini = link.querySelector('[data-field="company-initials"]');
+          if (ini) ini.textContent = FP.initials(p.company_groupe);
+          var nm  = link.querySelector('[data-field="company-name"]');
+          if (nm) nm.textContent = p.company_groupe;
+          var sub = link.querySelector('[data-field="company-sub"]');
+          if (sub) sub.textContent = p.company_site || '—';
+          link.href = '/v30/entreprises#' + p.company_id;
+        }
+        if (empty) empty.hidden = true;
       } else {
-        coHost.hidden = true;
+        if (link) link.hidden = true;
+        if (empty) empty.hidden = false;
       }
     }
   }

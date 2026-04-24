@@ -247,8 +247,10 @@
       <div class="v30-grid-2">
         <div class="v30-field"><label for="v30-pp-add-name">Nom complet <span style="color:var(--danger);">*</span></label><input id="v30-pp-add-name" class="input" placeholder="Ex. Jean Dupont" required></div>
         <div class="v30-field"><label for="v30-pp-add-fonction">Fonction</label><input id="v30-pp-add-fonction" class="input" placeholder="Ex. Directeur commercial"></div>
-        <div class="v30-field"><label for="v30-pp-add-company">Entreprise</label><input id="v30-pp-add-company" class="input" list="v30-pp-companies" placeholder="Nom de l'entreprise"></div>
-        <div class="v30-field"><label for="v30-pp-add-site">Site / ville</label><input id="v30-pp-add-site" class="input" placeholder="Ex. Paris"></div>
+        <div class="v30-field" style="grid-column: 1 / -1;">
+          <label for="v30-pp-add-company">Entreprise <span style="color:var(--danger);">*</span></label>
+          <input id="v30-pp-add-company" class="input" placeholder="Rechercher ou ajouter une entreprise…" autocomplete="off">
+        </div>
         <div class="v30-field"><label for="v30-pp-add-tel">Téléphone</label><input id="v30-pp-add-tel" class="input" type="tel" placeholder="06…"></div>
         <div class="v30-field"><label for="v30-pp-add-email">Email</label><input id="v30-pp-add-email" class="input" type="email" placeholder="nom@exemple.com"></div>
         <div class="v30-field"><label for="v30-pp-add-linkedin">LinkedIn</label><input id="v30-pp-add-linkedin" class="input" placeholder="https://linkedin.com/in/…"></div>
@@ -272,7 +274,6 @@
         <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-pp-add-tags">Tags (séparés par des virgules)</label><input id="v30-pp-add-tags" class="input" placeholder="CTO, SaaS, Tech"></div>
         <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-pp-add-notes">Notes</label><textarea id="v30-pp-add-notes" class="textarea" rows="3" placeholder="Contexte, source, premier contact…"></textarea></div>
       </div>
-      <datalist id="v30-pp-companies" data-v30-companies-list></datalist>
     </div>
     <div class="v30-modal__foot">
       <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>

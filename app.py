@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "30.7"
+APP_VERSION = "30.8"
 import os
 import subprocess
 import traceback
@@ -6995,6 +6995,27 @@ def api_prospects_delete():
     return jsonify(ok=True)
 
 
+@app.get("/api/companies/list")
+def api_companies_list():
+    """v30.2: Liste allégée des entreprises de l'utilisateur pour alimenter
+    l'autocomplete « entreprise » (picker) sur toutes les pages."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, groupe, site FROM companies "
+            "WHERE owner_id=? AND deleted_at IS NULL "
+            "ORDER BY LOWER(groupe), LOWER(COALESCE(site,''));",
+            (uid,)
+        ).fetchall()
+    companies = [
+        {"id": int(r["id"]), "groupe": r["groupe"] or "", "site": r["site"] or ""}
+        for r in rows
+    ]
+    return jsonify(ok=True, companies=companies)
+
+
 @app.post("/api/companies/create")
 @role_required('editor')
 def api_companies_create():
@@ -9249,7 +9270,13 @@ def api_prospect_timeline():
     if not uid:
         return jsonify({"ok": False, "error": "Non authentifié"}), 401
     with _conn() as conn:
-        p = conn.execute("SELECT * FROM prospects WHERE id=? AND owner_id=?;", (int(pid), uid)).fetchone()
+        p = conn.execute(
+            "SELECT p.*, c.groupe AS company_groupe, c.site AS company_site "
+            "FROM prospects p "
+            "LEFT JOIN companies c ON c.id = p.company_id AND c.owner_id = p.owner_id "
+            "WHERE p.id=? AND p.owner_id=?;",
+            (int(pid), uid)
+        ).fetchone()
         if not p:
             return jsonify({"ok": False, "error": "prospect not found"}), 404
 
@@ -13711,14 +13738,34 @@ def api_prospects_bulk_edit():
     ids = payload.get("ids")
     field = payload.get("field", "")
     value = payload.get("value")
-    ALLOWED_FIELDS = ["fonction", "statut", "pertinence", "fixedMetier", "notes"]
+    ALLOWED_FIELDS = ["fonction", "statut", "pertinence", "fixedMetier", "notes", "company_id"]
     if not ids or not isinstance(ids, list):
         return jsonify(ok=False, error="ids (array) required"), 400
     if field not in ALLOWED_FIELDS:
         return jsonify(ok=False, error=f"field must be one of {ALLOWED_FIELDS}"), 400
     if value is None or (str(value).strip() == "" and field != "notes"):
         return jsonify(ok=False, error="value required"), 400
-    value = str(value).strip() if value is not None else ""
+
+    # v30.2: company_id doit référencer une entreprise existante appartenant à l'utilisateur.
+    # On refuse la saisie libre — le front doit passer par l'autocomplete entreprise + « Ajouter ».
+    company_meta = None
+    if field == "company_id":
+        try:
+            cid = int(str(value).strip())
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="company_id must be an integer"), 400
+        with _conn() as conn:
+            row = conn.execute(
+                "SELECT id, groupe, site FROM companies WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+                (cid, uid)
+            ).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Entreprise inconnue — utilise l'autocomplete pour la choisir ou la créer."), 400
+            value = cid
+            company_meta = {"id": int(row["id"]), "groupe": row["groupe"] or "", "site": row["site"] or ""}
+    else:
+        value = str(value).strip() if value is not None else ""
+
     updated = 0
     errors = []
     with _conn() as conn:
@@ -13734,7 +13781,10 @@ def api_prospects_bulk_edit():
                 updated += 1
             else:
                 errors.append(str(pid))
-    return jsonify(ok=True, updated=updated, errors=errors)
+    resp = {"ok": True, "updated": updated, "errors": errors}
+    if company_meta:
+        resp["company"] = company_meta
+    return jsonify(**resp)
 
 
 @app.post("/api/prospects/bulk-status-tags")

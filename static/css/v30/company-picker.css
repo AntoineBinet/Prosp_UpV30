@@ -1,0 +1,214 @@
+/* ProspUp v30 — Company picker (autocomplete réutilisable) */
+
+/* Wrapper d'un input transformé */
+.v30-cp-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.v30-cp-input {
+  width: 100%;
+}
+
+/* Panneau déroulant (sous l'input) */
+.v30-cp-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-pop, 0 8px 24px rgba(0, 0, 0, 0.12));
+  z-index: 70;
+  max-height: 320px;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  animation: v30-cp-in 0.12s ease-out;
+}
+.v30-cp-panel.is-open { display: flex; }
+
+/* Variante flottante ancrée (édition en place) */
+.v30-cp-floating {
+  /* position/top/left gérés inline par JS */
+}
+.v30-cp-floating__search {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+.v30-cp-floating__input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+}
+.v30-cp-floating__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.v30-cp-panel--floating {
+  position: static;
+  border: 1px solid var(--border);
+  border-top: 0;
+  box-shadow: var(--shadow-pop, 0 8px 24px rgba(0, 0, 0, 0.15));
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  max-height: 320px;
+}
+
+@keyframes v30-cp-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Liste scrollable */
+.v30-cp-list {
+  flex: 1;
+  overflow: auto;
+  padding: 4px;
+  min-height: 44px;
+}
+
+.v30-cp-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--text);
+  transition: background 0.12s;
+  line-height: 1.35;
+}
+.v30-cp-item:hover,
+.v30-cp-item.is-active {
+  background: var(--surface-2);
+}
+.v30-cp-item__groupe {
+  font-weight: 500;
+  color: var(--text);
+}
+.v30-cp-item__site {
+  font-size: 12px;
+  color: var(--text-3, var(--text-2));
+}
+
+.v30-cp-empty {
+  padding: 12px;
+  font-size: 12.5px;
+  color: var(--text-3, var(--text-2));
+  text-align: center;
+}
+
+/* Bouton « Ajouter une entreprise » — sticky bas du panneau */
+.v30-cp-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--accent);
+  text-align: left;
+  font-weight: 500;
+  transition: background 0.12s;
+}
+.v30-cp-add:hover {
+  background: var(--surface-3, var(--surface-2));
+  filter: brightness(1.05);
+}
+.v30-cp-add__icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* ─── Modale « Ajouter une entreprise » (standalone) ───────── */
+.v30-cp-createbd {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: v30-cp-bd-in 0.15s ease-out;
+}
+@keyframes v30-cp-bd-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.v30-cp-createbox {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  animation: v30-cp-box-in 0.18s ease-out;
+}
+@keyframes v30-cp-box-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+.v30-cp-createbox__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.v30-cp-createbox__title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+.v30-cp-createbox__body {
+  padding: 14px 16px;
+}
+.v30-cp-createbox__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+/* ─── Valeur "entreprise" cliquable (édition en place) ─────── */
+.v30-cp-trigger {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.v30-cp-trigger:hover {
+  background: var(--surface-2);
+}

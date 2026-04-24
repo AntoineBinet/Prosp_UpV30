@@ -2,6 +2,24 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.8] — 2026-04-24 · Fiche prospect · Entreprise éditable + autocomplete global
+
+La fiche prospect affiche désormais l'entreprise dans la sidebar « Détails » (cliquable pour changer) et dans la carte latérale « Entreprise » (bouton « Changer »). Partout où une entreprise est saisie (fiche prospect, modale « Nouveau prospect »), un picker uniforme remplace les champs libres : liste filtrée des entreprises existantes + bouton « Ajouter une entreprise » en bas qui ouvre une mini-modale de création. Il n'est plus possible d'enregistrer un prospect avec un nom d'entreprise qui n'existe pas en base — l'utilisateur doit soit choisir une entrée, soit explicitement créer une nouvelle fiche entreprise.
+
+### Changements
+- **`static/js/v30/company-picker.js`** (nouveau) — composant réutilisable exposé sur `window.CompanyPicker` : `attachToInput(input, opts)` pour les formulaires, `openFloating(anchor, opts)` pour l'édition en place, `openCreateModal(groupe, site)` pour la création. Cache des entreprises partagé entre instances + invalidation automatique après création.
+- **`static/css/v30/company-picker.css`** (nouveau) — styles du panneau déroulant, du bouton sticky « Ajouter » et de la modale de création.
+- **`templates/v30/base.html`** — inclusion globale du CSS et du JS du picker.
+- **`templates/v30/prospect_detail.html`** — nouvelle ligne « Entreprise » dans la sidebar (cliquable, `data-v30-edit-company`) + bouton « Changer » dans la carte Entreprise + état vide « Aucune entreprise associée ».
+- **`static/js/v30/prospect_detail_render.js`** — rendu de la ligne Entreprise dans l'aside et de la carte toujours visible (affichage conditionnel du lien vs état vide).
+- **`static/js/v30/prospect_detail_ui.js`** — `bindCompanyEdit()` ancre le picker flottant sur le déclencheur, appelle `saveField('company_id', …)`, met à jour l'état local puis re-rend header + aside.
+- **`templates/v30/prospects.html`** — modale « Nouveau prospect » : le champ Entreprise devient obligatoire et occupe toute la largeur, le champ « Site / ville » (redondant avec le picker) est retiré, le `<datalist>` est supprimé.
+- **`static/js/v30/prospects.js`** — `mountAddCompanyPicker()` attache le picker au champ entreprise de la modale, le handler de sauvegarde refuse la création si aucune entreprise n'est sélectionnée, le payload envoie `company_id` (et `company_groupe`/`company_site` en doublon pour compat).
+- **`app.py`** :
+  - Nouveau `GET /api/companies/list` : liste allégée `{id, groupe, site}` filtrée par `owner_id` (pour alimenter l'autocomplete).
+  - `POST /api/prospects/bulk-edit` accepte maintenant le champ `company_id` ; validation stricte (entreprise doit exister et appartenir à l'utilisateur) avant `UPDATE`. Retourne `{company: {id, groupe, site}}` pour que le front mette à jour l'UI sans re-fetch.
+  - `GET /api/prospect/timeline` : la requête rejoint désormais `companies` (LEFT JOIN) pour inclure `company_groupe` et `company_site` dans la réponse (auparavant manquants, ce qui masquait la carte Entreprise sur les fiches peuplées).
+
 ## [30.7] — 2026-04-23 · Prospects v30 · Regroupement des statuts dans le kanban
 
 La colonne « Prospecté » du kanban regroupait à tort « Pas intéressé », « Gagné », « Perdu », « Proposition » (142 items) alors que le statut canonique « Prospecté » n'en comptait que 8 (mismatch avec l'onglet de filtre). La colonne « Contacté » incluait « Messagerie » qui est plutôt un statut d'attente.

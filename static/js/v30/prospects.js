@@ -1169,17 +1169,17 @@
   }
 
   // ─── Add prospect ──────────────────────────────────────────
-  function populateCompaniesList() {
-    var dl = document.querySelector('[data-v30-companies-list]');
-    if (!dl) return;
-    var names = {};
-    Object.keys(STATE.companies).forEach(function (k) {
-      var v = STATE.companies[k];
-      if (v) names[v] = true;
-    });
-    dl.innerHTML = Object.keys(names).sort().map(function (n) {
-      return '<option value="' + esc(n) + '">';
-    }).join('');
+  // v30.2 — le champ entreprise est géré par CompanyPicker (autocomplete + création forcée).
+  var _addCompanyPicker = null;
+  function mountAddCompanyPicker() {
+    var input = document.getElementById('v30-pp-add-company');
+    if (!input || !window.CompanyPicker) return null;
+    if (input._cpAttached) {
+      input._cpAttached.clear();
+      return input._cpAttached;
+    }
+    _addCompanyPicker = window.CompanyPicker.attachToInput(input, {});
+    return _addCompanyPicker;
   }
   function populateCompanyFilter() {
     var sel = document.querySelector('[data-v30-flt-company]');
@@ -1195,7 +1195,7 @@
   function bindAdd() {
     var btn = document.querySelector('[data-v30-add]');
     if (btn) btn.addEventListener('click', function () {
-      populateCompaniesList();
+      mountAddCompanyPicker();
       openModal(getModal('add'));
     });
     var save = document.querySelector('[data-v30-pp-add-save]');
@@ -1203,13 +1203,22 @@
       var val = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
       var name = val('v30-pp-add-name');
       if (!name) { toast('Le nom est obligatoire', 'warning'); return; }
+      var picker = _addCompanyPicker || mountAddCompanyPicker();
+      var sel = picker && picker.getSelection ? picker.getSelection() : null;
+      if (!sel || !sel.id) {
+        toast("Sélectionne une entreprise existante ou crée-la via « Ajouter une entreprise »", 'warning');
+        var compInput = document.getElementById('v30-pp-add-company');
+        if (compInput) compInput.focus();
+        return;
+      }
       var tagsRaw = val('v30-pp-add-tags');
       var tags = tagsRaw ? tagsRaw.split(',').map(function (t) { return t.trim(); }).filter(Boolean) : [];
       var payload = {
         name: name,
         fonction: val('v30-pp-add-fonction'),
-        company_groupe: val('v30-pp-add-company'),
-        company_site: val('v30-pp-add-site'),
+        company_id: sel.id,
+        company_groupe: sel.groupe,
+        company_site: sel.site,
         telephone: val('v30-pp-add-tel'),
         email: val('v30-pp-add-email'),
         linkedin: val('v30-pp-add-linkedin'),
@@ -1224,9 +1233,10 @@
           if (res && res.ok) {
             toast('Prospect ajouté', 'success');
             closeModal(getModal('add'));
-            ['v30-pp-add-name','v30-pp-add-fonction','v30-pp-add-company','v30-pp-add-site',
+            ['v30-pp-add-name','v30-pp-add-fonction',
              'v30-pp-add-tel','v30-pp-add-email','v30-pp-add-linkedin','v30-pp-add-tags','v30-pp-add-notes']
               .forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
+            if (_addCompanyPicker) _addCompanyPicker.clear();
             loadProspects();
           } else {
             toast('Erreur : ' + ((res && res.error) || 'création impossible'), 'error');
@@ -2087,7 +2097,7 @@
       if (new URLSearchParams(window.location.search).get('new') === '1') {
         var addModal = getModal('add');
         if (addModal) {
-          populateCompaniesList();
+          mountAddCompanyPicker();
           openModal(addModal);
           history.replaceState(null, '', window.location.pathname);
         }
