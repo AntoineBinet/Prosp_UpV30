@@ -2408,6 +2408,20 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             conn.commit()
         except Exception:
             pass
+        # Migration v25.3+: ajouter colonnes traçabilité candidats/consultants à push_logs per-user
+        try:
+            pl_cols = {r["name"] for r in conn.execute("PRAGMA table_info(push_logs);").fetchall()}
+            for col, typ in (
+                ("candidate_id1", "INTEGER"),
+                ("candidate_id2", "INTEGER"),
+                ("consultant1_id", "INTEGER"),
+                ("consultant2_id", "INTEGER"),
+            ):
+                if col not in pl_cols:
+                    conn.execute(f"ALTER TABLE push_logs ADD COLUMN {col} {typ};")
+            conn.commit()
+        except Exception:
+            pass
         # Migration v29+: créer toutes les tables d'événements et KPI manquantes dans les DBs per-user existantes
         # Ces tables sont essentielles pour les KPIs et la gamification (prospect_events, candidate_events, etc.)
         try:
@@ -9317,12 +9331,15 @@ def api_prospect_timeline():
 
         cand_names: dict = {}
         if _cand_ids:
-            _ph = ",".join("?" * len(_cand_ids))
-            for _r in conn.execute(
-                f"SELECT id, name FROM candidates WHERE id IN ({_ph});",
-                list(_cand_ids),
-            ).fetchall():
-                cand_names[int(_r["id"])] = _r["name"] or ""
+            try:
+                _ph = ",".join("?" * len(_cand_ids))
+                for _r in conn.execute(
+                    f"SELECT id, name FROM candidates WHERE id IN ({_ph});",
+                    list(_cand_ids),
+                ).fetchall():
+                    cand_names[int(_r["id"])] = _r["name"] or ""
+            except Exception:
+                pass
 
         user_names: dict = {}
         if _user_ids:
