@@ -963,7 +963,9 @@
     customMessage = String(customMessage).trim();
     var companyName = (STATE.company && STATE.company.groupe) || '';
     var templateName = '';
-    var templateOpened = false;
+    var emailOutlookDraft = false;
+    var emailOutlookMessage = '';
+    var emailEmlDownloaded = false;
 
     var chain = Promise.resolve();
 
@@ -973,15 +975,7 @@
         chain = chain.then(function () {
           return fetchJSON('/api/push-categories/' + vals.catId + '/files').then(function (fdata) {
             if (fdata && fdata.ok && fdata.files && fdata.files.length) {
-              var file = fdata.files[0];
-              templateName = file.name;
-              return postJSON('/api/pushs/open', { category_id: vals.catId, filename: file.name }).then(function (r) {
-                if (r.ok && r.data && r.data.ok) {
-                  templateOpened = true;
-                } else {
-                  toast("Impossible d'ouvrir le template : " + ((r.data && r.data.error) || 'erreur'), 'warning', 5000);
-                }
-              });
+              templateName = fdata.files[0].name;
             } else {
               toast('Aucun fichier template (.msg/.eml) dans cette catégorie.', 'warning', 4000);
             }
@@ -990,21 +984,49 @@
           });
         });
       }
-      // Télécharger les dossiers de compétences des candidats sélectionnés
-      [vals.candidateId1, vals.candidateId2].filter(Boolean).forEach(function (candId) {
-        chain = chain.then(function () {
-          return fetchJSON('/api/candidates/' + candId).then(function (candData) {
-            if (candData && candData.ok && candData.candidate && candData.candidate.dossier_competence_pdf) {
-              var link = document.createElement('a');
-              link.href = '/api/candidates/' + candId + '/dossier-competence';
-              link.download = candData.candidate.dossier_competence_pdf;
-              link.style.display = 'none';
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              return new Promise(function (r) { setTimeout(r, 300); });
-            }
-          }).catch(function () {});
+      // Générer le mail Outlook (.eml téléchargé ou brouillon Outlook) avec DC candidats en PJ
+      // via /api/push/generate — reprise du comportement v29.
+      chain = chain.then(function () {
+        if (!vals.catId || !templateName) return null;
+        var genPayload = {
+          prospect_id: p.id,
+          category_id: parseInt(vals.catId, 10),
+          template_filename: templateName,
+          candidate_id1: vals.candidateId1 ? parseInt(vals.candidateId1, 10) : null,
+          candidate_id2: vals.candidateId2 ? parseInt(vals.candidateId2, 10) : null,
+          ai_descriptions: true
+        };
+        return fetch('/api/push/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(genPayload)
+        }).then(function (res) {
+          if (!res.ok) {
+            return res.json().catch(function () { return {}; }).then(function (err) {
+              throw new Error((err && (err.error || err.message)) || ('HTTP ' + res.status));
+            });
+          }
+          var ct = res.headers.get('content-type') || '';
+          if (ct.indexOf('application/json') >= 0) {
+            return res.json().then(function (data) {
+              emailOutlookDraft = true;
+              emailOutlookMessage = (data && data.message) || 'Brouillon Outlook créé';
+            });
+          }
+          return res.blob().then(function (blob) {
+            if (!blob || blob.size === 0) throw new Error('Fichier email vide');
+            var cd = res.headers.get('content-disposition') || '';
+            var fn = cd.match(/filename[^;=\n]*=(['"]?)([^'";\n]*)\1/);
+            var fileName = fn ? fn[2] : ('push_' + (p.name || 'prospect') + '.eml');
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url; a.download = fileName;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            emailEmlDownloaded = true;
+          });
+        }).catch(function (e) {
+          toast('Erreur génération email : ' + (e.message || 'inconnue'), 'error', 6000);
         });
       });
     } else if (channel === 'linkedin') {
@@ -1033,8 +1055,8 @@
         sentAt: sentAt,
         channel: channel,
         to_email: channel === 'email' ? p.email : null,
-        subject: channel === 'email' ? (templateOpened ? ('Push ' + companyName) : (customMessage ? 'Push IA personnalisé' : 'Push manuel')) : null,
-        body: channel === 'email' ? (templateOpened ? ('Template: ' + templateName) : (customMessage || '')) : (customMessage || linkedInText || ''),
+        subject: channel === 'email' ? ((emailOutlookDraft || emailEmlDownloaded) ? ('Push ' + companyName) : (customMessage ? 'Push IA personnalisé' : 'Push manuel')) : null,
+        body: channel === 'email' ? ((emailOutlookDraft || emailEmlDownloaded) ? ('Template: ' + templateName) : (customMessage || '')) : (customMessage || linkedInText || ''),
         template_id: null,
         template_name: templateName || null,
         candidate_id1: vals.candidateId1 ? parseInt(vals.candidateId1, 10) : null,
@@ -1050,8 +1072,10 @@
 
     chain.then(function () {
       if (channel === 'email') {
-        if (templateOpened) {
-          toast('Email ' + p.email + ' copié ! Template Outlook ouvert.', 'success', 6000);
+        if (emailOutlookDraft) {
+          toast((emailOutlookMessage || 'Brouillon Outlook créé') + ' — Email ' + p.email + ' copié.', 'success', 6000);
+        } else if (emailEmlDownloaded) {
+          toast('Email .eml téléchargé (DC en PJ) — ouvrir pour envoyer. Email ' + p.email + ' copié.', 'success', 6000);
         } else {
           toast('Email ' + p.email + ' copié dans le presse-papier.', 'info', 4000);
         }
