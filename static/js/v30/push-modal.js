@@ -133,20 +133,9 @@
             '</div>' +
           '</section>' +
 
-          // ─ Message
-          '<section class="v30pm-section">' +
-            '<div class="v30pm-section__label">' + ic('note', 11) + ' Message <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-3);">· optionnel</span></div>' +
-            '<div class="v30pm-msg-actions">' +
-              '<button type="button" class="v30pm-ai-btn" data-v30pm-ai="1" aria-label="Générer avec l\'IA">' + ic('robot', 12) + ' Générer avec l\'IA</button>' +
-              '<button type="button" class="v30pm-ai-btn" data-v30pm-ai="3" aria-label="Générer 3 variantes">' + ic('refreshCw', 12) + ' 3 variantes</button>' +
-            '</div>' +
-            '<div class="v30pm-ai-progress" data-v30pm-progress>' +
-              '<span class="v30pm-ai-progress__pulse"></span>' +
-              '<span class="v30pm-ai-progress__msg" data-v30pm-progress-msg>Préparation de l\'IA…</span>' +
-              '<span class="v30pm-ai-progress__stats" data-v30pm-progress-stats></span>' +
-            '</div>' +
-            '<textarea class="v30-input" data-v30pm-message placeholder="Cliquez « Générer avec l\'IA » ou rédigez votre message ici…"></textarea>' +
-          '</section>' +
+          // NB : plus de section Message — tout le contenu du push vient du
+          // template .msg Outlook. Seules les présentations par candidat sont
+          // éditables (cartes au-dessus).
         '</div>' +
         '<div class="v30-modal__foot">' +
           '<div class="v30-spacer"></div>' +
@@ -166,12 +155,6 @@
     bd.addEventListener('click', function (e) {
       if (e.target.closest('[data-v30pm-close]')) { close(); return; }
       if (e.target === bd) { close(); return; }
-      var aiBtn = e.target.closest('[data-v30pm-ai]');
-      if (aiBtn) {
-        var n = parseInt(aiBtn.dataset.v30pmAi, 10) || 1;
-        generateAI(n);
-        return;
-      }
       if (e.target.closest('[data-v30pm-send]')) { send(); return; }
       // Régénérer description IA du candidat
       var regen = e.target.closest('[data-v30pm-regen]');
@@ -373,28 +356,15 @@
     var id = STATE.selectedCand[slot];
     var c = findCandidate(id);
     if (!c) {
-      // Preview IA quand rien n'est sélectionné : si la passe IA a trouvé un top,
-      // on l'affiche en teaser dans le bouton pour montrer le travail immédiatement.
-      var topIdx = (slot === '2' || slot === 2) ? 1 : 0; // slot 2 montre le 2e meilleur
-      var top = (STATE.aiSuggestions || [])[topIdx];
-      if (top && top.id) {
-        var tc = findCandidate(top.id);
-        if (tc) {
-          var pctHtml = (top.pct > 0)
-            ? ' <span class="v30pm-combo__pct v30pm-combo__pct--label">' + Math.round(top.pct) + '%</span>'
-            : '';
-          btn.innerHTML =
-            '<span class="v30pm-combo__hint">' + ic('robot', 11) + ' Top IA</span>' +
-            '<span class="v30pm-combo__name" style="font-weight:500;">' + esc(tc.name || '') + '</span>' +
-            pctHtml;
-          return;
-        }
-      }
       btn.innerHTML = '<span style="color:var(--text-3);">— Choisir un candidat —</span>';
       return;
     }
+    // Si le candidat a été auto-sélectionné par l'IA, montre un petit badge
+    var isAI = (STATE.aiSuggestions || []).some(function (s) { return String(s.id) === String(c.id); });
+    var aiBadge = isAI ? '<span class="v30pm-combo__hint" title="Suggéré par l\'IA">' + ic('robot', 11) + ' IA</span>' : '';
     var dc = c.has_dc ? '<span class="v30pm-combo__dc v30pm-combo__dc--ok" title="DC disponible">' + ic('checkCircle', 11) + ' DC</span>' : '';
-    btn.innerHTML = '<span class="v30pm-combo__name">' + esc(c.name || '') + '</span>' +
+    btn.innerHTML = aiBadge +
+      '<span class="v30pm-combo__name">' + esc(c.name || '') + '</span>' +
       (c.role ? '<span class="v30pm-combo__role">' + esc(c.role) + '</span>' : '') +
       dc;
   }
@@ -629,6 +599,22 @@
     });
   }
 
+  // Auto-régénère la description pour les candidats sélectionnés qui n'ont
+  // pas encore de description_push en cache (et qui ont un DC). Appelé après
+  // auto-sélection des Top IA.
+  function autoGenerateSelectedDescriptions() {
+    [1, 2].forEach(function (slot) {
+      var id = STATE.selectedCand[slot];
+      if (!id) return;
+      var c = findCandidate(id);
+      if (!c || !c.has_dc) return;
+      var existing = cachedDesc(id);
+      if (existing) return; // rien à faire, déjà rempli
+      // Déclenche en arrière-plan (non-bloquant)
+      regenerateCandDesc(id);
+    });
+  }
+
   function saveCandDesc(id, text) {
     setCachedDesc(id, text);
     setDescStatus(id, 'Sauvegarde…');
@@ -707,7 +693,25 @@
       arr.forEach(function (c) {
         if (!findCandidate(c.id)) STATE.allCandidates.push(c);
       });
+      // 30.17 : auto-sélection des 2 meilleurs candidats AVEC DC (si l'user
+      // n'a pas encore fait son propre choix). On saute les candidats sans DC
+      // pour la pré-sélection automatique, car la description IA ne peut pas
+      // être générée sans DC.
+      if (!STATE.selectedCand[1] && !STATE.selectedCand[2]) {
+        var withDc = arr.filter(function (c) {
+          var full = findCandidate(c.id);
+          return full && full.has_dc;
+        });
+        var pick1 = withDc[0] || arr[0];
+        var pick2 = withDc[1] || arr[1];
+        if (pick1) STATE.selectedCand[1] = pick1.id;
+        if (pick2 && (!pick1 || pick2.id !== pick1.id)) STATE.selectedCand[2] = pick2.id;
+      }
       renderCombos();
+      renderCandCards();
+      // 30.17 : déclenche en arrière-plan la génération de description pour
+      // les candidats sélectionnés qui n'en ont pas encore.
+      autoGenerateSelectedDescriptions();
       clearInterval(tick);
       var elapsed = (Date.now() - startTs) / 1000;
       if (arr.length) {
@@ -750,202 +754,8 @@
     };
   }
 
-  function buildAIPrompt(variants) {
-    var vals = selectedValuesMulti();
-    var p = STATE.prospect || {};
-    var co = STATE.company || {};
-    var cand1 = vals.candidateId1 ? STATE.candidates.filter(function (c) { return String(c.id) === String(vals.candidateId1); })[0] : null;
-    var cand2 = vals.candidateId2 ? STATE.candidates.filter(function (c) { return String(c.id) === String(vals.candidateId2); })[0] : null;
-    var cons1 = vals.consultantId1 ? STATE.users.filter(function (u) { return String(u.id) === String(vals.consultantId1); })[0] : null;
-    var cons2 = vals.consultantId2 ? STATE.users.filter(function (u) { return String(u.id) === String(vals.consultantId2); })[0] : null;
+  // AI message generation removed (30.17) — tout passe par le template .msg + cartes candidats.
 
-    var prospectInfo = 'Prospect: ' + (p.name || '') + '\n' +
-      'Entreprise: ' + (co.groupe || '') + '\n' +
-      'Fonction: ' + (p.fonction || '') + '\n' +
-      'Tags techniques: ' + ((p.tags || []).join(', ') || 'Aucun') + '\n' +
-      'Notes: ' + String(p.notes || '').substring(0, 200);
-
-    var candidatesInfo = '';
-    var cands = [cand1, cand2].filter(Boolean);
-    if (cands.length) {
-      candidatesInfo = '\n\nCandidats à présenter:\n' + cands.map(function (c) {
-        return '- ' + (c.name || '') + ' (' + (c.role || '') + '): ' + ((c.skills || []).slice(0, 5).join(', '));
-      }).join('\n');
-    }
-    var consultantsInfo = '';
-    var cons = [cons1, cons2].filter(Boolean);
-    if (cons.length) {
-      consultantsInfo = '\n\nConsultants à mentionner:\n' + cons.map(function (u) {
-        return '- ' + (u.display_name || u.username || '');
-      }).join('\n');
-    }
-    var channel = STATE.channel || 'email';
-    var channelType = channel === 'linkedin' ? 'message LinkedIn InMail' : 'email professionnel';
-    var variantsText = variants > 1 ? 'Génère ' + variants + ' variantes différentes du message, numérotées "Variante 1:", "Variante 2:", etc.' : '';
-
-    return 'Tu es un assistant de prospection B2B spécialisé en ingénierie (systèmes embarqués, électronique, robotique, logiciel).\n\n' +
-      'Je dois rédiger un ' + channelType + ' personnalisé pour un prospect.\n\n' +
-      prospectInfo + candidatesInfo + consultantsInfo + '\n\n' +
-      'Instructions:\n' +
-      '- Ton professionnel mais chaleureux\n' +
-      '- Mentionne les compétences techniques pertinentes si des candidats sont sélectionnés\n' +
-      "- Référence l'entreprise du prospect si possible\n" +
-      '- Longueur: ' + (channel === 'linkedin' ? '150-200 mots (InMail LinkedIn)' : '200-300 mots (email)') + '\n' +
-      "- Structure: Salutation personnalisée, présentation brève de votre ESN, proposition de valeur, appel à l'action, signature\n" +
-      variantsText + '\n\n' +
-      'Réponds UNIQUEMENT par le message ' + (variants > 1 ? '(variantes numérotées)' : '') + ', sans texte avant ou après, sans markdown.';
-  }
-
-  // ─── AI Progress UI ───────────────────────────────────────
-  function showAIProgress(msg) {
-    var bar = $sel('data-v30pm-progress');
-    var m = $sel('data-v30pm-progress-msg');
-    if (bar) bar.classList.add('is-active');
-    if (m) m.textContent = msg || 'Préparation de l\'IA…';
-    updateAIStats(0, null);
-  }
-  function updateAIProgressMsg(msg) {
-    var m = $sel('data-v30pm-progress-msg');
-    if (m) m.textContent = msg;
-  }
-  function updateAIStats(charCount, elapsedSec) {
-    var s = $sel('data-v30pm-progress-stats');
-    if (!s) return;
-    var parts = [];
-    if (elapsedSec != null) parts.push(elapsedSec.toFixed(1) + ' s');
-    if (charCount) parts.push(charCount + ' car.');
-    s.textContent = parts.join(' · ');
-  }
-  function hideAIProgress() {
-    var bar = $sel('data-v30pm-progress');
-    if (bar) bar.classList.remove('is-active');
-  }
-  function setAIButtonsDisabled(disabled) {
-    var bd = document.getElementById(MODAL_ID);
-    if (!bd) return;
-    bd.querySelectorAll('[data-v30pm-ai]').forEach(function (b) { b.disabled = !!disabled; });
-  }
-
-  // ─── AI generation (streaming SSE direct) ─────────────────
-  function generateAI(variants) {
-    var messageEl = $sel('data-v30pm-message');
-    if (!messageEl) return;
-    var prompt = buildAIPrompt(variants);
-
-    messageEl.value = '';
-    setAIButtonsDisabled(true);
-    showAIProgress(variants > 1 ? 'Connexion IA (' + variants + ' variantes)…' : 'Connexion à l\'IA…');
-
-    var startTs = Date.now();
-    var fullText = '';
-    var controller = (typeof AbortController === 'function') ? new AbortController() : null;
-    var timeoutMs = variants > 1 ? 180000 : 120000;
-    var timeoutId = setTimeout(function () {
-      if (controller) controller.abort();
-    }, timeoutMs);
-
-    // Met à jour l'horloge pendant le stream, même si aucun token n'arrive
-    var tickTimer = setInterval(function () {
-      updateAIStats(fullText.length, (Date.now() - startTs) / 1000);
-    }, 300);
-
-    function done(ok, errMsg) {
-      clearTimeout(timeoutId);
-      clearInterval(tickTimer);
-      setAIButtonsDisabled(false);
-      if (ok) {
-        hideAIProgress();
-        // Post-traitement variants
-        if (variants > 1 && fullText) {
-          var parts = fullText.split(/Variante\s+\d+\s*:/i).filter(function (v) { return v.trim(); }).map(function (v) { return v.trim(); });
-          if (parts.length >= variants) {
-            messageEl.value = parts.slice(0, variants).map(function (v, i) {
-              return '=== VARIANTE ' + (i + 1) + ' ===\n' + v;
-            }).join('\n\n');
-          }
-          toast(variants + ' variantes générées', 'success', 3000);
-        } else {
-          toast('Message généré', 'success', 2500);
-        }
-      } else {
-        updateAIProgressMsg(errMsg || 'Erreur IA');
-        toast('Erreur IA : ' + (errMsg || 'inconnue'), 'error', 5000);
-        setTimeout(hideAIProgress, 2500);
-      }
-    }
-
-    var body = { prompt: prompt, timeout: Math.min(600, Math.ceil(timeoutMs / 1000)) };
-    var fetchOpts = {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    };
-    if (controller) fetchOpts.signal = controller.signal;
-
-    fetch('/api/ollama/generate-stream', fetchOpts).then(function (res) {
-      if (!res.ok) {
-        return res.json().catch(function () { return {}; }).then(function (j) {
-          throw new Error((j && j.error) || ('HTTP ' + res.status));
-        });
-      }
-      if (!res.body || typeof res.body.getReader !== 'function') {
-        // Navigateur sans ReadableStream : fallback via callOllama (non-stream)
-        if (typeof window.callOllama === 'function') {
-          return window.callOllama(prompt, { timeoutMs: timeoutMs, stream: false }).then(function (text) {
-            fullText = String(text || '').trim();
-            messageEl.value = fullText;
-            updateAIStats(fullText.length, (Date.now() - startTs) / 1000);
-          });
-        }
-        throw new Error('Stream non supporté');
-      }
-      var reader = res.body.getReader();
-      var decoder = new TextDecoder();
-      var buffer = '';
-      function pump() {
-        return reader.read().then(function (r) {
-          if (r.done) return;
-          buffer += decoder.decode(r.value, { stream: true });
-          var chunks = buffer.split('\n\n');
-          buffer = chunks.pop() || '';
-          chunks.forEach(function (chunk) {
-            chunk.split('\n').forEach(function (line) {
-              if (!line.indexOf('data: ')) {
-                try {
-                  var ev = JSON.parse(line.slice(6));
-                  if (ev.type === 'start') {
-                    updateAIProgressMsg(ev.message || 'Génération IA en cours…');
-                  } else if (ev.type === 'token') {
-                    fullText += ev.text || '';
-                    messageEl.value = fullText;
-                    // Auto-scroll vers le bas
-                    messageEl.scrollTop = messageEl.scrollHeight;
-                    updateAIStats(fullText.length, (Date.now() - startTs) / 1000);
-                    if (ev.done) updateAIProgressMsg('Finalisation…');
-                  } else if (ev.type === 'end') {
-                    updateAIProgressMsg(ev.message || 'Terminé');
-                  } else if (ev.type === 'error') {
-                    throw new Error(ev.message || 'Erreur serveur IA');
-                  }
-                } catch (_) { /* ignore parse errors (SSE framing) */ }
-              }
-            });
-          });
-          return pump();
-        });
-      }
-      return pump();
-    }).then(function () {
-      done(true);
-    }).catch(function (e) {
-      if (e && e.name === 'AbortError') {
-        done(false, 'Timeout — l\'IA a mis trop de temps');
-      } else {
-        done(false, (e && e.message) || 'Erreur inconnue');
-      }
-    });
-  }
 
   // ─── Envoi (confirmPushSend) ─────────────────────────────
   function send() {
@@ -959,8 +769,20 @@
     if (sendBtn) sendBtn.disabled = true;
 
     var vals = selectedValuesMulti();
-    var customMessage = ($sel('data-v30pm-message') || {}).value || '';
-    customMessage = String(customMessage).trim();
+    // Message section retirée en 30.17 — tout le contenu passe par le
+    // template .msg Outlook. On concatène les présentations par candidat
+    // (description_push) dans le body du log pour la trace.
+    var customMessage = '';
+    [1, 2].forEach(function (slot) {
+      var cid = STATE.selectedCand[slot];
+      if (!cid) return;
+      var cc = findCandidate(cid);
+      var d = cachedDesc(cid);
+      if (d) {
+        if (customMessage) customMessage += '\n\n';
+        customMessage += '— ' + ((cc && cc.name) || ('Candidat ' + slot)) + ' —\n' + d;
+      }
+    });
     var companyName = (STATE.company && STATE.company.groupe) || '';
     var templateName = '';
     var templateOpened = false;
@@ -1115,15 +937,12 @@
     // Titre dynamique
     var title = bd.querySelector('[data-v30pm-title]');
     if (title) title.textContent = STATE.channel === 'linkedin' ? 'Push LinkedIn' : 'Push Email';
-    // Reset form
-    ['data-v30pm-message'].forEach(function (a) { var el = bd.querySelector('[' + a + ']'); if (el) el.value = ''; });
     // Skeletons immédiats
     renderProspectSkeleton();
     renderSelectLoading(bd.querySelector('[data-v30pm-cat]'), '…');
     renderCombos();      // affiche l'état vide « aucun candidat disponible »
     renderCandCards();   // affiche le hint « sélectionne un candidat… »
     hideIABar();
-    hideAIProgress();
     openBd(bd);
     // Charger les données en parallèle (sauf besoin de prospect pour l'IA contextuelle)
     getProspectInfo(prospectId).then(function (res) {

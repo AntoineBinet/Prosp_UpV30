@@ -2,6 +2,20 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.17] — 2026-04-24 · Push popup · auto-sélection Top IA + suppression section Message
+
+Tout le contenu du push vient déjà du template `.msg` Outlook. La section « Message » de la popup était redondante et générait de la confusion : on a `Générer avec l'IA`, `3 variantes`, progress bar streaming… pour finalement rien qui n'ait d'impact sur l'email réel (le .msg écrase le texte). Suppression complète. Par ailleurs, le preview « Top IA » dans le label des combobox pouvait laisser croire à une sélection réelle sans action associée.
+
+### Changements
+- **Section Message supprimée** de la modale. Avec elle, retrait de ~200 lignes de JS : `buildAIPrompt()`, `generateAI()` (streaming SSE), `showAIProgress()`, `updateAIProgressMsg()`, `updateAIStats()`, `hideAIProgress()`, `setAIButtonsDisabled()`. Retrait des sélecteurs DOM `[data-v30pm-message]`, `[data-v30pm-progress*]`, `[data-v30pm-ai]`.
+- **Auto-sélection des 2 meilleurs Top IA** : après la passe `best-candidates`, si l'utilisateur n'a pas déjà choisi, les 2 meilleurs candidats **avec DC** sont automatiquement placés dans les slots 1 et 2 (fallback sur les meilleurs même sans DC si aucun avec DC). `renderCombos()` + `renderCandCards()` sont rappelés pour matérialiser la sélection dans l'UI.
+- **Auto-génération des descriptions** : nouvelle `autoGenerateSelectedDescriptions()` — appelée juste après l'auto-sélection. Pour chaque candidat sélectionné qui a un DC mais aucune `description_push` en cache, déclenche en arrière-plan `regenerateCandDesc()` (qui appelle `/api/candidates/<id>/generate-description`). Non-bloquant : les 2 cartes description affichent « Analyse du DC en cours… » pendant que l'IA mouline.
+- **Preview « Top IA » retiré** du label des combobox (remplacé par la vraie sélection). À la place, quand un candidat sélectionné faisait partie des suggestions IA, un petit badge `🤖 IA` s'affiche à gauche de son nom.
+- **`send()`** : le `body` du push log concatène désormais les présentations par candidat (format `— Nom Candidat —\n<description>\n\n— …`) pour la traçabilité, au lieu d'un `customMessage` éditable disparu.
+- **Open()** : retrait du reset du textarea message + `hideAIProgress()` (code mort).
+
+### Aucun changement backend
+
 ## [30.16] — 2026-04-24 · Push popup · modale large 920 px + polish v30 + strip HTML description
 
 Dernier pass de finition sur la popup push. La modale était trop étroite (680 px) pour contenir confortablement les 2 combobox + 2 cartes description côte à côte, forçant un scroll vertical à chaque ouverture. Et les descriptions IA arrivaient avec des balises HTML brutes (`<b>Nom</b>`, `<br>`) affichées littéralement dans les textarea → illisible.
