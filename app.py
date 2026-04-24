@@ -8217,6 +8217,8 @@ def api_push_generate():
         )
         if missing_email:
             response.headers['X-Warning'] = 'prospect-email-missing'
+        response.headers['X-PJ-Count'] = str(len(attachment_paths))
+        response.headers['X-Candidate-Count'] = str(len(candidates_data))
         return response
     except Exception as e:
         logger.exception("Erreur génération push")
@@ -8726,59 +8728,42 @@ def _resolve_dc_path(cand: dict, uid: int) -> Path | None:
     1. Le champ dossier_competence_pdf en DB (chemin absolu ou relatif)
     2. Le dossier data/dossiers_candidats/{uid}/{cand_id}/ (glob *.pdf)
     """
-    dc_path_str = cand.get("dossier_competence_pdf")
+    dc_path_str = (cand.get("dossier_competence_pdf") or "").strip()
     cand_id = cand.get("id")
 
-    # Cas 1 : champ DB vide → chercher directement dans le dossier par convention
-    if not dc_path_str:
+    candidates_paths: list[Path] = []
+
+    # 1) Champ DB (chemin absolu ou relatif) — logique identique à /api/candidates/<id>/dossier-competence
+    if dc_path_str:
+        primary = Path(dc_path_str)
+        if not primary.is_absolute():
+            primary = APP_DIR / "dossiers_competence" / primary
+        candidates_paths.append(primary)
+
+        # Fallback : fichier déplacé vers le nouveau dossier user_id/cand_id
         if cand_id:
-            dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id)
-            if dc_dir.is_dir():
-                pdfs = sorted(dc_dir.glob("*.pdf"))
-                if pdfs:
-                    dc_path = pdfs[0]
-                    # Vérification sécurité
-                    try:
-                        if str(dc_path.resolve()).startswith(str(DATA_DIR.resolve()).rstrip(os.sep) + os.sep):
-                            return dc_path
-                    except Exception:
-                        pass
-        return None
+            candidates_paths.append(
+                DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id) / Path(dc_path_str).name
+            )
 
-    # Cas 2 : champ DB renseigné
-    if not os.path.isabs(dc_path_str):
-        dc_path = APP_DIR / "dossiers_competence" / dc_path_str
-    else:
-        dc_path = Path(dc_path_str)
+    # 2) Dossier par convention (toujours essayé en dernier)
+    if cand_id:
+        dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id)
+        if dc_dir.is_dir():
+            for pdf in sorted(dc_dir.glob("*.pdf")):
+                candidates_paths.append(pdf)
 
-    # Fallback : fichier déplacé vers le nouveau dossier
-    if not dc_path.is_file() and cand_id:
-        alt_path = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id) / Path(dc_path_str).name
-        if alt_path.is_file():
-            dc_path = alt_path
-        else:
-            # Dernière tentative : n'importe quel PDF présent dans le dossier
-            dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cand_id)
-            if dc_dir.is_dir():
-                pdfs = sorted(dc_dir.glob("*.pdf"))
-                if pdfs:
-                    dc_path = pdfs[0]
+    for p in candidates_paths:
+        try:
+            if p.is_file() and p.suffix.lower() == ".pdf":
+                logger.info("DC résolu: cand=%s path=%s", cand_id, p)
+                return p
+        except Exception as e:
+            logger.warning("DC: erreur check %s: %s", p, e)
+            continue
 
-    if not dc_path.is_file():
-        return None
-
-    # Vérification sécurité : chemin dans un répertoire autorisé
-    try:
-        dc_resolved = dc_path.resolve()
-        allowed_dirs = [
-            str((APP_DIR / "dossiers_competence").resolve()),
-            str(DATA_DIR.resolve())
-        ]
-        if not any(str(dc_resolved).startswith(d.rstrip(os.sep) + os.sep) for d in allowed_dirs):
-            return None
-    except Exception:
-        return None
-    return dc_path
+    logger.info("DC introuvable: cand=%s uid=%s field=%r", cand_id, uid, dc_path_str)
+    return None
 
 
 def _personalize_html_body(template_path: Path, prospect_data: dict, candidates_data: list) -> tuple[str, str]:
@@ -8880,6 +8865,7 @@ def _generate_eml_file(template_path: Path, prospect_data: dict,
     msg_eml.attach(email_lib.mime.text.MIMEText(html_body, "html", "utf-8"))
 
     # Ajouter les pièces jointes (DC candidats)
+    pj_added = 0
     if attachment_paths:
         for att_path in attachment_paths:
             try:
@@ -8887,10 +8873,19 @@ def _generate_eml_file(template_path: Path, prospect_data: dict,
                 part = email_lib.mime.base.MIMEBase("application", "pdf")
                 part.set_payload(att_data)
                 email_lib.encoders.encode_base64(part)
-                part.add_header("Content-Disposition", "attachment", filename=att_path.name)
+                # RFC 2231 encoding pour gérer les caractères non-ASCII (ex: "Antoine Baïges.pdf")
+                part.add_header(
+                    "Content-Disposition",
+                    "attachment",
+                    filename=("utf-8", "", att_path.name),
+                )
                 msg_eml.attach(part)
+                pj_added += 1
+                logger.info("PJ .eml ajoutée: %s (%d bytes)", att_path.name, len(att_data))
             except Exception as e:
                 logger.warning("Erreur ajout PJ .eml %s: %s", att_path.name, e)
+    logger.info("_generate_eml_file: %d PJ intégrées sur %d candidat(s)",
+                pj_added, len(attachment_paths or []))
 
     return msg_eml.as_bytes()
 
