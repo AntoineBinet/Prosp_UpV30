@@ -373,6 +373,23 @@
     var id = STATE.selectedCand[slot];
     var c = findCandidate(id);
     if (!c) {
+      // Preview IA quand rien n'est sélectionné : si la passe IA a trouvé un top,
+      // on l'affiche en teaser dans le bouton pour montrer le travail immédiatement.
+      var topIdx = (slot === '2' || slot === 2) ? 1 : 0; // slot 2 montre le 2e meilleur
+      var top = (STATE.aiSuggestions || [])[topIdx];
+      if (top && top.id) {
+        var tc = findCandidate(top.id);
+        if (tc) {
+          var pctHtml = (top.pct > 0)
+            ? ' <span class="v30pm-combo__pct v30pm-combo__pct--label">' + Math.round(top.pct) + '%</span>'
+            : '';
+          btn.innerHTML =
+            '<span class="v30pm-combo__hint">' + ic('robot', 11) + ' Top IA</span>' +
+            '<span class="v30pm-combo__name" style="font-weight:500;">' + esc(tc.name || '') + '</span>' +
+            pctHtml;
+          return;
+        }
+      }
       btn.innerHTML = '<span style="color:var(--text-3);">— Choisir un candidat —</span>';
       return;
     }
@@ -491,6 +508,24 @@
     var host = $sel('data-v30pm-candcards');
     if (!host) return;
     var slots = [1, 2];
+    var nSelected = (STATE.selectedCand[1] ? 1 : 0) + (STATE.selectedCand[2] ? 1 : 0);
+    // Placeholder empty-state quand rien n'est sélectionné : explicite
+    // le comportement à venir (présentation IA auto-générée depuis le DC).
+    if (nSelected === 0) {
+      host.innerHTML =
+        '<div class="v30pm-candcard v30pm-candcard--hint">' +
+          '<div class="v30pm-candcard__hint-title">' +
+            ic('robot', 12) + ' <b>Présentation IA par candidat</b>' +
+          '</div>' +
+          '<div class="v30pm-candcard__hint-body">' +
+            'Sélectionne un candidat ci-dessus pour afficher sa présentation courte. ' +
+            'Si un dossier de compétences est disponible, un bouton <em>Générer IA</em> ' +
+            'analyse le PDF et produit automatiquement 3-4 lignes prêtes à coller dans le mail. ' +
+            'Tu peux l\'éditer — l\'enregistrement est automatique.' +
+          '</div>' +
+        '</div>';
+      return;
+    }
     var html = '';
     slots.forEach(function (slot) {
       var id = STATE.selectedCand[slot];
@@ -518,8 +553,9 @@
             '</div>' +
           '</div>' +
           (noDc
-            ? '<div class="v30pm-candcard__empty">Ce candidat n\'a pas de dossier de compétences — impossible de générer automatiquement.</div>'
-            : '<textarea class="v30pm-candcard__textarea" data-v30pm-desc="' + id + '" placeholder="Cliquez « Générer IA » pour analyser le dossier de compétences, ou rédigez manuellement…">' + esc(desc) + '</textarea>') +
+            ? '<div class="v30pm-candcard__empty">Ce candidat n\'a pas de dossier de compétences — impossible de générer automatiquement. Tu peux rédiger manuellement ci-dessous.</div>' +
+              '<textarea class="v30pm-candcard__textarea" data-v30pm-desc="' + id + '" placeholder="Rédige une courte présentation du candidat…">' + esc(desc) + '</textarea>'
+            : '<textarea class="v30pm-candcard__textarea" data-v30pm-desc="' + id + '" placeholder="Clique « Générer IA » pour analyser le dossier de compétences, ou rédige manuellement…">' + esc(desc) + '</textarea>') +
           '<div class="v30pm-candcard__status" data-v30pm-descstatus="' + id + '"></div>' +
         '</div>';
     });
@@ -1056,9 +1092,6 @@
     STATE.selectedCand = { 1: null, 2: null };
     STATE.candDescCache = {};
     var bd = ensureModal();
-    // Vider les cartes de description éventuellement rendues
-    var cc = bd.querySelector('[data-v30pm-candcards]');
-    if (cc) cc.innerHTML = '';
     // Titre dynamique
     var title = bd.querySelector('[data-v30pm-title]');
     if (title) title.textContent = STATE.channel === 'linkedin' ? 'Push LinkedIn' : 'Push Email';
@@ -1067,7 +1100,8 @@
     // Skeletons immédiats
     renderProspectSkeleton();
     renderSelectLoading(bd.querySelector('[data-v30pm-cat]'), '…');
-    renderCombos();  // affiche l'état vide « aucun candidat disponible »
+    renderCombos();      // affiche l'état vide « aucun candidat disponible »
+    renderCandCards();   // affiche le hint « sélectionne un candidat… »
     hideIABar();
     hideAIProgress();
     openBd(bd);
@@ -1093,10 +1127,12 @@
         loadAllCandidates(),
         loadCurrentUser()
       ]).then(function () {
-        // Si le prospect a une catégorie par défaut, déclencher la passe IA
+        // Déclencher la passe IA inconditionnellement : même sans catégorie,
+        // l'endpoint best-candidates score sur les tags/notes/fonction du prospect.
+        // Si une catégorie est pré-sélectionnée, elle sera utilisée pour raffiner.
         var catSel = $sel('data-v30pm-cat');
         var catId = catSel && catSel.value ? catSel.value : null;
-        if (catId) return loadAISuggestions(catId);
+        return loadAISuggestions(catId);
       });
     }).catch(function (e) {
       if (e && e.message === 'no_email') return;
