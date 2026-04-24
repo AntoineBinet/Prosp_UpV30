@@ -63,6 +63,7 @@
     cols: loadCols(),
     filters: {
       statuts: [],
+      statutsExclude: [],
       pertMin: 0,
       tags: [],
       relanceFrom: '',
@@ -550,6 +551,7 @@
           if (s0 !== 'prospecté' && s0 !== 'prospecte') return false;
         }
         if (F.statuts && F.statuts.length && F.statuts.indexOf(p.statut) < 0) return false;
+        if (F.statutsExclude && F.statutsExclude.length && F.statutsExclude.indexOf(p.statut || '') >= 0) return false;
         if (F.pertMin && parseInt(p.pertinence, 10) < F.pertMin) return false;
         if (F.callableOnly && !/\d/.test(String(p.telephone || ''))) return false;
         if (F.tags && F.tags.length) {
@@ -929,10 +931,299 @@
       }
       if (!ids.length) { toast('Aucun prospect sélectionné', 'warning'); return; }
       if (action === 'push') { window.location.href = '/v30/push?ids=' + ids.join(','); return; }
+      if (action === 'vcf') { exportSelectedVcf(ids); return; }
+      if (action === 'enrich-ai') { openBulkEnrichAiModal(ids); return; }
+      if (action === 'edit') { openBulkEditModal(ids); return; }
       openBulkModal(action, ids);
     });
     var apply = document.querySelector('[data-v30-bulk-apply]');
     if (apply) apply.addEventListener('click', runBulkAction);
+  }
+
+  // ─── VCF / vCard export (parité V29) ──────────────────────
+  function vcfEscape(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,')
+      .replace(/\n/g, '\\n');
+  }
+  function prospectToVcf(p) {
+    var parts = String(p.name || '').trim().split(/\s+/);
+    var lastName = parts.length > 1 ? parts.pop() : '';
+    var firstName = parts.join(' ') || p.name || '';
+    var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
+    var lines = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'N:' + vcfEscape(lastName) + ';' + vcfEscape(firstName) + ';;;',
+      'FN:' + vcfEscape(p.name || '')
+    ];
+    if (coName) lines.push('ORG:' + vcfEscape(coName));
+    if (p.fonction) lines.push('TITLE:' + vcfEscape(p.fonction));
+    if (p.telephone) {
+      var phones = splitPhones(p.telephone);
+      if (phones.length) {
+        phones.forEach(function (ph, i) {
+          var type = i === 0 ? 'WORK' : 'CELL';
+          lines.push('TEL;TYPE=' + type + ':' + ph.replace(/\s+/g, ' ').trim());
+        });
+      } else {
+        lines.push('TEL;TYPE=WORK:' + String(p.telephone).trim());
+      }
+    }
+    if (p.email) lines.push('EMAIL;TYPE=INTERNET:' + String(p.email).trim());
+    if (p.linkedin) lines.push('URL:' + String(p.linkedin).trim());
+    if (p.notes) lines.push('NOTE:' + vcfEscape(p.notes));
+    var tags = parseTags(p.tags);
+    if (tags.length) lines.push('CATEGORIES:' + tags.map(vcfEscape).join(','));
+    lines.push('REV:' + new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z');
+    lines.push('END:VCARD');
+    return lines.join('\r\n');
+  }
+  function findProspectById(id) {
+    var pool = (STATE.filteredAll || []).concat(STATE.allForKpis || [], STATE.prospects || []);
+    for (var i = 0; i < pool.length; i++) {
+      if (Number(pool[i].id) === Number(id)) return pool[i];
+    }
+    return null;
+  }
+  function exportSelectedVcf(ids) {
+    var items = ids.map(findProspectById).filter(Boolean);
+    if (!items.length) { toast('Aucun prospect exportable', 'warning'); return; }
+    var vcf = items.map(prospectToVcf).join('\r\n');
+    var today = new Date().toISOString().slice(0, 10);
+    try {
+      var blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = items.length === 1
+        ? (String(items[0].name || 'contact').replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_') || 'contact') + '.vcf'
+        : 'Prospects_selection_' + today + '.vcf';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        try { URL.revokeObjectURL(a.href); } catch (_) {}
+        try { a.remove(); } catch (_) {}
+      }, 1000);
+      toast('vCard générée (' + items.length + ')', 'success');
+    } catch (err) {
+      toast('Erreur VCF : ' + (err && err.message || err), 'error');
+    }
+  }
+
+  // ─── Bulk Edit (champ + valeur) ───────────────────────────
+  var BULK_EDIT_CTX = { ids: [] };
+  function renderBulkEditValueInput(field) {
+    var wrap = document.querySelector('[data-v30-bulk-edit-value-wrap]');
+    if (!wrap) return;
+    if (!field) { wrap.innerHTML = ''; return; }
+    var html = '<label for="v30-pp-bulk-edit-value">Nouvelle valeur <span class="required" style="color:var(--danger);">*</span></label>';
+    if (field === 'statut') {
+      html += '<select id="v30-pp-bulk-edit-value" class="select" data-v30-bulk-edit-value>' +
+        '<option value="">— Choisir —</option>' +
+        STATUS_OPTIONS.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join('') +
+        '</select>';
+    } else if (field === 'pertinence') {
+      html += '<select id="v30-pp-bulk-edit-value" class="select" data-v30-bulk-edit-value>' +
+        '<option value="">— Choisir —</option>' +
+        ['5','4','3','2','1'].map(function (v) { return '<option value="' + v + '">' + v + '/5</option>'; }).join('') +
+        '</select>';
+    } else {
+      html += '<input id="v30-pp-bulk-edit-value" class="input" type="text" data-v30-bulk-edit-value placeholder="Nouvelle valeur…">';
+    }
+    wrap.innerHTML = html;
+  }
+  function openBulkEditModal(ids) {
+    BULK_EDIT_CTX = { ids: ids || [] };
+    var n = BULK_EDIT_CTX.ids.length;
+    var info = document.querySelector('[data-v30-bulk-edit-info]');
+    if (info) info.textContent = n + ' prospect' + (n > 1 ? 's' : '') + ' sélectionné' + (n > 1 ? 's' : '');
+    var countEl = document.querySelector('[data-v30-bulk-edit-count]');
+    if (countEl) countEl.textContent = n;
+    var fieldSel = document.querySelector('[data-v30-bulk-edit-field]');
+    if (fieldSel) fieldSel.value = '';
+    renderBulkEditValueInput('');
+    openModal(getModal('bulkEdit'));
+  }
+  function applyBulkEdit() {
+    var ids = BULK_EDIT_CTX.ids || [];
+    if (!ids.length) return;
+    var fieldSel = document.querySelector('[data-v30-bulk-edit-field]');
+    var field = fieldSel ? fieldSel.value : '';
+    if (!field) { toast('Choisis un champ', 'warning'); return; }
+    var valEl = document.querySelector('[data-v30-bulk-edit-value]');
+    var value = valEl ? String(valEl.value || '').trim() : '';
+    if (!value) { toast('Saisis une valeur', 'warning'); return; }
+    var btn = document.querySelector('[data-v30-bulk-edit-apply]');
+    if (btn) btn.disabled = true;
+    fetchPostJSON('/api/prospects/bulk-edit', { ids: ids, field: field, value: value })
+      .then(function () {
+        toast(ids.length + ' prospect(s) mis à jour', 'success');
+        STATE.selected.clear();
+        closeModal(getModal('bulkEdit'));
+        loadProspects();
+      })
+      .catch(function (err) {
+        toast('Erreur : ' + (err && err.message || err), 'error');
+      })
+      .then(function () {
+        if (btn) btn.disabled = false;
+      });
+  }
+  function bindBulkEdit() {
+    var fieldSel = document.querySelector('[data-v30-bulk-edit-field]');
+    if (fieldSel) fieldSel.addEventListener('change', function () {
+      renderBulkEditValueInput(fieldSel.value);
+    });
+    var applyBtn = document.querySelector('[data-v30-bulk-edit-apply]');
+    if (applyBtn) applyBtn.addEventListener('click', applyBulkEdit);
+  }
+
+  // ─── Bulk Enrich IA (séquentiel + barre de progression) ──
+  var ENRICH_CTX = { ids: [], running: false, cancelled: false };
+  function buildBulkEnrichPrompt(p) {
+    var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
+    return 'Tu es un assistant de prospection B2B. Enrichis les informations du prospect suivant.\n' +
+      'Retourne UNIQUEMENT un objet JSON valide avec les clés (optionnelles) : fonction, telephone, email, linkedin, tags (array), pertinence (1-5), notes.\n' +
+      'Ne fabrique rien — si tu ne sais pas, omets la clé. Pas de texte autour du JSON.\n' +
+      'Prospect : ' + (p.name || '—') + (coName ? ' — ' + coName : '') + (p.fonction ? ' — ' + p.fonction : '') + '\n' +
+      (p.email ? 'Email connu : ' + p.email + '\n' : '') +
+      (p.telephone ? 'Téléphone connu : ' + p.telephone + '\n' : '') +
+      (p.linkedin ? 'LinkedIn connu : ' + p.linkedin + '\n' : '');
+  }
+  function openBulkEnrichAiModal(ids) {
+    ENRICH_CTX = { ids: ids || [], running: false, cancelled: false };
+    var m = getModal('enrichAi');
+    if (!m) return;
+    var countEl = m.querySelector('[data-v30-enrich-count]');
+    if (countEl) countEl.textContent = ids.length;
+    var prog = m.querySelector('[data-v30-enrich-progress]');
+    if (prog) prog.hidden = true;
+    var sum = m.querySelector('[data-v30-enrich-summary]');
+    if (sum) sum.hidden = true;
+    var bar = m.querySelector('[data-v30-enrich-progress-bar]');
+    if (bar) bar.style.width = '0%';
+    var txt = m.querySelector('[data-v30-enrich-progress-text]');
+    if (txt) txt.textContent = '0 / ' + ids.length + ' traités';
+    var current = m.querySelector('[data-v30-enrich-current]');
+    if (current) current.textContent = '';
+    var lines = m.querySelector('[data-v30-enrich-lines]');
+    if (lines) lines.textContent = '';
+    var startBtn = m.querySelector('[data-v30-enrich-start]');
+    if (startBtn) { startBtn.disabled = false; startBtn.textContent = 'Lancer'; }
+    openModal(m);
+  }
+  function runBulkEnrichAi() {
+    if (ENRICH_CTX.running) return;
+    var ids = ENRICH_CTX.ids || [];
+    if (!ids.length) return;
+    ENRICH_CTX.running = true;
+    ENRICH_CTX.cancelled = false;
+    var m = getModal('enrichAi');
+    var web = !!(m.querySelector('[data-v30-enrich-web]') || {}).checked;
+    var prog = m.querySelector('[data-v30-enrich-progress]');
+    if (prog) prog.hidden = false;
+    var bar = m.querySelector('[data-v30-enrich-progress-bar]');
+    var txt = m.querySelector('[data-v30-enrich-progress-text]');
+    var current = m.querySelector('[data-v30-enrich-current]');
+    var sum = m.querySelector('[data-v30-enrich-summary]');
+    if (sum) sum.hidden = true;
+    var startBtn = m.querySelector('[data-v30-enrich-start]');
+    if (startBtn) { startBtn.disabled = true; startBtn.textContent = 'IA en cours…'; }
+    var total = ids.length;
+    var done = 0, ok = 0, ko = 0;
+    var summary = [];
+    function setProgress() {
+      var pct = total ? Math.round(done * 100 / total) : 0;
+      if (bar) bar.style.width = pct + '%';
+      if (txt) txt.textContent = done + ' / ' + total + ' traités (OK : ' + ok + ', erreurs : ' + ko + ')';
+    }
+    setProgress();
+
+    function applyJsonToProspect(pid, json) {
+      var updates = {};
+      ['fonction','telephone','email','linkedin','notes','pertinence'].forEach(function (k) {
+        if (json[k] != null && String(json[k]).trim()) updates[k] = String(json[k]).trim();
+      });
+      var tags = Array.isArray(json.tags) ? json.tags : null;
+      var applied = [];
+      var chain = Promise.resolve();
+      Object.keys(updates).forEach(function (field) {
+        if (['statut','pertinence','fonction'].indexOf(field) >= 0) {
+          chain = chain.then(function () {
+            return fetchPostJSON('/api/prospects/bulk-edit', { ids: [pid], field: field, value: updates[field] })
+              .then(function () { applied.push(field); });
+          });
+        } else if (field === 'email' || field === 'telephone') {
+          chain = chain.then(function () {
+            return fetchPostJSON('/api/prospects/bulk-field-update', { ids: [pid], field: field, values: [updates[field]] })
+              .then(function () { applied.push(field); });
+          });
+        }
+      });
+      if (tags && tags.length) {
+        chain = chain.then(function () {
+          return fetchPostJSON('/api/prospects/bulk-status-tags', { ids: [pid], add_tags: tags })
+            .then(function () { applied.push('tags'); });
+        });
+      }
+      return chain.then(function () { return applied; });
+    }
+
+    function step(i) {
+      if (ENRICH_CTX.cancelled || i >= total) {
+        ENRICH_CTX.running = false;
+        if (current) current.textContent = '';
+        if (sum) sum.hidden = false;
+        var okEl = m.querySelector('[data-v30-enrich-ok]');
+        var koEl = m.querySelector('[data-v30-enrich-ko]');
+        if (okEl) okEl.textContent = ok;
+        if (koEl) koEl.textContent = ko;
+        var linesEl = m.querySelector('[data-v30-enrich-lines]');
+        if (linesEl) linesEl.textContent = summary.join('\n');
+        if (startBtn) { startBtn.disabled = false; startBtn.textContent = 'Relancer'; }
+        toast('Enrichissement : ' + ok + ' OK, ' + ko + ' erreurs', ko ? 'warning' : 'success');
+        if (ok > 0) loadProspects();
+        return;
+      }
+      var pid = ids[i];
+      var p = findProspectById(pid);
+      if (!p) { ko++; done++; summary.push('#' + pid + ' : introuvable'); setProgress(); step(i + 1); return; }
+      if (current) current.textContent = 'En cours : ' + (p.name || ('#' + pid)) + ' (' + (i + 1) + '/' + total + ')';
+      var prompt = buildBulkEnrichPrompt(p);
+      fetchPostJSON('/api/ollama/generate', { prompt: prompt, web_search: web, timeout: 180 })
+        .then(function (res) {
+          if (!res || !res.ok) throw new Error((res && res.error) || 'IA indisponible');
+          var text = res.text || '';
+          var json = extractJsonMaybe(text);
+          if (!json) throw new Error('Réponse non JSON');
+          return applyJsonToProspect(pid, json).then(function (applied) {
+            if (applied.length) { ok++; summary.push((p.name || ('#' + pid)) + ' : ' + applied.join(', ')); }
+            else { summary.push((p.name || ('#' + pid)) + ' : aucun champ nouveau'); }
+          });
+        })
+        .catch(function (err) {
+          ko++;
+          summary.push((p.name || ('#' + pid)) + ' : ' + (err && err.message || err));
+        })
+        .then(function () {
+          done++;
+          setProgress();
+          // Pause 300ms pour éviter rate limit (parité V29)
+          setTimeout(function () { step(i + 1); }, ENRICH_CTX.cancelled ? 0 : 300);
+        });
+    }
+    step(0);
+  }
+  function bindBulkEnrichAi() {
+    var startBtn = document.querySelector('[data-v30-enrich-start]');
+    if (startBtn) startBtn.addEventListener('click', runBulkEnrichAi);
+    var cancelBtn = document.querySelector('[data-v30-enrich-cancel]');
+    if (cancelBtn) cancelBtn.addEventListener('click', function () {
+      ENRICH_CTX.cancelled = true;
+    });
   }
 
   // ─── Recherche (debounced) ──────────────────────────────────
@@ -997,7 +1288,7 @@
   function applyViewFilter(name) {
     STATE.filter = name;
     STATE.q = '';
-    STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
+    STATE.filters = { statuts: [], statutsExclude: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
     STATE.activeSavedViewId = null;
     STATE.offset = 0;
     var inp = document.querySelector('[data-v30-search]');
@@ -1051,6 +1342,7 @@
         STATE.filter = st.filter || 'all';
         STATE.filters = {
           statuts: st.statuts || [],
+          statutsExclude: st.statutsExclude || [],
           pertMin: st.pertMin || 0,
           tags: st.tags || [],
           relanceFrom: st.relanceFrom || '',
@@ -1115,6 +1407,7 @@
               q: STATE.q || '',
               filter: STATE.filter || 'all',
               statuts: STATE.filters.statuts || [],
+              statutsExclude: STATE.filters.statutsExclude || [],
               pertMin: STATE.filters.pertMin || 0,
               tags: STATE.filters.tags || [],
               relanceFrom: STATE.filters.relanceFrom || '',
@@ -1242,6 +1535,7 @@
     var F = STATE.filters;
     var n = 0;
     if (F.statuts && F.statuts.length) n++;
+    if (F.statutsExclude && F.statutsExclude.length) n++;
     if (F.pertMin) n++;
     if (F.tags && F.tags.length) n++;
     if (F.relanceFrom || F.relanceTo) n++;
@@ -1263,6 +1557,9 @@
     m.querySelectorAll('[data-v30-flt-statut] input[type=checkbox]').forEach(function (cb) {
       cb.checked = F.statuts.indexOf(cb.value) >= 0;
     });
+    m.querySelectorAll('[data-v30-flt-statut-exclude] input[type=checkbox]').forEach(function (cb) {
+      cb.checked = (F.statutsExclude || []).indexOf(cb.value) >= 0;
+    });
     var pm = m.querySelector('[data-v30-flt-pert-min]'); if (pm) pm.value = String(F.pertMin || 0);
     var tg = m.querySelector('[data-v30-flt-tags]');   if (tg) tg.value = (F.tags || []).join(', ');
     populateCompanyFilter();
@@ -1280,11 +1577,14 @@
       var m = getModal('filters');
       var statuts = [];
       m.querySelectorAll('[data-v30-flt-statut] input[type=checkbox]:checked').forEach(function (cb) { statuts.push(cb.value); });
+      var statutsExclude = [];
+      m.querySelectorAll('[data-v30-flt-statut-exclude] input[type=checkbox]:checked').forEach(function (cb) { statutsExclude.push(cb.value); });
       var tagsRaw = (m.querySelector('[data-v30-flt-tags]') || {}).value || '';
       var tags = tagsRaw.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
       var compEl = m.querySelector('[data-v30-flt-company]');
       STATE.filters = {
         statuts: statuts,
+        statutsExclude: statutsExclude,
         pertMin: parseInt((m.querySelector('[data-v30-flt-pert-min]') || {}).value || '0', 10),
         tags: tags,
         relanceFrom: (m.querySelector('[data-v30-flt-relance-from]') || {}).value || '',
@@ -1300,7 +1600,7 @@
     });
     var reset = document.querySelector('[data-v30-flt-reset]');
     if (reset) reset.addEventListener('click', function () {
-      STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
+      STATE.filters = { statuts: [], statutsExclude: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
       STATE.offset = 0;
       updateFilterBadge();
       closeModal(getModal('filters'));
@@ -1310,7 +1610,7 @@
     var clearAll = document.querySelector('[data-v30-flt-clear-all]');
     if (clearAll) clearAll.addEventListener('click', function (e) {
       e.stopPropagation();
-      STATE.filters = { statuts: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
+      STATE.filters = { statuts: [], statutsExclude: [], pertMin: 0, tags: [], relanceFrom: '', relanceTo: '', callableOnly: false, companyId: null };
       STATE.q = '';
       var inp = document.querySelector('[data-v30-search]');
       if (inp) inp.value = '';
@@ -2032,6 +2332,7 @@
     if (saved.filters && typeof saved.filters === 'object') {
       STATE.filters = {
         statuts: Array.isArray(saved.filters.statuts) ? saved.filters.statuts : [],
+        statutsExclude: Array.isArray(saved.filters.statutsExclude) ? saved.filters.statutsExclude : [],
         pertMin: Number(saved.filters.pertMin) || 0,
         tags: Array.isArray(saved.filters.tags) ? saved.filters.tags : [],
         relanceFrom: saved.filters.relanceFrom || '',
@@ -2075,6 +2376,8 @@
     bindImport();
     bindExport();
     bindAi();
+    bindBulkEdit();
+    bindBulkEnrichAi();
     bindModeProsp();
     bindTelLog();
     bindTagsTip();
