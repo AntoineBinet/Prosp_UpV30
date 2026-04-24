@@ -13831,12 +13831,14 @@ def api_prospects_bulk_edit():
     ids = payload.get("ids")
     field = payload.get("field", "")
     value = payload.get("value")
-    ALLOWED_FIELDS = ["fonction", "statut", "pertinence", "fixedMetier", "notes", "company_id"]
+    ALLOWED_FIELDS = ["fonction", "statut", "pertinence", "fixedMetier", "notes", "company_id",
+                       "telephone", "email", "linkedin"]
+    ALLOW_EMPTY = {"notes", "telephone", "email", "linkedin"}
     if not ids or not isinstance(ids, list):
         return jsonify(ok=False, error="ids (array) required"), 400
     if field not in ALLOWED_FIELDS:
         return jsonify(ok=False, error=f"field must be one of {ALLOWED_FIELDS}"), 400
-    if value is None or (str(value).strip() == "" and field != "notes"):
+    if value is None or (str(value).strip() == "" and field not in ALLOW_EMPTY):
         return jsonify(ok=False, error="value required"), 400
 
     # v30.2: company_id doit référencer une entreprise existante appartenant à l'utilisateur.
