@@ -16149,9 +16149,21 @@ def api_dashboard():
                 (uid, today),
             ).fetchall()
             manual_kpi_today = {r["type"]: r["total"] for r in mkpi_today_rows}
+            mkpi_calls_rows = conn.execute(
+                "SELECT date, SUM(count) AS total FROM manual_kpi WHERE user_id=? AND date BETWEEN ? AND ? AND type='contact' GROUP BY date",
+                (uid, monday, today),
+            ).fetchall()
+            manual_calls_by_date = {r["date"]: int(r["total"]) for r in mkpi_calls_rows}
         except Exception:
             manual_kpi_week = {}
             manual_kpi_today = {}
+            manual_calls_by_date = {}
+
+    # Merge manual KPI "contact" adjustments into calls counts (for graph + totals)
+    for _d, _cnt in manual_calls_by_date.items():
+        calls_by_date[_d] = calls_by_date.get(_d, 0) + _cnt
+    calls_today = max(0, calls_by_date.get(today, 0))
+    calls_week = max(0, sum(calls_by_date.values()))
 
     prospects_list = [dict(r) for r in prospects]
     push_list = [dict(r) for r in push_logs]
