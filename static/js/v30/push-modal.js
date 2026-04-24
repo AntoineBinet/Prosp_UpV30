@@ -492,11 +492,31 @@
   // Cache : candId -> { description, dirty, savedAt }
   STATE.candDescCache = {};
 
+  // L'endpoint /api/candidates/<id>/generate-description renvoie du HTML
+  // (<b>Nom</b>, <br>, <p>…) conçu pour être collé tel quel dans Outlook.
+  // Dans un <textarea> on veut afficher du texte lisible — on strip les balises
+  // à l'affichage. La version complète (HTML) reste côté serveur + DB.
+  function stripHtml(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/<\s*br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li)\s*>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   function cachedDesc(id) {
-    if (!id) return null;
+    if (!id) return '';
     if (STATE.candDescCache[id] != null) return STATE.candDescCache[id];
     var c = findCandidate(id);
-    return (c && c.description_push) || '';
+    return stripHtml((c && c.description_push) || '');
   }
   function setCachedDesc(id, text) {
     STATE.candDescCache[id] = text;
@@ -592,7 +612,7 @@
         toast(err, 'error');
         return;
       }
-      var text = String(res.data.description).trim();
+      var text = stripHtml(String(res.data.description || '')).trim();
       if (ta) ta.value = text;
       setCachedDesc(id, text);
       setDescStatus(id, 'Description IA générée', 'is-saved');

@@ -2,6 +2,25 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.16] — 2026-04-24 · Push popup · modale large 920 px + polish v30 + strip HTML description
+
+Dernier pass de finition sur la popup push. La modale était trop étroite (680 px) pour contenir confortablement les 2 combobox + 2 cartes description côte à côte, forçant un scroll vertical à chaque ouverture. Et les descriptions IA arrivaient avec des balises HTML brutes (`<b>Nom</b>`, `<br>`) affichées littéralement dans les textarea → illisible.
+
+### Changements
+- **Modale élargie à 920 px** (au lieu de 680 px). `max-height: 92vh` + `body max-height: calc(92vh - 140px)` pour éviter le débordement sur petit écran. Responsive 94 vw en dessous de 960 px.
+- **Padding body** 14 × 18 → **16 × 22 px** pour plus de respiration.
+- **Strip HTML des descriptions IA** : nouvelle fonction `stripHtml()` qui convertit `<br>` / `</p>` en sauts de ligne, retire les autres balises et décode les entités HTML. Appliquée dans `cachedDesc()` (chargement initial) et à la réception de `/api/candidates/<id>/generate-description` (régénération). Le format HTML complet reste stocké en base pour compatibilité Outlook ; seule l'édition dans le textarea est propre.
+- **Selects, inputs et textarea harmonisés** : tous à `height: 44 px` (au lieu de 36) avec `border-radius: 16 px` — match avec les combobox.
+- **Cartes description** : padding 10 × 12 → **12 × 14 px**, border-radius 14 → **16 px**, `gap: 8px`.
+- **Eyebrow « CANDIDAT 1/2 »** : transformé en pill accent (fond teinté + border accent 25 %) au lieu du simple texte gris, cohérent avec les badges v30.
+- **Textarea description** : `min-height: 90 px`, `line-height: 1.55`, `padding: 10 × 12 px` → lecture confortable.
+- **Bouton Régénérer** : `font-weight: 600`, hauteur 28 px, padding 12 px.
+- **Avatar destinataire** : 40 → **44 px** avec font 15 px pour matcher la nouvelle hauteur des champs.
+- **Grille candidats** : gap 10 → **14 px**.
+
+### Aucun changement backend
+Purement CSS + strip HTML côté front.
+
 ## [30.15] — 2026-04-24 · Push popup · IA déclenchée d'office + hints visibles immédiatement
 
 Toutes les fonctionnalités introduites en 30.10-30.14 étaient codées mais **invisibles au premier coup d'œil** parce que l'IA n'était déclenchée que si une catégorie était pré-sélectionnée, ce qui n'est jamais le cas sur un prospect neuf. Résultat : modale vide en apparence, pas de pill %, pas de carte description — l'impression que rien n'a changé. Cette version rend le travail visible dès l'ouverture.

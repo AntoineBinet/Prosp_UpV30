@@ -3,7 +3,14 @@
  */
 
 /* ─── Dialog dimensions ──────────────────────────────────── */
-#v30PushModal .v30-modal--xl { max-width: 680px; }
+#v30PushModal .v30-modal--xl {
+  max-width: 920px;
+  max-height: 92vh;
+}
+#v30PushModal .v30-modal__body {
+  max-height: calc(92vh - 140px);
+  padding: 16px 22px 6px;
+}
 
 /* ─── Head ───────────────────────────────────────────────── */
 #v30PushModal .v30-modal__head {
@@ -612,4 +619,61 @@
   font-size: 10px;
   padding: 2px 6px;
   min-width: 36px;
+}
+
+/* ─── Polish v30 30.16 : modale large + typo affinée ────── */
+/* Grille candidats : 2 colonnes avec gap plus aéré */
+#v30PushModal .v30pm-grid { gap: 14px; }
+
+/* Description cards : plus respirantes */
+.v30pm-candcard {
+  padding: 12px 14px;
+  border-radius: 16px;
+  gap: 8px;
+}
+.v30pm-candcard__title {
+  font-size: 12.5px;
+  gap: 10px;
+}
+.v30pm-candcard__title-idx {
+  font-size: 9.5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklch, var(--accent) 25%, transparent);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.v30pm-candcard__textarea {
+  min-height: 90px;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 10px 12px;
+}
+.v30pm-candcard__regen {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* Destinataire card : padding cohérent avec le reste */
+.v30pm-recipient {
+  padding: 14px 16px;
+  border-radius: 16px;
+}
+.v30pm-recipient__avatar {
+  width: 44px; height: 44px;
+  font-size: 15px;
+}
+
+/* Catégorie select : même hauteur que les combobox */
+#v30PushModal .v30-input { height: 44px; border-radius: 16px; padding: 0 14px; }
+#v30PushModal select.v30-input { padding-right: 36px; }
+#v30PushModal textarea.v30-input { height: auto; padding: 12px 14px; border-radius: 14px; }
+
+/* Responsive : sur petit écran on remonte à 94vw comme avant */
+@media (max-width: 960px) {
+  #v30PushModal .v30-modal--xl { max-width: 94vw; }
 }
