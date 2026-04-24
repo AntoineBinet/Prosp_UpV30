@@ -200,19 +200,22 @@
   }
 
   function getProspectInfo(prospectId) {
-    // On utilise /api/data en dernier ressort car certaines pages v30 ont déjà
-    // un prospect chargé ; mais pour la page v30 prospect_detail on n'a pas
-    // besoin d'une autre requête, et pour les pages liste on peut utiliser la
-    // même endpoint que le reste de l'app.
-    // On interroge /api/prospect/<id>/timeline (renvoie prospect + events) car
-    // il est déjà consommé par la v30 prospect_detail.
-    return fetchJSON('/api/prospect/' + prospectId + '/timeline').then(function (res) {
+    // L'endpoint est /api/prospect/timeline?id=X (query param, pas URL path).
+    // Il renvoie {ok, prospect: {...+company_groupe, company_site joined}, events}.
+    return fetchJSON('/api/prospect/timeline?id=' + encodeURIComponent(prospectId)).then(function (res) {
       var p = (res && res.prospect) || null;
       if (!p) throw new Error('Prospect introuvable');
-      return {
-        prospect: p,
-        company: (res && res.company) || null
-      };
+      // Synthèse d'un objet company à partir des champs aplatis pour compat
+      // avec le reste du module (buildAIPrompt, renderProspectInfo, send()).
+      var company = null;
+      if (p.company_id || p.company_groupe || p.company_site) {
+        company = {
+          id: p.company_id || null,
+          groupe: p.company_groupe || '',
+          site: p.company_site || ''
+        };
+      }
+      return { prospect: p, company: company };
     });
   }
 
