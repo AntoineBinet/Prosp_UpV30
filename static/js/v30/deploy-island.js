@@ -88,7 +88,8 @@
       _updateRing(el, rem, TOTAL);
     }, 1000);
 
-    document.getElementById('vb-ok').addEventListener('click', function () {
+    var okBtn = document.getElementById('vb-ok');
+    if (okBtn) okBtn.addEventListener('click', function () {
       fetch('/api/deploy/confirm-validation', { method: 'POST' })
         .then(function () {
           _remove();
