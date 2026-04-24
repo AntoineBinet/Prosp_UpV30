@@ -1,0 +1,81 @@
+{# ============================================================
+   ProspUp v30 — Update popup (admin)
+   Popup modal pour la mise à jour du serveur, accessible depuis
+   le badge de version de la sidebar (admin uniquement).
+   ============================================================ #}
+{% import "_partials/v30/icon.html" as ui %}
+
+{% if current_user and current_user.role == 'admin' %}
+<div class="v30-upd-backdrop" data-v30-upd-backdrop hidden></div>
+
+<div class="v30-upd" data-v30-upd role="dialog" aria-modal="true" aria-label="Mise à jour du serveur" hidden>
+  <div class="v30-upd__head">
+    {{ ui.icon('arrowU', 16) }}
+    <span class="v30-upd__title">Mise à jour du serveur</span>
+    <span class="v30-params__admin-badge">Admin</span>
+    <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-upd-close aria-label="Fermer">
+      {{ ui.icon('x') }}
+    </button>
+  </div>
+
+  <div class="v30-upd__body">
+    <p class="v30-upd__desc">
+      Pull Git (<code class="mono">origin/main</code>) + snapshot DB automatique + redémarrage en ~10 s.
+      En cas de problème, utilise le bouton Rollback.
+    </p>
+
+    <div class="v30-upd__about">
+      <div class="v30-upd__about-row">
+        <span class="v30-upd__about-key">Version</span>
+        <span class="mono" data-v30-upd-version>{{ app_version or '—' }}</span>
+      </div>
+      <div class="v30-upd__about-row">
+        <span class="v30-upd__about-key">Commit</span>
+        <span class="mono" data-v30-upd-commit>—</span>
+      </div>
+      <div class="v30-upd__about-row">
+        <span class="v30-upd__about-key">Branche</span>
+        <span class="mono" data-v30-upd-branch>—</span>
+      </div>
+      <div class="v30-upd__about-row">
+        <span class="v30-upd__about-key">Date</span>
+        <span class="mono" data-v30-upd-date>—</span>
+      </div>
+    </div>
+
+    <div class="v30-upd__path muted">
+      <div>Dossier cible : <code class="mono" data-v30-upd-appdir>—</code></div>
+      <div>
+        Remote origin : <code class="mono" data-v30-upd-remote>chargement…</code>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-upd-remote-change style="margin-left:6px;">
+          Changer…
+        </button>
+      </div>
+    </div>
+
+    <div class="v30-upd__actions">
+      <button type="button" class="btn btn-primary btn-sm" data-v30-upd-pull>
+        {{ ui.icon('arrowU', 13) }} Mettre à jour et redémarrer
+      </button>
+      <button type="button" class="btn btn-sm" data-v30-upd-rollback>
+        {{ ui.icon('arrowD', 13) }} Rollback
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-upd-restart title="Redémarrer sans pull">
+        {{ ui.icon('clock', 13) }} Redémarrer
+      </button>
+      <div class="v30-spacer"></div>
+      <span class="muted v30-upd__status" data-v30-upd-status></span>
+    </div>
+
+    <div class="v30-upd__results" data-v30-upd-results hidden>
+      <pre class="v30-upd__log" data-v30-upd-log></pre>
+      <div data-v30-upd-summary></div>
+    </div>
+
+    <p class="muted v30-upd__hint">
+      Ouvrir la page complète :
+      <a href="/v30/parametres">Paramètres &gt; Mise à jour du serveur</a>
+    </p>
+  </div>
+</div>
+{% endif %}

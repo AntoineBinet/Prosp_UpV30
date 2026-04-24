@@ -134,6 +134,16 @@
     <a class="btn btn-ghost btn-sm" href="/dashboard?v30=0" data-v30-opt-out
        title="Revenir à l'ancienne interface v29">v29</a>
     <div class="v30-spacer"></div>
+    {% if current_user and current_user.role == 'admin' %}
+    <button type="button"
+            class="v30-sidebar__version v30-sidebar__version--btn mono"
+            data-v30-upd-open
+            title="Ouvrir le panneau de mise à jour"
+            aria-label="Ouvrir le panneau de mise à jour">
+      v{{ app_version or '30.0' }}
+    </button>
+    {% else %}
     <span class="v30-sidebar__version mono">v{{ app_version or '30.0' }}</span>
+    {% endif %}
   </div>
 </aside>

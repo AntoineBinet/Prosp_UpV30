@@ -37,6 +37,7 @@
   <link rel="stylesheet" href="/static/css/v30/shortcuts.css?v={{ static_hash('css/v30/shortcuts.css') }}">
   <link rel="stylesheet" href="/static/css/v30/company-picker.css?v={{ static_hash('css/v30/company-picker.css') }}">
   <link rel="stylesheet" href="/static/css/v30/push-modal.css?v={{ static_hash('css/v30/push-modal.css') }}">
+  <link rel="stylesheet" href="/static/css/v30/update-popup.css?v={{ static_hash('css/v30/update-popup.css') }}">
 
   {% block extra_head %}{% endblock %}
 </head>
@@ -60,6 +61,9 @@
   {# ─── Help modal (?) + raccourcis globaux ─── #}
   {% include "_partials/v30/help_modal.html" %}
 
+  {# ─── Update popup (admin) — déclenché par le badge version de la sidebar ─── #}
+  {% include "_partials/v30/update_popup.html" %}
+
   {% block modals %}{% endblock %}
 
   <script defer src="/static/js/v30/toast.js?v={{ static_hash('js/v30/toast.js') }}"></script>
@@ -70,6 +74,7 @@
   <script defer src="/static/js/v30/push-modal.js?v={{ static_hash('js/v30/push-modal.js') }}"></script>
   <script defer src="/static/js/v30/opt-in.js?v={{ static_hash('js/v30/opt-in.js') }}"></script>
   <script defer src="/static/js/v30/deploy-island.js?v={{ static_hash('js/v30/deploy-island.js') }}"></script>
+  <script defer src="/static/js/v30/update-popup.js?v={{ static_hash('js/v30/update-popup.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
