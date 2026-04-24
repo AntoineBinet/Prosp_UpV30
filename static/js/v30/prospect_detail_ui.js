@@ -135,6 +135,44 @@
     });
   }
 
+  // ─── Tag add (bouton "+ Tag") ────────────────────────────────
+  function bindTagAdd() {
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-v30-add-tag]');
+      if (!btn) return;
+      var host = document.querySelector('[data-field="aside-tags"]');
+      if (!host) return;
+      if (host.querySelector('input')) return; // already open
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Nouveau tag…';
+      input.style.cssText = 'font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-1);outline:none;width:120px;';
+      host.appendChild(input);
+      input.focus();
+      function commit() {
+        var val = input.value.trim();
+        input.remove();
+        if (!val) return;
+        var p = FP.STATE.prospect || {};
+        var existing = FP.parseTags(p.tags);
+        if (existing.indexOf(val) !== -1) return;
+        var updated = existing.concat([val]);
+        FP.saveField('tags', JSON.stringify(updated)).then(function () {
+          if (FP.STATE.prospect) FP.STATE.prospect.tags = JSON.stringify(updated);
+          R.aside(FP.STATE.prospect);
+          flashSaved();
+        }).catch(function (err) {
+          if (typeof window.showToast === 'function') window.showToast('Erreur : ' + (err.message || err), 'error');
+        });
+      }
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        if (e.key === 'Escape') { input.remove(); }
+      });
+      input.addEventListener('blur', commit);
+    });
+  }
+
   // ─── Company picker (édition en place) ──────────────────────
   function bindCompanyEdit() {
     document.addEventListener('click', function (e) {
@@ -998,6 +1036,7 @@
   // ─── Init ───────────────────────────────────────────────────
   function init() {
     bindInlineEdit();
+    bindTagAdd();
     bindCompanyEdit();
     bindStatusEdit();
     bindTabs();

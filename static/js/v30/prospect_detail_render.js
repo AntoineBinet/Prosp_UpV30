@@ -164,28 +164,6 @@
     var notesEl = FP.$('[data-field="notes"]');
     if (notesEl) notesEl.textContent = p.notes || '';
 
-    var coHost = FP.$('[data-field="aside-company"]');
-    if (coHost) {
-      coHost.hidden = false;
-      var link = coHost.querySelector('[data-field="company-link"]');
-      var empty = coHost.querySelector('[data-field="company-empty"]');
-      if (p.company_groupe && p.company_id) {
-        if (link) {
-          link.hidden = false;
-          var ini = link.querySelector('[data-field="company-initials"]');
-          if (ini) ini.textContent = FP.initials(p.company_groupe);
-          var nm  = link.querySelector('[data-field="company-name"]');
-          if (nm) nm.textContent = p.company_groupe;
-          var sub = link.querySelector('[data-field="company-sub"]');
-          if (sub) sub.textContent = p.company_site || '—';
-          link.href = '/v30/entreprises#' + p.company_id;
-        }
-        if (empty) empty.hidden = true;
-      } else {
-        if (link) link.hidden = true;
-        if (empty) empty.hidden = false;
-      }
-    }
   }
 
   // ─── Timeline events ──────────────────────────────────────

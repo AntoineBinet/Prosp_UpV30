@@ -206,29 +206,13 @@
       </div>
 
       <div class="card" style="padding:14px;">
-        <div class="label">Tags</div>
+        <div class="row-sb" style="margin-bottom:6px;">
+          <div class="label">Tags</div>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-add-tag
+                  aria-label="Ajouter un tag">+ Tag</button>
+        </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;" data-field="aside-tags">
           <span class="skel" style="width:60px;height:20px;display:inline-block;border-radius:6px;"></span>
-        </div>
-      </div>
-
-      <div class="card" style="padding:14px;" data-field="aside-company">
-        <div class="row-sb" style="margin-bottom:6px;">
-          <div class="label">Entreprise</div>
-          <button type="button" class="btn btn-ghost btn-sm" data-v30-edit-company
-                  aria-label="Changer l'entreprise">Changer</button>
-        </div>
-        <a href="#" data-field="company-link"
-           style="display:flex;align-items:center;gap:10px;padding:4px 0;text-decoration:none;color:inherit;">
-          <span style="width:36px;height:36px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;"
-                data-field="company-initials">—</span>
-          <div>
-            <div style="font-size:13px;font-weight:500;" data-field="company-name">—</div>
-            <div style="font-size:11px;color:var(--text-3);" data-field="company-sub">—</div>
-          </div>
-        </a>
-        <div data-field="company-empty" hidden style="font-size:12px;color:var(--text-3);padding:6px 0;">
-          Aucune entreprise associée.
         </div>
       </div>
     </aside>
