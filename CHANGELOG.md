@@ -2,6 +2,20 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.15] — 2026-04-24 · Push popup · IA déclenchée d'office + hints visibles immédiatement
+
+Toutes les fonctionnalités introduites en 30.10-30.14 étaient codées mais **invisibles au premier coup d'œil** parce que l'IA n'était déclenchée que si une catégorie était pré-sélectionnée, ce qui n'est jamais le cas sur un prospect neuf. Résultat : modale vide en apparence, pas de pill %, pas de carte description — l'impression que rien n'a changé. Cette version rend le travail visible dès l'ouverture.
+
+### Changements
+- **`open()`** : `loadAISuggestions()` appelée **inconditionnellement** (même sans catégorie sélectionnée). L'endpoint `/api/prospect/<id>/best-candidates` sait scorer sur les tags/notes/fonction du prospect sans catégorie, on utilise donc cette info directement.
+- **Hint « Top IA »** dans le label des boutons combobox : tant qu'aucun candidat n'est sélectionné, le bouton affiche `[🤖 TOP IA] <Nom du meilleur> <87%>` pour montrer immédiatement le travail de l'IA. Slot 1 affiche le premier meilleur, slot 2 le deuxième.
+- **Carte description empty-state** : avant toute sélection, une carte en pointillé accent s'affiche sous les combobox avec le texte « 🤖 **Présentation IA par candidat** — Sélectionne un candidat ci-dessus pour afficher sa présentation courte. Si un dossier de compétences est disponible, un bouton *Générer IA* analyse le PDF et produit automatiquement 3-4 lignes prêtes à coller dans le mail. ». Cela explique le comportement à venir sans qu'il faille cliquer.
+- **Textarea même sans DC** : pour les candidats sans dossier de compétences, on affiche quand même le textarea (éditable manuellement) avec l'empty-message en amont (auparavant on n'affichait que le message).
+- **Styles** : `.v30pm-candcard--hint` (carte en pointillé accent), `.v30pm-combo__hint` (pill « TOP IA » dans le label), `.v30pm-combo__pct--label` (variante compacte du pill %).
+
+### Aucun changement backend
+Tout était déjà branché. La fix est purement orchestration frontend : déclencher l'IA plus tôt et remplir l'UI à vide.
+
 ## [30.14] — 2026-04-24 · Push popup · arrondi dropdown + score % + description IA par candidat
 
 Trois améliorations suite au retour utilisateur sur la popup push :
