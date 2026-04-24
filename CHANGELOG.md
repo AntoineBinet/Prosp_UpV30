@@ -2,6 +2,33 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [30.11] — 2026-04-24 · Push popup · refonte DA v30 + IA streaming live
+
+Refonte complète de la popup « Pousser » apparue en 30.10 : design v30 soigné (sections, avatar, skeletons animés, badge de canal, actions IA typées) et **IA en streaming** — les tokens s'affichent en direct dans le textarea au fur et à mesure qu'ils arrivent, avec une barre de progression temps réel (temps écoulé en secondes, nombre de caractères). Plus jamais la sensation « ça charge dans le vide ».
+
+### Changements visuels
+- **Sections numérotées** avec labels typographiques (Destinataire / Contexte / Message) + icônes.
+- **Carte destinataire** : avatar coloré (initiales) + nom + fonction · entreprise · site · email mono + badge canal (Email/LinkedIn) à droite.
+- **Selects harmonisés** : flèche chevron SVG custom, hauteur cohérente 36 px, padding aligné.
+- **Skeletons animés** (shimmer) pendant les chargements : plus de « Chargement… » texte brut.
+- **Boutons IA typés accent** (pill `.v30pm-ai-btn`) au lieu de boutons ghost transparents.
+- **Barre de progression IA** (`.v30pm-ai-progress`) avec pulse point accent + message + stats mono (s / caractères) visibles uniquement pendant la génération.
+- **Textarea message** avec `min-height: 140px` et auto-scroll pendant le streaming.
+- **Bouton Envoyer** élargi (130 px min, 36 px height, bold).
+
+### Changements techniques
+- **`static/css/v30/push-modal.css`** (nouveau, 241 lignes) — stylesheet dédié chargé globalement via `base.html` (après `company-picker.css`).
+- **`static/js/v30/push-modal.js`** (mise à jour, 781 lignes) :
+  - `ensureModal()` réécrit : structure sections + skeleton destinataire + progress IA
+  - `initials()`, `renderProspectSkeleton()`, `renderSelectLoading()`, `restoreSelect()` — nouveaux helpers
+  - `renderProspectInfo()` — avatar (initiales) + métadonnées enrichies + badge canal
+  - `loadPushCategories/loadBestCandidates/loadUsers` — utilisent `renderSelectLoading` au lieu de `<option>Chargement…</option>` plat
+  - `generateAI()` **entièrement réécrit** : appel direct SSE `/api/ollama/generate-stream` avec `ReadableStream.getReader()` et `TextDecoder`. Parse les événements `start/token/end/error` et concatène les tokens dans le textarea. Auto-scroll vers le bas à chaque token. Tick de 300 ms pour rafraîchir les stats même si les tokens s'espacent. Abort via `AbortController` après 120 s (solo) ou 180 s (3 variantes). Fallback vers `window.callOllama(stream:false)` si `ReadableStream` indisponible.
+  - `open()` — appelle les skeletons immédiatement, plus d'état texte « Chargement du prospect… ».
+
+### Aucun changement backend
+Le streaming utilise l'endpoint `/api/ollama/generate-stream` existant depuis v28 (réponse SSE avec events `{type, text, message, done}`).
+
 ## [30.10] — 2026-04-24 · Push depuis fiche prospect · popup v30 avec logique v29
 
 Le bouton « Pousser » de la fiche prospect v30 redirigeait bêtement vers `/v30/push?ids=<id>` — ce qui ne faisait rien d'utile puisque la page Push n'a pas d'UX de ciblage par prospect. Cette version introduit une popup v30 dédiée qui reprend exactement la mécanique v29 de `app.js:openPushSelectModal/confirmPushSend` : sélection de catégorie push, 2 candidats (filtrés par catégorie via `/api/prospect/<id>/best-candidates`), 2 consultants (`/api/users/for-push`), message personnalisé (avec bouton « IA » + bouton « 3 variantes » — Ollama), puis envoi qui copie l'email, ouvre le template `.msg` Outlook si une catégorie est choisie, télécharge les dossiers de compétences des candidats sélectionnés, et log dans `/api/push-logs/add`. Sur le canal LinkedIn : copie du message (custom IA ou template LinkedIn) et ouverture du profil dans un nouvel onglet.

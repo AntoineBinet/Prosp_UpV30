@@ -77,50 +77,70 @@
     bd.innerHTML =
       '<div class="v30-modal v30-modal--xl" role="dialog" aria-modal="true" aria-labelledby="v30PushModalTitle">' +
         '<div class="v30-modal__head">' +
-          '<h2 class="v30-modal__title" id="v30PushModalTitle">' +
-            ic('send', 14) + ' <span data-v30pm-title>Envoyer un push</span>' +
-          '</h2>' +
+          '<div class="v30pm-head">' +
+            '<span class="v30pm-head__eyebrow">Nouveau push</span>' +
+            '<h2 class="v30pm-head__title" id="v30PushModalTitle">' +
+              ic('send', 15) + '<span data-v30pm-title>Push Email</span>' +
+            '</h2>' +
+          '</div>' +
           '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30pm-close aria-label="Fermer">' + ic('x', 13) + '</button>' +
         '</div>' +
         '<div class="v30-modal__body" data-v30pm-body>' +
-          '<div class="v30-pm-prospect" data-v30pm-prospect></div>' +
-          '<label class="v30-field">' +
-            '<span class="v30-field__label">Catégorie push (optionnel)</span>' +
-            '<select class="v30-input" data-v30pm-cat><option value="">Chargement…</option></select>' +
-          '</label>' +
-          '<div class="v30-field-grid">' +
+
+          // ─ Destinataire
+          '<section class="v30pm-section">' +
+            '<div class="v30pm-section__label">' + ic('userSingle', 11) + ' Destinataire</div>' +
+            '<div data-v30pm-prospect></div>' +
+          '</section>' +
+
+          // ─ Contexte (catégorie + candidats + consultants)
+          '<section class="v30pm-section">' +
+            '<div class="v30pm-section__label">' + ic('clipboard', 11) + ' Contexte</div>' +
             '<label class="v30-field">' +
-              '<span class="v30-field__label">Candidat 1 (optionnel)</span>' +
-              '<select class="v30-input" data-v30pm-cand1><option value="">Chargement…</option></select>' +
+              '<span class="v30-field__label">Catégorie push</span>' +
+              '<select class="v30-input" data-v30pm-cat aria-label="Catégorie push"></select>' +
             '</label>' +
-            '<label class="v30-field">' +
-              '<span class="v30-field__label">Candidat 2 (optionnel)</span>' +
-              '<select class="v30-input" data-v30pm-cand2><option value="">Chargement…</option></select>' +
-            '</label>' +
-          '</div>' +
-          '<div class="v30-field-grid">' +
-            '<label class="v30-field">' +
-              '<span class="v30-field__label">Consultant 1 (optionnel)</span>' +
-              '<select class="v30-input" data-v30pm-cons1><option value="">Chargement…</option></select>' +
-            '</label>' +
-            '<label class="v30-field">' +
-              '<span class="v30-field__label">Consultant 2 (optionnel)</span>' +
-              '<select class="v30-input" data-v30pm-cons2><option value="">Chargement…</option></select>' +
-            '</label>' +
-          '</div>' +
-          '<label class="v30-field">' +
-            '<span class="v30-field__label">Message personnalisé (optionnel — IA)</span>' +
-            '<textarea class="v30-input" data-v30pm-message rows="6" placeholder="Le message sera généré automatiquement par l\'IA ou vous pouvez le saisir manuellement…" style="resize:vertical;font-family:inherit;"></textarea>' +
-            '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">' +
-              '<button type="button" class="btn btn-ghost btn-sm" data-v30pm-ai="1">' + ic('robot', 12) + ' Générer avec l\'IA</button>' +
-              '<button type="button" class="btn btn-ghost btn-sm" data-v30pm-ai="3">' + ic('refreshCw', 12) + ' 3 variantes</button>' +
+            '<div class="v30pm-grid">' +
+              '<label class="v30-field">' +
+                '<span class="v30-field__label">Candidat 1</span>' +
+                '<select class="v30-input" data-v30pm-cand1 aria-label="Candidat 1"></select>' +
+              '</label>' +
+              '<label class="v30-field">' +
+                '<span class="v30-field__label">Candidat 2</span>' +
+                '<select class="v30-input" data-v30pm-cand2 aria-label="Candidat 2"></select>' +
+              '</label>' +
             '</div>' +
-          '</label>' +
+            '<div class="v30pm-grid">' +
+              '<label class="v30-field">' +
+                '<span class="v30-field__label">Consultant 1</span>' +
+                '<select class="v30-input" data-v30pm-cons1 aria-label="Consultant 1"></select>' +
+              '</label>' +
+              '<label class="v30-field">' +
+                '<span class="v30-field__label">Consultant 2</span>' +
+                '<select class="v30-input" data-v30pm-cons2 aria-label="Consultant 2"></select>' +
+              '</label>' +
+            '</div>' +
+          '</section>' +
+
+          // ─ Message
+          '<section class="v30pm-section">' +
+            '<div class="v30pm-section__label">' + ic('note', 11) + ' Message <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-3);">· optionnel</span></div>' +
+            '<div class="v30pm-msg-actions">' +
+              '<button type="button" class="v30pm-ai-btn" data-v30pm-ai="1" aria-label="Générer avec l\'IA">' + ic('robot', 12) + ' Générer avec l\'IA</button>' +
+              '<button type="button" class="v30pm-ai-btn" data-v30pm-ai="3" aria-label="Générer 3 variantes">' + ic('refreshCw', 12) + ' 3 variantes</button>' +
+            '</div>' +
+            '<div class="v30pm-ai-progress" data-v30pm-progress>' +
+              '<span class="v30pm-ai-progress__pulse"></span>' +
+              '<span class="v30pm-ai-progress__msg" data-v30pm-progress-msg>Préparation de l\'IA…</span>' +
+              '<span class="v30pm-ai-progress__stats" data-v30pm-progress-stats></span>' +
+            '</div>' +
+            '<textarea class="v30-input" data-v30pm-message placeholder="Cliquez « Générer avec l\'IA » ou rédigez votre message ici…"></textarea>' +
+          '</section>' +
         '</div>' +
         '<div class="v30-modal__foot">' +
           '<div class="v30-spacer"></div>' +
           '<button type="button" class="btn btn-ghost btn-sm" data-v30pm-close>Annuler</button>' +
-          '<button type="button" class="btn btn-accent btn-sm" data-v30pm-send>' + ic('send', 13) + ' Envoyer</button>' +
+          '<button type="button" class="btn btn-accent" data-v30pm-send>' + ic('send', 13) + ' Envoyer</button>' +
         '</div>' +
       '</div>';
     document.body.appendChild(bd);
@@ -199,6 +219,25 @@
   // ─── Populate selects ─────────────────────────────────────
   function $sel(attr) { return document.querySelector('#' + MODAL_ID + ' [' + attr + ']'); }
 
+  function initials(name) {
+    var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '·';
+    return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  }
+
+  function renderProspectSkeleton() {
+    var el = $sel('data-v30pm-prospect');
+    if (!el) return;
+    el.innerHTML =
+      '<div class="v30pm-recipient v30pm-recipient--skeleton">' +
+        '<span class="v30pm-recipient__avatar">·</span>' +
+        '<div class="v30pm-recipient__body">' +
+          '<span class="v30pm-skel v30pm-skel--text" style="width:55%;display:block;"></span>' +
+          '<span class="v30pm-skel v30pm-skel--sm" style="width:75%;display:block;margin-top:6px;"></span>' +
+        '</div>' +
+      '</div>';
+  }
+
   function renderProspectInfo() {
     var el = $sel('data-v30pm-prospect');
     if (!el) return;
@@ -206,31 +245,51 @@
     var co = STATE.company || {};
     var chanLabel = STATE.channel === 'linkedin' ? 'LinkedIn' : 'Email';
     var dest = STATE.channel === 'linkedin' ? (p.linkedin || '—') : (p.email || '—');
+    var metaParts = [];
+    if (p.fonction) metaParts.push(esc(p.fonction));
+    if (co.groupe) metaParts.push(esc(co.groupe));
+    if (co.site) metaParts.push(esc(co.site));
+    var meta = metaParts.length
+      ? metaParts.join(' · ') + ' · <span class="mono">' + esc(dest) + '</span>'
+      : '<span class="mono">' + esc(dest) + '</span>';
     el.innerHTML =
-      '<div class="v30-pm-prospect__row">' +
-        '<span class="v30-pm-prospect__label">Prospect</span>' +
-        '<span><b>' + esc(p.name || '—') + '</b>' +
-          (p.fonction ? ' <span class="muted">· ' + esc(p.fonction) + '</span>' : '') +
-          (co.groupe ? ' <span class="muted">· ' + esc(co.groupe) + '</span>' : '') +
-        '</span>' +
-      '</div>' +
-      '<div class="v30-pm-prospect__row">' +
-        '<span class="v30-pm-prospect__label">' + chanLabel + '</span>' +
-        '<span class="mono">' + esc(dest) + '</span>' +
+      '<div class="v30pm-recipient">' +
+        '<span class="v30pm-recipient__avatar" aria-hidden="true">' + esc(initials(p.name)) + '</span>' +
+        '<div class="v30pm-recipient__body">' +
+          '<div class="v30pm-recipient__name">' + esc(p.name || '—') + '</div>' +
+          '<div class="v30pm-recipient__meta">' + meta + '</div>' +
+        '</div>' +
+        '<span class="v30pm-recipient__chan">' + esc(chanLabel) + '</span>' +
       '</div>';
+  }
+
+  function renderSelectLoading(sel, placeholder) {
+    if (!sel) return;
+    // Remplace le <select> visuellement par un skeleton le temps du chargement
+    sel.innerHTML = '<option value="">' + (placeholder || '…') + '</option>';
+    sel.disabled = true;
+    sel.style.opacity = '0.6';
+  }
+  function restoreSelect(sel) {
+    if (!sel) return;
+    sel.disabled = false;
+    sel.style.opacity = '';
   }
 
   function loadPushCategories() {
     var sel = $sel('data-v30pm-cat');
     if (!sel) return Promise.resolve();
+    renderSelectLoading(sel, 'Chargement des catégories…');
     return fetchJSON('/api/push-categories').then(function (cats) {
       var list = Array.isArray(cats) ? cats : [];
       sel.innerHTML = '<option value="">— Aucune catégorie —</option>' +
         list.map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + '</option>'; }).join('');
       var p = STATE.prospect || {};
       if (p.push_category_id) sel.value = String(p.push_category_id);
+      restoreSelect(sel);
     }).catch(function () {
       sel.innerHTML = '<option value="">Erreur de chargement</option>';
+      restoreSelect(sel);
     });
   }
 
@@ -238,8 +297,8 @@
     var sel1 = $sel('data-v30pm-cand1');
     var sel2 = $sel('data-v30pm-cand2');
     if (!sel1 || !sel2) return Promise.resolve();
-    sel1.innerHTML = '<option value="">Chargement…</option>';
-    sel2.innerHTML = '<option value="">Chargement…</option>';
+    renderSelectLoading(sel1, 'Recherche…');
+    renderSelectLoading(sel2, 'Recherche…');
     var qs = catId ? ('?push_category_id=' + encodeURIComponent(catId)) : '';
     return fetchJSON('/api/prospect/' + STATE.prospectId + '/best-candidates' + qs).then(function (j) {
       var arr = (j && j.candidates) || [];
@@ -251,16 +310,19 @@
         }).join('');
       sel1.innerHTML = options;
       sel2.innerHTML = options;
-      // Pré-sélection si la catégorie a des candidats par défaut
       if (j && j.category_default_candidates && arr.length) {
         var def1 = j.category_default_candidates[0];
         var def2 = j.category_default_candidates[1];
         if (def1) sel1.value = String(def1);
         if (def2) sel2.value = String(def2);
       }
+      restoreSelect(sel1);
+      restoreSelect(sel2);
     }).catch(function () {
       sel1.innerHTML = '<option value="">— Aucun candidat —</option>';
       sel2.innerHTML = '<option value="">— Aucun candidat —</option>';
+      restoreSelect(sel1);
+      restoreSelect(sel2);
     });
   }
 
@@ -274,6 +336,8 @@
     var sel1 = $sel('data-v30pm-cons1');
     var sel2 = $sel('data-v30pm-cons2');
     if (!sel1 || !sel2) return Promise.resolve();
+    renderSelectLoading(sel1, 'Chargement…');
+    renderSelectLoading(sel2, 'Chargement…');
     return fetchJSON('/api/users/for-push').then(function (resp) {
       var users = Array.isArray(resp) ? resp : (resp && resp.users) || [];
       var currentUserId = resp && resp.current_user_id;
@@ -287,9 +351,13 @@
       sel1.innerHTML = options;
       sel2.innerHTML = options;
       if (currentUserId) sel1.value = String(currentUserId);
+      restoreSelect(sel1);
+      restoreSelect(sel2);
     }).catch(function () {
       sel1.innerHTML = '<option value="">— Aucun consultant —</option>';
       sel2.innerHTML = '<option value="">— Aucun consultant —</option>';
+      restoreSelect(sel1);
+      restoreSelect(sel2);
     });
   }
 
@@ -350,39 +418,155 @@
       'Réponds UNIQUEMENT par le message ' + (variants > 1 ? '(variantes numérotées)' : '') + ', sans texte avant ou après, sans markdown.';
   }
 
+  // ─── AI Progress UI ───────────────────────────────────────
+  function showAIProgress(msg) {
+    var bar = $sel('data-v30pm-progress');
+    var m = $sel('data-v30pm-progress-msg');
+    if (bar) bar.classList.add('is-active');
+    if (m) m.textContent = msg || 'Préparation de l\'IA…';
+    updateAIStats(0, null);
+  }
+  function updateAIProgressMsg(msg) {
+    var m = $sel('data-v30pm-progress-msg');
+    if (m) m.textContent = msg;
+  }
+  function updateAIStats(charCount, elapsedSec) {
+    var s = $sel('data-v30pm-progress-stats');
+    if (!s) return;
+    var parts = [];
+    if (elapsedSec != null) parts.push(elapsedSec.toFixed(1) + ' s');
+    if (charCount) parts.push(charCount + ' car.');
+    s.textContent = parts.join(' · ');
+  }
+  function hideAIProgress() {
+    var bar = $sel('data-v30pm-progress');
+    if (bar) bar.classList.remove('is-active');
+  }
+  function setAIButtonsDisabled(disabled) {
+    var bd = document.getElementById(MODAL_ID);
+    if (!bd) return;
+    bd.querySelectorAll('[data-v30pm-ai]').forEach(function (b) { b.disabled = !!disabled; });
+  }
+
+  // ─── AI generation (streaming SSE direct) ─────────────────
   function generateAI(variants) {
-    if (typeof window.callOllama !== 'function') {
-      toast("IA indisponible (app.js non chargée sur cette page).", 'warning');
-      return;
-    }
     var messageEl = $sel('data-v30pm-message');
     if (!messageEl) return;
-    messageEl.value = variants > 1 ? 'Génération de ' + variants + ' variantes en cours…' : 'Génération en cours…';
     var prompt = buildAIPrompt(variants);
-    var timeoutMs = variants > 1 ? 90000 : 60000;
-    window.callOllama(prompt, { timeoutMs: timeoutMs, stream: false })
-      .then(function (text) {
-        if (!text) return;
-        text = String(text).trim();
-        if (variants > 1) {
-          var parts = text.split(/Variante\s+\d+\s*:/i).filter(function (v) { return v.trim(); }).map(function (v) { return v.trim(); });
+
+    messageEl.value = '';
+    setAIButtonsDisabled(true);
+    showAIProgress(variants > 1 ? 'Connexion IA (' + variants + ' variantes)…' : 'Connexion à l\'IA…');
+
+    var startTs = Date.now();
+    var fullText = '';
+    var controller = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timeoutMs = variants > 1 ? 180000 : 120000;
+    var timeoutId = setTimeout(function () {
+      if (controller) controller.abort();
+    }, timeoutMs);
+
+    // Met à jour l'horloge pendant le stream, même si aucun token n'arrive
+    var tickTimer = setInterval(function () {
+      updateAIStats(fullText.length, (Date.now() - startTs) / 1000);
+    }, 300);
+
+    function done(ok, errMsg) {
+      clearTimeout(timeoutId);
+      clearInterval(tickTimer);
+      setAIButtonsDisabled(false);
+      if (ok) {
+        hideAIProgress();
+        // Post-traitement variants
+        if (variants > 1 && fullText) {
+          var parts = fullText.split(/Variante\s+\d+\s*:/i).filter(function (v) { return v.trim(); }).map(function (v) { return v.trim(); });
           if (parts.length >= variants) {
             messageEl.value = parts.slice(0, variants).map(function (v, i) {
               return '=== VARIANTE ' + (i + 1) + ' ===\n' + v;
             }).join('\n\n');
-          } else {
-            messageEl.value = text;
           }
           toast(variants + ' variantes générées', 'success', 3000);
         } else {
-          messageEl.value = text;
-          toast('Message généré avec IA', 'success', 3000);
+          toast('Message généré', 'success', 2500);
         }
-      })
-      .catch(function (e) {
-        toast('Erreur IA : ' + (e.message || 'inconnue'), 'error', 5000);
-        if (messageEl) messageEl.value = '';
-      });
+      } else {
+        updateAIProgressMsg(errMsg || 'Erreur IA');
+        toast('Erreur IA : ' + (errMsg || 'inconnue'), 'error', 5000);
+        setTimeout(hideAIProgress, 2500);
+      }
+    }
+
+    var body = { prompt: prompt, timeout: Math.min(600, Math.ceil(timeoutMs / 1000)) };
+    var fetchOpts = {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    };
+    if (controller) fetchOpts.signal = controller.signal;
+
+    fetch('/api/ollama/generate-stream', fetchOpts).then(function (res) {
+      if (!res.ok) {
+        return res.json().catch(function () { return {}; }).then(function (j) {
+          throw new Error((j && j.error) || ('HTTP ' + res.status));
+        });
+      }
+      if (!res.body || typeof res.body.getReader !== 'function') {
+        // Navigateur sans ReadableStream : fallback via callOllama (non-stream)
+        if (typeof window.callOllama === 'function') {
+          return window.callOllama(prompt, { timeoutMs: timeoutMs, stream: false }).then(function (text) {
+            fullText = String(text || '').trim();
+            messageEl.value = fullText;
+            updateAIStats(fullText.length, (Date.now() - startTs) / 1000);
+          });
+        }
+        throw new Error('Stream non supporté');
+      }
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = '';
+      function pump() {
+        return reader.read().then(function (r) {
+          if (r.done) return;
+          buffer += decoder.decode(r.value, { stream: true });
+          var chunks = buffer.split('\n\n');
+          buffer = chunks.pop() || '';
+          chunks.forEach(function (chunk) {
+            chunk.split('\n').forEach(function (line) {
+              if (!line.indexOf('data: ')) {
+                try {
+                  var ev = JSON.parse(line.slice(6));
+                  if (ev.type === 'start') {
+                    updateAIProgressMsg(ev.message || 'Génération IA en cours…');
+                  } else if (ev.type === 'token') {
+                    fullText += ev.text || '';
+                    messageEl.value = fullText;
+                    // Auto-scroll vers le bas
+                    messageEl.scrollTop = messageEl.scrollHeight;
+                    updateAIStats(fullText.length, (Date.now() - startTs) / 1000);
+                    if (ev.done) updateAIProgressMsg('Finalisation…');
+                  } else if (ev.type === 'end') {
+                    updateAIProgressMsg(ev.message || 'Terminé');
+                  } else if (ev.type === 'error') {
+                    throw new Error(ev.message || 'Erreur serveur IA');
+                  }
+                } catch (_) { /* ignore parse errors (SSE framing) */ }
+              }
+            });
+          });
+          return pump();
+        });
+      }
+      return pump();
+    }).then(function () {
+      done(true);
+    }).catch(function (e) {
+      if (e && e.name === 'AbortError') {
+        done(false, 'Timeout — l\'IA a mis trop de temps');
+      } else {
+        done(false, (e && e.message) || 'Erreur inconnue');
+      }
+    });
   }
 
   // ─── Envoi (confirmPushSend) ─────────────────────────────
@@ -550,9 +734,13 @@
     if (title) title.textContent = STATE.channel === 'linkedin' ? 'Push LinkedIn' : 'Push Email';
     // Reset form
     ['data-v30pm-message'].forEach(function (a) { var el = bd.querySelector('[' + a + ']'); if (el) el.value = ''; });
-    // Afficher info prospect en état chargement
-    var info = bd.querySelector('[data-v30pm-prospect]');
-    if (info) info.innerHTML = '<span class="muted">Chargement du prospect…</span>';
+    // Skeletons immédiats (prospect + tous les selects) pour un ressenti instantané
+    renderProspectSkeleton();
+    ['data-v30pm-cat', 'data-v30pm-cand1', 'data-v30pm-cand2', 'data-v30pm-cons1', 'data-v30pm-cons2'].forEach(function (a) {
+      renderSelectLoading(bd.querySelector('[' + a + ']'), '…');
+    });
+    // Reset progress IA
+    hideAIProgress();
     openBd(bd);
     // Charger les données
     getProspectInfo(prospectId).then(function (res) {
