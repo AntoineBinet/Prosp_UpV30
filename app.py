@@ -9302,6 +9302,46 @@ def api_prospect_timeline():
             logger.warning("prospect_events query failed: %s", e)
             extra = []
 
+        # Resolve candidate & consultant names referenced in push logs
+        _cand_ids = set()
+        _user_ids = set()
+        for _l in logs:
+            for _f in ("candidate_id1", "candidate_id2"):
+                _v = _l.get(_f)
+                if _v:
+                    _cand_ids.add(int(_v))
+            for _f in ("consultant1_id", "consultant2_id"):
+                _v = _l.get(_f)
+                if _v:
+                    _user_ids.add(int(_v))
+
+        cand_names: dict = {}
+        if _cand_ids:
+            _ph = ",".join("?" * len(_cand_ids))
+            for _r in conn.execute(
+                f"SELECT id, name FROM candidates WHERE id IN ({_ph});",
+                list(_cand_ids),
+            ).fetchall():
+                cand_names[int(_r["id"])] = _r["name"] or ""
+
+        user_names: dict = {}
+        if _user_ids:
+            try:
+                _aconn = _auth_conn()
+                try:
+                    _ph = ",".join("?" * len(_user_ids))
+                    for _r in _aconn.execute(
+                        f"SELECT id, display_name, username FROM users WHERE id IN ({_ph});",
+                        list(_user_ids),
+                    ).fetchall():
+                        user_names[int(_r["id"])] = (
+                            _r["display_name"] or _r["username"] or f"user_{_r['id']}"
+                        )
+                finally:
+                    _aconn.close()
+            except Exception:
+                pass
+
     events = []
 
     # callNotes from prospect row
@@ -9339,6 +9379,16 @@ def api_prospect_timeline():
         )
 
     for l in logs:
+        _candidates = []
+        for _f in ("candidate_id1", "candidate_id2"):
+            _cid = l.get(_f)
+            if _cid and int(_cid) in cand_names:
+                _candidates.append(cand_names[int(_cid)])
+        _consultants = []
+        for _f in ("consultant1_id", "consultant2_id"):
+            _uid = l.get(_f)
+            if _uid and int(_uid) in user_names:
+                _consultants.append(user_names[int(_uid)])
         events.append(
             {
                 "type": "push",
@@ -9348,6 +9398,8 @@ def api_prospect_timeline():
                 "meta": {
                     "to": l.get("to_email"),
                     "template": l.get("template_name"),
+                    "candidates": _candidates,
+                    "consultants": _consultants,
                 },
             }
         )
