@@ -24,19 +24,19 @@
     return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
   }
 
+  // Mapping aligné sur prospects.js (statuts ProspUp réels) — Phase 1.2.
+  // Les libellés sans équivalent direct (Proposition, Gagné) tombent sur
+  // un statut neutre — TODO design review pour décider d'une couleur dédiée.
   function statusClass(statut) {
     var map = {
-      'Rendez-vous':    'status-meeting',
-      'Prospecté':      'status-new',
-      "Pas d'actions":  'status-new',
-      'Contacté':       'status-contact',
-      'Appelé':         'status-contact',
-      'Messagerie':     'status-contact',
-      'À rappeler':     'status-proposal',
-      'Proposition':    'status-proposal',
-      'Gagné':          'status-won',
-      'Perdu':          'status-lost',
-      'Pas intéressé':  'status-lost'
+      'Rendez-vous':    'status-rdv',
+      'Prospecté':      'status-prosp',
+      "Pas d'actions":  'status-idle',
+      'Contacté':       'status-called',
+      'Appelé':         'status-called',
+      'Messagerie':     'status-voicemail',
+      'À rappeler':     'status-callback',
+      'Pas intéressé':  'status-cold'
     };
     return map[statut] || '';
   }

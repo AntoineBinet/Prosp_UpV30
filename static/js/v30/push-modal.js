@@ -98,7 +98,7 @@
             '<div class="v30pm-section__label">' + ic('clipboard', 11) + ' Contexte</div>' +
             '<label class="v30-field">' +
               '<span class="v30-field__label">Catégorie push</span>' +
-              '<select class="v30-input" data-v30pm-cat aria-label="Catégorie push"></select>' +
+              '<select class="v30-input v30-input--lg" data-v30pm-cat aria-label="Catégorie push"></select>' +
             '</label>' +
 
             // Barre IA (progression scoring candidats)
@@ -272,8 +272,8 @@
       '<div class="v30pm-recipient v30pm-recipient--skeleton">' +
         '<span class="v30pm-recipient__avatar">·</span>' +
         '<div class="v30pm-recipient__body">' +
-          '<span class="v30pm-skel v30pm-skel--text" style="width:55%;display:block;"></span>' +
-          '<span class="v30pm-skel v30pm-skel--sm" style="width:75%;display:block;margin-top:6px;"></span>' +
+          '<span class="skel" style="width:55%;height:14px;display:block;"></span>' +
+          '<span class="skel" style="width:75%;height:11px;display:block;margin-top:6px;"></span>' +
         '</div>' +
       '</div>';
   }
@@ -537,7 +537,7 @@
             '<div class="v30pm-candcard__actions">' +
               (noDc
                 ? ''
-                : '<button type="button" class="v30pm-candcard__regen" data-v30pm-regen="' + id + '" aria-label="Régénérer la description IA depuis le DC">' +
+                : '<button type="button" class="btn btn-sm btn-accent-soft btn-pill" data-v30pm-regen="' + id + '" aria-label="Régénérer la description IA depuis le DC">' +
                     ic('robot', 11) + ' ' + (desc ? 'Régénérer' : 'Générer IA') +
                   '</button>') +
             '</div>' +

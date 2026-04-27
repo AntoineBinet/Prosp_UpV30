@@ -22,11 +22,19 @@
     var mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][d.getMonth()];
     return jour + ' ' + d.getDate() + ' ' + mois;
   }
+  // Mapping aligné sur prospects.js (statuts ProspUp réels) — Phase 1.2.
   function statusClass(statut) {
-    var m = { 'Rendez-vous': 'status-meeting', 'Contacté': 'status-contact',
-              'À rappeler': 'status-proposal', 'Proposition': 'status-proposal',
-              'Gagné': 'status-won', 'Perdu': 'status-lost' };
-    return m[statut] || 'status-new';
+    var m = {
+      'Rendez-vous':   'status-rdv',
+      'Prospecté':     'status-prosp',
+      'Contacté':      'status-called',
+      'Appelé':        'status-called',
+      'Messagerie':    'status-voicemail',
+      'À rappeler':    'status-callback',
+      'Pas intéressé': 'status-cold',
+      "Pas d'actions": 'status-idle'
+    };
+    return m[statut] || 'status-idle';
   }
 
   function row(p, meta) {

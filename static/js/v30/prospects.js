@@ -128,19 +128,20 @@
     } catch (_) { return iso; }
   }
 
+  // Phase 1.2 : on supprime les pills génériques (-contact, -proposal,
+  // -won, -lost) qui ne correspondent à aucun statut métier ProspUp.
+  // Les libellés sans équivalent strict (Proposition, Gagné, Perdu) tombent
+  // sur le statut neutre `.status` — TODO design review pour un mapping dédié.
   function statusClass(statut) {
     var map = {
       "Pas d'actions": 'status-idle',
       'Prospecté':     'status-prosp',
       'Appelé':        'status-called',
+      'Contacté':      'status-called',
       'Messagerie':    'status-voicemail',
       'À rappeler':    'status-callback',
       'Rendez-vous':   'status-rdv',
-      'Pas intéressé': 'status-cold',
-      'Contacté':      'status-contact',
-      'Proposition':   'status-proposal',
-      'Gagné':         'status-won',
-      'Perdu':         'status-lost'
+      'Pas intéressé': 'status-cold'
     };
     return map[statut] || '';
   }

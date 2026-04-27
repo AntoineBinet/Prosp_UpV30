@@ -87,15 +87,19 @@
     return '<div class="v30-palette__section-title">' + esc(title) + '</div>';
   }
 
+  // Mapping aligné sur prospects.js (statuts ProspUp réels) — Phase 1.2.
   function statusClass(statut) {
     var map = {
-      'Rendez-vous':  'status-meeting',
-      'Contacté':     'status-contact',
-      'Proposition':  'status-proposal',
-      'Gagné':        'status-won',
-      'Perdu':        'status-lost'
+      'Rendez-vous':   'status-rdv',
+      'Prospecté':     'status-prosp',
+      'Contacté':      'status-called',
+      'Appelé':        'status-called',
+      'Messagerie':    'status-voicemail',
+      'À rappeler':    'status-callback',
+      'Pas intéressé': 'status-cold',
+      "Pas d'actions": 'status-idle'
     };
-    return map[statut] || 'status-new';
+    return map[statut] || 'status-idle';
   }
 
   function render() {

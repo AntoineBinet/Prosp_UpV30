@@ -136,26 +136,8 @@
   cursor: pointer;
 }
 
-/* ─── Skeleton loading ──────────────────────────────────── */
-@keyframes v30pmShimmer {
-  0%   { background-position: -200px 0; }
-  100% { background-position: 200px 0; }
-}
-.v30pm-skel {
-  display: block;
-  height: 36px;
-  border-radius: 10px;
-  background:
-    linear-gradient(90deg,
-      var(--surface-2) 0%,
-      var(--surface-3) 50%,
-      var(--surface-2) 100%);
-  background-size: 400px 100%;
-  animation: v30pmShimmer 1.2s ease-in-out infinite;
-  border: 1px solid var(--border);
-}
-.v30pm-skel--text { height: 14px; border-radius: 6px; }
-.v30pm-skel--sm   { height: 11px; border-radius: 4px; }
+/* Skeleton loading → consomme désormais .skel + animation skel-pulse
+   définis dans components.css (Phase 1.4). */
 
 /* ─── Section Message : actions IA ───────────────────────── */
 .v30pm-msg-actions {
@@ -164,28 +146,7 @@
   gap: 6px;
   flex-wrap: wrap;
 }
-.v30pm-ai-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 28px;
-  padding: 0 12px;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklch, var(--accent) 28%, var(--border));
-  background: color-mix(in oklch, var(--accent) 8%, transparent);
-  color: var(--accent);
-  cursor: pointer;
-  transition: background var(--dur-1), border-color var(--dur-1), transform var(--dur-1);
-}
-.v30pm-ai-btn:hover:not(:disabled) {
-  background: color-mix(in oklch, var(--accent) 18%, transparent);
-  border-color: color-mix(in oklch, var(--accent) 45%, transparent);
-}
-.v30pm-ai-btn:active { transform: translateY(1px); }
-.v30pm-ai-btn:disabled { opacity: 0.55; cursor: wait; }
-.v30pm-ai-btn svg { flex-shrink: 0; }
+/* .v30pm-ai-btn → migré vers .btn .btn-sm .btn-accent-soft .btn-pill (Phase 1.3). */
 
 /* ─── Progress bar (AI streaming) ────────────────────────── */
 .v30pm-ai-progress {
@@ -512,26 +473,7 @@
   flex-shrink: 0;
 }
 .v30pm-candcard__actions { display: flex; gap: 6px; flex-shrink: 0; }
-.v30pm-candcard__regen {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 10px;
-  font-size: 11px;
-  font-weight: 500;
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklch, var(--accent) 28%, var(--border));
-  background: color-mix(in oklch, var(--accent) 8%, transparent);
-  color: var(--accent);
-  cursor: pointer;
-  transition: background var(--dur-1), border-color var(--dur-1);
-}
-.v30pm-candcard__regen:hover:not(:disabled) {
-  background: color-mix(in oklch, var(--accent) 16%, transparent);
-  border-color: color-mix(in oklch, var(--accent) 45%, transparent);
-}
-.v30pm-candcard__regen:disabled { opacity: 0.55; cursor: wait; }
+/* .v30pm-candcard__regen → migré vers .btn .btn-sm .btn-accent-soft .btn-pill (Phase 1.3). */
 .v30pm-candcard__status {
   font-size: 10.5px;
   color: var(--text-3);
@@ -651,12 +593,7 @@
   line-height: 1.55;
   padding: 10px 12px;
 }
-.v30pm-candcard__regen {
-  height: 28px;
-  padding: 0 12px;
-  font-size: 11.5px;
-  font-weight: 600;
-}
+/* .v30pm-candcard__regen (polish v30.30.16) → migré (Phase 1.3). */
 
 /* Destinataire card : padding cohérent avec le reste */
 .v30pm-recipient {
@@ -668,10 +605,10 @@
   font-size: 15px;
 }
 
-/* Catégorie select : même hauteur que les combobox */
-#v30PushModal .v30-input { height: 44px; border-radius: 16px; padding: 0 14px; }
-#v30PushModal select.v30-input { padding-right: 36px; }
-#v30PushModal textarea.v30-input { height: auto; padding: 12px 14px; border-radius: 14px; }
+/* Catégorie select : utilise la variante --lg du système d'inputs unifié.
+   La classe .v30-input--lg est ajoutée en JS (push-modal.js).
+   Plus d'override de hauteur/radius ici — Phase 1.1. */
+#v30PushModal textarea.v30-input { height: auto; }
 
 /* Responsive : sur petit écran on remonte à 94vw comme avant */
 @media (max-width: 960px) {
