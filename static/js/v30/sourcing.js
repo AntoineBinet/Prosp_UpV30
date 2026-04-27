@@ -3,11 +3,11 @@
   'use strict';
 
   var COLS = [
-    { key: 'vivier',    title: 'Vivier',       color: 'var(--info)',          statuses: ['Vivier', 'vivier', 'Actif', null, ''] },
-    { key: 'qualifie',  title: 'Qualifié',     color: 'var(--accent)',        statuses: ['Qualifié', 'qualifie', 'Solide'] },
-    { key: 'propose',   title: 'Proposé',      color: 'oklch(0.50 0.15 280)', statuses: ['Proposé', 'propose', 'Contacté', 'contacted'] },
-    { key: 'entretien', title: 'En entretien', color: 'oklch(0.50 0.14 75)',  statuses: ['En entretien', 'entretien', 'Entretien'] },
-    { key: 'place',     title: 'Placé',        color: 'var(--success)',       statuses: ['Placé', 'place', 'Placed'] }
+    { key: 'ec1',               title: 'EC1',         primary: 'ec1',               color: 'var(--info)',          statuses: ['ec1', 'EC1', 'entretien', 'En entretien', 'Entretien', 'a_faire', 'nouveau', 'proposition', 'Vivier', 'vivier', 'Actif', 'Qualifié', 'qualifie', 'Proposé', 'propose', 'Contacté', 'contacted', null, ''] },
+    { key: 'oksi',              title: 'OKSI',        primary: 'oksi',              color: 'var(--accent)',        statuses: ['oksi', 'OKSI', 'Solide', 'interesse'] },
+    { key: 'top_profil',        title: 'Top Profils', primary: 'top_profil',        color: 'oklch(0.50 0.15 280)', statuses: ['top_profil', 'top profil', 'Top Profils'] },
+    { key: 'reunion_tech',      title: 'RT',          primary: 'reunion_tech',      color: 'oklch(0.50 0.14 75)',  statuses: ['reunion_tech', 'RT', 'reunion tech', 'valide_contrat', 'embauche'] },
+    { key: 'freelance_mission', title: 'En mission',  primary: 'freelance_mission', color: 'var(--success)',       statuses: ['freelance_mission', 'en mission', 'mission', 'freelance', 'Placé', 'place', 'Placed'] }
   ];
 
   var STATE = {
@@ -118,12 +118,12 @@
     var role = c.titre || c.role || c.seniority || c.domaine_principal || '—';
     var location = c.location || '';
     var sel = STATE.selected.has(c.id);
-    return '<div class="v30-sc-card' + (sel ? ' is-selected' : '') + '" data-id="' + c.id + '">' +
+    return '<div class="v30-sc-card' + (sel ? ' is-selected' : '') + '" data-id="' + c.id + '" data-kcard-id="' + c.id + '" data-kcard-status="' + esc(c.status || '') + '" draggable="true">' +
       '<div class="v30-sc-card__head">' +
         '<input type="checkbox" data-v30-sc-select' + (sel ? ' checked' : '') + ' style="margin-right:4px;" aria-label="Sélectionner">' +
-        '<a href="/v30/candidat/' + c.id + '" class="avatar" title="Voir fiche" style="text-decoration:none;color:inherit;">' + esc(initials(c.name)) + '</a>' +
+        '<a href="/v30/candidat/' + c.id + '" class="avatar" title="Voir fiche" style="text-decoration:none;color:inherit;" draggable="false">' + esc(initials(c.name)) + '</a>' +
         '<div style="flex:1;min-width:0;">' +
-          '<a href="/v30/candidat/' + c.id + '" style="text-decoration:none;color:inherit;">' +
+          '<a href="/v30/candidat/' + c.id + '" style="text-decoration:none;color:inherit;" draggable="false">' +
             '<div class="v30-sc-card__name truncate">' + esc(c.name || '—') + '</div>' +
             '<div class="v30-sc-card__role truncate">' + esc(role) + '</div>' +
           '</a>' +
@@ -154,7 +154,7 @@
       var body = items.length === 0
         ? '<div class="v30-pp-empty" style="padding:16px 8px;font-size:12px;">—</div>'
         : items.map(renderCard).join('');
-      return '<div class="v30-sc-col">' +
+      return '<div class="v30-sc-col" data-kcol-idx="' + i + '" data-kcol-status="' + col.key + '">' +
         '<div class="v30-sc-col__head">' +
           '<span class="v30-sc-col__dot" style="background:' + col.color + ';"></span>' +
           '<span class="v30-sc-col__title">' + esc(col.title) + '</span>' +
@@ -281,7 +281,7 @@
         email: val('v30-sc-add-email'),
         phone: val('v30-sc-add-phone'),
         linkedin: val('v30-sc-add-linkedin'),
-        status: val('v30-sc-add-status') || 'Vivier',
+        status: val('v30-sc-add-status') || 'ec1',
         source: val('v30-sc-add-source'),
         notes: val('v30-sc-add-notes'),
         skills: skills,
@@ -384,7 +384,7 @@
     var apply = $('[data-v30-sc-bulk-apply]');
     if (apply) apply.addEventListener('click', function () {
       var ids = Array.from(STATE.selected);
-      var val = ($('#v30-sc-bulk-val') || {}).value || 'Vivier';
+      var val = ($('#v30-sc-bulk-val') || {}).value || 'ec1';
       apply.disabled = true;
       fetchPost('/api/candidates/bulk-update', { ids: ids, field: 'status', value: val })
         .then(function (res) {
@@ -396,6 +396,72 @@
         })
         .catch(function (e) { toast('Erreur : ' + e.message, 'error'); })
         .then(function () { apply.disabled = false; });
+    });
+  }
+
+  // ─── Kanban Drag & Drop ──────────────────────────────────
+  var KANBAN_DND = { dragId: null, fromIdx: null };
+
+  function bindKanbanDnd() {
+    var host = $('[data-v30-sc-kanban]');
+    if (!host) return;
+
+    host.addEventListener('dragstart', function (e) {
+      var card = e.target.closest('[data-kcard-id]');
+      if (!card) return;
+      KANBAN_DND.dragId = Number(card.dataset.kcardId);
+      KANBAN_DND.fromIdx = findColForStatus(card.dataset.kcardStatus);
+      card.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    host.addEventListener('dragend', function (e) {
+      var card = e.target.closest('[data-kcard-id]');
+      if (card) card.classList.remove('is-dragging');
+      host.querySelectorAll('.v30-sc-col.is-drop-target').forEach(function (col) {
+        col.classList.remove('is-drop-target');
+      });
+    });
+
+    host.addEventListener('dragover', function (e) {
+      var col = e.target.closest('.v30-sc-col[data-kcol-idx]');
+      if (!col) return;
+      e.preventDefault();
+      host.querySelectorAll('.v30-sc-col.is-drop-target').forEach(function (c) { c.classList.remove('is-drop-target'); });
+      col.classList.add('is-drop-target');
+      e.dataTransfer.dropEffect = 'move';
+    });
+
+    host.addEventListener('dragleave', function (e) {
+      var col = e.target.closest('.v30-sc-col[data-kcol-idx]');
+      if (!col) return;
+      if (!col.contains(e.relatedTarget)) col.classList.remove('is-drop-target');
+    });
+
+    host.addEventListener('drop', function (e) {
+      e.preventDefault();
+      var col = e.target.closest('.v30-sc-col[data-kcol-idx]');
+      if (!col) return;
+      col.classList.remove('is-drop-target');
+      var toIdx = Number(col.dataset.kcolIdx);
+      var id = KANBAN_DND.dragId;
+      if (!id || toIdx === KANBAN_DND.fromIdx) return;
+      var newStatus = COLS[toIdx].primary;
+      var cand = STATE.candidates.find(function (c) { return c.id === id; });
+      if (!cand) return;
+      var oldStatus = cand.status;
+      cand.status = newStatus;
+      applyFilter();
+      fetchPost('/api/candidates/bulk-update', { ids: [id], field: 'status', value: newStatus })
+        .then(function (res) {
+          if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+          toast('Statut mis à jour', 'success');
+        })
+        .catch(function (err) {
+          cand.status = oldStatus;
+          applyFilter();
+          toast('Erreur : ' + err.message, 'error');
+        });
     });
   }
 
@@ -675,7 +741,7 @@
       domaine_principal: f.domaine_principal || null,
       skills: tags,
       tech: tags.join(', '),
-      status: 'Vivier',
+      status: 'ec1',
       source: 'Import PDF/CV'
     };
     var btn = $('[data-v30-src-pdf-create]');
@@ -840,7 +906,7 @@
       email: c.email || c.mail || null,
       phone: c.phone || c.tel || c.telephone || null,
       linkedin: c.linkedin || c.linkedIn || c.linkedin_url || null,
-      status: c.status || c.statut || 'Vivier',
+      status: c.status || c.statut || 'ec1',
       source: c.source || 'Import IA',
       notes: c.notes || c.comment || c.commentaire || null,
       skills: skills,
@@ -951,6 +1017,7 @@
     bindFilters();
     bindBulk();
     bindSelection();
+    bindKanbanDnd();
     bindMatchClose();
     bindInmails();
     bindImport();

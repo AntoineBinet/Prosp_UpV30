@@ -162,11 +162,11 @@
         <div class="v30-field"><label for="v30-sc-add-linkedin">LinkedIn</label><input id="v30-sc-add-linkedin" class="input" placeholder="https://linkedin.com/in/…"></div>
         <div class="v30-field"><label for="v30-sc-add-status">Statut</label>
           <select id="v30-sc-add-status" class="select">
-            <option value="Vivier" selected>Vivier</option>
-            <option value="Qualifié">Qualifié</option>
-            <option value="Proposé">Proposé</option>
-            <option value="En entretien">En entretien</option>
-            <option value="Placé">Placé</option>
+            <option value="ec1" selected>EC1</option>
+            <option value="oksi">OKSI</option>
+            <option value="top_profil">Top Profils</option>
+            <option value="reunion_tech">RT</option>
+            <option value="freelance_mission">En mission</option>
           </select>
         </div>
         <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-sc-add-skills">Compétences (virgules)</label><input id="v30-sc-add-skills" class="input" placeholder="Ex. React, Node, AWS"></div>
@@ -193,8 +193,8 @@
       <div class="v30-field">
         <label>Statut</label>
         <div class="v30-chiprow" data-v30-sc-flt-status>
-          {% for s in ["Vivier", "Qualifié", "Proposé", "En entretien", "Placé"] %}
-          <label class="v30-chip"><input type="checkbox" value="{{ s }}"> <span>{{ s }}</span></label>
+          {% for s, label in [("ec1","EC1"), ("oksi","OKSI"), ("top_profil","Top Profils"), ("reunion_tech","RT"), ("freelance_mission","En mission")] %}
+          <label class="v30-chip"><input type="checkbox" value="{{ s }}"> <span>{{ label }}</span></label>
           {% endfor %}
         </div>
       </div>
@@ -306,11 +306,11 @@ ou
       <div class="v30-field">
         <label for="v30-sc-bulk-val">Nouveau statut</label>
         <select id="v30-sc-bulk-val" class="select">
-          <option value="Vivier">Vivier</option>
-          <option value="Qualifié">Qualifié</option>
-          <option value="Proposé">Proposé</option>
-          <option value="En entretien">En entretien</option>
-          <option value="Placé">Placé</option>
+          <option value="ec1">EC1</option>
+          <option value="oksi">OKSI</option>
+          <option value="top_profil">Top Profils</option>
+          <option value="reunion_tech">RT</option>
+          <option value="freelance_mission">En mission</option>
         </select>
       </div>
     </div>
