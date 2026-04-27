@@ -515,6 +515,55 @@ select.mp-input { cursor: pointer; }
 .mp-tl-content { font-size: 11px; color: #94a3b8; white-space: pre-wrap; line-height: 1.45; word-break: break-word; }
 .mp-tl-empty   { text-align: center; padding: 24px 10px; color: #334155; font-size: 12px; }
 
+.mp-tl-actions { display: inline-flex; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity 0.15s; }
+.mp-tl-item:hover .mp-tl-actions,
+.mp-tl-item:focus-within .mp-tl-actions { opacity: 1; }
+@media (hover: none) { .mp-tl-actions { opacity: 1; } }
+.mp-tl-act {
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; line-height: 1;
+  padding: 3px 5px; border-radius: 5px;
+  color: #94a3b8;
+  transition: background 0.12s, color 0.12s;
+}
+.mp-tl-act:hover { background: rgba(255,255,255,0.07); color: #e2e8f0; }
+.mp-tl-act-del:hover { background: rgba(239,68,68,0.14); color: #fca5a5; }
+.mp-tl-act:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.mp-tl-editor { margin-top: 6px; display: flex; flex-direction: column; gap: 5px; }
+.mp-tl-edit-input {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(99,102,241,0.4);
+  border-radius: 7px;
+  padding: 6px 8px;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 44px;
+}
+.mp-tl-edit-input:focus { outline: none; border-color: rgba(99,102,241,0.7); box-shadow: 0 0 0 2px rgba(99,102,241,0.12); }
+.mp-tl-edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.mp-tl-edit-actions button {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.mp-tl-edit-actions button:hover { background: rgba(255,255,255,0.08); }
+.mp-tl-edit-save {
+  background: rgba(99,102,241,0.18) !important;
+  border-color: rgba(99,102,241,0.4) !important;
+  color: #c7d2fe !important;
+}
+.mp-tl-edit-save:hover { background: rgba(99,102,241,0.28) !important; }
+.mp-tl-edit-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
 
 /* ══════════════════════════════════════════════════
    3. DATE PICKER MODAL
@@ -814,6 +863,14 @@ select.mp-input { cursor: pointer; }
   .mp-tl-item:hover .mp-tl-body { background: rgba(0,0,0,0.04); }
   .mp-tl-label { color: #334155; }
   .mp-tl-content { color: #64748b; }
+  .mp-tl-act { color: #64748b; }
+  .mp-tl-act:hover { background: rgba(0,0,0,0.05); color: #1e293b; }
+  .mp-tl-act-del:hover { background: rgba(239,68,68,0.1); color: #b91c1c; }
+  .mp-tl-edit-input { background: #fff; border-color: rgba(99,102,241,0.4); color: #1e293b; }
+  .mp-tl-edit-actions button { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); color: #475569; }
+  .mp-tl-edit-actions button:hover { background: rgba(0,0,0,0.06); }
+  .mp-tl-edit-save { background: rgba(99,102,241,0.1) !important; border-color: rgba(99,102,241,0.3) !important; color: #4f46e5 !important; }
+  .mp-tl-edit-save:hover { background: rgba(99,102,241,0.18) !important; }
 
   /* Phone choice */
   .mp-phone-choice { background: rgba(255,255,255,0.98); border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
