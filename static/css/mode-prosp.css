@@ -635,8 +635,7 @@ select.mp-input { cursor: pointer; }
 }
 .mp-dot.active {
   background: #818cf8;
-  transform: scaleX(2.5) scaleY(1.4);
-  border-radius: 3px;
+  transform: scale(1.5);
   box-shadow: 0 0 8px rgba(129,140,248,0.7);
 }
 .mp-dot:hover:not(.active) { background: rgba(255,255,255,0.3); transform: scale(1.25); }
