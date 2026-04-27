@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "31.0"
+APP_VERSION = "31.1"
 import os
 import subprocess
 import traceback
@@ -9456,7 +9456,7 @@ def api_prospect_timeline():
                 extra = [
                     dict(r)
                     for r in conn.execute(
-                        "SELECT date, type, title, content, meta, createdAt FROM prospect_events WHERE prospect_id=? ORDER BY date DESC, id DESC LIMIT 80;",
+                        "SELECT id, date, type, title, content, meta, createdAt FROM prospect_events WHERE prospect_id=? ORDER BY date DESC, id DESC LIMIT 80;",
                         (pid_int,),
                     ).fetchall()
                 ]
@@ -9518,7 +9518,7 @@ def api_prospect_timeline():
     try:
         call_notes = json.loads((prospect_dict.get("callNotes") or "[]"))
         if isinstance(call_notes, list):
-            for n in call_notes:
+            for idx, n in enumerate(call_notes):
                 d = (n.get("date") if isinstance(n, dict) else "") or ""
                 events.append(
                     {
@@ -9526,6 +9526,8 @@ def api_prospect_timeline():
                         "date": d,
                         "title": "Note d'appel",
                         "content": (n.get("content") if isinstance(n, dict) else "") or "",
+                        "source": "note",
+                        "note_index": idx,
                     }
                 )
     except Exception:
@@ -9544,6 +9546,8 @@ def api_prospect_timeline():
                 "title": e.get("title") or "",
                 "content": e.get("content") or "",
                 "meta": meta,
+                "source": "event",
+                "id": e.get("id"),
             }
         )
 
@@ -9578,6 +9582,7 @@ def api_prospect_timeline():
                     "candidates": _candidates,
                     "consultants": _consultants,
                 },
+                "source": "push",
             }
         )
 
@@ -9685,12 +9690,143 @@ def api_prospect_events_add():
     etype = "note"
     date = datetime.datetime.now().isoformat()
     with _conn() as conn:
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO prospect_events (prospect_id, date, type, title, content, createdAt)"
             " VALUES (?, ?, ?, ?, ?, ?);",
             (pid_i, date, etype, title, content, date),
         )
-    return jsonify(ok=True, date=date)
+        new_id = cur.lastrowid
+    return jsonify(ok=True, date=date, id=new_id, type=etype, title=title)
+
+
+@app.post("/api/prospect/timeline/update")
+def api_prospect_timeline_update():
+    """Modifie le contenu d'un item de timeline (prospect_events ou callNotes JSON)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    pid = payload.get("prospect_id")
+    source = (payload.get("source") or "").strip()
+    new_content = (payload.get("content") or "").strip()
+    if not pid:
+        return jsonify(ok=False, error="prospect_id requis"), 400
+    try:
+        pid_i = int(pid)
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="prospect_id invalide"), 400
+    if not _prospect_owned(pid_i):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    if source not in ("event", "note"):
+        return jsonify(ok=False, error="source invalide"), 400
+
+    with _conn() as conn:
+        if source == "event":
+            ev_id = payload.get("id")
+            try:
+                ev_id_i = int(ev_id)
+            except (TypeError, ValueError):
+                return jsonify(ok=False, error="id invalide"), 400
+            row = conn.execute(
+                "SELECT id FROM prospect_events WHERE id=? AND prospect_id=?;",
+                (ev_id_i, pid_i),
+            ).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Événement introuvable"), 404
+            conn.execute(
+                "UPDATE prospect_events SET content=? WHERE id=? AND prospect_id=?;",
+                (new_content, ev_id_i, pid_i),
+            )
+            return jsonify(ok=True)
+
+        # source == "note" : mise à jour dans le JSON callNotes du prospect
+        idx = payload.get("note_index")
+        try:
+            idx_i = int(idx)
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="note_index invalide"), 400
+        row = conn.execute(
+            "SELECT callNotes FROM prospects WHERE id=? AND owner_id=?;",
+            (pid_i, uid),
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Prospect introuvable"), 404
+        try:
+            notes = json.loads(row["callNotes"] or "[]")
+        except Exception:
+            notes = []
+        if not isinstance(notes, list) or not (0 <= idx_i < len(notes)):
+            return jsonify(ok=False, error="Note introuvable"), 404
+        if isinstance(notes[idx_i], dict):
+            notes[idx_i]["content"] = new_content
+        else:
+            notes[idx_i] = {"date": "", "content": new_content}
+        conn.execute(
+            "UPDATE prospects SET callNotes=? WHERE id=? AND owner_id=?;",
+            (json.dumps(notes, ensure_ascii=False), pid_i, uid),
+        )
+        return jsonify(ok=True)
+
+
+@app.post("/api/prospect/timeline/delete")
+def api_prospect_timeline_delete():
+    """Supprime un item de timeline (prospect_events ou callNotes JSON)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    pid = payload.get("prospect_id")
+    source = (payload.get("source") or "").strip()
+    if not pid:
+        return jsonify(ok=False, error="prospect_id requis"), 400
+    try:
+        pid_i = int(pid)
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="prospect_id invalide"), 400
+    if not _prospect_owned(pid_i):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    if source not in ("event", "note"):
+        return jsonify(ok=False, error="source invalide"), 400
+
+    with _conn() as conn:
+        if source == "event":
+            ev_id = payload.get("id")
+            try:
+                ev_id_i = int(ev_id)
+            except (TypeError, ValueError):
+                return jsonify(ok=False, error="id invalide"), 400
+            cur = conn.execute(
+                "DELETE FROM prospect_events WHERE id=? AND prospect_id=?;",
+                (ev_id_i, pid_i),
+            )
+            if cur.rowcount == 0:
+                return jsonify(ok=False, error="Événement introuvable"), 404
+            return jsonify(ok=True)
+
+        # source == "note"
+        idx = payload.get("note_index")
+        try:
+            idx_i = int(idx)
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="note_index invalide"), 400
+        row = conn.execute(
+            "SELECT callNotes FROM prospects WHERE id=? AND owner_id=?;",
+            (pid_i, uid),
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Prospect introuvable"), 404
+        try:
+            notes = json.loads(row["callNotes"] or "[]")
+        except Exception:
+            notes = []
+        if not isinstance(notes, list) or not (0 <= idx_i < len(notes)):
+            return jsonify(ok=False, error="Note introuvable"), 404
+        notes.pop(idx_i)
+        conn.execute(
+            "UPDATE prospects SET callNotes=? WHERE id=? AND owner_id=?;",
+            (json.dumps(notes, ensure_ascii=False), pid_i, uid),
+        )
+        return jsonify(ok=True)
 
 
 @app.get("/api/dashboard/pipeline-stages")

@@ -340,19 +340,148 @@ window.mpClose = function () {
         var rawDate = event.date || '';
         var date = rawDate.slice(0, 10);
         var time = rawDate.slice(11, 16);
-        var content = escapeHtml(event.content || '').replace(/\n/g, '<br>');
-        return '<div class="mp-tl-item">' +
+        var rawContent = event.content || '';
+        var content = escapeHtml(rawContent).replace(/\n/g, '<br>');
+        var source = event.source || '';
+        var ref = source === 'event' ? event.id : (source === 'note' ? event.note_index : '');
+        var canEdit = (source === 'event' || source === 'note') && (ref !== '' && ref !== null && ref !== undefined);
+        var attrs = canEdit
+            ? ' data-mp-tl="1" data-source="' + escapeHtml(source) + '" data-ref="' + escapeHtml(String(ref)) + '" data-raw-content="' + escapeHtml(rawContent) + '"'
+            : '';
+        var actions = canEdit
+            ? '<div class="mp-tl-actions">' +
+                '<button type="button" class="mp-tl-act mp-tl-act-edit" title="Modifier" onclick="mpEditTlItem(this)" aria-label="Modifier">✏️</button>' +
+                '<button type="button" class="mp-tl-act mp-tl-act-del" title="Supprimer" onclick="mpDeleteTlItem(this)" aria-label="Supprimer">🗑️</button>' +
+              '</div>'
+            : '';
+        return '<div class="mp-tl-item"' + attrs + '>' +
             '<div class="mp-tl-dot mp-tl-dot-' + dotCls + '"></div>' +
             '<div class="mp-tl-body">' +
                 '<div class="mp-tl-head">' +
                     '<span class="mp-tl-icon">' + icon + '</span>' +
                     '<span class="mp-tl-label">' + escapeHtml(label) + '</span>' +
                     '<span class="mp-tl-date">' + date + (time ? ' ' + time : '') + '</span>' +
+                    actions +
                 '</div>' +
                 (content ? '<div class="mp-tl-content">' + content + '</div>' : '') +
             '</div>' +
         '</div>';
     }
+
+    function _mpTlPid() {
+        var p = prospects[currentIndex];
+        return p ? p.id : null;
+    }
+
+    window.mpEditTlItem = function (btn) {
+        var item = btn.closest('.mp-tl-item');
+        if (!item || item.dataset.editing === '1') return;
+        var body = item.querySelector('.mp-tl-body');
+        var contentEl = item.querySelector('.mp-tl-content');
+        var rawContent = item.dataset.rawContent || (contentEl ? contentEl.innerText : '');
+        item.dataset.editing = '1';
+
+        var editor = document.createElement('div');
+        editor.className = 'mp-tl-editor';
+        editor.innerHTML =
+            '<textarea class="mp-tl-edit-input" rows="2"></textarea>' +
+            '<div class="mp-tl-edit-actions">' +
+                '<button type="button" class="mp-tl-edit-cancel">Annuler</button>' +
+                '<button type="button" class="mp-tl-edit-save">Enregistrer</button>' +
+            '</div>';
+        var ta = editor.querySelector('textarea');
+        ta.value = rawContent;
+        if (contentEl) contentEl.style.display = 'none';
+        body.appendChild(editor);
+        ta.focus();
+        try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (_) {}
+
+        function cleanup() {
+            editor.remove();
+            if (contentEl) contentEl.style.display = '';
+            delete item.dataset.editing;
+        }
+        editor.querySelector('.mp-tl-edit-cancel').onclick = cleanup;
+        editor.querySelector('.mp-tl-edit-save').onclick = function () {
+            var newContent = ta.value.trim();
+            var pid = _mpTlPid();
+            if (!pid) { cleanup(); return; }
+            var payload = {
+                prospect_id: pid,
+                source: item.dataset.source,
+                content: newContent,
+            };
+            if (item.dataset.source === 'event') payload.id = parseInt(item.dataset.ref, 10);
+            else payload.note_index = parseInt(item.dataset.ref, 10);
+            var saveBtn = editor.querySelector('.mp-tl-edit-save');
+            saveBtn.disabled = true;
+            fetch('/api/prospect/timeline/update', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+                .then(function (data) {
+                    if (!data.ok) throw new Error(data.error || 'Erreur');
+                    item.dataset.rawContent = newContent;
+                    if (contentEl) {
+                        if (newContent) {
+                            contentEl.innerHTML = escapeHtml(newContent).replace(/\n/g, '<br>');
+                        } else {
+                            contentEl.remove();
+                        }
+                    } else if (newContent) {
+                        var nc = document.createElement('div');
+                        nc.className = 'mp-tl-content';
+                        nc.innerHTML = escapeHtml(newContent).replace(/\n/g, '<br>');
+                        body.appendChild(nc);
+                    }
+                    cleanup();
+                    if (typeof window.showToast === 'function') window.showToast('Note modifiée', 'success');
+                })
+                .catch(function () {
+                    saveBtn.disabled = false;
+                    if (typeof window.showToast === 'function') window.showToast('Erreur lors de la modification', 'error');
+                });
+        };
+    };
+
+    window.mpDeleteTlItem = function (btn) {
+        var item = btn.closest('.mp-tl-item');
+        if (!item) return;
+        if (!confirm('Supprimer cet élément de la timeline ?')) return;
+        var pid = _mpTlPid();
+        if (!pid) return;
+        var payload = { prospect_id: pid, source: item.dataset.source };
+        if (item.dataset.source === 'event') payload.id = parseInt(item.dataset.ref, 10);
+        else payload.note_index = parseInt(item.dataset.ref, 10);
+        btn.disabled = true;
+        fetch('/api/prospect/timeline/delete', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+            .then(function (data) {
+                if (!data.ok) throw new Error(data.error || 'Erreur');
+                if (item.dataset.source === 'note') {
+                    if (typeof window.mpLoadTimeline === 'function') window.mpLoadTimeline(pid);
+                    return;
+                }
+                item.remove();
+                var feed = document.getElementById('mpTlFeed');
+                if (feed && feed.children.length === 0) {
+                    feed.innerHTML = '<div class="mp-tl-empty">Aucune note ou activité</div>';
+                }
+                if (typeof window.showToast === 'function') window.showToast('Supprimé', 'success');
+            })
+            .catch(function () {
+                btn.disabled = false;
+                if (typeof window.showToast === 'function') window.showToast('Erreur lors de la suppression', 'error');
+            });
+    };
 
     // ── Add note via timeline ──
     window.mpAddNote = function () {
@@ -364,28 +493,38 @@ window.mpClose = function () {
         if (!p) return;
         input.value = '';
 
-        // Inject into DOM immediately
-        var feed = document.getElementById('mpTlFeed');
-        if (feed) {
-            var emptyMsg = feed.querySelector('.mp-tl-empty');
-            if (emptyMsg) emptyMsg.remove();
-            var today = new Date().toISOString().slice(0, 10);
-            var wrapper = document.createElement('div');
-            wrapper.innerHTML = mpRenderTlItem({ type: 'call_note', date: today, content: content });
-            var newEl = wrapper.firstElementChild;
-            if (newEl) feed.insertBefore(newEl, feed.firstChild);
-        }
-
-        // Update notes field for save (append to existing notes)
-        var notesEl = viewport.querySelector('[data-field="notes"]');
-        if (notesEl) {
-            var existing = notesEl.value.trim();
-            var today2 = new Date().toISOString().slice(0, 10);
-            notesEl.value = (existing ? existing + '\n' : '') + '[' + today2 + '] ' + content;
-        }
-
-        // Trigger save
-        mpSaveCard();
+        // Persiste la note dans prospect_events (timeline éditable/supprimable).
+        fetch('/api/prospect/events/add', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prospect_id: p.id, title: 'Note', content: content })
+        })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+            .then(function (data) {
+                if (!data || !data.ok) throw new Error('save failed');
+                var feed = document.getElementById('mpTlFeed');
+                if (!feed) return;
+                var emptyMsg = feed.querySelector('.mp-tl-empty');
+                if (emptyMsg) emptyMsg.remove();
+                var wrapper = document.createElement('div');
+                wrapper.innerHTML = mpRenderTlItem({
+                    type: data.type || 'note',
+                    date: data.date,
+                    title: data.title || 'Note',
+                    content: content,
+                    source: 'event',
+                    id: data.id
+                });
+                var newEl = wrapper.firstElementChild;
+                if (newEl) feed.insertBefore(newEl, feed.firstChild);
+            })
+            .catch(function () {
+                if (typeof window.showToast === 'function') {
+                    window.showToast("Erreur lors de l'ajout de la note", 'error');
+                }
+                input.value = content;
+            });
     };
 
     // ── Date Picker Modal ──
