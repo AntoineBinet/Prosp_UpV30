@@ -11,19 +11,21 @@
 
 <div class="v30-pp" data-v30-archives>
 
-  <div class="v30-params__topbar">
-    <div>
-      <div class="v30-params__eyebrow">Corbeille douce</div>
-      <h1 class="v30-params__title"><span class="serif">Prospects archivés.</span></h1>
-      <div class="v30-params__sub">
+  {# ─── Page header (Phase 2 — pattern unifié) ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <p class="page-eyebrow">Corbeille douce</p>
+      <h1 class="page-title">Prospects archivés.</h1>
+      <p class="page-sub">
         <span data-field="archived-count">{{ archived_count }}</span> prospect{% if archived_count > 1 %}s{% endif %} archivé{% if archived_count > 1 %}s{% endif %}.
         Un archivage est réversible : tu peux désarchiver à tout moment.
-      </div>
+      </p>
     </div>
-    <div class="v30-spacer"></div>
-    <a class="btn" href="/v30/prospects">
-      {{ ui.icon('chevL', 13) }} Retour aux prospects
-    </a>
+    <div class="page-header__actions">
+      <a class="btn" href="/v30/prospects">
+        {{ ui.icon('chevL', 13) }} Retour aux prospects
+      </a>
+    </div>
   </div>
 
   <div class="v30-pp-table-wrap" style="margin-top:16px;">

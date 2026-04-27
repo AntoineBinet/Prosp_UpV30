@@ -3,3 +3,64 @@
    Patterns transverses : .page-header, .kpi, .popover, .avatar…
    Toujours importé APRÈS components.css.
    ============================================================ */
+
+/* ─────────── Page header (Phase 2) ───────────
+   Pattern unifié pour toutes les en-têtes de pages :
+   eyebrow + titre serif italique + sous-titre + actions à droite. */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--page-header-py) 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--s-4);
+  flex-wrap: wrap;
+}
+.page-header__group {
+  min-width: 0;
+  flex: 1 1 220px;
+}
+.page-eyebrow {
+  font-size: var(--page-eyebrow-size);
+  color: var(--text-3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 var(--s-1);
+  font-weight: 500;
+}
+.page-title {
+  font-family: var(--page-title-family);
+  font-style: var(--page-title-style);
+  font-weight: var(--page-title-weight);
+  font-size: var(--page-title-size);
+  line-height: 1.1;
+  letter-spacing: var(--page-title-tracking);
+  margin: 0;
+  color: var(--text);
+}
+.page-title__count {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  margin-left: var(--s-2);
+}
+.page-sub {
+  font-size: var(--page-sub-size);
+  color: var(--text-3);
+  margin: var(--s-1) 0 0;
+}
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .page-header { padding: var(--s-3) 0; }
+  .page-title { font-size: 22px; }
+}

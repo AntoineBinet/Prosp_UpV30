@@ -45,37 +45,16 @@
   padding: 8px 0 24px;
 }
 
-.v30-hero__eyebrow {
-  font-size: 11.5px;
-  color: var(--text-3);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 8px;
-}
-
-.v30-hero__title {
-  font-size: 28px;
-  font-weight: 400;
-  font-family: var(--font-serif);
-  font-style: italic;
-  margin: 0;
-  letter-spacing: -0.4px;
-  color: var(--text);
-}
-
-.v30-hero__subtitle {
-  font-size: 13px;
-  color: var(--text-3);
-  margin: 4px 0 0;
-}
-
+/* .v30-hero__eyebrow / __title / __subtitle remplacés par .page-eyebrow /
+   .page-title / .page-sub (Phase 2). On conserve uniquement la grille
+   .v30-hero, la zone d'actions et les KPI (cards à droite). */
 .v30-hero__actions {
   display: flex;
   gap: 8px;
   margin-top: 12px;
   flex-wrap: wrap;
 }
-.v30-hero__subtitle b {
+.v30-hero .page-sub b {
   color: var(--text);
   font-weight: 600;
 }
@@ -828,7 +807,7 @@
 /* ─── Dashboard mobile adjustments ─── */
 @media (max-width: 900px) {
   .v30-hero { padding: 4px 0 16px; }
-  .v30-hero__title { font-size: 24px; }
+  .v30-hero .page-title { font-size: 24px; }
   .v30-hero__kpis { gap: 16px; }
   .v30-hero-kpi__value { font-size: 28px; }
   .v30-hero__actions { margin-top: 8px; }

@@ -1,24 +1,10 @@
 /* ProspUp v30 — Calendrier (vues mois / semaine / jour) */
 
 /* ══════════════════════════════════════════════════════════════
-   Topbar
+   Topbar : remplacée par le pattern .page-header (Phase 2).
+   Le label de mois (.v30-cal-month) reste un sous-élément du
+   .page-header__group, à côté du titre.
    ══════════════════════════════════════════════════════════════ */
-.v30-cal-topbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-.v30-cal-topbar h1 {
-  font-size: 22px;
-  font-weight: 400;
-  font-family: var(--font-serif);
-  font-style: italic;
-  margin: 0;
-  color: var(--text);
-}
 .v30-cal-month {
   font-family: var(--font-serif);
   font-size: 18px;
@@ -488,7 +474,6 @@
    Responsive
    ══════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  .v30-cal-topbar h1 { font-size: 18px; }
   .v30-cal-month { min-width: 120px; font-size: 15px; }
   .v30-cal__head-cell { padding: 6px 4px; font-size: 10px; }
   .v30-cal__grid { grid-auto-rows: minmax(72px, 1fr); }

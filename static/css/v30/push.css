@@ -1,35 +1,6 @@
 /* ProspUp v30 — Push (Catégories / Historique / Templates) */
 
-/* ─── Topbar ──────────────────────────────────────────────── */
-.v30-push-topbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-.v30-push-topbar h1 {
-  font-size: 22px;
-  font-weight: 400;
-  font-family: var(--font-serif);
-  font-style: italic;
-  margin: 0;
-  color: var(--text);
-  flex-shrink: 0;
-}
-.v30-push-topbar .btn { flex-shrink: 0; white-space: nowrap; }
-
-@media (max-width: 900px) {
-  .v30-push-topbar {
-    gap: 8px;
-    margin-bottom: 12px;
-    padding: 10px 0 0;
-  }
-  .v30-push-topbar h1 { font-size: 20px; flex: 0 0 100%; }
-  .v30-push-topbar .segmented { flex-wrap: wrap; }
-  .v30-push-topbar .v30-spacer { flex: 1 0 0; }
-}
+/* Topbar : remplacée par le pattern .page-header (Phase 2). */
 
 /* ─── Fields (partagé : editor catégorie + modales) ──────── */
 .v30-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }

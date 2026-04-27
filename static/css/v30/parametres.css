@@ -58,22 +58,7 @@
 .v30-deploy__fallback { margin-top: 12px; }
 .v30-deploy__fallback summary::-webkit-details-marker { display: none; }
 
-.v30-params__topbar {
-  display: flex; align-items: center; gap: 12px;
-  padding: 6px 0 10px;
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-.v30-params__eyebrow {
-  font-size: 10.5px; color: var(--text-3);
-  text-transform: uppercase; letter-spacing: .08em;
-}
-.v30-params__title {
-  margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
-  letter-spacing: -.01em;
-}
-.v30-params__title .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; }
-.v30-params__sub { font-size: 12.5px; color: var(--text-2); }
+/* Topbar paramètres : remplacée par le pattern .page-header (Phase 2). */
 
 .v30-params__grid {
   display: grid;

@@ -12,36 +12,38 @@
 
 <div data-v30-entreprises>
 
-  {# ─── Page topbar ─── #}
-  <div class="v30-pp-topbar">
-    <h1>
-      Entreprises
-      <span class="v30-pp-count num" data-field="total">—</span>
-    </h1>
-    <div class="segmented" role="tablist" data-v30-ent-view>
-      <button type="button" class="active" data-view="table" role="tab" aria-selected="true">
-        {{ ui.icon('table', 13) }} Liste
+  {# ─── Page header (Phase 2 — pattern unifié) ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <h1 class="page-title">
+        Entreprises<span class="page-title__count num" data-field="total">—</span>
+      </h1>
+    </div>
+    <div class="page-header__actions">
+      <div class="segmented" role="tablist" data-v30-ent-view>
+        <button type="button" class="active" data-view="table" role="tab" aria-selected="true">
+          {{ ui.icon('table', 13) }} Liste
+        </button>
+        <button type="button" data-view="cards" role="tab" aria-selected="false">
+          {{ ui.icon('kanban', 13) }} Cartes
+        </button>
+      </div>
+      <div class="v30-pp-search" style="width:280px;">
+        <span class="v30-pp-search__icon">{{ ui.icon('search') }}</span>
+        <input type="search" class="input" placeholder="Rechercher une entreprise…" data-v30-search
+               aria-label="Rechercher dans les entreprises">
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-filters>
+        {{ ui.icon('filter', 13) }} Filtres
+        <span class="badge" data-field="active" hidden>0</span>
       </button>
-      <button type="button" data-view="cards" role="tab" aria-selected="false">
-        {{ ui.icon('kanban', 13) }} Cartes
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-export title="Exporter la liste complète au format Excel">
+        {{ ui.icon('arrowD', 13) }} Exporter
+      </button>
+      <button type="button" class="btn btn-sm btn-primary" data-v30-ent-add>
+        {{ ui.icon('plus', 13) }} Ajouter
       </button>
     </div>
-    <div class="v30-spacer"></div>
-    <div class="v30-pp-search" style="width:280px;">
-      <span class="v30-pp-search__icon">{{ ui.icon('search') }}</span>
-      <input type="search" class="input" placeholder="Rechercher une entreprise…" data-v30-search
-             aria-label="Rechercher dans les entreprises">
-    </div>
-    <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-filters>
-      {{ ui.icon('filter', 13) }} Filtres
-      <span class="badge" data-field="active" hidden>0</span>
-    </button>
-    <button type="button" class="btn btn-ghost btn-sm" data-v30-ent-export title="Exporter la liste complète au format Excel">
-      {{ ui.icon('arrowD', 13) }} Exporter
-    </button>
-    <button type="button" class="btn btn-sm btn-primary" data-v30-ent-add>
-      {{ ui.icon('plus', 13) }} Ajouter
-    </button>
   </div>
 
   {# ─── KPI row ─── #}

@@ -12,39 +12,41 @@
 <div data-v30-prospects>
 
 
-  {# ─── Sticky page topbar ─── #}
-  <div class="v30-pp-topbar">
-    <h1>
-      Prospects
-      <span class="v30-pp-count num" data-field="total">—</span>
-    </h1>
-    <div class="segmented" role="tablist" data-v30-view>
-      <button type="button" class="active" data-view="table" role="tab" aria-selected="true">
-        {{ ui.icon('table', 13) }} Table
+  {# ─── Page header (Phase 2 — pattern unifié) ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <h1 class="page-title">
+        Prospects<span class="page-title__count num" data-field="total">—</span>
+      </h1>
+    </div>
+    <div class="page-header__actions">
+      <div class="segmented" role="tablist" data-v30-view>
+        <button type="button" class="active" data-view="table" role="tab" aria-selected="true">
+          {{ ui.icon('table', 13) }} Table
+        </button>
+        <button type="button" data-view="kanban" role="tab" aria-selected="false">
+          {{ ui.icon('kanban', 13) }} Kanban
+        </button>
+        <button type="button" data-view="split" role="tab" aria-selected="false">
+          {{ ui.icon('split', 13) }} Split
+        </button>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-import title="Importer un fichier Excel">
+        {{ ui.icon('arrowU', 13) }} Importer
       </button>
-      <button type="button" data-view="kanban" role="tab" aria-selected="false">
-        {{ ui.icon('kanban', 13) }} Kanban
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-export title="Exporter toute la liste au format Excel">
+        {{ ui.icon('arrowD', 13) }} Exporter
       </button>
-      <button type="button" data-view="split" role="tab" aria-selected="false">
-        {{ ui.icon('split', 13) }} Split
+      <a class="btn btn-ghost btn-sm" href="/v30/prospects/archives" title="Voir les prospects archivés">
+        {{ ui.icon('inbox', 13) }} Archives
+      </a>
+      <button type="button" class="btn btn-sm" data-v30-mode-prosp title="Lancer le Mode Prosp sur la sélection (ou tous les prospects filtrés)">
+        {{ ui.icon('sparkles', 13) }} Mode Prosp
+      </button>
+      <button type="button" class="btn btn-sm btn-primary" data-v30-add>
+        {{ ui.icon('plus', 13) }} Ajouter
       </button>
     </div>
-    <div class="v30-spacer"></div>
-    <button type="button" class="btn btn-ghost btn-sm" data-v30-import title="Importer un fichier Excel">
-      {{ ui.icon('arrowU', 13) }} Importer
-    </button>
-    <button type="button" class="btn btn-ghost btn-sm" data-v30-export title="Exporter toute la liste au format Excel">
-      {{ ui.icon('arrowD', 13) }} Exporter
-    </button>
-    <a class="btn btn-ghost btn-sm" href="/v30/prospects/archives" title="Voir les prospects archivés">
-      {{ ui.icon('inbox', 13) }} Archives
-    </a>
-    <button type="button" class="btn btn-sm" data-v30-mode-prosp title="Lancer le Mode Prosp sur la sélection (ou tous les prospects filtrés)">
-      {{ ui.icon('sparkles', 13) }} Mode Prosp
-    </button>
-    <button type="button" class="btn btn-sm btn-primary" data-v30-add>
-      {{ ui.icon('plus', 13) }} Ajouter
-    </button>
   </div>
 
   {# ─── KPI cards (parite v29 : Total / Appelables / RDV / Prospectés) ─── #}

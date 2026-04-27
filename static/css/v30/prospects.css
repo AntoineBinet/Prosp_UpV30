@@ -18,31 +18,7 @@
 }
 .v30-pill__x:hover { opacity: 1; background: color-mix(in oklch, var(--text) 10%, transparent); }
 
-/* ─────────── Page topbar (sticky sous la topbar globale) ─────────── */
-.v30-pp-topbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--border);
-}
-.v30-pp-topbar h1 {
-  font-size: 28px;
-  margin: 0;
-  font-weight: 400;
-  font-family: var(--font-serif);
-  font-style: italic;
-  color: var(--text);
-}
-.v30-pp-topbar h1 .v30-pp-count {
-  font-size: 16px;
-  color: var(--text-3);
-  font-weight: 400;
-  font-family: var(--font-sans, Inter, sans-serif);
-  font-style: normal;
-  font-variant-numeric: tabular-nums;
-  margin-left: 8px;
-}
+/* Page topbar : remplacée par le pattern .page-header (Phase 2 / patterns.css). */
 
 /* ─────────── Saved views pills ─────────── */
 .v30-pp-views {
@@ -727,17 +703,10 @@
   .v30-pp-split  { grid-template-columns: 1fr; }
   .v30-pp-split__list { border-right: 0; border-bottom: 1px solid var(--border); }
 
-  /* Topbar de page : wrapping + scroll horizontal de la barre de boutons */
-  .v30-pp-topbar {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 12px 0;
-  }
-  .v30-pp-topbar h1 { font-size: 20px; flex: 0 0 100%; }
-  .v30-pp-topbar .segmented { flex: 0 0 auto; }
-  .v30-pp-topbar .v30-spacer { flex: 1 0 0; }
-  .v30-pp-topbar .btn { white-space: nowrap; }
-  .v30-pp-topbar .btn > span:not(.badge):not(.mono) { /* hide button labels */ }
+  /* Page header : wrapping + scroll horizontal de la barre de boutons */
+  .page-header { gap: 8px; }
+  .page-header__group { flex: 0 0 100%; }
+  .page-header__actions .btn { white-space: nowrap; }
 
   /* KPIs : 2 cols sur mobile */
   .v30-pp-kpis,
@@ -801,16 +770,16 @@
 
 @media (max-width: 600px) {
   /* Masque les boutons moins essentiels pour laisser respirer */
-  .v30-pp-topbar [data-v30-import],
-  .v30-pp-topbar [data-v30-export],
-  .v30-pp-topbar a[href*="archives"] { display: none; }
+  .page-header__actions [data-v30-import],
+  .page-header__actions [data-v30-export],
+  .page-header__actions a[href*="archives"] { display: none; }
 
   /* Les boutons principaux deviennent icon-only */
-  .v30-pp-topbar [data-v30-mode-prosp] span,
-  .v30-pp-topbar [data-v30-add] span { display: none; }
+  .page-header__actions [data-v30-mode-prosp] span,
+  .page-header__actions [data-v30-add] span { display: none; }
 
   /* View switcher : icon-only */
-  .v30-pp-topbar .segmented button {
+  .page-header__actions .segmented button {
     padding: 6px 10px;
   }
 }

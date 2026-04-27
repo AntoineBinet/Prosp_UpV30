@@ -9,23 +9,26 @@
 
 <div data-v30-push>
 
-  {# ─── Topbar ─── #}
-  <div class="v30-push-topbar">
-    <h1>Push</h1>
-    <div class="segmented" role="tablist" data-v30-push-tabs>
-      <button type="button" class="active" data-tab="categories" role="tab" aria-selected="true">Catégories</button>
-      <button type="button" data-tab="historique" role="tab" aria-selected="false">Historique</button>
+  {# ─── Page header (Phase 2 — pattern unifié) ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <h1 class="page-title">Push</h1>
     </div>
-    <div class="v30-spacer"></div>
-    <button type="button" class="btn btn-ghost" data-v30-btn-manage-templates aria-label="Gérer les templates texte email">
-      {{ ui.icon('note', 13) }} Templates texte
-    </button>
-    <button type="button" class="btn btn-ghost" data-v30-btn-scan aria-label="Scanner le dossier pushs/">
-      {{ ui.icon('search', 13) }} Scanner pushs/
-    </button>
-    <button type="button" class="btn btn-accent" data-v30-btn-new-cat aria-label="Créer une nouvelle catégorie">
-      {{ ui.icon('plus', 13) }} Nouvelle catégorie
-    </button>
+    <div class="page-header__actions">
+      <div class="segmented" role="tablist" data-v30-push-tabs>
+        <button type="button" class="active" data-tab="categories" role="tab" aria-selected="true">Catégories</button>
+        <button type="button" data-tab="historique" role="tab" aria-selected="false">Historique</button>
+      </div>
+      <button type="button" class="btn btn-ghost" data-v30-btn-manage-templates aria-label="Gérer les templates texte email">
+        {{ ui.icon('note', 13) }} Templates texte
+      </button>
+      <button type="button" class="btn btn-ghost" data-v30-btn-scan aria-label="Scanner le dossier pushs/">
+        {{ ui.icon('search', 13) }} Scanner pushs/
+      </button>
+      <button type="button" class="btn btn-accent" data-v30-btn-new-cat aria-label="Créer une nouvelle catégorie">
+        {{ ui.icon('plus', 13) }} Nouvelle catégorie
+      </button>
+    </div>
   </div>
 
   {# ─── Panel Catégories ─── #}

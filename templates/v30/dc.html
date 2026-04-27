@@ -11,18 +11,20 @@
 
 <div class="v30-params">
 
-  <div class="v30-params__topbar">
-    <div>
-      <div class="v30-params__eyebrow">Export candidat</div>
-      <h1 class="v30-params__title"><span class="serif">Dossier de compétence.</span></h1>
-      <div class="v30-params__sub">
+  {# ─── Page header (Phase 2 — pattern unifié) ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <p class="page-eyebrow">Export candidat</p>
+      <h1 class="page-title">Dossier de compétence.</h1>
+      <p class="page-sub">
         Génère un DOCX/PDF à partir d'une fiche candidat et d'un template.
-      </div>
+      </p>
     </div>
-    <div class="v30-spacer"></div>
-    <a class="btn btn-accent" href="{{ '/dc-generator?candidate=' ~ cid if cid else '/dc-generator' }}">
-      {{ ui.icon('link', 13) }} Ouvrir le générateur
-    </a>
+    <div class="page-header__actions">
+      <a class="btn btn-accent" href="{{ '/dc-generator?candidate=' ~ cid if cid else '/dc-generator' }}">
+        {{ ui.icon('link', 13) }} Ouvrir le générateur
+      </a>
+    </div>
   </div>
 
   {% if cid %}

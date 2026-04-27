@@ -11,29 +11,32 @@
 
 <div data-v30-cal>
 
-  <div class="v30-cal-topbar">
-    <h1>Calendrier</h1>
-    <div class="v30-spacer"></div>
-
-    {# Switcher Mois / Semaine / Jour #}
-    <div class="v30-cal-views" role="group" aria-label="Vue du calendrier">
-      <button type="button" class="btn btn-ghost btn-sm is-active" data-v30-cal-view="month">Mois</button>
-      <button type="button" class="btn btn-ghost btn-sm" data-v30-cal-view="week">Semaine</button>
-      <button type="button" class="btn btn-ghost btn-sm" data-v30-cal-view="day">Jour</button>
+  {# ─── Page header (Phase 2 — pattern unifié) ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <h1 class="page-title">Calendrier</h1>
+      <span class="v30-cal-month" data-v30-cal-month>—</span>
     </div>
+    <div class="page-header__actions">
+      {# Switcher Mois / Semaine / Jour #}
+      <div class="v30-cal-views" role="group" aria-label="Vue du calendrier">
+        <button type="button" class="btn btn-ghost btn-sm is-active" data-v30-cal-view="month">Mois</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-cal-view="week">Semaine</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-cal-view="day">Jour</button>
+      </div>
 
-    {# Navigation #}
-    <button type="button" class="btn btn-ghost btn-icon" data-v30-cal-prev aria-label="Précédent">
-      {{ ui.icon('chevL') }}
-    </button>
-    <span class="v30-cal-month" data-v30-cal-month>—</span>
-    <button type="button" class="btn btn-ghost btn-icon" data-v30-cal-next aria-label="Suivant">
-      {{ ui.icon('chevR') }}
-    </button>
-    <button type="button" class="btn btn-sm" data-v30-cal-today>Aujourd'hui</button>
-    <button type="button" class="btn btn-ghost btn-icon v30-cal-refresh-btn" data-v30-cal-refresh aria-label="Actualiser">
-      {{ ui.icon('sync', 13) }}
-    </button>
+      {# Navigation #}
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-cal-prev aria-label="Précédent">
+        {{ ui.icon('chevL') }}
+      </button>
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-cal-next aria-label="Suivant">
+        {{ ui.icon('chevR') }}
+      </button>
+      <button type="button" class="btn btn-sm" data-v30-cal-today>Aujourd'hui</button>
+      <button type="button" class="btn btn-ghost btn-icon v30-cal-refresh-btn" data-v30-cal-refresh aria-label="Actualiser">
+        {{ ui.icon('sync', 13) }}
+      </button>
+    </div>
   </div>
 
   {# Corps : rendu dynamiquement par calendar.js selon la vue #}
