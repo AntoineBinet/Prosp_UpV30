@@ -19585,9 +19585,11 @@ _sys.modules.setdefault('app', _sys.modules[__name__])
 from routes.auth import auth_bp    # noqa: E402
 from routes.deploy import deploy_bp  # noqa: E402
 from routes.ai import ai_bp          # noqa: E402
+from routes.bootstrap_portfolio import bootstrap_portfolio_bp  # TEMP — bootstrap marienour.work, supprimer après usage  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
 app.register_blueprint(ai_bp)
+app.register_blueprint(bootstrap_portfolio_bp)  # TEMP
 
 
 if __name__ == "__main__":
