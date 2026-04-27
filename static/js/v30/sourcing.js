@@ -163,6 +163,7 @@
         '</div>' + body +
       '</div>';
     }).join('');
+    bindDndAfterRender(host);
   }
 
   function renderGrid() {
@@ -402,66 +403,57 @@
   // ─── Kanban Drag & Drop ──────────────────────────────────
   var KANBAN_DND = { dragId: null, fromIdx: null };
 
-  function bindKanbanDnd() {
-    var host = $('[data-v30-sc-kanban]');
-    if (!host) return;
-
-    host.addEventListener('dragstart', function (e) {
-      var card = e.target.closest('[data-kcard-id]');
-      if (!card) return;
-      KANBAN_DND.dragId = Number(card.dataset.kcardId);
-      KANBAN_DND.fromIdx = findColForStatus(card.dataset.kcardStatus);
-      card.classList.add('is-dragging');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-
-    host.addEventListener('dragend', function (e) {
-      var card = e.target.closest('[data-kcard-id]');
-      if (card) card.classList.remove('is-dragging');
-      host.querySelectorAll('.v30-sc-col.is-drop-target').forEach(function (col) {
-        col.classList.remove('is-drop-target');
+  function bindDndAfterRender(host) {
+    host.querySelectorAll('[data-kcard-id]').forEach(function (card) {
+      card.addEventListener('dragstart', function (e) {
+        KANBAN_DND.dragId = Number(card.dataset.kcardId);
+        KANBAN_DND.fromIdx = findColForStatus(card.dataset.kcardStatus);
+        setTimeout(function () { card.classList.add('is-dragging'); }, 0);
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      card.addEventListener('dragend', function () {
+        card.classList.remove('is-dragging');
+        host.querySelectorAll('.v30-sc-col.is-drop-target').forEach(function (c) {
+          c.classList.remove('is-drop-target');
+        });
       });
     });
 
-    host.addEventListener('dragover', function (e) {
-      var col = e.target.closest('.v30-sc-col[data-kcol-idx]');
-      if (!col) return;
-      e.preventDefault();
-      host.querySelectorAll('.v30-sc-col.is-drop-target').forEach(function (c) { c.classList.remove('is-drop-target'); });
-      col.classList.add('is-drop-target');
-      e.dataTransfer.dropEffect = 'move';
-    });
-
-    host.addEventListener('dragleave', function (e) {
-      var col = e.target.closest('.v30-sc-col[data-kcol-idx]');
-      if (!col) return;
-      if (!col.contains(e.relatedTarget)) col.classList.remove('is-drop-target');
-    });
-
-    host.addEventListener('drop', function (e) {
-      e.preventDefault();
-      var col = e.target.closest('.v30-sc-col[data-kcol-idx]');
-      if (!col) return;
-      col.classList.remove('is-drop-target');
-      var toIdx = Number(col.dataset.kcolIdx);
-      var id = KANBAN_DND.dragId;
-      if (!id || toIdx === KANBAN_DND.fromIdx) return;
-      var newStatus = COLS[toIdx].primary;
-      var cand = STATE.candidates.find(function (c) { return c.id === id; });
-      if (!cand) return;
-      var oldStatus = cand.status;
-      cand.status = newStatus;
-      applyFilter();
-      fetchPost('/api/candidates/bulk-update', { ids: [id], field: 'status', value: newStatus })
-        .then(function (res) {
-          if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
-          toast('Statut mis à jour', 'success');
-        })
-        .catch(function (err) {
-          cand.status = oldStatus;
-          applyFilter();
-          toast('Erreur : ' + err.message, 'error');
+    host.querySelectorAll('.v30-sc-col[data-kcol-idx]').forEach(function (col) {
+      col.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        host.querySelectorAll('.v30-sc-col.is-drop-target').forEach(function (c) {
+          c.classList.remove('is-drop-target');
         });
+        col.classList.add('is-drop-target');
+        e.dataTransfer.dropEffect = 'move';
+      });
+      col.addEventListener('dragleave', function (e) {
+        if (!col.contains(e.relatedTarget)) col.classList.remove('is-drop-target');
+      });
+      col.addEventListener('drop', function (e) {
+        e.preventDefault();
+        col.classList.remove('is-drop-target');
+        var toIdx = Number(col.dataset.kcolIdx);
+        var id = KANBAN_DND.dragId;
+        if (!id || toIdx === KANBAN_DND.fromIdx) return;
+        var newStatus = COLS[toIdx].primary;
+        var cand = STATE.candidates.find(function (c) { return c.id === id; });
+        if (!cand) return;
+        var oldStatus = cand.status;
+        cand.status = newStatus;
+        applyFilter();
+        fetchPost('/api/candidates/bulk-update', { ids: [id], field: 'status', value: newStatus })
+          .then(function (res) {
+            if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+            toast('Statut mis à jour', 'success');
+          })
+          .catch(function (err) {
+            cand.status = oldStatus;
+            applyFilter();
+            toast('Erreur : ' + err.message, 'error');
+          });
+      });
     });
   }
 
@@ -1017,7 +1009,6 @@
     bindFilters();
     bindBulk();
     bindSelection();
-    bindKanbanDnd();
     bindMatchClose();
     bindInmails();
     bindImport();
