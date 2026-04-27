@@ -97,6 +97,54 @@
   --scrollbar-thumb:       oklch(0.80 0.010 258 / 0.55);
   --scrollbar-thumb-hover: oklch(0.70 0.012 258 / 0.75);
   --scrollbar-track:       transparent;
+
+  /* ============================================================
+     Phase 0 — Tokens d'extension (ajouts uniquement)
+     Aucune valeur visuelle en dur dans les feuilles de page :
+     toujours référencer un token. Voir RECTIFICATION_PLAN.
+     ============================================================ */
+
+  /* ─── Radius : combler le palier 12px très utilisé ─── */
+  --r-card: 12px;                /* cards (ent-card, kpi-card, etc.) */
+
+  /* ─── Shadows : variantes pour popovers / dropdowns ─── */
+  --shadow-popover: 0 4px 16px oklch(0 0 0 / 0.18);
+  --shadow-dropdown: 0 12px 28px -10px oklch(0 0 0 / 0.24);
+
+  /* ─── Page header : valeurs canoniques ─── */
+  --page-header-py: var(--s-4);   /* padding vertical */
+  --page-eyebrow-size: 11px;
+  --page-title-size: 28px;
+  --page-title-family: var(--font-serif);
+  --page-title-style: italic;
+  --page-title-weight: 400;
+  --page-title-tracking: -0.4px;
+  --page-sub-size: 13px;
+
+  /* ─── KPI : taille canonique + variantes ─── */
+  --kpi-value-size: 32px;
+  --kpi-value-size-sm: 22px;
+  --kpi-value-size-hero: 36px;    /* dashboard hero uniquement */
+  --kpi-label-size: 11px;
+
+  /* ─── Inputs : DEUX hauteurs maximum ─── */
+  --input-h: 32px;                /* défaut, partout */
+  --input-h-lg: 40px;             /* modales, formulaires importants */
+  --input-radius: var(--r-md);    /* 8px — aligné sur --btn */
+  --input-radius-lg: var(--r-lg); /* 10px — pour la variante lg */
+
+  /* ─── Avatar ─── */
+  --avatar-size-sm: 24px;
+  --avatar-size: 32px;            /* canonique */
+  --avatar-size-md: 36px;
+  --avatar-size-lg: 44px;
+  --avatar-size-xl: 52px;         /* mode-prosp hero uniquement */
+  --avatar-radius: 50%;
+  --avatar-radius-square: var(--r-md); /* logos d'entreprises */
+
+  /* ─── Brand colors externes (calendrier) ─── */
+  --brand-teams: oklch(0.40 0.18 270);
+  --brand-outlook: oklch(0.45 0.18 220);
 }
 
 /* ─────────── Dark mode ─────────── */
@@ -129,6 +177,12 @@
   --shadow-2: 0 2px 4px oklch(0 0 0 / 0.30), 0 4px 12px oklch(0 0 0 / 0.30);
   --shadow-3: 0 8px 24px oklch(0 0 0 / 0.45);
   --shadow-pop: 0 16px 48px oklch(0 0 0 / 0.55);
+
+  /* Phase 0 — overrides dark pour les shadows popover/dropdown.
+     Les autres tokens ajoutés en Phase 0 sont des dimensions non-couleur :
+     pas besoin de variante dark. */
+  --shadow-popover: 0 4px 16px oklch(0 0 0 / 0.45);
+  --shadow-dropdown: 0 12px 28px -10px oklch(0 0 0 / 0.55);
 }
 
 /* ─────────── Base ─────────── */
