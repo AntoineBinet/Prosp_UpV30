@@ -324,6 +324,20 @@ def _read_text_safe(path: Path, max_bytes: int = 8192) -> str | None:
         return f"<lecture impossible : {e}>"
 
 
+def _tail_text(path: Path, max_bytes: int = 8000) -> str | None:
+    """Retourne les derniers `max_bytes` octets d'un fichier texte."""
+    try:
+        if not path.exists():
+            return None
+        size = path.stat().st_size
+        with path.open("rb") as f:
+            if size > max_bytes:
+                f.seek(size - max_bytes)
+            return f.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        return f"<lecture impossible : {e}>"
+
+
 def _list_processes_windows() -> list[dict]:
     """Liste cloudflared.exe et python.exe avec leur cmdline (PowerShell)."""
     if sys.platform != "win32":
@@ -446,6 +460,10 @@ def api_portfolio_status():
     # Local server health
     out["local_health_8001"] = _http_local_health()
 
+    # Logs cloudflared mnwork (si démarré via start-tunnel-only)
+    out["tunnel_out_log_tail"] = _tail_text(target / "tunnel.out.log", 4000)
+    out["tunnel_err_log_tail"] = _tail_text(target / "tunnel.err.log", 4000)
+
     # Processus en cours
     out["processes"] = _list_processes_windows()
 
@@ -552,6 +570,60 @@ def api_portfolio_action():
                 subprocess.Popen(["bash", str(bat)], cwd=str(target), start_new_session=True)
             log(f"PORTFOLIO.bat relancé : {bat}")
             return {"ok": True, "log": log_lines}
+
+        if action == "start-tunnel-only":
+            # Lance UNIQUEMENT cloudflared mnwork en arrière-plan, stdout+stderr → fichiers log.
+            # Évite de tout relancer (le serveur :8001 tourne déjà).
+            if sys.platform != "win32":
+                return {"ok": False, "error": "Action Windows-only", "log": log_lines}, 400
+            cf = _find_cloudflared()
+            if not cf:
+                return {"ok": False, "error": "cloudflared introuvable", "log": log_lines}, 500
+            yaml_path = target / "mnwork.yml"
+            if not yaml_path.exists():
+                return {"ok": False, "error": "mnwork.yml manquant — clique d'abord 'Régénérer'",
+                        "log": log_lines}, 400
+            out_log = target / "tunnel.out.log"
+            err_log = target / "tunnel.err.log"
+            # Vide les logs précédents
+            try:
+                out_log.write_text("", encoding="utf-8")
+                err_log.write_text("", encoding="utf-8")
+            except Exception:
+                pass
+
+            ps = (
+                f"$psi = Start-Process -FilePath '{cf}' "
+                f"-ArgumentList '--config','{yaml_path}','--loglevel','info','tunnel','run','{TUNNEL_NAME}' "
+                f"-RedirectStandardOutput '{out_log}' "
+                f"-RedirectStandardError '{err_log}' "
+                f"-WindowStyle Hidden -PassThru; "
+                f"Write-Output $psi.Id"
+            )
+            cp = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps],
+                capture_output=True, text=True, timeout=10,
+            )
+            pid = (cp.stdout or "").strip()
+            log(f"cloudflared mnwork démarré (PID {pid or '?'}) → logs dans {out_log.name} / {err_log.name}")
+            if cp.stderr.strip():
+                log(f"stderr ps : {cp.stderr.strip()}")
+            return {"ok": True, "pid": pid, "log": log_lines,
+                    "out_log_path": str(out_log), "err_log_path": str(err_log),
+                    "hint": "Patiente 3-5 s puis clique 'Lire les logs tunnel'."}
+
+        if action == "read-tunnel-log":
+            out_log = target / "tunnel.out.log"
+            err_log = target / "tunnel.err.log"
+            return {
+                "ok": True,
+                "out_log_path": str(out_log),
+                "out_log_exists": out_log.exists(),
+                "out_log_tail": _tail_text(out_log, 8000),
+                "err_log_path": str(err_log),
+                "err_log_exists": err_log.exists(),
+                "err_log_tail": _tail_text(err_log, 8000),
+            }
 
         return {"ok": False, "error": f"action inconnue : '{action}'"}, 400
 
