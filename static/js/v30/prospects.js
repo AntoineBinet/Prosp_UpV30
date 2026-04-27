@@ -735,6 +735,7 @@
       if (KANBAN_DND.suppressClickUntil && Date.now() < KANBAN_DND.suppressClickUntil) return;
       e.preventDefault();
       var id = a.dataset.v30Open;
+      sessionStorage.setItem('v30.prospects.from_detail', '1');
       window.location.href = '/v30/prospect/' + encodeURIComponent(id);
     });
   }
@@ -2343,6 +2344,14 @@
 
   function restorePersistedFilters() {
     var saved = loadPersistedFilters();
+    // Always restore sort preference (column ordering, not a filter)
+    if (saved && saved.sort && typeof saved.sort === 'object') {
+      STATE.sort = { key: saved.sort.key || '', dir: saved.sort.dir === 'desc' ? 'desc' : 'asc' };
+    }
+    // Only restore active filters when coming back from a prospect detail page
+    var fromDetail = sessionStorage.getItem('v30.prospects.from_detail');
+    if (!fromDetail) return;
+    sessionStorage.removeItem('v30.prospects.from_detail');
     if (!saved) return;
     if (typeof saved.q === 'string') STATE.q = saved.q;
     if (typeof saved.filter === 'string') STATE.filter = saved.filter === 'hot' ? 'rdv' : saved.filter;
@@ -2358,9 +2367,6 @@
         callableOnly: !!saved.filters.callableOnly,
         companyId: saved.filters.companyId || null
       };
-    }
-    if (saved.sort && typeof saved.sort === 'object') {
-      STATE.sort = { key: saved.sort.key || '', dir: saved.sort.dir === 'desc' ? 'desc' : 'asc' };
     }
   }
 
