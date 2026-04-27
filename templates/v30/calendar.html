@@ -22,6 +22,9 @@
       {{ ui.icon('chevR') }}
     </button>
     <button type="button" class="btn btn-sm" data-v30-cal-today>Aujourd'hui</button>
+    <button type="button" class="btn btn-ghost btn-icon v30-cal-refresh-btn" data-v30-cal-refresh aria-label="Actualiser le calendrier">
+      {{ ui.icon('sync', 13) }}
+    </button>
   </div>
 
   <div class="v30-cal">
@@ -37,10 +40,17 @@
     </div>
   </div>
 
-  <div style="display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--text-3);flex-wrap:wrap;">
-    <span><span style="display:inline-block;width:8px;height:8px;background:oklch(0.50 0.15 280);border-radius:2px;margin-right:4px;"></span>RDV</span>
-    <span><span style="display:inline-block;width:8px;height:8px;background:var(--warn);border-radius:2px;margin-right:4px;"></span>Relance à faire</span>
-    <span><span style="display:inline-block;width:8px;height:8px;background:var(--success);border-radius:2px;margin-right:4px;"></span>EC1 candidat</span>
+  <div class="v30-cal-footer">
+    <div class="v30-cal-legend">
+      <span><span class="v30-cal-legend__dot" style="background:oklch(0.50 0.15 280);"></span>RDV</span>
+      <span><span class="v30-cal-legend__dot" style="background:var(--warn);"></span>Relance à faire</span>
+      <span><span class="v30-cal-legend__dot" style="background:var(--success);"></span>EC1 candidat</span>
+      <span><span class="v30-cal-legend__dot" style="background:oklch(0.55 0.18 220);"></span>Calendrier externe</span>
+    </div>
+    <div class="v30-cal-ext-status-wrap">
+      <span class="v30-cal-ext-badge" data-v30-cal-ext-status hidden></span>
+      <a class="v30-cal-ext-config-link muted" href="/v30/parametres#calsync">Configurer</a>
+    </div>
   </div>
 
 </div>

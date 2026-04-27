@@ -811,6 +811,112 @@
   }
 
   // ══════════════════════════════════════════════════════════════
+  //  3. Calendrier externe (ICS / Outlook / Google)
+  // ══════════════════════════════════════════════════════════════
+  async function calSyncLoad() {
+    var inp = $('[data-v30-calsync-url]');
+    if (!inp) return;
+    try {
+      var res = await fetch('/api/settings', { credentials: 'same-origin' });
+      var j = await res.json();
+      var url = j && j.settings && j.settings.calendar_external_ics_url;
+      inp.value = url || '';
+    } catch (e) {
+      console.warn('calSync load:', e);
+    }
+  }
+  async function calSyncSave() {
+    var inp = $('[data-v30-calsync-url]');
+    var st = '[data-v30-calsync-status]';
+    var url = (inp && inp.value || '').trim();
+    inlineStatus(st, 'Enregistrement…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/settings', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { calendar_external_ics_url: url } })
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Enregistré', 'var(--success)');
+      toast('URL de calendrier enregistrée', 'success');
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    clearInlineStatus(st);
+  }
+  async function calSyncTest() {
+    var inp = $('[data-v30-calsync-url]');
+    var st = '[data-v30-calsync-status]';
+    var url = (inp && inp.value || '').trim();
+    if (!url) {
+      inlineStatus(st, 'Saisir une URL d\'abord', 'var(--warn)');
+      clearInlineStatus(st);
+      return;
+    }
+    inlineStatus(st, 'Test en cours…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/calendar_events_external?url=' + encodeURIComponent(url), {
+        credentials: 'same-origin'
+      });
+      var j = await res.json();
+      if (!j || !j.ok) throw new Error((j && j.error) || 'Erreur');
+      var n = (j.events || []).length;
+      var msg = 'OK · ' + n + ' événement' + (n > 1 ? 's' : '') + ' trouvé' + (n > 1 ? 's' : '');
+      inlineStatus(st, msg, 'var(--success)');
+      toast(msg, 'success');
+    } catch (e) {
+      inlineStatus(st, 'Échec : ' + e.message, 'var(--danger)');
+      toast('Calendrier externe : ' + e.message, 'error');
+    }
+    clearInlineStatus(st, 6000);
+  }
+  async function calSyncClear() {
+    if (!confirm('Supprimer le lien ICS enregistré ?')) return;
+    var inp = $('[data-v30-calsync-url]');
+    if (inp) inp.value = '';
+    var st = '[data-v30-calsync-status]';
+    inlineStatus(st, 'Suppression…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/settings', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { calendar_external_ics_url: '' } })
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      inlineStatus(st, 'Supprimé', 'var(--success)');
+      toast('Lien ICS supprimé', 'success');
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+    }
+    clearInlineStatus(st);
+  }
+  function bindCalSync() {
+    var root = $('[data-v30-calsync]');
+    if (!root) return;
+    var s = $('[data-v30-calsync-save]');
+    if (s) s.addEventListener('click', calSyncSave);
+    var t = $('[data-v30-calsync-test]');
+    if (t) t.addEventListener('click', calSyncTest);
+    var c = $('[data-v30-calsync-clear]');
+    if (c) c.addEventListener('click', calSyncClear);
+    // Charge l'URL à l'ouverture du <details>
+    root.addEventListener('toggle', function () {
+      if (root.open) calSyncLoad();
+    });
+    // Auto-ouvre si l'ancre #calsync est présente dans l'URL
+    if (window.location.hash === '#calsync') {
+      root.open = true;
+      root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      calSyncLoad();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
   //  Bind global
   // ══════════════════════════════════════════════════════════════
   function bindDeploy() {
@@ -829,6 +935,7 @@
     bindDeploy();
     bindAi();
     bindGoals();
+    bindCalSync();
     bindBackup();
     bindNotif();
     bindAccount();
