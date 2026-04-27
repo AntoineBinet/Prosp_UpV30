@@ -1006,6 +1006,17 @@
       STATE.categoriesLoaded = true;
       return ensureBuiltinCategories();
     });
+    // Auto-refresh quand l'onglet redevient actif (historique des push)
+    var lastRefresh = Date.now();
+    function maybeRefresh() {
+      if (document.hidden) return;
+      var now = Date.now();
+      if (now - lastRefresh < 5000) return;
+      lastRefresh = now;
+      reloadPushLogs();
+    }
+    document.addEventListener('visibilitychange', maybeRefresh);
+    window.addEventListener('focus', maybeRefresh);
   }
 
   if (document.readyState === 'loading') {

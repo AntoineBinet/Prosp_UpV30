@@ -526,6 +526,17 @@
     setInterval(function () {
       loadAll().then(function () { render(); updateExtBadge(); });
     }, 3600000);
+    // Auto-refresh quand l'onglet redevient actif
+    var lastRefresh = Date.now();
+    function maybeRefresh() {
+      if (document.hidden) return;
+      var now = Date.now();
+      if (now - lastRefresh < 5000) return;
+      lastRefresh = now;
+      loadAll().then(function () { render(); updateExtBadge(); });
+    }
+    document.addEventListener('visibilitychange', maybeRefresh);
+    window.addEventListener('focus', maybeRefresh);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

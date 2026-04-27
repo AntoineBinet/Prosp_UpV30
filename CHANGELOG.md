@@ -2,6 +2,28 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [31.4] — 2026-04-27 · auto-refresh des données
+
+Plus besoin de F5 pour voir un push apparaître ou pour rafraîchir un dashboard laissé ouvert dans un onglet en arrière-plan.
+
+### Optimistic UI sur la fiche prospect
+
+- `prospect_detail.js` écoute désormais `v30-push-sent` (déjà dispatché par `push-modal.js` mais sans listener jusque là).
+- À l'envoi d'un push, l'événement est inséré localement dans `STATE.events` et la timeline + les badges (Timeline/Push) se mettent à jour instantanément, sans attendre le re-fetch.
+- Re-fetch automatique 1.5 s après pour récupérer la version serveur enrichie (template, candidats, consultants).
+
+### Refresh quand l'onglet redevient actif
+
+Listeners `visibilitychange` + `focus` ajoutés sur les pages v30 suivantes (throttle 5 s pour éviter le spam) :
+- **Fiche prospect** : `loadTimeline()`
+- **Prospects** : `loadProspects()`
+- **Dashboard** : `hydrate()`
+- **Focus** : `load()` + `loadTasks()` + `loadRelances()`
+- **Calendrier** : `loadAll()`
+- **Push** : `reloadPushLogs()`
+
+Pattern repris de `mode_prosp.js` (déjà éprouvé). Pas de polling actif → coût réseau nul tant que l'onglet reste actif sans interaction.
+
 ## [31.0] — 2026-04-25 · v31 · audit exhaustif desktop + mobile + corrections transverses
 
 Passage en v31 après un cycle complet de tests fonctionnels et visuels (simulation d'utilisateur sur 7 jours + balayage exhaustif desktop/mobile). Plusieurs bugs structurels (multi-user DB, labels pipeline, URLs cassées) corrigés.

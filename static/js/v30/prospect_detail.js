@@ -102,6 +102,46 @@
       });
   }
 
+  // ─── Optimistic UI : push envoyé ───────────────────────────
+  // Insère localement un événement push sans attendre le re-fetch,
+  // pour que la timeline et les badges se mettent à jour instantanément.
+  function applyPushOptimistic(detail) {
+    if (!detail || Number(detail.prospect_id) !== PROSPECT_ID) return;
+    var channel = detail.channel || 'email';
+    var ev = {
+      type: 'push',
+      date: detail.sentAt || new Date().toISOString(),
+      title: 'Push (' + channel + ')',
+      content: '',
+      meta: { channel: channel },
+      source: 'push',
+      _optimistic: true
+    };
+    STATE.events = [ev].concat(STATE.events || []);
+    STATE.pushLogs = STATE.events.filter(function (e) { return (e.type || '').startsWith('push'); });
+    if (window.ProspFPRender) window.ProspFPRender.all(STATE);
+  }
+
+  document.addEventListener('v30-push-sent', function (e) {
+    applyPushOptimistic(e && e.detail);
+    // Re-fetch peu après pour récupérer la version serveur enrichie
+    // (template, candidats, consultants) et remplacer la version optimiste.
+    setTimeout(loadTimeline, 1500);
+  });
+
+  // ─── Auto-refresh quand l'onglet redevient actif ───────────
+  var lastRefresh = Date.now();
+  var REFRESH_THROTTLE_MS = 5000;
+  function maybeRefresh() {
+    if (document.hidden) return;
+    var now = Date.now();
+    if (now - lastRefresh < REFRESH_THROTTLE_MS) return;
+    lastRefresh = now;
+    loadTimeline();
+  }
+  document.addEventListener('visibilitychange', maybeRefresh);
+  window.addEventListener('focus', maybeRefresh);
+
   // Inline edit : utilise /api/prospects/bulk-edit avec ids=[PROSPECT_ID]
   function saveField(field, value) {
     var payload = { ids: [PROSPECT_ID], field: field, value: value };
