@@ -123,6 +123,7 @@
   border: 1px solid var(--border);
   white-space: nowrap;
 }
+.badge[hidden] { display: none !important; }
 .badge-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: currentColor;
