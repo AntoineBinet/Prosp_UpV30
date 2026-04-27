@@ -72,7 +72,12 @@
             var iso = (e.date || '').slice(0, 10);
             if (!iso) return;
             var timePrefix = e.time ? e.time + ' · ' : '';
-            push(iso, { type: 'external', label: timePrefix + (e.name || '—'), href: '' });
+            push(iso, {
+              type: 'external',
+              label: timePrefix + (e.name || '—'),
+              href: e.url || '',
+              teams_url: e.teams_url || '',
+            });
           });
           STATE.extStatus = { count: evts.length, error: null };
         })
@@ -218,7 +223,19 @@
       '<div class="v30-cal__popup-body">' +
         '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:4px;">' + esc(typeLabel) + '</div>' +
         '<div style="font-size:13px;color:var(--text);margin-bottom:8px;word-break:break-word;">' + esc(ev.label) + '</div>';
-    if (ev.href) {
+    if (ev.type === 'external') {
+      body += '<div class="v30-cal__popup-ext-actions">';
+      if (ev.teams_url) {
+        var teamsDeep = ev.teams_url.replace('https://teams.microsoft.com/', 'msteams://');
+        body += '<a class="btn btn-sm v30-cal__btn-teams" href="' + esc(teamsDeep) + '" title="Ouvrir dans Microsoft Teams">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M21 21v-2a4 4 0 0 0-4-4h-1"/><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M3 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"/></svg>' +
+          'Rejoindre Teams</a>';
+      }
+      body += '<a class="btn btn-sm v30-cal__btn-outlook" href="ms-outlook://" title="Ouvrir Outlook">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>' +
+        'Ouvrir Outlook</a>';
+      body += '</div>';
+    } else if (ev.href) {
       body += '<a class="btn btn-sm btn-accent" href="' + esc(ev.href) + '" style="display:inline-flex;align-items:center;gap:6px;">Voir la fiche →</a>';
     }
     body += '</div>';

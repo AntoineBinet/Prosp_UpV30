@@ -16028,26 +16028,56 @@ def api_calendar_events():
 
 
 def _parse_ics_to_events(ics_text: str) -> List[Dict[str, Any]]:
-    """Parse ICS text and return list of events { date, time, name }. Simple VEVENT parser."""
+    """Parse ICS text and return list of events { date, time, name, teams_url, event_url }."""
     events = []
     if not ics_text or "BEGIN:VEVENT" not in ics_text:
         return events
     blocks = ics_text.split("BEGIN:VEVENT")
     for block in blocks[1:]:
         part = block.split("END:VEVENT")[0]
+        # Unfold ICS lines (RFC 5545: CRLF + whitespace = continuation)
+        unfolded = re.sub(r"\r?\n[ \t]", "", part)
         summary = ""
         start_date = ""
         start_time = ""
+        teams_url = ""
+        event_url = ""
+
         summary_m = re.search(r"SUMMARY[^:]*:(.*?)(?:\r?\n(?!\s))", part, re.DOTALL)
         if summary_m:
             summary = re.sub(r"\r?\n\s+", "", summary_m.group(1)).strip()
+
         start_m = re.search(r"DTSTART[^:]*:(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?)?", part)
         if start_m:
             start_date = f"{start_m.group(1)}-{start_m.group(2)}-{start_m.group(3)}"
             if start_m.group(4):
                 start_time = f"{start_m.group(4)}:{start_m.group(5) or '00'}"
+
+        # Teams meeting URL (proprietary Microsoft fields, unfolded)
+        teams_m = re.search(
+            r"X-MICROSOFT-(?:SKYPETEAMSMEETINGURL|ONLINEMEETINGURL)[^:]*:(https://teams\.microsoft\.com/\S+)",
+            unfolded, re.IGNORECASE,
+        )
+        if teams_m:
+            teams_url = teams_m.group(1).strip()
+        if not teams_url:
+            # Fallback: search DESCRIPTION for a Teams join URL
+            desc_m = re.search(r"DESCRIPTION[^:]*:(.*?)(?=\r?\n[A-Z])", unfolded, re.DOTALL)
+            if desc_m:
+                t_url = re.search(r"https://teams\.microsoft\.com/l/meetup-join/\S+", desc_m.group(1))
+                if t_url:
+                    teams_url = t_url.group(0).rstrip("\\>").strip()
+
+        # Generic URL field
+        url_m = re.search(r"^URL[^:]*:(.+)$", unfolded, re.MULTILINE)
+        if url_m:
+            event_url = url_m.group(1).strip()
+
         if start_date and summary:
-            events.append({"date": start_date, "time": start_time, "name": summary})
+            events.append({
+                "date": start_date, "time": start_time, "name": summary,
+                "teams_url": teams_url, "event_url": event_url,
+            })
     return events
 
 
@@ -16072,7 +16102,12 @@ def api_calendar_events_external():
         return jsonify(ok=False, error=str(e)), 502
     raw = _parse_ics_to_events(ics_text)
     events = [
-        {"id": None, "name": e["name"], "company": "", "date": e["date"], "time": e.get("time") or "", "type": "external", "statut": "", "url": ""}
+        {
+            "id": None, "name": e["name"], "company": "", "date": e["date"],
+            "time": e.get("time") or "", "type": "external", "statut": "",
+            "url": e.get("event_url") or "",
+            "teams_url": e.get("teams_url") or "",
+        }
         for e in raw
     ]
     return jsonify(ok=True, events=events)

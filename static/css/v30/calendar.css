@@ -165,6 +165,31 @@
 }
 .v30-cal__popup-body { padding: 8px; display: flex; flex-direction: column; gap: 4px; }
 
+/* ─── Boutons actions événements externes ─── */
+.v30-cal__popup-ext-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.v30-cal__btn-teams {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: oklch(0.40 0.18 270);
+  color: #fff;
+  border: 0;
+}
+.v30-cal__btn-teams:hover { background: oklch(0.35 0.18 270); color: #fff; }
+.v30-cal__btn-outlook {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: oklch(0.45 0.18 220);
+  color: #fff;
+  border: 0;
+}
+.v30-cal__btn-outlook:hover { background: oklch(0.40 0.18 220); color: #fff; }
+
 /* ─── Footer : légende + statut externe ─── */
 .v30-cal-footer {
   display: flex;
