@@ -65,7 +65,7 @@
   gap: 12px;
   padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   background: var(--surface-2);
 }
 .v30pm-recipient__avatar {
@@ -156,7 +156,7 @@
   padding: 8px 12px;
   background: color-mix(in oklch, var(--accent) 8%, transparent);
   border: 1px solid color-mix(in oklch, var(--accent) 25%, transparent);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   font-size: 11.5px;
   color: var(--text-2);
 }
@@ -217,7 +217,7 @@
   margin-top: 4px;
   background: color-mix(in oklch, var(--accent) 8%, transparent);
   border: 1px solid color-mix(in oklch, var(--accent) 22%, transparent);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   font-size: 11.5px;
   color: var(--text-2);
 }
@@ -326,7 +326,7 @@
   padding: 9px 12px;
   border: none;
   background: transparent;
-  border-radius: 12px;
+  border-radius: var(--r-card);
   cursor: pointer;
   color: var(--text);
   text-align: left;
@@ -477,7 +477,7 @@
   max-height: 180px;
   resize: vertical;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   padding: 8px 10px;
   background: var(--surface);
   color: var(--text);

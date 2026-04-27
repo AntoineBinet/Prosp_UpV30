@@ -83,7 +83,7 @@
   padding: 16px;
   border: 1px solid var(--border);
   background: var(--surface);
-  border-radius: 14px;
+  border-radius: var(--r-xl);
   text-decoration: none;
   color: inherit;
   display: flex;
@@ -127,9 +127,9 @@
   display: inline-block;
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 4px;
-  background: color-mix(in oklch, var(--warn, #f59e0b) 18%, transparent);
-  color: var(--warn, #f59e0b);
+  border-radius: var(--r-xs);
+  background: color-mix(in oklch, var(--warn) 18%, transparent);
+  color: var(--warn);
   margin-right: 4px;
   vertical-align: middle;
   letter-spacing: .03em;
@@ -364,20 +364,20 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #64748b;
+  background: var(--text-muted);
   flex-shrink: 0;
 }
 .v30-params__version-dot.is-ok {
-  background: var(--success, #22c55e);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--success, #22c55e) 18%, transparent);
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--success) 18%, transparent);
 }
 .v30-params__version-dot.is-changed {
-  background: var(--warn, #f59e0b);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--warn, #f59e0b) 22%, transparent);
+  background: var(--warn);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--warn) 22%, transparent);
   animation: v30-pulse 1.8s ease-in-out infinite;
 }
 .v30-params__version-dot.is-loading {
-  background: #64748b;
+  background: var(--text-muted);
   animation: v30-pulse 2s ease-in-out infinite;
 }
 @keyframes v30-pulse {

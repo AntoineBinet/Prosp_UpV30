@@ -15,7 +15,7 @@
   padding: 16px 20px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--r-xl);
 }
 .v30-fp-header__avatar {
   width: 56px; height: 56px;
@@ -68,7 +68,7 @@
 /* Editable name */
 .v30-fp-editable {
   cursor: text;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   padding: 2px 4px;
   margin: -2px -4px;
   transition: background var(--dur-1);
@@ -124,7 +124,7 @@
 .v30-fp-ev__dot {
   width: 10px;
   height: 10px;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   margin-top: 4px;
   margin-left: 1px;
   border: 2px solid var(--surface);
@@ -240,12 +240,12 @@
   position: fixed;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow-pop);
   z-index: 60;
   min-width: 172px;
   padding: 4px;
-  animation: v30-picker-in 0.12s var(--ease-smooth);
+  animation: v30-picker-in var(--dur-1) var(--ease-smooth);
 }
 @keyframes v30-picker-in {
   from { opacity: 0; transform: translateY(-4px) scale(.97); }
@@ -257,7 +257,7 @@
   gap: 8px;
   width: 100%;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   font-size: 12.5px;
   background: none;
@@ -278,7 +278,7 @@
 /* Clickable aside value (statut) */
 .v30-fp-aside-row__value--clickable {
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   padding: 1px 3px;
   margin: -1px -3px;
   transition: background var(--dur-1);
@@ -300,7 +300,7 @@
   align-items: start;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--surface-2);
   font-size: 12px;
 }
@@ -339,7 +339,7 @@
   gap: 4px;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--surface-2);
 }
 .v30-fp-recap__row {

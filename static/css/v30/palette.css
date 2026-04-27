@@ -24,7 +24,7 @@
   max-width: calc(100vw - 32px);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   box-shadow: var(--shadow-pop);
   z-index: 61;
   opacity: 0;
@@ -86,7 +86,7 @@
   background: var(--surface-2);
 }
 .v30-palette__row-icon {
-  width: 26px; height: 26px; border-radius: 6px;
+  width: 26px; height: 26px; border-radius: var(--r-sm);
   background: var(--surface-2);
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;

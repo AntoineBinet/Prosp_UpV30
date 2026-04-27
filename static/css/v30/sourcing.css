@@ -24,7 +24,7 @@
   padding: 10px 14px;
   background: var(--accent-soft);
   border: 1px solid color-mix(in oklch, var(--accent) 25%, transparent);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -44,7 +44,7 @@
 }
 .v30-sc-col {
   background: var(--surface-2);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -57,13 +57,13 @@
   gap: 6px;
   padding: 4px 4px 2px;
 }
-.v30-sc-col__dot { width: 6px; height: 6px; border-radius: 3px; }
+.v30-sc-col__dot { width: 6px; height: 6px; border-radius: var(--r-xs); }
 .v30-sc-col__title { font-size: 12px; font-weight: 600; color: var(--text); }
 .v30-sc-col__count { font-size: 11px; color: var(--text-3); }
 
 .v30-sc-card {
   padding: 10px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--border);
   text-decoration: none;
@@ -180,7 +180,7 @@
   padding: 10px 12px;
   background: var(--surface-1);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   transition: background .12s;
 }
 .v30-inmails__item:hover {
@@ -250,7 +250,7 @@
   flex: 1;
   min-width: 0;
   padding: 2px 7px;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--accent);
   background: var(--bg-2, var(--surface-1));
   color: var(--text-1);
@@ -277,7 +277,7 @@
   gap: 8px;
   padding: 22px 16px;
   border: 1.5px dashed var(--border-strong);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   background: var(--surface-2);
   cursor: pointer;
   color: var(--text-2);
@@ -307,7 +307,7 @@
   margin-top: 8px;
   background: var(--surface-1);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   font-size: 12.5px;
   color: var(--text);
 }
@@ -319,7 +319,7 @@
   padding: 12px;
   background: var(--surface-1);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
 }
 .v30-src-pdf-result[hidden],
 .v30-src-ai-preview[hidden] { display: none; }
@@ -373,7 +373,7 @@
   padding: 8px 10px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   font-size: 12.5px;
 }
 .v30-src-ai-preview li .avatar {

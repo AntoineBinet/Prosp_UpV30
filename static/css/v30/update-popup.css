@@ -4,7 +4,7 @@
 .v30-sidebar__version--btn {
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 2px 6px;
   cursor: pointer;
   color: var(--text-muted);
@@ -48,7 +48,7 @@
   max-height: calc(100vh - 120px);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--r-xl);
   box-shadow: var(--shadow-pop);
   z-index: 91;
   opacity: 0;
@@ -181,7 +181,7 @@
     top: 48px;
     width: calc(100vw - 16px);
     max-height: calc(100vh - 72px);
-    border-radius: 12px;
+    border-radius: var(--r-card);
   }
   .v30-upd__about {
     grid-template-columns: 1fr;

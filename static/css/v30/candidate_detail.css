@@ -76,7 +76,7 @@
 }
 .v30-fc-dispo__cell {
   padding: 10px 6px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   text-align: center;
 }
 .v30-fc-dispo__week {

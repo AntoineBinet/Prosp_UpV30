@@ -40,7 +40,7 @@
 .v30-logo {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--text);
   color: var(--bg);
   display: inline-flex;
@@ -73,10 +73,10 @@
 .v30-crumbs__item--link {
   text-decoration: none;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   padding: 2px 4px;
   margin: -2px -4px;
-  transition: color 0.12s, background-color 0.12s;
+  transition: color var(--dur-1), background-color var(--dur-1);
 }
 .v30-crumbs__item--link:hover { color: var(--text); background: color-mix(in oklch, var(--text) 8%, transparent); }
 
@@ -209,9 +209,9 @@
   0%   { opacity: 0; transform: translateY(6px); }
   100% { opacity: 1; transform: translateY(0); }
 }
-.mp-card.mp-entering-next { animation: mp-enter-next 0.22s var(--ease) both; }
-.mp-card.mp-entering-prev { animation: mp-enter-prev 0.22s var(--ease) both; }
-.mp-card.mp-entering-init { animation: mp-enter-initial 0.2s var(--ease) both; }
+.mp-card.mp-entering-next { animation: mp-enter-next var(--dur-3) var(--ease) both; }
+.mp-card.mp-entering-prev { animation: mp-enter-prev var(--dur-3) var(--ease) both; }
+.mp-card.mp-entering-init { animation: mp-enter-initial var(--dur-2) var(--ease) both; }
 
 /* ─── LEFT COLUMN ─── */
 .mp-card-main {
@@ -255,16 +255,16 @@
 /* Avatar cohérent avec v30-fp-header__avatar */
 .mp-avatar {
   width: 52px; height: 52px;
-  border-radius: 14px;
+  border-radius: var(--r-xl);
   display: flex; align-items: center; justify-content: center;
   font-size: 17px; font-weight: 600;
-  color: #fff;
+  color: var(--accent-fg);
   letter-spacing: -0.01em;
-  border: 1px solid rgba(0,0,0,0.15);
+  border: 1px solid var(--border);
 }
 .mp-avatar-img {
   width: 52px; height: 52px;
-  border-radius: 14px;
+  border-radius: var(--r-xl);
   object-fit: cover;
   border: 1px solid var(--border);
 }
@@ -564,7 +564,7 @@ select.mp-input { cursor: pointer; }
 .mp-tl-item {
   position: relative;
   padding: 5px 0;
-  animation: mp-tlSlideIn 0.18s var(--ease) both;
+  animation: mp-tlSlideIn var(--dur-2) var(--ease) both;
 }
 @keyframes mp-tlSlideIn {
   from { opacity: 0; transform: translateY(4px); }
@@ -624,7 +624,7 @@ select.mp-input { cursor: pointer; }
   justify-content: center;
   padding: 20px;
   z-index: 10001;
-  animation: mp-fadeIn 0.15s var(--ease);
+  animation: mp-fadeIn var(--dur-2) var(--ease);
 }
 @keyframes mp-fadeIn  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes mp-scaleIn { from { transform: translateY(6px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
@@ -637,7 +637,7 @@ select.mp-input { cursor: pointer; }
   max-width: 420px;
   width: 100%;
   box-shadow: var(--shadow-pop);
-  animation: mp-scaleIn 0.2s var(--ease);
+  animation: mp-scaleIn var(--dur-2) var(--ease);
 }
 .mp-date-modal-title  { font-size: 14px; font-weight: 600; color: var(--text); margin: 0 0 3px; }
 .mp-date-modal-sub    { font-size: 12.5px; color: var(--text-3); margin: 0 0 14px; }
@@ -709,14 +709,14 @@ select.mp-input { cursor: pointer; }
 .mp-progress-bar {
   width: 200px; height: 2px;
   background: var(--surface-3);
-  border-radius: 2px;
+  border-radius: var(--r-xs);
   overflow: hidden;
 }
 .mp-progress-fill {
   height: 100%;
   background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.3s var(--ease);
+  border-radius: var(--r-xs);
+  transition: width var(--dur-3) var(--ease);
 }
 .mp-nav-dots {
   display: flex;
@@ -737,7 +737,7 @@ select.mp-input { cursor: pointer; }
 .mp-dot.active {
   background: var(--accent);
   transform: scaleX(2.8);
-  border-radius: 2px;
+  border-radius: var(--r-xs);
 }
 .mp-dot:hover:not(.active) { background: var(--border-strong); }
 
@@ -794,7 +794,7 @@ select.mp-input { cursor: pointer; }
 
   .mp-card-hero { padding: 14px 16px 12px; }
   .mp-card-hero-content { gap: 10px; }
-  .mp-avatar, .mp-avatar-img { width: 44px; height: 44px; border-radius: 12px; font-size: 15px; }
+  .mp-avatar, .mp-avatar-img { width: 44px; height: 44px; border-radius: var(--r-card); font-size: 15px; }
   .mp-hero-name { font-size: 18px; }
   .mp-hero-sub { font-size: 11.5px; }
   .mp-quick-btn { height: 28px; min-width: 40px; font-size: 10.5px; padding: 0 8px; }

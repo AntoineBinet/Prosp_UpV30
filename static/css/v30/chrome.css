@@ -77,9 +77,9 @@
   min-width: 200px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   padding: 6px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-dropdown);
   z-index: 20;
 }
 .v30-avatar-menu__head {
@@ -104,13 +104,13 @@
   font-size: 12.5px;
   text-align: left;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   text-decoration: none;
 }
 .v30-avatar-menu__item:hover {
   background: var(--surface-2);
 }
-.v30-avatar-menu__item--danger { color: var(--danger, #ef4444); }
+.v30-avatar-menu__item--danger { color: var(--danger); }
 .v30-avatar-menu__item--danger:hover {
   background: rgba(239, 68, 68, 0.08);
 }
@@ -130,7 +130,7 @@
 .v30-logo {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--text);
   color: var(--bg);
   display: inline-flex;
@@ -169,10 +169,10 @@
   color: var(--text-3);
   text-decoration: none;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   padding: 2px 4px;
   margin: -2px -4px;
-  transition: color 0.12s ease, background-color 0.12s ease;
+  transition: color var(--dur-1) ease, background-color var(--dur-1) ease;
 }
 
 .v30-crumbs__item--link:hover,
@@ -244,7 +244,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   color: var(--text-2);
   font-size: 13px;
   font-weight: 400;
@@ -270,7 +270,7 @@
   bottom: 6px;
   width: 2px;
   background: var(--text);
-  border-radius: 2px;
+  border-radius: var(--r-xs);
 }
 
 .v30-sb-item__label {
@@ -344,6 +344,8 @@
     width: 100%;
     height: 100%;
     padding: 4px;
+    /* TODO design review : 28px hors palette (bottom nav glassmorphism mobile).
+       Conservé tel quel — proche d'un pill mais pas tout à fait. */
     border-radius: 28px;
     display: flex;
     pointer-events: auto;
@@ -369,10 +371,10 @@
     top: 4px; bottom: 4px;
     width: calc(20% - 0px);
     left: 4px;
-    border-radius: 20px;
+    border-radius: var(--r-2xl);
     background: rgba(255, 107, 53, 0.12);
     box-shadow: inset 0 0 0 0.5px rgba(255, 107, 53, 0.22);
-    transition: transform 0.35s cubic-bezier(0.32, 1.08, 0.62, 1);
+    transition: transform var(--dur-3) cubic-bezier(0.32, 1.08, 0.62, 1);
     transform: translateX(0);
     pointer-events: none;
   }
@@ -394,7 +396,7 @@
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.1px;
-    transition: color 0.2s ease;
+    transition: color var(--dur-2) ease;
     -webkit-tap-highlight-color: transparent;
   }
   :root[data-theme="light"] .v30-bnav__item {
@@ -432,7 +434,7 @@
   background: rgba(0, 0, 0, 0.45);
   z-index: 45;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--dur-2) ease;
 }
 .v30-sidebar-backdrop.is-open {
   display: block;
@@ -453,7 +455,7 @@
     max-width: 85vw;
     z-index: 50;
     transform: translateX(-100%);
-    transition: transform 0.22s var(--ease);
+    transition: transform var(--dur-3) var(--ease);
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
     overflow-y: auto;
     padding-top: 16px;

@@ -88,7 +88,7 @@
 .v30-streak__icon {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--warn-soft);
   color: oklch(0.55 0.16 65);
   display: inline-flex;
@@ -161,14 +161,14 @@
 .v30-pipeline__bar {
   height: 22px;
   background: var(--surface-2);
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   position: relative;
   overflow: hidden;
 }
 .v30-pipeline__fill {
   position: absolute;
   inset: 0;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
 }
 .v30-pipeline__num {
   position: absolute;
@@ -222,7 +222,7 @@
 .v30-goal__track {
   height: 4px;
   background: var(--surface-2);
-  border-radius: 2px;
+  border-radius: var(--r-xs);
   overflow: hidden;
 }
 .v30-goal__fill {
@@ -293,7 +293,7 @@
 .v30-timeline__dot {
   width: 8px;
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   margin-top: 5px;
   margin-left: 2px;
   border: 2px solid var(--surface);
@@ -345,8 +345,7 @@
   max-height: 60vh;
   flex: 0 1 auto;
 }
-.v30-perf__tabpanel::-webkit-scrollbar { width: 6px; }
-.v30-perf__tabpanel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* Scrollbar : géré globalement par tokens.css (--scrollbar-*). */
 .v30-perf__tabpanel .empty {
   padding: 18px 16px;
   text-align: center;
@@ -395,7 +394,7 @@
   position: relative;
   padding: 8px 10px 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   background: var(--surface);
   display: grid;
   grid-template-areas:
@@ -415,7 +414,7 @@
   left: 0; top: 6px; bottom: 6px;
   width: 3px;
   background: var(--chip-color);
-  border-radius: 3px;
+  border-radius: var(--r-xs);
 }
 .v30-perf__chip-val {
   grid-area: val;
@@ -450,7 +449,7 @@
   display: inline-flex; align-items: center;
   font-size: 10px; font-weight: 600;
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   background: var(--surface-2);
 }
 .v30-perf__trend--up { color: var(--success); background: var(--success-soft); }
@@ -478,7 +477,7 @@
   padding: 10px 12px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -520,7 +519,7 @@
   padding: 12px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   flex: 0 0 auto;
 }
 .v30-perf__breakdown-head {
@@ -562,7 +561,7 @@
 .v30-perf__breakdown-bar {
   height: 6px;
   background: var(--surface-2);
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   position: relative;
   overflow: hidden;
 }
@@ -570,7 +569,7 @@
   position: absolute;
   inset: 0;
   right: auto;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   background: var(--accent);
   transition: width .4s var(--ease);
 }
@@ -645,8 +644,7 @@
   flex: 1;
   padding-right: 2px;
 }
-.v30-objs__items::-webkit-scrollbar { width: 6px; }
-.v30-objs__items::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* Scrollbar : géré globalement par tokens.css (--scrollbar-*). */
 .v30-objs__scope {
   display: flex; align-items: center; justify-content: space-between;
   font-size: 10.5px;
@@ -688,7 +686,7 @@
 .v30-objs__item--clickable:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: var(--r-xs);
 }
 .v30-objs__item-icon {
   width: 18px; height: 18px;
@@ -721,7 +719,7 @@
 .v30-objs__item-bar {
   height: 4px;
   background: var(--surface-2);
-  border-radius: 2px;
+  border-radius: var(--r-xs);
   overflow: hidden;
 }
 .v30-objs__item-fill {
