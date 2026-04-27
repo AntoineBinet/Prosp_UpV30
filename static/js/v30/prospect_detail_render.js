@@ -74,14 +74,14 @@
             if (existing) { existing.remove(); return; }
             var pick = document.createElement('div');
             pick.setAttribute('data-v30-fp-tel-pick', '');
-            pick.className = 'v30-pp-tel-drop';
+            pick.className = 'popover v30-pp-tel-drop';
             pick.style.cssText = 'position:fixed;z-index:200;min-width:180px;';
             var rect = telBtn.getBoundingClientRect();
             pick.style.top = (rect.bottom + 4) + 'px';
             pick.style.left = rect.left + 'px';
             fpPhones.forEach(function (ph) {
               var a = document.createElement('a');
-              a.className = 'v30-pp-tel-opt';
+              a.className = 'popover__item v30-pp-tel-opt';
               a.href = 'tel:' + normTelDetail(ph);
               a.textContent = ph;
               a.addEventListener('click', function () { logFpCall(); pick.remove(); });

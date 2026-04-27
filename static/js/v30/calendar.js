@@ -401,7 +401,7 @@
     var evs = STATE.events[iso] || [];
     if (!evs.length) return;
     var pop = document.createElement('div');
-    pop.className = 'v30-cal__popup';
+    pop.className = 'popover v30-cal__popup';
     pop.setAttribute('role', 'dialog');
     pop.innerHTML = '<div class="v30-cal__popup-head">' +
       '<strong>' + esc(new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })) + '</strong>' +
@@ -425,7 +425,7 @@
     var ev = (STATE.events[iso] || [])[idx];
     if (!ev) return;
     var pop = document.createElement('div');
-    pop.className = 'v30-cal__popup v30-cal__popup--ev';
+    pop.className = 'popover v30-cal__popup v30-cal__popup--ev';
     pop.setAttribute('role', 'dialog');
     var TYPE_LABELS = { ec1: 'EC1 candidat', ec2: 'EC2 candidat', relance: 'Relance à faire', external: 'Calendrier externe' };
     var typeLabel = TYPE_LABELS[ev.type] || 'Rendez-vous';

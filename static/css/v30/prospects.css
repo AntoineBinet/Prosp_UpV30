@@ -295,15 +295,11 @@
 .v30-pp-tags { display: flex; gap: 4px; align-items: center; overflow: hidden; }
 .v30-pp-tags-more { cursor: default; flex-shrink: 0; }
 
-/* Tags popover (position:fixed → non clippé par overflow:hidden du tableau) */
+/* Tags popover : consomme .popover.popover--inline (Phase 4).
+   Spécificités : position:fixed (non clippé par overflow:hidden du tableau),
+   flex-wrap pour les pills + pointer-events:none (tooltip read-only). */
 .v30-pp-tags-tip {
   position: fixed;
-  z-index: 100;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  box-shadow: 0 4px 18px rgba(0,0,0,.22);
-  padding: 8px 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -311,30 +307,23 @@
   pointer-events: none;
 }
 .v30-pp-tags-tip[hidden] { display: none; }
+
+/* Tel dropdown : consomme .popover (Phase 4). Spécificités : ancrage
+   sous l'élément parent (top:100% + 4px) et variante --right. */
 .v30-pp-tel-drop {
-  position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 20;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.28);
   min-width: 160px;
   overflow: hidden;
 }
 .v30-pp-tel-drop--right { left: auto; right: 0; }
-.v30-pp-tel-opt {
-  display: block;
-  padding: 8px 14px;
+/* Item : monospace pour les numéros, accent au hover. */
+.v30-pp-tel-drop .popover__item {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text);
-  text-decoration: none;
   white-space: nowrap;
 }
-.v30-pp-tel-opt:hover { background: var(--surface-2); color: var(--accent); }
-.v30-pp-tel-opt + .v30-pp-tel-opt { border-top: 1px solid var(--border); }
+.v30-pp-tel-drop .popover__item:hover { color: var(--accent); }
 
 /* Actions row — revealed on hover/active */
 .v30-pp-actions {

@@ -117,7 +117,7 @@
                     '<span class="v30pm-combo__label" data-v30pm-combo-label="1">— Choisir un candidat —</span>' +
                     '<span class="v30pm-combo__chev" aria-hidden="true">' + ic('chevronD', 12) + '</span>' +
                   '</button>' +
-                  '<div class="v30pm-combo__panel" data-v30pm-combo-panel="1" role="listbox"></div>' +
+                  '<div class="popover popover--reveal v30pm-combo__panel" data-v30pm-combo-panel="1" role="listbox"></div>' +
                 '</div>' +
                 // Combobox custom 2
                 '<div class="v30pm-combo" data-v30pm-combo="2">' +
@@ -125,7 +125,7 @@
                     '<span class="v30pm-combo__label" data-v30pm-combo-label="2">— Choisir un candidat —</span>' +
                     '<span class="v30pm-combo__chev" aria-hidden="true">' + ic('chevronD', 12) + '</span>' +
                   '</button>' +
-                  '<div class="v30pm-combo__panel" data-v30pm-combo-panel="2" role="listbox"></div>' +
+                  '<div class="popover popover--reveal v30pm-combo__panel" data-v30pm-combo-panel="2" role="listbox"></div>' +
                 '</div>' +
               '</div>' +
               // Cartes description par candidat (apparaissent quand sélectionné)

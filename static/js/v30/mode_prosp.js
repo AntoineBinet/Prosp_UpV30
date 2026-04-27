@@ -156,9 +156,9 @@ window.mpClose = function () {
         } else if (phoneNumbers.length > 1) {
             quickActions += '<div style="position:relative;">' +
                 '<button type="button" class="mp-quick-btn mp-quick-call" title="Choisir un num\u00e9ro" onclick="mpTogglePhoneChoice(this)">TEL</button>' +
-                '<div class="mp-phone-choice" style="display:none;">' +
+                '<div class="popover mp-phone-choice" style="display:none;">' +
                 phoneNumbers.map(function (num) {
-                    return '<a href="tel:' + escapeHtml(num.replace(/\s/g, '')) + '" class="mp-phone-choice-btn" onclick="mpLogCall(' + p.id + ')">\uD83D\uDCDE ' + escapeHtml(num) + '</a>';
+                    return '<a href="tel:' + escapeHtml(num.replace(/\s/g, '')) + '" class="popover__item" onclick="mpLogCall(' + p.id + ')">\uD83D\uDCDE ' + escapeHtml(num) + '</a>';
                 }).join('') +
                 '</div></div>';
         }

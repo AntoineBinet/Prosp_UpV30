@@ -209,9 +209,9 @@
         ' title="' + phones.length + ' numéros">' +
       badge +
       '<span class="v30-pp-tel__arrow">▾</span>' +
-      '<div class="v30-pp-tel-drop" hidden>' +
+      '<div class="popover v30-pp-tel-drop" hidden>' +
         phones.map(function (ph) {
-          return '<a class="v30-pp-tel-opt" href="tel:' + esc(normTel(ph)) + '">' + esc(ph) + '</a>';
+          return '<a class="popover__item v30-pp-tel-opt" href="tel:' + esc(normTel(ph)) + '">' + esc(ph) + '</a>';
         }).join('') +
       '</div>' +
     '</div>';
@@ -298,9 +298,9 @@
             actTel = '<div class="btn btn-ghost btn-sm btn-icon v30-pp-tel--multi" data-v30-tel-multi' +
               ' style="position:relative;" title="' + actPhones.length + ' numéros">' +
               TEL_ICON_MD +
-              '<div class="v30-pp-tel-drop v30-pp-tel-drop--right" hidden>' +
+              '<div class="popover v30-pp-tel-drop v30-pp-tel-drop--right" hidden>' +
                 actPhones.map(function (ph) {
-                  return '<a class="v30-pp-tel-opt" href="tel:' + esc(normTel(ph)) + '">' + esc(ph) + '</a>';
+                  return '<a class="popover__item v30-pp-tel-opt" href="tel:' + esc(normTel(ph)) + '">' + esc(ph) + '</a>';
                 }).join('') +
               '</div>' +
             '</div>';
@@ -2264,7 +2264,7 @@
 
   function bindTagsTip() {
     var tip = document.createElement('div');
-    tip.className = 'v30-pp-tags-tip';
+    tip.className = 'popover popover--inline v30-pp-tags-tip';
     tip.hidden = true;
     document.body.appendChild(tip);
     document.addEventListener('mouseover', function (e) {

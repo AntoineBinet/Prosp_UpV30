@@ -285,9 +285,11 @@
 }
 .v30pm-combo.is-open .v30pm-combo__chev { transform: rotate(180deg); color: var(--accent); }
 
-/* ─── Combobox panel (liste) ─────────────────────────────── */
+/* Combobox panel : consomme .popover.popover--reveal (Phase 4).
+   Spécificités : ancrage sous le combobox (top:100% + 8px) +
+   max-height pour scroll vertical de la liste. La classe .is-open
+   est gérée par push-modal.js via .v30pm-combo.is-open. */
 .v30pm-combo__panel {
-  position: absolute;
   top: calc(100% + 8px);
   left: 0;
   right: 0;
@@ -295,23 +297,11 @@
   max-height: 360px;
   overflow-y: auto;
   padding: 8px;
-  background: var(--surface);
-  border: 1px solid color-mix(in oklch, var(--accent) 25%, var(--border));
-  border-radius: 18px;
-  box-shadow:
-    0 20px 50px -14px rgba(0, 0, 0, 0.35),
-    0 8px 20px -8px rgba(0, 0, 0, 0.18),
-    0 0 0 4px color-mix(in oklch, var(--accent) 8%, transparent);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-6px) scale(0.97);
-  transform-origin: top center;
-  transition: opacity var(--dur-1), transform var(--dur-1);
 }
 .v30pm-combo.is-open .v30pm-combo__panel {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(0) scale(1);
+  transform: scale(1);
 }
 .v30pm-combo__group { padding-top: 6px; }
 .v30pm-combo__group + .v30pm-combo__group { border-top: 1px solid var(--border); margin-top: 4px; }
