@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "31.1"
+APP_VERSION = "31.3"
 import os
 import subprocess
 import traceback
@@ -10105,6 +10105,28 @@ def api_stats():
             except Exception:
                 continue
 
+        # Notes stockées dans prospect_events (mpAddNote, prospect_detail "+ Note", etc.)
+        try:
+            if mode == "all":
+                call_notes += conn.execute(
+                    """SELECT COUNT(*) AS n FROM prospect_events e
+                       JOIN prospects p ON p.id=e.prospect_id
+                       WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note')
+                         AND (p.deleted_at IS NULL OR p.deleted_at='');""",
+                    (uid,),
+                ).fetchone()["n"]
+            else:
+                call_notes += conn.execute(
+                    """SELECT COUNT(*) AS n FROM prospect_events e
+                       JOIN prospects p ON p.id=e.prospect_id
+                       WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note')
+                         AND substr(e.date,1,10) >= ? AND substr(e.date,1,10) <= ?
+                         AND (p.deleted_at IS NULL OR p.deleted_at='');""",
+                    (uid, start_iso, end_iso),
+                ).fetchone()["n"]
+        except Exception:
+            pass
+
         # Appels tracés (call_logs — clics bouton Appeler)
         try:
             if mode == "all":
@@ -10271,7 +10293,7 @@ def api_stats_insights():
                 (uid, start_iso, end_iso),
             ).fetchone()["n"]
         
-        # Call notes (période actuelle)
+        # Call notes (période actuelle) — callNotes JSON + prospect_events de type note
         call_rows = conn.execute(
             "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '' AND (deleted_at IS NULL OR deleted_at = '');",
             (uid,),
@@ -10293,6 +10315,22 @@ def api_stats_insights():
                                 call_notes += 1
             except Exception:
                 continue
+        try:
+            event_note_rows = conn.execute(
+                """SELECT substr(e.date,1,10) AS d FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id
+                   WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note')
+                     AND (p.deleted_at IS NULL OR p.deleted_at='');""",
+                (uid,),
+            ).fetchall()
+        except Exception:
+            event_note_rows = []
+        for r in event_note_rows:
+            d = r["d"] or ""
+            if not d:
+                continue
+            if mode == "all" or (start_iso <= d <= end_iso):
+                call_notes += 1
         current_stats["activity"]["callNotes"] = call_notes
         
         # Followups
@@ -10362,6 +10400,10 @@ def api_stats_insights():
                                     prev_call_notes += 1
                     except Exception:
                         continue
+                for r in event_note_rows:
+                    d = r["d"] or ""
+                    if d and prev_start_iso <= d <= prev_end_iso:
+                        prev_call_notes += 1
                 prev_stats["activity"]["callNotes"] = prev_call_notes
                 
                 prev_stats["statusCounts"] = {}
@@ -10805,7 +10847,7 @@ def api_stats_charts():
         status_dist = {r["statut"]: r["n"] for r in status_rows}
 
         # 2) Push + calls + callNotes per week (last 12 weeks)
-        # Pre-load call notes dates for quick bucketing
+        # Pre-load note dates (callNotes JSON + prospect_events type note) pour bucketing rapide
         _cn_dates = []
         for r in conn.execute(
             "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes!='' AND (deleted_at IS NULL OR deleted_at='');",
@@ -10818,6 +10860,19 @@ def api_stats_charts():
                         _cn_dates.append(ds)
             except Exception:
                 pass
+        try:
+            for r in conn.execute(
+                """SELECT e.date FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id
+                   WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note')
+                     AND (p.deleted_at IS NULL OR p.deleted_at='');""",
+                (uid,),
+            ).fetchall():
+                ds = (r["date"] or "")[:10]
+                if ds:
+                    _cn_dates.append(ds)
+        except Exception:
+            pass
 
         weeks = []
         activity_weeks = []
@@ -14106,7 +14161,15 @@ def api_prospects_bulk_field_update():
 
 @app.post("/api/prospects/bulk-edit")
 def api_prospects_bulk_edit():
-    """Bulk update a whitelisted field for selected prospects."""
+    """Bulk update a whitelisted field for selected prospects.
+
+    Accepte deux formats :
+      - mode mono-champ : { ids, field, value }
+      - mode multi-champs : { ids, fields: { f1: v1, f2: v2, ... } } (v31.3+)
+    Les changements de statut → "Rendez-vous" + rdvDate déclenchent un event
+    rdv_taken (KPI gamification). Tout changement de statut crée aussi un
+    event status_change dans la timeline.
+    """
     chk = _require_same_origin()
     if chk:
         return chk
@@ -14115,40 +14178,58 @@ def api_prospects_bulk_edit():
         return jsonify(ok=False, error="Non authentifié"), 401
     payload = request.get_json(force=True, silent=True) or {}
     ids = payload.get("ids")
+    fields_in = payload.get("fields")
     field = payload.get("field", "")
     value = payload.get("value")
-    ALLOWED_FIELDS = ["fonction", "statut", "pertinence", "fixedMetier", "notes", "company_id",
-                       "telephone", "email", "linkedin"]
-    ALLOW_EMPTY = {"notes", "telephone", "email", "linkedin"}
+    ALLOWED_FIELDS = {"fonction", "statut", "pertinence", "fixedMetier", "notes", "company_id",
+                      "telephone", "email", "linkedin", "rdvDate", "nextFollowUp", "priority", "nextAction"}
+    ALLOW_EMPTY = {"notes", "telephone", "email", "linkedin", "rdvDate", "nextFollowUp", "nextAction"}
     if not ids or not isinstance(ids, list):
         return jsonify(ok=False, error="ids (array) required"), 400
-    if field not in ALLOWED_FIELDS:
-        return jsonify(ok=False, error=f"field must be one of {ALLOWED_FIELDS}"), 400
-    if value is None or (str(value).strip() == "" and field not in ALLOW_EMPTY):
-        return jsonify(ok=False, error="value required"), 400
 
-    # v30.2: company_id doit référencer une entreprise existante appartenant à l'utilisateur.
-    # On refuse la saisie libre — le front doit passer par l'autocomplete entreprise + « Ajouter ».
-    company_meta = None
-    if field == "company_id":
-        try:
-            cid = int(str(value).strip())
-        except (TypeError, ValueError):
-            return jsonify(ok=False, error="company_id must be an integer"), 400
-        with _conn() as conn:
-            row = conn.execute(
-                "SELECT id, groupe, site FROM companies WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
-                (cid, uid)
-            ).fetchone()
-            if not row:
-                return jsonify(ok=False, error="Entreprise inconnue — utilise l'autocomplete pour la choisir ou la créer."), 400
-            value = cid
-            company_meta = {"id": int(row["id"]), "groupe": row["groupe"] or "", "site": row["site"] or ""}
+    # Construire le dict de champs à appliquer (mono ou multi).
+    if isinstance(fields_in, dict) and fields_in:
+        fields_map = dict(fields_in)
     else:
-        value = str(value).strip() if value is not None else ""
+        if field not in ALLOWED_FIELDS:
+            return jsonify(ok=False, error=f"field must be one of {sorted(ALLOWED_FIELDS)}"), 400
+        fields_map = {field: value}
+
+    # Validation et normalisation par champ.
+    company_meta = None
+    normalized: dict = {}
+    for f, v in fields_map.items():
+        if f not in ALLOWED_FIELDS:
+            return jsonify(ok=False, error=f"field '{f}' non autorisé"), 400
+        if v is None or (str(v).strip() == "" and f not in ALLOW_EMPTY):
+            return jsonify(ok=False, error=f"value required for '{f}'"), 400
+        if f == "company_id":
+            try:
+                cid = int(str(v).strip())
+            except (TypeError, ValueError):
+                return jsonify(ok=False, error="company_id must be an integer"), 400
+            with _conn() as conn:
+                row = conn.execute(
+                    "SELECT id, groupe, site FROM companies WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+                    (cid, uid)
+                ).fetchone()
+                if not row:
+                    return jsonify(ok=False, error="Entreprise inconnue — utilise l'autocomplete pour la choisir ou la créer."), 400
+                normalized[f] = cid
+                company_meta = {"id": int(row["id"]), "groupe": row["groupe"] or "", "site": row["site"] or ""}
+        elif f in ("priority", "pertinence"):
+            try:
+                normalized[f] = int(str(v).strip()) if str(v).strip() != "" else None
+            except (TypeError, ValueError):
+                return jsonify(ok=False, error=f"{f} must be an integer"), 400
+        else:
+            normalized[f] = str(v).strip() if v is not None else ""
 
     updated = 0
     errors = []
+    set_clause = ", ".join(f"{f}=?" for f in normalized.keys())
+    set_values = list(normalized.values())
+
     with _conn() as conn:
         for pid in ids:
             try:
@@ -14156,12 +14237,51 @@ def api_prospects_bulk_edit():
             except (TypeError, ValueError):
                 errors.append(str(pid))
                 continue
-            row = conn.execute("SELECT id FROM prospects WHERE id=? AND owner_id=?;", (pid, uid)).fetchone()
-            if row:
-                conn.execute(f"UPDATE prospects SET {field}=? WHERE id=? AND owner_id=?;", (value, pid, uid))
-                updated += 1
-            else:
+            row = conn.execute(
+                "SELECT id, statut, rdvDate FROM prospects WHERE id=? AND owner_id=?;",
+                (pid, uid)
+            ).fetchone()
+            if not row:
                 errors.append(str(pid))
+                continue
+            old_statut = str(row["statut"] or "").strip()
+            old_rdv = str(row["rdvDate"] or "").strip()
+            conn.execute(
+                f"UPDATE prospects SET {set_clause} WHERE id=? AND owner_id=?;",
+                set_values + [pid, uid]
+            )
+            updated += 1
+
+            # Event rdv_taken pour le KPI gamification.
+            try:
+                new_statut = str(normalized.get("statut", old_statut) or "").strip()
+                new_rdv = str(normalized.get("rdvDate", old_rdv) or "").strip()
+                if new_statut == "Rendez-vous" and new_rdv:
+                    if old_statut != "Rendez-vous" or old_rdv != new_rdv:
+                        now_ev = datetime.datetime.now().isoformat(timespec="seconds")
+                        ev_date = now_ev[:10]
+                        conn.execute(
+                            "INSERT OR IGNORE INTO prospect_events (prospect_id, date, type, title, content, meta, createdAt) VALUES (?,?,?,?,?,?,?)",
+                            (pid, ev_date, "rdv_taken", "RDV pris", None,
+                             json.dumps({"rdvDate": new_rdv}, ensure_ascii=False), now_ev),
+                        )
+            except Exception:
+                pass
+
+            # Event status_change pour la timeline.
+            try:
+                if "statut" in normalized:
+                    new_statut = str(normalized["statut"] or "").strip()
+                    if new_statut and old_statut != new_statut:
+                        ev_at = datetime.datetime.now().isoformat()
+                        content_statut = f"{old_statut} → {new_statut}" if old_statut else new_statut
+                        conn.execute(
+                            "INSERT OR IGNORE INTO prospect_events (prospect_id, date, type, title, content, meta, createdAt) VALUES (?,?,?,?,?,?,?)",
+                            (pid, ev_at, "status_change", "Changement de statut", content_statut, None, ev_at),
+                        )
+            except Exception:
+                pass
+
     resp = {"ok": True, "updated": updated, "errors": errors}
     if company_meta:
         resp["company"] = company_meta
@@ -15580,6 +15700,16 @@ def api_export_day():
             "SELECT * FROM push_logs WHERE prospect_id IN (SELECT id FROM prospects WHERE owner_id=?);",
             (uid,),
         ).fetchall()]
+        try:
+            note_events = [dict(r) for r in conn.execute(
+                """SELECT e.date, e.content, e.prospect_id, p.name AS prospect_name
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id
+                   WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note');""",
+                (uid,),
+            ).fetchall()]
+        except Exception:
+            note_events = []
 
     all_notes = []
     for p in prospects:
@@ -15591,6 +15721,13 @@ def api_export_day():
                 all_notes.append(n)
         except Exception:
             pass
+    for ne in note_events:
+        all_notes.append({
+            "date": ne.get("date") or "",
+            "content": ne.get("content") or "",
+            "_pid": ne.get("prospect_id"),
+            "_name": ne.get("prospect_name") or "",
+        })
 
     contacts_today = [p for p in prospects if (p.get("lastContact") or "").strip() == date_str]
     notes_today = [n for n in all_notes if (n.get("date") or "")[:10] == date_str]
@@ -15668,8 +15805,19 @@ def api_rapport_hebdo():
             calls_count = int(calls_row["n"]) if calls_row else 0
         except Exception:
             calls_count = 0
+        try:
+            note_events = [dict(r) for r in conn.execute(
+                """SELECT e.date, e.content, e.prospect_id, p.name AS prospect_name,
+                          p.statut AS prospect_statut, p.company_id AS prospect_company_id
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id
+                   WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note');""",
+                (uid,),
+            ).fetchall()]
+        except Exception:
+            note_events = []
 
-    # Parse call notes
+    # Parse call notes (callNotes JSON + prospect_events de type note)
     all_notes = []
     for p in prospects:
         try:
@@ -15682,6 +15830,15 @@ def api_rapport_hebdo():
                 all_notes.append(n)
         except Exception:
             pass
+    for ne in note_events:
+        all_notes.append({
+            "date": ne.get("date") or "",
+            "content": ne.get("content") or "",
+            "_pid": ne.get("prospect_id"),
+            "_pname": ne.get("prospect_name") or "",
+            "_statut": ne.get("prospect_statut") or "",
+            "_company_id": ne.get("prospect_company_id"),
+        })
 
     week_notes = [n for n in all_notes if start <= (n.get("date") or "")[:10] <= end]
     week_push = [pl for pl in push_logs if start <= (pl.get("sentAt") or "")[:10] <= end]
@@ -16472,6 +16629,21 @@ def api_dashboard():
             manual_kpi_today = {}
             manual_calls_by_date = {}
 
+        # Notes stockées dans prospect_events (types note / note_libre / call_note)
+        try:
+            note_event_rows = conn.execute(
+                """SELECT e.date, e.content, e.prospect_id, p.name AS prospect_name
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id
+                   WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note')
+                     AND (p.deleted_at IS NULL OR p.deleted_at='')
+                     AND (p.is_archived IS NULL OR p.is_archived=0);""",
+                (uid,),
+            ).fetchall()
+            note_events = [dict(r) for r in note_event_rows]
+        except Exception:
+            note_events = []
+
     # Merge manual KPI "contact" adjustments into calls counts (for graph + totals)
     for _d, _cnt in manual_calls_by_date.items():
         calls_by_date[_d] = calls_by_date.get(_d, 0) + _cnt
@@ -16481,7 +16653,7 @@ def api_dashboard():
     prospects_list = [dict(r) for r in prospects]
     push_list = [dict(r) for r in push_logs]
 
-    # Parse all call notes
+    # Parse all call notes (callNotes JSON column + prospect_events de type note)
     all_notes = []
     for p in prospects_list:
         try:
@@ -16492,6 +16664,13 @@ def api_dashboard():
                 all_notes.append(n)
         except Exception:
             pass
+    for ne in note_events:
+        all_notes.append({
+            "date": ne.get("date") or "",
+            "content": ne.get("content") or "",
+            "_prospect_id": ne.get("prospect_id"),
+            "_prospect_name": ne.get("prospect_name") or "",
+        })
 
     def count_relances(date_str):
         return sum(1 for p in prospects_list if (p.get("lastContact") or "") == date_str)

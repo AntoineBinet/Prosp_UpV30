@@ -210,6 +210,76 @@
     });
   }
 
+  // ─── Date prompt (modal léger pour rdvDate / nextFollowUp) ────
+  function promptForDate(opts) {
+    return new Promise(function (resolve) {
+      var overlay = document.createElement('div');
+      overlay.className = 'v30-fp-date-modal';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      var defaultVal = opts.currentValue || '';
+      if (!defaultVal) {
+        var d = new Date();
+        if (opts.type === 'datetime-local') {
+          d.setHours(10, 0, 0, 0);
+          defaultVal = d.getFullYear() + '-' +
+            String(d.getMonth() + 1).padStart(2, '0') + '-' +
+            String(d.getDate()).padStart(2, '0') + 'T' +
+            String(d.getHours()).padStart(2, '0') + ':' +
+            String(d.getMinutes()).padStart(2, '0');
+        } else {
+          defaultVal = d.toISOString().slice(0, 10);
+        }
+      }
+      overlay.innerHTML =
+        '<div class="v30-fp-date-modal__card">' +
+          '<div class="v30-fp-date-modal__title">' + FP.esc(opts.title || 'Choisir une date') + '</div>' +
+          (opts.subtitle ? '<div class="v30-fp-date-modal__sub">' + FP.esc(opts.subtitle) + '</div>' : '') +
+          '<input type="' + opts.type + '" class="v30-fp-date-modal__input" value="' + FP.esc(defaultVal) + '">' +
+          '<div class="v30-fp-date-modal__actions">' +
+            (opts.allowSkip !== false ? '<button type="button" class="btn btn-ghost btn-sm" data-skip>Passer</button>' : '') +
+            (opts.allowClear ? '<button type="button" class="btn btn-ghost btn-sm" data-clear>Effacer</button>' : '') +
+            '<button type="button" class="btn btn-ghost btn-sm" data-cancel>Annuler</button>' +
+            '<button type="button" class="btn btn-accent btn-sm" data-ok>Confirmer</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(overlay);
+      var input = overlay.querySelector('input');
+      setTimeout(function () { try { input.focus(); } catch (_) {} }, 50);
+
+      function close(result) {
+        overlay.remove();
+        document.removeEventListener('keydown', onEsc);
+        resolve(result);
+      }
+      function onEsc(ev) { if (ev.key === 'Escape') close({ status: 'cancel' }); }
+      document.addEventListener('keydown', onEsc);
+      overlay.addEventListener('click', function (ev) { if (ev.target === overlay) close({ status: 'cancel' }); });
+      var btnOk = overlay.querySelector('[data-ok]');
+      var btnCancel = overlay.querySelector('[data-cancel]');
+      var btnSkip = overlay.querySelector('[data-skip]');
+      var btnClear = overlay.querySelector('[data-clear]');
+      btnOk.addEventListener('click', function () { close({ status: 'ok', value: input.value }); });
+      btnCancel.addEventListener('click', function () { close({ status: 'cancel' }); });
+      if (btnSkip) btnSkip.addEventListener('click', function () { close({ status: 'skip' }); });
+      if (btnClear) btnClear.addEventListener('click', function () { close({ status: 'ok', value: '' }); });
+      input.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') { ev.preventDefault(); close({ status: 'ok', value: input.value }); }
+      });
+    });
+  }
+
+  function applyFields(fields) {
+    return FP.fetchPostJSON('/api/prospects/bulk-edit', { ids: [FP.ID], fields: fields })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+        if (FP.STATE.prospect) {
+          Object.keys(fields).forEach(function (k) { FP.STATE.prospect[k] = fields[k]; });
+        }
+        return res;
+      });
+  }
+
   // ─── Statut picker ───────────────────────────────────────────
   function bindStatusEdit() {
     document.addEventListener('click', function (e) {
@@ -223,16 +293,7 @@
         return {
           active: s === current,
           html: '<span class="status ' + FP.statusClass(s) + '">' + FP.esc(s) + '</span>',
-          action: function () {
-            FP.saveField('statut', s).then(function () {
-              if (FP.STATE.prospect) FP.STATE.prospect.statut = s;
-              flashSaved();
-              R.header(FP.STATE.prospect);
-              R.aside(FP.STATE.prospect);
-            }).catch(function (err) {
-              alert('Échec : ' + err.message);
-            });
-          }
+          action: function () { applyStatutChange(s); }
         };
       });
       buildPicker(items, btn);
@@ -241,6 +302,80 @@
     // Keyboard support (Enter/Space on the statut button)
     document.addEventListener('keydown', function (e) {
       if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset.v30StatutBtn !== undefined) {
+        e.preventDefault();
+        e.target.click();
+      }
+    });
+  }
+
+  function applyStatutChange(newStatut) {
+    var p = FP.STATE.prospect || {};
+    var promise;
+    if (newStatut === 'Rendez-vous') {
+      promise = promptForDate({
+        title: 'Date du rendez-vous',
+        subtitle: "Choisis la date et l'heure du RDV avec ce prospect.",
+        type: 'datetime-local',
+        currentValue: (p.rdvDate || '').slice(0, 16)
+      }).then(function (r) {
+        if (r.status === 'cancel') return null;
+        var fields = { statut: newStatut };
+        if (r.status === 'ok') fields.rdvDate = r.value || '';
+        return applyFields(fields);
+      });
+    } else if (newStatut === 'À rappeler') {
+      promise = promptForDate({
+        title: 'Date de relance',
+        subtitle: 'Choisis quand rappeler ce prospect.',
+        type: 'date',
+        currentValue: p.nextFollowUp || ''
+      }).then(function (r) {
+        if (r.status === 'cancel') return null;
+        var fields = { statut: newStatut };
+        if (r.status === 'ok') fields.nextFollowUp = r.value || '';
+        return applyFields(fields);
+      });
+    } else {
+      promise = applyFields({ statut: newStatut });
+    }
+    promise.then(function (res) {
+      if (!res) return;
+      flashSaved();
+      R.header(FP.STATE.prospect);
+      R.aside(FP.STATE.prospect);
+      if (typeof FP.loadTimeline === 'function') FP.loadTimeline();
+    }).catch(function (err) {
+      alert('Échec : ' + (err && err.message ? err.message : err));
+    });
+  }
+
+  // ─── Édition Prochain RDV (rdvDate) ──────────────────────────
+  function bindRdvEdit() {
+    document.addEventListener('click', function (e) {
+      var el = e.target.closest('[data-v30-edit-rdv]');
+      if (!el) return;
+      e.stopPropagation();
+      var p = FP.STATE.prospect || {};
+      promptForDate({
+        title: 'Prochain RDV',
+        subtitle: 'Choisis la date et l\'heure du prochain rendez-vous (laisse vide pour effacer).',
+        type: 'datetime-local',
+        currentValue: (p.rdvDate || '').slice(0, 16),
+        allowSkip: false,
+        allowClear: !!p.rdvDate
+      }).then(function (r) {
+        if (r.status !== 'ok') return;
+        applyFields({ rdvDate: r.value || '' }).then(function () {
+          flashSaved();
+          R.aside(FP.STATE.prospect);
+          if (typeof FP.loadTimeline === 'function') FP.loadTimeline();
+        }).catch(function (err) {
+          alert('Échec : ' + (err && err.message ? err.message : err));
+        });
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target.hasAttribute && e.target.hasAttribute('data-v30-edit-rdv')) {
         e.preventDefault();
         e.target.click();
       }
@@ -1053,6 +1188,7 @@
     bindTagAdd();
     bindCompanyEdit();
     bindStatusEdit();
+    bindRdvEdit();
     bindTabs();
     bindActivityFilter();
     bindEditNotes();
