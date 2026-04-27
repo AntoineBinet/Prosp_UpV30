@@ -2410,6 +2410,17 @@
     updateFilterBadge();
     loadProspects();
     loadSavedViews();
+    // Auto-refresh quand l'onglet redevient actif
+    var lastRefresh = Date.now();
+    function maybeRefresh() {
+      if (document.hidden) return;
+      var now = Date.now();
+      if (now - lastRefresh < 5000) return;
+      lastRefresh = now;
+      loadProspects();
+    }
+    document.addEventListener('visibilitychange', maybeRefresh);
+    window.addEventListener('focus', maybeRefresh);
     // BUG 1 : Ouvrir le modal d'ajout si ?new=1 dans l'URL (depuis la palette)
     try {
       if (new URLSearchParams(window.location.search).get('new') === '1') {

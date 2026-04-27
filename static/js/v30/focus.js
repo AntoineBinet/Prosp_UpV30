@@ -482,6 +482,19 @@
     bindRelancesFilter();
     loadRelances();
     load();
+    // Auto-refresh quand l'onglet redevient actif
+    var lastRefresh = Date.now();
+    function maybeRefresh() {
+      if (document.hidden) return;
+      var now = Date.now();
+      if (now - lastRefresh < 5000) return;
+      lastRefresh = now;
+      load();
+      loadTasks();
+      loadRelances();
+    }
+    document.addEventListener('visibilitychange', maybeRefresh);
+    window.addEventListener('focus', maybeRefresh);
   }
 
   if (document.readyState === 'loading') {
