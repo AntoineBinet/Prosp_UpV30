@@ -58,6 +58,32 @@
     STATE.events[iso].push(ev);
   }
 
+  // Collision detection : place les events côte à côte quand ils se chevauchent
+  function computeLayout(items) {
+    var sorted = items.slice().sort(function (a, b) {
+      return timeToMin(a.ev.time) - timeToMin(b.ev.time);
+    });
+    var colEnds = [];
+    sorted.forEach(function (it) {
+      var s = timeToMin(it.ev.time), e = s + (it.ev.duration || 60);
+      var col = -1;
+      for (var i = 0; i < colEnds.length; i++) {
+        if (colEnds[i] <= s) { col = i; colEnds[i] = e; break; }
+      }
+      if (col < 0) { col = colEnds.length; colEnds.push(e); }
+      it._ci = col;
+    });
+    sorted.forEach(function (it) {
+      var s = timeToMin(it.ev.time), e = s + (it.ev.duration || 60);
+      it._cn = 1;
+      sorted.forEach(function (o) {
+        var os = timeToMin(o.ev.time), oe = os + (o.ev.duration || 60);
+        if (os < e && oe > s) it._cn = Math.max(it._cn, o._ci + 1);
+      });
+    });
+    return sorted;
+  }
+
   // ─── Chargement events internes ──────────────────────────────────
   function loadEvents() {
     return fetchJSON('/api/calendar_events').then(function (res) {
@@ -258,17 +284,31 @@
         }
       }
 
-      // Events timés
-      var evHtml = (STATE.events[iso] || []).reduce(function (acc, ev, idx) {
-        if (!ev.time || ev.duration === 0) return acc;
+      // Events timés avec gestion des collisions
+      var timedItems = (STATE.events[iso] || []).reduce(function (acc, ev, idx) {
+        if (ev.time && ev.duration !== 0) acc.push({ ev: ev, idx: idx });
+        return acc;
+      }, []);
+      var laidOut = computeLayout(timedItems);
+      var evHtml = laidOut.reduce(function (acc, item) {
+        var ev = item.ev, idx = item.idx;
         var startMin = timeToMin(ev.time);
         if (startMin < HOUR_START * 60 || startMin >= HOUR_END * 60) return acc;
         var top    = (startMin - HOUR_START * 60) / 60 * SLOT_H;
-        var height = Math.max(22, ev.duration / 60 * SLOT_H - 2);
+        var height = Math.max(24, ev.duration / 60 * SLOT_H - 2);
+        var pct    = 100 / item._cn;
+        var lPct   = item._ci * pct;
+        var style  = 'top:' + top + 'px;height:' + height + 'px;' +
+          'left:calc(' + lPct.toFixed(1) + '% + 2px);width:calc(' + pct.toFixed(1) + '% - 4px);';
+        // Titre sans le préfixe heure
+        var title = (ev.time && ev.label.indexOf(ev.time + ' · ') === 0)
+          ? ev.label.slice(ev.time.length + 3) : ev.label;
+        var inner = (height >= 46 && ev.time)
+          ? '<span class="v30-cal-wk__ev-t">' + esc(ev.time) + '</span><span class="v30-cal-wk__ev-n">' + esc(title) + '</span>'
+          : esc(ev.label);
         return acc + '<button type="button" class="v30-cal__ev v30-cal-wk__ev is-' + ev.type +
-          '" data-v30-cal-ev="' + iso + ':' + idx +
-          '" style="top:' + top + 'px;height:' + height + 'px;" title="' + esc(ev.label) + '">' +
-          esc(ev.label) + '</button>';
+          '" data-v30-cal-ev="' + iso + ':' + idx + '" style="' + style + '" title="' + esc(ev.label) + '">' +
+          inner + '</button>';
       }, '');
 
       // Ligne "maintenant" (aujourd'hui uniquement)
