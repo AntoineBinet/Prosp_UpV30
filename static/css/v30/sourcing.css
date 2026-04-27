@@ -72,6 +72,10 @@
   transition: border-color var(--dur-1), background var(--dur-1);
 }
 .v30-sc-card:hover { background: var(--surface-2); border-color: var(--border-strong); }
+.v30-sc-card[draggable="true"] { cursor: grab; }
+.v30-sc-card[draggable="true"]:active { cursor: grabbing; }
+.v30-sc-card.is-dragging { opacity: .35; transform: scale(.97); pointer-events: none; }
+.v30-sc-col.is-drop-target { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in oklch, var(--accent) 8%, var(--surface-2)); }
 
 .v30-sc-card__head {
   display: flex;
