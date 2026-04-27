@@ -7305,7 +7305,7 @@ def api_candidates_bulk_update():
     except (TypeError, ValueError):
         return jsonify(ok=False, error="IDs invalides"), 400
     col = ALLOWED_FIELDS[field]
-    now = datetime.now().isoformat()
+    now = datetime.datetime.now().isoformat(timespec="seconds")
     db_path = _get_user_db(uid)
     conn = sqlite3.connect(db_path)
     try:
