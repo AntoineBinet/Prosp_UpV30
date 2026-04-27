@@ -173,7 +173,40 @@
       </div>
     </details>
 
-    {# ─── 3. Sauvegardes & données ────────────────────────────── #}
+    {# ─── 3. Calendrier externe (Outlook / Google) ────────────── #}
+    <details class="v30-params__card v30-params__collapse" id="calsync" data-v30-calsync>
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('calendar', 16) }}
+          <h3>Calendrier externe</h3>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Affiche tes événements Outlook (ou Google Calendar) dans le calendrier ProspUp via un lien ICS.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-params__field">
+          <label class="v30-params__label">Lien ICS (URL)</label>
+          <input type="url" class="input" data-v30-calsync-url
+                 placeholder="https://outlook.live.com/owa/calendar/…/calendar.ics">
+        </div>
+        <p class="muted v30-params__hint">
+          <strong>Outlook.com</strong> : Calendrier → Partager → Obtenir un lien → ICS (lecture seule).<br>
+          <strong>Outlook 365 / Exchange</strong> : Paramètres → Afficher tous les paramètres → Calendrier → Calendriers partagés → Publier un calendrier.<br>
+          <strong>Google Calendar</strong> : Paramètres → nom du calendrier → URL secrète au format iCal.
+        </p>
+        <div class="v30-params__actions">
+          <button type="button" class="btn btn-primary btn-sm" data-v30-calsync-save>Enregistrer</button>
+          <button type="button" class="btn btn-sm" data-v30-calsync-test>Tester la connexion</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-calsync-clear>Supprimer</button>
+          <span class="muted v30-params__status" data-v30-calsync-status></span>
+        </div>
+      </div>
+    </details>
+
+    {# ─── 4. Sauvegardes & données ────────────────────────────── #}
     <details class="v30-params__card v30-params__collapse" data-v30-backup>
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
