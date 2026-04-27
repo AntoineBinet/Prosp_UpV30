@@ -252,22 +252,11 @@
 }
 .mp-avatar-wrap { flex-shrink: 0; margin-top: 1px; }
 
-/* Avatar cohérent avec v30-fp-header__avatar */
-.mp-avatar {
-  width: 52px; height: 52px;
-  border-radius: var(--r-xl);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 17px; font-weight: 600;
-  color: var(--accent-fg);
-  letter-spacing: -0.01em;
-  border: 1px solid var(--border);
-}
-.mp-avatar-img {
-  width: 52px; height: 52px;
-  border-radius: var(--r-xl);
-  object-fit: cover;
-  border: 1px solid var(--border);
-}
+/* Avatar : remplacé par .avatar.avatar--xl.avatar--square (Phase 7).
+   Spécificité hero : couleur de fond dynamique via heroColor inline,
+   letter-spacing serré. */
+.mp-avatar { color: var(--accent-fg); letter-spacing: -0.01em; }
+.mp-avatar-img { object-fit: cover; }
 
 .mp-hero-info { flex: 1; min-width: 0; }
 .mp-hero-name {

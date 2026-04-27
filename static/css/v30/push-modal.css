@@ -68,16 +68,11 @@
   border-radius: var(--r-card);
   background: var(--surface-2);
 }
+/* .v30pm-recipient__avatar : remplacé par .avatar.avatar--lg (Phase 7).
+   Spécificités conservées : teinte accent + letter-spacing serré. */
 .v30pm-recipient__avatar {
-  width: 40px; height: 40px;
-  flex-shrink: 0;
-  border-radius: 50%;
   background: color-mix(in oklch, var(--accent) 18%, transparent);
   color: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -589,10 +584,8 @@
   padding: 14px 16px;
   border-radius: var(--r-xl);
 }
-.v30pm-recipient__avatar {
-  width: var(--avatar-size-lg); height: var(--avatar-size-lg);
-  font-size: 15px;
-}
+/* Polish v30.30.16 : la taille --lg est désormais portée par
+   .avatar.avatar--lg (Phase 7) — bloc supprimé. */
 
 /* Catégorie select : utilise la variante --lg du système d'inputs unifié.
    La classe .v30-input--lg est ajoutée en JS (push-modal.js).

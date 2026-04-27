@@ -186,7 +186,7 @@
       if (extra > 0) tagsHtml += ' <span class="badge muted" style="font-size:10px;">+' + extra + '</span>';
       return '<a class="v30-ent-card" href="#" data-v30-ent-open="' + r.id + '">' +
         '<div class="v30-ent-card__head">' +
-          '<span class="v30-ent-card__logo">' + esc(initials(r.groupe)) + '</span>' +
+          '<span class="avatar avatar--md avatar--square avatar--logo v30-ent-card__logo">' + esc(initials(r.groupe)) + '</span>' +
           '<div class="v30-ent-card__title-box">' +
             '<div class="v30-ent-card__title truncate">' + esc(r.groupe || '—') + '</div>' +
             '<div class="v30-ent-card__site truncate">' + esc(r.site || '—') + '</div>' +

@@ -141,8 +141,8 @@ window.mpClose = function () {
 
         var photoUrl = p.photo_url ? '/api/photos/prospect/' + p.id : '';
         var avatarHtml = photoUrl
-            ? '<img class="mp-avatar-img" src="' + photoUrl + '" alt="' + escapeHtml(initials) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" /><div class="mp-avatar" style="background:' + heroColor + ';display:none;">' + escapeHtml(initials) + '</div>'
-            : '<div class="mp-avatar" style="background:' + heroColor + ';">' + escapeHtml(initials) + '</div>';
+            ? '<img class="avatar avatar--xl avatar--square mp-avatar-img" src="' + photoUrl + '" alt="' + escapeHtml(initials) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" /><div class="avatar avatar--xl avatar--square mp-avatar" style="background:' + heroColor + ';display:none;">' + escapeHtml(initials) + '</div>'
+            : '<div class="avatar avatar--xl avatar--square mp-avatar" style="background:' + heroColor + ';">' + escapeHtml(initials) + '</div>';
 
         var phoneNumbers = [];
         if (p.telephone) {

@@ -270,7 +270,7 @@
     if (!el) return;
     el.innerHTML =
       '<div class="v30pm-recipient v30pm-recipient--skeleton">' +
-        '<span class="v30pm-recipient__avatar">·</span>' +
+        '<span class="avatar avatar--lg v30pm-recipient__avatar">·</span>' +
         '<div class="v30pm-recipient__body">' +
           '<span class="skel" style="width:55%;height:14px;display:block;"></span>' +
           '<span class="skel" style="width:75%;height:11px;display:block;margin-top:6px;"></span>' +
@@ -294,7 +294,7 @@
       : '<span class="mono">' + esc(dest) + '</span>';
     el.innerHTML =
       '<div class="v30pm-recipient">' +
-        '<span class="v30pm-recipient__avatar" aria-hidden="true">' + esc(initials(p.name)) + '</span>' +
+        '<span class="avatar avatar--lg v30pm-recipient__avatar" aria-hidden="true">' + esc(initials(p.name)) + '</span>' +
         '<div class="v30pm-recipient__body">' +
           '<div class="v30pm-recipient__name">' + esc(p.name || '—') + '</div>' +
           '<div class="v30pm-recipient__meta">' + meta + '</div>' +

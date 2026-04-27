@@ -49,14 +49,9 @@
 }
 .v30-ent-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
 .v30-ent-card__head { display: flex; gap: 10px; align-items: center; }
-.v30-ent-card__logo {
-  width: 36px; height: 36px; flex-shrink: 0;
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 600; font-size: 12px;
-}
+/* .v30-ent-card__logo : remplacé par .avatar.avatar--md.avatar--square.avatar--logo
+   (Phase 7). Classe conservée comme alias rétro-compat. */
+.v30-ent-card__logo { /* alias deprecated */ }
 .v30-ent-card__title-box { min-width: 0; flex: 1; }
 .v30-ent-card__title { font-weight: 500; font-size: 14px; color: var(--text); }
 .v30-ent-card__site { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
