@@ -308,3 +308,255 @@ def api_bootstrap_portfolio():
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ── DIAGNOSTIC ────────────────────────────────────────────────────
+# Quand marienour.work répond Error 1033 (tunnel down), on a besoin
+# d'inspecter l'état côté PC sans avoir d'accès direct.
+
+def _read_text_safe(path: Path, max_bytes: int = 8192) -> str | None:
+    try:
+        if not path.exists():
+            return None
+        data = path.read_bytes()[:max_bytes]
+        return data.decode("utf-8", errors="replace")
+    except Exception as e:
+        return f"<lecture impossible : {e}>"
+
+
+def _list_processes_windows() -> list[dict]:
+    """Liste cloudflared.exe et python.exe avec leur cmdline (PowerShell)."""
+    if sys.platform != "win32":
+        return []
+    ps = (
+        "Get-CimInstance Win32_Process "
+        "-Filter \"name='cloudflared.exe' or name='python.exe' or name='pythonw.exe'\" "
+        "| Select-Object ProcessId,Name,CommandLine "
+        "| ConvertTo-Json -Compress"
+    )
+    try:
+        cp = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps],
+            capture_output=True, text=True, timeout=10,
+        )
+        if cp.returncode != 0 or not cp.stdout.strip():
+            return []
+        data = json.loads(cp.stdout)
+        if isinstance(data, dict):
+            data = [data]
+        return data
+    except Exception:
+        return []
+
+
+def _http_local_health() -> dict:
+    """Test http://127.0.0.1:8001/api/deploy/health (timeout 2 s)."""
+    try:
+        from urllib.request import urlopen
+        with urlopen(f"http://127.0.0.1:{PORTFOLIO_PORT}/api/deploy/health", timeout=2) as r:
+            body = r.read(2048).decode("utf-8", errors="replace")
+            return {"reachable": True, "status": r.status, "body": body}
+    except Exception as e:
+        return {"reachable": False, "error": str(e)}
+
+
+@bootstrap_portfolio_bp.get("/api/admin/portfolio-status")
+@login_required
+@role_required("admin")
+def api_portfolio_status():
+    """Diagnostic complet de l'état du Portfolio sur le PC hébergeur."""
+    desktop = Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Desktop"
+    target = desktop / "Portfolio"
+    cf_dir = Path.home() / ".cloudflared"
+
+    out: dict = {
+        "platform": sys.platform,
+        "portfolio_dir": str(target),
+        "portfolio_exists": target.exists(),
+        "skeleton_dir": str(SKELETON_DIR),
+        "skeleton_exists": SKELETON_DIR.exists(),
+    }
+
+    if target.exists():
+        try:
+            out["portfolio_files"] = sorted(p.name for p in target.iterdir())
+        except Exception as e:
+            out["portfolio_files_error"] = str(e)
+
+    # mnwork.yml
+    yaml_path = target / "mnwork.yml"
+    out["mnwork_yml_path"] = str(yaml_path)
+    out["mnwork_yml_exists"] = yaml_path.exists()
+    if yaml_path.exists():
+        out["mnwork_yml_content"] = _read_text_safe(yaml_path)
+
+    # ~/.cloudflared/
+    out["cloudflared_dir"] = str(cf_dir)
+    if cf_dir.exists():
+        try:
+            entries = []
+            for p in sorted(cf_dir.iterdir()):
+                entries.append({
+                    "name": p.name,
+                    "size": p.stat().st_size if p.is_file() else None,
+                    "is_dir": p.is_dir(),
+                })
+            out["cloudflared_dir_entries"] = entries
+        except Exception as e:
+            out["cloudflared_dir_error"] = str(e)
+
+    # cloudflared binary
+    cf = _find_cloudflared()
+    out["cloudflared_bin"] = cf
+    if cf:
+        # tunnel list
+        try:
+            cp = subprocess.run(
+                [cf, "tunnel", "list", "--output", "json"],
+                capture_output=True, text=True, timeout=10,
+            )
+            out["tunnel_list_returncode"] = cp.returncode
+            if cp.stdout.strip():
+                try:
+                    out["tunnel_list"] = json.loads(cp.stdout)
+                except Exception:
+                    out["tunnel_list_raw"] = cp.stdout[:2000]
+            if cp.stderr:
+                out["tunnel_list_stderr"] = cp.stderr[:1000]
+        except Exception as e:
+            out["tunnel_list_error"] = str(e)
+
+        # tunnel info mnwork
+        try:
+            cp = subprocess.run(
+                [cf, "tunnel", "info", TUNNEL_NAME, "--output", "json"],
+                capture_output=True, text=True, timeout=10,
+            )
+            out["tunnel_info_returncode"] = cp.returncode
+            if cp.stdout.strip():
+                try:
+                    out["tunnel_info"] = json.loads(cp.stdout)
+                except Exception:
+                    out["tunnel_info_raw"] = cp.stdout[:2000]
+            if cp.stderr:
+                out["tunnel_info_stderr"] = cp.stderr[:1000]
+        except Exception as e:
+            out["tunnel_info_error"] = str(e)
+
+    # Local server health
+    out["local_health_8001"] = _http_local_health()
+
+    # Processus en cours
+    out["processes"] = _list_processes_windows()
+
+    return out
+
+
+@bootstrap_portfolio_bp.post("/api/admin/portfolio-action")
+@login_required
+@role_required("admin")
+def api_portfolio_action():
+    """Actions de réparation : regenerate-config / kill-tunnel / restart-bat."""
+    chk = _require_same_origin()
+    if chk:
+        return chk
+
+    body = request.get_json(silent=True) or {}
+    action = (body.get("action") or "").strip()
+    desktop = Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Desktop"
+    target = desktop / "Portfolio"
+
+    if not target.exists():
+        return {"ok": False, "error": f"Dossier Portfolio introuvable : {target}"}, 400
+
+    log_lines: list[str] = []
+    def log(msg: str):
+        log_lines.append(msg)
+        logger.info("[portfolio-action] %s", msg)
+
+    try:
+        if action == "regenerate-config":
+            cf = _find_cloudflared()
+            if not cf:
+                return {"ok": False, "error": "cloudflared introuvable", "log": log_lines}, 500
+            uuid, cred = _detect_tunnel_uuid(cf)
+            if not uuid:
+                return {"ok": False, "error": f"Tunnel '{TUNNEL_NAME}' introuvable", "log": log_lines}, 500
+            if not cred:
+                cred = str(Path.home() / ".cloudflared" / f"{uuid}.json")
+                log(f"[WARN] credentials-file deviné : {cred}")
+            yaml_content = (
+                f"tunnel: {TUNNEL_NAME}\n"
+                f"credentials-file: {cred}\n\n"
+                "ingress:\n"
+                f"  - hostname: {TUNNEL_HOSTNAME}\n"
+                f"    service: http://localhost:{PORTFOLIO_PORT}\n"
+                "  - service: http_status:404\n"
+            )
+            (target / "mnwork.yml").write_text(yaml_content, encoding="utf-8")
+            log(f"mnwork.yml régénéré (uuid={uuid})")
+            return {"ok": True, "log": log_lines, "uuid": uuid, "credentials_file": cred,
+                    "yaml_content": yaml_content}
+
+        if action == "kill-tunnel":
+            # Tue UNIQUEMENT les cloudflared.exe dont la cmdline contient 'mnwork'
+            # (préserve donc le tunnel prospup et le service prospup-work).
+            if sys.platform != "win32":
+                return {"ok": False, "error": "Action Windows-only", "log": log_lines}, 400
+            ps = (
+                "Get-CimInstance Win32_Process -Filter \"name='cloudflared.exe'\" "
+                "| Where-Object { $_.CommandLine -match 'mnwork' } "
+                "| ForEach-Object { Stop-Process -Id $_.ProcessId -Force; Write-Output $_.ProcessId }"
+            )
+            cp = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps],
+                capture_output=True, text=True, timeout=15,
+            )
+            killed = [l.strip() for l in cp.stdout.splitlines() if l.strip()]
+            log(f"Processus cloudflared mnwork tués : {killed or 'aucun'}")
+            if cp.stderr:
+                log(f"stderr : {cp.stderr.strip()}")
+            return {"ok": True, "killed": killed, "log": log_lines}
+
+        if action == "kill-server":
+            # Tue les python qui exécutent app.py dans le dossier Portfolio
+            if sys.platform != "win32":
+                return {"ok": False, "error": "Action Windows-only", "log": log_lines}, 400
+            ps = (
+                "Get-CimInstance Win32_Process "
+                "-Filter \"name='python.exe' or name='pythonw.exe'\" "
+                "| Where-Object { $_.CommandLine -match 'Portfolio' -and $_.CommandLine -match 'app.py' } "
+                "| ForEach-Object { Stop-Process -Id $_.ProcessId -Force; Write-Output $_.ProcessId }"
+            )
+            cp = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps],
+                capture_output=True, text=True, timeout=15,
+            )
+            killed = [l.strip() for l in cp.stdout.splitlines() if l.strip()]
+            log(f"Processus python Portfolio tués : {killed or 'aucun'}")
+            return {"ok": True, "killed": killed, "log": log_lines}
+
+        if action == "restart-bat":
+            # Lance PORTFOLIO.bat dans une nouvelle fenêtre détachée
+            bat = target / "PORTFOLIO.bat"
+            if not bat.exists():
+                return {"ok": False, "error": "PORTFOLIO.bat introuvable", "log": log_lines}, 400
+            if sys.platform == "win32":
+                subprocess.Popen(
+                    ["cmd", "/c", "start", "", str(bat)],
+                    cwd=str(target),
+                    creationflags=subprocess.CREATE_NEW_CONSOLE,
+                    close_fds=True,
+                )
+            else:
+                subprocess.Popen(["bash", str(bat)], cwd=str(target), start_new_session=True)
+            log(f"PORTFOLIO.bat relancé : {bat}")
+            return {"ok": True, "log": log_lines}
+
+        return {"ok": False, "error": f"action inconnue : '{action}'"}, 400
+
+    except subprocess.TimeoutExpired as e:
+        return {"ok": False, "error": f"Timeout : {e}", "log": log_lines}, 500
+    except Exception as e:
+        logger.exception("portfolio-action error")
+        return {"ok": False, "error": str(e), "log": log_lines}, 500

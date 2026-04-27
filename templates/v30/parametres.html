@@ -433,7 +433,73 @@
         <pre id="bootstrapLog" style="background:#0a0c11;color:#cfd5e3;border:1px solid #2a2f3d;border-radius:8px;padding:10px;max-height:320px;overflow:auto;font-size:12px;white-space:pre-wrap;"></pre>
         <div id="bootstrapSummary" style="margin-top:8px;"></div>
       </div>
+
+      <hr style="border:0;border-top:1px solid #2a2f3d;margin:14px 0;">
+      <div style="font-size:12px;font-weight:600;color:#e0e6f0;margin-bottom:6px;">
+        Diagnostic & réparation (en cas d'Error 1033 / tunnel down)
+      </div>
+      <div class="v30-deploy__actions" style="flex-wrap:wrap;gap:6px;">
+        <button type="button" class="btn btn-sm" id="btnPortfolioStatus">Diagnostiquer</button>
+        <button type="button" class="btn btn-sm" id="btnPortfolioRegen">Régénérer mnwork.yml</button>
+        <button type="button" class="btn btn-sm" id="btnPortfolioKillTunnel">Tuer le tunnel mnwork</button>
+        <button type="button" class="btn btn-sm" id="btnPortfolioKillServer">Tuer le serveur :8001</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnPortfolioRestart">Relancer PORTFOLIO.bat</button>
+      </div>
+      <pre id="portfolioDiag" hidden style="background:#0a0c11;color:#cfd5e3;border:1px solid #2a2f3d;border-radius:8px;padding:10px;max-height:380px;overflow:auto;font-size:11.5px;white-space:pre-wrap;margin-top:8px;"></pre>
     </div>
+    <script>
+    (() => {
+      const diag = document.getElementById("portfolioDiag");
+      if (!diag) return;
+      const show = (data) => {
+        diag.hidden = false;
+        diag.textContent = (typeof data === "string") ? data : JSON.stringify(data, null, 2);
+      };
+      const append = (label, data) => {
+        diag.hidden = false;
+        diag.textContent += `\n\n=== ${label} (${new Date().toLocaleTimeString()}) ===\n` +
+          ((typeof data === "string") ? data : JSON.stringify(data, null, 2));
+        diag.scrollTop = diag.scrollHeight;
+      };
+
+      document.getElementById("btnPortfolioStatus")?.addEventListener("click", async () => {
+        show("Diagnostic en cours…");
+        try {
+          const r = await fetch("/api/admin/portfolio-status");
+          const d = await r.json();
+          show(d);
+        } catch (e) { show("Erreur : " + e.message); }
+      });
+
+      const action = async (label, body) => {
+        append(label + " — envoi", body);
+        try {
+          const r = await fetch("/api/admin/portfolio-action", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const d = await r.json();
+          append(label + " — réponse", d);
+        } catch (e) { append(label + " — erreur", e.message); }
+      };
+
+      document.getElementById("btnPortfolioRegen")?.addEventListener("click",
+        () => action("regenerate-config", { action: "regenerate-config" }));
+      document.getElementById("btnPortfolioKillTunnel")?.addEventListener("click", () => {
+        if (!confirm("Tuer les processus cloudflared liés à mnwork ?")) return;
+        action("kill-tunnel", { action: "kill-tunnel" });
+      });
+      document.getElementById("btnPortfolioKillServer")?.addEventListener("click", () => {
+        if (!confirm("Tuer le serveur Python Portfolio (port 8001) ?")) return;
+        action("kill-server", { action: "kill-server" });
+      });
+      document.getElementById("btnPortfolioRestart")?.addEventListener("click", () => {
+        if (!confirm("Relancer PORTFOLIO.bat (serveur + tunnel) ?")) return;
+        action("restart-bat", { action: "restart-bat" });
+      });
+    })();
+    </script>
     <script>
     (() => {
       const btn = document.getElementById("btnBootstrapPortfolio");
