@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "31.2"
+APP_VERSION = "31.3"
 import os
 import subprocess
 import traceback
@@ -14161,7 +14161,15 @@ def api_prospects_bulk_field_update():
 
 @app.post("/api/prospects/bulk-edit")
 def api_prospects_bulk_edit():
-    """Bulk update a whitelisted field for selected prospects."""
+    """Bulk update a whitelisted field for selected prospects.
+
+    Accepte deux formats :
+      - mode mono-champ : { ids, field, value }
+      - mode multi-champs : { ids, fields: { f1: v1, f2: v2, ... } } (v31.3+)
+    Les changements de statut → "Rendez-vous" + rdvDate déclenchent un event
+    rdv_taken (KPI gamification). Tout changement de statut crée aussi un
+    event status_change dans la timeline.
+    """
     chk = _require_same_origin()
     if chk:
         return chk
@@ -14170,40 +14178,58 @@ def api_prospects_bulk_edit():
         return jsonify(ok=False, error="Non authentifié"), 401
     payload = request.get_json(force=True, silent=True) or {}
     ids = payload.get("ids")
+    fields_in = payload.get("fields")
     field = payload.get("field", "")
     value = payload.get("value")
-    ALLOWED_FIELDS = ["fonction", "statut", "pertinence", "fixedMetier", "notes", "company_id",
-                       "telephone", "email", "linkedin"]
-    ALLOW_EMPTY = {"notes", "telephone", "email", "linkedin"}
+    ALLOWED_FIELDS = {"fonction", "statut", "pertinence", "fixedMetier", "notes", "company_id",
+                      "telephone", "email", "linkedin", "rdvDate", "nextFollowUp", "priority", "nextAction"}
+    ALLOW_EMPTY = {"notes", "telephone", "email", "linkedin", "rdvDate", "nextFollowUp", "nextAction"}
     if not ids or not isinstance(ids, list):
         return jsonify(ok=False, error="ids (array) required"), 400
-    if field not in ALLOWED_FIELDS:
-        return jsonify(ok=False, error=f"field must be one of {ALLOWED_FIELDS}"), 400
-    if value is None or (str(value).strip() == "" and field not in ALLOW_EMPTY):
-        return jsonify(ok=False, error="value required"), 400
 
-    # v30.2: company_id doit référencer une entreprise existante appartenant à l'utilisateur.
-    # On refuse la saisie libre — le front doit passer par l'autocomplete entreprise + « Ajouter ».
-    company_meta = None
-    if field == "company_id":
-        try:
-            cid = int(str(value).strip())
-        except (TypeError, ValueError):
-            return jsonify(ok=False, error="company_id must be an integer"), 400
-        with _conn() as conn:
-            row = conn.execute(
-                "SELECT id, groupe, site FROM companies WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
-                (cid, uid)
-            ).fetchone()
-            if not row:
-                return jsonify(ok=False, error="Entreprise inconnue — utilise l'autocomplete pour la choisir ou la créer."), 400
-            value = cid
-            company_meta = {"id": int(row["id"]), "groupe": row["groupe"] or "", "site": row["site"] or ""}
+    # Construire le dict de champs à appliquer (mono ou multi).
+    if isinstance(fields_in, dict) and fields_in:
+        fields_map = dict(fields_in)
     else:
-        value = str(value).strip() if value is not None else ""
+        if field not in ALLOWED_FIELDS:
+            return jsonify(ok=False, error=f"field must be one of {sorted(ALLOWED_FIELDS)}"), 400
+        fields_map = {field: value}
+
+    # Validation et normalisation par champ.
+    company_meta = None
+    normalized: dict = {}
+    for f, v in fields_map.items():
+        if f not in ALLOWED_FIELDS:
+            return jsonify(ok=False, error=f"field '{f}' non autorisé"), 400
+        if v is None or (str(v).strip() == "" and f not in ALLOW_EMPTY):
+            return jsonify(ok=False, error=f"value required for '{f}'"), 400
+        if f == "company_id":
+            try:
+                cid = int(str(v).strip())
+            except (TypeError, ValueError):
+                return jsonify(ok=False, error="company_id must be an integer"), 400
+            with _conn() as conn:
+                row = conn.execute(
+                    "SELECT id, groupe, site FROM companies WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+                    (cid, uid)
+                ).fetchone()
+                if not row:
+                    return jsonify(ok=False, error="Entreprise inconnue — utilise l'autocomplete pour la choisir ou la créer."), 400
+                normalized[f] = cid
+                company_meta = {"id": int(row["id"]), "groupe": row["groupe"] or "", "site": row["site"] or ""}
+        elif f in ("priority", "pertinence"):
+            try:
+                normalized[f] = int(str(v).strip()) if str(v).strip() != "" else None
+            except (TypeError, ValueError):
+                return jsonify(ok=False, error=f"{f} must be an integer"), 400
+        else:
+            normalized[f] = str(v).strip() if v is not None else ""
 
     updated = 0
     errors = []
+    set_clause = ", ".join(f"{f}=?" for f in normalized.keys())
+    set_values = list(normalized.values())
+
     with _conn() as conn:
         for pid in ids:
             try:
@@ -14211,12 +14237,51 @@ def api_prospects_bulk_edit():
             except (TypeError, ValueError):
                 errors.append(str(pid))
                 continue
-            row = conn.execute("SELECT id FROM prospects WHERE id=? AND owner_id=?;", (pid, uid)).fetchone()
-            if row:
-                conn.execute(f"UPDATE prospects SET {field}=? WHERE id=? AND owner_id=?;", (value, pid, uid))
-                updated += 1
-            else:
+            row = conn.execute(
+                "SELECT id, statut, rdvDate FROM prospects WHERE id=? AND owner_id=?;",
+                (pid, uid)
+            ).fetchone()
+            if not row:
                 errors.append(str(pid))
+                continue
+            old_statut = str(row["statut"] or "").strip()
+            old_rdv = str(row["rdvDate"] or "").strip()
+            conn.execute(
+                f"UPDATE prospects SET {set_clause} WHERE id=? AND owner_id=?;",
+                set_values + [pid, uid]
+            )
+            updated += 1
+
+            # Event rdv_taken pour le KPI gamification.
+            try:
+                new_statut = str(normalized.get("statut", old_statut) or "").strip()
+                new_rdv = str(normalized.get("rdvDate", old_rdv) or "").strip()
+                if new_statut == "Rendez-vous" and new_rdv:
+                    if old_statut != "Rendez-vous" or old_rdv != new_rdv:
+                        now_ev = datetime.datetime.now().isoformat(timespec="seconds")
+                        ev_date = now_ev[:10]
+                        conn.execute(
+                            "INSERT OR IGNORE INTO prospect_events (prospect_id, date, type, title, content, meta, createdAt) VALUES (?,?,?,?,?,?,?)",
+                            (pid, ev_date, "rdv_taken", "RDV pris", None,
+                             json.dumps({"rdvDate": new_rdv}, ensure_ascii=False), now_ev),
+                        )
+            except Exception:
+                pass
+
+            # Event status_change pour la timeline.
+            try:
+                if "statut" in normalized:
+                    new_statut = str(normalized["statut"] or "").strip()
+                    if new_statut and old_statut != new_statut:
+                        ev_at = datetime.datetime.now().isoformat()
+                        content_statut = f"{old_statut} → {new_statut}" if old_statut else new_statut
+                        conn.execute(
+                            "INSERT OR IGNORE INTO prospect_events (prospect_id, date, type, title, content, meta, createdAt) VALUES (?,?,?,?,?,?,?)",
+                            (pid, ev_at, "status_change", "Changement de statut", content_statut, None, ev_at),
+                        )
+            except Exception:
+                pass
+
     resp = {"ok": True, "updated": updated, "errors": errors}
     if company_meta:
         resp["company"] = company_meta
