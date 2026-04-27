@@ -241,10 +241,10 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 44px;
-  padding: 0 14px;
+  height: var(--input-h-lg);
+  padding: 0 12px;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--input-radius-lg);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -259,7 +259,6 @@
 }
 .v30pm-combo.is-open .v30pm-combo__btn {
   border-color: color-mix(in oklch, var(--accent) 60%, var(--border));
-  box-shadow: 0 0 0 4px color-mix(in oklch, var(--accent) 14%, transparent);
 }
 .v30pm-combo__btn:focus-visible {
   outline: 2px solid color-mix(in oklch, var(--accent) 55%, transparent);
@@ -435,7 +434,7 @@
   gap: 6px;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--r-xl);
   background: var(--surface-2);
   font-size: 12.5px;
 }
@@ -557,10 +556,10 @@
 /* Grille candidats : 2 colonnes avec gap plus aéré */
 #v30PushModal .v30pm-grid { gap: 14px; }
 
-/* Description cards : plus respirantes */
+/* Description cards : plus respirantes (polish v30.30.16) */
 .v30pm-candcard {
   padding: 12px 14px;
-  border-radius: 16px;
+  /* radius hérité de la définition principale (var(--r-xl)) */
   gap: 8px;
 }
 .v30pm-candcard__title {
@@ -588,10 +587,10 @@
 /* Destinataire card : padding cohérent avec le reste */
 .v30pm-recipient {
   padding: 14px 16px;
-  border-radius: 16px;
+  border-radius: var(--r-xl);
 }
 .v30pm-recipient__avatar {
-  width: 44px; height: 44px;
+  width: var(--avatar-size-lg); height: var(--avatar-size-lg);
   font-size: 15px;
 }
 

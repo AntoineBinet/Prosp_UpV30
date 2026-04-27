@@ -360,7 +360,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow: 0 20px 48px -16px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--shadow-pop);
   width: 100%; max-width: 480px;
   max-height: calc(100vh - 40px);
   display: flex; flex-direction: column;
