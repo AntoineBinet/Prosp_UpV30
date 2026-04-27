@@ -16073,10 +16073,20 @@ def _parse_ics_to_events(ics_text: str) -> List[Dict[str, Any]]:
         if url_m:
             event_url = url_m.group(1).strip()
 
+        # Duration from DTEND (in minutes)
+        duration = 60
+        end_m = re.search(r"DTEND[^:]*:(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2}))?", unfolded)
+        if end_m and start_time and end_m.group(4):
+            end_mins = int(end_m.group(4)) * 60 + int(end_m.group(5) or 0)
+            start_mins = int(start_time[:2]) * 60 + int(start_time[3:5])
+            d_mins = end_mins - start_mins
+            if d_mins > 0:
+                duration = d_mins
+
         if start_date and summary:
             events.append({
                 "date": start_date, "time": start_time, "name": summary,
-                "teams_url": teams_url, "event_url": event_url,
+                "teams_url": teams_url, "event_url": event_url, "duration": duration,
             })
     return events
 
@@ -16107,6 +16117,7 @@ def api_calendar_events_external():
             "time": e.get("time") or "", "type": "external", "statut": "",
             "url": e.get("event_url") or "",
             "teams_url": e.get("teams_url") or "",
+            "duration": e.get("duration") or 60,
         }
         for e in raw
     ]
