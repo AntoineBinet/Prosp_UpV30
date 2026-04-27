@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "31.1"
+APP_VERSION = "31.2"
 import os
 import subprocess
 import traceback
@@ -10105,6 +10105,28 @@ def api_stats():
             except Exception:
                 continue
 
+        # Notes stockées dans prospect_events (mpAddNote, prospect_detail "+ Note", etc.)
+        try:
+            if mode == "all":
+                call_notes += conn.execute(
+                    """SELECT COUNT(*) AS n FROM prospect_events e
+                       JOIN prospects p ON p.id=e.prospect_id
+                       WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note')
+                         AND (p.deleted_at IS NULL OR p.deleted_at='');""",
+                    (uid,),
+                ).fetchone()["n"]
+            else:
+                call_notes += conn.execute(
+                    """SELECT COUNT(*) AS n FROM prospect_events e
+                       JOIN prospects p ON p.id=e.prospect_id
+                       WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note')
+                         AND substr(e.date,1,10) >= ? AND substr(e.date,1,10) <= ?
+                         AND (p.deleted_at IS NULL OR p.deleted_at='');""",
+                    (uid, start_iso, end_iso),
+                ).fetchone()["n"]
+        except Exception:
+            pass
+
         # Appels tracés (call_logs — clics bouton Appeler)
         try:
             if mode == "all":
@@ -10271,7 +10293,7 @@ def api_stats_insights():
                 (uid, start_iso, end_iso),
             ).fetchone()["n"]
         
-        # Call notes (période actuelle)
+        # Call notes (période actuelle) — callNotes JSON + prospect_events de type note
         call_rows = conn.execute(
             "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes != '' AND (deleted_at IS NULL OR deleted_at = '');",
             (uid,),
@@ -10293,6 +10315,22 @@ def api_stats_insights():
                                 call_notes += 1
             except Exception:
                 continue
+        try:
+            event_note_rows = conn.execute(
+                """SELECT substr(e.date,1,10) AS d FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id
+                   WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note')
+                     AND (p.deleted_at IS NULL OR p.deleted_at='');""",
+                (uid,),
+            ).fetchall()
+        except Exception:
+            event_note_rows = []
+        for r in event_note_rows:
+            d = r["d"] or ""
+            if not d:
+                continue
+            if mode == "all" or (start_iso <= d <= end_iso):
+                call_notes += 1
         current_stats["activity"]["callNotes"] = call_notes
         
         # Followups
@@ -10362,6 +10400,10 @@ def api_stats_insights():
                                     prev_call_notes += 1
                     except Exception:
                         continue
+                for r in event_note_rows:
+                    d = r["d"] or ""
+                    if d and prev_start_iso <= d <= prev_end_iso:
+                        prev_call_notes += 1
                 prev_stats["activity"]["callNotes"] = prev_call_notes
                 
                 prev_stats["statusCounts"] = {}
@@ -10805,7 +10847,7 @@ def api_stats_charts():
         status_dist = {r["statut"]: r["n"] for r in status_rows}
 
         # 2) Push + calls + callNotes per week (last 12 weeks)
-        # Pre-load call notes dates for quick bucketing
+        # Pre-load note dates (callNotes JSON + prospect_events type note) pour bucketing rapide
         _cn_dates = []
         for r in conn.execute(
             "SELECT callNotes FROM prospects WHERE owner_id=? AND callNotes IS NOT NULL AND callNotes!='' AND (deleted_at IS NULL OR deleted_at='');",
@@ -10818,6 +10860,19 @@ def api_stats_charts():
                         _cn_dates.append(ds)
             except Exception:
                 pass
+        try:
+            for r in conn.execute(
+                """SELECT e.date FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id
+                   WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note')
+                     AND (p.deleted_at IS NULL OR p.deleted_at='');""",
+                (uid,),
+            ).fetchall():
+                ds = (r["date"] or "")[:10]
+                if ds:
+                    _cn_dates.append(ds)
+        except Exception:
+            pass
 
         weeks = []
         activity_weeks = []
@@ -15580,6 +15635,16 @@ def api_export_day():
             "SELECT * FROM push_logs WHERE prospect_id IN (SELECT id FROM prospects WHERE owner_id=?);",
             (uid,),
         ).fetchall()]
+        try:
+            note_events = [dict(r) for r in conn.execute(
+                """SELECT e.date, e.content, e.prospect_id, p.name AS prospect_name
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id
+                   WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note');""",
+                (uid,),
+            ).fetchall()]
+        except Exception:
+            note_events = []
 
     all_notes = []
     for p in prospects:
@@ -15591,6 +15656,13 @@ def api_export_day():
                 all_notes.append(n)
         except Exception:
             pass
+    for ne in note_events:
+        all_notes.append({
+            "date": ne.get("date") or "",
+            "content": ne.get("content") or "",
+            "_pid": ne.get("prospect_id"),
+            "_name": ne.get("prospect_name") or "",
+        })
 
     contacts_today = [p for p in prospects if (p.get("lastContact") or "").strip() == date_str]
     notes_today = [n for n in all_notes if (n.get("date") or "")[:10] == date_str]
@@ -15668,8 +15740,19 @@ def api_rapport_hebdo():
             calls_count = int(calls_row["n"]) if calls_row else 0
         except Exception:
             calls_count = 0
+        try:
+            note_events = [dict(r) for r in conn.execute(
+                """SELECT e.date, e.content, e.prospect_id, p.name AS prospect_name,
+                          p.statut AS prospect_statut, p.company_id AS prospect_company_id
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id
+                   WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note');""",
+                (uid,),
+            ).fetchall()]
+        except Exception:
+            note_events = []
 
-    # Parse call notes
+    # Parse call notes (callNotes JSON + prospect_events de type note)
     all_notes = []
     for p in prospects:
         try:
@@ -15682,6 +15765,15 @@ def api_rapport_hebdo():
                 all_notes.append(n)
         except Exception:
             pass
+    for ne in note_events:
+        all_notes.append({
+            "date": ne.get("date") or "",
+            "content": ne.get("content") or "",
+            "_pid": ne.get("prospect_id"),
+            "_pname": ne.get("prospect_name") or "",
+            "_statut": ne.get("prospect_statut") or "",
+            "_company_id": ne.get("prospect_company_id"),
+        })
 
     week_notes = [n for n in all_notes if start <= (n.get("date") or "")[:10] <= end]
     week_push = [pl for pl in push_logs if start <= (pl.get("sentAt") or "")[:10] <= end]
@@ -16472,6 +16564,21 @@ def api_dashboard():
             manual_kpi_today = {}
             manual_calls_by_date = {}
 
+        # Notes stockées dans prospect_events (types note / note_libre / call_note)
+        try:
+            note_event_rows = conn.execute(
+                """SELECT e.date, e.content, e.prospect_id, p.name AS prospect_name
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id
+                   WHERE p.owner_id=? AND e.type IN ('note','note_libre','call_note')
+                     AND (p.deleted_at IS NULL OR p.deleted_at='')
+                     AND (p.is_archived IS NULL OR p.is_archived=0);""",
+                (uid,),
+            ).fetchall()
+            note_events = [dict(r) for r in note_event_rows]
+        except Exception:
+            note_events = []
+
     # Merge manual KPI "contact" adjustments into calls counts (for graph + totals)
     for _d, _cnt in manual_calls_by_date.items():
         calls_by_date[_d] = calls_by_date.get(_d, 0) + _cnt
@@ -16481,7 +16588,7 @@ def api_dashboard():
     prospects_list = [dict(r) for r in prospects]
     push_list = [dict(r) for r in push_logs]
 
-    # Parse all call notes
+    # Parse all call notes (callNotes JSON column + prospect_events de type note)
     all_notes = []
     for p in prospects_list:
         try:
@@ -16492,6 +16599,13 @@ def api_dashboard():
                 all_notes.append(n)
         except Exception:
             pass
+    for ne in note_events:
+        all_notes.append({
+            "date": ne.get("date") or "",
+            "content": ne.get("content") or "",
+            "_prospect_id": ne.get("prospect_id"),
+            "_prospect_name": ne.get("prospect_name") or "",
+        })
 
     def count_relances(date_str):
         return sum(1 for p in prospects_list if (p.get("lastContact") or "") == date_str)
