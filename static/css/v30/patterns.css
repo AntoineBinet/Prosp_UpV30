@@ -141,6 +141,9 @@
   flex-direction: column;
   gap: 1px;
 }
+/* Le `display: flex` ci-dessus sur-spécifie le user-agent `[hidden] { display: none }`.
+   Réaffirme le hide via attribut hidden (utilisé par les dropdowns tel + tags-tip). */
+.popover[hidden] { display: none; }
 .popover--inline {
   /* tooltips / contenu libre — pas de liste */
   padding: 8px 10px;
