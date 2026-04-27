@@ -442,8 +442,10 @@
         <button type="button" class="btn btn-sm" id="btnPortfolioStatus">Diagnostiquer</button>
         <button type="button" class="btn btn-sm" id="btnPortfolioRegen">Régénérer mnwork.yml</button>
         <button type="button" class="btn btn-sm" id="btnPortfolioKillTunnel">Tuer le tunnel mnwork</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnPortfolioStartTunnel">Démarrer tunnel seul (logs)</button>
+        <button type="button" class="btn btn-sm" id="btnPortfolioReadLog">Lire les logs tunnel</button>
         <button type="button" class="btn btn-sm" id="btnPortfolioKillServer">Tuer le serveur :8001</button>
-        <button type="button" class="btn btn-primary btn-sm" id="btnPortfolioRestart">Relancer PORTFOLIO.bat</button>
+        <button type="button" class="btn btn-sm" id="btnPortfolioRestart">Relancer PORTFOLIO.bat</button>
       </div>
       <pre id="portfolioDiag" hidden style="background:#0a0c11;color:#cfd5e3;border:1px solid #2a2f3d;border-radius:8px;padding:10px;max-height:380px;overflow:auto;font-size:11.5px;white-space:pre-wrap;margin-top:8px;"></pre>
     </div>
@@ -498,6 +500,10 @@
         if (!confirm("Relancer PORTFOLIO.bat (serveur + tunnel) ?")) return;
         action("restart-bat", { action: "restart-bat" });
       });
+      document.getElementById("btnPortfolioStartTunnel")?.addEventListener("click",
+        () => action("start-tunnel-only", { action: "start-tunnel-only" }));
+      document.getElementById("btnPortfolioReadLog")?.addEventListener("click",
+        () => action("read-tunnel-log", { action: "read-tunnel-log" }));
     })();
     </script>
     <script>
