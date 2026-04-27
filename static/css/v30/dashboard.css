@@ -65,26 +65,7 @@
   align-items: center;
 }
 
-.v30-hero-kpi__label {
-  font-size: 11px;
-  color: var(--text-3);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.v30-hero-kpi__value {
-  font-family: var(--font-serif);
-  font-size: 36px;
-  line-height: 1;
-  color: var(--text);
-}
-.v30-hero-kpi__delta {
-  font-size: 11.5px;
-  color: var(--success);
-  margin-top: 4px;
-}
-.v30-hero-kpi__delta.is-neg {
-  color: var(--danger);
-}
+/* .v30-hero-kpi__* remplacés par .kpi.kpi--hero.kpi--bare (Phase 3 — patterns.css). */
 
 .v30-streak {
   padding: 14px;
@@ -809,7 +790,7 @@
   .v30-hero { padding: 4px 0 16px; }
   .v30-hero .page-title { font-size: 24px; }
   .v30-hero__kpis { gap: 16px; }
-  .v30-hero-kpi__value { font-size: 28px; }
+  .v30-hero__kpis .kpi__value { font-size: 28px; }
   .v30-hero__actions { margin-top: 8px; }
 
   /* Streak card moins de padding */

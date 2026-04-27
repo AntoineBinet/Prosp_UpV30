@@ -16,7 +16,7 @@
   margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
   letter-spacing: -.01em;
 }
-.v30-activity__title .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; }
+.v30-activity__title .serif { font-family: var(--font-serif); font-style: italic; }
 .v30-activity__sub { font-size: 12.5px; color: var(--text-2); }
 
 .v30-activity__table .v30-activity-row {

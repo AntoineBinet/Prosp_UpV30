@@ -53,10 +53,10 @@
     ];
     host.innerHTML = cards.map(function (c) {
       var val = c.value != null ? c.value : '—';
-      return '<div class="v30-kpi-card">' +
-        '<div class="v30-kpi-card__label">' + esc(c.label) + '</div>' +
-        '<div class="v30-kpi-card__value num">' + esc(val) + '</div>' +
-        (c.sub ? '<div class="v30-kpi-card__delta">' + esc(c.sub) + '</div>' : '') +
+      return '<div class="kpi">' +
+        '<div class="kpi__label">' + esc(c.label) + '</div>' +
+        '<div class="kpi__value num">' + esc(val) + '</div>' +
+        (c.sub ? '<div class="kpi__delta">' + esc(c.sub) + '</div>' : '') +
       '</div>';
     }).join('');
   }

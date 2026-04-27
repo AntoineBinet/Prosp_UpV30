@@ -64,3 +64,63 @@
   .page-header { padding: var(--s-3) 0; }
   .page-title { font-size: 22px; }
 }
+
+/* ─────────── KPI (Phase 3) ───────────
+   Pattern unifié pour toutes les tuiles d'indicateur (prospects,
+   entreprises, dashboard hero, stats, rapport). Tailles canoniques :
+   - default 32px (.kpi__value)
+   - --sm 22px (sub-stats de cartes)
+   - --hero 36px (dashboard hero uniquement) */
+.kpi {
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--r-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.kpi__label {
+  font-size: var(--kpi-label-size);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+.kpi__value {
+  font-family: var(--font-serif);
+  font-size: var(--kpi-value-size);
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+.kpi__delta {
+  font-size: 11.5px;
+  color: var(--success);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi__delta.is-neg { color: var(--danger); }
+
+.kpi--sm .kpi__value   { font-size: var(--kpi-value-size-sm); }
+.kpi--hero .kpi__value { font-size: var(--kpi-value-size-hero); }
+
+/* Variante "bare" pour les sub-stats de carte : pas de fond ni de bord. */
+.kpi--bare {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+@media (max-width: 900px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+}

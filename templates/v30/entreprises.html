@@ -46,17 +46,17 @@
     </div>
   </div>
 
-  {# ─── KPI row ─── #}
-  <div class="v30-ent-kpis">
+  {# ─── KPI row (Phase 3 — pattern unifié) ─── #}
+  <div class="kpi-grid" data-v30-ent-kpis>
     {% for k in [
       {'key':'total',     'label':'Total entreprises'},
       {'key':'piped',     'label':'En pipeline'},
       {'key':'prospects', 'label':'Total prospects'},
       {'key':'last',      'label':'Actives (30 j)'}
     ] %}
-    <div class="card" style="padding:14px;">
-      <div style="font-size:11px;color:var(--text-3);letter-spacing:0.06em;text-transform:uppercase;">{{ k.label }}</div>
-      <div class="serif num" style="font-size:28px;line-height:1.1;margin-top:4px;" data-kpi="{{ k.key }}">
+    <div class="kpi">
+      <div class="kpi__label">{{ k.label }}</div>
+      <div class="kpi__value num" data-kpi="{{ k.key }}">
         <span class="skel" style="width:56px;height:28px;display:inline-block;"></span>
       </div>
     </div>

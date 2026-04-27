@@ -37,12 +37,12 @@
     </div>
     <div class="v30-hero__kpis" data-v30-dash="hero-kpis">
       {% for k in [{'key':'rdv','label':'RDV sem.'},{'key':'push','label':'Push'},{'key':'contacts','label':'Contacts'}] %}
-      <div class="v30-hero-kpi" data-kpi="{{ k.key }}">
-        <div class="v30-hero-kpi__label">{{ k.label }}</div>
-        <div class="v30-hero-kpi__value num" data-field="value">
+      <div class="kpi kpi--hero kpi--bare" data-kpi="{{ k.key }}">
+        <div class="kpi__label">{{ k.label }}</div>
+        <div class="kpi__value num" data-field="value">
           <span class="skel" style="display:inline-block;width:56px;height:36px;"></span>
         </div>
-        <div class="v30-hero-kpi__delta" data-field="delta">&nbsp;</div>
+        <div class="kpi__delta" data-field="delta">&nbsp;</div>
       </div>
       {% endfor %}
       <div class="card v30-streak">

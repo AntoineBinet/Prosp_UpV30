@@ -68,47 +68,17 @@
   width: 100%;
   min-width: 0;
 }
-.v30-ent-card__stat {
-  display: flex; flex-direction: column; align-items: center;
-  min-width: 0; overflow: hidden;
-}
-.v30-ent-card__stat-v {
-  font-family: "Instrument Serif", Georgia, serif;
-  font-size: 22px; color: var(--text); line-height: 1.1;
-}
-.v30-ent-card__stat-l {
-  font-size: 10px; color: var(--text-3);
-  text-transform: uppercase; letter-spacing: .05em;
-}
+/* Sub-stats remplacés par .kpi.kpi--sm.kpi--bare (Phase 3 — patterns.css).
+   Le grid .v30-ent-card__stats est conservé : il aligne les 3 cellules
+   en colonnes, les .kpi viennent dedans. */
+.v30-ent-card__stats .kpi { align-items: center; text-align: center; }
 .v30-ent-card__tags { display: flex; gap: 3px; flex-wrap: wrap; }
 .v30-ent-card__foot { font-size: 11px; }
 
 
-/* KPI cards (parite v29) */
-.v30-pp-kpis,
-.v30-ent-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin: 14px 0 6px;
-}
-.v30-ent-kpis { padding: 16px 0; }
-.v30-ent-kpis .card { padding: 14px; }
-.v30-ent-kpis .serif { font-size: 28px; line-height: 1.1; margin-top: 4px; }
-.v30-pp-kpis .v30-kpi-card {
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  border-radius: 12px;
-}
-.v30-pp-kpis .v30-kpi-card__label {
-  font-size: 11px; color: var(--text-3);
-  text-transform: uppercase; letter-spacing: .06em;
-}
-.v30-pp-kpis .v30-kpi-card__value {
-  font-family: "Instrument Serif", Georgia, serif;
-  font-size: 28px; color: var(--text); margin-top: 6px; line-height: 1;
-}
+/* KPI cards : remplacés par le pattern .kpi / .kpi-grid (Phase 3 — patterns.css).
+   Marge supérieure spécifique à la page Prospects (cohérence v29). */
+.kpi-grid[data-v30-pp-kpis] { margin: 14px 0 6px; }
 
 .v30-pill {
   background: transparent;
@@ -708,16 +678,7 @@
   .page-header__group { flex: 0 0 100%; }
   .page-header__actions .btn { white-space: nowrap; }
 
-  /* KPIs : 2 cols sur mobile */
-  .v30-pp-kpis,
-  .v30-ent-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-  .v30-pp-kpis .v30-kpi-card,
-  .v30-ent-kpis .card { padding: 10px 12px; }
-  .v30-pp-kpis .v30-kpi-card__value,
-  .v30-ent-kpis .serif { font-size: 22px !important; }
+  /* KPIs mobile : géré par le pattern .kpi-grid (patterns.css). */
 
   /* Table générique : pas de table-layout fixed pour laisser respirer */
   .v30-pp-table-wrap { border-radius: 8px; }

@@ -193,9 +193,9 @@
           '</div>' +
         '</div>' +
         '<div class="v30-ent-card__stats">' +
-          '<div class="v30-ent-card__stat"><span class="v30-ent-card__stat-v num">' + r.total + '</span><span class="v30-ent-card__stat-l">prosp</span></div>' +
-          '<div class="v30-ent-card__stat"><span class="v30-ent-card__stat-v num">' + (r.piped || 0) + '</span><span class="v30-ent-card__stat-l">RDV/propale</span></div>' +
-          '<div class="v30-ent-card__stat"><span class="v30-ent-card__stat-v num">' + (r.won || 0) + '</span><span class="v30-ent-card__stat-l">gagnés</span></div>' +
+          '<div class="kpi kpi--sm kpi--bare"><div class="kpi__value num">' + r.total + '</div><div class="kpi__label">prosp</div></div>' +
+          '<div class="kpi kpi--sm kpi--bare"><div class="kpi__value num">' + (r.piped || 0) + '</div><div class="kpi__label">RDV/propale</div></div>' +
+          '<div class="kpi kpi--sm kpi--bare"><div class="kpi__value num">' + (r.won || 0) + '</div><div class="kpi__label">gagnés</div></div>' +
         '</div>' +
         (tagsHtml ? '<div class="v30-ent-card__tags">' + tagsHtml + '</div>' : '') +
         '<div class="v30-ent-card__foot muted">' + esc(relativeDate(r.lastContact)) + '</div>' +
