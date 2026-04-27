@@ -194,3 +194,28 @@
   letter-spacing: 0.06em;
   color: var(--text-3);
 }
+
+/* ─────────── Focus states standardisés (Phase 8) ───────────
+   Convention unique : outline 2px accent + offset 2px (offset -2px
+   pour les variantes inset). Évite le mélange ring vs outline.
+   Couvre les contrôles oubliés : .tab, .segmented button, .checkbox,
+   .toggle. Les inputs (Phase 1) et .btn (components.css) gardent
+   leurs focus dédiés. */
+.focus-ring {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.focus-ring--inset { outline-offset: -2px; }
+
+/* Application directe aux contrôles oubliés. */
+.tabs button:focus-visible,
+.segmented button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

@@ -92,6 +92,16 @@
   --topbar-h: 48px;
   --content-max: 1440px;
 
+  /* ─── Breakpoints canoniques (Phase 8 — documentation) ───
+     CSS ne supporte pas les vars dans @media. Ces valeurs sont
+     LA référence. Toute breakpoint nouveau doit s'y aligner.
+       --bp-sm   600px  : mobile portrait
+       --bp-md   900px  : tablet
+       --bp-lg   1100px : desktop étroit */
+  --bp-sm: 600px;
+  --bp-md: 900px;
+  --bp-lg: 1100px;
+
   /* ─── Scrollbar ─── */
   --scrollbar-size:        10px;
   --scrollbar-thumb:       oklch(0.80 0.010 258 / 0.55);
