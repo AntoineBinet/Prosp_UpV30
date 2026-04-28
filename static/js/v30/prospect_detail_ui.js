@@ -1005,11 +1005,13 @@
     if (!m) return;
     var nameEl = m.querySelector('[data-v30-fp-ai-name2]');
     if (nameEl) nameEl.textContent = p.name || '—';
-    // Reset textarea + raw
+    // Reset textarea + progress
     var ta = m.querySelector('[data-v30-fp-after-notes]');
     if (ta) ta.value = '';
-    var rawWrap = m.querySelector('[data-v30-fp-after-raw-wrap]');
-    if (rawWrap) rawWrap.hidden = true;
+    var inputWrap = m.querySelector('[data-v30-fp-after-input]');
+    if (inputWrap) inputWrap.hidden = false;
+    var progressWrap = m.querySelector('[data-v30-fp-after-progress]');
+    if (progressWrap) progressWrap.hidden = true;
     var run = m.querySelector('[data-v30-fp-after-run]');
     if (run) { run.disabled = false; run.textContent = 'Analyser avec IA'; }
     // Show step 1, hide step 2
@@ -1028,11 +1030,22 @@
     var ta = m.querySelector('[data-v30-fp-after-notes]');
     var notes = (ta && ta.value ? ta.value : '').trim();
     if (!notes) { toast('Saisis des notes de RDV', 'warning'); if (ta) ta.focus(); return; }
+
     var run = m.querySelector('[data-v30-fp-after-run]');
-    var rawWrap = m.querySelector('[data-v30-fp-after-raw-wrap]');
-    var rawEl = m.querySelector('[data-v30-fp-after-raw]');
+    var inputWrap = m.querySelector('[data-v30-fp-after-input]');
+    var progressWrap = m.querySelector('[data-v30-fp-after-progress]');
+    var bar = m.querySelector('[data-v30-fp-after-bar]');
+    var statusEl = m.querySelector('[data-v30-fp-after-status]');
+    var countEl = m.querySelector('[data-v30-fp-after-count]');
+    var streamEl = m.querySelector('[data-v30-fp-after-stream]');
+
     if (run) { run.disabled = true; run.textContent = 'Analyse en cours…'; }
-    if (rawWrap) rawWrap.hidden = true;
+    if (inputWrap) inputWrap.hidden = true;
+    if (progressWrap) progressWrap.hidden = false;
+    if (bar) bar.style.width = '0%';
+    if (statusEl) statusEl.textContent = 'Chargement de la grille de qualification…';
+    if (countEl) countEl.textContent = '';
+    if (streamEl) streamEl.textContent = '';
 
     var p = FP.STATE.prospect || {};
     var companyInfo = (p.company_groupe || '') + (p.company_site ? ' (' + p.company_site + ')' : '');
@@ -1072,24 +1085,102 @@
           '- niveau_interet: faible, moyen ou fort\n' +
           '- JSON valide uniquement, pas de texte autour';
 
-        return FP.fetchPostJSON('/api/ollama/generate', { prompt: prompt, timeout: 180 });
+        if (statusEl) statusEl.textContent = 'Analyse IA en cours…';
+        if (bar) { bar.style.transition = 'none'; bar.style.width = '5%'; }
+
+        return fetch('/api/ollama/generate-stream', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: prompt, timeout: 180 })
+        });
       })
-      .then(function(res) {
-        if (!res || !res.ok) throw new Error((res && res.error) || 'IA indisponible');
-        var text = res.text || '';
-        var json = extractJsonMaybe(text);
-        if (rawEl) rawEl.textContent = text;
-        if (rawWrap) rawWrap.hidden = false;
-        if (!json) {
-          IA_CTX.afterJson = null;
-          toast('Réponse IA non JSON — consulte le texte brut', 'warning');
-          return;
+      .then(function(response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var sseBuffer = '';
+        var accumulated = '';
+        var tokenCount = 0;
+        var finalText = null;
+
+        // Barre de progression simulée (on ne connaît pas la longueur totale)
+        var barProgress = 5;
+        var barTick = setInterval(function() {
+          if (barProgress < 90) {
+            barProgress += Math.random() * 3;
+            if (bar) { bar.style.transition = 'width .4s ease'; bar.style.width = Math.min(barProgress, 90) + '%'; }
+          }
+        }, 400);
+
+        function readChunk() {
+          return reader.read().then(function(result) {
+            if (result.done) {
+              clearInterval(barTick);
+              return finalText !== null ? finalText : accumulated;
+            }
+            sseBuffer += decoder.decode(result.value, { stream: true });
+            var lines = sseBuffer.split('\n');
+            sseBuffer = lines.pop();
+
+            lines.forEach(function(line) {
+              if (!line.startsWith('data: ')) return;
+              try {
+                var ev = JSON.parse(line.slice(6));
+                if (ev.type === 'start') {
+                  if (statusEl) statusEl.textContent = ev.message || 'Génération en cours…';
+                } else if (ev.type === 'token') {
+                  if (ev.done) {
+                    finalText = ev.text || '';
+                  } else {
+                    accumulated += ev.text || '';
+                    tokenCount++;
+                    if (countEl) countEl.textContent = tokenCount + ' tokens';
+                    // Afficher les 3 dernières lignes non vides du JSON
+                    if (streamEl) {
+                      var lines2 = accumulated.split('\n').filter(function(l) { return l.trim(); });
+                      streamEl.textContent = lines2.slice(-4).join('\n');
+                      streamEl.scrollTop = streamEl.scrollHeight;
+                    }
+                  }
+                } else if (ev.type === 'end') {
+                  if (statusEl) statusEl.textContent = 'Analyse terminée — traitement du JSON…';
+                  if (bar) { bar.style.transition = 'width .3s ease'; bar.style.width = '100%'; }
+                } else if (ev.type === 'error') {
+                  throw new Error(ev.message || 'Erreur IA');
+                }
+              } catch (e) {
+                if (e.message && e.message !== 'Unexpected end of JSON input') {
+                  clearInterval(barTick);
+                  throw e;
+                }
+              }
+            });
+            return readChunk();
+          });
         }
-        IA_CTX.afterJson = json;
-        showAfterForm(m, json);
-        toast('Analyse terminée — vérifiez et complétez les champs', 'success', 4000);
+
+        return readChunk().then(function(fullText) {
+          clearInterval(barTick);
+          var text = fullText || accumulated;
+          var json = extractJsonMaybe(text);
+          if (!json) {
+            if (statusEl) statusEl.textContent = 'Réponse non JSON — réessayez';
+            toast('Réponse IA non JSON. Vérifiez le modèle Ollama.', 'warning', 6000);
+            if (progressWrap) progressWrap.hidden = true;
+            if (inputWrap) inputWrap.hidden = false;
+            return;
+          }
+          IA_CTX.afterJson = json;
+          showAfterForm(m, json);
+          toast('Analyse terminée — vérifiez et complétez les champs', 'success', 4000);
+        });
       })
-      .catch(function(err) { toast('Erreur IA : ' + (err.message || err), 'error'); })
+      .catch(function(err) {
+        toast('Erreur IA : ' + (err.message || err), 'error');
+        if (progressWrap) progressWrap.hidden = true;
+        if (inputWrap) inputWrap.hidden = false;
+      })
       .then(function() {
         if (run) { run.disabled = false; run.textContent = 'Relancer'; }
       });
