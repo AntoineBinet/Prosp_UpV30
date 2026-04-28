@@ -467,6 +467,7 @@
         p.hidden = (p.dataset.v30FpPanel !== key);
       });
       if (key === 'grille') loadGrilleTab();
+      if (key === 'cr') loadCRTab();
     });
   }
 
@@ -997,15 +998,26 @@
     });
   }
 
-  // ── c) Après RDV — compte-rendu ─────────────────────────────
-  function openAfterModal() {
+  // ── c) Compte-rendu de réunion (création + édition) ─────────
+  // opts: { meetingId: int|null }  → si meetingId, mode édition (charge le CR existant)
+  function openAfterModal(opts) {
+    opts = opts || {};
     var p = FP.STATE.prospect || {};
     IA_CTX.afterJson = null;
+    IA_CTX.editingMeetingId = opts.meetingId ? Number(opts.meetingId) : null;
+
     var m = openFPModal('after');
     if (!m) return;
+    var inner = m.querySelector('.v30-modal');
+    if (inner) inner.dataset.v30CrMeetingId = IA_CTX.editingMeetingId ? String(IA_CTX.editingMeetingId) : '';
+
+    var titleEl = m.querySelector('[data-v30-fp-after-modal-title]');
+    if (titleEl) titleEl.textContent = IA_CTX.editingMeetingId ? 'Compte-rendu — édition' : 'Nouveau compte-rendu';
+    var deleteBtn = m.querySelector('[data-v30-cr-delete]');
+    if (deleteBtn) deleteBtn.hidden = !IA_CTX.editingMeetingId;
     var nameEl = m.querySelector('[data-v30-fp-ai-name2]');
     if (nameEl) nameEl.textContent = p.name || '—';
-    // Reset textarea + progress
+
     var ta = m.querySelector('[data-v30-fp-after-notes]');
     if (ta) ta.value = '';
     var inputWrap = m.querySelector('[data-v30-fp-after-input]');
@@ -1014,15 +1026,39 @@
     if (progressWrap) progressWrap.hidden = true;
     var run = m.querySelector('[data-v30-fp-after-run]');
     if (run) { run.disabled = false; run.textContent = 'Analyser avec IA'; }
-    // Show step 1, hide step 2
+
     var s1 = m.querySelector('[data-v30-fp-after-s1]');
     var s2 = m.querySelector('[data-v30-fp-after-s2]');
     var s1btns = m.querySelector('[data-v30-fp-after-s1-btns]');
     var s2btns = m.querySelector('[data-v30-fp-after-s2-btns]');
-    if (s1) s1.hidden = false;
-    if (s2) s2.hidden = true;
-    if (s1btns) s1btns.hidden = false;
-    if (s2btns) s2btns.hidden = true;
+
+    if (IA_CTX.editingMeetingId) {
+      // Mode édition : passe direct à s2 et charge le CR
+      if (s1) s1.hidden = true;
+      if (s2) s2.hidden = false;
+      if (s1btns) s1btns.hidden = true;
+      if (s2btns) s2btns.hidden = false;
+      var formHost = m.querySelector('[data-v30-fp-after-form]');
+      if (formHost) formHost.innerHTML = '<div class="empty" style="padding:16px;">Chargement du CR…</div>';
+      FP.fetchJSON('/api/meetings/' + IA_CTX.editingMeetingId).then(function (res) {
+        if (!res || !res.ok || !res.meeting) throw new Error('CR introuvable');
+        showAfterForm(m, null, res.meeting);
+      }).catch(function (err) {
+        if (formHost) formHost.innerHTML = '<div class="empty" style="color:var(--red);padding:16px;">Erreur : ' + FP.esc(err.message || err) + '</div>';
+      });
+    } else {
+      // Mode création : s1 visible (saisie ou skip vers s2 vide)
+      if (s1) s1.hidden = false;
+      if (s2) s2.hidden = true;
+      if (s1btns) s1btns.hidden = false;
+      if (s2btns) s2btns.hidden = true;
+    }
+  }
+
+  function skipAfterToManual() {
+    var m = getFPModal('after');
+    if (!m) return;
+    showAfterForm(m, null, null);
   }
   function runAfter() {
     var m = getFPModal('after');
@@ -1192,7 +1228,11 @@
         if (run) { run.disabled = false; run.textContent = 'Relancer'; }
       });
   }
-  function showAfterForm(m, json) {
+  // Rendu du formulaire CR (étape 2). Trois sources possibles, dans cet ordre :
+  //   1. existing : meeting persisté en base (mode édition)
+  //   2. json     : sortie IA d'un parsing fraîchement effectué
+  //   3. ni l'un ni l'autre → formulaire vide (saisie manuelle)
+  function showAfterForm(m, json, existing) {
     if (!m) return;
     var s1 = m.querySelector('[data-v30-fp-after-s1]');
     var s2 = m.querySelector('[data-v30-fp-after-s2]');
@@ -1207,57 +1247,154 @@
     if (s1btns) s1btns.hidden = true;
     if (s2btns) s2btns.hidden = false;
 
-    var checklist = (json.checklist_responses && typeof json.checklist_responses === 'object') ? json.checklist_responses : {};
-    var valOrEmpty = function(v) {
-      if (!v) return '';
+    var rawTranscriptFromS1 = '';
+    var ta = m.querySelector('[data-v30-fp-after-notes]');
+    if (ta && ta.value) rawTranscriptFromS1 = ta.value;
+
+    var valOrEmpty = function (v) {
+      if (v == null) return '';
       var s = String(v).trim();
       return (s.toLowerCase() === 'null') ? '' : s;
     };
 
+    // Préchargement valeurs ; existing prime sur json
+    var src = {};
+    if (existing) {
+      // Forme attendue de la grille en base : {key: {reponse, checked}} OU {key: "valeur"}
+      var checklistFromExisting = {};
+      if (existing.checklist_data && typeof existing.checklist_data === 'object') {
+        Object.keys(existing.checklist_data).forEach(function (k) {
+          var v = existing.checklist_data[k];
+          if (v == null) return;
+          if (typeof v === 'object') checklistFromExisting[k] = v.reponse || '';
+          else checklistFromExisting[k] = String(v);
+        });
+      }
+      src = {
+        title: existing.title || '',
+        date: existing.date || '',
+        summary: existing.summary || '',
+        next_action: existing.next_action || '',
+        statut: '',
+        tags: Array.isArray(existing.tags) ? existing.tags.join(', ') : (existing.tags || ''),
+        notes: existing.notes || '',
+        raw_transcript: existing.raw_transcript || '',
+        documents: existing.documents || '',
+        checklist: checklistFromExisting,
+        action_items: Array.isArray(existing.action_items) ? existing.action_items : []
+      };
+    } else if (json) {
+      var checklistFromJson = {};
+      if (json.checklist_responses && typeof json.checklist_responses === 'object') {
+        Object.keys(json.checklist_responses).forEach(function (k) {
+          checklistFromJson[k] = valOrEmpty(json.checklist_responses[k]);
+        });
+      }
+      var tagsArr = Array.isArray(json.tags_suggeres) ? json.tags_suggeres.filter(Boolean) : [];
+      src = {
+        title: '',
+        date: '',
+        summary: valOrEmpty(json.resume || json.summary),
+        next_action: valOrEmpty(json.next_action),
+        statut: valOrEmpty(json.statut),
+        tags: tagsArr.join(', '),
+        notes: valOrEmpty(json.notes_enrichies),
+        raw_transcript: rawTranscriptFromS1,
+        documents: '',
+        checklist: checklistFromJson,
+        action_items: []
+      };
+    } else {
+      src = {
+        title: '', date: '', summary: '', next_action: '', statut: '',
+        tags: '', notes: '', raw_transcript: rawTranscriptFromS1, documents: '',
+        checklist: {}, action_items: []
+      };
+    }
+
+    if (!src.date) src.date = new Date().toISOString().slice(0, 10);
+    if (!src.title) {
+      var p = FP.STATE.prospect || {};
+      var dStr = '';
+      try { dStr = new Date(src.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }); }
+      catch (_) { dStr = src.date; }
+      src.title = 'CR ' + dStr + (p.name ? ' — ' + p.name : '');
+    }
+
     fetch('/api/rdv-checklist/themes', { credentials: 'include' })
-      .then(function(r) { return r.json(); })
-      .then(function(td) {
+      .then(function (r) { return r.json(); })
+      .then(function (td) {
         var themes = (td && td.themes) ? td.themes : [];
         var html = '';
 
-        // ── Synthèse générale ──
-        html += '<div class="v30-grille-section-title">Synthèse générale</div>';
+        // ── Identité du CR : titre + date ──
+        html += '<div class="v30-grille-section-title">Compte-rendu</div>';
+        html += '<div class="v30-cr-row">';
+        html += '<div class="v30-grille-item v30-cr-row__title">' +
+          '<label class="v30-grille-label">Titre</label>' +
+          '<input type="text" class="v30-grille-select" data-after-field="title" value="' + FP.esc(src.title) + '" placeholder="CR du 28/04/26 — Stanislas H."></div>';
+        html += '<div class="v30-grille-item v30-cr-row__date">' +
+          '<label class="v30-grille-label">Date</label>' +
+          '<input type="date" class="v30-grille-select" data-after-field="date" value="' + FP.esc(src.date) + '"></div>';
+        html += '</div>';
 
+        // ── Synthèse ──
+        html += '<div class="v30-grille-section-title">Synthèse</div>';
         html += '<div class="v30-grille-item">' +
           '<label class="v30-grille-label">Résumé de la réunion</label>' +
-          '<textarea class="v30-grille-textarea" data-after-field="resume" rows="4" placeholder="—">' +
-          FP.esc(valOrEmpty(json.resume)) + '</textarea></div>';
-
+          '<textarea class="v30-grille-textarea" data-after-field="summary" rows="4" placeholder="3-5 lignes : participants, sujets, décisions, prochaines étapes…">' +
+          FP.esc(src.summary) + '</textarea></div>';
         html += '<div class="v30-grille-item">' +
           '<label class="v30-grille-label">Prochaine action</label>' +
-          '<textarea class="v30-grille-textarea" data-after-field="next_action" rows="2" placeholder="Ex : Envoyer 2 profils C++ embarqué">' +
-          FP.esc(valOrEmpty(json.next_action)) + '</textarea></div>';
+          '<textarea class="v30-grille-textarea" data-after-field="next_action" rows="2" placeholder="Ex : Envoyer 2 profils C++ embarqué d\'ici vendredi">' +
+          FP.esc(src.next_action) + '</textarea></div>';
 
-        var statutVal = valOrEmpty(json.statut);
         var statutOptions = ['Appelé', 'À rappeler', 'Rendez-vous', 'Messagerie', 'Pas intéressé'];
-        html += '<div class="v30-grille-item"><label class="v30-grille-label">Nouveau statut</label>' +
+        html += '<div class="v30-cr-row">';
+        html += '<div class="v30-grille-item v30-cr-row__half"><label class="v30-grille-label">Nouveau statut prospect</label>' +
           '<select class="v30-grille-select" data-after-field="statut">' +
           '<option value="">— inchangé —</option>' +
-          statutOptions.map(function(s) {
-            return '<option value="' + FP.esc(s) + '"' + (statutVal === s ? ' selected' : '') + '>' + FP.esc(s) + '</option>';
+          statutOptions.map(function (s) {
+            return '<option value="' + FP.esc(s) + '"' + (src.statut === s ? ' selected' : '') + '>' + FP.esc(s) + '</option>';
           }).join('') + '</select></div>';
+        html += '<div class="v30-grille-item v30-cr-row__half"><label class="v30-grille-label">Tags (séparés par virgules)</label>' +
+          '<input type="text" class="v30-grille-select" data-after-field="tags" value="' + FP.esc(src.tags) + '" placeholder="tag1, tag2"></div>';
+        html += '</div>';
 
-        var tagsVal = Array.isArray(json.tags_suggeres) ? json.tags_suggeres.filter(Boolean).join(', ') : valOrEmpty(json.tags_suggeres);
-        html += '<div class="v30-grille-item">' +
-          '<label class="v30-grille-label">Tags suggérés (séparés par des virgules)</label>' +
-          '<textarea class="v30-grille-textarea" data-after-field="tags" rows="1" placeholder="tag1, tag2">' +
-          FP.esc(tagsVal) + '</textarea></div>';
-
-        var notesEnrichies = valOrEmpty(json.notes_enrichies);
         html += '<div class="v30-grille-item">' +
           '<label class="v30-grille-label">Infos clés à mémoriser</label>' +
-          '<textarea class="v30-grille-textarea" data-after-field="notes_enrichies" rows="2" placeholder="Taille équipe, techno, budget, process achat…">' +
-          FP.esc(notesEnrichies) + '</textarea></div>';
+          '<textarea class="v30-grille-textarea" data-after-field="notes" rows="2" placeholder="Taille équipe, techno, budget, process achat…">' +
+          FP.esc(src.notes) + '</textarea></div>';
 
-        // ── Grille de qualification ──
+        // ── Notes brutes / transcription ──
+        html += '<div class="v30-grille-section-title">Notes brutes / transcription</div>';
+        html += '<div class="v30-grille-item">' +
+          '<label class="v30-grille-label">Texte original (utilisé pour relancer l\'IA, optionnel)</label>' +
+          '<textarea class="v30-grille-textarea" data-after-field="raw_transcript" rows="5" placeholder="Colle ici tes notes brutes ou la transcription complète de la réunion.">' +
+          FP.esc(src.raw_transcript) + '</textarea></div>';
+
+        // ── Tâches à faire ──
+        html += '<div class="v30-grille-section-title">Tâches à faire après réunion</div>';
+        html += '<div class="v30-cr-tasks" data-v30-cr-tasks>';
+        if (src.action_items.length) {
+          src.action_items.forEach(function (ai) { html += renderCRTaskRow(ai); });
+        } else {
+          html += renderCRTaskRow(null);
+        }
+        html += '</div>';
+        html += '<button type="button" class="btn btn-ghost btn-sm" data-v30-cr-task-add style="margin-top:6px;">+ Ajouter une tâche</button>';
+
+        // ── Documents / pièces jointes ──
+        html += '<div class="v30-grille-section-title">Documents / pièces jointes</div>';
+        html += '<div class="v30-grille-item">' +
+          '<label class="v30-grille-label">Liens, références, noms de fichiers (un par ligne)</label>' +
+          '<textarea class="v30-grille-textarea" data-after-field="documents" rows="3" placeholder="Devis_v2.pdf&#10;https://drive.google.com/...&#10;Présentation projet — sharepoint">' +
+          FP.esc(src.documents) + '</textarea></div>';
+
+        // ── Grille de qualif ──
         html += '<div class="v30-grille-section-title">Grille de qualification (' + themes.length + ' questions)</div>';
-        themes.forEach(function(t) {
-          var val = valOrEmpty(checklist[t.key]);
+        themes.forEach(function (t) {
+          var val = src.checklist[t.key] || '';
           html += '<div class="v30-grille-item">' +
             '<label class="v30-grille-label">' + FP.esc(t.question) + '</label>' +
             '<textarea class="v30-grille-textarea" data-grille-key="' + FP.esc(t.key) + '" rows="2" placeholder="—">' +
@@ -1266,9 +1403,27 @@
 
         formHost.innerHTML = html;
       })
-      .catch(function(err) {
-        if (formHost) formHost.innerHTML = '<div class="empty" style="color:var(--red);">Erreur chargement grille : ' + FP.esc(err.message) + '</div>';
+      .catch(function (err) {
+        if (formHost) formHost.innerHTML = '<div class="empty" style="color:var(--red);padding:16px;">Erreur chargement grille : ' + FP.esc(err.message) + '</div>';
       });
+  }
+
+  function renderCRTaskRow(ai) {
+    ai = ai || {};
+    var taskTxt = FP.esc(ai.task || '');
+    var dueDate = FP.esc(ai.due_date || '');
+    var prio = ai.priority || '';
+    var done = ai.status === 'done';
+    var prioOpts = ['', 'haute', 'moyenne', 'basse'].map(function (p) {
+      return '<option value="' + FP.esc(p) + '"' + (prio === p ? ' selected' : '') + '>' + (p ? FP.esc(p) : '— priorité —') + '</option>';
+    }).join('');
+    return '<div class="v30-cr-task" data-v30-cr-task>' +
+      '<input type="checkbox" class="v30-cr-task__check" data-cr-task-done' + (done ? ' checked' : '') + ' aria-label="Tâche terminée">' +
+      '<input type="text" class="v30-grille-select v30-cr-task__txt" data-cr-task-text value="' + taskTxt + '" placeholder="Action concrète à mener">' +
+      '<input type="date" class="v30-grille-select v30-cr-task__date" data-cr-task-due value="' + dueDate + '">' +
+      '<select class="v30-grille-select v30-cr-task__prio" data-cr-task-prio>' + prioOpts + '</select>' +
+      '<button type="button" class="btn btn-ghost btn-icon btn-sm" data-v30-cr-task-rm aria-label="Retirer">×</button>' +
+      '</div>';
   }
 
   function saveAfterForm() {
@@ -1279,96 +1434,179 @@
     var saveBtn = m.querySelector('[data-v30-fp-after-save]');
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Enregistrement…'; }
 
-    // Lire champs généraux
-    var getField = function(sel) { var el = formHost.querySelector(sel); return el ? el.value.trim() : ''; };
-    var resume = getField('textarea[data-after-field="resume"]');
-    var nextAction = getField('textarea[data-after-field="next_action"]');
-    var statut = getField('select[data-after-field="statut"]');
-    var tagsRaw = getField('textarea[data-after-field="tags"]');
-    var notesEnrichies = getField('textarea[data-after-field="notes_enrichies"]');
-    var tags = tagsRaw ? tagsRaw.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [];
+    var getVal = function (sel) { var el = formHost.querySelector(sel); return el ? (el.value || '').trim() : ''; };
+    var title = getVal('input[data-after-field="title"]');
+    var date = getVal('input[data-after-field="date"]');
+    var summary = getVal('textarea[data-after-field="summary"]');
+    var nextAction = getVal('textarea[data-after-field="next_action"]');
+    var statut = getVal('select[data-after-field="statut"]');
+    var tagsRaw = getVal('input[data-after-field="tags"]');
+    var notesField = getVal('textarea[data-after-field="notes"]');
+    var rawTranscript = getVal('textarea[data-after-field="raw_transcript"]');
+    var documents = getVal('textarea[data-after-field="documents"]');
+    var tags = tagsRaw ? tagsRaw.split(',').map(function (t) { return t.trim(); }).filter(Boolean) : [];
 
-    // Lire grille
+    if (!title) { toast('Le titre du CR est requis', 'warning'); if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer'; } return; }
+    if (!date) { toast('La date du CR est requise', 'warning'); if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer'; } return; }
+
+    // Grille (snapshot dans le CR + agrège dans la grille globale plus bas)
     var checklistData = {};
-    formHost.querySelectorAll('textarea[data-grille-key]').forEach(function(ta) {
+    formHost.querySelectorAll('textarea[data-grille-key]').forEach(function (ta) {
       var key = ta.dataset.grilleKey;
-      var val = ta.value.trim();
+      var val = (ta.value || '').trim();
       checklistData[key] = { reponse: val, checked: val !== '' };
     });
-    var hasChecklist = Object.keys(checklistData).some(function(k) { return checklistData[k].reponse; });
 
-    var chain = Promise.resolve();
+    // Tâches dynamiques
+    var actionItems = [];
+    formHost.querySelectorAll('[data-v30-cr-task]').forEach(function (row) {
+      var taskTxt = (row.querySelector('[data-cr-task-text]') || {}).value || '';
+      taskTxt = taskTxt.trim();
+      if (!taskTxt) return;
+      actionItems.push({
+        task: taskTxt,
+        due_date: ((row.querySelector('[data-cr-task-due]') || {}).value || '').trim() || null,
+        priority: ((row.querySelector('[data-cr-task-prio]') || {}).value || '').trim() || null,
+        status: (row.querySelector('[data-cr-task-done]') || {}).checked ? 'done' : 'pending'
+      });
+    });
 
-    // 1. Sauvegarder grille
-    if (hasChecklist) {
-      chain = chain.then(function() {
-        return fetch('/api/rdv-checklist?prospect_id=' + FP.ID, { credentials: 'include' })
-          .then(function(r) { return r.json(); })
-          .then(function(existing) {
-            var data = (existing && existing.data) ? existing.data : {};
-            Object.keys(checklistData).forEach(function(key) {
-              if (checklistData[key].reponse) data[key] = checklistData[key];
-            });
-            return FP.fetchPostJSON('/api/rdv-checklist', { prospect_id: FP.ID, data: data });
+    var payload = {
+      prospect_id: FP.ID,
+      title: title,
+      date: date,
+      checklist_data: checklistData,
+      notes: notesField,
+      summary: summary,
+      next_action: nextAction,
+      tags: tags,
+      raw_transcript: rawTranscript,
+      documents: documents,
+      action_items: actionItems
+    };
+
+    var meetingId = IA_CTX.editingMeetingId;
+    var chain;
+    if (meetingId) {
+      chain = fetch('/api/meetings/' + meetingId, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    } else {
+      chain = FP.fetchPostJSON('/api/meetings', payload);
+    }
+
+    chain = chain.then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Échec enregistrement CR');
+
+      // Propage la grille de qualif vers le formulaire global du prospect
+      // (vue cumulative : on ne perd rien des autres réunions)
+      var hasChecklist = Object.keys(checklistData).some(function (k) { return checklistData[k].reponse; });
+      if (!hasChecklist) return null;
+      return fetch('/api/rdv-checklist?prospect_id=' + FP.ID, { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (existing) {
+          var data = (existing && existing.data) ? existing.data : {};
+          Object.keys(checklistData).forEach(function (key) {
+            if (checklistData[key].reponse) data[key] = checklistData[key];
           });
-      });
-    }
-
-    // 2. Résumé + prochaine action → timeline
-    if (resume || nextAction) {
-      chain = chain.then(function() {
-        var content = resume || '';
-        if (nextAction) content += (content ? '\n\nProchaine action : ' : 'Prochaine action : ') + nextAction;
-        return FP.fetchPostJSON('/api/prospect/events/add', {
-          prospect_id: FP.ID,
-          title: 'Compte-rendu RDV',
-          content: content
+          return FP.fetchPostJSON('/api/rdv-checklist', { prospect_id: FP.ID, data: data });
         });
-      });
-    }
+    });
 
-    // 3. Statut
     if (statut) {
-      chain = chain.then(function() {
+      chain = chain.then(function () {
         return FP.fetchPostJSON('/api/prospects/bulk-edit', { ids: [FP.ID], field: 'statut', value: statut })
-          .then(function() { if (FP.STATE.prospect) FP.STATE.prospect.statut = statut; });
+          .then(function () { if (FP.STATE.prospect) FP.STATE.prospect.statut = statut; });
       });
     }
-
-    // 4. Tags
     if (tags.length) {
-      chain = chain.then(function() {
+      chain = chain.then(function () {
         return FP.fetchPostJSON('/api/prospects/bulk-status-tags', { ids: [FP.ID], add_tags: tags });
       });
     }
 
-    // 5. Notes enrichies
-    if (notesEnrichies) {
-      chain = chain.then(function() {
-        var p = FP.STATE.prospect || {};
-        var cur = (p.notes || '').trim();
-        var dateStr = new Date().toLocaleDateString('fr-FR');
-        var newNote = '[Synthèse RDV ' + dateStr + ']\n' + notesEnrichies;
-        var merged = cur ? (cur + '\n\n' + newNote) : newNote;
-        return FP.saveField('notes', merged).then(function() {
-          if (FP.STATE.prospect) FP.STATE.prospect.notes = merged;
-        });
-      });
-    }
-
     chain
-      .then(function() { return logIaRun('after', 'Compte-rendu appliqué (grille + synthèse)'); })
-      .then(function() { return FP.loadTimeline(); })
-      .then(function() {
+      .then(function () { return logIaRun('after', meetingId ? 'CR mis à jour' : 'CR enregistré'); })
+      .then(function () { return FP.loadTimeline(); })
+      .then(function () {
         if (window.ProspFPRender) window.ProspFPRender.all(FP.STATE);
         flashSaved();
         closeFPModal(m);
-        toast('Compte-rendu appliqué !', 'success');
+        toast(meetingId ? 'Compte-rendu mis à jour' : 'Compte-rendu enregistré', 'success');
+        loadCRTab();
       })
-      .catch(function(err) { toast('Erreur : ' + (err.message || err), 'error'); })
-      .then(function() {
-        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Appliquer'; }
+      .catch(function (err) { toast('Erreur : ' + (err.message || err), 'error'); })
+      .then(function () {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer'; }
       });
+  }
+
+  // ── d-bis) Onglet "CR" — listing des comptes-rendus ──────────
+  function shortDateFR(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }); }
+    catch (_) { return iso; }
+  }
+
+  function loadCRTab() {
+    var host = document.querySelector('[data-v30-cr-list]');
+    var counter = document.querySelector('[data-field="count-cr"]');
+    if (!host) return;
+    host.innerHTML = '<div class="empty" style="padding:16px;">Chargement…</div>';
+    FP.fetchJSON('/api/meetings?prospect_id=' + FP.ID).then(function (res) {
+      var meetings = (res && res.meetings) || [];
+      if (counter) counter.textContent = meetings.length || '—';
+      if (!meetings.length) {
+        host.innerHTML = '<div class="empty" style="padding:16px;">Aucun compte-rendu pour ce prospect. Cliquez « Nouveau CR » pour en créer un.</div>';
+        return;
+      }
+      host.innerHTML = '<div class="v30-cr-list">' + meetings.map(function (m) {
+        var dateStr = shortDateFR(m.date);
+        var preview = (m.summary || m.notes || m.raw_transcript || '').replace(/\s+/g, ' ').trim();
+        if (preview.length > 220) preview = preview.slice(0, 217) + '…';
+        var pendingBadge = m.action_pending > 0
+          ? '<span class="v30-cr-card__pending" title="Tâches en attente">' + m.action_pending + ' à faire</span>'
+          : '';
+        var taskBadge = m.action_count > 0
+          ? '<span class="v30-cr-card__count">' + m.action_count + ' tâche' + (m.action_count > 1 ? 's' : '') + '</span>'
+          : '';
+        var tagsHtml = (m.tags && m.tags.length)
+          ? '<div class="v30-cr-card__tags">' + m.tags.slice(0, 6).map(function (t) {
+              return '<span class="v30-cr-card__tag">' + FP.esc(t) + '</span>';
+            }).join('') + '</div>'
+          : '';
+        return '<button type="button" class="v30-cr-card" data-v30-cr-card="' + m.id + '">' +
+          '<div class="v30-cr-card__head">' +
+            '<strong class="v30-cr-card__date">CR du ' + FP.esc(dateStr) + '</strong>' +
+            taskBadge + pendingBadge +
+          '</div>' +
+          '<div class="v30-cr-card__title">' + FP.esc(m.title || ('CR ' + dateStr)) + '</div>' +
+          (preview ? '<p class="v30-cr-card__excerpt">' + FP.esc(preview) + '</p>' : '') +
+          tagsHtml +
+        '</button>';
+      }).join('') + '</div>';
+    }).catch(function (err) {
+      host.innerHTML = '<div class="empty" style="color:var(--red);padding:16px;">Erreur : ' + FP.esc(err.message || err) + '</div>';
+      if (counter) counter.textContent = '—';
+    });
+  }
+
+  function deleteCR(meetingId) {
+    if (!meetingId) return;
+    if (!confirm('Supprimer définitivement ce compte-rendu et ses tâches ?')) return;
+    fetch('/api/meetings/' + meetingId, { method: 'DELETE', credentials: 'include' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Échec suppression');
+        toast('Compte-rendu supprimé', 'success');
+        var m = getFPModal('after');
+        if (m && m.classList.contains('is-open')) closeFPModal(m);
+        loadCRTab();
+      })
+      .catch(function (err) { toast('Erreur : ' + (err.message || err), 'error'); });
   }
 
   // ── d) Grille de qualification (onglet) ──────────────────────
@@ -1455,6 +1693,31 @@
       // Grille tab buttons
       if (e.target.closest('[data-v30-grille-save]')) saveGrille();
       if (e.target.closest('[data-v30-after-rdv-btn]')) openAfterModal();
+
+      // CR tab + modale CR
+      if (e.target.closest('[data-v30-cr-new]')) openAfterModal();
+      if (e.target.closest('[data-v30-fp-after-skip]')) skipAfterToManual();
+      var crCard = e.target.closest('[data-v30-cr-card]');
+      if (crCard) {
+        var mid = Number(crCard.dataset.v30CrCard || 0);
+        if (mid) openAfterModal({ meetingId: mid });
+      }
+      if (e.target.closest('[data-v30-cr-delete]')) {
+        var mInner = getFPModal('after');
+        var inner = mInner && mInner.querySelector('.v30-modal');
+        var mid2 = inner && inner.dataset.v30CrMeetingId ? Number(inner.dataset.v30CrMeetingId) : 0;
+        if (mid2) deleteCR(mid2);
+      }
+      if (e.target.closest('[data-v30-cr-task-add]')) {
+        var modalA = getFPModal('after');
+        var host = modalA && modalA.querySelector('[data-v30-cr-tasks]');
+        if (host) host.insertAdjacentHTML('beforeend', renderCRTaskRow(null));
+      }
+      var rmBtn = e.target.closest('[data-v30-cr-task-rm]');
+      if (rmBtn) {
+        var row = rmBtn.closest('[data-v30-cr-task]');
+        if (row) row.remove();
+      }
     });
   }
 
@@ -1516,6 +1779,8 @@
     bindFPModals();
     bindHeaderActions();
     FP.loadTimeline();
+    // Compteur de l'onglet CR — appel léger en arrière-plan
+    if (typeof loadCRTab === 'function') loadCRTab();
   }
 
   if (document.readyState === 'loading') {
