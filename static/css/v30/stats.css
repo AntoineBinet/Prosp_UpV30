@@ -1,0 +1,246 @@
+/* ProspUp v30 — Stats : period picker, filter bar, charts grid, export */
+
+/* ─── Stats Header ────────────────────────────────────────────────── */
+.stats-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+/* ─── Period Picker ───────────────────────────────────────────────── */
+.period-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.period-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.period-month-nav .month-label {
+  min-width: 110px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  padding: 3px 6px;
+}
+
+/* ─── Filter Bar ──────────────────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 0 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.filter-bar__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  white-space: nowrap;
+  margin-right: 2px;
+}
+
+.filter-bar__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.filter-bar__sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ─── Chips ───────────────────────────────────────────────────────── */
+.v30-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.v30-chip:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.v30-chip.is-active {
+  background: var(--accent-a10, oklch(0.55 0.22 195 / .12));
+  border-color: var(--accent-a30, oklch(0.55 0.22 195 / .35));
+  color: var(--accent, oklch(0.55 0.22 195));
+}
+
+/* ─── Export Bar ──────────────────────────────────────────────────── */
+.stats-export-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.stats-export-bar .export-label {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-right: 2px;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+
+.btn-secondary:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.btn-secondary svg {
+  flex-shrink: 0;
+}
+
+/* ─── Charts Grid ─────────────────────────────────────────────────── */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.charts-grid .chart-col-full {
+  grid-column: 1 / -1;
+}
+
+/* ─── Chart Container ─────────────────────────────────────────────── */
+.chart-container {
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  background: var(--surface-0, var(--card-bg));
+}
+
+.chart-container .chart-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.chart-container canvas {
+  max-height: 260px;
+}
+
+/* ─── Custom Range Modal ──────────────────────────────────────────── */
+.stats-range-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stats-range-modal__bd {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .5);
+}
+
+.stats-range-modal__panel {
+  position: relative;
+  background: var(--surface-0, var(--card-bg));
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  padding: 20px;
+  width: 320px;
+  z-index: 1;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+}
+
+.stats-range-modal__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.stats-range-modal__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.stats-range-modal__row label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.stats-range-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+  .charts-grid .chart-col-full {
+    grid-column: 1;
+  }
+  .filter-bar {
+    gap: 6px;
+  }
+  .period-month-nav .month-label {
+    min-width: 80px;
+  }
+}

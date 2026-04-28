@@ -359,20 +359,39 @@
   }
 
   // ─── Navigation ───────────────────────────────────────────────────
+  var LS_KEY = 'v30cal_cursor';
+
+  function saveCursorToLS() {
+    try { localStorage.setItem(LS_KEY, STATE.cursor.toISOString().slice(0, 10)); } catch (_) {}
+  }
+
+  function loadCursorFromLS() {
+    try {
+      var s = localStorage.getItem(LS_KEY);
+      if (s) {
+        var d = new Date(s);
+        if (!isNaN(d.getTime())) STATE.cursor = d;
+      }
+    } catch (_) {}
+  }
+
   function navPrev() {
     if (STATE.view === 'day')        STATE.cursor.setDate(STATE.cursor.getDate() - 1);
     else if (STATE.view === 'week')  STATE.cursor.setDate(STATE.cursor.getDate() - 7);
     else STATE.cursor = new Date(STATE.cursor.getFullYear(), STATE.cursor.getMonth() - 1, 1);
+    saveCursorToLS();
     render();
   }
   function navNext() {
     if (STATE.view === 'day')        STATE.cursor.setDate(STATE.cursor.getDate() + 1);
     else if (STATE.view === 'week')  STATE.cursor.setDate(STATE.cursor.getDate() + 7);
     else STATE.cursor = new Date(STATE.cursor.getFullYear(), STATE.cursor.getMonth() + 1, 1);
+    saveCursorToLS();
     render();
   }
   function navToday() {
     STATE.cursor = new Date();
+    saveCursorToLS();
     render();
   }
 
@@ -448,6 +467,27 @@
       body += '<a class="btn btn-sm v30-cal__btn-outlook" href="ms-outlook://">' +
         '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Ouvrir Outlook</a>';
       body += '</div>';
+    } else if (ev.type === 'rdv' || ev.type === 'relance') {
+      // Actions rapides pour RDV et relances prospects
+      body += '<div class="v30-cal__popup-actions">';
+      if (ev.href) {
+        body += '<a class="btn btn-sm btn-accent" href="' + esc(ev.href) + '">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
+          'Fiche</a>';
+        // Appeler — intent tel: si on a un tel, sinon lien vers fiche
+        body += '<a class="btn btn-sm btn-ghost" href="' + esc(ev.href) + '?action=call" title="Appeler">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.48C1.61 3.37 2.48 2.5 3.56 2.5h3a2 2 0 0 1 2 1.72 12.05 12.05 0 0 0 .66 2.63 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.18 6.18l.86-.87a2 2 0 0 1 2.11-.45 12.05 12.05 0 0 0 2.63.66 2 2 0 0 1 1.72 2.03z"/></svg>' +
+          'Appeler</a>';
+        // Notes — lien vers fiche avec ancre notes
+        body += '<a class="btn btn-sm btn-ghost" href="' + esc(ev.href) + '#notes" title="Notes">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
+          'Notes</a>';
+        // Reporter — lien vers fiche avec ancre nextFollowUp
+        body += '<a class="btn btn-sm btn-ghost" href="' + esc(ev.href) + '?action=report" title="Reporter">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
+          'Reporter</a>';
+      }
+      body += '</div>';
     } else if (ev.href) {
       body += '<a class="btn btn-sm btn-accent" href="' + esc(ev.href) + '" style="display:inline-flex;align-items:center;gap:6px;">Voir la fiche →</a>';
     }
@@ -520,6 +560,7 @@
   }
 
   function init() {
+    loadCursorFromLS();
     bind();
     render();
     loadAll().then(function () { render(); updateExtBadge(); });

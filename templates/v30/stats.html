@@ -4,6 +4,7 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="/static/css/v30/rapport_doc.css?v={{ static_hash('css/v30/rapport_doc.css') }}">
+<link rel="stylesheet" href="/static/css/v30/stats.css?v={{ static_hash('css/v30/stats.css') }}">
 <style>
 .v30-stats-controls{display:flex;align-items:center;gap:8px;}
 [data-v30-stats] .page-header{margin-bottom:28px;}
@@ -46,6 +47,94 @@
 
   {# ─── Panel : Tableau de bord ─── #}
   <div data-v30-stats-panel="dashboard">
+
+    {# ─── Period picker mois + filtres ─── #}
+    <div class="stats-header">
+      <div class="period-picker">
+        {# Navigation mois glissant #}
+        <div class="period-month-nav" role="group" aria-label="Navigation par mois">
+          <button type="button" class="btn btn-ghost btn-icon btn-sm" data-stats-month-prev aria-label="Mois précédent">
+            {{ ui.icon('chevL', 12) }}
+          </button>
+          <span class="month-label" data-stats-month-label>—</span>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm" data-stats-month-next aria-label="Mois suivant">
+            {{ ui.icon('chevR', 12) }}
+          </button>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" data-stats-month-today>Aujourd'hui</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-stats-range-open>
+          {{ ui.icon('calendar', 12) }} Plage…
+        </button>
+      </div>
+      <div style="flex:1;"></div>
+      <div class="stats-export-bar">
+        <span class="export-label">Exporter :</span>
+        <button type="button" class="btn-secondary" data-stats-export="json">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          JSON
+        </button>
+        <button type="button" class="btn-secondary" data-stats-export="csv">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          CSV
+        </button>
+      </div>
+    </div>
+
+    {# ─── Filter bar (chips) ─── #}
+    <div class="filter-bar" data-stats-filter-bar>
+      <span class="filter-bar__label">Filtres</span>
+      <div class="filter-bar__group" data-stats-filter-statut>
+        <span class="v30-chip is-active" data-chip-statut="">Tous statuts</span>
+        {% for st in ["Pas d'actions","Appelé","À rappeler","Messagerie","Rendez-vous","Prospecté","Pas intéressé"] %}
+        <span class="v30-chip" data-chip-statut="{{ st }}">{{ st }}</span>
+        {% endfor %}
+      </div>
+      <div class="filter-bar__sep"></div>
+      <div class="filter-bar__group" id="statsTagChips" data-stats-filter-tag>
+        {# Tags dynamiques, chargés par JS #}
+      </div>
+    </div>
+
+    {# ─── 4 Charts interactifs (v30 stats/data) ─── #}
+    <div class="charts-grid" id="v30StatsChartsGrid">
+      <div class="chart-container chart-col-full">
+        <div class="chart-title">RDV obtenus / mois</div>
+        <canvas id="chartStatsRdv"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">Appels passés / mois</div>
+        <canvas id="chartStatsCalls"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">Funnel de conversion</div>
+        <canvas id="chartStatsFunnel"></canvas>
+      </div>
+      <div class="chart-container chart-col-full">
+        <div class="chart-title">Top entreprises</div>
+        <canvas id="chartStatsCompanies"></canvas>
+      </div>
+    </div>
+    <div id="v30StatsChartsLoader" style="text-align:center;padding:20px;font-size:13px;color:var(--text-3);display:none;">Chargement…</div>
+
+    {# ─── Custom range modal ─── #}
+    <div class="stats-range-modal" id="statsRangeModal" hidden aria-modal="true" role="dialog" aria-label="Sélectionner une plage de dates">
+      <div class="stats-range-modal__bd" data-stats-range-close></div>
+      <div class="stats-range-modal__panel">
+        <div class="stats-range-modal__title">Plage personnalisée</div>
+        <div class="stats-range-modal__row">
+          <label for="statsRangeStart">Début</label>
+          <input type="date" id="statsRangeStart" class="input" data-stats-range-start>
+        </div>
+        <div class="stats-range-modal__row">
+          <label for="statsRangeEnd">Fin</label>
+          <input type="date" id="statsRangeEnd" class="input" data-stats-range-end>
+        </div>
+        <div class="stats-range-modal__footer">
+          <button type="button" class="btn btn-ghost btn-sm" data-stats-range-close>Annuler</button>
+          <button type="button" class="btn btn-accent btn-sm" data-stats-range-apply>Appliquer</button>
+        </div>
+      </div>
+    </div>
 
     {# KPI grid (Phase 3 — pattern unifié) #}
     <div class="kpi-grid v30-stats-kpis">

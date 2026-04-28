@@ -178,6 +178,16 @@
 /* Boutons Teams / Outlook : couleurs de marques externes,
    isolées dans tokens.css en --brand-teams / --brand-outlook (Phase 0). */
 .v30-cal__popup-ext-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Actions rapides RDV / Relance */
+.v30-cal__popup-actions {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
 .v30-cal__btn-teams {
   display: inline-flex; align-items: center; gap: 5px;
   background: var(--brand-teams); color: #fff; border: 0;

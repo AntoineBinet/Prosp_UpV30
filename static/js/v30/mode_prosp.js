@@ -53,6 +53,12 @@ window.mpClose = function () {
         return new URLSearchParams(location.search).get('t') || '';
     }
 
+    function getIdsFromUrl() {
+        var raw = new URLSearchParams(location.search).get('ids') || '';
+        if (!raw) return [];
+        return raw.split(',').map(function (s) { return parseInt(s.trim(), 10); }).filter(function (n) { return !isNaN(n) && n > 0; });
+    }
+
     function escapeHtml(str) {
         var d = document.createElement('div');
         d.textContent = str || '';
@@ -85,9 +91,46 @@ window.mpClose = function () {
     var TL_LABELS = { call_note: "Note d'appel", push: 'Push', done: 'Fait', rdv: 'RDV', linkedin: 'LinkedIn', event: '\u00c9v\u00e9nement', note_libre: 'Note', call: 'Appel sortant', status_change: 'Changement de statut' };
     var TL_DOT = { call_note: 'call', push: 'push', done: 'done', rdv: 'rdv', linkedin: 'linkedin', note_libre: 'note', event: 'event', call: 'call', status_change: 'event' };
 
+    // ── Badge compteur sélection ──
+    function showSelectionBadge(count) {
+        var existing = document.getElementById('mpSelBadge');
+        if (existing) existing.remove();
+        if (!count || count <= 0) return;
+        var badge = document.createElement('span');
+        badge.id = 'mpSelBadge';
+        badge.className = 'mp-sel-badge';
+        badge.textContent = count + ' prospect' + (count > 1 ? 's' : '') + ' s\u00e9lectionn\u00e9' + (count > 1 ? 's' : '');
+        var header = document.querySelector('.mp-header-center');
+        if (header) header.appendChild(badge);
+    }
+
     // ── Init ──
     async function init() {
         token = getToken();
+        var directIds = getIdsFromUrl();
+
+        // Mode ?ids=... : lancer une session via l'API puis charger
+        if (!token && directIds.length > 0) {
+            viewport.innerHTML = '<div class="mp-empty">Chargement...</div>';
+            try {
+                var startRes = await fetch('/api/mode-prosp/start', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: directIds }),
+                });
+                if (!startRes.ok) throw new Error('HTTP ' + startRes.status);
+                var startPayload = await startRes.json();
+                if (!startPayload.ok || !startPayload.token) throw new Error(startPayload.error || 'Token manquant');
+                token = startPayload.token;
+                var newUrl = location.pathname + '?t=' + encodeURIComponent(token) + '&ids=' + directIds.join(',');
+                try { history.replaceState(null, '', newUrl); } catch (_) {}
+            } catch (e) {
+                viewport.innerHTML = '<div class="mp-empty">Erreur lors du d\u00e9marrage : ' + escapeHtml(e.message) + '</div>';
+                return;
+            }
+        }
+
         if (!token) {
             viewport.innerHTML = '<div class="mp-empty">Aucun prospect transmis. Retournez sur la page Prospects et relancez le Mode Prosp.</div>';
             return;
@@ -110,6 +153,10 @@ window.mpClose = function () {
             return;
         }
         if (prospects.length === 0) { viewport.innerHTML = '<div class="mp-empty">Aucun prospect trouv\u00e9.</div>'; return; }
+
+        // Afficher le badge si sélection partielle via ?ids
+        if (directIds.length > 0) showSelectionBadge(prospects.length);
+
         renderCurrentCard();
         updateUI();
         setupKeyboard();
@@ -682,6 +729,7 @@ window.mpClose = function () {
             if (e.target.matches('input, select, textarea')) return;
             if (e.key === 'ArrowLeft') { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex - 1); }
             if (e.key === 'ArrowRight') { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex + 1); }
+            if (e.key === 'Escape') { e.preventDefault(); window.mpClose(); }
         });
     }
 
