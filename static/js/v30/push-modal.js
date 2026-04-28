@@ -809,15 +809,16 @@
     var nom = p.name || '';
     var fonction = p.fonction || '';
     var entreprise = (STATE.company && STATE.company.groupe) || '';
+    var entrepriseCtx = entreprise ? ' pour ' + entreprise : '';
+    var fonctionCtx   = fonction   ? ' (domaine : ' + fonction + ')' : '';
     var prompt =
-      'Rédige 1 à 2 phrases professionnelles pour le corps d\'un email adressé directement au destinataire. ' +
-      'Contexte : je lui ai passé un appel aujourd\'hui mais je suis tombé sur sa messagerie. ' +
-      'Je lui écris maintenant pour lui expliquer la raison de mon appel : je disposais de profils de consultants' +
-      (fonction ? ' dans le domaine ' + fonction : '') +
-      (entreprise ? ' qui pourraient intéresser ' + entreprise : ' qui pourraient l\'intéresser') + '. ' +
-      'La phrase s\'adresse à lui directement (utilise "vous"), sans citer son nom ni son poste. ' +
-      'Ton professionnel, chaleureux, concis. ' +
-      'Réponds UNIQUEMENT avec les phrases, sans salutation, sans signature, sans introduction ni explication.';
+      'Écris 1 à 2 phrases pour un email de prospection. Situation exacte : j\'ai appelé le destinataire aujourd\'hui, je suis tombé sur sa messagerie, et je lui explique maintenant pourquoi j\'avais appelé — j\'ai des profils de consultants à lui présenter' + entrepriseCtx + fonctionCtx + '.\n\n' +
+      'Exemple du résultat attendu : "J\'ai essayé de vous joindre aujourd\'hui mais je suis tombé sur votre messagerie. Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser' + entrepriseCtx + '."\n\n' +
+      'Règles STRICTES à respecter :\n' +
+      '- Ne JAMAIS inventer de contexte, de conversations passées, de rendez-vous ou d\'échanges qui n\'ont pas eu lieu\n' +
+      '- Ne pas citer le nom du destinataire\n' +
+      '- S\'adresser au destinataire avec "vous"\n' +
+      '- Répondre UNIQUEMENT avec les phrases, sans salutation, sans signature, sans commentaire.';
     var btn = $sel('data-v30pm-callnote-gen');
     var ta  = $sel('data-v30pm-callnote');
     var st  = $sel('data-v30pm-callnote-status');
