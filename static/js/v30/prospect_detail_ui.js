@@ -1054,16 +1054,20 @@
       .then(function(r) { return r.json(); })
       .then(function(themesData) {
         var themes = (themesData && themesData.themes) ? themesData.themes : [];
-        var themeKeys = themes.map(function(t) { return t.key; }).join(', ');
-        var themeEntries = themes.map(function(t) { return '"' + t.key + '": null'; }).join(',\n    ');
+        // Construire le template JSON avec commentaires question pour guider l'extraction
+        var themeEntries = themes.map(function(t) {
+          return '"' + t.key + '": null  /* ' + t.question + ' */';
+        }).join(',\n    ');
 
+        // Prompt : extracteur strict, anti-hallucination, avec exemples concrets
         var prompt =
-          'Tu es un assistant de prospection B2B spécialisé en ingénierie. Analyse ce compte-rendu de réunion et remplis la grille de qualification.\n\n' +
-          'CONTEXTE: ' + (p.name || 'Prospect') + (p.fonction ? ' — ' + p.fonction : '') + (companyInfo ? ' @ ' + companyInfo : '') + '\n\n' +
-          'NOTES DE RÉUNION:\n' + notes + '\n\n' +
-          'QUESTIONS DE LA GRILLE DE QUALIFICATION:\n' +
-          themes.map(function(t) { return '  • ' + t.key + ' : ' + t.question; }).join('\n') + '\n\n' +
-          'Génère UNIQUEMENT ce JSON valide (aucun texte autour, pas de markdown):\n' +
+          'Tu es un EXTRACTEUR DE DONNÉES. Ton unique rôle est de copier ou reformuler les informations PRÉSENTES dans le texte.\n' +
+          'INTERDICTION ABSOLUE : inventer, déduire, supposer, compléter avec tes connaissances.\n' +
+          'Si une information n\'est pas dans le texte → null. En cas de doute → null.\n\n' +
+          'CONTEXTE PROSPECT : ' + (p.name || '?') + (companyInfo ? ' @ ' + companyInfo : '') + '\n\n' +
+          'COMPTE-RENDU :\n' +
+          '"""\n' + notes + '\n"""\n\n' +
+          'Retourne UNIQUEMENT ce JSON valide (aucun texte avant ou après, pas de markdown) :\n' +
           '{\n' +
           '  "checklist_responses": {\n    ' + themeEntries + '\n  },\n' +
           '  "resume": null,\n' +
@@ -1071,19 +1075,22 @@
           '  "next_follow_up": null,\n' +
           '  "statut": null,\n' +
           '  "tags_suggeres": [],\n' +
-          '  "niveau_interet": null,\n' +
           '  "notes_enrichies": null\n' +
           '}\n\n' +
-          'RÈGLES:\n' +
-          '- checklist_responses: utilise EXACTEMENT ces clés: ' + themeKeys + '\n' +
-          '- Extrais DIRECTEMENT du texte des notes, ne devine rien qui n\'est pas mentionné\n' +
-          '- Pour les clés sans info dans les notes, laisse null\n' +
-          '- resume: résumé structuré 5-10 lignes (contexte, points clés, besoins, opportunités)\n' +
-          '- next_action: prochaine action concrète (ex: "Envoyer 2 profils C++ embarqué")\n' +
-          '- next_follow_up: date YYYY-MM-DD ou null\n' +
-          '- statut: parmi [Appelé, À rappeler, Rendez-vous, Messagerie, Pas intéressé] ou null\n' +
-          '- niveau_interet: faible, moyen ou fort\n' +
-          '- JSON valide uniquement, pas de texte autour';
+          'RÈGLES STRICTES :\n' +
+          '1. Chaque valeur doit être DIRECTEMENT tirée du texte ci-dessus, mot pour mot ou reformulé fidèlement\n' +
+          '2. null = information ABSENTE du texte (pas une supposition)\n' +
+          '3. resume = résumé factuel du compte-rendu (participants, sujets, décisions, prochaines étapes)\n' +
+          '4. next_action = prochaine étape EXPLICITEMENT mentionnée dans le texte (ou null)\n' +
+          '5. next_follow_up = date YYYY-MM-DD si explicitement mentionnée (ou null)\n' +
+          '6. statut = UN des statuts suivants si clairement indiqué : Appelé, À rappeler, Rendez-vous, Messagerie, Pas intéressé (ou null)\n' +
+          '7. JSON valide, pas de commentaires dans le JSON final\n\n' +
+          'EXEMPLES CORRECTS vs INCORRECTS :\n' +
+          '✓ "besoin_identifie": "Pas de besoin immédiat, priorité à faire performer l\'équipe en place"  ← dans le texte\n' +
+          '✓ "taille_equipe": null  ← non mentionné → null\n' +
+          '✓ "next_action": "Envoyer invitation de relance courant octobre"  ← dans le texte\n' +
+          '✗ "taille_equipe": "50 personnes environ"  ← INVENTION → INTERDIT\n' +
+          '✗ "process_achat": "validation hiérarchique"  ← non dit → INTERDIT';
 
         if (statusEl) statusEl.textContent = 'Analyse IA en cours…';
         if (bar) { bar.style.transition = 'none'; bar.style.width = '5%'; }
@@ -1092,7 +1099,7 @@
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: prompt, timeout: 180 })
+          body: JSON.stringify({ prompt: prompt, timeout: 180, temperature: 0 })
         });
       })
       .then(function(response) {
