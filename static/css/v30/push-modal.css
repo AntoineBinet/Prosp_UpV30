@@ -596,3 +596,60 @@
 @media (max-width: 960px) {
   #v30PushModal .v30-modal--xl { max-width: 94vw; }
 }
+
+/* ─── Onglets Push classique / Suivi d'appel ─────────────── */
+.v30pm-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  margin-bottom: 4px;
+}
+.v30pm-tab {
+  flex: 1;
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: calc(var(--r-lg) - 2px);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--dur-1), color var(--dur-1);
+  white-space: nowrap;
+}
+.v30pm-tab:hover { background: var(--surface-3); color: var(--text); }
+.v30pm-tab.is-active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 3px color-mix(in oklch, var(--text) 10%, transparent);
+}
+
+/* ─── Section accroche appel manqué ─────────────────────── */
+.v30pm-callnote-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v30pm-callnote__ta {
+  min-height: 72px;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.v30pm-callnote-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v30pm-callnote__status {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.v30pm-callnote__status.is-ok  { color: var(--success); }
+.v30pm-callnote__status.is-error { color: var(--danger); }

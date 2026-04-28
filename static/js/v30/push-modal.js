@@ -21,7 +21,9 @@
     company: null,
     candidates: [],       // liste des best-candidates chargés
     users: [],            // liste des consultants
-    currentUserId: null
+    currentUserId: null,
+    activeTab: 'classique',
+    callNote: ''
   };
 
   // ─── Helpers ──────────────────────────────────────────────
@@ -87,10 +89,30 @@
         '</div>' +
         '<div class="v30-modal__body" data-v30pm-body>' +
 
+          // ─ Onglets
+          '<div class="v30pm-tabs" role="tablist">' +
+            '<button type="button" class="v30pm-tab is-active" data-v30pm-tab="classique" role="tab" aria-selected="true">Push classique</button>' +
+            '<button type="button" class="v30pm-tab" data-v30pm-tab="suivi" role="tab" aria-selected="false">Push suivi d\'appel</button>' +
+          '</div>' +
+
           // ─ Destinataire
           '<section class="v30pm-section">' +
             '<div class="v30pm-section__label">' + ic('userSingle', 11) + ' Destinataire</div>' +
             '<div data-v30pm-prospect></div>' +
+          '</section>' +
+
+          // ─ Accroche appel manqué (visible seulement en mode "suivi d'appel")
+          '<section class="v30pm-section" data-v30pm-callnote-section hidden>' +
+            '<div class="v30pm-section__label">' + ic('phone', 11) + ' Accroche appel manqué</div>' +
+            '<div class="v30pm-callnote-wrap">' +
+              '<textarea class="v30-input v30pm-callnote__ta" data-v30pm-callnote rows="3" placeholder="Cliquez sur « Générer via IA » pour créer une phrase personnalisée…"></textarea>' +
+              '<div class="v30pm-callnote-actions">' +
+                '<button type="button" class="btn btn-sm btn-accent-soft btn-pill" data-v30pm-callnote-gen>' +
+                  ic('robot', 12) + ' Générer via IA' +
+                '</button>' +
+                '<span class="v30pm-callnote__status" data-v30pm-callnote-status></span>' +
+              '</div>' +
+            '</div>' +
           '</section>' +
 
           // ─ Contexte : catégorie + candidats (sur UNE ligne)
@@ -156,6 +178,11 @@
       if (e.target.closest('[data-v30pm-close]')) { close(); return; }
       if (e.target === bd) { close(); return; }
       if (e.target.closest('[data-v30pm-send]')) { send(); return; }
+      // Onglets
+      var tabBtn = e.target.closest('[data-v30pm-tab]');
+      if (tabBtn) { setActiveTab(tabBtn.dataset.v30pmTab); return; }
+      // Générer accroche appel
+      if (e.target.closest('[data-v30pm-callnote-gen]')) { generateCallNote(); return; }
       // Régénérer description IA du candidat
       var regen = e.target.closest('[data-v30pm-regen]');
       if (regen) {
@@ -196,6 +223,9 @@
         var id = Number(ta.dataset.v30pmDesc);
         if (id) saveCandDesc(id, ta.value || '');
       }
+      // Synchronise l'accroche appel dans STATE
+      var cn = e.target.closest('[data-v30pm-callnote]');
+      if (cn) STATE.callNote = cn.value || '';
     }, true); // capture pour attraper le blur qui ne bubble pas
     // Escape ferme d'abord un combobox ouvert, sinon la modale
     document.addEventListener('keydown', function (e) {
@@ -221,6 +251,8 @@
     STATE.company = null;
     STATE.candidates = [];
     STATE.users = [];
+    STATE.activeTab = 'classique';
+    STATE.callNote = '';
   }
 
   // ─── Fetch helpers ────────────────────────────────────────
@@ -756,6 +788,69 @@
 
   // AI message generation removed (30.17) — tout passe par le template .msg + cartes candidats.
 
+  // ─── Onglets ──────────────────────────────────────────────
+  function setActiveTab(tab) {
+    STATE.activeTab = tab;
+    var bd = document.getElementById(MODAL_ID);
+    if (!bd) return;
+    bd.querySelectorAll('[data-v30pm-tab]').forEach(function (btn) {
+      var active = btn.dataset.v30pmTab === tab;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    var cnSection = bd.querySelector('[data-v30pm-callnote-section]');
+    if (cnSection) cnSection.hidden = (tab !== 'suivi');
+  }
+
+  // ─── Accroche appel manqué (génération Ollama) ─────────────
+  function generateCallNote() {
+    var p = STATE.prospect;
+    if (!p) { toast('Prospect non chargé', 'warning'); return; }
+    var nom = p.name || '';
+    var fonction = p.fonction || '';
+    var entreprise = (STATE.company && STATE.company.groupe) || '';
+    var prompt =
+      'Rédige une phrase professionnelle et personnalisée (1 à 2 phrases) pour introduire un email de suivi après un appel manqué. ' +
+      'La phrase doit expliquer que tu as essayé de joindre ' + nom +
+      (fonction ? ', ' + fonction : '') +
+      (entreprise ? ' chez ' + entreprise : '') +
+      ' aujourd\'hui mais que tu es tombé sur sa messagerie, et que tu l\'avais contacté car tu disposes de profils de consultants qui pourraient l\'intéresser. ' +
+      'Ton ton est professionnel, chaleureux et direct. ' +
+      'Réponds UNIQUEMENT avec la phrase, sans salutation, sans signature, sans introduction ni explication.';
+    var btn = $sel('data-v30pm-callnote-gen');
+    var ta  = $sel('data-v30pm-callnote');
+    var st  = $sel('data-v30pm-callnote-status');
+    if (btn) btn.disabled = true;
+    if (st)  { st.textContent = 'Génération en cours…'; st.className = 'v30pm-callnote__status'; }
+    if (ta)  ta.value = '';
+    STATE.callNote = '';
+    fetch('/api/ollama/generate', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: prompt })
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, data: j }; });
+    }).then(function (res) {
+      if (!res.ok || !(res.data && res.data.text)) {
+        throw new Error((res.data && res.data.error) || 'Réponse vide');
+      }
+      var text = String(res.data.text || '').trim();
+      if (ta) ta.value = text;
+      STATE.callNote = text;
+      if (st) {
+        st.textContent = 'Phrase générée';
+        st.className = 'v30pm-callnote__status is-ok';
+        setTimeout(function () { if (st) st.textContent = ''; }, 2500);
+      }
+      toast('Accroche générée', 'success', 2500);
+    }).catch(function (e) {
+      if (st) { st.textContent = 'Erreur : ' + (e.message || 'inconnue'); st.className = 'v30pm-callnote__status is-error'; }
+      toast('Erreur génération : ' + (e.message || 'inconnue'), 'error');
+    }).then(function () {
+      if (btn) btn.disabled = false;
+    });
+  }
 
   // ─── Envoi (confirmPushSend) ─────────────────────────────
   function send() {
@@ -812,13 +907,18 @@
       // via /api/push/generate — reprise du comportement v29.
       chain = chain.then(function () {
         if (!vals.catId || !templateName) return null;
+        // Synchronise l'accroche depuis la textarea si l'utilisateur a édité manuellement
+        var cnTa = document.querySelector('#' + MODAL_ID + ' [data-v30pm-callnote]');
+        if (cnTa) STATE.callNote = cnTa.value || '';
+        var callNote = (STATE.activeTab === 'suivi') ? (STATE.callNote || '') : '';
         var genPayload = {
           prospect_id: p.id,
           category_id: parseInt(vals.catId, 10),
           template_filename: templateName,
           candidate_id1: vals.candidateId1 ? parseInt(vals.candidateId1, 10) : null,
           candidate_id2: vals.candidateId2 ? parseInt(vals.candidateId2, 10) : null,
-          ai_descriptions: true
+          ai_descriptions: true,
+          call_note: callNote || null
         };
         return fetch('/api/push/generate', {
           method: 'POST',
@@ -975,6 +1075,8 @@
     STATE.aiSuggestions = [];
     STATE.selectedCand = { 1: null, 2: null };
     STATE.candDescCache = {};
+    STATE.activeTab = 'classique';
+    STATE.callNote = '';
     var bd = ensureModal();
     // Titre dynamique
     var title = bd.querySelector('[data-v30pm-title]');
@@ -985,6 +1087,12 @@
     renderCombos();      // affiche l'état vide « aucun candidat disponible »
     renderCandCards();   // affiche le hint « sélectionne un candidat… »
     hideIABar();
+    setActiveTab('classique');
+    // Vider l'accroche de la session précédente
+    var cnTa = bd.querySelector('[data-v30pm-callnote]');
+    if (cnTa) cnTa.value = '';
+    var cnSt = bd.querySelector('[data-v30pm-callnote-status]');
+    if (cnSt) { cnSt.textContent = ''; cnSt.className = 'v30pm-callnote__status'; }
     openBd(bd);
     // Charger les données en parallèle (sauf besoin de prospect pour l'IA contextuelle)
     getProspectInfo(prospectId).then(function (res) {
