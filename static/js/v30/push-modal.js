@@ -806,31 +806,48 @@
   function generateCallNote() {
     var p = STATE.prospect;
     if (!p) { toast('Prospect non chargé', 'warning'); return; }
-    var nom = p.name || '';
-    var fonction = p.fonction || '';
+    var fonction  = p.fonction || '';
     var entreprise = (STATE.company && STATE.company.groupe) || '';
-    var entrepriseCtx = entreprise ? ' pour ' + entreprise : '';
-    var fonctionCtx   = fonction   ? ' (domaine : ' + fonction + ')' : '';
+    var site       = (STATE.company && STATE.company.site)   || '';
+
+    // Première ligne = requête de recherche Tavily (entreprise + lieu + métier)
+    var searchParts = [];
+    if (entreprise) searchParts.push(entreprise);
+    if (site)       searchParts.push(site.split('/')[0].trim()); // ex: "Guyancourt"
+    if (fonction)   searchParts.push(fonction);
+    searchParts.push('secteur activité recrutement');
+    var searchQuery = searchParts.join(' ');
+
     var prompt =
-      'Écris 1 à 2 phrases pour un email de prospection. Situation exacte : j\'ai appelé le destinataire aujourd\'hui, je suis tombé sur sa messagerie, et je lui explique maintenant pourquoi j\'avais appelé — j\'ai des profils de consultants à lui présenter' + entrepriseCtx + fonctionCtx + '.\n\n' +
-      'Exemple du résultat attendu : "J\'ai essayé de vous joindre aujourd\'hui mais je suis tombé sur votre messagerie. Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser' + entrepriseCtx + '."\n\n' +
-      'Règles STRICTES à respecter :\n' +
-      '- Ne JAMAIS inventer de contexte, de conversations passées, de rendez-vous ou d\'échanges qui n\'ont pas eu lieu\n' +
-      '- Ne pas citer le nom du destinataire\n' +
-      '- S\'adresser au destinataire avec "vous"\n' +
-      '- Répondre UNIQUEMENT avec les phrases, sans salutation, sans signature, sans commentaire.';
+      searchQuery + '\n\n' +
+      '---\n' +
+      'Je rédige un email de prospection à un contact' +
+      (entreprise ? ' de ' + entreprise : '') + '.\n' +
+      'J\'ai essayé de l\'appeler aujourd\'hui mais je suis tombé sur sa messagerie.\n' +
+      'En utilisant les informations web ci-dessus sur le secteur d\'activité' +
+      (entreprise ? ' de ' + entreprise : '') + ' (si elles sont disponibles et pertinentes), ' +
+      'écris 1 à 2 phrases qui expliquent que j\'ai essayé de le joindre (messagerie) ' +
+      'et que je souhaitais lui présenter des profils de consultants adaptés à son secteur.\n\n' +
+      'Règles STRICTES :\n' +
+      '- S\'adresser au destinataire en "vous"\n' +
+      '- Ne pas citer son nom ni son poste\n' +
+      '- Si le secteur est clairement identifiable grâce aux infos web, le mentionner naturellement (ex : "dans le secteur BTP", "en ingénierie"…)\n' +
+      '- Sinon, écrire simplement "qui pourraient vous intéresser" sans préciser de domaine\n' +
+      '- Ne JAMAIS inventer de contexte, conversations passées ou rendez-vous\n' +
+      '- Répondre UNIQUEMENT avec les phrases, rien d\'autre.';
+
     var btn = $sel('data-v30pm-callnote-gen');
     var ta  = $sel('data-v30pm-callnote');
     var st  = $sel('data-v30pm-callnote-status');
     if (btn) btn.disabled = true;
-    if (st)  { st.textContent = 'Génération en cours…'; st.className = 'v30pm-callnote__status'; }
+    if (st)  { st.textContent = 'Recherche + génération en cours…'; st.className = 'v30pm-callnote__status'; }
     if (ta)  ta.value = '';
     STATE.callNote = '';
     fetch('/api/ollama/generate', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt })
+      body: JSON.stringify({ prompt: prompt, web_search: true })
     }).then(function (r) {
       return r.json().then(function (j) { return { ok: r.ok, data: j }; });
     }).then(function (res) {
