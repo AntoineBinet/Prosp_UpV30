@@ -1027,17 +1027,52 @@
     var applyWrap = m.querySelector('[data-v30-fp-after-apply-wrap]');
     var applyHost = m.querySelector('[data-v30-fp-after-apply]');
     var applyBtn = m.querySelector('[data-v30-fp-after-apply-btn]');
-    var prompt = "Analyse ces notes de RDV et retourne un JSON STRICT (aucun texte autour, pas de markdown) :" +
-      '\n{"resume": "", "prochaines_etapes": ["", ""], "niveau_interet": "faible|moyen|fort", "actions_immediates": ["", ""], "tags_suggeres": ["", ""]}' +
-      "\nRemplis chaque clé avec le contenu pertinent. Pour niveau_interet, mets un seul mot : faible, moyen ou fort." +
-      "\nNotes : " + notes;
     if (run) { run.disabled = true; run.textContent = 'Analyse en cours…'; }
     if (rawWrap) rawWrap.hidden = true;
     if (applyWrap) applyWrap.hidden = true;
     if (applyBtn) applyBtn.hidden = true;
 
-    FP.fetchPostJSON('/api/ollama/generate', { prompt: prompt, timeout: 120 })
-      .then(function (res) {
+    var p = FP.STATE.prospect || {};
+    var companyInfo = (p.company_groupe || '') + (p.company_site ? ' (' + p.company_site + ')' : '');
+
+    fetch('/api/rdv-checklist/themes', { credentials: 'include' })
+      .then(function(r) { return r.json(); })
+      .then(function(themesData) {
+        var themes = (themesData && themesData.themes) ? themesData.themes : [];
+        var themeKeys = themes.map(function(t) { return t.key; }).join(', ');
+        var themeEntries = themes.map(function(t) { return '"' + t.key + '": null'; }).join(',\n    ');
+
+        var prompt =
+          'Tu es un assistant de prospection B2B spécialisé en ingénierie. Analyse ce compte-rendu de réunion et remplis la grille de qualification.\n\n' +
+          'CONTEXTE: ' + (p.name || 'Prospect') + (p.fonction ? ' — ' + p.fonction : '') + (companyInfo ? ' @ ' + companyInfo : '') + '\n\n' +
+          'NOTES DE RÉUNION:\n' + notes + '\n\n' +
+          'QUESTIONS DE LA GRILLE DE QUALIFICATION:\n' +
+          themes.map(function(t) { return '  • ' + t.key + ' : ' + t.question; }).join('\n') + '\n\n' +
+          'Génère UNIQUEMENT ce JSON valide (aucun texte autour, pas de markdown):\n' +
+          '{\n' +
+          '  "checklist_responses": {\n    ' + themeEntries + '\n  },\n' +
+          '  "resume": null,\n' +
+          '  "next_action": null,\n' +
+          '  "next_follow_up": null,\n' +
+          '  "statut": null,\n' +
+          '  "tags_suggeres": [],\n' +
+          '  "niveau_interet": null,\n' +
+          '  "notes_enrichies": null\n' +
+          '}\n\n' +
+          'RÈGLES:\n' +
+          '- checklist_responses: utilise EXACTEMENT ces clés: ' + themeKeys + '\n' +
+          '- Extrais DIRECTEMENT du texte des notes, ne devine rien qui n\'est pas mentionné\n' +
+          '- Pour les clés sans info dans les notes, laisse null\n' +
+          '- resume: résumé structuré 5-10 lignes (contexte, points clés, besoins, opportunités)\n' +
+          '- next_action: prochaine action concrète (ex: "Envoyer 2 profils C++ embarqué")\n' +
+          '- next_follow_up: date YYYY-MM-DD ou null\n' +
+          '- statut: parmi [Appelé, À rappeler, Rendez-vous, Messagerie, Pas intéressé] ou null\n' +
+          '- niveau_interet: faible, moyen ou fort\n' +
+          '- JSON valide uniquement, pas de texte autour';
+
+        return FP.fetchPostJSON('/api/ollama/generate', { prompt: prompt, timeout: 180 });
+      })
+      .then(function(res) {
         if (!res || !res.ok) throw new Error((res && res.error) || 'IA indisponible');
         var text = res.text || '';
         var json = extractJsonMaybe(text);
@@ -1054,8 +1089,8 @@
         if (applyBtn) applyBtn.hidden = false;
         toast('Analyse terminée', 'success');
       })
-      .catch(function (err) { toast('Erreur IA : ' + (err.message || err), 'error'); })
-      .then(function () {
+      .catch(function(err) { toast('Erreur IA : ' + (err.message || err), 'error'); })
+      .then(function() {
         if (run) { run.disabled = false; run.textContent = 'Relancer'; }
       });
   }
@@ -1065,17 +1100,17 @@
     var rows = [];
 
     var resume = (json.resume || '').toString().trim();
-    var actionsImm = Array.isArray(json.actions_immediates) ? json.actions_immediates.filter(Boolean) : [];
-    var etapes = Array.isArray(json.prochaines_etapes) ? json.prochaines_etapes.filter(Boolean) : [];
     var tags = Array.isArray(json.tags_suggeres) ? json.tags_suggeres.filter(Boolean) : [];
-    var niveau = (json.niveau_interet || '').toString();
+    var niveau = (json.niveau_interet || '').toString().trim();
+    var nextAction = (json.next_action || '').toString().trim();
+    var notesEnrichies = (json.notes_enrichies || '').toString().trim();
+    var checklist = (json.checklist_responses && typeof json.checklist_responses === 'object') ? json.checklist_responses : {};
 
-    // 1. Ajouter résumé + actions comme événement timeline
-    if (resume || actionsImm.length || etapes.length) {
+    // 1. Résumé + prochaine action → événement timeline
+    if (resume || nextAction || niveau) {
       var parts = [];
       if (resume) parts.push(resume);
-      if (actionsImm.length) parts.push('\nActions immédiates :\n' + actionsImm.map(function (a) { return '• ' + a; }).join('\n'));
-      if (etapes.length) parts.push('\nProchaines étapes :\n' + etapes.map(function (a) { return '• ' + a; }).join('\n'));
+      if (nextAction) parts.push('\nProchaine action : ' + nextAction);
       if (niveau) parts.push('\nNiveau d\'intérêt : ' + niveau);
       rows.push({
         kind: 'event',
@@ -1084,7 +1119,32 @@
         payload: { title: 'Compte-rendu RDV', content: parts.join('\n') }
       });
     }
-    // 2. Ajouter tags
+
+    // 2. Grille de qualification — réponses extraites des notes
+    var checklistFiltered = {};
+    var checklistCount = 0;
+    Object.keys(checklist).forEach(function(key) {
+      var val = checklist[key];
+      if (val && String(val).trim() !== '' && String(val).trim().toLowerCase() !== 'null') {
+        checklistFiltered[key] = String(val).trim();
+        checklistCount++;
+      }
+    });
+    if (checklistCount > 0) {
+      var previewLines = Object.keys(checklistFiltered).slice(0, 6).map(function(k) {
+        var v = checklistFiltered[k];
+        return '• ' + k + ' : ' + v.substring(0, 70) + (v.length > 70 ? '…' : '');
+      });
+      if (checklistCount > 6) previewLines.push('… et ' + (checklistCount - 6) + ' autres réponses');
+      rows.push({
+        kind: 'checklist',
+        label: 'Remplir la grille de qualification (' + checklistCount + ' réponses)',
+        preview: previewLines.join('\n'),
+        payload: { responses: checklistFiltered }
+      });
+    }
+
+    // 3. Tags suggérés
     if (tags.length) {
       rows.push({
         kind: 'tags',
@@ -1093,14 +1153,16 @@
         payload: { tags: tags }
       });
     }
-    // 3. Sauvegarde brut des notes → note prospect.notes (merge)
+
+    // 4. Notes brutes + synthèse IA → champ Notes prospect
     if (notes && notes.length) {
       var p = FP.STATE.prospect || {};
       var curNotes = (p.notes == null ? '' : String(p.notes)).trim();
       var datePrefix = new Date().toLocaleDateString('fr-FR');
-      var newNotes = curNotes
-        ? (curNotes + '\n\n[Notes RDV ' + datePrefix + ']\n' + notes)
-        : ('[Notes RDV ' + datePrefix + ']\n' + notes);
+      var newNoteParts = ['[Notes RDV ' + datePrefix + ']', notes];
+      if (notesEnrichies) newNoteParts.push('\n[Synthèse IA] ' + notesEnrichies);
+      var newNote = newNoteParts.join('\n');
+      var newNotes = curNotes ? (curNotes + '\n\n' + newNote) : newNote;
       rows.push({
         kind: 'notes',
         label: 'Ajouter mes notes au champ Notes',
@@ -1108,20 +1170,20 @@
         payload: { value: newNotes }
       });
     }
+
     if (!rows.length) {
       host.innerHTML = '<div class="empty" style="padding:12px;font-size:12px;">Rien à appliquer.</div>';
       return;
     }
-    rows.forEach(function (r, idx) {
+    rows.forEach(function(r, idx) {
       var row = document.createElement('label');
       row.className = 'v30-fp-ai-diff__row';
-      var checked = 'checked';
       row.innerHTML =
-        '<input type="checkbox" ' + checked + ' data-ia-after-idx="' + idx + '">' +
+        '<input type="checkbox" checked data-ia-after-idx="' + idx + '">' +
         '<span class="v30-fp-ai-diff__label">' + FP.esc(r.kind) + '</span>' +
         '<span class="v30-fp-ai-diff__values">' +
           '<span class="v30-fp-ai-diff__new"><b>' + FP.esc(r.label) + '</b></span>' +
-          '<span class="muted" style="font-size:11.5px;white-space:pre-wrap;">' + FP.esc(r.preview.slice(0, 300)) + (r.preview.length > 300 ? '…' : '') + '</span>' +
+          '<span class="muted" style="font-size:11.5px;white-space:pre-wrap;">' + FP.esc(r.preview.slice(0, 400)) + (r.preview.length > 400 ? '…' : '') + '</span>' +
         '</span>';
       host.appendChild(row);
     });
@@ -1164,6 +1226,20 @@
           return FP.saveField('notes', r.payload.value).then(function () {
             if (FP.STATE.prospect) FP.STATE.prospect.notes = r.payload.value;
           });
+        });
+      } else if (r.kind === 'checklist') {
+        chain = chain.then(function () {
+          return fetch('/api/rdv-checklist?prospect_id=' + FP.ID, { credentials: 'include' })
+            .then(function(res) { return res.json(); })
+            .then(function(existing) {
+              var data = (existing && existing.data) ? existing.data : {};
+              Object.keys(r.payload.responses).forEach(function(key) {
+                if (!data[key]) data[key] = { reponse: '', checked: false };
+                data[key].reponse = r.payload.responses[key];
+                data[key].checked = true;
+              });
+              return FP.fetchPostJSON('/api/rdv-checklist', { prospect_id: FP.ID, data: data });
+            });
         });
       }
     });
