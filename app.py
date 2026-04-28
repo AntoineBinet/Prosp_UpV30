@@ -8314,7 +8314,8 @@ def api_push_generate():
     
     candidate_id1 = _validate_optional_positive_int(payload.get("candidate_id1"), "candidate_id1")
     candidate_id2 = _validate_optional_positive_int(payload.get("candidate_id2"), "candidate_id2")
-    
+    call_note = (payload.get("call_note") or "").strip()
+
     # Récupérer les données du prospect
     with _conn() as conn:
         prospect = conn.execute(
@@ -8399,7 +8400,7 @@ def api_push_generate():
         # Fonctionne depuis n'importe quel appareil : le brouillon apparaît partout
         if OUTLOOK_AVAILABLE:
             try:
-                result = _save_to_outlook_drafts(template_path, prospect_dict, candidates_data, attachment_paths)
+                result = _save_to_outlook_drafts(template_path, prospect_dict, candidates_data, attachment_paths, call_note=call_note)
                 msg = f"Brouillon créé dans Outlook ({result['pj_count']} PJ) — vérifiez vos Brouillons"
                 if missing_email:
                     msg += " — Email prospect manquant"
@@ -8410,7 +8411,7 @@ def api_push_generate():
                 logger.warning("Échec création brouillon Outlook (%s), fallback .eml", e)
 
         # Méthode 2 : Pas d'Outlook → .eml avec PJ intégrées (téléchargement)
-        email_bytes = _generate_eml_file(template_path, prospect_dict, candidates_data, attachment_paths)
+        email_bytes = _generate_eml_file(template_path, prospect_dict, candidates_data, attachment_paths, call_note=call_note)
         email_filename = template_path.stem + "_personnalise.eml"
 
         import io
@@ -8971,7 +8972,26 @@ def _resolve_dc_path(cand: dict, uid: int) -> Path | None:
     return None
 
 
-def _personalize_html_body(template_path: Path, prospect_data: dict, candidates_data: list) -> tuple[str, str]:
+def _apply_call_note(html_body: str, call_note: str) -> str:
+    """Injecte la phrase d'accroche 'appel manqué' juste après la salutation."""
+    if not call_note or not call_note.strip():
+        return html_body
+    note_html = f'<p style="margin:10px 0;">{call_note.strip()}</p>'
+    # Chercher la fin du bloc contenant la salutation "Bonjour ..."
+    m = re.search(r'Bonjour[^<,]*,?', html_body, re.IGNORECASE)
+    if m:
+        after_sal = html_body[m.end():]
+        tag_close = re.search(r'</(?:p|div|td|span)[^>]*>', after_sal, re.IGNORECASE)
+        if tag_close:
+            insert_pos = m.end() + tag_close.end()
+        else:
+            insert_pos = m.end()
+        return html_body[:insert_pos] + '\n' + note_html + '\n' + html_body[insert_pos:]
+    return note_html + '\n' + html_body
+
+
+def _personalize_html_body(template_path: Path, prospect_data: dict, candidates_data: list,
+                            call_note: str = '') -> tuple[str, str]:
     """
     Lit un template .msg et applique les substitutions (salutation, candidats, signature).
     Retourne (html_body, subject).
@@ -8986,6 +9006,8 @@ def _personalize_html_body(template_path: Path, prospect_data: dict, candidates_
         raise ValueError("Le template .msg ne contient pas de corps HTML exploitable")
 
     html_body = _apply_salutation(html_body, civilite, nom)
+    if call_note:
+        html_body = _apply_call_note(html_body, call_note)
     if candidates_data:
         cand_lines = _build_candidate_descriptions(candidates_data)
         html_body = _apply_candidates(html_body, cand_lines)
@@ -8995,7 +9017,8 @@ def _personalize_html_body(template_path: Path, prospect_data: dict, candidates_
 
 
 def _save_to_outlook_drafts(template_path: Path, prospect_data: dict,
-                            candidates_data: list, attachment_paths: list[Path] | None = None) -> dict:
+                            candidates_data: list, attachment_paths: list[Path] | None = None,
+                            call_note: str = '') -> dict:
     """
     Crée l'email dans les Brouillons Outlook du serveur via win32com.
     Le brouillon se synchronise via Exchange/M365 sur tous les appareils.
@@ -9008,7 +9031,7 @@ def _save_to_outlook_drafts(template_path: Path, prospect_data: dict,
     pythoncom.CoInitialize()
     try:
         to_email = prospect_data.get("email", "")
-        html_body, subject = _personalize_html_body(template_path, prospect_data, candidates_data)
+        html_body, subject = _personalize_html_body(template_path, prospect_data, candidates_data, call_note=call_note)
 
         outlook = win32com.client.Dispatch("Outlook.Application")
         mail = outlook.CreateItem(0)  # olMailItem = 0
@@ -9047,7 +9070,8 @@ def _save_to_outlook_drafts(template_path: Path, prospect_data: dict,
 
 
 def _generate_eml_file(template_path: Path, prospect_data: dict,
-                        candidates_data: list, attachment_paths: list[Path] | None = None) -> bytes:
+                        candidates_data: list, attachment_paths: list[Path] | None = None,
+                        call_note: str = '') -> bytes:
     """
     Génère un .eml (RFC 2822) avec PJ intégrées.
     Fallback quand Outlook n'est pas disponible.
@@ -9059,7 +9083,7 @@ def _generate_eml_file(template_path: Path, prospect_data: dict,
     import email.encoders
 
     to_email = prospect_data.get("email", "")
-    html_body, subject = _personalize_html_body(template_path, prospect_data, candidates_data)
+    html_body, subject = _personalize_html_body(template_path, prospect_data, candidates_data, call_note=call_note)
 
     # Construire le .eml — mixed (HTML + PJ)
     msg_eml = email_lib.mime.multipart.MIMEMultipart("mixed")
