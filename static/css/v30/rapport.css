@@ -22,6 +22,105 @@
 }
 .v30-rapport__sub { font-size: 12.5px; color: var(--text-2); }
 
+.v30-rapport__section-title {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ─── Templates ─── */
+.v30-rapport__templates { display: flex; flex-direction: column; }
+.v30-rapport__template-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 720px) {
+  .v30-rapport__template-grid { grid-template-columns: 1fr; }
+}
+
+.template-card {
+  appearance: none; -webkit-appearance: none;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform .12s, border-color .12s, background .12s;
+  font: inherit;
+  color: inherit;
+  position: relative;
+  backdrop-filter: blur(6px);
+}
+.template-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklch, var(--accent) 30%, var(--border));
+  background: color-mix(in oklab, var(--surface) 92%, var(--accent));
+}
+.template-card.is-active {
+  border-color: color-mix(in oklch, var(--accent) 50%, var(--border));
+  background: color-mix(in oklch, var(--accent) 6%, var(--surface));
+}
+.template-card.is-active::after {
+  content: "✓";
+  position: absolute;
+  top: 10px; right: 12px;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.template-card__icon { color: var(--accent); }
+.template-card__name { font-size: 13px; font-weight: 600; color: var(--text); }
+.template-card__desc { font-size: 11.5px; color: var(--text-2); line-height: 1.5; }
+
+/* ─── Filtres ─── */
+.v30-rapport__filters {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 10px; justify-content: space-between;
+}
+.filter-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filter-bar__label {
+  font-size: 11.5px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-right: 4px;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 11.5px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .12s, background .12s;
+}
+.filter-chip:has(input:checked) {
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+.filter-chip input { accent-color: var(--accent); margin: 0; }
+
+.v30-rapport__actions {
+  display: inline-flex; gap: 6px; flex-wrap: wrap;
+}
+
+/* ─── Grid sections existantes ─── */
 .v30-rapport__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -29,8 +128,6 @@
 }
 .v30-rapport__grid .card:nth-child(1) { grid-column: 1 / -1; }
 .v30-rapport__grid .card:nth-child(4) { grid-column: 1 / -1; }
-
-/* .v30-kpi-card remplacé par .kpi (Phase 3 — patterns.css). */
 
 .v30-rapport__list { padding: 8px 0; }
 .v30-rapport__list .v30-rapport-row {
@@ -57,6 +154,55 @@
   content: attr(data-placeholder);
   color: var(--text-3);
 }
+
+/* ─── Aperçu modale ─── */
+.v30-rapport__preview {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 14px 16px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  max-height: 60vh;
+  overflow: auto;
+}
+.v30-rapport__preview h1,
+.v30-rapport__preview h2,
+.v30-rapport__preview h3 {
+  margin: 8px 0 4px;
+  font-weight: 600;
+}
+.v30-rapport__preview h1 { font-size: 15px; color: var(--text); }
+.v30-rapport__preview h2 { font-size: 13.5px; color: var(--text); }
+.v30-rapport__preview h3 { font-size: 12.5px; color: var(--text-2); }
+.v30-rapport__preview ul { margin: 4px 0; padding-left: 18px; }
+.v30-rapport__preview li { color: var(--text-2); }
+
+/* ─── Historique ─── */
+.v30-rapport__history { display: flex; flex-direction: column; gap: 6px; }
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.history-table thead th {
+  text-align: left;
+  padding: 8px 14px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.history-table tbody td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+}
+.history-table tbody tr:last-child td { border-bottom: 0; }
+.history-table .u-mono { font-family: var(--font-mono); color: var(--text-3); font-size: 11px; }
 
 @media (max-width: 900px) {
   .v30-rapport__grid { grid-template-columns: 1fr; }

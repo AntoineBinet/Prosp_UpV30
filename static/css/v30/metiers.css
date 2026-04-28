@@ -1,30 +1,287 @@
-/* ProspUp v30 — Métiers IA (admin) */
+/* ProspUp v30 — Métiers (référentiel + admin custom) */
 
 .v30-metiers { display: flex; flex-direction: column; gap: 14px; }
 
-.v30-metiers__topbar {
-  display: flex; align-items: center; gap: 12px;
-  padding: 6px 0 10px;
-  border-bottom: 1px solid var(--border);
+/* ─── Search bar ─── */
+.search-bar.v30-metiers__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+}
+.search-bar .input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  padding: 4px 0;
+}
+.search-bar .input::placeholder { color: var(--text-3); }
+.search-bar svg { color: var(--text-3); flex-shrink: 0; }
+
+/* ─── Filtres domaine (chips) ─── */
+.filter-chips.v30-metiers__domains {
+  display: flex;
   flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
-.v30-metiers__eyebrow {
-  font-size: 10.5px; color: var(--text-3);
-  text-transform: uppercase; letter-spacing: .08em;
+.filter-chips .v30-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 11.5px;
+  user-select: none;
+  transition: border-color .12s, background .12s, color .12s;
 }
-.v30-metiers__title {
-  margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
-  letter-spacing: -.01em;
+.filter-chips .v30-chip:hover {
+  border-color: color-mix(in oklch, var(--accent) 30%, var(--border));
 }
-.v30-metiers__title .serif { font-family: var(--font-serif); font-style: italic; }
-.v30-metiers__sub { font-size: 12.5px; color: var(--text-2); }
+.filter-chips .v30-chip.is-active {
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 38%, var(--border));
+  color: var(--accent);
+}
+.filter-chips .v30-chip__dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+/* ─── Grille métiers ─── */
+.v30-metiers__count { font-size: 11.5px; padding: 0 2px; }
+.metiers-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 1100px) {
+  .metiers-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .metiers-grid { grid-template-columns: 1fr; }
+}
+
+.metier-card {
+  appearance: none; -webkit-appearance: none;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform .12s, border-color .12s, background .12s;
+  font: inherit;
+  color: inherit;
+  min-height: 130px;
+  backdrop-filter: blur(6px);
+}
+.metier-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklch, var(--accent) 32%, var(--border));
+  background: color-mix(in oklab, var(--surface) 92%, var(--accent));
+}
+.metier-card__head {
+  display: flex; align-items: center; gap: 8px;
+}
+.metier-card__cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.metier-card__cat-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+}
+.metier-card__name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+}
+.metier-card__desc {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-2);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.metier-card__foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+.metier-card__pill {
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+}
+
+/* ─── Modale détail ─── */
+.v30-colgrid.v30-metier-detail {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 18px;
+}
+@media (max-width: 720px) {
+  .v30-colgrid.v30-metier-detail { grid-template-columns: 1fr; }
+}
+.v30-metier-detail__h {
+  margin: 14px 0 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.v30-metier-detail__h:first-child { margin-top: 0; }
+.v30-metier-detail__desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+}
+.v30-metier-detail__skills,
+.v30-metier-detail__sectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.skill-chip {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+}
+.skill-chip--group {
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: color-mix(in oklch, var(--accent) 8%, var(--surface-2));
+  border-color: color-mix(in oklch, var(--accent) 25%, var(--border));
+}
+
+.v30-metier-detail__certs {
+  font-size: 12px;
+  color: var(--text-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.v30-metier-detail__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  margin-bottom: 4px;
+}
+.v30-metier-detail__stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+}
+.v30-metier-detail__stat-key {
+  color: var(--text-3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.v30-metier-detail__stat-val { color: var(--text); font-weight: 500; }
+.v30-metier-detail__trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.v30-metier-detail__trend-bar {
+  width: 60px;
+  height: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+.v30-metier-detail__trend-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), color-mix(in oklch, var(--accent) 60%, var(--success, #4ade80)));
+  width: 60%;
+  transition: width .25s;
+}
+.v30-metier-detail__trend-label {
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+/* ─── Custom métiers (admin, ancien CRUD) ─── */
+.v30-metiers__custom-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  padding: 14px;
+}
+.v30-metiers__custom-card > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.v30-metiers__custom-card > summary::-webkit-details-marker { display: none; }
+.v30-metiers__custom-card > summary::marker { content: ''; }
+.v30-metiers__custom-body { margin-top: 12px; }
 
 .v30-metiers__list .v30-metier-row {
   display: grid;
   grid-template-columns: 120px 140px 1fr 100px auto;
   gap: 12px;
   align-items: center;
-  padding: 8px 16px;
+  padding: 8px 4px;
   border-bottom: 1px solid var(--border);
   font-size: 12.5px;
 }

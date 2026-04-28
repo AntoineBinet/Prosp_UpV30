@@ -20,11 +20,28 @@
     </div>
   </div>
 
+  {# ─── Tab-bar (sticky) ─── #}
+  <div class="tab-bar v30-params__tabs" role="tablist" aria-label="Sections paramètres" data-v30-params-tabs>
+    <button type="button" class="tab-btn is-active" data-tab="all" role="tab" aria-selected="true">Tout</button>
+    {% if current_user and current_user.role == 'admin' %}
+    <button type="button" class="tab-btn" data-tab="ia" role="tab" aria-selected="false">IA</button>
+    {% endif %}
+    <button type="button" class="tab-btn" data-tab="goals" role="tab" aria-selected="false">Objectifs</button>
+    <button type="button" class="tab-btn" data-tab="kpi" role="tab" aria-selected="false">KPI</button>
+    <button type="button" class="tab-btn" data-tab="notif" role="tab" aria-selected="false">Notifications</button>
+    <button type="button" class="tab-btn" data-tab="snapshots" role="tab" aria-selected="false">Snapshots</button>
+    {% if current_user and current_user.role == 'admin' %}
+    <button type="button" class="tab-btn" data-tab="deploy" role="tab" aria-selected="false">Déploiement</button>
+    {% endif %}
+    <button type="button" class="tab-btn" data-tab="account" role="tab" aria-selected="false">Mot de passe</button>
+    <button type="button" class="tab-btn" data-tab="about" role="tab" aria-selected="false">À propos</button>
+  </div>
+
   <div class="v30-params__grid">
 
     {# ─── 1. Configuration IA (admin) ──────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
-    <details class="v30-params__card v30-params__collapse" data-v30-ai>
+    <details class="v30-params__card v30-params__collapse" data-v30-ai data-tab="ia">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('sparkles', 16) }}
@@ -79,7 +96,7 @@
     {% endif %}
 
     {# ─── 2. Objectifs & Gamification ─────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-goals>
+    <details class="v30-params__card v30-params__collapse" data-v30-goals data-tab="goals">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('chart', 16) }}
@@ -161,8 +178,37 @@
       </div>
     </details>
 
+    {# ─── KPI manuels (manual_kpi) ───────────────────────────── #}
+    <details class="v30-params__card v30-params__collapse" data-v30-kpi data-tab="kpi">
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('chart', 16) }}
+          <h3>KPI manuels</h3>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Enregistrer manuellement les actions faites hors de l'app (appels, emails, rdvs externes…).
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-params__actions">
+          <button type="button" class="btn btn-primary btn-sm" data-v30-kpi-add>{{ ui.icon('plus', 13) }} Ajouter une entrée</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-kpi-refresh>Rafraîchir</button>
+          <span class="muted v30-params__status" data-v30-kpi-status></span>
+        </div>
+
+        <div class="v30-params__snapshots" data-v30-kpi-list-wrap>
+          <h4 class="v30-params__scope-title">Dernières entrées</h4>
+          <ul class="v30-params__snapshots-list" data-v30-kpi-list>
+            <li class="muted v30-params__empty">Chargement…</li>
+          </ul>
+        </div>
+      </div>
+    </details>
+
     {# ─── 3. Calendrier externe (Outlook / Google) ────────────── #}
-    <details class="v30-params__card v30-params__collapse" id="calsync" data-v30-calsync>
+    <details class="v30-params__card v30-params__collapse" id="calsync" data-v30-calsync data-tab="notif">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('calendar', 16) }}
@@ -195,7 +241,7 @@
     </details>
 
     {# ─── 4. Sauvegardes & données ────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-backup>
+    <details class="v30-params__card v30-params__collapse" data-v30-backup data-tab="snapshots">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('inbox', 16) }}
@@ -227,7 +273,7 @@
     </details>
 
     {# ─── 4. Notifications navigateur ─────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-notif>
+    <details class="v30-params__card v30-params__collapse" data-v30-notif data-tab="notif">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('bell', 16) }}
@@ -262,7 +308,7 @@
     </details>
 
     {# ─── 5. Mon compte ───────────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-account>
+    <details class="v30-params__card v30-params__collapse" data-v30-account data-tab="account">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('user', 16) }}
@@ -304,7 +350,7 @@
     </details>
 
     {# ─── 6. À propos ─────────────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-about>
+    <details class="v30-params__card v30-params__collapse" data-v30-about data-tab="about">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('bulb', 16) }}
@@ -346,7 +392,7 @@
 
     {# ─── Mise à jour serveur (admin) ─────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
-    <details class="v30-params__card v30-params__collapse v30-deploy" data-v30-deploy>
+    <details class="v30-params__card v30-params__collapse v30-deploy" data-v30-deploy data-tab="deploy">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('arrowU', 16) }}
@@ -388,6 +434,45 @@
     </details>
     {% endif %}
 
+  </div>
+</div>
+
+{# ─── Modale KPI manuel ─── #}
+<div class="v30-modal-bd" data-v30-kpi-modal-bd hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-label="Ajouter un KPI manuel">
+    <header class="v30-modal__head">
+      <h2 class="v30-modal__title">{{ ui.icon('plus', 14) }} Ajouter un KPI</h2>
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-kpi-close aria-label="Fermer">{{ ui.icon('x') }}</button>
+    </header>
+    <div class="v30-modal__body">
+      <div class="v30-field">
+        <label class="v30-field__label" for="v30KpiType">Type d'action</label>
+        <select id="v30KpiType" class="v30-input v30-select" data-v30-kpi-type>
+          <option value="rdv">RDV (réunion)</option>
+          <option value="call">Appel</option>
+          <option value="email">Email</option>
+          <option value="push">Push</option>
+          <option value="sourcing">Sourcing</option>
+          <option value="note">Note</option>
+        </select>
+      </div>
+      <div class="v30-field">
+        <label class="v30-field__label" for="v30KpiDate">Date</label>
+        <input id="v30KpiDate" type="date" class="v30-input" data-v30-kpi-date>
+      </div>
+      <div class="v30-field">
+        <label class="v30-field__label" for="v30KpiCount">Nombre</label>
+        <input id="v30KpiCount" type="number" min="1" value="1" class="v30-input" data-v30-kpi-count>
+      </div>
+      <div class="v30-field">
+        <label class="v30-field__label" for="v30KpiDesc">Description (optionnel)</label>
+        <input id="v30KpiDesc" type="text" class="v30-input" placeholder="Ex : appel suivi avec ABC SAS" data-v30-kpi-desc>
+      </div>
+    </div>
+    <footer class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost" data-v30-kpi-close>Annuler</button>
+      <button type="button" class="btn btn-accent" data-v30-kpi-save>Enregistrer</button>
+    </footer>
   </div>
 </div>
 

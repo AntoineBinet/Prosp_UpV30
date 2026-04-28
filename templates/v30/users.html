@@ -10,66 +10,123 @@
 {% import "_partials/v30/icon.html" as ui %}
 
 <div class="v30-users" data-v30-users>
-  <div class="v30-users__topbar">
-    <div>
-      <div class="v30-users__eyebrow">Administration</div>
-      <h1 class="v30-users__title">
-        <span class="serif">Utilisateurs.</span>
-      </h1>
-      <div class="v30-users__sub" data-field="sub">Gérer les comptes, rôles et mots de passe.</div>
+
+  {# ─── Page header (pattern unifié) ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <p class="page-eyebrow">Administration</p>
+      <h1 class="page-title">Utilisateurs.</h1>
+      <p class="page-sub">Gérer comptes, rôles, mots de passe et historique de connexion.</p>
     </div>
-    <div class="v30-spacer"></div>
-    <button type="button" class="btn btn-accent" data-v30-users-new>
-      {{ ui.icon('plus', 13) }} Nouvel utilisateur
+    <div class="page-header__actions">
+      <button type="button" class="btn btn-accent" data-v30-users-new>
+        {{ ui.icon('plus', 13) }} Nouvel utilisateur
+      </button>
+    </div>
+  </div>
+
+  {# ─── Tabs : Liste / Historique ─── #}
+  <div class="tab-bar v30-users__tabs" role="tablist" aria-label="Sections utilisateurs" data-v30-users-tabs>
+    <button type="button" class="tab-btn is-active" data-tab="list" role="tab" aria-selected="true">
+      {{ ui.icon('user', 12) }} Utilisateurs
+    </button>
+    <button type="button" class="tab-btn" data-tab="history" role="tab" aria-selected="false">
+      {{ ui.icon('clock', 12) }} Derniers logins
     </button>
   </div>
 
-  <div class="v30-users__grid" data-v30-users-grid>
-    <div class="empty" style="padding:24px;">Chargement…</div>
-  </div>
+  {# ─── Tableau utilisateurs ─── #}
+  <section class="v30-users__panel" data-panel="list">
+    <div class="v30-users__table-wrap card card-flush">
+      <table class="user-table" data-v30-users-table>
+        <thead>
+          <tr>
+            <th scope="col">Utilisateur</th>
+            <th scope="col">Email / Username</th>
+            <th scope="col">Rôle</th>
+            <th scope="col" class="u-hide-sm">Créé le</th>
+            <th scope="col" class="u-hide-sm">Dernière connexion</th>
+            <th scope="col" class="u-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody data-v30-users-tbody>
+          <tr><td colspan="6" class="empty" style="padding:24px;">Chargement…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {# ─── Historique logins ─── #}
+  <section class="v30-users__panel" data-panel="history" hidden>
+    <div class="v30-users__panel-head">
+      <h2 class="v30-users__panel-title">Derniers logins</h2>
+      <p class="muted" style="font-size:12px; margin:0;">Basé sur le champ <code class="mono">lastLoginAt</code> par utilisateur.</p>
+    </div>
+    <div class="card card-flush">
+      <table class="history-table" data-v30-users-history>
+        <thead>
+          <tr>
+            <th scope="col">Utilisateur</th>
+            <th scope="col">Rôle</th>
+            <th scope="col">Dernière connexion</th>
+          </tr>
+        </thead>
+        <tbody data-v30-users-history-tbody>
+          <tr><td colspan="3" class="empty" style="padding:24px;">Chargement…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 
 {# Modale création / édition #}
-<div class="v30-users__modal-bd" data-v30-user-bd hidden></div>
-<div class="v30-users__modal" data-v30-user-modal role="dialog" aria-modal="true"
-     aria-label="Gestion utilisateur" hidden>
-  <header class="v30-users__modal-head">
-    <h2 data-v30-user-title>Nouvel utilisateur</h2>
-    <button type="button" class="btn btn-ghost btn-icon" data-v30-user-close aria-label="Fermer">
-      {{ ui.icon('x') }}
-    </button>
-  </header>
-  <div class="v30-users__modal-body">
-    <label class="v30-field">
-      <span class="v30-field__label">Nom d'utilisateur</span>
-      <input type="text" class="v30-input" data-v30-user-username autocomplete="off">
-    </label>
-    <label class="v30-field">
-      <span class="v30-field__label">Nom d'affichage</span>
-      <input type="text" class="v30-input" data-v30-user-display autocomplete="off">
-    </label>
-    <label class="v30-field">
-      <span class="v30-field__label">Rôle</span>
-      <select class="v30-input" data-v30-user-role>
-        <option value="editor">Éditeur</option>
-        <option value="admin">Administrateur</option>
-      </select>
-    </label>
-    <label class="v30-field">
-      <span class="v30-field__label">Mot de passe <span class="muted" style="font-size:11px;">(laisser vide pour ne pas changer)</span></span>
-      <input type="password" class="v30-input" data-v30-user-password autocomplete="new-password">
-    </label>
-    <label class="v30-field" style="flex-direction:row;align-items:center;gap:8px;">
-      <input type="checkbox" data-v30-user-active checked>
-      <span class="v30-field__label" style="margin:0;">Compte actif</span>
-    </label>
+<div class="v30-modal-bd" data-v30-user-bd hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-label="Gestion utilisateur">
+    <header class="v30-modal__head">
+      <h2 class="v30-modal__title" data-v30-user-title>Nouvel utilisateur</h2>
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-user-close aria-label="Fermer">{{ ui.icon('x') }}</button>
+    </header>
+    <div class="v30-modal__body">
+      <div class="v30-field">
+        <label class="v30-field__label" for="v30UserUsername">Nom d'utilisateur <span class="required-mark">*</span></label>
+        <input id="v30UserUsername" type="text" class="v30-input" data-v30-user-username autocomplete="off">
+      </div>
+      <div class="v30-field">
+        <label class="v30-field__label" for="v30UserDisplay">Nom d'affichage</label>
+        <input id="v30UserDisplay" type="text" class="v30-input" data-v30-user-display autocomplete="off">
+      </div>
+      <div class="v30-field">
+        <span class="v30-field__label">Rôle</span>
+        <div class="v30-users__role-radios">
+          <label class="role-radio">
+            <input type="radio" name="v30UserRole" value="editor" data-v30-user-role-r checked>
+            <span class="role-chip role-chip--editor">Éditeur</span>
+          </label>
+          <label class="role-radio">
+            <input type="radio" name="v30UserRole" value="admin" data-v30-user-role-r>
+            <span class="role-chip role-chip--admin">Administrateur</span>
+          </label>
+        </div>
+      </div>
+      <div class="v30-field">
+        <label class="v30-field__label" for="v30UserPassword">
+          Mot de passe
+          <span class="muted" style="font-size:11px;">(min 8 car., 1 chiffre, 1 lettre · vide = inchangé)</span>
+        </label>
+        <input id="v30UserPassword" type="password" class="v30-input" data-v30-user-password autocomplete="new-password">
+      </div>
+      <div class="v30-field" style="flex-direction:row;align-items:center;gap:8px;">
+        <input id="v30UserActive" type="checkbox" data-v30-user-active checked>
+        <label for="v30UserActive" class="v30-field__label" style="margin:0;cursor:pointer;">Compte actif</label>
+      </div>
+    </div>
+    <footer class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost" data-v30-user-close>Annuler</button>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-danger" data-v30-user-delete hidden>Supprimer</button>
+      <button type="button" class="btn btn-accent" data-v30-user-save>Enregistrer</button>
+    </footer>
   </div>
-  <footer class="v30-users__modal-foot">
-    <button type="button" class="btn btn-ghost" data-v30-user-close>Annuler</button>
-    <div class="v30-spacer"></div>
-    <button type="button" class="btn" data-v30-user-delete hidden>Supprimer</button>
-    <button type="button" class="btn btn-accent" data-v30-user-save>Enregistrer</button>
-  </footer>
 </div>
 
 <script defer src="/static/js/v30/users.js?v={{ static_hash('js/v30/users.js') }}"></script>
