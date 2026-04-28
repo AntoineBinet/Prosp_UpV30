@@ -810,13 +810,14 @@
     var fonction = p.fonction || '';
     var entreprise = (STATE.company && STATE.company.groupe) || '';
     var prompt =
-      'Rédige une phrase professionnelle et personnalisée (1 à 2 phrases) pour introduire un email de suivi après un appel manqué. ' +
-      'La phrase doit expliquer que tu as essayé de joindre ' + nom +
-      (fonction ? ', ' + fonction : '') +
-      (entreprise ? ' chez ' + entreprise : '') +
-      ' aujourd\'hui mais que tu es tombé sur sa messagerie, et que tu l\'avais contacté car tu disposes de profils de consultants qui pourraient l\'intéresser. ' +
-      'Ton ton est professionnel, chaleureux et direct. ' +
-      'Réponds UNIQUEMENT avec la phrase, sans salutation, sans signature, sans introduction ni explication.';
+      'Rédige 1 à 2 phrases professionnelles pour le corps d\'un email adressé directement au destinataire. ' +
+      'Contexte : je lui ai passé un appel aujourd\'hui mais je suis tombé sur sa messagerie. ' +
+      'Je lui écris maintenant pour lui expliquer la raison de mon appel : je disposais de profils de consultants' +
+      (fonction ? ' dans le domaine ' + fonction : '') +
+      (entreprise ? ' qui pourraient intéresser ' + entreprise : ' qui pourraient l\'intéresser') + '. ' +
+      'La phrase s\'adresse à lui directement (utilise "vous"), sans citer son nom ni son poste. ' +
+      'Ton professionnel, chaleureux, concis. ' +
+      'Réponds UNIQUEMENT avec les phrases, sans salutation, sans signature, sans introduction ni explication.';
     var btn = $sel('data-v30pm-callnote-gen');
     var ta  = $sel('data-v30pm-callnote');
     var st  = $sel('data-v30pm-callnote-status');
