@@ -511,6 +511,71 @@ a.btn[aria-disabled="true"] {
   pointer-events: none;
 }
 
+/* ── Grille de qualification ──────────────────────────────── */
+.v30-grille-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-3);
+  padding: 14px 0 6px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+.v30-grille-section-title:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+.v30-grille-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.v30-grille-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.v30-grille-textarea {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 12.5px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 36px;
+  transition: border-color .15s;
+}
+.v30-grille-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.v30-grille-select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 12.5px;
+  font-family: inherit;
+}
+.v30-grille-form {
+  overflow-y: auto;
+  max-height: 60vh;
+}
+/* Modal tall — pour le formulaire après-RDV */
+.v30-modal--tall {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+.v30-modal--tall .v30-modal__body {
+  flex: 1;
+  overflow-y: auto;
+}
+
 /* Responsive */
 @media (max-width: 1100px) {
   .v30-fp-body { grid-template-columns: 1fr; }
