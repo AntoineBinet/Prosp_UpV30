@@ -817,11 +817,11 @@
       '"Je souhaitais vous présenter quelques profils de consultants ___"\n\n' +
       'Contexte :\n' +
       (entreprise ? '- Entreprise du destinataire : ' + entreprise + '\n' : '') +
-      '- Si tu connais le secteur de cette entreprise (ex : BTP, industrie, énergie…), mentionne-le\n' +
-      '- Sinon, termine simplement par "qui pourraient vous intéresser."\n\n' +
+      '- Si tu connais le secteur de cette entreprise (ex : BTP, industrie, énergie…), mentionne-le naturellement\n' +
+      '- Sinon, termine simplement par "qui pourraient vous intéresser." — ne mentionne pas le nom de l\'entreprise\n\n' +
       'Exemples de résultats attendus :\n' +
       '• "Je souhaitais vous présenter quelques profils de consultants spécialisés dans le BTP qui pourraient vous intéresser."\n' +
-      '• "Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser' + (entreprise ? ' pour ' + entreprise : '') + '."\n' +
+      '• "Je souhaitais vous présenter quelques profils de consultants en ingénierie qui pourraient vous intéresser."\n' +
       '• "Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser."\n\n' +
       'Règles ABSOLUES :\n' +
       '- Répondre UNIQUEMENT avec la phrase complète (commençant par "Je souhaitais")\n' +
@@ -851,8 +851,7 @@
       // Nettoie la phrase 2 (enlève guillemets parasites, préfixe "Je souhaitais" si absent)
       var raw = String(res.data.text || '').trim().replace(/^["«»""]|["«»""]$/g, '').trim();
       if (!raw.toLowerCase().startsWith('je souhaitais')) {
-        raw = 'Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser' +
-          (entreprise ? ' pour ' + entreprise : '') + '.';
+        raw = 'Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser.';
       }
       var text = phrase1 + ' ' + raw;
       if (ta) ta.value = text;
