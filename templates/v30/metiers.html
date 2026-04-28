@@ -1,5 +1,5 @@
 {% extends "v30/base.html" %}
-{% block title %}Métiers IA — Prosp'Up v30{% endblock %}
+{% block title %}Métiers — Prosp'Up v30{% endblock %}
 {% block page_id %}v30-metiers{% endblock %}
 
 {% block extra_head %}
@@ -11,27 +11,110 @@
 
 <div class="v30-metiers" data-v30-metiers>
 
-  <div class="v30-metiers__topbar">
-    <div>
-      <div class="v30-metiers__eyebrow">Référentiels</div>
-      <h1 class="v30-metiers__title"><span class="serif">Métiers &amp; tags IA.</span></h1>
-      <div class="v30-metiers__sub">
-        Métiers personnalisés utilisés par l'IA pour la catégorisation.
-      </div>
+  {# ─── Page header ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <p class="page-eyebrow">Référentiels</p>
+      <h1 class="page-title">Métiers &amp; tags IA.</h1>
+      <p class="page-sub">Référentiel des spécialités utilisées par l'IA pour la catégorisation.</p>
     </div>
-    <div class="v30-spacer"></div>
-    <button type="button" class="btn btn-accent" data-v30-metier-add>
-      {{ ui.icon('plus', 13) }} Ajouter
-    </button>
+    <div class="page-header__actions">
+      <button type="button" class="btn" data-v30-metiers-export>
+        {{ ui.icon('arrowD', 13) }} Export JSON
+      </button>
+      {% if current_user and current_user.role == 'admin' %}
+      <button type="button" class="btn btn-accent" data-v30-metier-add>
+        {{ ui.icon('plus', 13) }} Ajouter (custom)
+      </button>
+      {% endif %}
+    </div>
   </div>
 
-  <div class="card card-flush">
-    <div class="v30-metiers__list" data-v30-metiers-list>
-      <div class="empty" style="padding:24px;">Chargement…</div>
-    </div>
+  {# ─── Search bar ─── #}
+  <div class="search-bar v30-metiers__search">
+    {{ ui.icon('search', 14) }}
+    <input type="search" class="input" data-v30-metiers-search
+           placeholder="Rechercher un métier, une techno, un secteur…" autocomplete="off">
+    <button type="button" class="btn btn-ghost btn-sm" data-v30-metiers-search-clear hidden aria-label="Effacer">×</button>
   </div>
+
+  {# ─── Filtres domaine ─── #}
+  <div class="filter-chips v30-metiers__domains" data-v30-metiers-domains role="group" aria-label="Filtre domaine">
+    {# Rempli en JS depuis METIERS_DATA #}
+  </div>
+
+  {# ─── Grille métiers ─── #}
+  <div class="v30-metiers__count muted" data-v30-metiers-count></div>
+  <div class="metiers-grid" data-v30-metiers-grid>
+    <div class="empty" style="padding:24px;">Chargement…</div>
+  </div>
+
+  {# ─── Custom métiers (admin) ─── #}
+  {% if current_user and current_user.role == 'admin' %}
+  <details class="v30-metiers__custom-card">
+    <summary>
+      {{ ui.icon('bulb', 14) }} Métiers personnalisés
+      <span class="muted" style="font-size:11px; margin-left:8px;">Ajouts CRUD admin (table custom_metiers)</span>
+    </summary>
+    <div class="v30-metiers__custom-body">
+      <div class="v30-metiers__list" data-v30-metiers-list>
+        <div class="empty" style="padding:18px;">Chargement…</div>
+      </div>
+    </div>
+  </details>
+  {% endif %}
 
 </div>
 
+{# ─── Modale détail métier ─── #}
+<div class="v30-modal-bd" data-v30-metier-detail-bd hidden>
+  <div class="v30-modal v30-modal--xl" role="dialog" aria-modal="true" aria-label="Détail métier">
+    <header class="v30-modal__head">
+      <h2 class="v30-modal__title" data-v30-metier-detail-title>Détail</h2>
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-metier-detail-close aria-label="Fermer">{{ ui.icon('x') }}</button>
+    </header>
+    <div class="v30-modal__body">
+      <div class="v30-colgrid v30-metier-detail">
+        <div class="v30-metier-detail__left">
+          <h3 class="v30-metier-detail__h">Description</h3>
+          <p class="v30-metier-detail__desc" data-v30-metier-detail-desc>—</p>
+
+          <h3 class="v30-metier-detail__h">Secteurs</h3>
+          <div class="v30-metier-detail__sectors" data-v30-metier-detail-sectors></div>
+
+          <h3 class="v30-metier-detail__h">Certifications</h3>
+          <div class="v30-metier-detail__certs" data-v30-metier-detail-certifs>—</div>
+        </div>
+        <div class="v30-metier-detail__right">
+          <div class="v30-metier-detail__stats">
+            <div class="v30-metier-detail__stat">
+              <span class="v30-metier-detail__stat-key">Salaire médian</span>
+              <span class="v30-metier-detail__stat-val mono" data-v30-metier-detail-salary>—</span>
+            </div>
+            <div class="v30-metier-detail__stat">
+              <span class="v30-metier-detail__stat-key">Tendance</span>
+              <span class="v30-metier-detail__trend" data-v30-metier-detail-trend>
+                <span class="v30-metier-detail__trend-bar"><i></i></span>
+                <span class="v30-metier-detail__trend-label" data-v30-metier-detail-trend-label>—</span>
+              </span>
+            </div>
+            <div class="v30-metier-detail__stat">
+              <span class="v30-metier-detail__stat-key">Domaine</span>
+              <span class="v30-metier-detail__stat-val" data-v30-metier-detail-domain>—</span>
+            </div>
+          </div>
+
+          <h3 class="v30-metier-detail__h">Compétences clés</h3>
+          <div class="v30-metier-detail__skills" data-v30-metier-detail-skills></div>
+        </div>
+      </div>
+    </div>
+    <footer class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost" data-v30-metier-detail-close>Fermer</button>
+    </footer>
+  </div>
+</div>
+
+<script defer src="/static/js/metiers-data.js?v={{ static_hash('js/metiers-data.js') }}"></script>
 <script defer src="/static/js/v30/metiers.js?v={{ static_hash('js/v30/metiers.js') }}"></script>
 {% endblock %}

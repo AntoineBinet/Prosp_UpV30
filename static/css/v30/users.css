@@ -1,94 +1,192 @@
 /* ProspUp v30 — Utilisateurs (admin) */
 
-.v30-users { display: flex; flex-direction: column; gap: 16px; }
+.v30-users { display: flex; flex-direction: column; gap: 14px; }
 
-.v30-users__topbar {
-  display: flex; align-items: center; gap: 12px;
-  padding: 6px 0 10px; border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-.v30-users__eyebrow {
-  font-size: 10.5px; color: var(--text-3);
-  text-transform: uppercase; letter-spacing: .08em;
-}
-.v30-users__title {
-  margin: 2px 0 4px; font-size: 30px; font-weight: 400; color: var(--text);
-  letter-spacing: -.01em;
-}
-.v30-users__title .serif { font-family: var(--font-serif); font-style: italic; }
-.v30-users__sub { font-size: 12.5px; color: var(--text-2); }
-
-.v30-users__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-
-.v30-users__card {
-  padding: 14px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: var(--r-xl);
+/* ─── Tab-bar (sticky, partagé avec parametres) ─── */
+.tab-bar.v30-users__tabs {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  cursor: pointer;
-  transition: transform .12s;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 4px;
 }
-.v30-users__card:hover { transform: translateY(-1px); }
-.v30-users__card-head { display: flex; align-items: center; gap: 10px; }
-.v30-users__card-avatar {
-  width: 40px; height: 40px; border-radius: 50%;
+.tab-bar .tab-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.tab-bar .tab-btn:hover {
+  border-color: color-mix(in oklch, var(--accent) 30%, var(--border));
+  color: var(--text);
+}
+.tab-bar .tab-btn.is-active {
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+  color: var(--accent);
+}
+
+/* ─── Panneaux ─── */
+.v30-users__panel { display: flex; flex-direction: column; gap: 10px; }
+.v30-users__panel[hidden] { display: none !important; }
+.v30-users__panel-head {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 6px 4px;
+}
+.v30-users__panel-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ─── Tableau utilisateurs ─── */
+.v30-users__table-wrap { overflow-x: auto; }
+.user-table,
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.user-table thead th,
+.history-table thead th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  position: sticky; top: 0;
+}
+.user-table tbody td,
+.history-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.user-table tbody tr:last-child td,
+.history-table tbody tr:last-child td { border-bottom: 0; }
+.user-table tbody tr:hover td { background: color-mix(in oklch, var(--accent) 4%, transparent); }
+.user-table .u-actions { width: 1%; white-space: nowrap; text-align: right; }
+
+@media (max-width: 720px) {
+  .user-table .u-hide-sm,
+  .history-table .u-hide-sm { display: none; }
+}
+
+/* ─── User row ─── */
+.user-row__main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.user-row__avatar {
+  width: 32px; height: 32px; border-radius: 50%;
   background: var(--surface-2); color: var(--text);
   display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 600; font-size: 14px;
+  font-weight: 600; font-size: 12px;
   border: 1px solid var(--border);
+  flex-shrink: 0;
 }
-.v30-users__card-name { font-size: 14px; font-weight: 600; color: var(--text); }
-.v30-users__card-user { font-size: 11.5px; color: var(--text-3); }
-.v30-users__card-role {
-  font-size: 10.5px; padding: 2px 8px; border-radius: 999px;
-  background: var(--surface-2); color: var(--text-2);
-  border: 1px solid var(--border);
+.user-row__name {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  display: flex; align-items: center; gap: 6px; min-width: 0;
 }
-.v30-users__card-role.is-admin {
-  background: color-mix(in oklch, var(--accent) 15%, transparent);
-  color: var(--accent);
-  border-color: color-mix(in oklch, var(--accent) 25%, transparent);
+.user-row__name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-row__user { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
+.user-row__inactive-tag {
+  font-size: 10px; padding: 1px 6px; border-radius: 4px;
+  border: 1px solid var(--border); color: var(--text-3); background: var(--surface-2);
+  text-transform: uppercase; letter-spacing: .04em;
 }
-.v30-users__card-meta { font-size: 11.5px; color: var(--text-3); }
-.v30-users__card-inactive { opacity: .55; }
 
-/* Modale */
-.v30-users__modal-bd {
-  position: fixed; inset: 0;
-  background: color-mix(in oklch, black 55%, transparent);
-  backdrop-filter: blur(3px);
-  z-index: 110;
+/* ─── Badge "Vous" ─── */
+.badge-self {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
+  text-transform: uppercase;
+  letter-spacing: .04em;
 }
-.v30-users__modal-bd[hidden], .v30-users__modal[hidden] { display: none !important; }
-.v30-users__modal {
-  position: fixed; top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: min(480px, 94vw); max-height: 92vh; overflow: auto;
-  background: var(--surface);
+
+/* ─── Role chip ─── */
+.role-chip {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  letter-spacing: .03em;
   border: 1px solid var(--border);
-  border-radius: var(--r-2xl);
-  box-shadow: var(--shadow-pop);
-  z-index: 120;
-  display: flex;
-  flex-direction: column;
+  background: var(--surface-2);
+  color: var(--text-2);
 }
-.v30-users__modal-head {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 14px 18px; border-bottom: 1px solid var(--border);
+.role-chip--admin {
+  background: color-mix(in oklch, var(--danger) 14%, transparent);
+  color: var(--danger);
+  border-color: color-mix(in oklch, var(--danger) 35%, transparent);
 }
-.v30-users__modal-head h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
-.v30-users__modal-body {
-  padding: 16px 18px;
-  display: flex; flex-direction: column; gap: 12px;
+.role-chip--editor {
+  background: color-mix(in oklch, var(--info, var(--accent)) 14%, transparent);
+  color: var(--info, var(--accent));
+  border-color: color-mix(in oklch, var(--info, var(--accent)) 35%, transparent);
 }
-.v30-users__modal-foot {
-  padding: 12px 18px; border-top: 1px solid var(--border);
-  display: flex; align-items: center; gap: 8px;
+
+/* Role radio dans modale */
+.v30-users__role-radios {
+  display: flex; gap: 8px; flex-wrap: wrap;
 }
+.role-radio {
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer;
+  padding: 5px 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  transition: border-color .12s;
+}
+.role-radio input { accent-color: var(--accent); }
+.role-radio:has(input:checked) {
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+  background: color-mix(in oklch, var(--accent) 6%, transparent);
+}
+
+/* Action buttons */
+.user-row__actions { display: inline-flex; gap: 4px; justify-content: flex-end; }
+.btn.btn-ghost.btn-sm.btn-icon-only,
+.user-row__actions .btn { padding: 4px 8px; font-size: 11.5px; }
+
+/* Inactif */
+.user-row.is-inactive .user-row__main { opacity: .55; }
+
+/* Date cells */
+.user-table .u-date,
+.history-table .u-date {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+/* Bouton danger (compat avec le btn générique) */
+.btn.btn-danger {
+  border-color: color-mix(in oklch, var(--danger) 35%, var(--border));
+  color: var(--danger);
+}
+.btn.btn-danger:hover {
+  background: color-mix(in oklch, var(--danger) 12%, transparent);
+}
+
+.required-mark { color: var(--danger); margin-left: 2px; }

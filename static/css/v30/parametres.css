@@ -2,6 +2,83 @@
 
 .v30-params { display: flex; flex-direction: column; gap: 16px; }
 
+/* ─── Tab-bar (sticky) ─── */
+.tab-bar.v30-params__tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 0;
+  margin: 0 0 4px;
+  background: color-mix(in oklab, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.tab-bar .tab-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+  letter-spacing: .01em;
+}
+.tab-bar .tab-btn:hover {
+  border-color: color-mix(in oklch, var(--accent) 30%, var(--border));
+  color: var(--text);
+}
+.tab-bar .tab-btn.is-active {
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+  color: var(--accent);
+}
+
+/* Filtre par tab : masquer cards qui ne correspondent pas */
+.v30-params__grid[data-active-tab]:not([data-active-tab="all"]) .v30-params__card[data-tab]:not([data-tab-match]) {
+  display: none;
+}
+
+/* Status box / log terminal helpers */
+.status-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.status-box .v30-chip { padding: 1px 8px; font-size: 10px; }
+.status-box.is-ok { border-color: color-mix(in oklch, var(--success) 40%, var(--border)); color: var(--success); }
+.status-box.is-error { border-color: color-mix(in oklch, var(--danger) 40%, var(--border)); color: var(--danger); }
+.status-box.is-warn { border-color: color-mix(in oklch, var(--warn) 40%, var(--border)); color: var(--warn); }
+
+.log-terminal {
+  margin: 0;
+  padding: 12px;
+  background: #0b0e13;
+  border: 1px solid #1d2230;
+  border-radius: var(--r-sm);
+  color: #c8d1dc;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
 
 /* ─── Section Déploiement ─────────────────────────── */
 .v30-deploy__path {

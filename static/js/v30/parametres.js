@@ -917,6 +917,161 @@
   }
 
   // ══════════════════════════════════════════════════════════════
+  //  Tabs (filtre cards par data-tab)
+  // ══════════════════════════════════════════════════════════════
+  function applyTab(tab) {
+    var grid = document.querySelector('.v30-params__grid');
+    if (!grid) return;
+    grid.setAttribute('data-active-tab', tab || 'all');
+    var cards = grid.querySelectorAll('.v30-params__card[data-tab]');
+    cards.forEach(function (c) {
+      var match = (tab === 'all') || (c.getAttribute('data-tab') === tab);
+      if (match) c.setAttribute('data-tab-match', '1');
+      else c.removeAttribute('data-tab-match');
+    });
+    // Rendre la persistance simple
+    try { localStorage.setItem('v30_params_tab', tab || 'all'); } catch (_) {}
+  }
+  function bindTabs() {
+    var bar = $('[data-v30-params-tabs]');
+    if (!bar) return;
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-tab]');
+      if (!btn) return;
+      bar.querySelectorAll('button[data-tab]').forEach(function (b) {
+        var act = (b === btn);
+        b.classList.toggle('is-active', act);
+        b.setAttribute('aria-selected', act ? 'true' : 'false');
+      });
+      applyTab(btn.getAttribute('data-tab'));
+    });
+    // Restaurer onglet précédent
+    var saved = 'all';
+    try { saved = localStorage.getItem('v30_params_tab') || 'all'; } catch (_) {}
+    var match = bar.querySelector('button[data-tab="' + saved + '"]');
+    if (match) {
+      bar.querySelectorAll('button[data-tab]').forEach(function (b) {
+        var act = (b === match);
+        b.classList.toggle('is-active', act);
+        b.setAttribute('aria-selected', act ? 'true' : 'false');
+      });
+      applyTab(saved);
+    } else {
+      applyTab('all');
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  KPI manuels (manual_kpi)
+  // ══════════════════════════════════════════════════════════════
+  var KPI_TYPE_LABEL = {
+    rdv: 'RDV', call: 'Appel', email: 'Email',
+    push: 'Push', sourcing: 'Sourcing', note: 'Note'
+  };
+  function kpiOpenModal() {
+    var bd = $('[data-v30-kpi-modal-bd]');
+    if (!bd) return;
+    var d = $('[data-v30-kpi-date]');
+    if (d && !d.value) {
+      var t = new Date();
+      d.value = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+    }
+    bd.hidden = false;
+    bd.classList.add('is-open');
+  }
+  function kpiCloseModal() {
+    var bd = $('[data-v30-kpi-modal-bd]');
+    if (!bd) return;
+    bd.classList.remove('is-open');
+    bd.hidden = true;
+  }
+  async function kpiSave() {
+    var st = '[data-v30-kpi-status]';
+    var payload = {
+      type: ($('[data-v30-kpi-type]') || {}).value || 'note',
+      date: ($('[data-v30-kpi-date]') || {}).value || '',
+      count: parseInt(($('[data-v30-kpi-count]') || {}).value || '1', 10) || 1,
+      description: ($('[data-v30-kpi-desc]') || {}).value || ''
+    };
+    if (!payload.date) { toast('Date requise', 'error'); return; }
+    inlineStatus(st, 'Enregistrement…', 'var(--text-2)');
+    try {
+      var res = await fetch('/api/manual-kpi', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var j = await res.json();
+      if (!res.ok || !j.ok) throw new Error((j && j.error) || 'HTTP ' + res.status);
+      kpiCloseModal();
+      toast('KPI enregistré', 'success');
+      inlineStatus(st, 'Enregistré', 'var(--success)');
+      // Reset desc
+      var desc = $('[data-v30-kpi-desc]');
+      if (desc) desc.value = '';
+      kpiLoadList();
+    } catch (e) {
+      inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
+      toast('Erreur : ' + e.message, 'error');
+    }
+    clearInlineStatus(st);
+  }
+  async function kpiLoadList() {
+    var ul = $('[data-v30-kpi-list]');
+    if (!ul) return;
+    ul.innerHTML = '<li class="muted v30-params__empty">Chargement…</li>';
+    try {
+      var res = await fetch('/api/manual-kpi', { credentials: 'same-origin' });
+      var j = await res.json();
+      var entries = (j && j.entries) ? j.entries.slice(0, 12) : [];
+      if (!entries.length) {
+        ul.innerHTML = '<li class="muted v30-params__empty">Aucune entrée pour le moment.</li>';
+        return;
+      }
+      ul.innerHTML = entries.map(function (e) {
+        var label = KPI_TYPE_LABEL[e.type] || e.type || '—';
+        return '<li class="v30-params__snapshot">' +
+          '<span class="v30-params__snapshot-meta">' +
+            '<strong>' + esc(label) + '</strong> · ' +
+            '<span class="mono">' + esc(e.date || '') + '</span> · ' +
+            '×' + esc(e.count != null ? e.count : 1) +
+            (e.description ? ' — <span class="muted">' + esc(e.description) + '</span>' : '') +
+          '</span>' +
+        '</li>';
+      }).join('');
+    } catch (e) {
+      ul.innerHTML = '<li class="muted v30-params__empty">Erreur : ' + esc(e.message) + '</li>';
+    }
+  }
+  function bindKpi() {
+    if (!$('[data-v30-kpi-list]')) return;
+    var add = $('[data-v30-kpi-add]');
+    if (add) add.addEventListener('click', kpiOpenModal);
+    var refresh = $('[data-v30-kpi-refresh]');
+    if (refresh) refresh.addEventListener('click', kpiLoadList);
+    document.querySelectorAll('[data-v30-kpi-close]').forEach(function (b) {
+      b.addEventListener('click', kpiCloseModal);
+    });
+    var save = $('[data-v30-kpi-save]');
+    if (save) save.addEventListener('click', kpiSave);
+    var bd = $('[data-v30-kpi-modal-bd]');
+    if (bd) bd.addEventListener('click', function (e) {
+      if (e.target === bd) kpiCloseModal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') kpiCloseModal();
+    });
+    // Charge à l'ouverture du <details>
+    var card = $('[data-v30-kpi]');
+    if (card) {
+      card.addEventListener('toggle', function () {
+        if (card.open) kpiLoadList();
+      });
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
   //  Bind global
   // ══════════════════════════════════════════════════════════════
   function bindDeploy() {
@@ -932,9 +1087,11 @@
   }
 
   function bind() {
+    bindTabs();
     bindDeploy();
     bindAi();
     bindGoals();
+    bindKpi();
     bindCalSync();
     bindBackup();
     bindNotif();

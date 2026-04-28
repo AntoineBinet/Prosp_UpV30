@@ -5099,9 +5099,8 @@ def page_v30_dc(cid: int | None = None):
 
 @app.get("/v30/metiers")
 @login_required
-@role_required('admin')
 def page_v30_metiers():
-    """Métiers IA v30 — admin only, miroir /metiers."""
+    """Métiers v30 — référentiel ouvert à tous, CRUD custom_metiers réservé admin."""
     u = _get_current_user() or {}
     dn = (u.get("display_name") or u.get("username") or "AB").strip()
     parts = [p for p in dn.split() if p]
@@ -5109,10 +5108,11 @@ def page_v30_metiers():
     return render_template(
         "v30/metiers.html",
         active="metiers",
-        crumbs=["Prosp'Up", "Métiers IA"],
+        crumbs=["Prosp'Up", "Métiers"],
         counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
+        current_user=u,
         app_version=APP_VERSION,
     )
 
