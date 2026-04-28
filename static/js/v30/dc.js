@@ -210,38 +210,111 @@
     });
   }
 
-  // ─── History ────────────────────────────────────────────
+  // ─── History (persistent, DB-backed) ────────────────────
   var _history = [];
 
-  function addToHistory(item) {
-    _history.unshift(item);
-    if (_history.length > 10) _history.pop();
-    renderHistory();
+  function addToHistory(_item) {
+    // After a fresh generation, refetch full history from server
+    loadHistory();
+  }
+
+  function loadHistory() {
+    var url = '/api/dc/history' + (CID ? '?candidate_id=' + CID : '');
+    fetchJSON(url).then(function (res) {
+      _history = (res && res.data) || [];
+      renderHistory();
+    }).catch(function () {
+      var host = $('[data-v30-dc-history]');
+      var side = $('[data-v30-dc-history-side]');
+      var msg = '<div class="empty" style="font-size:12px;color:var(--text-3);padding:8px 0;">Historique indisponible.</div>';
+      if (host) host.innerHTML = msg;
+      if (side) side.innerHTML = msg;
+    });
+  }
+
+  function _historyItemHTML(h, compact) {
+    var actions = '';
+    if (h.exists !== false) {
+      actions += '<a class="btn btn-ghost btn-sm" href="' + esc(h.download_url || '#') + '" target="_blank" rel="noopener" download>Télécharger</a>';
+    } else {
+      actions += '<span class="muted" style="font-size:11px;">Fichier introuvable</span>';
+    }
+    actions += ' <button type="button" class="btn btn-ghost btn-sm" data-v30-dc-hist-del="' + esc(h.id) + '">Supprimer</button>';
+    var candLine = h.candidate_name
+      ? '<div class="v30-dc__hist-cand muted" style="font-size:11px;">' + esc(h.candidate_name) + (h.candidate_role ? ' · ' + esc(h.candidate_role) : '') + '</div>'
+      : '';
+    var ollamaBadge = h.used_ollama
+      ? ' <span class="badge badge-dot" title="Extraction Ollama">IA</span>'
+      : '';
+    return '<div class="v30-dc__hist-item" data-hist-id="' + esc(h.id) + '">' +
+      '<div class="v30-dc__hist-name">' + esc(h.filename || '—') + ollamaBadge + '</div>' +
+      candLine +
+      '<div class="v30-dc__hist-date muted" style="font-size:11px;">' + esc(h.generated_at_human || '') + '</div>' +
+      '<div class="v30-dc__hist-actions" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">' + actions + '</div>' +
+    '</div>';
   }
 
   function renderHistory() {
     var host = $('[data-v30-dc-history]');
-    if (!host) return;
+    var side = $('[data-v30-dc-history-side]');
+    var emptyMsg = '<div class="empty" style="font-size:12px;color:var(--text-3);padding:8px 0;">Aucun DC généré pour le moment.</div>';
     if (!_history.length) {
-      host.innerHTML = '<div class="empty" style="font-size:12px;color:var(--text-3);padding:8px 0;">Aucun DC généré dans cette session.</div>';
+      if (host) host.innerHTML = emptyMsg;
+      if (side) side.innerHTML = emptyMsg;
       return;
     }
-    host.innerHTML = _history.map(function (h) {
-      return '<div class="v30-dc__hist-item">' +
-        '<div class="v30-dc__hist-name">' + esc(h.filename || '—') + '</div>' +
-        '<div class="v30-dc__hist-date">' + esc(h.date || '') + '</div>' +
-        (h.url ? '<a href="' + esc(h.url) + '" target="_blank" rel="noopener">Télécharger</a>' : '') +
-      '</div>';
-    }).join('');
+    if (host) host.innerHTML = _history.map(function (h) { return _historyItemHTML(h, false); }).join('');
+    if (side) side.innerHTML = _history.slice(0, 5).map(function (h) { return _historyItemHTML(h, true); }).join('');
+  }
+
+  function deleteHistory(genId) {
+    if (!genId) return;
+    if (!window.confirm('Supprimer ce DC ? Le fichier sera également retiré du disque.')) return;
+    fetch('/api/dc/' + encodeURIComponent(genId), {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' }
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function () {
+      if (window.showToast) window.showToast('DC supprimé', 'success', 2500);
+      loadHistory();
+    }).catch(function (err) {
+      if (window.showToast) window.showToast('Erreur suppression : ' + (err.message || ''), 'error', 4000);
+    });
+  }
+
+  // ─── Tabs (Générateur | Historique) ─────────────────────
+  function switchTab(tab) {
+    var btns = document.querySelectorAll('[data-v30-dc-tab-btn]');
+    var panels = document.querySelectorAll('[data-v30-dc-tab-panel]');
+    btns.forEach(function (b) {
+      var on = b.getAttribute('data-v30-dc-tab-btn') === tab;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    panels.forEach(function (p) {
+      p.hidden = (p.getAttribute('data-v30-dc-tab-panel') !== tab);
+    });
+    if (tab === 'history') loadHistory();
   }
 
   // ─── Init ────────────────────────────────────────────────
   function init() {
     loadCandidate();
     bindUpload();
-    renderHistory();
+    loadHistory();
 
     document.addEventListener('click', function (e) {
+      var tabBtn = e.target.closest('[data-v30-dc-tab-btn]');
+      if (tabBtn) {
+        switchTab(tabBtn.getAttribute('data-v30-dc-tab-btn')); return;
+      }
+      var delBtn = e.target.closest('[data-v30-dc-hist-del]');
+      if (delBtn) {
+        deleteHistory(delBtn.getAttribute('data-v30-dc-hist-del')); return;
+      }
       if (e.target.closest('[data-v30-dc-open-interview]')) {
         openInterviewModal(); return;
       }

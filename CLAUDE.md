@@ -1,13 +1,13 @@
 # ProspUp — CRM Prospection B2B (Up Technologies)
 
-> **Version courante** : 31.0 (APP_VERSION dans app.py) — voir [CHANGELOG.md](CHANGELOG.md) pour l'historique récent.
-> **Interface par défaut** : v30/v31 (depuis 30.1). L'UI v29 reste pleinement accessible via le bouton « v29 » de la sidebar v30, la carte « Revenir à l'ancienne interface » dans `/v30/parametres`, ou l'URL `?force_v29=1` (escape hatch).
+> **Version courante** : 31.7 (APP_VERSION dans app.py) — voir [CHANGELOG.md](CHANGELOG.md) pour l'historique récent.
+> **Interface unique** : v30/v31. L'UI v29 a été dépréciée à la v31.7 — son code est archivé dans `archives/v29/` (templates, JS, opt-in). Les anciennes URLs (`/dashboard`, `/sourcing`, `/candidat?id=…`, etc.) renvoient désormais des **redirects 302** vers leur équivalent `/v30/...`. Aucun escape hatch (plus de bouton sidebar v29, plus de flag `?force_v29=1`).
 
 ## Stack technique
 - **Backend** : Flask (app.py ~17 500 lignes), SQLite, Waitress WSGI en prod, ReportLab pour génération PDF, python-docx pour DOCX
-- **Frontend** : Vanilla JS (pas de framework), templates Jinja2 (v30 + legacy), Chart.js (stats uniquement)
-- **CSS** : Glassmorphism dark theme legacy (`style.css` ~12 500 lignes) + design system v30 (`static/css/v30/*.css`), `prefers-color-scheme` pour light mode
-- **PWA** : Service Worker (`static/sw.js`), manifest, offline.html
+- **Frontend** : Vanilla JS (pas de framework), templates Jinja2 (v30 uniquement), Chart.js (stats uniquement)
+- **CSS** : design system v30 (`static/css/v30/*.css`), `prefers-color-scheme` pour light mode. Le skin legacy `style.css` n'est plus chargé.
+- **PWA** : Service Worker (`static/sw.js`), manifest (`start_url=/v30/dashboard`), offline.html
 - **Hébergement** : Cloudflare Tunnel → prospup.work, port 8000
 - **Tests E2E** : Playwright (Chromium), 14+ specs desktop + mobile Pixel 5
 
@@ -17,26 +17,24 @@ app.py                  # Backend Flask monolithique — routes, API, auth, DB
 routes/                 # Blueprints (ai.py, auth.py, deploy.py)
 services/               # Logique métier (dashboard_goals.py)
 templates/
-  legacy/               # Templates v29 (dashboard_v2, index, entreprises, …)
   v30/                  # Templates v30 (dashboard, prospects, candidate_detail, …)
   _partials/            # Partials (v30/topbar, v30/sidebar, v30/palette, …)
 static/
   css/
-    style.css            # Style principal (~12 500 lignes)
-    mobile.css           # Overrides mobile
-    mode-prosp.css       # Mode Prosp (deck 3D)
-    dashboard-v2.css     # Dashboard v2
+    v30/                 # Design system v30 (palette, components, tokens, *.css par page)
+    mode-prosp.css       # Mode Prosp (deck 3D, autonome — réutilisé par /v30/mode-prosp)
+    mobile-2026*.css     # Skin mobile commun (PWA)
   js/
-    app.js               # Logique globale (~15 300 lignes) — showToast, fetch wrappers, modales, prospects, bulk actions
-    page-*.js            # Un fichier par page (dashboard-v2, focus, candidate, company, push, stats, rapport, sourcing, etc.)
-    v8-features.js       # Features transversales (SW, bottom nav, haptic)
-    mobile.js            # Bottom nav, pull-to-refresh, swipe
-    sidebar.js           # Sidebar desktop (génération déclarative, role-aware)
+    v30/                 # Tous les scripts v30 (un fichier par page + utilitaires)
+    sidebar.js           # Sidebar mobile (déclarative)
+    v8-features.js       # SW, bottom nav, haptic
+    mobile-2026.js       # Bottom nav v8 mobile
     notifications.js     # Push notifications
     metiers-data.js      # Données métiers statiques
+    mode-prosp-tab.js    # Helper Mode Prosp
     xlsx.min.js          # SheetJS (import Excel)
   sw.js                  # Service Worker (network-first HTML/API, cache-first static)
-  manifest.json          # PWA manifest (shortcuts, share_target)
+  manifest.json          # PWA manifest (shortcuts, share_target — tous /v30/...)
 scripts/                # Outils admin (supervisor, watchdog, audit)
 tests/
   e2e/                   # Tests Playwright
@@ -44,7 +42,15 @@ tests/
   audit_multi_user.py    # Audit multi-user
 sample/                 # Templates DOCX (dossier compétence)
 pushs/                  # Templates push par catégorie
+archives/v29/           # Code v29 archivé (templates legacy + page-*.js + app.js +
+                        # opt-in.js). Non chargé par l'app — voir
+                        # archives/v29/README.md pour la procédure de restauration.
 ```
+
+## Migration v29 → v30 (v31.7)
+- **20 routes legacy** (`/`, `/dashboard`, `/sourcing`, `/candidat`, `/entreprises`, `/push`, `/stats`, `/calendrier`, `/rapport`, `/focus`, `/duplicates`, `/snapshots`, `/activity`, `/help`, `/aide`, `/metiers`, `/users`, `/parametres`, `/collab`, `/dc-generator`, `/prospects/mode-prosp`) → **redirect 302** vers `/v30/...`. `/candidat?id=X` et `/dc-generator?candidate=X` extraient le query param et redirigent vers `/v30/candidat/<X>` ou `/v30/dc/<X>`.
+- Toute autre URL legacy (sans équivalent v30) → 404 Flask par défaut.
+- Aucune table SQL n'a été migrée — les données restent identiques, seule l'UI change.
 
 ## Auth
 - Session cookie Flask (`session['user_id']`) + JWT Bearer (mobile)
@@ -62,12 +68,13 @@ pushs/                  # Templates push par catégorie
 - **En cas de divergence** : le flux de pull fait un `git pull --ff-only`, et en cas d'échec fait un `git reset --hard origin/main` + snapshot DB préalable.
 
 ## Conventions
-- `APP_VERSION` dans [app.py:38](app.py) — incrémenter à chaque release (actuellement "29.7").
+- `APP_VERSION` dans [app.py:38](app.py) — incrémenter à chaque release.
 - Cache-busters auto : app.py hash MD5 des statiques au démarrage et remplace `?v=XXXX` dans le HTML.
 - Pas de bundler/build — fichiers servis directement par Flask.
 - Scripts HTML avec `defer` partout (sauf Chart.js CDN dans stats.html).
-- Toast : `window.showToast(msg, type, duration)` dans app.js.
-- Haptic : `window.haptic(ms)` dans v8-features.js (mobile uniquement).
+- Toast : `window.showToast(msg, type, duration)` — défini dans `static/js/v30/toast.js`, chargé globalement par `templates/v30/base.html`.
+- IA : `window.callOllama(prompt, { stream, timeoutMs, model, webSearch })` — helper non-streaming dans `static/js/v30/ollama.js` (proxy vers `POST /api/ollama/generate`). Streaming SSE → fetch direct sur `/api/ollama/generate-stream`.
+- Haptic : `window.haptic(ms)` dans `static/js/v8-features.js` (mobile uniquement).
 - **Pas de `cache: 'no-store'`** sur les fetch — le SW et les headers Cache-Control gèrent déjà.
 
 ## Mise à jour depuis l'app (gestion Git)
@@ -104,7 +111,7 @@ pushs/                  # Templates push par catégorie
 - **Tavily** (cloud, optionnel) : recherche web pour enrichir prompts. Config dans Paramètres > Configuration IA (persisté `data/ai_config.json`, gitignored).
 - **Flux web_search** : Tavily → injecte résultats dans le prompt → Ollama génère → citations Tavily.
 - **Routes** : `POST /api/ollama/generate`, `POST /api/ollama/generate-stream`, `GET|POST /api/ai/config`, `POST /api/ai/test`.
-- **Front** : `callOllama(prompt, { webSearch: true })` dans app.js active le routing web.
+- **Front** : `window.callOllama(prompt, { webSearch: true })` (`static/js/v30/ollama.js`) active le routing web.
 - **Variables env** (override par UI) : `OLLAMA_URL`, `OLLAMA_MODEL` (défaut `llama3.2`), `OLLAMA_TIMEOUT` (120 s), `TAVILY_API_KEY`.
 
 ### Entrées IA
@@ -122,7 +129,7 @@ pushs/                  # Templates push par catégorie
 
 ## Import Excel
 - Champs : Nom, Prénom (combinés), Entreprise, Site, Fonction, Téléphone (fusion multi-colonnes), Email, LinkedIn, Notes, Tags, Pertinence, Statut, Date dernier contact.
-- Auto-mapping : `_guessMapping` dans app.js.
+- Auto-mapping : header guessing inline dans `static/js/v30/prospects.js` (chargement de `xlsx.min.js` à la demande).
 - Fixture : [tests/fixtures/fichier_prosp_test_user.xlsx](tests/fixtures/fichier_prosp_test_user.xlsx).
 
 ## Commandes

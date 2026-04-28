@@ -1,31 +1,18 @@
 // Prosp'Up Service Worker v30 — liquid glass shell + v30 UX refresh
-const CACHE = 'prospup-v30.0-beta-shell-3';
+const CACHE = 'prospup-v31.7-shell-1';
 const API_CACHE = 'prospup-api-v23.4';
 const API_TTL = 5 * 60 * 1000; // 5 minutes
 
 const SHELL = [
-  // Legacy v29 shell (toujours servi pour les users restés sur v29)
-  '/static/css/style.css',
-  '/static/css/mobile.css',
+  // CSS encore utilisé par /v30/mode-prosp et la PWA mobile (skin commun)
+  '/static/css/mode-prosp.css',
   '/static/css/mobile-2026.css',
   '/static/css/mobile-2026-screens.css',
-  '/static/css/mode-prosp.css',
-  '/static/js/app.js',
   '/static/js/sidebar.js',
   '/static/js/v8-features.js',
   '/static/js/mobile-2026.js',
   '/static/js/notifications.js',
   '/static/js/metiers-data.js',
-  '/static/js/page-dashboard-v2.js',
-  '/static/js/page-focus.js',
-  '/static/js/page-calendar.js',
-  '/static/js/page-prospects.js',
-  '/static/js/page-push.js',
-  '/static/js/page-sourcing.js',
-  '/static/js/page-stats.js',
-  '/static/js/page-companies.js',
-  '/static/js/page-quickadd.js',
-  '/static/js/page-import.js',
   '/static/js/mode-prosp-tab.js',
   // v30 CSS
   '/static/css/v30/tokens.css',

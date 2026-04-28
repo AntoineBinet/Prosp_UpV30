@@ -157,6 +157,27 @@
   font-size: 11px;
   color: var(--accent);
 }
+.v30-dc__hist-cand {
+  margin-top: 2px;
+}
+.v30-dc__hist-actions .btn {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+/* ─── Full history panel (tab Historique) ─── */
+.v30-dc__hist-full > [data-v30-dc-history] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.v30-dc__hist-full .v30-dc__hist-item {
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  background: var(--surface-2);
+}
 
 /* ─── Interview preview ─── */
 .v30-dc__interview-preview {

@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "31.5"
+APP_VERSION = "31.7"
 import os
 import subprocess
 import traceback
@@ -1060,7 +1060,7 @@ def _verify_refresh_token(raw_token):
 @login_required
 @role_required('admin')
 def page_users():
-    return render_template("legacy/users.html", static_hashes=_static_hashes)
+    return redirect("/v30/users", code=302)
 
 @app.get("/api/users")
 @login_required
@@ -2156,6 +2156,41 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
                 created_at REAL
             );
             CREATE INDEX IF NOT EXISTS idx_linkedin_inmails_owner_date ON linkedin_inmails(owner_id, sent_at);
+
+            -- v31: persistent DC generation history (replaces in-session list)
+            CREATE TABLE IF NOT EXISTS dc_generations (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                candidate_id INTEGER,
+                filename     TEXT,
+                file_path    TEXT NOT NULL,
+                used_ollama  INTEGER DEFAULT 0,
+                generated_at TEXT NOT NULL,
+                owner_id     INTEGER NOT NULL,
+                deleted_at   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_dc_gen_owner_date ON dc_generations(owner_id, generated_at);
+            CREATE INDEX IF NOT EXISTS idx_dc_gen_candidate ON dc_generations(candidate_id, owner_id);
+
+            -- v31: standalone calendar events (créés depuis l'UI v30)
+            CREATE TABLE IF NOT EXISTS calendar_events (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                title        TEXT NOT NULL,
+                event_date   TEXT NOT NULL,
+                event_time   TEXT,
+                duration_min INTEGER,
+                location     TEXT,
+                notes        TEXT,
+                status       TEXT DEFAULT 'planifie',
+                event_type   TEXT DEFAULT 'rdv',
+                prospect_id  INTEGER,
+                candidate_id INTEGER,
+                company_id   INTEGER,
+                owner_id     INTEGER NOT NULL,
+                created_at   TEXT,
+                updated_at   TEXT,
+                deleted_at   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_cal_evt_owner_date ON calendar_events(owner_id, event_date);
         ''')
 
         # Seed default admin if no users exist
@@ -2745,6 +2780,39 @@ def _migrate_user_db_schema(db_path: Path) -> None:
                     created_at REAL
                 );
                 CREATE INDEX IF NOT EXISTS idx_linkedin_inmails_owner_date ON linkedin_inmails(owner_id, sent_at);
+
+                CREATE TABLE IF NOT EXISTS dc_generations (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    candidate_id INTEGER,
+                    filename     TEXT,
+                    file_path    TEXT NOT NULL,
+                    used_ollama  INTEGER DEFAULT 0,
+                    generated_at TEXT NOT NULL,
+                    owner_id     INTEGER NOT NULL,
+                    deleted_at   TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_dc_gen_owner_date ON dc_generations(owner_id, generated_at);
+                CREATE INDEX IF NOT EXISTS idx_dc_gen_candidate ON dc_generations(candidate_id, owner_id);
+
+                CREATE TABLE IF NOT EXISTS calendar_events (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title        TEXT NOT NULL,
+                    event_date   TEXT NOT NULL,
+                    event_time   TEXT,
+                    duration_min INTEGER,
+                    location     TEXT,
+                    notes        TEXT,
+                    status       TEXT DEFAULT 'planifie',
+                    event_type   TEXT DEFAULT 'rdv',
+                    prospect_id  INTEGER,
+                    candidate_id INTEGER,
+                    company_id   INTEGER,
+                    owner_id     INTEGER NOT NULL,
+                    created_at   TEXT,
+                    updated_at   TEXT,
+                    deleted_at   TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_cal_evt_owner_date ON calendar_events(owner_id, event_date);
             ''')
         except Exception as e:
             print(f"[WARN] Migration tables KPI manquantes ({db_path}): {e}")
@@ -3486,6 +3554,39 @@ def _init_user_db(user_id: int) -> Path:
                 created_at REAL
             );
             CREATE INDEX IF NOT EXISTS idx_linkedin_inmails_owner_date ON linkedin_inmails(owner_id, sent_at);
+
+            CREATE TABLE IF NOT EXISTS dc_generations (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                candidate_id INTEGER,
+                filename     TEXT,
+                file_path    TEXT NOT NULL,
+                used_ollama  INTEGER DEFAULT 0,
+                generated_at TEXT NOT NULL,
+                owner_id     INTEGER NOT NULL,
+                deleted_at   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_dc_gen_owner_date ON dc_generations(owner_id, generated_at);
+            CREATE INDEX IF NOT EXISTS idx_dc_gen_candidate ON dc_generations(candidate_id, owner_id);
+
+            CREATE TABLE IF NOT EXISTS calendar_events (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                title        TEXT NOT NULL,
+                event_date   TEXT NOT NULL,
+                event_time   TEXT,
+                duration_min INTEGER,
+                location     TEXT,
+                notes        TEXT,
+                status       TEXT DEFAULT 'planifie',
+                event_type   TEXT DEFAULT 'rdv',
+                prospect_id  INTEGER,
+                candidate_id INTEGER,
+                company_id   INTEGER,
+                owner_id     INTEGER NOT NULL,
+                created_at   TEXT,
+                updated_at   TEXT,
+                deleted_at   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_cal_evt_owner_date ON calendar_events(owner_id, event_date);
         ''')
 
         now = datetime.datetime.now().isoformat(timespec="seconds")
@@ -4750,89 +4851,94 @@ def restore_snapshot(filename: str) -> None:
         src.close()
 
 
+# ─────────────────────────────────────────────────────────────────
+# Redirects legacy → v30 (v31.7+) : v29 archivée dans archives/v29/.
+# Les routes ci-dessous restent pour préserver bookmarks, partages
+# externes et PWA shortcuts. Toute URL sans équivalent v30 → 404.
+# ─────────────────────────────────────────────────────────────────
+
 @app.get("/")
 def home():
-    return render_template("legacy/index.html", static_hashes=_static_hashes)
+    return redirect("/v30/dashboard", code=302)
 
 
 @app.get("/entreprises")
 def page_entreprises():
-    return render_template("legacy/entreprises.html", static_hashes=_static_hashes)
+    return redirect("/v30/entreprises", code=302)
 
 @app.get("/company")
 def page_company():
-    return redirect("/entreprises")
-
+    return redirect("/v30/entreprises", code=302)
 
 
 @app.get("/parametres")
 def page_parametres():
-    return render_template("legacy/parametres.html", static_hashes=_static_hashes)
-
-
+    return redirect("/v30/parametres", code=302)
 
 
 @app.get("/sourcing")
 def page_sourcing():
-    return render_template("legacy/sourcing.html", static_hashes=_static_hashes)
+    return redirect("/v30/sourcing", code=302)
 
 
 @app.get("/candidat")
 def page_candidat():
-    """Fiche candidat (détail). Utilise le query param ?id=..."""
-    return render_template("legacy/candidate.html", static_hashes=_static_hashes)
+    """Fiche candidat (détail). Migre ?id=X → /v30/candidat/<X>."""
+    cid = (request.args.get("id") or "").strip()
+    if cid.isdigit():
+        return redirect(f"/v30/candidat/{cid}", code=302)
+    return redirect("/v30/sourcing", code=302)
 
 
 @app.get("/push")
 def page_push():
-    return render_template("legacy/push.html", static_hashes=_static_hashes)
+    return redirect("/v30/push", code=302)
 
 @app.get("/stats")
 def page_stats():
-    return render_template("legacy/stats.html", static_hashes=_static_hashes)
+    return redirect("/v30/stats", code=302)
 
 
 @app.get("/duplicates")
 def page_duplicates():
-    return render_template("legacy/duplicates.html", static_hashes=_static_hashes)
+    return redirect("/v30/duplicates", code=302)
 
 
 @app.get("/focus")
 def page_focus():
-    return render_template("legacy/focus.html", static_hashes=_static_hashes)
+    return redirect("/v30/focus", code=302)
 
 
 @app.get("/snapshots")
 def page_snapshots():
-    return render_template("legacy/snapshots.html", static_hashes=_static_hashes)
+    return redirect("/v30/snapshots", code=302)
 
 
 @app.get("/activity")
 @login_required
 @role_required('admin')
 def page_activity():
-    """Journal d'activité multi-utilisateurs — admin only (v27.10)."""
-    return render_template("legacy/activity.html", static_hashes=_static_hashes)
+    return redirect("/v30/activity", code=302)
 
 
 @app.get("/help")
 def page_help():
-    return render_template("legacy/help.html", static_hashes=_static_hashes)
+    return redirect("/v30/help", code=302)
 
 
 @app.get("/aide")
 def page_aide():
-    return render_template("legacy/help.html", static_hashes=_static_hashes)
+    return redirect("/v30/help", code=302)
 
 
 @app.get("/metiers")
 def page_metiers():
-    return render_template("legacy/metiers.html", static_hashes=_static_hashes)
+    return redirect("/v30/metiers", code=302)
 
 
 @app.get("/prospects/mode-prosp")
 def page_mode_prosp():
-    return render_template("legacy/mode_prosp.html", static_hashes=_static_hashes)
+    return redirect("/v30/mode-prosp", code=302)
 
 
 @app.get("/v30/mode-prosp")
@@ -16083,7 +16189,7 @@ def api_export_day():
 
 @app.get("/rapport")
 def page_rapport():
-    return render_template("legacy/rapport.html", static_hashes=_static_hashes)
+    return redirect("/v30/rapport", code=302)
 
 
 @app.get("/api/rapport-hebdo")
@@ -16538,14 +16644,13 @@ def api_metiers_batch_confirm_tags():
 
 @app.get("/calendrier")
 def page_calendar():
-    return render_template("legacy/calendrier.html", static_hashes=_static_hashes)
+    return redirect("/v30/calendrier", code=302)
 
 
 @app.get("/collab")
 @login_required
 def page_collab():
-    """Page de collaboration."""
-    return render_template("legacy/collab.html", static_hashes=_static_hashes)
+    return redirect("/v30/collab", code=302)
 
 
 @app.get("/api/calendar_events")
@@ -16645,7 +16750,193 @@ def api_calendar_events():
             "url": f"/candidat?id={d['id']}",
         })
 
+    # Standalone calendar events (créés depuis l'UI v30)
+    try:
+        with _conn() as conn:
+            custom_rows = conn.execute(
+                """SELECT e.id, e.title, e.event_date, e.event_time, e.duration_min,
+                          e.location, e.notes, e.status, e.event_type,
+                          e.prospect_id, e.candidate_id, e.company_id,
+                          p.name AS prospect_name,
+                          c.groupe AS company_groupe, c.site AS company_site
+                   FROM calendar_events e
+                   LEFT JOIN prospects p ON p.id = e.prospect_id AND p.owner_id = e.owner_id
+                   LEFT JOIN companies c ON c.id = e.company_id AND c.owner_id = e.owner_id
+                   WHERE e.owner_id=? AND e.deleted_at IS NULL""",
+                (uid,)
+            ).fetchall()
+        for r in custom_rows:
+            d = dict(r)
+            comp = d.get("company_groupe") or d.get("company_site") or ""
+            url = ""
+            if d.get("prospect_id"):
+                url = f"/v30/prospect/{d['prospect_id']}"
+            elif d.get("candidate_id"):
+                url = f"/v30/candidat/{d['candidate_id']}"
+            events.append({
+                "id": d["id"],
+                "custom_event_id": d["id"],
+                "name": d.get("title") or d.get("prospect_name") or "RDV",
+                "prospect_id": d.get("prospect_id"),
+                "candidate_id": d.get("candidate_id"),
+                "company_id": d.get("company_id"),
+                "company": comp,
+                "date": (d.get("event_date") or "")[:10],
+                "time": (d.get("event_time") or "")[:5],
+                "type": d.get("event_type") or "rdv",
+                "duration": d.get("duration_min") or 60,
+                "location": d.get("location") or "",
+                "notes": d.get("notes") or "",
+                "statut": d.get("status") or "planifie",
+                "url": url,
+                "source": "custom",
+            })
+    except Exception as _e:
+        logger.warning("api_calendar_events: custom events failed: %s", _e)
+
     return jsonify(ok=True, events=events)
+
+
+@app.post("/api/calendar_events")
+def api_calendar_events_create():
+    """Crée un événement de calendrier custom (v30)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(silent=True) or {}
+    title = (payload.get("title") or "").strip()
+    event_date = (payload.get("date") or payload.get("event_date") or "").strip()
+    if not title:
+        return jsonify(ok=False, error="title requis"), 400
+    if not event_date:
+        return jsonify(ok=False, error="date requise"), 400
+    # Validation simple AAAA-MM-JJ
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", event_date):
+        return jsonify(ok=False, error="date invalide (format YYYY-MM-DD)"), 400
+    event_time = (payload.get("time") or payload.get("event_time") or "").strip() or None
+    if event_time and not re.match(r"^\d{2}:\d{2}(:\d{2})?$", event_time):
+        return jsonify(ok=False, error="heure invalide (format HH:MM)"), 400
+    duration = payload.get("duration") or payload.get("duration_min")
+    try:
+        duration = int(duration) if duration not in (None, "") else 60
+    except (TypeError, ValueError):
+        duration = 60
+    location = (payload.get("location") or "").strip() or None
+    notes = (payload.get("notes") or "").strip() or None
+    status = (payload.get("status") or "planifie").strip()
+    if status not in ("planifie", "confirme", "annule", "termine"):
+        status = "planifie"
+    event_type = (payload.get("event_type") or payload.get("type") or "rdv").strip()
+    if event_type not in ("rdv", "relance", "ec1", "ec2", "appel", "autre"):
+        event_type = "rdv"
+    def _opt_int(v):
+        try:
+            return int(v) if v not in (None, "") else None
+        except (TypeError, ValueError):
+            return None
+    prospect_id = _opt_int(payload.get("prospect_id"))
+    candidate_id = _opt_int(payload.get("candidate_id"))
+    company_id = _opt_int(payload.get("company_id"))
+    now = datetime.datetime.now().isoformat()
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO calendar_events
+               (title, event_date, event_time, duration_min, location, notes, status, event_type,
+                prospect_id, candidate_id, company_id, owner_id, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+            (title, event_date, event_time, duration, location, notes, status, event_type,
+             prospect_id, candidate_id, company_id, uid, now, now)
+        )
+        new_id = cur.lastrowid
+        conn.commit()
+    return jsonify(ok=True, id=new_id)
+
+
+@app.put("/api/calendar_events/<int:event_id>")
+def api_calendar_events_update(event_id):
+    """Met à jour un événement custom (les champs fournis uniquement)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(silent=True) or {}
+    fields = {}
+    if "title" in payload:
+        t = (payload.get("title") or "").strip()
+        if not t:
+            return jsonify(ok=False, error="title vide"), 400
+        fields["title"] = t
+    if "date" in payload or "event_date" in payload:
+        d = (payload.get("date") or payload.get("event_date") or "").strip()
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+            return jsonify(ok=False, error="date invalide"), 400
+        fields["event_date"] = d
+    if "time" in payload or "event_time" in payload:
+        t2 = (payload.get("time") or payload.get("event_time") or "").strip()
+        if t2 and not re.match(r"^\d{2}:\d{2}(:\d{2})?$", t2):
+            return jsonify(ok=False, error="heure invalide"), 400
+        fields["event_time"] = t2 or None
+    if "duration" in payload or "duration_min" in payload:
+        try:
+            fields["duration_min"] = int(payload.get("duration") or payload.get("duration_min") or 60)
+        except (TypeError, ValueError):
+            fields["duration_min"] = 60
+    if "location" in payload:
+        fields["location"] = (payload.get("location") or "").strip() or None
+    if "notes" in payload:
+        fields["notes"] = (payload.get("notes") or "").strip() or None
+    if "status" in payload:
+        s = (payload.get("status") or "planifie").strip()
+        fields["status"] = s if s in ("planifie", "confirme", "annule", "termine") else "planifie"
+    if "event_type" in payload or "type" in payload:
+        et = (payload.get("event_type") or payload.get("type") or "rdv").strip()
+        fields["event_type"] = et if et in ("rdv", "relance", "ec1", "ec2", "appel", "autre") else "rdv"
+    if "prospect_id" in payload:
+        try:
+            fields["prospect_id"] = int(payload["prospect_id"]) if payload["prospect_id"] not in (None, "") else None
+        except (TypeError, ValueError):
+            fields["prospect_id"] = None
+    if "candidate_id" in payload:
+        try:
+            fields["candidate_id"] = int(payload["candidate_id"]) if payload["candidate_id"] not in (None, "") else None
+        except (TypeError, ValueError):
+            fields["candidate_id"] = None
+    if "company_id" in payload:
+        try:
+            fields["company_id"] = int(payload["company_id"]) if payload["company_id"] not in (None, "") else None
+        except (TypeError, ValueError):
+            fields["company_id"] = None
+    if not fields:
+        return jsonify(ok=False, error="aucun champ à mettre à jour"), 400
+    fields["updated_at"] = datetime.datetime.now().isoformat()
+    cols = ", ".join(f"{k}=?" for k in fields)
+    params = list(fields.values()) + [event_id, uid]
+    with _conn() as conn:
+        cur = conn.execute(
+            f"UPDATE calendar_events SET {cols} WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            tuple(params)
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            return jsonify(ok=False, error="not_found"), 404
+    return jsonify(ok=True, id=event_id)
+
+
+@app.delete("/api/calendar_events/<int:event_id>")
+def api_calendar_events_delete(event_id):
+    """Soft delete d'un événement custom."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    now = datetime.datetime.now().isoformat()
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE calendar_events SET deleted_at=? WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (now, event_id, uid)
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            return jsonify(ok=False, error="not_found"), 404
+    return jsonify(ok=True, id=event_id)
 
 
 def _parse_ics_to_events(ics_text: str) -> List[Dict[str, Any]]:
@@ -16751,7 +17042,7 @@ def api_calendar_events_external():
 
 @app.get("/dashboard")
 def page_dashboard():
-    return render_template("legacy/dashboard_v2.html", static_hashes=_static_hashes)
+    return redirect("/v30/dashboard", code=302)
 
 
 # Gamified goals helpers are extracted in services/dashboard_goals.py.
@@ -20192,22 +20483,17 @@ def api_assistant_action():
 @app.route('/dc-generator')
 @login_required
 def dc_generator():
-    """Page principale DC Generator (sans candidat pré-sélectionné)"""
-    return render_template('legacy/dc_generator.html', candidate=None)
+    """Redirige vers l'UI v30. ?candidate=X conservé via segment /v30/dc/<X>."""
+    cid = (request.args.get("candidate") or "").strip()
+    if cid.isdigit():
+        return redirect(f"/v30/dc/{cid}", code=302)
+    return redirect("/v30/dc", code=302)
 
 
 @app.route('/candidates/<int:candidate_id>/dc-generator')
 @login_required
 def dc_generator_candidate(candidate_id):
-    """DC Generator pré-rempli avec un candidat"""
-    uid = _uid()
-    with _conn() as conn:
-        candidate = conn.execute(
-            "SELECT * FROM candidates WHERE id=? AND owner_id=?", (candidate_id, uid)
-        ).fetchone()
-    if not candidate:
-        abort(404)
-    return render_template('legacy/dc_generator.html', candidate=dict(candidate))
+    return redirect(f"/v30/dc/{candidate_id}", code=302)
 
 
 @app.route('/dc-generator/template')
@@ -20286,6 +20572,7 @@ def dc_generator_generate():
         # ── Extraction du CV ──────────────────────────────────────────────────
         cv_data = {}
         cv_text = ''
+        ollama_ok = False
 
         if 'cv_file' in request.files and request.files['cv_file'].filename:
             cv_file = request.files['cv_file']
@@ -20377,22 +20664,41 @@ def dc_generator_generate():
         gen.generate(cv_data, output_path)
 
         # ── Sauvegarder en DB ─────────────────────────────────────────────────
-        if candidate_id:
-            with _conn() as conn:
+        nom_dl = f"Dossier_Up_{cv_data.get('nom','')}_{cv_data.get('prenom','')}.docx"
+        gen_iso = datetime.datetime.now().isoformat()
+        gen_id = None
+        with _conn() as conn:
+            if candidate_id:
                 conn.execute(
                     "UPDATE candidates SET dossier_path=?, dossier_generated_at=? WHERE id=? AND owner_id=?",
-                    (output_path, datetime.datetime.now().isoformat(), candidate_id, uid)
+                    (output_path, gen_iso, candidate_id, uid)
                 )
-                conn.commit()
+            try:
+                cur = conn.execute(
+                    "INSERT INTO dc_generations (candidate_id, filename, file_path, used_ollama, generated_at, owner_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?);",
+                    (
+                        int(candidate_id) if candidate_id else None,
+                        nom_dl,
+                        output_path,
+                        1 if ollama_ok else 0,
+                        gen_iso,
+                        uid,
+                    )
+                )
+                gen_id = cur.lastrowid
+            except Exception as _e:
+                logger.warning("DC Generator: insert dc_generations failed: %s", _e)
+            conn.commit()
 
-        nom_dl = f"Dossier_Up_{cv_data.get('nom','')}_{cv_data.get('prenom','')}.docx"
         import urllib.parse as _urlparse
         return jsonify({
             'success': True,
+            'id': gen_id,
             'download_url': '/dc-generator/download?path=' + _urlparse.quote(output_path, safe=''),
             'filename': nom_dl,
             'generated_at': datetime.datetime.now().strftime('%d/%m/%Y à %H:%M'),
-            'used_ollama': ollama_ok if 'cv_file' in request.files and request.files['cv_file'].filename else False,
+            'used_ollama': bool(ollama_ok),
         })
     except Exception as e:
         logger.error("DC Generator error: %s", e, exc_info=True)
@@ -20403,6 +20709,110 @@ def dc_generator_generate():
                 os.remove(tmp_cv)
             except Exception:
                 pass
+
+
+@app.route('/api/dc/history', methods=['GET'])
+@login_required
+def api_dc_history():
+    """Liste des DC générés par l'utilisateur (filtre optionnel par candidate_id)."""
+    uid = _uid()
+    cid_arg = request.args.get('candidate_id')
+    limit = max(1, min(int(request.args.get('limit') or 50), 200))
+    sql = (
+        "SELECT g.id, g.candidate_id, g.filename, g.file_path, g.used_ollama, g.generated_at, "
+        "       c.name AS candidate_name, c.role AS candidate_role "
+        "FROM dc_generations g "
+        "LEFT JOIN candidates c ON c.id = g.candidate_id AND c.owner_id = g.owner_id "
+        "WHERE g.owner_id=? AND g.deleted_at IS NULL"
+    )
+    params = [uid]
+    if cid_arg:
+        try:
+            sql += " AND g.candidate_id=?"
+            params.append(int(cid_arg))
+        except ValueError:
+            pass
+    sql += " ORDER BY g.generated_at DESC LIMIT ?"
+    params.append(limit)
+    items = []
+    with _conn() as conn:
+        for row in conn.execute(sql, tuple(params)).fetchall():
+            d = dict(row)
+            # File missing on disk → flag it but keep entry
+            try:
+                d['exists'] = bool(d.get('file_path')) and os.path.exists(d['file_path'])
+            except Exception:
+                d['exists'] = False
+            d['used_ollama'] = bool(d.get('used_ollama'))
+            # Format human date
+            iso = d.get('generated_at') or ''
+            try:
+                _dt = datetime.datetime.fromisoformat(iso)
+                d['generated_at_human'] = _dt.strftime('%d/%m/%Y à %H:%M')
+            except Exception:
+                d['generated_at_human'] = iso
+            d['download_url'] = f"/api/dc/{d['id']}/download"
+            items.append(d)
+    return jsonify({'data': items, 'error': None})
+
+
+@app.route('/api/dc/<int:gen_id>/download', methods=['GET'])
+@login_required
+def api_dc_download(gen_id):
+    """Télécharge un DC généré par son id (sécurise via owner_id)."""
+    uid = _uid()
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT file_path, filename FROM dc_generations "
+            "WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (gen_id, uid)
+        ).fetchone()
+    if not row:
+        abort(404)
+    file_path = row['file_path']
+    if not file_path or '..' in file_path:
+        abort(404)
+    abs_path = os.path.abspath(file_path)
+    allowed_dir = os.path.abspath(os.path.join(APP_DIR, 'outputs', 'dossiers'))
+    if not abs_path.startswith(allowed_dir):
+        abort(403)
+    if not os.path.exists(abs_path):
+        abort(404)
+    nom = row['filename'] or os.path.basename(abs_path).replace('_', ' ')
+    mime = ('application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            if abs_path.endswith('.docx') else 'application/pdf')
+    return send_file(abs_path, as_attachment=True, download_name=nom, mimetype=mime)
+
+
+@app.route('/api/dc/<int:gen_id>', methods=['DELETE'])
+@login_required
+def api_dc_delete(gen_id):
+    """Soft-delete d'un DC généré + suppression du fichier physique si présent."""
+    uid = _uid()
+    now = datetime.datetime.now().isoformat()
+    file_to_remove = None
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT file_path FROM dc_generations WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (gen_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify({'data': None, 'error': 'not_found'}), 404
+        file_to_remove = row['file_path']
+        conn.execute(
+            "UPDATE dc_generations SET deleted_at=? WHERE id=? AND owner_id=?;",
+            (now, gen_id, uid)
+        )
+        conn.commit()
+    if file_to_remove:
+        try:
+            abs_path = os.path.abspath(file_to_remove)
+            allowed_dir = os.path.abspath(os.path.join(APP_DIR, 'outputs', 'dossiers'))
+            if abs_path.startswith(allowed_dir) and os.path.exists(abs_path):
+                os.remove(abs_path)
+        except Exception as _e:
+            logger.warning("DC delete: physical remove failed: %s", _e)
+    return jsonify({'data': {'id': gen_id, 'deleted': True}, 'error': None})
 
 
 @app.route('/dc-generator/download')

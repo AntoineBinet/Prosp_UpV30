@@ -2,6 +2,67 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [31.7] — 2026-04-28 · dépréciation v29
+
+L'UI v29 (legacy) est retirée. Le code est conservé dans `archives/v29/`
+au cas où une régression v30 demanderait d'auditer l'ancienne
+implémentation.
+
+- **20 routes Flask legacy → redirects 302** vers leur équivalent
+  `/v30/...` : `/`, `/dashboard`, `/sourcing`, `/candidat?id=X`,
+  `/entreprises`, `/push`, `/stats`, `/calendrier`, `/rapport`,
+  `/focus`, `/duplicates`, `/snapshots`, `/activity`, `/help`,
+  `/aide`, `/metiers`, `/users`, `/parametres`, `/collab`,
+  `/dc-generator(?candidate=X)?`, `/candidates/<id>/dc-generator`,
+  `/prospects/mode-prosp`. Bookmarks, partages externes et
+  raccourcis PWA continuent de fonctionner.
+- **Toute autre URL legacy → 404** (sans fallback).
+- `templates/legacy/` (22 fichiers, ~7 300 lignes) déplacé vers
+  `archives/v29/templates/legacy/`.
+- `static/js/app.js` (15 300 lignes) + `static/js/page-*.js`
+  (18 fichiers) + `static/js/v30/opt-in.js` déplacés vers
+  `archives/v29/static/js/`. Voir `archives/v29/README.md`.
+- `templates/_partials/v30/sidebar.html` : bouton « v29 » retiré.
+- `templates/v30/base.html` : ne charge plus `opt-in.js`.
+- `templates/v30/help.html` : retire le callout sur l'escape hatch
+  (`?force_v29=1`, carte « Revenir à l'ancienne interface »).
+- `static/manifest.json` : `start_url` et shortcuts pointent sur
+  `/v30/...`.
+- `static/sw.js` : précache nettoyé (plus de `style.css`, `mobile.css`,
+  `app.js`, `page-*.js`). `CACHE` bumpé à `prospup-v31.7-shell-1`
+  pour invalider l'ancien Service Worker.
+- Nouveau helper `static/js/v30/ollama.js` : remplace l'ancien
+  `callOllama` global de `app.js` (utilisé par `/v30/rapport`,
+  `/v30/stats`). Mode non-streaming uniquement, signature préservée.
+- `static/js/v30/dashboard.js` : lien « Configurer objectifs »
+  cible `/v30/parametres#goals`.
+- `CLAUDE.md` : architecture mise à jour (suppression des sections
+  liées à v29, ajout du dossier `archives/v29/`).
+
+## [31.6] — 2026-04-28 · finalisation v30 (DC + Calendrier)
+
+Deux gros déblocages pour rendre v30 autonome face à v29.
+
+- **DC Generator — historique persistant.** Nouvelle table `dc_generations` avec
+  un INSERT à chaque génération réussie. Trois routes API :
+  `GET /api/dc/history`, `GET /api/dc/<id>/download`, `DELETE /api/dc/<id>`.
+  Côté UI, ajout des onglets « Générateur | Historique » sur `/v30/dc`,
+  avec téléchargement et suppression. La sidebar « Récents » et le panneau
+  plein affichent désormais les DC issus de la base, plus uniquement la
+  session courante.
+- **Calendrier — création/édition/suppression de RDV.** Nouvelle table
+  `calendar_events` pour les RDV ad-hoc créés depuis l'UI v30. Trois routes
+  API (`POST/PUT/DELETE /api/calendar_events[/<id>]`). Le `GET` existant
+  agrège ces événements en plus des sources actuelles, en exposant
+  `prospect_id` / `candidate_id` séparés. Bouton « Nouveau RDV » en topbar,
+  double-clic sur une cellule jour pour créer un RDV pré-rempli, modale
+  avec date / heure / durée / lieu / notes / statut + autocomplete prospect
+  via `/api/search`. Bouton « Modifier » dans le popup d'événement pour
+  les RDV custom.
+- `static/js/v30/candidate_detail.js` : corrige la redirection du bouton
+  « Générer DC » (`/v30/dc?candidate=X` → `/v30/dc/<X>` qui est la route
+  réelle).
+
 ## [31.5] — 2026-04-28 · date du RDV dans le badge « Rendez-vous »
 
 Visuel direct depuis le tableau des prospects sans avoir à ouvrir la fiche.
