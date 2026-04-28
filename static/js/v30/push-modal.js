@@ -806,55 +806,55 @@
   function generateCallNote() {
     var p = STATE.prospect;
     if (!p) { toast('Prospect non chargé', 'warning'); return; }
-    var fonction  = p.fonction || '';
     var entreprise = (STATE.company && STATE.company.groupe) || '';
-    var site       = (STATE.company && STATE.company.site)   || '';
 
-    // Première ligne = requête de recherche Tavily (entreprise + lieu + métier)
-    var searchParts = [];
-    if (entreprise) searchParts.push(entreprise);
-    if (site)       searchParts.push(site.split('/')[0].trim()); // ex: "Guyancourt"
-    if (fonction)   searchParts.push(fonction);
-    searchParts.push('secteur activité recrutement');
-    var searchQuery = searchParts.join(' ');
+    // Phrase 1 : fixe, jamais modifiée par le modèle
+    var phrase1 = 'J\'ai essayé de vous joindre aujourd\'hui mais je suis tombé sur votre messagerie.';
 
+    // Phrase 2 : Ollama complète uniquement la fin (5-10 mots)
     var prompt =
-      searchQuery + '\n\n' +
-      '---\n' +
-      'Je rédige un email de prospection à un contact' +
-      (entreprise ? ' de ' + entreprise : '') + '.\n' +
-      'J\'ai essayé de l\'appeler aujourd\'hui mais je suis tombé sur sa messagerie.\n' +
-      'En utilisant les informations web ci-dessus sur le secteur d\'activité' +
-      (entreprise ? ' de ' + entreprise : '') + ' (si elles sont disponibles et pertinentes), ' +
-      'écris 1 à 2 phrases qui expliquent que j\'ai essayé de le joindre (messagerie) ' +
-      'et que je souhaitais lui présenter des profils de consultants adaptés à son secteur.\n\n' +
-      'Règles STRICTES :\n' +
-      '- S\'adresser au destinataire en "vous"\n' +
-      '- Ne pas citer son nom ni son poste\n' +
-      '- Si le secteur est clairement identifiable grâce aux infos web, le mentionner naturellement (ex : "dans le secteur BTP", "en ingénierie"…)\n' +
-      '- Sinon, écrire simplement "qui pourraient vous intéresser" sans préciser de domaine\n' +
-      '- Ne JAMAIS inventer de contexte, conversations passées ou rendez-vous\n' +
-      '- Répondre UNIQUEMENT avec les phrases, rien d\'autre.';
+      'Complète cette phrase de manière naturelle et professionnelle :\n' +
+      '"Je souhaitais vous présenter quelques profils de consultants ___"\n\n' +
+      'Contexte :\n' +
+      (entreprise ? '- Entreprise du destinataire : ' + entreprise + '\n' : '') +
+      '- Si tu connais le secteur de cette entreprise (ex : BTP, industrie, énergie…), mentionne-le\n' +
+      '- Sinon, termine simplement par "qui pourraient vous intéresser."\n\n' +
+      'Exemples de résultats attendus :\n' +
+      '• "Je souhaitais vous présenter quelques profils de consultants spécialisés dans le BTP qui pourraient vous intéresser."\n' +
+      '• "Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser' + (entreprise ? ' pour ' + entreprise : '') + '."\n' +
+      '• "Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser."\n\n' +
+      'Règles ABSOLUES :\n' +
+      '- Répondre UNIQUEMENT avec la phrase complète (commençant par "Je souhaitais")\n' +
+      '- Ne pas dépasser 20 mots\n' +
+      '- Ne pas mentionner de noms de personnes\n' +
+      '- Ne pas inventer de contexte ou d\'échanges passés\n' +
+      '- Pas de guillemets, pas d\'explication, juste la phrase.';
 
     var btn = $sel('data-v30pm-callnote-gen');
     var ta  = $sel('data-v30pm-callnote');
     var st  = $sel('data-v30pm-callnote-status');
     if (btn) btn.disabled = true;
-    if (st)  { st.textContent = 'Recherche + génération en cours…'; st.className = 'v30pm-callnote__status'; }
+    if (st)  { st.textContent = 'Génération en cours…'; st.className = 'v30pm-callnote__status'; }
     if (ta)  ta.value = '';
     STATE.callNote = '';
     fetch('/api/ollama/generate', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt, web_search: true })
+      body: JSON.stringify({ prompt: prompt })
     }).then(function (r) {
       return r.json().then(function (j) { return { ok: r.ok, data: j }; });
     }).then(function (res) {
       if (!res.ok || !(res.data && res.data.text)) {
         throw new Error((res.data && res.data.error) || 'Réponse vide');
       }
-      var text = String(res.data.text || '').trim();
+      // Nettoie la phrase 2 (enlève guillemets parasites, préfixe "Je souhaitais" si absent)
+      var raw = String(res.data.text || '').trim().replace(/^["«»""]|["«»""]$/g, '').trim();
+      if (!raw.toLowerCase().startsWith('je souhaitais')) {
+        raw = 'Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser' +
+          (entreprise ? ' pour ' + entreprise : '') + '.';
+      }
+      var text = phrase1 + ' ' + raw;
       if (ta) ta.value = text;
       STATE.callNote = text;
       if (st) {
