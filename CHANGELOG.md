@@ -2,6 +2,14 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [31.5] — 2026-04-28 · date du RDV dans le badge « Rendez-vous »
+
+Visuel direct depuis le tableau des prospects sans avoir à ouvrir la fiche.
+
+- `static/js/v30/prospects.js` : nouveau helper `rdvDateLabel(iso)` (format compact : « auj. », « demain », « hier », sinon « 15 mai »).
+- Nouveau helper `renderStatusBadge(p, extraStyle)` mutualisé entre table et split view : ajoute « · {date} » au libellé quand `statut === 'Rendez-vous'` et qu'une `rdvDate` est présente.
+- Appliqué sur les vues Table, Split (liste) et Split (détail). Le Kanban groupe déjà par statut, donc inchangé.
+
 ## [31.4] — 2026-04-27 · auto-refresh des données
 
 Plus besoin de F5 pour voir un push apparaître ou pour rafraîchir un dashboard laissé ouvert dans un onglet en arrière-plan.
