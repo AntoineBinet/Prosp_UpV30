@@ -554,6 +554,146 @@
     buildPicker(items, anchorEl);
   }
 
+  // ─── Render text fields (entretien / eval / refs / avis) ─
+  function renderSectionFields(c) {
+    if (!c) return;
+    var fields = [
+      'entretien_date', 'entretien_lieu', 'entretien_notes',
+      'eval_technique', 'eval_personnalite', 'eval_communication',
+      'references_candidat', 'avis_perso'
+    ];
+    fields.forEach(function (f) {
+      var el = document.querySelector('[data-field="' + f + '"]');
+      if (!el) return;
+      var val = c[f] || '';
+      el.textContent = val || (f === 'entretien_date' ? '—' : '');
+      if (!val) el.style.color = 'var(--text-3)';
+      else el.style.color = '';
+    });
+  }
+
+  // ─── Edit section modal ───────────────────────────────────
+  var _editSection = null;
+
+  var SECTION_DEFS = {
+    entretien: {
+      title: 'Entretien',
+      fields: [
+        { key: 'entretien_date',  label: 'Date entretien', type: 'date' },
+        { key: 'entretien_lieu',  label: 'Lieu',           type: 'text', placeholder: 'Ex: Visio / Bureau Paris' },
+        { key: 'entretien_notes', label: 'Notes',          type: 'textarea', placeholder: 'Compte-rendu, observations…' }
+      ]
+    },
+    evaluation: {
+      title: 'Évaluation',
+      fields: [
+        { key: 'eval_technique',     label: 'Technique',     type: 'textarea', placeholder: 'Compétences techniques observées…' },
+        { key: 'eval_personnalite',  label: 'Personnalité',  type: 'textarea', placeholder: 'Soft skills, caractère…' },
+        { key: 'eval_communication', label: 'Communication', type: 'textarea', placeholder: 'Expression, aisance relationnelle…' }
+      ]
+    },
+    references: {
+      title: 'Références',
+      fields: [
+        { key: 'references_candidat', label: 'Références', type: 'textarea', placeholder: 'Nom, société, avis, contact…' }
+      ]
+    },
+    avis: {
+      title: 'Avis perso',
+      fields: [
+        { key: 'avis_perso', label: 'Avis personnel', type: 'textarea', placeholder: 'Votre avis sur ce candidat…' }
+      ]
+    }
+  };
+
+  function openSectionModal(section) {
+    var def = SECTION_DEFS[section];
+    if (!def) return;
+    _editSection = section;
+    var modal = document.querySelector('[data-v30-fc-edit-modal]');
+    if (!modal) return;
+    var titleEl = modal.querySelector('[id="v30-fc-edit-modal-title"]');
+    if (titleEl) titleEl.textContent = def.title;
+    var body = modal.querySelector('[data-v30-fc-edit-modal-body]');
+    if (!body) return;
+    var c = STATE.candidate || {};
+    body.innerHTML = def.fields.map(function (f) {
+      var val = c[f.key] || '';
+      var input = '';
+      if (f.type === 'textarea') {
+        input = '<textarea class="input" id="fc-edit-' + f.key + '" name="' + f.key +
+          '" placeholder="' + esc(f.placeholder || '') + '" rows="3" style="width:100%;resize:vertical;">' +
+          esc(val) + '</textarea>';
+      } else {
+        input = '<input class="input" type="' + f.type + '" id="fc-edit-' + f.key + '" name="' + f.key +
+          '" value="' + esc(val) + '" placeholder="' + esc(f.placeholder || '') + '" style="width:100%;">';
+      }
+      return '<div class="v30-field" style="margin-bottom:12px;">' +
+        '<label for="fc-edit-' + f.key + '" style="display:block;margin-bottom:4px;font-size:12px;color:var(--text-3);">' +
+        esc(f.label) + '</label>' + input + '</div>';
+    }).join('');
+    modal.hidden = false;
+    var first = body.querySelector('input,textarea');
+    if (first) first.focus();
+  }
+
+  function saveSectionModal() {
+    var def = _editSection ? SECTION_DEFS[_editSection] : null;
+    if (!def) return;
+    var modal = document.querySelector('[data-v30-fc-edit-modal]');
+    if (!modal) return;
+    var payload = {};
+    def.fields.forEach(function (f) {
+      var el = modal.querySelector('[name="' + f.key + '"]');
+      if (el) payload[f.key] = el.value.trim();
+    });
+    fetch('/api/candidates/' + CID, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function () {
+      Object.assign(STATE.candidate, payload);
+      renderSectionFields(STATE.candidate);
+      closeSectionModal();
+      flashSaved();
+      if (window.showToast) window.showToast('Modifications enregistrées', 'success', 2000);
+    }).catch(function (err) {
+      if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 3000);
+    });
+  }
+
+  function closeSectionModal() {
+    var modal = document.querySelector('[data-v30-fc-edit-modal]');
+    if (modal) modal.hidden = true;
+    _editSection = null;
+  }
+
+  function bindSectionEdit() {
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-v30-fc-edit-section]');
+      if (btn) { openSectionModal(btn.dataset.v30FcEditSection); return; }
+
+      var closeBtn = e.target.closest('[data-v30-modal-close]');
+      if (closeBtn && closeBtn.closest('[data-v30-fc-edit-modal]')) { closeSectionModal(); return; }
+
+      var saveBtn = e.target.closest('[data-v30-fc-edit-modal-save]');
+      if (saveBtn) { saveSectionModal(); return; }
+
+      var backdrop = e.target.closest('[data-v30-fc-edit-modal]');
+      if (backdrop && e.target === backdrop) closeSectionModal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        var modal = document.querySelector('[data-v30-fc-edit-modal]');
+        if (modal && !modal.hidden) closeSectionModal();
+      }
+    });
+  }
+
   // ─── Actions header ──────────────────────────────────────
   function bindActions() {
     document.addEventListener('click', function (e) {
@@ -570,6 +710,7 @@
   function init() {
     bindInlineEdit();
     bindActions();
+    bindSectionEdit();
 
     Promise.all([
       fetchJSON('/api/candidates/' + CID).catch(function () { return null; }),
@@ -581,6 +722,7 @@
       STATE.experiences = Array.isArray(exps) ? exps : [];
       renderHeader(STATE.candidate);
       renderInfo(STATE.candidate);
+      renderSectionFields(STATE.candidate);
       renderMissions();
       // Charge skills + availability via nouveaux endpoints v30
       loadSkills();

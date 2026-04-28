@@ -1,0 +1,184 @@
+/* ProspUp v30 — DC Generator */
+
+.v30-dc__layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .v30-dc__layout {
+    grid-template-columns: 1fr;
+  }
+  .v30-dc__aside { order: -1; }
+}
+
+/* ─── Upload zone ─── */
+.v30-dc__upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--r-md);
+  padding: 28px 20px;
+  text-align: center;
+  background: var(--surface-2);
+  transition: border-color .15s, background .15s;
+  cursor: default;
+}
+.v30-dc__upload-zone.is-over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.v30-dc__upload-zone.has-file {
+  border-style: solid;
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+.v30-dc__upload-icon {
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.v30-dc__upload-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.v30-dc__upload-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+.v30-dc__upload-file {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.v30-dc__upload-file::before {
+  content: '📄';
+}
+
+/* ─── Progress ─── */
+.v30-dc__progress {
+  margin-top: 14px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--border);
+}
+.v30-dc__progress-bar {
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  position: relative;
+}
+.v30-dc__progress-bar::after {
+  content: '';
+  position: absolute;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  animation: v30-dc-progress-anim 1.4s ease-in-out infinite;
+}
+@keyframes v30-dc-progress-anim {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+.v30-dc__progress-label {
+  font-size: 12.5px;
+  color: var(--text-2);
+  text-align: center;
+}
+
+/* ─── Result ─── */
+.v30-dc__result {
+  margin-top: 14px;
+  padding: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--success-soft);
+  border-radius: var(--r-md);
+}
+.v30-dc__result-icon {
+  color: var(--success);
+  flex-shrink: 0;
+}
+
+/* ─── Error ─── */
+.v30-dc__error {
+  margin-top: 14px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--danger-soft, rgba(239,68,68,.08));
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.v30-dc__error-msg {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--danger);
+}
+
+/* ─── Generate area ─── */
+.v30-dc__generate-area {
+  padding: 4px 0;
+}
+
+/* ─── History (aside) ─── */
+.v30-dc__hist-item {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.v30-dc__hist-item:first-child { border-top: 0; }
+.v30-dc__hist-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v30-dc__hist-date {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.v30-dc__hist-item a {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+/* ─── Interview preview ─── */
+.v30-dc__interview-preview {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+/* ─── Candidate info ─── */
+.v30-dc__cand-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.v30-dc__cand-role {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
