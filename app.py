@@ -2153,6 +2153,41 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
                 created_at REAL
             );
             CREATE INDEX IF NOT EXISTS idx_linkedin_inmails_owner_date ON linkedin_inmails(owner_id, sent_at);
+
+            -- v31: persistent DC generation history (replaces in-session list)
+            CREATE TABLE IF NOT EXISTS dc_generations (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                candidate_id INTEGER,
+                filename     TEXT,
+                file_path    TEXT NOT NULL,
+                used_ollama  INTEGER DEFAULT 0,
+                generated_at TEXT NOT NULL,
+                owner_id     INTEGER NOT NULL,
+                deleted_at   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_dc_gen_owner_date ON dc_generations(owner_id, generated_at);
+            CREATE INDEX IF NOT EXISTS idx_dc_gen_candidate ON dc_generations(candidate_id, owner_id);
+
+            -- v31: standalone calendar events (créés depuis l'UI v30)
+            CREATE TABLE IF NOT EXISTS calendar_events (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                title        TEXT NOT NULL,
+                event_date   TEXT NOT NULL,
+                event_time   TEXT,
+                duration_min INTEGER,
+                location     TEXT,
+                notes        TEXT,
+                status       TEXT DEFAULT 'planifie',
+                event_type   TEXT DEFAULT 'rdv',
+                prospect_id  INTEGER,
+                candidate_id INTEGER,
+                company_id   INTEGER,
+                owner_id     INTEGER NOT NULL,
+                created_at   TEXT,
+                updated_at   TEXT,
+                deleted_at   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_cal_evt_owner_date ON calendar_events(owner_id, event_date);
         ''')
 
         # Seed default admin if no users exist
@@ -2742,6 +2777,39 @@ def _migrate_user_db_schema(db_path: Path) -> None:
                     created_at REAL
                 );
                 CREATE INDEX IF NOT EXISTS idx_linkedin_inmails_owner_date ON linkedin_inmails(owner_id, sent_at);
+
+                CREATE TABLE IF NOT EXISTS dc_generations (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    candidate_id INTEGER,
+                    filename     TEXT,
+                    file_path    TEXT NOT NULL,
+                    used_ollama  INTEGER DEFAULT 0,
+                    generated_at TEXT NOT NULL,
+                    owner_id     INTEGER NOT NULL,
+                    deleted_at   TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_dc_gen_owner_date ON dc_generations(owner_id, generated_at);
+                CREATE INDEX IF NOT EXISTS idx_dc_gen_candidate ON dc_generations(candidate_id, owner_id);
+
+                CREATE TABLE IF NOT EXISTS calendar_events (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title        TEXT NOT NULL,
+                    event_date   TEXT NOT NULL,
+                    event_time   TEXT,
+                    duration_min INTEGER,
+                    location     TEXT,
+                    notes        TEXT,
+                    status       TEXT DEFAULT 'planifie',
+                    event_type   TEXT DEFAULT 'rdv',
+                    prospect_id  INTEGER,
+                    candidate_id INTEGER,
+                    company_id   INTEGER,
+                    owner_id     INTEGER NOT NULL,
+                    created_at   TEXT,
+                    updated_at   TEXT,
+                    deleted_at   TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_cal_evt_owner_date ON calendar_events(owner_id, event_date);
             ''')
         except Exception as e:
             print(f"[WARN] Migration tables KPI manquantes ({db_path}): {e}")
@@ -3483,6 +3551,39 @@ def _init_user_db(user_id: int) -> Path:
                 created_at REAL
             );
             CREATE INDEX IF NOT EXISTS idx_linkedin_inmails_owner_date ON linkedin_inmails(owner_id, sent_at);
+
+            CREATE TABLE IF NOT EXISTS dc_generations (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                candidate_id INTEGER,
+                filename     TEXT,
+                file_path    TEXT NOT NULL,
+                used_ollama  INTEGER DEFAULT 0,
+                generated_at TEXT NOT NULL,
+                owner_id     INTEGER NOT NULL,
+                deleted_at   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_dc_gen_owner_date ON dc_generations(owner_id, generated_at);
+            CREATE INDEX IF NOT EXISTS idx_dc_gen_candidate ON dc_generations(candidate_id, owner_id);
+
+            CREATE TABLE IF NOT EXISTS calendar_events (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                title        TEXT NOT NULL,
+                event_date   TEXT NOT NULL,
+                event_time   TEXT,
+                duration_min INTEGER,
+                location     TEXT,
+                notes        TEXT,
+                status       TEXT DEFAULT 'planifie',
+                event_type   TEXT DEFAULT 'rdv',
+                prospect_id  INTEGER,
+                candidate_id INTEGER,
+                company_id   INTEGER,
+                owner_id     INTEGER NOT NULL,
+                created_at   TEXT,
+                updated_at   TEXT,
+                deleted_at   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_cal_evt_owner_date ON calendar_events(owner_id, event_date);
         ''')
 
         now = datetime.datetime.now().isoformat(timespec="seconds")
@@ -20259,6 +20360,7 @@ def dc_generator_generate():
         # ── Extraction du CV ──────────────────────────────────────────────────
         cv_data = {}
         cv_text = ''
+        ollama_ok = False
 
         if 'cv_file' in request.files and request.files['cv_file'].filename:
             cv_file = request.files['cv_file']
@@ -20350,22 +20452,41 @@ def dc_generator_generate():
         gen.generate(cv_data, output_path)
 
         # ── Sauvegarder en DB ─────────────────────────────────────────────────
-        if candidate_id:
-            with _conn() as conn:
+        nom_dl = f"Dossier_Up_{cv_data.get('nom','')}_{cv_data.get('prenom','')}.docx"
+        gen_iso = datetime.datetime.now().isoformat()
+        gen_id = None
+        with _conn() as conn:
+            if candidate_id:
                 conn.execute(
                     "UPDATE candidates SET dossier_path=?, dossier_generated_at=? WHERE id=? AND owner_id=?",
-                    (output_path, datetime.datetime.now().isoformat(), candidate_id, uid)
+                    (output_path, gen_iso, candidate_id, uid)
                 )
-                conn.commit()
+            try:
+                cur = conn.execute(
+                    "INSERT INTO dc_generations (candidate_id, filename, file_path, used_ollama, generated_at, owner_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?);",
+                    (
+                        int(candidate_id) if candidate_id else None,
+                        nom_dl,
+                        output_path,
+                        1 if ollama_ok else 0,
+                        gen_iso,
+                        uid,
+                    )
+                )
+                gen_id = cur.lastrowid
+            except Exception as _e:
+                logger.warning("DC Generator: insert dc_generations failed: %s", _e)
+            conn.commit()
 
-        nom_dl = f"Dossier_Up_{cv_data.get('nom','')}_{cv_data.get('prenom','')}.docx"
         import urllib.parse as _urlparse
         return jsonify({
             'success': True,
+            'id': gen_id,
             'download_url': '/dc-generator/download?path=' + _urlparse.quote(output_path, safe=''),
             'filename': nom_dl,
             'generated_at': datetime.datetime.now().strftime('%d/%m/%Y à %H:%M'),
-            'used_ollama': ollama_ok if 'cv_file' in request.files and request.files['cv_file'].filename else False,
+            'used_ollama': bool(ollama_ok),
         })
     except Exception as e:
         logger.error("DC Generator error: %s", e, exc_info=True)
@@ -20376,6 +20497,110 @@ def dc_generator_generate():
                 os.remove(tmp_cv)
             except Exception:
                 pass
+
+
+@app.route('/api/dc/history', methods=['GET'])
+@login_required
+def api_dc_history():
+    """Liste des DC générés par l'utilisateur (filtre optionnel par candidate_id)."""
+    uid = _uid()
+    cid_arg = request.args.get('candidate_id')
+    limit = max(1, min(int(request.args.get('limit') or 50), 200))
+    sql = (
+        "SELECT g.id, g.candidate_id, g.filename, g.file_path, g.used_ollama, g.generated_at, "
+        "       c.name AS candidate_name, c.role AS candidate_role "
+        "FROM dc_generations g "
+        "LEFT JOIN candidates c ON c.id = g.candidate_id AND c.owner_id = g.owner_id "
+        "WHERE g.owner_id=? AND g.deleted_at IS NULL"
+    )
+    params = [uid]
+    if cid_arg:
+        try:
+            sql += " AND g.candidate_id=?"
+            params.append(int(cid_arg))
+        except ValueError:
+            pass
+    sql += " ORDER BY g.generated_at DESC LIMIT ?"
+    params.append(limit)
+    items = []
+    with _conn() as conn:
+        for row in conn.execute(sql, tuple(params)).fetchall():
+            d = dict(row)
+            # File missing on disk → flag it but keep entry
+            try:
+                d['exists'] = bool(d.get('file_path')) and os.path.exists(d['file_path'])
+            except Exception:
+                d['exists'] = False
+            d['used_ollama'] = bool(d.get('used_ollama'))
+            # Format human date
+            iso = d.get('generated_at') or ''
+            try:
+                _dt = datetime.datetime.fromisoformat(iso)
+                d['generated_at_human'] = _dt.strftime('%d/%m/%Y à %H:%M')
+            except Exception:
+                d['generated_at_human'] = iso
+            d['download_url'] = f"/api/dc/{d['id']}/download"
+            items.append(d)
+    return jsonify({'data': items, 'error': None})
+
+
+@app.route('/api/dc/<int:gen_id>/download', methods=['GET'])
+@login_required
+def api_dc_download(gen_id):
+    """Télécharge un DC généré par son id (sécurise via owner_id)."""
+    uid = _uid()
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT file_path, filename FROM dc_generations "
+            "WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (gen_id, uid)
+        ).fetchone()
+    if not row:
+        abort(404)
+    file_path = row['file_path']
+    if not file_path or '..' in file_path:
+        abort(404)
+    abs_path = os.path.abspath(file_path)
+    allowed_dir = os.path.abspath(os.path.join(APP_DIR, 'outputs', 'dossiers'))
+    if not abs_path.startswith(allowed_dir):
+        abort(403)
+    if not os.path.exists(abs_path):
+        abort(404)
+    nom = row['filename'] or os.path.basename(abs_path).replace('_', ' ')
+    mime = ('application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            if abs_path.endswith('.docx') else 'application/pdf')
+    return send_file(abs_path, as_attachment=True, download_name=nom, mimetype=mime)
+
+
+@app.route('/api/dc/<int:gen_id>', methods=['DELETE'])
+@login_required
+def api_dc_delete(gen_id):
+    """Soft-delete d'un DC généré + suppression du fichier physique si présent."""
+    uid = _uid()
+    now = datetime.datetime.now().isoformat()
+    file_to_remove = None
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT file_path FROM dc_generations WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (gen_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify({'data': None, 'error': 'not_found'}), 404
+        file_to_remove = row['file_path']
+        conn.execute(
+            "UPDATE dc_generations SET deleted_at=? WHERE id=? AND owner_id=?;",
+            (now, gen_id, uid)
+        )
+        conn.commit()
+    if file_to_remove:
+        try:
+            abs_path = os.path.abspath(file_to_remove)
+            allowed_dir = os.path.abspath(os.path.join(APP_DIR, 'outputs', 'dossiers'))
+            if abs_path.startswith(allowed_dir) and os.path.exists(abs_path):
+                os.remove(abs_path)
+        except Exception as _e:
+            logger.warning("DC delete: physical remove failed: %s", _e)
+    return jsonify({'data': {'id': gen_id, 'deleted': True}, 'error': None})
 
 
 @app.route('/dc-generator/download')

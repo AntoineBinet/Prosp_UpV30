@@ -22,6 +22,16 @@
       </p>
     </div>
     <div class="page-header__actions">
+      <div class="segmented" role="tablist" aria-label="Onglets DC">
+        <button type="button" class="is-active" role="tab" aria-selected="true"
+                data-v30-dc-tab-btn="generator">
+          {{ ui.icon('report', 13) }} Générateur
+        </button>
+        <button type="button" role="tab" aria-selected="false"
+                data-v30-dc-tab-btn="history">
+          {{ ui.icon('clock', 13) }} Historique
+        </button>
+      </div>
       {% if cid %}
       <a class="btn" href="/v30/candidat/{{ cid }}">
         {{ ui.icon('chevL', 13) }} Retour candidat
@@ -30,6 +40,22 @@
     </div>
   </div>
 
+  {# ─── Onglet Historique ─── #}
+  <div data-v30-dc-tab-panel="history" hidden>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:10px;">
+        {{ ui.icon('clock', 14) }} Historique des dossiers générés
+      </div>
+      <div class="v30-dc__hist-full" data-v30-dc-history-full>
+        <div data-v30-dc-history>
+          <div class="empty" style="padding:12px 0;font-size:12px;color:var(--text-3);">Chargement…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ─── Onglet Générateur ─── #}
+  <div data-v30-dc-tab-panel="generator">
   <div class="v30-dc__layout">
 
     {# ─── Colonne principale ─── #}
@@ -137,16 +163,21 @@
     {# ─── Sidebar Récents ─── #}
     <aside class="v30-dc__aside">
       <div class="card">
-        <div class="card-title" style="margin-bottom:10px;">Récents</div>
-        <div data-v30-dc-history>
-          <div class="skel" style="width:80%;height:13px;margin-bottom:8px;"></div>
-          <div class="skel" style="width:70%;height:13px;margin-bottom:8px;"></div>
-          <div class="skel" style="width:60%;height:13px;"></div>
+        <div class="row-sb" style="margin-bottom:10px;">
+          <div class="card-title">Récents</div>
+          <button type="button" class="btn btn-ghost btn-sm"
+                  data-v30-dc-tab-btn="history" title="Voir tout l'historique">
+            Voir tout
+          </button>
+        </div>
+        <div data-v30-dc-history-side>
+          <div class="empty" style="padding:8px 0;font-size:12px;color:var(--text-3);">Chargement…</div>
         </div>
       </div>
     </aside>
 
   </div>
+  </div>{# /tab generator #}
 </div>
 
 {# ─── Modal Données entretien ─── #}
