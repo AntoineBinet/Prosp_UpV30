@@ -48,7 +48,7 @@
   {# ─── Body 2 cols ─── #}
   <div class="v30-fp-body">
 
-    {# Main : Informations + Compétences + Disponibilités #}
+    {# Main : Informations + Entretien + Évaluation + Compétences + Disponibilités #}
     <div>
       <div class="card" style="margin-bottom:12px;">
         <div class="card-title" style="margin-bottom:10px;">Informations</div>
@@ -60,6 +60,71 @@
         </div>
       </div>
 
+      {# ─── Entretien ─── #}
+      <div class="card v30-section" style="margin-bottom:12px;" data-v30-fc-section="entretien">
+        <div class="row-sb" style="margin-bottom:10px;">
+          <div class="card-title">{{ ui.icon('calendar', 14) }} Entretien</div>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-edit-section="entretien" aria-label="Éditer entretien">
+            {{ ui.icon('edit', 13) }} Éditer
+          </button>
+        </div>
+        <div class="v30-fc-entretien-view" data-v30-fc-entretien-view>
+          <div class="v30-fc-info-grid">
+            <div class="v30-fc-info-item">
+              <div class="v30-fc-info-item__label">Date</div>
+              <div class="v30-fc-info-item__value" data-field="entretien_date">
+                <span class="skel" style="width:100px;height:13px;display:inline-block;"></span>
+              </div>
+            </div>
+            <div class="v30-fc-info-item">
+              <div class="v30-fc-info-item__label">Lieu</div>
+              <div class="v30-fc-info-item__value" data-field="entretien_lieu">
+                <span class="skel" style="width:120px;height:13px;display:inline-block;"></span>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:8px;">
+            <div class="v30-fc-info-item__label">Notes entretien</div>
+            <div class="v30-fc-info-item__value" data-field="entretien_notes" style="white-space:pre-wrap;line-height:1.6;min-height:1.4em;">
+              <span class="skel" style="width:90%;height:12px;display:inline-block;margin-top:4px;"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ─── Évaluation ─── #}
+      <div class="card v30-section" style="margin-bottom:12px;" data-v30-fc-section="evaluation">
+        <div class="row-sb" style="margin-bottom:10px;">
+          <div class="card-title">{{ ui.icon('star', 14) }} Évaluation</div>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-edit-section="evaluation" aria-label="Éditer évaluation">
+            {{ ui.icon('edit', 13) }} Éditer
+          </button>
+        </div>
+        <div class="v30-fc-eval-view" data-v30-fc-eval-view>
+          <div class="v30-fc-info-grid" style="margin-bottom:8px;">
+            <div class="v30-fc-info-item">
+              <div class="v30-fc-info-item__label">Technique</div>
+              <div class="v30-fc-info-item__value" data-field="eval_technique">
+                <span class="skel" style="width:80%;height:12px;display:inline-block;"></span>
+              </div>
+            </div>
+            <div class="v30-fc-info-item">
+              <div class="v30-fc-info-item__label">Personnalité</div>
+              <div class="v30-fc-info-item__value" data-field="eval_personnalite">
+                <span class="skel" style="width:80%;height:12px;display:inline-block;"></span>
+              </div>
+            </div>
+            <div class="v30-fc-info-item">
+              <div class="v30-fc-info-item__label">Communication</div>
+              <div class="v30-fc-info-item__value" data-field="eval_communication">
+                <span class="skel" style="width:80%;height:12px;display:inline-block;"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ─── Compétences ─── #}
       <div class="card" style="margin-bottom:12px;">
         <div class="card-title" style="margin-bottom:10px;">Compétences</div>
         <div data-v30-fc-skills>
@@ -85,8 +150,37 @@
       </div>
     </div>
 
-    {# Aside : Campagnes match + Missions passées #}
+    {# Aside : Références + Avis perso + Campagnes match + Missions passées #}
     <aside style="display:flex;flex-direction:column;gap:12px;">
+
+      {# ─── Références ─── #}
+      <div class="card v30-section" data-v30-fc-section="references">
+        <div class="row-sb" style="margin-bottom:8px;">
+          <div class="card-title">{{ ui.icon('phone', 14) }} Références</div>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-edit-section="references" aria-label="Éditer références">
+            {{ ui.icon('edit', 13) }} Éditer
+          </button>
+        </div>
+        <div class="v30-fc-info-item__value" data-field="references_candidat"
+             style="font-size:12.5px;white-space:pre-wrap;line-height:1.6;color:var(--text-2);min-height:1.4em;">
+          <span class="skel" style="width:90%;height:12px;display:inline-block;"></span>
+        </div>
+      </div>
+
+      {# ─── Avis perso ─── #}
+      <div class="card v30-section" data-v30-fc-section="avis">
+        <div class="row-sb" style="margin-bottom:8px;">
+          <div class="card-title">{{ ui.icon('chat', 14) }} Avis perso</div>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-edit-section="avis" aria-label="Éditer avis perso">
+            {{ ui.icon('edit', 13) }} Éditer
+          </button>
+        </div>
+        <div class="v30-fc-info-item__value" data-field="avis_perso"
+             style="font-size:12.5px;white-space:pre-wrap;line-height:1.6;color:var(--text-2);min-height:1.4em;">
+          <span class="skel" style="width:90%;height:12px;display:inline-block;"></span>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-title" style="margin-bottom:8px;">Campagnes match</div>
         <div data-v30-fc-campaigns>
@@ -126,6 +220,22 @@
       </div>
     </aside>
 
+  </div>
+</div>
+
+{# ─── Modal Édition sections ─── #}
+<div class="v30-modal-bd" data-v30-fc-edit-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-fc-edit-modal-title" style="max-width:560px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-fc-edit-modal-title">Éditer</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body" data-v30-fc-edit-modal-body>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-fc-edit-modal-save>Enregistrer</button>
+    </div>
   </div>
 </div>
 

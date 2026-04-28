@@ -1938,6 +1938,15 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             if _col not in cand_cols:
                 _add_col("candidates", _col, _ddl)
 
+        # v30.0: champs entretien inline
+        for _col, _ddl in [
+            ("entretien_date", "TEXT"),
+            ("entretien_lieu", "TEXT"),
+            ("entretien_notes", "TEXT"),
+        ]:
+            if _col not in cand_cols:
+                _add_col("candidates", _col, _ddl)
+
         # v29.0: DC Generator — dossier généré par le générateur interne
         if "dossier_path" not in cand_cols:
             _add_col("candidates", "dossier_path", "TEXT")
@@ -2413,6 +2422,9 @@ def _migrate_user_db_schema(db_path: Path) -> None:
                 ("langues", "TEXT"),
                 ("references_candidat", "TEXT"),
                 ("avis_perso", "TEXT"),
+                ("entretien_date", "TEXT"),
+                ("entretien_lieu", "TEXT"),
+                ("entretien_notes", "TEXT"),
                 ("dossier_path", "TEXT"),
                 ("dossier_generated_at", "DATETIME"),
             ]
@@ -6142,6 +6154,48 @@ def api_candidate_get(candidate_id: int):
     return jsonify({"ok": True, "candidate": cand, "companies": companies})
 
 
+@app.put("/api/candidates/<int:candidate_id>")
+def api_candidate_put(candidate_id: int):
+    """Partial-update a candidate (inline edit from v30 fiche candidat)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if not _candidate_owned(candidate_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    body = request.get_json(force=True, silent=True) or {}
+    if not body:
+        return jsonify(ok=False, error="Body vide"), 400
+
+    ALLOWED = {
+        "name", "role", "location", "seniority", "tech", "linkedin", "source", "status", "notes",
+        "phone", "email", "sector", "prenom", "titre", "years_experience", "annees_experience",
+        "domaine_principal", "description_push", "disponibilite", "mobilite", "permis_travail",
+        "fonctions_recherchees", "motif_recherche", "avancement_recherches",
+        "remuneration_actuelle", "pretentions_salariales", "propal_a", "langues",
+        "eval_technique", "eval_personnalite", "eval_communication",
+        "references_candidat", "avis_perso",
+        "entretien_date", "entretien_lieu", "entretien_notes",
+    }
+    updates = {k: v for k, v in body.items() if k in ALLOWED}
+    if not updates:
+        return jsonify(ok=True)
+
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    set_clause = ", ".join(k + "=?" for k in updates) + ", updatedAt=?"
+    params = list(updates.values()) + [now, candidate_id, uid]
+
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE candidates SET " + set_clause + " WHERE id=? AND owner_id=?;",
+            params,
+        )
+        if cur.rowcount == 0:
+            return jsonify(ok=False, error="Candidat introuvable"), 404
+        conn.commit()
+
+    return jsonify(ok=True)
+
+
 @app.get("/api/candidates/<int:candidate_id>/experiences")
 def api_candidate_experiences_get(candidate_id: int):
     """Get all experiences for a candidate."""
@@ -6594,6 +6648,7 @@ def api_candidates_save():
                     remuneration_actuelle=?, pretentions_salariales=?, propal_a=?,
                     eval_technique=?, eval_personnalite=?, eval_communication=?,
                     langues=?, references_candidat=?, avis_perso=?,
+                    entretien_date=?, entretien_lieu=?, entretien_notes=?,
                     updatedAt=?
                 WHERE id=? AND owner_id=?;
                 ''',
@@ -6639,6 +6694,9 @@ def api_candidates_save():
                     _t("langues"),
                     _t("references_candidat"),
                     _t("avis_perso"),
+                    _t("entretien_date"),
+                    _t("entretien_lieu"),
+                    _t("entretien_notes"),
                     now,
                     int(cid),
                     uid,
@@ -6660,9 +6718,10 @@ def api_candidates_save():
                     remuneration_actuelle, pretentions_salariales, propal_a,
                     eval_technique, eval_personnalite, eval_communication,
                     langues, references_candidat, avis_perso,
+                    entretien_date, entretien_lieu, entretien_notes,
                     createdAt, updatedAt, owner_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 ''',
                 (
                     name,
@@ -6706,6 +6765,9 @@ def api_candidates_save():
                     _t("langues"),
                     _t("references_candidat"),
                     _t("avis_perso"),
+                    _t("entretien_date"),
+                    _t("entretien_lieu"),
+                    _t("entretien_notes"),
                     now,
                     now,
                     uid,
@@ -16838,6 +16900,113 @@ def api_dashboard():
             [p for p in prospects_list if (p.get("rdvDate") or "").strip()[:10] > today],
             key=lambda x: x.get("rdvDate", "")
         )[:5]],
+    })
+
+
+@app.get("/api/dashboard/stats")
+def api_dashboard_stats():
+    """Données Performance Pulse par semaine pour le dashboard v30.
+    Accepte ?week=YYYY-Www. Retourne daily_rdv, daily_calls, insight + totaux."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    real_today = _today_iso()
+    real_d = datetime.date.fromisoformat(real_today)
+
+    week_param = request.args.get("week", "").strip()
+    d_today = real_d
+    if week_param and "-W" in week_param:
+        try:
+            yr_s, wn_s = week_param.split("-W")
+            yr_p, wn_p = int(yr_s), int(wn_s)
+            jan4_p = datetime.date(yr_p, 1, 4)
+            w1_mon = jan4_p - datetime.timedelta(days=jan4_p.isoweekday() - 1)
+            req_mon = w1_mon + datetime.timedelta(weeks=wn_p - 1)
+            req_sun = req_mon + datetime.timedelta(days=6)
+            if req_mon <= real_d:
+                d_today = min(req_sun, real_d)
+        except Exception:
+            pass
+
+    monday = d_today - datetime.timedelta(days=d_today.weekday())
+    prev_monday = monday - datetime.timedelta(weeks=1)
+    prev_sunday = monday - datetime.timedelta(days=1)
+    today_iso = d_today.isoformat()
+    monday_iso = monday.isoformat()
+    prev_monday_iso = prev_monday.isoformat()
+    prev_sunday_iso = prev_sunday.isoformat()
+
+    week_num = monday.isocalendar()[1]
+    week_label = f"{monday.year}-W{week_num:02d}"
+
+    daily_rdv = [0] * 7
+    daily_calls = [0] * 7
+
+    with _conn() as conn:
+        try:
+            rdv_rows = conn.execute(
+                """SELECT e.date, COUNT(DISTINCT e.prospect_id) AS n
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
+                   WHERE e.type='rdv_taken' AND e.date BETWEEN ? AND ?
+                     AND (p.deleted_at IS NULL OR p.deleted_at='')
+                   GROUP BY e.date""",
+                (uid, monday_iso, today_iso),
+            ).fetchall()
+            for r in rdv_rows:
+                try:
+                    d = datetime.date.fromisoformat(r["date"])
+                    idx = (d - monday).days
+                    if 0 <= idx < 7:
+                        daily_rdv[idx] = r["n"]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            call_rows = conn.execute(
+                "SELECT date, COUNT(*) AS n FROM call_logs WHERE owner_id=? AND date BETWEEN ? AND ? GROUP BY date;",
+                (uid, monday_iso, today_iso),
+            ).fetchall()
+            for r in call_rows:
+                try:
+                    d = datetime.date.fromisoformat(r["date"])
+                    idx = (d - monday).days
+                    if 0 <= idx < 7:
+                        daily_calls[idx] = r["n"]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            rdv_prev = conn.execute(
+                """SELECT COUNT(DISTINCT e.prospect_id)
+                   FROM prospect_events e
+                   JOIN prospects p ON p.id=e.prospect_id AND p.owner_id=?
+                   WHERE e.type='rdv_taken' AND e.date BETWEEN ? AND ?
+                     AND (p.deleted_at IS NULL OR p.deleted_at='')""",
+                (uid, prev_monday_iso, prev_sunday_iso),
+            ).fetchone()[0]
+        except Exception:
+            rdv_prev = 0
+
+    rdv_total = sum(daily_rdv)
+    calls_total = sum(daily_calls)
+    rdv_delta = rdv_total - rdv_prev
+    sign = "+" if rdv_delta >= 0 else ""
+    insight = f"{rdv_total} RDV cette semaine ({sign}{rdv_delta} vs semaine passée)"
+
+    return jsonify(ok=True, data={
+        "week": week_label,
+        "daily_rdv": daily_rdv,
+        "daily_calls": daily_calls,
+        "rdv_total": rdv_total,
+        "calls_total": calls_total,
+        "rdv_prev_week": rdv_prev,
+        "insight": insight,
     })
 
 

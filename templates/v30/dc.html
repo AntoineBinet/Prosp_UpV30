@@ -4,70 +4,186 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="/static/css/v30/parametres.css?v={{ static_hash('css/v30/parametres.css') }}">
+<link rel="stylesheet" href="/static/css/v30/dc.css?v={{ static_hash('css/v30/dc.css') }}">
 {% endblock %}
 
 {% block content %}
 {% import "_partials/v30/icon.html" as ui %}
 
-<div class="v30-params">
+<div class="v30-params v30-dc" data-v30-dc {% if cid %}data-candidate-id="{{ cid }}"{% endif %}>
 
-  {# ─── Page header (Phase 2 — pattern unifié) ─── #}
+  {# ─── Page header ─── #}
   <div class="page-header">
     <div class="page-header__group">
       <p class="page-eyebrow">Export candidat</p>
       <h1 class="page-title">Dossier de compétence.</h1>
       <p class="page-sub">
-        Génère un DOCX/PDF à partir d'une fiche candidat et d'un template.
+        Génère un DOCX à partir d'une fiche candidat et d'un CV.
       </p>
     </div>
     <div class="page-header__actions">
-      <a class="btn btn-accent" href="{{ '/dc-generator?candidate=' ~ cid if cid else '/dc-generator' }}">
-        {{ ui.icon('link', 13) }} Ouvrir le générateur
+      {% if cid %}
+      <a class="btn" href="/v30/candidat/{{ cid }}">
+        {{ ui.icon('chevL', 13) }} Retour candidat
       </a>
+      {% endif %}
     </div>
   </div>
 
-  {% if cid %}
-  <section class="card">
-    <div class="card-title">Candidat #{{ cid }}</div>
-    <p class="muted" style="font-size:12.5px;line-height:1.7;margin-top:6px;">
-      La génération complète (choix du template, mapping des variables, fusion
-      des expériences) reste sur la page <a href="/dc-generator?candidate={{ cid }}">générateur</a>.
-      La v30 l'embarquera progressivement.
-    </p>
-    <div style="margin-top:10px;display:flex;gap:8px;">
-      <a class="btn btn-accent" href="/dc-generator?candidate={{ cid }}">Lancer la génération</a>
-      <a class="btn" href="/v30/candidat/{{ cid }}">← Retour fiche candidat</a>
+  <div class="v30-dc__layout">
+
+    {# ─── Colonne principale ─── #}
+    <div class="v30-dc__main">
+
+      {# Candidat #}
+      <div class="card" style="margin-bottom:12px;" data-v30-dc-cand-card>
+        <div class="row-sb" style="margin-bottom:10px;">
+          <div class="card-title">{{ ui.icon('users', 14) }} Candidat</div>
+          {% if not cid %}
+          <a class="btn btn-ghost btn-sm" href="/v30/sourcing">Choisir un candidat</a>
+          {% endif %}
+        </div>
+        {% if cid %}
+        <div data-v30-dc-cand-info>
+          <div class="skel" style="width:60%;height:14px;margin-bottom:6px;"></div>
+          <div class="skel" style="width:40%;height:12px;"></div>
+        </div>
+        {% else %}
+        <div class="empty" style="padding:12px 0;font-size:12.5px;color:var(--text-3);">
+          Aucun candidat sélectionné.<br>
+          <a href="/v30/sourcing" style="color:var(--accent);">Ouvrir la liste sourcing →</a>
+        </div>
+        {% endif %}
+      </div>
+
+      {# Upload CV #}
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-title" style="margin-bottom:10px;">{{ ui.icon('upload', 14) }} CV du candidat <span class="muted" style="font-size:11px;font-weight:400;">(optionnel)</span></div>
+        <div class="v30-dc__upload-zone" data-v30-dc-drop-zone>
+          <input type="file" id="v30-dc-cv-file" data-v30-dc-file-input
+                 accept=".pdf,.docx,.doc" style="display:none;">
+          <div class="v30-dc__upload-icon">{{ ui.icon('upload', 28) }}</div>
+          <div class="v30-dc__upload-label">Glisser un CV (PDF ou DOCX)</div>
+          <div class="v30-dc__upload-sub">ou</div>
+          <label for="v30-dc-cv-file" class="btn btn-ghost btn-sm" style="cursor:pointer;">
+            Parcourir…
+          </label>
+          <div class="v30-dc__upload-file" data-v30-dc-file-name hidden></div>
+        </div>
+      </div>
+
+      {# Options #}
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-title" style="margin-bottom:10px;">{{ ui.icon('cog', 14) }} Options</div>
+        <div class="v30-field" style="margin-bottom:10px;">
+          <label for="v30-dc-titre" style="display:block;margin-bottom:4px;font-size:12px;color:var(--text-3);">Titre du poste (override)</label>
+          <input type="text" id="v30-dc-titre" class="input" placeholder="Ex: Développeur Full-Stack Senior" style="width:100%;">
+        </div>
+        <div class="v30-field">
+          <label for="v30-dc-exp" style="display:block;margin-bottom:4px;font-size:12px;color:var(--text-3);">Années d'expérience (override)</label>
+          <input type="text" id="v30-dc-exp" class="input" placeholder="Ex: 8 ans" style="width:100%;">
+        </div>
+      </div>
+
+      {# Fiche entretien modale #}
+      <div class="card" style="margin-bottom:12px;">
+        <div class="row-sb">
+          <div>
+            <div class="card-title">{{ ui.icon('file', 14) }} Données entretien</div>
+            <p class="muted" style="font-size:12px;margin-top:4px;">Pré-remplit le DC avec les infos d'entretien.</p>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-dc-open-interview>
+            {{ ui.icon('edit', 13) }} Renseigner
+          </button>
+        </div>
+        <div class="v30-dc__interview-preview" data-v30-dc-interview-preview hidden></div>
+      </div>
+
+      {# Génération #}
+      <div class="card">
+        <div class="v30-dc__generate-area" data-v30-dc-generate-area>
+          <button type="button" class="btn btn-primary" data-v30-dc-generate style="width:100%;justify-content:center;">
+            {{ ui.icon('report', 14) }} Générer le DC
+          </button>
+        </div>
+
+        {# Progress #}
+        <div class="v30-dc__progress" data-v30-dc-progress hidden>
+          <div class="v30-dc__progress-bar" data-v30-dc-progress-bar></div>
+          <div class="v30-dc__progress-label" data-v30-dc-progress-label>Génération en cours…</div>
+        </div>
+
+        {# Résultat #}
+        <div class="v30-dc__result" data-v30-dc-result hidden>
+          <div class="v30-dc__result-icon">{{ ui.icon('check', 20) }}</div>
+          <div>
+            <div style="font-weight:600;font-size:13.5px;margin-bottom:4px;" data-v30-dc-result-name>DC généré</div>
+            <div class="muted" style="font-size:12px;" data-v30-dc-result-date></div>
+          </div>
+          <a class="btn btn-accent btn-sm" data-v30-dc-download>
+            {{ ui.icon('arrowD', 13) }} Télécharger
+          </a>
+        </div>
+
+        {# Erreur #}
+        <div class="v30-dc__error" data-v30-dc-error hidden>
+          <div class="v30-dc__error-msg" data-v30-dc-error-msg></div>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-dc-retry>Réessayer</button>
+        </div>
+      </div>
+
     </div>
-  </section>
-  {% endif %}
 
-  <div class="v30-params__grid">
-
-    <a class="v30-params__card" href="/dc-generator">
-      <div class="v30-params__card-head">
-        {{ ui.icon('report', 16) }}
-        <h3>Templates DOCX</h3>
+    {# ─── Sidebar Récents ─── #}
+    <aside class="v30-dc__aside">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px;">Récents</div>
+        <div data-v30-dc-history>
+          <div class="skel" style="width:80%;height:13px;margin-bottom:8px;"></div>
+          <div class="skel" style="width:70%;height:13px;margin-bottom:8px;"></div>
+          <div class="skel" style="width:60%;height:13px;"></div>
+        </div>
       </div>
-      <p class="v30-params__card-desc">
-        Uploade tes propres templates avec variables Jinja (candidat, expériences,
-        compétences).
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
-
-    <a class="v30-params__card" href="/v30/sourcing">
-      <div class="v30-params__card-head">
-        {{ ui.icon('users', 16) }}
-        <h3>Choisir un candidat</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Ouvre la liste sourcing pour sélectionner le candidat à exporter.
-      </p>
-      <span class="v30-params__card-arrow">{{ ui.icon('arrowR', 14) }}</span>
-    </a>
+    </aside>
 
   </div>
-
 </div>
+
+{# ─── Modal Données entretien ─── #}
+<div class="v30-modal-bd" data-v30-dc-interview-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-dc-interview-title" style="max-width:560px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-dc-interview-title">
+        {{ ui.icon('file', 14) }} Données entretien
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-field" style="margin-bottom:10px;">
+        <label for="v30-dc-int-date" style="display:block;margin-bottom:4px;font-size:12px;color:var(--text-3);">Date entretien</label>
+        <input type="date" id="v30-dc-int-date" class="input" name="entretien_date" style="width:100%;">
+      </div>
+      <div class="v30-field" style="margin-bottom:10px;">
+        <label for="v30-dc-int-lieu" style="display:block;margin-bottom:4px;font-size:12px;color:var(--text-3);">Lieu</label>
+        <input type="text" id="v30-dc-int-lieu" class="input" name="entretien_lieu" placeholder="Ex: Visio / Bureau Paris" style="width:100%;">
+      </div>
+      <div class="v30-field" style="margin-bottom:10px;">
+        <label for="v30-dc-int-notes" style="display:block;margin-bottom:4px;font-size:12px;color:var(--text-3);">Notes entretien</label>
+        <textarea id="v30-dc-int-notes" class="input" name="entretien_notes" rows="4"
+                  placeholder="Observations, points forts, points d'attention…" style="width:100%;resize:vertical;"></textarea>
+      </div>
+      <div class="v30-field">
+        <label for="v30-dc-int-eval" style="display:block;margin-bottom:4px;font-size:12px;color:var(--text-3);">Évaluation technique</label>
+        <textarea id="v30-dc-int-eval" class="input" name="eval_technique" rows="3"
+                  placeholder="Compétences observées, niveau…" style="width:100%;resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-dc-interview-save>Valider</button>
+    </div>
+  </div>
+</div>
+
+<script defer src="/static/js/v30/dc.js?v={{ static_hash('js/v30/dc.js') }}"></script>
 {% endblock %}
