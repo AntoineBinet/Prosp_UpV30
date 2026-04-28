@@ -128,6 +128,34 @@
     } catch (_) { return iso; }
   }
 
+  function rdvDateLabel(iso) {
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      var now = new Date();
+      var startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      var startDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      var diffJ = Math.round((startDate.getTime() - startToday.getTime()) / 86400000);
+      if (diffJ === 0) return "auj.";
+      if (diffJ === 1) return 'demain';
+      if (diffJ === -1) return 'hier';
+      return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }).replace('.', '');
+    } catch (_) { return ''; }
+  }
+
+  function renderStatusBadge(p, extraStyle) {
+    if (!p || !p.statut) return '—';
+    var cls = statusClass(p.statut);
+    var label = esc(p.statut);
+    if (p.statut === 'Rendez-vous' && p.rdvDate) {
+      var dl = rdvDateLabel(p.rdvDate);
+      if (dl) label += ' · ' + esc(dl);
+    }
+    var style = extraStyle ? ' style="' + extraStyle + '"' : '';
+    return '<span class="status ' + cls + '"' + style + '>' + label + '</span>';
+  }
+
   // Phase 1.2 : on supprime les pills génériques (-contact, -proposal,
   // -won, -lost) qui ne correspondent à aucun statut métier ProspUp.
   // Les libellés sans équivalent strict (Proposition, Gagné, Perdu) tombent
@@ -260,7 +288,6 @@
   }
 
   function cellFor(p, key) {
-    var cls = statusClass(p.statut);
     var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
     switch (key) {
       case 'select':
@@ -278,7 +305,7 @@
           '</a>' +
         '</td>';
       case 'company':    return '<td class="truncate" style="font-size:12.5px;color:var(--text-2);max-width:130px;">' + esc(coName) + '</td>';
-      case 'statut':     return '<td>' + (p.statut ? '<span class="status ' + cls + '">' + esc(p.statut) + '</span>' : '—') + '</td>';
+      case 'statut':     return '<td>' + renderStatusBadge(p) + '</td>';
       case 'pertinence': return '<td>' + renderPertinence(p.pertinence) + '</td>';
       case 'push':       return '<td>' + renderPushBadges(p) + '</td>';
       case 'lastContact': return '<td style="color:var(--text-2);">' + esc(relativeDate(p.lastContact)) + '</td>';
@@ -441,7 +468,6 @@
       return;
     }
     list.innerHTML = STATE.prospects.map(function (p, i) {
-      var cls = statusClass(p.statut);
       var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
       return '<a class="v30-pp-split__row" href="#" data-v30-split-open="' + p.id + '">' +
         '<span class="avatar">' + esc(initials(p.name)) + '</span>' +
@@ -449,7 +475,7 @@
           '<div class="truncate" style="font-size:12.5px;font-weight:500;">' + esc(p.name || '—') + '</div>' +
           '<div class="truncate" style="font-size:11px;color:var(--text-3);">' + esc(coName) + '</div>' +
         '</div>' +
-        (p.statut ? '<span class="status ' + cls + '" style="font-size:10px;padding:1px 6px;">' + esc(p.statut) + '</span>' : '') +
+        (p.statut ? renderStatusBadge(p, 'font-size:10px;padding:1px 6px;') : '') +
       '</a>';
     }).join('');
   }
@@ -477,7 +503,7 @@
             (p.notes ? esc(p.notes) : '<span class="muted">Aucune note.</span>') +
           '</div>' +
           '<div class="label" style="margin-top:14px;">Statut</div>' +
-          '<div>' + (p.statut ? '<span class="status ' + statusClass(p.statut) + '">' + esc(p.statut) + '</span>' : '—') + '</div>' +
+          '<div>' + renderStatusBadge(p) + '</div>' +
         '</div>' +
         '<div class="stack gap-2">' +
           '<div class="card" style="padding:12px;">' +
