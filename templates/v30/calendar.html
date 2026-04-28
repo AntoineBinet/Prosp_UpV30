@@ -36,6 +36,9 @@
       <button type="button" class="btn btn-ghost btn-icon v30-cal-refresh-btn" data-v30-cal-refresh aria-label="Actualiser">
         {{ ui.icon('sync', 13) }}
       </button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-cal-new>
+        {{ ui.icon('plus', 13) }} Nouveau RDV
+      </button>
     </div>
   </div>
 
@@ -69,6 +72,73 @@
     </div>
   </div>
 
+</div>
+
+{# ─── Modal Nouveau / Édition RDV ─── #}
+<div class="v30-modal-bd" data-v30-cal-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-cal-modal-title" style="max-width:560px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-cal-modal-title">
+        {{ ui.icon('calendar', 14) }} <span data-v30-cal-modal-title-txt>Nouveau RDV</span>
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body">
+      <input type="hidden" data-v30-cal-evt-id value="">
+      <div class="v30-field" style="margin-bottom:10px;">
+        <label for="v30-cal-evt-title">Titre <span style="color:var(--danger);">*</span></label>
+        <input type="text" id="v30-cal-evt-title" class="input" placeholder="Ex. RDV Acme — démo produit" required>
+      </div>
+      <div class="v30-grid-2" style="gap:10px;">
+        <div class="v30-field">
+          <label for="v30-cal-evt-date">Date <span style="color:var(--danger);">*</span></label>
+          <input type="date" id="v30-cal-evt-date" class="input" required>
+        </div>
+        <div class="v30-field">
+          <label for="v30-cal-evt-time">Heure</label>
+          <input type="time" id="v30-cal-evt-time" class="input">
+        </div>
+        <div class="v30-field">
+          <label for="v30-cal-evt-duration">Durée (min)</label>
+          <input type="number" id="v30-cal-evt-duration" class="input" min="0" step="15" value="60">
+        </div>
+        <div class="v30-field">
+          <label for="v30-cal-evt-status">Statut</label>
+          <select id="v30-cal-evt-status" class="select">
+            <option value="planifie">Planifié</option>
+            <option value="confirme">Confirmé</option>
+            <option value="termine">Terminé</option>
+            <option value="annule">Annulé</option>
+          </select>
+        </div>
+      </div>
+      <div class="v30-field" style="margin-top:10px;">
+        <label for="v30-cal-evt-location">Lieu</label>
+        <input type="text" id="v30-cal-evt-location" class="input" placeholder="Ex. Visio Teams · Bureau Paris">
+      </div>
+      <div class="v30-field" style="margin-top:10px;">
+        <label for="v30-cal-evt-prospect">Prospect (optionnel)</label>
+        <input type="text" id="v30-cal-evt-prospect" class="input"
+               placeholder="Tape un nom pour rechercher…" autocomplete="off"
+               data-v30-cal-evt-prospect-search>
+        <input type="hidden" data-v30-cal-evt-prospect-id value="">
+        <div class="v30-cal-modal__suggestions" data-v30-cal-evt-suggestions hidden></div>
+      </div>
+      <div class="v30-field" style="margin-top:10px;">
+        <label for="v30-cal-evt-notes">Notes</label>
+        <textarea id="v30-cal-evt-notes" class="input" rows="3" style="width:100%;resize:vertical;"
+                  placeholder="Ordre du jour, remarques…"></textarea>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-cal-evt-delete hidden>
+        {{ ui.icon('trash', 13) }} Supprimer
+      </button>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-cal-evt-save>Enregistrer</button>
+    </div>
+  </div>
 </div>
 
 <script defer src="/static/js/v30/calendar.js?v={{ static_hash('js/v30/calendar.js') }}"></script>

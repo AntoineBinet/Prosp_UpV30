@@ -16719,7 +16719,193 @@ def api_calendar_events():
             "url": f"/candidat?id={d['id']}",
         })
 
+    # Standalone calendar events (créés depuis l'UI v30)
+    try:
+        with _conn() as conn:
+            custom_rows = conn.execute(
+                """SELECT e.id, e.title, e.event_date, e.event_time, e.duration_min,
+                          e.location, e.notes, e.status, e.event_type,
+                          e.prospect_id, e.candidate_id, e.company_id,
+                          p.name AS prospect_name,
+                          c.groupe AS company_groupe, c.site AS company_site
+                   FROM calendar_events e
+                   LEFT JOIN prospects p ON p.id = e.prospect_id AND p.owner_id = e.owner_id
+                   LEFT JOIN companies c ON c.id = e.company_id AND c.owner_id = e.owner_id
+                   WHERE e.owner_id=? AND e.deleted_at IS NULL""",
+                (uid,)
+            ).fetchall()
+        for r in custom_rows:
+            d = dict(r)
+            comp = d.get("company_groupe") or d.get("company_site") or ""
+            url = ""
+            if d.get("prospect_id"):
+                url = f"/v30/prospect/{d['prospect_id']}"
+            elif d.get("candidate_id"):
+                url = f"/v30/candidat/{d['candidate_id']}"
+            events.append({
+                "id": d["id"],
+                "custom_event_id": d["id"],
+                "name": d.get("title") or d.get("prospect_name") or "RDV",
+                "prospect_id": d.get("prospect_id"),
+                "candidate_id": d.get("candidate_id"),
+                "company_id": d.get("company_id"),
+                "company": comp,
+                "date": (d.get("event_date") or "")[:10],
+                "time": (d.get("event_time") or "")[:5],
+                "type": d.get("event_type") or "rdv",
+                "duration": d.get("duration_min") or 60,
+                "location": d.get("location") or "",
+                "notes": d.get("notes") or "",
+                "statut": d.get("status") or "planifie",
+                "url": url,
+                "source": "custom",
+            })
+    except Exception as _e:
+        logger.warning("api_calendar_events: custom events failed: %s", _e)
+
     return jsonify(ok=True, events=events)
+
+
+@app.post("/api/calendar_events")
+def api_calendar_events_create():
+    """Crée un événement de calendrier custom (v30)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(silent=True) or {}
+    title = (payload.get("title") or "").strip()
+    event_date = (payload.get("date") or payload.get("event_date") or "").strip()
+    if not title:
+        return jsonify(ok=False, error="title requis"), 400
+    if not event_date:
+        return jsonify(ok=False, error="date requise"), 400
+    # Validation simple AAAA-MM-JJ
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", event_date):
+        return jsonify(ok=False, error="date invalide (format YYYY-MM-DD)"), 400
+    event_time = (payload.get("time") or payload.get("event_time") or "").strip() or None
+    if event_time and not re.match(r"^\d{2}:\d{2}(:\d{2})?$", event_time):
+        return jsonify(ok=False, error="heure invalide (format HH:MM)"), 400
+    duration = payload.get("duration") or payload.get("duration_min")
+    try:
+        duration = int(duration) if duration not in (None, "") else 60
+    except (TypeError, ValueError):
+        duration = 60
+    location = (payload.get("location") or "").strip() or None
+    notes = (payload.get("notes") or "").strip() or None
+    status = (payload.get("status") or "planifie").strip()
+    if status not in ("planifie", "confirme", "annule", "termine"):
+        status = "planifie"
+    event_type = (payload.get("event_type") or payload.get("type") or "rdv").strip()
+    if event_type not in ("rdv", "relance", "ec1", "ec2", "appel", "autre"):
+        event_type = "rdv"
+    def _opt_int(v):
+        try:
+            return int(v) if v not in (None, "") else None
+        except (TypeError, ValueError):
+            return None
+    prospect_id = _opt_int(payload.get("prospect_id"))
+    candidate_id = _opt_int(payload.get("candidate_id"))
+    company_id = _opt_int(payload.get("company_id"))
+    now = datetime.datetime.now().isoformat()
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO calendar_events
+               (title, event_date, event_time, duration_min, location, notes, status, event_type,
+                prospect_id, candidate_id, company_id, owner_id, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+            (title, event_date, event_time, duration, location, notes, status, event_type,
+             prospect_id, candidate_id, company_id, uid, now, now)
+        )
+        new_id = cur.lastrowid
+        conn.commit()
+    return jsonify(ok=True, id=new_id)
+
+
+@app.put("/api/calendar_events/<int:event_id>")
+def api_calendar_events_update(event_id):
+    """Met à jour un événement custom (les champs fournis uniquement)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(silent=True) or {}
+    fields = {}
+    if "title" in payload:
+        t = (payload.get("title") or "").strip()
+        if not t:
+            return jsonify(ok=False, error="title vide"), 400
+        fields["title"] = t
+    if "date" in payload or "event_date" in payload:
+        d = (payload.get("date") or payload.get("event_date") or "").strip()
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+            return jsonify(ok=False, error="date invalide"), 400
+        fields["event_date"] = d
+    if "time" in payload or "event_time" in payload:
+        t2 = (payload.get("time") or payload.get("event_time") or "").strip()
+        if t2 and not re.match(r"^\d{2}:\d{2}(:\d{2})?$", t2):
+            return jsonify(ok=False, error="heure invalide"), 400
+        fields["event_time"] = t2 or None
+    if "duration" in payload or "duration_min" in payload:
+        try:
+            fields["duration_min"] = int(payload.get("duration") or payload.get("duration_min") or 60)
+        except (TypeError, ValueError):
+            fields["duration_min"] = 60
+    if "location" in payload:
+        fields["location"] = (payload.get("location") or "").strip() or None
+    if "notes" in payload:
+        fields["notes"] = (payload.get("notes") or "").strip() or None
+    if "status" in payload:
+        s = (payload.get("status") or "planifie").strip()
+        fields["status"] = s if s in ("planifie", "confirme", "annule", "termine") else "planifie"
+    if "event_type" in payload or "type" in payload:
+        et = (payload.get("event_type") or payload.get("type") or "rdv").strip()
+        fields["event_type"] = et if et in ("rdv", "relance", "ec1", "ec2", "appel", "autre") else "rdv"
+    if "prospect_id" in payload:
+        try:
+            fields["prospect_id"] = int(payload["prospect_id"]) if payload["prospect_id"] not in (None, "") else None
+        except (TypeError, ValueError):
+            fields["prospect_id"] = None
+    if "candidate_id" in payload:
+        try:
+            fields["candidate_id"] = int(payload["candidate_id"]) if payload["candidate_id"] not in (None, "") else None
+        except (TypeError, ValueError):
+            fields["candidate_id"] = None
+    if "company_id" in payload:
+        try:
+            fields["company_id"] = int(payload["company_id"]) if payload["company_id"] not in (None, "") else None
+        except (TypeError, ValueError):
+            fields["company_id"] = None
+    if not fields:
+        return jsonify(ok=False, error="aucun champ à mettre à jour"), 400
+    fields["updated_at"] = datetime.datetime.now().isoformat()
+    cols = ", ".join(f"{k}=?" for k in fields)
+    params = list(fields.values()) + [event_id, uid]
+    with _conn() as conn:
+        cur = conn.execute(
+            f"UPDATE calendar_events SET {cols} WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            tuple(params)
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            return jsonify(ok=False, error="not_found"), 404
+    return jsonify(ok=True, id=event_id)
+
+
+@app.delete("/api/calendar_events/<int:event_id>")
+def api_calendar_events_delete(event_id):
+    """Soft delete d'un événement custom."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    now = datetime.datetime.now().isoformat()
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE calendar_events SET deleted_at=? WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (now, event_id, uid)
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            return jsonify(ok=False, error="not_found"), 404
+    return jsonify(ok=True, id=event_id)
 
 
 def _parse_ics_to_events(ics_text: str) -> List[Dict[str, Any]]:

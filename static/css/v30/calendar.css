@@ -511,3 +511,40 @@
   .v30-cal-views .btn { font-size: 10.5px; padding: 2px 5px; }
   .v30-cal-month { min-width: 0; font-size: 13px; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   v31 — Modale création / édition RDV : suggestions prospect
+   ══════════════════════════════════════════════════════════════ */
+.v30-cal-modal__suggestions {
+  margin-top: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0,0,0,0.08));
+}
+.v30-cal-modal__sug-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.v30-cal-modal__sug-item:last-child { border-bottom: 0; }
+.v30-cal-modal__sug-item:hover,
+.v30-cal-modal__sug-item:focus {
+  background: var(--surface-2);
+}
+.v30-cal-modal__sug-name { font-weight: 500; }
+
+/* Hover « add event » sur les cellules de mois */
+.v30-cal__cell { cursor: pointer; }
+.v30-cal__cell:hover { background: var(--surface-2); }

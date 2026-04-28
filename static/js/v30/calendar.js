@@ -109,10 +109,23 @@
           duration = time ? 30 : 0;
         } else {
           label = tp + (e.name || '—') + (e.company ? ' · ' + e.company : '');
-          href  = e.url || '/v30/prospect/' + (e.id || '');
-          duration = 60;
+          href  = e.url || (e.id ? '/v30/prospect/' + e.id : '');
+          duration = (typeof e.duration === 'number') ? e.duration : 60;
         }
-        push(iso, { type: t, label: label, href: href, time: time, duration: duration, teams_url: '' });
+        var entry = {
+          type: t, label: label, href: href, time: time,
+          duration: duration, teams_url: '', _iso: iso, name: e.name || ''
+        };
+        // Préserve les infos pour les events custom (créés via /api/calendar_events POST)
+        if (e.source === 'custom' || e.custom_event_id) {
+          entry.custom_event_id = e.custom_event_id || e.id;
+          entry.prospect_id = e.prospect_id || null;
+          entry.candidate_id = e.candidate_id || null;
+          entry.location = e.location || '';
+          entry.notes = e.notes || '';
+          entry.statut = e.statut || 'planifie';
+        }
+        push(iso, entry);
       });
     }).catch(function (err) { console.error('[v30 calendar] events failed:', err); });
   }
@@ -492,13 +505,195 @@
       body += '<a class="btn btn-sm btn-accent" href="' + esc(ev.href) + '" style="display:inline-flex;align-items:center;gap:6px;">Voir la fiche →</a>';
     }
 
+    // Bouton Modifier / Supprimer pour events custom v30
+    if (ev.custom_event_id) {
+      body += '<div class="v30-cal__popup-actions" style="margin-top:8px;">' +
+        '<button type="button" class="btn btn-sm" data-v30-cal-popup-edit="' + iso + ':' + idx + '">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
+          ' Modifier</button>' +
+        '</div>';
+    }
+
     body += '</div>';
     pop.innerHTML = body;
     document.body.appendChild(pop);
     positionPopup(pop, anchor);
-    pop.addEventListener('click', function (e) { if (e.target.closest('[data-v30-cal-popup-close]')) closeDayPopup(); });
+    pop.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-cal-popup-close]')) closeDayPopup();
+      var ed = e.target.closest('[data-v30-cal-popup-edit]');
+      if (ed) {
+        var ps = ed.getAttribute('data-v30-cal-popup-edit').split(':');
+        var i2 = (STATE.events[ps[0]] || [])[parseInt(ps[1], 10) || 0];
+        if (i2) {
+          closeDayPopup();
+          openEventModal({ event: i2, date: ps[0] });
+        }
+      }
+    });
     document.addEventListener('click', outsideClose, true);
     document.addEventListener('keydown', escClose);
+  }
+
+  // ─── Modale Nouveau / Édition RDV ────────────────────────────────
+  function _modal() { return document.querySelector('[data-v30-cal-modal]'); }
+  function $m(sel) { var m = _modal(); return m ? m.querySelector(sel) : null; }
+
+  function openEventModal(opts) {
+    opts = opts || {};
+    var modal = _modal();
+    if (!modal) return;
+    var ev = opts.event || null;
+    var titleTxt = ev ? 'Modifier RDV' : 'Nouveau RDV';
+    var titleEl = modal.querySelector('[data-v30-cal-modal-title-txt]');
+    if (titleEl) titleEl.textContent = titleTxt;
+
+    var idEl = modal.querySelector('[data-v30-cal-evt-id]');
+    if (idEl) idEl.value = (ev && ev.custom_event_id) ? ev.custom_event_id : '';
+
+    var del = modal.querySelector('[data-v30-cal-evt-delete]');
+    if (del) del.hidden = !(ev && ev.custom_event_id);
+
+    var t = ev ? (ev.label || '').replace(/^\d{2}:\d{2}\s·\s/, '') : '';
+    var titleInput = $m('#v30-cal-evt-title');
+    if (titleInput) titleInput.value = t;
+
+    var dateInput = $m('#v30-cal-evt-date');
+    if (dateInput) dateInput.value = (opts.date || (ev && ev._iso) || isoDate(new Date()));
+
+    var timeInput = $m('#v30-cal-evt-time');
+    if (timeInput) timeInput.value = (ev && ev.time) || '';
+
+    var durInput = $m('#v30-cal-evt-duration');
+    if (durInput) durInput.value = (ev && typeof ev.duration === 'number') ? ev.duration : 60;
+
+    var locInput = $m('#v30-cal-evt-location');
+    if (locInput) locInput.value = (ev && ev.location) || '';
+
+    var statusInput = $m('#v30-cal-evt-status');
+    if (statusInput) statusInput.value = (ev && ev.statut) || 'planifie';
+
+    var notesInput = $m('#v30-cal-evt-notes');
+    if (notesInput) notesInput.value = (ev && ev.notes) || '';
+
+    var pIdInput = modal.querySelector('[data-v30-cal-evt-prospect-id]');
+    var pNameInput = $m('#v30-cal-evt-prospect');
+    if (pIdInput) pIdInput.value = (ev && ev.prospect_id) || '';
+    if (pNameInput) pNameInput.value = (ev && ev.prospect_id && ev.name) ? ev.name : '';
+    var sug = modal.querySelector('[data-v30-cal-evt-suggestions]');
+    if (sug) { sug.hidden = true; sug.innerHTML = ''; }
+
+    modal.hidden = false;
+    setTimeout(function () { if (titleInput) titleInput.focus(); }, 30);
+  }
+
+  function closeEventModal() {
+    var modal = _modal();
+    if (modal) modal.hidden = true;
+  }
+
+  var _searchTimer = null;
+  function bindProspectSearch() {
+    var input = document.querySelector('[data-v30-cal-evt-prospect-search]');
+    var sug = document.querySelector('[data-v30-cal-evt-suggestions]');
+    var hidden = document.querySelector('[data-v30-cal-evt-prospect-id]');
+    if (!input || !sug || !hidden) return;
+    input.addEventListener('input', function () {
+      hidden.value = '';
+      var q = input.value.trim();
+      clearTimeout(_searchTimer);
+      if (!q) { sug.hidden = true; sug.innerHTML = ''; return; }
+      _searchTimer = setTimeout(function () {
+        fetchJSON('/api/search?' + new URLSearchParams({ q: q, limit: 8, offset: 0 }).toString())
+          .then(function (res) {
+            var rows = (res && res.prospects) || [];
+            if (!rows.length) { sug.hidden = true; sug.innerHTML = ''; return; }
+            sug.innerHTML = rows.map(function (p) {
+              return '<button type="button" class="v30-cal-modal__sug-item" data-pid="' + p.id +
+                '" data-pname="' + esc(p.name || '') + '">' +
+                '<span class="v30-cal-modal__sug-name">' + esc(p.name || '—') + '</span>' +
+                '<span class="muted" style="font-size:11px;">' + esc(p.fonction || '') + '</span>' +
+                '</button>';
+            }).join('');
+            sug.hidden = false;
+          })
+          .catch(function () { sug.hidden = true; });
+      }, 220);
+    });
+    sug.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-pid]');
+      if (!btn) return;
+      hidden.value = btn.dataset.pid;
+      input.value = btn.dataset.pname;
+      sug.hidden = true; sug.innerHTML = '';
+    });
+  }
+
+  function saveEventModal() {
+    var modal = _modal();
+    if (!modal) return;
+    var idVal = (modal.querySelector('[data-v30-cal-evt-id]') || {}).value || '';
+    var title = ($m('#v30-cal-evt-title') || {}).value || '';
+    var date = ($m('#v30-cal-evt-date') || {}).value || '';
+    var time = ($m('#v30-cal-evt-time') || {}).value || '';
+    var duration = parseInt(($m('#v30-cal-evt-duration') || {}).value || '60', 10) || 60;
+    var location = ($m('#v30-cal-evt-location') || {}).value || '';
+    var status = ($m('#v30-cal-evt-status') || {}).value || 'planifie';
+    var notes = ($m('#v30-cal-evt-notes') || {}).value || '';
+    var prospectId = (modal.querySelector('[data-v30-cal-evt-prospect-id]') || {}).value || '';
+    if (!title.trim()) {
+      if (window.showToast) window.showToast('Le titre est requis', 'warning', 3000);
+      return;
+    }
+    if (!date) {
+      if (window.showToast) window.showToast('La date est requise', 'warning', 3000);
+      return;
+    }
+    var payload = {
+      title: title.trim(),
+      date: date,
+      time: time || null,
+      duration: duration,
+      location: location || null,
+      notes: notes || null,
+      status: status,
+      prospect_id: prospectId ? parseInt(prospectId, 10) : null
+    };
+    var url = '/api/calendar_events' + (idVal ? '/' + idVal : '');
+    var method = idVal ? 'PUT' : 'POST';
+    fetch(url, {
+      method: method, credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+    }).then(function (res) {
+      if (!res.ok || !res.j.ok) throw new Error((res.j && res.j.error) || 'Erreur');
+      closeEventModal();
+      if (window.showToast) window.showToast(idVal ? 'RDV mis à jour' : 'RDV créé', 'success', 2500);
+      loadAll().then(function () { render(); updateExtBadge(); });
+    }).catch(function (err) {
+      if (window.showToast) window.showToast('Erreur : ' + (err.message || ''), 'error', 4000);
+    });
+  }
+
+  function deleteEventModal() {
+    var modal = _modal();
+    if (!modal) return;
+    var idVal = (modal.querySelector('[data-v30-cal-evt-id]') || {}).value || '';
+    if (!idVal) return;
+    if (!window.confirm('Supprimer ce RDV ?')) return;
+    fetch('/api/calendar_events/' + encodeURIComponent(idVal), {
+      method: 'DELETE', credentials: 'same-origin'
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function () {
+      closeEventModal();
+      if (window.showToast) window.showToast('RDV supprimé', 'success', 2500);
+      loadAll().then(function () { render(); updateExtBadge(); });
+    }).catch(function (err) {
+      if (window.showToast) window.showToast('Erreur : ' + (err.message || ''), 'error', 4000);
+    });
   }
 
   // ─── Bind ─────────────────────────────────────────────────────────
@@ -510,8 +705,32 @@
     var tod = document.querySelector('[data-v30-cal-today]');
     if (tod) tod.addEventListener('click', navToday);
 
+    var newBtn = document.querySelector('[data-v30-cal-new]');
+    if (newBtn) newBtn.addEventListener('click', function () { openEventModal({}); });
+
+    bindProspectSearch();
+
+    // Double-click sur une cellule jour (vue mois) → nouveau RDV pré-rempli
+    document.addEventListener('dblclick', function (e) {
+      var cell = e.target.closest('[data-iso]');
+      if (cell) {
+        var iso = cell.getAttribute('data-iso');
+        // On évite d'ouvrir la modale quand on dblclick sur un événement
+        if (e.target.closest('[data-v30-cal-ev]') || e.target.closest('[data-v30-cal-more]')) return;
+        openEventModal({ date: iso });
+      }
+    });
+
     // View switcher + events + more + refresh (délégation unique)
     document.addEventListener('click', function (e) {
+
+      // Modal close
+      var closeBtn = e.target.closest('[data-v30-modal-close]');
+      if (closeBtn && closeBtn.closest('[data-v30-cal-modal]')) { closeEventModal(); return; }
+      var bd = e.target.closest('[data-v30-cal-modal]');
+      if (bd && e.target === bd) { closeEventModal(); return; }
+      if (e.target.closest('[data-v30-cal-evt-save]')) { saveEventModal(); return; }
+      if (e.target.closest('[data-v30-cal-evt-delete]')) { deleteEventModal(); return; }
 
       // Switcher de vue
       var vBtn = e.target.closest('[data-v30-cal-view]');
@@ -555,6 +774,13 @@
         e.preventDefault(); e.stopPropagation();
         var p = evBtn.dataset.v30CalEv.split(':');
         openEventPopup(p[0], parseInt(p[1], 10) || 0, evBtn);
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        var m = _modal();
+        if (m && !m.hidden) closeEventModal();
       }
     });
   }
