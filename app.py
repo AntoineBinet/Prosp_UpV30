@@ -1057,7 +1057,7 @@ def _verify_refresh_token(raw_token):
 @login_required
 @role_required('admin')
 def page_users():
-    return render_template("legacy/users.html", static_hashes=_static_hashes)
+    return redirect("/v30/users", code=302)
 
 @app.get("/api/users")
 @login_required
@@ -4848,89 +4848,94 @@ def restore_snapshot(filename: str) -> None:
         src.close()
 
 
+# ─────────────────────────────────────────────────────────────────
+# Redirects legacy → v30 (v31.7+) : v29 archivée dans archives/v29/.
+# Les routes ci-dessous restent pour préserver bookmarks, partages
+# externes et PWA shortcuts. Toute URL sans équivalent v30 → 404.
+# ─────────────────────────────────────────────────────────────────
+
 @app.get("/")
 def home():
-    return render_template("legacy/index.html", static_hashes=_static_hashes)
+    return redirect("/v30/dashboard", code=302)
 
 
 @app.get("/entreprises")
 def page_entreprises():
-    return render_template("legacy/entreprises.html", static_hashes=_static_hashes)
+    return redirect("/v30/entreprises", code=302)
 
 @app.get("/company")
 def page_company():
-    return redirect("/entreprises")
-
+    return redirect("/v30/entreprises", code=302)
 
 
 @app.get("/parametres")
 def page_parametres():
-    return render_template("legacy/parametres.html", static_hashes=_static_hashes)
-
-
+    return redirect("/v30/parametres", code=302)
 
 
 @app.get("/sourcing")
 def page_sourcing():
-    return render_template("legacy/sourcing.html", static_hashes=_static_hashes)
+    return redirect("/v30/sourcing", code=302)
 
 
 @app.get("/candidat")
 def page_candidat():
-    """Fiche candidat (détail). Utilise le query param ?id=..."""
-    return render_template("legacy/candidate.html", static_hashes=_static_hashes)
+    """Fiche candidat (détail). Migre ?id=X → /v30/candidat/<X>."""
+    cid = (request.args.get("id") or "").strip()
+    if cid.isdigit():
+        return redirect(f"/v30/candidat/{cid}", code=302)
+    return redirect("/v30/sourcing", code=302)
 
 
 @app.get("/push")
 def page_push():
-    return render_template("legacy/push.html", static_hashes=_static_hashes)
+    return redirect("/v30/push", code=302)
 
 @app.get("/stats")
 def page_stats():
-    return render_template("legacy/stats.html", static_hashes=_static_hashes)
+    return redirect("/v30/stats", code=302)
 
 
 @app.get("/duplicates")
 def page_duplicates():
-    return render_template("legacy/duplicates.html", static_hashes=_static_hashes)
+    return redirect("/v30/duplicates", code=302)
 
 
 @app.get("/focus")
 def page_focus():
-    return render_template("legacy/focus.html", static_hashes=_static_hashes)
+    return redirect("/v30/focus", code=302)
 
 
 @app.get("/snapshots")
 def page_snapshots():
-    return render_template("legacy/snapshots.html", static_hashes=_static_hashes)
+    return redirect("/v30/snapshots", code=302)
 
 
 @app.get("/activity")
 @login_required
 @role_required('admin')
 def page_activity():
-    """Journal d'activité multi-utilisateurs — admin only (v27.10)."""
-    return render_template("legacy/activity.html", static_hashes=_static_hashes)
+    return redirect("/v30/activity", code=302)
 
 
 @app.get("/help")
 def page_help():
-    return render_template("legacy/help.html", static_hashes=_static_hashes)
+    return redirect("/v30/help", code=302)
 
 
 @app.get("/aide")
 def page_aide():
-    return render_template("legacy/help.html", static_hashes=_static_hashes)
+    return redirect("/v30/help", code=302)
 
 
 @app.get("/metiers")
 def page_metiers():
-    return render_template("legacy/metiers.html", static_hashes=_static_hashes)
+    return redirect("/v30/metiers", code=302)
 
 
 @app.get("/prospects/mode-prosp")
 def page_mode_prosp():
-    return render_template("legacy/mode_prosp.html", static_hashes=_static_hashes)
+    return redirect("/v30/mode-prosp", code=302)
 
 
 @app.get("/v30/mode-prosp")
@@ -16157,7 +16162,7 @@ def api_export_day():
 
 @app.get("/rapport")
 def page_rapport():
-    return render_template("legacy/rapport.html", static_hashes=_static_hashes)
+    return redirect("/v30/rapport", code=302)
 
 
 @app.get("/api/rapport-hebdo")
@@ -16612,14 +16617,13 @@ def api_metiers_batch_confirm_tags():
 
 @app.get("/calendrier")
 def page_calendar():
-    return render_template("legacy/calendrier.html", static_hashes=_static_hashes)
+    return redirect("/v30/calendrier", code=302)
 
 
 @app.get("/collab")
 @login_required
 def page_collab():
-    """Page de collaboration."""
-    return render_template("legacy/collab.html", static_hashes=_static_hashes)
+    return redirect("/v30/collab", code=302)
 
 
 @app.get("/api/calendar_events")
@@ -17011,7 +17015,7 @@ def api_calendar_events_external():
 
 @app.get("/dashboard")
 def page_dashboard():
-    return render_template("legacy/dashboard_v2.html", static_hashes=_static_hashes)
+    return redirect("/v30/dashboard", code=302)
 
 
 # Gamified goals helpers are extracted in services/dashboard_goals.py.
@@ -20452,22 +20456,17 @@ def api_assistant_action():
 @app.route('/dc-generator')
 @login_required
 def dc_generator():
-    """Page principale DC Generator (sans candidat pré-sélectionné)"""
-    return render_template('legacy/dc_generator.html', candidate=None)
+    """Redirige vers l'UI v30. ?candidate=X conservé via segment /v30/dc/<X>."""
+    cid = (request.args.get("candidate") or "").strip()
+    if cid.isdigit():
+        return redirect(f"/v30/dc/{cid}", code=302)
+    return redirect("/v30/dc", code=302)
 
 
 @app.route('/candidates/<int:candidate_id>/dc-generator')
 @login_required
 def dc_generator_candidate(candidate_id):
-    """DC Generator pré-rempli avec un candidat"""
-    uid = _uid()
-    with _conn() as conn:
-        candidate = conn.execute(
-            "SELECT * FROM candidates WHERE id=? AND owner_id=?", (candidate_id, uid)
-        ).fetchone()
-    if not candidate:
-        abort(404)
-    return render_template('legacy/dc_generator.html', candidate=dict(candidate))
+    return redirect(f"/v30/dc/{candidate_id}", code=302)
 
 
 @app.route('/dc-generator/template')

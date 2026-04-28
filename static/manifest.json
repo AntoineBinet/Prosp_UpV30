@@ -2,9 +2,9 @@
   "name": "Prosp'Up — CRM Prospection",
   "short_name": "Prosp'Up",
   "description": "CRM Prospection B2B — Up Technologies (Embedded Systems & Robotique)",
-  "start_url": "/dashboard",
+  "start_url": "/v30/dashboard",
   "scope": "/",
-  "id": "/",
+  "id": "/v30/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0f172a",
@@ -19,24 +19,24 @@
     {
       "name": "Dashboard",
       "short_name": "Dashboard",
-      "url": "/dashboard",
+      "url": "/v30/dashboard",
       "icons": [{ "src": "/static/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Focus (Relances)",
       "short_name": "Focus",
-      "url": "/focus",
+      "url": "/v30/focus",
       "icons": [{ "src": "/static/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Prospects",
       "short_name": "Prospects",
-      "url": "/",
+      "url": "/v30/prospects",
       "icons": [{ "src": "/static/icon-192.png", "sizes": "192x192" }]
     }
   ],
   "share_target": {
-    "action": "/",
+    "action": "/v30/prospects",
     "method": "GET",
     "enctype": "application/x-www-form-urlencoded",
     "params": {

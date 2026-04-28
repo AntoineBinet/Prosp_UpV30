@@ -884,7 +884,7 @@
     });
     if (!totalItems) {
       html = '<div class="empty" style="padding:16px 0;text-align:center;color:var(--text-3);font-size:12px;">' +
-        'Aucun objectif configuré. <a href="/parametres#goals" style="color:var(--accent);">Configurer →</a>' +
+        'Aucun objectif configuré. <a href="/v30/parametres#goals" style="color:var(--accent);">Configurer →</a>' +
       '</div>';
     }
     itemsEl.innerHTML = html;
