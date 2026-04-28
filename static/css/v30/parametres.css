@@ -2,11 +2,6 @@
 
 .v30-params { display: flex; flex-direction: column; gap: 16px; }
 
-/* Carte pleine largeur (utilisée par la section Deploy) */
-.v30-params__card--wide {
-  grid-column: 1 / -1;
-  padding: 18px 20px;
-}
 
 /* ─── Section Déploiement ─────────────────────────── */
 .v30-deploy__path {
