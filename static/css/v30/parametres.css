@@ -5,11 +5,8 @@
 /* Carte pleine largeur (utilisée par la section Deploy) */
 .v30-params__card--wide {
   grid-column: 1 / -1;
-  display: block;
-  cursor: default;
   padding: 18px 20px;
 }
-.v30-params__card--wide:hover { transform: none; }
 
 /* ─── Section Déploiement ─────────────────────────── */
 .v30-deploy__path {
@@ -55,8 +52,6 @@
   color: var(--text-2);
   min-height: 40px;
 }
-.v30-deploy__fallback { margin-top: 12px; }
-.v30-deploy__fallback summary::-webkit-details-marker { display: none; }
 
 /* Topbar paramètres : remplacée par le pattern .page-header (Phase 2). */
 
@@ -114,14 +109,6 @@
 .v30-params__card:hover .v30-params__card-arrow {
   color: var(--accent);
   transform: translateX(2px);
-}
-.v30-params__card--opt-out {
-  background: linear-gradient(135deg, color-mix(in oklch, var(--accent) 10%, var(--surface)), var(--surface));
-  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
-}
-.v30-params__card--opt-out .btn {
-  align-self: flex-start;
-  margin-top: 4px;
 }
 .v30-params__admin-badge {
   display: inline-block;
