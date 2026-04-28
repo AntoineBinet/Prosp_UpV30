@@ -564,33 +564,75 @@
     }
     if (bd) bd.classList.remove('is-visible');
   }
+
+  // ─── Picker IA — rendu + journalisation ─────────────────────
+  var IA_ICON_SVG = {
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
+    check:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l2 2 5-5"/><circle cx="12" cy="12" r="9"/></svg>',
+    chev:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
+    badge:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l4 4 10-10"/></svg>'
+  };
+
+  function lastIaEvent(kind) {
+    var type = 'ia_' + kind;
+    var events = (FP.STATE && FP.STATE.events) || [];
+    for (var i = 0; i < events.length; i++) {
+      if (events[i] && events[i].type === type) return events[i];
+    }
+    return null;
+  }
+
+  function renderIaPickerBody() {
+    var items = [
+      { action: 'data-v30-ia-scrap',  kind: 'scrap',  icon: IA_ICON_SVG.search, title: 'Scraping enrichissement', desc: 'Recherche IA + Tavily pour compléter fonction, email, téléphone, LinkedIn et notes.' },
+      { action: 'data-v30-ia-before', kind: 'before', icon: IA_ICON_SVG.report, title: 'Avant RDV — fiche prépa',   desc: 'Générer un PDF de préparation à partir des données du prospect.' },
+      { action: 'data-v30-ia-after',  kind: 'after',  icon: IA_ICON_SVG.check,  title: 'Après RDV — compte-rendu',  desc: 'Transformer des notes libres en résumé + actions + tags.' }
+    ];
+    var html = '<div class="v30-ia-picker">' +
+      '<p class="v30-ia-picker__intro">Choisis le type d\'analyse à lancer sur ce prospect :</p>';
+    items.forEach(function (it) {
+      var ev = lastIaEvent(it.kind);
+      var doneCls = ev ? ' is-done' : '';
+      var badge = '';
+      if (ev) {
+        var when = FP.relativeTime(ev.date);
+        var label = it.kind === 'before' ? 'PDF enregistré' : 'Fait';
+        badge = '<span class="v30-ia-picker__badge" title="' + FP.esc(label + ' · ' + when) + '">' +
+          IA_ICON_SVG.badge +
+          '<span>' + FP.esc(when) + '</span>' +
+        '</span>';
+      }
+      html += '<button type="button" class="v30-ia-picker__item' + doneCls + '" ' + it.action + '>' +
+        '<span class="v30-ia-picker__icon">' + it.icon + '</span>' +
+        '<span class="v30-ia-picker__text">' +
+          '<span class="v30-ia-picker__title">' + it.title + '</span>' +
+          '<span class="v30-ia-picker__desc">' + it.desc + '</span>' +
+        '</span>' +
+        badge +
+        '<span class="v30-ia-picker__chev">' + IA_ICON_SVG.chev + '</span>' +
+      '</button>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function logIaRun(kind, summary, meta) {
+    if (!FP.ID) return Promise.resolve();
+    return FP.fetchPostJSON('/api/prospect/' + encodeURIComponent(FP.ID) + '/ia-log', {
+      kind: kind, summary: summary || '', meta: meta || null
+    }).then(function () {
+      return FP.loadTimeline ? FP.loadTimeline() : null;
+    }).catch(function () { /* silencieux : badge sera maj au prochain refresh */ });
+  }
+
   function bindDrawer() {
     document.addEventListener('click', function (e) {
       if (e.target.closest('[data-v30-drawer-close]')) closeDrawer();
       if (e.target.matches('[data-v30-drawer-backdrop]')) closeDrawer();
       if (e.target.closest('[data-v30-ia-run]')) {
         closeDrawer();
-        var iconSearch = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
-        var iconReport = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>';
-        var iconCheck = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l2 2 5-5"/><circle cx="12" cy="12" r="9"/></svg>';
-        var iconChev = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
-        function pickerItem(action, icon, title, desc) {
-          return '<button type="button" class="v30-ia-picker__item" ' + action + '>' +
-            '<span class="v30-ia-picker__icon">' + icon + '</span>' +
-            '<span class="v30-ia-picker__text">' +
-              '<span class="v30-ia-picker__title">' + title + '</span>' +
-              '<span class="v30-ia-picker__desc">' + desc + '</span>' +
-            '</span>' +
-            '<span class="v30-ia-picker__chev">' + iconChev + '</span>' +
-          '</button>';
-        }
-        var body = '<div class="v30-ia-picker">' +
-          '<p class="v30-ia-picker__intro">Choisis le type d\'analyse à lancer sur ce prospect :</p>' +
-          pickerItem('data-v30-ia-scrap', iconSearch, 'Scraping enrichissement', 'Recherche IA + Tavily pour compléter fonction, email, téléphone, LinkedIn et notes.') +
-          pickerItem('data-v30-ia-before', iconReport, 'Avant RDV — fiche prépa', 'Générer un PDF de préparation à partir des données du prospect.') +
-          pickerItem('data-v30-ia-after', iconCheck, 'Après RDV — compte-rendu', 'Transformer des notes libres en résumé + actions + tags.') +
-        '</div>';
-        openDrawer('Analyses IA', body);
+        openDrawer('Analyses IA', renderIaPickerBody());
         return;
       }
       if (e.target.closest('[data-v30-ia-scrap]')) { closeDrawer(); openScrapModal(); }
@@ -808,6 +850,8 @@
       }
       flashSaved();
       closeFPModal(m);
+      var fields = selected.map(function (r) { return r.label || r.field; });
+      logIaRun('scrap', fields.length ? ('Champs appliqués : ' + fields.join(', ')) : '');
     }).catch(function (err) {
       toast('Erreur application : ' + (err.message || err), 'error');
     }).then(function () {
@@ -908,9 +952,14 @@
                 ended = true;
                 if (bar) bar.style.width = '100%';
                 if (log) log.textContent += '\n\n[Analyse terminée — téléchargement du PDF…]';
-                // Télécharge le PDF (la route consomme le cache)
-                window.location.href = '/api/prospect/' + encodeURIComponent(FP.ID) + '/download-rdv-pdf';
-                toast('Fiche de prépa générée', 'success');
+                // Télécharge le PDF en blob — le serveur le persiste et logue
+                // l'événement IA. On refresh ensuite la timeline pour le badge.
+                downloadRdvPdf().then(function () {
+                  toast('Fiche de prépa générée et enregistrée', 'success');
+                  if (FP.loadTimeline) FP.loadTimeline();
+                }).catch(function (err) {
+                  toast('Erreur téléchargement : ' + (err && err.message || err), 'error');
+                });
                 if (run) { run.disabled = false; run.textContent = 'Regénérer le PDF'; }
               } else if (evt.type === 'error') {
                 ended = true;
@@ -927,6 +976,24 @@
         toast('Erreur génération : ' + (err.message || err), 'error');
         if (run) { run.disabled = false; run.textContent = 'Réessayer'; }
       });
+  }
+
+  // Télécharge le PDF de fiche prépa via blob (le serveur l'enregistre).
+  function downloadRdvPdf() {
+    var url = '/api/prospect/' + encodeURIComponent(FP.ID) + '/download-rdv-pdf';
+    return fetch(url, { credentials: 'same-origin' }).then(function (resp) {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var disp = resp.headers.get('Content-Disposition') || '';
+      var match = /filename="?([^"]+)"?/.exec(disp);
+      var filename = match ? match[1] : 'fiche_rdv.pdf';
+      return resp.blob().then(function (blob) {
+        var href = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = href; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(href); }, 1000);
+      });
+    });
   }
 
   // ── c) Après RDV — compte-rendu ─────────────────────────────
@@ -1102,7 +1169,11 @@
     });
     chain.then(function () {
       toast('Compte-rendu appliqué', 'success');
-      // Rafraîchir timeline + aside
+      var kinds = selected.map(function (r) { return r.kind; });
+      return logIaRun('after', 'Appliqué : ' + kinds.join(', '));
+    }).then(function () {
+      // Rafraîchir timeline + aside (logIaRun a déjà appelé loadTimeline,
+      // mais on réassure ici pour les apply qui n'ont rien loggué).
       return FP.loadTimeline();
     }).then(function () {
       flashSaved();
