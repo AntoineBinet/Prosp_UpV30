@@ -18382,9 +18382,31 @@ def api_prospect_download_rdv_pdf(prospect_id: int):
         nom_complet = prospect.get("name", "").strip() or "prospect"
         nom_safe = "".join(c for c in nom_complet if c.isalnum() or c in (' ', '-', '_')).strip()[:50]
         filename = f"fiche_rdv_{nom_safe}.pdf"
-        
+
+        # Persiste le PDF + journalise l'événement IA "Avant RDV" pour
+        # pouvoir le redonner plus tard (badge ✓ dans le picker IA).
+        try:
+            pdf_bytes = pdf_buffer.getvalue()
+        except AttributeError:
+            pdf_buffer.seek(0)
+            pdf_bytes = pdf_buffer.read()
+        try:
+            ia_dir = DATA_DIR / "ia_pdfs" / str(uid) / str(prospect_id)
+            ia_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            saved_name = f"fiche_rdv_{ts}.pdf"
+            saved_path = ia_dir / saved_name
+            saved_path.write_bytes(pdf_bytes)
+            _log_ia_event(
+                uid, prospect_id, "before",
+                summary="Fiche prépa générée",
+                meta={"pdf_path": str(saved_path), "filename": filename},
+            )
+        except Exception:
+            logger.exception("Échec persistance PDF fiche RDV (non bloquant)")
+
         return send_file(
-            pdf_buffer,
+            BytesIO(pdf_bytes),
             mimetype="application/pdf",
             as_attachment=True,
             download_name=filename
@@ -18392,6 +18414,110 @@ def api_prospect_download_rdv_pdf(prospect_id: int):
     except Exception as e:
         logger.exception("Erreur génération PDF fiche RDV")
         return jsonify(ok=False, error=f"Erreur lors de la génération du PDF: {str(e)}"), 500
+
+
+# ────────────────────────────────────────────────────────────────────
+# IA — journal des analyses lancées sur un prospect
+# ────────────────────────────────────────────────────────────────────
+
+_IA_KIND_TITLE = {
+    "scrap":  "Scraping IA",
+    "before": "Fiche prépa IA",
+    "after":  "Compte-rendu IA",
+}
+
+
+def _log_ia_event(uid: int, prospect_id: int, kind: str,
+                  summary: str = "", meta: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    """Journalise une exécution d'IA dans prospect_events.
+
+    type = "ia_<kind>" (ia_scrap, ia_before, ia_after).
+    Retourne {ok, id, date, type, title}.
+    """
+    if kind not in _IA_KIND_TITLE:
+        return {"ok": False, "error": "kind invalide"}
+    title = _IA_KIND_TITLE[kind]
+    etype = f"ia_{kind}"
+    # Précision microseconde pour éviter les collisions sur la contrainte
+    # UNIQUE (prospect_id, type, date) si plusieurs runs dans la seconde.
+    date = datetime.datetime.now().isoformat(timespec="microseconds")
+    meta_json = json.dumps(meta, ensure_ascii=False) if meta else None
+    with _conn() as conn:
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO prospect_events "
+            "(prospect_id, date, type, title, content, meta, createdAt) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?);",
+            (prospect_id, date, etype, title, summary or "", meta_json, date),
+        )
+        new_id = cur.lastrowid
+    return {"ok": True, "id": new_id, "date": date, "type": etype, "title": title}
+
+
+@app.post("/api/prospect/<int:prospect_id>/ia-log")
+def api_prospect_ia_log(prospect_id: int):
+    """Journalise une exécution d'IA pour le badge "✓ Fait" du picker."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if not _prospect_owned(prospect_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    body = request.get_json(force=True, silent=True) or {}
+    kind = (body.get("kind") or "").strip().lower()
+    if kind not in _IA_KIND_TITLE:
+        return jsonify(ok=False, error="kind doit être scrap|before|after"), 400
+    summary = (body.get("summary") or "").strip()
+    meta = body.get("meta") if isinstance(body.get("meta"), dict) else None
+    res = _log_ia_event(uid, prospect_id, kind, summary, meta)
+    if not res.get("ok"):
+        return jsonify(res), 400
+    return jsonify(res)
+
+
+@app.get("/api/prospect/<int:prospect_id>/ia-pdf")
+def api_prospect_ia_pdf(prospect_id: int):
+    """Re-télécharge un PDF de fiche prépa déjà généré (via event_id)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if not _prospect_owned(prospect_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+    try:
+        event_id = int(request.args.get("event_id", "0"))
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="event_id invalide"), 400
+    if not event_id:
+        return jsonify(ok=False, error="event_id requis"), 400
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT meta FROM prospect_events "
+            "WHERE id=? AND prospect_id=? AND type='ia_before';",
+            (event_id, prospect_id),
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Fiche introuvable"), 404
+    try:
+        meta = json.loads(row["meta"] or "null") or {}
+    except Exception:
+        meta = {}
+    pdf_path = meta.get("pdf_path") or ""
+    if not pdf_path:
+        return jsonify(ok=False, error="PDF non disponible"), 404
+    p = Path(pdf_path)
+    # Confine l'accès au dossier ia_pdfs de l'utilisateur courant.
+    base = (DATA_DIR / "ia_pdfs" / str(uid)).resolve()
+    try:
+        if base not in p.resolve().parents:
+            return jsonify(ok=False, error="Accès refusé"), 403
+    except Exception:
+        return jsonify(ok=False, error="Chemin PDF invalide"), 400
+    if not p.exists():
+        return jsonify(ok=False, error="Fichier PDF supprimé"), 404
+    return send_file(
+        str(p),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=meta.get("filename") or p.name,
+    )
 
 
 # ────────────────────────────────────────────────────────────────────

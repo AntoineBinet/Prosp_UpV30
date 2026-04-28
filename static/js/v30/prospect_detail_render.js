@@ -178,6 +178,9 @@
     call_note:    'oklch(0.55 0.15 220)',
     note:         'oklch(0.55 0.12 60)',
     status_change:'var(--success)',
+    ia_scrap:     'oklch(0.60 0.15 295)',
+    ia_before:    'oklch(0.60 0.15 295)',
+    ia_after:     'oklch(0.60 0.15 295)',
     event:        'var(--text-3)'
   };
 
