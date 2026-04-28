@@ -734,12 +734,370 @@
     repLoad('current');
   }
 
+  // ═══════════════════════════════════════════════════════
+  // Stats v30 — Period picker mensuel + filtres + export
+  // ═══════════════════════════════════════════════════════
+
+  var STATS_STATE = {
+    cursor: new Date(),    // mois courant affiché
+    customStart: null,     // Date | null
+    customEnd: null,       // Date | null
+    activeStatuts: [],     // [] = tous
+    activeTags: [],        // [] = tous
+    chartInstances: {},
+  };
+
+  var MONTH_NAMES = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+
+  function statsIsoMonth(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  function statsMonthLabel(d) {
+    return MONTH_NAMES[d.getMonth()] + ' ' + d.getFullYear();
+  }
+
+  function statsBuildParams() {
+    var params = new URLSearchParams();
+    if (STATS_STATE.customStart && STATS_STATE.customEnd) {
+      params.set('start', STATS_STATE.customStart.toISOString().slice(0, 10));
+      params.set('end', STATS_STATE.customEnd.toISOString().slice(0, 10));
+    } else {
+      params.set('period', statsIsoMonth(STATS_STATE.cursor));
+    }
+    if (STATS_STATE.activeStatuts.length) params.set('statuts', STATS_STATE.activeStatuts.join(','));
+    if (STATS_STATE.activeTags.length) params.set('tags', STATS_STATE.activeTags.join(','));
+    return params.toString();
+  }
+
+  function statsUpdateMonthLabel() {
+    var el = document.querySelector('[data-stats-month-label]');
+    if (!el) return;
+    if (STATS_STATE.customStart && STATS_STATE.customEnd) {
+      var fmt = function (d) { return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }); };
+      el.textContent = fmt(STATS_STATE.customStart) + ' – ' + fmt(STATS_STATE.customEnd);
+    } else {
+      el.textContent = statsMonthLabel(STATS_STATE.cursor);
+    }
+  }
+
+  function statsDestroyChart(id) {
+    if (STATS_STATE.chartInstances[id]) {
+      STATS_STATE.chartInstances[id].destroy();
+      delete STATS_STATE.chartInstances[id];
+    }
+  }
+
+  function statsRenderCharts(data) {
+    if (typeof Chart === 'undefined') return;
+    var colors = _chartColors();
+    Chart.defaults.color = colors.text;
+    Chart.defaults.borderColor = colors.grid;
+
+    var rdvLabels = data.rdv_labels || [];
+    var rdvData   = data.rdv_by_month || [];
+    var callLabels = data.calls_labels || [];
+    var callData   = data.calls_by_month || [];
+    var funnel     = data.funnel || {};
+    var topComp    = data.top_companies || [];
+
+    // 1) RDV/mois — Line (col-span-2)
+    statsDestroyChart('chartStatsRdv');
+    var ctxRdv = document.getElementById('chartStatsRdv');
+    if (ctxRdv) {
+      STATS_STATE.chartInstances['chartStatsRdv'] = new Chart(ctxRdv, {
+        type: 'line',
+        data: {
+          labels: rdvLabels,
+          datasets: [{
+            label: 'RDV obtenus',
+            data: rdvData,
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.12)',
+            fill: true,
+            tension: 0.35,
+            pointRadius: 5,
+            pointBackgroundColor: '#22c55e',
+          }],
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } },
+          },
+          plugins: { legend: { display: false } },
+        },
+      });
+    }
+
+    // 2) Appels/mois — Bar
+    statsDestroyChart('chartStatsCalls');
+    var ctxCalls = document.getElementById('chartStatsCalls');
+    if (ctxCalls) {
+      STATS_STATE.chartInstances['chartStatsCalls'] = new Chart(ctxCalls, {
+        type: 'bar',
+        data: {
+          labels: callLabels,
+          datasets: [{
+            label: 'Appels',
+            data: callData,
+            backgroundColor: '#f59e0bcc',
+            borderRadius: 6,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } },
+          },
+          plugins: { legend: { display: false } },
+        },
+      });
+    }
+
+    // 3) Funnel — Horizontal Bar
+    statsDestroyChart('chartStatsFunnel');
+    var ctxFunnel = document.getElementById('chartStatsFunnel');
+    if (ctxFunnel && funnel.prospects > 0) {
+      var funnelProspects = funnel.prospects || 0;
+      var funnelRdv = funnel.rdv || 0;
+      var funnelPct = funnel.conversion_rate || 0;
+      var funnelContacted = Math.max(funnelRdv, Math.round(funnelProspects * 0.4));
+      STATS_STATE.chartInstances['chartStatsFunnel'] = new Chart(ctxFunnel, {
+        type: 'bar',
+        data: {
+          labels: ['Prospects', 'Contactés (est.)', 'RDV'],
+          datasets: [{
+            data: [funnelProspects, funnelContacted, funnelRdv],
+            backgroundColor: ['#6366f1cc', '#f59e0bcc', '#22c55ecc'],
+            borderRadius: 6,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          scales: {
+            x: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } },
+            y: { grid: { display: false } },
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                afterLabel: function (ctx) {
+                  if (ctx.dataIndex === 2) return 'Taux : ' + (funnelPct * 100).toFixed(1) + '%';
+                  return '';
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // 4) Top entreprises — Horizontal Bar (col-span-2)
+    statsDestroyChart('chartStatsCompanies');
+    var ctxComp2 = document.getElementById('chartStatsCompanies');
+    if (ctxComp2 && topComp.length) {
+      var palette = ['#6366f1cc','#8b5cf6cc','#a78bfacc','#3b82f6cc','#60a5facc','#22c55ecc','#f59e0bcc','#ef4444cc','#ec4899cc','#14b8a6cc'];
+      STATS_STATE.chartInstances['chartStatsCompanies'] = new Chart(ctxComp2, {
+        type: 'bar',
+        data: {
+          labels: topComp.map(function (c) { return c.name; }),
+          datasets: [{
+            data: topComp.map(function (c) { return c.count; }),
+            backgroundColor: palette.slice(0, topComp.length),
+            borderRadius: 6,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          scales: {
+            x: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: colors.grid } },
+            y: { grid: { display: false } },
+          },
+          plugins: { legend: { display: false } },
+        },
+      });
+    }
+  }
+
+  function statsLoadInteractive() {
+    var loader = document.getElementById('v30StatsChartsLoader');
+    var grid = document.getElementById('v30StatsChartsGrid');
+    if (!grid) return;
+
+    if (loader) loader.style.display = 'block';
+
+    _loadChartJS().then(function (available) {
+      if (!available) {
+        if (loader) { loader.textContent = 'Charts indisponibles — vérifiez votre connexion.'; loader.style.display = 'block'; }
+        return;
+      }
+      fetchJSON('/api/stats/data?' + statsBuildParams()).then(function (data) {
+        if (loader) loader.style.display = 'none';
+        if (!data || !data.ok) return;
+        statsRenderCharts(data);
+        statsLoadTagChips(data);
+      }).catch(function (err) {
+        console.error('[stats v30]', err);
+        if (loader) { loader.textContent = 'Erreur chargement données.'; loader.style.display = 'block'; }
+      });
+    });
+  }
+
+  function statsLoadTagChips(data) {
+    var tags = [];
+    var seen = {};
+    if (data && data.top_companies) {
+      (data.top_companies || []).forEach(function (c) { if (c.name && !seen[c.name]) { seen[c.name] = 1; tags.push(c.name); } });
+    }
+    var container = document.getElementById('statsTagChips');
+    if (!container || !tags.length) return;
+    var html = '<span class="filter-bar__label" style="margin-right:4px;">Tags</span>';
+    tags.slice(0, 8).forEach(function (t) {
+      var esc = t.replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      html += '<span class="v30-chip" data-chip-tag="' + esc + '">' + esc + '</span>';
+    });
+    container.innerHTML = html;
+    container.addEventListener('click', function (e) {
+      var chip = e.target.closest('[data-chip-tag]');
+      if (!chip) return;
+      var tag = chip.dataset.chipTag;
+      var idx = STATS_STATE.activeTags.indexOf(tag);
+      if (idx >= 0) {
+        STATS_STATE.activeTags.splice(idx, 1);
+        chip.classList.remove('is-active');
+      } else {
+        STATS_STATE.activeTags.push(tag);
+        chip.classList.add('is-active');
+      }
+      statsLoadInteractive();
+    });
+  }
+
+  function bindStatsFilters() {
+    var bar = document.querySelector('[data-stats-filter-bar]');
+    if (!bar) return;
+    bar.addEventListener('click', function (e) {
+      var chip = e.target.closest('[data-chip-statut]');
+      if (!chip) return;
+      var val = chip.dataset.chipStatut;
+      if (val === '') {
+        // Tout sélectionner
+        STATS_STATE.activeStatuts = [];
+        bar.querySelectorAll('[data-chip-statut]').forEach(function (c) {
+          c.classList.toggle('is-active', c.dataset.chipStatut === '');
+        });
+      } else {
+        var idx = STATS_STATE.activeStatuts.indexOf(val);
+        if (idx >= 0) {
+          STATS_STATE.activeStatuts.splice(idx, 1);
+        } else {
+          STATS_STATE.activeStatuts.push(val);
+        }
+        // Désactiver "tous" si une valeur précise est active
+        var allChip = bar.querySelector('[data-chip-statut=""]');
+        if (allChip) allChip.classList.toggle('is-active', STATS_STATE.activeStatuts.length === 0);
+        chip.classList.toggle('is-active', STATS_STATE.activeStatuts.indexOf(val) >= 0);
+      }
+      statsLoadInteractive();
+    });
+  }
+
+  function bindStatsMonthNav() {
+    var prevBtn = document.querySelector('[data-stats-month-prev]');
+    var nextBtn = document.querySelector('[data-stats-month-next]');
+    var todayBtn = document.querySelector('[data-stats-month-today]');
+    if (prevBtn) prevBtn.addEventListener('click', function () {
+      STATS_STATE.customStart = null; STATS_STATE.customEnd = null;
+      STATS_STATE.cursor = new Date(STATS_STATE.cursor.getFullYear(), STATS_STATE.cursor.getMonth() - 1, 1);
+      statsUpdateMonthLabel();
+      statsLoadInteractive();
+    });
+    if (nextBtn) nextBtn.addEventListener('click', function () {
+      STATS_STATE.customStart = null; STATS_STATE.customEnd = null;
+      STATS_STATE.cursor = new Date(STATS_STATE.cursor.getFullYear(), STATS_STATE.cursor.getMonth() + 1, 1);
+      statsUpdateMonthLabel();
+      statsLoadInteractive();
+    });
+    if (todayBtn) todayBtn.addEventListener('click', function () {
+      STATS_STATE.customStart = null; STATS_STATE.customEnd = null;
+      STATS_STATE.cursor = new Date();
+      statsUpdateMonthLabel();
+      statsLoadInteractive();
+    });
+  }
+
+  function bindStatsRangeModal() {
+    var openBtn = document.querySelector('[data-stats-range-open]');
+    var modal = document.getElementById('statsRangeModal');
+    if (!modal) return;
+
+    function closeModal() { modal.hidden = true; }
+
+    if (openBtn) openBtn.addEventListener('click', function () {
+      modal.hidden = false;
+      var startInput = modal.querySelector('[data-stats-range-start]');
+      var endInput = modal.querySelector('[data-stats-range-end]');
+      if (startInput && STATS_STATE.customStart) startInput.value = STATS_STATE.customStart.toISOString().slice(0, 10);
+      if (endInput && STATS_STATE.customEnd) endInput.value = STATS_STATE.customEnd.toISOString().slice(0, 10);
+    });
+
+    modal.querySelectorAll('[data-stats-range-close]').forEach(function (el) {
+      el.addEventListener('click', closeModal);
+    });
+
+    var applyBtn = modal.querySelector('[data-stats-range-apply]');
+    if (applyBtn) applyBtn.addEventListener('click', function () {
+      var s = modal.querySelector('[data-stats-range-start]').value;
+      var e = modal.querySelector('[data-stats-range-end]').value;
+      if (s && e) {
+        STATS_STATE.customStart = new Date(s);
+        STATS_STATE.customEnd = new Date(e);
+        closeModal();
+        statsUpdateMonthLabel();
+        statsLoadInteractive();
+      }
+    });
+
+    document.addEventListener('keydown', function (ev) {
+      if (!modal.hidden && ev.key === 'Escape') closeModal();
+    });
+  }
+
+  function bindStatsExport() {
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-stats-export]');
+      if (!btn) return;
+      var fmt = btn.dataset.statsExport;
+      var params = statsBuildParams() + '&format=' + fmt;
+      window.location.href = '/api/stats/export?' + params;
+    });
+  }
+
+  function initStatsInteractive() {
+    statsUpdateMonthLabel();
+    bindStatsMonthNav();
+    bindStatsFilters();
+    bindStatsRangeModal();
+    bindStatsExport();
+    statsLoadInteractive();
+  }
+
   function init() {
     bindTabs();
     bindPeriod();
     loadKPIs();
     loadCharts();
     repBindToolbar();
+    initStatsInteractive();
 
     // Hook tab click : charge le rapport à la première ouverture
     var tabBtn = document.querySelector('[data-v30-stats-tabs] button[data-tab="rapport"]');

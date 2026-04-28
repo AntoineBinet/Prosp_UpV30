@@ -115,6 +115,22 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }
+/* Badge sélection (affiché quand ?ids= dans l'URL) */
+.mp-sel-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 10px;
+  margin-left: 8px;
+  background: var(--accent-a10, oklch(0.55 0.22 195 / .15));
+  border: 1px solid var(--accent-a30, oklch(0.55 0.22 195 / .35));
+  color: var(--accent, oklch(0.55 0.22 195));
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .mp-header-right { display: flex; align-items: center; gap: 6px; }
 .mp-close-btn {
   display: inline-flex;

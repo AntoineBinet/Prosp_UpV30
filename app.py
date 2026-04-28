@@ -11505,6 +11505,245 @@ def _split_name_for_dup(name: str) -> tuple[str, str]:
     return (lastname, firstname)
 
 
+# ────────────────────────────────────────────────────────────────────
+# Stats v30 — données pour charts interactifs (période mensuelle + filtres)
+# ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/stats/data")
+def api_stats_data():
+    """Agrégats pour les 4 charts v30 : RDV/mois, Appels/mois, Funnel, Top entreprises.
+    Query params:
+      - period : YYYY-MM (month-based sliding window, défaut = mois courant)
+      - start / end : YYYY-MM-DD (custom range — prioritaire sur period)
+      - tags : CSV de tags à filtrer
+      - statuts : CSV de statuts à filtrer
+      - user_id : int (admin only — filtrer par utilisateur)
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    today = datetime.date.today()
+
+    # ── Résolution de la période ──
+    start_s = (request.args.get("start") or "").strip()
+    end_s = (request.args.get("end") or "").strip()
+    period = (request.args.get("period") or "").strip()  # YYYY-MM
+
+    if start_s and end_s:
+        try:
+            start_d = datetime.date.fromisoformat(start_s)
+            end_d = datetime.date.fromisoformat(end_s)
+            if start_d > end_d:
+                start_d, end_d = end_d, start_d
+        except Exception:
+            start_d = today.replace(day=1)
+            end_d = today
+    elif period:
+        try:
+            y, m = int(period[:4]), int(period[5:7])
+            start_d = datetime.date(y, m, 1)
+            if m == 12:
+                end_d = datetime.date(y + 1, 1, 1) - datetime.timedelta(days=1)
+            else:
+                end_d = datetime.date(y, m + 1, 1) - datetime.timedelta(days=1)
+        except Exception:
+            start_d = today.replace(day=1)
+            end_d = today
+    else:
+        start_d = today.replace(day=1)
+        end_d = today
+
+    # ── Filtres optionnels ──
+    tags_filter = [t.strip() for t in (request.args.get("tags") or "").split(",") if t.strip()]
+    statuts_filter = [s.strip() for s in (request.args.get("statuts") or "").split(",") if s.strip()]
+
+    # Admin peut filtrer par utilisateur
+    target_uid = uid
+    user_id_param = request.args.get("user_id", "").strip()
+    if user_id_param:
+        u = _get_current_user()
+        if u and u.get("role") == "admin":
+            try:
+                target_uid = int(user_id_param)
+            except Exception:
+                pass
+
+    # Construire des clauses SQL dynamiques
+    base_cond = ("p.owner_id=? AND (p.deleted_at IS NULL OR p.deleted_at='') "
+                 "AND (p.is_archived IS NULL OR p.is_archived=0)")
+    base_params: list = [target_uid]
+
+    if statuts_filter:
+        ph = ",".join("?" * len(statuts_filter))
+        base_cond += f" AND p.statut IN ({ph})"
+        base_params.extend(statuts_filter)
+
+    # RDV par mois (6 derniers mois se terminant par end_d)
+    months_rdv = []
+    months_calls = []
+    for i in range(5, -1, -1):
+        ref = end_d.replace(day=1)
+        # reculer i mois
+        y_off = ref.year + (ref.month - 1 - i) // 12
+        m_off = (ref.month - 1 - i) % 12 + 1
+        first = datetime.date(y_off, m_off, 1)
+        if m_off == 12:
+            last = datetime.date(y_off + 1, 1, 1) - datetime.timedelta(days=1)
+        else:
+            last = datetime.date(y_off, m_off + 1, 1) - datetime.timedelta(days=1)
+        label = first.strftime("%b %Y")
+        fi, li = first.isoformat(), last.isoformat()
+
+        with _conn() as conn:
+            rdv_n = conn.execute(
+                f"""SELECT COUNT(DISTINCT e.prospect_id) AS n
+                    FROM prospect_events e
+                    JOIN prospects p ON p.id=e.prospect_id
+                    WHERE {base_cond} AND e.type='rdv_taken'
+                      AND substr(e.date,1,10)>=? AND substr(e.date,1,10)<=?""",
+                base_params + [fi, li],
+            ).fetchone()["n"]
+
+            try:
+                calls_n = conn.execute(
+                    "SELECT COUNT(*) AS n FROM call_logs WHERE owner_id=? AND date>=? AND date<=?",
+                    (target_uid, fi, li),
+                ).fetchone()["n"]
+            except Exception:
+                calls_n = 0
+
+        months_rdv.append({"label": label, "count": rdv_n})
+        months_calls.append({"label": label, "count": calls_n})
+
+    # Funnel
+    with _conn() as conn:
+        total_p = conn.execute(
+            f"SELECT COUNT(*) AS n FROM prospects p WHERE {base_cond}", base_params
+        ).fetchone()["n"]
+        rdv_p = conn.execute(
+            f"SELECT COUNT(*) AS n FROM prospects p WHERE {base_cond} AND p.statut='Rendez-vous'",
+            base_params,
+        ).fetchone()["n"]
+        conv_rate = round(rdv_p / total_p, 4) if total_p > 0 else 0.0
+
+        # Top entreprises
+        top_rows = conn.execute(
+            f"""SELECT c.groupe AS name, COUNT(p.id) AS n
+                FROM companies c
+                JOIN prospects p ON p.company_id=c.id
+                WHERE {base_cond}
+                GROUP BY c.id ORDER BY n DESC LIMIT 10""",
+            base_params,
+        ).fetchall()
+        top_companies = [{"name": r["name"] or "—", "count": r["n"]} for r in top_rows]
+
+    return jsonify(
+        ok=True,
+        period={"start": start_d.isoformat(), "end": end_d.isoformat()},
+        rdv_by_month=[m["count"] for m in months_rdv],
+        rdv_labels=[m["label"] for m in months_rdv],
+        calls_by_month=[m["count"] for m in months_calls],
+        calls_labels=[m["label"] for m in months_calls],
+        funnel={"prospects": total_p, "rdv": rdv_p, "conversion_rate": conv_rate},
+        top_companies=top_companies,
+    )
+
+
+@app.get("/api/stats/export")
+def api_stats_export():
+    """Export des données stats en JSON ou CSV.
+    Query params:
+      - period : YYYY-MM
+      - start / end : YYYY-MM-DD
+      - format : json | csv  (défaut json)
+      - tags / statuts / user_id : mêmes filtres que /api/stats/data
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    fmt = (request.args.get("format") or "json").lower().strip()
+
+    today = datetime.date.today()
+    start_s = (request.args.get("start") or "").strip()
+    end_s = (request.args.get("end") or "").strip()
+    period = (request.args.get("period") or "").strip()
+    tags_filter = [t.strip() for t in (request.args.get("tags") or "").split(",") if t.strip()]
+    statuts_filter = [s.strip() for s in (request.args.get("statuts") or "").split(",") if s.strip()]
+
+    if start_s and end_s:
+        try:
+            start_d = datetime.date.fromisoformat(start_s)
+            end_d = datetime.date.fromisoformat(end_s)
+        except Exception:
+            start_d = today.replace(day=1); end_d = today
+    elif period:
+        try:
+            y, m = int(period[:4]), int(period[5:7])
+            start_d = datetime.date(y, m, 1)
+            end_d = (datetime.date(y, m + 1, 1) - datetime.timedelta(days=1)) if m < 12 else datetime.date(y + 1, 1, 1) - datetime.timedelta(days=1)
+        except Exception:
+            start_d = today.replace(day=1); end_d = today
+    else:
+        start_d = today.replace(day=1); end_d = today
+
+    target_uid = uid
+    user_id_param = request.args.get("user_id", "").strip()
+    if user_id_param:
+        u = _get_current_user()
+        if u and u.get("role") == "admin":
+            try:
+                target_uid = int(user_id_param)
+            except Exception:
+                pass
+
+    base_cond = ("p.owner_id=? AND (p.deleted_at IS NULL OR p.deleted_at='') "
+                 "AND (p.is_archived IS NULL OR p.is_archived=0)")
+    base_params: list = [target_uid]
+    if statuts_filter:
+        ph = ",".join("?" * len(statuts_filter))
+        base_cond += f" AND p.statut IN ({ph})"
+        base_params.extend(statuts_filter)
+
+    # Données brutes prospects pour l'export
+    with _conn() as conn:
+        rows = conn.execute(
+            f"""SELECT p.id, p.name, p.statut, p.lastContact, p.nextFollowUp,
+                       c.groupe AS company
+                FROM prospects p
+                LEFT JOIN companies c ON c.id=p.company_id AND c.owner_id=?
+                WHERE {base_cond}
+                  AND (p.lastContact>=? OR p.nextFollowUp>=?)
+                ORDER BY p.name""",
+            [target_uid] + base_params + [start_d.isoformat(), start_d.isoformat()],
+        ).fetchall()
+        data_rows = [dict(r) for r in rows]
+
+    filename_base = f"stats_{start_d}_{end_d}"
+
+    if fmt == "csv":
+        import io as _io
+        import csv as _csv
+        out = _io.StringIO()
+        writer = _csv.DictWriter(out, fieldnames=["id", "name", "company", "statut", "lastContact", "nextFollowUp"])
+        writer.writeheader()
+        writer.writerows(data_rows)
+        csv_bytes = out.getvalue().encode("utf-8-sig")
+        return Response(
+            csv_bytes,
+            mimetype="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename_base}.csv"'},
+        )
+    else:
+        payload = json.dumps({"period": {"start": start_d.isoformat(), "end": end_d.isoformat()}, "prospects": data_rows}, ensure_ascii=False, indent=2)
+        return Response(
+            payload.encode("utf-8"),
+            mimetype="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{filename_base}.json"'},
+        )
+
+
 @app.get("/api/duplicates")
 def api_duplicates():
     uid = _uid()
