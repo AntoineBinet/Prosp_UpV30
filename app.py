@@ -404,30 +404,33 @@ En utilisant ces informations web comme contexte, réponds à la demande suivant
 
 {original_prompt}"""
 
-def _stream_ai_web_sse(prompt: str, model_override: str | None, timeout: int):
+def _stream_ai_web_sse(prompt: str, model_override: str | None, timeout: int, temperature: float | None = None):
     """Stream SSE pour recherche web (Tavily + Ollama si configuré, sinon Ollama seul)."""
     config = _load_ai_config()
     if config.get("tavily_api_key"):
         try:
-            yield from _stream_tavily_ollama_sse(prompt, model_override, config, timeout)
+            yield from _stream_tavily_ollama_sse(prompt, model_override, config, timeout, temperature=temperature)
             return
         except Exception as e:
             logger.warning("Tavily+Ollama stream failed, falling back to Ollama seul: %s", e)
-    yield from _stream_ai_sse(prompt, model_override, timeout)
+    yield from _stream_ai_sse(prompt, model_override, timeout, temperature=temperature)
 
-def _stream_ai_sse(prompt: str, model_override: str | None, timeout: int):
+def _stream_ai_sse(prompt: str, model_override: str | None, timeout: int, temperature: float | None = None):
     """Générateur SSE unifié (Ollama). Yield des lignes SSE."""
     config = _load_ai_config()
     try:
-        yield from _stream_ollama_sse(prompt, model_override, config, timeout)
+        yield from _stream_ollama_sse(prompt, model_override, config, timeout, temperature=temperature)
     except Exception as err:
         yield f"data: {json.dumps({'type': 'error', 'message': str(err)}, ensure_ascii=False)}\n\n"
 
-def _stream_ollama_sse(prompt: str, model_override: str | None, config: dict, timeout: int):
+def _stream_ollama_sse(prompt: str, model_override: str | None, config: dict, timeout: int, temperature: float | None = None):
     """Stream SSE via Ollama."""
     url = config.get("ollama_url", OLLAMA_URL)
     model = model_override or config.get("ollama_model", OLLAMA_MODEL)
-    body = json.dumps({"model": model, "prompt": prompt, "stream": True}, ensure_ascii=False).encode("utf-8")
+    ollama_body: dict = {"model": model, "prompt": prompt, "stream": True}
+    if temperature is not None:
+        ollama_body["options"] = {"temperature": temperature}
+    body = json.dumps(ollama_body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         f"{url}/api/generate", data=body,
         headers={"Content-Type": "application/json"}, method="POST",
@@ -458,14 +461,14 @@ def _stream_ollama_sse(prompt: str, model_override: str | None, config: dict, ti
                     continue
     yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
 
-def _stream_tavily_ollama_sse(prompt: str, model_override: str | None, config: dict, timeout: int):
+def _stream_tavily_ollama_sse(prompt: str, model_override: str | None, config: dict, timeout: int, temperature: float | None = None):
     """Stream SSE : recherche web Tavily puis génération streaming via Ollama."""
     yield f"data: {json.dumps({'type': 'start', 'message': 'Recherche web Tavily en cours…'}, ensure_ascii=False)}\n\n"
     search_results = _call_tavily_search(prompt, config, timeout=30)
     nb_sources = len(search_results.get("sources", []))
     yield f"data: {json.dumps({'type': 'status', 'message': f'Tavily : {nb_sources} source(s) trouvée(s)', 'provider': 'tavily'}, ensure_ascii=False)}\n\n"
     enriched_prompt = _build_web_enriched_prompt(prompt, search_results)
-    yield from _stream_ollama_sse(enriched_prompt, model_override, config, timeout)
+    yield from _stream_ollama_sse(enriched_prompt, model_override, config, timeout, temperature=temperature)
     sources = search_results.get("sources", [])
     if sources:
         citations_text = "\n\nSources :\n" + "\n".join(f"- {s['title']}: {s['url']}" for s in sources[:5])
