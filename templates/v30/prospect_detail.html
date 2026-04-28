@@ -343,15 +343,23 @@
       <p class="muted" style="font-size: 12.5px; margin: 0 0 12px;">
         Prospect : <strong data-v30-fp-ai-name2>—</strong>
       </p>
-      <div class="v30-field">
+      <div class="v30-field" data-v30-fp-after-input>
         <label for="v30-fp-after-notes">Compte-rendu de réunion</label>
         <textarea id="v30-fp-after-notes" class="textarea" rows="10"
           placeholder="Collez ici votre compte-rendu : participants, sujets abordés, besoins identifiés, prochaines étapes…"
           data-v30-fp-after-notes></textarea>
       </div>
-      <div data-v30-fp-after-raw-wrap style="margin-top: 12px;" hidden>
-        <label class="label">Réponse IA brute</label>
-        <pre class="v30-ai-raw" data-v30-fp-after-raw style="max-height:120px;overflow:auto;"></pre>
+      <div data-v30-fp-after-progress hidden>
+        <div class="v30-after-progress">
+          <div class="v30-after-progress__bar-wrap">
+            <div class="v30-after-progress__bar" data-v30-fp-after-bar></div>
+          </div>
+          <div class="v30-after-progress__meta">
+            <span data-v30-fp-after-status>Connexion à l'IA…</span>
+            <span data-v30-fp-after-count style="font-variant-numeric:tabular-nums;">0 tokens</span>
+          </div>
+          <pre class="v30-after-progress__stream" data-v30-fp-after-stream></pre>
+        </div>
       </div>
     </div>
 
