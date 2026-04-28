@@ -570,20 +570,25 @@
       if (e.target.matches('[data-v30-drawer-backdrop]')) closeDrawer();
       if (e.target.closest('[data-v30-ia-run]')) {
         closeDrawer();
-        var body = '<div class="stack gap-3">' +
-          '<p class="muted" style="font-size:12.5px;margin:0;">Choisis le type d\'analyse à lancer sur ce prospect :</p>' +
-          '<button type="button" class="btn" data-v30-ia-scrap style="text-align:left;display:block;padding:10px 12px;">' +
-            '<span style="font-weight:500;display:block;">Scraping enrichissement</span>' +
-            '<span class="muted" style="font-size:11px;display:block;margin-top:3px;">Recherche IA + Tavily pour compléter fonction, email, téléphone, LinkedIn et notes.</span>' +
-          '</button>' +
-          '<button type="button" class="btn" data-v30-ia-before style="text-align:left;display:block;padding:10px 12px;">' +
-            '<span style="font-weight:500;display:block;">Avant RDV — fiche prépa</span>' +
-            '<span class="muted" style="font-size:11px;display:block;margin-top:3px;">Générer un PDF de préparation à partir des données du prospect.</span>' +
-          '</button>' +
-          '<button type="button" class="btn" data-v30-ia-after style="text-align:left;display:block;padding:10px 12px;">' +
-            '<span style="font-weight:500;display:block;">Après RDV — compte-rendu</span>' +
-            '<span class="muted" style="font-size:11px;display:block;margin-top:3px;">Transformer des notes libres en résumé + actions + tags.</span>' +
-          '</button>' +
+        var iconSearch = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+        var iconReport = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>';
+        var iconCheck = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l2 2 5-5"/><circle cx="12" cy="12" r="9"/></svg>';
+        var iconChev = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+        function pickerItem(action, icon, title, desc) {
+          return '<button type="button" class="v30-ia-picker__item" ' + action + '>' +
+            '<span class="v30-ia-picker__icon">' + icon + '</span>' +
+            '<span class="v30-ia-picker__text">' +
+              '<span class="v30-ia-picker__title">' + title + '</span>' +
+              '<span class="v30-ia-picker__desc">' + desc + '</span>' +
+            '</span>' +
+            '<span class="v30-ia-picker__chev">' + iconChev + '</span>' +
+          '</button>';
+        }
+        var body = '<div class="v30-ia-picker">' +
+          '<p class="v30-ia-picker__intro">Choisis le type d\'analyse à lancer sur ce prospect :</p>' +
+          pickerItem('data-v30-ia-scrap', iconSearch, 'Scraping enrichissement', 'Recherche IA + Tavily pour compléter fonction, email, téléphone, LinkedIn et notes.') +
+          pickerItem('data-v30-ia-before', iconReport, 'Avant RDV — fiche prépa', 'Générer un PDF de préparation à partir des données du prospect.') +
+          pickerItem('data-v30-ia-after', iconCheck, 'Après RDV — compte-rendu', 'Transformer des notes libres en résumé + actions + tags.') +
         '</div>';
         openDrawer('Analyses IA', body);
         return;

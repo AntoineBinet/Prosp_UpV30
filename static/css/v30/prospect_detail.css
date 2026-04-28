@@ -235,6 +235,81 @@
   justify-content: flex-end;
 }
 
+/* ─────────── IA analyses picker (drawer) ─────────── */
+.v30-ia-picker { display: flex; flex-direction: column; gap: 10px; }
+.v30-ia-picker__intro {
+  font-size: 12.5px;
+  color: var(--text-3);
+  margin: 0 0 2px;
+  line-height: 1.45;
+}
+.v30-ia-picker__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px 1fr 16px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-1), border-color var(--dur-1), transform var(--dur-1), box-shadow var(--dur-1);
+}
+.v30-ia-picker__item:hover {
+  background: color-mix(in oklch, var(--accent) 5%, var(--surface));
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px -3px color-mix(in oklch, var(--accent) 40%, transparent);
+}
+.v30-ia-picker__item:active { transform: translateY(0); }
+.v30-ia-picker__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.v30-ia-picker__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  color: var(--accent);
+  flex: none;
+}
+.v30-ia-picker__icon svg { width: 18px; height: 18px; }
+.v30-ia-picker__text { min-width: 0; }
+.v30-ia-picker__title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+.v30-ia-picker__desc {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.4;
+}
+.v30-ia-picker__chev {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: transform var(--dur-1), color var(--dur-1);
+}
+.v30-ia-picker__item:hover .v30-ia-picker__chev {
+  color: var(--accent);
+  transform: translateX(2px);
+}
+
 /* ─────────── Floating picker (statut + more menu) ─────────── */
 .v30-fp-picker {
   position: fixed;
