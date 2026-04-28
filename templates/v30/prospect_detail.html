@@ -66,6 +66,7 @@
         <button type="button" data-tab="push" role="tab" aria-selected="false">
           Push <span class="tab-count" data-field="count-push">—</span>
         </button>
+        <button type="button" data-tab="grille" role="tab" aria-selected="false">Grille RDV</button>
         <button type="button" data-tab="ia" role="tab" aria-selected="false">IA</button>
       </div>
 
@@ -138,6 +139,29 @@
           </div>
           <div data-v30-fp-push-list style="padding:8px 16px;">
             <div class="empty">Chargement…</div>
+          </div>
+        </div>
+      </div>
+
+      {# Panel: Grille de qualification RDV #}
+      <div data-v30-fp-panel="grille" hidden>
+        <div class="card" style="margin-top:12px;">
+          <div class="row-sb" style="margin-bottom:12px;">
+            <div class="card-title">{{ ui.icon('clipboard', 14) }} Grille de qualification</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button type="button" class="btn btn-ghost btn-sm" data-v30-after-rdv-btn>
+                {{ ui.icon('sparkles', 12) }} Remplir avec IA
+              </button>
+              <button type="button" class="btn btn-accent btn-sm" data-v30-grille-save>
+                {{ ui.icon('save', 12) }} Enregistrer
+              </button>
+            </div>
+          </div>
+          <p class="muted" style="font-size:12px;margin-bottom:12px;">
+            Remplissez ces informations pendant ou après un RDV, ou utilisez "Remplir avec IA" pour les extraire automatiquement d'un compte-rendu.
+          </p>
+          <div data-v30-grille-content>
+            <div class="empty" style="padding:16px;">Chargement…</div>
           </div>
         </div>
       </div>
@@ -308,31 +332,51 @@
 
 {# ─── Modale IA : Après RDV — compte-rendu ─── #}
 <div class="v30-modal-bd" data-v30-fp-modal="after" hidden>
-  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-fp-after-title">
+  <div class="v30-modal v30-modal--wide v30-modal--tall" role="dialog" aria-modal="true" aria-labelledby="v30-fp-after-title">
     <div class="v30-modal__head">
       <h2 class="v30-modal__title" id="v30-fp-after-title">{{ ui.icon('sparkles', 14) }} Après RDV — compte-rendu</h2>
       <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-fp-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
     </div>
-    <div class="v30-modal__body">
-      <p class="muted" style="font-size: 12.5px; margin: 0 0 8px;">Prospect : <strong data-v30-fp-ai-name2>—</strong></p>
+
+    {# Étape 1 : saisie du compte-rendu #}
+    <div class="v30-modal__body" data-v30-fp-after-s1>
+      <p class="muted" style="font-size: 12.5px; margin: 0 0 12px;">
+        Prospect : <strong data-v30-fp-ai-name2>—</strong>
+      </p>
       <div class="v30-field">
-        <label for="v30-fp-after-notes">Notes du RDV (saisies libres)</label>
-        <textarea id="v30-fp-after-notes" class="textarea" rows="6" placeholder="Ex: Le prospect est intéressé par l'offre de formation, budget 3k€, décision fin du trimestre…" data-v30-fp-after-notes></textarea>
+        <label for="v30-fp-after-notes">Compte-rendu de réunion</label>
+        <textarea id="v30-fp-after-notes" class="textarea" rows="10"
+          placeholder="Collez ici votre compte-rendu : participants, sujets abordés, besoins identifiés, prochaines étapes…"
+          data-v30-fp-after-notes></textarea>
       </div>
       <div data-v30-fp-after-raw-wrap style="margin-top: 12px;" hidden>
-        <label class="label">Analyse IA brute</label>
-        <pre class="v30-ai-raw" data-v30-fp-after-raw></pre>
-      </div>
-      <div data-v30-fp-after-apply-wrap style="margin-top: 12px;" hidden>
-        <label class="label">Actions proposées</label>
-        <div data-v30-fp-after-apply class="v30-fp-ai-diff"></div>
+        <label class="label">Réponse IA brute</label>
+        <pre class="v30-ai-raw" data-v30-fp-after-raw style="max-height:120px;overflow:auto;"></pre>
       </div>
     </div>
+
+    {# Étape 2 : formulaire éditable pré-rempli par l'IA #}
+    <div class="v30-modal__body v30-grille-form" data-v30-fp-after-s2 hidden>
+      <p class="muted" style="font-size:12px;margin:0 0 12px;">
+        Résultats extraits par l'IA — modifiez, complétez ou corrigez avant d'appliquer.
+      </p>
+      <div data-v30-fp-after-form></div>
+    </div>
+
     <div class="v30-modal__foot">
       <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-modal-close>Fermer</button>
       <div class="v30-spacer" style="flex:1;"></div>
-      <button type="button" class="btn btn-sm" data-v30-fp-after-run>Analyser</button>
-      <button type="button" class="btn btn-primary btn-sm" data-v30-fp-after-apply-btn hidden>Appliquer</button>
+      <span data-v30-fp-after-s1-btns>
+        <button type="button" class="btn btn-primary btn-sm" data-v30-fp-after-run>
+          {{ ui.icon('sparkles', 12) }} Analyser avec IA
+        </button>
+      </span>
+      <span data-v30-fp-after-s2-btns hidden>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-after-back>← Retour</button>
+        <button type="button" class="btn btn-primary btn-sm" data-v30-fp-after-save>
+          {{ ui.icon('save', 12) }} Appliquer
+        </button>
+      </span>
     </div>
   </div>
 </div>

@@ -466,6 +466,7 @@
       document.querySelectorAll('[data-v30-fp-panel]').forEach(function (p) {
         p.hidden = (p.dataset.v30FpPanel !== key);
       });
+      if (key === 'grille') loadGrilleTab();
     });
   }
 
@@ -1004,16 +1005,22 @@
     if (!m) return;
     var nameEl = m.querySelector('[data-v30-fp-ai-name2]');
     if (nameEl) nameEl.textContent = p.name || '—';
+    // Reset textarea + raw
     var ta = m.querySelector('[data-v30-fp-after-notes]');
     if (ta) ta.value = '';
     var rawWrap = m.querySelector('[data-v30-fp-after-raw-wrap]');
     if (rawWrap) rawWrap.hidden = true;
-    var applyWrap = m.querySelector('[data-v30-fp-after-apply-wrap]');
-    if (applyWrap) applyWrap.hidden = true;
-    var applyBtn = m.querySelector('[data-v30-fp-after-apply-btn]');
-    if (applyBtn) applyBtn.hidden = true;
     var run = m.querySelector('[data-v30-fp-after-run]');
-    if (run) { run.disabled = false; run.textContent = 'Analyser'; }
+    if (run) { run.disabled = false; run.textContent = 'Analyser avec IA'; }
+    // Show step 1, hide step 2
+    var s1 = m.querySelector('[data-v30-fp-after-s1]');
+    var s2 = m.querySelector('[data-v30-fp-after-s2]');
+    var s1btns = m.querySelector('[data-v30-fp-after-s1-btns]');
+    var s2btns = m.querySelector('[data-v30-fp-after-s2-btns]');
+    if (s1) s1.hidden = false;
+    if (s2) s2.hidden = true;
+    if (s1btns) s1btns.hidden = false;
+    if (s2btns) s2btns.hidden = true;
   }
   function runAfter() {
     var m = getFPModal('after');
@@ -1024,13 +1031,8 @@
     var run = m.querySelector('[data-v30-fp-after-run]');
     var rawWrap = m.querySelector('[data-v30-fp-after-raw-wrap]');
     var rawEl = m.querySelector('[data-v30-fp-after-raw]');
-    var applyWrap = m.querySelector('[data-v30-fp-after-apply-wrap]');
-    var applyHost = m.querySelector('[data-v30-fp-after-apply]');
-    var applyBtn = m.querySelector('[data-v30-fp-after-apply-btn]');
     if (run) { run.disabled = true; run.textContent = 'Analyse en cours…'; }
     if (rawWrap) rawWrap.hidden = true;
-    if (applyWrap) applyWrap.hidden = true;
-    if (applyBtn) applyBtn.hidden = true;
 
     var p = FP.STATE.prospect || {};
     var companyInfo = (p.company_groupe || '') + (p.company_site ? ' (' + p.company_site + ')' : '');
@@ -1084,181 +1086,234 @@
           return;
         }
         IA_CTX.afterJson = json;
-        renderAfterApply(applyHost, json, notes);
-        if (applyWrap) applyWrap.hidden = false;
-        if (applyBtn) applyBtn.hidden = false;
-        toast('Analyse terminée', 'success');
+        showAfterForm(m, json);
+        toast('Analyse terminée — vérifiez et complétez les champs', 'success', 4000);
       })
       .catch(function(err) { toast('Erreur IA : ' + (err.message || err), 'error'); })
       .then(function() {
         if (run) { run.disabled = false; run.textContent = 'Relancer'; }
       });
   }
-  function renderAfterApply(host, json, notes) {
-    if (!host) return;
-    host.innerHTML = '';
-    var rows = [];
+  function showAfterForm(m, json) {
+    if (!m) return;
+    var s1 = m.querySelector('[data-v30-fp-after-s1]');
+    var s2 = m.querySelector('[data-v30-fp-after-s2]');
+    var s1btns = m.querySelector('[data-v30-fp-after-s1-btns]');
+    var s2btns = m.querySelector('[data-v30-fp-after-s2-btns]');
+    var formHost = m.querySelector('[data-v30-fp-after-form]');
+    if (!formHost) return;
 
-    var resume = (json.resume || '').toString().trim();
-    var tags = Array.isArray(json.tags_suggeres) ? json.tags_suggeres.filter(Boolean) : [];
-    var niveau = (json.niveau_interet || '').toString().trim();
-    var nextAction = (json.next_action || '').toString().trim();
-    var notesEnrichies = (json.notes_enrichies || '').toString().trim();
+    formHost.innerHTML = '<div class="empty" style="padding:16px;">Chargement de la grille…</div>';
+    if (s1) s1.hidden = true;
+    if (s2) s2.hidden = false;
+    if (s1btns) s1btns.hidden = true;
+    if (s2btns) s2btns.hidden = false;
+
     var checklist = (json.checklist_responses && typeof json.checklist_responses === 'object') ? json.checklist_responses : {};
+    var valOrEmpty = function(v) {
+      if (!v) return '';
+      var s = String(v).trim();
+      return (s.toLowerCase() === 'null') ? '' : s;
+    };
 
-    // 1. Résumé + prochaine action → événement timeline
-    if (resume || nextAction || niveau) {
-      var parts = [];
-      if (resume) parts.push(resume);
-      if (nextAction) parts.push('\nProchaine action : ' + nextAction);
-      if (niveau) parts.push('\nNiveau d\'intérêt : ' + niveau);
-      rows.push({
-        kind: 'event',
-        label: 'Ajouter compte-rendu à la timeline',
-        preview: parts.join('\n'),
-        payload: { title: 'Compte-rendu RDV', content: parts.join('\n') }
-      });
-    }
+    fetch('/api/rdv-checklist/themes', { credentials: 'include' })
+      .then(function(r) { return r.json(); })
+      .then(function(td) {
+        var themes = (td && td.themes) ? td.themes : [];
+        var html = '';
 
-    // 2. Grille de qualification — réponses extraites des notes
-    var checklistFiltered = {};
-    var checklistCount = 0;
-    Object.keys(checklist).forEach(function(key) {
-      var val = checklist[key];
-      if (val && String(val).trim() !== '' && String(val).trim().toLowerCase() !== 'null') {
-        checklistFiltered[key] = String(val).trim();
-        checklistCount++;
-      }
-    });
-    if (checklistCount > 0) {
-      var previewLines = Object.keys(checklistFiltered).slice(0, 6).map(function(k) {
-        var v = checklistFiltered[k];
-        return '• ' + k + ' : ' + v.substring(0, 70) + (v.length > 70 ? '…' : '');
-      });
-      if (checklistCount > 6) previewLines.push('… et ' + (checklistCount - 6) + ' autres réponses');
-      rows.push({
-        kind: 'checklist',
-        label: 'Remplir la grille de qualification (' + checklistCount + ' réponses)',
-        preview: previewLines.join('\n'),
-        payload: { responses: checklistFiltered }
-      });
-    }
+        // ── Synthèse générale ──
+        html += '<div class="v30-grille-section-title">Synthèse générale</div>';
 
-    // 3. Tags suggérés
-    if (tags.length) {
-      rows.push({
-        kind: 'tags',
-        label: 'Ajouter tags : ' + tags.join(', '),
-        preview: tags.join(', '),
-        payload: { tags: tags }
-      });
-    }
+        html += '<div class="v30-grille-item">' +
+          '<label class="v30-grille-label">Résumé de la réunion</label>' +
+          '<textarea class="v30-grille-textarea" data-after-field="resume" rows="4" placeholder="—">' +
+          FP.esc(valOrEmpty(json.resume)) + '</textarea></div>';
 
-    // 4. Notes brutes + synthèse IA → champ Notes prospect
-    if (notes && notes.length) {
-      var p = FP.STATE.prospect || {};
-      var curNotes = (p.notes == null ? '' : String(p.notes)).trim();
-      var datePrefix = new Date().toLocaleDateString('fr-FR');
-      var newNoteParts = ['[Notes RDV ' + datePrefix + ']', notes];
-      if (notesEnrichies) newNoteParts.push('\n[Synthèse IA] ' + notesEnrichies);
-      var newNote = newNoteParts.join('\n');
-      var newNotes = curNotes ? (curNotes + '\n\n' + newNote) : newNote;
-      rows.push({
-        kind: 'notes',
-        label: 'Ajouter mes notes au champ Notes',
-        preview: notes,
-        payload: { value: newNotes }
-      });
-    }
+        html += '<div class="v30-grille-item">' +
+          '<label class="v30-grille-label">Prochaine action</label>' +
+          '<textarea class="v30-grille-textarea" data-after-field="next_action" rows="2" placeholder="Ex : Envoyer 2 profils C++ embarqué">' +
+          FP.esc(valOrEmpty(json.next_action)) + '</textarea></div>';
 
-    if (!rows.length) {
-      host.innerHTML = '<div class="empty" style="padding:12px;font-size:12px;">Rien à appliquer.</div>';
-      return;
-    }
-    rows.forEach(function(r, idx) {
-      var row = document.createElement('label');
-      row.className = 'v30-fp-ai-diff__row';
-      row.innerHTML =
-        '<input type="checkbox" checked data-ia-after-idx="' + idx + '">' +
-        '<span class="v30-fp-ai-diff__label">' + FP.esc(r.kind) + '</span>' +
-        '<span class="v30-fp-ai-diff__values">' +
-          '<span class="v30-fp-ai-diff__new"><b>' + FP.esc(r.label) + '</b></span>' +
-          '<span class="muted" style="font-size:11.5px;white-space:pre-wrap;">' + FP.esc(r.preview.slice(0, 400)) + (r.preview.length > 400 ? '…' : '') + '</span>' +
-        '</span>';
-      host.appendChild(row);
-    });
-    host._rows = rows;
+        var statutVal = valOrEmpty(json.statut);
+        var statutOptions = ['Appelé', 'À rappeler', 'Rendez-vous', 'Messagerie', 'Pas intéressé'];
+        html += '<div class="v30-grille-item"><label class="v30-grille-label">Nouveau statut</label>' +
+          '<select class="v30-grille-select" data-after-field="statut">' +
+          '<option value="">— inchangé —</option>' +
+          statutOptions.map(function(s) {
+            return '<option value="' + FP.esc(s) + '"' + (statutVal === s ? ' selected' : '') + '>' + FP.esc(s) + '</option>';
+          }).join('') + '</select></div>';
+
+        var tagsVal = Array.isArray(json.tags_suggeres) ? json.tags_suggeres.filter(Boolean).join(', ') : valOrEmpty(json.tags_suggeres);
+        html += '<div class="v30-grille-item">' +
+          '<label class="v30-grille-label">Tags suggérés (séparés par des virgules)</label>' +
+          '<textarea class="v30-grille-textarea" data-after-field="tags" rows="1" placeholder="tag1, tag2">' +
+          FP.esc(tagsVal) + '</textarea></div>';
+
+        var notesEnrichies = valOrEmpty(json.notes_enrichies);
+        html += '<div class="v30-grille-item">' +
+          '<label class="v30-grille-label">Infos clés à mémoriser</label>' +
+          '<textarea class="v30-grille-textarea" data-after-field="notes_enrichies" rows="2" placeholder="Taille équipe, techno, budget, process achat…">' +
+          FP.esc(notesEnrichies) + '</textarea></div>';
+
+        // ── Grille de qualification ──
+        html += '<div class="v30-grille-section-title">Grille de qualification (' + themes.length + ' questions)</div>';
+        themes.forEach(function(t) {
+          var val = valOrEmpty(checklist[t.key]);
+          html += '<div class="v30-grille-item">' +
+            '<label class="v30-grille-label">' + FP.esc(t.question) + '</label>' +
+            '<textarea class="v30-grille-textarea" data-grille-key="' + FP.esc(t.key) + '" rows="2" placeholder="—">' +
+            FP.esc(val) + '</textarea></div>';
+        });
+
+        formHost.innerHTML = html;
+      })
+      .catch(function(err) {
+        if (formHost) formHost.innerHTML = '<div class="empty" style="color:var(--red);">Erreur chargement grille : ' + FP.esc(err.message) + '</div>';
+      });
   }
-  function applyAfter() {
+
+  function saveAfterForm() {
     var m = getFPModal('after');
     if (!m) return;
-    var host = m.querySelector('[data-v30-fp-after-apply]');
-    var applyBtn = m.querySelector('[data-v30-fp-after-apply-btn]');
-    if (!host || !host._rows) return;
-    var selected = [];
-    host.querySelectorAll('input[type="checkbox"][data-ia-after-idx]').forEach(function (cb) {
-      if (cb.checked) {
-        var idx = Number(cb.dataset.iaAfterIdx);
-        if (host._rows[idx]) selected.push(host._rows[idx]);
-      }
+    var formHost = m.querySelector('[data-v30-fp-after-form]');
+    if (!formHost) return;
+    var saveBtn = m.querySelector('[data-v30-fp-after-save]');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Enregistrement…'; }
+
+    // Lire champs généraux
+    var getField = function(sel) { var el = formHost.querySelector(sel); return el ? el.value.trim() : ''; };
+    var resume = getField('textarea[data-after-field="resume"]');
+    var nextAction = getField('textarea[data-after-field="next_action"]');
+    var statut = getField('select[data-after-field="statut"]');
+    var tagsRaw = getField('textarea[data-after-field="tags"]');
+    var notesEnrichies = getField('textarea[data-after-field="notes_enrichies"]');
+    var tags = tagsRaw ? tagsRaw.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [];
+
+    // Lire grille
+    var checklistData = {};
+    formHost.querySelectorAll('textarea[data-grille-key]').forEach(function(ta) {
+      var key = ta.dataset.grilleKey;
+      var val = ta.value.trim();
+      checklistData[key] = { reponse: val, checked: val !== '' };
     });
-    if (!selected.length) { toast('Aucune action sélectionnée', 'warning'); return; }
-    if (applyBtn) applyBtn.disabled = true;
+    var hasChecklist = Object.keys(checklistData).some(function(k) { return checklistData[k].reponse; });
+
     var chain = Promise.resolve();
-    selected.forEach(function (r) {
-      if (r.kind === 'event') {
-        chain = chain.then(function () {
-          return FP.fetchPostJSON('/api/prospect/events/add', {
-            prospect_id: FP.ID,
-            title: r.payload.title,
-            content: r.payload.content
-          });
-        });
-      } else if (r.kind === 'tags') {
-        chain = chain.then(function () {
-          return FP.fetchPostJSON('/api/prospects/bulk-status-tags', {
-            ids: [FP.ID],
-            add_tags: r.payload.tags
-          });
-        });
-      } else if (r.kind === 'notes') {
-        chain = chain.then(function () {
-          return FP.saveField('notes', r.payload.value).then(function () {
-            if (FP.STATE.prospect) FP.STATE.prospect.notes = r.payload.value;
-          });
-        });
-      } else if (r.kind === 'checklist') {
-        chain = chain.then(function () {
-          return fetch('/api/rdv-checklist?prospect_id=' + FP.ID, { credentials: 'include' })
-            .then(function(res) { return res.json(); })
-            .then(function(existing) {
-              var data = (existing && existing.data) ? existing.data : {};
-              Object.keys(r.payload.responses).forEach(function(key) {
-                if (!data[key]) data[key] = { reponse: '', checked: false };
-                data[key].reponse = r.payload.responses[key];
-                data[key].checked = true;
-              });
-              return FP.fetchPostJSON('/api/rdv-checklist', { prospect_id: FP.ID, data: data });
+
+    // 1. Sauvegarder grille
+    if (hasChecklist) {
+      chain = chain.then(function() {
+        return fetch('/api/rdv-checklist?prospect_id=' + FP.ID, { credentials: 'include' })
+          .then(function(r) { return r.json(); })
+          .then(function(existing) {
+            var data = (existing && existing.data) ? existing.data : {};
+            Object.keys(checklistData).forEach(function(key) {
+              if (checklistData[key].reponse) data[key] = checklistData[key];
             });
+            return FP.fetchPostJSON('/api/rdv-checklist', { prospect_id: FP.ID, data: data });
+          });
+      });
+    }
+
+    // 2. Résumé + prochaine action → timeline
+    if (resume || nextAction) {
+      chain = chain.then(function() {
+        var content = resume || '';
+        if (nextAction) content += (content ? '\n\nProchaine action : ' : 'Prochaine action : ') + nextAction;
+        return FP.fetchPostJSON('/api/prospect/events/add', {
+          prospect_id: FP.ID,
+          title: 'Compte-rendu RDV',
+          content: content
         });
-      }
+      });
+    }
+
+    // 3. Statut
+    if (statut) {
+      chain = chain.then(function() {
+        return FP.fetchPostJSON('/api/prospects/bulk-edit', { ids: [FP.ID], field: 'statut', value: statut })
+          .then(function() { if (FP.STATE.prospect) FP.STATE.prospect.statut = statut; });
+      });
+    }
+
+    // 4. Tags
+    if (tags.length) {
+      chain = chain.then(function() {
+        return FP.fetchPostJSON('/api/prospects/bulk-status-tags', { ids: [FP.ID], add_tags: tags });
+      });
+    }
+
+    // 5. Notes enrichies
+    if (notesEnrichies) {
+      chain = chain.then(function() {
+        var p = FP.STATE.prospect || {};
+        var cur = (p.notes || '').trim();
+        var dateStr = new Date().toLocaleDateString('fr-FR');
+        var newNote = '[Synthèse RDV ' + dateStr + ']\n' + notesEnrichies;
+        var merged = cur ? (cur + '\n\n' + newNote) : newNote;
+        return FP.saveField('notes', merged).then(function() {
+          if (FP.STATE.prospect) FP.STATE.prospect.notes = merged;
+        });
+      });
+    }
+
+    chain
+      .then(function() { return logIaRun('after', 'Compte-rendu appliqué (grille + synthèse)'); })
+      .then(function() { return FP.loadTimeline(); })
+      .then(function() {
+        if (window.ProspFPRender) window.ProspFPRender.all(FP.STATE);
+        flashSaved();
+        closeFPModal(m);
+        toast('Compte-rendu appliqué !', 'success');
+      })
+      .catch(function(err) { toast('Erreur : ' + (err.message || err), 'error'); })
+      .then(function() {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Appliquer'; }
+      });
+  }
+
+  // ── d) Grille de qualification (onglet) ──────────────────────
+  function loadGrilleTab() {
+    var content = document.querySelector('[data-v30-grille-content]');
+    if (!content) return;
+    content.innerHTML = '<div class="empty" style="padding:16px;">Chargement…</div>';
+
+    Promise.all([
+      fetch('/api/rdv-checklist/themes', { credentials: 'include' }).then(function(r) { return r.json(); }),
+      fetch('/api/rdv-checklist?prospect_id=' + FP.ID, { credentials: 'include' }).then(function(r) { return r.json(); })
+    ]).then(function(results) {
+      var themes = (results[0] && results[0].themes) ? results[0].themes : [];
+      var data = (results[1] && results[1].data) ? results[1].data : {};
+      var html = themes.map(function(t) {
+        var val = (data[t.key] && data[t.key].reponse) ? data[t.key].reponse : '';
+        return '<div class="v30-grille-item">' +
+          '<label class="v30-grille-label" for="grille_' + FP.esc(t.key) + '">' + FP.esc(t.question) + '</label>' +
+          '<textarea id="grille_' + FP.esc(t.key) + '" class="v30-grille-textarea" data-grille-key="' + FP.esc(t.key) + '" rows="2" placeholder="—">' +
+          FP.esc(val) + '</textarea></div>';
+      }).join('');
+      content.innerHTML = html || '<div class="empty" style="padding:16px;">Aucune question disponible.</div>';
+    }).catch(function(err) {
+      content.innerHTML = '<div class="empty" style="color:var(--red);padding:16px;">Erreur : ' + FP.esc(err.message) + '</div>';
     });
-    chain.then(function () {
-      toast('Compte-rendu appliqué', 'success');
-      var kinds = selected.map(function (r) { return r.kind; });
-      return logIaRun('after', 'Appliqué : ' + kinds.join(', '));
-    }).then(function () {
-      // Rafraîchir timeline + aside (logIaRun a déjà appelé loadTimeline,
-      // mais on réassure ici pour les apply qui n'ont rien loggué).
-      return FP.loadTimeline();
-    }).then(function () {
-      flashSaved();
-      closeFPModal(m);
-    }).catch(function (err) {
-      toast('Erreur application : ' + (err.message || err), 'error');
-    }).then(function () {
-      if (applyBtn) applyBtn.disabled = false;
+  }
+
+  function saveGrille() {
+    var content = document.querySelector('[data-v30-grille-content]');
+    if (!content) return;
+    var btn = document.querySelector('[data-v30-grille-save]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+
+    var data = {};
+    content.querySelectorAll('textarea[data-grille-key]').forEach(function(ta) {
+      var key = ta.dataset.grilleKey;
+      data[key] = { reponse: ta.value.trim(), checked: ta.value.trim() !== '' };
     });
+
+    FP.fetchPostJSON('/api/rdv-checklist', { prospect_id: FP.ID, data: data })
+      .then(function() { toast('Grille enregistrée', 'success'); flashSaved(); })
+      .catch(function(err) { toast('Erreur : ' + (err.message || err), 'error'); })
+      .then(function() { if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer'; } });
   }
 
   function bindFPModals() {
@@ -1280,14 +1335,28 @@
       });
     });
 
-    // Scrap handlers
+    // Scrap + IA handlers
     document.addEventListener('click', function (e) {
       if (e.target.closest('[data-v30-fp-scrap-run]')) runScrap();
       if (e.target.closest('[data-v30-fp-scrap-apply]')) applyScrap();
       if (e.target.closest('[data-v30-fp-scrap-copy]')) copyScrap();
       if (e.target.closest('[data-v30-fp-before-run]')) runBefore();
       if (e.target.closest('[data-v30-fp-after-run]')) runAfter();
-      if (e.target.closest('[data-v30-fp-after-apply-btn]')) applyAfter();
+      if (e.target.closest('[data-v30-fp-after-save]')) saveAfterForm();
+      if (e.target.closest('[data-v30-fp-after-back]')) {
+        var m = getFPModal('after');
+        if (m) {
+          var s1 = m.querySelector('[data-v30-fp-after-s1]');
+          var s2 = m.querySelector('[data-v30-fp-after-s2]');
+          var s1b = m.querySelector('[data-v30-fp-after-s1-btns]');
+          var s2b = m.querySelector('[data-v30-fp-after-s2-btns]');
+          if (s1) s1.hidden = false; if (s2) s2.hidden = true;
+          if (s1b) s1b.hidden = false; if (s2b) s2b.hidden = true;
+        }
+      }
+      // Grille tab buttons
+      if (e.target.closest('[data-v30-grille-save]')) saveGrille();
+      if (e.target.closest('[data-v30-after-rdv-btn]')) openAfterModal();
     });
   }
 
