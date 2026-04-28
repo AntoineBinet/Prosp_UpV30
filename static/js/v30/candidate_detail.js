@@ -700,7 +700,7 @@
       var btn = e.target.closest('[data-v30-fc-action]');
       if (!btn) return;
       var act = btn.dataset.v30FcAction;
-      if (act === 'dc')        window.location.href = '/v30/dc?candidate=' + CID;
+      if (act === 'dc')        window.location.href = '/v30/dc/' + CID;
       else if (act === 'push') window.location.href = '/v30/push?candidate=' + CID;
       else if (act === 'more') { e.stopPropagation(); openMoreMenu(btn); }
     });

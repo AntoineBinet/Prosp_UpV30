@@ -2,6 +2,30 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [31.6] — 2026-04-28 · finalisation v30 (DC + Calendrier)
+
+Deux gros déblocages pour rendre v30 autonome face à v29.
+
+- **DC Generator — historique persistant.** Nouvelle table `dc_generations` avec
+  un INSERT à chaque génération réussie. Trois routes API :
+  `GET /api/dc/history`, `GET /api/dc/<id>/download`, `DELETE /api/dc/<id>`.
+  Côté UI, ajout des onglets « Générateur | Historique » sur `/v30/dc`,
+  avec téléchargement et suppression. La sidebar « Récents » et le panneau
+  plein affichent désormais les DC issus de la base, plus uniquement la
+  session courante.
+- **Calendrier — création/édition/suppression de RDV.** Nouvelle table
+  `calendar_events` pour les RDV ad-hoc créés depuis l'UI v30. Trois routes
+  API (`POST/PUT/DELETE /api/calendar_events[/<id>]`). Le `GET` existant
+  agrège ces événements en plus des sources actuelles, en exposant
+  `prospect_id` / `candidate_id` séparés. Bouton « Nouveau RDV » en topbar,
+  double-clic sur une cellule jour pour créer un RDV pré-rempli, modale
+  avec date / heure / durée / lieu / notes / statut + autocomplete prospect
+  via `/api/search`. Bouton « Modifier » dans le popup d'événement pour
+  les RDV custom.
+- `static/js/v30/candidate_detail.js` : corrige la redirection du bouton
+  « Générer DC » (`/v30/dc?candidate=X` → `/v30/dc/<X>` qui est la route
+  réelle).
+
 ## [31.5] — 2026-04-28 · date du RDV dans le badge « Rendez-vous »
 
 Visuel direct depuis le tableau des prospects sans avoir à ouvrir la fiche.
