@@ -209,7 +209,7 @@ window.mpClose = function () {
                 }).join('') +
                 '</div></div>';
         }
-        if (p.email) quickActions += '<a href="mailto:' + escapeHtml(p.email) + '" class="mp-quick-btn mp-quick-email" title="Email">MAIL</a>';
+        if (p.email) quickActions += '<button type="button" class="mp-quick-btn mp-quick-email" title="Envoyer un email" onclick="window.V30PushModal && window.V30PushModal.open(' + p.id + ', \'email\')">MAIL</button>';
         if (p.linkedin) quickActions += '<a href="' + escapeHtml(p.linkedin) + '" target="_blank" class="mp-quick-btn mp-quick-linkedin" title="LinkedIn">IN</a>';
 
         // Inline phone links
