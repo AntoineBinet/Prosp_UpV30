@@ -454,6 +454,96 @@
   background: var(--bg);
 }
 
+/* ─────────── Split detail – layout enrichi ─────────── */
+.v30-split-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: nowrap;
+}
+.v30-split-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.v30-split-body {
+  display: grid;
+  grid-template-columns: 1fr 196px;
+  gap: 16px;
+  margin-top: 14px;
+}
+.v30-split-left {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.v30-split-right {
+  min-width: 0;
+}
+.v30-split-section {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.v30-split-section:last-child { border-bottom: none; }
+.v30-split-section--notes { flex: 1; }
+.v30-split-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-3);
+  margin-bottom: 5px;
+}
+.v30-split-select,
+.v30-split-date {
+  width: 100%;
+  font-size: 12.5px !important;
+  height: 28px !important;
+  padding: 0 8px !important;
+}
+.v30-split-notes {
+  width: 100%;
+  font-size: 12.5px !important;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+.v30-split-contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+.v30-split-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-2);
+  text-decoration: none;
+  padding: 2px 0;
+  min-width: 0;
+}
+.v30-split-contact-row:hover { color: var(--text); }
+.v30-split-contact-row span.truncate { flex: 1; min-width: 0; }
+.v30-split-contact-icon {
+  display: flex;
+  align-items: center;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+@media (max-width: 1200px) {
+  .v30-split-body { grid-template-columns: 1fr 180px; }
+}
+@media (max-width: 900px) {
+  .v30-split-body { grid-template-columns: 1fr; }
+  .v30-split-right { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .v30-split-right .card { margin-top: 0 !important; }
+}
+
 /* ─────────── Bulk bar ─────────── */
 .v30-bulk {
   position: fixed;

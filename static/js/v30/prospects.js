@@ -75,6 +75,8 @@
     bulkAction: null
   };
 
+  var SPLIT_STATE = { selectedId: null };
+
   function esc(s) {
     var t = document.createElement('span');
     t.textContent = s == null ? '' : String(s);
@@ -467,9 +469,10 @@
       list.innerHTML = '<div class="v30-pp-empty">Aucun prospect.</div>';
       return;
     }
-    list.innerHTML = STATE.prospects.map(function (p, i) {
+    list.innerHTML = STATE.prospects.map(function (p) {
       var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
-      return '<a class="v30-pp-split__row" href="#" data-v30-split-open="' + p.id + '">' +
+      var sel = SPLIT_STATE.selectedId === p.id ? ' is-selected' : '';
+      return '<a class="v30-pp-split__row' + sel + '" href="#" data-v30-split-open="' + p.id + '">' +
         '<span class="avatar">' + esc(initials(p.name)) + '</span>' +
         '<div style="flex:1;min-width:0;">' +
           '<div class="truncate" style="font-size:12.5px;font-weight:500;">' + esc(p.name || '—') + '</div>' +
@@ -480,45 +483,181 @@
     }).join('');
   }
 
+  var LI_ICON_SM = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>';
+  var PUSH_ICON_SM = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9l20-7z"/></svg>';
+  var OPEN_ICON_SM = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+  var AI_ICON_SM = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 4 4 2-4 2-2 4-2-4-4-2 4-2z"/></svg>';
+
   function renderSplitDetail(p) {
     var host = document.querySelector('[data-v30-split-detail]');
     if (!host) return;
     if (!p) {
-      host.innerHTML = '<div class="empty">Sélectionne un prospect dans la liste pour voir le détail.</div>';
+      host.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px 20px;color:var(--text-3);text-align:center;">' +
+        '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.3;margin-bottom:10px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>' +
+        '<div style="font-size:13px;">Sélectionne un prospect pour voir le détail.</div>' +
+      '</div>';
       return;
     }
+    var id = p.id;
     var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
+    var phones = splitPhones(p.telephone);
+
+    // ── Action buttons ──────────────────────────────────────────
+    var actTel = '';
+    if (phones.length === 1) {
+      actTel = '<a class="btn btn-ghost btn-sm btn-icon" href="tel:' + esc(normTel(phones[0])) + '" title="Appeler ' + esc(phones[0]) + '" data-id="' + id + '">' + TEL_ICON_MD + '</a>';
+    } else if (phones.length > 1) {
+      actTel = '<div class="btn btn-ghost btn-sm btn-icon v30-pp-tel--multi" data-v30-tel-multi style="position:relative;" title="' + phones.length + ' numéros">' +
+        TEL_ICON_MD +
+        '<div class="popover v30-pp-tel-drop v30-pp-tel-drop--right" hidden>' +
+          phones.map(function (ph) {
+            return '<a class="popover__item v30-pp-tel-opt" href="tel:' + esc(normTel(ph)) + '" data-id="' + id + '">' + esc(ph) + '</a>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+    } else if (p.telephone) {
+      actTel = '<a class="btn btn-ghost btn-sm btn-icon" href="tel:' + esc(String(p.telephone).replace(/\s/g, '')) + '" title="Appeler" data-id="' + id + '">' + TEL_ICON_MD + '</a>';
+    }
+    var actEmail = p.email
+      ? '<a class="btn btn-ghost btn-sm btn-icon" href="mailto:' + esc(String(p.email).trim()) + '" title="' + esc(String(p.email).trim()) + '">' + EMAIL_ICON_MD + '</a>'
+      : '';
+    var actLinkedIn = p.linkedin
+      ? '<a class="btn btn-ghost btn-sm btn-icon" href="' + esc(p.linkedin) + '" target="_blank" rel="noopener" title="Ouvrir LinkedIn">' + LI_ICON_SM + '</a>'
+      : '';
+    var actAi = '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-ai="' + id + '" title="Enrichir via IA">' + AI_ICON_SM + '</button>';
+    var actPush = '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-split-push="' + id + '" title="Envoyer un push">' + PUSH_ICON_SM + '</button>';
+    var actOpen = '<a class="btn btn-ghost btn-sm btn-icon" href="/v30/prospect/' + id + '" title="Ouvrir la fiche complète (archiver / supprimer)">' + OPEN_ICON_SM + '</a>';
+
+    // ── Statut select ───────────────────────────────────────────
+    var statutOpts = STATUS_OPTIONS.map(function (s) {
+      return '<option value="' + esc(s) + '"' + (p.statut === s ? ' selected' : '') + '>' + esc(s) + '</option>';
+    });
+    if (p.statut && STATUS_OPTIONS.indexOf(p.statut) < 0) {
+      statutOpts.push('<option value="' + esc(p.statut) + '" selected>' + esc(p.statut) + '</option>');
+    }
+    var statutSelect = '<select class="select v30-split-select" data-v30-split-field="statut" data-v30-split-pid="' + id + '">' +
+      statutOpts.join('') + '</select>';
+
+    // ── Pertinence select ───────────────────────────────────────
+    var pert = parseInt(p.pertinence, 10) || 0;
+    var pertOpts = ['<option value=""' + (!pert ? ' selected' : '') + '>— Non définie</option>'];
+    [1,2,3,4,5].forEach(function (n) {
+      pertOpts.push('<option value="' + n + '"' + (pert === n ? ' selected' : '') + '>' + '★'.repeat(n) + ' (' + n + '/5)</option>');
+    });
+    var pertSelect = '<select class="select v30-split-select" data-v30-split-field="pertinence" data-v30-split-pid="' + id + '">' +
+      pertOpts.join('') + '</select>';
+
+    // ── Relance date ────────────────────────────────────────────
+    var relanceVal = p.nextFollowUp ? String(p.nextFollowUp).slice(0, 10) : '';
+    var relanceInput = '<input type="date" class="input v30-split-date" data-v30-split-field="nextFollowUp" data-v30-split-pid="' + id + '" value="' + esc(relanceVal) + '">';
+
+    // ── Contact section ─────────────────────────────────────────
+    var contactItems = '';
+    if (phones.length === 1) {
+      contactItems += '<a class="v30-split-contact-row" href="tel:' + esc(normTel(phones[0])) + '" data-id="' + id + '">' +
+        '<span class="v30-split-contact-icon">' + TEL_ICON_MD + '</span>' +
+        '<span class="mono">' + esc(phones[0]) + '</span>' +
+      '</a>';
+    } else {
+      phones.forEach(function (ph) {
+        contactItems += '<a class="v30-split-contact-row" href="tel:' + esc(normTel(ph)) + '" data-id="' + id + '">' +
+          '<span class="v30-split-contact-icon">' + TEL_ICON_MD + '</span>' +
+          '<span class="mono">' + esc(ph) + '</span>' +
+        '</a>';
+      });
+    }
+    if (p.email) {
+      contactItems += '<a class="v30-split-contact-row" href="mailto:' + esc(String(p.email).trim()) + '">' +
+        '<span class="v30-split-contact-icon">' + EMAIL_ICON_MD + '</span>' +
+        '<span class="truncate">' + esc(String(p.email).trim()) + '</span>' +
+      '</a>';
+    }
+    if (p.linkedin) {
+      contactItems += '<a class="v30-split-contact-row" href="' + esc(p.linkedin) + '" target="_blank" rel="noopener">' +
+        '<span class="v30-split-contact-icon">' + LI_ICON_SM + '</span>' +
+        '<span>LinkedIn</span>' +
+      '</a>';
+    }
+    if (!contactItems) contactItems = '<span class="muted" style="font-size:12px;">Aucun contact renseigné</span>';
+
+    // ── Assemble ────────────────────────────────────────────────
     host.innerHTML =
-      '<div style="display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">' +
+      '<div data-id="' + id + '">' +
+
+      '<div class="v30-split-header">' +
         '<span class="avatar avatar-lg">' + esc(initials(p.name)) + '</span>' +
         '<div style="flex:1;min-width:0;">' +
-          '<div style="font-size:18px;font-weight:500;">' + esc(p.name || '—') + '</div>' +
-          '<div style="font-size:12px;color:var(--text-3);">' + esc(p.fonction || '') + (coName ? ' · ' + esc(coName) : '') + '</div>' +
-        '</div>' +
-      '</div>' +
-      '<div style="margin-top:16px;display:grid;grid-template-columns:1fr 240px;gap:16px;">' +
-        '<div>' +
-          '<div class="label">Notes</div>' +
-          '<div class="card" style="padding:12px;font-size:12.5px;color:var(--text-2);">' +
-            (p.notes ? esc(p.notes) : '<span class="muted">Aucune note.</span>') +
+          '<div style="font-size:16px;font-weight:600;line-height:1.25;">' + esc(p.name || '—') + '</div>' +
+          '<div style="font-size:12px;color:var(--text-3);margin-top:2px;">' +
+            esc(p.fonction || '') + (coName ? (p.fonction ? ' · ' : '') + esc(coName) : '') +
           '</div>' +
-          '<div class="label" style="margin-top:14px;">Statut</div>' +
-          '<div>' + renderStatusBadge(p) + '</div>' +
         '</div>' +
-        '<div class="stack gap-2">' +
-          '<div class="card" style="padding:12px;">' +
-            '<div class="label">Contact</div>' +
-            '<div style="font-size:12px;color:var(--text-2);display:grid;gap:6px;">' +
-              (p.email ? '<div>' + esc(p.email) + '</div>' : '') +
-              (p.telephone ? '<div class="mono">' + esc(p.telephone) + '</div>' : '') +
-              (p.linkedin ? '<div class="truncate"><a href="' + esc(p.linkedin) + '" target="_blank" rel="noopener">LinkedIn</a></div>' : '') +
+        '<div class="v30-split-actions">' + actTel + actEmail + actLinkedIn + actAi + actPush + actOpen + '</div>' +
+      '</div>' +
+
+      '<div class="v30-split-body">' +
+
+        '<div class="v30-split-left">' +
+
+          '<div class="v30-split-section">' +
+            '<div class="v30-split-label">Statut</div>' +
+            statutSelect +
+          '</div>' +
+
+          '<div class="v30-split-section">' +
+            '<div class="v30-split-label">Pertinence</div>' +
+            pertSelect +
+          '</div>' +
+
+          '<div class="v30-split-section">' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+              '<div>' +
+                '<div class="v30-split-label">Dernière action</div>' +
+                '<div style="font-size:12.5px;color:var(--text-2);" data-v30-split-lc="' + id + '">' + esc(relativeDate(p.lastContact)) + '</div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="v30-split-label">Relance</div>' +
+                relanceInput +
+              '</div>' +
             '</div>' +
           '</div>' +
-          '<div class="card" style="padding:12px;">' +
-            '<div class="label">Tags</div>' +
-            '<div style="display:flex;gap:4px;flex-wrap:wrap;">' + renderTags(p.tags) + '</div>' +
+
+          '<div class="v30-split-section v30-split-section--notes">' +
+            '<div class="v30-split-label">Notes</div>' +
+            '<textarea class="input v30-split-notes" data-v30-split-notes-ta="' + id + '" rows="5" placeholder="Aucune note…">' +
+              esc(p.notes || '') +
+            '</textarea>' +
+            '<div style="display:flex;justify-content:flex-end;margin-top:6px;">' +
+              '<button type="button" class="btn btn-sm btn-primary" data-v30-split-notes-save="' + id + '">Enregistrer</button>' +
+            '</div>' +
           '</div>' +
+
         '</div>' +
+
+        '<div class="v30-split-right">' +
+
+          '<div class="card" style="padding:12px;">' +
+            '<div class="v30-split-label">Contact</div>' +
+            '<div class="v30-split-contact-list">' + contactItems + '</div>' +
+          '</div>' +
+
+          '<div class="card" style="padding:12px;margin-top:8px;">' +
+            '<div class="v30-split-label">Tags</div>' +
+            '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">' +
+              (renderTags(p.tags) || '<span class="muted" style="font-size:12px;">—</span>') +
+            '</div>' +
+          '</div>' +
+
+          (p.pushEmailSentAt || p.pushLinkedInSentAt
+            ? '<div class="card" style="padding:12px;margin-top:8px;">' +
+                '<div class="v30-split-label">Push</div>' +
+                '<div style="margin-top:4px;">' + renderPushBadges(p) + '</div>' +
+              '</div>'
+            : '') +
+
+        '</div>' +
+
+      '</div>' +
       '</div>';
   }
 
@@ -736,18 +875,71 @@
     });
   }
 
+  // ─── Split : helpers ─────────────────────────────────────────
+  function splitFieldLabel(f) {
+    return { statut: 'Statut', pertinence: 'Pertinence', nextFollowUp: 'Relance', notes: 'Notes' }[f] || f;
+  }
+
+  function saveSplitField(pid, field, value) {
+    [STATE.prospects, STATE.filteredAll, STATE.allForKpis].forEach(function (arr) {
+      if (!Array.isArray(arr)) return;
+      var item = arr.find(function (x) { return x.id === pid; });
+      if (item) item[field] = value;
+    });
+    renderSplit();
+    return fetchPostJSON('/api/prospects/bulk-edit', { ids: [pid], field: field, value: value })
+      .then(function () { toast(splitFieldLabel(field) + ' mis(e) à jour', 'success'); })
+      .catch(function (err) { toast('Erreur : ' + (err && err.message || err), 'error'); });
+  }
+
   // ─── Split : clic ligne → charge détail depuis STATE ────────
   function bindSplit() {
+    // Row click → load detail
     document.addEventListener('click', function (e) {
       var a = e.target.closest('[data-v30-split-open]');
       if (!a) return;
       e.preventDefault();
       var id = Number(a.dataset.v30SplitOpen);
+      SPLIT_STATE.selectedId = id;
       var p = STATE.prospects.find(function (x) { return x.id === id; });
       document.querySelectorAll('[data-v30-split-open]').forEach(function (row) {
         row.classList.toggle('is-selected', Number(row.dataset.v30SplitOpen) === id);
       });
       renderSplitDetail(p);
+    });
+
+    // Inline field change → save statut / pertinence / nextFollowUp
+    document.addEventListener('change', function (e) {
+      var el = e.target.closest('[data-v30-split-field]');
+      if (!el) return;
+      var field = el.dataset.v30SplitField;
+      var pid = Number(el.dataset.v30SplitPid);
+      if (!field || !pid) return;
+      saveSplitField(pid, field, el.value);
+    });
+
+    // Notes save button
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-v30-split-notes-save]');
+      if (!btn) return;
+      var pid = Number(btn.dataset.v30SplitNotesSave);
+      if (!pid) return;
+      var ta = document.querySelector('[data-v30-split-notes-ta="' + pid + '"]');
+      if (!ta) return;
+      saveSplitField(pid, 'notes', ta.value);
+    });
+
+    // Push button
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-v30-split-push]');
+      if (!btn) return;
+      var pid = Number(btn.dataset.v30SplitPush);
+      if (!pid) return;
+      if (window.V30PushModal && typeof window.V30PushModal.open === 'function') {
+        window.V30PushModal.open(pid, 'email');
+      } else {
+        window.location.href = '/v30/push?ids=' + pid;
+      }
     });
   }
 
@@ -2325,7 +2517,7 @@
       var link = e.target.closest('a[href^="tel:"]');
       if (link) {
         closeTelDrops();
-        var row = link.closest('tr[data-id]');
+        var row = link.closest('[data-id]');
         var id = row ? Number(row.dataset.id) : 0;
         if (id) {
           fetch('/api/prospect/log-call', {
@@ -2340,6 +2532,9 @@
                 p.lastContact = d.lastContact;
                 var tr = document.querySelector('tr[data-id="' + id + '"]');
                 if (tr) tr.outerHTML = renderRow(p);
+                // Update last-contact display in split detail if visible
+                var lcEl = document.querySelector('[data-v30-split-detail] [data-v30-split-lc="' + id + '"]');
+                if (lcEl) lcEl.textContent = relativeDate(d.lastContact);
               }
             }).catch(function () {});
         }
