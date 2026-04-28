@@ -22,19 +22,6 @@
 
   <div class="v30-params__grid">
 
-    {# Opt-out v30 → v29 #}
-    <div class="v30-params__card v30-params__card--opt-out">
-      <div class="v30-params__card-head">
-        {{ ui.icon('sparkles', 16) }}
-        <h3>Revenir à l'ancienne interface</h3>
-      </div>
-      <p class="v30-params__card-desc">
-        Bascule vers l'interface v29. Tes données restent intactes. Tu peux revenir
-        à la v30 à tout moment depuis Paramètres v29.
-      </p>
-      <a class="btn" href="#" data-v30-opt-out>Revenir en v29</a>
-    </div>
-
     {# ─── 1. Configuration IA (admin) ──────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
     <details class="v30-params__card v30-params__collapse" data-v30-ai>
@@ -357,49 +344,48 @@
       </div>
     </details>
 
-    {# ─── Mise à jour serveur (admin) — conservée telle quelle ─ #}
+    {# ─── Mise à jour serveur (admin) ─────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
-    <div class="v30-params__card v30-params__card--wide v30-deploy" data-v30-deploy>
-      <div class="v30-params__card-head">
-        {{ ui.icon('arrowU', 16) }}
-        <h3>Mise à jour du serveur</h3>
-        <span class="v30-params__admin-badge" style="margin-left:auto;">Admin</span>
-      </div>
-      <p class="v30-params__card-desc">
-        Pull Git (<code class="mono">origin/main</code>) + snapshot DB automatique + redémarrage en ~10 s. En cas de problème, utilise le bouton Rollback (revient au commit précédent) ou bascule sur l'interface v29.
-      </p>
-      <div class="v30-deploy__path muted">
-        Dossier cible : <code class="mono">{{ app_dir or '—' }}</code><br>
-        Remote origin : <code class="mono" data-v30-deploy-remote>chargement…</code>
-        <button type="button" class="btn btn-ghost btn-sm" data-v30-deploy-remote-change style="margin-left:8px;">Changer…</button>
-        <br>
-        <span style="font-size:11px;">Vérifie que c'est bien le nouveau dossier v30 et le bon repo GitHub avant de lancer la mise à jour.</span>
-      </div>
-      <div class="v30-deploy__actions">
-        <button type="button" class="btn btn-primary btn-sm" data-v30-deploy-pull>
-          {{ ui.icon('arrowU', 13) }} Mettre à jour et redémarrer
-        </button>
-        <button type="button" class="btn btn-sm" data-v30-deploy-rollback>
-          {{ ui.icon('arrowD', 13) }} Rollback
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" data-v30-deploy-restart title="Redémarrer sans pull">
-          {{ ui.icon('clock', 13) }} Redémarrer
-        </button>
-        <div class="v30-spacer"></div>
-        <span class="muted" style="font-size:11.5px;" data-v30-deploy-status></span>
-      </div>
-      <div class="v30-deploy__results" data-v30-deploy-results hidden>
-        <pre class="v30-deploy__log" data-v30-deploy-log></pre>
-        <div data-v30-deploy-summary></div>
-      </div>
-      <details class="v30-deploy__fallback">
-        <summary class="muted" style="font-size:11.5px;cursor:pointer;">Problème ? Utiliser la version v29 (fallback)</summary>
-        <p class="muted" style="font-size:11.5px;margin:6px 0 0;">
-          <a href="/parametres?force_v29=1#deployUpdateSection" style="color:var(--accent);">Ouvrir la section Mise à jour v29</a>
-          — recommandé uniquement si la v30 échoue.
+    <details class="v30-params__card v30-params__collapse v30-params__card--wide v30-deploy" data-v30-deploy>
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('arrowU', 16) }}
+          <h3>Mise à jour du serveur</h3>
+          <span class="v30-params__admin-badge" style="margin-left:auto;">Admin</span>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Pull Git (<code class="mono">origin/main</code>) + snapshot DB automatique + redémarrage en ~10 s.
         </p>
-      </details>
-    </div>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-deploy__path muted">
+          Dossier cible : <code class="mono">{{ app_dir or '—' }}</code><br>
+          Remote origin : <code class="mono" data-v30-deploy-remote>chargement…</code>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-deploy-remote-change style="margin-left:8px;">Changer…</button>
+          <br>
+          <span style="font-size:11px;">Vérifie que c'est bien le nouveau dossier v30 et le bon repo GitHub avant de lancer la mise à jour.</span>
+        </div>
+        <div class="v30-deploy__actions">
+          <button type="button" class="btn btn-primary btn-sm" data-v30-deploy-pull>
+            {{ ui.icon('arrowU', 13) }} Mettre à jour et redémarrer
+          </button>
+          <button type="button" class="btn btn-sm" data-v30-deploy-rollback>
+            {{ ui.icon('arrowD', 13) }} Rollback
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-deploy-restart title="Redémarrer sans pull">
+            {{ ui.icon('clock', 13) }} Redémarrer
+          </button>
+          <div class="v30-spacer"></div>
+          <span class="muted" style="font-size:11.5px;" data-v30-deploy-status></span>
+        </div>
+        <div class="v30-deploy__results" data-v30-deploy-results hidden>
+          <pre class="v30-deploy__log" data-v30-deploy-log></pre>
+          <div data-v30-deploy-summary></div>
+        </div>
+      </div>
+    </details>
     {% endif %}
 
   </div>
