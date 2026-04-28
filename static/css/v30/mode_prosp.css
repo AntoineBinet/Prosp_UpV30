@@ -617,6 +617,140 @@ select.mp-input { cursor: pointer; }
   font-size: 12px;
 }
 
+/* ─── Timeline item actions (modifier / supprimer) ─── */
+.mp-tl-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  opacity: 0;
+  transform: translateX(-2px);
+  transition: opacity var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+.mp-tl-item:hover .mp-tl-actions,
+.mp-tl-item:focus-within .mp-tl-actions {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: none) {
+  .mp-tl-actions { opacity: 1; transform: none; }
+}
+.mp-tl-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--text-3);
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background var(--dur-1) var(--ease),
+    border-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+.mp-tl-act svg { display: block; }
+.mp-tl-act:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+.mp-tl-act:focus-visible {
+  outline: none;
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--text);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
+}
+.mp-tl-act-edit:hover {
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 28%, var(--border));
+  color: var(--accent);
+}
+.mp-tl-act-del:hover {
+  background: color-mix(in oklch, var(--danger) 10%, transparent);
+  border-color: color-mix(in oklch, var(--danger) 28%, var(--border));
+  color: var(--danger);
+}
+.mp-tl-act-del:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--danger) 22%, transparent);
+}
+.mp-tl-act:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Timeline inline editor ─── */
+.mp-tl-editor {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mp-tl-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 7px 10px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 56px;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.mp-tl-edit-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
+}
+.mp-tl-edit-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.mp-tl-edit-actions button {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.mp-tl-edit-cancel {
+  background: var(--surface);
+  color: var(--text-2);
+}
+.mp-tl-edit-cancel:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.mp-tl-edit-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.mp-tl-edit-save:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.mp-tl-edit-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ─── Date picker modal ─── */
 .mp-date-modal {
   position: fixed;
