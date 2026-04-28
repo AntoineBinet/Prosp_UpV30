@@ -597,6 +597,9 @@
   #v30PushModal .v30-modal--xl { max-width: 94vw; }
 }
 
+/* display:flex sur .v30pm-section écrase le [hidden] natif — on force ici */
+#v30PushModal [data-v30pm-callnote-section][hidden] { display: none !important; }
+
 /* ─── Onglets Push classique / Suivi d'appel ─────────────── */
 .v30pm-tabs {
   display: flex;
