@@ -24,8 +24,11 @@
       <a class="btn btn-ghost btn-sm" data-v30-tx-export href="#" download>
         {{ ui.icon('download', 13) }} Export .txt
       </a>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-reanalyze hidden>
+        {{ ui.icon('sparkles', 13) }} Re-analyser (Claude seul)
+      </button>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-retry hidden>
-        {{ ui.icon('sync', 13) }} Relancer
+        {{ ui.icon('sync', 13) }} Relancer pipeline
       </button>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-delete>
         {{ ui.icon('x', 13) }} Supprimer

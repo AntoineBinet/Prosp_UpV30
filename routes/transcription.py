@@ -264,6 +264,84 @@ def api_retry(tid: int):
     return jsonify(ok=True)
 
 
+@transcription_bp.post("/api/transcription/<int:tid>/reanalyze")
+def api_reanalyze(tid: int):
+    """Re-lance UNIQUEMENT l'analyse Claude sur le transcript existant.
+
+    Cas d'usage : on a changé le prompt système ou le modèle Claude,
+    et on veut une nouvelle analyse sans re-faire Whisper / pyannote
+    (qui prend plusieurs minutes).
+    """
+    import threading
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, transcript_text, status FROM transcriptions "
+            "WHERE id=? AND owner_id=? AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+            (tid, uid),
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Transcription introuvable"), 404
+    if row["status"] == "processing":
+        return jsonify(ok=False, error="Transcription en cours — patientez."), 409
+    transcript_text = (row["transcript_text"] or "").strip()
+    if not transcript_text:
+        return jsonify(ok=False, error="Pas de transcript à analyser. Utilise « Relancer pipeline » pour re-transcrire."), 400
+
+    config = _load_ai_config()
+    anth_key = (config.get("anthropic_api_key") or "").strip()
+    if not anth_key:
+        return jsonify(ok=False, error="Clé Anthropic non configurée (Paramètres > IA)."), 400
+    anth_model = (config.get("anthropic_model") or "claude-haiku-4-5").strip()
+
+    # Marque comme « processing » + stage spécifique
+    now = datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE transcriptions SET status='processing', progress=85, stage='Re-analyse Claude…', "
+            "error_message=NULL, updated_at=? WHERE id=?;",
+            (now, tid),
+        )
+        conn.commit()
+
+    def _bg() -> None:
+        from services.transcription import _call_anthropic
+        try:
+            analysis = _call_anthropic(anth_key, anth_model, transcript_text)
+            done_at = datetime.now().isoformat(timespec="seconds")
+            with _conn() as c2:
+                c2.execute(
+                    "UPDATE transcriptions SET status='done', progress=100, stage='Terminé', "
+                    "analysis_json=?, analysis_model=?, error_message=NULL, "
+                    "completed_at=?, updated_at=? WHERE id=?;",
+                    (
+                        json.dumps(analysis, ensure_ascii=False),
+                        anth_model,
+                        done_at,
+                        done_at,
+                        tid,
+                    ),
+                )
+                c2.commit()
+            logger.info("Re-analyse %s terminée (modèle=%s)", tid, anth_model)
+        except Exception as exc:
+            logger.warning("Re-analyse %s échouée : %s", tid, exc)
+            done_at = datetime.now().isoformat(timespec="seconds")
+            with _conn() as c2:
+                c2.execute(
+                    "UPDATE transcriptions SET status='done', progress=100, stage='Terminé', "
+                    "error_message=?, completed_at=?, updated_at=? WHERE id=?;",
+                    (f"Re-analyse Claude échouée : {exc}", done_at, done_at, tid),
+                )
+                c2.commit()
+
+    t = threading.Thread(target=_bg, name=f"reanalyze-{tid}", daemon=True)
+    t.start()
+    return jsonify(ok=True)
+
+
 @transcription_bp.delete("/api/transcription/<int:tid>")
 def api_delete(tid: int):
     uid = _uid()

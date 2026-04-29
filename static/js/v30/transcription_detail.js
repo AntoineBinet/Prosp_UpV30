@@ -71,19 +71,26 @@
       if (stage) stage.textContent = item.stage || 'Démarrage…';
     }
 
-    // Erreur
+    // Erreur / warning : on affiche dès qu'il y a un error_message (statut error
+    // OU done avec warning de diarisation). Le bouton « Relancer » est visible
+    // pour TOUS les statuts sauf en cours (pending/processing) — c'est ce qui
+    // permet de re-lancer l'analyse avec un nouveau prompt après avoir édité
+    // la config IA.
     var err = $('[data-v30-tx-error]');
     var errMsg = $('[data-v30-tx-error-msg]');
-    if (item.status === 'error' && item.error_message) {
+    if (item.error_message) {
       err.hidden = false;
       errMsg.textContent = item.error_message;
-      var rb = $('[data-v30-tx-retry]');
-      if (rb) rb.hidden = false;
     } else {
       err.hidden = true;
-      var rb2 = $('[data-v30-tx-retry]');
-      if (rb2) rb2.hidden = !(item.status === 'error');
     }
+    var rb = $('[data-v30-tx-retry]');
+    var rba = $('[data-v30-tx-reanalyze]');
+    var inProg = (item.status === 'pending' || item.status === 'processing');
+    if (rb)  rb.hidden = inProg;
+    // « Re-analyser » dispo uniquement si on a déjà un transcript_text (sinon
+    // rien à analyser → on doit relancer le pipeline complet)
+    if (rba) rba.hidden = inProg || !(item.transcript_text && item.transcript_text.trim());
 
     // Audio
     var audio = $('[data-v30-tx-audio]');
@@ -343,22 +350,57 @@
     var rfresh = $('[data-v30-tx-refresh]');
     if (rfresh) rfresh.addEventListener('click', load);
 
-    var retry = $('[data-v30-tx-retry]');
-    if (retry) retry.addEventListener('click', function () {
-      retry.disabled = true;
-      fetch('/api/transcription/' + TID + '/retry', { method: 'POST', credentials: 'same-origin' })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (j && j.ok) {
-            if (window.showToast) window.showToast('Transcription relancée', 'success');
-            load();
-          } else {
-            if (window.showToast) window.showToast('Erreur : ' + ((j && j.error) || 'échec'), 'error');
-          }
+    function genericClickHandler(btn, url, successMsg) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.showToast) window.showToast('Lancement…', 'success');
+        btn.disabled = true;
+        var origHTML = btn.innerHTML;
+        btn.textContent = 'En cours…';
+        fetch(url, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
         })
-        .finally(function () { retry.disabled = false; });
-    });
+          .then(function (r) {
+            return r.json().then(function (j) { return { status: r.status, body: j }; });
+          })
+          .then(function (res) {
+            var j = res.body || {};
+            if (res.status >= 200 && res.status < 300 && j.ok) {
+              if (window.showToast) window.showToast(successMsg, 'success');
+              setTimeout(load, 600);
+            } else {
+              var msg = (j && j.error) || ('HTTP ' + res.status);
+              if (window.showToast) window.showToast('Échec : ' + msg, 'error');
+              else alert('Échec : ' + msg);
+            }
+          })
+          .catch(function (err) {
+            console.error('[transcription_detail] click error:', err);
+            if (window.showToast) window.showToast('Erreur réseau : ' + (err && err.message), 'error');
+            else alert('Erreur réseau : ' + (err && err.message));
+          })
+          .finally(function () {
+            btn.disabled = false;
+            btn.innerHTML = origHTML;
+          });
+      });
+    }
 
+    var retry = $('[data-v30-tx-retry]');
+    console.log('[transcription_detail] retry button bound:', !!retry);
+    if (retry) {
+      genericClickHandler(retry, '/api/transcription/' + TID + '/retry',
+                          'Pipeline relancé — actualisation…');
+    }
+    var reanalyze = $('[data-v30-tx-reanalyze]');
+    console.log('[transcription_detail] reanalyze button bound:', !!reanalyze);
+    if (reanalyze) {
+      genericClickHandler(reanalyze, '/api/transcription/' + TID + '/reanalyze',
+                          'Re-analyse Claude lancée — actualisation…');
+    }
     var del = $('[data-v30-tx-delete]');
     if (del) del.addEventListener('click', function () {
       if (!confirm('Supprimer cette transcription ?')) return;
