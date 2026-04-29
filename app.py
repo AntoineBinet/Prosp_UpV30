@@ -35,8 +35,9 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "31.8"
+APP_VERSION = "31.9"
 import os
+import uuid
 import subprocess
 import traceback
 import hashlib
@@ -573,6 +574,24 @@ _UPLOAD_RULES: Dict[str, Dict] = {
         "max_bytes": 10 * 1024 * 1024,  # 10 Mo
         "label": "msg, eml, oft, htm, html",
     },
+    "prospect_attachment": {
+        "extensions": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".png", ".jpg", ".jpeg", ".webp", ".pptx", ".ppt", ".odt", ".ods"},
+        "mimes": {
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.oasis.opendocument.text",
+            "application/vnd.oasis.opendocument.spreadsheet",
+            "text/plain",
+            "image/jpeg", "image/png", "image/webp",
+        },
+        "max_bytes": 50 * 1024 * 1024,  # 50 Mo
+        "label": "pdf, doc, docx, xls, xlsx, pptx, txt, jpg, png…",
+    },
 }
 
 # Magic bytes (premiers octets) pour vérification MIME indépendante du Content-Type déclaré
@@ -594,6 +613,13 @@ def _sniff_mime(header: bytes) -> str | None:
         if header[:len(magic)] == magic:
             return mime  # peut être None pour les containers ZIP/OLE
     return None
+
+
+def _attachment_dir(owner_id: int, prospect_id: int) -> Path:
+    """Retourne (et crée) le dossier de pièces jointes isolé par user et prospect."""
+    p = Path("data") / f"user_{owner_id}" / "attachments" / f"prospect_{prospect_id}"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
 
 def _validate_upload(file_storage, rule_name: str):
@@ -1558,6 +1584,22 @@ CREATE INDEX IF NOT EXISTS idx_prospect_events_prospect ON prospect_events(prosp
 CREATE INDEX IF NOT EXISTS idx_prospect_events_date ON prospect_events(date);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_prospect_events_unique ON prospect_events(prospect_id, type, date);
 
+CREATE TABLE IF NOT EXISTS prospect_attachments (
+    id            INTEGER PRIMARY KEY,
+    prospect_id   INTEGER NOT NULL,
+    owner_id      INTEGER NOT NULL,
+    filename      TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    size          INTEGER,
+    mime_type     TEXT,
+    description   TEXT,
+    meeting_id    INTEGER,
+    createdAt     TEXT NOT NULL,
+    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_prospect_attachments_prospect ON prospect_attachments(prospect_id);
+CREATE INDEX IF NOT EXISTS idx_prospect_attachments_owner ON prospect_attachments(owner_id);
+
 CREATE TABLE IF NOT EXISTS candidate_events (
     id           INTEGER PRIMARY KEY,
     candidate_id INTEGER NOT NULL,
@@ -2295,6 +2337,28 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
                 _add_col("meetings", "tags", "TEXT")
             if "documents" not in mcols:
                 _add_col("meetings", "documents", "TEXT")
+        except Exception:
+            pass
+
+        # prospect_attachments (v31.9) — pièces jointes par prospect, isolées par owner
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS prospect_attachments (
+                    id            INTEGER PRIMARY KEY,
+                    prospect_id   INTEGER NOT NULL,
+                    owner_id      INTEGER NOT NULL,
+                    filename      TEXT NOT NULL,
+                    original_name TEXT NOT NULL,
+                    size          INTEGER,
+                    mime_type     TEXT,
+                    description   TEXT,
+                    meeting_id    INTEGER,
+                    createdAt     TEXT NOT NULL,
+                    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_prospect_attachments_prospect ON prospect_attachments(prospect_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_prospect_attachments_owner ON prospect_attachments(owner_id);")
         except Exception:
             pass
 
@@ -9724,6 +9788,46 @@ def api_prospect_timeline():
         logger.exception("[timeline] unhandled error pid=%s uid=%s: %s", pid_int, uid, e)
         return jsonify({"ok": False, "error": "Erreur interne"}), 500
 
+    meetings_rows: list = []
+    attachments_rows: list = []
+
+    try:
+        with _conn() as conn2:
+            try:
+                meetings_rows = [
+                    dict(r)
+                    for r in conn2.execute(
+                        """SELECT m.id, m.date, m.title, m.summary, m.next_action, m.tags,
+                                  m.createdAt,
+                                  (SELECT COUNT(*) FROM meeting_action_items ai WHERE ai.meeting_id = m.id) AS action_count,
+                                  (SELECT COUNT(*) FROM meeting_action_items ai WHERE ai.meeting_id = m.id AND ai.status != 'done') AS action_pending
+                           FROM meetings m
+                           WHERE m.prospect_id = ? AND m.owner_id = ?
+                           ORDER BY m.date DESC, m.createdAt DESC
+                           LIMIT 50""",
+                        (pid_int, uid),
+                    ).fetchall()
+                ]
+            except Exception as e:
+                logger.warning("[timeline] meetings query failed pid=%s: %s", pid_int, e)
+
+            try:
+                attachments_rows = [
+                    dict(r)
+                    for r in conn2.execute(
+                        """SELECT id, original_name, size, mime_type, description, createdAt
+                           FROM prospect_attachments
+                           WHERE prospect_id = ? AND owner_id = ?
+                           ORDER BY createdAt DESC
+                           LIMIT 100""",
+                        (pid_int, uid),
+                    ).fetchall()
+                ]
+            except Exception as e:
+                logger.warning("[timeline] attachments query failed pid=%s: %s", pid_int, e)
+    except Exception:
+        pass
+
     events = []
 
     try:
@@ -9797,11 +9901,71 @@ def api_prospect_timeline():
             }
         )
 
+    # Meetings (CR de réunion) — apparaissent dans la timeline
+    for m in meetings_rows:
+        tags = []
+        try:
+            tags = json.loads(m.get("tags") or "[]") or []
+        except Exception:
+            pass
+        body_parts = []
+        if m.get("summary"):
+            body_parts.append(m["summary"])
+        if m.get("next_action"):
+            body_parts.append(f"Prochaine action : {m['next_action']}")
+        events.append(
+            {
+                "type": "cr",
+                "date": f"{m.get('date') or m.get('createdAt') or ''}T00:00:00" if m.get("date") and "T" not in str(m.get("date", "")) else (m.get("date") or m.get("createdAt") or ""),
+                "title": m.get("title") or "Compte-rendu",
+                "content": "\n".join(body_parts),
+                "source": "cr",
+                "id": m.get("id"),
+                "meta": {
+                    "next_action": m.get("next_action") or "",
+                    "action_count": m.get("action_count") or 0,
+                    "action_pending": m.get("action_pending") or 0,
+                    "tags": tags,
+                },
+            }
+        )
+
+    # Pièces jointes — apparaissent dans la timeline
+    for a in attachments_rows:
+        events.append(
+            {
+                "type": "attachment",
+                "date": a.get("createdAt") or "",
+                "title": a.get("original_name") or "Fichier",
+                "content": a.get("description") or "",
+                "source": "attachment",
+                "id": a.get("id"),
+                "meta": {
+                    "original_name": a.get("original_name") or "",
+                    "size": a.get("size") or 0,
+                    "mime_type": a.get("mime_type") or "",
+                },
+            }
+        )
+
     def _key(e):
         return str(e.get("date") or "")
 
-    events = sorted(events, key=_key, reverse=True)[:120]
-    return jsonify({"ok": True, "prospect": prospect_dict, "events": events})
+    events = sorted(events, key=_key, reverse=True)[:150]
+
+    # Synthèse activité : next_action du CR le plus récent + tâches en attente
+    activity_summary = {}
+    if meetings_rows:
+        latest = meetings_rows[0]
+        if latest.get("next_action"):
+            activity_summary["next_action"] = latest["next_action"]
+            activity_summary["next_action_from"] = latest.get("title") or ""
+            activity_summary["next_action_date"] = latest.get("date") or ""
+        total_pending = sum(m.get("action_pending") or 0 for m in meetings_rows)
+        if total_pending:
+            activity_summary["pending_tasks"] = total_pending
+
+    return jsonify({"ok": True, "prospect": prospect_dict, "events": events, "activity_summary": activity_summary})
 
 
 @app.post("/api/prospect/log-call")
@@ -18787,6 +18951,145 @@ def meetings_export_pdf(meeting_id):
             mimetype="text/html",
             headers={"Content-Disposition": f'inline; filename="reunion_{row["date"]}_{meeting_id}.html"'}
         )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# v31.9: Pièces jointes prospect — upload, liste, téléchargement, suppression
+# ═══════════════════════════════════════════════════════════════════
+
+@app.post("/api/prospect/attachments")
+def api_prospect_attachment_upload():
+    """Upload d'une pièce jointe pour un prospect. Isolée par owner_id."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    prospect_id = request.form.get("prospect_id", type=int)
+    description = (request.form.get("description") or "").strip()[:200]
+    meeting_id = request.form.get("meeting_id", type=int)
+
+    if not prospect_id:
+        return jsonify(ok=False, error="prospect_id requis"), 400
+    if not _prospect_owned(prospect_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return jsonify(ok=False, error="Fichier manquant"), 400
+
+    ok_upload, err_upload = _validate_upload(file, "prospect_attachment")
+    if not ok_upload:
+        msg, code = err_upload
+        return jsonify(ok=False, error=msg), code
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    safe_orig = os.path.basename(file.filename or "").strip() or "fichier"
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+
+    attach_dir = _attachment_dir(uid, prospect_id)
+    target = attach_dir / stored_name
+    data = file.read()
+    target.write_bytes(data)
+
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    mime = file.mimetype or ""
+
+    with _conn() as conn:
+        cursor = conn.execute(
+            """INSERT INTO prospect_attachments
+               (prospect_id, owner_id, filename, original_name, size, mime_type, description, meeting_id, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (prospect_id, uid, stored_name, safe_orig, len(data), mime, description or None, meeting_id, now)
+        )
+        att_id = cursor.lastrowid
+
+    return jsonify(ok=True, id=att_id, original_name=safe_orig, size=len(data), createdAt=now)
+
+
+@app.get("/api/prospect/attachments")
+def api_prospect_attachment_list():
+    """Liste les pièces jointes d'un prospect (owner uniquement)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    prospect_id = request.args.get("prospect_id", type=int)
+    if not prospect_id:
+        return jsonify(ok=False, error="prospect_id requis"), 400
+    if not _prospect_owned(prospect_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, filename, original_name, size, mime_type, description, meeting_id, createdAt
+               FROM prospect_attachments
+               WHERE prospect_id = ? AND owner_id = ?
+               ORDER BY createdAt DESC""",
+            (prospect_id, uid)
+        ).fetchall()
+
+    attachments = [dict(r) for r in rows]
+    return jsonify(ok=True, attachments=attachments)
+
+
+@app.get("/api/prospect/attachments/<int:att_id>/file")
+def api_prospect_attachment_file(att_id):
+    """Sert le fichier d'une pièce jointe (téléchargement ou inline pour PDF/images)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM prospect_attachments WHERE id = ? AND owner_id = ?",
+            (att_id, uid)
+        ).fetchone()
+
+    if not row:
+        return jsonify(ok=False, error="Pièce jointe introuvable"), 404
+
+    attach_dir = _attachment_dir(uid, row["prospect_id"])
+    file_path = attach_dir / row["filename"]
+    if not file_path.exists():
+        return jsonify(ok=False, error="Fichier introuvable sur le serveur"), 404
+
+    inline_mimes = {"application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain"}
+    disposition = "inline" if row["mime_type"] in inline_mimes else "attachment"
+
+    return send_file(
+        str(file_path),
+        mimetype=row["mime_type"] or "application/octet-stream",
+        as_attachment=(disposition == "attachment"),
+        download_name=row["original_name"],
+    )
+
+
+@app.delete("/api/prospect/attachments/<int:att_id>")
+def api_prospect_attachment_delete(att_id):
+    """Supprime une pièce jointe (fichier + enregistrement DB)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM prospect_attachments WHERE id = ? AND owner_id = ?",
+            (att_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Pièce jointe introuvable"), 404
+
+        attach_dir = _attachment_dir(uid, row["prospect_id"])
+        file_path = attach_dir / row["filename"]
+        try:
+            if file_path.exists():
+                file_path.unlink()
+        except Exception as e:
+            logger.warning("[attachment] delete file error att=%s: %s", att_id, e)
+
+        conn.execute("DELETE FROM prospect_attachments WHERE id = ? AND owner_id = ?", (att_id, uid))
+
+    return jsonify(ok=True)
 
 
 # ═══════════════════════════════════════════════════════════════════

@@ -1764,6 +1764,300 @@
     });
   }
 
+  // ─── Timeline interactive : expand/collapse + actions ──────
+  // Trouve l'événement par son index dans le filtre courant
+  function findEvent(filter, idx) {
+    var events = (FP.STATE.events || []).slice();
+    if (filter === 'push') events = events.filter(function (e) { return (e.type || '').startsWith('push'); });
+    else if (filter === 'note') events = events.filter(function (e) { return (e.type || '') === 'call_note' || (e.type || '') === 'note'; });
+    else if (filter === 'cr') events = events.filter(function (e) { return (e.type || '') === 'cr'; });
+    else if (filter === 'attachment') events = events.filter(function (e) { return (e.type || '') === 'attachment'; });
+    return events[idx];
+  }
+
+  function bindEventClicks() {
+    document.addEventListener('click', function (e) {
+      // Boutons d'action à l'intérieur d'un expand : ne pas toggle
+      if (e.target.closest('.v30-fp-ev__expand, .v30-fp-ev__edit-form, .v30-fp-ev__actions, button, a, textarea, input, select')) {
+        // Toujours laisser passer les boutons spécifiques ci-dessous
+      } else {
+        var evEl = e.target.closest('.v30-fp-ev');
+        if (evEl && evEl.dataset.v30EvIdx != null) {
+          // Toggle expand
+          var idx = Number(evEl.dataset.v30EvIdx);
+          var filter = evEl.dataset.v30EvFilter || 'all';
+          var ev = findEvent(filter, idx);
+          if (!ev) return;
+          var isExpanded = evEl.classList.contains('is-expanded');
+          if (isExpanded) {
+            evEl.classList.remove('is-expanded');
+            var existing = evEl.querySelector('.v30-fp-ev__expand, .v30-fp-ev__edit-form');
+            if (existing) existing.remove();
+          } else {
+            evEl.classList.add('is-expanded');
+            if (window._v30RenderEventExpand) window._v30RenderEventExpand(evEl, ev);
+          }
+          return;
+        }
+      }
+
+      // Actions à l'intérieur du panel
+      var openCRBtn = e.target.closest('[data-v30-ev-open-cr]');
+      if (openCRBtn) {
+        var crId = Number(openCRBtn.dataset.crId || 0);
+        if (crId && typeof openAfterModal === 'function') openAfterModal({ meetingId: crId });
+        return;
+      }
+
+      var previewBtn = e.target.closest('[data-v30-ev-preview-file]');
+      if (previewBtn) {
+        openFilePreview(
+          Number(previewBtn.dataset.attId),
+          previewBtn.dataset.attName || 'Fichier',
+          previewBtn.dataset.attMime || ''
+        );
+        return;
+      }
+
+      var deleteFileBtn = e.target.closest('[data-v30-ev-delete-file]');
+      if (deleteFileBtn) {
+        var aid = Number(deleteFileBtn.dataset.attId || 0);
+        if (!aid) return;
+        if (!confirm('Supprimer cette pièce jointe ?')) return;
+        FP.fetchJSON('/api/prospect/attachments/' + aid, { method: 'DELETE' })
+          .then(function () {
+            toast('Pièce jointe supprimée', 'success');
+            FP.loadTimeline();
+          })
+          .catch(function (err) { toast('Erreur : ' + err.message, 'error'); });
+        return;
+      }
+
+      var saveNoteBtn = e.target.closest('[data-v30-ev-save]');
+      if (saveNoteBtn) {
+        var form = saveNoteBtn.closest('.v30-fp-ev__edit-form');
+        if (!form) return;
+        var ta = form.querySelector('[data-v30-ev-edit-text]');
+        var val = ta ? ta.value.trim() : '';
+        if (!val) { toast('Note vide', 'warning'); return; }
+        var evId = saveNoteBtn.dataset.evId;
+        var evType = saveNoteBtn.dataset.evType;
+        var noteIdx = saveNoteBtn.dataset.noteIndex;
+        var payload = { prospect_id: FP.ID, content: val };
+        if (evType === 'call_note' && noteIdx !== '') {
+          payload.source = 'note';
+          payload.note_index = Number(noteIdx);
+        } else if (evId) {
+          payload.source = 'event';
+          payload.id = Number(evId);
+        } else {
+          toast('Édition impossible', 'warning'); return;
+        }
+        saveNoteBtn.disabled = true;
+        FP.fetchPostJSON('/api/prospect/timeline/update', payload)
+          .then(function () { toast('Note enregistrée', 'success'); FP.loadTimeline(); })
+          .catch(function (err) { toast('Erreur : ' + err.message, 'error'); saveNoteBtn.disabled = false; });
+        return;
+      }
+
+      var deleteNoteBtn = e.target.closest('[data-v30-ev-delete-note]');
+      if (deleteNoteBtn) {
+        if (!confirm('Supprimer cette note ?')) return;
+        var ni = Number(deleteNoteBtn.dataset.noteIndex);
+        FP.fetchPostJSON('/api/prospect/timeline/delete', { prospect_id: FP.ID, source: 'note', note_index: ni })
+          .then(function () { toast('Note supprimée', 'success'); FP.loadTimeline(); })
+          .catch(function (err) { toast('Erreur : ' + err.message, 'error'); });
+        return;
+      }
+
+      var deleteEventBtn = e.target.closest('[data-v30-ev-delete-event]');
+      if (deleteEventBtn) {
+        if (!confirm('Supprimer cet événement ?')) return;
+        var eid = Number(deleteEventBtn.dataset.evId);
+        FP.fetchPostJSON('/api/prospect/timeline/delete', { prospect_id: FP.ID, source: 'event', id: eid })
+          .then(function () { toast('Événement supprimé', 'success'); FP.loadTimeline(); })
+          .catch(function (err) { toast('Erreur : ' + err.message, 'error'); });
+        return;
+      }
+
+      var cancelBtn = e.target.closest('[data-v30-ev-cancel]');
+      if (cancelBtn) {
+        var ef = cancelBtn.closest('.v30-fp-ev__edit-form');
+        var parentEv = cancelBtn.closest('.v30-fp-ev');
+        if (parentEv) parentEv.classList.remove('is-expanded');
+        if (ef) ef.remove();
+        return;
+      }
+
+      // Bouton aside "Tâches en attente" → bascule sur l'onglet CR
+      if (e.target.closest('[data-v30-goto-cr-tab]')) {
+        var tabBtn = document.querySelector('[data-v30-fp-tabs] button[data-tab="cr"]');
+        if (tabBtn) tabBtn.click();
+        return;
+      }
+    });
+  }
+
+  // ─── Pièces jointes : upload ───────────────────────────────
+  var _pendingFile = null;
+
+  function setUploadLabel(text) {
+    var lbl = document.querySelector('[data-v30-upload-label-text]');
+    if (lbl) lbl.textContent = text;
+  }
+
+  function resetUpload() {
+    _pendingFile = null;
+    var input = document.querySelector('[data-v30-file-input]');
+    if (input) input.value = '';
+    var sendBtn = document.querySelector('[data-v30-upload-send]');
+    if (sendBtn) sendBtn.disabled = true;
+    setUploadLabel('Cliquez ou glissez un fichier ici');
+  }
+
+  function bindAttachUpload() {
+    var dropZone = document.querySelector('[data-v30-upload-drop-zone]');
+    var input = document.querySelector('[data-v30-file-input]');
+    var label = document.querySelector('[data-v30-upload-label]');
+    var sendBtn = document.querySelector('[data-v30-upload-send]');
+    var cancelBtn = document.querySelector('[data-v30-upload-cancel]');
+
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-attach-btn]')) {
+        if (!dropZone) return;
+        dropZone.style.display = (dropZone.style.display === 'none' || !dropZone.style.display) ? 'block' : 'none';
+        if (dropZone.style.display === 'block' && input) input.click();
+      }
+    });
+
+    if (input) {
+      input.addEventListener('change', function () {
+        if (input.files && input.files[0]) {
+          _pendingFile = input.files[0];
+          setUploadLabel(_pendingFile.name + ' (' + (_pendingFile.size / 1024).toFixed(0) + ' Ko)');
+          if (sendBtn) sendBtn.disabled = false;
+        }
+      });
+    }
+
+    if (label) {
+      ['dragenter', 'dragover'].forEach(function (ev) {
+        label.addEventListener(ev, function (e) {
+          e.preventDefault(); e.stopPropagation();
+          label.classList.add('is-dragover');
+        });
+      });
+      ['dragleave', 'drop'].forEach(function (ev) {
+        label.addEventListener(ev, function (e) {
+          e.preventDefault(); e.stopPropagation();
+          label.classList.remove('is-dragover');
+        });
+      });
+      label.addEventListener('drop', function (e) {
+        var files = e.dataTransfer && e.dataTransfer.files;
+        if (files && files[0]) {
+          _pendingFile = files[0];
+          setUploadLabel(_pendingFile.name + ' (' + (_pendingFile.size / 1024).toFixed(0) + ' Ko)');
+          if (sendBtn) sendBtn.disabled = false;
+        }
+      });
+    }
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function () {
+        resetUpload();
+        if (dropZone) dropZone.style.display = 'none';
+      });
+    }
+
+    if (sendBtn) {
+      sendBtn.addEventListener('click', function () {
+        if (!_pendingFile) return;
+        var fd = new FormData();
+        fd.append('file', _pendingFile);
+        fd.append('prospect_id', String(FP.ID));
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Envoi…';
+        fetch('/api/prospect/attachments', {
+          method: 'POST',
+          credentials: 'same-origin',
+          body: fd
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.data.ok) throw new Error((res.data && res.data.error) || 'HTTP error');
+            toast('Fichier ajouté', 'success');
+            resetUpload();
+            if (dropZone) dropZone.style.display = 'none';
+            FP.loadTimeline();
+          })
+          .catch(function (err) {
+            toast('Erreur upload : ' + err.message, 'error');
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Envoyer';
+          });
+      });
+    }
+  }
+
+  // ─── Aperçu fichier (modale) ───────────────────────────────
+  function openFilePreview(attId, name, mime) {
+    var bd = document.querySelector('[data-v30-file-preview-bd]');
+    if (!bd) return;
+    var nameEl = bd.querySelector('[data-v30-file-preview-name]');
+    var dlEl = bd.querySelector('[data-v30-file-preview-dl]');
+    var bodyEl = bd.querySelector('[data-v30-file-preview-body]');
+    if (nameEl) nameEl.textContent = name || 'Fichier';
+    var fileUrl = '/api/prospect/attachments/' + attId + '/file';
+    if (dlEl) dlEl.href = fileUrl;
+    if (bodyEl) {
+      mime = (mime || '').toLowerCase();
+      if (mime === 'application/pdf') {
+        bodyEl.innerHTML = '<iframe src="' + fileUrl + '" title="Aperçu PDF"></iframe>';
+      } else if (mime.indexOf('image/') === 0) {
+        bodyEl.innerHTML = '<img src="' + fileUrl + '" alt="' + FP.esc(name) + '">';
+      } else if (mime === 'text/plain') {
+        bodyEl.innerHTML = '<iframe src="' + fileUrl + '" title="Aperçu texte"></iframe>';
+      } else {
+        bodyEl.innerHTML = '<div class="v30-fp-file-preview__no-preview">' +
+          '<div>Aperçu non disponible pour ce type de fichier.</div>' +
+          '<a class="btn btn-accent btn-sm" href="' + fileUrl + '" target="_blank" download>Télécharger</a>' +
+          '</div>';
+      }
+    }
+    bd.style.display = 'flex';
+  }
+
+  function closeFilePreview() {
+    var bd = document.querySelector('[data-v30-file-preview-bd]');
+    if (!bd) return;
+    bd.style.display = 'none';
+    var bodyEl = bd.querySelector('[data-v30-file-preview-body]');
+    if (bodyEl) bodyEl.innerHTML = '';  // libère l'iframe
+  }
+
+  function bindFilePreview() {
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-file-preview-close]')) {
+        closeFilePreview();
+        return;
+      }
+      // Click sur le backdrop (pas sur le contenu)
+      var bd = e.target.closest('[data-v30-file-preview-bd]');
+      if (bd && e.target === bd) closeFilePreview();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        var bd = document.querySelector('[data-v30-file-preview-bd]');
+        if (bd && bd.style.display === 'flex') closeFilePreview();
+      }
+    });
+  }
+
+  function toast(msg, type) {
+    if (window.showToast) window.showToast(msg, type || 'info');
+  }
+
   // ─── Init ───────────────────────────────────────────────────
   function init() {
     bindInlineEdit();
@@ -1778,6 +2072,9 @@
     bindDrawer();
     bindFPModals();
     bindHeaderActions();
+    bindEventClicks();
+    bindAttachUpload();
+    bindFilePreview();
     FP.loadTimeline();
     // Compteur de l'onglet CR — appel léger en arrière-plan
     if (typeof loadCRTab === 'function') loadCRTab();
