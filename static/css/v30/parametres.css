@@ -327,6 +327,33 @@
   height: 1px;
 }
 
+/* v32.7 — Bloc résultat de test (HF, Claude, etc.) avec support multi-ligne */
+.v30-params__test-output {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.v30-params__test-output.is-success {
+  border-color: oklch(0.50 0.15 145 / 0.5);
+  background: oklch(0.50 0.15 145 / 0.06);
+  color: oklch(0.65 0.16 145);
+}
+.v30-params__test-output.is-error {
+  border-color: oklch(0.55 0.20 25 / 0.5);
+  background: oklch(0.55 0.20 25 / 0.06);
+  color: oklch(0.75 0.16 25);
+}
+
 /* v32.2 — Log d'install CUDA en arrière-plan */
 .v30-params__cuda-log {
   margin-top: 12px;

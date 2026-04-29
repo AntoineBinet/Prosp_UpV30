@@ -2,6 +2,31 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.7] — 2026-04-29 · Diagnostic HuggingFace + bloc résultat de test détaillé
+
+Le 401 sur pyannote pouvait avoir 3 causes différentes (token expiré, conditions
+non acceptées, token fine-grained sans scope) sans qu'on puisse les distinguer.
+Ajout d'un test diagnostic dédié + UI pour afficher le résultat complet.
+
+- **Backend.** `routes/ai.py:/api/ai/test` accepte maintenant
+  `test_target=huggingface`. Test en 2 étapes :
+  1. `GET https://huggingface.co/api/whoami-v2` avec le token → vérifie
+     validité globale + récupère `username` et `token_type` (Classic/Fine-grained).
+  2. `HEAD https://huggingface.co/<model>/resolve/main/config.yaml` pour
+     `pyannote/speaker-diarization-3.1` ET `pyannote/segmentation-3.0` →
+     teste l'accès RÉEL au repo gated (download d'un petit fichier).
+  Distingue clairement les codes : 401 (token rejeté), 403 (conditions
+  non acceptées) et succès. Message d'erreur ciblé pour chaque cas
+  (« token fine-grained sans scope », « va sur huggingface.co/X et clique Agree »).
+- **UI Paramètres.** Bouton **« Tester HF »** à côté du champ token. Hint
+  ré-écrit pour expliquer la différence Classic Read / Fine-grained et
+  rappeler les 2 modèles à accepter.
+- **Bloc résultat.** Nouvelle zone `v30-params__test-output` sous les
+  boutons d'action qui affiche le résultat complet en multi-ligne
+  (police mono, max 240 px scrollable). Couleur verte si succès, rouge
+  si erreur. Le toast et le statut inline restent en 1 ligne pour rester
+  compacts ; le détail est dans le bloc.
+
 ## [32.6] — 2026-04-29 · Fallback Ollama + détection crédits Claude
 
 Quand l'API Anthropic est indisponible (crédits épuisés, clé invalide,

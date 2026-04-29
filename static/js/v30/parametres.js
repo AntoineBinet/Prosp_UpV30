@@ -354,7 +354,12 @@
   }
   async function aiTest(target) {
     var st = '[data-v30-ai-status]';
-    var label = target === 'tavily' ? 'Tavily' : (target === 'anthropic' ? 'Claude' : 'Ollama');
+    var label = ({
+      tavily: 'Tavily',
+      anthropic: 'Claude',
+      ollama: 'Ollama',
+      huggingface: 'HuggingFace',
+    })[target] || target;
     inlineStatus(st, 'Test ' + label + '…', 'var(--text-2)');
     var payload = { test_target: target };
     // Permet de tester la valeur saisie sans avoir besoin de save avant
@@ -368,6 +373,14 @@
     if (anthEl && anthEl.value.trim()) payload.anthropic_api_key = anthEl.value.trim();
     var anthMEl = $('[data-v30-ai-anthropic-model]');
     if (anthMEl && anthMEl.value) payload.anthropic_model = anthMEl.value;
+    var hfEl = $('[data-v30-ai-hf]');
+    if (hfEl && hfEl.value.trim()) payload.huggingface_token = hfEl.value.trim();
+    var outBox = $('[data-v30-ai-test-output]');
+    if (outBox) {
+      outBox.hidden = true;
+      outBox.className = 'v30-params__test-output';
+      outBox.textContent = '';
+    }
     try {
       var res = await fetch('/api/ai/test', {
         method: 'POST',
@@ -380,13 +393,31 @@
         var msg = label + ' OK' + (j.model ? ' (' + j.model + ')' : '');
         inlineStatus(st, msg, 'var(--success)');
         toast(msg, 'success');
+        if (outBox && j.response) {
+          outBox.hidden = false;
+          outBox.className = 'v30-params__test-output is-success';
+          outBox.textContent = j.response;
+        }
       } else {
-        inlineStatus(st, label + ' : ' + ((j && j.error) || 'échec'), 'var(--danger)');
-        toast(label + ' : ' + ((j && j.error) || 'échec'), 'error');
+        var shortErr = (j && j.error) || 'échec';
+        // Premier ligne pour le statut/toast inline
+        var firstLine = String(shortErr).split('\n')[0];
+        inlineStatus(st, label + ' : ' + firstLine, 'var(--danger)');
+        toast(label + ' : ' + firstLine.slice(0, 120), 'error');
+        if (outBox) {
+          outBox.hidden = false;
+          outBox.className = 'v30-params__test-output is-error';
+          outBox.textContent = shortErr;
+        }
       }
     } catch (e) {
       inlineStatus(st, 'Erreur : ' + e.message, 'var(--danger)');
       toast('Erreur : ' + e.message, 'error');
+      if (outBox) {
+        outBox.hidden = false;
+        outBox.className = 'v30-params__test-output is-error';
+        outBox.textContent = 'Erreur : ' + e.message;
+      }
     }
     clearInlineStatus(st, 6000);
   }
@@ -400,6 +431,8 @@
     if (tTav) tTav.addEventListener('click', function () { aiTest('tavily'); });
     var tAnth = $('[data-v30-ai-test-anthropic]');
     if (tAnth) tAnth.addEventListener('click', function () { aiTest('anthropic'); });
+    var tHf = $('[data-v30-ai-test-hf]');
+    if (tHf) tHf.addEventListener('click', function () { aiTest('huggingface'); });
     var tog = $('[data-v30-ai-tavily-toggle]');
     if (tog) tog.addEventListener('click', function () {
       var inp = $('[data-v30-ai-tavily]');

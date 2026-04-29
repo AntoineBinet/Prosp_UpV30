@@ -158,11 +158,17 @@
             <button type="button" class="btn btn-ghost btn-sm" data-v30-ai-hf-toggle title="Afficher/masquer">
               {{ ui.icon('eye', 13) }}
             </button>
+            <button type="button" class="btn btn-sm" data-v30-ai-test-hf title="Vérifier le token + l'accès aux modèles pyannote">
+              Tester HF
+            </button>
           </div>
           <p class="muted v30-params__hint">
             Token gratuit sur <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">huggingface.co</a>.
-            Acceptez d'abord les conditions de
-            <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noopener">pyannote/speaker-diarization-3.1</a>.
+            Choisis <strong>« Read »</strong> (Classic), pas Fine-grained — sinon il faut scoper les repos pyannote manuellement.
+            Conditions à accepter sur
+            <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noopener">pyannote/speaker-diarization-3.1</a>
+            ET
+            <a href="https://huggingface.co/pyannote/segmentation-3.0" target="_blank" rel="noopener">pyannote/segmentation-3.0</a>.
           </p>
         </div>
 
@@ -173,6 +179,7 @@
           <button type="button" class="btn btn-sm" data-v30-ai-test-anthropic>Tester Claude</button>
           <span class="muted v30-params__status" data-v30-ai-status></span>
         </div>
+        <div class="v30-params__test-output" data-v30-ai-test-output hidden></div>
 
         {# ─── Détection torch CUDA + bouton réparation (v32.2) ─── #}
         <div class="v30-params__divider"></div>
