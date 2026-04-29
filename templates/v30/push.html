@@ -58,6 +58,10 @@
         <span class="v30-field__label">Mots-clés (séparés par virgule)</span>
         <input type="text" class="v30-input" data-v30-cat-keywords placeholder="Ex: c++, logiciel, software, firmware...">
       </label>
+      <label class="v30-chip" style="width:fit-content; margin-top:6px;" title="Le push n'attache aucun candidat ni dossier de compétence (utile pour les emails de relance type 'Présentation', 'Confirmation RDV'…).">
+        <input type="checkbox" data-v30-cat-no-candidates>
+        <span>Pas de candidat requis (push simple sans DC)</span>
+      </label>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
         <button type="button" class="btn btn-accent" data-v30-cat-save>
           {{ ui.icon('check', 13) }} Enregistrer

@@ -186,10 +186,12 @@
     var id = document.querySelector('[data-v30-cat-id]');
     var n = document.querySelector('[data-v30-cat-name]');
     var k = document.querySelector('[data-v30-cat-keywords]');
+    var nc = document.querySelector('[data-v30-cat-no-candidates]');
     if (t) t.textContent = 'Nouvelle catégorie';
     if (id) id.value = '';
     if (n) n.value = '';
     if (k) k.value = '';
+    if (nc) nc.checked = false;
   }
 
   // ─── Catégories : load + render ───────────────────────────
@@ -220,10 +222,13 @@
     STATE.categories.forEach(function (cat) { loadCatFiles(cat.id); });
   }
   function catCardHtml(cat) {
+    var noCand = !!cat.no_candidates;
     var nCand = (cat.candidate1_id ? 1 : 0) + (cat.candidate2_id ? 1 : 0);
-    var candText = nCand === 0 ? 'Aucun candidat'
+    var candText = noCand ? 'Sans candidat'
+                 : nCand === 0 ? 'Aucun candidat'
                  : nCand === 1 ? '1 candidat sélectionné'
                  : '2 candidats sélectionnés';
+    var candBadgeCls = noCand ? 'has' : (nCand > 0 ? 'has' : 'none');
     var desc = CAT_DESCRIPTIONS[cat.name] || '';
     var shortDesc = desc ? (desc.length > 180 ? desc.slice(0, 180) + '…' : desc) : '';
     return '<div class="v30-cat-card" data-cat-open="' + cat.id + '" role="button" tabindex="0" aria-label="Ouvrir la catégorie ' + esc(cat.name) + '">' +
@@ -232,7 +237,7 @@
         (cat.auto_detected ? ' <span class="v30-cat-card__auto">auto</span>' : '') +
       '</div>' +
       '<div class="v30-cat-card__badges">' +
-        '<span class="v30-cat-badge ' + (nCand > 0 ? 'has' : 'none') + '" id="v30CatCandBadge_' + cat.id + '">' +
+        '<span class="v30-cat-badge ' + candBadgeCls + '" id="v30CatCandBadge_' + cat.id + '">' +
           ic('userSingle', 12) + ' ' + esc(candText) +
         '</span>' +
         '<span class="v30-cat-badge loading" id="v30CatTplBadge_' + cat.id + '">' +
@@ -281,6 +286,11 @@
     if (!cat) return;
     var badge = document.getElementById('v30CatCandBadge_' + catId);
     if (!badge) return;
+    if (cat.no_candidates) {
+      badge.className = 'v30-cat-badge has';
+      badge.innerHTML = ic('userSingle', 12) + ' Sans candidat';
+      return;
+    }
     var n = (cat.candidate1_id ? 1 : 0) + (cat.candidate2_id ? 1 : 0);
     var text = n === 0 ? 'Aucun candidat' : n === 1 ? '1 candidat sélectionné' : '2 candidats sélectionnés';
     badge.className = 'v30-cat-badge ' + (n > 0 ? 'has' : 'none');
@@ -485,6 +495,23 @@
     var kwHtml = kw.length
       ? kw.map(function (k) { return '<span class="v30-kw-pill">' + esc(k) + '</span>'; }).join(' ')
       : '<span class="muted">Aucun mot-clé</span>';
+    var noCand = !!cat.no_candidates;
+    var candSection = noCand
+      ? '<div class="v30-cat-detail__section">' +
+          '<div class="v30-cat-detail__eyebrow">' +
+            '<span class="v30-cat-detail__label">' + ic('userSingle', 12) + ' Candidats par défaut</span>' +
+          '</div>' +
+          '<div class="muted" style="font-size:12px; padding:6px 0;">Catégorie « sans consultant » — aucun candidat ni dossier de compétence ne sera attaché lors du push.</div>' +
+        '</div>'
+      : '<div class="v30-cat-detail__section">' +
+          '<div class="v30-cat-detail__eyebrow">' +
+            '<span class="v30-cat-detail__label">' + ic('userSingle', 12) + ' Candidats par défaut</span>' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-v30-cand-auto="' + cat.id + '" title="Suggérer automatiquement">' + ic('refreshCw', 11) + ' Auto</button>' +
+          '</div>' +
+          '<div id="v30CatSlots_' + cat.id + '">' +
+            candSlotHtml(cat, 1) + candSlotHtml(cat, 2) +
+          '</div>' +
+        '</div>';
     body.innerHTML =
       (desc ? '<p class="v30-cat-detail__desc">' + esc(desc) + '</p>' : '') +
       '<div class="v30-cat-detail__section">' +
@@ -493,15 +520,7 @@
         '</div>' +
         '<div class="v30-cat-detail__kw">' + kwHtml + '</div>' +
       '</div>' +
-      '<div class="v30-cat-detail__section">' +
-        '<div class="v30-cat-detail__eyebrow">' +
-          '<span class="v30-cat-detail__label">' + ic('userSingle', 12) + ' Candidats par défaut</span>' +
-          '<button type="button" class="btn btn-ghost btn-sm" data-v30-cand-auto="' + cat.id + '" title="Suggérer automatiquement">' + ic('refreshCw', 11) + ' Auto</button>' +
-        '</div>' +
-        '<div id="v30CatSlots_' + cat.id + '">' +
-          candSlotHtml(cat, 1) + candSlotHtml(cat, 2) +
-        '</div>' +
-      '</div>' +
+      candSection +
       '<div class="v30-cat-detail__section">' +
         '<div class="v30-cat-detail__eyebrow">' +
           '<span class="v30-cat-detail__label">' + ic('mail', 12) + ' Templates email (.msg)</span>' +
@@ -579,6 +598,7 @@
     var nameEl = document.querySelector('[data-v30-cat-name]');
     var kwEl   = document.querySelector('[data-v30-cat-keywords]');
     var idEl   = document.querySelector('[data-v30-cat-id]');
+    var ncEl   = document.querySelector('[data-v30-cat-no-candidates]');
     var name = (nameEl && nameEl.value || '').trim();
     if (!name) { toast('Nom requis', 'warning'); return; }
     var keywords = (kwEl && kwEl.value || '').split(',')
@@ -587,7 +607,8 @@
     var payload = {
       id: (idEl && idEl.value) ? Number(idEl.value) : null,
       name: name,
-      keywords: keywords
+      keywords: keywords,
+      no_candidates: !!(ncEl && ncEl.checked)
     };
     postJSON('/api/push-categories/save', payload).then(function (data) {
       if (data && data.ok === false) { toast(data.error || 'Erreur', 'error'); return; }
@@ -604,10 +625,12 @@
     var idEl = document.querySelector('[data-v30-cat-id]');
     var n = document.querySelector('[data-v30-cat-name]');
     var k = document.querySelector('[data-v30-cat-keywords]');
+    var nc = document.querySelector('[data-v30-cat-no-candidates]');
     if (t) t.textContent = 'Modifier : ' + cat.name;
     if (idEl) idEl.value = cat.id;
     if (n) n.value = cat.name;
     if (k) k.value = (Array.isArray(cat.keywords) ? cat.keywords : []).join(', ');
+    if (nc) nc.checked = !!cat.no_candidates;
     showCatEditor(true);
   }
   function deleteCat(id) {
