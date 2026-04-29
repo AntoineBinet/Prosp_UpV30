@@ -7,7 +7,7 @@
   var CID = Number(fc.dataset.candidateId || 0);
   if (!CID) return;
 
-  var STATE = { candidate: null, experiences: [], skills: [], availability: {} };
+  var STATE = { candidate: null, experiences: [], skills: [], availability: {}, dc: null, events: [] };
 
   function $(s) { return document.querySelector(s); }
   function esc(s) {
@@ -706,11 +706,286 @@
     });
   }
 
+  // ─── Dossier de compétences (DC) ─────────────────────────
+  //   GET    /api/candidates/:id/dc-status   → { ok, has_dc, files: [filename] }
+  //   POST   /api/candidates/upload-dc       → multipart (dc, candidate_id) - upload/replace
+  //   POST   /api/candidates/:id/dc-rename   → { new_name }
+  //   POST   /api/candidates/:id/dc-delete   → -
+  //   GET    /api/candidates/:id/dossier-competence → PDF stream
+  function fmtDate(raw) {
+    if (!raw) return '';
+    try {
+      var d = new Date(raw);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (_) { return ''; }
+  }
+
+  function renderDc() {
+    var host = document.querySelector('[data-v30-fc-dc-status]');
+    if (!host) return;
+    var dc = STATE.dc || {};
+    var files = dc.files || [];
+    if (!dc.has_dc || !files.length) {
+      host.innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:12.5px;">' +
+          '<span class="v30-fc-dc-dot v30-fc-dc-dot--off"></span>' +
+          'Aucun DC chargé pour ce candidat.' +
+        '</div>' +
+        '<div style="margin-top:8px;font-size:11.5px;color:var(--text-3);">' +
+          'Cliquez sur <strong>Charger</strong> pour téléverser un PDF, ou sur <strong>Générer</strong> pour le créer avec l\'éditeur.' +
+        '</div>';
+      return;
+    }
+    var fname = files[0];
+    var pdfUrl = '/api/candidates/' + CID + '/dossier-competence';
+    var updatedAt = STATE.candidate && STATE.candidate.updatedAt;
+    host.innerHTML =
+      '<div class="v30-fc-dc-row">' +
+        '<span class="v30-fc-dc-dot v30-fc-dc-dot--on" aria-hidden="true"></span>' +
+        '<div class="v30-fc-dc-name" data-v30-fc-dc-name title="' + esc(fname) + '">' + esc(fname) + '</div>' +
+        '<div class="v30-fc-dc-actions">' +
+          '<a class="btn btn-ghost btn-sm" href="' + pdfUrl + '" target="_blank" rel="noopener" title="Ouvrir le PDF">Voir</a>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-rename title="Renommer le fichier">Renommer</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-replace title="Remplacer par un autre PDF">Remplacer</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-delete title="Supprimer le DC" style="color:var(--danger);">Supprimer</button>' +
+        '</div>' +
+      '</div>' +
+      (updatedAt
+        ? '<div style="margin-top:6px;font-size:11px;color:var(--text-3);">Mis à jour le ' + esc(fmtDate(updatedAt)) + '</div>'
+        : '');
+  }
+
+  function loadDc() {
+    return fetchJSON('/api/candidates/' + CID + '/dc-status')
+      .then(function (res) { STATE.dc = res || { has_dc: false, files: [] }; renderDc(); })
+      .catch(function () { STATE.dc = { has_dc: false, files: [] }; renderDc(); });
+  }
+
+  function uploadDc(file) {
+    if (!file) return Promise.resolve();
+    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
+      if (window.showToast) window.showToast('Seuls les PDF sont acceptés', 'error');
+      return Promise.resolve();
+    }
+    var fd = new FormData();
+    fd.append('dc', file);
+    fd.append('candidate_id', String(CID));
+    if (window.showToast) window.showToast('Upload en cours…', 'info', 1500);
+    return fetch('/api/candidates/upload-dc', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' },
+      body: fd
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur upload');
+      if (window.showToast) window.showToast('DC chargé : ' + (res.filename || ''), 'success');
+      flashSaved();
+      return loadDc();
+    }).catch(function (err) {
+      if (window.showToast) window.showToast('Erreur upload : ' + err.message, 'error', 3000);
+      else alert('Erreur upload : ' + err.message);
+    });
+  }
+
+  function renameDc() {
+    var dc = STATE.dc || {};
+    var current = (dc.files && dc.files[0]) || '';
+    var base = current.replace(/\.pdf$/i, '');
+    var next = prompt('Nouveau nom du fichier (sans extension) :', base);
+    if (next == null) return;
+    next = String(next).trim();
+    if (!next || next === base) return;
+    fetchPostJSON('/api/candidates/' + CID + '/dc-rename', { new_name: next })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+        if (window.showToast) window.showToast('Fichier renommé : ' + (res.filename || next), 'success');
+        flashSaved();
+        return loadDc();
+      })
+      .catch(function (err) {
+        if (window.showToast) window.showToast('Erreur renommage : ' + err.message, 'error', 3000);
+        else alert('Erreur renommage : ' + err.message);
+      });
+  }
+
+  function deleteDc() {
+    var dc = STATE.dc || {};
+    var fname = (dc.files && dc.files[0]) || 'le DC';
+    if (!confirm('Supprimer ' + fname + ' ?\n\nCette action est définitive.')) return;
+    fetchPostJSON('/api/candidates/' + CID + '/dc-delete', {})
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+        if (window.showToast) window.showToast('DC supprimé', 'success');
+        flashSaved();
+        return loadDc();
+      })
+      .catch(function (err) {
+        if (window.showToast) window.showToast('Erreur suppression : ' + err.message, 'error', 3000);
+        else alert('Erreur suppression : ' + err.message);
+      });
+  }
+
+  function bindDcActions() {
+    var card = document.querySelector('[data-v30-fc-dc-card]');
+    if (!card) return;
+    var fileInput = card.querySelector('[data-v30-fc-dc-input]');
+
+    card.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-fc-dc-generate]')) {
+        window.location.href = '/v30/dc/' + CID;
+        return;
+      }
+      if (e.target.closest('[data-v30-fc-dc-upload-btn]') || e.target.closest('[data-v30-fc-dc-replace]')) {
+        if (fileInput) fileInput.click();
+        return;
+      }
+      if (e.target.closest('[data-v30-fc-dc-rename]')) { renameDc(); return; }
+      if (e.target.closest('[data-v30-fc-dc-delete]')) { deleteDc(); return; }
+    });
+
+    if (fileInput) {
+      fileInput.addEventListener('change', function () {
+        var f = fileInput.files && fileInput.files[0];
+        if (!f) return;
+        uploadDc(f).then(function () { fileInput.value = ''; });
+      });
+    }
+  }
+
+  // ─── Notes & suivi (timeline candidate_events) ───────────
+  //   GET  /api/candidate/timeline?id=:id  → { ok, events: [{date, type, title, content, meta}] }
+  //   POST /api/candidate/events/add       → { candidate_id, type, title, content, date }
+  function relativeTime(iso) {
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return esc(String(iso).slice(0, 10));
+      var diff = Math.floor((Date.now() - d.getTime()) / 1000);
+      if (diff < 60) return 'à l\'instant';
+      if (diff < 3600) return 'il y a ' + Math.floor(diff / 60) + ' min';
+      if (diff < 86400) return 'il y a ' + Math.floor(diff / 3600) + ' h';
+      if (diff < 86400 * 30) return 'il y a ' + Math.floor(diff / 86400) + ' j';
+      return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (_) { return ''; }
+  }
+
+  function eventTitleFor(e) {
+    if (e.title) return e.title;
+    var t = e.type || '';
+    if (t === 'note')              return 'Note';
+    if (t === 'candidate_solid')   return 'Candidat solide';
+    if (t === 'candidate_contacted') return 'Candidat contacté';
+    if (t.indexOf('push') === 0)   return 'Push';
+    if (t === 'status_change')     return 'Changement de statut';
+    if (t === 'dc_uploaded')       return 'DC chargé';
+    return 'Événement';
+  }
+
+  function eventDotColor(t) {
+    switch ((t || '').toLowerCase()) {
+      case 'note':                return 'var(--accent, #5b8def)';
+      case 'candidate_solid':     return 'var(--success, #2ecc71)';
+      case 'candidate_contacted': return 'var(--warn, #f39c12)';
+      case 'status_change':       return 'var(--text-3)';
+      case 'push':
+      case 'candidate_push':      return 'var(--accent, #5b8def)';
+      default:                    return 'var(--text-3)';
+    }
+  }
+
+  function renderEvents() {
+    var host = document.querySelector('[data-v30-fc-events]');
+    if (!host) return;
+    var events = STATE.events || [];
+    if (!events.length) {
+      host.innerHTML = '<div class="empty" style="padding:14px 16px;font-size:12px;color:var(--text-3);">' +
+        'Aucune note ni événement. Cliquez sur <strong>+ Note</strong> pour ajouter un compte-rendu d\'après RDV.' +
+      '</div>';
+      return;
+    }
+    host.innerHTML = events.slice(0, 30).map(function (e) {
+      var when  = relativeTime(e.date);
+      var title = eventTitleFor(e);
+      var body  = e.content || '';
+      var dot   = eventDotColor(e.type);
+      return '<div class="v30-fp-ev">' +
+        '<span class="v30-fp-ev__time mono">' + esc(when) + '</span>' +
+        '<span class="v30-fp-ev__dot" style="background:' + dot + ';"></span>' +
+        '<div>' +
+          '<div class="v30-fp-ev__title">' + esc(title) + '</div>' +
+          (body ? '<div class="v30-fp-ev__body">' + esc(body).replace(/\n/g, '<br>') + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function loadEvents() {
+    return fetchJSON('/api/candidate/timeline?id=' + CID)
+      .then(function (res) { STATE.events = (res && res.events) || []; renderEvents(); })
+      .catch(function () { STATE.events = []; renderEvents(); });
+  }
+
+  function bindNoteForm() {
+    var card = document.querySelector('[data-v30-fc-timeline-card]');
+    if (!card) return;
+    var form = card.querySelector('[data-v30-fc-note-form]');
+    var titleEl = card.querySelector('[data-v30-fc-note-title]');
+    var textEl = card.querySelector('[data-v30-fc-note-text]');
+
+    card.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-fc-add-note]')) {
+        if (!form) return;
+        form.style.display = 'block';
+        if (titleEl && !titleEl.value) titleEl.value = 'Note d\'après RDV';
+        if (textEl) textEl.focus();
+        return;
+      }
+      if (e.target.closest('[data-v30-fc-note-cancel]')) {
+        if (form) form.style.display = 'none';
+        if (titleEl) titleEl.value = '';
+        if (textEl) textEl.value = '';
+        return;
+      }
+      if (e.target.closest('[data-v30-fc-note-save]')) {
+        var title = (titleEl && titleEl.value || '').trim() || 'Note';
+        var text  = (textEl && textEl.value || '').trim();
+        if (!text) { if (textEl) textEl.focus(); return; }
+        var saveBtn = e.target.closest('[data-v30-fc-note-save]');
+        if (saveBtn) saveBtn.disabled = true;
+        fetchPostJSON('/api/candidate/events/add', {
+          candidate_id: CID,
+          type: 'note',
+          title: title,
+          content: text
+        }).then(function (res) {
+          if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+          if (form) form.style.display = 'none';
+          if (titleEl) titleEl.value = '';
+          if (textEl)  textEl.value = '';
+          flashSaved();
+          if (window.showToast) window.showToast('Note ajoutée', 'success', 1500);
+          return loadEvents();
+        }).catch(function (err) {
+          if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 3000);
+          else alert('Erreur : ' + err.message);
+        }).finally(function () {
+          if (saveBtn) saveBtn.disabled = false;
+        });
+      }
+    });
+  }
+
   // ─── Init ────────────────────────────────────────────────
   function init() {
     bindInlineEdit();
     bindActions();
     bindSectionEdit();
+    bindDcActions();
+    bindNoteForm();
 
     Promise.all([
       fetchJSON('/api/candidates/' + CID).catch(function () { return null; }),
@@ -728,6 +1003,8 @@
       loadSkills();
       loadAvailability();
       loadPushHistory();
+      loadDc();
+      loadEvents();
     }).catch(function (err) {
       console.error('[v30 fiche candidat] load failed:', err);
     });
