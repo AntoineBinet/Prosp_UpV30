@@ -227,6 +227,50 @@
   margin-top: 8px;
 }
 
+/* v32.9 — Modal « Analyser via IA externe » (copy-paste workflow) */
+.v30-tx-ext-step {
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+}
+.v30-tx-ext-step:last-child { border-bottom: 0; padding-bottom: 0; }
+.v30-tx-ext-step:first-child { padding-top: 0; }
+.v30-tx-ext-step__num {
+  flex: 0 0 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: oklch(0.55 0.18 280 / 0.15);
+  border: 1px solid oklch(0.55 0.18 280 / 0.5);
+  color: oklch(0.70 0.16 280);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 13px;
+}
+.v30-tx-ext-step__body { flex: 1; min-width: 0; }
+.v30-tx-ext-step__body h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.v30-tx-ext-step__body p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; }
+.v30-tx-ext-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.v30-tx-ext-source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.v30-tx-ext-source-row .select { width: auto; flex: 1; max-width: 320px; }
+
 /* Badge provider (Ollama fallback / Claude actif) */
 .v30-tx-narrative__title-wrap {
   display: flex;
@@ -250,6 +294,11 @@
   border-color: oklch(0.55 0.18 70 / 0.5);
   background: oklch(0.55 0.18 70 / 0.08);
   color: oklch(0.70 0.16 70);
+}
+.v30-tx-provider-badge.is-external {
+  border-color: oklch(0.55 0.18 280 / 0.5);
+  background: oklch(0.55 0.18 280 / 0.08);
+  color: oklch(0.70 0.16 280);
 }
 
 .v30-tx-audio-card {

@@ -25,7 +25,10 @@
         {{ ui.icon('download', 13) }} Export .txt
       </a>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-reanalyze hidden>
-        {{ ui.icon('sparkles', 13) }} Re-analyser (Claude seul)
+        {{ ui.icon('sparkles', 13) }} Re-analyser (Claude API)
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-external hidden>
+        {{ ui.icon('paperclip', 13) }} Analyser via IA externe (copy-paste)
       </button>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-retry hidden>
         {{ ui.icon('sync', 13) }} Relancer pipeline
@@ -141,6 +144,90 @@
       <div class="v30-tx-transcript" data-v30-tx-transcript>—</div>
     </section>
 
+  </div>
+</div>
+
+{# ─── Modal « Analyser via IA externe (copy-paste) » ─── #}
+<div class="v30-modal-bd" data-v30-tx-external-modal hidden>
+  <div class="v30-modal v30-modal--xl" role="dialog" aria-modal="true" style="max-width:760px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title">
+        {{ ui.icon('paperclip', 14) }} <span>Analyser via IA externe (copy-paste)</span>
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-tx-ext-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="margin:0 0 14px;">
+        Pour générer un CR de qualité Claude sans crédits API, utilise ton compte
+        <strong>claude.ai</strong> (ou ChatGPT / Gemini) en mode chat normal.
+      </p>
+
+      {# Étape 1 #}
+      <div class="v30-tx-ext-step">
+        <div class="v30-tx-ext-step__num">1</div>
+        <div class="v30-tx-ext-step__body">
+          <h4>Copier le prompt + transcript</h4>
+          <p class="muted">Récupère le prompt système complet + ton transcript dans le presse-papier.</p>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary btn-sm" data-v30-tx-ext-copy>
+              {{ ui.icon('paperclip', 13) }} Copier dans le presse-papier
+            </button>
+            <span class="muted" data-v30-tx-ext-copy-info></span>
+          </div>
+        </div>
+      </div>
+
+      {# Étape 2 #}
+      <div class="v30-tx-ext-step">
+        <div class="v30-tx-ext-step__num">2</div>
+        <div class="v30-tx-ext-step__body">
+          <h4>Coller dans ton IA préférée</h4>
+          <p class="muted">Ouvre une nouvelle conversation et colle. L'IA renvoie un JSON structuré (avec un grand champ <code class="mono">narrative_markdown</code> = le CR complet).</p>
+          <div class="v30-tx-ext-links">
+            <a class="btn btn-sm" href="https://claude.ai/new" target="_blank" rel="noopener">
+              ↗ claude.ai (recommandé · Sonnet/Opus dans Max 5×)
+            </a>
+            <a class="btn btn-sm" href="https://chatgpt.com" target="_blank" rel="noopener">
+              ↗ chatgpt.com
+            </a>
+            <a class="btn btn-sm" href="https://gemini.google.com" target="_blank" rel="noopener">
+              ↗ gemini.google.com
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {# Étape 3 #}
+      <div class="v30-tx-ext-step">
+        <div class="v30-tx-ext-step__num">3</div>
+        <div class="v30-tx-ext-step__body">
+          <h4>Coller la réponse ici</h4>
+          <p class="muted">Copie l'intégralité de la réponse de l'IA (JSON complet, avec ou sans balises <code class="mono">```json</code>) et colle-la ci-dessous.</p>
+          <textarea class="input" data-v30-tx-ext-response rows="10"
+                    style="width:100%;font-family:var(--font-mono);font-size:12px;resize:vertical;"
+                    placeholder='{ "title": "...", "narrative_markdown": "# ...", ... }'></textarea>
+          <div class="v30-tx-ext-source-row">
+            <label class="muted" for="v30-tx-ext-source">Source :</label>
+            <select class="select" id="v30-tx-ext-source" data-v30-tx-ext-source>
+              <option value="claude.ai (web · Max 5×)" selected>claude.ai (Sonnet/Opus via Max 5×)</option>
+              <option value="claude.ai (Sonnet 4.6)">claude.ai (Sonnet 4.6)</option>
+              <option value="claude.ai (Opus 4.7)">claude.ai (Opus 4.7)</option>
+              <option value="ChatGPT (GPT-4o)">ChatGPT (GPT-4o)</option>
+              <option value="ChatGPT (o1)">ChatGPT (o1)</option>
+              <option value="Gemini (Pro 2.5)">Gemini (Pro 2.5)</option>
+              <option value="external">Autre</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-ext-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-tx-ext-apply>
+        Appliquer l'analyse
+      </button>
+    </div>
   </div>
 </div>
 

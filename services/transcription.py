@@ -336,46 +336,151 @@ _MAX_TOKENS_BY_MODEL = {
 }
 
 
-# Prompt simplifié pour Ollama (modèles plus petits que Claude, pas garantis
-# de produire du JSON valide). On demande juste du markdown propre.
-_OLLAMA_ANALYSIS_PROMPT = """Tu es un expert en rédaction de comptes-rendus de réunions B2B.
-
-À partir du transcript ci-dessous, rédige un compte-rendu DÉTAILLÉ et NARRATIF au format markdown :
-- Un titre H1 (`# ...`) descriptif et contextuel
-- Une section `## Synthèse` (4-8 phrases factuelles)
-- 10 à 25 sections H2 thématiques (`## Titre`) avec 1-3 paragraphes de prose narrative chacune
-- Une section finale `## Prochaines étapes` si applicable
+# v32.9 — Prompts Ollama optimisés. Stratégie en 2 passes pour les longs
+# transcripts (>4000 tokens) : on chunk en morceaux de ~3000 tokens, on
+# extrait un mini-CR factuel par chunk, puis on synthétise. Plus fiable
+# que demander direct un CR de 25 sections à un 7-8B.
+_OLLAMA_CHUNK_PROMPT = """Tu reçois un EXTRAIT de transcript de réunion B2B. Extrais les faits importants AU FORMAT MARKDOWN structuré, sans paraphrase.
 
 RÈGLES STRICTES :
-- N'INVENTE RIEN : tous les chiffres, noms, lieux, technologies doivent venir du transcript
-- Garde les noms d'entreprises et personnes EXACTS
-- Mets en **gras** les noms d'entreprises, technologies, chiffres clés
-- Pas de paraphrase inutile
+- N'INVENTE RIEN : si une info n'est pas dans l'extrait, ne la mentionne pas.
+- Garde les chiffres, noms, lieux, technologies EXACTS.
+- Sois BREF — ce sera synthétisé après.
 
-Réponds UNIQUEMENT par le markdown du compte-rendu, rien d'autre (pas de préambule, pas de balises ```).
+Format de sortie (markdown, pas de JSON) :
+
+**Sujets abordés dans cet extrait** :
+- bullet 1
+- bullet 2
+
+**Faits / chiffres mentionnés** :
+- bullet (avec le chiffre/nom exact)
+
+**Décisions / accords** :
+- bullet (ou "Aucune" si rien)
+
+**Tâches mentionnées** :
+- bullet (ou "Aucune")
+
+Extrait :
+"""
+
+
+_OLLAMA_SYNTHESIZE_PROMPT = """Tu reçois plusieurs notes factuelles extraites d'un transcript de réunion (chronologiquement). Rédige un COMPTE-RENDU narratif et DÉTAILLÉ au format markdown.
+
+Structure :
+# {Titre descriptif court de la réunion}
+
+## Synthèse
+Paragraphe de 4-8 phrases qui résume globalement la réunion.
+
+## {Section thématique 1}
+Paragraphe(s) narratif(s).
+
+## {Section thématique 2}
+...
+
+(8 à 15 sections H2 typiquement)
+
+## Prochaines étapes
+Liste à puces des actions / suivis.
+
+RÈGLES STRICTES :
+- Ne mentionne QUE ce qui est dans les notes — n'invente rien.
+- Garde les chiffres, noms, lieux EXACTS.
+- Mets en **gras** noms d'entreprises, technologies, chiffres.
+- Réponds uniquement par le markdown, pas de balises ```.
+
+Notes factuelles :
+"""
+
+
+_OLLAMA_DIRECT_PROMPT = """Tu es un expert en rédaction de comptes-rendus de réunions B2B.
+
+À partir du transcript ci-dessous, rédige un CR détaillé et NARRATIF au format markdown :
+- Un titre H1
+- Une section `## Synthèse` (4-8 phrases)
+- 8-15 sections H2 thématiques (1-2 paragraphes de prose chacune, pas seulement des bullets)
+- Une section `## Prochaines étapes`
+
+RÈGLES STRICTES :
+- N'INVENTE RIEN — tout doit venir du transcript.
+- Garde noms / chiffres / lieux EXACTS.
+- Mets en **gras** noms d'entreprises, technologies, chiffres clés.
+- Réponds uniquement par le markdown, pas de balises ```.
 
 Transcript :
 """
 
 
-def _call_ollama_for_analysis(transcript: str, config: dict, timeout: int = 240) -> dict:
-    """Fallback Ollama quand Claude est indisponible. Retourne un dict
-    avec au minimum `narrative_markdown`.
+def _call_ollama_for_analysis(transcript: str, config: dict, timeout: int = 300) -> dict:
+    """Analyse Ollama avec stratégie adaptée à la longueur :
+    - transcript court (<12 000 caractères ≈ 3000 tokens) → 1 passe directe
+    - transcript long → chunking en morceaux + synthèse
 
-    Ollama (llama3.2 par défaut) n'est pas garanti de produire du JSON
-    valide — on demande juste du markdown narratif et on l'emballe.
+    NOTE : la qualité reste tributaire du modèle Ollama. llama3.2:3B
+    hallucine sur les longs CR, qwen2.5:7b et llama3.1:8b sont nettement
+    meilleurs. À documenter dans l'UI.
     """
-    # Import différé pour éviter le cycle services/transcription <-> app
     from app import _call_ollama_direct  # type: ignore
 
-    full_prompt = _OLLAMA_ANALYSIS_PROMPT + transcript[:200_000]
-    text = _call_ollama_direct(full_prompt, config, timeout) or ""
-    # Strip d'éventuelles balises code
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.strip("`").lstrip("markdown\n").lstrip("md\n").strip()
+    text = (transcript or "").strip()
+    if not text:
+        return {"narrative_markdown": ""}
+
+    # ─── Passe directe si court ───
+    if len(text) < 12_000:
+        prompt = _OLLAMA_DIRECT_PROMPT + text[:200_000]
+        out = (_call_ollama_direct(prompt, config, timeout) or "").strip()
+        if out.startswith("```"):
+            out = out.strip("`").lstrip("markdown\n").lstrip("md\n").strip()
+        return _wrap_ollama_markdown(out)
+
+    # ─── Chunking + synthèse pour les longs ───
+    logger.info("Ollama analyse en 2 passes (transcript %d chars)", len(text))
+    chunk_size = 9000  # ~2200 tokens
+    chunks: list[str] = []
+    i = 0
+    while i < len(text):
+        # Coupe à un saut de ligne / fin de phrase si possible (±300 chars)
+        end = min(len(text), i + chunk_size)
+        if end < len(text):
+            cut = text.rfind("\n", i, end)
+            if cut < 0 or cut - i < chunk_size - 600:
+                cut = text.rfind(". ", i, end)
+            if cut > i:
+                end = cut + 1
+        chunks.append(text[i:end].strip())
+        i = end
+    logger.info("Ollama : %d chunks", len(chunks))
+
+    notes: list[str] = []
+    for idx, ch in enumerate(chunks):
+        try:
+            note = _call_ollama_direct(_OLLAMA_CHUNK_PROMPT + ch, config, timeout)
+            if note and note.strip():
+                notes.append(f"### Extrait {idx + 1}/{len(chunks)}\n\n" + note.strip())
+        except Exception as exc:
+            logger.warning("Ollama chunk %d échoué : %s", idx, exc)
+
+    if not notes:
+        return {"narrative_markdown": "(Ollama n'a rien produit. Vérifie qu'Ollama tourne et que le modèle est chargé.)"}
+
+    # Synthèse finale
+    notes_blob = "\n\n".join(notes)
+    if len(notes_blob) > 30_000:
+        notes_blob = notes_blob[:30_000]
+    final = (_call_ollama_direct(_OLLAMA_SYNTHESIZE_PROMPT + notes_blob, config, timeout) or "").strip()
+    if final.startswith("```"):
+        final = final.strip("`").lstrip("markdown\n").lstrip("md\n").strip()
+    return _wrap_ollama_markdown(final)
+
+
+def _wrap_ollama_markdown(md: str) -> dict:
+    """Encapsule un markdown brut dans un dict d'analyse compatible avec
+    le schéma standard."""
     return {
-        "narrative_markdown": text,
+        "narrative_markdown": md,
         "title": None,
         "synthesis": None,
         "participants": [],
