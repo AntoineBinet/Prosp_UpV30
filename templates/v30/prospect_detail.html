@@ -47,11 +47,18 @@
       <button type="button" class="btn" data-v30-action="schedule">
         {{ ui.icon('calendar', 13) }} Planifier
       </button>
+      <button type="button" class="btn btn-ghost" data-v30-summarize-btn
+              title="Générer un résumé IA de la fiche">
+        {{ ui.icon('sparkles', 13) }} Résumer
+      </button>
       <button type="button" class="btn btn-ghost btn-icon" data-v30-action="more" aria-label="Plus">
         {{ ui.icon('dot3') }}
       </button>
     </div>
   </div>
+
+  {# Bandeau résumé IA (caché par défaut, hydraté à la demande) #}
+  <div data-v30-summary-banner style="display:none;"></div>
 
   {# ─── Body 2 cols : Main + Aside ─── #}
   <div class="v30-fp-body">
@@ -89,13 +96,40 @@
         <div class="card card-flush" style="margin-top:12px;">
           <div class="card-header">
             <div class="card-title">Activité</div>
-            <div style="display:flex;gap:4px;align-items:center;">
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
               <div style="display:flex;gap:4px;" data-v30-fp-filter>
                 <button type="button" class="btn btn-ghost btn-sm active" data-filter="all">Tous</button>
                 <button type="button" class="btn btn-ghost btn-sm" data-filter="push">Push</button>
                 <button type="button" class="btn btn-ghost btn-sm" data-filter="note">Notes</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-filter="cr">CR</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-filter="attachment">Fichiers</button>
               </div>
               <button type="button" class="btn btn-ghost btn-sm" data-v30-add-note style="margin-left:4px;">+ Note</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-v30-attach-btn
+                      title="Joindre un fichier" aria-label="Joindre un fichier">
+                {{ ui.icon('paperclip', 12) }} Fichier
+              </button>
+            </div>
+          </div>
+          {# Barre de recherche #}
+          <div class="v30-fp-search">
+            {{ ui.icon('search', 13) }}
+            <input type="search" data-v30-tl-search placeholder="Rechercher dans la timeline (CR, notes, fichiers, tags…)" aria-label="Recherche timeline">
+            <span class="v30-fp-search__count" data-v30-tl-search-count></span>
+          </div>
+          {# Zone de drop upload (cachée par défaut) #}
+          <div data-v30-upload-drop-zone style="display:none;padding:8px 16px 4px;">
+            <label class="v30-fp-upload-drop" data-v30-upload-label>
+              <input type="file" data-v30-file-input style="display:none;"
+                     accept=".pdf,.doc,.docx,.xls,.xlsx,.pptx,.ppt,.txt,.png,.jpg,.jpeg,.webp,.odt,.ods">
+              {{ ui.icon('paperclip', 15) }}
+              <span data-v30-upload-label-text>Cliquez ou glissez un fichier ici</span>
+            </label>
+            <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
+              <button type="button" class="btn btn-ghost btn-sm" data-v30-upload-cancel>Annuler</button>
+              <button type="button" class="btn btn-accent btn-sm" data-v30-upload-send disabled>
+                {{ ui.icon('upload', 12) }} Envoyer
+              </button>
             </div>
           </div>
           <div data-v30-note-form style="display:none;padding:10px 16px 4px;border-bottom:1px solid var(--border);">
@@ -262,6 +296,9 @@
           <span class="skel" style="width:60px;height:20px;display:inline-block;border-radius:6px;"></span>
         </div>
       </div>
+
+      {# Prochaine action (depuis le dernier CR — hydraté par JS) #}
+      <div data-v30-aside-activity style="display:none;flex-direction:column;gap:8px;"></div>
     </aside>
 
   </div>
@@ -410,6 +447,35 @@
           {{ ui.icon('save', 12) }} Enregistrer
         </button>
       </span>
+    </div>
+  </div>
+</div>
+
+{# ─── Drag-drop overlay (page entière) ─── #}
+<div class="v30-fp-drag-overlay" data-v30-drag-overlay aria-hidden="true">
+  <div class="v30-fp-drag-overlay__card">
+    {{ ui.icon('upload', 32) }}
+    <span>Déposer pour joindre au prospect</span>
+  </div>
+</div>
+
+{# ─── Modale aperçu fichier ─── #}
+<div class="v30-fp-file-preview-bd" data-v30-file-preview-bd style="display:none;" role="dialog" aria-modal="true" aria-label="Aperçu du fichier">
+  <div class="v30-fp-file-preview">
+    <div class="v30-fp-file-preview__head">
+      <span class="v30-fp-file-preview__name" data-v30-file-preview-name>—</span>
+      <a class="btn btn-ghost btn-sm" data-v30-file-preview-dl href="#" download target="_blank">
+        {{ ui.icon('download', 12) }} Télécharger
+      </a>
+      <button type="button" class="btn btn-ghost btn-icon btn-sm" data-v30-file-preview-close aria-label="Fermer">
+        {{ ui.icon('x', 13) }}
+      </button>
+    </div>
+    <div class="v30-fp-file-preview__body" data-v30-file-preview-body>
+      <div class="v30-fp-file-preview__no-preview">
+        {{ ui.icon('file', 32) }}
+        <span>Aperçu non disponible</span>
+      </div>
     </div>
   </div>
 </div>

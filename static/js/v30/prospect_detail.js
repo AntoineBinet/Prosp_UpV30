@@ -7,7 +7,7 @@
   var PROSPECT_ID = Number(fp.dataset.prospectId || 0);
   if (!PROSPECT_ID) return;
 
-  var STATE = { prospect: null, events: [], pushLogs: [] };
+  var STATE = { prospect: null, events: [], pushLogs: [], activity_summary: {} };
 
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
@@ -94,6 +94,7 @@
       .then(function (res) {
         STATE.prospect = (res && res.prospect) || null;
         STATE.events = (res && res.events) || [];
+        STATE.activity_summary = (res && res.activity_summary) || {};
         STATE.pushLogs = STATE.events.filter(function (e) { return (e.type || '').startsWith('push'); });
         if (window.ProspFPRender) window.ProspFPRender.all(STATE);
       })

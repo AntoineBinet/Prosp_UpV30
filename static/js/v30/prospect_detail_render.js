@@ -164,6 +164,42 @@
     var notesEl = FP.$('[data-field="notes"]');
     if (notesEl) notesEl.textContent = p.notes || '';
 
+    // Bloc aside "Activité" : prochaine action + tâches en attente
+    var asideAct = FP.$('[data-v30-aside-activity]');
+    if (asideAct) {
+      var summary = FP.STATE.activity_summary || {};
+      var blocks = [];
+      if (summary.next_action) {
+        var fromHtml = '';
+        if (summary.next_action_from || summary.next_action_date) {
+          var src = [];
+          if (summary.next_action_from) src.push(FP.esc(summary.next_action_from));
+          if (summary.next_action_date) src.push(FP.esc(summary.next_action_date));
+          fromHtml = '<div class="v30-fp-aside-next-action__from">' + src.join(' · ') + '</div>';
+        }
+        blocks.push(
+          '<div class="v30-fp-aside-next-action">' +
+            '<div class="v30-fp-aside-next-action__label">Prochaine action</div>' +
+            '<div class="v30-fp-aside-next-action__text">' + FP.esc(summary.next_action).replace(/\n/g,'<br>') + '</div>' +
+            fromHtml +
+          '</div>'
+        );
+      }
+      if (summary.pending_tasks) {
+        blocks.push(
+          '<button type="button" class="v30-fp-aside-pending" data-v30-goto-cr-tab>' +
+            '⏳ ' + summary.pending_tasks + ' tâche' + (summary.pending_tasks > 1 ? 's' : '') + ' en attente' +
+          '</button>'
+        );
+      }
+      if (blocks.length) {
+        asideAct.style.display = 'flex';
+        asideAct.innerHTML = blocks.join('');
+      } else {
+        asideAct.style.display = 'none';
+        asideAct.innerHTML = '';
+      }
+    }
   }
 
   // ─── Timeline events ──────────────────────────────────────
@@ -181,39 +217,255 @@
     ia_scrap:     'oklch(0.60 0.15 295)',
     ia_before:    'oklch(0.60 0.15 295)',
     ia_after:     'oklch(0.60 0.15 295)',
+    cr:           'oklch(0.55 0.15 25)',
+    attachment:   'oklch(0.60 0.10 200)',
     event:        'var(--text-3)'
   };
 
   function evIsPush(e)  { return (e.type || '').startsWith('push'); }
   function evIsNote(e)  { return (e.type || '') === 'call_note' || (e.type || '') === 'note'; }
+  function evIsCR(e)    { return (e.type || '') === 'cr'; }
+  function evIsAttach(e){ return (e.type || '') === 'attachment'; }
 
-  function renderEvents(filter, hostSel, limit) {
+  function fileIconSvg() {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+  }
+
+  function fmtSize(bytes) {
+    bytes = Number(bytes) || 0;
+    if (bytes < 1024) return bytes + ' o';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' Ko';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
+  }
+
+  // Construit le contenu enrichi d'un événement (panel d'expansion).
+  function eventExpandHtml(e) {
+    var type = e.type || '';
+    var meta = e.meta || {};
+    var html = '';
+
+    if (type === 'cr') {
+      // CR : afficher next_action, tâches en attente, tags, lien d'ouverture
+      if (e.content) {
+        html += '<div class="v30-fp-ev__expand-row">' +
+          '<span class="v30-fp-ev__expand-label">Synthèse</span>' +
+          '<span class="v30-fp-ev__expand-val">' + FP.esc(e.content).replace(/\n/g, '<br>') + '</span>' +
+          '</div>';
+      }
+      if (meta.next_action) {
+        html += '<div class="v30-fp-ev__next-action"><strong>Prochaine action</strong>' +
+          FP.esc(meta.next_action).replace(/\n/g, '<br>') + '</div>';
+      }
+      if (meta.action_count) {
+        var pending = meta.action_pending || 0;
+        var done = (meta.action_count || 0) - pending;
+        html += '<div class="v30-fp-ev__expand-row">' +
+          '<span class="v30-fp-ev__expand-label">Tâches</span>' +
+          '<span class="v30-fp-ev__expand-val">' + done + ' fait · <b>' + pending + ' en attente</b></span>' +
+          '</div>';
+      }
+      if (meta.tags && meta.tags.length) {
+        html += '<div class="v30-fp-ev__expand-row">' +
+          '<span class="v30-fp-ev__expand-label">Tags</span>' +
+          '<span class="v30-fp-ev__expand-val">' + meta.tags.map(function(t){ return '<span class="badge">' + FP.esc(t) + '</span>'; }).join(' ') + '</span>' +
+          '</div>';
+      }
+      html += '<div class="v30-fp-ev__actions">' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-v30-ev-open-cr data-cr-id="' + FP.esc(e.id) + '">Ouvrir le CR</button>' +
+        '</div>';
+    } else if (type === 'attachment') {
+      html += '<div class="v30-fp-ev__expand-row">' +
+        '<span class="v30-fp-ev__expand-label">Type</span>' +
+        '<span class="v30-fp-ev__expand-val">' + FP.esc(meta.mime_type || '—') + '</span>' +
+        '</div>' +
+        '<div class="v30-fp-ev__expand-row">' +
+        '<span class="v30-fp-ev__expand-label">Taille</span>' +
+        '<span class="v30-fp-ev__expand-val">' + FP.esc(fmtSize(meta.size)) + '</span>' +
+        '</div>';
+      // Tags (pills + input pour ajouter)
+      var tagsHtml = '';
+      (meta.tags || []).forEach(function (t) {
+        tagsHtml += '<span class="v30-fp-tag-pill">' + FP.esc(t) +
+          '<button type="button" class="v30-fp-tag-pill__rm" data-v30-att-tag-rm data-att-id="' + FP.esc(e.id) + '" data-tag="' + FP.esc(t) + '" aria-label="Retirer">×</button>' +
+          '</span>';
+      });
+      tagsHtml += '<input type="text" class="v30-fp-tag-input" data-v30-att-tag-add data-att-id="' + FP.esc(e.id) + '" placeholder="+ tag" maxlength="30">';
+      html += '<div class="v30-fp-ev__expand-row">' +
+        '<span class="v30-fp-ev__expand-label">Tags</span>' +
+        '<span class="v30-fp-ev__expand-val">' + tagsHtml + '</span>' +
+        '</div>';
+      // Description éditable
+      html += '<div class="v30-fp-ev__expand-row">' +
+        '<span class="v30-fp-ev__expand-label">Description</span>' +
+        '<span class="v30-fp-ev__expand-val">' +
+          '<input type="text" class="v30-fp-tag-input" data-v30-att-desc data-att-id="' + FP.esc(e.id) + '" value="' + FP.esc(e.content || '') + '" placeholder="Note (optionnel)" maxlength="200" style="width:100%;border-radius:var(--r-sm);">' +
+        '</span>' +
+        '</div>';
+      html += '<div class="v30-fp-ev__actions">' +
+        '<button type="button" class="btn btn-accent btn-sm" data-v30-ev-preview-file data-att-id="' + FP.esc(e.id) + '" data-att-name="' + FP.esc(meta.original_name || '') + '" data-att-mime="' + FP.esc(meta.mime_type || '') + '">Aperçu</button>' +
+        '<a class="btn btn-ghost btn-sm" href="/api/prospect/attachments/' + FP.esc(e.id) + '/file" target="_blank" download>Télécharger</a>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-v30-ev-delete-file data-att-id="' + FP.esc(e.id) + '" style="color:var(--red,oklch(0.55 0.20 15));">Supprimer</button>' +
+        '</div>';
+    } else if (type === 'call_note' || type === 'note') {
+      // Note éditable
+      html += '<div class="v30-fp-ev__edit-form" data-v30-ev-edit-form>' +
+        '<textarea data-v30-ev-edit-text>' + FP.esc(e.content || '') + '</textarea>' +
+        '<div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-v30-ev-cancel>Annuler</button>' +
+          (type === 'call_note' && e.note_index != null
+            ? '<button type="button" class="btn btn-ghost btn-sm" data-v30-ev-delete-note data-note-index="' + FP.esc(e.note_index) + '" style="color:var(--red,oklch(0.55 0.20 15));">Supprimer</button>'
+            : (e.id ? '<button type="button" class="btn btn-ghost btn-sm" data-v30-ev-delete-event data-ev-id="' + FP.esc(e.id) + '" style="color:var(--red,oklch(0.55 0.20 15));">Supprimer</button>' : '')) +
+          '<button type="button" class="btn btn-accent btn-sm" data-v30-ev-save data-ev-id="' + FP.esc(e.id || '') + '" data-ev-type="' + FP.esc(type) + '" data-note-index="' + FP.esc(e.note_index != null ? e.note_index : '') + '">Enregistrer</button>' +
+        '</div>' +
+      '</div>';
+    } else if (type === 'push' || type === 'push_email' || type === 'push_linkedin') {
+      var chan = (meta.channel) || (type === 'push_linkedin' ? 'linkedin' : 'email');
+      html += '<div class="v30-fp-ev__expand-row">' +
+        '<span class="v30-fp-ev__expand-label">Canal</span>' +
+        '<span class="v30-fp-ev__expand-val">' + FP.esc(chan) + '</span></div>';
+      if (meta.template) {
+        html += '<div class="v30-fp-ev__expand-row">' +
+          '<span class="v30-fp-ev__expand-label">Template</span>' +
+          '<span class="v30-fp-ev__expand-val">' + FP.esc(meta.template) + '</span></div>';
+      }
+      if (meta.candidates && meta.candidates.length) {
+        html += '<div class="v30-fp-ev__expand-row">' +
+          '<span class="v30-fp-ev__expand-label">Consultants proposés</span>' +
+          '<span class="v30-fp-ev__expand-val">' + meta.candidates.map(function(c){ return FP.esc(c); }).join(', ') + '</span></div>';
+      }
+      if (meta.consultants && meta.consultants.length) {
+        html += '<div class="v30-fp-ev__expand-row">' +
+          '<span class="v30-fp-ev__expand-label">Envoyé par</span>' +
+          '<span class="v30-fp-ev__expand-val">' + meta.consultants.map(function(c){ return FP.esc(c); }).join(', ') + '</span></div>';
+      }
+    } else {
+      // Autres types : juste le contenu si dispo
+      if (e.content) {
+        html += '<div class="v30-fp-ev__expand-row">' +
+          '<span class="v30-fp-ev__expand-label">Détail</span>' +
+          '<span class="v30-fp-ev__expand-val">' + FP.esc(e.content).replace(/\n/g, '<br>') + '</span></div>';
+      }
+      // Bouton supprimer pour les events DB
+      if (e.source === 'event' && e.id) {
+        html += '<div class="v30-fp-ev__actions">' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-v30-ev-delete-event data-ev-id="' + FP.esc(e.id) + '" style="color:var(--red,oklch(0.55 0.20 15));">Supprimer</button>' +
+          '</div>';
+      }
+    }
+    return html;
+  }
+
+  function eventMatchesSearch(e, q) {
+    if (!q) return true;
+    q = q.toLowerCase();
+    var fields = [e.title, e.content];
+    var meta = e.meta || {};
+    if (meta.next_action) fields.push(meta.next_action);
+    if (meta.original_name) fields.push(meta.original_name);
+    if (meta.tags) fields.push((meta.tags || []).join(' '));
+    if (meta.candidates) fields.push((meta.candidates || []).join(' '));
+    if (meta.consultants) fields.push((meta.consultants || []).join(' '));
+    if (meta.template) fields.push(meta.template);
+    return fields.some(function (f) { return f && String(f).toLowerCase().indexOf(q) !== -1; });
+  }
+
+  function renderEvents(filter, hostSel, limit, opts) {
+    opts = opts || {};
     var host = FP.$(hostSel);
     if (!host) return;
-    var events = FP.STATE.events || [];
+    var events = (FP.STATE.events || []).slice();
+    var totalCount = events.length;
     if (filter === 'push') events = events.filter(evIsPush);
     else if (filter === 'note') events = events.filter(evIsNote);
+    else if (filter === 'cr') events = events.filter(evIsCR);
+    else if (filter === 'attachment') events = events.filter(evIsAttach);
+    var q = (FP.STATE.searchQuery || '').trim();
+    if (q) events = events.filter(function (e) { return eventMatchesSearch(e, q); });
+    if (opts.reverse) events = events.slice().reverse();
+
     if (events.length === 0) {
-      host.innerHTML = '<div class="empty">Aucun événement.</div>';
+      host.innerHTML = '<div class="empty">' + (q ? 'Aucun résultat pour "' + FP.esc(q) + '".' : 'Aucun événement.') + '</div>';
       return;
     }
     if (limit) events = events.slice(0, limit);
-    host.innerHTML = events.map(function (e) {
+    host.innerHTML = events.map(function (e, idx) {
       var color = DOT_COLOR[e.type] || 'var(--text-3)';
       var when = FP.relativeTime(e.date);
       var title = e.title || (e.type || 'Événement');
       var body = e.content || '';
-      var bodyHtml = body ? FP.esc(body).replace(/\n/g, '<br>') : '';
-      return '<div class="v30-fp-ev">' +
+      var showBody = body && !evIsCR(e) && !evIsAttach(e);
+      var bodyHtml = showBody ? FP.esc(body).replace(/\n/g, '<br>') : '';
+
+      // Préfixes / suffixes
+      var titlePrefix = '';
+      if (evIsAttach(e)) {
+        var meta = e.meta || {};
+        if (meta.has_thumbnail) {
+          titlePrefix = '<span class="v30-fp-ev__thumb" data-v30-thumb-preview data-att-id="' + FP.esc(e.id) + '" data-att-name="' + FP.esc(meta.original_name || '') + '" data-att-mime="' + FP.esc(meta.mime_type || '') + '">' +
+            '<img src="/api/prospect/attachments/' + FP.esc(e.id) + '/thumb" alt="" loading="lazy">' +
+            '</span>';
+        } else {
+          titlePrefix = '<span class="v30-fp-ev__file-icon">' + fileIconSvg() + '</span>';
+        }
+      }
+      var titleSuffix = '';
+      if (evIsCR(e) && e.meta) {
+        if (e.meta.action_pending > 0) {
+          titleSuffix = ' <span class="v30-fp-ev__badge v30-fp-ev__badge--pending">' + e.meta.action_pending + ' en attente</span>';
+        } else if (e.meta.action_count > 0) {
+          titleSuffix = ' <span class="v30-fp-ev__badge v30-fp-ev__badge--ok">✓ ' + e.meta.action_count + '</span>';
+        }
+      }
+      // Tags inline (attachment)
+      if (evIsAttach(e) && e.meta && e.meta.tags && e.meta.tags.length) {
+        titleSuffix = e.meta.tags.map(function (t) {
+          return ' <span class="v30-fp-ev__badge v30-fp-ev__badge--ok">' + FP.esc(t) + '</span>';
+        }).join('');
+      }
+
+      var dataAttrs = ' data-v30-ev-idx="' + idx + '" data-v30-ev-filter="' + FP.esc(filter || 'all') + '"';
+      var classes = 'v30-fp-ev' + (evIsAttach(e) ? ' v30-fp-ev--attachment' : '');
+      return '<div class="' + classes + '"' + dataAttrs + '>' +
         '<span class="v30-fp-ev__time mono">' + FP.esc(when) + '</span>' +
         '<span class="v30-fp-ev__dot" style="background:' + color + ';"></span>' +
         '<div>' +
-          '<div class="v30-fp-ev__title">' + FP.esc(title) + '</div>' +
+          '<div class="v30-fp-ev__title">' + titlePrefix + FP.esc(title) + titleSuffix + '</div>' +
           (bodyHtml ? '<div class="v30-fp-ev__body">' + bodyHtml + '</div>' : '') +
         '</div>' +
       '</div>';
     }).join('');
+
+    // Met à jour le compteur de la barre de recherche
+    var countEl = document.querySelector('[data-v30-tl-search-count]');
+    if (countEl) {
+      if (q) countEl.textContent = events.length + ' / ' + totalCount;
+      else countEl.textContent = '';
+    }
   }
+
+  // Rend (ou re-rend) le panel d'expansion d'un événement.
+  function renderEventExpand(evEl, e) {
+    // Retire un panel existant
+    var existing = evEl.querySelector('.v30-fp-ev__expand, .v30-fp-ev__edit-form');
+    if (existing) existing.remove();
+    var html = eventExpandHtml(e);
+    if (!html) return;
+    // Wrap dans .v30-fp-ev__expand sauf si c'est déjà un edit-form
+    var wrap;
+    if (html.indexOf('v30-fp-ev__edit-form') !== -1) {
+      // On prend le HTML brut (déjà wrappé)
+      var tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      wrap = tmp.firstElementChild;
+    } else {
+      wrap = document.createElement('div');
+      wrap.className = 'v30-fp-ev__expand';
+      wrap.innerHTML = html;
+    }
+    evEl.appendChild(wrap);
+  }
+  // Expose pour que prospect_detail_ui.js puisse l'utiliser
+  window._v30RenderEventExpand = renderEventExpand;
 
   function renderPushList() {
     var host = FP.$('[data-v30-fp-push-list]');

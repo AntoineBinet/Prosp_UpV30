@@ -572,6 +572,140 @@ def api_deploy_restart():
 
 # ── Santé et validation (sans auth) ───────────────────────────────
 
+@deploy_bp.get("/api/deploy/check-deps")
+@login_required
+@role_required('admin')
+def api_deploy_check_deps():
+    """Compare requirements.txt aux paquets Python installés.
+
+    Retourne un statut par dépendance :
+      ok       — installé et version >= requise
+      outdated — installé mais version < requise
+      missing  — non installé / non importable
+    """
+    import importlib
+    import re
+
+    req_path = APP_DIR / "requirements.txt"
+    if not req_path.exists():
+        return jsonify(ok=False, error="requirements.txt introuvable"), 500
+
+    # Mapping nom paquet pip -> nom module Python (quand differents)
+    PIP_TO_MODULE = {
+        "pymupdf": "fitz",
+        "Pillow": "PIL",
+        "python-docx": "docx",
+        "apscheduler": "apscheduler",
+        "reportlab": "reportlab",
+        "openpyxl": "openpyxl",
+        "waitress": "waitress",
+        "pypdf": "pypdf",
+        "rjsmin": "rjsmin",
+        "csscompressor": "csscompressor",
+        "flask": "flask",
+    }
+
+    def _parse_version(s: str):
+        """Convertit '1.2.3' ou '1.2.3.dev1' en tuple comparable."""
+        nums = []
+        for part in re.split(r"[.\-+]", s or ""):
+            m = re.match(r"^(\d+)", part)
+            if m:
+                nums.append(int(m.group(1)))
+            else:
+                break
+        return tuple(nums) if nums else (0,)
+
+    deps = []
+    lines = req_path.read_text(encoding="utf-8").splitlines()
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Parse "name>=version" / "name==version" / "name"
+        m = re.match(r"^([A-Za-z0-9_.\-]+)\s*(>=|==|<=|>|<|~=)?\s*([0-9A-Za-z._\-]+)?\s*$", line)
+        if not m:
+            continue
+        pip_name = m.group(1)
+        op = m.group(2) or ""
+        req_ver = m.group(3) or ""
+
+        module_name = PIP_TO_MODULE.get(pip_name, pip_name.lower().replace("-", "_"))
+
+        installed_ver = None
+        status = "missing"
+        error_msg = None
+
+        try:
+            mod = importlib.import_module(module_name)
+            installed_ver = (
+                getattr(mod, "__version__", None)
+                or getattr(mod, "VERSION", None)
+                or getattr(mod, "version", None)
+            )
+            if isinstance(installed_ver, tuple):
+                installed_ver = ".".join(str(x) for x in installed_ver)
+            installed_ver = str(installed_ver) if installed_ver else "?"
+            status = "ok"
+            if req_ver and op in (">=", "=="):
+                if _parse_version(installed_ver) < _parse_version(req_ver):
+                    status = "outdated"
+        except Exception as e:
+            error_msg = str(e)[:120]
+
+        deps.append({
+            "name": pip_name,
+            "required": (op + req_ver) if req_ver else "*",
+            "installed": installed_ver,
+            "status": status,
+            "module": module_name,
+            "error": error_msg,
+        })
+
+    summary = {
+        "total": len(deps),
+        "ok": sum(1 for d in deps if d["status"] == "ok"),
+        "outdated": sum(1 for d in deps if d["status"] == "outdated"),
+        "missing": sum(1 for d in deps if d["status"] == "missing"),
+    }
+    return jsonify(
+        ok=True,
+        deps=deps,
+        summary=summary,
+        python_version=sys.version.split()[0],
+        requirements_file=str(req_path),
+    )
+
+
+@deploy_bp.post("/api/deploy/install-deps")
+@login_required
+@role_required('admin')
+def api_deploy_install_deps():
+    """Lance `pip install -r requirements.txt` et retourne la sortie.
+
+    Utile quand le check-deps signale des manques sans avoir à redémarrer.
+    """
+    try:
+        cp = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-r", str(APP_DIR / "requirements.txt"), "--upgrade"],
+            cwd=str(APP_DIR),
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        return jsonify(
+            ok=(cp.returncode == 0),
+            returncode=cp.returncode,
+            stdout=(cp.stdout or "")[-4000:],
+            stderr=(cp.stderr or "")[-2000:],
+        )
+    except subprocess.TimeoutExpired:
+        return jsonify(ok=False, error="Timeout pip install (>180s)"), 504
+    except Exception as e:
+        logger.exception("install-deps failed")
+        return jsonify(ok=False, error=str(e)), 500
+
+
 @deploy_bp.get("/api/deploy/health")
 def api_deploy_health():
     """Health check simple pour vérifier que l'app répond (accessible sans auth pour 404)."""
