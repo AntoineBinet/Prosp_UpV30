@@ -931,14 +931,14 @@ def api_deploy_install_torch_cuda():
     """Démarre (en background) un pip install --force-reinstall de torch
     depuis l'index CUDA explicite. Retourne immédiatement.
 
-    Body JSON optionnel : { "cuda_tag": "cu121" | "cu118" | "cu124" }
-    Défaut cu121 (couvre RTX 30/40 et la plupart des GPU récents).
+    Body JSON optionnel : { "cuda_tag": "cu118" | "cu121" | "cu124" | "cu126" | "cu128" }
+    Défaut cu124 (couvre Python 3.13 + RTX 30/40, le mieux supporté en 2026).
     """
     from flask import request as _req
     payload = _req.get_json(force=True, silent=True) or {}
-    cuda_tag = str(payload.get("cuda_tag") or "cu121").strip().lower()
-    if cuda_tag not in ("cu118", "cu121", "cu124"):
-        return jsonify(ok=False, error=f"cuda_tag invalide ({cuda_tag}). Attendu : cu118, cu121, cu124."), 400
+    cuda_tag = str(payload.get("cuda_tag") or "cu124").strip().lower()
+    if cuda_tag not in ("cu118", "cu121", "cu124", "cu126", "cu128"):
+        return jsonify(ok=False, error=f"cuda_tag invalide ({cuda_tag}). Attendu : cu118, cu121, cu124, cu126, cu128."), 400
 
     if not _TORCH_CUDA_LOCK.acquire(blocking=False):
         return jsonify(ok=False, error="Une installation tourne déjà. Voir le log via GET /status."), 409
