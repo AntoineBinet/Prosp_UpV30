@@ -295,6 +295,8 @@
       if (wC) wC.value = c.whisper_compute_type || 'float16';
       var diar = $('[data-v30-ai-diar]');
       if (diar) diar.checked = c.diarization_enabled !== false;
+      var txFb = $('[data-v30-ai-tx-fallback]');
+      if (txFb) txFb.checked = !!c.transcription_fallback_ollama;
       var hf = $('[data-v30-ai-hf]');
       if (hf) {
         hf.value = '';
@@ -331,6 +333,8 @@
     if (wC && wC.value) payload.whisper_compute_type = wC.value;
     var diar = $('[data-v30-ai-diar]');
     if (diar) payload.diarization_enabled = !!diar.checked;
+    var txFb = $('[data-v30-ai-tx-fallback]');
+    if (txFb) payload.transcription_fallback_ollama = !!txFb.checked;
     var hfKey = (($('[data-v30-ai-hf]') && $('[data-v30-ai-hf]').value) || '').trim();
     if (hfKey) payload.huggingface_token = hfKey;
     try {

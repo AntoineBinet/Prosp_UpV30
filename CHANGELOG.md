@@ -2,6 +2,48 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.8] — 2026-04-29 · Pre-flight check + fix HF login + désactivation fallback Ollama
+
+Refonte du flux de lancement pour que la transcription soit prévisible :
+- on vérifie AVANT l'upload que les dépendances critiques marchent,
+- on bloque proprement si Claude est KO au lieu de fallback sur Ollama 3B
+  qui produit des CR truffés d'hallucinations,
+- on corrige le 401 pyannote en forçant le login HuggingFace Hub.
+
+- **Pre-flight `GET /api/transcription/preflight`.** Nouveau endpoint
+  qui teste en parallèle Claude (vrai appel `messages` 10 tokens →
+  détecte crédits épuisés), HuggingFace (HEAD `config.yaml` sur les
+  2 modèles pyannote), et GPU (`torch.cuda.is_available` + nom + VRAM).
+  Retourne `{ok, claude, huggingface, gpu, fallback_ollama_active,
+  warnings}`. Coût quasi nul (~0,00001 € côté Claude).
+- **UI modal upload.** Bloc preflight visible dès l'ouverture du modal
+  (statut détaillé par dépendance, codes couleur ✓/⚠/✗). Au clic
+  « Lancer la transcription » : re-preflight, upload uniquement si
+  `ok=True`. Si Claude KO → 2 boutons d'action « Recharger crédits »
+  (lien `console.anthropic.com/billing`) et « Ouvrir Paramètres IA ».
+- **Fix HuggingFace 401 sur pyannote.** pyannote 4.x utilise
+  `huggingface_hub` qui regarde EN PRIORITÉ le token cache disque
+  (`~/.cache/huggingface/token`) avant le `token=` passé à
+  `from_pretrained` — ce qui causait des 401 même avec un token
+  valide en config (cas du user qui a un autre token cache via
+  `huggingface-cli login`). Fix : `huggingface_hub.login(token=...)`
+  programmatique + 3 env vars (`HF_TOKEN`, `HUGGING_FACE_HUB_TOKEN`,
+  `HUGGINGFACE_HUB_TOKEN`) forcés AVANT le chargement du pipeline.
+- **Fallback Ollama transcription DÉSACTIVÉ par défaut.** Avec
+  `llama3.2:3B` (Ollama par défaut), l'analyse de transcripts longs
+  (1h+, ~10k tokens) hallucine massivement : noms inventés
+  (« Fouman »), étapes fictives (QCM jamais discutés), structure
+  incohérente. Mieux vaut une erreur claire pointant vers la recharge
+  de crédits qu'un faux CR. Nouvelle clé `transcription_fallback_ollama`
+  (séparée de `fallback_enabled` pour Tavily). Toggle UI dans
+  Paramètres > IA avec warning explicite : « ⚠ Active uniquement si
+  tu as un gros modèle (qwen2.5:32b+, llama3.3:70b) ».
+- **Test « Tester Claude » refondu.** Faisait avant un GET `/v1/models`
+  qui ne consommait pas de tokens donc ne révélait PAS les crédits
+  épuisés. Désormais POST `/v1/messages` `max_tokens=10` → détecte
+  vraiment l'état de la facturation. Message d'erreur explicite si
+  crédits insuffisants.
+
 ## [32.7] — 2026-04-29 · Diagnostic HuggingFace + bloc résultat de test détaillé
 
 Le 401 sur pyannote pouvait avoir 3 causes différentes (token expiré, conditions

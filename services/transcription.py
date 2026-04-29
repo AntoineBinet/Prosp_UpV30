@@ -71,6 +71,24 @@ def _load_diarization(hf_token: str):
             raise RuntimeError(
                 "Token HuggingFace requis pour la diarisation. Configurer dans Paramètres > IA."
             )
+
+        # CRUCIAL : pyannote 4.x utilise huggingface_hub qui regarde EN
+        # PRIORITÉ le token cache disque (~/.cache/huggingface/token) et
+        # les variables d'environnement, AVANT le `token=` passé à
+        # from_pretrained. Si le user a un autre token en cache (ex.
+        # créé via `huggingface-cli login`), pyannote l'utilise et nous
+        # voyons un 401 alors que notre token est valide. On force donc
+        # à la fois l'env var et le login programmatique.
+        os.environ["HF_TOKEN"] = hf_token
+        os.environ["HUGGING_FACE_HUB_TOKEN"] = hf_token
+        os.environ["HUGGINGFACE_HUB_TOKEN"] = hf_token
+        try:
+            from huggingface_hub import login as _hf_login  # type: ignore
+            _hf_login(token=hf_token, add_to_git_credential=False, new_session=False)
+            logger.info("HuggingFace login forcé OK")
+        except Exception as exc:
+            logger.warning("HuggingFace login programmatique a échoué (poursuite avec env vars) : %s", exc)
+
         try:
             from pyannote.audio import Pipeline  # type: ignore
             import torch  # type: ignore
@@ -446,17 +464,24 @@ def _call_anthropic(api_key: str, model: str, transcript: str, timeout: int = 24
 
 
 def run_analysis_with_fallback(transcript_text: str, config: dict) -> tuple[dict | None, str | None]:
-    """Tente Claude, fallback Ollama. Pure function — aucune écriture DB.
+    """Tente Claude. Fallback Ollama UNIQUEMENT si activé explicitement
+    (`transcription_fallback_ollama=True`).
 
+    Pure function — aucune écriture DB.
     Retourne (analysis_dict_or_None, error_message_or_None).
     L'analysis dict inclut `_provider` ('anthropic' ou 'ollama') et
     éventuellement `_fallback_reason`.
+
+    Note v32.8 : le fallback Ollama est désactivé par défaut car
+    llama3.2:3B (modèle par défaut) produit des CR truffés
+    d'hallucinations sur les longs transcripts. Mieux vaut une erreur
+    claire qu'un faux CR.
     """
     if not (transcript_text or "").strip():
         return None, "Transcript vide — analyse impossible."
     anth_key = (config.get("anthropic_api_key") or "").strip()
     anth_model = (config.get("anthropic_model") or "claude-haiku-4-5").strip()
-    fallback_enabled = bool(config.get("fallback_enabled", True))
+    fallback_tx = bool(config.get("transcription_fallback_ollama", False))
 
     # 1. Tentative Claude
     if anth_key:
@@ -468,7 +493,6 @@ def run_analysis_with_fallback(transcript_text: str, config: dict) -> tuple[dict
         except Exception as exc:
             claude_msg = str(exc)
             logger.warning("Claude analyse échouée : %s", claude_msg)
-            # Détection erreur crédit pour message UX
             low = claude_msg.lower()
             is_credit_err = (
                 "credit balance" in low
@@ -479,12 +503,16 @@ def run_analysis_with_fallback(transcript_text: str, config: dict) -> tuple[dict
     else:
         claude_msg = "Clé Anthropic non configurée"
         is_credit_err = False
-        if not fallback_enabled:
-            return None, "Clé Anthropic absente et fallback Ollama désactivé."
 
-    # 2. Fallback Ollama
-    if not fallback_enabled:
-        return None, f"Claude échoué : {claude_msg[:300]}. Fallback désactivé dans Paramètres."
+    # 2. Fallback Ollama UNIQUEMENT si activé
+    if not fallback_tx:
+        suffix = (
+            " Recharge des crédits sur console.anthropic.com/settings/billing "
+            "puis clique « Re-analyser (Claude seul) »."
+            if is_credit_err
+            else " Vérifie la clé / le modèle dans Paramètres > IA puis « Re-analyser »."
+        )
+        return None, f"Analyse Claude KO : {claude_msg[:300]}.{suffix}"
 
     logger.info("Bascule sur Ollama (raison Claude : %s)", claude_msg[:200])
     try:
@@ -495,20 +523,15 @@ def run_analysis_with_fallback(transcript_text: str, config: dict) -> tuple[dict
             "Crédits Claude épuisés" if is_credit_err
             else f"Claude indisponible : {claude_msg[:200]}"
         )
-        # On stocke aussi un msg "soft" qui s'affichera dans error_message
-        # mais sans masquer le succès du fallback.
         msg = (
-            f"Crédits Claude épuisés — analyse générée par Ollama (qualité moindre)."
-            if is_credit_err
-            else f"Claude KO ({claude_msg[:200]}) — fallback Ollama actif."
+            "⚠ Analyse Ollama (fallback) — qualité moindre, peut contenir des hallucinations. "
+            f"Raison : {analysis['_fallback_reason']}"
         )
         return analysis, msg
     except Exception as ollama_exc:
         logger.warning("Fallback Ollama aussi échoué : %s", ollama_exc)
         return None, (
-            f"Claude KO : {claude_msg[:200]}. "
-            f"Fallback Ollama KO : {ollama_exc}. "
-            "Transcript disponible — utilise « Re-analyser » après avoir corrigé la config."
+            f"Claude KO : {claude_msg[:200]}. Fallback Ollama KO : {ollama_exc}."
         )
 
 

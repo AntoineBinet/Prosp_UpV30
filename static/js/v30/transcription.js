@@ -130,6 +130,8 @@
     void m.offsetWidth; // force reflow pour activer la transition opacity
     m.classList.add('is-open');
     setTimeout(function () { var t = $('#v30-tx-title'); if (t) t.focus(); }, 30);
+    // Preflight auto à l'ouverture (informatif, le clic Lancer le refera)
+    runPreflight().then(updatePreflightUI);
   }
   function closeModal() {
     var m = $('[data-v30-tx-upload-modal]');
@@ -245,10 +247,91 @@
     }
 
     var submit = $('[data-v30-tx-submit]');
-    if (submit) submit.addEventListener('click', doUpload);
+    if (submit) submit.addEventListener('click', onSubmitClick);
+
+    var recheck = $('[data-v30-tx-preflight-recheck]');
+    if (recheck) recheck.addEventListener('click', function () {
+      runPreflight().then(updatePreflightUI);
+    });
   }
 
-  function doUpload() {
+  // ─── Preflight ──────────────────────────────────────────────────────
+  function runPreflight() {
+    return fetch('/api/transcription/preflight', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .catch(function () { return null; });
+  }
+
+  function updatePreflightUI(data) {
+    var box = $('[data-v30-tx-preflight]');
+    var listEl = $('[data-v30-tx-preflight-list]');
+    var titleEl = $('[data-v30-tx-preflight-title]');
+    var actionsEl = $('[data-v30-tx-preflight-actions]');
+    var billing = $('[data-v30-tx-preflight-billing]');
+    var settings = $('[data-v30-tx-preflight-settings]');
+    var sb = $('[data-v30-tx-submit]');
+    if (!box || !listEl) return data;
+    box.hidden = false;
+    if (!data) {
+      titleEl.textContent = '⚠ Échec du preflight (réseau ?)';
+      listEl.innerHTML = '';
+      if (sb) sb.disabled = false;
+      return data;
+    }
+    var rows = [];
+    var c = data.claude || {};
+    if (c.ok) {
+      rows.push({ icon: '✓', cls: 'ok', label: 'Claude API', detail: 'Crédits OK · ' + (c.model || 'modèle ?') });
+    } else if (c.error === 'credits_exhausted') {
+      rows.push({ icon: '✗', cls: 'err', label: 'Claude API', detail: 'Crédits épuisés — recharge requise.' });
+    } else if (c.error === 'invalid_key') {
+      rows.push({ icon: '✗', cls: 'err', label: 'Claude API', detail: 'Clé invalide. Vérifie dans Paramètres.' });
+    } else {
+      rows.push({ icon: '✗', cls: 'err', label: 'Claude API', detail: c.error_msg || c.error || 'erreur' });
+    }
+    var h = data.huggingface || {};
+    if (h.skipped)    rows.push({ icon: '–', cls: 'skip', label: 'Diarisation', detail: 'Désactivée dans Paramètres' });
+    else if (h.ok)    rows.push({ icon: '✓', cls: 'ok',   label: 'HuggingFace · pyannote', detail: 'Accès aux 2 modèles validé' });
+    else              rows.push({ icon: '✗', cls: 'warn', label: 'HuggingFace · pyannote', detail: h.error || 'erreur' });
+    var g = data.gpu || {};
+    if (g.ok)         rows.push({ icon: '✓', cls: 'ok',   label: 'GPU CUDA', detail: (g.device || '?') + (g.vram_gb ? ' · ' + g.vram_gb + ' GB' : '') });
+    else              rows.push({ icon: '⚠', cls: 'warn', label: 'GPU CUDA', detail: 'Indisponible — Whisper en CPU (lent)' });
+    if (data.fallback_ollama_active) {
+      rows.push({ icon: '!', cls: 'warn', label: 'Fallback Ollama', detail: 'Activé — sera utilisé si Claude KO (qualité moindre)' });
+    }
+    listEl.innerHTML = rows.map(function (r) {
+      return '<li><span class="icon ' + r.cls + '">' + r.icon + '</span>'
+           + '<span class="label">' + r.label + '</span>'
+           + '<span class="detail">— ' + escapeHtml(r.detail) + '</span></li>';
+    }).join('');
+
+    var canStart = !!data.ok;
+    if (sb) sb.disabled = !canStart || !($('#v30-tx-title').value.trim() && currentFile);
+
+    var needBilling = (c.error === 'credits_exhausted');
+    var needSettings = (c.error === 'invalid_key' || c.error === 'credits_exhausted');
+    if (billing) billing.hidden = !needBilling;
+    if (settings) settings.hidden = !needSettings;
+    if (actionsEl) actionsEl.hidden = !(needBilling || needSettings);
+
+    if (canStart) {
+      titleEl.textContent = data.warnings && data.warnings.length
+        ? '⚠ Prêt à lancer (avec avertissements)'
+        : '✓ Prêt à lancer';
+    } else {
+      titleEl.textContent = '✗ Lancement bloqué — corrige les points ✗ ci-dessus';
+    }
+    return data;
+  }
+
+  function escapeHtml(s) {
+    var t = document.createElement('span');
+    t.textContent = s == null ? '' : String(s);
+    return t.innerHTML;
+  }
+
+  // Le clic « Lancer » fait d'abord un preflight, puis si OK → upload
+  function onSubmitClick() {
     var titleEl = $('#v30-tx-title');
     var title = titleEl ? titleEl.value.trim() : '';
     if (!title) {
@@ -259,6 +342,23 @@
       if (window.showToast) window.showToast('Sélectionne un fichier audio', 'warn');
       return;
     }
+    var sb = $('[data-v30-tx-submit]');
+    if (sb) { sb.disabled = true; sb.textContent = 'Vérification…'; }
+    runPreflight().then(function (data) {
+      if (sb) sb.textContent = 'Lancer la transcription';
+      var ok = updatePreflightUI(data);
+      if (!ok || !ok.ok) {
+        if (sb) sb.disabled = false;
+        if (window.showToast) window.showToast('Lancement bloqué — corrige les points rouges', 'error');
+        return;
+      }
+      doUpload();
+    });
+  }
+
+  function doUpload() {
+    var titleEl = $('#v30-tx-title');
+    var title = titleEl ? titleEl.value.trim() : '';
     var sb = $('[data-v30-tx-submit]');
     if (sb) sb.disabled = true;
 

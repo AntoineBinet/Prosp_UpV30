@@ -151,6 +151,17 @@
           <span>Activer la diarisation (identifier les orateurs)</span>
         </label>
 
+        <label class="v30-params__check">
+          <input type="checkbox" data-v30-ai-tx-fallback>
+          <span>
+            Fallback Ollama si Claude indisponible
+            <span class="muted" style="font-size:11.5px;display:block;margin-top:2px;">
+              ⚠ Désactivé par défaut — llama3.2:3B hallucine sur les longs transcripts.
+              Active uniquement si tu as un gros modèle (qwen2.5:32b+, llama3.3:70b).
+            </span>
+          </span>
+        </label>
+
         <div class="v30-params__field">
           <label class="v30-params__label">Token HuggingFace (pyannote)</label>
           <div class="v30-params__row-input">
