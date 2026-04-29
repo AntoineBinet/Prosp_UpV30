@@ -2,6 +2,41 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.9] — 2026-04-29 · Workflow copy-paste IA externe + Ollama 2 passes
+
+3 voies d'analyse désormais disponibles, sans imposer le paiement de
+crédits API : **Claude API** (si crédits), **Ollama local** (qualité
+améliorée par chunking 2 passes), ou **copy-paste depuis claude.ai /
+ChatGPT / Gemini** (si pas de crédits API mais forfait web).
+
+- **Workflow IA externe (copy-paste).** Nouveau bouton « Analyser via
+  IA externe » sur la fiche détail. Modal 3 étapes :
+  1. Bouton « Copier dans le presse-papier » récupère via
+     `GET /api/transcription/<id>/external-prompt` le système prompt
+     complet + le transcript prêt à coller. Le user va sur
+     **claude.ai** (lien direct), **chatgpt.com** ou **gemini.google.com**
+     en mode chat normal et colle.
+  2. Liens directs vers les 3 IA web + sélecteur de provider/modèle.
+  3. Textarea où coller la réponse JSON. Le bouton « Appliquer »
+     `POST /api/transcription/<id>/external-analysis` parse de
+     manière tolérante : JSON brut, JSON dans ` ```json ... ``` `,
+     ou markdown pur (auto-emballé dans `narrative_markdown`).
+  L'analyse stockée a `_provider="external"` et `_model_used="claude.ai
+  (Sonnet 4.6)"` (ou autre source). Cas d'usage type : forfait Claude
+  Max 5× sans crédits API → on profite du forfait web pour avoir un
+  CR Sonnet/Opus de qualité, sans rien payer en plus.
+- **Badge violet « ✦ Collé »** sur le CR pour indiquer que l'analyse
+  vient d'un copy-paste externe (distinct de l'orange « Ollama
+  fallback »).
+- **Ollama 2 passes pour les longs transcripts.** Si le transcript
+  fait >12 000 caractères (≈3000 tokens), l'analyse Ollama est
+  désormais en 2 passes : chunking en morceaux de ~9000 caractères
+  → un mini-CR factuel par chunk → synthèse finale narrative.
+  Beaucoup plus fiable que demander direct un CR de 25 sections à un
+  petit modèle 3-8B (qui hallucinait massivement avec l'ancien
+  prompt). Recommandation UI : passer à `qwen2.5:7b` ou `llama3.1:8b`
+  plutôt que `llama3.2:3b` pour des CR de qualité acceptable.
+
 ## [32.8] — 2026-04-29 · Pre-flight check + fix HF login + désactivation fallback Ollama
 
 Refonte du flux de lancement pour que la transcription soit prévisible :

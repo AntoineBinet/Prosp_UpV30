@@ -495,6 +495,135 @@ def api_reanalyze(tid: int):
     return jsonify(ok=True)
 
 
+@transcription_bp.get("/api/transcription/<int:tid>/external-prompt")
+def api_external_prompt(tid: int):
+    """Retourne le prompt complet (system + transcript) prêt à coller dans
+    une IA externe (claude.ai, ChatGPT, Gemini, …). Utile quand l'API
+    Anthropic n'a pas de crédits mais qu'on a un compte Claude.ai web."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT title, transcript_text FROM transcriptions "
+            "WHERE id=? AND owner_id=? AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+            (tid, uid),
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Transcription introuvable"), 404
+    transcript = (row["transcript_text"] or "").strip()
+    if not transcript:
+        return jsonify(ok=False, error="Pas de transcript disponible (transcription pas encore finie ?)."), 400
+
+    # Import différé pour récupérer le prompt système actuel
+    from services.transcription import _ANALYSIS_SYSTEM_PROMPT  # type: ignore
+
+    full_prompt = (
+        _ANALYSIS_SYSTEM_PROMPT
+        + "\n\n═══════════════════════════════════════════════════════════════════════\n"
+        + "TRANSCRIPT À ANALYSER\n"
+        + "═══════════════════════════════════════════════════════════════════════\n\n"
+        + transcript
+    )
+    return jsonify(
+        ok=True,
+        title=row["title"],
+        prompt=full_prompt,
+        transcript_length=len(transcript),
+        approx_tokens=len(transcript) // 4,  # rough approx
+    )
+
+
+@transcription_bp.post("/api/transcription/<int:tid>/external-analysis")
+def api_external_analysis(tid: int):
+    """Reçoit la réponse d'une IA externe (collée par l'utilisateur),
+    parse le JSON et stocke comme analysis_json. Tolérant : accepte le
+    JSON brut, dans des balises ```json, ou du markdown pur (auto-emballé
+    dans narrative_markdown)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    raw_text = (payload.get("response_text") or "").strip()
+    source = (payload.get("source") or "external").strip()[:80]
+    if not raw_text:
+        return jsonify(ok=False, error="Réponse vide. Colle la sortie complète de l'IA."), 400
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM transcriptions WHERE id=? AND owner_id=? "
+            "AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+            (tid, uid),
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Transcription introuvable"), 404
+
+    # ─── Parse robuste ────────────────────────────────────────────────
+    # 1. Essaye d'extraire un JSON (avec ou sans balises markdown)
+    text = raw_text
+    if "```" in text:
+        # Cherche un bloc ```json ... ``` ou ``` ... ```
+        import re as _re
+        m = _re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, _re.DOTALL)
+        if m:
+            text = m.group(1).strip()
+    analysis: dict | None = None
+    try:
+        analysis = json.loads(text)
+        if not isinstance(analysis, dict):
+            analysis = None
+    except json.JSONDecodeError:
+        # 2. Tente d'extraire le bloc {...} le plus large
+        i, j_ = text.find("{"), text.rfind("}")
+        if i >= 0 and j_ > i:
+            try:
+                cand = json.loads(text[i:j_ + 1])
+                if isinstance(cand, dict):
+                    analysis = cand
+            except json.JSONDecodeError:
+                pass
+
+    if analysis is None:
+        # 3. Fallback : on traite l'ensemble comme du markdown narratif
+        # (cas où l'IA a renvoyé un CR sans wrapper JSON)
+        analysis = {
+            "title": None,
+            "synthesis": None,
+            "narrative_markdown": raw_text,
+            "participants": [],
+            "topics": [],
+            "decisions": [],
+            "action_items": [],
+            "next_steps": [],
+            "sentiment": "neutre",
+            "quality_score": None,
+            "key_quotes": [],
+        }
+
+    # Marqueurs de provenance
+    analysis["_provider"] = "external"
+    analysis["_model_used"] = source
+    analysis.pop("_fallback_reason", None)
+
+    now = datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE transcriptions SET status='done', progress=100, stage='Terminé', "
+            "analysis_json=?, analysis_model=?, error_message=NULL, "
+            "completed_at=?, updated_at=? WHERE id=?;",
+            (
+                json.dumps(analysis, ensure_ascii=False),
+                source,
+                now,
+                now,
+                tid,
+            ),
+        )
+        conn.commit()
+    logger.info("Analyse externe collée pour %s (source=%s)", tid, source)
+    return jsonify(ok=True, applied=True, has_narrative=bool(analysis.get("narrative_markdown")))
+
+
 @transcription_bp.delete("/api/transcription/<int:tid>")
 def api_delete(tid: int):
     uid = _uid()

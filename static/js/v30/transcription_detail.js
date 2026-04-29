@@ -96,11 +96,15 @@
     }
     var rb = $('[data-v30-tx-retry]');
     var rba = $('[data-v30-tx-reanalyze]');
+    var rext = $('[data-v30-tx-external]');
     var inProg = (item.status === 'pending' || item.status === 'processing');
     if (rb)  rb.hidden = inProg;
-    // « Re-analyser » dispo uniquement si on a déjà un transcript_text (sinon
-    // rien à analyser → on doit relancer le pipeline complet)
-    if (rba) rba.hidden = inProg || !(item.transcript_text && item.transcript_text.trim());
+    // « Re-analyser (Claude API) » et « Analyser via IA externe » dispos
+    // uniquement si on a déjà un transcript_text (sinon rien à analyser
+    // → on doit relancer le pipeline complet via Whisper)
+    var hasTx = !!(item.transcript_text && item.transcript_text.trim());
+    if (rba)  rba.hidden  = inProg || !hasTx;
+    if (rext) rext.hidden = inProg || !hasTx;
 
     // Audio
     var audio = $('[data-v30-tx-audio]');
@@ -219,15 +223,22 @@
     }
     box.hidden = false;
     if (titleEl) titleEl.textContent = (a && a.title) || fallbackTitle || 'Compte-rendu';
-    // Badge provider : visible uniquement si fallback Ollama (qualité moindre)
+    // Badge provider : visible si Ollama (qualité moindre) OU externe
+    // (collé à la main depuis claude.ai/ChatGPT/Gemini)
     if (badgeEl) {
       var provider = a && a._provider;
+      var modelUsed = a && a._model_used;
       if (provider === 'ollama') {
         var reason = (a && a._fallback_reason) || 'Claude indisponible';
         badgeEl.hidden = false;
         badgeEl.className = 'v30-tx-provider-badge is-fallback';
         badgeEl.title = reason;
         badgeEl.textContent = '✦ Ollama (fallback) · ' + reason;
+      } else if (provider === 'external') {
+        badgeEl.hidden = false;
+        badgeEl.className = 'v30-tx-provider-badge is-external';
+        badgeEl.title = 'Analyse collée manuellement depuis ' + (modelUsed || 'IA externe');
+        badgeEl.textContent = '✦ Collé · ' + (modelUsed || 'IA externe');
       } else {
         badgeEl.hidden = true;
       }
@@ -452,6 +463,26 @@
       });
     });
 
+    // ─── Bouton « Analyser via IA externe » + modal copy-paste ─────────
+    var extBtn = $('[data-v30-tx-external]');
+    if (extBtn) extBtn.addEventListener('click', openExternalModal);
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-v30-tx-ext-close]'), function (b) {
+      b.addEventListener('click', closeExternalModal);
+    });
+    var extModal = $('[data-v30-tx-external-modal]');
+    if (extModal) {
+      extModal.addEventListener('click', function (e) {
+        if (e.target === extModal) closeExternalModal();
+      });
+    }
+
+    var copyBtn = $('[data-v30-tx-ext-copy]');
+    if (copyBtn) copyBtn.addEventListener('click', copyExternalPrompt);
+
+    var applyBtn = $('[data-v30-tx-ext-apply]');
+    if (applyBtn) applyBtn.addEventListener('click', applyExternalAnalysis);
+
     var cpN = $('[data-v30-tx-copy-narrative]');
     if (cpN) cpN.addEventListener('click', function () {
       // On copie le markdown brut depuis l'analyse en mémoire (pas l'HTML rendu)
@@ -468,6 +499,100 @@
           });
         });
     });
+  }
+
+  // ─── Workflow « IA externe (copy-paste) » ──────────────────────────
+  function openExternalModal() {
+    var m = $('[data-v30-tx-external-modal]');
+    if (!m) return;
+    m.hidden = false;
+    void m.offsetWidth;
+    m.classList.add('is-open');
+    var ta = $('[data-v30-tx-ext-response]');
+    if (ta) ta.value = '';
+    var info = $('[data-v30-tx-ext-copy-info]');
+    if (info) info.textContent = '';
+  }
+  function closeExternalModal() {
+    var m = $('[data-v30-tx-external-modal]');
+    if (!m) return;
+    m.classList.remove('is-open');
+    setTimeout(function () { m.hidden = true; }, 180);
+  }
+
+  function copyExternalPrompt() {
+    var btn = $('[data-v30-tx-ext-copy]');
+    var info = $('[data-v30-tx-ext-copy-info]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Récupération…'; }
+    fetch('/api/transcription/' + TID + '/external-prompt', {
+      credentials: 'same-origin', cache: 'no-store',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.ok) throw new Error((j && j.error) || 'erreur');
+        return navigator.clipboard.writeText(j.prompt).then(function () { return j; });
+      })
+      .then(function (j) {
+        if (info) info.textContent = '✓ ' + (j.transcript_length || 0) + ' caractères copiés (~' + (j.approx_tokens || 0) + ' tokens)';
+        if (window.showToast) window.showToast('Prompt + transcript copiés. Va sur claude.ai et colle.', 'success');
+      })
+      .catch(function (e) {
+        if (info) info.textContent = '✗ ' + e.message;
+        if (window.showToast) window.showToast('Copie échouée : ' + e.message, 'error');
+      })
+      .finally(function () {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.5 12.6 21a5 5 0 0 1-7-7l8.5-8.5a3.5 3.5 0 0 1 5 5L10.6 19a2 2 0 0 1-2.8-2.8l8-8"/></svg> Copier dans le presse-papier';
+        }
+      });
+  }
+
+  function applyExternalAnalysis() {
+    var ta = $('[data-v30-tx-ext-response]');
+    var srcEl = $('[data-v30-tx-ext-source]');
+    var btn = $('[data-v30-tx-ext-apply]');
+    if (!ta) return;
+    var text = (ta.value || '').trim();
+    if (!text) {
+      if (window.showToast) window.showToast('Colle d\'abord la réponse de l\'IA dans le textarea', 'warn');
+      return;
+    }
+    if (text.length < 50) {
+      if (window.showToast) window.showToast('Réponse trop courte — colle bien le JSON complet', 'warn');
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Application…'; }
+    fetch('/api/transcription/' + TID + '/external-analysis', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        response_text: text,
+        source: (srcEl && srcEl.value) || 'external',
+      }),
+    })
+      .then(function (r) {
+        return r.json().then(function (j) { return { status: r.status, body: j }; });
+      })
+      .then(function (res) {
+        var j = res.body || {};
+        if (res.status >= 200 && res.status < 300 && j.ok) {
+          if (window.showToast) window.showToast('Analyse appliquée — actualisation', 'success');
+          closeExternalModal();
+          setTimeout(load, 400);
+        } else {
+          var msg = (j && j.error) || ('HTTP ' + res.status);
+          if (window.showToast) window.showToast('Échec : ' + msg, 'error');
+          else alert('Échec : ' + msg);
+        }
+      })
+      .catch(function (err) {
+        if (window.showToast) window.showToast('Erreur réseau : ' + err.message, 'error');
+      })
+      .finally(function () {
+        if (btn) { btn.disabled = false; btn.textContent = "Appliquer l'analyse"; }
+      });
   }
 
   function init() { bind(); load(); }
