@@ -187,10 +187,16 @@
           <div class="v30-params__field">
             <label class="v30-params__label">Version CUDA cible</label>
             <select class="select" data-v30-cuda-tag>
-              <option value="cu121" selected>cu121 (RTX 30/40, recommandé)</option>
-              <option value="cu118">cu118 (anciens GPU, drivers < 525)</option>
-              <option value="cu124">cu124 (RTX 50, drivers récents)</option>
+              <option value="cu124" selected>cu124 (recommandé — Python 3.13, RTX 30/40)</option>
+              <option value="cu126">cu126 (drivers récents, RTX 30/40/50)</option>
+              <option value="cu128">cu128 (RTX 50, drivers très récents)</option>
+              <option value="cu121">cu121 (Python ≤3.12, anciens drivers)</option>
+              <option value="cu118">cu118 (très anciens GPU, drivers &lt; 525)</option>
             </select>
+            <p class="muted v30-params__hint" style="margin-top:6px;">
+              Si une version donne « No matching distribution », essaie la suivante.
+              cu124 est le défaut le plus stable pour Python 3.13.
+            </p>
           </div>
           <div class="v30-params__field" style="align-self:end;">
             <button type="button" class="btn btn-warn btn-sm" data-v30-cuda-install>
