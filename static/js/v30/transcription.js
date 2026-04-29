@@ -82,6 +82,17 @@
       if (it.duration_sec) subBits.push(fmtDuration(it.duration_sec));
       if (it.audio_size)   subBits.push(fmtBytes(it.audio_size));
       if (it.language)     subBits.push(it.language.toUpperCase());
+      // v32.13 — Badge cohérence (warning si l'analyse a des incohérences)
+      var consBadge = '';
+      if (it.consistency) {
+        if (it.consistency.ok) {
+          consBadge = '<span class="v30-tx-pill is-cons-ok" title="Champs CRM cohérents">✓ cohérent</span>';
+        } else {
+          var n = (it.consistency.warnings || []).length;
+          var tip = (it.consistency.warnings || []).join('\n');
+          consBadge = '<span class="v30-tx-pill is-cons-warn" title="' + esc(tip) + '">⚠ ' + n + ' à vérifier</span>';
+        }
+      }
       return (
         '<a class="v30-tx-card" href="' + url + '">' +
           '<div class="v30-tx-card__top">' +
@@ -94,6 +105,7 @@
           '</div>' +
           '<div class="v30-tx-card__bottom muted">' +
             '<span>' + esc(fmtDate(it.created_at)) + '</span>' +
+            consBadge +
             (hasErr ? '<span class="v30-tx-card__err">⚠ ' + esc(it.error_message || '') + '</span>' : '') +
           '</div>' +
           (it.status === 'processing'

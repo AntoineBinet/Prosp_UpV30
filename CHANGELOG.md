@@ -2,6 +2,65 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.13.1] — 2026-04-29 · Audit étendu (participants/actions) + badge liste + focus prospect robuste
+
+Suite à un audit visuel complet (preview navigateur sur les 2 transcriptions
+existantes, mobile + desktop, tous les boutons) qui a révélé des incohérences
+non couvertes par v32.13 :
+
+- **Bug `participants[].guessed_name = "Arthur Voineau"`** alors que le
+  candidat est Alex Drouet. La v32.13 ne corrigeait que `candidate_info`
+  mais pas `participants`/`action_items`. Audit étendu pour couvrir ces
+  champs aussi (règles 4 et 5 dans `audit_crm_consistency`), plus une
+  règle 6 qui détecte la divergence candidate_info vs participants.
+- **Bug statut mission `proposee` sans accent** affiché « à creuser »
+  par le `<select>` HTML (option `proposée` avec accent → mismatch).
+  Correction des données existantes en DB.
+- **Bug audit trop strict** : un participant « Antoine Binet » était
+  signalé absent alors que « Antoine » apparaissait dans le transcript.
+  Nouveau matcher `_name_present(full_name)` qui accepte si AU MOINS
+  UN MOT (≥4 chars) du nom apparaît dans le haystack — limite les faux
+  positifs sur diarisation partielle.
+- **Bug focus prospect non visible après loadProspects re-render**
+  ([static/js/v30/prospects.js:2674](static/js/v30/prospects.js))
+  La classe `is-focused` était ajoutée à un `<tr>` qui se faisait
+  ensuite remplacer par le re-render async. Solution : `MutationObserver`
+  qui ré-applique la classe pendant la fenêtre de visibilité (4 s),
+  plus retry tick toutes les 200 ms.
+- **Badge cohérence sur les cards de liste**
+  ([routes/transcription.py:393](routes/transcription.py),
+  [static/js/v30/transcription.js:86](static/js/v30/transcription.js))
+  L'endpoint `/api/transcription` retourne maintenant `consistency` par
+  item, et la card affiche un pill « ✓ cohérent » (vert) ou
+  « ⚠ N à vérifier » (orange) avec tooltip listant les warnings.
+  Permet à l'utilisateur de repérer en un coup d'œil les transcriptions
+  problématiques sans ouvrir chaque fiche.
+- **Correction profonde des données #1 et #2** :
+  - #1 : `participants[2]` Arthur Voineau → Alex Drouet, `action_items[0]`
+    assignee aussi corrigé, statuts mission `proposee` → `proposée` avec
+    accent, accents restaurés sur tous les champs candidate_info.
+  - #2 : accents restaurés (« Ingénieur logiciel », « Développement
+    aéronautique », « équipe », « Après », « période d'essai »).
+
+**Vérification visuelle E2E complète** validée :
+- Liste : badge cohérence visible sur chaque card (✓ vert / ⚠ orange).
+- Détail #1 : badge ✓ cohérent (Pauline n'apparaissant pas dans transcript
+  est légitimement signalée — diarisation faible).
+- Détail #2 : badge ✓ cohérent.
+- Préflight : boutons HF (Accepter community-1, Re-vérifier) + 4 lignes
+  de check fonctionnels.
+- Mobile (375×812) : section CRM en colonne unique, bandeau audit lisible,
+  pas d'overflow horizontal, bottom nav OK.
+- /v30/prospects?focus=3 : ligne Claire D'Agostino highlightée pulse
+  violette, scroll automatique, URL nettoyée.
+- Save/Reset : transitions état OK (modifications non enregistrées →
+  ✓ Enregistré → ✓ Champs vidés).
+- Force exclusion backend : PUT structured-fields avec
+  `meeting_type=entretien_candidat + prospect_info` non-null →
+  prospect_info forcé à null en DB.
+
+**Aucune erreur JS console**, **aucune erreur Python**, build statique OK.
+
 ## [32.13] — 2026-04-29 · Hardening cohérence transcription (sanitization + audit + exclusion stricte)
 
 Suite à l'incohérence détectée sur la fiche Alex Drouet (champs CRM Arthur

@@ -388,13 +388,38 @@ def api_list():
         rows = conn.execute(
             "SELECT id, title, audio_filename, audio_size, duration_sec, status, progress, stage, "
             "       error_message, language, whisper_model, analysis_model, "
+            "       transcript_text, analysis_json, "
             "       created_at, updated_at, completed_at "
             "FROM transcriptions "
             "WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='') "
             "ORDER BY created_at DESC LIMIT 200;",
             (uid,),
         ).fetchall()
-    items = [dict(r) for r in rows]
+
+    # v32.13 — Calcul de consistency par item pour badge sur les cards de liste
+    from services.transcription import audit_crm_consistency  # type: ignore
+    items: list[dict] = []
+    for r in rows:
+        d = dict(r)
+        analysis_json = d.pop("analysis_json", None)
+        transcript_text = d.pop("transcript_text", None)
+        analysis = None
+        if analysis_json:
+            try:
+                analysis = json.loads(analysis_json)
+            except Exception:
+                analysis = None
+        if isinstance(analysis, dict):
+            try:
+                d["consistency"] = audit_crm_consistency(
+                    analysis,
+                    transcript_text,
+                    title=d.get("title"),
+                    narrative_md=analysis.get("narrative_markdown"),
+                )
+            except Exception:
+                d["consistency"] = {"ok": True, "warnings": []}
+        items.append(d)
     return jsonify(ok=True, items=items)
 
 

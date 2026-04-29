@@ -2664,32 +2664,68 @@
     } catch (_) {}
   }
 
-  // v32.12 — Highlight d'un prospect dans la liste après création depuis
-  // une transcription. Le DOM peut ne pas être encore peuplé (loadProspects
-  // tourne en async), donc on retry quelques fois avant d'abandonner.
+  // v32.12/13 — Highlight d'un prospect dans la liste après création depuis
+  // une transcription. Le tbody peut être re-rendu plusieurs fois par
+  // loadProspects + filtres + tri, donc on installe un MutationObserver
+  // qui ré-applique la classe `is-focused` tant que la fenêtre de visibilité
+  // (4 s) est active — sinon le scroll initial fonctionne mais le re-render
+  // suivant efface l'animation.
   function focusProspectAfterLoad(id) {
-    var attempts = 0;
-    var MAX_ATTEMPTS = 30; // ~6 s max
-    function tryFocus() {
-      attempts++;
-      var row = document.querySelector('tr[data-id="' + id + '"]');
-      var card = !row ? document.querySelector('[data-v30-kcard-id="' + id + '"]') : null;
-      var target = row || card;
-      if (!target) {
-        if (attempts < MAX_ATTEMPTS) {
-          setTimeout(tryFocus, 200);
-        }
-        return;
-      }
-      try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {
-        try { target.scrollIntoView(); } catch (__) {}
+    var sid = String(id);
+    var startedAt = Date.now();
+    var WINDOW_MS = 4000;
+    var POLL_MS = 200;
+    var MAX_WAIT_MS = 8000; // total max
+    var scrolled = false;
+    var observer = null;
+
+    function applyTo(target) {
+      if (!target) return;
+      if (!scrolled) {
+        try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        catch (_) { try { target.scrollIntoView(); } catch (__) {} }
+        scrolled = true;
+        try { history.replaceState(null, '', window.location.pathname); } catch (_) {}
       }
       target.classList.add('is-focused');
-      setTimeout(function () { target.classList.remove('is-focused'); }, 4000);
-      // Nettoie l'URL pour ne pas re-trigger sur F5
-      try { history.replaceState(null, '', window.location.pathname); } catch (_) {}
     }
-    setTimeout(tryFocus, 200);
+    function findTarget() {
+      return document.querySelector('tr[data-id="' + sid + '"]')
+          || document.querySelector('[data-v30-kcard-id="' + sid + '"]');
+    }
+
+    function tick() {
+      var t = findTarget();
+      if (t) applyTo(t);
+      if (Date.now() - startedAt < WINDOW_MS) {
+        setTimeout(tick, POLL_MS);
+      } else {
+        // Cleanup : retire la classe et stoppe le observer
+        var t2 = findTarget();
+        if (t2) t2.classList.remove('is-focused');
+        if (observer) observer.disconnect();
+      }
+    }
+
+    // Observer pour ré-appliquer la classe en cas de re-render (loadProspects)
+    if (typeof MutationObserver !== 'undefined') {
+      var host = document.querySelector('[data-v30-pp-tbody], tbody, .v30-pp-table, [data-v30-kanban]') || document.body;
+      observer = new MutationObserver(function () {
+        if (Date.now() - startedAt < WINDOW_MS) {
+          var t = findTarget();
+          if (t && !t.classList.contains('is-focused')) {
+            applyTo(t);
+          }
+        } else {
+          observer.disconnect();
+        }
+      });
+      observer.observe(host, { childList: true, subtree: true });
+      // Garde-fou : auto-disconnect après MAX_WAIT_MS
+      setTimeout(function () { try { observer.disconnect(); } catch (_) {} }, MAX_WAIT_MS);
+    }
+
+    setTimeout(tick, 200);
   }
 
   if (document.readyState === 'loading') {

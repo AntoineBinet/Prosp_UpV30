@@ -781,6 +781,17 @@ def audit_crm_consistency(analysis: dict, transcript_text: str | None,
         + " ||| " + (narrative_md or analysis.get("narrative_markdown") or "")
     ).lower()
 
+    def _name_present(full_name: str) -> bool:
+        """Vrai si AU MOINS UN MOT >= 4 chars du nom apparaît dans haystack.
+        Évite les faux positifs sur les diarisations partielles (ex. seul
+        le prénom est capté par Whisper)."""
+        if not full_name or not haystack:
+            return True  # Pas de check possible — on tolère
+        words = [w.strip(".,;:'\"") for w in full_name.lower().split() if len(w.strip(".,;:'\"")) >= 4]
+        if not words:
+            return True
+        return any(w in haystack for w in words)
+
     # Règle 1 : exclusivité candidate XOR prospect
     if mt == "entretien_candidat" and pi:
         warnings.append(
@@ -796,26 +807,75 @@ def audit_crm_consistency(analysis: dict, transcript_text: str | None,
     # Règle 2 : si on a un nom de candidat, il doit apparaître quelque part
     # (transcript, titre du fichier audio, ou narrative_md)
     if isinstance(ci, dict):
-        nom = (ci.get("nom") or "").strip().lower()
-        prenom = (ci.get("prenom") or "").strip().lower()
-        if nom and len(nom) >= 3 and haystack and nom not in haystack:
+        full_cand = ((ci.get("prenom") or "") + " " + (ci.get("nom") or "")).strip()
+        if full_cand and not _name_present(full_cand):
             warnings.append(
-                f"Nom candidat « {ci.get('nom')} » absent du transcript, du titre et "
+                f"Candidat « {full_cand} » absent du transcript, du titre et "
                 "du compte-rendu — vérifie qu'il s'agit du bon candidat (artefact de test ?)."
-            )
-        if prenom and len(prenom) >= 3 and haystack and prenom not in haystack:
-            warnings.append(
-                f"Prénom candidat « {ci.get('prenom')} » absent partout — à vérifier."
             )
 
     # Règle 3 : si on a une entreprise prospect, elle doit apparaître
     if isinstance(pi, dict):
-        ent = (pi.get("entreprise") or "").strip().lower()
+        ent = (pi.get("entreprise") or "").strip()
         ent = ent.replace("**", "").replace("*", "").strip()
-        if ent and len(ent) >= 3 and haystack and ent not in haystack:
+        if ent and not _name_present(ent):
             warnings.append(
                 f"Entreprise prospect « {pi.get('entreprise')} » absente partout — à vérifier."
             )
+
+    # Règle 4 : participants (le narrative + transcript doivent contenir
+    # les noms guessed). Filet anti-Arthur-Voineau.
+    parts = analysis.get("participants") or []
+    if isinstance(parts, list):
+        for p in parts:
+            if not isinstance(p, dict):
+                continue
+            gn = (p.get("guessed_name") or "").strip()
+            if gn and not _name_present(gn):
+                warnings.append(
+                    f"Participant « {gn} » ({p.get('label') or '?'}) "
+                    "absent du transcript et du compte-rendu — possible artefact."
+                )
+
+    # Règle 5 : assignees des action_items (idem, anti-incohérence)
+    actions = analysis.get("action_items") or []
+    if isinstance(actions, list):
+        seen: set[str] = set()
+        for it in actions:
+            if not isinstance(it, dict):
+                continue
+            asg = (it.get("assignee") or "").strip()
+            if asg and asg.lower() not in seen and not _name_present(asg):
+                warnings.append(
+                    f"Assignee tâche « {asg} » absent partout — à vérifier."
+                )
+                seen.add(asg.lower())
+
+    # Règle 6 : cohérence candidate_info <> participants. Si le candidat
+    # extrait n'apparaît pas en label "Candidat" dans participants, c'est
+    # suspect (typique du bug Arthur Voineau v32.11).
+    if isinstance(ci, dict) and isinstance(parts, list):
+        ci_full = (
+            ((ci.get("prenom") or "") + " " + (ci.get("nom") or "")).strip()
+        ).lower()
+        if ci_full and len(ci_full) >= 4:
+            in_participants = any(
+                isinstance(p, dict)
+                and ci_full in (p.get("guessed_name") or "").lower()
+                for p in parts
+            )
+            # Si on a des participants mais que le candidat n'en fait pas
+            # partie → divergence.
+            has_named_parts = any(
+                isinstance(p, dict) and (p.get("guessed_name") or "").strip()
+                for p in parts
+            )
+            if has_named_parts and not in_participants:
+                warnings.append(
+                    f"Le candidat « {ci.get('prenom') or ''} {ci.get('nom') or ''} » "
+                    "n'apparaît dans aucun participant identifié — "
+                    "divergence entre candidate_info et la diarisation."
+                )
 
     return {"ok": not warnings, "warnings": warnings}
 
