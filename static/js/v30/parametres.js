@@ -277,6 +277,31 @@
           ? (c.tavily_api_key_preview + ' (configurée)')
           : 'tvly-...';
       }
+      // v32.1 — Transcription
+      var anth = $('[data-v30-ai-anthropic]');
+      if (anth) {
+        anth.value = '';
+        anth.placeholder = c.anthropic_api_key_set
+          ? (c.anthropic_api_key_preview + ' (configurée)')
+          : 'sk-ant-...';
+      }
+      var anthM = $('[data-v30-ai-anthropic-model]');
+      if (anthM) anthM.value = c.anthropic_model || 'claude-haiku-4-5';
+      var wM = $('[data-v30-ai-whisper-model]');
+      if (wM) wM.value = c.whisper_model || 'large-v3';
+      var wD = $('[data-v30-ai-whisper-device]');
+      if (wD) wD.value = c.whisper_device || 'cuda';
+      var wC = $('[data-v30-ai-whisper-compute]');
+      if (wC) wC.value = c.whisper_compute_type || 'float16';
+      var diar = $('[data-v30-ai-diar]');
+      if (diar) diar.checked = c.diarization_enabled !== false;
+      var hf = $('[data-v30-ai-hf]');
+      if (hf) {
+        hf.value = '';
+        hf.placeholder = c.huggingface_token_set
+          ? (c.huggingface_token_preview + ' (configuré)')
+          : 'hf_...';
+      }
     } catch (e) {
       console.warn('AI config load:', e);
     }
@@ -293,6 +318,21 @@
     };
     var tavilyKey = (($('[data-v30-ai-tavily]') && $('[data-v30-ai-tavily]').value) || '').trim();
     if (tavilyKey) payload.tavily_api_key = tavilyKey;
+    // v32.1 — Transcription
+    var anthKey = (($('[data-v30-ai-anthropic]') && $('[data-v30-ai-anthropic]').value) || '').trim();
+    if (anthKey) payload.anthropic_api_key = anthKey;
+    var anthM = $('[data-v30-ai-anthropic-model]');
+    if (anthM && anthM.value) payload.anthropic_model = anthM.value;
+    var wM = $('[data-v30-ai-whisper-model]');
+    if (wM && wM.value) payload.whisper_model = wM.value;
+    var wD = $('[data-v30-ai-whisper-device]');
+    if (wD && wD.value) payload.whisper_device = wD.value;
+    var wC = $('[data-v30-ai-whisper-compute]');
+    if (wC && wC.value) payload.whisper_compute_type = wC.value;
+    var diar = $('[data-v30-ai-diar]');
+    if (diar) payload.diarization_enabled = !!diar.checked;
+    var hfKey = (($('[data-v30-ai-hf]') && $('[data-v30-ai-hf]').value) || '').trim();
+    if (hfKey) payload.huggingface_token = hfKey;
     try {
       var res = await fetch('/api/ai/config', {
         method: 'POST',
@@ -314,7 +354,7 @@
   }
   async function aiTest(target) {
     var st = '[data-v30-ai-status]';
-    var label = target === 'tavily' ? 'Tavily' : 'Ollama';
+    var label = target === 'tavily' ? 'Tavily' : (target === 'anthropic' ? 'Claude' : 'Ollama');
     inlineStatus(st, 'Test ' + label + '…', 'var(--text-2)');
     var payload = { test_target: target };
     // Permet de tester la valeur saisie sans avoir besoin de save avant
@@ -324,6 +364,10 @@
     if (modelEl && modelEl.value.trim()) payload.ollama_model = modelEl.value.trim();
     var tavEl = $('[data-v30-ai-tavily]');
     if (tavEl && tavEl.value.trim()) payload.tavily_api_key = tavEl.value.trim();
+    var anthEl = $('[data-v30-ai-anthropic]');
+    if (anthEl && anthEl.value.trim()) payload.anthropic_api_key = anthEl.value.trim();
+    var anthMEl = $('[data-v30-ai-anthropic-model]');
+    if (anthMEl && anthMEl.value) payload.anthropic_model = anthMEl.value;
     try {
       var res = await fetch('/api/ai/test', {
         method: 'POST',
@@ -354,9 +398,23 @@
     if (tOll) tOll.addEventListener('click', function () { aiTest('ollama'); });
     var tTav = $('[data-v30-ai-test-tavily]');
     if (tTav) tTav.addEventListener('click', function () { aiTest('tavily'); });
+    var tAnth = $('[data-v30-ai-test-anthropic]');
+    if (tAnth) tAnth.addEventListener('click', function () { aiTest('anthropic'); });
     var tog = $('[data-v30-ai-tavily-toggle]');
     if (tog) tog.addEventListener('click', function () {
       var inp = $('[data-v30-ai-tavily]');
+      if (!inp) return;
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    });
+    var togA = $('[data-v30-ai-anthropic-toggle]');
+    if (togA) togA.addEventListener('click', function () {
+      var inp = $('[data-v30-ai-anthropic]');
+      if (!inp) return;
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    });
+    var togHf = $('[data-v30-ai-hf-toggle]');
+    if (togHf) togHf.addEventListener('click', function () {
+      var inp = $('[data-v30-ai-hf]');
       if (!inp) return;
       inp.type = inp.type === 'password' ? 'text' : 'password';
     });

@@ -319,6 +319,13 @@
   color: var(--text);
   letter-spacing: .01em;
 }
+.v30-params__divider {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 18px 0 14px;
+  display: block;
+  height: 1px;
+}
 .v30-params__goal-row {
   display: flex;
   align-items: center;

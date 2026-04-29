@@ -85,10 +85,89 @@
           <span>Activer le fallback automatique (Ollama seul si Tavily échoue)</span>
         </label>
 
+        {# ─── Transcription (v32.1) ─── #}
+        <div class="v30-params__divider"></div>
+        <h4 class="v30-params__scope-title">Transcription de réunions</h4>
+        <p class="muted v30-params__hint" style="margin-top:-4px;margin-bottom:10px;">
+          Pipeline local : faster-whisper (GPU) + pyannote (diarisation) + Claude API (analyse).
+        </p>
+
+        <div class="v30-params__field">
+          <label class="v30-params__label">Clé API Anthropic (analyse Claude)</label>
+          <div class="v30-params__row-input">
+            <input type="password" class="input" data-v30-ai-anthropic placeholder="sk-ant-..." autocomplete="off">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-ai-anthropic-toggle title="Afficher/masquer">
+              {{ ui.icon('eye', 13) }}
+            </button>
+          </div>
+          <p class="muted v30-params__hint">
+            Récupérez votre clé sur <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.
+            Stockée dans <code class="mono">data/ai_config.json</code> (jamais versionnée).
+          </p>
+        </div>
+
+        <div class="v30-params__grid-2">
+          <div class="v30-params__field">
+            <label class="v30-params__label">Modèle Claude</label>
+            <select class="select" data-v30-ai-anthropic-model>
+              <option value="claude-haiku-4-5">claude-haiku-4-5 (rapide, ~0,01 €/réunion)</option>
+              <option value="claude-sonnet-4-6">claude-sonnet-4-6 (équilibré)</option>
+              <option value="claude-opus-4-7">claude-opus-4-7 (qualité max)</option>
+            </select>
+          </div>
+          <div class="v30-params__field">
+            <label class="v30-params__label">Modèle Whisper</label>
+            <select class="select" data-v30-ai-whisper-model>
+              <option value="large-v3">large-v3 (qualité max, ~3 GB VRAM)</option>
+              <option value="large-v3-turbo">large-v3-turbo (3-4× plus rapide)</option>
+              <option value="medium">medium (CPU possible)</option>
+              <option value="small">small (rapide CPU)</option>
+            </select>
+          </div>
+          <div class="v30-params__field">
+            <label class="v30-params__label">Device Whisper</label>
+            <select class="select" data-v30-ai-whisper-device>
+              <option value="cuda">cuda (GPU NVIDIA)</option>
+              <option value="cpu">cpu</option>
+              <option value="auto">auto</option>
+            </select>
+          </div>
+          <div class="v30-params__field">
+            <label class="v30-params__label">Compute type</label>
+            <select class="select" data-v30-ai-whisper-compute>
+              <option value="float16">float16 (GPU, défaut)</option>
+              <option value="int8_float16">int8_float16 (GPU + VRAM réduite)</option>
+              <option value="int8">int8 (CPU)</option>
+              <option value="float32">float32 (max précision)</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="v30-params__check" style="margin-top:8px;">
+          <input type="checkbox" data-v30-ai-diar>
+          <span>Activer la diarisation (identifier les orateurs)</span>
+        </label>
+
+        <div class="v30-params__field">
+          <label class="v30-params__label">Token HuggingFace (pyannote)</label>
+          <div class="v30-params__row-input">
+            <input type="password" class="input" data-v30-ai-hf placeholder="hf_..." autocomplete="off">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-ai-hf-toggle title="Afficher/masquer">
+              {{ ui.icon('eye', 13) }}
+            </button>
+          </div>
+          <p class="muted v30-params__hint">
+            Token gratuit sur <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">huggingface.co</a>.
+            Acceptez d'abord les conditions de
+            <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noopener">pyannote/speaker-diarization-3.1</a>.
+          </p>
+        </div>
+
         <div class="v30-params__actions">
           <button type="button" class="btn btn-primary btn-sm" data-v30-ai-save>Enregistrer</button>
           <button type="button" class="btn btn-sm" data-v30-ai-test-ollama>Tester Ollama</button>
           <button type="button" class="btn btn-sm" data-v30-ai-test-tavily>Tester Tavily</button>
+          <button type="button" class="btn btn-sm" data-v30-ai-test-anthropic>Tester Claude</button>
           <span class="muted v30-params__status" data-v30-ai-status></span>
         </div>
       </div>

@@ -2,6 +2,47 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.1] — 2026-04-29 · Transcription de réunions (Whisper + Claude)
+
+Nouvel outil **Transcription** dans la sidebar (`/v30/transcription`) : upload
+d'un fichier audio post-réunion, transcription locale par Whisper sur GPU,
+diarisation des orateurs via pyannote, puis analyse structurée par Claude
+(résumé, sujets, décisions, tâches, prochaines étapes, sentiment, citations).
+
+- **Pipeline.** `services/transcription.py` orchestre faster-whisper
+  (`large-v3` par défaut, GPU CUDA) → pyannote 3.1 (diarisation, token HF
+  requis) → fusion des segments par orateur → Anthropic Messages API
+  (`claude-haiku-4-5` par défaut). Lock global pour éviter la concurrence
+  VRAM. Worker en thread daemon, polling côté UI.
+- **Schéma DB.** Nouvelle table `transcriptions` : audio_path, status
+  (pending/processing/done/error), progress %, stage, transcript_text,
+  segments_json (par orateur), speakers_json, analysis_json (résumé +
+  tâches + décisions). Soft delete via `deleted_at`.
+- **Backend.** Blueprint `routes/transcription.py` avec : `POST
+  /api/transcription/upload`, `GET /api/transcription`, `GET
+  /api/transcription/<id>`, `POST /api/transcription/<id>/retry`, `DELETE
+  /api/transcription/<id>`, `GET /api/transcription/<id>/audio` (stream),
+  `GET /api/transcription/<id>/export.txt`. Pages v30 :
+  `/v30/transcription` (liste) et `/v30/transcription/<id>` (détail).
+- **UI.** Liste de cartes avec badge statut + barre de progression mini,
+  modal upload avec drag & drop (mp3, wav, m4a, ogg, mp4, webm, flac, aac
+  jusqu'à 500 MB). Page détail : lecteur audio, transcript par orateur
+  (couleurs distinctes), 7 blocs d'analyse (résumé, participants, sujets,
+  décisions, tâches avec priorités, prochaines étapes, sentiment +
+  qualité, citations clés), copy-to-clipboard, export `.txt`.
+- **Config IA.** Paramètres > IA étendu : clé Anthropic, modèle Claude,
+  modèle Whisper, device/compute, toggle diarisation, token HuggingFace.
+  Fichier `data/ai_config.json` (gitignored). Test connexion Claude
+  (`/api/ai/test` avec `test_target=anthropic`).
+- **Reprise crash.** Au démarrage, les jobs en `processing`/`pending`
+  orphelins (suite à crash/restart serveur) sont marqués en erreur ;
+  l'utilisateur peut les relancer depuis la fiche détail.
+- **Dépendances.** `faster-whisper`, `pyannote.audio`, `torch`,
+  `torchaudio` à installer **séparément** sur le PC hébergeur (commenté
+  dans `requirements.txt` car ~3 GB de download).
+- **Privacy.** L'audio brut reste 100% local. Seul le transcript texte
+  (anonymisable) part chez Anthropic pour l'analyse.
+
 ## [31.8] — 2026-04-28 · CR de réunion sur fiche prospect
 
 Reconstruction de l'expérience « Après réunion » qui existait en v29.
