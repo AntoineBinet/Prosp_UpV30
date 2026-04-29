@@ -38,8 +38,16 @@ diarisation des orateurs via pyannote, puis analyse structurée par Claude
   orphelins (suite à crash/restart serveur) sont marqués en erreur ;
   l'utilisateur peut les relancer depuis la fiche détail.
 - **Dépendances.** `faster-whisper`, `pyannote.audio`, `torch`,
-  `torchaudio` à installer **séparément** sur le PC hébergeur (commenté
-  dans `requirements.txt` car ~3 GB de download).
+  `torchaudio` ajoutés à `requirements.txt` avec
+  `--extra-index-url https://download.pytorch.org/whl/cu121` pour
+  récupérer les wheels GPU. Téléchargement initial ~3 GB. Mapping
+  pip→module ajouté dans `routes/deploy.py:check-deps`.
+- **Install longue durée.** Le `pip install` du flux SSE de mise à jour
+  est désormais **streamé ligne par ligne** (heartbeat toutes les 25 s)
+  pour survivre aux timeouts proxy (Cloudflare Tunnel) et donner du
+  feedback pendant les ~10-15 min de la 1re installation. Timeout
+  porté de 120 s à 1200 s. Manuel `/api/deploy/install-deps` : timeout
+  porté à 1200 s également, message UI mis à jour.
 - **Privacy.** L'audio brut reste 100% local. Seul le transcript texte
   (anonymisable) part chez Anthropic pour l'analyse.
 

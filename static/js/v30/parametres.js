@@ -1205,12 +1205,12 @@
   function installMissing() {
     var btn = $('[data-v30-deps-install]');
     if (!btn) return;
-    if (!confirm('Lancer "pip install -r requirements.txt --upgrade" ?\n(peut prendre 1-2 minutes selon le réseau)')) return;
+    if (!confirm('Lancer "pip install -r requirements.txt --upgrade" ?\n\nDurée : 1-2 min en temps normal, mais 10-15 min si torch / faster-whisper / pyannote sont à installer (~3 GB).\n\nNe ferme pas la fenêtre pendant l\'installation.')) return;
     btn.disabled = true;
     var origText = btn.textContent;
     btn.textContent = 'Installation en cours…';
     var body = $('[data-v30-deps-body]');
-    if (body) body.innerHTML = '<div class="empty" style="padding:24px;">Installation en cours… (cela peut prendre 1-2 min)</div>';
+    if (body) body.innerHTML = '<div class="empty" style="padding:24px;">Installation en cours…<br><span class="muted" style="font-size:11.5px;">Si torch / whisper sont à installer pour la 1re fois : ~10 min (3 GB de download).<br>Reste sur cette page jusqu\'à la fin.</span></div>';
     fetch('/api/deploy/install-deps', { method: 'POST', credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {

@@ -16,6 +16,7 @@ import datetime
 import json
 import subprocess
 import sys
+import time
 
 from flask import Blueprint, Response, jsonify
 
@@ -443,28 +444,57 @@ def api_deploy_pull():
                     pass
 
             # ── SAFETY: Installer les nouvelles dépendances avant le redémarrage ──
+            # v32.1 : streaming ligne-par-ligne pour éviter un silence prolongé
+            # (Cloudflare Tunnel coupe les connexions inactives). torch CUDA pèse
+            # ~2 GB → la 1re install peut durer 10-15 min.
             req_file = APP_DIR / "requirements.txt"
             if req_file.exists():
-                yield f"data: {json.dumps({'step': 'log', 'line': 'Installation des dépendances (pip install)...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'step': 'log', 'line': 'Installation des dépendances (pip install)... peut durer 10-15 min si torch/whisper à installer.'}, ensure_ascii=False)}\n\n"
+                pip_proc = None
+                deadline = time.time() + 1200  # 20 min max
                 try:
-                    pip_result = subprocess.run(
+                    pip_proc = subprocess.Popen(
                         [sys.executable, "-m", "pip", "install", "-r", str(req_file),
-                         "--quiet", "--no-warn-script-location"],
+                         "--no-warn-script-location"],
                         cwd=str(APP_DIR),
-                        capture_output=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
                         text=True,
-                        timeout=120,
+                        bufsize=1,
                     )
-                    if pip_result.returncode == 0:
+                    last_yield = time.time()
+                    while True:
+                        line = pip_proc.stdout.readline() if pip_proc.stdout else ""
+                        if not line and pip_proc.poll() is not None:
+                            break
+                        if line:
+                            line = line.rstrip()
+                            # Filtre le bruit (lignes vides, progress bars).
+                            if line and not line.startswith("\x1b"):
+                                yield f"data: {json.dumps({'step': 'log', 'line': 'pip: ' + line[:240]}, ensure_ascii=False)}\n\n"
+                                last_yield = time.time()
+                        elif time.time() - last_yield > 25:
+                            # Heartbeat pour garder la connexion SSE active
+                            yield f": heartbeat\n\n"
+                            last_yield = time.time()
+                        if time.time() > deadline:
+                            try:
+                                pip_proc.kill()
+                            except Exception:
+                                pass
+                            yield f"data: {json.dumps({'step': 'log', 'line': 'pip install timeout (>20 min) — redémarrage quand même. Relancer via Paramètres > Vérifier dépendances.'}, ensure_ascii=False)}\n\n"
+                            logger.warning("Deploy pull: pip install timeout (streaming)")
+                            break
+                    rc = pip_proc.returncode if pip_proc else -1
+                    if rc == 0:
                         yield f"data: {json.dumps({'step': 'log', 'line': 'Dépendances à jour'}, ensure_ascii=False)}\n\n"
                     else:
-                        err_pip = (pip_result.stderr or pip_result.stdout or "").strip()[:300]
-                        yield f"data: {json.dumps({'step': 'log', 'line': f'pip install partiel (app redémarre quand même): {err_pip}'}, ensure_ascii=False)}\n\n"
-                        logger.warning("Deploy pull: pip install partiel: %s", err_pip)
-                except subprocess.TimeoutExpired:
-                    yield f"data: {json.dumps({'step': 'log', 'line': 'pip install timeout — redémarrage quand même'}, ensure_ascii=False)}\n\n"
-                    logger.warning("Deploy pull: pip install timeout")
+                        yield f"data: {json.dumps({'step': 'log', 'line': f'pip install code={rc} (app redémarre quand même). Vérifie les logs pip ci-dessus.'}, ensure_ascii=False)}\n\n"
+                        logger.warning("Deploy pull: pip install rc=%s", rc)
                 except Exception as e_pip:
+                    if pip_proc:
+                        try: pip_proc.kill()
+                        except Exception: pass
                     yield f"data: {json.dumps({'step': 'log', 'line': f'pip install erreur: {e_pip}'}, ensure_ascii=False)}\n\n"
                     logger.warning("Deploy pull: pip install erreur: %s", e_pip)
 
@@ -603,6 +633,11 @@ def api_deploy_check_deps():
         "rjsmin": "rjsmin",
         "csscompressor": "csscompressor",
         "flask": "flask",
+        # v32.1 — Transcription de réunions
+        "faster-whisper": "faster_whisper",
+        "pyannote.audio": "pyannote.audio",
+        "torch": "torch",
+        "torchaudio": "torchaudio",
     }
 
     def _parse_version(s: str):
@@ -684,6 +719,7 @@ def api_deploy_install_deps():
     """Lance `pip install -r requirements.txt` et retourne la sortie.
 
     Utile quand le check-deps signale des manques sans avoir à redémarrer.
+    Timeout 20 min : v32.1 ajoute torch/whisper qui pèsent ~3 GB.
     """
     try:
         cp = subprocess.run(
@@ -691,7 +727,7 @@ def api_deploy_install_deps():
             cwd=str(APP_DIR),
             capture_output=True,
             text=True,
-            timeout=180,
+            timeout=1200,
         )
         return jsonify(
             ok=(cp.returncode == 0),
@@ -700,7 +736,7 @@ def api_deploy_install_deps():
             stderr=(cp.stderr or "")[-2000:],
         )
     except subprocess.TimeoutExpired:
-        return jsonify(ok=False, error="Timeout pip install (>180s)"), 504
+        return jsonify(ok=False, error="Timeout pip install (>20 min). Vérifiez la connexion ou installez torch manuellement."), 504
     except Exception as e:
         logger.exception("install-deps failed")
         return jsonify(ok=False, error=str(e)), 500
