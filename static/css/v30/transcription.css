@@ -507,6 +507,23 @@
 .v30-tx-pill.is-sent-positif   { color: oklch(0.65 0.16 145); border-color: oklch(0.50 0.15 145 / 0.5); }
 .v30-tx-pill.is-sent-négatif,
 .v30-tx-pill.is-sent-negatif   { color: oklch(0.70 0.18 25);  border-color: oklch(0.55 0.20 25 / 0.5); }
+/* v32.13 — badge de cohérence CRM */
+.v30-tx-pill.is-cons-ok        { color: oklch(0.65 0.16 145); border-color: oklch(0.50 0.15 145 / 0.5); background: oklch(0.50 0.15 145 / 0.08); }
+.v30-tx-pill.is-cons-warn      { color: oklch(0.70 0.18 70);  border-color: oklch(0.55 0.18 70 / 0.6);  background: oklch(0.55 0.18 70 / 0.10); }
+
+/* v32.13 — bandeau d'audit cohérence (warnings IA → user) */
+.v30-tx-crm__audit {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid oklch(0.55 0.18 70 / 0.45);
+  background: oklch(0.55 0.18 70 / 0.08);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.v30-tx-crm__audit strong { color: oklch(0.70 0.18 70); }
+.v30-tx-crm__audit ul { margin: 6px 0 0; padding-left: 22px; }
+.v30-tx-crm__audit li { margin-bottom: 3px; }
 .v30-tx-pill.is-sent-neutre    { color: var(--text-2); }
 
 /* ══════════════════════════════════════════════════════════════

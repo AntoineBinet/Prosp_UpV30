@@ -98,9 +98,16 @@
       </div>
       <div class="v30-tx-crm__head-actions">
         <span class="v30-tx-pill" data-v30-tx-crm-type>type ?</span>
+        <span class="v30-tx-pill" data-v30-tx-crm-consistency hidden></span>
         <span class="v30-tx-saved-state muted" data-v30-tx-crm-saved></span>
       </div>
     </header>
+
+    {# v32.13 — bandeau d'audit cohérence (warnings IA → user) #}
+    <div class="v30-tx-crm__audit" data-v30-tx-crm-audit hidden>
+      <strong>⚠ Cohérence à vérifier :</strong>
+      <ul data-v30-tx-crm-audit-list></ul>
+    </div>
 
     {# ─── Volet candidat ─── #}
     <div class="v30-tx-crm__panel" data-v30-tx-crm-candidate hidden>
@@ -225,6 +232,9 @@
       </button>
       <button type="button" class="btn btn-sm" data-v30-tx-crm-create-prospect hidden>
         ＋ Créer fiche prospect
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-crm-reset>
+        {{ ui.icon('x', 13) }} Réinitialiser
       </button>
       <span class="muted v30-tx-crm__foot-hint" data-v30-tx-crm-link></span>
     </footer>

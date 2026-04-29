@@ -71,6 +71,22 @@ def _row_to_dict(row) -> dict:
             d[k.replace("_json", "")] = None
         d.pop(k, None)
     d.pop("audio_path", None)  # path interne, pas exposé au front
+    # v32.13 — audit de cohérence transcript ↔ champs CRM (exposé au front
+    # pour afficher le badge ⚠ « Cohérence à vérifier »). On donne aussi
+    # le titre (souvent du nom de fichier audio) et le narrative_md comme
+    # sources supplémentaires pour limiter les faux positifs.
+    a = d.get("analysis")
+    if isinstance(a, dict):
+        try:
+            from services.transcription import audit_crm_consistency  # type: ignore
+            d["consistency"] = audit_crm_consistency(
+                a,
+                d.get("transcript_text"),
+                title=d.get("title"),
+                narrative_md=a.get("narrative_markdown"),
+            )
+        except Exception:
+            d["consistency"] = {"ok": True, "warnings": []}
     return d
 
 
@@ -842,6 +858,15 @@ def api_update_structured_fields(tid: int):
     for k in _CRM_FIELDS:
         if k in payload:
             analysis[k] = payload[k]
+
+    # v32.13 — force l'exclusivité candidate XOR prospect selon meeting_type.
+    # Évite que l'UI puisse pousser des champs incohérents (artefact de
+    # render hidden/show côté front).
+    mt = analysis.get("meeting_type")
+    if mt == "entretien_candidat" and analysis.get("prospect_info"):
+        analysis["prospect_info"] = None
+    elif mt == "rdv_commercial" and analysis.get("candidate_info"):
+        analysis["candidate_info"] = None
 
     # Marqueur édition manuelle (utile pour différencier d'un push IA)
     analysis["_user_edited_at"] = datetime.now().isoformat(timespec="seconds")

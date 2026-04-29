@@ -480,14 +480,29 @@ Transcript :
 # du CR narratif (et optionnellement du transcript pour les détails). Le
 # CR markdown est résumé au format JSON strict pour alimenter `candidate_info`,
 # `prospect_info`, `opportunites_missions` et `suivi`.
-_OLLAMA_EXTRACT_CRM_PROMPT = """Tu reçois un compte-rendu de réunion (markdown) et tu dois en extraire des CHAMPS CRM STRUCTURÉS.
+#
+# v32.13 — règles renforcées : exclusion stricte candidate XOR prospect selon
+# meeting_type, interdiction d'inventer un nom/entreprise absents du CR,
+# instruction explicite sur l'erreur classique « employeur cible du candidat
+# pris pour un prospect commercial ».
+_OLLAMA_EXTRACT_CRM_PROMPT = """Tu reçois un compte-rendu de réunion (markdown) et tu dois en extraire des CHAMPS CRM STRUCTURÉS pour le CRM ProspUp (Up Technology — société de conseil B2B).
 
-RÈGLES STRICTES :
-- N'invente RIEN. Si un champ n'est pas mentionné dans le CR → mets null (ou [] pour les arrays).
-- Garde les chiffres, noms, lieux, technologies EXACTS.
-- Réponds UNIQUEMENT par un JSON valide (pas de prose avant ni après, pas de balises ```).
+═══════════════════════════════════════════════════════════════════════
+RÈGLES NON NÉGOCIABLES
+═══════════════════════════════════════════════════════════════════════
+1. **N'INVENTE RIEN.** Si un champ n'est pas explicitement mentionné dans le CR → mets `null` (ou `[]` pour les arrays). Ne devine pas.
+2. **Distingue le candidat du prospect.**
+   - Un CANDIDAT est une personne qu'Up Technology pourrait recruter / placer en mission.
+   - Un PROSPECT est une entreprise cliente qui pourrait acheter les services d'Up Tech.
+   - Pour un `meeting_type=entretien_candidat`, **`prospect_info` DOIT être `null`**. L'entreprise mentionnée comme employeur cible du candidat n'est PAS un prospect — elle va dans `opportunites_missions[].client`.
+   - Pour un `meeting_type=rdv_commercial`, **`candidate_info` DOIT être `null`**.
+3. **Pas de chaînes vides.** Si l'info manque → `null`, jamais `""`.
+4. **Pas de markdown dans les valeurs.** Strippe les `**gras**`, garde le texte brut.
+5. **Format de sortie :** UNIQUEMENT un JSON valide, sans prose autour, sans balises ```.
 
-Schéma JSON attendu :
+═══════════════════════════════════════════════════════════════════════
+SCHÉMA JSON ATTENDU
+═══════════════════════════════════════════════════════════════════════
 {
   "meeting_type": "entretien_candidat" | "rdv_commercial" | "reunion_interne" | "autre",
   "candidate_info": null OR {
@@ -523,6 +538,13 @@ Schéma JSON attendu :
     "followup_channel": "email"|"telephone"|"linkedin"|"rdv_physique"|null
   }
 }
+
+═══════════════════════════════════════════════════════════════════════
+EXEMPLE FRÉQUENT D'ERREUR À ÉVITER
+═══════════════════════════════════════════════════════════════════════
+CR : « Entretien Alex Drouet. Up Tech propose une mission chez Alstom Transport. »
+✗ FAUX : `prospect_info: {entreprise: "Alstom Transport"}` — Alstom est l'employeur CIBLE du candidat, pas un prospect commercial.
+✓ JUSTE : `meeting_type: "entretien_candidat"`, `prospect_info: null`, `opportunites_missions: [{nom: "...", client: "Alstom Transport", statut: "proposée"}]`.
 
 CR à analyser :
 """
@@ -625,26 +647,177 @@ def _extract_crm_from_markdown(narrative_md: str, transcript_text: str | None,
         out["meeting_type"] = mt
     ci = parsed.get("candidate_info")
     if isinstance(ci, dict):
-        out["candidate_info"] = ci
+        out["candidate_info"] = _sanitize_dict(ci)
     pi = parsed.get("prospect_info")
     if isinstance(pi, dict):
-        out["prospect_info"] = pi
+        out["prospect_info"] = _sanitize_dict(pi)
     om = parsed.get("opportunites_missions")
     if isinstance(om, list):
-        out["opportunites_missions"] = [m for m in om if isinstance(m, dict)]
+        out["opportunites_missions"] = [_sanitize_dict(m) for m in om if isinstance(m, dict)]
     su = parsed.get("suivi")
     if isinstance(su, dict):
         merged = out["suivi"]
         if isinstance(su.get("up_tech"), list):
-            merged["up_tech"] = [a for a in su["up_tech"] if isinstance(a, dict)]
+            merged["up_tech"] = [_sanitize_dict(a) for a in su["up_tech"] if isinstance(a, dict)]
         if isinstance(su.get("autre_partie"), list):
-            merged["autre_partie"] = [a for a in su["autre_partie"] if isinstance(a, dict)]
-        if isinstance(su.get("proposed_followup_date"), str):
-            merged["proposed_followup_date"] = su["proposed_followup_date"]
-        if isinstance(su.get("followup_channel"), str):
-            merged["followup_channel"] = su["followup_channel"]
+            merged["autre_partie"] = [_sanitize_dict(a) for a in su["autre_partie"] if isinstance(a, dict)]
+        fdate = su.get("proposed_followup_date")
+        merged["proposed_followup_date"] = _clean_str(fdate) if isinstance(fdate, str) else None
+        fch = su.get("followup_channel")
+        merged["followup_channel"] = _clean_str(fch) if isinstance(fch, str) else None
         out["suivi"] = merged
+
+    # ─── v32.13 : exclusivité stricte candidate XOR prospect selon meeting_type ───
+    # Le 3B confond souvent l'entreprise cible du candidat avec un « prospect ».
+    # On force la cohérence côté backend pour ne plus jamais voir ce problème.
+    if out["meeting_type"] == "entretien_candidat" and out.get("prospect_info"):
+        # L'entreprise du « prospect » est probablement l'employeur cible
+        # → on la transvase en opportunité de mission si on n'en a pas déjà.
+        pi_dict = out["prospect_info"]
+        ent = pi_dict.get("entreprise") if isinstance(pi_dict, dict) else None
+        if ent and not out["opportunites_missions"]:
+            out["opportunites_missions"].append({
+                "nom": pi_dict.get("besoin") or "Mission discutée",
+                "client": ent,
+                "lieu": pi_dict.get("city"),
+                "statut": "discutée",
+                "score_match": None,
+                "commentaire": "(Reclassé depuis prospect_info — entretien candidat)",
+            })
+            logger.info("extract-crm : prospect_info reclassé en opportunite (entretien_candidat)")
+        out["prospect_info"] = None
+    elif out["meeting_type"] == "rdv_commercial" and out.get("candidate_info"):
+        logger.info("extract-crm : candidate_info forcé à null (meeting_type=rdv_commercial)")
+        out["candidate_info"] = None
+
     return out
+
+
+def _clean_str(v) -> str | None:
+    """Nettoie une valeur scalaire : None / '' / 'null' (string) / 'None' → None.
+    Strippe les `**markdown**` et trim."""
+    if v is None:
+        return None
+    if not isinstance(v, str):
+        return v  # int / bool laissés tels quels
+    s = v.strip()
+    if not s or s.lower() in {"null", "none", "n/a", "na", "-", "--"}:
+        return None
+    # Strip markdown bold/italic résiduel (**Texte** → Texte)
+    if s.startswith("**") and s.endswith("**") and len(s) > 4:
+        s = s[2:-2].strip()
+    if s.startswith("*") and s.endswith("*") and len(s) > 2:
+        s = s[1:-1].strip()
+    return s or None
+
+
+def _sanitize_dict(d) -> dict:
+    """Nettoie récursivement un dict :
+    - chaînes vides / 'null' / 'none' → None
+    - markdown bold strippé
+    - listes nettoyées
+    """
+    if not isinstance(d, dict):
+        return d
+    out = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            out[k] = _sanitize_dict(v)
+        elif isinstance(v, list):
+            cleaned = []
+            for item in v:
+                if isinstance(item, dict):
+                    sub = _sanitize_dict(item)
+                    # Évite les sous-objets entièrement vides
+                    if any(val not in (None, "", [], {}) for val in sub.values()):
+                        cleaned.append(sub)
+                elif isinstance(item, str):
+                    cs = _clean_str(item)
+                    if cs:
+                        cleaned.append(cs)
+                elif item is not None:
+                    cleaned.append(item)
+            out[k] = cleaned
+        elif isinstance(v, str):
+            out[k] = _clean_str(v)
+        else:
+            out[k] = v
+    return out
+
+
+def audit_crm_consistency(analysis: dict, transcript_text: str | None,
+                          title: str | None = None,
+                          narrative_md: str | None = None) -> dict:
+    """v32.13 — Audit de cohérence entre champs CRM, narrative_md et transcript.
+
+    Retourne {ok: bool, warnings: [str]} pour permettre à l'UI d'afficher
+    un badge « ⚠ Cohérence à vérifier » et au backend de logger les anomalies.
+    Pure function — aucun side effect.
+
+    Args:
+      analysis : dict d'analyse complet (ce qui sort de l'IA)
+      transcript_text : transcript Whisper brut
+      title : titre de la transcription (souvent issu du nom de fichier
+              audio, peut contenir le nom du candidat).
+      narrative_md : compte-rendu markdown (le candidat peut y figurer
+              même si Whisper ne l'a pas capté phonétiquement, parce que
+              Claude/Ollama peut le déduire d'autres indices).
+
+    Pour éviter les faux positifs : un nom est considéré « présent » s'il
+    apparaît dans (transcript OR titre OR narrative_md). Si absent partout,
+    c'est probablement un artefact (test, ancien copier/coller).
+    """
+    warnings: list[str] = []
+    if not isinstance(analysis, dict):
+        return {"ok": False, "warnings": ["analysis n'est pas un dict"]}
+    mt = analysis.get("meeting_type")
+    ci = analysis.get("candidate_info")
+    pi = analysis.get("prospect_info")
+
+    # Source combinée pour le check de présence
+    haystack = (
+        (transcript_text or "")
+        + " ||| " + (title or "")
+        + " ||| " + (narrative_md or analysis.get("narrative_markdown") or "")
+    ).lower()
+
+    # Règle 1 : exclusivité candidate XOR prospect
+    if mt == "entretien_candidat" and pi:
+        warnings.append(
+            "meeting_type=entretien_candidat mais prospect_info non-null — "
+            "l'employeur cible doit aller dans opportunites_missions, pas dans prospect_info."
+        )
+    if mt == "rdv_commercial" and ci:
+        warnings.append(
+            "meeting_type=rdv_commercial mais candidate_info non-null — "
+            "incohérence : un RDV commercial ne devrait pas remplir candidate_info."
+        )
+
+    # Règle 2 : si on a un nom de candidat, il doit apparaître quelque part
+    # (transcript, titre du fichier audio, ou narrative_md)
+    if isinstance(ci, dict):
+        nom = (ci.get("nom") or "").strip().lower()
+        prenom = (ci.get("prenom") or "").strip().lower()
+        if nom and len(nom) >= 3 and haystack and nom not in haystack:
+            warnings.append(
+                f"Nom candidat « {ci.get('nom')} » absent du transcript, du titre et "
+                "du compte-rendu — vérifie qu'il s'agit du bon candidat (artefact de test ?)."
+            )
+        if prenom and len(prenom) >= 3 and haystack and prenom not in haystack:
+            warnings.append(
+                f"Prénom candidat « {ci.get('prenom')} » absent partout — à vérifier."
+            )
+
+    # Règle 3 : si on a une entreprise prospect, elle doit apparaître
+    if isinstance(pi, dict):
+        ent = (pi.get("entreprise") or "").strip().lower()
+        ent = ent.replace("**", "").replace("*", "").strip()
+        if ent and len(ent) >= 3 and haystack and ent not in haystack:
+            warnings.append(
+                f"Entreprise prospect « {pi.get('entreprise')} » absente partout — à vérifier."
+            )
+
+    return {"ok": not warnings, "warnings": warnings}
 
 
 def _call_ollama_for_analysis(transcript: str, config: dict, timeout: int = 300) -> dict:

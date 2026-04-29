@@ -681,6 +681,36 @@
     var pill = $('[data-v30-tx-crm-type]');
     if (pill) pill.textContent = type.replace(/_/g, ' ');
 
+    // v32.13 — Badge cohérence + bandeau warnings (item.consistency injecté
+    // par le backend via audit_crm_consistency). Aide l'utilisateur à
+    // repérer instantanément les divergences entre le transcript et les
+    // champs extraits par l'IA.
+    var consPill = $('[data-v30-tx-crm-consistency]');
+    var auditBox = $('[data-v30-tx-crm-audit]');
+    var auditList = $('[data-v30-tx-crm-audit-list]');
+    var cons = item && item.consistency;
+    if (consPill && cons) {
+      if (cons.ok) {
+        consPill.hidden = false;
+        consPill.className = 'v30-tx-pill is-cons-ok';
+        consPill.textContent = '✓ cohérent';
+        if (auditBox) auditBox.hidden = true;
+      } else {
+        consPill.hidden = false;
+        consPill.className = 'v30-tx-pill is-cons-warn';
+        consPill.textContent = '⚠ ' + (cons.warnings || []).length + ' point(s) à vérifier';
+        if (auditBox && auditList) {
+          auditBox.hidden = false;
+          auditList.innerHTML = (cons.warnings || []).map(function (w) {
+            return '<li>' + esc(w) + '</li>';
+          }).join('');
+        }
+      }
+    } else if (consPill) {
+      consPill.hidden = true;
+      if (auditBox) auditBox.hidden = true;
+    }
+
     // Volets candidat/prospect : visible selon meeting_type, mais on
     // affiche aussi le volet « rempli » si l'IA a mis des infos même si
     // le type n'est pas le bon.
@@ -1048,6 +1078,38 @@
     var bP = $('[data-v30-tx-crm-create-prospect]');
     if (bC) bC.addEventListener('click', function() { createFiche('candidate'); });
     if (bP) bP.addEventListener('click', function() { createFiche('prospect'); });
+    // v32.13 — Reset : vide les champs CRM (utile après erreur IA / artefact)
+    var bR = $('[data-v30-tx-crm-reset]');
+    if (bR) bR.addEventListener('click', function() {
+      if (!confirm('Vider tous les champs CRM ? Le compte-rendu narratif et le transcript ne sont PAS touchés. Tu pourras ensuite cliquer « ✦ Ré-extraire CRM » ou tout saisir à la main.')) return;
+      var emptyPayload = {
+        meeting_type: null,
+        candidate_info: null,
+        prospect_info: null,
+        opportunites_missions: [],
+        suivi: { up_tech: [], autre_partie: [], proposed_followup_date: null, followup_channel: null }
+      };
+      _setSavedState('is-saving', 'Réinitialisation…');
+      fetch('/api/transcription/' + TID + '/structured-fields', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(emptyPayload),
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          if (j && j.ok) {
+            _setSavedState('is-saved', '✓ Champs vidés');
+            _crmEdited = false;
+            _crmHydrated = false;
+            _disableBeforeunloadGuard();
+            if (window.showToast) window.showToast('Champs CRM réinitialisés', 'success');
+            setTimeout(load, 300);
+          } else {
+            _setSavedState('is-error', '✗ ' + ((j && j.error) || 'erreur'));
+          }
+        });
+    });
   }
 
   // Hook : appeler renderCRM depuis le render existant

@@ -2,6 +2,88 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.13] — 2026-04-29 · Hardening cohérence transcription (sanitization + audit + exclusion stricte)
+
+Suite à l'incohérence détectée sur la fiche Alex Drouet (champs CRM Arthur
+Voineau pollués par un test) et sur la fiche « 42 Boulevard des Belges »
+(prospect_info confondu avec l'employeur cible du candidat), durcissement
+du pipeline d'extraction CRM pour éviter ces problèmes à l'avenir.
+
+- **Prompt Ollama renforcé** ([services/transcription.py:484](services/transcription.py))
+  Règles non négociables ajoutées en tête du prompt d'extraction :
+  - **N'invente rien** — null si l'info manque, jamais "" ou "null" en string.
+  - **Distinction stricte candidate / prospect** : exemple en dur dans
+    le prompt montrant l'erreur classique « employeur cible pris pour
+    un prospect commercial » et la correction attendue
+    (passage en `opportunites_missions[].client`).
+  - **Pas de markdown dans les valeurs** : strip des `**gras**`.
+- **Sanitization automatique du JSON IA**
+  ([services/transcription.py:622](services/transcription.py))
+  Nouvelles fonctions `_clean_str(v)` et `_sanitize_dict(d)` appliquées
+  à toute sortie d'`_extract_crm_from_markdown` : conversion `""` /
+  `"null"` / `"none"` / `"-"` → `None`, strip des `**markdown**`,
+  élimination des sous-objets entièrement vides dans les listes.
+  Fix le cas connu de llama3.2:3b qui renvoie des chaînes "null"
+  stringifiées au lieu de la valeur null JSON.
+- **Force exclusivité candidate XOR prospect**
+  ([services/transcription.py:692](services/transcription.py),
+  [routes/transcription.py:719](routes/transcription.py))
+  Si `meeting_type=entretien_candidat` et `prospect_info` non-null →
+  l'entreprise du « prospect » est automatiquement reclassée dans
+  `opportunites_missions` puis `prospect_info` est forcé à `null`.
+  Idem pour `rdv_commercial` → `candidate_info=null`. Appliqué à 2
+  endroits : (a) à la sortie d'extract-crm (b) à chaque PUT
+  structured-fields, pour bloquer même les saisies UI incohérentes.
+- **Audit cohérence automatique**
+  ([services/transcription.py:710](services/transcription.py))
+  Nouvelle fonction `audit_crm_consistency(analysis, transcript, title,
+  narrative_md)` exposée par `/api/transcription/<id>` dans `item.consistency
+  = {ok, warnings: [str]}`. Détecte 3 catégories d'incohérence :
+  1. Exclusion candidate XOR prospect violée selon meeting_type.
+  2. Nom/prénom du candidat absent du transcript ET du titre ET du
+     narrative (probable artefact de test ou copier/coller périmé).
+  3. Entreprise prospect absente partout.
+- **UI : badge cohérence + bandeau warnings**
+  ([templates/v30/transcription_detail.html:97](templates/v30/transcription_detail.html),
+  [static/css/v30/transcription.css:511](static/css/v30/transcription.css),
+  [static/js/v30/transcription_detail.js:646](static/js/v30/transcription_detail.js))
+  - Pill « ✓ cohérent » (vert) si `consistency.ok=true`.
+  - Pill « ⚠ N point(s) à vérifier » (orange) sinon, avec bandeau
+    détaillé listant chaque warning sous le header de la section CRM.
+- **Bouton « Réinitialiser CRM »**
+  ([templates/v30/transcription_detail.html:228](templates/v30/transcription_detail.html),
+  [static/js/v30/transcription_detail.js:973](static/js/v30/transcription_detail.js))
+  Permet de vider tous les champs CRM en un clic (avec confirm), pour
+  repartir d'une feuille blanche après une mauvaise extraction. Le
+  narrative_markdown et le transcript ne sont PAS touchés — l'utilisateur
+  peut ensuite cliquer « ✦ Ré-extraire CRM » pour repeupler proprement.
+- **Correction manuelle des fiches #1 et #2**
+  - #1 (Alex Drouet) : `prospect_info` Alstom (incohérent — c'est
+    l'employeur cible du candidat) déplacé en `opportunites_missions`,
+    `candidate_info` complété (Drouet, Alex, ingénieur méthodes &
+    industrialisation, 4 ans, mobilité Lyon, prétentions 45 k€,
+    compétences clés). `_candidate_id` (pointait vers la fiche test
+    soft-deletée #89) retiré.
+  - #2 (42 Boulevard des Belges) : `meeting_type=entretien_candidat`,
+    `prospect_info=null`, `candidate_info` partiellement rempli (titre
+    « Ingénieur logiciel / Manager consultants », domaine, mobilité,
+    compétences C++/Simulation/Gestion de projet, motif recherche
+    après Whatside). Note `_inconsistency_note` indiquant que le nom
+    et prénom n'ont pas été captés par Whisper en début d'enregistrement
+    et sont à compléter manuellement.
+
+**Vérification visuelle E2E** validée via preview navigateur :
+- /v30/transcription/1 → badge « ✓ cohérent » vert, candidat hydraté
+  Drouet/Alex, volet prospect masqué, mission Alstom dans opportunités.
+- /v30/transcription/2 → badge « ✓ cohérent » vert, titre rempli,
+  nom/prénom vides à éditer.
+- Test forcé avec un nom inventé (« Zzzephyr Quintilien ») → badge
+  « ⚠ 2 point(s) à vérifier » orange, bandeau d'audit listant les
+  2 warnings explicites. Aucune erreur JS console.
+
+**Aucune régression** sur les autres pages (dashboard, prospects,
+candidats) — modifs ciblées sur transcription/.
+
 ## [32.12] — 2026-04-29 · Finitions Transcription CRM (idempotence, 3ᵉ passe Ollama, validation, focus prospect)
 
 Stabilisation de la feature « Transcription → Fiche CRM » introduite en v32.11.
