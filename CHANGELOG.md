@@ -2,6 +2,37 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.5] — 2026-04-29 · CR narratif Genspark-style + diagnostic diarisation
+
+Refonte de l'analyse Claude pour produire un compte-rendu **narratif et
+détaillé** comparable à Genspark / Otter Pilot, et diagnostic des erreurs
+de diarisation pyannote.
+
+- **Prompt Claude refondu.** Demande désormais un CR markdown structuré :
+  titre contextuel + synthèse longue (4-8 phrases) + 10-25 sections H2
+  thématiques en prose narrative (présentation candidat, parcours, missions
+  discutées, rémunération, prochaines étapes, etc.). Garde les chiffres /
+  noms / lieux EXACTS du transcript, n'invente jamais. `max_tokens` porté
+  de 4096 à 16000, transcript max 200k → 300k chars. Champ
+  `narrative_markdown` ajouté au JSON de réponse en plus des champs
+  structurés (action_items, decisions, etc.) qui restent disponibles
+  pour les blocs synthétiques.
+- **UI fiche détail.** Nouveau bloc « Compte-rendu » en haut (style
+  article, typographie sérif Instrument Serif, max-width 900px), rendu
+  par un parser markdown inline (~80 lignes, échappement HTML pour
+  sécurité). Bouton « Copier le CR » qui copie le markdown brut. Les
+  blocs synthétiques (Résumé, Tâches, Décisions…) restent en dessous
+  pour un coup d'œil rapide.
+- **Export `.txt` enrichi.** Le fichier exporté contient maintenant le
+  CR markdown complet en tête, suivi du transcript brut en annexe.
+- **Diagnostic diarisation.** Quand pyannote crash silencieusement,
+  l'erreur est désormais classifiée et exposée dans `error_message`
+  avec un message actionable :
+  - 401/403 → token HF rejeté → instructions d'acceptation des conditions
+  - OOM → VRAM saturée → suggestion de basculer sur Whisper turbo / medium
+  - 404 / gated → conditions pyannote non acceptées → liens directs
+  - autre → message d'erreur brut
+
 ## [32.4] — 2026-04-29 · Réparation torch CUDA en arrière-plan
 
 Quand `pip install -r requirements.txt` a installé `torch+cpu` au lieu de
