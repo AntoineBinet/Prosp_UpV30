@@ -138,3 +138,43 @@
 .v30-fc-skill__x:hover { color: var(--danger); opacity: 1; }
 .v30-fc-dispo__cell { cursor: pointer; transition: transform .12s; }
 .v30-fc-dispo__cell:hover { transform: translateY(-1px); }
+
+/* ─── DC card ─── */
+.v30-fc-dc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.v30-fc-dc-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono, monospace);
+}
+.v30-fc-dc-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.v30-fc-dc-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.v30-fc-dc-dot--on  { background: var(--success, #2ecc71); box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.18); }
+.v30-fc-dc-dot--off { background: var(--text-3); opacity: .55; }
+
+@media (max-width: 720px) {
+  .v30-fc-dc-row { flex-direction: column; align-items: flex-start; }
+  .v30-fc-dc-name { width: 100%; }
+  .v30-fc-dc-actions { width: 100%; justify-content: flex-end; }
+}

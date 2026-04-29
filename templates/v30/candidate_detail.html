@@ -60,6 +60,28 @@
         </div>
       </div>
 
+      {# ─── Dossier de compétences (DC) ─── #}
+      <div class="card v30-fc-dc-card" style="margin-bottom:12px;" data-v30-fc-dc-card>
+        <div class="row-sb" style="margin-bottom:10px;">
+          <div class="card-title">{{ ui.icon('report', 14) }} Dossier de compétences</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-generate
+                    title="Ouvrir le générateur DC">
+              {{ ui.icon('sparkles', 12) }} Générer
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-upload-btn
+                    title="Charger un PDF existant">
+              {{ ui.icon('upload', 12) }} Charger
+            </button>
+          </div>
+        </div>
+        <div data-v30-fc-dc-status>
+          <div class="skel" style="width:60%;height:14px;margin-bottom:6px;"></div>
+          <div class="skel" style="width:40%;height:12px;"></div>
+        </div>
+        <input type="file" data-v30-fc-dc-input style="display:none;" accept="application/pdf,.pdf">
+      </div>
+
       {# ─── Entretien ─── #}
       <div class="card v30-section" style="margin-bottom:12px;" data-v30-fc-section="entretien">
         <div class="row-sb" style="margin-bottom:10px;">
@@ -120,6 +142,36 @@
                 <span class="skel" style="width:80%;height:12px;display:inline-block;"></span>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {# ─── Notes & suivi (timeline candidate_events) ─── #}
+      <div class="card card-flush v30-fc-timeline-card" style="margin-bottom:12px;" data-v30-fc-timeline-card>
+        <div class="card-header">
+          <div class="card-title">{{ ui.icon('chat', 14) }} Notes & suivi</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-add-note
+                    title="Ajouter une note ou un compte-rendu">
+              + Note
+            </button>
+          </div>
+        </div>
+        <div data-v30-fc-note-form style="display:none;padding:10px 16px 4px;border-bottom:1px solid var(--border);">
+          <input type="text" data-v30-fc-note-title
+            style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-1);font-family:inherit;margin-bottom:6px;"
+            placeholder="Titre (ex: Note d'après RDV, Contact LinkedIn…)">
+          <textarea data-v30-fc-note-text rows="3"
+            style="width:100%;resize:vertical;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-1);font-family:inherit;"
+            placeholder="Contenu de la note…"></textarea>
+          <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-note-cancel>Annuler</button>
+            <button type="button" class="btn btn-accent btn-sm" data-v30-fc-note-save>Enregistrer</button>
+          </div>
+        </div>
+        <div class="v30-fp-timeline" data-v30-fc-events>
+          <div class="empty" style="padding:14px 16px;font-size:12px;color:var(--text-3);">
+            Chargement…
           </div>
         </div>
       </div>
