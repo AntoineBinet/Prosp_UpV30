@@ -20,6 +20,7 @@
     prospect: null,
     company: null,
     candidates: [],       // liste des best-candidates chargés
+    categories: [],       // catégories push (pour détecter no_candidates)
     users: [],            // liste des consultants
     currentUserId: null,
     activeTab: 'classique',
@@ -130,7 +131,7 @@
               '<span class="v30pm-ia-bar__stats" data-v30pm-iabar-stats></span>' +
             '</div>' +
 
-            '<div class="v30-field">' +
+            '<div class="v30-field" data-v30pm-cand-section>' +
               '<span class="v30-field__label">Candidats à proposer</span>' +
               '<div class="v30pm-grid">' +
                 // Combobox custom 1
@@ -152,6 +153,10 @@
               '</div>' +
               // Cartes description par candidat (apparaissent quand sélectionné)
               '<div class="v30pm-candcards" data-v30pm-candcards></div>' +
+            '</div>' +
+            // Hint affiché à la place quand la catégorie est "sans consultant"
+            '<div class="v30-field muted" data-v30pm-cand-skip hidden style="font-size:12px;">' +
+              ic('checkCircle', 12) + ' Catégorie « sans consultant » — aucun candidat ni dossier ne sera attaché. Le push utilisera uniquement le template email.' +
             '</div>' +
           '</section>' +
 
@@ -213,7 +218,12 @@
       if (e.target.closest('[data-v30pm-cat]')) {
         // Nouvelle passe IA pour la catégorie choisie
         var cat = $sel('data-v30pm-cat');
-        loadAISuggestions(cat && cat.value ? cat.value : null);
+        var catId = cat && cat.value ? cat.value : null;
+        applyCategoryChange(catId);
+        // Skip AI suggestions si la catégorie est "sans consultant"
+        var catObj = findCategory(catId);
+        if (catObj && catObj.no_candidates) return;
+        loadAISuggestions(catId);
       }
     });
     // Auto-save description candidat (onBlur)
@@ -354,15 +364,42 @@
     renderSelectLoading(sel, 'Chargement des catégories…');
     return fetchJSON('/api/push-categories').then(function (cats) {
       var list = Array.isArray(cats) ? cats : [];
+      STATE.categories = list;
       sel.innerHTML = '<option value="">— Aucune catégorie —</option>' +
         list.map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + '</option>'; }).join('');
       var p = STATE.prospect || {};
       if (p.push_category_id) sel.value = String(p.push_category_id);
       restoreSelect(sel);
+      applyCategoryChange(sel.value || null);
     }).catch(function () {
       sel.innerHTML = '<option value="">Erreur de chargement</option>';
       restoreSelect(sel);
     });
+  }
+
+  function findCategory(catId) {
+    if (!catId) return null;
+    var list = STATE.categories || [];
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].id) === String(catId)) return list[i];
+    }
+    return null;
+  }
+  function applyCategoryChange(catId) {
+    var cat = findCategory(catId);
+    var noCand = !!(cat && cat.no_candidates);
+    var bd = document.getElementById(MODAL_ID);
+    if (!bd) return;
+    var section = bd.querySelector('[data-v30pm-cand-section]');
+    var skip = bd.querySelector('[data-v30pm-cand-skip]');
+    if (section) section.hidden = noCand;
+    if (skip) skip.hidden = !noCand;
+    if (noCand) {
+      // Reset des candidats sélectionnés (pas envoyés au backend)
+      STATE.selectedCand = { 1: null, 2: null };
+      STATE.aiSuggestions = [];
+      hideIABar();
+    }
   }
 
   // ─── Candidats : combobox custom avec optgroups ──────────
@@ -1093,6 +1130,7 @@
     STATE.aiSuggestions = [];
     STATE.selectedCand = { 1: null, 2: null };
     STATE.candDescCache = {};
+    STATE.categories = [];
     STATE.activeTab = 'classique';
     STATE.callNote = '';
     var bd = ensureModal();
@@ -1139,6 +1177,9 @@
         // Si une catégorie est pré-sélectionnée, elle sera utilisée pour raffiner.
         var catSel = $sel('data-v30pm-cat');
         var catId = catSel && catSel.value ? catSel.value : null;
+        // Skip si la catégorie est "sans consultant" — les combos sont cachées
+        var catObj = findCategory(catId);
+        if (catObj && catObj.no_candidates) return null;
         return loadAISuggestions(catId);
       });
     }).catch(function (e) {
