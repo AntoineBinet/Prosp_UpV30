@@ -291,7 +291,12 @@
     }
     var h = data.huggingface || {};
     if (h.skipped)    rows.push({ icon: '–', cls: 'skip', label: 'Diarisation', detail: 'Désactivée dans Paramètres' });
-    else if (h.ok)    rows.push({ icon: '✓', cls: 'ok',   label: 'HuggingFace · pyannote', detail: 'Accès aux 2 modèles validé' });
+    else if (h.ok)    rows.push({ icon: '✓', cls: 'ok',   label: 'HuggingFace · pyannote', detail: 'Accès aux 3 modèles validé' });
+    else if (h.missing_repos && h.missing_repos.length) {
+      var repos = h.missing_repos.map(function(r){ return r.split('/').pop(); }).join(', ');
+      rows.push({ icon: '✗', cls: 'warn', label: 'HuggingFace · pyannote',
+                  detail: 'Repos à débloquer : ' + repos + ' (clique « Agree » sur huggingface.co)' });
+    }
     else              rows.push({ icon: '✗', cls: 'warn', label: 'HuggingFace · pyannote', detail: h.error || 'erreur' });
     var g = data.gpu || {};
     if (g.ok)         rows.push({ icon: '✓', cls: 'ok',   label: 'GPU CUDA', detail: (g.device || '?') + (g.vram_gb ? ' · ' + g.vram_gb + ' GB' : '') });

@@ -227,25 +227,40 @@ def api_preflight():
             out["huggingface"]["error"] = "Token HF non configuré (diarisation activée)"
         else:
             import urllib.request as _u2, urllib.error as _ue2
+            # 3 repos requis par pyannote.audio 4.x :
+            #  - speaker-diarization-3.1 (pipeline)
+            #  - segmentation-3.0 (modèle de segmentation)
+            #  - speaker-diarization-community-1 (embeddings, chargé en cascade)
+            # Tester les 3 fichiers les plus représentatifs (config.yaml ou pytorch_model)
+            checks = (
+                ("pyannote/speaker-diarization-3.1",          "config.yaml"),
+                ("pyannote/segmentation-3.0",                 "config.yaml"),
+                ("pyannote/speaker-diarization-community-1",  "config.yaml"),
+            )
             ok_count = 0
-            errs = []
-            for m in ("pyannote/speaker-diarization-3.1", "pyannote/segmentation-3.0"):
+            missing_repos: list[str] = []
+            errs: list[str] = []
+            for repo, fname in checks:
                 try:
                     req = _u2.Request(
-                        f"https://huggingface.co/{m}/resolve/main/config.yaml",
+                        f"https://huggingface.co/{repo}/resolve/main/{fname}",
                         headers={"Authorization": f"Bearer {hf_token}"},
                         method="HEAD",
                     )
                     with _u2.urlopen(req, timeout=10):
                         ok_count += 1
                 except _ue2.HTTPError as e:
-                    errs.append(f"{m} HTTP {e.code}")
+                    if e.code in (401, 403):
+                        missing_repos.append(repo)
+                    errs.append(f"{repo} HTTP {e.code}")
                 except Exception as e:
-                    errs.append(f"{m}: {e}")
-            if ok_count == 2:
+                    errs.append(f"{repo}: {e}")
+            if ok_count == len(checks):
                 out["huggingface"]["ok"] = True
             else:
                 out["huggingface"]["error"] = "; ".join(errs)
+                if missing_repos:
+                    out["huggingface"]["missing_repos"] = missing_repos
 
     # ─── GPU CUDA via /api/deploy/install-torch-cuda/status interne ──
     try:

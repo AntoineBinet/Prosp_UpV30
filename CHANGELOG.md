@@ -2,6 +2,34 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.10] — 2026-04-29 · Diagnostic pyannote community-1 + tests E2E
+
+Validation E2E complète du pipeline transcription après les fix v32.8/9.
+Diagnostic d'un bug de diarisation jamais résolu : pyannote.audio 4.x
+charge en cascade un 3ᵉ repo gated `pyannote/speaker-diarization-community-1`
+absent du pré-flight et du message d'erreur.
+
+- **Pré-flight HF** ([routes/transcription.py:219](routes/transcription.py))
+  vérifie désormais les **3 repos** requis par pyannote.audio 4.x :
+  `speaker-diarization-3.1`, `segmentation-3.0` et
+  `speaker-diarization-community-1`. Renvoie `missing_repos: [...]` quand
+  un repo n'est pas accepté côté compte HF.
+- **Message d'erreur diarisation** ([services/transcription.py:730](services/transcription.py))
+  détecte spécifiquement `community-1` / `gated repo` AVANT le 401/403
+  générique et pointe l'URL exact à débloquer.
+- **UI pré-flight** ([static/js/v30/transcription.js:295](static/js/v30/transcription.js))
+  : `Repos à débloquer : speaker-diarization-community-1` quand seul ce
+  3ᵉ repo manque, au lieu d'un message d'erreur HTTP brut.
+- Tests E2E validés (Playwright + dev local) : pré-flight,
+  copy-paste IA externe (3 formats : JSON pur, JSON dans fences,
+  markdown brut), bascule Claude→Ollama 2 passes (7 chunks sur
+  transcript 50 875 chars).
+
+**Action user requise** pour activer la diarisation : aller sur
+<https://huggingface.co/pyannote/speaker-diarization-community-1> et
+cliquer **« Agree and access repository »** (en plus des 2 repos déjà
+acceptés). Le pré-flight l'indique maintenant clairement.
+
 ## [32.9] — 2026-04-29 · Workflow copy-paste IA externe + Ollama 2 passes
 
 3 voies d'analyse désormais disponibles, sans imposer le paiement de

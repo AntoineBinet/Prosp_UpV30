@@ -729,12 +729,15 @@ def _process_locked(transcription_id: int, audio_path: str, db_path: str, config
                 logger.warning("Diarisation échouée (job %s) : %s", transcription_id, err_str)
                 # Détection des erreurs courantes pour aider l'utilisateur
                 low = err_str.lower()
-                if "401" in err_str or "unauthorized" in low or "403" in err_str:
+                # pyannote.audio 4.x charge en cascade `pyannote/speaker-diarization-community-1`
+                # qui est gated ; ce check doit passer AVANT le 401/403 générique.
+                if "community-1" in low or ("gated" in low and "community" in low):
                     diarization_warning = (
-                        "Diarisation échouée : token HuggingFace rejeté (401/403). "
-                        "Vérifie que tu as accepté les conditions d'utilisation sur "
-                        "https://huggingface.co/pyannote/speaker-diarization-3.1 et "
-                        "https://huggingface.co/pyannote/segmentation-3.0 (bouton « Agree and access repository »)."
+                        "Diarisation échouée : pyannote.audio 4.x a besoin du modèle gated "
+                        "« pyannote/speaker-diarization-community-1 ». Va sur "
+                        "https://huggingface.co/pyannote/speaker-diarization-community-1 "
+                        "et clique « Agree and access repository » (en plus des 2 repos "
+                        "speaker-diarization-3.1 et segmentation-3.0)."
                     )
                 elif "out of memory" in low or "cuda out of memory" in low or "oom" in low:
                     diarization_warning = (
@@ -742,11 +745,20 @@ def _process_locked(transcription_id: int, audio_path: str, db_path: str, config
                         "pyannote en demande +1-2 GB. Bascule sur Whisper large-v3-turbo ou medium "
                         "dans Paramètres > IA > Modèle Whisper."
                     )
+                elif "401" in err_str or "unauthorized" in low or "403" in err_str:
+                    diarization_warning = (
+                        "Diarisation échouée : token HuggingFace rejeté (401/403). "
+                        "Vérifie que tu as accepté les conditions d'utilisation sur "
+                        "https://huggingface.co/pyannote/speaker-diarization-3.1 , "
+                        "https://huggingface.co/pyannote/segmentation-3.0 et "
+                        "https://huggingface.co/pyannote/speaker-diarization-community-1 "
+                        "(bouton « Agree and access repository » sur chacun)."
+                    )
                 elif "repositorynotfounderror" in low or "404" in err_str or "gated" in low:
                     diarization_warning = (
                         "Diarisation échouée : modèle pyannote inaccessible. Conditions d'utilisation "
-                        "à accepter sur huggingface.co/pyannote/speaker-diarization-3.1 ET "
-                        "huggingface.co/pyannote/segmentation-3.0."
+                        "à accepter sur les 3 repos : speaker-diarization-3.1, segmentation-3.0 ET "
+                        "speaker-diarization-community-1 (https://huggingface.co/pyannote/...)."
                     )
                 else:
                     diarization_warning = f"Diarisation échouée : {err_str[:300]}"
