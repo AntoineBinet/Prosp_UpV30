@@ -277,10 +277,12 @@
   }
 
   // ─── Init ───────────────────────────────────────────────────────────
-  document.addEventListener('DOMContentLoaded', function () {
+  function init() {
     bindUpload();
     var refresh = $('[data-v30-tx-refresh]');
     if (refresh) refresh.addEventListener('click', loadList);
     loadList().then(startPolling);
-  });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();

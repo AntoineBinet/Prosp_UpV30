@@ -298,8 +298,7 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
-    bind();
-    load();
-  });
+  function init() { bind(); load(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
