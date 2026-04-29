@@ -1184,12 +1184,15 @@
     var bd = $('[data-v30-deps-modal-bd]');
     if (!bd) return;
     bd.hidden = false;
+    bd.classList.add('is-open');
     loadDeps();
   }
 
   function closeDepsModal() {
     var bd = $('[data-v30-deps-modal-bd]');
-    if (bd) bd.hidden = true;
+    if (!bd) return;
+    bd.classList.remove('is-open');
+    bd.hidden = true;
   }
 
   function bindDepsCheck() {
