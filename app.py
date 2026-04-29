@@ -2518,6 +2518,18 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
         except Exception:
             pass
 
+        # push_categories (v32.3) — colonnes candidats par défaut + flag no_candidates
+        try:
+            pc_cols = [r["name"] for r in conn.execute("PRAGMA table_info(push_categories);").fetchall()]
+            if "candidate1_id" not in pc_cols:
+                _add_col("push_categories", "candidate1_id", "INTEGER")
+            if "candidate2_id" not in pc_cols:
+                _add_col("push_categories", "candidate2_id", "INTEGER")
+            if "no_candidates" not in pc_cols:
+                _add_col("push_categories", "no_candidates", "INTEGER DEFAULT 0")
+        except Exception:
+            pass
+
         # Seed template par défaut si besoin
         n = conn.execute("SELECT COUNT(*) AS n FROM templates;").fetchone()["n"]
         if n == 0:
@@ -8103,6 +8115,20 @@ def api_push_categories_save():
                 # Table n'existe pas, l'initialiser
                 _init_user_db(uid)
 
+            # Auto-migration v32.3 : ajoute no_candidates si colonne manquante
+            try:
+                pc_cols = {r["name"] for r in conn.execute("PRAGMA table_info(push_categories);").fetchall()}
+                for col, typ in (
+                    ("candidate1_id", "INTEGER"),
+                    ("candidate2_id", "INTEGER"),
+                    ("no_candidates", "INTEGER DEFAULT 0"),
+                ):
+                    if col not in pc_cols:
+                        conn.execute(f"ALTER TABLE push_categories ADD COLUMN {col} {typ};")
+                conn.commit()
+            except Exception as _e:
+                app.logger.warning("Auto-migration push_categories: %s", _e)
+
             if cid:
                 # Vérifier que la catégorie appartient à l'utilisateur
                 try:
@@ -8687,12 +8713,16 @@ def api_push_generate():
         if not prospect:
             return jsonify(ok=False, error="Prospect introuvable"), 404
         
-        # Récupérer la catégorie (incl. flag no_candidates)
-        cat_row = conn.execute("SELECT name, no_candidates FROM push_categories WHERE id=? AND owner_id=?;", (category_id, uid)).fetchone()
+        # Récupérer la catégorie (incl. flag no_candidates si colonne dispo)
+        try:
+            cat_row = conn.execute("SELECT name, no_candidates FROM push_categories WHERE id=? AND owner_id=?;", (category_id, uid)).fetchone()
+            cat_no_candidates = bool(cat_row["no_candidates"]) if cat_row and "no_candidates" in cat_row.keys() else False
+        except sqlite3.OperationalError:
+            # Colonne no_candidates pas encore migrée (DB ancienne) — fallback sans le flag
+            cat_row = conn.execute("SELECT name FROM push_categories WHERE id=? AND owner_id=?;", (category_id, uid)).fetchone()
+            cat_no_candidates = False
         if not cat_row:
             return jsonify(ok=False, error="Catégorie introuvable"), 404
-
-        cat_no_candidates = bool(cat_row["no_candidates"]) if "no_candidates" in cat_row.keys() else False
 
         # Récupérer les candidats et leurs DC (skippé si la catégorie est en mode "sans consultant")
         candidates_data = []
