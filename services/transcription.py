@@ -84,7 +84,12 @@ def _load_diarization(hf_token: str):
         os.environ["HUGGINGFACE_HUB_TOKEN"] = hf_token
         try:
             from huggingface_hub import login as _hf_login  # type: ignore
-            _hf_login(token=hf_token, add_to_git_credential=False, new_session=False)
+            # `new_session` a été retiré dans huggingface_hub >=0.30. On
+            # essaie d'abord avec, et on retombe sans en cas de TypeError.
+            try:
+                _hf_login(token=hf_token, add_to_git_credential=False, new_session=False)
+            except TypeError:
+                _hf_login(token=hf_token, add_to_git_credential=False)
             logger.info("HuggingFace login forcé OK")
         except Exception as exc:
             logger.warning("HuggingFace login programmatique a échoué (poursuite avec env vars) : %s", exc)
