@@ -120,11 +120,16 @@
     var m = $('[data-v30-tx-upload-modal]');
     if (!m) return;
     m.hidden = false;
+    void m.offsetWidth; // force reflow pour activer la transition opacity
+    m.classList.add('is-open');
     setTimeout(function () { var t = $('#v30-tx-title'); if (t) t.focus(); }, 30);
   }
   function closeModal() {
     var m = $('[data-v30-tx-upload-modal]');
-    if (m) m.hidden = true;
+    if (m) {
+      m.classList.remove('is-open');
+      setTimeout(function () { m.hidden = true; }, 180);
+    }
     resetForm();
   }
   function resetForm() {
