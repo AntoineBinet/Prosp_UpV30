@@ -482,6 +482,7 @@
         b.classList.toggle('active', b === btn);
       });
       R.events(btn.dataset.filter, '[data-v30-fp-events]', 6);
+      R.events(btn.dataset.filter, '[data-v30-fp-events-full]');
     });
   }
 
@@ -1471,6 +1472,15 @@
       });
     });
 
+    // v32.0 : récupère les pièces jointes cochées dans le picker
+    var attachmentIds = [];
+    var attachSection = m.querySelector('[data-v30-cr-attach-section]');
+    if (attachSection) {
+      attachSection.querySelectorAll('input[data-v30-cr-attach-id]:checked').forEach(function (cb) {
+        attachmentIds.push(Number(cb.dataset.v30CrAttachId));
+      });
+    }
+
     var payload = {
       prospect_id: FP.ID,
       title: title,
@@ -1482,7 +1492,8 @@
       tags: tags,
       raw_transcript: rawTranscript,
       documents: documents,
-      action_items: actionItems
+      action_items: actionItems,
+      attachment_ids: attachmentIds
     };
 
     var meetingId = IA_CTX.editingMeetingId;
@@ -1765,13 +1776,24 @@
   }
 
   // ─── Timeline interactive : expand/collapse + actions ──────
-  // Trouve l'événement par son index dans le filtre courant
+  // Trouve l'événement par son index dans le filtre courant + recherche
   function findEvent(filter, idx) {
     var events = (FP.STATE.events || []).slice();
     if (filter === 'push') events = events.filter(function (e) { return (e.type || '').startsWith('push'); });
     else if (filter === 'note') events = events.filter(function (e) { return (e.type || '') === 'call_note' || (e.type || '') === 'note'; });
     else if (filter === 'cr') events = events.filter(function (e) { return (e.type || '') === 'cr'; });
     else if (filter === 'attachment') events = events.filter(function (e) { return (e.type || '') === 'attachment'; });
+    var q = (FP.STATE.searchQuery || '').trim();
+    if (q) {
+      q = q.toLowerCase();
+      events = events.filter(function (e) {
+        var meta = e.meta || {};
+        var pool = [e.title, e.content, meta.next_action, meta.original_name,
+                    (meta.tags || []).join(' '), (meta.candidates || []).join(' '),
+                    (meta.consultants || []).join(' '), meta.template];
+        return pool.some(function (f) { return f && String(f).toLowerCase().indexOf(q) !== -1; });
+      });
+    }
     return events[idx];
   }
 
@@ -1816,6 +1838,37 @@
           previewBtn.dataset.attName || 'Fichier',
           previewBtn.dataset.attMime || ''
         );
+        return;
+      }
+
+      // Click sur la miniature timeline → aperçu
+      var thumbBtn = e.target.closest('[data-v30-thumb-preview]');
+      if (thumbBtn) {
+        e.stopPropagation();
+        openFilePreview(
+          Number(thumbBtn.dataset.attId),
+          thumbBtn.dataset.attName || 'Fichier',
+          thumbBtn.dataset.attMime || ''
+        );
+        return;
+      }
+
+      // Suppression d'un tag de pièce jointe
+      var tagRm = e.target.closest('[data-v30-att-tag-rm]');
+      if (tagRm) {
+        var aId = Number(tagRm.dataset.attId);
+        var t = tagRm.dataset.tag;
+        // Récupère les tags actuels et retire celui-ci
+        var ev = (FP.STATE.events || []).find(function (x) { return x.type === 'attachment' && Number(x.id) === aId; });
+        if (!ev || !ev.meta) return;
+        var newTags = (ev.meta.tags || []).filter(function (tag) { return tag !== t; });
+        FP.fetchJSON('/api/prospect/attachments/' + aId, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tags: newTags })
+        })
+          .then(function () { FP.loadTimeline(); })
+          .catch(function (err) { toast('Erreur tag : ' + err.message, 'error'); });
         return;
       }
 
@@ -2058,6 +2111,280 @@
     if (window.showToast) window.showToast(msg, type || 'info');
   }
 
+  // ─── Tags & description édition (delegation keydown/blur) ──
+  function bindAttachMeta() {
+    document.addEventListener('keydown', function (e) {
+      var tagInput = e.target.closest('[data-v30-att-tag-add]');
+      if (tagInput && e.key === 'Enter') {
+        e.preventDefault();
+        var aId = Number(tagInput.dataset.attId);
+        var newTag = (tagInput.value || '').trim();
+        if (!newTag) return;
+        var ev = (FP.STATE.events || []).find(function (x) { return x.type === 'attachment' && Number(x.id) === aId; });
+        if (!ev) return;
+        var current = (ev.meta && ev.meta.tags) || [];
+        if (current.indexOf(newTag) !== -1) { tagInput.value = ''; return; }
+        var nextTags = current.concat([newTag]);
+        FP.fetchJSON('/api/prospect/attachments/' + aId, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tags: nextTags })
+        })
+          .then(function () { FP.loadTimeline(); })
+          .catch(function (err) { toast('Erreur tag : ' + err.message, 'error'); });
+      }
+    });
+    document.addEventListener('blur', function (e) {
+      var descInput = e.target.closest && e.target.closest('[data-v30-att-desc]');
+      if (!descInput) return;
+      var aId = Number(descInput.dataset.attId);
+      var desc = (descInput.value || '').trim();
+      var ev = (FP.STATE.events || []).find(function (x) { return x.type === 'attachment' && Number(x.id) === aId; });
+      if (!ev) return;
+      if ((ev.content || '') === desc) return;
+      FP.fetchJSON('/api/prospect/attachments/' + aId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: desc })
+      })
+        .then(function () { ev.content = desc; })
+        .catch(function (err) { toast('Erreur description : ' + err.message, 'error'); });
+    }, true);
+  }
+
+  // ─── Drag-drop global sur la fiche ─────────────────────────
+  function bindGlobalDragDrop() {
+    var overlay = document.querySelector('[data-v30-drag-overlay]');
+    if (!overlay) return;
+    var dragCounter = 0;
+    function isFileDrag(e) {
+      var dt = e.dataTransfer;
+      if (!dt) return false;
+      // Sur Firefox/Chrome, types contient 'Files' pendant un drag de fichier
+      var types = dt.types || [];
+      for (var i = 0; i < types.length; i++) {
+        if (types[i] === 'Files' || types[i] === 'application/x-moz-file') return true;
+      }
+      return false;
+    }
+    window.addEventListener('dragenter', function (e) {
+      if (!isFileDrag(e)) return;
+      dragCounter++;
+      overlay.classList.add('is-active');
+    });
+    window.addEventListener('dragover', function (e) {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+    });
+    window.addEventListener('dragleave', function (e) {
+      if (!isFileDrag(e)) return;
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        overlay.classList.remove('is-active');
+      }
+    });
+    window.addEventListener('drop', function (e) {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      dragCounter = 0;
+      overlay.classList.remove('is-active');
+      var files = e.dataTransfer && e.dataTransfer.files;
+      if (!files || !files.length) return;
+      uploadFiles(files);
+    });
+  }
+
+  // Upload d'une liste de fichiers (utilisé par drag global ET par le picker)
+  function uploadFiles(files) {
+    if (!files || !files.length) return;
+    var queue = Array.prototype.slice.call(files);
+    var done = 0;
+    var failed = 0;
+    function next() {
+      if (!queue.length) {
+        if (done) toast(done + ' fichier' + (done > 1 ? 's' : '') + ' ajouté' + (done > 1 ? 's' : ''), 'success');
+        if (failed) toast(failed + ' échec' + (failed > 1 ? 's' : ''), 'error');
+        FP.loadTimeline();
+        return;
+      }
+      var f = queue.shift();
+      var fd = new FormData();
+      fd.append('file', f);
+      fd.append('prospect_id', String(FP.ID));
+      fetch('/api/prospect/attachments', { method: 'POST', credentials: 'same-origin', body: fd })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok && d.ok, err: d.error }; }); })
+        .then(function (res) {
+          if (res.ok) done++; else { failed++; toast('Erreur ' + f.name + ' : ' + (res.err || ''), 'error'); }
+          next();
+        })
+        .catch(function () { failed++; next(); });
+    }
+    toast('Upload de ' + files.length + ' fichier(s)…', 'info');
+    next();
+  }
+
+  // ─── Recherche timeline (input live) ───────────────────────
+  function bindTimelineSearch() {
+    var input = document.querySelector('[data-v30-tl-search]');
+    if (!input) return;
+    var debounceId = null;
+    input.addEventListener('input', function () {
+      clearTimeout(debounceId);
+      debounceId = setTimeout(function () {
+        FP.STATE.searchQuery = input.value || '';
+        // Re-render les 2 panneaux (apercu + timeline complète)
+        var filterBtn = document.querySelector('[data-v30-fp-filter] button.active');
+        var filter = filterBtn ? filterBtn.dataset.filter : 'all';
+        if (window.ProspFPRender) {
+          window.ProspFPRender.events(filter, '[data-v30-fp-events]', 6);
+          window.ProspFPRender.events(filter, '[data-v30-fp-events-full]');
+        }
+      }, 200);
+    });
+  }
+
+  // ─── Résumé IA d'une fiche ──────────────────────────────────
+  function renderSummary(text, generatedAt) {
+    var banner = document.querySelector('[data-v30-summary-banner]');
+    if (!banner) return;
+    var dateStr = generatedAt ? FP.shortDate(generatedAt) : '';
+    banner.style.display = 'block';
+    banner.innerHTML =
+      '<div class="v30-fp-summary">' +
+        '<div class="v30-fp-summary__head">' +
+          '<span class="v30-fp-summary__title">✨ Résumé IA</span>' +
+          (dateStr ? '<span class="v30-fp-summary__date">' + FP.esc(dateStr) + '</span>' : '') +
+          '<button type="button" class="btn btn-ghost btn-sm" data-v30-summary-refresh title="Régénérer">↻</button>' +
+          '<button type="button" class="btn btn-ghost btn-icon btn-sm" data-v30-summary-close aria-label="Masquer">×</button>' +
+        '</div>' +
+        '<div class="v30-fp-summary__body">' + FP.esc(text) + '</div>' +
+      '</div>';
+  }
+
+  function fetchSummary(force) {
+    var banner = document.querySelector('[data-v30-summary-banner]');
+    if (banner) {
+      banner.style.display = 'block';
+      banner.innerHTML = '<div class="v30-fp-summary"><div class="v30-fp-summary__loading">Génération du résumé IA…</div></div>';
+    }
+    FP.fetchPostJSON('/api/prospect/' + FP.ID + '/summarize', { force: !!force })
+      .then(function (res) {
+        if (res && res.ok) {
+          renderSummary(res.summary || '(résumé vide)', res.generatedAt);
+        } else {
+          if (banner) banner.innerHTML = '<div class="v30-fp-summary"><div class="v30-fp-summary__body" style="color:var(--red);">' + FP.esc((res && res.error) || 'Erreur') + '</div></div>';
+        }
+      })
+      .catch(function (err) {
+        if (banner) banner.innerHTML = '<div class="v30-fp-summary"><div class="v30-fp-summary__body" style="color:var(--red);">Erreur : ' + FP.esc(err.message) + '</div></div>';
+      });
+  }
+
+  function bindSummarize() {
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-summarize-btn]')) {
+        fetchSummary(false);
+      } else if (e.target.closest('[data-v30-summary-refresh]')) {
+        fetchSummary(true);
+      } else if (e.target.closest('[data-v30-summary-close]')) {
+        var banner = document.querySelector('[data-v30-summary-banner]');
+        if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+      }
+    });
+  }
+
+  // ─── Picker pièces jointes dans la modale CR ────────────────
+  // Hook : injecte une section "Pièces jointes" dans le formulaire CR après son rendu.
+  // Le formulaire est rendu dynamiquement dans un effet du modal CR.
+  function injectCRAttachmentPicker() {
+    var formHost = document.querySelector('[data-v30-fp-after-form]');
+    if (!formHost) return;
+    if (formHost.querySelector('[data-v30-cr-attach-section]')) return;
+
+    var modalInner = formHost.closest('.v30-modal');
+    var meetingId = modalInner && modalInner.dataset.v30CrMeetingId ? Number(modalInner.dataset.v30CrMeetingId) : 0;
+
+    var section = document.createElement('div');
+    section.setAttribute('data-v30-cr-attach-section', '');
+    section.innerHTML =
+      '<div class="v30-grille-section-title">Pièces jointes — cocher pour rattacher au CR</div>' +
+      '<div class="v30-cr-attach-list" data-v30-cr-attach-list>' +
+        '<div class="v30-cr-attach-empty">Chargement…</div>' +
+      '</div>';
+
+    // Insère après le textarea "documents" si présent
+    var docTa = formHost.querySelector('textarea[data-after-field="documents"]');
+    if (docTa && docTa.parentElement) {
+      docTa.parentElement.insertAdjacentElement('afterend', section);
+    } else {
+      formHost.appendChild(section);
+    }
+
+    // Charge la liste des pièces jointes du prospect
+    FP.fetchJSON('/api/prospect/attachments?prospect_id=' + FP.ID)
+      .then(function (res) {
+        var list = section.querySelector('[data-v30-cr-attach-list]');
+        if (!list) return;
+        var atts = (res && res.attachments) || [];
+        if (!atts.length) {
+          list.innerHTML = '<div class="v30-cr-attach-empty">Aucune pièce jointe pour ce prospect. Glisse un fichier dans la fiche pour en ajouter.</div>';
+          return;
+        }
+        list.innerHTML = atts.map(function (a) {
+          var checked = a.meeting_id && Number(a.meeting_id) === meetingId;
+          return '<label class="v30-cr-attach-item">' +
+            '<input type="checkbox" data-v30-cr-attach-id="' + FP.esc(a.id) + '"' + (checked ? ' checked' : '') + '>' +
+            '<span class="v30-cr-attach-item__name">' + FP.esc(a.original_name) + '</span>' +
+            '<span class="v30-cr-attach-item__meta">' + (a.tags && a.tags.length ? a.tags.join(', ') + ' · ' : '') + Math.round((a.size || 0) / 1024) + ' Ko</span>' +
+            '</label>';
+        }).join('');
+      })
+      .catch(function (err) {
+        var list = section.querySelector('[data-v30-cr-attach-list]');
+        if (list) list.innerHTML = '<div class="v30-cr-attach-empty" style="color:var(--red);">Erreur : ' + FP.esc(err.message) + '</div>';
+      });
+  }
+
+  // Observer pour injecter le picker quand le formulaire CR apparaît
+  function bindCRAttachInjector() {
+    var formHost = document.querySelector('[data-v30-fp-after-form]');
+    if (!formHost) return;
+    var observer = new MutationObserver(function () {
+      if (formHost.querySelector('input[data-after-field="title"]')) {
+        injectCRAttachmentPicker();
+      }
+    });
+    observer.observe(formHost, { childList: true, subtree: true });
+  }
+
+  // ─── Rappel client-side : RDV à venir dans 48h ────────────
+  function checkUpcomingRdvs() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    var lastKey = 'prospup_rdv_reminder_last';
+    var todayKey = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(lastKey) === todayKey) return;
+    FP.fetchJSON('/api/prospect/upcoming-rdvs')
+      .then(function (res) {
+        if (!res || !res.ok || !res.prospects || !res.prospects.length) return;
+        var n = res.prospects.length;
+        var first = res.prospects[0];
+        var title = n === 1 ? 'RDV à venir : ' + (first.name || '') : n + ' RDV dans les 48h';
+        var body = n === 1
+          ? (first.name + (first.fonction ? ' · ' + first.fonction : '') + ' — ' + (first.nextFollowUp || '').slice(0, 10))
+          : 'Pense à préparer tes prochains rendez-vous.';
+        try {
+          var notif = new Notification(title, { body: body, icon: '/static/img/icon-192.png', tag: 'rdv-' + todayKey });
+          notif.onclick = function () {
+            window.focus();
+            window.location.href = '/v30/dashboard';
+          };
+          localStorage.setItem(lastKey, todayKey);
+        } catch (_) {}
+      })
+      .catch(function () {});
+  }
+
   // ─── Init ───────────────────────────────────────────────────
   function init() {
     bindInlineEdit();
@@ -2075,7 +2402,14 @@
     bindEventClicks();
     bindAttachUpload();
     bindFilePreview();
+    bindAttachMeta();
+    bindGlobalDragDrop();
+    bindTimelineSearch();
+    bindSummarize();
+    bindCRAttachInjector();
     FP.loadTimeline();
+    // Rappel RDV dans 48h (best effort, sans bloquer)
+    setTimeout(checkUpcomingRdvs, 3000);
     // Compteur de l'onglet CR — appel léger en arrière-plan
     if (typeof loadCRTab === 'function') loadCRTab();
   }

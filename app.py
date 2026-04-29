@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "31.9"
+APP_VERSION = "32.0"
 import os
 import uuid
 import subprocess
@@ -620,6 +620,86 @@ def _attachment_dir(owner_id: int, prospect_id: int) -> Path:
     p = Path("data") / f"user_{owner_id}" / "attachments" / f"prospect_{prospect_id}"
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def _thumb_dir(owner_id: int, prospect_id: int) -> Path:
+    """Sous-dossier pour les miniatures."""
+    p = _attachment_dir(owner_id, prospect_id) / ".thumbs"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _generate_thumbnail(src_path: Path, mime_type: str, target_path: Path) -> bool:
+    """Génère une miniature 320x240 PNG. Retourne True si succès.
+
+    Supporte : PDF (1ère page via PyMuPDF), images (via Pillow).
+    Échec silencieux si lib non dispo ou format non supporté.
+    """
+    try:
+        m = (mime_type or "").lower()
+        if m == "application/pdf":
+            try:
+                import fitz  # PyMuPDF
+            except ImportError:
+                return False
+            try:
+                doc = fitz.open(str(src_path))
+                if doc.page_count == 0:
+                    doc.close()
+                    return False
+                page = doc.load_page(0)
+                # Matrice : zoom 2x pour qualité raisonnable
+                mat = fitz.Matrix(1.5, 1.5)
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+                pix.save(str(target_path))
+                doc.close()
+                return True
+            except Exception as e:
+                logger.warning("[thumb] PDF render failed: %s", e)
+                return False
+        if m.startswith("image/"):
+            try:
+                from PIL import Image
+            except ImportError:
+                return False
+            try:
+                with Image.open(str(src_path)) as img:
+                    img = img.convert("RGB")
+                    img.thumbnail((480, 360))
+                    img.save(str(target_path), "PNG", optimize=True)
+                    return True
+            except Exception as e:
+                logger.warning("[thumb] image render failed: %s", e)
+                return False
+    except Exception as e:
+        logger.warning("[thumb] unexpected error: %s", e)
+    return False
+
+
+def _extract_pdf_text(src_path: Path, max_chars: int = 50000) -> str:
+    """Extrait le texte d'un PDF. Limité à max_chars pour la DB.
+
+    Retourne '' si lib indisponible ou erreur.
+    """
+    try:
+        import fitz
+    except ImportError:
+        return ""
+    try:
+        doc = fitz.open(str(src_path))
+        texts = []
+        total = 0
+        for page in doc:
+            t = page.get_text() or ""
+            texts.append(t)
+            total += len(t)
+            if total >= max_chars:
+                break
+        doc.close()
+        return "\n".join(texts)[:max_chars]
+    except Exception as e:
+        logger.warning("[extract] PDF text failed: %s", e)
+        return ""
 
 
 def _validate_upload(file_storage, rule_name: str):
@@ -1594,11 +1674,22 @@ CREATE TABLE IF NOT EXISTS prospect_attachments (
     mime_type     TEXT,
     description   TEXT,
     meeting_id    INTEGER,
+    tags          TEXT,
+    thumbnail     TEXT,
+    extracted_text TEXT,
     createdAt     TEXT NOT NULL,
     FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_prospect_attachments_prospect ON prospect_attachments(prospect_id);
 CREATE INDEX IF NOT EXISTS idx_prospect_attachments_owner ON prospect_attachments(owner_id);
+
+CREATE TABLE IF NOT EXISTS prospect_summaries (
+    prospect_id INTEGER PRIMARY KEY,
+    owner_id    INTEGER NOT NULL,
+    summary     TEXT,
+    generatedAt TEXT,
+    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS candidate_events (
     id           INTEGER PRIMARY KEY,
@@ -2359,6 +2450,32 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_prospect_attachments_prospect ON prospect_attachments(prospect_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_prospect_attachments_owner ON prospect_attachments(owner_id);")
+        except Exception:
+            pass
+
+        # prospect_attachments (v32.0) — colonnes tags / thumbnail / extracted_text
+        try:
+            acols = [r["name"] for r in conn.execute("PRAGMA table_info(prospect_attachments);").fetchall()]
+            if "tags" not in acols:
+                _add_col("prospect_attachments", "tags", "TEXT")
+            if "thumbnail" not in acols:
+                _add_col("prospect_attachments", "thumbnail", "TEXT")
+            if "extracted_text" not in acols:
+                _add_col("prospect_attachments", "extracted_text", "TEXT")
+        except Exception:
+            pass
+
+        # prospect_summaries (v32.0) — cache résumés IA des fiches
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS prospect_summaries (
+                    prospect_id INTEGER PRIMARY KEY,
+                    owner_id    INTEGER NOT NULL,
+                    summary     TEXT,
+                    generatedAt TEXT,
+                    FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
+                );
+            """)
         except Exception:
             pass
 
@@ -9815,7 +9932,8 @@ def api_prospect_timeline():
                 attachments_rows = [
                     dict(r)
                     for r in conn2.execute(
-                        """SELECT id, original_name, size, mime_type, description, createdAt
+                        """SELECT id, original_name, size, mime_type, description, tags,
+                                  thumbnail, meeting_id, createdAt
                            FROM prospect_attachments
                            WHERE prospect_id = ? AND owner_id = ?
                            ORDER BY createdAt DESC
@@ -9932,6 +10050,11 @@ def api_prospect_timeline():
 
     # Pièces jointes — apparaissent dans la timeline
     for a in attachments_rows:
+        a_tags = []
+        try:
+            a_tags = json.loads(a.get("tags") or "[]") or []
+        except Exception:
+            pass
         events.append(
             {
                 "type": "attachment",
@@ -9944,6 +10067,9 @@ def api_prospect_timeline():
                     "original_name": a.get("original_name") or "",
                     "size": a.get("size") or 0,
                     "mime_type": a.get("mime_type") or "",
+                    "has_thumbnail": bool(a.get("thumbnail")),
+                    "tags": a_tags,
+                    "meeting_id": a.get("meeting_id"),
                 },
             }
         )
@@ -18444,6 +18570,19 @@ def meetings_create():
         except Exception as e:
             logger.warning("Erreur hook tâche auto pour réunion: %s", e)
 
+        # v32.0 : rattacher des pièces jointes existantes au CR
+        attachment_ids = body.get("attachment_ids") or []
+        if isinstance(attachment_ids, list):
+            for aid in attachment_ids:
+                try:
+                    aid_i = int(aid)
+                    conn.execute(
+                        "UPDATE prospect_attachments SET meeting_id = ? WHERE id = ? AND owner_id = ? AND prospect_id = ?",
+                        (meeting_id, aid_i, uid, prospect_id)
+                    )
+                except (TypeError, ValueError):
+                    continue
+
     return jsonify(ok=True, id=meeting_id, date=today)
 
 
@@ -18544,6 +18683,20 @@ def meetings_get(meeting_id):
             "status": r["status"], "createdAt": r["createdAt"],
         } for r in ai_rows]
 
+        # v32.0 : pièces jointes liées au CR
+        att_rows = conn.execute(
+            """SELECT id, original_name, size, mime_type, thumbnail
+               FROM prospect_attachments
+               WHERE meeting_id = ? AND owner_id = ?
+               ORDER BY createdAt DESC""",
+            (meeting_id, uid)
+        ).fetchall()
+        meeting["attachments"] = [{
+            "id": r["id"], "original_name": r["original_name"],
+            "size": r["size"] or 0, "mime_type": r["mime_type"] or "",
+            "has_thumbnail": bool(r["thumbnail"]),
+        } for r in att_rows]
+
     return jsonify(ok=True, meeting=meeting)
 
 
@@ -18617,6 +18770,25 @@ def meetings_update(meeting_id):
                         uid, now,
                     )
                 )
+
+        # v32.0 : remplacer la liste de pièces jointes liées au CR
+        if "attachment_ids" in body:
+            attachment_ids = body.get("attachment_ids") or []
+            # Détacher tout ce qui était lié
+            conn.execute(
+                "UPDATE prospect_attachments SET meeting_id = NULL WHERE meeting_id = ? AND owner_id = ?",
+                (meeting_id, uid)
+            )
+            if isinstance(attachment_ids, list):
+                for aid in attachment_ids:
+                    try:
+                        aid_i = int(aid)
+                        conn.execute(
+                            "UPDATE prospect_attachments SET meeting_id = ? WHERE id = ? AND owner_id = ? AND prospect_id = ?",
+                            (meeting_id, aid_i, uid, prospect_id)
+                        )
+                    except (TypeError, ValueError):
+                        continue
 
     return jsonify(ok=True, id=meeting_id)
 
@@ -18959,7 +19131,11 @@ def meetings_export_pdf(meeting_id):
 
 @app.post("/api/prospect/attachments")
 def api_prospect_attachment_upload():
-    """Upload d'une pièce jointe pour un prospect. Isolée par owner_id."""
+    """Upload d'une pièce jointe pour un prospect. Isolée par owner_id.
+
+    v32.0 : génère une miniature (PDF/images) et extrait le texte des PDF
+    pour la recherche full-text.
+    """
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
@@ -18967,6 +19143,7 @@ def api_prospect_attachment_upload():
     prospect_id = request.form.get("prospect_id", type=int)
     description = (request.form.get("description") or "").strip()[:200]
     meeting_id = request.form.get("meeting_id", type=int)
+    tags_raw = request.form.get("tags") or ""
 
     if not prospect_id:
         return jsonify(ok=False, error="prospect_id requis"), 400
@@ -18994,42 +19171,166 @@ def api_prospect_attachment_upload():
     now = datetime.datetime.now().isoformat(timespec="seconds")
     mime = file.mimetype or ""
 
+    # Tags depuis FormData (CSV ou JSON array)
+    tags_list = []
+    if tags_raw:
+        try:
+            parsed = json.loads(tags_raw)
+            if isinstance(parsed, list):
+                tags_list = [str(t).strip() for t in parsed if str(t).strip()]
+        except Exception:
+            tags_list = [t.strip() for t in tags_raw.split(",") if t.strip()]
+    tags_json = json.dumps(tags_list, ensure_ascii=False) if tags_list else None
+
+    # Génération thumbnail (best effort)
+    thumb_name = None
+    thumb_target = _thumb_dir(uid, prospect_id) / f"{stored_name}.png"
+    if _generate_thumbnail(target, mime, thumb_target):
+        thumb_name = thumb_target.name
+
+    # Extraction texte PDF (best effort)
+    extracted = ""
+    if mime == "application/pdf":
+        extracted = _extract_pdf_text(target)
+
     with _conn() as conn:
         cursor = conn.execute(
             """INSERT INTO prospect_attachments
-               (prospect_id, owner_id, filename, original_name, size, mime_type, description, meeting_id, createdAt)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (prospect_id, uid, stored_name, safe_orig, len(data), mime, description or None, meeting_id, now)
+               (prospect_id, owner_id, filename, original_name, size, mime_type, description,
+                meeting_id, tags, thumbnail, extracted_text, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (prospect_id, uid, stored_name, safe_orig, len(data), mime, description or None,
+             meeting_id, tags_json, thumb_name, extracted or None, now)
         )
         att_id = cursor.lastrowid
 
-    return jsonify(ok=True, id=att_id, original_name=safe_orig, size=len(data), createdAt=now)
+    return jsonify(
+        ok=True, id=att_id, original_name=safe_orig, size=len(data),
+        createdAt=now, has_thumbnail=bool(thumb_name), tags=tags_list
+    )
 
 
 @app.get("/api/prospect/attachments")
 def api_prospect_attachment_list():
-    """Liste les pièces jointes d'un prospect (owner uniquement)."""
+    """Liste les pièces jointes d'un prospect (owner uniquement).
+
+    Filtres : ?q= (search dans nom/description/extracted_text), ?tag= (filtre par tag).
+    """
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
 
     prospect_id = request.args.get("prospect_id", type=int)
+    q = (request.args.get("q") or "").strip()
+    tag_filter = (request.args.get("tag") or "").strip()
+    meeting_id_filter = request.args.get("meeting_id", type=int)
     if not prospect_id:
         return jsonify(ok=False, error="prospect_id requis"), 400
     if not _prospect_owned(prospect_id):
         return jsonify(ok=False, error="Accès refusé"), 403
 
-    with _conn() as conn:
-        rows = conn.execute(
-            """SELECT id, filename, original_name, size, mime_type, description, meeting_id, createdAt
-               FROM prospect_attachments
-               WHERE prospect_id = ? AND owner_id = ?
-               ORDER BY createdAt DESC""",
-            (prospect_id, uid)
-        ).fetchall()
+    where = ["prospect_id = ?", "owner_id = ?"]
+    params: list = [prospect_id, uid]
+    if q:
+        like = f"%{q}%"
+        where.append("(original_name LIKE ? OR description LIKE ? OR extracted_text LIKE ? OR tags LIKE ?)")
+        params.extend([like, like, like, like])
+    if meeting_id_filter is not None:
+        where.append("meeting_id = ?")
+        params.append(meeting_id_filter)
 
-    attachments = [dict(r) for r in rows]
+    sql = f"""SELECT id, filename, original_name, size, mime_type, description, meeting_id,
+                     tags, thumbnail, createdAt
+              FROM prospect_attachments
+              WHERE {' AND '.join(where)}
+              ORDER BY createdAt DESC"""
+
+    with _conn() as conn:
+        rows = conn.execute(sql, params).fetchall()
+
+    attachments = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["tags"] = json.loads(d.get("tags") or "[]") or []
+        except Exception:
+            d["tags"] = []
+        d["has_thumbnail"] = bool(d.get("thumbnail"))
+        # Filtre tag (post-filtre car JSON)
+        if tag_filter and tag_filter not in d["tags"]:
+            continue
+        d.pop("thumbnail", None)  # ne pas exposer le nom interne
+        attachments.append(d)
     return jsonify(ok=True, attachments=attachments)
+
+
+@app.get("/api/prospect/attachments/<int:att_id>/thumb")
+def api_prospect_attachment_thumb(att_id):
+    """Sert la miniature d'une pièce jointe (PNG)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT prospect_id, thumbnail FROM prospect_attachments WHERE id = ? AND owner_id = ?",
+            (att_id, uid)
+        ).fetchone()
+    if not row or not row["thumbnail"]:
+        return jsonify(ok=False, error="Miniature indisponible"), 404
+
+    thumb_path = _thumb_dir(uid, row["prospect_id"]) / row["thumbnail"]
+    if not thumb_path.exists():
+        return jsonify(ok=False, error="Miniature introuvable"), 404
+    return send_file(str(thumb_path), mimetype="image/png")
+
+
+@app.patch("/api/prospect/attachments/<int:att_id>")
+def api_prospect_attachment_update(att_id):
+    """Met à jour les métadonnées d'une pièce jointe : tags, description, meeting_id."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    body = request.get_json(silent=True) or {}
+
+    sets = []
+    vals: list = []
+    if "tags" in body:
+        tags_in = body.get("tags") or []
+        if isinstance(tags_in, str):
+            tags_in = [t.strip() for t in tags_in.split(",") if t.strip()]
+        if not isinstance(tags_in, list):
+            tags_in = []
+        tags_in = [str(t).strip() for t in tags_in if str(t).strip()][:20]
+        sets.append("tags = ?")
+        vals.append(json.dumps(tags_in, ensure_ascii=False) if tags_in else None)
+    if "description" in body:
+        desc = (body.get("description") or "").strip()[:500] or None
+        sets.append("description = ?")
+        vals.append(desc)
+    if "meeting_id" in body:
+        mid = body.get("meeting_id")
+        if mid is not None and mid != "":
+            try:
+                mid = int(mid)
+            except (TypeError, ValueError):
+                return jsonify(ok=False, error="meeting_id invalide"), 400
+        else:
+            mid = None
+        sets.append("meeting_id = ?")
+        vals.append(mid)
+    if not sets:
+        return jsonify(ok=False, error="Aucun champ à modifier"), 400
+
+    vals.extend([att_id, uid])
+    with _conn() as conn:
+        cur = conn.execute(
+            f"UPDATE prospect_attachments SET {', '.join(sets)} WHERE id = ? AND owner_id = ?",
+            vals
+        )
+        if cur.rowcount == 0:
+            return jsonify(ok=False, error="Pièce jointe introuvable"), 404
+    return jsonify(ok=True)
 
 
 @app.get("/api/prospect/attachments/<int:att_id>/file")
@@ -19066,7 +19367,7 @@ def api_prospect_attachment_file(att_id):
 
 @app.delete("/api/prospect/attachments/<int:att_id>")
 def api_prospect_attachment_delete(att_id):
-    """Supprime une pièce jointe (fichier + enregistrement DB)."""
+    """Supprime une pièce jointe (fichier + miniature + enregistrement DB)."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
@@ -19086,10 +19387,207 @@ def api_prospect_attachment_delete(att_id):
                 file_path.unlink()
         except Exception as e:
             logger.warning("[attachment] delete file error att=%s: %s", att_id, e)
+        # Miniature
+        thumb_name = row["thumbnail"] if "thumbnail" in row.keys() else None
+        if thumb_name:
+            try:
+                tp = _thumb_dir(uid, row["prospect_id"]) / thumb_name
+                if tp.exists():
+                    tp.unlink()
+            except Exception as e:
+                logger.warning("[attachment] delete thumb error att=%s: %s", att_id, e)
 
         conn.execute("DELETE FROM prospect_attachments WHERE id = ? AND owner_id = ?", (att_id, uid))
 
     return jsonify(ok=True)
+
+
+# ─── Lot 4 : Résumé IA d'une fiche prospect ────────────────────────
+
+def _build_summary_prompt(prospect: dict, events: list, attachments: list) -> str:
+    """Construit le prompt pour résumer un prospect à partir de son historique."""
+    lines = []
+    lines.append("Tu es un assistant CRM qui synthétise des fiches prospect B2B.")
+    lines.append("Génère un résumé en 5 lignes maximum, factuel, actionnable, en français.")
+    lines.append("Structure : 1) Qui (rôle, entreprise) 2) Statut commercial 3) Derniers échanges clés 4) Points d'accroche 5) Prochaine action recommandée.")
+    lines.append("")
+    lines.append("=== PROSPECT ===")
+    lines.append(f"Nom : {prospect.get('name') or '—'}")
+    lines.append(f"Fonction : {prospect.get('fonction') or '—'}")
+    lines.append(f"Entreprise : {prospect.get('company_groupe') or '—'}{(' · ' + prospect.get('company_site')) if prospect.get('company_site') else ''}")
+    lines.append(f"Statut : {prospect.get('statut') or '—'}")
+    lines.append(f"Pertinence : {prospect.get('pertinence') or 0}/5")
+    if prospect.get("notes"):
+        lines.append(f"Notes : {(prospect.get('notes') or '')[:500]}")
+    lines.append("")
+    lines.append("=== HISTORIQUE (du plus récent au plus ancien) ===")
+    for e in events[:30]:
+        date = (e.get("date") or "")[:10]
+        title = e.get("title") or e.get("type") or ""
+        content = (e.get("content") or "")[:300]
+        meta = e.get("meta") or {}
+        extras = []
+        if meta.get("next_action"):
+            extras.append(f"prochaine action: {meta.get('next_action')[:200]}")
+        if meta.get("action_pending"):
+            extras.append(f"{meta['action_pending']} tâches en attente")
+        ex_str = (" | " + " · ".join(extras)) if extras else ""
+        lines.append(f"- [{date}] {title}{(': ' + content) if content else ''}{ex_str}")
+    if attachments:
+        lines.append("")
+        lines.append("=== DOCUMENTS ASSOCIÉS ===")
+        for a in attachments[:15]:
+            tags = a.get("tags") or []
+            tag_str = (" [" + ", ".join(tags) + "]") if tags else ""
+            lines.append(f"- {a.get('original_name')}{tag_str}")
+    lines.append("")
+    lines.append("=== RÉSUMÉ (5 lignes max) ===")
+    return "\n".join(lines)
+
+
+@app.post("/api/prospect/<int:prospect_id>/summarize")
+def api_prospect_summarize(prospect_id):
+    """Génère un résumé IA de la fiche (cache en DB, force=1 pour régénérer)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    if not _prospect_owned(prospect_id):
+        return jsonify(ok=False, error="Accès refusé"), 403
+
+    body = request.get_json(silent=True) or {}
+    force = bool(body.get("force"))
+
+    with _conn() as conn:
+        if not force:
+            cached = conn.execute(
+                "SELECT summary, generatedAt FROM prospect_summaries WHERE prospect_id = ? AND owner_id = ?",
+                (prospect_id, uid)
+            ).fetchone()
+            if cached and cached["summary"]:
+                return jsonify(ok=True, summary=cached["summary"], generatedAt=cached["generatedAt"], cached=True)
+
+        # Récolter les données nécessaires
+        prow = conn.execute(
+            "SELECT p.*, c.groupe AS company_groupe, c.site AS company_site "
+            "FROM prospects p LEFT JOIN companies c ON c.id = p.company_id "
+            "WHERE p.id = ? AND p.owner_id = ?",
+            (prospect_id, uid)
+        ).fetchone()
+        if not prow:
+            return jsonify(ok=False, error="Prospect introuvable"), 404
+        prospect = dict(prow)
+
+        # Events : on construit une liste similaire à api_prospect_timeline (light)
+        events: list = []
+        try:
+            call_notes = json.loads(prospect.get("callNotes") or "[]")
+            for n in call_notes:
+                if isinstance(n, dict):
+                    events.append({"type": "call_note", "date": n.get("date") or "",
+                                   "title": "Note d'appel", "content": n.get("content") or ""})
+        except Exception:
+            pass
+        try:
+            for r in conn.execute(
+                "SELECT date, type, title, content FROM prospect_events WHERE prospect_id = ? ORDER BY date DESC LIMIT 40",
+                (prospect_id,)
+            ).fetchall():
+                events.append({"type": r["type"], "date": r["date"], "title": r["title"] or "", "content": r["content"] or ""})
+        except Exception:
+            pass
+        try:
+            for r in conn.execute(
+                "SELECT m.date, m.title, m.summary, m.next_action, "
+                "(SELECT COUNT(*) FROM meeting_action_items ai WHERE ai.meeting_id = m.id AND ai.status != 'done') AS pending "
+                "FROM meetings m WHERE m.prospect_id = ? AND m.owner_id = ? ORDER BY m.date DESC LIMIT 20",
+                (prospect_id, uid)
+            ).fetchall():
+                events.append({
+                    "type": "cr", "date": r["date"], "title": r["title"] or "Compte-rendu",
+                    "content": r["summary"] or "",
+                    "meta": {"next_action": r["next_action"] or "", "action_pending": r["pending"] or 0}
+                })
+        except Exception:
+            pass
+        try:
+            for r in conn.execute(
+                "SELECT sentAt, channel, subject FROM push_logs WHERE prospect_id = ? ORDER BY id DESC LIMIT 10",
+                (prospect_id,)
+            ).fetchall():
+                events.append({"type": "push", "date": r["sentAt"] or "",
+                               "title": f"Push ({r['channel'] or 'email'})",
+                               "content": r["subject"] or ""})
+        except Exception:
+            pass
+
+        events = sorted(events, key=lambda e: str(e.get("date") or ""), reverse=True)
+
+        attachments: list = []
+        try:
+            for r in conn.execute(
+                "SELECT original_name, tags FROM prospect_attachments WHERE prospect_id = ? AND owner_id = ?",
+                (prospect_id, uid)
+            ).fetchall():
+                tags = []
+                try:
+                    tags = json.loads(r["tags"] or "[]") or []
+                except Exception:
+                    pass
+                attachments.append({"original_name": r["original_name"], "tags": tags})
+        except Exception:
+            pass
+
+    prompt = _build_summary_prompt(prospect, events, attachments)
+
+    try:
+        text = _call_ai(prompt, timeout=120)
+    except Exception as e:
+        logger.warning("[summarize] IA call failed pid=%s: %s", prospect_id, e)
+        return jsonify(ok=False, error=f"IA indisponible : {e}"), 503
+
+    summary = (text or "").strip()
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO prospect_summaries (prospect_id, owner_id, summary, generatedAt)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(prospect_id) DO UPDATE SET summary = excluded.summary, generatedAt = excluded.generatedAt, owner_id = excluded.owner_id""",
+            (prospect_id, uid, summary, now)
+        )
+    return jsonify(ok=True, summary=summary, generatedAt=now, cached=False)
+
+
+@app.get("/api/prospect/upcoming-rdvs")
+def api_prospect_upcoming_rdvs():
+    """Liste les prospects dont le prochain RDV est dans les 48h.
+
+    Utilisé par notifications.js côté client pour rappeler les RDV imminents.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    today = datetime.date.today().isoformat()
+    plus2 = (datetime.date.today() + datetime.timedelta(days=2)).isoformat()
+
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, name, nextFollowUp, statut, fonction
+               FROM prospects
+               WHERE owner_id = ?
+                 AND nextFollowUp IS NOT NULL
+                 AND nextFollowUp != ''
+                 AND date(substr(nextFollowUp,1,10)) BETWEEN date(?) AND date(?)
+                 AND (deleted_at IS NULL OR deleted_at = '')
+               ORDER BY nextFollowUp ASC
+               LIMIT 30""",
+            (uid, today, plus2)
+        ).fetchall()
+    items = [{
+        "id": r["id"], "name": r["name"] or "", "nextFollowUp": r["nextFollowUp"],
+        "statut": r["statut"] or "", "fonction": r["fonction"] or ""
+    } for r in rows]
+    return jsonify(ok=True, prospects=items)
 
 
 # ═══════════════════════════════════════════════════════════════════

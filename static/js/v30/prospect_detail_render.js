@@ -282,12 +282,25 @@
         '<span class="v30-fp-ev__expand-label">Taille</span>' +
         '<span class="v30-fp-ev__expand-val">' + FP.esc(fmtSize(meta.size)) + '</span>' +
         '</div>';
-      if (e.content) {
-        html += '<div class="v30-fp-ev__expand-row">' +
-          '<span class="v30-fp-ev__expand-label">Description</span>' +
-          '<span class="v30-fp-ev__expand-val">' + FP.esc(e.content) + '</span>' +
-          '</div>';
-      }
+      // Tags (pills + input pour ajouter)
+      var tagsHtml = '';
+      (meta.tags || []).forEach(function (t) {
+        tagsHtml += '<span class="v30-fp-tag-pill">' + FP.esc(t) +
+          '<button type="button" class="v30-fp-tag-pill__rm" data-v30-att-tag-rm data-att-id="' + FP.esc(e.id) + '" data-tag="' + FP.esc(t) + '" aria-label="Retirer">×</button>' +
+          '</span>';
+      });
+      tagsHtml += '<input type="text" class="v30-fp-tag-input" data-v30-att-tag-add data-att-id="' + FP.esc(e.id) + '" placeholder="+ tag" maxlength="30">';
+      html += '<div class="v30-fp-ev__expand-row">' +
+        '<span class="v30-fp-ev__expand-label">Tags</span>' +
+        '<span class="v30-fp-ev__expand-val">' + tagsHtml + '</span>' +
+        '</div>';
+      // Description éditable
+      html += '<div class="v30-fp-ev__expand-row">' +
+        '<span class="v30-fp-ev__expand-label">Description</span>' +
+        '<span class="v30-fp-ev__expand-val">' +
+          '<input type="text" class="v30-fp-tag-input" data-v30-att-desc data-att-id="' + FP.esc(e.id) + '" value="' + FP.esc(e.content || '') + '" placeholder="Note (optionnel)" maxlength="200" style="width:100%;border-radius:var(--r-sm);">' +
+        '</span>' +
+        '</div>';
       html += '<div class="v30-fp-ev__actions">' +
         '<button type="button" class="btn btn-accent btn-sm" data-v30-ev-preview-file data-att-id="' + FP.esc(e.id) + '" data-att-name="' + FP.esc(meta.original_name || '') + '" data-att-mime="' + FP.esc(meta.mime_type || '') + '">Aperçu</button>' +
         '<a class="btn btn-ghost btn-sm" href="/api/prospect/attachments/' + FP.esc(e.id) + '/file" target="_blank" download>Télécharger</a>' +
@@ -342,16 +355,36 @@
     return html;
   }
 
-  function renderEvents(filter, hostSel, limit) {
+  function eventMatchesSearch(e, q) {
+    if (!q) return true;
+    q = q.toLowerCase();
+    var fields = [e.title, e.content];
+    var meta = e.meta || {};
+    if (meta.next_action) fields.push(meta.next_action);
+    if (meta.original_name) fields.push(meta.original_name);
+    if (meta.tags) fields.push((meta.tags || []).join(' '));
+    if (meta.candidates) fields.push((meta.candidates || []).join(' '));
+    if (meta.consultants) fields.push((meta.consultants || []).join(' '));
+    if (meta.template) fields.push(meta.template);
+    return fields.some(function (f) { return f && String(f).toLowerCase().indexOf(q) !== -1; });
+  }
+
+  function renderEvents(filter, hostSel, limit, opts) {
+    opts = opts || {};
     var host = FP.$(hostSel);
     if (!host) return;
-    var events = FP.STATE.events || [];
+    var events = (FP.STATE.events || []).slice();
+    var totalCount = events.length;
     if (filter === 'push') events = events.filter(evIsPush);
     else if (filter === 'note') events = events.filter(evIsNote);
     else if (filter === 'cr') events = events.filter(evIsCR);
     else if (filter === 'attachment') events = events.filter(evIsAttach);
+    var q = (FP.STATE.searchQuery || '').trim();
+    if (q) events = events.filter(function (e) { return eventMatchesSearch(e, q); });
+    if (opts.reverse) events = events.slice().reverse();
+
     if (events.length === 0) {
-      host.innerHTML = '<div class="empty">Aucun événement.</div>';
+      host.innerHTML = '<div class="empty">' + (q ? 'Aucun résultat pour "' + FP.esc(q) + '".' : 'Aucun événement.') + '</div>';
       return;
     }
     if (limit) events = events.slice(0, limit);
@@ -360,14 +393,20 @@
       var when = FP.relativeTime(e.date);
       var title = e.title || (e.type || 'Événement');
       var body = e.content || '';
-      // Pour CR et attachment, pas besoin de body brut (on l'affiche dans expand)
       var showBody = body && !evIsCR(e) && !evIsAttach(e);
       var bodyHtml = showBody ? FP.esc(body).replace(/\n/g, '<br>') : '';
 
-      // Badge tâches en attente sur CR
+      // Préfixes / suffixes
       var titlePrefix = '';
       if (evIsAttach(e)) {
-        titlePrefix = '<span class="v30-fp-ev__file-icon">' + fileIconSvg() + '</span>';
+        var meta = e.meta || {};
+        if (meta.has_thumbnail) {
+          titlePrefix = '<span class="v30-fp-ev__thumb" data-v30-thumb-preview data-att-id="' + FP.esc(e.id) + '" data-att-name="' + FP.esc(meta.original_name || '') + '" data-att-mime="' + FP.esc(meta.mime_type || '') + '">' +
+            '<img src="/api/prospect/attachments/' + FP.esc(e.id) + '/thumb" alt="" loading="lazy">' +
+            '</span>';
+        } else {
+          titlePrefix = '<span class="v30-fp-ev__file-icon">' + fileIconSvg() + '</span>';
+        }
       }
       var titleSuffix = '';
       if (evIsCR(e) && e.meta) {
@@ -376,6 +415,12 @@
         } else if (e.meta.action_count > 0) {
           titleSuffix = ' <span class="v30-fp-ev__badge v30-fp-ev__badge--ok">✓ ' + e.meta.action_count + '</span>';
         }
+      }
+      // Tags inline (attachment)
+      if (evIsAttach(e) && e.meta && e.meta.tags && e.meta.tags.length) {
+        titleSuffix = e.meta.tags.map(function (t) {
+          return ' <span class="v30-fp-ev__badge v30-fp-ev__badge--ok">' + FP.esc(t) + '</span>';
+        }).join('');
       }
 
       var dataAttrs = ' data-v30-ev-idx="' + idx + '" data-v30-ev-filter="' + FP.esc(filter || 'all') + '"';
@@ -389,6 +434,13 @@
         '</div>' +
       '</div>';
     }).join('');
+
+    // Met à jour le compteur de la barre de recherche
+    var countEl = document.querySelector('[data-v30-tl-search-count]');
+    if (countEl) {
+      if (q) countEl.textContent = events.length + ' / ' + totalCount;
+      else countEl.textContent = '';
+    }
   }
 
   // Rend (ou re-rend) le panel d'expansion d'un événement.

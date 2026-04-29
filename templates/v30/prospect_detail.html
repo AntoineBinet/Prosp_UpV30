@@ -47,11 +47,18 @@
       <button type="button" class="btn" data-v30-action="schedule">
         {{ ui.icon('calendar', 13) }} Planifier
       </button>
+      <button type="button" class="btn btn-ghost" data-v30-summarize-btn
+              title="Générer un résumé IA de la fiche">
+        {{ ui.icon('sparkles', 13) }} Résumer
+      </button>
       <button type="button" class="btn btn-ghost btn-icon" data-v30-action="more" aria-label="Plus">
         {{ ui.icon('dot3') }}
       </button>
     </div>
   </div>
+
+  {# Bandeau résumé IA (caché par défaut, hydraté à la demande) #}
+  <div data-v30-summary-banner style="display:none;"></div>
 
   {# ─── Body 2 cols : Main + Aside ─── #}
   <div class="v30-fp-body">
@@ -103,6 +110,12 @@
                 {{ ui.icon('paperclip', 12) }} Fichier
               </button>
             </div>
+          </div>
+          {# Barre de recherche #}
+          <div class="v30-fp-search">
+            {{ ui.icon('search', 13) }}
+            <input type="search" data-v30-tl-search placeholder="Rechercher dans la timeline (CR, notes, fichiers, tags…)" aria-label="Recherche timeline">
+            <span class="v30-fp-search__count" data-v30-tl-search-count></span>
           </div>
           {# Zone de drop upload (cachée par défaut) #}
           <div data-v30-upload-drop-zone style="display:none;padding:8px 16px 4px;">
@@ -435,6 +448,14 @@
         </button>
       </span>
     </div>
+  </div>
+</div>
+
+{# ─── Drag-drop overlay (page entière) ─── #}
+<div class="v30-fp-drag-overlay" data-v30-drag-overlay aria-hidden="true">
+  <div class="v30-fp-drag-overlay__card">
+    {{ ui.icon('upload', 32) }}
+    <span>Déposer pour joindre au prospect</span>
   </div>
 </div>
 

@@ -1011,6 +1011,220 @@ a.btn[aria-disabled="true"] {
 }
 .v30-fp-upload-drop svg { width: 15px; height: 15px; flex-shrink: 0; }
 
+/* ── Thumbnails dans la timeline ────────────────────────────── */
+.v30-fp-ev__thumb {
+  display: inline-block;
+  width: 48px;
+  height: 36px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow: hidden;
+  vertical-align: middle;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: transform var(--dur-1), box-shadow var(--dur-1);
+}
+.v30-fp-ev__thumb:hover {
+  transform: scale(1.04);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.v30-fp-ev__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Tags pill */
+.v30-fp-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 500;
+  margin-right: 4px;
+  margin-top: 2px;
+}
+.v30-fp-tag-pill__rm {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.6;
+}
+.v30-fp-tag-pill__rm:hover { opacity: 1; }
+
+.v30-fp-tag-input {
+  width: auto;
+  min-width: 100px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 11px;
+  font-family: inherit;
+}
+.v30-fp-tag-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Barre de recherche timeline ────────────────────────────── */
+.v30-fp-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.v30-fp-search input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 12.5px;
+  font-family: inherit;
+}
+.v30-fp-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.v30-fp-search__count {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* ── Drag-drop overlay (page entière) ───────────────────────── */
+.v30-fp-drag-overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent) 18%, oklch(0 0 0 / 0.5));
+  backdrop-filter: blur(6px);
+  z-index: 400;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.v30-fp-drag-overlay.is-active {
+  display: flex;
+  pointer-events: auto;
+}
+.v30-fp-drag-overlay__card {
+  background: var(--surface);
+  border: 2px dashed var(--accent);
+  border-radius: var(--r-xl);
+  padding: 32px 48px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  box-shadow: var(--shadow-pop);
+}
+.v30-fp-drag-overlay__card svg {
+  width: 32px;
+  height: 32px;
+  stroke-width: 2;
+}
+
+/* ── Bandeau résumé IA ──────────────────────────────────────── */
+.v30-fp-summary {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent) 8%, var(--surface)) 0%,
+    color-mix(in srgb, var(--accent) 4%, var(--surface)) 100%);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  border-radius: var(--r-md);
+}
+.v30-fp-summary__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.v30-fp-summary__title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--accent);
+  flex: 1;
+}
+.v30-fp-summary__date {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+.v30-fp-summary__body {
+  font-size: 12.5px;
+  color: var(--text-1);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.v30-fp-summary__loading {
+  font-size: 12px;
+  color: var(--text-3);
+  font-style: italic;
+}
+
+/* ── Section pièces jointes dans modale CR ──────────────────── */
+.v30-cr-attach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 8px;
+  background: var(--surface);
+}
+.v30-cr-attach-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  transition: background var(--dur-1);
+}
+.v30-cr-attach-item:hover { background: var(--surface-2); }
+.v30-cr-attach-item__name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v30-cr-attach-item__meta {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+.v30-cr-attach-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-3);
+  font-style: italic;
+}
+
 /* Responsive */
 @media (max-width: 1100px) {
   .v30-fp-body { grid-template-columns: 1fr; }
