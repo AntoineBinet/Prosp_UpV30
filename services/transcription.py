@@ -79,10 +79,26 @@ def _load_diarization(hf_token: str):
                 "pyannote.audio n'est pas installé. Lancer : pip install pyannote.audio"
             ) from e
         logger.info("Chargement pyannote/speaker-diarization-3.1")
-        pipeline = Pipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1",
-            use_auth_token=hf_token,
-        )
+        # API du paramètre token a changé selon les versions de pyannote :
+        #   pyannote.audio < 3.0 : use_auth_token
+        #   pyannote.audio >= 3.0 : token
+        # On essaie le nouveau nom d'abord puis on retombe sur l'ancien.
+        pipeline = None
+        last_err: Exception | None = None
+        for kwargs in ({"token": hf_token}, {"use_auth_token": hf_token}, {"auth_token": hf_token}):
+            try:
+                pipeline = Pipeline.from_pretrained(
+                    "pyannote/speaker-diarization-3.1",
+                    **kwargs,
+                )
+                break
+            except TypeError as e:
+                last_err = e
+                continue
+        if pipeline is None:
+            raise RuntimeError(
+                f"Impossible de charger pyannote (signature from_pretrained inconnue) : {last_err}"
+            )
         # Bascule sur GPU si dispo
         try:
             if torch.cuda.is_available():
@@ -289,6 +305,19 @@ RÉPONDS UNIQUEMENT PAR UN OBJET JSON VALIDE (rien avant ni après)
 }"""
 
 
+# Plafond max_tokens connu par modèle (output). À adapter si Anthropic
+# augmente les limites. Valeur conservatrice : on prend la borne la plus
+# basse documentée.
+_MAX_TOKENS_BY_MODEL = {
+    "claude-haiku-4-5":  8192,
+    "claude-sonnet-4-6": 16000,
+    "claude-opus-4-7":   16000,
+    # Anciennes versions au cas où
+    "claude-3-5-haiku-latest":   8192,
+    "claude-3-5-sonnet-latest":  8192,
+}
+
+
 def _call_anthropic(api_key: str, model: str, transcript: str, timeout: int = 240) -> dict:
     """Appelle l'API Messages d'Anthropic. Retourne le JSON parsé de l'analyse."""
     if not api_key:
@@ -300,9 +329,13 @@ def _call_anthropic(api_key: str, model: str, transcript: str, timeout: int = 24
         "structuré en sections H2 narratives.\n\n---\n"
         + transcript[:300_000]  # garde-fou ~300k chars (≈75k tokens)
     )
+    # Le max_tokens dépend du modèle : Haiku 4.5 plafonne à 8192,
+    # Sonnet/Opus permettent plus. Si modèle inconnu, on prend la valeur
+    # la plus conservatrice.
+    max_tokens = _MAX_TOKENS_BY_MODEL.get(model, 8192)
     body = json.dumps({
         "model": model,
-        "max_tokens": 16000,  # CR narratif peut faire 8-12k tokens
+        "max_tokens": max_tokens,
         "system": _ANALYSIS_SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": user_msg}],
     }).encode("utf-8")
@@ -316,8 +349,29 @@ def _call_anthropic(api_key: str, model: str, transcript: str, timeout: int = 24
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        raw = resp.read().decode("utf-8", errors="replace")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        # Capture le message d'erreur Anthropic structuré pour qu'il
+        # remonte proprement aux callers.
+        err_body = ""
+        try:
+            if e.fp:
+                err_body = e.read().decode("utf-8")
+        except Exception:
+            pass
+        api_msg = ""
+        try:
+            err_data = json.loads(err_body) if err_body else {}
+            err_obj = err_data.get("error", {})
+            if isinstance(err_obj, dict):
+                api_msg = err_obj.get("message") or ""
+        except Exception:
+            api_msg = err_body[:300]
+        raise RuntimeError(
+            f"HTTP {e.code} : {api_msg or err_body[:300] or 'erreur Anthropic inconnue'}"
+        ) from e
     payload = json.loads(raw)
     chunks = payload.get("content") or []
     text = "".join(c.get("text", "") for c in chunks if c.get("type") == "text").strip()
@@ -452,18 +506,13 @@ def _process_locked(transcription_id: int, audio_path: str, db_path: str, config
                     analysis_json=json.dumps(analysis, ensure_ascii=False),
                     analysis_model=anth_model,
                 )
-            except urllib.error.HTTPError as e:
-                err_body = ""
-                try:
-                    if e.fp:
-                        err_body = e.read().decode("utf-8")
-                except Exception:
-                    pass
-                logger.warning("Anthropic HTTP %s: %s", e.code, err_body[:300])
-                analysis_error = f"Analyse Claude échouée (HTTP {e.code}). Transcript disponible."
             except Exception as exc:
                 logger.warning("Anthropic analyse échouée : %s", exc)
-                analysis_error = f"Analyse Claude échouée : {exc}. Transcript disponible."
+                analysis_error = (
+                    f"Analyse Claude échouée : {exc}. "
+                    "Transcript disponible. Tu peux ajuster le modèle / la clé dans "
+                    "Paramètres > IA puis cliquer « Re-analyser (Claude seul) »."
+                )
         else:
             analysis_error = "Clé Anthropic absente — analyse non générée."
 
