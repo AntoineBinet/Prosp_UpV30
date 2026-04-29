@@ -621,6 +621,128 @@ a.btn[aria-disabled="true"] {
   overflow-y: auto;
 }
 
+/* ── Onglet CR — listing des comptes-rendus ─────────────── */
+.v30-cr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v30-cr-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-1);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  font-family: inherit;
+}
+.v30-cr-card:hover,
+.v30-cr-card:focus {
+  border-color: var(--accent);
+  background: var(--surface-1, var(--surface-2));
+  outline: none;
+}
+.v30-cr-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.v30-cr-card__date {
+  font-size: 13px;
+  color: var(--text-1);
+}
+.v30-cr-card__count {
+  font-size: 11px;
+  color: var(--text-3);
+  background: var(--surface-3, var(--border));
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.v30-cr-card__pending {
+  font-size: 11px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.v30-cr-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.v30-cr-card__excerpt {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.v30-cr-card__tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.v30-cr-card__tag {
+  font-size: 11px;
+  color: var(--text-2);
+  background: var(--surface-3, var(--border));
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+/* ── Modale CR — layout titre + date + tâches ───────────── */
+.v30-cr-row {
+  display: grid;
+  grid-template-columns: 1fr 160px;
+  gap: 10px;
+  align-items: end;
+}
+.v30-cr-row__half { /* 2 colonnes égales */ }
+.v30-cr-row:has(.v30-cr-row__half) {
+  grid-template-columns: 1fr 1fr;
+}
+
+.v30-cr-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v30-cr-task {
+  display: grid;
+  grid-template-columns: 24px 1fr 140px 140px 30px;
+  gap: 6px;
+  align-items: center;
+}
+.v30-cr-task__check {
+  width: 16px;
+  height: 16px;
+  margin: 0 auto;
+  cursor: pointer;
+}
+.v30-cr-task__txt,
+.v30-cr-task__date,
+.v30-cr-task__prio {
+  width: 100%;
+}
+
+@media (max-width: 700px) {
+  .v30-cr-row,
+  .v30-cr-row:has(.v30-cr-row__half) { grid-template-columns: 1fr; }
+  .v30-cr-task {
+    grid-template-columns: 24px 1fr 30px;
+  }
+  .v30-cr-task__date,
+  .v30-cr-task__prio { grid-column: 2 / 3; }
+}
+
 /* Responsive */
 @media (max-width: 1100px) {
   .v30-fp-body { grid-template-columns: 1fr; }

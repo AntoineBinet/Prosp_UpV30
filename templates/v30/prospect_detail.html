@@ -67,6 +67,9 @@
           Push <span class="tab-count" data-field="count-push">—</span>
         </button>
         <button type="button" data-tab="grille" role="tab" aria-selected="false">Grille RDV</button>
+        <button type="button" data-tab="cr" role="tab" aria-selected="false">
+          CR <span class="tab-count" data-field="count-cr">—</span>
+        </button>
         <button type="button" data-tab="ia" role="tab" aria-selected="false">IA</button>
       </div>
 
@@ -161,6 +164,24 @@
             Remplissez ces informations pendant ou après un RDV, ou utilisez "Remplir avec IA" pour les extraire automatiquement d'un compte-rendu.
           </p>
           <div data-v30-grille-content>
+            <div class="empty" style="padding:16px;">Chargement…</div>
+          </div>
+        </div>
+      </div>
+
+      {# Panel: CR de réunion (historique des comptes-rendus) #}
+      <div data-v30-fp-panel="cr" hidden>
+        <div class="card" style="margin-top:12px;">
+          <div class="row-sb" style="margin-bottom:12px;">
+            <div class="card-title">{{ ui.icon('report', 14) }} Comptes-rendus de réunion</div>
+            <button type="button" class="btn btn-accent btn-sm" data-v30-cr-new>
+              {{ ui.icon('plus', 12) }} Nouveau CR
+            </button>
+          </div>
+          <p class="muted" style="font-size:12px;margin-bottom:12px;">
+            Historique des CR : notes brutes, synthèse IA, grille de qualif, tâches à faire, documents.
+          </p>
+          <div data-v30-cr-list>
             <div class="empty" style="padding:16px;">Chargement…</div>
           </div>
         </div>
@@ -330,23 +351,23 @@
   </div>
 </div>
 
-{# ─── Modale IA : Après RDV — compte-rendu ─── #}
+{# ─── Modale : Compte-rendu de réunion (création ou édition) ─── #}
 <div class="v30-modal-bd" data-v30-fp-modal="after" hidden>
-  <div class="v30-modal v30-modal--wide v30-modal--tall" role="dialog" aria-modal="true" aria-labelledby="v30-fp-after-title">
+  <div class="v30-modal v30-modal--wide v30-modal--tall" role="dialog" aria-modal="true" aria-labelledby="v30-fp-after-title" data-v30-cr-meeting-id="">
     <div class="v30-modal__head">
-      <h2 class="v30-modal__title" id="v30-fp-after-title">{{ ui.icon('sparkles', 14) }} Après RDV — compte-rendu</h2>
+      <h2 class="v30-modal__title" id="v30-fp-after-title">{{ ui.icon('report', 14) }} <span data-v30-fp-after-modal-title>Nouveau compte-rendu</span></h2>
       <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-fp-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
     </div>
 
-    {# Étape 1 : saisie du compte-rendu #}
+    {# Étape 1 : saisie du compte-rendu (texte brut → IA) #}
     <div class="v30-modal__body" data-v30-fp-after-s1>
       <p class="muted" style="font-size: 12.5px; margin: 0 0 12px;">
         Prospect : <strong data-v30-fp-ai-name2>—</strong>
       </p>
       <div class="v30-field" data-v30-fp-after-input>
-        <label for="v30-fp-after-notes">Compte-rendu de réunion</label>
+        <label for="v30-fp-after-notes">Notes / transcription de la réunion</label>
         <textarea id="v30-fp-after-notes" class="textarea" rows="10"
-          placeholder="Collez ici votre compte-rendu : participants, sujets abordés, besoins identifiés, prochaines étapes…"
+          placeholder="Collez ici vos notes ou transcription brute : participants, sujets abordés, besoins, prochaines étapes…&#10;&#10;Astuce : laisse l'IA extraire les champs structurés ou clique « Saisir manuellement » pour passer directement au formulaire."
           data-v30-fp-after-notes></textarea>
       </div>
       <div data-v30-fp-after-progress hidden>
@@ -363,26 +384,30 @@
       </div>
     </div>
 
-    {# Étape 2 : formulaire éditable pré-rempli par l'IA #}
+    {# Étape 2 : formulaire éditable (titre, date, synthèse, grille, tâches, documents) #}
     <div class="v30-modal__body v30-grille-form" data-v30-fp-after-s2 hidden>
-      <p class="muted" style="font-size:12px;margin:0 0 12px;">
-        Résultats extraits par l'IA — modifiez, complétez ou corrigez avant d'appliquer.
+      <p class="muted" style="font-size:12px;margin:0 0 12px;" data-v30-fp-after-form-intro>
+        Compose ou ajuste le compte-rendu — modifie les champs avant d'enregistrer.
       </p>
       <div data-v30-fp-after-form></div>
     </div>
 
     <div class="v30-modal__foot">
       <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-modal-close>Fermer</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-cr-delete hidden style="color:var(--red);">
+        Supprimer ce CR
+      </button>
       <div class="v30-spacer" style="flex:1;"></div>
       <span data-v30-fp-after-s1-btns>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-after-skip>Saisir manuellement</button>
         <button type="button" class="btn btn-primary btn-sm" data-v30-fp-after-run>
           {{ ui.icon('sparkles', 12) }} Analyser avec IA
         </button>
       </span>
       <span data-v30-fp-after-s2-btns hidden>
-        <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-after-back>← Retour</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-after-back>← Notes</button>
         <button type="button" class="btn btn-primary btn-sm" data-v30-fp-after-save>
-          {{ ui.icon('save', 12) }} Appliquer
+          {{ ui.icon('save', 12) }} Enregistrer
         </button>
       </span>
     </div>

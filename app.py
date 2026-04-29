@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "31.7"
+APP_VERSION = "31.8"
 import os
 import subprocess
 import traceback
@@ -2279,6 +2279,22 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
                         conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?);", ("onboarding_backfill_done", "1"))
                 except Exception:
                     pass
+        except Exception:
+            pass
+
+        # Meetings (v31.8) — colonnes pour CR détaillés (raw transcript, summary IA, next_action, tags snapshot, documents)
+        try:
+            mcols = [r["name"] for r in conn.execute("PRAGMA table_info(meetings);").fetchall()]
+            if "summary" not in mcols:
+                _add_col("meetings", "summary", "TEXT")
+            if "raw_transcript" not in mcols:
+                _add_col("meetings", "raw_transcript", "TEXT")
+            if "next_action" not in mcols:
+                _add_col("meetings", "next_action", "TEXT")
+            if "tags" not in mcols:
+                _add_col("meetings", "tags", "TEXT")
+            if "documents" not in mcols:
+                _add_col("meetings", "documents", "TEXT")
         except Exception:
             pass
 
@@ -18161,7 +18177,7 @@ def rdv_checklist_parse_file():
 
 @app.post("/api/meetings")
 def meetings_create():
-    """Créer une nouvelle réunion à partir de la grille de qualification actuelle."""
+    """Créer une nouvelle réunion (CR de RDV) avec snapshot grille + IA fields + tâches inline."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
@@ -18173,6 +18189,13 @@ def meetings_create():
     title = body.get("title", "").strip()
     checklist_data = body.get("checklist_data")
     notes = body.get("notes", "").strip()
+    raw_transcript = (body.get("raw_transcript") or "").strip()
+    summary = (body.get("summary") or "").strip()
+    next_action = (body.get("next_action") or "").strip()
+    tags = body.get("tags") or []
+    documents = (body.get("documents") or "").strip()
+    date_override = (body.get("date") or "").strip()
+    action_items = body.get("action_items") or []
 
     if not prospect_id:
         return jsonify(ok=False, error="prospect_id requis"), 400
@@ -18180,18 +18203,52 @@ def meetings_create():
         return jsonify(ok=False, error="Titre requis"), 400
     if not _prospect_owned(int(prospect_id)):
         return jsonify(ok=False, error="Accès refusé"), 403
-    
+
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",") if t.strip()]
+    elif isinstance(tags, list):
+        tags = [str(t).strip() for t in tags if str(t).strip()]
+    else:
+        tags = []
+
     now = datetime.datetime.now().isoformat(timespec="seconds")
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    
+    today = date_override if date_override else datetime.datetime.now().strftime("%Y-%m-%d")
+
     with _conn() as conn:
         cursor = conn.execute(
-            """INSERT INTO meetings (prospect_id, owner_id, date, title, checklist_data, notes, createdAt)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (prospect_id, uid, today, title, json.dumps(checklist_data, ensure_ascii=False) if checklist_data else None, notes, now)
+            """INSERT INTO meetings (prospect_id, owner_id, date, title, checklist_data, notes,
+                                    summary, raw_transcript, next_action, tags, documents, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                prospect_id, uid, today, title,
+                json.dumps(checklist_data, ensure_ascii=False) if checklist_data else None,
+                notes, summary, raw_transcript, next_action,
+                json.dumps(tags, ensure_ascii=False) if tags else None,
+                documents, now,
+            )
         )
         meeting_id = cursor.lastrowid
-        
+
+        # Action items inline (créés en même temps que le CR)
+        for ai in action_items:
+            if not isinstance(ai, dict):
+                continue
+            task_txt = (ai.get("task") or "").strip()
+            if not task_txt:
+                continue
+            conn.execute(
+                """INSERT INTO meeting_action_items (meeting_id, prospect_id, task, assignee, due_date, priority, status, owner_id, createdAt)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    meeting_id, prospect_id, task_txt,
+                    (ai.get("assignee") or None),
+                    (ai.get("due_date") or None),
+                    (ai.get("priority") or None),
+                    (ai.get("status") or "pending"),
+                    uid, now,
+                )
+            )
+
         # Hook: réunion créée (meeting_done)
         try:
             p_row = conn.execute(
@@ -18212,7 +18269,6 @@ def meetings_create():
                     "meeting_title": title,
                     "meeting_notes": notes,
                 }
-                # Récupérer le nom de l'entreprise
                 if context.get("company_id"):
                     c_row = conn.execute(
                         "SELECT groupe FROM companies WHERE id=? AND owner_id=?;",
@@ -18223,50 +18279,252 @@ def meetings_create():
                 _create_auto_task("meeting_done", context)
         except Exception as e:
             logger.warning("Erreur hook tâche auto pour réunion: %s", e)
-    
+
     return jsonify(ok=True, id=meeting_id, date=today)
+
+
+def _meeting_row_to_dict(row, with_checklist=True):
+    checklist = None
+    if with_checklist and row["checklist_data"]:
+        try:
+            checklist = json.loads(row["checklist_data"])
+        except Exception:
+            pass
+    tags = []
+    try:
+        if "tags" in row.keys() and row["tags"]:
+            tags = json.loads(row["tags"]) or []
+    except Exception:
+        tags = []
+    out = {
+        "id": row["id"],
+        "date": row["date"],
+        "title": row["title"],
+        "notes": row["notes"] or "",
+        "summary": (row["summary"] if "summary" in row.keys() else "") or "",
+        "raw_transcript": (row["raw_transcript"] if "raw_transcript" in row.keys() else "") or "",
+        "next_action": (row["next_action"] if "next_action" in row.keys() else "") or "",
+        "tags": tags,
+        "documents": (row["documents"] if "documents" in row.keys() else "") or "",
+        "createdAt": row["createdAt"],
+    }
+    if with_checklist:
+        out["checklist_data"] = checklist
+    return out
 
 
 @app.get("/api/meetings")
 def meetings_list():
-    """Lister les réunions d'un prospect (owner only)."""
+    """Lister les réunions d'un prospect (owner only) — légère, sans grille détaillée."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    
+
     prospect_id = request.args.get("prospect_id", type=int)
     if not prospect_id:
         return jsonify(ok=False, error="prospect_id requis"), 400
     if not _prospect_owned(prospect_id):
         return jsonify(ok=False, error="Accès refusé"), 403
-    
+
     with _conn() as conn:
         rows = conn.execute(
-            """SELECT id, date, title, checklist_data, notes, createdAt
-               FROM meetings
-               WHERE prospect_id = ? AND owner_id = ?
-               ORDER BY date DESC, createdAt DESC""",
+            """SELECT m.id, m.date, m.title, m.checklist_data, m.notes,
+                      m.summary, m.raw_transcript, m.next_action, m.tags, m.documents, m.createdAt,
+                      (SELECT COUNT(*) FROM meeting_action_items ai WHERE ai.meeting_id = m.id) AS action_count,
+                      (SELECT COUNT(*) FROM meeting_action_items ai WHERE ai.meeting_id = m.id AND ai.status != 'done') AS action_pending
+               FROM meetings m
+               WHERE m.prospect_id = ? AND m.owner_id = ?
+               ORDER BY m.date DESC, m.createdAt DESC""",
             (prospect_id, uid)
         ).fetchall()
-    
+
     meetings = []
     for row in rows:
-        checklist = None
-        if row["checklist_data"]:
-            try:
-                checklist = json.loads(row["checklist_data"])
-            except Exception:
-                pass
-        meetings.append({
-            "id": row["id"],
-            "date": row["date"],
-            "title": row["title"],
-            "checklist_data": checklist,
-            "notes": row["notes"] or "",
-            "createdAt": row["createdAt"]
-        })
-    
+        m = _meeting_row_to_dict(row, with_checklist=False)
+        m["action_count"] = row["action_count"] or 0
+        m["action_pending"] = row["action_pending"] or 0
+        meetings.append(m)
+
     return jsonify(ok=True, meetings=meetings)
+
+
+@app.get("/api/meetings/<int:meeting_id>")
+def meetings_get(meeting_id):
+    """Détail d'une réunion : CR + grille snapshot + action items."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, prospect_id, date, title, checklist_data, notes,
+                      summary, raw_transcript, next_action, tags, documents, createdAt
+               FROM meetings WHERE id = ? AND owner_id = ?""",
+            (meeting_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+        meeting = _meeting_row_to_dict(row)
+        meeting["prospect_id"] = row["prospect_id"]
+
+        ai_rows = conn.execute(
+            """SELECT id, task, assignee, due_date, priority, status, createdAt
+               FROM meeting_action_items
+               WHERE meeting_id = ? AND owner_id = ?
+               ORDER BY status ASC, due_date ASC, createdAt ASC""",
+            (meeting_id, uid)
+        ).fetchall()
+        meeting["action_items"] = [{
+            "id": r["id"], "task": r["task"], "assignee": r["assignee"],
+            "due_date": r["due_date"], "priority": r["priority"],
+            "status": r["status"], "createdAt": r["createdAt"],
+        } for r in ai_rows]
+
+    return jsonify(ok=True, meeting=meeting)
+
+
+@app.put("/api/meetings/<int:meeting_id>")
+def meetings_update(meeting_id):
+    """Mettre à jour un CR existant. Le payload remplace les action_items si fourni."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    body = request.get_json(force=True) or {}
+
+    with _conn() as conn:
+        existing = conn.execute(
+            "SELECT id, prospect_id FROM meetings WHERE id = ? AND owner_id = ?",
+            (meeting_id, uid)
+        ).fetchone()
+        if not existing:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+
+        prospect_id = existing["prospect_id"]
+        sets = []
+        vals = []
+
+        for key in ("title", "date", "notes", "summary", "raw_transcript", "next_action", "documents"):
+            if key in body:
+                sets.append(f"{key} = ?")
+                vals.append((body.get(key) or "").strip() if isinstance(body.get(key), str) else body.get(key))
+
+        if "checklist_data" in body:
+            cd = body.get("checklist_data")
+            sets.append("checklist_data = ?")
+            vals.append(json.dumps(cd, ensure_ascii=False) if cd else None)
+
+        if "tags" in body:
+            tags = body.get("tags") or []
+            if isinstance(tags, str):
+                tags = [t.strip() for t in tags.split(",") if t.strip()]
+            elif isinstance(tags, list):
+                tags = [str(t).strip() for t in tags if str(t).strip()]
+            else:
+                tags = []
+            sets.append("tags = ?")
+            vals.append(json.dumps(tags, ensure_ascii=False) if tags else None)
+
+        if not sets and "action_items" not in body:
+            return jsonify(ok=False, error="Aucun champ à mettre à jour"), 400
+
+        if sets:
+            vals.append(meeting_id)
+            conn.execute(f"UPDATE meetings SET {', '.join(sets)} WHERE id = ?", vals)
+
+        if "action_items" in body:
+            now = datetime.datetime.now().isoformat(timespec="seconds")
+            conn.execute("DELETE FROM meeting_action_items WHERE meeting_id = ? AND owner_id = ?", (meeting_id, uid))
+            for ai in (body.get("action_items") or []):
+                if not isinstance(ai, dict):
+                    continue
+                task_txt = (ai.get("task") or "").strip()
+                if not task_txt:
+                    continue
+                conn.execute(
+                    """INSERT INTO meeting_action_items (meeting_id, prospect_id, task, assignee, due_date, priority, status, owner_id, createdAt)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        meeting_id, prospect_id, task_txt,
+                        (ai.get("assignee") or None),
+                        (ai.get("due_date") or None),
+                        (ai.get("priority") or None),
+                        (ai.get("status") or "pending"),
+                        uid, now,
+                    )
+                )
+
+    return jsonify(ok=True, id=meeting_id)
+
+
+@app.delete("/api/meetings/<int:meeting_id>")
+def meetings_delete(meeting_id):
+    """Supprimer un CR (cascade sur action_items et opportunities via FK)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM meetings WHERE id = ? AND owner_id = ?",
+            (meeting_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Réunion introuvable"), 404
+        conn.execute("DELETE FROM meeting_action_items WHERE meeting_id = ? AND owner_id = ?", (meeting_id, uid))
+        conn.execute("DELETE FROM meeting_opportunities WHERE meeting_id = ? AND owner_id = ?", (meeting_id, uid))
+        conn.execute("DELETE FROM meetings WHERE id = ? AND owner_id = ?", (meeting_id, uid))
+
+    return jsonify(ok=True)
+
+
+@app.put("/api/meeting-action-items/<int:item_id>")
+def meeting_action_item_update(item_id):
+    """Mettre à jour un action item (cocher fait, modifier libellé/date/priorité)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    body = request.get_json(force=True) or {}
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM meeting_action_items WHERE id = ? AND owner_id = ?",
+            (item_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Tâche introuvable"), 404
+
+        sets = []
+        vals = []
+        for key in ("task", "assignee", "due_date", "priority", "status"):
+            if key in body:
+                sets.append(f"{key} = ?")
+                v = body.get(key)
+                vals.append(v.strip() if isinstance(v, str) else v)
+        if not sets:
+            return jsonify(ok=False, error="Aucun champ à mettre à jour"), 400
+        vals.append(item_id)
+        conn.execute(f"UPDATE meeting_action_items SET {', '.join(sets)} WHERE id = ?", vals)
+
+    return jsonify(ok=True)
+
+
+@app.delete("/api/meeting-action-items/<int:item_id>")
+def meeting_action_item_delete(item_id):
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM meeting_action_items WHERE id = ? AND owner_id = ?",
+            (item_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Tâche introuvable"), 404
+        conn.execute("DELETE FROM meeting_action_items WHERE id = ? AND owner_id = ?", (item_id, uid))
+
+    return jsonify(ok=True)
 
 
 @app.get("/api/meetings/<int:meeting_id>/action-items")

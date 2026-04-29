@@ -2,6 +2,51 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [31.8] — 2026-04-28 · CR de réunion sur fiche prospect
+
+Reconstruction de l'expérience « Après réunion » qui existait en v29.
+Les CR sont maintenant **persistés**, **historisés** et **éditables** sur
+chaque fiche prospect. Un nouvel onglet « CR » liste l'historique des
+comptes-rendus avec leurs tâches associées.
+
+- **Schéma DB.** Nouvelles colonnes sur `meetings` (migration légère via
+  `_add_col`) : `summary` (résumé synthèse), `raw_transcript` (notes
+  brutes), `next_action`, `tags` (JSON), `documents` (texte
+  multi-lignes pour liens / refs).
+- **Backend.** Routes `GET /api/meetings/<id>` (détail + action items),
+  `PUT /api/meetings/<id>` (édition complète, remplace les action items
+  fournis), `DELETE /api/meetings/<id>` (cascade), `PUT/DELETE
+  /api/meeting-action-items/<id>`. La route `POST /api/meetings`
+  accepte désormais `summary`, `raw_transcript`, `next_action`, `tags`,
+  `documents`, `date` et un tableau `action_items[]` créés en même
+  temps que le CR. `GET /api/meetings?prospect_id=X` renvoie aussi
+  `action_count` / `action_pending` pour les badges de l'onglet CR.
+- **Onglet « CR ».** Nouvel onglet sur `templates/v30/prospect_detail.html`
+  entre « Grille RDV » et « IA », avec un compteur `(n)`. Chaque CR
+  s'affiche en card cliquable (date + titre + extrait synthèse + tags +
+  badge tâches en attente). Bouton « + Nouveau CR » en haut à droite.
+- **Modale CR refondue.** Étape 1 : zone de saisie texte libre +
+  boutons « Saisir manuellement » (skip IA) ou « Analyser avec IA »
+  (parsing existant). Étape 2 : formulaire complet avec **titre**,
+  **date** (auto = aujourd'hui), résumé, prochaine action, statut, tags,
+  notes enrichies, transcription brute, **tâches dynamiques** (add /
+  remove / cocher fait), **documents / liens**, et grille de qualif.
+  En mode édition (clic sur une card), la modale se charge directement
+  en étape 2 avec les données du CR. Bouton « Supprimer ce CR »
+  (rouge) visible uniquement en édition.
+- **Persistance.** À l'enregistrement, le CR est créé via
+  `POST /api/meetings` (ou `PUT` en édition) avec snapshot complet de
+  la grille du moment. La grille globale `rdv_checklists` est ensuite
+  mise à jour de manière non-destructive (les anciennes valeurs des
+  autres CR sont préservées). Les action items sont créés en cascade.
+- **CSS.** Ajout des styles `.v30-cr-list`, `.v30-cr-card`,
+  `.v30-cr-task`, `.v30-cr-row` dans `static/css/v30/prospect_detail.css`,
+  cohérents avec le design system v30 (palette, radius, transitions).
+  Responsive ≤ 700 px : tâches en colonne unique.
+- **Compat.** Le bouton « Remplir avec IA » de l'onglet « Grille RDV »
+  ouvre désormais la même modale CR (chaque action remplie crée un CR
+  daté en plus de mettre à jour la grille globale).
+
 ## [31.7] — 2026-04-28 · dépréciation v29
 
 L'UI v29 (legacy) est retirée. Le code est conservé dans `archives/v29/`
