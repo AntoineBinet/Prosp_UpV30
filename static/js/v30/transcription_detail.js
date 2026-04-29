@@ -97,14 +97,18 @@
     var rb = $('[data-v30-tx-retry]');
     var rba = $('[data-v30-tx-reanalyze]');
     var rext = $('[data-v30-tx-external]');
+    var rxcrm = $('[data-v30-tx-extract-crm]');
     var inProg = (item.status === 'pending' || item.status === 'processing');
     if (rb)  rb.hidden = inProg;
     // « Re-analyser (Claude API) » et « Analyser via IA externe » dispos
     // uniquement si on a déjà un transcript_text (sinon rien à analyser
     // → on doit relancer le pipeline complet via Whisper)
     var hasTx = !!(item.transcript_text && item.transcript_text.trim());
-    if (rba)  rba.hidden  = inProg || !hasTx;
-    if (rext) rext.hidden = inProg || !hasTx;
+    var hasNarrative = !!(item.analysis && (item.analysis.narrative_markdown || '').trim());
+    if (rba)   rba.hidden   = inProg || !hasTx;
+    if (rext)  rext.hidden  = inProg || !hasTx;
+    // « Ré-extraire CRM » : besoin d'un CR narratif existant (sinon rien à extraire)
+    if (rxcrm) rxcrm.hidden = inProg || !hasNarrative;
 
     // Audio
     var audio = $('[data-v30-tx-audio]');
@@ -436,6 +440,42 @@
       genericClickHandler(reanalyze, '/api/transcription/' + TID + '/reanalyze',
                           'Re-analyse Claude lancée — actualisation…');
     }
+    var extractCrm = $('[data-v30-tx-extract-crm]');
+    if (extractCrm) {
+      extractCrm.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (_crmEdited) {
+          if (!confirm('Tu as des modifications CRM non enregistrées. Ré-extraire écrasera les champs CRM avec ce que l\'IA renverra. Continuer ?')) return;
+        }
+        extractCrm.disabled = true;
+        var orig = extractCrm.innerHTML;
+        extractCrm.textContent = 'Extraction…';
+        if (window.showToast) window.showToast('Ré-extraction CRM en cours (Ollama, ~30 s)…', 'info');
+        fetch('/api/transcription/' + TID + '/extract-crm', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+        })
+          .then(function (r) { return r.json().then(function (j) { return { st: r.status, body: j }; }); })
+          .then(function (res) {
+            if (res.st >= 200 && res.st < 300 && res.body.ok) {
+              if (window.showToast) window.showToast('Champs CRM ré-extraits', 'success');
+              _crmHydrated = false;
+              _crmEdited = false;
+              setTimeout(load, 300);
+            } else {
+              if (window.showToast) window.showToast('Échec : ' + (res.body.error || 'erreur'), 'error');
+            }
+          })
+          .catch(function (err) {
+            if (window.showToast) window.showToast('Erreur réseau : ' + err.message, 'error');
+          })
+          .finally(function () {
+            extractCrm.disabled = false;
+            extractCrm.innerHTML = orig;
+          });
+      });
+    }
     var del = $('[data-v30-tx-delete]');
     if (del) del.addEventListener('click', function () {
       if (!confirm('Supprimer cette transcription ?')) return;
@@ -713,11 +753,24 @@
     _renderActions('up', s.up_tech || []);
     _renderActions('other', s.autre_partie || []);
 
-    // Boutons « Créer fiche » : visibles selon données dispo
+    // Boutons « Créer / Mettre à jour fiche » : visibles selon données dispo,
+    // libellé adaptatif selon idempotence
     var btnC = $('[data-v30-tx-crm-create-candidate]');
     var btnP = $('[data-v30-tx-crm-create-prospect]');
-    if (btnC) btnC.hidden = !(showCand && ci && (ci.nom || ci.prenom));
-    if (btnP) btnP.hidden = !(showProsp && pi && (pi.entreprise || pi.contact_nom));
+    _existingFicheIds.candidate = a._candidate_id || null;
+    _existingFicheIds.prospect = a._prospect_id || null;
+    if (btnC) {
+      btnC.hidden = !(showCand && ci && (ci.nom || ci.prenom));
+      btnC.textContent = a._candidate_id
+        ? '↺ Mettre à jour fiche #' + a._candidate_id
+        : '＋ Créer fiche candidat';
+    }
+    if (btnP) {
+      btnP.hidden = !(showProsp && pi && (pi.entreprise || pi.contact_nom));
+      btnP.textContent = a._prospect_id
+        ? '↺ Mettre à jour fiche #' + a._prospect_id
+        : '＋ Créer fiche prospect';
+    }
 
     // Lien vers fiche déjà créée (idempotence)
     var hint = $('[data-v30-tx-crm-link]');
@@ -784,6 +837,22 @@
   function _markEdited() {
     _crmEdited = true;
     _setSavedState('is-saving', '● Modifications non enregistrées');
+    _enableBeforeunloadGuard();
+  }
+
+  // ─── Beforeunload guard (v32.12) ───────────────────────────────────
+  function _beforeunloadHandler(e) {
+    // Le navigateur affichera son propre message générique — la valeur
+    // de retour ne sert qu'à déclencher le prompt.
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  }
+  function _enableBeforeunloadGuard() {
+    window.addEventListener('beforeunload', _beforeunloadHandler);
+  }
+  function _disableBeforeunloadGuard() {
+    window.removeEventListener('beforeunload', _beforeunloadHandler);
   }
 
   function _readBool(sel) {
@@ -888,6 +957,7 @@
         if (j && j.ok) {
           _setSavedState('is-saved', '✓ Enregistré');
           _crmEdited = false;
+          _disableBeforeunloadGuard();
           if (window.showToast) window.showToast('Champs CRM enregistrés', 'success');
         } else {
           _setSavedState('is-error', '✗ ' + ((j && j.error) || 'erreur'));
@@ -898,22 +968,51 @@
       });
   }
 
+  // _existingFicheIds : refresh à chaque renderCRM, utilisé pour la confirm dialog
+  var _existingFicheIds = { candidate: null, prospect: null };
+
   function createFiche(kind) {
     var url = '/api/transcription/' + TID + '/create-' + kind;
+    var existingId = _existingFicheIds[kind] || null;
+    var forceNew = false;
+
+    if (existingId) {
+      var msg = kind === 'candidate'
+        ? 'Une fiche candidat #' + existingId + ' a déjà été créée depuis cette transcription.\n\n'
+          + 'OK = Mettre à jour la fiche existante avec les champs édités\n'
+          + 'Annuler = Créer un doublon (nouvelle fiche)'
+        : 'Une fiche prospect #' + existingId + ' a déjà été créée depuis cette transcription.\n\n'
+          + 'OK = Mettre à jour la fiche existante avec les champs édités\n'
+          + 'Annuler = Créer un doublon (nouvelle fiche)';
+      var update = confirm(msg);
+      if (!update) {
+        // Création doublon — confirm une 2ᵉ fois pour éviter les fausses manips
+        if (!confirm('Confirmer la création d\'un doublon (nouvelle fiche, l\'ancienne reste) ?')) {
+          return;
+        }
+        forceNew = true;
+      }
+    }
+
     var label = kind === 'candidate' ? 'Création fiche candidat…' : 'Création fiche prospect…';
+    if (existingId && !forceNew) {
+      label = kind === 'candidate' ? 'Mise à jour fiche candidat…' : 'Mise à jour fiche prospect…';
+    }
     if (window.showToast) window.showToast(label, 'info');
+
     saveCRM().then(function() {
       return fetch(url, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {'Content-Type':'application/json'},
-        body: '{}',
+        body: JSON.stringify({ force_new: forceNew }),
       });
     })
       .then(function(r) { return r.json().then(function(j) { return {st: r.status, body: j}; }); })
       .then(function(res) {
         if (res.st >= 200 && res.st < 300 && res.body.ok) {
-          if (window.showToast) window.showToast('Fiche créée — redirection…', 'success');
+          var verb = res.body.action === 'updated' ? 'mise à jour' : 'créée';
+          if (window.showToast) window.showToast('Fiche ' + verb + ' — redirection…', 'success');
           if (res.body.redirect) {
             setTimeout(function() { window.location.href = res.body.redirect; }, 600);
           } else {

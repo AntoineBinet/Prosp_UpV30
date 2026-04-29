@@ -290,10 +290,11 @@
       rows.push({ icon: '✗', cls: 'err', label: 'Claude API', detail: c.error_msg || c.error || 'erreur' });
     }
     var h = data.huggingface || {};
+    var hfMissingRepos = (h.missing_repos && h.missing_repos.length) ? h.missing_repos : null;
     if (h.skipped)    rows.push({ icon: '–', cls: 'skip', label: 'Diarisation', detail: 'Désactivée dans Paramètres' });
     else if (h.ok)    rows.push({ icon: '✓', cls: 'ok',   label: 'HuggingFace · pyannote', detail: 'Accès aux 3 modèles validé' });
-    else if (h.missing_repos && h.missing_repos.length) {
-      var repos = h.missing_repos.map(function(r){ return r.split('/').pop(); }).join(', ');
+    else if (hfMissingRepos) {
+      var repos = hfMissingRepos.map(function(r){ return r.split('/').pop(); }).join(', ');
       rows.push({ icon: '✗', cls: 'warn', label: 'HuggingFace · pyannote',
                   detail: 'Repos à débloquer : ' + repos + ' (clique « Agree » sur huggingface.co)' });
     }
@@ -317,7 +318,42 @@
     var needSettings = (c.error === 'invalid_key' || c.error === 'credits_exhausted');
     if (billing) billing.hidden = !needBilling;
     if (settings) settings.hidden = !needSettings;
-    if (actionsEl) actionsEl.hidden = !(needBilling || needSettings);
+
+    // ─── v32.12 — boutons HF : « Accepter sur HuggingFace » + « Re-vérifier »
+    // Container dynamique injecté dans actionsEl quand des repos sont manquants.
+    if (actionsEl) {
+      // Purge des anciens HF buttons générés dynamiquement
+      Array.prototype.forEach.call(
+        actionsEl.querySelectorAll('[data-v30-tx-preflight-hf-btn]'),
+        function (b) { b.remove(); }
+      );
+      if (hfMissingRepos) {
+        hfMissingRepos.forEach(function (repo) {
+          var a = document.createElement('a');
+          a.className = 'btn btn-sm';
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.href = 'https://huggingface.co/' + repo;
+          a.textContent = '↗ Accepter ' + repo.split('/').pop() + ' sur HuggingFace';
+          a.setAttribute('data-v30-tx-preflight-hf-btn', '1');
+          actionsEl.appendChild(a);
+        });
+        var rec = document.createElement('button');
+        rec.type = 'button';
+        rec.className = 'btn btn-sm';
+        rec.textContent = '↻ Re-vérifier';
+        rec.setAttribute('data-v30-tx-preflight-hf-btn', '1');
+        rec.addEventListener('click', function () {
+          rec.disabled = true;
+          rec.textContent = 'Vérification…';
+          runPreflight().then(function (d) {
+            updatePreflightUI(d);
+          });
+        });
+        actionsEl.appendChild(rec);
+      }
+      actionsEl.hidden = !(needBilling || needSettings || hfMissingRepos);
+    }
 
     if (canStart) {
       titleEl.textContent = data.warnings && data.warnings.length

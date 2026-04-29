@@ -888,3 +888,17 @@
   /* Toutes les cellules vides se cachent (évite les espaces dans les cartes) */
   .v30-pp-table td:empty { display: none; }
 }
+
+/* v32.12 — Highlight de la ligne ciblée par ?focus=<id>
+   (typiquement après création d'une fiche depuis une transcription) */
+@keyframes v30-pp-focus-pulse {
+  0%   { box-shadow: 0 0 0 0 oklch(0.65 0.18 280 / 0.55); background: oklch(0.65 0.18 280 / 0.18); }
+  60%  { box-shadow: 0 0 0 6px oklch(0.65 0.18 280 / 0); background: oklch(0.65 0.18 280 / 0.10); }
+  100% { box-shadow: 0 0 0 0 oklch(0.65 0.18 280 / 0); background: transparent; }
+}
+.v30-pp-table tr.is-focused td,
+.v30-pp-kcol [data-v30-kcard-id].is-focused {
+  animation: v30-pp-focus-pulse 2.4s ease-out 1;
+  outline: 2px solid oklch(0.65 0.18 280 / 0.55);
+  outline-offset: -2px;
+}

@@ -2,6 +2,81 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.12] — 2026-04-29 · Finitions Transcription CRM (idempotence, 3ᵉ passe Ollama, validation, focus prospect)
+
+Stabilisation de la feature « Transcription → Fiche CRM » introduite en v32.11.
+8 finitions orthogonales : 1 endpoint en plus (`extract-crm`), 1 fonction
+`_extract_crm_from_markdown`, idempotence des 2 boutons « Créer fiche »,
+validation stricte côté backend, et 3 améliorations UX (boutons HF du
+préflight, warning beforeunload, scroll-to-row sur `?focus=<id>`).
+
+- **T1 — Idempotence des boutons « Créer fiche candidat / prospect »**
+  ([routes/transcription.py:763](routes/transcription.py),
+  [static/js/v30/transcription_detail.js:901](static/js/v30/transcription_detail.js))
+  Si `analysis._candidate_id` (resp. `_prospect_id`) existe ET pointe vers
+  une fiche non-archivée appartenant au user, l'endpoint UPDATE plutôt que
+  d'insérer un doublon. Réponse JSON : `{"action": "created"|"updated"}`.
+  Param body `force_new=true` pour forcer un doublon volontaire. Côté JS :
+  confirm dialog si fiche existe (« Mettre à jour la fiche existante #X
+  ou créer un doublon ? »), libellé du bouton adaptatif (« ↺ Mettre à
+  jour fiche #X » vs « ＋ Créer fiche candidat »).
+- **T2 — Pré-flight HF : boutons d'action**
+  ([static/js/v30/transcription.js:265](static/js/v30/transcription.js))
+  Quand `data.huggingface.missing_repos` est non vide, le préflight
+  affiche pour chaque repo un bouton `↗ Accepter <repo> sur HuggingFace`
+  qui ouvre `https://huggingface.co/<repo>` dans un nouvel onglet, plus
+  un bouton `↻ Re-vérifier` qui re-déclenche `runPreflight()`.
+- **T3 — `/v30/prospects?focus=<id>` scroll-to-row + highlight**
+  ([static/js/v30/prospects.js:2604](static/js/v30/prospects.js),
+  [static/css/v30/prospects.css:893](static/css/v30/prospects.css))
+  Le redirect renvoyé par `create-prospect` est désormais exploité côté
+  liste : la ligne (ou la carte kanban) ciblée par `?focus=<id>` est
+  scrollée au centre et reçoit un highlight `is-focused` (animation pulse
+  2.4 s). Retry 30× / 200 ms tant que le DOM n'est pas peuplé. URL
+  nettoyée par `history.replaceState` pour éviter de re-trigger sur F5.
+- **T4 — 3ᵉ passe Ollama : extraction CRM JSON structurée**
+  ([services/transcription.py:478](services/transcription.py))
+  Nouvelle fonction `_extract_crm_from_markdown(narrative_md, transcript,
+  config)` qui prend le CR markdown produit par les 2 passes existantes
+  et lance un appel Ollama supplémentaire avec un prompt JSON strict pour
+  remplir `meeting_type`, `candidate_info`, `prospect_info`,
+  `opportunites_missions`, `suivi`. Tolérante : JSON invalide → squelette
+  vide retourné, jamais d'exception remontée. Appelée à la fin de
+  `_call_ollama_for_analysis` (passes courte ET longue).
+- **T5 — Bouton « ✦ Ré-extraire CRM » sur fiche détail**
+  ([templates/v30/transcription_detail.html:30](templates/v30/transcription_detail.html),
+  [routes/transcription.py:766](routes/transcription.py))
+  Nouvel endpoint `POST /api/transcription/<id>/extract-crm` qui réutilise
+  `_extract_crm_from_markdown` sur le `narrative_markdown` existant SANS
+  regénérer le CR. Mise à jour seule des champs CRM. Bouton dans la barre
+  d'actions, visible si un narrative_markdown existe et statut != processing.
+  Confirm si édition non sauvegardée en cours.
+- **T6 — Beforeunload warning sur édition non sauvegardée**
+  ([static/js/v30/transcription_detail.js:806](static/js/v30/transcription_detail.js))
+  Listener `beforeunload` activé dès que `_crmEdited === true`, retiré
+  après save réussi. Empêche les pertes accidentelles de saisie sur F5
+  ou navigation sortante.
+- **T7 — Validation backend des structured-fields**
+  ([routes/transcription.py:686](routes/transcription.py))
+  Nouvelle fonction `_validate_structured_payload` appelée avant le merge :
+  vérifie `meeting_type ∈ {entretien_candidat, rdv_commercial, reunion_interne, autre, null}`,
+  `candidate_info` et `prospect_info` sont dict ou null, `suivi.up_tech`
+  et `suivi.autre_partie` sont des arrays de dict, `quality_score ∈ [0, 100]`.
+  Retourne 400 avec message clair si invalide.
+- **T8 — Nettoyage des données de test**
+  Soft-delete de la fiche candidat #89 (Arthur Voineau, artefact de tests
+  v32.11) et désactivation du user `claude_test` créé pour les tests
+  automatisés de cette release.
+
+**Limites connues** :
+- Le modèle Ollama par défaut `llama3.2:3b` est faible en extraction
+  structurée — il génère parfois `"null"` (string) au lieu de `null`,
+  ou met les noms entiers dans `nom`. Recommandation forte : passer à
+  `qwen2.5:7b` ou `llama3.1:8b` (Paramètres > IA > Modèle Ollama).
+- Le repo `pyannote/speaker-diarization-community-1` doit être accepté
+  manuellement sur HuggingFace pour activer la diarisation — le bouton
+  T2 ouvre la page directement.
+
 ## [32.11] — 2026-04-29 · Section CRM éditable + création fiche candidat/prospect
 
 L'analyse de réunion ne se contente plus de produire un CR narratif : elle

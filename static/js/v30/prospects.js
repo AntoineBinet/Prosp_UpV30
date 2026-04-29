@@ -2653,6 +2653,43 @@
         }
       }
     } catch (_) {}
+    // v32.12 — ?focus=<id> : scroll vers la ligne du prospect + highlight
+    // (cas typique : retour depuis la création de fiche depuis transcription).
+    try {
+      var focusId = new URLSearchParams(window.location.search).get('focus');
+      if (focusId) {
+        var fid = String(focusId).trim();
+        if (fid) focusProspectAfterLoad(fid);
+      }
+    } catch (_) {}
+  }
+
+  // v32.12 — Highlight d'un prospect dans la liste après création depuis
+  // une transcription. Le DOM peut ne pas être encore peuplé (loadProspects
+  // tourne en async), donc on retry quelques fois avant d'abandonner.
+  function focusProspectAfterLoad(id) {
+    var attempts = 0;
+    var MAX_ATTEMPTS = 30; // ~6 s max
+    function tryFocus() {
+      attempts++;
+      var row = document.querySelector('tr[data-id="' + id + '"]');
+      var card = !row ? document.querySelector('[data-v30-kcard-id="' + id + '"]') : null;
+      var target = row || card;
+      if (!target) {
+        if (attempts < MAX_ATTEMPTS) {
+          setTimeout(tryFocus, 200);
+        }
+        return;
+      }
+      try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {
+        try { target.scrollIntoView(); } catch (__) {}
+      }
+      target.classList.add('is-focused');
+      setTimeout(function () { target.classList.remove('is-focused'); }, 4000);
+      // Nettoie l'URL pour ne pas re-trigger sur F5
+      try { history.replaceState(null, '', window.location.pathname); } catch (_) {}
+    }
+    setTimeout(tryFocus, 200);
   }
 
   if (document.readyState === 'loading') {

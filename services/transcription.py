@@ -476,6 +476,177 @@ Transcript :
 """
 
 
+# v32.12 — 3ᵉ passe Ollama : extraction des champs CRM structurés à partir
+# du CR narratif (et optionnellement du transcript pour les détails). Le
+# CR markdown est résumé au format JSON strict pour alimenter `candidate_info`,
+# `prospect_info`, `opportunites_missions` et `suivi`.
+_OLLAMA_EXTRACT_CRM_PROMPT = """Tu reçois un compte-rendu de réunion (markdown) et tu dois en extraire des CHAMPS CRM STRUCTURÉS.
+
+RÈGLES STRICTES :
+- N'invente RIEN. Si un champ n'est pas mentionné dans le CR → mets null (ou [] pour les arrays).
+- Garde les chiffres, noms, lieux, technologies EXACTS.
+- Réponds UNIQUEMENT par un JSON valide (pas de prose avant ni après, pas de balises ```).
+
+Schéma JSON attendu :
+{
+  "meeting_type": "entretien_candidat" | "rdv_commercial" | "reunion_interne" | "autre",
+  "candidate_info": null OR {
+    "nom": str|null, "prenom": str|null, "titre": str|null,
+    "annees_experience": int|null, "domaine_principal": str|null,
+    "mobilite": str|null, "disponibilite": str|null,
+    "remuneration_actuelle": str|null, "pretentions_salariales": str|null,
+    "langues": [{"langue": str, "niveau": str}],
+    "competences_cles": [str],
+    "fonctions_recherchees": str|null, "motif_recherche": str|null,
+    "eval_technique": {"note": int|null, "commentaire": str|null}|null,
+    "eval_personnalite": {"note": int|null, "commentaire": str|null}|null,
+    "eval_communication": {"note": int|null, "commentaire": str|null}|null,
+    "permis_conduire": bool|null, "vehicule": bool|null,
+    "email": str|null, "telephone": str|null, "linkedin": str|null
+  },
+  "prospect_info": null OR {
+    "entreprise": str|null,
+    "contact_nom": str|null, "contact_prenom": str|null, "contact_fonction": str|null,
+    "telephone": str|null, "email": str|null, "linkedin": str|null,
+    "besoin": str|null, "urgence": "haute"|"moyenne"|"basse"|null,
+    "budget": str|null,
+    "stack": [str], "pain_points": [str],
+    "city": str|null, "country": str|null
+  },
+  "opportunites_missions": [
+    {"nom": str, "client": str|null, "statut": "à_creuser"|"discutée"|"proposée"|"refusée", "score_match": int|null, "commentaire": str|null}
+  ],
+  "suivi": {
+    "up_tech": [{"action": str, "deadline": str|null, "owner": str|null}],
+    "autre_partie": [{"action": str, "deadline": str|null, "owner": str|null}],
+    "proposed_followup_date": str|null,
+    "followup_channel": "email"|"telephone"|"linkedin"|"rdv_physique"|null
+  }
+}
+
+CR à analyser :
+"""
+
+
+def _empty_crm_fields() -> dict:
+    """Retourne le squelette par défaut quand l'extraction échoue."""
+    return {
+        "meeting_type": None,
+        "candidate_info": None,
+        "prospect_info": None,
+        "opportunites_missions": [],
+        "suivi": {
+            "up_tech": [],
+            "autre_partie": [],
+            "proposed_followup_date": None,
+            "followup_channel": None,
+        },
+    }
+
+
+def _extract_crm_from_markdown(narrative_md: str, transcript_text: str | None,
+                                config: dict, timeout: int = 180) -> dict:
+    """3ᵉ passe Ollama : extrait les champs CRM structurés du CR narratif.
+
+    L'idée est de NE PAS demander au modèle de tout faire en une passe (le 3B
+    hallucine massivement). On lui donne un CR déjà rédigé et on lui demande
+    juste d'en extraire les champs JSON. Si le JSON est invalide → on retombe
+    sur le squelette vide pour permettre l'édition manuelle côté UI.
+
+    Args:
+      narrative_md : compte-rendu markdown généré par la passe précédente.
+      transcript_text : transcript brut (optionnel, ajouté en contexte si court).
+      config : ai_config (clé `ollama_model`, etc.).
+      timeout : timeout HTTP côté Ollama.
+
+    Returns:
+      dict avec clés : meeting_type, candidate_info, prospect_info,
+      opportunites_missions, suivi. JAMAIS de RuntimeError — on retourne
+      le squelette vide en cas de problème.
+    """
+    from app import _call_ollama_direct  # type: ignore
+
+    md = (narrative_md or "").strip()
+    if not md:
+        return _empty_crm_fields()
+
+    # Si le CR est très long, on tronque pour ne pas saturer le modèle.
+    # En général un CR markdown de 3-15 pages tient en 25k chars.
+    blob = md[:30_000]
+
+    # Optionnel : ajoute un extrait du transcript brut pour les détails
+    # (numéros de téléphone, noms d'entreprises) qui peuvent manquer dans
+    # le CR narratif. Limité pour ne pas exploser le contexte.
+    if transcript_text and len(transcript_text) < 8000:
+        blob += "\n\n---\nTranscript brut (référence) :\n\n" + transcript_text
+
+    prompt = _OLLAMA_EXTRACT_CRM_PROMPT + blob
+    try:
+        raw = _call_ollama_direct(prompt, config, timeout) or ""
+    except Exception as exc:
+        logger.warning("Extraction CRM Ollama échouée (network) : %s", exc)
+        return _empty_crm_fields()
+
+    text = raw.strip()
+    if not text:
+        return _empty_crm_fields()
+
+    # Parse robuste : on accepte JSON pur, JSON dans ```json...```, ou
+    # bloc {...} le plus large dans la sortie.
+    if text.startswith("```"):
+        import re as _re
+        m = _re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, _re.DOTALL)
+        if m:
+            text = m.group(1).strip()
+
+    parsed: dict | None = None
+    try:
+        parsed = json.loads(text)
+        if not isinstance(parsed, dict):
+            parsed = None
+    except json.JSONDecodeError:
+        i, j = text.find("{"), text.rfind("}")
+        if i >= 0 and j > i:
+            try:
+                cand = json.loads(text[i:j + 1])
+                if isinstance(cand, dict):
+                    parsed = cand
+            except json.JSONDecodeError:
+                pass
+
+    if parsed is None:
+        logger.warning("Extraction CRM : JSON invalide (taille=%d) — squelette vide retourné", len(text))
+        return _empty_crm_fields()
+
+    # Normalisation : on garantit la présence des clés et les bons types
+    out = _empty_crm_fields()
+    mt = parsed.get("meeting_type")
+    if isinstance(mt, str) and mt in {"entretien_candidat", "rdv_commercial", "reunion_interne", "autre"}:
+        out["meeting_type"] = mt
+    ci = parsed.get("candidate_info")
+    if isinstance(ci, dict):
+        out["candidate_info"] = ci
+    pi = parsed.get("prospect_info")
+    if isinstance(pi, dict):
+        out["prospect_info"] = pi
+    om = parsed.get("opportunites_missions")
+    if isinstance(om, list):
+        out["opportunites_missions"] = [m for m in om if isinstance(m, dict)]
+    su = parsed.get("suivi")
+    if isinstance(su, dict):
+        merged = out["suivi"]
+        if isinstance(su.get("up_tech"), list):
+            merged["up_tech"] = [a for a in su["up_tech"] if isinstance(a, dict)]
+        if isinstance(su.get("autre_partie"), list):
+            merged["autre_partie"] = [a for a in su["autre_partie"] if isinstance(a, dict)]
+        if isinstance(su.get("proposed_followup_date"), str):
+            merged["proposed_followup_date"] = su["proposed_followup_date"]
+        if isinstance(su.get("followup_channel"), str):
+            merged["followup_channel"] = su["followup_channel"]
+        out["suivi"] = merged
+    return out
+
+
 def _call_ollama_for_analysis(transcript: str, config: dict, timeout: int = 300) -> dict:
     """Analyse Ollama avec stratégie adaptée à la longueur :
     - transcript court (<12 000 caractères ≈ 3000 tokens) → 1 passe directe
@@ -497,7 +668,15 @@ def _call_ollama_for_analysis(transcript: str, config: dict, timeout: int = 300)
         out = (_call_ollama_direct(prompt, config, timeout) or "").strip()
         if out.startswith("```"):
             out = out.strip("`").lstrip("markdown\n").lstrip("md\n").strip()
-        return _wrap_ollama_markdown(out)
+        wrapped = _wrap_ollama_markdown(out)
+        # 3ᵉ passe : extraction CRM
+        try:
+            crm = _extract_crm_from_markdown(out, text, config, timeout=120)
+            wrapped.update(crm)
+        except Exception as exc:
+            logger.warning("3ᵉ passe Ollama (extract CRM) échouée : %s", exc)
+            wrapped.update(_empty_crm_fields())
+        return wrapped
 
     # ─── Chunking + synthèse pour les longs ───
     logger.info("Ollama analyse en 2 passes (transcript %d chars)", len(text))
@@ -527,7 +706,11 @@ def _call_ollama_for_analysis(transcript: str, config: dict, timeout: int = 300)
             logger.warning("Ollama chunk %d échoué : %s", idx, exc)
 
     if not notes:
-        return {"narrative_markdown": "(Ollama n'a rien produit. Vérifie qu'Ollama tourne et que le modèle est chargé.)"}
+        out = _wrap_ollama_markdown(
+            "(Ollama n'a rien produit. Vérifie qu'Ollama tourne et que le modèle est chargé.)"
+        )
+        out.update(_empty_crm_fields())
+        return out
 
     # Synthèse finale
     notes_blob = "\n\n".join(notes)
@@ -536,7 +719,15 @@ def _call_ollama_for_analysis(transcript: str, config: dict, timeout: int = 300)
     final = (_call_ollama_direct(_OLLAMA_SYNTHESIZE_PROMPT + notes_blob, config, timeout) or "").strip()
     if final.startswith("```"):
         final = final.strip("`").lstrip("markdown\n").lstrip("md\n").strip()
-    return _wrap_ollama_markdown(final)
+    wrapped = _wrap_ollama_markdown(final)
+    # 3ᵉ passe : extraction CRM (sans transcript brut, le CR fait foi)
+    try:
+        crm = _extract_crm_from_markdown(final, None, config, timeout=120)
+        wrapped.update(crm)
+    except Exception as exc:
+        logger.warning("3ᵉ passe Ollama (extract CRM) échouée : %s", exc)
+        wrapped.update(_empty_crm_fields())
+    return wrapped
 
 
 def _wrap_ollama_markdown(md: str) -> dict:

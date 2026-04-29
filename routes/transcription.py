@@ -654,6 +654,64 @@ def api_external_analysis(tid: int):
     return jsonify(ok=True, applied=True, has_narrative=bool(analysis.get("narrative_markdown")))
 
 
+@transcription_bp.post("/api/transcription/<int:tid>/extract-crm")
+def api_extract_crm(tid: int):
+    """v32.12 — Ré-extrait les champs CRM structurés depuis le `narrative_markdown`
+    existant, SANS regénérer le CR. Utile pour récupérer les champs structurés
+    sur d'anciennes transcriptions analysées avant l'introduction de la 3ᵉ passe.
+
+    Met à jour seulement meeting_type, candidate_info, prospect_info,
+    opportunites_missions, suivi. Le narrative_markdown et les autres champs
+    sont préservés."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT analysis_json, transcript_text FROM transcriptions "
+            "WHERE id=? AND owner_id=? AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+            (tid, uid),
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Transcription introuvable"), 404
+    try:
+        analysis = json.loads(row["analysis_json"]) if row["analysis_json"] else {}
+    except Exception:
+        analysis = {}
+    if not isinstance(analysis, dict):
+        analysis = {}
+    md = (analysis.get("narrative_markdown") or "").strip()
+    if not md:
+        return jsonify(ok=False,
+                       error="Pas de compte-rendu narratif disponible — relance d'abord l'analyse."), 400
+
+    # Import différé (sinon import circulaire au boot)
+    from services.transcription import _extract_crm_from_markdown, _empty_crm_fields  # type: ignore
+
+    config = _load_ai_config()
+    try:
+        crm = _extract_crm_from_markdown(md, row["transcript_text"], config, timeout=120)
+    except Exception as exc:
+        logger.warning("extract-crm échouée pour #%s : %s", tid, exc)
+        crm = _empty_crm_fields()
+
+    # Merge : on écrase seulement les champs CRM, le reste reste intact.
+    for k in ("meeting_type", "candidate_info", "prospect_info",
+              "opportunites_missions", "suivi"):
+        analysis[k] = crm.get(k)
+    analysis["_crm_extracted_at"] = datetime.now().isoformat(timespec="seconds")
+
+    now = datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE transcriptions SET analysis_json=?, updated_at=? WHERE id=?;",
+            (json.dumps(analysis, ensure_ascii=False), now, tid),
+        )
+        conn.commit()
+    logger.info("CRM ré-extrait pour transcription #%s", tid)
+    return jsonify(ok=True, extracted=crm)
+
+
 @transcription_bp.delete("/api/transcription/<int:tid>")
 def api_delete(tid: int):
     uid = _uid()
@@ -676,7 +734,73 @@ def api_delete(tid: int):
 
 
 _CRM_FIELDS = ("meeting_type", "candidate_info", "prospect_info",
-               "opportunites_missions", "suivi")
+               "opportunites_missions", "suivi", "quality_score")
+
+_VALID_MEETING_TYPES = {"entretien_candidat", "rdv_commercial", "reunion_interne", "autre"}
+_VALID_FOLLOWUP_CHANNELS = {"email", "telephone", "linkedin", "rdv_physique"}
+
+
+def _validate_structured_payload(payload: dict) -> tuple[bool, str]:
+    """Valide la structure de `payload` envoyé à structured-fields.
+
+    Retourne (ok, error_message). Les champs absents sont OK (update
+    partielle). Les champs présents doivent avoir le bon type."""
+    if not isinstance(payload, dict):
+        return False, "payload doit être un objet JSON"
+
+    if "meeting_type" in payload:
+        v = payload["meeting_type"]
+        if v is not None and (not isinstance(v, str) or v not in _VALID_MEETING_TYPES):
+            return False, (
+                f"meeting_type invalide ({v!r}). Valeurs acceptées : "
+                + ", ".join(sorted(_VALID_MEETING_TYPES)) + " ou null."
+            )
+
+    for k in ("candidate_info", "prospect_info"):
+        if k in payload:
+            v = payload[k]
+            if v is not None and not isinstance(v, dict):
+                return False, f"{k} doit être un objet ou null (reçu : {type(v).__name__})"
+
+    if "opportunites_missions" in payload:
+        v = payload["opportunites_missions"]
+        if v is not None and not isinstance(v, list):
+            return False, f"opportunites_missions doit être un array (reçu : {type(v).__name__})"
+        if isinstance(v, list):
+            for i, m in enumerate(v):
+                if not isinstance(m, dict):
+                    return False, f"opportunites_missions[{i}] doit être un objet"
+
+    if "suivi" in payload:
+        s = payload["suivi"]
+        if s is not None and not isinstance(s, dict):
+            return False, f"suivi doit être un objet ou null (reçu : {type(s).__name__})"
+        if isinstance(s, dict):
+            for arr_k in ("up_tech", "autre_partie"):
+                if arr_k in s:
+                    arr = s[arr_k]
+                    if arr is not None and not isinstance(arr, list):
+                        return False, f"suivi.{arr_k} doit être un array"
+                    if isinstance(arr, list):
+                        for i, item in enumerate(arr):
+                            if not isinstance(item, dict):
+                                return False, f"suivi.{arr_k}[{i}] doit être un objet"
+            ch = s.get("followup_channel")
+            if ch is not None and (not isinstance(ch, str) or (ch and ch not in _VALID_FOLLOWUP_CHANNELS)):
+                return False, (
+                    f"suivi.followup_channel invalide ({ch!r}). Valeurs acceptées : "
+                    + ", ".join(sorted(_VALID_FOLLOWUP_CHANNELS)) + " ou null."
+                )
+
+    if "quality_score" in payload:
+        v = payload["quality_score"]
+        if v is not None:
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                return False, f"quality_score doit être un nombre ou null (reçu : {type(v).__name__})"
+            if v < 0 or v > 100:
+                return False, f"quality_score doit être entre 0 et 100 (reçu : {v})"
+
+    return True, ""
 
 
 @transcription_bp.put("/api/transcription/<int:tid>/structured-fields")
@@ -693,6 +817,10 @@ def api_update_structured_fields(tid: int):
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
     payload = request.get_json(force=True, silent=True) or {}
+
+    ok, err = _validate_structured_payload(payload)
+    if not ok:
+        return jsonify(ok=False, error=err), 400
 
     with _conn() as conn:
         row = conn.execute(
@@ -741,14 +869,19 @@ def _split_full_name(full: str | None) -> tuple[str, str]:
 
 @transcription_bp.post("/api/transcription/<int:tid>/create-candidate")
 def api_create_candidate(tid: int):
-    """Crée une fiche candidat à partir des champs structurés extraits.
+    """Crée (ou met à jour) une fiche candidat à partir des champs CRM extraits.
 
-    L'utilisateur a édité (ou non) `candidate_info` dans l'UI, et déclenche
-    cet endpoint. On insère une nouvelle ligne dans `candidates` avec les
-    champs disponibles. Retourne l'id du candidat créé pour redirection."""
+    Idempotence : si `analysis._candidate_id` existe ET pointe vers une fiche
+    non-archivée appartenant au user, on UPDATE plutôt que de créer un doublon.
+    Pour forcer la création d'un nouveau doublon, passer `force_new=true` dans
+    le body.
+    """
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
+
+    payload = request.get_json(force=True, silent=True) or {}
+    force_new = bool(payload.get("force_new", False))
 
     with _conn() as conn:
         row = conn.execute(
@@ -767,6 +900,19 @@ def api_create_candidate(tid: int):
     if not isinstance(info, dict) or not (info.get("nom") or info.get("prenom")):
         return jsonify(ok=False,
                        error="Aucun candidat identifié dans l'analyse — édite d'abord les champs ou re-déclenche l'analyse."), 400
+
+    # ─── Idempotence : check si fiche existe déjà ────────────────────
+    existing_cid: int | None = None
+    if not force_new and analysis.get("_candidate_id"):
+        prev = analysis["_candidate_id"]
+        with _conn() as conn:
+            chk = conn.execute(
+                "SELECT id FROM candidates WHERE id=? AND owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+                (prev, uid),
+            ).fetchone()
+        if chk:
+            existing_cid = int(chk["id"])
 
     prenom = (info.get("prenom") or "").strip()
     nom    = (info.get("nom")    or "").strip()
@@ -803,56 +949,86 @@ def api_create_candidate(tid: int):
         return (f"{note}/10 — " if note is not None else "") + com
 
     now = datetime.now().isoformat(timespec="seconds")
-    with _conn() as conn:
-        cur = conn.execute(
-            """INSERT INTO candidates
-               (name, prenom, titre, role, location, seniority, tech, skills, sector,
-                annees_experience, years_experience, domaine_principal,
-                mobilite, disponibilite, permis_conduire, vehicule,
-                fonctions_recherchees, motif_recherche,
-                remuneration_actuelle, pretentions_salariales,
-                eval_technique, eval_personnalite, eval_communication,
-                langues, phone, email, linkedin, notes,
-                source, status, owner_id, createdAt, updatedAt)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
-            (
-                full,
-                prenom or None,
-                titre or None,
-                titre or None,                       # role = titre par défaut
-                (info.get("mobilite") or "").strip() or None,
-                None,
-                tech or None,
-                tech or None,                        # skills = tech par défaut
-                (info.get("domaine_principal") or "").strip() or None,
-                info.get("annees_experience"),
-                info.get("annees_experience"),
-                (info.get("domaine_principal") or "").strip() or None,
-                (info.get("mobilite") or "").strip() or None,
-                (info.get("disponibilite") or "").strip() or None,
-                1 if info.get("permis_conduire") else (0 if info.get("permis_conduire") is False else None),
-                1 if info.get("vehicule") else (0 if info.get("vehicule") is False else None),
-                (info.get("fonctions_recherchees") or "").strip() or None,
-                (info.get("motif_recherche") or "").strip() or None,
-                (info.get("remuneration_actuelle") or "").strip() or None,
-                (info.get("pretentions_salariales") or "").strip() or None,
-                _eval_str("eval_technique") or None,
-                _eval_str("eval_personnalite") or None,
-                _eval_str("eval_communication") or None,
-                langues or None,
-                (info.get("telephone") or "").strip() or None,
-                (info.get("email") or "").strip() or None,
-                (info.get("linkedin") or "").strip() or None,
-                f"Fiche créée depuis transcription #{tid} — {row['title']}",
-                f"transcription:{tid}",
-                "à_qualifier",
-                uid,
-                now,
-                now,
-            ),
-        )
-        cid = cur.lastrowid
-        conn.commit()
+
+    cand_fields = {
+        "name":                   full,
+        "prenom":                 prenom or None,
+        "titre":                  titre or None,
+        "role":                   titre or None,
+        "location":               (info.get("mobilite") or "").strip() or None,
+        "tech":                   tech or None,
+        "skills":                 tech or None,
+        "sector":                 (info.get("domaine_principal") or "").strip() or None,
+        "annees_experience":      info.get("annees_experience"),
+        "years_experience":       info.get("annees_experience"),
+        "domaine_principal":      (info.get("domaine_principal") or "").strip() or None,
+        "mobilite":               (info.get("mobilite") or "").strip() or None,
+        "disponibilite":          (info.get("disponibilite") or "").strip() or None,
+        "permis_conduire":        1 if info.get("permis_conduire") else (0 if info.get("permis_conduire") is False else None),
+        "vehicule":               1 if info.get("vehicule") else (0 if info.get("vehicule") is False else None),
+        "fonctions_recherchees":  (info.get("fonctions_recherchees") or "").strip() or None,
+        "motif_recherche":        (info.get("motif_recherche") or "").strip() or None,
+        "remuneration_actuelle":  (info.get("remuneration_actuelle") or "").strip() or None,
+        "pretentions_salariales": (info.get("pretentions_salariales") or "").strip() or None,
+        "eval_technique":         _eval_str("eval_technique") or None,
+        "eval_personnalite":      _eval_str("eval_personnalite") or None,
+        "eval_communication":     _eval_str("eval_communication") or None,
+        "langues":                langues or None,
+        "phone":                  (info.get("telephone") or "").strip() or None,
+        "email":                  (info.get("email") or "").strip() or None,
+        "linkedin":               (info.get("linkedin") or "").strip() or None,
+    }
+
+    if existing_cid:
+        # ─── UPDATE ──────────────────────────────────────────────
+        sets = ", ".join(f"{k}=?" for k in cand_fields)
+        vals = list(cand_fields.values()) + [now, existing_cid, uid]
+        with _conn() as conn:
+            conn.execute(
+                f"UPDATE candidates SET {sets}, updatedAt=? WHERE id=? AND owner_id=?;",
+                vals,
+            )
+            conn.commit()
+        cid = existing_cid
+        action = "updated"
+        logger.info("Fiche candidat #%s mise à jour depuis transcription #%s", cid, tid)
+    else:
+        # ─── INSERT ──────────────────────────────────────────────
+        with _conn() as conn:
+            cur = conn.execute(
+                """INSERT INTO candidates
+                   (name, prenom, titre, role, location, seniority, tech, skills, sector,
+                    annees_experience, years_experience, domaine_principal,
+                    mobilite, disponibilite, permis_conduire, vehicule,
+                    fonctions_recherchees, motif_recherche,
+                    remuneration_actuelle, pretentions_salariales,
+                    eval_technique, eval_personnalite, eval_communication,
+                    langues, phone, email, linkedin, notes,
+                    source, status, owner_id, createdAt, updatedAt)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    cand_fields["name"], cand_fields["prenom"], cand_fields["titre"], cand_fields["role"],
+                    cand_fields["location"], None,
+                    cand_fields["tech"], cand_fields["skills"], cand_fields["sector"],
+                    cand_fields["annees_experience"], cand_fields["years_experience"],
+                    cand_fields["domaine_principal"], cand_fields["mobilite"], cand_fields["disponibilite"],
+                    cand_fields["permis_conduire"], cand_fields["vehicule"],
+                    cand_fields["fonctions_recherchees"], cand_fields["motif_recherche"],
+                    cand_fields["remuneration_actuelle"], cand_fields["pretentions_salariales"],
+                    cand_fields["eval_technique"], cand_fields["eval_personnalite"], cand_fields["eval_communication"],
+                    cand_fields["langues"], cand_fields["phone"], cand_fields["email"], cand_fields["linkedin"],
+                    f"Fiche créée depuis transcription #{tid} — {row['title']}",
+                    f"transcription:{tid}",
+                    "à_qualifier",
+                    uid,
+                    now,
+                    now,
+                ),
+            )
+            cid = cur.lastrowid
+            conn.commit()
+        action = "created"
+        logger.info("Fiche candidat #%s créée depuis transcription #%s", cid, tid)
 
     # Garde une trace dans l'analyse pour ne pas re-créer 2× la même fiche
     analysis["_candidate_id"] = cid
@@ -863,16 +1039,23 @@ def api_create_candidate(tid: int):
         )
         conn.commit()
 
-    logger.info("Fiche candidat #%s créée depuis transcription #%s", cid, tid)
-    return jsonify(ok=True, candidate_id=cid, redirect=f"/v30/candidat/{cid}")
+    return jsonify(ok=True, candidate_id=cid, action=action,
+                   redirect=f"/v30/candidat/{cid}")
 
 
 @transcription_bp.post("/api/transcription/<int:tid>/create-prospect")
 def api_create_prospect(tid: int):
-    """Crée une fiche prospect (+ company si nouvelle) à partir de prospect_info."""
+    """Crée (ou met à jour) une fiche prospect + company à partir de prospect_info.
+
+    Idempotence : si `analysis._prospect_id` existe et pointe vers une fiche
+    non-archivée → UPDATE plutôt qu'INSERT. `force_new=true` pour forcer le doublon.
+    """
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
+
+    payload = request.get_json(force=True, silent=True) or {}
+    force_new = bool(payload.get("force_new", False))
 
     with _conn() as conn:
         row = conn.execute(
@@ -892,6 +1075,19 @@ def api_create_prospect(tid: int):
         return jsonify(ok=False,
                        error="Aucun contact ou entreprise identifié dans l'analyse — édite d'abord les champs."), 400
 
+    # ─── Idempotence : check si fiche existe déjà ────────────────────
+    existing_pid: int | None = None
+    if not force_new and analysis.get("_prospect_id"):
+        prev = analysis["_prospect_id"]
+        with _conn() as conn:
+            chk = conn.execute(
+                "SELECT id FROM prospects WHERE id=? AND owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+                (prev, uid),
+            ).fetchone()
+        if chk:
+            existing_pid = int(chk["id"])
+
     prenom  = (info.get("contact_prenom") or "").strip()
     nom     = (info.get("contact_nom") or "").strip()
     full    = (prenom + " " + nom).strip() or "Contact sans nom"
@@ -900,17 +1096,17 @@ def api_create_prospect(tid: int):
 
     now = datetime.now().isoformat(timespec="seconds")
 
-    # Création / lookup company
-    company_id: int | None = None
-    if entreprise:
+    # Création / lookup company (toujours utile même en UPDATE)
+    company_id: int | None = analysis.get("_company_id") if not force_new else None
+    if entreprise and not company_id:
         with _conn() as conn:
-            existing = conn.execute(
+            existing_co = conn.execute(
                 "SELECT id FROM companies WHERE LOWER(groupe)=LOWER(?) AND owner_id=? "
                 "AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
                 (entreprise, uid),
             ).fetchone()
-            if existing:
-                company_id = existing["id"]
+            if existing_co:
+                company_id = existing_co["id"]
             else:
                 stack = info.get("stack") or []
                 pains = info.get("pain_points") or []
@@ -933,29 +1129,50 @@ def api_create_prospect(tid: int):
                 company_id = cur.lastrowid
                 conn.commit()
 
-    with _conn() as conn:
-        cur = conn.execute(
-            """INSERT INTO prospects
-               (name, company_id, fonction, telephone, email, linkedin,
-                pertinence, statut, notes, tags, owner_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
-            (
-                full,
-                company_id,
-                fonction or None,
-                (info.get("telephone") or "").strip() or None,
-                (info.get("email") or "").strip() or None,
-                (info.get("linkedin") or "").strip() or None,
-                "3",
-                "à rappeler",
-                f"Fiche créée depuis transcription #{tid}\n\n"
-                f"Besoin : {info.get('besoin') or '—'}",
-                f"from-transcription-{tid}",
-                uid,
-            ),
-        )
-        pid = cur.lastrowid
-        conn.commit()
+    pros_fields = {
+        "name":      full,
+        "company_id": company_id,
+        "fonction":  fonction or None,
+        "telephone": (info.get("telephone") or "").strip() or None,
+        "email":     (info.get("email") or "").strip() or None,
+        "linkedin":  (info.get("linkedin") or "").strip() or None,
+    }
+
+    if existing_pid:
+        sets = ", ".join(f"{k}=?" for k in pros_fields)
+        vals = list(pros_fields.values()) + [existing_pid, uid]
+        with _conn() as conn:
+            conn.execute(
+                f"UPDATE prospects SET {sets} WHERE id=? AND owner_id=?;",
+                vals,
+            )
+            conn.commit()
+        pid = existing_pid
+        action = "updated"
+        logger.info("Fiche prospect #%s mise à jour depuis transcription #%s", pid, tid)
+    else:
+        with _conn() as conn:
+            cur = conn.execute(
+                """INSERT INTO prospects
+                   (name, company_id, fonction, telephone, email, linkedin,
+                    pertinence, statut, notes, tags, owner_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    pros_fields["name"], pros_fields["company_id"], pros_fields["fonction"],
+                    pros_fields["telephone"], pros_fields["email"], pros_fields["linkedin"],
+                    "3",
+                    "à rappeler",
+                    f"Fiche créée depuis transcription #{tid}\n\n"
+                    f"Besoin : {info.get('besoin') or '—'}",
+                    f"from-transcription-{tid}",
+                    uid,
+                ),
+            )
+            pid = cur.lastrowid
+            conn.commit()
+        action = "created"
+        logger.info("Fiche prospect #%s (company=%s) créée depuis transcription #%s",
+                    pid, company_id, tid)
 
     analysis["_prospect_id"] = pid
     if company_id:
@@ -967,9 +1184,7 @@ def api_create_prospect(tid: int):
         )
         conn.commit()
 
-    logger.info("Fiche prospect #%s (company=%s) créée depuis transcription #%s",
-                pid, company_id, tid)
-    return jsonify(ok=True, prospect_id=pid, company_id=company_id,
+    return jsonify(ok=True, prospect_id=pid, company_id=company_id, action=action,
                    redirect=f"/v30/prospects?focus={pid}")
 
 
