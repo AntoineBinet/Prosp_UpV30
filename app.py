@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.7"
+APP_VERSION = "32.8"
 import os
 import uuid
 import subprocess
@@ -153,6 +153,13 @@ def _load_ai_config() -> dict:
         "whisper_device": os.environ.get("WHISPER_DEVICE") or "cuda",
         "diarization_enabled": True,
         "huggingface_token": os.environ.get("HUGGINGFACE_TOKEN") or "",
+        # v32.8 — Fallback Ollama pour transcription DÉSACTIVÉ par défaut.
+        # Avec llama3.2:3B (modèle Ollama par défaut), l'analyse de
+        # réunions longues hallucine massivement et produit des CR
+        # truffés d'erreurs (cf. v32.7). Mieux vaut une erreur claire +
+        # bouton « Recharger crédits » qu'un faux CR. L'utilisateur
+        # peut le réactiver explicitement s'il a un gros modèle local.
+        "transcription_fallback_ollama": False,
     }
     if _AI_CONFIG_FILE.exists():
         try:

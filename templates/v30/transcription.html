@@ -72,6 +72,27 @@
         Le pipeline tourne 100% en local (Whisper + pyannote sur GPU). Seul le transcript texte
         est envoyé à Claude pour l'analyse — l'audio brut ne quitte pas la machine.
       </p>
+
+      {# v32.8 — Pre-flight check : statut des dépendances avant lancement #}
+      <div class="v30-tx-preflight" data-v30-tx-preflight hidden>
+        <div class="v30-tx-preflight__head">
+          <span data-v30-tx-preflight-title>Vérification…</span>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-preflight-recheck title="Re-vérifier">
+            ↻
+          </button>
+        </div>
+        <ul class="v30-tx-preflight__list" data-v30-tx-preflight-list></ul>
+        <div class="v30-tx-preflight__actions" data-v30-tx-preflight-actions hidden>
+          <a class="btn btn-sm" href="https://console.anthropic.com/settings/billing"
+             target="_blank" rel="noopener" data-v30-tx-preflight-billing hidden>
+            ↗ Recharger crédits Claude
+          </a>
+          <a class="btn btn-sm" href="/v30/parametres#ai" data-v30-tx-preflight-settings hidden>
+            ⚙ Ouvrir Paramètres IA
+          </a>
+        </div>
+      </div>
+
       <div class="v30-tx-progress" data-v30-tx-progress hidden>
         <div class="v30-tx-progress__bar"><div class="v30-tx-progress__fill" data-v30-tx-progress-fill style="width:0%"></div></div>
         <span class="muted" data-v30-tx-progress-label>Upload…</span>

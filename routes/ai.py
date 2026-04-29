@@ -145,6 +145,7 @@ def api_ai_config_get():
         "whisper_compute_type": config.get("whisper_compute_type", "float16"),
         "whisper_device": config.get("whisper_device", "cuda"),
         "diarization_enabled": bool(config.get("diarization_enabled", True)),
+        "transcription_fallback_ollama": bool(config.get("transcription_fallback_ollama", False)),
         "huggingface_token_set": bool(hf_token),
         "huggingface_token_preview": (hf_token[:8] + "…") if len(hf_token) > 8 else ("••••" if hf_token else ""),
     })
@@ -196,6 +197,8 @@ def api_ai_config_post():
             config["whisper_device"] = m
     if "diarization_enabled" in payload:
         config["diarization_enabled"] = bool(payload["diarization_enabled"])
+    if "transcription_fallback_ollama" in payload:
+        config["transcription_fallback_ollama"] = bool(payload["transcription_fallback_ollama"])
     if "huggingface_token" in payload:
         config["huggingface_token"] = str(payload["huggingface_token"]).strip()
     config["provider"] = "ollama"
@@ -330,24 +333,38 @@ def api_ai_test():
             token_type=token_type,
         ), 200
     elif test_target == "anthropic":
-        # v32.1 — Test API Anthropic via /v1/models (léger, sans consommer de tokens)
+        # v32.8 — Test Anthropic via vrai appel /v1/messages (max_tokens=10).
+        # /v1/models seul ne révélait PAS l'épuisement des crédits — on ratait
+        # le cas typique « Max 5x sans crédits API » qu'on a hit en v32.6.
+        # Coût du test : ~10 input + 10 output tokens = quasi 0 (~0,00001 €).
         anth_key = (payload.get("anthropic_api_key") or config.get("anthropic_api_key", "")).strip()
         if not anth_key:
             return jsonify(ok=False, error="Clé API Anthropic non configurée."), 400
         anth_model = (payload.get("anthropic_model") or config.get("anthropic_model") or "claude-haiku-4-5").strip()
         try:
+            body = json.dumps({
+                "model": anth_model,
+                "max_tokens": 10,
+                "messages": [{"role": "user", "content": "OK"}],
+            }).encode("utf-8")
             req = urllib.request.Request(
-                "https://api.anthropic.com/v1/models",
+                "https://api.anthropic.com/v1/messages",
+                data=body,
                 headers={
                     "x-api-key": anth_key,
                     "anthropic-version": "2023-06-01",
-                    "Accept": "application/json",
+                    "content-type": "application/json",
                 },
-                method="GET",
+                method="POST",
             )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                body = resp.read().decode("utf-8", errors="replace")
-            return jsonify(ok=True, provider="anthropic", model=anth_model, response="OK — clé valide")
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                resp.read()
+            return jsonify(
+                ok=True,
+                provider="anthropic",
+                model=anth_model,
+                response=f"OK — clé valide ET crédits API disponibles (modèle {anth_model}).",
+            )
         except urllib.error.HTTPError as e:
             try:
                 err_body = e.read().decode("utf-8") if e.fp else ""
@@ -357,8 +374,15 @@ def api_ai_test():
                 msg = msg or str(e)
             except Exception:
                 msg = str(e)
-            if e.code in (401, 403):
-                msg = f"Clé API Anthropic invalide (HTTP {e.code})."
+            low = (msg or "").lower()
+            if "credit" in low or "billing" in low or "insufficient" in low:
+                msg = (
+                    f"Crédits API Anthropic épuisés. "
+                    f"Recharge sur console.anthropic.com/settings/billing "
+                    f"(le forfait Claude.ai ne donne PAS accès à l'API). Détail : {msg}"
+                )
+            elif e.code in (401, 403):
+                msg = f"Clé API Anthropic invalide (HTTP {e.code}) : {msg}"
             logger.warning("Anthropic test HTTP %s: %s", e.code, msg)
             return jsonify(ok=False, error=msg), 200
         except urllib.error.URLError as e:

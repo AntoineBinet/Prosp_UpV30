@@ -134,6 +134,157 @@ def page_transcription_detail(tid: int):
 # ─── API ──────────────────────────────────────────────────────────────
 
 
+@transcription_bp.get("/api/transcription/preflight")
+def api_preflight():
+    """Pre-flight check appelé par le front AVANT l'upload pour éviter
+    de lancer 10 min de Whisper si une dépendance critique est KO.
+
+    Retourne :
+      {
+        "ok": bool,                  # True si tout est vert (au moins le minimum)
+        "claude": {ok, error?, model},
+        "huggingface": {ok, error?, user?, type?},
+        "gpu": {ok, device?, vram_gb?},
+        "fallback_ollama_active": bool,
+        "warnings": [strings]        # avertissements non bloquants
+      }
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    config = _load_ai_config()
+    out: dict = {
+        "claude":       {"ok": False},
+        "huggingface":  {"ok": False},
+        "gpu":          {"ok": False},
+        "fallback_ollama_active": bool(config.get("transcription_fallback_ollama", False)),
+        "warnings": [],
+    }
+
+    # ─── Claude (test léger : 10 tokens via /messages) ──
+    anth_key = (config.get("anthropic_api_key") or "").strip()
+    anth_model = (config.get("anthropic_model") or "claude-haiku-4-5").strip()
+    out["claude"]["model"] = anth_model
+    if not anth_key:
+        out["claude"]["error"] = "Clé Anthropic non configurée"
+    else:
+        try:
+            import urllib.request as _u, urllib.error as _ue
+            body = json.dumps({
+                "model": anth_model,
+                "max_tokens": 10,
+                "messages": [{"role": "user", "content": "OK"}],
+            }).encode("utf-8")
+            req = _u.Request(
+                "https://api.anthropic.com/v1/messages",
+                data=body,
+                headers={
+                    "x-api-key": anth_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                method="POST",
+            )
+            with _u.urlopen(req, timeout=15) as resp:
+                resp.read()
+            out["claude"]["ok"] = True
+        except _ue.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode("utf-8") if e.fp else ""
+            except Exception:
+                pass
+            api_msg = ""
+            try:
+                err_data = json.loads(err_body) if err_body else {}
+                err_obj = err_data.get("error", {})
+                if isinstance(err_obj, dict):
+                    api_msg = err_obj.get("message") or ""
+            except Exception:
+                api_msg = err_body[:300]
+            low = api_msg.lower()
+            if "credit" in low or "billing" in low or "insufficient" in low:
+                out["claude"]["error"] = "credits_exhausted"
+                out["claude"]["error_msg"] = api_msg
+            elif e.code in (401, 403):
+                out["claude"]["error"] = "invalid_key"
+                out["claude"]["error_msg"] = api_msg
+            else:
+                out["claude"]["error"] = f"http_{e.code}"
+                out["claude"]["error_msg"] = api_msg
+        except Exception as e:
+            out["claude"]["error"] = "network"
+            out["claude"]["error_msg"] = str(e)
+
+    # ─── HuggingFace (HEAD config.yaml sur les 2 modèles pyannote) ──
+    diarize = bool(config.get("diarization_enabled", True))
+    if not diarize:
+        out["huggingface"]["ok"] = True  # désactivé = pas un blocage
+        out["huggingface"]["skipped"] = True
+    else:
+        hf_token = (config.get("huggingface_token") or "").strip()
+        if not hf_token:
+            out["huggingface"]["error"] = "Token HF non configuré (diarisation activée)"
+        else:
+            import urllib.request as _u2, urllib.error as _ue2
+            ok_count = 0
+            errs = []
+            for m in ("pyannote/speaker-diarization-3.1", "pyannote/segmentation-3.0"):
+                try:
+                    req = _u2.Request(
+                        f"https://huggingface.co/{m}/resolve/main/config.yaml",
+                        headers={"Authorization": f"Bearer {hf_token}"},
+                        method="HEAD",
+                    )
+                    with _u2.urlopen(req, timeout=10):
+                        ok_count += 1
+                except _ue2.HTTPError as e:
+                    errs.append(f"{m} HTTP {e.code}")
+                except Exception as e:
+                    errs.append(f"{m}: {e}")
+            if ok_count == 2:
+                out["huggingface"]["ok"] = True
+            else:
+                out["huggingface"]["error"] = "; ".join(errs)
+
+    # ─── GPU CUDA via /api/deploy/install-torch-cuda/status interne ──
+    try:
+        import torch  # type: ignore
+        out["gpu"]["torch_version"] = getattr(torch, "__version__", "?")
+        out["gpu"]["ok"] = bool(torch.cuda.is_available())
+        if out["gpu"]["ok"]:
+            out["gpu"]["device"] = torch.cuda.get_device_name(0)
+            try:
+                out["gpu"]["vram_gb"] = round(
+                    torch.cuda.get_device_properties(0).total_memory / 1024**3, 1
+                )
+            except Exception:
+                pass
+    except Exception as e:
+        out["gpu"]["error"] = str(e)
+
+    # ─── Verdict global ──
+    # Le strict minimum pour lancer une transcription : Claude OK
+    # (sinon le CR sera vide ou bidon, sauf si fallback explicite).
+    # GPU et HF sont des « nice to have » : Whisper marche en CPU,
+    # diar peut être désactivée.
+    fallback_ok = out["fallback_ollama_active"]
+    out["ok"] = bool(out["claude"]["ok"] or fallback_ok)
+    if not out["claude"]["ok"] and fallback_ok:
+        out["warnings"].append(
+            "⚠ Claude indisponible — l'analyse utilisera Ollama (qualité moindre, hallucinations possibles)."
+        )
+    if not out["gpu"]["ok"]:
+        out["warnings"].append(
+            "⚠ GPU CUDA non détecté — Whisper tournera en CPU (5-10× plus lent)."
+        )
+    if diarize and not out["huggingface"]["ok"]:
+        out["warnings"].append(
+            "⚠ HuggingFace KO — diarisation indisponible (1 seul orateur, transcript sans labels)."
+        )
+    return jsonify(out)
+
+
 @transcription_bp.post("/api/transcription/upload")
 def api_upload():
     uid = _uid()
