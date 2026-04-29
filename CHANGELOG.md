@@ -2,6 +2,29 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.4] — 2026-04-29 · Réparation torch CUDA en arrière-plan
+
+Quand `pip install -r requirements.txt` a installé `torch+cpu` au lieu de
+`torch+cu121` (cas fréquent : l'index PyPI gagne sur `--extra-index-url`),
+on ne peut plus utiliser le GPU pour la transcription. Ajout d'une
+réparation chirurgicale lançable depuis l'app.
+
+- **Backend.** Nouveaux endpoints admin :
+  `POST /api/deploy/install-torch-cuda` (démarre un thread daemon qui
+  exécute `pip install --upgrade --force-reinstall --index-url
+  https://download.pytorch.org/whl/<tag> torch torchaudio`) et
+  `GET /api/deploy/install-torch-cuda/status` (état + log + détection
+  runtime de `torch.version.cuda` / `torch.cuda.is_available()`).
+  L'install tourne en background, le user peut fermer la page —
+  le job continue côté serveur. Log capé à 1500 lignes.
+- **UI.** Nouvelle section « État GPU (torch + CUDA) » dans
+  Paramètres > Configuration IA : badge `✓ CUDA actif` /
+  `⚠ Build CPU` selon le runtime, sélecteur de version cible
+  (cu118 / cu121 / cu124), bouton « Forcer install CUDA », log live
+  rafraîchi toutes les 2,5 s tant que l'install tourne. Une fois
+  terminée, redémarrage manuel via « Mettre à jour et redémarrer »
+  pour recharger torch.
+
 ## [32.3] — 2026-04-29 · Push « sans consultant » + placeholder `[genre]`
 
 Nouvelle option **« Pas de candidat requis »** sur les catégories de push :

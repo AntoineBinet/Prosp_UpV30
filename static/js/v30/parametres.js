@@ -419,6 +419,132 @@
       inp.type = inp.type === 'password' ? 'text' : 'password';
     });
     aiLoad();
+    bindCuda();
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  Réparation torch CUDA (v32.2)
+  // ══════════════════════════════════════════════════════════════
+  var CUDA_POLL_MS = 2500;
+  var cudaPollTimer = null;
+
+  function escDep(v) { var t = document.createElement('span'); t.textContent = v == null ? '' : String(v); return t.innerHTML; }
+
+  function renderCudaStatus(s) {
+    var statusBox = $('[data-v30-cuda-status]');
+    var formBox = $('[data-v30-cuda-form]');
+    if (!statusBox) return;
+
+    var version = s.torch_version || '?';
+    var built = !!s.torch_cuda_built;
+    var avail = !!s.torch_cuda_available;
+    var device = s.torch_cuda_device || '';
+    var isCpu = /\+cpu/i.test(version);
+
+    var badge, msg;
+    if (avail && built && !isCpu) {
+      badge = '<span class="v30-params__cuda-status-badge is-ok">✓ CUDA actif</span>';
+      msg = 'torch <code class="mono">' + escDep(version) + '</code>'
+          + (device ? ' · GPU : <strong>' + escDep(device) + '</strong>' : '');
+      formBox && (formBox.hidden = true);
+    } else if (isCpu || !built) {
+      badge = '<span class="v30-params__cuda-status-badge is-warn">⚠ Build CPU</span>';
+      msg = 'torch <code class="mono">' + escDep(version) + '</code> est compilé sans CUDA. '
+          + 'La transcription tournera mais sera lente. Réinstalle ci-dessous pour activer le GPU.';
+      formBox && (formBox.hidden = false);
+    } else {
+      badge = '<span class="v30-params__cuda-status-badge is-warn">CUDA built · GPU non détecté</span>';
+      msg = 'torch est compilé avec CUDA mais aucun GPU n\'est accessible. '
+          + 'Vérifie les drivers NVIDIA, ou force une autre version cu1xx ci-dessous.';
+      formBox && (formBox.hidden = false);
+    }
+    statusBox.innerHTML = badge + ' <span class="muted" style="font-size:12px;">' + msg + '</span>';
+  }
+
+  function renderCudaLog(s) {
+    var box = $('[data-v30-cuda-log]');
+    var phaseEl = $('[data-v30-cuda-phase]');
+    var metaEl = $('[data-v30-cuda-meta]');
+    var bodyEl = $('[data-v30-cuda-log-body]');
+    if (!box || !s) return;
+    var hasLog = (s.log_tail && s.log_tail.length) || s.running || s.phase === 'done' || s.phase === 'error';
+    box.hidden = !hasLog;
+    if (!hasLog) return;
+
+    var phaseLabel = {
+      idle: 'En attente',
+      downloading: '⬇ Téléchargement…',
+      installing: '⚙ Installation…',
+      done: '✓ Terminé',
+      error: '✗ Erreur',
+    }[s.phase] || s.phase;
+    if (phaseEl) phaseEl.textContent = phaseLabel;
+
+    var meta = [];
+    if (s.started_at) meta.push('démarré ' + s.started_at);
+    if (s.ended_at)   meta.push('fini ' + s.ended_at);
+    if (s.log_lines)  meta.push(s.log_lines + ' lignes');
+    if (metaEl) metaEl.textContent = meta.join(' · ');
+
+    if (bodyEl) {
+      var atBottom = (bodyEl.scrollHeight - bodyEl.scrollTop - bodyEl.clientHeight) < 30;
+      bodyEl.textContent = (s.log_tail || []).join('\n');
+      if (atBottom) bodyEl.scrollTop = bodyEl.scrollHeight;
+    }
+  }
+
+  function loadCudaStatus() {
+    return fetch('/api/deploy/install-torch-cuda/status?tail=300', {
+      credentials: 'same-origin', cache: 'no-store',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        if (!s || s.ok === false) return;
+        renderCudaStatus(s);
+        renderCudaLog(s);
+        if (s.running) schedulePoll();
+        else if (cudaPollTimer) { clearTimeout(cudaPollTimer); cudaPollTimer = null; }
+      })
+      .catch(function (e) {
+        console.warn('cuda status:', e);
+      });
+  }
+
+  function schedulePoll() {
+    if (cudaPollTimer) clearTimeout(cudaPollTimer);
+    cudaPollTimer = setTimeout(loadCudaStatus, CUDA_POLL_MS);
+  }
+
+  function startCudaInstall() {
+    var sel = $('[data-v30-cuda-tag]');
+    var tag = (sel && sel.value) || 'cu121';
+    var btn = $('[data-v30-cuda-install]');
+    if (!confirm('Lancer la réinstallation forcée de torch / torchaudio depuis l\'index PyTorch ' + tag + ' ?\n\nDurée : ~10-15 min, ~3 GB de download.\n\nL\'installation tourne en arrière-plan : tu peux fermer la page, le job continue côté serveur.\n\nUne fois terminé, redémarre l\'app via « Mettre à jour et redémarrer » pour activer CUDA.')) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Démarrage…'; }
+    fetch('/api/deploy/install-torch-cuda', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cuda_tag: tag }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok) {
+          toast('Installation CUDA démarrée — log live ci-dessous', 'success');
+          loadCudaStatus();
+        } else {
+          toast('Erreur : ' + ((j && j.error) || 'échec'), 'error');
+        }
+      })
+      .catch(function (e) { toast('Erreur réseau : ' + e.message, 'error'); })
+      .finally(function () {
+        if (btn) { btn.disabled = false; btn.textContent = 'Forcer install CUDA (~10-15 min)'; }
+      });
+  }
+
+  function bindCuda() {
+    var btn = $('[data-v30-cuda-install]');
+    if (btn) btn.addEventListener('click', startCudaInstall);
+    loadCudaStatus();
   }
 
   // ══════════════════════════════════════════════════════════════

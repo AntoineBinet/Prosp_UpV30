@@ -170,6 +170,43 @@
           <button type="button" class="btn btn-sm" data-v30-ai-test-anthropic>Tester Claude</button>
           <span class="muted v30-params__status" data-v30-ai-status></span>
         </div>
+
+        {# ─── Détection torch CUDA + bouton réparation (v32.2) ─── #}
+        <div class="v30-params__divider"></div>
+        <h4 class="v30-params__scope-title">État GPU (torch + CUDA)</h4>
+        <p class="muted v30-params__hint" style="margin-top:-4px;margin-bottom:10px;">
+          Vérifie si torch est compilé avec CUDA. Si non, propose une réinstallation forcée
+          depuis l'index PyTorch GPU pour activer l'accélération sur ton RTX (transcription ~10× plus rapide).
+        </p>
+
+        <div class="v30-params__field" data-v30-cuda-status>
+          <span class="muted">Détection en cours…</span>
+        </div>
+
+        <div class="v30-params__grid-2" data-v30-cuda-form hidden>
+          <div class="v30-params__field">
+            <label class="v30-params__label">Version CUDA cible</label>
+            <select class="select" data-v30-cuda-tag>
+              <option value="cu121" selected>cu121 (RTX 30/40, recommandé)</option>
+              <option value="cu118">cu118 (anciens GPU, drivers < 525)</option>
+              <option value="cu124">cu124 (RTX 50, drivers récents)</option>
+            </select>
+          </div>
+          <div class="v30-params__field" style="align-self:end;">
+            <button type="button" class="btn btn-warn btn-sm" data-v30-cuda-install>
+              Forcer install CUDA (~10-15 min)
+            </button>
+          </div>
+        </div>
+
+        <div class="v30-params__cuda-log" data-v30-cuda-log hidden>
+          <div class="v30-params__cuda-log-head">
+            <span data-v30-cuda-phase>—</span>
+            <span class="muted" data-v30-cuda-meta></span>
+          </div>
+          <pre data-v30-cuda-log-body></pre>
+        </div>
+
       </div>
     </details>
     {% endif %}

@@ -10,12 +10,15 @@ Inclut :
   GET  /api/deploy/health            (sans auth)
   GET  /api/deploy/validation-status (sans auth)
   POST /api/deploy/confirm-validation (sans auth)
+  POST /api/deploy/install-torch-cuda          (admin) — réinstalle torch+cu121 en background
+  GET  /api/deploy/install-torch-cuda/status   (admin) — log + état du job
 """
 
 import datetime
 import json
 import subprocess
 import sys
+import threading
 import time
 
 from flask import Blueprint, Response, jsonify
@@ -817,3 +820,179 @@ def api_deploy_confirm_validation():
         pass
     logger.info("Mise à jour post-pull validée par l'utilisateur")
     return jsonify(ok=True, message="Mise à jour validée")
+
+
+# ─── Réinstall torch CUDA en arrière-plan (v32.2) ────────────────────────
+# Quand `pip install -r requirements.txt` a installé `torch+cpu` au lieu de
+# `torch+cu121`, on a besoin de forcer la réinstallation depuis l'index CUDA
+# explicite. L'opération prend ~10-15 min (~3 GB), donc on la détache du
+# request HTTP : background thread + état persistant en mémoire process,
+# le front poll régulièrement /status pour voir le log.
+
+_TORCH_CUDA_LOCK = threading.Lock()
+_TORCH_CUDA_STATE: dict = {
+    "running":   False,
+    "started_at": None,
+    "ended_at":  None,
+    "returncode": None,
+    "log":       [],   # liste de lignes (capée à 2000)
+    "phase":     "idle",  # idle | downloading | installing | done | error
+    "error":     None,
+}
+_TORCH_CUDA_LOG_MAX = 2000
+
+
+def _torch_cuda_log(line: str) -> None:
+    """Append une ligne au log avec capping."""
+    line = (line or "").rstrip()
+    if not line:
+        return
+    _TORCH_CUDA_STATE["log"].append(line)
+    if len(_TORCH_CUDA_STATE["log"]) > _TORCH_CUDA_LOG_MAX:
+        # garde les 1500 dernières
+        _TORCH_CUDA_STATE["log"] = _TORCH_CUDA_STATE["log"][-1500:]
+
+
+def _torch_cuda_install_thread(cuda_tag: str = "cu121") -> None:
+    """Lancé dans un thread daemon : exécute pip install avec --index-url
+    sur l'index PyTorch CUDA pour forcer la version GPU."""
+    try:
+        _TORCH_CUDA_STATE["running"] = True
+        _TORCH_CUDA_STATE["started_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+        _TORCH_CUDA_STATE["ended_at"] = None
+        _TORCH_CUDA_STATE["returncode"] = None
+        _TORCH_CUDA_STATE["log"] = []
+        _TORCH_CUDA_STATE["phase"] = "downloading"
+        _TORCH_CUDA_STATE["error"] = None
+
+        index_url = f"https://download.pytorch.org/whl/{cuda_tag}"
+        _torch_cuda_log(f"[start] Réinstallation torch + torchaudio depuis {index_url}")
+        _torch_cuda_log("[info] Cette opération télécharge ~2-3 GB et peut prendre 10-15 min.")
+
+        cmd = [
+            sys.executable, "-m", "pip", "install",
+            "--upgrade", "--force-reinstall",
+            "--no-warn-script-location",
+            "--index-url", index_url,
+            "torch", "torchaudio",
+        ]
+        _torch_cuda_log("[cmd] " + " ".join(cmd))
+
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(APP_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        downloading_seen = False
+        installing_seen = False
+        while True:
+            line = proc.stdout.readline() if proc.stdout else ""
+            if not line and proc.poll() is not None:
+                break
+            if line:
+                line = line.rstrip()
+                if line.startswith("\x1b") or not line:
+                    continue
+                _torch_cuda_log("pip: " + line[:280])
+                low = line.lower()
+                if not downloading_seen and ("downloading" in low or "collecting" in low):
+                    downloading_seen = True
+                    _TORCH_CUDA_STATE["phase"] = "downloading"
+                if not installing_seen and ("installing collected" in low or "successfully installed" in low):
+                    installing_seen = True
+                    _TORCH_CUDA_STATE["phase"] = "installing"
+        rc = proc.returncode if proc else -1
+        _TORCH_CUDA_STATE["returncode"] = rc
+        _TORCH_CUDA_STATE["ended_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+        if rc == 0:
+            _TORCH_CUDA_STATE["phase"] = "done"
+            _torch_cuda_log("[done] Réinstallation OK. Redémarre l'app pour activer CUDA.")
+        else:
+            _TORCH_CUDA_STATE["phase"] = "error"
+            _TORCH_CUDA_STATE["error"] = f"pip a renvoyé code {rc}"
+            _torch_cuda_log(f"[error] pip code {rc} — voir log ci-dessus.")
+    except Exception as exc:
+        logger.exception("install-torch-cuda thread failed")
+        _TORCH_CUDA_STATE["phase"] = "error"
+        _TORCH_CUDA_STATE["error"] = str(exc)
+        _TORCH_CUDA_STATE["ended_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+        _torch_cuda_log(f"[exception] {exc}")
+    finally:
+        _TORCH_CUDA_STATE["running"] = False
+
+
+@deploy_bp.post("/api/deploy/install-torch-cuda")
+@login_required
+@role_required('admin')
+def api_deploy_install_torch_cuda():
+    """Démarre (en background) un pip install --force-reinstall de torch
+    depuis l'index CUDA explicite. Retourne immédiatement.
+
+    Body JSON optionnel : { "cuda_tag": "cu121" | "cu118" | "cu124" }
+    Défaut cu121 (couvre RTX 30/40 et la plupart des GPU récents).
+    """
+    from flask import request as _req
+    payload = _req.get_json(force=True, silent=True) or {}
+    cuda_tag = str(payload.get("cuda_tag") or "cu121").strip().lower()
+    if cuda_tag not in ("cu118", "cu121", "cu124"):
+        return jsonify(ok=False, error=f"cuda_tag invalide ({cuda_tag}). Attendu : cu118, cu121, cu124."), 400
+
+    if not _TORCH_CUDA_LOCK.acquire(blocking=False):
+        return jsonify(ok=False, error="Une installation tourne déjà. Voir le log via GET /status."), 409
+    try:
+        if _TORCH_CUDA_STATE["running"]:
+            return jsonify(ok=False, error="Une installation tourne déjà. Voir le log via GET /status."), 409
+        t = threading.Thread(
+            target=_torch_cuda_install_thread,
+            args=(cuda_tag,),
+            name="install-torch-cuda",
+            daemon=True,
+        )
+        t.start()
+        logger.info("install-torch-cuda démarré (cuda_tag=%s)", cuda_tag)
+        return jsonify(ok=True, started=True, cuda_tag=cuda_tag)
+    finally:
+        _TORCH_CUDA_LOCK.release()
+
+
+@deploy_bp.get("/api/deploy/install-torch-cuda/status")
+@login_required
+@role_required('admin')
+def api_deploy_install_torch_cuda_status():
+    """Retourne l'état + log courant de l'install CUDA. Le log est tronqué
+    aux N dernières lignes via le query param ?tail=200 (défaut 200)."""
+    from flask import request as _req
+    try:
+        tail = max(50, min(2000, int(_req.args.get("tail") or 200)))
+    except (TypeError, ValueError):
+        tail = 200
+    log = _TORCH_CUDA_STATE.get("log") or []
+    state = {
+        "running": bool(_TORCH_CUDA_STATE.get("running")),
+        "phase":   _TORCH_CUDA_STATE.get("phase") or "idle",
+        "started_at": _TORCH_CUDA_STATE.get("started_at"),
+        "ended_at":   _TORCH_CUDA_STATE.get("ended_at"),
+        "returncode": _TORCH_CUDA_STATE.get("returncode"),
+        "error":      _TORCH_CUDA_STATE.get("error"),
+        "log_lines":  len(log),
+        "log_tail":   log[-tail:],
+    }
+    # Détection runtime du build torch (CPU vs CUDA) pour info
+    try:
+        import torch  # type: ignore
+        state["torch_version"] = getattr(torch, "__version__", "?")
+        state["torch_cuda_built"] = bool(getattr(torch.version, "cuda", None))
+        try:
+            state["torch_cuda_available"] = bool(torch.cuda.is_available())
+            if state["torch_cuda_available"]:
+                state["torch_cuda_device"] = torch.cuda.get_device_name(0)
+        except Exception:
+            state["torch_cuda_available"] = False
+    except Exception:
+        state["torch_version"] = None
+        state["torch_cuda_built"] = False
+        state["torch_cuda_available"] = False
+    return jsonify(ok=True, **state)
