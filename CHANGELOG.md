@@ -2,6 +2,35 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.3] — 2026-04-29 · Push « sans consultant » + placeholder `[genre]`
+
+Nouvelle option **« Pas de candidat requis »** sur les catégories de push :
+permet d'envoyer un email simple (relance, présentation, confirmation RDV)
+sans candidat ni dossier de compétence en pièce jointe.
+
+- **Schéma DB.** Colonne `push_categories.no_candidates INTEGER DEFAULT 0`
+  ajoutée (CREATE TABLE + migration `_migrate_user_db_schema` pour les DBs
+  existantes).
+- **Backend `_apply_salutation`** ([app.py:9049](app.py)) accepte
+  désormais `[titre]`, `[genre]` et `[civilite]` comme placeholders
+  interchangeables pour le genre, et `[Nom]`, `[nom]`, `[prenom]` pour le
+  nom du prospect (insensible à la casse).
+- **Backend `/api/push/generate`.** Quand la catégorie est
+  `no_candidates=1`, ignore les `candidate_id1/2` envoyés par le client,
+  ne charge aucune fiche candidat, n'attache aucun DC PDF. Le template
+  est personnalisé sur la salutation uniquement, le destinataire reste
+  l'email du prospect.
+- **Backend `/api/push-categories/save`.** Le payload accepte
+  `no_candidates` (booléen) ; bascule à `true` vide automatiquement les
+  slots `candidate1_id` / `candidate2_id`.
+- **UI Push (Catégories).** Case à cocher « Pas de candidat requis » dans
+  l'éditeur de catégorie. Carte catégorie avec badge « Sans candidat »
+  vert. Modale détail masque la section « Candidats par défaut » et
+  affiche un message d'info à la place.
+- **UI Modale push (fiche prospect).** Quand la catégorie sélectionnée
+  est en mode « sans consultant », masque les comboboxes de candidats et
+  affiche un hint vert ; saute la passe IA `best-candidates`.
+
 ## [32.2] — 2026-04-29 · Transcription de réunions (Whisper + Claude)
 
 Nouvel outil **Transcription** dans la sidebar (`/v30/transcription`) : upload

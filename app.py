@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.2"
+APP_VERSION = "32.3"
 import os
 import uuid
 import subprocess
@@ -1723,6 +1723,7 @@ CREATE TABLE IF NOT EXISTS push_categories (
     owner_id       INTEGER,
     candidate1_id  INTEGER,
     candidate2_id  INTEGER,
+    no_candidates  INTEGER DEFAULT 0,
     createdAt      TEXT,
     updatedAt      TEXT,
     UNIQUE(name, owner_id)
@@ -2761,11 +2762,13 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             print(f"[WARN] Migration push_logs columns ({db_path}): {e}")
 
         # Migration v27.3: push_categories default candidate slots
+        # Migration v32.2: no_candidates flag (push categorie "sans consultant")
         try:
             pc_cols = {r["name"] for r in conn.execute("PRAGMA table_info(push_categories);").fetchall()}
             for col, typ in (
                 ("candidate1_id", "INTEGER"),
                 ("candidate2_id", "INTEGER"),
+                ("no_candidates", "INTEGER DEFAULT 0"),
             ):
                 if col not in pc_cols:
                     conn.execute(f"ALTER TABLE push_categories ADD COLUMN {col} {typ};")
@@ -2891,6 +2894,9 @@ def _migrate_user_db_schema(db_path: Path) -> None:
                     keywords      TEXT,
                     auto_detected INTEGER DEFAULT 0,
                     owner_id      INTEGER,
+                    candidate1_id INTEGER,
+                    candidate2_id INTEGER,
+                    no_candidates INTEGER DEFAULT 0,
                     createdAt     TEXT,
                     updatedAt     TEXT,
                     UNIQUE(name, owner_id)
@@ -3540,6 +3546,9 @@ def _init_user_db(user_id: int) -> Path:
                 keywords      TEXT,
                 auto_detected INTEGER DEFAULT 0,
                 owner_id      INTEGER,
+                candidate1_id INTEGER,
+                candidate2_id INTEGER,
+                no_candidates INTEGER DEFAULT 0,
                 createdAt     TEXT,
                 updatedAt     TEXT,
                 UNIQUE(name, owner_id)
@@ -8081,6 +8090,8 @@ def api_push_categories_save():
             keywords = [k.strip() for k in keywords.split(",") if k.strip()]
         keywords_json = json.dumps(keywords, ensure_ascii=False)
 
+        no_candidates = 1 if payload.get("no_candidates") else 0
+
         cid = payload.get("id")
         now = _now_iso()
 
@@ -8091,17 +8102,24 @@ def api_push_categories_save():
             except sqlite3.OperationalError:
                 # Table n'existe pas, l'initialiser
                 _init_user_db(uid)
-            
+
             if cid:
                 # Vérifier que la catégorie appartient à l'utilisateur
                 try:
                     existing = conn.execute("SELECT id FROM push_categories WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
                     if not existing:
                         return jsonify({"ok": False, "error": "Catégorie non trouvée ou accès refusé"}), 404
-                    conn.execute(
-                        "UPDATE push_categories SET name=?, keywords=?, updatedAt=? WHERE id=? AND owner_id=?;",
-                        (name, keywords_json, now, int(cid), uid)
-                    )
+                    # Si no_candidates passe à true, on vide les slots candidats
+                    if no_candidates:
+                        conn.execute(
+                            "UPDATE push_categories SET name=?, keywords=?, no_candidates=?, candidate1_id=NULL, candidate2_id=NULL, updatedAt=? WHERE id=? AND owner_id=?;",
+                            (name, keywords_json, no_candidates, now, int(cid), uid)
+                        )
+                    else:
+                        conn.execute(
+                            "UPDATE push_categories SET name=?, keywords=?, no_candidates=?, updatedAt=? WHERE id=? AND owner_id=?;",
+                            (name, keywords_json, no_candidates, now, int(cid), uid)
+                        )
                 except sqlite3.IntegrityError as e:
                     if "UNIQUE constraint" in str(e):
                         return jsonify({"ok": False, "error": "Une catégorie avec ce nom existe déjà"}), 400
@@ -8109,8 +8127,8 @@ def api_push_categories_save():
             else:
                 try:
                     conn.execute(
-                        "INSERT INTO push_categories (name, keywords, auto_detected, owner_id, createdAt, updatedAt) VALUES (?, ?, 0, ?, ?, ?);",
-                        (name, keywords_json, uid, now, now)
+                        "INSERT INTO push_categories (name, keywords, auto_detected, owner_id, no_candidates, createdAt, updatedAt) VALUES (?, ?, 0, ?, ?, ?, ?);",
+                        (name, keywords_json, uid, no_candidates, now, now)
                     )
                     row = conn.execute("SELECT last_insert_rowid() AS id;").fetchone()
                     if not row:
@@ -8669,28 +8687,31 @@ def api_push_generate():
         if not prospect:
             return jsonify(ok=False, error="Prospect introuvable"), 404
         
-        # Récupérer la catégorie
-        cat_row = conn.execute("SELECT name FROM push_categories WHERE id=? AND owner_id=?;", (category_id, uid)).fetchone()
+        # Récupérer la catégorie (incl. flag no_candidates)
+        cat_row = conn.execute("SELECT name, no_candidates FROM push_categories WHERE id=? AND owner_id=?;", (category_id, uid)).fetchone()
         if not cat_row:
             return jsonify(ok=False, error="Catégorie introuvable"), 404
-        
-        # Récupérer les candidats et leurs DC
+
+        cat_no_candidates = bool(cat_row["no_candidates"]) if "no_candidates" in cat_row.keys() else False
+
+        # Récupérer les candidats et leurs DC (skippé si la catégorie est en mode "sans consultant")
         candidates_data = []
-        for cand_id in [candidate_id1, candidate_id2]:
-            if not cand_id:
-                continue
-            try:
-                cand = conn.execute(
-                    "SELECT id, name, dossier_competence_pdf, prenom, titre, annees_experience, domaine_principal, role, years_experience, sector, description_push FROM candidates WHERE id=? AND owner_id=?;",
-                    (cand_id, uid)
-                ).fetchone()
-                if cand:
-                    cand_dict = _safe_row_to_dict(cand)
-                    if cand_dict:
-                        candidates_data.append(cand_dict)
-            except Exception as e:
-                logger.warning("Erreur récupération candidat %s: %s", cand_id, e)
-                continue
+        if not cat_no_candidates:
+            for cand_id in [candidate_id1, candidate_id2]:
+                if not cand_id:
+                    continue
+                try:
+                    cand = conn.execute(
+                        "SELECT id, name, dossier_competence_pdf, prenom, titre, annees_experience, domaine_principal, role, years_experience, sector, description_push FROM candidates WHERE id=? AND owner_id=?;",
+                        (cand_id, uid)
+                    ).fetchone()
+                    if cand:
+                        cand_dict = _safe_row_to_dict(cand)
+                        if cand_dict:
+                            candidates_data.append(cand_dict)
+                except Exception as e:
+                    logger.warning("Erreur récupération candidat %s: %s", cand_id, e)
+                    continue
     
     # Convertir sqlite3.Row en dict pour accès sécurisé
     prospect_dict = _row_to_dict(prospect)
@@ -9047,12 +9068,14 @@ def _build_candidate_descriptions(candidates_data: list) -> list:
 
 
 def _apply_salutation(html_body: str, civilite: str, nom: str) -> str:
-    """Remplace les placeholders de salutation dans le HTML du template."""
+    """Remplace les placeholders de salutation dans le HTML du template.
+    Accepte les placeholders [titre], [genre], [civilite] (interchangeables)
+    pour le genre et [Nom], [nom], [prenom] pour le nom du prospect."""
     import re
     new_salutation = f"Bonjour {civilite} {nom},"
-    # Pattern 1: "Bonjour [titre][Nom]," (avec ou sans virgule finale dans le template)
+    # Pattern 1: "Bonjour [titre|genre|civilite] [Nom]," (avec ou sans virgule finale)
     html_body = re.sub(
-        r'Bonjour\s*\[titre\]\s*\[Nom\]\s*,?',
+        r'Bonjour\s*\[(?:titre|genre|civilit[eé])\]\s*\[(?:Nom|prenom|pr[eé]nom)\]\s*,?',
         new_salutation, html_body, count=1, flags=re.IGNORECASE
     )
     # Pattern 2: "Bonjour M. [Nom prospect]," ou variantes
