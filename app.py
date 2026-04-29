@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.1"
+APP_VERSION = "32.2"
 import os
 import uuid
 import subprocess
@@ -145,6 +145,14 @@ def _load_ai_config() -> dict:
         "tavily_api_key": TAVILY_API_KEY,
         "candidate_description_prompt": "",  # vide = prompt intégré par défaut
         "candidate_pdf_max_chars": 6000,
+        # v32.1 — Transcription : Anthropic (analyse) + faster-whisper (transcription)
+        "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY") or "",
+        "anthropic_model": os.environ.get("ANTHROPIC_MODEL") or "claude-haiku-4-5",
+        "whisper_model": os.environ.get("WHISPER_MODEL") or "large-v3",
+        "whisper_compute_type": os.environ.get("WHISPER_COMPUTE_TYPE") or "float16",
+        "whisper_device": os.environ.get("WHISPER_DEVICE") or "cuda",
+        "diarization_enabled": True,
+        "huggingface_token": os.environ.get("HUGGINGFACE_TOKEN") or "",
     }
     if _AI_CONFIG_FILE.exists():
         try:
@@ -495,6 +503,7 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = True   # v23.4: requires HTTPS (Cloudflare Tunnel)
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=8)  # v23.4: reduced from 30d for security
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # v32.1 : 500 MB pour les uploads audio
 app.json.ensure_ascii = False  # v27.12: caractères Unicode non échappés dans les réponses JSON
 
 # v22: Compute content hashes for static assets (auto cache busters)
@@ -2324,6 +2333,35 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
                 deleted_at   TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_cal_evt_owner_date ON calendar_events(owner_id, event_date);
+
+            -- v32.1 : Transcription de réunions (pipeline Whisper + pyannote + Claude)
+            CREATE TABLE IF NOT EXISTS transcriptions (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                title           TEXT NOT NULL,
+                audio_filename  TEXT NOT NULL,
+                audio_path      TEXT NOT NULL,
+                audio_size      INTEGER,
+                duration_sec    REAL,
+                language        TEXT,
+                status          TEXT NOT NULL DEFAULT 'pending',
+                progress        INTEGER NOT NULL DEFAULT 0,
+                stage           TEXT,
+                error_message   TEXT,
+                transcript_text TEXT,
+                segments_json   TEXT,
+                speakers_json   TEXT,
+                analysis_json   TEXT,
+                whisper_model   TEXT,
+                analysis_model  TEXT,
+                owner_id        INTEGER NOT NULL,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT,
+                completed_at    TEXT,
+                deleted_at      TEXT,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_transcriptions_owner ON transcriptions(owner_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_transcriptions_status ON transcriptions(status);
         ''')
 
         # Seed default admin if no users exist
@@ -21930,9 +21968,11 @@ _sys.modules.setdefault('app', _sys.modules[__name__])
 from routes.auth import auth_bp    # noqa: E402
 from routes.deploy import deploy_bp  # noqa: E402
 from routes.ai import ai_bp          # noqa: E402
+from routes.transcription import transcription_bp, init_resume as _transcription_init_resume  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
 app.register_blueprint(ai_bp)
+app.register_blueprint(transcription_bp)
 
 
 if __name__ == "__main__":
@@ -21943,6 +21983,11 @@ if __name__ == "__main__":
     _migrate_all_user_dbs()
     _migrate_v30_all()
     load_initial_data_if_needed()
+    # v32.1 — marque les transcriptions interrompues (crash/redémarrage) en erreur
+    try:
+        _transcription_init_resume()
+    except Exception as _exc:
+        logger.warning("init_resume transcription : %s", _exc)
 
     # Vérifier si une validation post-update est en attente (app redémarrée après un pull)
     if (APP_DIR / ".pending_validation").exists():

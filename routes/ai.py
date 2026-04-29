@@ -126,6 +126,8 @@ def api_ai_config_get():
         return jsonify(ok=False, error="Non authentifié"), 401
     config = _load_ai_config()
     tavily_key = config.get("tavily_api_key", "")
+    anthropic_key = config.get("anthropic_api_key", "")
+    hf_token = config.get("huggingface_token", "")
     return jsonify(ok=True, config={
         "provider": config.get("provider", "ollama"),
         "fallback_enabled": config.get("fallback_enabled", True),
@@ -135,6 +137,16 @@ def api_ai_config_get():
         "tavily_api_key_preview": (tavily_key[:8] + "…") if len(tavily_key) > 8 else ("••••" if tavily_key else ""),
         "candidate_description_prompt": config.get("candidate_description_prompt", ""),
         "candidate_pdf_max_chars": int(config.get("candidate_pdf_max_chars") or 6000),
+        # v32.1 — Transcription
+        "anthropic_api_key_set": bool(anthropic_key),
+        "anthropic_api_key_preview": (anthropic_key[:10] + "…") if len(anthropic_key) > 10 else ("••••" if anthropic_key else ""),
+        "anthropic_model": config.get("anthropic_model", "claude-haiku-4-5"),
+        "whisper_model": config.get("whisper_model", "large-v3"),
+        "whisper_compute_type": config.get("whisper_compute_type", "float16"),
+        "whisper_device": config.get("whisper_device", "cuda"),
+        "diarization_enabled": bool(config.get("diarization_enabled", True)),
+        "huggingface_token_set": bool(hf_token),
+        "huggingface_token_preview": (hf_token[:8] + "…") if len(hf_token) > 8 else ("••••" if hf_token else ""),
     })
 
 
@@ -163,6 +175,29 @@ def api_ai_config_post():
             config["candidate_pdf_max_chars"] = max(1000, min(20000, int(payload["candidate_pdf_max_chars"])))
         except (ValueError, TypeError):
             pass
+    # v32.1 — Transcription (Anthropic + Whisper + diarisation)
+    if "anthropic_api_key" in payload:
+        config["anthropic_api_key"] = str(payload["anthropic_api_key"]).strip()
+    if "anthropic_model" in payload:
+        m = str(payload["anthropic_model"]).strip()
+        if m:
+            config["anthropic_model"] = m
+    if "whisper_model" in payload:
+        m = str(payload["whisper_model"]).strip()
+        if m:
+            config["whisper_model"] = m
+    if "whisper_compute_type" in payload:
+        m = str(payload["whisper_compute_type"]).strip()
+        if m in ("float16", "int8_float16", "int8", "float32"):
+            config["whisper_compute_type"] = m
+    if "whisper_device" in payload:
+        m = str(payload["whisper_device"]).strip()
+        if m in ("cuda", "cpu", "auto"):
+            config["whisper_device"] = m
+    if "diarization_enabled" in payload:
+        config["diarization_enabled"] = bool(payload["diarization_enabled"])
+    if "huggingface_token" in payload:
+        config["huggingface_token"] = str(payload["huggingface_token"]).strip()
     config["provider"] = "ollama"
     _save_ai_config(config)
     logger.info("AI config updated by user %s", user.get("id"))
@@ -199,6 +234,42 @@ def api_ai_test():
             return jsonify(ok=True, provider="tavily", model="search", response=f"OK — {nb_sources} résultat(s) trouvé(s)")
         except Exception as e:
             logger.warning("Tavily test failed: %s", e)
+            return jsonify(ok=False, error=str(e)), 200
+    elif test_target == "anthropic":
+        # v32.1 — Test API Anthropic via /v1/models (léger, sans consommer de tokens)
+        anth_key = (payload.get("anthropic_api_key") or config.get("anthropic_api_key", "")).strip()
+        if not anth_key:
+            return jsonify(ok=False, error="Clé API Anthropic non configurée."), 400
+        anth_model = (payload.get("anthropic_model") or config.get("anthropic_model") or "claude-haiku-4-5").strip()
+        try:
+            req = urllib.request.Request(
+                "https://api.anthropic.com/v1/models",
+                headers={
+                    "x-api-key": anth_key,
+                    "anthropic-version": "2023-06-01",
+                    "Accept": "application/json",
+                },
+                method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                body = resp.read().decode("utf-8", errors="replace")
+            return jsonify(ok=True, provider="anthropic", model=anth_model, response="OK — clé valide")
+        except urllib.error.HTTPError as e:
+            try:
+                err_body = e.read().decode("utf-8") if e.fp else ""
+                err_data = json.loads(err_body) if err_body else {}
+                err = err_data.get("error", {})
+                msg = err.get("message") if isinstance(err, dict) else str(err)
+                msg = msg or str(e)
+            except Exception:
+                msg = str(e)
+            if e.code in (401, 403):
+                msg = f"Clé API Anthropic invalide (HTTP {e.code})."
+            logger.warning("Anthropic test HTTP %s: %s", e.code, msg)
+            return jsonify(ok=False, error=msg), 200
+        except urllib.error.URLError as e:
+            return jsonify(ok=False, error="api.anthropic.com injoignable."), 200
+        except Exception as e:
             return jsonify(ok=False, error=str(e)), 200
     else:
         test_prompt = "Réponds uniquement par le mot OK."

@@ -1,0 +1,122 @@
+{% extends "v30/base.html" %}
+{% block title %}{{ transcription_title or 'Transcription' }} — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-transcription-detail{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/transcription.css?v={{ static_hash('css/v30/transcription.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div data-v30-tx-detail data-tx-id="{{ transcription_id }}">
+
+  <div class="page-header">
+    <div class="page-header__group">
+      <a class="btn btn-ghost btn-sm" href="/v30/transcription">{{ ui.icon('chevL', 13) }} Liste</a>
+      <h1 class="page-title" data-v30-tx-title>{{ transcription_title or '—' }}</h1>
+      <span class="v30-tx-badge" data-v30-tx-status>—</span>
+    </div>
+    <div class="page-header__actions">
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-tx-refresh aria-label="Actualiser">
+        {{ ui.icon('sync', 13) }}
+      </button>
+      <a class="btn btn-ghost btn-sm" data-v30-tx-export href="#" download>
+        {{ ui.icon('download', 13) }} Export .txt
+      </a>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-retry hidden>
+        {{ ui.icon('sync', 13) }} Relancer
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-delete>
+        {{ ui.icon('x', 13) }} Supprimer
+      </button>
+    </div>
+  </div>
+
+  {# ─── Pendant traitement ─── #}
+  <div class="v30-tx-detail-progress" data-v30-tx-pending hidden>
+    <div class="v30-tx-progress__bar"><div class="v30-tx-progress__fill" data-v30-tx-progress-fill style="width:0%"></div></div>
+    <p class="muted" data-v30-tx-progress-stage>Démarrage…</p>
+  </div>
+
+  {# ─── Erreur ─── #}
+  <div class="v30-tx-detail-error" data-v30-tx-error hidden>
+    <p data-v30-tx-error-msg>—</p>
+  </div>
+
+  {# ─── Lecteur audio ─── #}
+  <div class="v30-tx-audio-card" data-v30-tx-audio hidden>
+    <audio controls preload="metadata" data-v30-tx-audio-el>
+      <source data-v30-tx-audio-src src="" type="audio/mpeg">
+      Votre navigateur ne supporte pas la lecture audio.
+    </audio>
+    <div class="v30-tx-audio-meta muted">
+      <span data-v30-tx-meta-duration>—</span>
+      <span data-v30-tx-meta-language></span>
+      <span data-v30-tx-meta-model></span>
+    </div>
+  </div>
+
+  {# ─── Layout 2 colonnes : analyse + transcript ─── #}
+  <div class="v30-tx-grid" data-v30-tx-grid hidden>
+
+    <section class="v30-tx-col v30-tx-col--analysis">
+      <div class="v30-tx-block" data-v30-tx-summary-block hidden>
+        <h3>Résumé</h3>
+        <p data-v30-tx-summary>—</p>
+      </div>
+
+      <div class="v30-tx-block" data-v30-tx-participants-block hidden>
+        <h3>Participants</h3>
+        <ul class="v30-tx-list-clean" data-v30-tx-participants></ul>
+      </div>
+
+      <div class="v30-tx-block" data-v30-tx-topics-block hidden>
+        <h3>Sujets abordés</h3>
+        <ul class="v30-tx-list-clean" data-v30-tx-topics></ul>
+      </div>
+
+      <div class="v30-tx-block" data-v30-tx-decisions-block hidden>
+        <h3>Décisions</h3>
+        <ul class="v30-tx-list-clean" data-v30-tx-decisions></ul>
+      </div>
+
+      <div class="v30-tx-block" data-v30-tx-actions-block hidden>
+        <h3>Tâches à faire</h3>
+        <ul class="v30-tx-actions" data-v30-tx-actions></ul>
+      </div>
+
+      <div class="v30-tx-block" data-v30-tx-next-block hidden>
+        <h3>Prochaines étapes</h3>
+        <ul class="v30-tx-list-clean" data-v30-tx-next-steps></ul>
+      </div>
+
+      <div class="v30-tx-block" data-v30-tx-quality-block hidden>
+        <h3>Qualité &amp; sentiment</h3>
+        <p>
+          <span class="v30-tx-pill" data-v30-tx-sentiment>—</span>
+          <span class="v30-tx-pill" data-v30-tx-quality>—</span>
+        </p>
+      </div>
+
+      <div class="v30-tx-block" data-v30-tx-quotes-block hidden>
+        <h3>Citations clés</h3>
+        <ul class="v30-tx-quotes" data-v30-tx-quotes></ul>
+      </div>
+    </section>
+
+    <section class="v30-tx-col v30-tx-col--transcript">
+      <div class="v30-tx-transcript-head">
+        <h3>Transcript</h3>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-copy>
+          {{ ui.icon('paperclip', 13) }} Copier
+        </button>
+      </div>
+      <div class="v30-tx-transcript" data-v30-tx-transcript>—</div>
+    </section>
+
+  </div>
+</div>
+
+<script defer src="/static/js/v30/transcription_detail.js?v={{ static_hash('js/v30/transcription_detail.js') }}"></script>
+{% endblock %}

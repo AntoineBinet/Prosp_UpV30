@@ -2,6 +2,55 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.2] — 2026-04-29 · Transcription de réunions (Whisper + Claude)
+
+Nouvel outil **Transcription** dans la sidebar (`/v30/transcription`) : upload
+d'un fichier audio post-réunion, transcription locale par Whisper sur GPU,
+diarisation des orateurs via pyannote, puis analyse structurée par Claude
+(résumé, sujets, décisions, tâches, prochaines étapes, sentiment, citations).
+
+- **Pipeline.** `services/transcription.py` orchestre faster-whisper
+  (`large-v3` par défaut, GPU CUDA) → pyannote 3.1 (diarisation, token HF
+  requis) → fusion des segments par orateur → Anthropic Messages API
+  (`claude-haiku-4-5` par défaut). Lock global pour éviter la concurrence
+  VRAM. Worker en thread daemon, polling côté UI.
+- **Schéma DB.** Nouvelle table `transcriptions` : audio_path, status
+  (pending/processing/done/error), progress %, stage, transcript_text,
+  segments_json (par orateur), speakers_json, analysis_json (résumé +
+  tâches + décisions). Soft delete via `deleted_at`.
+- **Backend.** Blueprint `routes/transcription.py` avec : `POST
+  /api/transcription/upload`, `GET /api/transcription`, `GET
+  /api/transcription/<id>`, `POST /api/transcription/<id>/retry`, `DELETE
+  /api/transcription/<id>`, `GET /api/transcription/<id>/audio` (stream),
+  `GET /api/transcription/<id>/export.txt`. Pages v30 :
+  `/v30/transcription` (liste) et `/v30/transcription/<id>` (détail).
+- **UI.** Liste de cartes avec badge statut + barre de progression mini,
+  modal upload avec drag & drop (mp3, wav, m4a, ogg, mp4, webm, flac, aac
+  jusqu'à 500 MB). Page détail : lecteur audio, transcript par orateur
+  (couleurs distinctes), 7 blocs d'analyse (résumé, participants, sujets,
+  décisions, tâches avec priorités, prochaines étapes, sentiment +
+  qualité, citations clés), copy-to-clipboard, export `.txt`.
+- **Config IA.** Paramètres > IA étendu : clé Anthropic, modèle Claude,
+  modèle Whisper, device/compute, toggle diarisation, token HuggingFace.
+  Fichier `data/ai_config.json` (gitignored). Test connexion Claude
+  (`/api/ai/test` avec `test_target=anthropic`).
+- **Reprise crash.** Au démarrage, les jobs en `processing`/`pending`
+  orphelins (suite à crash/restart serveur) sont marqués en erreur ;
+  l'utilisateur peut les relancer depuis la fiche détail.
+- **Dépendances.** `faster-whisper`, `pyannote.audio`, `torch`,
+  `torchaudio` ajoutés à `requirements.txt` avec
+  `--extra-index-url https://download.pytorch.org/whl/cu121` pour
+  récupérer les wheels GPU. Téléchargement initial ~3 GB. Mapping
+  pip→module ajouté dans `routes/deploy.py:check-deps`.
+- **Install longue durée.** Le `pip install` du flux SSE de mise à jour
+  est désormais **streamé ligne par ligne** (heartbeat toutes les 25 s)
+  pour survivre aux timeouts proxy (Cloudflare Tunnel) et donner du
+  feedback pendant les ~10-15 min de la 1re installation. Timeout
+  porté de 120 s à 1200 s. Manuel `/api/deploy/install-deps` : timeout
+  porté à 1200 s également, message UI mis à jour.
+- **Privacy.** L'audio brut reste 100% local. Seul le transcript texte
+  (anonymisable) part chez Anthropic pour l'analyse.
+
 ## [32.1] — 2026-04-29 · Fiche candidat enrichie · DC + Notes & suivi
 
 Amélioration de la fiche candidat (`/v30/candidat/<id>`) pour rapprocher

@@ -1,0 +1,89 @@
+{% extends "v30/base.html" %}
+{% block title %}Transcription — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-transcription{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/transcription.css?v={{ static_hash('css/v30/transcription.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div data-v30-tx>
+
+  {# ─── Page header ─── #}
+  <div class="page-header">
+    <div class="page-header__group">
+      <h1 class="page-title">Transcription</h1>
+      <span class="muted">Réunions transcrites en local · analyse Claude</span>
+    </div>
+    <div class="page-header__actions">
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-tx-refresh aria-label="Actualiser">
+        {{ ui.icon('sync', 13) }}
+      </button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-tx-new>
+        {{ ui.icon('upload', 13) }} Nouveau fichier audio
+      </button>
+    </div>
+  </div>
+
+  {# ─── Liste des transcriptions ─── #}
+  <div class="v30-tx-list" data-v30-tx-list>
+    <div class="v30-tx-empty" data-v30-tx-skel>
+      <span class="skel" style="width:200px;height:16px;display:inline-block;"></span>
+      <span class="skel" style="width:140px;height:12px;display:inline-block;margin-top:8px;"></span>
+    </div>
+  </div>
+
+</div>
+
+{# ─── Modal Upload ─── #}
+<div class="v30-modal-bd" data-v30-tx-upload-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-tx-upload-title" style="max-width:560px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-tx-upload-title">
+        {{ ui.icon('upload', 14) }} <span>Nouvelle transcription</span>
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-field">
+        <label for="v30-tx-title">Titre <span style="color:var(--danger);">*</span></label>
+        <input type="text" id="v30-tx-title" class="input" placeholder="Ex. RDV Acme — démo produit" maxlength="200" required>
+      </div>
+      <div class="v30-field" style="margin-top:12px;">
+        <label for="v30-tx-file">Fichier audio <span style="color:var(--danger);">*</span></label>
+        <div class="v30-tx-drop" data-v30-tx-drop>
+          <input type="file" id="v30-tx-file" accept=".mp3,.wav,.m4a,.ogg,.oga,.mp4,.webm,.flac,.aac,audio/*,video/mp4" hidden>
+          <div class="v30-tx-drop__inner" data-v30-tx-drop-inner>
+            {{ ui.icon('upload', 22) }}
+            <p>Glisse ton fichier ici ou <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-browse>parcourir</button></p>
+            <p class="muted">mp3, wav, m4a, ogg, mp4, webm, flac, aac · max 500 MB</p>
+          </div>
+          <div class="v30-tx-drop__file" data-v30-tx-drop-file hidden>
+            {{ ui.icon('file', 16) }}
+            <span data-v30-tx-file-name>—</span>
+            <span class="muted" data-v30-tx-file-size></span>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-tx-file-clear aria-label="Retirer">×</button>
+          </div>
+        </div>
+      </div>
+      <p class="muted v30-params__hint" style="margin-top:10px;">
+        Le pipeline tourne 100% en local (Whisper + pyannote sur GPU). Seul le transcript texte
+        est envoyé à Claude pour l'analyse — l'audio brut ne quitte pas la machine.
+      </p>
+      <div class="v30-tx-progress" data-v30-tx-progress hidden>
+        <div class="v30-tx-progress__bar"><div class="v30-tx-progress__fill" data-v30-tx-progress-fill style="width:0%"></div></div>
+        <span class="muted" data-v30-tx-progress-label>Upload…</span>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-tx-submit disabled>Lancer la transcription</button>
+    </div>
+  </div>
+</div>
+
+<script defer src="/static/js/v30/transcription.js?v={{ static_hash('js/v30/transcription.js') }}"></script>
+{% endblock %}
