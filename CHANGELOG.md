@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.1] — 2026-04-29 · Transcription de réunions (Whisper + Claude)
+## [32.2] — 2026-04-29 · Transcription de réunions (Whisper + Claude)
 
 Nouvel outil **Transcription** dans la sidebar (`/v30/transcription`) : upload
 d'un fichier audio post-réunion, transcription locale par Whisper sur GPU,
@@ -50,6 +50,29 @@ diarisation des orateurs via pyannote, puis analyse structurée par Claude
   porté à 1200 s également, message UI mis à jour.
 - **Privacy.** L'audio brut reste 100% local. Seul le transcript texte
   (anonymisable) part chez Anthropic pour l'analyse.
+
+## [32.1] — 2026-04-29 · Fiche candidat enrichie · DC + Notes & suivi
+
+Amélioration de la fiche candidat (`/v30/candidat/<id>`) pour rapprocher
+son expérience de celle de la fiche prospect.
+
+- **Carte « Dossier de compétences ».** Nouvelle section qui affiche le
+  statut du DC (chargé / absent), le nom du fichier PDF, et propose des
+  actions inline : **Voir** (ouvre le PDF), **Renommer**, **Remplacer**
+  (upload PDF), **Supprimer**, ainsi que **Générer** (lien vers
+  `/v30/dc/<id>`) et **Charger** (upload direct depuis la fiche). Tous
+  les flux passent par les routes existantes
+  `/api/candidates/<id>/dc-status`, `/api/candidates/upload-dc`,
+  `/api/candidates/<id>/dc-rename`, `/api/candidates/<id>/dc-delete` et
+  `/api/candidates/<id>/dossier-competence`.
+- **Carte « Notes & suivi ».** Timeline chronologique des événements du
+  candidat (`candidate_events` : notes, contacts, pushes, changements de
+  statut). Bouton **+ Note** pour ajouter rapidement une note d'après
+  RDV (titre + contenu) qui apparaît immédiatement dans le fil. Utilise
+  les routes existantes `GET /api/candidate/timeline` et
+  `POST /api/candidate/events/add`.
+- **Aucun changement de schéma DB** — toutes les routes back existaient
+  déjà ; on les expose simplement dans l'UI.
 
 ## [31.8] — 2026-04-28 · CR de réunion sur fiche prospect
 

@@ -1,6 +1,6 @@
 # ProspUp — CRM Prospection B2B (Up Technologies)
 
-> **Version courante** : 31.7 (APP_VERSION dans app.py) — voir [CHANGELOG.md](CHANGELOG.md) pour l'historique récent.
+> **Version courante** : 32.1 (APP_VERSION dans app.py) — voir [CHANGELOG.md](CHANGELOG.md) pour l'historique récent.
 > **Interface unique** : v30/v31. L'UI v29 a été dépréciée à la v31.7 — son code est archivé dans `archives/v29/` (templates, JS, opt-in). Les anciennes URLs (`/dashboard`, `/sourcing`, `/candidat?id=…`, etc.) renvoient désormais des **redirects 302** vers leur équivalent `/v30/...`. Aucun escape hatch (plus de bouton sidebar v29, plus de flag `?force_v29=1`).
 
 ## Stack technique
