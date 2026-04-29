@@ -946,8 +946,8 @@ def api_create_prospect(tid: int):
                 (info.get("telephone") or "").strip() or None,
                 (info.get("email") or "").strip() or None,
                 (info.get("linkedin") or "").strip() or None,
-                "moyenne",
-                "à_contacter",
+                "3",
+                "à rappeler",
                 f"Fiche créée depuis transcription #{tid}\n\n"
                 f"Besoin : {info.get('besoin') or '—'}",
                 f"from-transcription-{tid}",
