@@ -78,11 +78,21 @@
     // la config IA.
     var err = $('[data-v30-tx-error]');
     var errMsg = $('[data-v30-tx-error-msg]');
+    var billingLink = $('[data-v30-tx-billing-link]');
     if (item.error_message) {
       err.hidden = false;
       errMsg.textContent = item.error_message;
+      // Le bouton « Recharger crédits Claude » apparaît seulement si l'erreur
+      // contient des mots-clés liés au crédit / billing Anthropic.
+      var lower = String(item.error_message).toLowerCase();
+      var isCredit = (lower.indexOf('crédit') !== -1)
+                  || (lower.indexOf('credit') !== -1)
+                  || (lower.indexOf('billing') !== -1)
+                  || (lower.indexOf('insufficient') !== -1);
+      if (billingLink) billingLink.hidden = !isCredit;
     } else {
       err.hidden = true;
+      if (billingLink) billingLink.hidden = true;
     }
     var rb = $('[data-v30-tx-retry]');
     var rba = $('[data-v30-tx-reanalyze]');
@@ -200,6 +210,7 @@
     var box = $('[data-v30-tx-narrative]');
     var titleEl = $('[data-v30-tx-narrative-title]');
     var bodyEl = $('[data-v30-tx-narrative-body]');
+    var badgeEl = $('[data-v30-tx-provider-badge]');
     if (!box || !bodyEl) return;
     var md = a && a.narrative_markdown;
     if (!md || !String(md).trim()) {
@@ -208,6 +219,19 @@
     }
     box.hidden = false;
     if (titleEl) titleEl.textContent = (a && a.title) || fallbackTitle || 'Compte-rendu';
+    // Badge provider : visible uniquement si fallback Ollama (qualité moindre)
+    if (badgeEl) {
+      var provider = a && a._provider;
+      if (provider === 'ollama') {
+        var reason = (a && a._fallback_reason) || 'Claude indisponible';
+        badgeEl.hidden = false;
+        badgeEl.className = 'v30-tx-provider-badge is-fallback';
+        badgeEl.title = reason;
+        badgeEl.textContent = '✦ Ollama (fallback) · ' + reason;
+      } else {
+        badgeEl.hidden = true;
+      }
+    }
     bodyEl.innerHTML = mdToHtml(String(md));
   }
 

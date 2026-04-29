@@ -318,6 +318,59 @@ _MAX_TOKENS_BY_MODEL = {
 }
 
 
+# Prompt simplifié pour Ollama (modèles plus petits que Claude, pas garantis
+# de produire du JSON valide). On demande juste du markdown propre.
+_OLLAMA_ANALYSIS_PROMPT = """Tu es un expert en rédaction de comptes-rendus de réunions B2B.
+
+À partir du transcript ci-dessous, rédige un compte-rendu DÉTAILLÉ et NARRATIF au format markdown :
+- Un titre H1 (`# ...`) descriptif et contextuel
+- Une section `## Synthèse` (4-8 phrases factuelles)
+- 10 à 25 sections H2 thématiques (`## Titre`) avec 1-3 paragraphes de prose narrative chacune
+- Une section finale `## Prochaines étapes` si applicable
+
+RÈGLES STRICTES :
+- N'INVENTE RIEN : tous les chiffres, noms, lieux, technologies doivent venir du transcript
+- Garde les noms d'entreprises et personnes EXACTS
+- Mets en **gras** les noms d'entreprises, technologies, chiffres clés
+- Pas de paraphrase inutile
+
+Réponds UNIQUEMENT par le markdown du compte-rendu, rien d'autre (pas de préambule, pas de balises ```).
+
+Transcript :
+"""
+
+
+def _call_ollama_for_analysis(transcript: str, config: dict, timeout: int = 240) -> dict:
+    """Fallback Ollama quand Claude est indisponible. Retourne un dict
+    avec au minimum `narrative_markdown`.
+
+    Ollama (llama3.2 par défaut) n'est pas garanti de produire du JSON
+    valide — on demande juste du markdown narratif et on l'emballe.
+    """
+    # Import différé pour éviter le cycle services/transcription <-> app
+    from app import _call_ollama_direct  # type: ignore
+
+    full_prompt = _OLLAMA_ANALYSIS_PROMPT + transcript[:200_000]
+    text = _call_ollama_direct(full_prompt, config, timeout) or ""
+    # Strip d'éventuelles balises code
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`").lstrip("markdown\n").lstrip("md\n").strip()
+    return {
+        "narrative_markdown": text,
+        "title": None,
+        "synthesis": None,
+        "participants": [],
+        "topics": [],
+        "decisions": [],
+        "action_items": [],
+        "next_steps": [],
+        "key_quotes": [],
+        "sentiment": "neutre",
+        "quality_score": None,
+    }
+
+
 def _call_anthropic(api_key: str, model: str, transcript: str, timeout: int = 240) -> dict:
     """Appelle l'API Messages d'Anthropic. Retourne le JSON parsé de l'analyse."""
     if not api_key:
@@ -387,6 +440,94 @@ def _call_anthropic(api_key: str, model: str, transcript: str, timeout: int = 24
         if i >= 0 and j > i:
             return json.loads(text[i:j + 1])
         raise
+
+
+# ─── Helper analyse avec fallback Ollama ──────────────────────────────
+
+
+def run_analysis_with_fallback(transcript_text: str, config: dict) -> tuple[dict | None, str | None]:
+    """Tente Claude, fallback Ollama. Pure function — aucune écriture DB.
+
+    Retourne (analysis_dict_or_None, error_message_or_None).
+    L'analysis dict inclut `_provider` ('anthropic' ou 'ollama') et
+    éventuellement `_fallback_reason`.
+    """
+    if not (transcript_text or "").strip():
+        return None, "Transcript vide — analyse impossible."
+    anth_key = (config.get("anthropic_api_key") or "").strip()
+    anth_model = (config.get("anthropic_model") or "claude-haiku-4-5").strip()
+    fallback_enabled = bool(config.get("fallback_enabled", True))
+
+    # 1. Tentative Claude
+    if anth_key:
+        try:
+            analysis = _call_anthropic(anth_key, anth_model, transcript_text)
+            analysis["_provider"] = "anthropic"
+            analysis["_model_used"] = anth_model
+            return analysis, None
+        except Exception as exc:
+            claude_msg = str(exc)
+            logger.warning("Claude analyse échouée : %s", claude_msg)
+            # Détection erreur crédit pour message UX
+            low = claude_msg.lower()
+            is_credit_err = (
+                "credit balance" in low
+                or "insufficient" in low
+                or "quota" in low
+                or "billing" in low
+            )
+    else:
+        claude_msg = "Clé Anthropic non configurée"
+        is_credit_err = False
+        if not fallback_enabled:
+            return None, "Clé Anthropic absente et fallback Ollama désactivé."
+
+    # 2. Fallback Ollama
+    if not fallback_enabled:
+        return None, f"Claude échoué : {claude_msg[:300]}. Fallback désactivé dans Paramètres."
+
+    logger.info("Bascule sur Ollama (raison Claude : %s)", claude_msg[:200])
+    try:
+        analysis = _call_ollama_for_analysis(transcript_text, config)
+        analysis["_provider"] = "ollama"
+        analysis["_model_used"] = config.get("ollama_model", "ollama")
+        analysis["_fallback_reason"] = (
+            "Crédits Claude épuisés" if is_credit_err
+            else f"Claude indisponible : {claude_msg[:200]}"
+        )
+        # On stocke aussi un msg "soft" qui s'affichera dans error_message
+        # mais sans masquer le succès du fallback.
+        msg = (
+            f"Crédits Claude épuisés — analyse générée par Ollama (qualité moindre)."
+            if is_credit_err
+            else f"Claude KO ({claude_msg[:200]}) — fallback Ollama actif."
+        )
+        return analysis, msg
+    except Exception as ollama_exc:
+        logger.warning("Fallback Ollama aussi échoué : %s", ollama_exc)
+        return None, (
+            f"Claude KO : {claude_msg[:200]}. "
+            f"Fallback Ollama KO : {ollama_exc}. "
+            "Transcript disponible — utilise « Re-analyser » après avoir corrigé la config."
+        )
+
+
+def _run_analysis_with_fallback(
+    transcript_text: str,
+    anth_key: str,
+    anth_model: str,
+    config: dict,
+    update_fn,
+) -> tuple[dict | None, str | None]:
+    """Wrapper qui appelle run_analysis_with_fallback() et persiste le
+    résultat via update_fn(analysis_json=..., analysis_model=...)."""
+    analysis, err_msg = run_analysis_with_fallback(transcript_text, config)
+    if analysis is not None:
+        update_fn(
+            analysis_json=json.dumps(analysis, ensure_ascii=False),
+            analysis_model=str(analysis.get("_model_used") or anth_model),
+        )
+    return analysis, err_msg
 
 
 # ─── Worker — pipeline complet ────────────────────────────────────────
@@ -496,25 +637,10 @@ def _process_locked(transcription_id: int, audio_path: str, db_path: str, config
         )
         _progress(85, "Analyse Claude en cours…")
 
-        # 4. Analyse Anthropic
-        analysis: dict | None = None
-        analysis_error: str | None = None
-        if anth_key and transcript_text.strip():
-            try:
-                analysis = _call_anthropic(anth_key, anth_model, transcript_text)
-                _update(
-                    analysis_json=json.dumps(analysis, ensure_ascii=False),
-                    analysis_model=anth_model,
-                )
-            except Exception as exc:
-                logger.warning("Anthropic analyse échouée : %s", exc)
-                analysis_error = (
-                    f"Analyse Claude échouée : {exc}. "
-                    "Transcript disponible. Tu peux ajuster le modèle / la clé dans "
-                    "Paramètres > IA puis cliquer « Re-analyser (Claude seul) »."
-                )
-        else:
-            analysis_error = "Clé Anthropic absente — analyse non générée."
+        # 4. Analyse — Anthropic en priorité, Ollama en fallback
+        analysis, analysis_error = _run_analysis_with_fallback(
+            transcript_text, anth_key, anth_model, config, _update,
+        )
 
         # Concaténer les warnings dans error_message (séparés par \n\n)
         warnings_msg = "\n\n".join([w for w in (diarization_warning, analysis_error) if w])

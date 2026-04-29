@@ -42,9 +42,18 @@
     <p class="muted" data-v30-tx-progress-stage>Démarrage…</p>
   </div>
 
-  {# ─── Erreur ─── #}
+  {# ─── Erreur / warning ─── #}
   <div class="v30-tx-detail-error" data-v30-tx-error hidden>
     <p data-v30-tx-error-msg>—</p>
+    <div class="v30-tx-detail-error__actions" data-v30-tx-error-actions>
+      <a class="btn btn-ghost btn-sm" href="/v30/parametres#ai">
+        {{ ui.icon('cog', 13) }} Aller dans Paramètres IA
+      </a>
+      <a class="btn btn-ghost btn-sm" href="https://console.anthropic.com/settings/billing"
+         target="_blank" rel="noopener" data-v30-tx-billing-link hidden>
+        {{ ui.icon('arrowR', 13) }} Recharger crédits Claude
+      </a>
+    </div>
   </div>
 
   {# ─── Lecteur audio ─── #}
@@ -63,7 +72,10 @@
   {# ─── Compte-rendu narratif (markdown rendu) ─── #}
   <article class="v30-tx-narrative" data-v30-tx-narrative hidden>
     <div class="v30-tx-narrative__head">
-      <h2 data-v30-tx-narrative-title>Compte-rendu</h2>
+      <div class="v30-tx-narrative__title-wrap">
+        <h2 data-v30-tx-narrative-title>Compte-rendu</h2>
+        <span class="v30-tx-provider-badge" data-v30-tx-provider-badge hidden></span>
+      </div>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-copy-narrative>
         {{ ui.icon('paperclip', 13) }} Copier le CR
       </button>

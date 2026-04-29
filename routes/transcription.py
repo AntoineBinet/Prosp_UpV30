@@ -292,48 +292,50 @@ def api_reanalyze(tid: int):
 
     config = _load_ai_config()
     anth_key = (config.get("anthropic_api_key") or "").strip()
-    if not anth_key:
-        return jsonify(ok=False, error="Clé Anthropic non configurée (Paramètres > IA)."), 400
+    fallback_enabled = bool(config.get("fallback_enabled", True))
+    if not anth_key and not fallback_enabled:
+        return jsonify(ok=False, error="Clé Anthropic non configurée et fallback Ollama désactivé."), 400
     anth_model = (config.get("anthropic_model") or "claude-haiku-4-5").strip()
 
     # Marque comme « processing » + stage spécifique
     now = datetime.now().isoformat(timespec="seconds")
     with _conn() as conn:
         conn.execute(
-            "UPDATE transcriptions SET status='processing', progress=85, stage='Re-analyse Claude…', "
+            "UPDATE transcriptions SET status='processing', progress=85, stage='Re-analyse Claude/Ollama…', "
             "error_message=NULL, updated_at=? WHERE id=?;",
             (now, tid),
         )
         conn.commit()
 
     def _bg() -> None:
-        from services.transcription import _call_anthropic
-        try:
-            analysis = _call_anthropic(anth_key, anth_model, transcript_text)
-            done_at = datetime.now().isoformat(timespec="seconds")
+        from services.transcription import run_analysis_with_fallback
+        analysis, err_msg = run_analysis_with_fallback(transcript_text, config)
+        done_at = datetime.now().isoformat(timespec="seconds")
+        if analysis is not None:
+            model_used = str(analysis.get("_model_used") or anth_model)
             with _conn() as c2:
                 c2.execute(
                     "UPDATE transcriptions SET status='done', progress=100, stage='Terminé', "
-                    "analysis_json=?, analysis_model=?, error_message=NULL, "
+                    "analysis_json=?, analysis_model=?, error_message=?, "
                     "completed_at=?, updated_at=? WHERE id=?;",
                     (
                         json.dumps(analysis, ensure_ascii=False),
-                        anth_model,
+                        model_used,
+                        err_msg,  # peut être un msg "soft" même quand l'analyse a réussi (fallback)
                         done_at,
                         done_at,
                         tid,
                     ),
                 )
                 c2.commit()
-            logger.info("Re-analyse %s terminée (modèle=%s)", tid, anth_model)
-        except Exception as exc:
-            logger.warning("Re-analyse %s échouée : %s", tid, exc)
-            done_at = datetime.now().isoformat(timespec="seconds")
+            logger.info("Re-analyse %s terminée (provider=%s, model=%s)",
+                        tid, analysis.get("_provider"), model_used)
+        else:
             with _conn() as c2:
                 c2.execute(
                     "UPDATE transcriptions SET status='done', progress=100, stage='Terminé', "
                     "error_message=?, completed_at=?, updated_at=? WHERE id=?;",
-                    (f"Re-analyse Claude échouée : {exc}", done_at, done_at, tid),
+                    (err_msg or "Analyse échouée", done_at, done_at, tid),
                 )
                 c2.commit()
 

@@ -2,6 +2,33 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.6] — 2026-04-29 · Fallback Ollama + détection crédits Claude
+
+Quand l'API Anthropic est indisponible (crédits épuisés, clé invalide,
+panne réseau), l'analyse bascule automatiquement sur Ollama pour ne
+pas perdre l'utilisateur. UI explicite pour signaler le mode fallback
+et orienter vers la recharge de crédits.
+
+- **Backend.** `services/transcription.py:run_analysis_with_fallback()`
+  centralise la logique : tente Claude → si échec et `fallback_enabled`,
+  bascule sur Ollama avec un prompt simplifié markdown-only
+  (`_OLLAMA_ANALYSIS_PROMPT`). Stocke `_provider`, `_model_used` et
+  `_fallback_reason` dans `analysis_json`. Détection des erreurs de
+  type "credit balance too low" / "billing" / "quota" pour message UX
+  spécifique. Routes `/process` et `/reanalyze` utilisent ce helper.
+- **UI fiche détail.** Banner d'erreur enrichi avec 2 actions :
+  - **« Aller dans Paramètres IA »** → `/v30/parametres#ai`
+  - **« Recharger crédits Claude »** (visible seulement si l'erreur
+    contient "credit"/"billing"/"insufficient") →
+    `console.anthropic.com/settings/billing` en nouvel onglet
+- **Badge provider.** Quand l'analyse a basculé sur Ollama, badge
+  visible sous le titre du CR : « ✦ Ollama (fallback) · Crédits Claude
+  épuisés ». Permet à l'utilisateur de savoir que la qualité est
+  moindre et qu'il peut relancer après recharge.
+- **Lien dans Paramètres.** Section IA enrichie d'une note explicite
+  sur la séparation des facturations Claude.ai / API Anthropic, avec
+  lien direct vers `console.anthropic.com/settings/billing`.
+
 ## [32.5] — 2026-04-29 · CR narratif Genspark-style + diagnostic diarisation
 
 Refonte de l'analyse Claude pour produire un compte-rendu **narratif et
