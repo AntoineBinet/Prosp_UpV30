@@ -86,6 +86,147 @@
     <div class="v30-tx-narrative__body" data-v30-tx-narrative-body></div>
   </article>
 
+  {# ─── Section CRM structurée — éditable & validable (v32.11) ─── #}
+  <section class="v30-tx-crm" data-v30-tx-crm hidden>
+    <header class="v30-tx-crm__head">
+      <div>
+        <h2>Fiche CRM extraite</h2>
+        <p class="muted">Champs détectés par l'IA — édite, complète, puis pousse vers une fiche candidat ou prospect.</p>
+      </div>
+      <div class="v30-tx-crm__head-actions">
+        <span class="v30-tx-pill" data-v30-tx-crm-type>type ?</span>
+        <span class="v30-tx-saved-state muted" data-v30-tx-crm-saved></span>
+      </div>
+    </header>
+
+    {# ─── Volet candidat ─── #}
+    <div class="v30-tx-crm__panel" data-v30-tx-crm-candidate hidden>
+      <h3 class="v30-tx-crm__panel-title">Candidat</h3>
+      <div class="v30-tx-crm__grid">
+        <label><span>Prénom</span><input type="text" data-crm-candidate="prenom" placeholder="—"></label>
+        <label><span>Nom</span><input type="text" data-crm-candidate="nom" placeholder="—"></label>
+        <label class="full"><span>Titre / poste</span><input type="text" data-crm-candidate="titre" placeholder="ex. Ingénieur Méthodes & Industrialisation"></label>
+        <label><span>Années d'expérience</span><input type="number" min="0" max="60" data-crm-candidate="annees_experience" placeholder="—"></label>
+        <label><span>Domaine principal</span><input type="text" data-crm-candidate="domaine_principal" placeholder="ex. Mécatronique"></label>
+        <label class="full"><span>Mobilité géographique</span><input type="text" data-crm-candidate="mobilite" placeholder="ex. Lyon, Aix, Sophia"></label>
+        <label><span>Disponibilité</span><input type="text" data-crm-candidate="disponibilite" placeholder="ex. mi-juin 2026"></label>
+        <label><span>Permis</span>
+          <select data-crm-candidate="permis_conduire">
+            <option value="">—</option><option value="true">Oui</option><option value="false">Non</option>
+          </select>
+        </label>
+        <label><span>Véhicule</span>
+          <select data-crm-candidate="vehicule">
+            <option value="">—</option><option value="true">Oui</option><option value="false">Non</option>
+          </select>
+        </label>
+        <label><span>Rémunération actuelle</span><input type="text" data-crm-candidate="remuneration_actuelle" placeholder="ex. 49 k€"></label>
+        <label><span>Prétentions</span><input type="text" data-crm-candidate="pretentions_salariales" placeholder="ex. 45 k€"></label>
+        <label class="full"><span>Compétences clés (virgule)</span><input type="text" data-crm-candidate="competences_cles" placeholder="VBA, Minitab, Power BI…"></label>
+        <label class="full"><span>Langues (Anglais/B2, Espagnol/A2…)</span><input type="text" data-crm-candidate="langues" placeholder="—"></label>
+        <label class="full"><span>Fonctions recherchées</span><textarea rows="2" data-crm-candidate="fonctions_recherchees" placeholder="—"></textarea></label>
+        <label class="full"><span>Motif de recherche</span><textarea rows="2" data-crm-candidate="motif_recherche" placeholder="—"></textarea></label>
+        <label><span>Email</span><input type="email" data-crm-candidate="email" placeholder="—"></label>
+        <label><span>Téléphone</span><input type="tel" data-crm-candidate="telephone" placeholder="—"></label>
+        <label class="full"><span>LinkedIn</span><input type="url" data-crm-candidate="linkedin" placeholder="https://linkedin.com/in/…"></label>
+      </div>
+
+      <div class="v30-tx-crm__evals">
+        <h4>Évaluations</h4>
+        <div class="v30-tx-crm__eval-grid">
+          <div class="v30-tx-crm__eval">
+            <label><span>Technique</span>
+              <input type="number" min="1" max="10" data-crm-eval="eval_technique.note" placeholder="–">
+            </label>
+            <textarea rows="2" data-crm-eval="eval_technique.commentaire" placeholder="commentaire technique"></textarea>
+          </div>
+          <div class="v30-tx-crm__eval">
+            <label><span>Personnalité</span>
+              <input type="number" min="1" max="10" data-crm-eval="eval_personnalite.note" placeholder="–">
+            </label>
+            <textarea rows="2" data-crm-eval="eval_personnalite.commentaire" placeholder="commentaire personnalité"></textarea>
+          </div>
+          <div class="v30-tx-crm__eval">
+            <label><span>Communication</span>
+              <input type="number" min="1" max="10" data-crm-eval="eval_communication.note" placeholder="–">
+            </label>
+            <textarea rows="2" data-crm-eval="eval_communication.commentaire" placeholder="commentaire communication"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="v30-tx-crm__missions" data-v30-tx-crm-missions-wrap>
+        <h4>Opportunités / missions discutées</h4>
+        <ul class="v30-tx-crm__missions-list" data-v30-tx-crm-missions></ul>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-crm-add-mission>+ Ajouter une mission</button>
+      </div>
+    </div>
+
+    {# ─── Volet prospect ─── #}
+    <div class="v30-tx-crm__panel" data-v30-tx-crm-prospect hidden>
+      <h3 class="v30-tx-crm__panel-title">Prospect / RDV commercial</h3>
+      <div class="v30-tx-crm__grid">
+        <label class="full"><span>Entreprise</span><input type="text" data-crm-prospect="entreprise" placeholder="—"></label>
+        <label><span>Contact — Prénom</span><input type="text" data-crm-prospect="contact_prenom" placeholder="—"></label>
+        <label><span>Contact — Nom</span><input type="text" data-crm-prospect="contact_nom" placeholder="—"></label>
+        <label class="full"><span>Fonction</span><input type="text" data-crm-prospect="contact_fonction" placeholder="—"></label>
+        <label><span>Email</span><input type="email" data-crm-prospect="email" placeholder="—"></label>
+        <label><span>Téléphone</span><input type="tel" data-crm-prospect="telephone" placeholder="—"></label>
+        <label class="full"><span>LinkedIn</span><input type="url" data-crm-prospect="linkedin" placeholder="—"></label>
+        <label class="full"><span>Besoin / contexte</span><textarea rows="3" data-crm-prospect="besoin" placeholder="—"></textarea></label>
+        <label><span>Urgence</span>
+          <select data-crm-prospect="urgence">
+            <option value="">—</option><option value="haute">Haute</option><option value="moyenne">Moyenne</option><option value="basse">Basse</option>
+          </select>
+        </label>
+        <label><span>Budget</span><input type="text" data-crm-prospect="budget" placeholder="ex. 300 k€/an"></label>
+        <label class="full"><span>Stack (virgule)</span><input type="text" data-crm-prospect="stack" placeholder="—"></label>
+        <label class="full"><span>Pain points (virgule)</span><input type="text" data-crm-prospect="pain_points" placeholder="—"></label>
+        <label><span>Ville</span><input type="text" data-crm-prospect="city" placeholder="—"></label>
+        <label><span>Pays</span><input type="text" data-crm-prospect="country" placeholder="—"></label>
+      </div>
+    </div>
+
+    {# ─── Suivi (toujours visible) ─── #}
+    <div class="v30-tx-crm__panel">
+      <h3 class="v30-tx-crm__panel-title">Suivi & prochaines actions</h3>
+      <div class="v30-tx-crm__followup-meta">
+        <label><span>Prochaine relance proposée</span><input type="text" data-crm-suivi="proposed_followup_date" placeholder="ex. 2026-05-06 ou « +1 semaine »"></label>
+        <label><span>Canal</span>
+          <select data-crm-suivi="followup_channel">
+            <option value="">—</option><option value="email">Email</option><option value="telephone">Téléphone</option>
+            <option value="linkedin">LinkedIn</option><option value="rdv_physique">RDV physique</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="v30-tx-crm__actions-block">
+        <h4>Côté Up Technology</h4>
+        <ul class="v30-tx-crm__actions-list" data-v30-tx-crm-up-list></ul>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-crm-add-up>+ Action Up Tech</button>
+      </div>
+
+      <div class="v30-tx-crm__actions-block">
+        <h4>Côté candidat / prospect</h4>
+        <ul class="v30-tx-crm__actions-list" data-v30-tx-crm-other-list></ul>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-crm-add-other>+ Action côté candidat/prospect</button>
+      </div>
+    </div>
+
+    <footer class="v30-tx-crm__foot">
+      <button type="button" class="btn btn-primary btn-sm" data-v30-tx-crm-save>
+        {{ ui.icon('check', 13) }} Enregistrer les modifications
+      </button>
+      <button type="button" class="btn btn-sm" data-v30-tx-crm-create-candidate hidden>
+        ＋ Créer fiche candidat
+      </button>
+      <button type="button" class="btn btn-sm" data-v30-tx-crm-create-prospect hidden>
+        ＋ Créer fiche prospect
+      </button>
+      <span class="muted v30-tx-crm__foot-hint" data-v30-tx-crm-link></span>
+    </footer>
+  </section>
+
   {# ─── Layout 2 colonnes : analyse synthétique + transcript brut ─── #}
   <div class="v30-tx-grid" data-v30-tx-grid hidden>
 

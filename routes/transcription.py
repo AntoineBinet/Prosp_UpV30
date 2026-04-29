@@ -615,6 +615,21 @@ def api_external_analysis(tid: int):
             "key_quotes": [],
         }
 
+    # v32.11 — garantit la présence des champs CRM structurés. Si l'IA n'a
+    # pas rempli ces blocs, on les initialise vides pour permettre l'édition
+    # manuelle côté UI plutôt que de masquer la section.
+    analysis.setdefault("meeting_type", None)
+    analysis.setdefault("candidate_info", None)
+    analysis.setdefault("prospect_info", None)
+    analysis.setdefault("opportunites_missions", [])
+    if not isinstance(analysis.get("suivi"), dict):
+        analysis["suivi"] = {
+            "up_tech": [],
+            "autre_partie": [],
+            "proposed_followup_date": None,
+            "followup_channel": None,
+        }
+
     # Marqueurs de provenance
     analysis["_provider"] = "external"
     analysis["_model_used"] = source
@@ -655,6 +670,307 @@ def api_delete(tid: int):
     if cur.rowcount == 0:
         return jsonify(ok=False, error="Transcription introuvable"), 404
     return jsonify(ok=True)
+
+
+# ─── Édition champs CRM structurés (v32.11) ───────────────────────────
+
+
+_CRM_FIELDS = ("meeting_type", "candidate_info", "prospect_info",
+               "opportunites_missions", "suivi")
+
+
+@transcription_bp.put("/api/transcription/<int:tid>/structured-fields")
+def api_update_structured_fields(tid: int):
+    """Met à jour les champs CRM structurés extraits par l'IA.
+
+    Permet à l'utilisateur de corriger / valider les infos extraites avant
+    de générer une fiche candidat ou prospect. Champs autorisés : ceux de
+    `_CRM_FIELDS`. Le narrative_markdown et les autres champs ne sont PAS
+    touchés. Merge profond sur les sous-objets pour permettre des updates
+    partielles depuis l'UI.
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    payload = request.get_json(force=True, silent=True) or {}
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT analysis_json FROM transcriptions WHERE id=? AND owner_id=? "
+            "AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+            (tid, uid),
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Transcription introuvable"), 404
+
+    try:
+        analysis = json.loads(row["analysis_json"]) if row["analysis_json"] else {}
+    except Exception:
+        analysis = {}
+    if not isinstance(analysis, dict):
+        analysis = {}
+
+    # Update sélectif
+    for k in _CRM_FIELDS:
+        if k in payload:
+            analysis[k] = payload[k]
+
+    # Marqueur édition manuelle (utile pour différencier d'un push IA)
+    analysis["_user_edited_at"] = datetime.now().isoformat(timespec="seconds")
+
+    now = datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE transcriptions SET analysis_json=?, updated_at=? WHERE id=?;",
+            (json.dumps(analysis, ensure_ascii=False), now, tid),
+        )
+        conn.commit()
+    return jsonify(ok=True)
+
+
+def _split_full_name(full: str | None) -> tuple[str, str]:
+    """Sépare nom/prénom depuis une chaîne libre. Heuristique : 1ʳᵉ token = prénom."""
+    s = (full or "").strip()
+    if not s:
+        return "", ""
+    parts = s.split()
+    if len(parts) == 1:
+        return "", parts[0]
+    return parts[0], " ".join(parts[1:])
+
+
+@transcription_bp.post("/api/transcription/<int:tid>/create-candidate")
+def api_create_candidate(tid: int):
+    """Crée une fiche candidat à partir des champs structurés extraits.
+
+    L'utilisateur a édité (ou non) `candidate_info` dans l'UI, et déclenche
+    cet endpoint. On insère une nouvelle ligne dans `candidates` avec les
+    champs disponibles. Retourne l'id du candidat créé pour redirection."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT title, analysis_json FROM transcriptions WHERE id=? AND owner_id=? "
+            "AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+            (tid, uid),
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Transcription introuvable"), 404
+
+    try:
+        analysis = json.loads(row["analysis_json"]) if row["analysis_json"] else {}
+    except Exception:
+        analysis = {}
+    info = analysis.get("candidate_info") or {}
+    if not isinstance(info, dict) or not (info.get("nom") or info.get("prenom")):
+        return jsonify(ok=False,
+                       error="Aucun candidat identifié dans l'analyse — édite d'abord les champs ou re-déclenche l'analyse."), 400
+
+    prenom = (info.get("prenom") or "").strip()
+    nom    = (info.get("nom")    or "").strip()
+    full   = (prenom + " " + nom).strip() or row["title"]
+    titre  = (info.get("titre") or "").strip()
+
+    # Compétences : list[str] → string virgule-séparée pour le champ tech
+    cmpz = info.get("competences_cles") or []
+    if isinstance(cmpz, list):
+        tech = ", ".join(str(c) for c in cmpz if c)
+    else:
+        tech = str(cmpz)[:1000]
+
+    # Langues : list[{langue, niveau}] → string lisible
+    langs = info.get("langues") or []
+    if isinstance(langs, list):
+        langues = ", ".join(
+            f"{(l.get('langue') or '?').strip()} ({(l.get('niveau') or '?').strip()})"
+            if isinstance(l, dict) else str(l)
+            for l in langs
+        )
+    else:
+        langues = str(langs)[:300]
+
+    # Évaluations : on stocke note + commentaire dans le champ texte
+    def _eval_str(key: str) -> str:
+        e = info.get(key) or {}
+        if not isinstance(e, dict):
+            return ""
+        note = e.get("note")
+        com  = (e.get("commentaire") or "").strip()
+        if note is None and not com:
+            return ""
+        return (f"{note}/10 — " if note is not None else "") + com
+
+    now = datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO candidates
+               (name, prenom, titre, role, location, seniority, tech, skills, sector,
+                annees_experience, years_experience, domaine_principal,
+                mobilite, disponibilite, permis_conduire, vehicule,
+                fonctions_recherchees, motif_recherche,
+                remuneration_actuelle, pretentions_salariales,
+                eval_technique, eval_personnalite, eval_communication,
+                langues, phone, email, linkedin, notes,
+                source, status, owner_id, createdAt, updatedAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+            (
+                full,
+                prenom or None,
+                titre or None,
+                titre or None,                       # role = titre par défaut
+                (info.get("mobilite") or "").strip() or None,
+                None,
+                tech or None,
+                tech or None,                        # skills = tech par défaut
+                (info.get("domaine_principal") or "").strip() or None,
+                info.get("annees_experience"),
+                info.get("annees_experience"),
+                (info.get("domaine_principal") or "").strip() or None,
+                (info.get("mobilite") or "").strip() or None,
+                (info.get("disponibilite") or "").strip() or None,
+                1 if info.get("permis_conduire") else (0 if info.get("permis_conduire") is False else None),
+                1 if info.get("vehicule") else (0 if info.get("vehicule") is False else None),
+                (info.get("fonctions_recherchees") or "").strip() or None,
+                (info.get("motif_recherche") or "").strip() or None,
+                (info.get("remuneration_actuelle") or "").strip() or None,
+                (info.get("pretentions_salariales") or "").strip() or None,
+                _eval_str("eval_technique") or None,
+                _eval_str("eval_personnalite") or None,
+                _eval_str("eval_communication") or None,
+                langues or None,
+                (info.get("telephone") or "").strip() or None,
+                (info.get("email") or "").strip() or None,
+                (info.get("linkedin") or "").strip() or None,
+                f"Fiche créée depuis transcription #{tid} — {row['title']}",
+                f"transcription:{tid}",
+                "à_qualifier",
+                uid,
+                now,
+                now,
+            ),
+        )
+        cid = cur.lastrowid
+        conn.commit()
+
+    # Garde une trace dans l'analyse pour ne pas re-créer 2× la même fiche
+    analysis["_candidate_id"] = cid
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE transcriptions SET analysis_json=?, updated_at=? WHERE id=?;",
+            (json.dumps(analysis, ensure_ascii=False), now, tid),
+        )
+        conn.commit()
+
+    logger.info("Fiche candidat #%s créée depuis transcription #%s", cid, tid)
+    return jsonify(ok=True, candidate_id=cid, redirect=f"/v30/candidat/{cid}")
+
+
+@transcription_bp.post("/api/transcription/<int:tid>/create-prospect")
+def api_create_prospect(tid: int):
+    """Crée une fiche prospect (+ company si nouvelle) à partir de prospect_info."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT title, analysis_json FROM transcriptions WHERE id=? AND owner_id=? "
+            "AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+            (tid, uid),
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Transcription introuvable"), 404
+
+    try:
+        analysis = json.loads(row["analysis_json"]) if row["analysis_json"] else {}
+    except Exception:
+        analysis = {}
+    info = analysis.get("prospect_info") or {}
+    if not isinstance(info, dict) or not (info.get("contact_nom") or info.get("contact_prenom") or info.get("entreprise")):
+        return jsonify(ok=False,
+                       error="Aucun contact ou entreprise identifié dans l'analyse — édite d'abord les champs."), 400
+
+    prenom  = (info.get("contact_prenom") or "").strip()
+    nom     = (info.get("contact_nom") or "").strip()
+    full    = (prenom + " " + nom).strip() or "Contact sans nom"
+    fonction = (info.get("contact_fonction") or "").strip()
+    entreprise = (info.get("entreprise") or "").strip()
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    # Création / lookup company
+    company_id: int | None = None
+    if entreprise:
+        with _conn() as conn:
+            existing = conn.execute(
+                "SELECT id FROM companies WHERE LOWER(groupe)=LOWER(?) AND owner_id=? "
+                "AND (deleted_at IS NULL OR deleted_at='') LIMIT 1;",
+                (entreprise, uid),
+            ).fetchone()
+            if existing:
+                company_id = existing["id"]
+            else:
+                stack = info.get("stack") or []
+                pains = info.get("pain_points") or []
+                cur = conn.execute(
+                    """INSERT INTO companies (groupe, city, country, stack, pain_points,
+                                              budget, urgency, notes, owner_id)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                    (
+                        entreprise,
+                        (info.get("city") or "").strip() or None,
+                        (info.get("country") or "").strip() or None,
+                        ", ".join(stack) if isinstance(stack, list) else str(stack)[:500],
+                        ", ".join(pains) if isinstance(pains, list) else str(pains)[:1000],
+                        (info.get("budget") or "").strip() or None,
+                        (info.get("urgence") or "").strip() or None,
+                        f"Créée depuis transcription #{tid}",
+                        uid,
+                    ),
+                )
+                company_id = cur.lastrowid
+                conn.commit()
+
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO prospects
+               (name, company_id, fonction, telephone, email, linkedin,
+                pertinence, statut, notes, tags, owner_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+            (
+                full,
+                company_id,
+                fonction or None,
+                (info.get("telephone") or "").strip() or None,
+                (info.get("email") or "").strip() or None,
+                (info.get("linkedin") or "").strip() or None,
+                "moyenne",
+                "à_contacter",
+                f"Fiche créée depuis transcription #{tid}\n\n"
+                f"Besoin : {info.get('besoin') or '—'}",
+                f"from-transcription-{tid}",
+                uid,
+            ),
+        )
+        pid = cur.lastrowid
+        conn.commit()
+
+    analysis["_prospect_id"] = pid
+    if company_id:
+        analysis["_company_id"] = company_id
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE transcriptions SET analysis_json=?, updated_at=? WHERE id=?;",
+            (json.dumps(analysis, ensure_ascii=False), now, tid),
+        )
+        conn.commit()
+
+    logger.info("Fiche prospect #%s (company=%s) créée depuis transcription #%s",
+                pid, company_id, tid)
+    return jsonify(ok=True, prospect_id=pid, company_id=company_id,
+                   redirect=f"/v30/prospects?focus={pid}")
 
 
 @transcription_bp.get("/api/transcription/<int:tid>/audio")

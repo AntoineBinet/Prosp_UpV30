@@ -595,7 +595,370 @@
       });
   }
 
-  function init() { bind(); load(); }
+  // ─── Section CRM structurée (v32.11) ───────────────────────────────
+  // L'utilisateur peut éditer les infos extraites avant de pousser vers
+  // une fiche candidat ou prospect. On hydrate UNE FOIS au premier render
+  // pour ne pas écraser les saisies en cours pendant le polling.
+  var _crmHydrated = false;
+  var _crmEdited = false;
+
+  function _setSavedState(cls, txt) {
+    var s = $('[data-v30-tx-crm-saved]');
+    if (!s) return;
+    s.className = 'v30-tx-saved-state muted ' + (cls || '');
+    s.textContent = txt || '';
+  }
+
+  function _setVal(sel, val) {
+    var el = $(sel);
+    if (!el) return;
+    if (val === null || val === undefined) val = '';
+    if (el.tagName === 'SELECT') {
+      el.value = String(val);
+    } else if (typeof val === 'boolean') {
+      el.value = val ? 'true' : 'false';
+    } else {
+      el.value = String(val);
+    }
+  }
+
+  function renderCRM(item) {
+    var box = $('[data-v30-tx-crm]');
+    if (!box) return;
+    var a = (item && item.analysis) || null;
+    var hasTx = !!(item && item.transcript_text && item.transcript_text.trim());
+    if (!a || !hasTx) { box.hidden = true; return; }
+    box.hidden = false;
+
+    if (_crmHydrated && _crmEdited) {
+      // L'utilisateur a déjà commencé à éditer — on ne touche plus aux
+      // valeurs des inputs pour ne pas perdre sa saisie. Le polling
+      // continuera de mettre à jour le reste de l'UI.
+      return;
+    }
+
+    var type = a.meeting_type || 'autre';
+    var pill = $('[data-v30-tx-crm-type]');
+    if (pill) pill.textContent = type.replace(/_/g, ' ');
+
+    // Volets candidat/prospect : visible selon meeting_type, mais on
+    // affiche aussi le volet « rempli » si l'IA a mis des infos même si
+    // le type n'est pas le bon.
+    var candPanel = $('[data-v30-tx-crm-candidate]');
+    var prosPanel = $('[data-v30-tx-crm-prospect]');
+    var ci = a.candidate_info || null;
+    var pi = a.prospect_info  || null;
+    var showCand = type === 'entretien_candidat' || (ci && Object.keys(ci).length);
+    var showProsp = type === 'rdv_commercial' || (pi && Object.keys(pi).length);
+    if (candPanel) candPanel.hidden = !showCand;
+    if (prosPanel) prosPanel.hidden = !showProsp;
+
+    // Hydrate candidat
+    if (ci && showCand) {
+      ['prenom','nom','titre','annees_experience','domaine_principal',
+       'mobilite','disponibilite','remuneration_actuelle',
+       'pretentions_salariales','fonctions_recherchees',
+       'motif_recherche','email','telephone','linkedin'].forEach(function(k) {
+        _setVal('[data-crm-candidate="'+k+'"]', ci[k]);
+      });
+      // Compétences (array) → CSV
+      var comp = ci.competences_cles;
+      _setVal('[data-crm-candidate="competences_cles"]',
+        Array.isArray(comp) ? comp.join(', ') : (comp || ''));
+      // Langues (array of objects) → string lisible
+      var langs = ci.langues;
+      var langStr = '';
+      if (Array.isArray(langs)) {
+        langStr = langs.map(function(l) {
+          if (typeof l === 'string') return l;
+          return (l.langue || '?') + (l.niveau ? '/'+l.niveau : '');
+        }).join(', ');
+      } else if (typeof langs === 'string') {
+        langStr = langs;
+      }
+      _setVal('[data-crm-candidate="langues"]', langStr);
+      // Bool : permis / véhicule
+      ['permis_conduire','vehicule'].forEach(function(k) {
+        var v = ci[k];
+        var s = (v === true) ? 'true' : (v === false ? 'false' : '');
+        _setVal('[data-crm-candidate="'+k+'"]', s);
+      });
+      // Évaluations
+      ['eval_technique','eval_personnalite','eval_communication'].forEach(function(k) {
+        var e = ci[k] || {};
+        _setVal('[data-crm-eval="'+k+'.note"]', e.note);
+        _setVal('[data-crm-eval="'+k+'.commentaire"]', e.commentaire);
+      });
+      // Missions
+      _renderMissions(a.opportunites_missions || []);
+    }
+
+    // Hydrate prospect
+    if (pi && showProsp) {
+      ['entreprise','contact_prenom','contact_nom','contact_fonction',
+       'email','telephone','linkedin','besoin','urgence','budget',
+       'city','country'].forEach(function(k) {
+        _setVal('[data-crm-prospect="'+k+'"]', pi[k]);
+      });
+      _setVal('[data-crm-prospect="stack"]',
+        Array.isArray(pi.stack) ? pi.stack.join(', ') : (pi.stack || ''));
+      _setVal('[data-crm-prospect="pain_points"]',
+        Array.isArray(pi.pain_points) ? pi.pain_points.join(', ') : (pi.pain_points || ''));
+    }
+
+    // Suivi
+    var s = a.suivi || {};
+    _setVal('[data-crm-suivi="proposed_followup_date"]', s.proposed_followup_date);
+    _setVal('[data-crm-suivi="followup_channel"]', s.followup_channel);
+    _renderActions('up', s.up_tech || []);
+    _renderActions('other', s.autre_partie || []);
+
+    // Boutons « Créer fiche » : visibles selon données dispo
+    var btnC = $('[data-v30-tx-crm-create-candidate]');
+    var btnP = $('[data-v30-tx-crm-create-prospect]');
+    if (btnC) btnC.hidden = !(showCand && ci && (ci.nom || ci.prenom));
+    if (btnP) btnP.hidden = !(showProsp && pi && (pi.entreprise || pi.contact_nom));
+
+    // Lien vers fiche déjà créée (idempotence)
+    var hint = $('[data-v30-tx-crm-link]');
+    if (hint) {
+      var parts = [];
+      if (a._candidate_id) parts.push('<a href="/v30/candidat/'+a._candidate_id+'">Fiche candidat #'+a._candidate_id+' déjà créée</a>');
+      if (a._prospect_id)  parts.push('<a href="/v30/prospects?focus='+a._prospect_id+'">Fiche prospect #'+a._prospect_id+' déjà créée</a>');
+      hint.innerHTML = parts.join(' · ');
+    }
+    if (a._user_edited_at) {
+      _setSavedState('is-saved', '✓ Édité ' + a._user_edited_at);
+    }
+    _crmHydrated = true;
+  }
+
+  function _renderMissions(missions) {
+    var ul = $('[data-v30-tx-crm-missions]');
+    if (!ul) return;
+    ul.innerHTML = '';
+    missions.forEach(function(m, i) { ul.appendChild(_buildMissionRow(m, i)); });
+  }
+  function _buildMissionRow(m, i) {
+    m = m || {};
+    var li = document.createElement('li');
+    li.className = 'v30-tx-crm__row';
+    li.innerHTML =
+      '<input type="text" data-mission-field="nom" placeholder="Nom de la mission" value="'+esc(m.nom || '')+'">'
+    + '<input type="text" data-mission-field="client" placeholder="Client" value="'+esc(m.client || '')+'">'
+    + '<select data-mission-field="statut">'
+    +   ['à_creuser','discutée','proposée','refusée'].map(function(s) {
+          return '<option value="'+s+'"'+(m.statut===s?' selected':'')+'>'+s.replace('_',' ')+'</option>';
+        }).join('')
+    + '</select>'
+    + '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-mission-del title="Supprimer">×</button>';
+    li.querySelector('[data-mission-del]').addEventListener('click', function() { li.remove(); _markEdited(); });
+    li.querySelectorAll('input,select').forEach(function(el) {
+      el.addEventListener('input', _markEdited);
+    });
+    return li;
+  }
+
+  function _renderActions(side, list) {
+    var ul = $('[data-v30-tx-crm-'+side+'-list]');
+    if (!ul) return;
+    ul.innerHTML = '';
+    list.forEach(function(a) { ul.appendChild(_buildActionRow(side, a)); });
+  }
+  function _buildActionRow(side, a) {
+    a = a || {};
+    var li = document.createElement('li');
+    li.className = 'v30-tx-crm__row';
+    li.innerHTML =
+      '<input type="text" data-action-field="action" placeholder="Action" value="'+esc(a.action || '')+'">'
+    + '<input type="text" data-action-field="deadline" placeholder="Échéance" value="'+esc(a.deadline || '')+'">'
+    + '<input type="text" data-action-field="owner" placeholder="Responsable" value="'+esc(a.owner || '')+'">'
+    + '<button type="button" class="btn btn-ghost btn-sm btn-icon" data-action-del title="Supprimer">×</button>';
+    li.querySelector('[data-action-del]').addEventListener('click', function() { li.remove(); _markEdited(); });
+    li.querySelectorAll('input').forEach(function(el) {
+      el.addEventListener('input', _markEdited);
+    });
+    return li;
+  }
+
+  function _markEdited() {
+    _crmEdited = true;
+    _setSavedState('is-saving', '● Modifications non enregistrées');
+  }
+
+  function _readBool(sel) {
+    var el = $(sel); if (!el || !el.value) return null;
+    return el.value === 'true';
+  }
+  function _readEval(prefix) {
+    var note = $('[data-crm-eval="'+prefix+'.note"]')?.value || '';
+    var com  = $('[data-crm-eval="'+prefix+'.commentaire"]')?.value || '';
+    note = note.trim(); com = com.trim();
+    if (!note && !com) return null;
+    return { note: note ? Number(note) : null, commentaire: com || null };
+  }
+  function _csvToArr(s) {
+    return (s || '').split(',').map(function(x){return x.trim();}).filter(Boolean);
+  }
+  function _readLangues(s) {
+    return _csvToArr(s).map(function(x) {
+      var m = /^(.+?)\s*[\/(]\s*(.+?)\s*\)?$/.exec(x);
+      if (m) return { langue: m[1].trim(), niveau: m[2].trim() };
+      return { langue: x, niveau: null };
+    });
+  }
+
+  function collectCRM() {
+    var type = $('[data-v30-tx-crm-type]')?.textContent?.trim().replace(/\s/g,'_') || null;
+    var ci = null, pi = null;
+    var candPanel = $('[data-v30-tx-crm-candidate]');
+    if (candPanel && !candPanel.hidden) {
+      ci = {};
+      ['prenom','nom','titre','annees_experience','domaine_principal',
+       'mobilite','disponibilite','remuneration_actuelle',
+       'pretentions_salariales','fonctions_recherchees',
+       'motif_recherche','email','telephone','linkedin'].forEach(function(k) {
+        var v = $('[data-crm-candidate="'+k+'"]')?.value;
+        ci[k] = v && v.trim() ? (k === 'annees_experience' ? Number(v) : v.trim()) : null;
+      });
+      ci.competences_cles = _csvToArr($('[data-crm-candidate="competences_cles"]')?.value);
+      ci.langues = _readLangues($('[data-crm-candidate="langues"]')?.value);
+      ci.permis_conduire = _readBool('[data-crm-candidate="permis_conduire"]');
+      ci.vehicule = _readBool('[data-crm-candidate="vehicule"]');
+      ci.eval_technique = _readEval('eval_technique');
+      ci.eval_personnalite = _readEval('eval_personnalite');
+      ci.eval_communication = _readEval('eval_communication');
+    }
+    var prosPanel = $('[data-v30-tx-crm-prospect]');
+    if (prosPanel && !prosPanel.hidden) {
+      pi = {};
+      ['entreprise','contact_prenom','contact_nom','contact_fonction',
+       'email','telephone','linkedin','besoin','urgence','budget',
+       'city','country'].forEach(function(k) {
+        var v = $('[data-crm-prospect="'+k+'"]')?.value;
+        pi[k] = v && v.trim() ? v.trim() : null;
+      });
+      pi.stack = _csvToArr($('[data-crm-prospect="stack"]')?.value);
+      pi.pain_points = _csvToArr($('[data-crm-prospect="pain_points"]')?.value);
+    }
+    // Missions
+    var missions = $$('[data-v30-tx-crm-missions] li').map(function(li) {
+      return {
+        nom: li.querySelector('[data-mission-field="nom"]')?.value || null,
+        client: li.querySelector('[data-mission-field="client"]')?.value || null,
+        statut: li.querySelector('[data-mission-field="statut"]')?.value || null,
+      };
+    }).filter(function(m){ return m.nom || m.client; });
+    // Suivi
+    function readActions(side) {
+      return $$('[data-v30-tx-crm-'+side+'-list] li').map(function(li) {
+        return {
+          action: li.querySelector('[data-action-field="action"]')?.value || null,
+          deadline: li.querySelector('[data-action-field="deadline"]')?.value || null,
+          owner: li.querySelector('[data-action-field="owner"]')?.value || null,
+        };
+      }).filter(function(a){ return a.action; });
+    }
+    var suivi = {
+      up_tech: readActions('up'),
+      autre_partie: readActions('other'),
+      proposed_followup_date: $('[data-crm-suivi="proposed_followup_date"]')?.value?.trim() || null,
+      followup_channel: $('[data-crm-suivi="followup_channel"]')?.value || null,
+    };
+    return {
+      meeting_type: type,
+      candidate_info: ci,
+      prospect_info: pi,
+      opportunites_missions: missions,
+      suivi: suivi,
+    };
+  }
+
+  function saveCRM() {
+    var payload = collectCRM();
+    _setSavedState('is-saving', 'Enregistrement…');
+    return fetch('/api/transcription/' + TID + '/structured-fields', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (j && j.ok) {
+          _setSavedState('is-saved', '✓ Enregistré');
+          _crmEdited = false;
+          if (window.showToast) window.showToast('Champs CRM enregistrés', 'success');
+        } else {
+          _setSavedState('is-error', '✗ ' + ((j && j.error) || 'erreur'));
+        }
+      })
+      .catch(function(e) {
+        _setSavedState('is-error', '✗ ' + e.message);
+      });
+  }
+
+  function createFiche(kind) {
+    var url = '/api/transcription/' + TID + '/create-' + kind;
+    var label = kind === 'candidate' ? 'Création fiche candidat…' : 'Création fiche prospect…';
+    if (window.showToast) window.showToast(label, 'info');
+    saveCRM().then(function() {
+      return fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'Content-Type':'application/json'},
+        body: '{}',
+      });
+    })
+      .then(function(r) { return r.json().then(function(j) { return {st: r.status, body: j}; }); })
+      .then(function(res) {
+        if (res.st >= 200 && res.st < 300 && res.body.ok) {
+          if (window.showToast) window.showToast('Fiche créée — redirection…', 'success');
+          if (res.body.redirect) {
+            setTimeout(function() { window.location.href = res.body.redirect; }, 600);
+          } else {
+            setTimeout(load, 600);
+          }
+        } else {
+          if (window.showToast) window.showToast('Échec : ' + (res.body.error || 'erreur'), 'error');
+        }
+      });
+  }
+
+  function bindCRM() {
+    // Marquer comme édité dès qu'un champ change
+    $$('[data-v30-tx-crm] input, [data-v30-tx-crm] select, [data-v30-tx-crm] textarea').forEach(function(el) {
+      el.addEventListener('input', _markEdited);
+      el.addEventListener('change', _markEdited);
+    });
+    var save = $('[data-v30-tx-crm-save]');
+    if (save) save.addEventListener('click', saveCRM);
+    var addUp    = $('[data-v30-tx-crm-add-up]');
+    var addOther = $('[data-v30-tx-crm-add-other]');
+    var addMission = $('[data-v30-tx-crm-add-mission]');
+    if (addUp) addUp.addEventListener('click', function() {
+      $('[data-v30-tx-crm-up-list]').appendChild(_buildActionRow('up', {})); _markEdited();
+    });
+    if (addOther) addOther.addEventListener('click', function() {
+      $('[data-v30-tx-crm-other-list]').appendChild(_buildActionRow('other', {})); _markEdited();
+    });
+    if (addMission) addMission.addEventListener('click', function() {
+      $('[data-v30-tx-crm-missions]').appendChild(_buildMissionRow({})); _markEdited();
+    });
+    var bC = $('[data-v30-tx-crm-create-candidate]');
+    var bP = $('[data-v30-tx-crm-create-prospect]');
+    if (bC) bC.addEventListener('click', function() { createFiche('candidate'); });
+    if (bP) bP.addEventListener('click', function() { createFiche('prospect'); });
+  }
+
+  // Hook : appeler renderCRM depuis le render existant
+  var _origRender = render;
+  render = function(item) {
+    _origRender(item);
+    renderCRM(item);
+  };
+
+  function init() { bind(); bindCRM(); load(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();

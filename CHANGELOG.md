@@ -2,6 +2,51 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.11] — 2026-04-29 · Section CRM éditable + création fiche candidat/prospect
+
+L'analyse de réunion ne se contente plus de produire un CR narratif : elle
+extrait des **champs structurés métier** (candidat, prospect, suivi) éditables
+et exportables vers une fiche candidat ou prospect ProspUp existante.
+
+- **Schéma JSON enrichi** ([services/transcription.py:309](services/transcription.py))
+  — l'IA produit en plus des champs habituels :
+  `meeting_type` (entretien_candidat | rdv_commercial | reunion_interne | autre),
+  `candidate_info` (nom, prénom, titre, années_exp, mobilité, dispo,
+  rémunérations, langues, compétences clés, fonctions recherchées,
+  motif recherche, 3 évaluations note+commentaire, permis, véhicule,
+  email/tel/linkedin),
+  `prospect_info` (entreprise, contact, fonction, besoin, urgence, budget,
+  stack, pain_points, ville),
+  `opportunites_missions` (array de missions discutées avec score_match),
+  `suivi` (actions Up Tech + autre partie + date relance + canal).
+- **Section UI dédiée** ([templates/v30/transcription_detail.html:90](templates/v30/transcription_detail.html))
+  — bloc « Fiche CRM extraite » sous le CR narratif, avec volets candidat /
+  prospect (visibles selon `meeting_type`), grille éditable, évaluations
+  3 colonnes, listes missions/actions ajoutables/supprimables, footer avec
+  boutons « Enregistrer », « Créer fiche candidat », « Créer fiche prospect ».
+  Indicateur de sauvegarde en temps réel (modifié / enregistrement / ✓ enregistré).
+- **3 nouveaux endpoints** ([routes/transcription.py:677](routes/transcription.py)) :
+  - `PUT /api/transcription/<id>/structured-fields` — sauvegarde partielle
+    des champs CRM édités (merge propre, sans toucher narrative_markdown).
+  - `POST /api/transcription/<id>/create-candidate` — crée une ligne
+    `candidates` avec les champs (nom, prénom, titre, mobilité, dispo,
+    salaires, langues, compétences, 3 évals, permis, véhicule), retourne
+    `candidate_id` + `redirect=/v30/candidat/<id>`.
+  - `POST /api/transcription/<id>/create-prospect` — crée prospect + company
+    si nouvelle (lookup case-insensitive sur `groupe`).
+  Marqueurs `_candidate_id` / `_prospect_id` stockés dans l'analyse pour
+  afficher un lien d'idempotence (« Fiche candidat #89 déjà créée »).
+- **Tests E2E validés** sur fiche #1 (Alex Drouet) :
+  hydratation des 50+ champs depuis JSON enrichi, édition d'un champ,
+  PUT structured-fields → ✓ Enregistré, POST create-candidate → fiche
+  candidat #89 créée et redirigée correctement, lien idempotent affiché
+  au retour. Aucune erreur JS console.
+
+**Fix CSS associé** : `.v30-tx-crm__panel { display: flex }` overridait
+l'attribut `[hidden]` natif (le volet prospect restait visible avec
+`display: flex` malgré `hidden=true`). Ajout de
+`.v30-tx-crm__panel[hidden] { display: none }`.
+
 ## [32.10] — 2026-04-29 · Diagnostic pyannote community-1 + tests E2E
 
 Validation E2E complète du pipeline transcription après les fix v32.8/9.

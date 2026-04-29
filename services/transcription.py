@@ -306,6 +306,54 @@ FORMATAGE MARKDOWN
 - Évite les titres H3/H4, reste sur H2 pour la lisibilité.
 
 ═══════════════════════════════════════════════════════════════════════
+EXTRACTION DE DONNÉES STRUCTURÉES (CRM)
+═══════════════════════════════════════════════════════════════════════
+En plus du CR narratif, tu dois remplir des champs structurés exploitables
+par le CRM ProspUp. Catégorise d'abord la réunion (`meeting_type`) :
+
+- `entretien_candidat`  : entretien de recrutement / découverte d'un consultant
+- `rdv_commercial`      : rendez-vous client (qualification d'un besoin, prospection)
+- `reunion_interne`     : point d'équipe, suivi consultant, brief, etc.
+- `autre`               : ne rentre dans aucune des trois catégories
+
+Selon le type, remplis l'un OU l'autre des objets ci-dessous. Si une info
+n'apparaît PAS dans le transcript, mets `null` (ou `[]` pour les listes) —
+n'invente RIEN. Sois littéral : copie les chiffres et noms tels qu'énoncés.
+
+POUR `entretien_candidat`, remplis `candidate_info` :
+  nom, prenom, titre (ex. "Ingénieur Méthodes & Industrialisation"),
+  annees_experience (number), domaine_principal (ex. "Mécatronique"),
+  mobilite (ex. "Lyon, Paris, Sophia"), disponibilite (ex. "mi-juin 2026"),
+  remuneration_actuelle, pretentions_salariales (string brut, ex. "45 k€"),
+  langues (array d'objets {langue, niveau}),
+  competences_cles (array de strings, max 12),
+  fonctions_recherchees, motif_recherche,
+  eval_technique / eval_personnalite / eval_communication
+    (chacun un objet {note: 1-10|null, commentaire: string|null}),
+  permis_conduire (bool|null), vehicule (bool|null),
+  email, telephone, linkedin (string|null).
+Et tu remplis aussi `opportunites_missions` (array d'objets
+  {nom, client, lieu, statut: "discutée|proposée|refusée|à_creuser",
+   score_match: 0-100|null, commentaire: string|null}) si des missions
+  concrètes ont été abordées.
+
+POUR `rdv_commercial`, remplis `prospect_info` :
+  entreprise, contact_nom, contact_prenom, contact_fonction,
+  telephone, email, linkedin,
+  besoin (string narratif), urgence ("haute|moyenne|basse|null"),
+  budget (string brut, ex. "300 k€/an"), stack (array de strings),
+  pain_points (array de strings), city, country.
+
+DANS TOUS LES CAS, remplis `suivi` :
+  up_tech : array de {action, deadline: "string ISO ou null", owner: string|null}
+    (ce qu'Up Technology doit faire : envoyer un dossier, planifier
+    un 2ᵉ entretien, présenter un profil, etc.)
+  autre_partie : array de {action, deadline, owner: "candidat|prospect|client"}
+    (ce que le candidat / prospect doit faire)
+  proposed_followup_date : string ISO ou date relative (ex. "+1 semaine")
+  followup_channel : "email|telephone|linkedin|rdv_physique|null"
+
+═══════════════════════════════════════════════════════════════════════
 RÉPONDS UNIQUEMENT PAR UN OBJET JSON VALIDE (rien avant ni après)
 ═══════════════════════════════════════════════════════════════════════
 {
@@ -319,7 +367,17 @@ RÉPONDS UNIQUEMENT PAR UN OBJET JSON VALIDE (rien avant ni après)
   "next_steps": ["string"],
   "sentiment": "positif|neutre|négatif",
   "quality_score": 0-100,
-  "key_quotes": ["string courte du transcript"]
+  "key_quotes": ["string courte du transcript"],
+  "meeting_type": "entretien_candidat|rdv_commercial|reunion_interne|autre",
+  "candidate_info": null,
+  "prospect_info": null,
+  "opportunites_missions": [],
+  "suivi": {
+    "up_tech": [],
+    "autre_partie": [],
+    "proposed_followup_date": null,
+    "followup_channel": null
+  }
 }"""
 
 
