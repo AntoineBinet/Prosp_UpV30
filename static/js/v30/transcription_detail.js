@@ -101,6 +101,9 @@
       $('[data-v30-tx-meta-model]').textContent = modelBits.length ? '· ' + modelBits.join(' · ') : '';
     }
 
+    // Compte-rendu narratif (markdown rendu)
+    renderNarrative(item.analysis || null, item.title);
+
     // Transcript + analyse uniquement si done (ou si transcript dispo malgré erreur d'analyse)
     var grid = $('[data-v30-tx-grid]');
     var hasTranscript = (item.transcript_text || '').trim().length > 0;
@@ -113,6 +116,92 @@
     // Export
     var exp = $('[data-v30-tx-export]');
     if (exp) exp.href = '/api/transcription/' + TID + '/export.txt';
+  }
+
+  // ─── Renderer markdown léger (sécurisé : on échappe AVANT de remplacer) ────
+  // Gère : H1 (#), H2 (##), H3 (###), bold (**…**), italic (*…*),
+  // code inline (`…`), listes - / *, listes numérotées 1., paragraphes vides.
+  function mdToHtml(md) {
+    if (!md) return '';
+    // 1. Échappement HTML d'abord (anti-XSS)
+    var safe = md
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    var lines = safe.split(/\r?\n/);
+    var out = [];
+    var inUl = false, inOl = false, paragraph = [];
+
+    function flushPara() {
+      if (paragraph.length) {
+        out.push('<p>' + inlineMd(paragraph.join(' ')) + '</p>');
+        paragraph = [];
+      }
+    }
+    function closeLists() {
+      if (inUl) { out.push('</ul>'); inUl = false; }
+      if (inOl) { out.push('</ol>'); inOl = false; }
+    }
+    function inlineMd(s) {
+      return s
+        .replace(/`([^`]+?)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|\W)\*([^*]+?)\*(\W|$)/g, '$1<em>$2</em>$3');
+    }
+
+    lines.forEach(function (raw) {
+      var line = raw.trimEnd();
+      if (!line.trim()) {
+        flushPara();
+        closeLists();
+        return;
+      }
+      var h3 = /^###\s+(.+)/.exec(line);
+      var h2 = /^##\s+(.+)/.exec(line);
+      var h1 = /^#\s+(.+)/.exec(line);
+      var ul = /^[-*]\s+(.+)/.exec(line);
+      var ol = /^\d+\.\s+(.+)/.exec(line);
+      if (h1) { flushPara(); closeLists(); out.push('<h1>' + inlineMd(h1[1]) + '</h1>'); return; }
+      if (h2) { flushPara(); closeLists(); out.push('<h2>' + inlineMd(h2[1]) + '</h2>'); return; }
+      if (h3) { flushPara(); closeLists(); out.push('<h3>' + inlineMd(h3[1]) + '</h3>'); return; }
+      if (ul) {
+        flushPara();
+        if (inOl) { out.push('</ol>'); inOl = false; }
+        if (!inUl) { out.push('<ul>'); inUl = true; }
+        out.push('<li>' + inlineMd(ul[1]) + '</li>');
+        return;
+      }
+      if (ol) {
+        flushPara();
+        if (inUl) { out.push('</ul>'); inUl = false; }
+        if (!inOl) { out.push('<ol>'); inOl = true; }
+        out.push('<li>' + inlineMd(ol[1]) + '</li>');
+        return;
+      }
+      // Continuation de paragraphe
+      closeLists();
+      paragraph.push(line);
+    });
+    flushPara();
+    closeLists();
+    return out.join('\n');
+  }
+
+  function renderNarrative(a, fallbackTitle) {
+    var box = $('[data-v30-tx-narrative]');
+    var titleEl = $('[data-v30-tx-narrative-title]');
+    var bodyEl = $('[data-v30-tx-narrative-body]');
+    if (!box || !bodyEl) return;
+    var md = a && a.narrative_markdown;
+    if (!md || !String(md).trim()) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    if (titleEl) titleEl.textContent = (a && a.title) || fallbackTitle || 'Compte-rendu';
+    bodyEl.innerHTML = mdToHtml(String(md));
   }
 
   function renderTranscript(segments, fallbackText) {
@@ -295,6 +384,23 @@
       }, function () {
         if (window.showToast) window.showToast('Copie impossible', 'error');
       });
+    });
+
+    var cpN = $('[data-v30-tx-copy-narrative]');
+    if (cpN) cpN.addEventListener('click', function () {
+      // On copie le markdown brut depuis l'analyse en mémoire (pas l'HTML rendu)
+      fetch('/api/transcription/' + TID, { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var md = j && j.item && j.item.analysis && j.item.analysis.narrative_markdown;
+          if (!md) {
+            if (window.showToast) window.showToast('Pas de CR à copier', 'warn');
+            return;
+          }
+          navigator.clipboard.writeText(md).then(function () {
+            if (window.showToast) window.showToast('CR markdown copié', 'success');
+          });
+        });
     });
   }
 

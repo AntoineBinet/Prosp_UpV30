@@ -315,27 +315,41 @@ def api_export_txt(tid: int):
         ).fetchone()
     if not row:
         abort(404)
-    parts = [f"# {row['title']}", f"Date : {row['created_at']}", "", "## Transcript", ""]
-    parts.append(row["transcript_text"] or "(vide)")
+    parts: list[str] = []
+    # 1. CR narratif (markdown) si disponible — c'est le format le plus utile
+    narrative_md = ""
     if row["analysis_json"]:
         try:
             a = json.loads(row["analysis_json"])
-            parts += ["", "## Résumé", a.get("summary") or "—"]
-            if a.get("decisions"):
-                parts += ["", "## Décisions"] + [f"- {d}" for d in a["decisions"]]
-            if a.get("action_items"):
-                parts += ["", "## Tâches"]
-                for it in a["action_items"]:
-                    line = f"- {it.get('task') or '?'}"
-                    if it.get("assignee"):
-                        line += f" — {it['assignee']}"
-                    if it.get("due_date"):
-                        line += f" (échéance : {it['due_date']})"
-                    parts.append(line)
-            if a.get("next_steps"):
-                parts += ["", "## Prochaines étapes"] + [f"- {s}" for s in a["next_steps"]]
+            narrative_md = (a.get("narrative_markdown") or "").strip()
         except Exception:
-            pass
+            a = None
+    if narrative_md:
+        parts.append(narrative_md)
+        parts += ["", "---", ""]
+    else:
+        parts += [f"# {row['title']}", f"Date : {row['created_at']}", ""]
+        if row["analysis_json"]:
+            try:
+                a = json.loads(row["analysis_json"])
+                if a.get("summary"):
+                    parts += ["## Synthèse", a["summary"], ""]
+                if a.get("decisions"):
+                    parts += ["## Décisions"] + [f"- {d}" for d in a["decisions"]] + [""]
+                if a.get("action_items"):
+                    parts += ["## Tâches"]
+                    for it in a["action_items"]:
+                        line = f"- {it.get('task') or '?'}"
+                        if it.get("assignee"): line += f" — {it['assignee']}"
+                        if it.get("due_date"): line += f" (échéance : {it['due_date']})"
+                        parts.append(line)
+                    parts.append("")
+                if a.get("next_steps"):
+                    parts += ["## Prochaines étapes"] + [f"- {s}" for s in a["next_steps"]] + [""]
+            except Exception:
+                pass
+    # 2. Transcript brut en annexe
+    parts += ["## Transcript brut", "", row["transcript_text"] or "(vide)"]
     body = "\n".join(parts).encode("utf-8")
     safe = _slugify(row["title"] or f"transcription_{tid}")
     return send_file(

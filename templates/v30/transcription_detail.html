@@ -57,7 +57,18 @@
     </div>
   </div>
 
-  {# ─── Layout 2 colonnes : analyse + transcript ─── #}
+  {# ─── Compte-rendu narratif (markdown rendu) ─── #}
+  <article class="v30-tx-narrative" data-v30-tx-narrative hidden>
+    <div class="v30-tx-narrative__head">
+      <h2 data-v30-tx-narrative-title>Compte-rendu</h2>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-copy-narrative>
+        {{ ui.icon('paperclip', 13) }} Copier le CR
+      </button>
+    </div>
+    <div class="v30-tx-narrative__body" data-v30-tx-narrative-body></div>
+  </article>
+
+  {# ─── Layout 2 colonnes : analyse synthétique + transcript brut ─── #}
   <div class="v30-tx-grid" data-v30-tx-grid hidden>
 
     <section class="v30-tx-col v30-tx-col--analysis">

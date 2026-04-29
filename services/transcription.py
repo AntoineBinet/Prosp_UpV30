@@ -198,44 +198,111 @@ def _fmt_timestamp(seconds: float) -> str:
 # ─── Analyse Anthropic ────────────────────────────────────────────────
 
 
-_ANALYSIS_SYSTEM_PROMPT = """Tu es un assistant expert en analyse de réunions B2B (prospection, vente, RH).
-Tu reçois un transcript de réunion. Ton job :
-1. Identifier les vrais participants (déduis prénoms/rôles à partir du contexte ; à défaut, garde les labels SPEAKER_xx).
-2. Résumer fidèlement la réunion (3-5 phrases factuelles, sans inventer).
-3. Lister les sujets abordés (titres courts).
-4. Lister les décisions actées (claires, fermes).
-5. Lister les tâches à faire (action + responsable + échéance si mentionnée).
-6. Lister les prochaines étapes / RDV (si évoqués).
-7. Évaluer le sentiment global (positif/neutre/négatif) et la qualité de la réunion.
+_ANALYSIS_SYSTEM_PROMPT = """Tu es un expert en rédaction de comptes-rendus de réunions B2B \
+(prospection commerciale, entretiens de recrutement, RDV clients).
 
-Sois précis, concis, sans paraphrase inutile. N'invente rien : si une info n'est pas dans le transcript, écris "Non mentionné".
+Tu reçois un transcript de réunion (avec timestamps et orateurs si la diarisation a fonctionné).
+Ton job est de produire un compte-rendu DÉTAILLÉ et NARRATIF, comme un journaliste professionnel \
+qui relate fidèlement la rencontre. Le format attendu est inspiré des CR Genspark / Otter Pilot : \
+**un titre descriptif**, **une synthèse longue**, puis **10 à 25 sections H2 thématiques** \
+chacune avec 1-3 paragraphes de prose narrative (PAS juste des bullets).
 
-Réponds UNIQUEMENT par un objet JSON valide, sans texte avant ou après, au format exact suivant :
+═══════════════════════════════════════════════════════════════════════
+RÈGLES DE FIDÉLITÉ (NON NÉGOCIABLES)
+═══════════════════════════════════════════════════════════════════════
+- N'invente JAMAIS d'information. Si quelque chose n'est pas dans le transcript, ne le mentionne pas.
+- Garde les chiffres, noms d'entreprises, noms de personnes, lieux, technologies, dates EXACTS.
+- Si tu n'es pas sûr d'un mot (transcription Whisper imparfaite), garde l'orthographe la plus probable.
+- Pas de paraphrase inutile, pas de remplissage. Concis mais complet.
+
+═══════════════════════════════════════════════════════════════════════
+STRUCTURE NARRATIVE ATTENDUE (markdown)
+═══════════════════════════════════════════════════════════════════════
+Le champ `narrative_markdown` doit contenir un compte-rendu COMPLET au format markdown :
+
+# {Titre principal contextuel}
+
+## Synthèse de la réunion
+
+Paragraphe de 4-8 phrases relatant globalement la réunion : qui, quoi, pourquoi, \
+quels sujets, quelles décisions clés, quelle conclusion.
+
+## {Section thématique 1, ex. "Présentation du candidat"}
+
+Paragraphe(s) narratif(s). Tu peux insérer ponctuellement des bullets si une liste \
+est plus claire (compétences, options, etc.), mais la majorité du CR est en prose.
+
+## {Section thématique 2, ex. "Parcours académique"}
+
+...
+
+## {... 10 à 25 sections, structurées par sujet, dans l'ordre logique de la réunion}
+
+## Prochaines étapes
+
+Récap des actions / suivis convenus.
+
+═══════════════════════════════════════════════════════════════════════
+EXEMPLES DE TITRES DE SECTIONS POUR ENTRETIEN RH
+═══════════════════════════════════════════════════════════════════════
+- Synthèse de l'entretien
+- Présentation du candidat — Parcours académique
+- Stage / Première expérience chez {entreprise}
+- Rôle d'{poste} chez {entreprise}
+- Compétences techniques et outils maîtrisés
+- Aspirations professionnelles
+- Présentation de l'entreprise {ESN}
+- Modèle de management et suivi des consultants
+- Discussion sur la rémunération et avantages
+- Mission proposée chez {client}
+- Contexte et objectifs de la mission
+- Responsabilités détaillées du poste
+- Intérêt du candidat pour la mission
+- Disponibilité et situation
+- Expériences passées avec d'autres ESN
+- Processus de recrutement et prochaines étapes
+- Évaluation interne post-entretien (si mentionnée)
+
+═══════════════════════════════════════════════════════════════════════
+FORMATAGE MARKDOWN
+═══════════════════════════════════════════════════════════════════════
+- Mets en **gras** : noms d'entreprises, technologies, chiffres clés (salaires, durées, dates).
+- Utilise des bullets `- ` ou listes numérotées `1.` quand c'est plus clair qu'un paragraphe.
+- Italique `*...*` pour les citations courtes intégrées au texte.
+- Évite les titres H3/H4, reste sur H2 pour la lisibilité.
+
+═══════════════════════════════════════════════════════════════════════
+RÉPONDS UNIQUEMENT PAR UN OBJET JSON VALIDE (rien avant ni après)
+═══════════════════════════════════════════════════════════════════════
 {
-  "summary": "string (3-5 phrases)",
+  "title": "Titre descriptif et contextuel de la réunion",
+  "synthesis": "Paragraphe synthèse de 4-8 phrases factuelles",
+  "narrative_markdown": "Compte-rendu complet en markdown, du # titre jusqu'à la dernière section",
   "participants": [{"label": "SPEAKER_00", "guessed_name": "string|null", "guessed_role": "string|null"}],
-  "topics": ["string"],
+  "topics": ["string court"],
   "decisions": ["string"],
   "action_items": [{"task": "string", "assignee": "string|null", "due_date": "string|null", "priority": "haute|moyenne|basse"}],
   "next_steps": ["string"],
   "sentiment": "positif|neutre|négatif",
   "quality_score": 0-100,
-  "key_quotes": ["string"]
+  "key_quotes": ["string courte du transcript"]
 }"""
 
 
-def _call_anthropic(api_key: str, model: str, transcript: str, timeout: int = 180) -> dict:
+def _call_anthropic(api_key: str, model: str, transcript: str, timeout: int = 240) -> dict:
     """Appelle l'API Messages d'Anthropic. Retourne le JSON parsé de l'analyse."""
     if not api_key:
         raise RuntimeError("Clé API Anthropic non configurée (Paramètres > IA).")
     user_msg = (
         "Voici le transcript d'une réunion (avec timestamps et orateurs). "
-        "Analyse-le et retourne le JSON demandé.\n\n---\n"
-        + transcript[:200_000]  # garde-fou ~200k chars (≈50k tokens)
+        "Analyse-le et retourne le JSON demandé. "
+        "N'oublie pas le champ narrative_markdown qui doit contenir le CR complet "
+        "structuré en sections H2 narratives.\n\n---\n"
+        + transcript[:300_000]  # garde-fou ~300k chars (≈75k tokens)
     )
     body = json.dumps({
         "model": model,
-        "max_tokens": 4096,
+        "max_tokens": 16000,  # CR narratif peut faire 8-12k tokens
         "system": _ANALYSIS_SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": user_msg}],
     }).encode("utf-8")
@@ -330,11 +397,36 @@ def _process_locked(transcription_id: int, audio_path: str, db_path: str, config
 
         # 2. Diarisation
         speaker_turns: list[dict] = []
+        diarization_warning: str | None = None
         if diarize and hf_token:
             try:
                 speaker_turns = _diarize(audio_path, hf_token, _progress)
             except Exception as exc:
-                logger.warning("Diarisation échouée (job %s), poursuite sans : %s", transcription_id, exc)
+                err_str = str(exc)
+                logger.warning("Diarisation échouée (job %s) : %s", transcription_id, err_str)
+                # Détection des erreurs courantes pour aider l'utilisateur
+                low = err_str.lower()
+                if "401" in err_str or "unauthorized" in low or "403" in err_str:
+                    diarization_warning = (
+                        "Diarisation échouée : token HuggingFace rejeté (401/403). "
+                        "Vérifie que tu as accepté les conditions d'utilisation sur "
+                        "https://huggingface.co/pyannote/speaker-diarization-3.1 et "
+                        "https://huggingface.co/pyannote/segmentation-3.0 (bouton « Agree and access repository »)."
+                    )
+                elif "out of memory" in low or "cuda out of memory" in low or "oom" in low:
+                    diarization_warning = (
+                        "Diarisation échouée : VRAM saturée. Whisper large-v3 prend déjà ~3 GB, "
+                        "pyannote en demande +1-2 GB. Bascule sur Whisper large-v3-turbo ou medium "
+                        "dans Paramètres > IA > Modèle Whisper."
+                    )
+                elif "repositorynotfounderror" in low or "404" in err_str or "gated" in low:
+                    diarization_warning = (
+                        "Diarisation échouée : modèle pyannote inaccessible. Conditions d'utilisation "
+                        "à accepter sur huggingface.co/pyannote/speaker-diarization-3.1 ET "
+                        "huggingface.co/pyannote/segmentation-3.0."
+                    )
+                else:
+                    diarization_warning = f"Diarisation échouée : {err_str[:300]}"
                 _progress(80, "Diarisation indisponible — un seul orateur")
         else:
             _progress(80, "Diarisation désactivée")
@@ -352,6 +444,7 @@ def _process_locked(transcription_id: int, audio_path: str, db_path: str, config
 
         # 4. Analyse Anthropic
         analysis: dict | None = None
+        analysis_error: str | None = None
         if anth_key and transcript_text.strip():
             try:
                 analysis = _call_anthropic(anth_key, anth_model, transcript_text)
@@ -367,12 +460,17 @@ def _process_locked(transcription_id: int, audio_path: str, db_path: str, config
                 except Exception:
                     pass
                 logger.warning("Anthropic HTTP %s: %s", e.code, err_body[:300])
-                _update(error_message=f"Analyse Claude échouée (HTTP {e.code}). Transcript disponible.")
+                analysis_error = f"Analyse Claude échouée (HTTP {e.code}). Transcript disponible."
             except Exception as exc:
                 logger.warning("Anthropic analyse échouée : %s", exc)
-                _update(error_message=f"Analyse Claude échouée : {exc}. Transcript disponible.")
+                analysis_error = f"Analyse Claude échouée : {exc}. Transcript disponible."
         else:
-            _update(error_message="Clé Anthropic absente — analyse non générée.")
+            analysis_error = "Clé Anthropic absente — analyse non générée."
+
+        # Concaténer les warnings dans error_message (séparés par \n\n)
+        warnings_msg = "\n\n".join([w for w in (diarization_warning, analysis_error) if w])
+        if warnings_msg:
+            _update(error_message=warnings_msg)
 
         _update(
             status="done",
