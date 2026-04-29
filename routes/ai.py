@@ -235,6 +235,100 @@ def api_ai_test():
         except Exception as e:
             logger.warning("Tavily test failed: %s", e)
             return jsonify(ok=False, error=str(e)), 200
+    elif test_target == "huggingface":
+        # v32.7 — Test token HF + accès réel aux 2 modèles pyannote requis
+        # par la diarisation. Distingue clairement les cas :
+        #   - 401 sur whoami → token invalide / expiré
+        #   - 200 whoami mais 403 download → conditions pas acceptées OU
+        #     token fine-grained sans scope pyannote
+        #   - 200 sur tout → diarisation devrait marcher
+        hf_token = (payload.get("huggingface_token") or config.get("huggingface_token", "")).strip()
+        if not hf_token:
+            return jsonify(ok=False, error="Token HuggingFace non configuré."), 400
+        # 1. whoami (vérifie token globalement)
+        username = None
+        try:
+            req = urllib.request.Request(
+                "https://huggingface.co/api/whoami-v2",
+                headers={"Authorization": f"Bearer {hf_token}", "Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                who = json.loads(resp.read().decode("utf-8"))
+            username = who.get("name") or who.get("fullname") or "?"
+            token_type = (who.get("auth", {}) or {}).get("type") or "?"
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                return jsonify(ok=False, error="Token HF invalide ou expiré (401). "
+                                              "Recrée un Classic Read token sur "
+                                              "huggingface.co/settings/tokens."), 200
+            return jsonify(ok=False, error=f"HF whoami échoué : HTTP {e.code}"), 200
+        except urllib.error.URLError as e:
+            return jsonify(ok=False, error=f"Réseau HF injoignable : {e}"), 200
+        except Exception as e:
+            return jsonify(ok=False, error=f"HF whoami : {e}"), 200
+
+        # 2. Test d'accès RÉEL aux 2 modèles pyannote (download d'un petit
+        # fichier — config.yaml). Si conditions OK et token valide, ça
+        # passe. Si fine-grained sans scope ou conditions non acceptées,
+        # 401/403.
+        models = ["pyannote/speaker-diarization-3.1", "pyannote/segmentation-3.0"]
+        access_results = {}
+        for m in models:
+            url = f"https://huggingface.co/{m}/resolve/main/config.yaml"
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={"Authorization": f"Bearer {hf_token}"},
+                    method="HEAD",
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    code = resp.getcode()
+                if 200 <= code < 300:
+                    access_results[m] = {"ok": True, "msg": "accès OK"}
+                else:
+                    access_results[m] = {"ok": False, "msg": f"HTTP {code}"}
+            except urllib.error.HTTPError as e:
+                if e.code == 401:
+                    access_results[m] = {
+                        "ok": False,
+                        "msg": "401 — token rejeté pour ce modèle. "
+                               "Très probable : token fine-grained sans scope. "
+                               "Solution : créer un Classic Read token.",
+                    }
+                elif e.code == 403:
+                    access_results[m] = {
+                        "ok": False,
+                        "msg": "403 — conditions d'utilisation non acceptées. "
+                               f"Va sur huggingface.co/{m} et clique « Agree ».",
+                    }
+                else:
+                    access_results[m] = {"ok": False, "msg": f"HTTP {e.code}"}
+            except Exception as e:
+                access_results[m] = {"ok": False, "msg": f"Erreur : {e}"}
+
+        all_ok = all(r["ok"] for r in access_results.values())
+        if all_ok:
+            return jsonify(
+                ok=True,
+                provider="huggingface",
+                model="pyannote",
+                response=(
+                    f"OK — connecté en tant que **{username}** (token type : {token_type}). "
+                    "Accès validé aux 2 modèles pyannote requis pour la diarisation."
+                ),
+            )
+        # Au moins un modèle bloqué : message détaillé
+        details = "\n".join(f"• {m} : {r['msg']}" for m, r in access_results.items())
+        return jsonify(
+            ok=False,
+            error=(
+                f"Token valide pour le compte **{username}** (type : {token_type}), "
+                f"mais accès aux modèles pyannote bloqué :\n{details}"
+            ),
+            details=access_results,
+            user=username,
+            token_type=token_type,
+        ), 200
     elif test_target == "anthropic":
         # v32.1 — Test API Anthropic via /v1/models (léger, sans consommer de tokens)
         anth_key = (payload.get("anthropic_api_key") or config.get("anthropic_api_key", "")).strip()
