@@ -116,6 +116,13 @@
   }
 
   // ─── Modal upload ───────────────────────────────────────────────────
+  // currentFile : on stocke le fichier sélectionné dans une closure plutôt
+  // que de relire fileInput.files au moment du submit. Sur certains
+  // navigateurs (Safari, Edge), input.files = dt2.files (assignation après
+  // drag&drop) échoue silencieusement → le bouton « Lancer » paraissait
+  // mort.
+  var currentFile = null;
+
   function openModal() {
     var m = $('[data-v30-tx-upload-modal]');
     if (!m) return;
@@ -135,6 +142,7 @@
   function resetForm() {
     var t = $('#v30-tx-title'); if (t) t.value = '';
     var f = $('#v30-tx-file');  if (f) f.value = '';
+    currentFile = null;
     showFile(null);
     showProgress(false);
     var sb = $('[data-v30-tx-submit]'); if (sb) sb.disabled = true;
@@ -145,6 +153,7 @@
     var name = $('[data-v30-tx-file-name]');
     var size = $('[data-v30-tx-file-size]');
     var sb = $('[data-v30-tx-submit]');
+    currentFile = file || null;
     if (!file) {
       if (inner) inner.hidden = false;
       if (box)   box.hidden = true;
@@ -199,14 +208,14 @@
     if (clear) clear.addEventListener('click', function (e) {
       e.preventDefault();
       var f = $('#v30-tx-file'); if (f) f.value = '';
+      currentFile = null;
       showFile(null);
     });
 
     var titleEl = $('#v30-tx-title');
     if (titleEl) titleEl.addEventListener('input', function () {
       var sb = $('[data-v30-tx-submit]');
-      var f = $('#v30-tx-file');
-      if (sb) sb.disabled = !(titleEl.value.trim() && f && f.files && f.files[0]);
+      if (sb) sb.disabled = !(titleEl.value.trim() && currentFile);
     });
 
     var drop = $('[data-v30-tx-drop]');
@@ -221,11 +230,15 @@
         var dt = e.dataTransfer;
         if (!dt || !dt.files || !dt.files[0]) return;
         var f = dt.files[0];
+        // Tente de syncer avec le file input (utile si jamais on en a besoin
+        // ailleurs), mais on n'en dépend plus — currentFile fait foi.
         var inp = $('#v30-tx-file');
         if (inp) {
-          var dt2 = new DataTransfer();
-          dt2.items.add(f);
-          inp.files = dt2.files;
+          try {
+            var dt2 = new DataTransfer();
+            dt2.items.add(f);
+            inp.files = dt2.files;
+          } catch (_err) { /* certains navigateurs bloquent l'assignation */ }
         }
         showFile(f);
       });
@@ -237,14 +250,21 @@
 
   function doUpload() {
     var titleEl = $('#v30-tx-title');
-    var fileInput = $('#v30-tx-file');
-    if (!titleEl || !titleEl.value.trim() || !fileInput || !fileInput.files[0]) return;
+    var title = titleEl ? titleEl.value.trim() : '';
+    if (!title) {
+      if (window.showToast) window.showToast('Donne un titre à la réunion', 'warn');
+      return;
+    }
+    if (!currentFile) {
+      if (window.showToast) window.showToast('Sélectionne un fichier audio', 'warn');
+      return;
+    }
     var sb = $('[data-v30-tx-submit]');
     if (sb) sb.disabled = true;
 
     var fd = new FormData();
-    fd.append('title', titleEl.value.trim());
-    fd.append('audio', fileInput.files[0]);
+    fd.append('title', title);
+    fd.append('audio', currentFile);
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/transcription/upload', true);
