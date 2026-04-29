@@ -1072,6 +1072,149 @@
   }
 
   // ══════════════════════════════════════════════════════════════
+  //  Vérification des dépendances Python
+  // ══════════════════════════════════════════════════════════════
+  function escDep(s) { var t = document.createElement('span'); t.textContent = s == null ? '' : String(s); return t.innerHTML; }
+
+  function depBadge(status) {
+    if (status === 'ok') {
+      return '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success);font-size:11px;font-weight:600;">✓ OK</span>';
+    }
+    if (status === 'outdated') {
+      return '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,oklch(0.65 0.15 75) 18%,transparent);color:oklch(0.55 0.15 75);font-size:11px;font-weight:600;">⚠ Ancien</span>';
+    }
+    return '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--red,oklch(0.55 0.20 15)) 14%,transparent);color:var(--red,oklch(0.55 0.20 15));font-size:11px;font-weight:600;">✗ Manquant</span>';
+  }
+
+  function renderDeps(data) {
+    var body = $('[data-v30-deps-body]');
+    if (!body) return;
+    var s = data.summary || {};
+    var deps = data.deps || [];
+
+    var summaryHtml = '<div style="display:flex;gap:16px;flex-wrap:wrap;padding:10px 12px;background:var(--surface-2);border-radius:var(--r-sm);margin-bottom:12px;font-size:12.5px;">' +
+      '<span><b>' + s.total + '</b> dépendances</span>' +
+      '<span style="color:var(--success);"><b>' + (s.ok || 0) + '</b> OK</span>' +
+      '<span style="color:oklch(0.55 0.15 75);"><b>' + (s.outdated || 0) + '</b> à mettre à jour</span>' +
+      '<span style="color:var(--red,oklch(0.55 0.20 15));"><b>' + (s.missing || 0) + '</b> manquantes</span>' +
+      '<span class="muted" style="margin-left:auto;">Python ' + escDep(data.python_version || '?') + '</span>' +
+      '</div>';
+
+    var rowsHtml = '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
+      '<thead><tr style="border-bottom:1px solid var(--border);text-align:left;color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.04em;">' +
+      '<th style="padding:6px 8px;">Paquet</th>' +
+      '<th style="padding:6px 8px;">Requis</th>' +
+      '<th style="padding:6px 8px;">Installé</th>' +
+      '<th style="padding:6px 8px;text-align:right;">Statut</th>' +
+      '</tr></thead><tbody>';
+    deps.forEach(function (d) {
+      rowsHtml += '<tr style="border-bottom:1px solid var(--border);">' +
+        '<td style="padding:8px;font-family:var(--font-mono,monospace);">' + escDep(d.name) + '</td>' +
+        '<td style="padding:8px;color:var(--text-3);">' + escDep(d.required) + '</td>' +
+        '<td style="padding:8px;font-family:var(--font-mono,monospace);">' + (d.installed ? escDep(d.installed) : '<span class="muted">—</span>') + '</td>' +
+        '<td style="padding:8px;text-align:right;">' + depBadge(d.status) +
+          (d.error ? '<div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">' + escDep(d.error) + '</div>' : '') +
+        '</td>' +
+        '</tr>';
+    });
+    rowsHtml += '</tbody></table>';
+
+    body.innerHTML = summaryHtml + rowsHtml;
+
+    // Bouton "Installer ce qui manque" seulement si problème
+    var installBtn = $('[data-v30-deps-install]');
+    if (installBtn) {
+      installBtn.hidden = !(s.missing || s.outdated);
+    }
+  }
+
+  function loadDeps() {
+    var body = $('[data-v30-deps-body]');
+    if (body) body.innerHTML = '<div class="empty" style="padding:24px;">Analyse des dépendances…</div>';
+    var installBtn = $('[data-v30-deps-install]');
+    if (installBtn) installBtn.hidden = true;
+    fetch('/api/deploy/check-deps', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) throw new Error((data && data.error) || 'Échec');
+        renderDeps(data);
+      })
+      .catch(function (err) {
+        if (body) body.innerHTML = '<div class="empty" style="color:var(--red);padding:24px;">Erreur : ' + escDep(err.message) + '</div>';
+      });
+  }
+
+  function installMissing() {
+    var btn = $('[data-v30-deps-install]');
+    if (!btn) return;
+    if (!confirm('Lancer "pip install -r requirements.txt --upgrade" ?\n(peut prendre 1-2 minutes selon le réseau)')) return;
+    btn.disabled = true;
+    var origText = btn.textContent;
+    btn.textContent = 'Installation en cours…';
+    var body = $('[data-v30-deps-body]');
+    if (body) body.innerHTML = '<div class="empty" style="padding:24px;">Installation en cours… (cela peut prendre 1-2 min)</div>';
+    fetch('/api/deploy/install-deps', { method: 'POST', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var ok = !!(data && data.ok);
+        var log = (data && (data.stdout || data.stderr)) || data && data.error || '';
+        if (body) {
+          body.innerHTML =
+            '<div style="padding:10px 12px;border-radius:var(--r-sm);background:' +
+              (ok ? 'color-mix(in srgb,var(--success) 12%,transparent)' : 'color-mix(in srgb,var(--red,oklch(0.55 0.20 15)) 14%,transparent)') +
+              ';color:' + (ok ? 'var(--success)' : 'var(--red,oklch(0.55 0.20 15))') + ';font-weight:500;margin-bottom:10px;">' +
+              (ok ? '✓ Installation terminée' : '✗ Installation échouée') +
+            '</div>' +
+            '<pre style="background:var(--surface-2);padding:10px;border-radius:var(--r-sm);max-height:300px;overflow:auto;font-size:11px;line-height:1.5;white-space:pre-wrap;">' + escDep(log) + '</pre>' +
+            '<div class="muted" style="font-size:11.5px;margin-top:8px;">Re-scan automatique…</div>';
+        }
+        // Auto re-check
+        setTimeout(loadDeps, 1500);
+      })
+      .catch(function (err) {
+        if (body) body.innerHTML = '<div class="empty" style="color:var(--red);padding:24px;">Erreur : ' + escDep(err.message) + '</div>';
+      })
+      .finally(function () {
+        btn.disabled = false;
+        btn.textContent = origText;
+      });
+  }
+
+  function openDepsModal() {
+    var bd = $('[data-v30-deps-modal-bd]');
+    if (!bd) return;
+    bd.hidden = false;
+    loadDeps();
+  }
+
+  function closeDepsModal() {
+    var bd = $('[data-v30-deps-modal-bd]');
+    if (bd) bd.hidden = true;
+  }
+
+  function bindDepsCheck() {
+    var trigger = $('[data-v30-deps-check]');
+    if (trigger) trigger.addEventListener('click', openDepsModal);
+    document.querySelectorAll('[data-v30-deps-close]').forEach(function (b) {
+      b.addEventListener('click', closeDepsModal);
+    });
+    var bd = $('[data-v30-deps-modal-bd]');
+    if (bd) {
+      bd.addEventListener('click', function (e) { if (e.target === bd) closeDepsModal(); });
+    }
+    var refresh = $('[data-v30-deps-refresh]');
+    if (refresh) refresh.addEventListener('click', loadDeps);
+    var install = $('[data-v30-deps-install]');
+    if (install) install.addEventListener('click', installMissing);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        var bd2 = $('[data-v30-deps-modal-bd]');
+        if (bd2 && !bd2.hidden) closeDepsModal();
+      }
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════
   //  Bind global
   // ══════════════════════════════════════════════════════════════
   function bindDeploy() {
@@ -1084,6 +1227,7 @@
     var chg = $('[data-v30-deploy-remote-change]');
     if (chg) chg.addEventListener('click', changeRemote);
     if ($('[data-v30-deploy-remote]')) loadRemote();
+    bindDepsCheck();
   }
 
   function bind() {
