@@ -21827,21 +21827,23 @@ def dc_generator_generate():
                     ollama_model   = ai_cfg.get('ollama_model', OLLAMA_MODEL)
                     ollama_timeout = int(ai_cfg.get('ollama_timeout') or OLLAMA_TIMEOUT)
 
-                    # Test de connectivité : essaie /api/tags (Ollama + LM Studio)
-                    # puis /v1/models (OpenAI-compatible) — timeout court
+                    # Test de disponibilité : appel /api/generate num_predict=1
+                    # (même endpoint que la vraie extraction, quasi-instantané)
                     import urllib.request as _ur
-                    _ping_ok = False
-                    for _ping_path in ('/api/tags', '/v1/models'):
-                        try:
-                            _pr = _ur.Request(ollama_url.rstrip('/') + _ping_path)
-                            with _ur.urlopen(_pr, timeout=4):
-                                _ping_ok = True
-                            break
-                        except Exception:
-                            pass
-                    if not _ping_ok:
-                        logger.warning("DC Generator: IA locale non disponible à %s", ollama_url)
-                    ollama_available = _ping_ok
+                    try:
+                        import json as _j
+                        _tb = _j.dumps({
+                            'model': ollama_model, 'prompt': 'ok', 'stream': False,
+                            'options': {'num_predict': 1}
+                        }).encode()
+                        _tr = _ur.Request(
+                            ollama_url.rstrip('/') + '/api/generate',
+                            data=_tb, headers={'Content-Type': 'application/json'}, method='POST'
+                        )
+                        with _ur.urlopen(_tr, timeout=8):
+                            ollama_available = True
+                    except Exception as _pe:
+                        logger.warning("DC Generator: IA locale non disponible à %s : %s", ollama_url, _pe)
 
                     if ollama_available:
                         from utils.ollama_extractor import extract as _ollama_extract
