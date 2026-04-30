@@ -84,16 +84,22 @@
         </div>
 
         <div class="v30-params__field">
-          <label class="v30-params__label">Télécharger un modèle</label>
-          <div class="v30-params__row-input">
-            <input type="text" class="input" data-v30-ollama-pull-name
-                   placeholder="ex : qwen2.5:7b, mistral:7b, llama3.1:8b" autocomplete="off">
-            <button type="button" class="btn btn-sm" data-v30-ollama-pull-btn>Télécharger</button>
+          <div class="v30-params__rec-header">
+            <label class="v30-params__label">Modèles recommandés</label>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-ollama-rec-refresh
+                    title="Rafraîchir les recommandations">{{ ui.icon('refresh', 12) }} Actualiser</button>
           </div>
-          <p class="muted v30-params__hint">
-            Noms sur <a href="https://ollama.com/library" target="_blank" rel="noopener">ollama.com/library</a>.
-            Recommandés : <code class="mono">qwen2.5:7b</code>, <code class="mono">mistral:7b</code>, <code class="mono">llama3.1:8b</code>.
-          </p>
+          <div data-v30-ollama-rec-grid class="v30-params__rec-grid">
+            <span class="muted" style="font-size:13px;">Chargement…</span>
+          </div>
+          <details class="v30-params__rec-custom">
+            <summary class="muted" style="font-size:12px;cursor:pointer;">Installer un modèle personnalisé…</summary>
+            <div class="v30-params__row-input" style="margin-top:8px;">
+              <input type="text" class="input" data-v30-ollama-pull-name
+                     placeholder="ex : phi4:14b, deepseek-r1:8b…" autocomplete="off">
+              <button type="button" class="btn btn-sm" data-v30-ollama-pull-btn>Installer</button>
+            </div>
+          </details>
         </div>
 
         <div class="v30-params__pull-log" data-v30-ollama-pull-log hidden>
