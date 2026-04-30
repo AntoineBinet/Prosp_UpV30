@@ -143,7 +143,6 @@
     if (progress) progress.hidden = !on;
     if (result) result.hidden = true;
     if (errEl) errEl.hidden = true;
-    if (!on) clearLog();
   }
 
   function clearLog() {
@@ -227,6 +226,7 @@
   }
 
   function generate() {
+    clearLog();
     setGenerating(true);
 
     var fd = new FormData();
