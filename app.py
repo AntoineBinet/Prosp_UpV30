@@ -21842,7 +21842,7 @@ def dc_generator_generate():
                     ai_cfg = _load_ai_config()
                     ollama_url     = ai_cfg.get('ollama_url', OLLAMA_URL)
                     ollama_model   = ai_cfg.get('ollama_model', OLLAMA_MODEL)
-                    ollama_timeout = int(ai_cfg.get('ollama_timeout') or OLLAMA_TIMEOUT)
+                    ollama_timeout = max(300, int(ai_cfg.get('ollama_timeout') or OLLAMA_TIMEOUT))
 
                     from utils.ollama_extractor import extract as _ollama_extract
                     extracted = _ollama_extract(cv_text, ollama_url, ollama_model, ollama_timeout)
@@ -22072,8 +22072,8 @@ def dc_generator_generate_stream():
                     ai_cfg   = _load_ai_config()
                     ol_url   = ai_cfg.get('ollama_url', OLLAMA_URL)
                     ol_model = ai_cfg.get('ollama_model', OLLAMA_MODEL)
-                    ol_timeout = int(ai_cfg.get('ollama_timeout') or OLLAMA_TIMEOUT)
-                    log(f"Envoi à l'IA locale ({ol_model}, timeout={ol_timeout}s)… peut prendre 1-2 min")
+                    ol_timeout = max(300, int(ai_cfg.get('ollama_timeout') or OLLAMA_TIMEOUT))
+                    log(f"Envoi à l'IA locale ({ol_model}, timeout={ol_timeout}s)… peut prendre 1-3 min")
 
                     try:
                         from utils.ollama_extractor import extract as _ollama_extract
