@@ -292,6 +292,86 @@
   cursor: pointer;
 }
 
+/* ═══ Configuration IA ═══ */
+.v30-params__sep {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 16px 0 14px;
+}
+.v30-params__models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+.v30-params__model-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-size: 13px;
+  transition: border-color .15s;
+}
+.v30-params__model-row.is-active {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 7%, var(--surface-2));
+}
+.v30-params__model-name {
+  font-family: var(--mono, monospace);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.v30-params__model-size {
+  font-size: 11.5px;
+}
+.v30-params__model-del {
+  opacity: .55;
+  transition: opacity .15s;
+}
+.v30-params__model-del:hover { opacity: 1; color: var(--danger); }
+
+.v30-params__pull-log {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  margin-top: 4px;
+}
+.v30-params__pull-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  margin-bottom: 4px;
+}
+.v30-params__pull-log-body {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-height: 120px;
+  overflow-y: auto;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.v30-params__test-output {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-top: 4px;
+}
+.v30-params__test-output.is-success { border-color: var(--success); color: var(--success); }
+.v30-params__test-output.is-error   { border-color: var(--danger);  color: var(--danger);  }
+
 /* Actions en bas de section */
 .v30-params__actions {
   display: flex;

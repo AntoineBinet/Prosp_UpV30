@@ -12,6 +12,7 @@ Inclut :
 
 import json
 import urllib.error
+import urllib.request
 
 from flask import Blueprint, Response, jsonify, request
 
@@ -418,3 +419,108 @@ def api_ai_test():
             return jsonify(ok=False, error="Ollama injoignable. Vérifiez que le service tourne."), 200
         except Exception as e:
             return jsonify(ok=False, error=str(e)), 200
+
+
+# ─── Gestion des modèles Ollama ──────────────────────────────────────────────
+
+@ai_bp.get("/api/ollama/models")
+def api_ollama_models():
+    """Liste les modèles installés sur le serveur Ollama."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    config = _load_ai_config()
+    url = config.get("ollama_url", OLLAMA_URL).rstrip("/")
+    try:
+        with urllib.request.urlopen(url + "/api/tags", timeout=5) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        models = [
+            {
+                "name": m.get("name", ""),
+                "size": m.get("size", 0),
+                "modified_at": m.get("modified_at", ""),
+            }
+            for m in data.get("models", [])
+        ]
+        return jsonify(ok=True, models=models)
+    except urllib.error.URLError:
+        return jsonify(ok=False, error="Ollama injoignable"), 200
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 200
+
+
+@ai_bp.post("/api/ollama/pull")
+def api_ollama_pull():
+    """Pull un modèle Ollama — réponse en SSE streaming."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    user = _get_current_user(uid)
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Réservé aux administrateurs"), 403
+    payload = request.get_json(force=True, silent=True) or {}
+    model_name = (payload.get("model") or "").strip()
+    if not model_name:
+        return jsonify(ok=False, error="Nom du modèle requis"), 400
+    config = _load_ai_config()
+    ollama_url = config.get("ollama_url", OLLAMA_URL).rstrip("/")
+
+    def generate():
+        body = json.dumps({"model": model_name, "stream": True}).encode("utf-8")
+        req = urllib.request.Request(
+            ollama_url + "/api/pull",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=600) as resp:
+                for raw_line in resp:
+                    line = raw_line.decode("utf-8").strip()
+                    if line:
+                        yield f"data: {line}\n\n"
+        except urllib.error.URLError as e:
+            yield "data: " + json.dumps({"error": "Ollama injoignable : " + str(e)}) + "\n\n"
+        except Exception as e:
+            yield "data: " + json.dumps({"error": str(e)}) + "\n\n"
+        yield "data: [DONE]\n\n"
+
+    return Response(generate(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
+
+
+@ai_bp.delete("/api/ollama/model")
+def api_ollama_delete_model():
+    """Supprime un modèle Ollama."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    user = _get_current_user(uid)
+    if not user or user.get("role") != "admin":
+        return jsonify(ok=False, error="Réservé aux administrateurs"), 403
+    payload = request.get_json(force=True, silent=True) or {}
+    model_name = (payload.get("model") or "").strip()
+    if not model_name:
+        return jsonify(ok=False, error="Nom du modèle requis"), 400
+    config = _load_ai_config()
+    ollama_url = config.get("ollama_url", OLLAMA_URL).rstrip("/")
+    body = json.dumps({"model": model_name}).encode("utf-8")
+    req = urllib.request.Request(
+        ollama_url + "/api/delete",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="DELETE",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            r.read()
+        logger.info("Ollama model deleted: %s by user %s", model_name, uid)
+        return jsonify(ok=True)
+    except urllib.error.HTTPError as e:
+        return jsonify(ok=False, error=f"HTTP {e.code}"), 200
+    except urllib.error.URLError:
+        return jsonify(ok=False, error="Ollama injoignable"), 200
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 200

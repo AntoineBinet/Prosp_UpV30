@@ -257,6 +257,166 @@
   // ══════════════════════════════════════════════════════════════
   //  1. Configuration IA
   // ══════════════════════════════════════════════════════════════
+
+  var _ollamaModelsCache = null;
+
+  function ollamaFmtSize(bytes) {
+    if (!bytes) return '';
+    if (bytes >= 1e9) return (Math.round(bytes / 1e8) / 10) + ' GB';
+    return Math.round(bytes / 1e6) + ' MB';
+  }
+
+  function ollamaModelsRender(models) {
+    var listEl = $('[data-v30-ollama-list]');
+    var datalist = document.getElementById('v30-ollama-datalist');
+    if (!listEl) return;
+    _ollamaModelsCache = models;
+    if (datalist) {
+      datalist.innerHTML = (models || []).map(function (m) {
+        return '<option value="' + m.name + '">';
+      }).join('');
+    }
+    if (!models || !models.length) {
+      listEl.innerHTML = '<span class="muted" style="font-size:13px;">Aucun modèle installé.</span>';
+      return;
+    }
+    var currentModel = ($('[data-v30-ai-model]') && $('[data-v30-ai-model]').value) || '';
+    listEl.innerHTML = '';
+    models.forEach(function (m) {
+      var isActive = currentModel === m.name;
+      var row = document.createElement('div');
+      row.className = 'v30-params__model-row' + (isActive ? ' is-active' : '');
+      row.innerHTML =
+        '<span class="v30-params__model-name">' + m.name + '</span>' +
+        (m.size ? '<span class="muted v30-params__model-size">' + ollamaFmtSize(m.size) + '</span>' : '') +
+        '<span style="flex:1"></span>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-use="' + m.name + '"' +
+          (isActive ? ' disabled' : '') + '>' + (isActive ? '✓ Actif' : 'Utiliser') + '</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm v30-params__model-del" data-del="' + m.name + '"' +
+          ' title="Supprimer ce modèle">✕</button>';
+      listEl.appendChild(row);
+    });
+    listEl.querySelectorAll('[data-use]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var modelEl = $('[data-v30-ai-model]');
+        if (modelEl) modelEl.value = btn.getAttribute('data-use');
+        ollamaModelsRender(_ollamaModelsCache);
+      });
+    });
+    listEl.querySelectorAll('[data-del]').forEach(function (btn) {
+      btn.addEventListener('click', function () { ollamaDeleteModel(btn.getAttribute('data-del')); });
+    });
+  }
+
+  async function ollamaModelsLoad() {
+    var listEl = $('[data-v30-ollama-list]');
+    if (!listEl) return;
+    try {
+      var res = await fetch('/api/ollama/models', { credentials: 'same-origin' });
+      var j = await res.json();
+      if (!j || !j.ok) {
+        listEl.innerHTML = '<span class="muted" style="font-size:13px;">' +
+          (j && j.error ? j.error : 'Ollama injoignable') + '</span>';
+        return;
+      }
+      ollamaModelsRender(j.models || []);
+    } catch (e) {
+      listEl.innerHTML = '<span class="muted" style="font-size:13px;">Erreur : ' + e.message + '</span>';
+    }
+  }
+
+  async function ollamaDeleteModel(name) {
+    if (!confirm('Supprimer le modèle « ' + name + ' » ?\nCette action est irréversible.')) return;
+    try {
+      var res = await fetch('/api/ollama/model', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: name }),
+      });
+      var j = await res.json();
+      if (j && j.ok) {
+        toast('Modèle « ' + name + ' » supprimé', 'success');
+        ollamaModelsLoad();
+      } else {
+        toast('Erreur : ' + ((j && j.error) || 'échec'), 'error');
+      }
+    } catch (e) {
+      toast('Erreur réseau : ' + e.message, 'error');
+    }
+  }
+
+  async function ollamaPull() {
+    var nameEl = $('[data-v30-ollama-pull-name]');
+    var modelName = nameEl && nameEl.value.trim();
+    if (!modelName) { toast('Saisir un nom de modèle', 'warning'); return; }
+    var logBox = $('[data-v30-ollama-pull-log]');
+    var statusEl = $('[data-v30-ollama-pull-status]');
+    var pctEl = $('[data-v30-ollama-pull-pct]');
+    var bodyEl = $('[data-v30-ollama-pull-body]');
+    var btn = $('[data-v30-ollama-pull-btn]');
+    if (logBox) logBox.hidden = false;
+    if (bodyEl) bodyEl.textContent = '';
+    if (statusEl) statusEl.textContent = 'Démarrage…';
+    if (pctEl) pctEl.textContent = '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Téléchargement…'; }
+    try {
+      var res = await fetch('/api/ollama/pull', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: modelName }),
+      });
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buf = '';
+      var done = false;
+      while (!done) {
+        var chunk = await reader.read();
+        done = chunk.done;
+        if (chunk.value) buf += decoder.decode(chunk.value, { stream: true });
+        var lines = buf.split('\n');
+        buf = lines.pop();
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].trim();
+          if (!line) continue;
+          if (line.startsWith('data: ')) line = line.slice(6);
+          if (line === '[DONE]') {
+            if (statusEl) statusEl.textContent = '✓ Terminé';
+            toast('Modèle « ' + modelName + ' » installé', 'success');
+            if (nameEl) nameEl.value = '';
+            ollamaModelsLoad();
+            done = true;
+            break;
+          }
+          try {
+            var ev = JSON.parse(line);
+            if (ev.error) {
+              if (statusEl) statusEl.textContent = '✗ ' + ev.error;
+              toast('Pull échoué : ' + ev.error, 'error');
+              done = true;
+              break;
+            }
+            if (statusEl && ev.status) statusEl.textContent = ev.status;
+            if (pctEl && ev.total && ev.completed) {
+              pctEl.textContent = Math.round(ev.completed / ev.total * 100) + '%';
+            }
+            if (bodyEl && ev.status) {
+              var detail = ev.status;
+              if (ev.digest) detail += ' · ' + ev.digest.slice(7, 19) + '…';
+              bodyEl.textContent += detail + '\n';
+              bodyEl.scrollTop = bodyEl.scrollHeight;
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      if (statusEl) statusEl.textContent = '✗ Erreur réseau';
+      toast('Erreur réseau : ' + e.message, 'error');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Télécharger'; }
+  }
+
   async function aiLoad() {
     var urlEl = $('[data-v30-ai-url]');
     if (!urlEl) return; // section absente (non-admin)
@@ -307,7 +467,9 @@
     } catch (e) {
       console.warn('AI config load:', e);
     }
+    ollamaModelsLoad();
   }
+
   async function aiSave() {
     var btn = $('[data-v30-ai-save]');
     var st = '[data-v30-ai-status]';
@@ -356,6 +518,7 @@
     if (btn) btn.disabled = false;
     clearInlineStatus(st);
   }
+
   async function aiTest(target) {
     var st = '[data-v30-ai-status]';
     var label = ({
@@ -366,7 +529,6 @@
     })[target] || target;
     inlineStatus(st, 'Test ' + label + '…', 'var(--text-2)');
     var payload = { test_target: target };
-    // Permet de tester la valeur saisie sans avoir besoin de save avant
     var urlEl = $('[data-v30-ai-url]');
     if (urlEl && urlEl.value.trim()) payload.ollama_url = urlEl.value.trim();
     var modelEl = $('[data-v30-ai-model]');
@@ -380,11 +542,7 @@
     var hfEl = $('[data-v30-ai-hf]');
     if (hfEl && hfEl.value.trim()) payload.huggingface_token = hfEl.value.trim();
     var outBox = $('[data-v30-ai-test-output]');
-    if (outBox) {
-      outBox.hidden = true;
-      outBox.className = 'v30-params__test-output';
-      outBox.textContent = '';
-    }
+    if (outBox) { outBox.hidden = true; outBox.className = 'v30-params__test-output'; outBox.textContent = ''; }
     try {
       var res = await fetch('/api/ai/test', {
         method: 'POST',
@@ -404,10 +562,8 @@
         }
       } else {
         var shortErr = (j && j.error) || 'échec';
-        // Premier ligne pour le statut/toast inline
-        var firstLine = String(shortErr).split('\n')[0];
-        inlineStatus(st, label + ' : ' + firstLine, 'var(--danger)');
-        toast(label + ' : ' + firstLine.slice(0, 120), 'error');
+        inlineStatus(st, label + ' : ' + shortErr.split('\n')[0], 'var(--danger)');
+        toast(label + ' : ' + shortErr.slice(0, 120), 'error');
         if (outBox) {
           outBox.hidden = false;
           outBox.className = 'v30-params__test-output is-error';
@@ -425,6 +581,7 @@
     }
     clearInlineStatus(st, 6000);
   }
+
   function bindAi() {
     if (!$('[data-v30-ai-url]')) return;
     var save = $('[data-v30-ai-save]');
@@ -440,21 +597,22 @@
     var tog = $('[data-v30-ai-tavily-toggle]');
     if (tog) tog.addEventListener('click', function () {
       var inp = $('[data-v30-ai-tavily]');
-      if (!inp) return;
-      inp.type = inp.type === 'password' ? 'text' : 'password';
+      if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
     });
     var togA = $('[data-v30-ai-anthropic-toggle]');
     if (togA) togA.addEventListener('click', function () {
       var inp = $('[data-v30-ai-anthropic]');
-      if (!inp) return;
-      inp.type = inp.type === 'password' ? 'text' : 'password';
+      if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
     });
     var togHf = $('[data-v30-ai-hf-toggle]');
     if (togHf) togHf.addEventListener('click', function () {
       var inp = $('[data-v30-ai-hf]');
-      if (!inp) return;
-      inp.type = inp.type === 'password' ? 'text' : 'password';
+      if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
     });
+    var refreshBtn = $('[data-v30-ollama-refresh]');
+    if (refreshBtn) refreshBtn.addEventListener('click', ollamaModelsLoad);
+    var pullBtn = $('[data-v30-ollama-pull-btn]');
+    if (pullBtn) pullBtn.addEventListener('click', ollamaPull);
     aiLoad();
     bindCuda();
   }

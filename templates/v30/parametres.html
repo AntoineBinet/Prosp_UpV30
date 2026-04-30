@@ -50,39 +50,63 @@
           <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
         </div>
         <p class="v30-params__card-desc">
-          Modèle Ollama local, clé Tavily pour la recherche web, fallback automatique.
+          Ollama (modèles locaux) · Tavily (recherche web) · installation et tests à distance.
         </p>
       </summary>
 
       <div class="v30-params__form">
+
+        {# ─── Ollama ─── #}
+        <h4 class="v30-params__scope-title">Modèle local (Ollama)</h4>
+
         <div class="v30-params__grid-2">
           <div class="v30-params__field">
             <label class="v30-params__label">URL Ollama</label>
             <input type="text" class="input" data-v30-ai-url placeholder="http://127.0.0.1:11434">
           </div>
           <div class="v30-params__field">
-            <label class="v30-params__label">Modèle Ollama</label>
-            <input type="text" class="input" data-v30-ai-model placeholder="llama3.2">
+            <label class="v30-params__label">Modèle actif</label>
+            <div class="v30-params__row-input">
+              <input type="text" class="input" data-v30-ai-model placeholder="llama3.2"
+                     list="v30-ollama-datalist" autocomplete="off">
+              <button type="button" class="btn btn-ghost btn-sm" data-v30-ollama-refresh
+                      title="Actualiser la liste">{{ ui.icon('refresh', 13) }}</button>
+            </div>
+            <datalist id="v30-ollama-datalist"></datalist>
           </div>
         </div>
 
         <div class="v30-params__field">
-          <label class="v30-params__label">Clé API Tavily (recherche web)</label>
+          <label class="v30-params__label">Modèles installés</label>
+          <div data-v30-ollama-list class="v30-params__models-list">
+            <span class="muted" style="font-size:13px;">Chargement…</span>
+          </div>
+        </div>
+
+        <div class="v30-params__field">
+          <label class="v30-params__label">Télécharger un modèle</label>
           <div class="v30-params__row-input">
-            <input type="password" class="input" data-v30-ai-tavily placeholder="tvly-..." autocomplete="off">
-            <button type="button" class="btn btn-ghost btn-sm" data-v30-ai-tavily-toggle title="Afficher/masquer">
-              {{ ui.icon('eye', 13) }}
-            </button>
+            <input type="text" class="input" data-v30-ollama-pull-name
+                   placeholder="ex : qwen2.5:7b, mistral:7b, llama3.1:8b" autocomplete="off">
+            <button type="button" class="btn btn-sm" data-v30-ollama-pull-btn>Télécharger</button>
           </div>
           <p class="muted v30-params__hint">
-            1000 recherches gratuites/mois sur <a href="https://app.tavily.com" target="_blank" rel="noopener">app.tavily.com</a>.
-            Stockée dans <code class="mono">data/ai_config.json</code> (jamais versionnée).
+            Noms sur <a href="https://ollama.com/library" target="_blank" rel="noopener">ollama.com/library</a>.
+            Recommandés : <code class="mono">qwen2.5:7b</code>, <code class="mono">mistral:7b</code>, <code class="mono">llama3.1:8b</code>.
           </p>
+        </div>
+
+        <div class="v30-params__pull-log" data-v30-ollama-pull-log hidden>
+          <div class="v30-params__pull-log-head">
+            <span data-v30-ollama-pull-status></span>
+            <span class="muted" data-v30-ollama-pull-pct></span>
+          </div>
+          <pre class="v30-params__pull-log-body" data-v30-ollama-pull-body></pre>
         </div>
 
         <label class="v30-params__check">
           <input type="checkbox" data-v30-ai-fallback>
-          <span>Activer le fallback automatique (Ollama seul si Tavily échoue)</span>
+          <span>Fallback automatique (Ollama seul si Tavily échoue)</span>
         </label>
 
         {# ─── Transcription (v32.1) ─── #}
@@ -186,11 +210,33 @@
         <div class="v30-params__actions">
           <button type="button" class="btn btn-primary btn-sm" data-v30-ai-save>Enregistrer</button>
           <button type="button" class="btn btn-sm" data-v30-ai-test-ollama>Tester Ollama</button>
-          <button type="button" class="btn btn-sm" data-v30-ai-test-tavily>Tester Tavily</button>
           <button type="button" class="btn btn-sm" data-v30-ai-test-anthropic>Tester Claude</button>
           <span class="muted v30-params__status" data-v30-ai-status></span>
         </div>
         <div class="v30-params__test-output" data-v30-ai-test-output hidden></div>
+
+        {# ─── Recherche web ─── #}
+        <div class="v30-params__sep"></div>
+        <h4 class="v30-params__scope-title">Recherche web (Tavily)</h4>
+        <p class="muted v30-params__hint" style="margin-top:-6px;margin-bottom:12px;">
+          Enrichit les prompts avec des résultats web en temps réel avant envoi à Ollama.
+        </p>
+
+        <div class="v30-params__field">
+          <label class="v30-params__label">Clé API Tavily</label>
+          <div class="v30-params__row-input">
+            <input type="password" class="input" data-v30-ai-tavily placeholder="tvly-..." autocomplete="off">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-ai-tavily-toggle title="Afficher/masquer">
+              {{ ui.icon('eye', 13) }}
+            </button>
+            <button type="button" class="btn btn-sm" data-v30-ai-test-tavily>Tester</button>
+          </div>
+          <p class="muted v30-params__hint">
+            1 000 recherches gratuites/mois —
+            <a href="https://app.tavily.com" target="_blank" rel="noopener">app.tavily.com</a>.
+            Stockée dans <code class="mono">data/ai_config.json</code> (jamais versionnée).
+          </p>
+        </div>
 
         {# ─── Détection torch CUDA + bouton réparation (v32.2) ─── #}
         <div class="v30-params__divider"></div>
