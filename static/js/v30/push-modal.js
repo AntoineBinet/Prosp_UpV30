@@ -840,32 +840,50 @@
   }
 
   // ─── Accroche appel manqué (génération Ollama) ─────────────
+
+  function _hasEnoughProfileData(p) {
+    var fonction = safeStr(p.fonction).trim();
+    var notes    = safeStr(p.notes).trim();
+    var company  = (STATE.company && STATE.company.groupe) || safeStr(p.company_groupe).trim();
+    return !!(fonction || notes.length > 20 || company);
+  }
+
+  function _buildRichCallNotePrompt(p) {
+    var fonction = safeStr(p.fonction).trim();
+    var notes    = safeStr(p.notes).trim();
+    var company  = (STATE.company && STATE.company.groupe) || safeStr(p.company_groupe).trim();
+    var site     = (STATE.company && STATE.company.site)   || safeStr(p.company_site).trim();
+
+    var ctx = '';
+    if (company)  ctx += '- Entreprise : ' + company + (site ? ' (' + site + ')' : '') + '\n';
+    if (fonction) ctx += '- Fonction du destinataire : ' + fonction + '\n';
+    if (notes)    ctx += '- Notes sur le prospect : ' + (notes.length > 300 ? notes.slice(0, 300) + '…' : notes) + '\n';
+
+    return 'Tu es un assistant de prospection B2B pour un cabinet de conseil en recrutement.\n\n' +
+      'Génère UNE courte phrase personnalisée (15-25 mots max) pour un email de suivi après un appel manqué.\n' +
+      'La phrase doit montrer que tu t\'es intéressé au profil du destinataire et/ou à son entreprise.\n' +
+      'Elle commence soit par "J\'ai essayé de vous joindre" soit par "Je souhaitais".\n\n' +
+      'Informations disponibles sur le destinataire :\n' + (ctx || '(aucune information supplémentaire)\n') + '\n' +
+      'Exemples selon le profil :\n' +
+      '• Directeur Technique BTP : "J\'ai essayé de vous joindre — en tant que Directeur Technique dans le BTP, votre profil correspond exactement aux missions de nos consultants en ingénierie."\n' +
+      '• DRH industrie : "Je souhaitais vous présenter des consultants en management et transformation RH qui pourraient soutenir vos équipes chez ' + (company || '[Entreprise]') + '."\n' +
+      '• Sans fonction connue mais avec entreprise : "J\'ai essayé de vous joindre et souhaitais vous présenter quelques profils de consultants spécialisés susceptibles d\'intéresser ' + (company || 'votre entreprise') + '."\n\n' +
+      'RÈGLES ABSOLUES :\n' +
+      '- UNE seule phrase, 15-25 mots maximum\n' +
+      '- Professionnelle et sobre, pas de flatterie excessive\n' +
+      '- Utilise la fonction ET/OU l\'entreprise si disponibles\n' +
+      '- Ne pas inventer d\'éléments non fournis dans le contexte\n' +
+      '- Pas de guillemets, pas d\'explication, juste la phrase.';
+  }
+
   function generateCallNote() {
     var p = STATE.prospect;
     if (!p) { toast('Prospect non chargé', 'warning'); return; }
-    var entreprise = (STATE.company && STATE.company.groupe) || '';
 
-    // Phrase 1 : fixe, jamais modifiée par le modèle
-    var phrase1 = 'J\'ai essayé de vous joindre aujourd\'hui mais je suis tombé sur votre messagerie.';
-
-    // Phrase 2 : Ollama complète uniquement la fin (5-10 mots)
-    var prompt =
-      'Complète cette phrase de manière naturelle et professionnelle :\n' +
-      '"Je souhaitais vous présenter quelques profils de consultants ___"\n\n' +
-      'Contexte :\n' +
-      (entreprise ? '- Entreprise du destinataire : ' + entreprise + '\n' : '') +
-      '- Si tu connais le secteur de cette entreprise (ex : BTP, industrie, énergie…), mentionne-le naturellement\n' +
-      '- Sinon, termine simplement par "qui pourraient vous intéresser." — ne mentionne pas le nom de l\'entreprise\n\n' +
-      'Exemples de résultats attendus :\n' +
-      '• "Je souhaitais vous présenter quelques profils de consultants spécialisés dans le BTP qui pourraient vous intéresser."\n' +
-      '• "Je souhaitais vous présenter quelques profils de consultants en ingénierie qui pourraient vous intéresser."\n' +
-      '• "Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser."\n\n' +
-      'Règles ABSOLUES :\n' +
-      '- Répondre UNIQUEMENT avec la phrase complète (commençant par "Je souhaitais")\n' +
-      '- Ne pas dépasser 20 mots\n' +
-      '- Ne pas mentionner de noms de personnes\n' +
-      '- Ne pas inventer de contexte ou d\'échanges passés\n' +
-      '- Pas de guillemets, pas d\'explication, juste la phrase.';
+    if (!_hasEnoughProfileData(p)) {
+      showEnrichmentDialog(function () { generateCallNote(); });
+      return;
+    }
 
     var btn = $sel('data-v30pm-callnote-gen');
     var ta  = $sel('data-v30pm-callnote');
@@ -874,37 +892,244 @@
     if (st)  { st.textContent = 'Génération en cours…'; st.className = 'v30pm-callnote__status'; }
     if (ta)  ta.value = '';
     STATE.callNote = '';
+
     fetch('/api/ollama/generate', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt })
+      body: JSON.stringify({ prompt: _buildRichCallNotePrompt(p) })
     }).then(function (r) {
       return r.json().then(function (j) { return { ok: r.ok, data: j }; });
     }).then(function (res) {
       if (!res.ok || !(res.data && res.data.text)) {
         throw new Error((res.data && res.data.error) || 'Réponse vide');
       }
-      // Nettoie la phrase 2 (enlève guillemets parasites, préfixe "Je souhaitais" si absent)
-      var raw = String(res.data.text || '').trim().replace(/^["«»""]|["«»""]$/g, '').trim();
-      if (!raw.toLowerCase().startsWith('je souhaitais')) {
+      var raw = String(res.data.text || '').trim().replace(/^["«»""'']|["«»""'']$/g, '').trim();
+      // Fallback si la phrase ne démarre pas comme attendu
+      if (!raw.toLowerCase().startsWith('j\'ai') && !raw.toLowerCase().startsWith('je ')) {
         raw = 'Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser.';
       }
-      var text = phrase1 + ' ' + raw;
-      if (ta) ta.value = text;
-      STATE.callNote = text;
+      if (ta) ta.value = raw;
+      STATE.callNote = raw;
       if (st) {
-        st.textContent = 'Phrase générée';
+        st.textContent = 'Phrase générée ✓';
         st.className = 'v30pm-callnote__status is-ok';
         setTimeout(function () { if (st) st.textContent = ''; }, 2500);
       }
-      toast('Accroche générée', 'success', 2500);
+      toast('Accroche personnalisée générée', 'success', 2500);
     }).catch(function (e) {
       if (st) { st.textContent = 'Erreur : ' + (e.message || 'inconnue'); st.className = 'v30pm-callnote__status is-error'; }
       toast('Erreur génération : ' + (e.message || 'inconnue'), 'error');
     }).then(function () {
       if (btn) btn.disabled = false;
     });
+  }
+
+  // ─── Popup d'enrichissement prospect (depuis push modal) ────
+
+  var ENRICH_PANEL_ID = 'v30PushEnrichPanel';
+
+  function showEnrichmentDialog(onEnriched) {
+    _injectEnrichCSS();
+    var existing = document.getElementById(ENRICH_PANEL_ID);
+    if (existing) existing.parentNode.removeChild(existing);
+
+    var panel = document.createElement('div');
+    panel.id = ENRICH_PANEL_ID;
+    panel.className = 'v30pm-enrich-overlay';
+    panel.innerHTML =
+      '<div class="v30pm-enrich-card">' +
+        '<div class="v30pm-enrich-head">' +
+          ic('sparkles', 14) + ' <strong>Enrichir le profil pour personnaliser</strong>' +
+          '<button type="button" class="btn btn-ghost btn-sm btn-icon v30pm-enrich-close" aria-label="Fermer">' + ic('x', 12) + '</button>' +
+        '</div>' +
+        '<p class="v30pm-enrich-hint">Pas assez d\'informations pour générer une accroche ciblée. Ajoute la <b>fonction</b> et/ou des <b>notes</b> sur ce prospect.</p>' +
+        '<div class="v30pm-enrich-tabs">' +
+          '<button type="button" class="v30pm-enrich-tab is-active" data-v30enrich-tab="manual">Saisie rapide</button>' +
+          '<button type="button" class="v30pm-enrich-tab" data-v30enrich-tab="linkedin">Coller profil LinkedIn</button>' +
+        '</div>' +
+        // ─ Onglet saisie manuelle
+        '<div class="v30pm-enrich-pane" data-v30enrich-pane="manual">' +
+          '<label class="v30-field">' +
+            '<span class="v30-field__label">Fonction / Poste</span>' +
+            '<input type="text" class="v30-input" data-v30enrich-fonction placeholder="ex : Directeur Technique, DRH, DSI…" />' +
+          '</label>' +
+          '<label class="v30-field">' +
+            '<span class="v30-field__label">Notes (secteur, contexte, projets…)</span>' +
+            '<textarea class="v30-input" data-v30enrich-notes rows="3" placeholder="ex : Entreprise BTP 200 personnes, projets infrastructure, cherche à externaliser…"></textarea>' +
+          '</label>' +
+          '<div class="v30pm-enrich-actions">' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-v30enrich-cancel>Annuler</button>' +
+            '<button type="button" class="btn btn-accent btn-sm" data-v30enrich-save-manual>' + ic('save', 12) + ' Enregistrer &amp; générer</button>' +
+          '</div>' +
+        '</div>' +
+        // ─ Onglet LinkedIn
+        '<div class="v30pm-enrich-pane" data-v30enrich-pane="linkedin" hidden>' +
+          '<p class="v30pm-enrich-hint" style="margin-top:0;">Copie le contenu de la page LinkedIn du prospect et colle-le ci-dessous. L\'IA extraira automatiquement les informations utiles.</p>' +
+          '<textarea class="v30-input v30pm-enrich-linkedin-ta" data-v30enrich-linkedin rows="6" placeholder="Colle ici le texte de la page LinkedIn (expérience, formation, résumé…)"></textarea>' +
+          '<div class="v30pm-enrich-actions">' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-v30enrich-cancel>Annuler</button>' +
+            '<button type="button" class="btn btn-accent-soft btn-sm" data-v30enrich-parse>' + ic('robot', 12) + ' Analyser via IA</button>' +
+            '<button type="button" class="btn btn-accent btn-sm" data-v30enrich-save-linkedin hidden>' + ic('save', 12) + ' Appliquer &amp; générer</button>' +
+          '</div>' +
+          '<div class="v30pm-enrich-preview" data-v30enrich-preview hidden></div>' +
+        '</div>' +
+      '</div>';
+
+    var bd = document.getElementById(MODAL_ID);
+    if (bd) bd.appendChild(panel);
+    else document.body.appendChild(panel);
+    void panel.offsetWidth;
+    panel.classList.add('is-open');
+
+    // Préfill avec les données actuelles
+    var p = STATE.prospect || {};
+    var fonctionEl = panel.querySelector('[data-v30enrich-fonction]');
+    var notesEl    = panel.querySelector('[data-v30enrich-notes]');
+    if (fonctionEl && p.fonction) fonctionEl.value = p.fonction;
+    if (notesEl    && p.notes)    notesEl.value    = p.notes;
+
+    var parsedData = null;
+
+    function closePanel() {
+      panel.classList.remove('is-open');
+      setTimeout(function () { if (panel.parentNode) panel.parentNode.removeChild(panel); }, 200);
+    }
+
+    // Onglets enrichissement
+    panel.querySelectorAll('[data-v30enrich-tab]').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var target = tab.dataset.v30enrichTab;
+        panel.querySelectorAll('[data-v30enrich-tab]').forEach(function (t) { t.classList.toggle('is-active', t.dataset.v30enrichTab === target); });
+        panel.querySelectorAll('[data-v30enrich-pane]').forEach(function (pane) { pane.hidden = pane.dataset.v30enrichPane !== target; });
+        parsedData = null;
+      });
+    });
+
+    panel.querySelector('.v30pm-enrich-close').addEventListener('click', closePanel);
+    panel.querySelectorAll('[data-v30enrich-cancel]').forEach(function (btn) { btn.addEventListener('click', closePanel); });
+
+    // Enregistrer saisie manuelle
+    panel.querySelector('[data-v30enrich-save-manual]').addEventListener('click', function () {
+      var fonctionVal = (fonctionEl && fonctionEl.value.trim()) || '';
+      var notesVal    = (notesEl    && notesEl.value.trim())    || '';
+      if (!fonctionVal && !notesVal) { toast('Saisis au moins la fonction ou des notes', 'warning'); return; }
+      var updates = {};
+      if (fonctionVal) updates.fonction = fonctionVal;
+      if (notesVal)    updates.notes    = notesVal;
+      _enrichSave(updates, function () {
+        closePanel();
+        if (onEnriched) onEnriched();
+      });
+    });
+
+    // Parsing LinkedIn via IA
+    panel.querySelector('[data-v30enrich-parse]').addEventListener('click', function () {
+      var linkedinText = (panel.querySelector('[data-v30enrich-linkedin]') || {}).value || '';
+      if (!linkedinText.trim()) { toast('Colle d\'abord le texte LinkedIn', 'warning'); return; }
+      var parseBtn = panel.querySelector('[data-v30enrich-parse]');
+      var saveLinkedinBtn = panel.querySelector('[data-v30enrich-save-linkedin]');
+      var preview = panel.querySelector('[data-v30enrich-preview]');
+      if (parseBtn) { parseBtn.disabled = true; parseBtn.textContent = 'Analyse en cours…'; }
+      if (preview)  { preview.hidden = true; preview.innerHTML = ''; }
+      if (saveLinkedinBtn) saveLinkedinBtn.hidden = true;
+      parsedData = null;
+      _enrichFromLinkedIn(linkedinText, function (data) {
+        if (parseBtn) { parseBtn.disabled = false; parseBtn.innerHTML = ic('robot', 12) + ' Relancer l\'IA'; }
+        if (!data) { toast('L\'IA n\'a pas pu extraire les informations', 'error'); return; }
+        parsedData = data;
+        if (preview) {
+          preview.hidden = false;
+          var lines = [];
+          if (data.fonction) lines.push('<b>Fonction :</b> ' + esc(data.fonction));
+          if (data.notes)    lines.push('<b>Notes :</b> '    + esc(data.notes));
+          if (data.tags && data.tags.length) lines.push('<b>Tags :</b> ' + esc(data.tags.join(', ')));
+          preview.innerHTML = '<div class="v30pm-enrich-preview-inner">' + lines.join('<br>') + '</div>';
+        }
+        if (saveLinkedinBtn) saveLinkedinBtn.hidden = false;
+        toast('Informations extraites — vérifie avant d\'appliquer', 'success', 3000);
+      });
+    });
+
+    // Appliquer + générer depuis parsing LinkedIn
+    panel.querySelector('[data-v30enrich-save-linkedin]').addEventListener('click', function () {
+      if (!parsedData) { toast('Relance l\'analyse IA d\'abord', 'warning'); return; }
+      var updates = {};
+      if (parsedData.fonction) updates.fonction = parsedData.fonction;
+      if (parsedData.notes)    updates.notes    = parsedData.notes;
+      _enrichSave(updates, function () {
+        // Sauvegarde aussi les tags si présents
+        if (parsedData.tags && parsedData.tags.length) {
+          postJSON('/api/prospects/bulk-status-tags', { ids: [STATE.prospectId], add_tags: parsedData.tags })
+            .catch(function () {});
+        }
+        closePanel();
+        if (onEnriched) onEnriched();
+      });
+    });
+  }
+
+  function _enrichSave(updates, cb) {
+    if (!STATE.prospectId || !updates || !Object.keys(updates).length) { if (cb) cb(); return; }
+    postJSON('/api/prospects/bulk-edit', { ids: [STATE.prospectId], fields: updates })
+      .then(function (res) {
+        if (!res.ok) throw new Error((res.data && res.data.error) || 'Erreur sauvegarde');
+        // Mettre à jour STATE.prospect localement pour que la génération profite des nouvelles données
+        if (STATE.prospect) Object.assign(STATE.prospect, updates);
+        toast('Profil mis à jour', 'success', 2000);
+        if (cb) cb();
+      })
+      .catch(function (e) { toast('Erreur enregistrement : ' + (e.message || 'inconnue'), 'error'); });
+  }
+
+  function _enrichFromLinkedIn(text, cb) {
+    var prompt =
+      'Extrait les informations professionnelles depuis ce texte de profil LinkedIn.\n' +
+      'Retourne UNIQUEMENT un objet JSON avec les clés suivantes (omets celles que tu ne trouves pas) :\n' +
+      '- fonction : string (titre/poste actuel)\n' +
+      '- notes : string (résumé en 1-3 phrases : secteur, expérience clé, contexte pertinent)\n' +
+      '- tags : array de strings (secteurs/domaines : ex ["BTP", "Ingénierie", "Infrastructure"])\n\n' +
+      'Texte LinkedIn :\n' + text.slice(0, 3000) + '\n\n' +
+      'Réponds UNIQUEMENT avec le JSON brut, sans explications.';
+    fetch('/api/ollama/generate', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: prompt, timeout: 90 })
+    }).then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.text) { cb(null); return; }
+        var m = j.text.match(/\{[\s\S]*\}/);
+        if (!m) { cb(null); return; }
+        try { cb(JSON.parse(m[0])); }
+        catch (_) { cb(null); }
+      })
+      .catch(function () { cb(null); });
+  }
+
+  var _enrichCSSInjected = false;
+  function _injectEnrichCSS() {
+    if (_enrichCSSInjected) return;
+    _enrichCSSInjected = true;
+    var s = document.createElement('style');
+    s.textContent = [
+      '.v30pm-enrich-overlay{position:absolute;inset:0;background:color-mix(in oklch,var(--surface) 60%,transparent);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;z-index:10;border-radius:inherit;opacity:0;transition:opacity .18s ease;pointer-events:none;}',
+      '.v30pm-enrich-overlay.is-open{opacity:1;pointer-events:auto;}',
+      '.v30pm-enrich-card{width:100%;background:var(--surface);border-top:1px solid var(--border);border-radius:0 0 var(--r-xl) var(--r-xl);padding:16px 20px 20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 -4px 20px color-mix(in oklch,var(--text) 8%,transparent);transform:translateY(12px);transition:transform .18s ease;max-height:90%;overflow-y:auto;}',
+      '.v30pm-enrich-overlay.is-open .v30pm-enrich-card{transform:translateY(0);}',
+      '.v30pm-enrich-head{display:flex;align-items:center;gap:6px;font-size:14px;}',
+      '.v30pm-enrich-head .v30pm-enrich-close{margin-left:auto;}',
+      '.v30pm-enrich-hint{font-size:12.5px;color:var(--text-2);margin:0;line-height:1.5;}',
+      '.v30pm-enrich-tabs{display:flex;gap:2px;padding:3px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);}',
+      '.v30pm-enrich-tab{flex:1;height:28px;padding:0 10px;border:none;border-radius:calc(var(--r-lg) - 2px);background:transparent;color:var(--text-2);font:inherit;font-size:12px;font-weight:500;cursor:pointer;transition:background var(--dur-1),color var(--dur-1);}',
+      '.v30pm-enrich-tab.is-active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 3px color-mix(in oklch,var(--text) 10%,transparent);}',
+      '.v30pm-enrich-pane{display:flex;flex-direction:column;gap:8px;}',
+      '.v30pm-enrich-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:2px;}',
+      '.v30pm-enrich-linkedin-ta{min-height:90px;resize:vertical;font-size:12px;}',
+      '.v30pm-enrich-preview{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;}',
+      '.v30pm-enrich-preview-inner{font-size:12.5px;line-height:1.6;color:var(--text-2);}'
+    ].join('');
+    document.head.appendChild(s);
   }
 
   // ─── Envoi (confirmPushSend) ─────────────────────────────
