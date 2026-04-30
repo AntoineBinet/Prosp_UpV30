@@ -164,6 +164,110 @@ window.mpClose = function () {
         setupVisibilitySync();
     }
 
+    // ── Custom select helpers ──
+
+    function mpBuildSelect(field, options, selected, extraClass, inlineStyle) {
+        var selStr = String(selected !== null && selected !== undefined ? selected : '');
+        var selectedLabel = '';
+        for (var i = 0; i < options.length; i++) {
+            if (String(options[i].value) === selStr) { selectedLabel = options[i].label; break; }
+        }
+        if (!selectedLabel && options.length > 0) selectedLabel = options[0].label;
+        var optHtml = options.map(function (o) {
+            var isSel = String(o.value) === selStr;
+            return '<button type="button" class="mp-select-option popover__item' + (isSel ? ' is-selected' : '') + '" data-val="' + escapeHtml(String(o.value)) + '">' + escapeHtml(o.label) + '</button>';
+        }).join('');
+        var cls = 'mp-select' + (extraClass ? ' ' + extraClass : '');
+        var styleAttr = inlineStyle ? ' style="' + inlineStyle + '"' : '';
+        return '<div class="' + cls + '" data-field="' + field + '" data-value="' + escapeHtml(selStr) + '"' + styleAttr + '>' +
+            '<button type="button" class="mp-select-trigger" aria-haspopup="listbox" aria-expanded="false">' +
+                '<span class="mp-select-label">' + escapeHtml(selectedLabel) + '</span>' +
+                '<svg class="mp-select-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>' +
+            '</button>' +
+            '<div class="mp-select-dropdown popover" hidden role="listbox">' + optHtml + '</div>' +
+        '</div>';
+    }
+
+    function _closeAllSelects() {
+        document.querySelectorAll('.mp-select-dropdown:not([hidden])').forEach(function (d) {
+            d.hidden = true;
+            var t = d.previousElementSibling;
+            if (t) t.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function _openSelect(sel, trigger, dropdown) {
+        dropdown.hidden = false;
+        trigger.setAttribute('aria-expanded', 'true');
+        var rect = trigger.getBoundingClientRect();
+        dropdown.style.top = (rect.bottom + 3) + 'px';
+        dropdown.style.left = rect.left + 'px';
+        dropdown.style.minWidth = rect.width + 'px';
+        // Scroll selected option into view after layout
+        requestAnimationFrame(function () {
+            var dRect = dropdown.getBoundingClientRect();
+            if (dRect.right > window.innerWidth - 8)
+                dropdown.style.left = Math.max(8, window.innerWidth - dRect.width - 8) + 'px';
+            if (dRect.bottom > window.innerHeight - 8)
+                dropdown.style.top = Math.max(8, rect.top - dRect.height - 3) + 'px';
+            var selOpt = dropdown.querySelector('.mp-select-option.is-selected');
+            if (selOpt) selOpt.scrollIntoView({ block: 'nearest' });
+        });
+    }
+
+    function mpInitSelects(card) {
+        card.querySelectorAll('.mp-select').forEach(function (sel) {
+            var trigger = sel.querySelector('.mp-select-trigger');
+            var dropdown = sel.querySelector('.mp-select-dropdown');
+            if (!trigger || !dropdown) return;
+
+            trigger.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var isOpen = !dropdown.hidden;
+                _closeAllSelects();
+                if (!isOpen) _openSelect(sel, trigger, dropdown);
+            });
+
+            dropdown.querySelectorAll('.mp-select-option').forEach(function (opt) {
+                opt.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    var val = this.dataset.val;
+                    sel.dataset.value = val;
+                    trigger.querySelector('.mp-select-label').textContent = this.textContent;
+                    dropdown.querySelectorAll('.mp-select-option').forEach(function (o) {
+                        o.classList.toggle('is-selected', o.dataset.val === val);
+                    });
+                    dropdown.hidden = true;
+                    trigger.setAttribute('aria-expanded', 'false');
+                    sel.dispatchEvent(new CustomEvent('change', { bubbles: true, detail: { value: val } }));
+                });
+            });
+
+            trigger.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    dropdown.hidden = true; trigger.setAttribute('aria-expanded', 'false'); trigger.focus();
+                } else if ((e.key === 'Enter' || e.key === ' ') && dropdown.hidden) {
+                    e.preventDefault(); trigger.click();
+                } else if (e.key === 'ArrowDown' && !dropdown.hidden) {
+                    e.preventDefault();
+                    var first = dropdown.querySelector('.mp-select-option');
+                    if (first) first.focus();
+                }
+            });
+
+            dropdown.addEventListener('keydown', function (e) {
+                var opts = Array.from(dropdown.querySelectorAll('.mp-select-option'));
+                var idx = opts.indexOf(document.activeElement);
+                if (e.key === 'ArrowDown') { e.preventDefault(); if (idx < opts.length - 1) opts[idx + 1].focus(); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); if (idx > 0) opts[idx - 1].focus(); else { dropdown.hidden = true; trigger.setAttribute('aria-expanded', 'false'); trigger.focus(); } }
+                else if (e.key === 'Escape') { dropdown.hidden = true; trigger.setAttribute('aria-expanded', 'false'); trigger.focus(); }
+            });
+        });
+    }
+
+    // Ferme tous les selects custom au clic extérieur (une seule fois au chargement)
+    document.addEventListener('click', _closeAllSelects);
+
     // ── Build card HTML (2-column: form left + timeline right) ──
     function buildCardHtml(p) {
         var company = getCompany(p.company_id);
@@ -173,18 +277,12 @@ window.mpClose = function () {
         var heroColor = STATUS_COLORS[p.statut] || '#64748b';
         var initials = (p.name || '??').split(/\s+/).map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
 
-        var statusOpts = STATUS_OPTIONS.map(function (s) {
-            return '<option value="' + escapeHtml(s) + '"' + (p.statut === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
-        }).join('');
-        var companyOpts = companies.map(function (c) {
-            return '<option value="' + c.id + '"' + (c.id === p.company_id ? ' selected' : '') + '>' + escapeHtml(c.groupe) + ' (' + escapeHtml(c.site || '') + ')</option>';
-        }).join('');
-        var pertOpts = [5, 4, 3, 2, 1].map(function (v) {
-            return '<option value="' + v + '"' + (pert === v ? ' selected' : '') + '>\u2B50'.repeat(v) + '</option>';
-        }).join('');
-        var priorityOpts = [{ v: '1', l: 'P1 (haute)' }, { v: '2', l: 'P2 (normal)' }, { v: '3', l: 'P3 (basse)' }].map(function (o) {
-            return '<option value="' + o.v + '"' + (String(p.priority || '2') === o.v ? ' selected' : '') + '>' + o.l + '</option>';
-        }).join('');
+        var statusOptions = STATUS_OPTIONS.map(function (s) { return { value: s, label: s }; });
+        var companyOptions = companies.map(function (c) {
+            return { value: c.id, label: (c.groupe || '') + (c.site ? ' (' + c.site + ')' : '') };
+        });
+        var pertOptions = [5, 4, 3, 2, 1].map(function (v) { return { value: v, label: '\u2B50'.repeat(v) }; });
+        var priorityOptions = [{ value: '1', label: 'P1 (haute)' }, { value: '2', label: 'P2 (normal)' }, { value: '3', label: 'P3 (basse)' }];
 
         var photoUrl = p.photo_url ? '/api/photos/prospect/' + p.id : '';
         var avatarHtml = photoUrl
@@ -223,7 +321,7 @@ window.mpClose = function () {
             }).join(' ');
         }
 
-        var statusBadgeStyle = 'border-left: 3px solid ' + heroColor + ';';
+        var statusColorVar = '--status-color:' + heroColor + ';';
 
         // ── LEFT COLUMN ──
         var leftCol =
@@ -244,14 +342,14 @@ window.mpClose = function () {
             '</div>' +
             '<div class="mp-card-body" data-pid="' + p.id + '">' +
                 '<div class="mp-field-grid">' +
-                    mpField('Statut', '<select class="mp-input mp-status-select" data-field="statut" style="' + statusBadgeStyle + '">' + statusOpts + '</select>') +
-                    mpField('Entreprise', '<select class="mp-input" data-field="company_id">' + companyOpts + '</select>') +
+                    mpField('Statut', mpBuildSelect('statut', statusOptions, p.statut, 'mp-status-select', statusColorVar)) +
+                    mpField('Entreprise', mpBuildSelect('company_id', companyOptions, p.company_id)) +
                     mpField('Fonction', '<input type="text" class="mp-input" data-field="fonction" value="' + escapeHtml(p.fonction || '') + '">') +
                     mpField('T\u00e9l\u00e9phone', '<input type="text" class="mp-input" data-field="telephone" value="' + escapeHtml(p.telephone || '') + '">' + (phoneLinkHtml ? '<div class="mp-phone-links">' + phoneLinkHtml + '</div>' : '')) +
                     mpField('Email', '<input type="email" class="mp-input" data-field="email" value="' + escapeHtml(p.email || '') + '">' + (p.email ? '<a href="mailto:' + escapeHtml(p.email) + '" class="mp-action-link">Envoyer</a>' : '')) +
                     mpField('LinkedIn', '<input type="text" class="mp-input" data-field="linkedin" value="' + escapeHtml(p.linkedin || '') + '">' + (p.linkedin ? '<a href="' + escapeHtml(p.linkedin) + '" target="_blank" class="mp-action-link">Voir</a>' : '')) +
-                    mpField('Pertinence', '<select class="mp-input" data-field="pertinence">' + pertOpts + '</select>') +
-                    mpField('Priorit\u00e9', '<select class="mp-input" data-field="priority">' + priorityOpts + '</select>') +
+                    mpField('Pertinence', mpBuildSelect('pertinence', pertOptions, pert)) +
+                    mpField('Priorit\u00e9', mpBuildSelect('priority', priorityOptions, String(p.priority || '2'))) +
                     mpField('Next action', '<input type="text" class="mp-input" data-field="nextAction" value="' + escapeHtml(p.nextAction || '') + '">') +
                     mpField('Relance', '<input type="date" class="mp-input" data-field="nextFollowUp" value="' + escapeHtml(p.nextFollowUp || '') + '">') +
                     mpField('Date RDV', '<input type="datetime-local" class="mp-input" data-field="rdvDate" value="' + escapeHtml(p.rdvDate || '') + '">') +
@@ -310,17 +408,19 @@ window.mpClose = function () {
             card.classList.remove('mp-entering-next', 'mp-entering-prev', 'mp-entering-init');
         }, { once: true });
 
-        // Status change => date picker
+        // Wire up custom selects
+        mpInitSelects(card);
+
+        // Status change => update hero color + date picker
         var statusSelect = card.querySelector('[data-field="statut"]');
         if (statusSelect) {
-            statusSelect.addEventListener('change', function () {
-                var newVal = this.value;
+            statusSelect.addEventListener('change', function (e) {
+                var newVal = e.detail ? e.detail.value : statusSelect.dataset.value;
                 var heroColor = STATUS_COLORS[newVal] || '#64748b';
-                this.style.borderLeftColor = heroColor;
+                statusSelect.style.setProperty('--status-color', heroColor);
                 var heroEl = card.querySelector('.mp-card-hero');
                 if (heroEl) heroEl.style.setProperty('--hero-color', heroColor);
                 card.style.setProperty('--status-glow', STATUS_GLOW[newVal] || 'rgba(99,102,241,0.18)');
-                // Mettre à jour le badge statut dans le hero
                 var badge = card.querySelector('.mp-status-badge');
                 if (badge) {
                     badge.style.background = heroColor + '22';
@@ -657,7 +757,7 @@ window.mpClose = function () {
         if (!body || !p) return;
         body.querySelectorAll('[data-field]').forEach(function (el) {
             var field = el.dataset.field;
-            var val = el.value;
+            var val = el.classList.contains('mp-select') ? el.dataset.value : el.value;
             if (field === 'company_id' || field === 'pertinence' || field === 'priority') val = parseInt(val, 10);
             p[field] = val;
         });
@@ -690,7 +790,7 @@ window.mpClose = function () {
         var prospectData = { id: p.id };
         body.querySelectorAll('[data-field]').forEach(function (el) {
             var field = el.dataset.field;
-            var val = el.value;
+            var val = el.classList.contains('mp-select') ? el.dataset.value : el.value;
             if (field === 'company_id' || field === 'pertinence' || field === 'priority') val = parseInt(val, 10);
             prospectData[field] = val;
             p[field] = val;
@@ -727,7 +827,8 @@ window.mpClose = function () {
     // ── Keyboard ──
     function setupKeyboard() {
         document.addEventListener('keydown', function (e) {
-            if (e.target.matches('input, select, textarea')) return;
+            if (e.target.matches('input, select, textarea, .mp-select-trigger, .mp-select-option')) return;
+            if (document.querySelector('.mp-select-dropdown:not([hidden])')) return;
             if (e.key === 'ArrowLeft') { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex - 1); }
             if (e.key === 'ArrowRight') { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex + 1); }
             if (e.key === 'Escape') { e.preventDefault(); window.mpClose(); }

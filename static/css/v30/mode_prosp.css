@@ -422,17 +422,76 @@
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
 }
 textarea.mp-input { height: auto; min-height: 64px; padding: 8px 10px; resize: vertical; }
-select.mp-input {
+select.mp-input { cursor: pointer; } /* fallback pour selects natifs résiduels */
+
+/* ─── Custom select ─── */
+.mp-select { position: relative; width: 100%; }
+
+.mp-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px 0 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: inherit;
   cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 28px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b9db6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 12px 12px;
+  text-align: left;
+  transition: border-color var(--dur-1), box-shadow var(--dur-1), background var(--dur-1);
+  box-sizing: border-box;
 }
-.mp-status-select { font-weight: 500; border-left-width: 3px; }
+.mp-select-trigger:hover { border-color: var(--border-strong); background: var(--surface-3); }
+.mp-select-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
+}
+
+.mp-select-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mp-select-chevron {
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: transform var(--dur-2);
+}
+.mp-select-trigger[aria-expanded="true"] .mp-select-chevron { transform: rotate(180deg); }
+
+/* Dropdown panel — position:fixed + coordonnées injectées par JS */
+.mp-select-dropdown {
+  position: fixed;
+  z-index: 9998;
+  min-width: 160px;
+  max-height: 260px;
+  overflow-y: auto;
+  /* .popover fournit: bg, border, border-radius, box-shadow, padding, gap, flex */
+}
+
+/* Option selected */
+.mp-select-option.is-selected {
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
+}
+.mp-select-option.is-selected:hover {
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+}
+
+/* Statut : bordure gauche colorée via CSS variable */
+.mp-status-select .mp-select-trigger {
+  border-left-width: 3px;
+  border-left-color: var(--status-color, var(--border));
+  font-weight: 500;
+}
 
 .mp-phone-links {
   display: flex;
