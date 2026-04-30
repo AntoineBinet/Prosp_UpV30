@@ -2,6 +2,76 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.16] — 2026-04-30 · Table comparative avant/après pour l'enrichissement IA + bouton Mode Prosp
+
+Suite immédiate à v32.15 : remplace le diff binaire (« coche pour appliquer »)
+par une **table comparative complète avant/après** avec choix d'action par
+champ, et ajoute la suggestion de **tags** par l'IA (clé pour le matching
+prospect ↔ candidat). Bouton d'enrichissement ajouté sur les cards de
+Mode Prosp.
+
+### Table avant / après
+
+- **Tous les champs enrichissables** affichés (fonction, email, téléphone,
+  LinkedIn, tags, notes), même quand l'IA ne propose aucun changement (ligne
+  marquée « identique » et actions désactivées).
+- **3 actions par ligne** :
+  - **Garder avant** — pas de changement
+  - **Garder après** — remplacer par la suggestion IA
+  - **Fusionner** — disponible uniquement pour `tags` (union case-insensitive)
+    et `notes` (append du complément + bloc accroches en remplaçant tout bloc
+    « Accroches IA : » existant)
+- **Sélection par défaut** intelligente :
+  - Identique → `before` (la ligne est grisée)
+  - Avant vide + après non-vide → `after`
+  - Avant non-vide + après vide → `before` (pas de suggestion)
+  - Différent + mergeable → `merge`
+  - Différent + non-mergeable → `after`
+- **Aperçu de la fusion** affiché en plus des colonnes Avant/Après pour les
+  champs mergeables — l'utilisateur voit le résultat exact avant d'appliquer.
+
+### Tags suggérés par l'IA
+
+- Nouveau champ `tags_suggeres` dans le schéma JSON ([static/js/v30/prospect_detail_ui.js](static/js/v30/prospect_detail_ui.js))
+- Prompt explicite à l'IA pour générer 5-10 tags courts et réutilisables
+  couvrant compétences techniques, technologies, méthodologies, secteurs et
+  types de mission. La consigne précise que **plus de tags pertinents = mieux**
+  pour le matching candidat.
+- Fusion par **union case-insensitive** : `["Java", "python"]` ∪
+  `["Python", "Java"]` = `["Java", "python"]` (premier rencontré gagne pour la
+  casse).
+- `validateScrapJson` accepte aussi la clé legacy `tags` en fallback.
+
+### Fix latent : champ `tags` autorisé dans `bulk-edit`
+
+- `ALLOWED_FIELDS` et `ALLOW_EMPTY` de `/api/prospects/bulk-edit`
+  ([app.py:15081](app.py)) incluent désormais `tags`. L'inline tag-add de
+  `prospect_detail_ui.js:160` (qui appelait `FP.saveField('tags', ...)`)
+  appelait silencieusement un endpoint qui rejetait le champ — maintenant
+  fonctionnel.
+
+### Bouton IA sur Mode Prosp
+
+- Bouton **« IA »** ajouté dans la barre de quick-actions de chaque card
+  ([static/js/v30/mode_prosp.js:213](static/js/v30/mode_prosp.js)).
+- Clic → ouvre `/v30/prospect/<id>?ia=scrap` dans un nouvel onglet, ce qui
+  préserve la session Mode Prosp en cours.
+- Nouveau handler `autoOpenIaFromUrl()` dans
+  [prospect_detail_ui.js](static/js/v30/prospect_detail_ui.js) qui détecte
+  `?ia=scrap|before|after` et ouvre la modale correspondante automatiquement,
+  puis nettoie le param via `history.replaceState` pour qu'un rechargement ne
+  redéclenche pas la modale.
+- Style cohérent avec les autres quick-buttons (TEL/MAIL/IN), accent au survol.
+
+### CSS
+
+- Nouvelles classes `.v30-fp-ai-cmp__*` dans
+  [static/css/v30/prospect_detail.css](static/css/v30/prospect_detail.css) :
+  grille 3 colonnes (Champ | Valeurs | Action), header sticky, ligne grisée
+  pour identique, pills numériques (« 5 → 8 tags »), tags affichés en chips
+  avec teinte accent pour les nouveaux. Layout responsive (colonne unique
+  sous 720px).
+
 ## [32.15] — 2026-04-30 · Refonte enrichissement IA des fiches prospect
 
 Suite à un audit complet du flux **Scraping enrichissement** (onglet IA d'une

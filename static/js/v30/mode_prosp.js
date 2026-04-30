@@ -211,6 +211,7 @@ window.mpClose = function () {
         }
         if (p.email) quickActions += '<button type="button" class="mp-quick-btn mp-quick-email" title="Envoyer un email" onclick="window.V30PushModal && window.V30PushModal.open(' + p.id + ', \'email\')">MAIL</button>';
         if (p.linkedin) quickActions += '<a href="' + escapeHtml(p.linkedin) + '" target="_blank" class="mp-quick-btn mp-quick-linkedin" title="LinkedIn">IN</a>';
+        quickActions += '<a href="/v30/prospect/' + p.id + '?ia=scrap" target="_blank" rel="noopener" class="mp-quick-btn mp-quick-ia" title="Enrichir avec l\'IA (ouvre la fiche dans un nouvel onglet)">IA</a>';
 
         // Inline phone links
         var phoneLinkHtml = '';

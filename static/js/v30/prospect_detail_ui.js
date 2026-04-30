@@ -771,9 +771,10 @@
     ctx.push('- Ne fabrique aucune donnée non confirmée par les sources fournies. En cas de doute, laisse vide.');
     ctx.push('- "notes_complement" : court paragraphe (2-4 phrases) résumant le contexte sectoriel ou le parcours — ce sera AJOUTÉ aux notes existantes, pas substitué. Laisse vide si rien de pertinent à ajouter.');
     ctx.push('- "accroches" : 2-3 accroches courtes et concrètes pour démarrer un échange RDV (sujets d\'actualité du secteur, projets visibles, points communs).');
+    ctx.push('- "tags_suggeres" : 5 à 10 tags courts (1-3 mots) couvrant compétences techniques, technologies, méthodologies, secteurs d\'activité, types de mission. Préfère des tags génériques et réutilisables (ex: "Java", "Cloud AWS", "DevOps", "Recrutement IT", "Industrie ferroviaire"). Ils servent à matcher ce prospect avec des candidats — donc plus il y en a de pertinents, mieux c\'est.');
     ctx.push('');
     ctx.push('Réponds UNIQUEMENT en JSON STRICT (sans markdown, sans texte autour) avec ce schéma exact :');
-    ctx.push('{"fonction": "", "tel": "", "email": "", "linkedin": "", "notes_complement": "", "accroches": ["", "", ""]}');
+    ctx.push('{"fonction": "", "tel": "", "email": "", "linkedin": "", "notes_complement": "", "accroches": ["", "", ""], "tags_suggeres": ["", "", "", "", ""]}');
 
     return ctx.join('\n');
   }
@@ -983,7 +984,7 @@
     if (!parsed || typeof parsed !== 'object') {
       return { json: null, warnings: ['JSON invalide'] };
     }
-    var allowed = ['fonction', 'tel', 'telephone', 'email', 'linkedin', 'notes_complement', 'notes', 'accroches', 'entreprise', 'site'];
+    var allowed = ['fonction', 'tel', 'telephone', 'email', 'linkedin', 'notes_complement', 'notes', 'accroches', 'tags_suggeres', 'tags', 'entreprise', 'site'];
     var unknown = Object.keys(parsed).filter(function (k) { return allowed.indexOf(k) === -1; });
     if (unknown.length) warnings.push('clés ignorées : ' + unknown.join(', '));
     // Compat ascendante : si l'IA a renvoyé "notes" au lieu de "notes_complement"
@@ -994,17 +995,27 @@
       warnings.push('accroches non tableau');
       parsed.accroches = [];
     }
+    // Compat : "tags" en fallback si "tags_suggeres" absent
+    if (parsed.tags_suggeres == null && Array.isArray(parsed.tags)) {
+      parsed.tags_suggeres = parsed.tags;
+    }
+    if (parsed.tags_suggeres != null && !Array.isArray(parsed.tags_suggeres)) {
+      warnings.push('tags_suggeres non tableau');
+      parsed.tags_suggeres = [];
+    }
     return { json: parsed, warnings: warnings };
   }
 
-  // Mapping clé JSON → champ prospect côté backend (champs simples)
-  var SCRAP_FIELD_MAP = {
-    fonction: 'fonction',
-    tel: 'telephone',
-    telephone: 'telephone',
-    email: 'email',
-    linkedin: 'linkedin'
-  };
+  // ── Configuration des champs comparés (table avant/après) ──
+  // type: 'text' (replace seul) | 'tags' (union possible) | 'notes' (append possible)
+  var SCRAP_FIELDS = [
+    { jsonKey: 'fonction',         dbField: 'fonction',  label: 'Fonction',  type: 'text' },
+    { jsonKey: 'email',            dbField: 'email',     label: 'Email',     type: 'text' },
+    { jsonKey: 'tel',              dbField: 'telephone', label: 'Téléphone', type: 'text', altKey: 'telephone' },
+    { jsonKey: 'linkedin',         dbField: 'linkedin',  label: 'LinkedIn',  type: 'text' },
+    { jsonKey: 'tags_suggeres',    dbField: 'tags',      label: 'Tags',      type: 'tags' },
+    { jsonKey: 'notes_complement', dbField: 'notes',     label: 'Notes',     type: 'notes' }
+  ];
 
   // Construit la nouvelle valeur de "notes" en fusionnant le complément IA
   // et les accroches, en remplaçant tout bloc « Accroches IA : » existant.
@@ -1012,7 +1023,6 @@
     var base = String(currentNotes || '').replace(ACCROCHES_RE, '').trim();
     if (complement && complement.trim()) {
       var c = complement.trim();
-      // Évite la duplication si le complément est déjà inclus
       if (base.indexOf(c) === -1) {
         base = base ? (base + '\n\n' + c) : c;
       }
@@ -1025,58 +1035,208 @@
     return base;
   }
 
+  // Notes "après" pures (sans les notes existantes) — utilisé quand l'utilisateur
+  // choisit "garder après" : on remplace les notes par le complément + accroches.
+  function buildAfterOnlyNotes(complement, accroches) {
+    return buildMergedNotes('', complement, accroches);
+  }
+
+  // Union case-insensitive de deux listes de tags
+  function unionTags(a, b) {
+    var seen = {};
+    var out = [];
+    function push(arr) {
+      (arr || []).forEach(function (t) {
+        var s = (t == null ? '' : String(t)).trim();
+        if (!s) return;
+        var k = s.toLowerCase();
+        if (seen[k]) return;
+        seen[k] = true;
+        out.push(s);
+      });
+    }
+    push(a);
+    push(b);
+    return out;
+  }
+
+  // Égalité de deux listes (case-insensitive, ordre indifférent)
+  function tagsEqual(a, b) {
+    var na = (a || []).map(function (s) { return String(s || '').trim().toLowerCase(); }).filter(Boolean).sort();
+    var nb = (b || []).map(function (s) { return String(s || '').trim().toLowerCase(); }).filter(Boolean).sort();
+    if (na.length !== nb.length) return false;
+    for (var i = 0; i < na.length; i++) if (na[i] !== nb[i]) return false;
+    return true;
+  }
+
+  // Construit la liste des "rows" pour la table avant/après.
+  // Chaque row = { jsonKey, dbField, label, type, before, after, defaultAction, identical }
+  function buildScrapRows(json, prospect) {
+    var p = prospect || {};
+    var rows = [];
+    SCRAP_FIELDS.forEach(function (cfg) {
+      var row = { jsonKey: cfg.jsonKey, dbField: cfg.dbField, label: cfg.label, type: cfg.type };
+
+      if (cfg.type === 'text') {
+        var raw = json[cfg.jsonKey];
+        if (raw == null && cfg.altKey) raw = json[cfg.altKey];
+        row.before = _displayValue(p[cfg.dbField]);
+        row.after  = _displayValue(raw);
+      } else if (cfg.type === 'tags') {
+        row.before = _currentTagsArr(p);
+        var rawT = Array.isArray(json[cfg.jsonKey]) ? json[cfg.jsonKey] : [];
+        row.after = rawT.map(function (s) { return String(s || '').trim(); }).filter(Boolean);
+      } else if (cfg.type === 'notes') {
+        row.before = _displayValue(p.notes);
+        var complement = typeof json.notes_complement === 'string' ? json.notes_complement.trim() : '';
+        var accroches  = Array.isArray(json.accroches)
+          ? json.accroches.map(function (a) { return (a == null ? '' : String(a)).trim(); }).filter(Boolean)
+          : [];
+        row._complement = complement;
+        row._accroches = accroches;
+        row.after = buildAfterOnlyNotes(complement, accroches); // valeur "après pure" (remplace notes)
+        row.merged = buildMergedNotes(row.before, complement, accroches); // valeur "fusion"
+      }
+
+      // Calcul de l'identicalité et de l'action par défaut
+      if (cfg.type === 'tags') {
+        row.identical = tagsEqual(row.before, row.after);
+      } else if (cfg.type === 'notes') {
+        row.identical = (row.merged === row.before);
+      } else {
+        row.identical = (row.before === row.after);
+      }
+
+      var afterEmpty = cfg.type === 'tags' ? !row.after.length : !row.after;
+      var beforeEmpty = cfg.type === 'tags' ? !row.before.length : !row.before;
+
+      if (row.identical) {
+        row.defaultAction = 'before'; // pas de changement
+      } else if (beforeEmpty && !afterEmpty) {
+        row.defaultAction = 'after';
+      } else if (!beforeEmpty && afterEmpty) {
+        row.defaultAction = 'before'; // pas de suggestion — on garde l'existant
+      } else if (cfg.type === 'tags' || cfg.type === 'notes') {
+        row.defaultAction = 'merge'; // par défaut on fusionne pour tags+notes
+      } else {
+        row.defaultAction = 'after'; // texte simple : on prend la suggestion IA
+      }
+
+      rows.push(row);
+    });
+    return rows;
+  }
+
+  function _renderTagsHtml(arr) {
+    if (!arr || !arr.length) return '<span class="v30-fp-ai-cmp__empty">— vide —</span>';
+    return arr.map(function (t) {
+      return '<span class="v30-fp-ai-cmp__tag">' + FP.esc(t) + '</span>';
+    }).join(' ');
+  }
+
+  function _renderTextHtml(s) {
+    if (!s) return '<span class="v30-fp-ai-cmp__empty">— vide —</span>';
+    return '<span class="v30-fp-ai-cmp__text">' + FP.esc(s).replace(/\n/g, '<br>') + '</span>';
+  }
+
   function renderScrapDiff(host, json) {
     if (!host) return;
     host.innerHTML = '';
     var p = FP.STATE.prospect || {};
-    var rows = [];
-    Object.keys(SCRAP_FIELD_MAP).forEach(function (key) {
-      var field = SCRAP_FIELD_MAP[key];
-      if (!(key in json)) return;
-      var nv = json[key];
-      if (nv == null) return;
-      nv = String(nv).trim();
-      if (!nv) return;
-      var cur = (p[field] == null ? '' : String(p[field])).trim();
-      if (cur === nv) return;
-      // Évite la double-ligne tel/telephone si les deux clés présentes
-      if (rows.some(function (r) { return r.field === field; })) return;
-      rows.push({ field: field, label: key, oldVal: cur, newVal: nv });
-    });
+    var rows = buildScrapRows(json, p);
 
-    // Notes : merge complément + accroches en UNE SEULE ligne (fix bug double-row)
-    var complement = typeof json.notes_complement === 'string' ? json.notes_complement.trim() : '';
-    var accroches = Array.isArray(json.accroches)
-      ? json.accroches.map(function (a) { return (a == null ? '' : String(a)).trim(); }).filter(Boolean)
-      : [];
-    if (complement || accroches.length) {
-      var curNotes = (p.notes == null ? '' : String(p.notes)).trim();
-      var newNotes = buildMergedNotes(curNotes, complement, accroches);
-      if (newNotes !== curNotes) {
-        var lbl = [];
-        if (complement) lbl.push('complément');
-        if (accroches.length) lbl.push(accroches.length + ' accroche(s)');
-        rows.push({ field: 'notes', label: 'notes (' + lbl.join(' + ') + ')', oldVal: curNotes, newVal: newNotes, isMerge: true });
-      }
-    }
+    // Header de la table
+    var head = document.createElement('div');
+    head.className = 'v30-fp-ai-cmp__head';
+    head.innerHTML =
+      '<span class="v30-fp-ai-cmp__col v30-fp-ai-cmp__col--field">Champ</span>' +
+      '<span class="v30-fp-ai-cmp__col v30-fp-ai-cmp__col--values">Avant / Après</span>' +
+      '<span class="v30-fp-ai-cmp__col v30-fp-ai-cmp__col--actions">Action</span>';
+    host.appendChild(head);
 
-    if (!rows.length) {
-      host.innerHTML = '<div class="empty" style="padding:12px;font-size:12px;">Rien à appliquer — l\'IA n\'a pas suggéré de valeur différente.</div>';
-      return;
-    }
     rows.forEach(function (r, idx) {
-      var row = document.createElement('label');
-      row.className = 'v30-fp-ai-diff__row';
-      row.innerHTML =
-        '<input type="checkbox" checked data-ia-diff-idx="' + idx + '">' +
-        '<span class="v30-fp-ai-diff__label">' + FP.esc(r.label) + '</span>' +
-        '<span class="v30-fp-ai-diff__values">' +
-          (r.oldVal ? '<span class="v30-fp-ai-diff__old">' + FP.esc(r.oldVal) + '</span>' : '') +
-          '<span class="v30-fp-ai-diff__new">' + FP.esc(r.newVal) + '</span>' +
-        '</span>';
-      host.appendChild(row);
+      var rowEl = document.createElement('div');
+      rowEl.className = 'v30-fp-ai-cmp__row' + (r.identical ? ' is-identical' : '');
+      rowEl.dataset.rowIdx = idx;
+
+      var beforeHtml, afterHtml, mergedHtml;
+      if (r.type === 'tags') {
+        beforeHtml = _renderTagsHtml(r.before);
+        afterHtml  = _renderTagsHtml(r.after);
+        mergedHtml = _renderTagsHtml(unionTags(r.before, r.after));
+      } else {
+        beforeHtml = _renderTextHtml(r.before);
+        afterHtml  = _renderTextHtml(r.type === 'notes' ? r.after : r.after);
+        mergedHtml = (r.type === 'notes') ? _renderTextHtml(r.merged) : '';
+      }
+
+      var canMerge = (r.type === 'tags' || r.type === 'notes');
+      var name = 'scrap-action-' + idx;
+      var pillTxt = '';
+      if (r.identical) pillTxt = 'identique';
+      else if (r.type === 'tags') pillTxt = r.before.length + ' → ' + r.after.length + ' tags';
+      else if (r.type === 'notes') pillTxt = (r._complement ? 'compl.' : '') + (r._complement && r._accroches.length ? ' + ' : '') + (r._accroches.length ? r._accroches.length + ' accr.' : '');
+
+      var actionsHtml =
+        '<label class="v30-fp-ai-cmp__action"><input type="radio" name="' + name + '" value="before"' +
+          (r.defaultAction === 'before' ? ' checked' : '') + '> Garder avant</label>' +
+        '<label class="v30-fp-ai-cmp__action"><input type="radio" name="' + name + '" value="after"' +
+          (r.defaultAction === 'after' ? ' checked' : '') +
+          (r.identical || (r.type === 'tags' ? !r.after.length : !r.after) ? ' disabled' : '') +
+        '> Garder après</label>' +
+        (canMerge ? (
+          '<label class="v30-fp-ai-cmp__action"><input type="radio" name="' + name + '" value="merge"' +
+            (r.defaultAction === 'merge' ? ' checked' : '') +
+            (r.identical ? ' disabled' : '') +
+          '> Fusionner</label>'
+        ) : '');
+
+      rowEl.innerHTML =
+        '<div class="v30-fp-ai-cmp__col v30-fp-ai-cmp__col--field">' +
+          '<div class="v30-fp-ai-cmp__label">' + FP.esc(r.label) + '</div>' +
+          (pillTxt ? '<div class="v30-fp-ai-cmp__pill">' + FP.esc(pillTxt) + '</div>' : '') +
+        '</div>' +
+        '<div class="v30-fp-ai-cmp__col v30-fp-ai-cmp__col--values">' +
+          '<div class="v30-fp-ai-cmp__before"><span class="v30-fp-ai-cmp__leg">Avant</span>' + beforeHtml + '</div>' +
+          '<div class="v30-fp-ai-cmp__after"><span class="v30-fp-ai-cmp__leg">Après</span>' + afterHtml + '</div>' +
+          (canMerge && !r.identical ? '<div class="v30-fp-ai-cmp__merged"><span class="v30-fp-ai-cmp__leg">Fusion</span>' + mergedHtml + '</div>' : '') +
+        '</div>' +
+        '<div class="v30-fp-ai-cmp__col v30-fp-ai-cmp__col--actions">' + actionsHtml + '</div>';
+
+      host.appendChild(rowEl);
     });
+
     host._rows = rows;
+  }
+
+  // Calcule la valeur finale à sauvegarder pour un row donné selon l'action choisie.
+  // Retourne { changed, value } — value est null si action=before (pas de changement).
+  function computeRowFinal(row, action) {
+    if (action === 'before') return { changed: false, value: null };
+    if (row.type === 'text') {
+      if (action === 'after') {
+        if (row.after === row.before) return { changed: false, value: null };
+        return { changed: true, value: row.after };
+      }
+      return { changed: false, value: null };
+    }
+    if (row.type === 'tags') {
+      var newArr;
+      if (action === 'after')      newArr = row.after.slice();
+      else if (action === 'merge') newArr = unionTags(row.before, row.after);
+      else                          return { changed: false, value: null };
+      if (tagsEqual(newArr, row.before)) return { changed: false, value: null };
+      return { changed: true, value: JSON.stringify(newArr) };
+    }
+    if (row.type === 'notes') {
+      var v;
+      if (action === 'after')      v = row.after;   // "après pur" : remplace notes
+      else if (action === 'merge') v = row.merged;  // fusion notes existantes + IA
+      else                          return { changed: false, value: null };
+      if (v === row.before) return { changed: false, value: null };
+      return { changed: true, value: v };
+    }
+    return { changed: false, value: null };
   }
 
   function applyScrap() {
@@ -1084,27 +1244,31 @@
     if (!m) return;
     var host = m.querySelector('[data-v30-fp-scrap-diff]');
     var apply = m.querySelector('[data-v30-fp-scrap-apply]');
-    if (!host || !host._rows) { toast('Rien à appliquer', 'warning'); return; }
-    var selected = [];
-    host.querySelectorAll('input[type="checkbox"][data-ia-diff-idx]').forEach(function (cb) {
-      if (cb.checked) {
-        var idx = Number(cb.dataset.iaDiffIdx);
-        if (host._rows[idx]) selected.push(host._rows[idx]);
-      }
+    if (!host || !host._rows || !host._rows.length) { toast('Rien à appliquer', 'warning'); return; }
+
+    var changes = [];
+    host._rows.forEach(function (r, idx) {
+      var rowEl = host.querySelector('[data-row-idx="' + idx + '"]');
+      if (!rowEl) return;
+      var checked = rowEl.querySelector('input[type="radio"]:checked');
+      var action = checked ? checked.value : r.defaultAction;
+      var res = computeRowFinal(r, action);
+      if (res.changed) changes.push({ row: r, action: action, value: res.value });
     });
-    if (!selected.length) { toast('Aucun champ sélectionné', 'warning'); return; }
+
+    if (!changes.length) { toast('Aucun changement à appliquer', 'info'); closeFPModal(m); return; }
     if (apply) apply.disabled = true;
 
     var ok = [];
     var failed = [];
     var chain = Promise.resolve();
-    selected.forEach(function (r) {
+    changes.forEach(function (c) {
       chain = chain.then(function () {
-        return FP.saveField(r.field, r.newVal).then(function () {
-          if (FP.STATE.prospect) FP.STATE.prospect[r.field] = r.newVal;
-          ok.push(r);
+        return FP.saveField(c.row.dbField, c.value).then(function () {
+          if (FP.STATE.prospect) FP.STATE.prospect[c.row.dbField] = c.value;
+          ok.push(c);
         }).catch(function (err) {
-          failed.push({ row: r, err: err });
+          failed.push({ change: c, err: err });
         });
       });
     });
@@ -1120,19 +1284,19 @@
         flashSaved();
       } else if (ok.length && failed.length) {
         toast(ok.length + ' champ(s) appliqué(s), ' + failed.length + ' échec(s) : ' +
-          failed.map(function (f) { return f.row.label; }).join(', '), 'warning');
+          failed.map(function (f) { return f.change.row.label; }).join(', '), 'warning');
         flashSaved();
       } else {
-        toast('Échec sur tous les champs : ' + failed.map(function (f) { return f.row.label; }).join(', '), 'error');
+        toast('Échec sur tous les champs : ' + failed.map(function (f) { return f.change.row.label; }).join(', '), 'error');
       }
 
       if (ok.length) {
-        var fields = ok.map(function (r) { return r.label || r.field; });
-        // Badge picker IA
+        var fields = ok.map(function (c) {
+          return c.row.label + (c.action === 'merge' ? ' (fusion)' : (c.action === 'after' ? ' (remplacé)' : ''));
+        });
         logIaRun('scrap', 'Champs appliqués : ' + fields.join(', '), {
           field_count: ok.length, fields: fields
         });
-        // Event timeline dédié à l'enrichissement
         FP.fetchPostJSON('/api/ia-enrichment-log', {
           type: 'prospect',
           entity_id: FP.ID,
@@ -2701,6 +2865,30 @@
     setTimeout(checkUpcomingRdvs, 3000);
     // Compteur de l'onglet CR — appel léger en arrière-plan
     if (typeof loadCRTab === 'function') loadCRTab();
+    // Auto-ouverture de la modale d'enrichissement IA via ?ia=scrap
+    // (utilisé depuis Mode Prosp pour lancer l'enrichissement directement).
+    autoOpenIaFromUrl();
+  }
+
+  function autoOpenIaFromUrl() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var ia = params.get('ia');
+      if (!ia) return;
+      // Délai pour laisser FP.STATE.prospect se peupler depuis le DOM
+      setTimeout(function () {
+        if (ia === 'scrap') openScrapModal();
+        else if (ia === 'before') openBeforeModal();
+        else if (ia === 'after')  openAfterModal();
+        // Nettoie le param URL pour qu'un rechargement n'ouvre pas à nouveau la modale
+        try {
+          params.delete('ia');
+          var newSearch = params.toString();
+          var newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+          window.history.replaceState({}, '', newUrl);
+        } catch (_) {}
+      }, 350);
+    } catch (_) {}
   }
 
   if (document.readyState === 'loading') {
