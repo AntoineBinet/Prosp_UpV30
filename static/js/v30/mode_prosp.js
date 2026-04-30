@@ -268,6 +268,68 @@ window.mpClose = function () {
     // Ferme tous les selects custom au clic extérieur (une seule fois au chargement)
     document.addEventListener('click', _closeAllSelects);
 
+    // ── Keyboard-shortcut tooltips ──
+    var _tipEl = null, _tipTimer = null;
+
+    function _getTipEl() {
+        if (!_tipEl) {
+            _tipEl = document.createElement('div');
+            _tipEl.className = 'mp-kbd-tip';
+            document.body.appendChild(_tipEl);
+        }
+        return _tipEl;
+    }
+
+    function _showTip(el, key) {
+        clearTimeout(_tipTimer);
+        _tipTimer = setTimeout(function () {
+            var tip = _getTipEl();
+            tip.textContent = key;
+            tip.classList.remove('is-visible');
+            // Forcer un reflow pour que offsetWidth soit correct avant positionnement
+            tip.style.visibility = 'hidden';
+            tip.classList.add('is-visible');
+            var rect = el.getBoundingClientRect();
+            var tipW = tip.offsetWidth;
+            var tipH = tip.offsetHeight;
+            var top = rect.bottom + 5;
+            if (top + tipH > window.innerHeight - 6) top = rect.top - tipH - 5;
+            var left = rect.left + rect.width / 2 - tipW / 2;
+            left = Math.max(4, Math.min(left, window.innerWidth - tipW - 4));
+            tip.style.top = top + 'px';
+            tip.style.left = left + 'px';
+            tip.style.visibility = '';
+        }, 600);
+    }
+
+    function _hideTip() {
+        clearTimeout(_tipTimer);
+        if (_tipEl) _tipEl.classList.remove('is-visible');
+    }
+
+    function mpInitTooltips(card) {
+        var pairs = [
+            { selector: '.mp-quick-call',                      key: 'C' },
+            { selector: '.mp-quick-email',                     key: 'M' },
+            { selector: '.mp-status-select .mp-select-trigger', key: 'S' },
+            { selector: '.mp-save-btn',                        key: '↵' },
+        ];
+        pairs.forEach(function (p) {
+            var el = card.querySelector(p.selector);
+            if (!el) return;
+            el.addEventListener('mouseenter', function () { _showTip(el, p.key); });
+            el.addEventListener('mouseleave', _hideTip);
+        });
+        // Flèches de navigation : init une seule fois (éléments statiques)
+        [{ id: 'mpPrev', key: '←' }, { id: 'mpNext', key: '→' }].forEach(function (a) {
+            var el = document.getElementById(a.id);
+            if (!el || el.dataset.tipBound) return;
+            el.dataset.tipBound = '1';
+            el.addEventListener('mouseenter', function () { _showTip(el, a.key); });
+            el.addEventListener('mouseleave', _hideTip);
+        });
+    }
+
     // ── Build card HTML (2-column: form left + timeline right) ──
     function buildCardHtml(p) {
         var company = getCompany(p.company_id);
@@ -408,8 +470,11 @@ window.mpClose = function () {
             card.classList.remove('mp-entering-next', 'mp-entering-prev', 'mp-entering-init');
         }, { once: true });
 
-        // Wire up custom selects
+        // Cacher le tooltip d'un éventuel hover sur la carte précédente
+        _hideTip();
+        // Wire up custom selects + tooltips clavier
         mpInitSelects(card);
+        mpInitTooltips(card);
 
         // Status change => update hero color + date picker
         var statusSelect = card.querySelector('[data-field="statut"]');
@@ -829,9 +894,33 @@ window.mpClose = function () {
         document.addEventListener('keydown', function (e) {
             if (e.target.matches('input, select, textarea, .mp-select-trigger, .mp-select-option')) return;
             if (document.querySelector('.mp-select-dropdown:not([hidden])')) return;
-            if (e.key === 'ArrowLeft') { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex - 1); }
-            if (e.key === 'ArrowRight') { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex + 1); }
-            if (e.key === 'Escape') { e.preventDefault(); window.mpClose(); }
+            // Navigation
+            if (e.key === 'ArrowLeft')  { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex - 1); return; }
+            if (e.key === 'ArrowRight') { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex + 1); return; }
+            if (e.key === 'Escape')     { e.preventDefault(); window.mpClose(); return; }
+            // Ignorer les combinaisons avec modificateurs (Ctrl/Cmd/Alt)
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            // Raccourcis actions
+            if (e.key === 'c' || e.key === 'C') {
+                e.preventDefault();
+                var callBtn = viewport.querySelector('.mp-quick-call');
+                if (callBtn) callBtn.click();
+            } else if (e.key === 's' || e.key === 'S') {
+                e.preventDefault();
+                var statusTrig = viewport.querySelector('.mp-status-select .mp-select-trigger');
+                if (statusTrig) { statusTrig.focus(); statusTrig.click(); }
+            } else if (e.key === 'm' || e.key === 'M') {
+                e.preventDefault();
+                var mailBtn = viewport.querySelector('.mp-quick-email');
+                if (mailBtn) mailBtn.click();
+            } else if (e.key === 'n' || e.key === 'N') {
+                e.preventDefault();
+                var noteInput = document.getElementById('mpTlInput');
+                if (noteInput) { noteInput.focus(); noteInput.scrollIntoView({ block: 'nearest' }); }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                window.mpSaveCard();
+            }
         });
     }
 
