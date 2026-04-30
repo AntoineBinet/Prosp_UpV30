@@ -63,6 +63,7 @@
     var zone = $('[data-v30-dc-drop-zone]');
     var fileInput = $('[data-v30-dc-file-input]');
     var fileName = $('[data-v30-dc-file-name]');
+    var uploadInner = zone && zone.querySelector('.v30-dc__upload-inner');
     if (!zone || !fileInput) return;
 
     function setFile(file) {
@@ -72,6 +73,7 @@
         fileName.textContent = file.name;
         fileName.hidden = false;
       }
+      if (uploadInner) uploadInner.hidden = true;
       zone.classList.add('has-file');
       zone.classList.remove('is-over');
     }
@@ -134,6 +136,27 @@
   }
 
   // ─── Generation ────────────────────────────────────────
+  var _STEP_LABELS = {
+    'Fichier reçu':         'Lecture du fichier CV…',
+    'Extraction texte PDF': 'Extraction du texte PDF…',
+    'Extraction texte DOCX':'Extraction du texte DOCX…',
+    'PDF extrait':          'Texte extrait, envoi à l\'IA…',
+    'DOCX extrait':         'Texte extrait, envoi à l\'IA…',
+    'Envoi à l\'IA':        'Analyse par l\'IA locale… (1–3 min)',
+    'Extraction IA OK':     'Analyse terminée, génération du document…',
+    'Génération du fichier':'Génération du DOCX…',
+    'DOCX généré':          'Finalisation…',
+    'Pas de CV':            'Génération avec les données candidat…',
+    'Extraction basique':   'Extraction sans IA, génération…',
+  };
+
+  function setProgressLabel(msg) {
+    var label = $('[data-v30-dc-progress-label]');
+    if (!label) return;
+    var found = Object.keys(_STEP_LABELS).find(function (k) { return msg.indexOf(k) !== -1; });
+    if (found) label.textContent = _STEP_LABELS[found];
+  }
+
   function setGenerating(on) {
     var genArea = $('[data-v30-dc-generate-area]');
     var progress = $('[data-v30-dc-progress]');
@@ -143,27 +166,7 @@
     if (progress) progress.hidden = !on;
     if (result) result.hidden = true;
     if (errEl) errEl.hidden = true;
-  }
-
-  function clearLog() {
-    var logEl = $('[data-v30-dc-log]');
-    if (logEl) { logEl.innerHTML = ''; logEl.hidden = true; }
-  }
-
-  function appendLog(msg, level) {
-    var logEl = $('[data-v30-dc-log]');
-    if (!logEl) return;
-    logEl.hidden = false;
-    var line = document.createElement('div');
-    var cls = 'v30-dc__log-line';
-    if (level === 'error') cls += ' is-error';
-    else if (level === 'warn') cls += ' is-warn';
-    else if (msg.charAt(0) === '✓') cls += ' is-ok';
-    line.className = cls;
-    var ts = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    line.textContent = '[' + ts + '] ' + msg;
-    logEl.appendChild(line);
-    logEl.scrollTop = logEl.scrollHeight;
+    if (on) setProgressLabel('Initialisation…');
   }
 
   function showResult(data) {
@@ -178,7 +181,7 @@
     if (nameEl) nameEl.textContent = data.filename || 'DC généré';
     if (dateEl) {
       var label = 'Généré ' + (data.generated_at || '');
-      if (data.used_ollama) label += ' · extraction IA ✓';
+      if (data.used_ollama) label += ' · IA ✓';
       else if (data.ollama_available === false) label += ' · IA indisponible';
       dateEl.textContent = label;
     }
@@ -189,26 +192,17 @@
     }
     addToHistory({ filename: data.filename, date: data.generated_at, url: _downloadUrl });
 
+    var missing = data.missing_fields || [];
     if (data.used_ollama) {
-      var missing = data.missing_fields || [];
       if (missing.length) {
-        if (window.showToast) window.showToast(
-          'DC généré · champs à compléter dans le DOCX : ' + missing.join(', '),
-          'warning', 6000
-        );
+        if (window.showToast) window.showToast('DC généré · champs à compléter : ' + missing.join(', '), 'warning', 6000);
       } else {
-        if (window.showToast) window.showToast('DC généré avec succès par l\'IA ✓', 'success', 3000);
+        if (window.showToast) window.showToast('DC généré avec succès ✓', 'success', 3000);
       }
     } else if (data.ollama_available === false) {
-      if (window.showToast) window.showToast(
-        'Erreur réseau IA — vérifiez les logs serveur.',
-        'error', 6000
-      );
+      if (window.showToast) window.showToast('IA indisponible — le DC contient des champs [À COMPLÉTER].', 'warning', 6000);
     } else {
-      if (window.showToast) window.showToast(
-        'DC généré — l\'IA n\'a pas pu extraire toutes les données, les champs sont à [À COMPLÉTER].',
-        'warning', 6000
-      );
+      if (window.showToast) window.showToast('DC généré — champs à compléter manuellement dans le DOCX.', 'warning', 5000);
     }
   }
 
@@ -226,7 +220,6 @@
   }
 
   function generate() {
-    clearLog();
     setGenerating(true);
 
     var fd = new FormData();
@@ -263,7 +256,7 @@
               try {
                 var ev = JSON.parse(line.slice(6));
                 if (ev.type === 'log') {
-                  appendLog(ev.msg, ev.level || 'info');
+                  setProgressLabel(ev.msg);
                 } else if (ev.type === 'result') {
                   if (ev.success) showResult(ev);
                   else showError(ev.error || 'Échec');
@@ -286,7 +279,6 @@
   var _history = [];
 
   function addToHistory(_item) {
-    // After a fresh generation, refetch full history from server
     loadHistory();
   }
 
@@ -304,7 +296,7 @@
     });
   }
 
-  function _historyItemHTML(h, compact) {
+  function _historyItemHTML(h) {
     var actions = '';
     if (h.exists !== false) {
       actions += '<a class="btn btn-ghost btn-sm" href="' + esc(h.download_url || '#') + '" target="_blank" rel="noopener" download>Télécharger</a>';
@@ -316,27 +308,27 @@
       ? '<div class="v30-dc__hist-cand muted" style="font-size:11px;">' + esc(h.candidate_name) + (h.candidate_role ? ' · ' + esc(h.candidate_role) : '') + '</div>'
       : '';
     var ollamaBadge = h.used_ollama
-      ? ' <span class="badge badge-dot" title="Extraction IA locale">IA</span>'
+      ? ' <span class="badge badge-dot" title="Extraction IA">IA</span>'
       : '';
     return '<div class="v30-dc__hist-item" data-hist-id="' + esc(h.id) + '">' +
       '<div class="v30-dc__hist-name">' + esc(h.filename || '—') + ollamaBadge + '</div>' +
       candLine +
-      '<div class="v30-dc__hist-date muted" style="font-size:11px;">' + esc(h.generated_at_human || '') + '</div>' +
-      '<div class="v30-dc__hist-actions" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">' + actions + '</div>' +
+      '<div class="v30-dc__hist-date muted">' + esc(h.generated_at_human || '') + '</div>' +
+      '<div class="v30-dc__hist-actions">' + actions + '</div>' +
     '</div>';
   }
 
   function renderHistory() {
     var host = $('[data-v30-dc-history]');
     var side = $('[data-v30-dc-history-side]');
-    var emptyMsg = '<div class="empty" style="font-size:12px;color:var(--text-3);padding:8px 0;">Aucun DC généré pour le moment.</div>';
+    var emptyMsg = '<div class="empty v30-dc__empty-msg">Aucun DC généré pour le moment.</div>';
     if (!_history.length) {
       if (host) host.innerHTML = emptyMsg;
       if (side) side.innerHTML = emptyMsg;
       return;
     }
-    if (host) host.innerHTML = _history.map(function (h) { return _historyItemHTML(h, false); }).join('');
-    if (side) side.innerHTML = _history.slice(0, 5).map(function (h) { return _historyItemHTML(h, true); }).join('');
+    if (host) host.innerHTML = _history.map(function (h) { return _historyItemHTML(h); }).join('');
+    if (side) side.innerHTML = _history.slice(0, 5).map(function (h) { return _historyItemHTML(h); }).join('');
   }
 
   function deleteHistory(genId) {
@@ -357,7 +349,7 @@
     });
   }
 
-  // ─── Tabs (Générateur | Historique) ─────────────────────
+  // ─── Tabs ───────────────────────────────────────────────
   function switchTab(tab) {
     var btns = document.querySelectorAll('[data-v30-dc-tab-btn]');
     var panels = document.querySelectorAll('[data-v30-dc-tab-panel]');
@@ -380,19 +372,14 @@
 
     document.addEventListener('click', function (e) {
       var tabBtn = e.target.closest('[data-v30-dc-tab-btn]');
-      if (tabBtn) {
-        switchTab(tabBtn.getAttribute('data-v30-dc-tab-btn')); return;
-      }
+      if (tabBtn) { switchTab(tabBtn.getAttribute('data-v30-dc-tab-btn')); return; }
+
       var delBtn = e.target.closest('[data-v30-dc-hist-del]');
-      if (delBtn) {
-        deleteHistory(delBtn.getAttribute('data-v30-dc-hist-del')); return;
-      }
-      if (e.target.closest('[data-v30-dc-open-interview]')) {
-        openInterviewModal(); return;
-      }
-      if (e.target.closest('[data-v30-dc-generate]')) {
-        generate(); return;
-      }
+      if (delBtn) { deleteHistory(delBtn.getAttribute('data-v30-dc-hist-del')); return; }
+
+      if (e.target.closest('[data-v30-dc-open-interview]')) { openInterviewModal(); return; }
+      if (e.target.closest('[data-v30-dc-generate]'))       { generate(); return; }
+
       if (e.target.closest('[data-v30-dc-retry]')) {
         var genArea = $('[data-v30-dc-generate-area]');
         var errEl = $('[data-v30-dc-error]');
@@ -400,17 +387,14 @@
         if (errEl) errEl.hidden = true;
         return;
       }
-      if (e.target.closest('[data-v30-dc-interview-save]')) {
-        saveInterviewModal(); return;
-      }
+      if (e.target.closest('[data-v30-dc-interview-save]')) { saveInterviewModal(); return; }
+
       var closeBtn = e.target.closest('[data-v30-modal-close]');
       if (closeBtn && closeBtn.closest('[data-v30-dc-interview-modal]')) {
         document.querySelector('[data-v30-dc-interview-modal]').hidden = true; return;
       }
       var backdrop = e.target.closest('[data-v30-dc-interview-modal]');
-      if (backdrop && e.target === backdrop) {
-        backdrop.hidden = true; return;
-      }
+      if (backdrop && e.target === backdrop) { backdrop.hidden = true; return; }
     });
 
     document.addEventListener('keydown', function (e) {

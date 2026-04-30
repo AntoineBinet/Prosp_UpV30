@@ -17,7 +17,7 @@
     <div class="page-header__group">
       <p class="page-eyebrow">Export candidat</p>
       <h1 class="page-title">Dossier de compétence.</h1>
-      <p class="page-sub">Génère un DOCX à partir d'une fiche candidat et d'un CV.</p>
+      <p class="page-sub">Génère un DOCX structuré à partir d'un CV et d'une fiche candidat.</p>
     </div>
     <div class="page-header__actions">
       <div class="segmented" role="tablist" aria-label="Onglets DC">
@@ -94,10 +94,12 @@
         <div class="v30-dc__upload-zone" data-v30-dc-drop-zone>
           <input type="file" id="v30-dc-cv-file" data-v30-dc-file-input
                  accept=".pdf,.docx,.doc" style="display:none;">
-          <div class="v30-dc__upload-icon">{{ ui.icon('upload', 24) }}</div>
-          <div class="v30-dc__upload-label">Glissez un CV ici (PDF ou DOCX)</div>
-          <div class="v30-dc__upload-sub">ou</div>
-          <label for="v30-dc-cv-file" class="btn btn-ghost btn-sm" style="cursor:pointer;">
+          <div class="v30-dc__upload-inner">
+            <div class="v30-dc__upload-icon">{{ ui.icon('upload', 20) }}</div>
+            <div class="v30-dc__upload-label">Glissez un CV ici</div>
+            <div class="v30-dc__upload-sub">PDF ou DOCX</div>
+          </div>
+          <label for="v30-dc-cv-file" class="btn btn-ghost btn-sm v30-dc__upload-btn" style="cursor:pointer;">
             Parcourir…
           </label>
           <div class="v30-dc__upload-file" data-v30-dc-file-name hidden></div>
@@ -110,9 +112,9 @@
           <span class="v30-dc__step-num">03</span>
           <div style="flex:1;min-width:0;">
             <div class="card-title">{{ ui.icon('file', 14) }} Données entretien</div>
-            <p class="card-sub" style="margin-top:2px;">Pré-remplit le DC avec les infos d'entretien.</p>
+            <p class="card-sub" style="margin-top:1px;font-size:12px;color:var(--text-3);">Date, lieu, notes, évaluation technique.</p>
           </div>
-          <button type="button" class="btn btn-accent-soft btn-sm" data-v30-dc-open-interview>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-dc-open-interview>
             {{ ui.icon('edit', 13) }} Renseigner
           </button>
         </div>
@@ -126,34 +128,40 @@
           <div class="card-title">{{ ui.icon('report', 14) }} Générer le dossier</div>
         </div>
 
-        <div class="v30-dc__generate-area" data-v30-dc-generate-area>
+        <div data-v30-dc-generate-area>
           <button type="button" class="btn btn-primary v30-dc__generate-btn" data-v30-dc-generate>
             {{ ui.icon('report', 15) }} Générer le DC
           </button>
+          <p class="v30-dc__generate-hint">L'IA analyse le CV et remplit le dossier automatiquement (1–3 min).</p>
         </div>
 
         <div class="v30-dc__progress" data-v30-dc-progress hidden>
-          <div class="v30-dc__progress-bar" data-v30-dc-progress-bar></div>
-          <div class="v30-dc__progress-label" data-v30-dc-progress-label>Extraction IA en cours… (1-2 min)</div>
+          <div class="v30-dc__progress-track">
+            <div class="v30-dc__progress-bar"></div>
+          </div>
+          <div class="v30-dc__progress-status">
+            <span class="v30-dc__progress-dot"></span>
+            <span data-v30-dc-progress-label>Initialisation…</span>
+          </div>
         </div>
 
-        <div class="v30-dc__log" data-v30-dc-log hidden></div>
-
         <div class="v30-dc__result" data-v30-dc-result hidden>
-          <div class="v30-dc__result-icon">{{ ui.icon('check', 18) }}</div>
+          <div class="v30-dc__result-icon">{{ ui.icon('check', 16) }}</div>
           <div class="v30-dc__result-body">
             <div class="v30-dc__result-name" data-v30-dc-result-name>DC généré</div>
             <div class="v30-dc__result-date" data-v30-dc-result-date></div>
           </div>
-          <a class="btn btn-accent" data-v30-dc-download>
+          <a class="btn btn-primary btn-sm" data-v30-dc-download>
             {{ ui.icon('arrowD', 13) }} Télécharger
           </a>
         </div>
 
         <div class="v30-dc__error" data-v30-dc-error hidden>
           <div class="v30-dc__error-icon">{{ ui.icon('x', 14) }}</div>
-          <div class="v30-dc__error-msg" data-v30-dc-error-msg></div>
-          <button type="button" class="btn btn-ghost btn-sm" data-v30-dc-retry>Réessayer</button>
+          <div class="v30-dc__error-body">
+            <div class="v30-dc__error-msg" data-v30-dc-error-msg></div>
+            <button type="button" class="btn btn-ghost btn-sm" style="margin-top:8px;" data-v30-dc-retry>Réessayer</button>
+          </div>
         </div>
       </div>
 
@@ -196,7 +204,7 @@
       </div>
       <div class="v30-dc__modal-field">
         <label class="label" for="v30-dc-int-lieu">Lieu</label>
-        <input type="text" id="v30-dc-int-lieu" class="input" name="entretien_lieu" placeholder="Ex: Visio / Bureau Paris">
+        <input type="text" id="v30-dc-int-lieu" class="input" name="entretien_lieu" placeholder="Ex : Visio / Bureau Paris">
       </div>
       <div class="v30-dc__modal-field">
         <label class="label" for="v30-dc-int-notes">Notes entretien</label>
