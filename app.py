@@ -1478,14 +1478,44 @@ def _auth_conn() -> sqlite3.Connection:
 
 
 def _user_db_path(user_id: int) -> Path:
-    """Chemin de la DB d'un utilisateur. Retourne la per-user DB si elle existe et n'est pas vide, sinon DB_PATH."""
+    """Chemin de la DB d'un utilisateur. Retourne la per-user DB UNIQUEMENT
+    si elle contient déjà des données métier (prospects ou companies).
+
+    v32.14 — Avant on se contentait d'un `st_size > 0`, mais une DB SQLite
+    « vide » peut peser plusieurs centaines de Ko si init_db y a tourné
+    sans qu'aucune ligne ne soit insérée. Ça pouvait masquer la DB
+    principale (où sont vraiment les données) et faire disparaître
+    prospects/companies/candidates côté UI. Désormais on vérifie
+    explicitement qu'au moins une table métier a au moins une ligne ;
+    sinon on fallback sur DB_PATH.
+    """
     user_db = DATA_DIR / f"user_{user_id}" / "prospects.db"
-    if user_db.exists():
+    if not user_db.exists():
+        return DB_PATH
+    try:
+        if user_db.stat().st_size <= 0:
+            return DB_PATH
+    except OSError:
+        return DB_PATH
+    # Sanity check : la DB user doit contenir au moins quelques lignes
+    # dans une des tables principales. Sinon → fallback DB_PATH.
+    try:
+        probe = sqlite3.connect(user_db)
         try:
-            if user_db.stat().st_size > 0:
-                return user_db
-        except OSError:
-            pass
+            for tbl in ("prospects", "companies", "candidates"):
+                try:
+                    n = probe.execute(f"SELECT COUNT(*) FROM {tbl};").fetchone()[0]
+                    if n and n > 0:
+                        return user_db
+                except sqlite3.OperationalError:
+                    # Table absente → on continue avec la suivante
+                    continue
+        finally:
+            probe.close()
+    except Exception as exc:
+        logger.warning("Probe per-user DB %s a échoué : %s — fallback DB_PATH", user_db, exc)
+        return DB_PATH
+    # Aucune table métier ne contient de données → DB user vide → DB_PATH
     return DB_PATH
 
 
