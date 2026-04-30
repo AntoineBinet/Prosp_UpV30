@@ -7483,8 +7483,8 @@ def api_candidates_upload_dc():
 
 @app.get("/api/candidates/<int:cid>/dc-status")
 def api_candidate_dc_status(cid):
-    """Vérifie si un DC est présent pour le candidat (nouveau stockage + ancien champ).
-    Retourne: { ok, has_dc, files: [filename, ...] }
+    """Vérifie si un DC est présent pour le candidat.
+    Retourne: { ok, has_dc, files: [filename], generated: [{id, filename, generated_at, download_url}] }
     """
     uid = _uid()
     if not uid:
@@ -7494,14 +7494,39 @@ def api_candidate_dc_status(cid):
             "SELECT dossier_competence_pdf FROM candidates WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
             (cid, uid)
         ).fetchone()
-    if not row:
-        return jsonify(ok=False, error="Candidat introuvable"), 404
+        if not row:
+            return jsonify(ok=False, error="Candidat introuvable"), 404
+        # DC générés via le générateur (table dc_generations)
+        gen_rows = conn.execute(
+            "SELECT id, filename, generated_at, used_ollama FROM dc_generations "
+            "WHERE candidate_id=? AND owner_id=? AND deleted_at IS NULL "
+            "ORDER BY generated_at DESC LIMIT 5;",
+            (cid, uid)
+        ).fetchall()
+
     dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cid)
     files = sorted([f.name for f in dc_dir.glob("*.pdf")]) if dc_dir.is_dir() else []
     # Fallback: ancien champ texte
     if not files and row["dossier_competence_pdf"]:
         files = [Path(row["dossier_competence_pdf"]).name]
-    return jsonify(ok=True, has_dc=bool(files), files=files)
+
+    generated = []
+    for g in (gen_rows or []):
+        try:
+            gen_dt = datetime.datetime.fromisoformat(g["generated_at"])
+            gen_label = gen_dt.strftime('%d/%m/%Y à %H:%M')
+        except Exception:
+            gen_label = g["generated_at"] or ''
+        generated.append({
+            'id':           g["id"],
+            'filename':     g["filename"] or '',
+            'generated_at': gen_label,
+            'used_ollama':  bool(g["used_ollama"]),
+            'download_url': f'/api/dc/{g["id"]}/download',
+        })
+
+    has_dc = bool(files) or bool(generated)
+    return jsonify(ok=True, has_dc=has_dc, files=files, generated=generated)
 
 
 @app.post("/api/candidates/<int:cid>/dc-rename")
@@ -21811,7 +21836,8 @@ def dc_generator_generate():
                     if extracted and (extracted.get('competences') or extracted.get('nom')):
                         cv_data = extracted
                         ollama_ok = True
-                        logger.info("DC Generator: Ollama extraction OK")
+                        logger.info("DC Generator: Ollama extraction OK (missing=%s)",
+                                    extracted.get('_missing', []))
                 except Exception as _oe:
                     logger.warning("DC Generator: Ollama extraction failed: %s", _oe)
 
@@ -21883,6 +21909,7 @@ def dc_generator_generate():
             conn.commit()
 
         import urllib.parse as _urlparse
+        missing_fields = cv_data.pop('_missing', []) if isinstance(cv_data, dict) else []
         return jsonify({
             'success': True,
             'id': gen_id,
@@ -21890,6 +21917,7 @@ def dc_generator_generate():
             'filename': nom_dl,
             'generated_at': datetime.datetime.now().strftime('%d/%m/%Y à %H:%M'),
             'used_ollama': bool(ollama_ok),
+            'missing_fields': missing_fields,
         })
     except Exception as e:
         logger.error("DC Generator error: %s", e, exc_info=True)
