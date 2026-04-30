@@ -421,6 +421,150 @@ def api_upload():
     return jsonify(ok=True, id=tid)
 
 
+# ─── Import résumé PDF (Summary AI) ───────────────────────────────────
+# Permet d'importer un PDF déjà mis au propre par Summary AI (ou tout
+# autre service de prise de notes après réunion). On saute Whisper +
+# diarisation et on envoie directement le texte du PDF à la passe
+# d'extraction CRM. Résultat : une transcription `done` avec le narratif
+# = texte du PDF, et les champs candidate_info / prospect_info remplis
+# pour que les boutons « Créer fiche candidat / prospect » du détail
+# fonctionnent comme pour un upload audio classique.
+
+PDF_ALLOWED_EXT = {".pdf"}
+PDF_MAX_BYTES = 25 * 1024 * 1024  # 25 MB suffit largement pour un résumé textuel
+
+
+def _extract_pdf_summary_text(pdf_bytes: bytes, max_chars: int = 60_000) -> str:
+    """Extrait le texte d'un PDF de résumé. Retourne chaîne vide si KO."""
+    if not pdf_bytes:
+        return ""
+    text = ""
+    # 1) pdfminer — meilleure extraction texte
+    try:
+        from pdfminer.high_level import extract_text as _pdfminer_extract  # type: ignore
+        text = _pdfminer_extract(BytesIO(pdf_bytes)) or ""
+    except ImportError:
+        text = ""
+    except Exception as exc:
+        logger.warning("pdfminer extraction échouée pour summary PDF : %s", exc)
+        text = ""
+    # 2) Fallback pypdf
+    if not text.strip():
+        try:
+            from pypdf import PdfReader  # type: ignore
+            reader = PdfReader(BytesIO(pdf_bytes))
+            text = "\n".join((p.extract_text() or "") for p in reader.pages)
+        except Exception as exc:
+            logger.warning("pypdf extraction échouée pour summary PDF : %s", exc)
+            text = text or ""
+    return (text or "").strip()[:max_chars]
+
+
+@transcription_bp.post("/api/transcription/upload-summary-pdf")
+def api_upload_summary_pdf():
+    """Importe un PDF de résumé d'après-réunion (Summary AI / autre).
+
+    Le texte du PDF devient à la fois :
+      - `transcript_text` : pour l'aperçu
+      - `analysis.narrative_markdown` : pour l'extraction CRM
+    On enchaîne immédiatement la passe d'extraction CRM (3ᵉ passe) afin
+    de remplir `candidate_info` / `prospect_info` / `opportunites_missions`
+    / `suivi`. La transcription est marquée `status='done'` à la fin.
+    Si la passe IA échoue, on garde le squelette vide (édition manuelle
+    possible côté UI).
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    if "pdf" not in request.files:
+        return jsonify(ok=False, error="Aucun PDF fourni (champ 'pdf')."), 400
+    file = request.files["pdf"]
+    if not file.filename:
+        return jsonify(ok=False, error="Nom de fichier vide."), 400
+
+    raw_name = secure_filename(file.filename) or "summary.pdf"
+    ext = Path(raw_name).suffix.lower()
+    if ext not in PDF_ALLOWED_EXT:
+        return jsonify(ok=False, error=f"Format non supporté ({ext}). PDF requis."), 400
+
+    file.stream.seek(0, 2)
+    size = file.stream.tell()
+    file.stream.seek(0)
+    if size <= 0:
+        return jsonify(ok=False, error="Fichier vide."), 400
+    if size > PDF_MAX_BYTES:
+        return jsonify(ok=False, error=f"Fichier trop volumineux ({size // (1024*1024)} MB > 25 MB)."), 413
+
+    title = (request.form.get("title") or Path(raw_name).stem or "Résumé de réunion").strip()[:200]
+
+    pdf_bytes = file.read()
+    pdf_text = _extract_pdf_summary_text(pdf_bytes)
+    if not pdf_text:
+        return jsonify(ok=False, error="Impossible d'extraire le texte du PDF (PDF scanné/image ? Essaie un export texte)."), 422
+
+    # Persiste le PDF original pour traçabilité
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_stem = _slugify(Path(raw_name).stem)
+    dest = _audio_dir(uid) / f"{ts}_{safe_stem}{ext}"
+    try:
+        dest.write_bytes(pdf_bytes)
+    except Exception as exc:
+        logger.warning("Sauvegarde PDF résumé échouée pour user %s : %s", uid, exc)
+        # On continue : ce n'est pas bloquant, le texte est déjà extrait
+
+    # 3ᵉ passe : extraction CRM depuis le texte du PDF (qui joue le rôle
+    # de narrative_markdown). Le PDF est déjà mis au propre → l'IA n'a
+    # qu'à structurer.
+    config = _load_ai_config()
+    from services.transcription import _extract_crm_from_markdown, _empty_crm_fields  # type: ignore
+    try:
+        crm = _extract_crm_from_markdown(pdf_text, pdf_text, config, timeout=180)
+    except Exception as exc:
+        logger.warning("Extraction CRM PDF résumé échouée pour user %s : %s", uid, exc)
+        crm = _empty_crm_fields()
+
+    analysis: dict = {
+        "narrative_markdown": pdf_text,
+        "summary": None,
+        "_source": "pdf_summary",
+        "_pdf_filename": raw_name,
+        "_imported_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    for k in ("meeting_type", "candidate_info", "prospect_info",
+              "opportunites_missions", "suivi"):
+        analysis[k] = crm.get(k)
+
+    now = datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO transcriptions "
+            "(title, audio_filename, audio_path, audio_size, status, progress, stage, "
+            " transcript_text, analysis_json, whisper_model, analysis_model, "
+            " owner_id, created_at, updated_at, completed_at) "
+            "VALUES (?, ?, ?, ?, 'done', 100, 'Importé depuis PDF', ?, ?, NULL, ?, ?, ?, ?, ?);",
+            (
+                title,
+                raw_name,
+                str(dest) if dest.exists() else "",
+                size,
+                pdf_text,
+                json.dumps(analysis, ensure_ascii=False),
+                config.get("anthropic_model") or config.get("ollama_model") or "ollama",
+                uid,
+                now,
+                now,
+                now,
+            ),
+        )
+        tid = cur.lastrowid
+        conn.commit()
+
+    logger.info("Résumé PDF importé : transcription #%s (user=%s, file=%s, %d bytes, %d chars extraits)",
+                tid, uid, raw_name, size, len(pdf_text))
+    return jsonify(ok=True, id=tid)
+
+
 @transcription_bp.get("/api/transcription")
 def api_list():
     uid = _uid()

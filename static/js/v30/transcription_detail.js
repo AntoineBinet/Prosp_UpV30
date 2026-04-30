@@ -99,31 +99,42 @@
     var rext = $('[data-v30-tx-external]');
     var rxcrm = $('[data-v30-tx-extract-crm]');
     var inProg = (item.status === 'pending' || item.status === 'processing');
-    if (rb)  rb.hidden = inProg;
+    var fromPdfSrc = !!(item.analysis && item.analysis._source === 'pdf_summary');
+    // « Relancer pipeline » (retry) : nécessite un fichier audio source.
+    // Caché pour les imports PDF — il n'y a pas de Whisper à re-jouer.
+    if (rb)  rb.hidden = inProg || fromPdfSrc;
     // « Re-analyser (Claude API) » et « Analyser via IA externe » dispos
     // uniquement si on a déjà un transcript_text (sinon rien à analyser
     // → on doit relancer le pipeline complet via Whisper)
     var hasTx = !!(item.transcript_text && item.transcript_text.trim());
     var hasNarrative = !!(item.analysis && (item.analysis.narrative_markdown || '').trim());
-    if (rba)   rba.hidden   = inProg || !hasTx;
-    if (rext)  rext.hidden  = inProg || !hasTx;
+    // Pour un import PDF, le « transcript » EST le résumé déjà mis au propre,
+    // re-faire passer Claude/IA externe dessus produit un résumé de résumé →
+    // on cache ces options pour éviter la confusion. « Ré-extraire CRM »
+    // reste exposé : c'est précisément la passe qui nous intéresse.
+    if (rba)   rba.hidden   = inProg || !hasTx || fromPdfSrc;
+    if (rext)  rext.hidden  = inProg || !hasTx || fromPdfSrc;
     // « Ré-extraire CRM » : besoin d'un CR narratif existant (sinon rien à extraire)
     if (rxcrm) rxcrm.hidden = inProg || !hasNarrative;
 
-    // Audio
+    // Audio — masqué si l'import provient d'un PDF de résumé (pas d'audio source)
     var audio = $('[data-v30-tx-audio]');
     var audSrc = $('[data-v30-tx-audio-src]');
     var audEl = $('[data-v30-tx-audio-el]');
     if (audio && audSrc && audEl) {
-      audSrc.src = '/api/transcription/' + TID + '/audio';
-      audEl.load();
-      audio.hidden = false;
-      $('[data-v30-tx-meta-duration]').textContent = item.duration_sec ? fmtDuration(item.duration_sec) : '';
-      $('[data-v30-tx-meta-language]').textContent = item.language ? '· ' + item.language.toUpperCase() : '';
-      var modelBits = [];
-      if (item.whisper_model)  modelBits.push('Whisper ' + item.whisper_model);
-      if (item.analysis_model) modelBits.push(item.analysis_model);
-      $('[data-v30-tx-meta-model]').textContent = modelBits.length ? '· ' + modelBits.join(' · ') : '';
+      if (fromPdfSrc) {
+        audio.hidden = true;
+      } else {
+        audSrc.src = '/api/transcription/' + TID + '/audio';
+        audEl.load();
+        audio.hidden = false;
+        $('[data-v30-tx-meta-duration]').textContent = item.duration_sec ? fmtDuration(item.duration_sec) : '';
+        $('[data-v30-tx-meta-language]').textContent = item.language ? '· ' + item.language.toUpperCase() : '';
+        var modelBits = [];
+        if (item.whisper_model)  modelBits.push('Whisper ' + item.whisper_model);
+        if (item.analysis_model) modelBits.push(item.analysis_model);
+        $('[data-v30-tx-meta-model]').textContent = modelBits.length ? '· ' + modelBits.join(' · ') : '';
+      }
     }
 
     // Compte-rendu narratif (markdown rendu)
