@@ -168,17 +168,7 @@
     }
     addToHistory({ filename: data.filename, date: data.generated_at, url: _downloadUrl });
 
-    if (!data.ollama_available) {
-      if (window.showToast) window.showToast(
-        'Ollama non disponible — le DC est généré avec les champs vides. Vérifiez que le service IA est démarré puis relancez.',
-        'error', 8000
-      );
-    } else if (!data.used_ollama) {
-      if (window.showToast) window.showToast(
-        'L\'extraction IA a échoué — relancez la génération ou vérifiez les logs.',
-        'warning', 6000
-      );
-    } else {
+    if (data.used_ollama) {
       var missing = data.missing_fields || [];
       if (missing.length) {
         if (window.showToast) window.showToast(
@@ -186,8 +176,18 @@
           'warning', 6000
         );
       } else {
-        if (window.showToast) window.showToast('DC généré avec succès par l\'IA', 'success', 3000);
+        if (window.showToast) window.showToast('DC généré avec succès par l\'IA ✓', 'success', 3000);
       }
+    } else if (data.ollama_available === false) {
+      if (window.showToast) window.showToast(
+        'Erreur réseau IA — vérifiez les logs serveur.',
+        'error', 6000
+      );
+    } else {
+      if (window.showToast) window.showToast(
+        'DC généré — l\'IA n\'a pas pu extraire toutes les données, les champs sont à [À COMPLÉTER].',
+        'warning', 6000
+      );
     }
   }
 
