@@ -895,36 +895,27 @@
     if (ta)  ta.value = '';
     STATE.callNote = '';
 
-    fetch('/api/ollama/generate', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: _buildRichCallNotePrompt(p) })
-    }).then(function (r) {
-      return r.json().then(function (j) { return { ok: r.ok, data: j }; });
-    }).then(function (res) {
-      if (!res.ok || !(res.data && res.data.text)) {
-        throw new Error((res.data && res.data.error) || 'Réponse vide');
-      }
-      var raw = String(res.data.text || '').trim().replace(/^["«»""'']|["«»""'']$/g, '').trim();
-      // Fallback si la phrase ne démarre pas comme attendu
-      if (!raw.toLowerCase().startsWith('j\'ai') && !raw.toLowerCase().startsWith('je ')) {
-        raw = 'Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser.';
-      }
-      if (ta) ta.value = raw;
-      STATE.callNote = raw;
-      if (st) {
-        st.textContent = 'Phrase générée ✓';
-        st.className = 'v30pm-callnote__status is-ok';
-        setTimeout(function () { if (st) st.textContent = ''; }, 2500);
-      }
-      toast('Accroche personnalisée générée', 'success', 2500);
-    }).catch(function (e) {
-      if (st) { st.textContent = 'Erreur : ' + (e.message || 'inconnue'); st.className = 'v30pm-callnote__status is-error'; }
-      toast('Erreur génération : ' + (e.message || 'inconnue'), 'error');
-    }).then(function () {
-      if (btn) btn.disabled = false;
-    });
+    // Utilise le helper unifié (provider-agnostic : Ollama, Groq, Anthropic…)
+    window.callOllama(_buildRichCallNotePrompt(p), { timeoutMs: 90000 })
+      .then(function (text) {
+        var raw = String(text || '').trim().replace(/^["«»""'']|["«»""'']$/g, '').trim();
+        if (!raw.toLowerCase().startsWith('j\'ai') && !raw.toLowerCase().startsWith('je ')) {
+          raw = 'Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser.';
+        }
+        if (ta) ta.value = raw;
+        STATE.callNote = raw;
+        if (st) {
+          st.textContent = 'Phrase générée ✓';
+          st.className = 'v30pm-callnote__status is-ok';
+          setTimeout(function () { if (st) st.textContent = ''; }, 2500);
+        }
+        toast('Accroche personnalisée générée', 'success', 2500);
+      }).catch(function (e) {
+        if (st) { st.textContent = 'Erreur : ' + (e.message || 'inconnue'); st.className = 'v30pm-callnote__status is-error'; }
+        toast('Erreur génération : ' + (e.message || 'inconnue'), 'error');
+      }).then(function () {
+        if (btn) btn.disabled = false;
+      });
   }
 
   // ─── Popup d'enrichissement prospect (depuis push modal) ────
@@ -1093,15 +1084,10 @@
       '- tags : array de strings (secteurs/domaines : ex ["BTP", "Ingénierie", "Infrastructure"])\n\n' +
       'Texte LinkedIn :\n' + text.slice(0, 3000) + '\n\n' +
       'Réponds UNIQUEMENT avec le JSON brut, sans explications.';
-    fetch('/api/ollama/generate', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt, timeout: 90 })
-    }).then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j || !j.text) { cb(null); return; }
-        var m = j.text.match(/\{[\s\S]*\}/);
+    // Utilise le helper unifié (provider-agnostic)
+    window.callOllama(prompt, { timeoutMs: 90000 })
+      .then(function (raw) {
+        var m = (raw || '').match(/\{[\s\S]*\}/);
         if (!m) { cb(null); return; }
         try { cb(JSON.parse(m[0])); }
         catch (_) { cb(null); }
