@@ -393,7 +393,7 @@ def api_ai_test():
     else:
         test_prompt = "Réponds uniquement par le mot OK."
         try:
-            text = _call_ai_provider("ollama", test_prompt, config, timeout=15)
+            text = _call_ai_provider("ollama", test_prompt, config, timeout=60)
             model = config.get("ollama_model")
             return jsonify(ok=True, provider="ollama", model=model, response=text.strip()[:200])
         except urllib.error.HTTPError as e:

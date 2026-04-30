@@ -589,7 +589,8 @@
       ollama: 'IA locale',
       huggingface: 'HuggingFace',
     })[target] || target;
-    inlineStatus(st, 'Test ' + label + '…', 'var(--text-2)');
+    var waitHint = target === 'ollama' ? ' (peut prendre 30-60 s au premier appel)' : '';
+    inlineStatus(st, 'Test ' + label + '…' + waitHint, 'var(--text-2)');
     var payload = { test_target: target };
     var urlEl = $('[data-v30-ai-url]');
     if (urlEl && urlEl.value.trim()) payload.ollama_url = urlEl.value.trim();
