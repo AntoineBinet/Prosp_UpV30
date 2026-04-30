@@ -50,18 +50,18 @@
           <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
         </div>
         <p class="v30-params__card-desc">
-          Ollama (modèles locaux) · Tavily (recherche web) · installation et tests à distance.
+          IA locale (modèles locaux) · Tavily (recherche web) · installation et tests à distance.
         </p>
       </summary>
 
       <div class="v30-params__form">
 
         {# ─── Ollama ─── #}
-        <h4 class="v30-params__scope-title">Modèle local (Ollama)</h4>
+        <h4 class="v30-params__scope-title">Modèle local</h4>
 
         <div class="v30-params__grid-2">
           <div class="v30-params__field">
-            <label class="v30-params__label">URL Ollama</label>
+            <label class="v30-params__label">URL du service</label>
             <input type="text" class="input" data-v30-ai-url placeholder="http://127.0.0.1:11434">
           </div>
           <div class="v30-params__field">
@@ -112,7 +112,7 @@
 
         <label class="v30-params__check">
           <input type="checkbox" data-v30-ai-fallback>
-          <span>Fallback automatique (Ollama seul si Tavily échoue)</span>
+          <span>Fallback automatique (IA locale seule si Tavily échoue)</span>
         </label>
 
         {# ─── Transcription (v32.1) ─── #}
@@ -184,7 +184,7 @@
         <label class="v30-params__check">
           <input type="checkbox" data-v30-ai-tx-fallback>
           <span>
-            Fallback Ollama si Claude indisponible
+            Fallback IA locale si Claude indisponible
             <span class="muted" style="font-size:11.5px;display:block;margin-top:2px;">
               ⚠ Désactivé par défaut — llama3.2:3B hallucine sur les longs transcripts.
               Active uniquement si tu as un gros modèle (qwen2.5:32b+, llama3.3:70b).
@@ -215,7 +215,7 @@
 
         <div class="v30-params__actions">
           <button type="button" class="btn btn-primary btn-sm" data-v30-ai-save>Enregistrer</button>
-          <button type="button" class="btn btn-sm" data-v30-ai-test-ollama>Tester Ollama</button>
+          <button type="button" class="btn btn-sm" data-v30-ai-test-ollama>Tester IA locale</button>
           <button type="button" class="btn btn-sm" data-v30-ai-test-anthropic>Tester Claude</button>
           <span class="muted v30-params__status" data-v30-ai-status></span>
         </div>
@@ -225,7 +225,7 @@
         <div class="v30-params__sep"></div>
         <h4 class="v30-params__scope-title">Recherche web (Tavily)</h4>
         <p class="muted v30-params__hint" style="margin-top:-6px;margin-bottom:12px;">
-          Enrichit les prompts avec des résultats web en temps réel avant envoi à Ollama.
+          Enrichit les prompts avec des résultats web en temps réel avant envoi à l'IA locale.
         </p>
 
         <div class="v30-params__field">

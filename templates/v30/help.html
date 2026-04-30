@@ -94,7 +94,7 @@
     </a>
     <a class="v30-aide__card" href="#ia">
       <div class="v30-aide__card-head">{{ ui.icon('sparkles', 16) }}<h3>IA &amp; Scraping</h3></div>
-      <p>Ollama local, Tavily web, avant/après-RDV.</p>
+      <p>IA locale, Tavily web, avant/après-RDV.</p>
     </a>
     <a class="v30-aide__card" href="#import-excel">
       <div class="v30-aide__card-head">{{ ui.icon('inbox', 16) }}<h3>Import Excel</h3></div>
@@ -165,7 +165,7 @@
       <li><b>Objectifs &amp; gamification</b> — cibles hebdo (prospects
         contactés, RDV, pushs). Configuration dans
         <a href="/v30/parametres">Paramètres → Objectifs</a>.</li>
-      <li><b>Priorités IA</b> — suggestions générées par Ollama à partir
+      <li><b>Priorités IA</b> — suggestions générées par l'IA locale à partir
         des prospects stagnants (score de pertinence, dernier contact).</li>
       <li><b>Fil d'activité</b> — flux temps réel des dernières actions
         (notes, changements de statut, pushs envoyés).</li>
@@ -534,19 +534,18 @@
     <p class="v30-aide__lead">
       L'IA est partout dans l'app&nbsp;: enrichissement de fiches,
       préparation de RDV, compte-rendus, emails personnalisés,
-      mapping Excel. Moteur local (Ollama) + recherche web optionnelle
+      mapping Excel. Moteur local + recherche web optionnelle
       (Tavily).
     </p>
 
     <h3 class="v30-aide__sub">Stack</h3>
     <ul class="v30-aide__list">
-      <li><b>Ollama</b> — local, gratuit, <code class="mono">http://127.0.0.1:11434</code>.
-        Modèle par défaut&nbsp;: <code class="mono">llama3.2</code>. Aucune
-        donnée ne sort de ton PC.</li>
+      <li><b>IA locale</b> — moteur local, gratuit, propulsé par <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>.
+        Aucune donnée ne sort de ton PC.</li>
       <li><b>Tavily</b> (optionnel, cloud) — recherche web pour enrichir
         les prompts. Clé configurable dans
         <a href="/v30/parametres">Paramètres → Configuration IA</a>.</li>
-      <li><b>Flux web search :</b> Tavily récupère les résultats → Ollama
+      <li><b>Flux web search :</b> Tavily récupère les résultats → l'IA locale
         génère en citant ses sources.</li>
     </ul>
 
@@ -665,7 +664,7 @@
 
     <h3 class="v30-aide__sub">Cartes du hub</h3>
     <ul class="v30-aide__list">
-      <li><b>Configuration IA</b> — modèle Ollama, clé Tavily, timeout.</li>
+      <li><b>Configuration IA</b> — modèle IA locale, clé Tavily, timeout.</li>
       <li><b>Objectifs &amp; gamification</b> — cibles hebdo (prospects
         contactés, RDV, pushs) affichées sur le dashboard.</li>
       <li><b>Sauvegardes &amp; données</b> — snapshots journaliers,
