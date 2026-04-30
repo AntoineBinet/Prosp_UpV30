@@ -21799,15 +21799,29 @@ def dc_generator_generate():
 
             # Extraire le texte brut pour Ollama
             if ext == '.pdf':
+                # Tentative 1 : PyMuPDF (fitz) — meilleure extraction, préserve la structure
                 try:
-                    import pypdfium2 as _pdfium
-                    _pdf = _pdfium.PdfDocument(tmp_cv)
-                    cv_text = '\n'.join(
-                        _pdf[i].get_textpage().get_text_range()
-                        for i in range(len(_pdf))
-                    )
-                except Exception:
-                    pass
+                    import fitz as _fitz
+                    _doc = _fitz.open(tmp_cv)
+                    cv_text = '\n'.join(page.get_text() for page in _doc)
+                    _doc.close()
+                    logger.info("DC Generator: PDF extrait via PyMuPDF (%d chars)", len(cv_text))
+                except Exception as _e1:
+                    logger.warning("DC Generator: PyMuPDF échoué (%s), essai pypdf", _e1)
+                # Tentative 2 : pypdf — fallback fiable
+                if not cv_text.strip():
+                    try:
+                        from pypdf import PdfReader as _PdfReader
+                        _reader = _PdfReader(tmp_cv)
+                        cv_text = '\n'.join(
+                            page.extract_text() or ''
+                            for page in _reader.pages
+                        )
+                        logger.info("DC Generator: PDF extrait via pypdf (%d chars)", len(cv_text))
+                    except Exception as _e2:
+                        logger.warning("DC Generator: pypdf échoué aussi (%s)", _e2)
+                if not cv_text.strip():
+                    logger.error("DC Generator: impossible d'extraire le texte du PDF — aucune lib disponible")
             elif ext in ('.docx', '.doc'):
                 try:
                     from docx import Document as _Docx
