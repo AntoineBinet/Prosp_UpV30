@@ -808,6 +808,17 @@
     if (!m) return;
     var nameEl = m.querySelector('[data-v30-fp-ai-name]');
     if (nameEl) nameEl.textContent = p.name || '—';
+    var liBtn = m.querySelector('[data-v30-fp-scrap-linkedin]');
+    if (liBtn) {
+      var liUrl = _displayValue(p.linkedin);
+      if (liUrl && /^https?:\/\//i.test(liUrl)) {
+        liBtn.href = liUrl;
+        liBtn.hidden = false;
+      } else {
+        liBtn.removeAttribute('href');
+        liBtn.hidden = true;
+      }
+    }
     var ctxEl = m.querySelector('[data-v30-fp-scrap-context]');
     if (ctxEl) ctxEl.value = '';
     var pr = m.querySelector('[data-v30-fp-scrap-prompt]');
