@@ -21770,10 +21770,9 @@ def dc_generator_generate():
         from utils.cv_parser import CVParser
         from utils.dossier_generator import DossierGenerator
 
-        candidate_id   = request.form.get('candidate_id')
-        titre_override = request.form.get('titre_override', '').strip()
-        exp_override   = request.form.get('exp_override', '').strip()
-        use_ollama     = request.form.get('use_ollama', 'auto')  # 'auto'|'yes'|'no'
+        candidate_id = request.form.get('candidate_id')
+        use_ollama   = request.form.get('use_ollama', 'auto')  # 'auto'|'yes'|'no'
+        ollama_available = False
 
         # Données de base depuis la DB si candidat fourni
         base_data = {}
@@ -21819,6 +21818,7 @@ def dc_generator_generate():
 
             # ── Essayer Ollama si texte disponible ────────────────────────────
             ollama_ok = False
+            ollama_available = False
             if cv_text.strip() and use_ollama != 'no':
                 try:
                     ai_cfg = {}
@@ -21831,24 +21831,66 @@ def dc_generator_generate():
                     ollama_model = ai_cfg.get('ollama_model', 'llama3.2')
                     ollama_timeout = int(ai_cfg.get('ollama_timeout', 120))
 
-                    from utils.ollama_extractor import extract as _ollama_extract
-                    extracted = _ollama_extract(cv_text, ollama_url, ollama_model, ollama_timeout)
-                    if extracted and (extracted.get('competences') or extracted.get('nom')):
-                        cv_data = extracted
-                        ollama_ok = True
-                        logger.info("DC Generator: Ollama extraction OK (missing=%s)",
-                                    extracted.get('_missing', []))
+                    # Test rapide de connectivité avant de lancer l'extraction
+                    import urllib.request as _ur
+                    try:
+                        _ping = _ur.Request(ollama_url.rstrip('/') + '/api/version')
+                        with _ur.urlopen(_ping, timeout=4):
+                            ollama_available = True
+                    except Exception as _pe:
+                        logger.warning("DC Generator: Ollama non disponible (%s)", _pe)
+
+                    if ollama_available:
+                        from utils.ollama_extractor import extract as _ollama_extract
+                        extracted = _ollama_extract(cv_text, ollama_url, ollama_model, ollama_timeout)
+                        if extracted and (extracted.get('competences') or extracted.get('nom') or extracted.get('experiences')):
+                            cv_data = extracted
+                            ollama_ok = True
+                            logger.info("DC Generator: Ollama extraction OK (missing=%s)",
+                                        extracted.get('_missing', []))
+                        else:
+                            logger.warning("DC Generator: Ollama extraction retournée vide")
                 except Exception as _oe:
                     logger.warning("DC Generator: Ollama extraction failed: %s", _oe)
 
-            # ── Fallback regex ────────────────────────────────────────────────
-            if not ollama_ok:
-                parser  = CVParser()
-                cv_data = parser.parse(tmp_cv)
+            # ── Fallback : extraction basique si Ollama indisponible ──────────
+            # N'utilise PAS CVParser (calibré pour tableaux Up Tech uniquement).
+            # Extrait uniquement nom/titre depuis les premières lignes du texte.
+            if not ollama_ok and cv_text.strip():
+                import re as _re2
+                _lines = [l.strip() for l in cv_text.split('\n') if l.strip()][:20]
+                _nom = _prenom = _titre = _annees = ''
+                _caps = _re2.compile(r'^[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ][A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ\s\-/–]{7,}$')
+                for _l in _lines[:8]:
+                    if _caps.match(_l) and len(_l.split()) >= 2:
+                        _titre = _l; break
+                _name_re = _re2.compile(
+                    r'^([A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ][a-zàâäéèêëîïôùûüç]+(?:-[A-Za-zÀ-ÿ]+)*)'
+                    r'\s+([A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ][A-Za-zÀ-ÿ\-]+)$')
+                for _l in _lines[:12]:
+                    _m = _name_re.match(_l)
+                    if _m:
+                        _prenom, _nom = _m.group(1), _m.group(2).upper(); break
+                _ym = _re2.search(r"(\d+)\s*ans?\s+d['’]expérience", cv_text[:2000], _re2.IGNORECASE)
+                if _ym:
+                    _annees = _ym.group(1) + " ans d'expérience"
+                cv_data = {
+                    'nom': _nom, 'prenom': _prenom,
+                    'titre_poste': _titre, 'annees_experience': _annees,
+                    'competences': [], 'experiences': [], 'formations': [],
+                    'langues': [], 'certifications': [],
+                }
 
+            # Merge identité depuis la DB (nom/prenom/titre prioritaires si renseignés)
             if base_data:
-                parser_inst = CVParser()
-                cv_data = parser_inst.merge_with_candidate(cv_data, base_data)
+                for _k in ('nom', 'prenom', 'titre_poste', 'email', 'telephone'):
+                    _v = base_data.get(_k, '')
+                    if _v and str(_v).strip() and not cv_data.get(_k):
+                        cv_data[_k] = str(_v).strip()
+                if not cv_data.get('annees_experience'):
+                    _yrs = base_data.get('annees_experience') or base_data.get('years_experience')
+                    if _yrs:
+                        cv_data['annees_experience'] = f"{_yrs} ans d'expérience"
         else:
             # Pas de CV — utiliser les données DB uniquement
             cv_data = {
@@ -21859,12 +21901,6 @@ def dc_generator_generate():
                 'competences': [], 'experiences': [],
                 'formations':  [], 'langues': [], 'certifications': []
             }
-
-        # ── Overrides manuels ─────────────────────────────────────────────────
-        if titre_override:
-            cv_data['titre_poste'] = titre_override
-        if exp_override:
-            cv_data['annees_experience'] = exp_override
 
         # ── Générer le fichier Word ───────────────────────────────────────────
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -21911,13 +21947,14 @@ def dc_generator_generate():
         import urllib.parse as _urlparse
         missing_fields = cv_data.pop('_missing', []) if isinstance(cv_data, dict) else []
         return jsonify({
-            'success': True,
-            'id': gen_id,
-            'download_url': '/dc-generator/download?path=' + _urlparse.quote(output_path, safe=''),
-            'filename': nom_dl,
-            'generated_at': datetime.datetime.now().strftime('%d/%m/%Y à %H:%M'),
-            'used_ollama': bool(ollama_ok),
-            'missing_fields': missing_fields,
+            'success':         True,
+            'id':              gen_id,
+            'download_url':    '/dc-generator/download?path=' + _urlparse.quote(output_path, safe=''),
+            'filename':        nom_dl,
+            'generated_at':    datetime.datetime.now().strftime('%d/%m/%Y à %H:%M'),
+            'used_ollama':     bool(ollama_ok),
+            'ollama_available': bool(ollama_available),
+            'missing_fields':  missing_fields,
         })
     except Exception as e:
         logger.error("DC Generator error: %s", e, exc_info=True)

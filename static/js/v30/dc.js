@@ -157,7 +157,8 @@
     if (nameEl) nameEl.textContent = data.filename || 'DC généré';
     if (dateEl) {
       var label = 'Généré ' + (data.generated_at || '');
-      if (data.used_ollama) label += ' · extraction IA';
+      if (data.used_ollama) label += ' · extraction IA ✓';
+      else if (data.ollama_available === false) label += ' · IA indisponible';
       dateEl.textContent = label;
     }
     _downloadUrl = data.download_url;
@@ -167,12 +168,26 @@
     }
     addToHistory({ filename: data.filename, date: data.generated_at, url: _downloadUrl });
 
-    var missing = data.missing_fields || [];
-    if (missing.length) {
-      var warn = 'DC généré · champs à compléter manuellement : ' + missing.join(', ');
-      if (window.showToast) window.showToast(warn, 'warning', 6000);
+    if (!data.ollama_available) {
+      if (window.showToast) window.showToast(
+        'Ollama non disponible — le DC est généré avec les champs vides. Vérifiez que le service IA est démarré puis relancez.',
+        'error', 8000
+      );
+    } else if (!data.used_ollama) {
+      if (window.showToast) window.showToast(
+        'L\'extraction IA a échoué — relancez la génération ou vérifiez les logs.',
+        'warning', 6000
+      );
     } else {
-      if (window.showToast) window.showToast('DC généré avec succès', 'success', 3000);
+      var missing = data.missing_fields || [];
+      if (missing.length) {
+        if (window.showToast) window.showToast(
+          'DC généré · champs à compléter dans le DOCX : ' + missing.join(', '),
+          'warning', 6000
+        );
+      } else {
+        if (window.showToast) window.showToast('DC généré avec succès par l\'IA', 'success', 3000);
+      }
     }
   }
 
@@ -194,17 +209,12 @@
 
     var fd = new FormData();
     if (CID) fd.append('candidate_id', CID);
-    fd.append('titre_override', ($('#v30-dc-titre') && document.getElementById('v30-dc-titre').value.trim()) || '');
-    fd.append('exp_override', ($('#v30-dc-exp') && document.getElementById('v30-dc-exp').value.trim()) || '');
     fd.append('use_ollama', 'auto');
 
     var fileInput = $('[data-v30-dc-file-input]');
     if (fileInput && fileInput._selectedFile) {
       fd.append('cv_file', fileInput._selectedFile);
     }
-
-    var progressLabel = $('[data-v30-dc-progress-label]');
-    if (progressLabel) progressLabel.textContent = 'Génération en cours…';
 
     fetch('/dc-generator/generate', {
       method: 'POST',
