@@ -2,6 +2,36 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.16.2] — 2026-04-30 · Unification du bouton IA (liste + focus split panel) sur le flux table comparative
+
+Avant cette version, le bouton « Enrichir via IA » (icône diamant dans la
+colonne actions de la liste prospects ET dans le focus split panel) ouvrait
+une **ancienne modale simplifiée** (`prospects.js:openAiModal`) avec :
+- prompt non contextualisé (pas de valeurs actuelles, pas de tags suggérés)
+- réponse IA brute affichée en texte, sans table comparative
+- apply qui écrasait silencieusement les valeurs sans choix utilisateur
+
+Désormais, le bouton ouvre directement la fiche détail
+(`/v30/prospect/<id>?ia=scrap`) dans un nouvel onglet, avec
+auto-déclenchement de la modale d'enrichissement complète (table comparative
+avant / après / fusion / saisie manuelle, tags suggérés, contexte collable,
+streaming SSE) — même principe que le bouton IA de Mode Prosp ajouté en
+v32.16.
+
+### Code supprimé (~110 lignes)
+
+- `static/js/v30/prospects.js` : `AI_CTX`, `buildAiPrompt`, `extractJsonMaybe`,
+  `openAiModal`, `runAi`, `applyAi` (et leurs handlers d'événement)
+- `templates/v30/prospects.html` : modale `data-v30-pp-modal="ai"` complète
+  avec ses sélecteurs `data-v30-ai-*`
+
+### Code conservé
+
+- Le bouton lui-même (`data-v30-ai="<id>"`) reste tel quel dans le HTML/JS
+  pour préserver le visuel et la position dans les actions de chaque ligne.
+- Le handler `bindAi()` est réduit à un simple `window.open(...)` vers la
+  fiche détail.
+
 ## [32.16.1] — 2026-04-30 · 4ᵉ option « Saisie manuelle » dans la table comparative IA
 
 Ajout d'une 4ᵉ ligne d'action **« Saisie manuelle »** sur chaque champ du

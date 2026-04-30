@@ -522,33 +522,9 @@
   </div>
 </div>
 
-{# AI scrapping (par ligne) #}
-<div class="v30-modal-bd" data-v30-pp-modal="ai" hidden>
-  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-pp-ai-title">
-    <div class="v30-modal__head">
-      <h2 class="v30-modal__title" id="v30-pp-ai-title">{{ ui.icon('sparkles', 14) }} Enrichissement IA</h2>
-      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
-    </div>
-    <div class="v30-modal__body">
-      <p class="muted" style="font-size: 12.5px; margin: 0 0 8px;">Prospect : <strong data-v30-ai-name>—</strong></p>
-      <div class="v30-field">
-        <label for="v30-pp-ai-prompt">Instruction (modifie si besoin)</label>
-        <textarea id="v30-pp-ai-prompt" class="textarea" rows="4" data-v30-ai-prompt></textarea>
-      </div>
-      <label class="v30-chip" style="width: fit-content;"><input type="checkbox" data-v30-ai-web> <span>Activer la recherche web (Tavily)</span></label>
-      <div data-v30-ai-output style="margin-top: 12px;" hidden>
-        <label class="label">Résultat IA</label>
-        <pre data-v30-ai-raw class="v30-ai-raw"></pre>
-      </div>
-    </div>
-    <div class="v30-modal__foot">
-      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
-      <div class="v30-spacer"></div>
-      <button type="button" class="btn btn-sm" data-v30-ai-run>Lancer l'IA</button>
-      <button type="button" class="btn btn-primary btn-sm" data-v30-ai-apply hidden>Appliquer au prospect</button>
-    </div>
-  </div>
-</div>
+{# Le modal IA par ligne (anciennement ici) a été déprécié à la v32.16.2.
+   Le bouton "Enrichir via IA" ouvre désormais la fiche détail
+   (/v30/prospect/<id>?ia=scrap) qui a la table comparative complète. #}
 
 <script defer src="/static/js/v30/prospects.js?v={{ static_hash('js/v30/prospects.js') }}"></script>
 <script defer src="/static/js/v30/table_nav.js?v={{ static_hash('js/v30/table_nav.js') }}"></script>
