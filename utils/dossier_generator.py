@@ -95,15 +95,17 @@ def _categorize_competences(competences: list) -> tuple:
 def _competences_to_lines(cats: list) -> list:
     """Retourne [(text, is_bold)] : titre de groupe en gras, items en bullet."""
     lines = []
+    single_cat = len(cats) == 1  # le template affiche d\u00e9j\u00e0 la cellule label \u2192 \u00e9viter la r\u00e9p\u00e9tition
     for cat in cats:
         name = _s(cat.get('categorie'))
         if cat.get('groupes'):
-            lines.append((name, True))
+            if not single_cat:
+                lines.append((name, True))
             for g in cat['groupes']:
                 titre = _s(g.get('titre'))
                 items = [_s(x) for x in (g.get('items') or []) if x]
                 if titre:
-                    lines.append((titre, False))
+                    lines.append((titre, True))  # gras pour les titres de groupes
                 lines.extend((f'\u2022 {item}', False) for item in items)
         elif cat.get('items'):
             lines.append((name, True))
@@ -137,7 +139,8 @@ def _secteurs_to_lines(cats: list) -> list:
             for x in (g.get('items') or []):
                 if x: items.append(_s(x))
     if items:
-        lines.extend((f'\u2022 {item}', False) for item in items)
+        # Pas de pr\u00e9fixe \u2022 : le paragraphe du template DOCX a d\u00e9j\u00e0 une puce de liste
+        lines.extend((item, False) for item in items)
     return lines
 
 
