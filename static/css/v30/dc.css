@@ -1,81 +1,217 @@
 /* ProspUp v30 — DC Generator */
 
+/* Fix: dc.js uses .is-active on .segmented buttons */
+.segmented button.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+/* ─── Layout ─── */
 .v30-dc__layout {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 1fr 272px;
   gap: 16px;
   align-items: start;
 }
 
+.v30-dc__main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 @media (max-width: 900px) {
-  .v30-dc__layout {
-    grid-template-columns: 1fr;
-  }
-  .v30-dc__aside { order: -1; }
+  .v30-dc__layout { grid-template-columns: 1fr; }
+  .v30-dc__aside  { order: -1; }
+}
+
+/* ─── Card header row ─── */
+.v30-dc__card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* ─── Step number badge ─── */
+.v30-dc__step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.v30-dc__step-num--accent {
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 32%, var(--border));
+  color: var(--accent);
+}
+
+/* ─── CTA card (step 5) ─── */
+.v30-dc__card--cta {
+  border-color: color-mix(in oklch, var(--accent) 22%, var(--border));
+  background: color-mix(in oklch, var(--accent) 2.5%, var(--surface));
+}
+
+/* ─── Candidate info ─── */
+.v30-dc__cand-info {
+  padding: 2px 0;
+}
+
+.v30-dc__cand-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.v30-dc__cand-role {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* Empty candidate state */
+.v30-dc__empty-cand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.v30-dc__empty-cand-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.v30-dc__empty-cand-text {
+  font-size: 12.5px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+.v30-dc__empty-cand-text a {
+  color: var(--accent);
+  display: block;
+  margin-top: 2px;
+}
+
+/* ─── Options fields ─── */
+.v30-dc__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 /* ─── Upload zone ─── */
 .v30-dc__upload-zone {
   border: 2px dashed var(--border);
   border-radius: var(--r-md);
-  padding: 28px 20px;
+  padding: 24px 20px;
   text-align: center;
   background: var(--surface-2);
   transition: border-color .15s, background .15s;
-  cursor: default;
 }
+
 .v30-dc__upload-zone.is-over {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+
 .v30-dc__upload-zone.has-file {
   border-style: solid;
   border-color: var(--success);
   background: var(--success-soft);
 }
+
 .v30-dc__upload-icon {
   color: var(--text-3);
   margin-bottom: 8px;
+  transition: color .15s;
 }
+
+.v30-dc__upload-zone.is-over .v30-dc__upload-icon,
+.v30-dc__upload-zone.is-over .v30-dc__upload-label {
+  color: var(--accent);
+}
+
+.v30-dc__upload-zone.has-file .v30-dc__upload-icon {
+  color: var(--success);
+}
+
 .v30-dc__upload-label {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text);
   margin-bottom: 4px;
+  transition: color .15s;
 }
+
 .v30-dc__upload-sub {
   font-size: 12px;
   color: var(--text-3);
   margin-bottom: 10px;
 }
+
 .v30-dc__upload-file {
-  margin-top: 8px;
+  margin-top: 10px;
   font-size: 12.5px;
-  color: var(--text);
+  color: var(--success);
   font-weight: 500;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
 }
+
 .v30-dc__upload-file::before {
   content: '📄';
+}
+
+/* ─── Generate button (full-width CTA) ─── */
+.v30-dc__generate-btn {
+  width: 100%;
+  height: 40px;
+  justify-content: center;
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
 }
 
 /* ─── Progress ─── */
 .v30-dc__progress {
   margin-top: 14px;
-  padding: 14px 0 0;
+  padding-top: 14px;
   border-top: 1px solid var(--border);
 }
+
 .v30-dc__progress-bar {
-  height: 4px;
+  height: 3px;
   background: var(--surface-3);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 10px;
   position: relative;
 }
+
 .v30-dc__progress-bar::after {
   content: '';
   position: absolute;
@@ -86,10 +222,12 @@
   border-radius: 2px;
   animation: v30-dc-progress-anim 1.4s ease-in-out infinite;
 }
+
 @keyframes v30-dc-progress-anim {
   0%   { left: -40%; }
   100% { left: 100%; }
 }
+
 .v30-dc__progress-label {
   font-size: 12.5px;
   color: var(--text-2);
@@ -99,7 +237,7 @@
 /* ─── Result ─── */
 .v30-dc__result {
   margin-top: 14px;
-  padding: 14px;
+  padding: 12px 14px;
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -107,76 +245,53 @@
   background: var(--success-soft);
   border-radius: var(--r-md);
 }
+
 .v30-dc__result-icon {
   color: var(--success);
   flex-shrink: 0;
 }
 
-/* ─── Error ─── */
-.v30-dc__error {
-  margin-top: 14px;
-  padding: 12px;
-  border-top: 1px solid var(--border);
-  background: var(--danger-soft, rgba(239,68,68,.08));
-  border-radius: var(--r-md);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.v30-dc__error-msg {
+.v30-dc__result-body {
   flex: 1;
-  font-size: 12.5px;
-  color: var(--danger);
+  min-width: 0;
 }
 
-/* ─── Generate area ─── */
-.v30-dc__generate-area {
-  padding: 4px 0;
-}
-
-/* ─── History (aside) ─── */
-.v30-dc__hist-item {
-  padding: 8px 0;
-  border-top: 1px solid var(--border);
-}
-.v30-dc__hist-item:first-child { border-top: 0; }
-.v30-dc__hist-name {
-  font-size: 12.5px;
-  font-weight: 500;
+.v30-dc__result-name {
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.v30-dc__hist-date {
-  font-size: 11px;
+
+.v30-dc__result-date {
+  font-size: 11.5px;
   color: var(--text-3);
   margin-top: 2px;
 }
-.v30-dc__hist-item a {
-  font-size: 11px;
-  color: var(--accent);
-}
-.v30-dc__hist-cand {
-  margin-top: 2px;
-}
-.v30-dc__hist-actions .btn {
-  font-size: 11px;
-  padding: 4px 8px;
-}
 
-/* ─── Full history panel (tab Historique) ─── */
-.v30-dc__hist-full > [data-v30-dc-history] {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+/* ─── Error ─── */
+.v30-dc__error {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--danger-soft);
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
   gap: 10px;
 }
-.v30-dc__hist-full .v30-dc__hist-item {
-  border: 1px solid var(--border);
-  border-top: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 10px 12px;
-  background: var(--surface-2);
+
+.v30-dc__error-icon {
+  color: var(--danger);
+  flex-shrink: 0;
+}
+
+.v30-dc__error-msg {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--danger);
 }
 
 /* ─── Interview preview ─── */
@@ -192,14 +307,86 @@
   line-height: 1.6;
 }
 
-/* ─── Candidate info ─── */
-.v30-dc__cand-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
+/* ─── Modal fields ─── */
+.v30-dc__modal-field {
+  margin-bottom: 14px;
 }
-.v30-dc__cand-role {
+
+.v30-dc__modal-field:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── Empty message ─── */
+.v30-dc__empty-msg {
+  padding: 10px 0;
   font-size: 12px;
   color: var(--text-3);
+}
+
+/* ─── History (sidebar) ─── */
+.v30-dc__hist-item {
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+
+.v30-dc__hist-item:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+
+.v30-dc__hist-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.v30-dc__hist-cand {
   margin-top: 2px;
+}
+
+.v30-dc__hist-date {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.v30-dc__hist-item a {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.v30-dc__hist-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.v30-dc__hist-actions .btn {
+  font-size: 11px;
+  height: 22px;
+  padding: 0 8px;
+}
+
+/* ─── Full history panel (tab Historique) ─── */
+.v30-dc__hist-full > [data-v30-dc-history] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.v30-dc__hist-full .v30-dc__hist-item {
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  background: var(--surface-2);
+}
+
+.v30-dc__hist-full .v30-dc__hist-item:first-child {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
 }
