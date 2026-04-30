@@ -21818,8 +21818,11 @@ def dc_generator_generate():
 
             # ── Essayer l'IA locale si texte disponible ───────────────────────
             # Utilise _load_ai_config() — source unique de config (UI Paramètres > IA).
+            # Pas de ping préalable : qwen2.5:7b peut mettre 15-30s à charger à froid,
+            # un ping avec timeout court déclarerait l'IA indisponible à tort.
+            # On tente l'extraction directement avec le timeout configuré (≥120s).
             ollama_ok = False
-            ollama_available = False
+            ollama_available = True  # optimiste — on ne sait pas avant d'essayer
             if cv_text.strip() and use_ollama != 'no':
                 try:
                     ai_cfg = _load_ai_config()
@@ -21827,36 +21830,18 @@ def dc_generator_generate():
                     ollama_model   = ai_cfg.get('ollama_model', OLLAMA_MODEL)
                     ollama_timeout = int(ai_cfg.get('ollama_timeout') or OLLAMA_TIMEOUT)
 
-                    # Test de disponibilité : appel /api/generate num_predict=1
-                    # (même endpoint que la vraie extraction, quasi-instantané)
-                    import urllib.request as _ur
-                    try:
-                        import json as _j
-                        _tb = _j.dumps({
-                            'model': ollama_model, 'prompt': 'ok', 'stream': False,
-                            'options': {'num_predict': 1}
-                        }).encode()
-                        _tr = _ur.Request(
-                            ollama_url.rstrip('/') + '/api/generate',
-                            data=_tb, headers={'Content-Type': 'application/json'}, method='POST'
-                        )
-                        with _ur.urlopen(_tr, timeout=8):
-                            ollama_available = True
-                    except Exception as _pe:
-                        logger.warning("DC Generator: IA locale non disponible à %s : %s", ollama_url, _pe)
-
-                    if ollama_available:
-                        from utils.ollama_extractor import extract as _ollama_extract
-                        extracted = _ollama_extract(cv_text, ollama_url, ollama_model, ollama_timeout)
-                        if extracted and (extracted.get('competences') or extracted.get('nom') or extracted.get('experiences')):
-                            cv_data = extracted
-                            ollama_ok = True
-                            logger.info("DC Generator: extraction IA OK (missing=%s)",
-                                        extracted.get('_missing', []))
-                        else:
-                            logger.warning("DC Generator: extraction IA retournée vide")
+                    from utils.ollama_extractor import extract as _ollama_extract
+                    extracted = _ollama_extract(cv_text, ollama_url, ollama_model, ollama_timeout)
+                    if extracted and (extracted.get('competences') or extracted.get('nom') or extracted.get('experiences')):
+                        cv_data = extracted
+                        ollama_ok = True
+                        logger.info("DC Generator: extraction IA OK (missing=%s)",
+                                    extracted.get('_missing', []))
+                    else:
+                        logger.warning("DC Generator: extraction IA retournée vide (modèle=%s)", ollama_model)
                 except Exception as _oe:
                     logger.warning("DC Generator: extraction IA échouée: %s", _oe)
+                    ollama_available = False
 
             # ── Fallback : extraction basique si Ollama indisponible ──────────
             # N'utilise PAS CVParser (calibré pour tableaux Up Tech uniquement).
