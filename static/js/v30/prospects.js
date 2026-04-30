@@ -2346,115 +2346,25 @@
   }
 
   // ─── AI scrapping (par ligne) ─────────────────────────────
-  var AI_CTX = { pid: null, lastText: '', lastJson: null };
-  function buildAiPrompt(p) {
-    var coName = (p.company_groupe || STATE.companies[p.company_id] || '').trim();
-    return 'Tu es un assistant de prospection B2B. Enrichis les informations du prospect suivant.\n' +
-      'Retourne UNIQUEMENT un objet JSON valide (clés autorisées : fonction, telephone, email, linkedin, notes, tags (array), pertinence (1-5)).\n' +
-      'Prospect : ' + (p.name || '—') + (coName ? ' — ' + coName : '') + (p.fonction ? ' — ' + p.fonction : '') + '\n' +
-      (p.email ? 'Email connu : ' + p.email + '\n' : '') +
-      (p.telephone ? 'Téléphone connu : ' + p.telephone + '\n' : '') +
-      (p.linkedin ? 'LinkedIn connu : ' + p.linkedin + '\n' : '') +
-      'Ne fabrique rien. Si tu ne sais pas, omets la clé. Retourne uniquement le JSON brut.';
-  }
-  function extractJsonMaybe(text) {
-    if (!text) return null;
-    var m = text.match(/\{[\s\S]*\}/);
-    if (!m) return null;
-    try { return JSON.parse(m[0]); } catch (_) { return null; }
-  }
-  function openAiModal(pid) {
-    var p = STATE.prospects.find(function (x) { return x.id === pid; }) ||
-            (STATE.allForKpis || []).find(function (x) { return x.id === pid; });
-    if (!p) return;
-    AI_CTX = { pid: pid, lastText: '', lastJson: null };
-    var m = getModal('ai');
-    (m.querySelector('[data-v30-ai-name]') || {}).textContent = p.name || '—';
-    var prompt = m.querySelector('[data-v30-ai-prompt]');
-    if (prompt) prompt.value = buildAiPrompt(p);
-    var web = m.querySelector('[data-v30-ai-web]');
-    if (web) web.checked = false;
-    var out = m.querySelector('[data-v30-ai-output]');
-    if (out) out.hidden = true;
-    var apply = m.querySelector('[data-v30-ai-apply]');
-    if (apply) apply.hidden = true;
-    openModal(m);
-  }
-  function runAi() {
-    var m = getModal('ai');
-    var prompt = (m.querySelector('[data-v30-ai-prompt]') || {}).value || '';
-    var web = !!(m.querySelector('[data-v30-ai-web]') || {}).checked;
-    var run = m.querySelector('[data-v30-ai-run]');
-    var apply = m.querySelector('[data-v30-ai-apply]');
-    var out = m.querySelector('[data-v30-ai-output]');
-    var raw = m.querySelector('[data-v30-ai-raw]');
-    if (!prompt.trim()) { toast('Prompt vide', 'warning'); return; }
-    if (run) { run.disabled = true; run.textContent = 'IA en cours…'; }
-    fetchPostJSON('/api/ollama/generate', { prompt: prompt, web_search: web, timeout: 180 })
-      .then(function (res) {
-        if (!res || !res.ok) throw new Error((res && res.error) || 'IA indisponible');
-        AI_CTX.lastText = res.text || '';
-        AI_CTX.lastJson = extractJsonMaybe(AI_CTX.lastText);
-        if (out) out.hidden = false;
-        if (raw) raw.textContent = AI_CTX.lastText;
-        if (apply) apply.hidden = !AI_CTX.lastJson;
-        if (!AI_CTX.lastJson) toast('Réponse non JSON — vérifie avant d\'appliquer', 'warning');
-        else toast('IA OK — relis puis applique', 'success');
-      })
-      .catch(function (err) { toast('Erreur IA : ' + err.message, 'error'); })
-      .then(function () {
-        if (run) { run.disabled = false; run.textContent = 'Relancer l\'IA'; }
-      });
-  }
-  function applyAi() {
-    if (!AI_CTX.pid || !AI_CTX.lastJson) return;
-    var json = AI_CTX.lastJson;
-    var updates = {};
-    ['fonction','telephone','email','linkedin','notes','pertinence'].forEach(function (k) {
-      if (json[k] != null && String(json[k]).trim()) updates[k] = String(json[k]).trim();
-    });
-    var tags = Array.isArray(json.tags) ? json.tags : null;
-    var m = getModal('ai');
-    var apply = m.querySelector('[data-v30-ai-apply]');
-    if (apply) apply.disabled = true;
-    var chain = Promise.resolve();
-    Object.keys(updates).forEach(function (field) {
-      if (['statut','pertinence','fonction','fixedMetier'].indexOf(field) >= 0) {
-        chain = chain.then(function () {
-          return fetchPostJSON('/api/prospects/bulk-edit', { ids: [AI_CTX.pid], field: field, value: updates[field] });
-        });
-      } else if (field === 'email' || field === 'telephone') {
-        chain = chain.then(function () {
-          return fetchPostJSON('/api/prospects/bulk-field-update', { ids: [AI_CTX.pid], field: field, values: [updates[field]] });
-        });
-      }
-    });
-    if (tags && tags.length) {
-      chain = chain.then(function () {
-        return fetchPostJSON('/api/prospects/bulk-status-tags', { ids: [AI_CTX.pid], add_tags: tags });
-      });
-    }
-    chain.then(function () {
-      toast('Prospect enrichi', 'success');
-      closeModal(m);
-      loadProspects();
-    }).catch(function (err) {
-      toast('Erreur application : ' + err.message, 'error');
-    }).then(function () {
-      if (apply) apply.disabled = false;
-    });
-  }
+  // Le flux d'enrichissement complet (table comparative avant / après / fusion /
+  // saisie manuelle) vit dans static/js/v30/prospect_detail_ui.js. Le bouton
+  // "Enrichir via IA" présent ici (liste + focus split panel) ouvre simplement
+  // la fiche détail dans un nouvel onglet avec ?ia=scrap pour auto-déclencher
+  // la modale.
   function bindAi() {
+    // Le bouton "Enrichir via IA" (colonne actions de la liste + focus split panel)
+    // ouvre désormais la fiche détail du prospect dans un nouvel onglet, avec
+    // ?ia=scrap pour auto-déclencher la modale d'enrichissement avec sa table
+    // comparative complète (avant / après / fusion / saisie manuelle).
+    // Évite la duplication du flux d'enrichissement dans prospects.js.
     document.addEventListener('click', function (e) {
       var t = e.target.closest('[data-v30-ai]');
       if (!t) return;
       var pid = Number(t.dataset.v30Ai);
-      if (pid) { e.preventDefault(); openAiModal(pid); }
+      if (!pid) return;
+      e.preventDefault();
+      window.open('/v30/prospect/' + pid + '?ia=scrap', '_blank', 'noopener');
     });
-    var run = document.querySelector('[data-v30-ai-run]');
-    if (run) run.addEventListener('click', runAi);
-    var apply = document.querySelector('[data-v30-ai-apply]');
-    if (apply) apply.addEventListener('click', applyAi);
   }
 
   // ─── Mode Prosp (deck 3D) ─────────────────────────────────
