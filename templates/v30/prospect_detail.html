@@ -332,13 +332,27 @@
     <div class="v30-modal__body">
       <p class="muted" style="font-size: 12.5px; margin: 0 0 8px;">Prospect : <strong data-v30-fp-ai-name>—</strong></p>
       <div class="v30-field">
-        <label for="v30-fp-scrap-prompt">Instruction (modifiable)</label>
+        <div class="row-sb" style="align-items:baseline; margin-bottom:4px;">
+          <label for="v30-fp-scrap-context" class="label" style="margin:0;">Contexte collé (optionnel)</label>
+          <span class="muted" style="font-size:11.5px;">Idéal : copier-coller le profil LinkedIn du prospect, un email reçu, un article, etc. — Tavily n'a pas accès à LinkedIn pour des raisons RGPD.</span>
+        </div>
+        <textarea id="v30-fp-scrap-context" class="textarea" rows="5" data-v30-fp-scrap-context placeholder="Colle ici un extrait LinkedIn, un email, un article… L'IA s'en servira en priorité avant ses connaissances générales."></textarea>
+      </div>
+      <div class="v30-field">
+        <div class="row-sb" style="align-items:baseline; margin-bottom:4px;">
+          <label for="v30-fp-scrap-prompt" class="label" style="margin:0;">Instruction (modifiable)</label>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-scrap-reset style="font-size:11.5px;">Réinitialiser</button>
+        </div>
         <textarea id="v30-fp-scrap-prompt" class="textarea" rows="6" data-v30-fp-scrap-prompt></textarea>
       </div>
       <label class="v30-chip" style="width: fit-content;">
         <input type="checkbox" data-v30-fp-scrap-web>
         <span>Activer la recherche web (Tavily)</span>
       </label>
+      <div data-v30-fp-scrap-stream-wrap style="margin-top: 12px;" hidden>
+        <label class="label" data-v30-fp-scrap-stream-label>Génération IA en cours…</label>
+        <pre class="v30-ai-raw" data-v30-fp-scrap-stream></pre>
+      </div>
       <div data-v30-fp-scrap-raw-wrap style="margin-top: 12px;" hidden>
         <label class="label">Réponse IA brute</label>
         <pre class="v30-ai-raw" data-v30-fp-scrap-raw></pre>

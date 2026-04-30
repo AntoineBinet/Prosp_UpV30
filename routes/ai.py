@@ -56,8 +56,16 @@ def api_ollama_generate():
     if not prompt:
         return jsonify(ok=False, error="prompt requis"), 400
     web_search = payload.get("web_search", False)
+    search_query = payload.get("search_query")
+    if isinstance(search_query, str):
+        search_query = search_query.strip() or None
+    else:
+        search_query = None
     try:
-        text = _call_ai_web(prompt, timeout=req_timeout) if web_search else _call_ai(prompt, timeout=req_timeout)
+        if web_search:
+            text = _call_ai_web(prompt, timeout=req_timeout, search_query=search_query)
+        else:
+            text = _call_ai(prompt, timeout=req_timeout)
         return jsonify(ok=True, text=text)
     except urllib.error.HTTPError as e:
         try:
@@ -104,16 +112,25 @@ def api_ollama_generate_stream():
     if not prompt:
         return jsonify(ok=False, error="prompt requis"), 400
     web_search = payload.get("web_search", False)
+    search_query = payload.get("search_query")
+    if isinstance(search_query, str):
+        search_query = search_query.strip() or None
+    else:
+        search_query = None
     temperature = payload.get("temperature")
     if temperature is not None:
         try:
             temperature = max(0.0, min(2.0, float(temperature)))
         except (TypeError, ValueError):
             temperature = None
-    stream_fn = _stream_ai_web_sse if web_search else _stream_ai_sse
+
+    if web_search:
+        gen = _stream_ai_web_sse(prompt, model, req_timeout, temperature=temperature, search_query=search_query)
+    else:
+        gen = _stream_ai_sse(prompt, model, req_timeout, temperature=temperature)
 
     return Response(
-        stream_fn(prompt, model, req_timeout, temperature=temperature),
+        gen,
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

@@ -697,15 +697,109 @@
   }
 
   // ── a) Scraping enrichissement ──────────────────────────────
-  function buildScrapPrompt(p) {
-    var coName = getCompanyName(p);
-    var nom = (p && p.name) || '—';
-    return "Enrichis les infos du prospect " + nom + (coName ? ' chez ' + coName : '') +
-      " : poste actuel, email/tel pro si trouvés, LinkedIn, contexte sectoriel et 2-3 accroches pertinentes pour un RDV." +
-      "\nRends la réponse en JSON STRICT (aucun texte autour, pas de markdown) :" +
-      '\n{"fonction": "", "entreprise": "", "tel": "", "email": "", "linkedin": "", "notes": "", "accroches": ["", "", ""]}' +
-      "\nSi une info est inconnue, laisse la valeur vide. Ne fabrique rien.";
+  // Marqueurs pour détecter et remplacer un bloc d'accroches IA déjà présent
+  // dans les notes (évite la duplication en cas de relance).
+  var ACCROCHES_MARKER = 'Accroches IA :';
+  // Regex utilisée pour retirer un bloc d'accroches IA existant. On capture
+  // depuis « Accroches IA : » jusqu'à la prochaine ligne vide ou la fin.
+  var ACCROCHES_RE = /\n*Accroches IA :\n(?:[•\-*].*(?:\n|$))+/g;
+  var SCRAP_PROMPT_STORAGE_KEY = 'prospup_scrap_prompt_template_v1';
+
+  function _displayValue(v) {
+    if (v == null) return '';
+    return String(v).trim();
   }
+
+  function _currentTagsArr(p) {
+    if (!p) return [];
+    try { return FP.parseTags(p.tags) || []; } catch (_) { return []; }
+  }
+
+  // Construit une query Tavily focalisée (sans les instructions JSON)
+  function buildScrapSearchQuery(p) {
+    var nom = _displayValue(p && p.name);
+    var co = getCompanyName(p);
+    var site = _displayValue(p && p.company_site);
+    var parts = [nom, co, site, 'LinkedIn', 'contact'].filter(Boolean);
+    return parts.join(' ').slice(0, 200);
+  }
+
+  // Construit un prompt contextualisé avec les champs déjà renseignés
+  // et le contenu collé par l'utilisateur.
+  function buildScrapPrompt(p, pasted) {
+    p = p || {};
+    var nom = _displayValue(p.name) || '—';
+    var co = getCompanyName(p);
+    var site = _displayValue(p.company_site);
+    var fonction = _displayValue(p.fonction);
+    var email = _displayValue(p.email);
+    var tel = _displayValue(p.telephone);
+    var linkedin = _displayValue(p.linkedin);
+    var notes = _displayValue(p.notes);
+    var tags = _currentTagsArr(p);
+
+    var fieldLine = function (label, val) {
+      return '- ' + label + ' : ' + (val ? val : '(vide)');
+    };
+
+    var ctx = [
+      'Tu es un assistant qui enrichit une fiche prospect B2B.',
+      '',
+      'DONNÉES ACTUELLES de la fiche (source de vérité — ne propose un changement que si tu as une certitude forte) :',
+      fieldLine('Nom', nom),
+      fieldLine('Entreprise', co),
+      fieldLine('Site', site),
+      fieldLine('Fonction', fonction),
+      fieldLine('Email', email),
+      fieldLine('Téléphone', tel),
+      fieldLine('LinkedIn', linkedin),
+      fieldLine('Notes', notes ? notes.slice(0, 500) : ''),
+      fieldLine('Tags actuels', tags.length ? tags.join(', ') : '')
+    ];
+
+    if (pasted && pasted.trim()) {
+      ctx.push('');
+      ctx.push('CONTEXTE EXTERNE collé par l\'utilisateur (prioritaire — extrait LinkedIn, email, article, etc.) :');
+      ctx.push('"""');
+      ctx.push(pasted.trim().slice(0, 8000));
+      ctx.push('"""');
+    }
+
+    ctx.push('');
+    ctx.push('CONSIGNES :');
+    ctx.push('- Complète UNIQUEMENT les champs vides ou clairement obsolètes. Pour les champs déjà renseignés et corrects, retourne une chaîne vide.');
+    ctx.push('- Ne fabrique aucune donnée non confirmée par les sources fournies. En cas de doute, laisse vide.');
+    ctx.push('- "notes_complement" : court paragraphe (2-4 phrases) résumant le contexte sectoriel ou le parcours — ce sera AJOUTÉ aux notes existantes, pas substitué. Laisse vide si rien de pertinent à ajouter.');
+    ctx.push('- "accroches" : 2-3 accroches courtes et concrètes pour démarrer un échange RDV (sujets d\'actualité du secteur, projets visibles, points communs).');
+    ctx.push('');
+    ctx.push('Réponds UNIQUEMENT en JSON STRICT (sans markdown, sans texte autour) avec ce schéma exact :');
+    ctx.push('{"fonction": "", "tel": "", "email": "", "linkedin": "", "notes_complement": "", "accroches": ["", "", ""]}');
+
+    return ctx.join('\n');
+  }
+
+  function _loadStoredPromptTemplate() {
+    try { return sessionStorage.getItem(SCRAP_PROMPT_STORAGE_KEY) || ''; }
+    catch (_) { return ''; }
+  }
+  function _saveStoredPromptTemplate(val) {
+    try {
+      if (val) sessionStorage.setItem(SCRAP_PROMPT_STORAGE_KEY, val);
+      else sessionStorage.removeItem(SCRAP_PROMPT_STORAGE_KEY);
+    } catch (_) {}
+  }
+
+  function resetScrapPrompt() {
+    var m = getFPModal('scrap');
+    if (!m) return;
+    var p = FP.STATE.prospect || {};
+    var ctx = (m.querySelector('[data-v30-fp-scrap-context]') || {}).value || '';
+    var pr = m.querySelector('[data-v30-fp-scrap-prompt]');
+    if (pr) pr.value = buildScrapPrompt(p, ctx);
+    _saveStoredPromptTemplate('');
+    toast('Prompt réinitialisé', 'info');
+  }
+
   function openScrapModal() {
     var p = FP.STATE.prospect || {};
     IA_CTX.scrapJson = null;
@@ -714,10 +808,19 @@
     if (!m) return;
     var nameEl = m.querySelector('[data-v30-fp-ai-name]');
     if (nameEl) nameEl.textContent = p.name || '—';
+    var ctxEl = m.querySelector('[data-v30-fp-scrap-context]');
+    if (ctxEl) ctxEl.value = '';
     var pr = m.querySelector('[data-v30-fp-scrap-prompt]');
-    if (pr) pr.value = buildScrapPrompt(p);
+    if (pr) {
+      var stored = _loadStoredPromptTemplate();
+      pr.value = stored || buildScrapPrompt(p, '');
+    }
     var web = m.querySelector('[data-v30-fp-scrap-web]');
     if (web) web.checked = false;
+    var streamWrap = m.querySelector('[data-v30-fp-scrap-stream-wrap]');
+    if (streamWrap) streamWrap.hidden = true;
+    var streamEl = m.querySelector('[data-v30-fp-scrap-stream]');
+    if (streamEl) streamEl.textContent = '';
     var rawWrap = m.querySelector('[data-v30-fp-scrap-raw-wrap]');
     if (rawWrap) rawWrap.hidden = true;
     var diffWrap = m.querySelector('[data-v30-fp-scrap-diff-wrap]');
@@ -729,56 +832,188 @@
     var run = m.querySelector('[data-v30-fp-scrap-run]');
     if (run) { run.disabled = false; run.textContent = "Lancer l'analyse"; }
   }
+
   function runScrap() {
     var m = getFPModal('scrap');
     if (!m) return;
-    var prompt = (m.querySelector('[data-v30-fp-scrap-prompt]') || {}).value || '';
+    var p = FP.STATE.prospect || {};
+    var promptEl = m.querySelector('[data-v30-fp-scrap-prompt]');
+    var ctxEl = m.querySelector('[data-v30-fp-scrap-context]');
+    var pasted = (ctxEl && ctxEl.value) || '';
+    var promptUser = (promptEl && promptEl.value) || '';
+    if (!promptUser.trim()) { toast('Prompt vide', 'warning'); return; }
+
+    // Persistance : on sauvegarde le template utilisateur s'il diffère de celui généré
+    var defaultPrompt = buildScrapPrompt(p, '');
+    var defaultPromptWithCtx = buildScrapPrompt(p, pasted);
+    if (promptUser !== defaultPrompt && promptUser !== defaultPromptWithCtx) {
+      _saveStoredPromptTemplate(promptUser);
+    }
+
+    // On envoie au backend le prompt utilisateur + (si contexte collé) un append explicite
+    var finalPrompt = promptUser;
+    if (pasted.trim() && promptUser.indexOf(pasted.trim().slice(0, 60)) === -1) {
+      finalPrompt = promptUser + '\n\nCONTEXTE EXTERNE collé par l\'utilisateur (prioritaire) :\n"""\n' + pasted.trim().slice(0, 8000) + '\n"""';
+    }
+
     var web = !!(m.querySelector('[data-v30-fp-scrap-web]') || {}).checked;
     var run = m.querySelector('[data-v30-fp-scrap-run]');
+    var streamWrap = m.querySelector('[data-v30-fp-scrap-stream-wrap]');
+    var streamEl = m.querySelector('[data-v30-fp-scrap-stream]');
+    var streamLbl = m.querySelector('[data-v30-fp-scrap-stream-label]');
     var rawWrap = m.querySelector('[data-v30-fp-scrap-raw-wrap]');
     var rawEl = m.querySelector('[data-v30-fp-scrap-raw]');
     var diffWrap = m.querySelector('[data-v30-fp-scrap-diff-wrap]');
     var diffEl = m.querySelector('[data-v30-fp-scrap-diff]');
     var apply = m.querySelector('[data-v30-fp-scrap-apply]');
     var copy = m.querySelector('[data-v30-fp-scrap-copy]');
-    if (!prompt.trim()) { toast('Prompt vide', 'warning'); return; }
+
     if (run) { run.disabled = true; run.textContent = 'Analyse en cours…'; }
     if (apply) apply.hidden = true;
     if (diffWrap) diffWrap.hidden = true;
     if (rawWrap) rawWrap.hidden = true;
     if (copy) copy.hidden = true;
+    if (streamWrap) streamWrap.hidden = false;
+    if (streamEl) streamEl.textContent = '';
+    if (streamLbl) streamLbl.textContent = web ? 'Recherche web Tavily…' : 'Génération IA en cours…';
 
-    FP.fetchPostJSON('/api/ollama/generate', { prompt: prompt, web_search: web, timeout: 180 })
-      .then(function (res) {
-        if (!res || !res.ok) throw new Error((res && res.error) || 'IA indisponible');
-        IA_CTX.scrapText = res.text || '';
-        IA_CTX.scrapJson = extractJsonMaybe(IA_CTX.scrapText);
-        if (rawEl) rawEl.textContent = IA_CTX.scrapText;
-        if (IA_CTX.scrapJson) {
-          renderScrapDiff(diffEl, IA_CTX.scrapJson);
-          if (diffWrap) diffWrap.hidden = false;
-          if (apply) apply.hidden = false;
-          toast('Analyse terminée — relis et applique', 'success');
-        } else {
-          if (rawWrap) rawWrap.hidden = false;
-          if (copy) copy.hidden = false;
-          toast('Réponse IA non JSON — consulte le texte brut', 'warning');
-        }
+    var searchQuery = buildScrapSearchQuery(p);
+    if (pasted.trim()) {
+      // Enrichir la query avec un mot-clé du contexte collé pour aider Tavily
+      searchQuery = (searchQuery + ' ' + pasted.trim().split(/\s+/).slice(0, 6).join(' ')).slice(0, 200);
+    }
+
+    var accumulated = '';
+    var streamFailed = false;
+
+    fetch('/api/ollama/generate-stream', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+      body: JSON.stringify({
+        prompt: finalPrompt,
+        web_search: web,
+        search_query: web ? searchQuery : null,
+        timeout: 240
       })
-      .catch(function (err) { toast('Erreur IA : ' + (err.message || err), 'error'); })
-      .then(function () {
-        if (run) { run.disabled = false; run.textContent = "Relancer l'analyse"; }
-      });
+    }).then(function (resp) {
+      if (!resp.ok || !resp.body) {
+        // Fallback non-streaming
+        streamFailed = true;
+        return FP.fetchPostJSON('/api/ollama/generate', {
+          prompt: finalPrompt, web_search: web, search_query: web ? searchQuery : null, timeout: 240
+        }).then(function (res) {
+          if (!res || !res.ok) throw new Error((res && res.error) || 'IA indisponible');
+          accumulated = res.text || '';
+        });
+      }
+      var reader = resp.body.getReader();
+      var decoder = new TextDecoder('utf-8');
+      var buffer = '';
+      function pump() {
+        return reader.read().then(function (chunk) {
+          if (chunk.done) return;
+          buffer += decoder.decode(chunk.value, { stream: true });
+          var lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          lines.forEach(function (line) {
+            if (!line.indexOf('data: ')) {
+              try {
+                var ev = JSON.parse(line.slice(6));
+                if (ev.type === 'token' && ev.text) {
+                  accumulated += ev.text;
+                  if (streamEl) {
+                    // Affiche les 4000 derniers caractères pour rester léger
+                    streamEl.textContent = accumulated.slice(-4000);
+                    streamEl.scrollTop = streamEl.scrollHeight;
+                  }
+                } else if (ev.type === 'status' && ev.message && streamLbl) {
+                  streamLbl.textContent = ev.message;
+                } else if (ev.type === 'error' && ev.message) {
+                  throw new Error(ev.message);
+                }
+              } catch (_) { /* ligne SSE non JSON, ignore */ }
+            }
+          });
+          return pump();
+        });
+      }
+      return pump();
+    }).then(function () {
+      IA_CTX.scrapText = accumulated;
+      var parsed = extractJsonMaybe(accumulated);
+      var validation = validateScrapJson(parsed);
+      IA_CTX.scrapJson = validation.json;
+      if (streamWrap) streamWrap.hidden = true;
+      if (rawEl) rawEl.textContent = accumulated;
+      if (validation.json) {
+        renderScrapDiff(diffEl, validation.json);
+        if (diffWrap) diffWrap.hidden = false;
+        if (apply) apply.hidden = false;
+        var msg = 'Analyse terminée — relis et applique';
+        if (validation.warnings.length) msg += ' (' + validation.warnings.join(', ') + ')';
+        toast(msg, validation.warnings.length ? 'warning' : 'success');
+      } else {
+        if (rawWrap) rawWrap.hidden = false;
+        if (copy) copy.hidden = false;
+        toast('Réponse IA non JSON — consulte le texte brut', 'warning');
+      }
+    }).catch(function (err) {
+      if (streamWrap) streamWrap.hidden = true;
+      toast('Erreur IA : ' + (err && err.message ? err.message : err), 'error');
+    }).then(function () {
+      if (run) { run.disabled = false; run.textContent = "Relancer l'analyse"; }
+    });
   }
-  // Mapping clé JSON → champ prospect côté backend
+
+  // Validation du schéma JSON renvoyé par l'IA. Retourne {json, warnings}.
+  function validateScrapJson(parsed) {
+    var warnings = [];
+    if (!parsed || typeof parsed !== 'object') {
+      return { json: null, warnings: ['JSON invalide'] };
+    }
+    var allowed = ['fonction', 'tel', 'telephone', 'email', 'linkedin', 'notes_complement', 'notes', 'accroches', 'entreprise', 'site'];
+    var unknown = Object.keys(parsed).filter(function (k) { return allowed.indexOf(k) === -1; });
+    if (unknown.length) warnings.push('clés ignorées : ' + unknown.join(', '));
+    // Compat ascendante : si l'IA a renvoyé "notes" au lieu de "notes_complement"
+    if (parsed.notes_complement == null && typeof parsed.notes === 'string') {
+      parsed.notes_complement = parsed.notes;
+    }
+    if (parsed.accroches != null && !Array.isArray(parsed.accroches)) {
+      warnings.push('accroches non tableau');
+      parsed.accroches = [];
+    }
+    return { json: parsed, warnings: warnings };
+  }
+
+  // Mapping clé JSON → champ prospect côté backend (champs simples)
   var SCRAP_FIELD_MAP = {
     fonction: 'fonction',
     tel: 'telephone',
     telephone: 'telephone',
     email: 'email',
-    linkedin: 'linkedin',
-    notes: 'notes'
+    linkedin: 'linkedin'
   };
+
+  // Construit la nouvelle valeur de "notes" en fusionnant le complément IA
+  // et les accroches, en remplaçant tout bloc « Accroches IA : » existant.
+  function buildMergedNotes(currentNotes, complement, accroches) {
+    var base = String(currentNotes || '').replace(ACCROCHES_RE, '').trim();
+    if (complement && complement.trim()) {
+      var c = complement.trim();
+      // Évite la duplication si le complément est déjà inclus
+      if (base.indexOf(c) === -1) {
+        base = base ? (base + '\n\n' + c) : c;
+      }
+    }
+    if (accroches && accroches.length) {
+      var accText = accroches.map(function (a) { return '• ' + a; }).join('\n');
+      base = base ? (base + '\n\n' + ACCROCHES_MARKER + '\n' + accText)
+                  : (ACCROCHES_MARKER + '\n' + accText);
+    }
+    return base;
+  }
+
   function renderScrapDiff(host, json) {
     if (!host) return;
     host.innerHTML = '';
@@ -793,16 +1028,27 @@
       if (!nv) return;
       var cur = (p[field] == null ? '' : String(p[field])).trim();
       if (cur === nv) return;
+      // Évite la double-ligne tel/telephone si les deux clés présentes
+      if (rows.some(function (r) { return r.field === field; })) return;
       rows.push({ field: field, label: key, oldVal: cur, newVal: nv });
     });
-    // Accroches → suggestion à concaténer aux notes
-    var accroches = Array.isArray(json.accroches) ? json.accroches.filter(Boolean) : [];
-    if (accroches.length) {
-      var accText = accroches.map(function (a) { return '• ' + a; }).join('\n');
+
+    // Notes : merge complément + accroches en UNE SEULE ligne (fix bug double-row)
+    var complement = typeof json.notes_complement === 'string' ? json.notes_complement.trim() : '';
+    var accroches = Array.isArray(json.accroches)
+      ? json.accroches.map(function (a) { return (a == null ? '' : String(a)).trim(); }).filter(Boolean)
+      : [];
+    if (complement || accroches.length) {
       var curNotes = (p.notes == null ? '' : String(p.notes)).trim();
-      var newNotes = curNotes ? (curNotes + '\n\nAccroches IA :\n' + accText) : ('Accroches IA :\n' + accText);
-      rows.push({ field: 'notes', label: 'accroches → notes', oldVal: curNotes, newVal: newNotes, isMerge: true });
+      var newNotes = buildMergedNotes(curNotes, complement, accroches);
+      if (newNotes !== curNotes) {
+        var lbl = [];
+        if (complement) lbl.push('complément');
+        if (accroches.length) lbl.push(accroches.length + ' accroche(s)');
+        rows.push({ field: 'notes', label: 'notes (' + lbl.join(' + ') + ')', oldVal: curNotes, newVal: newNotes, isMerge: true });
+      }
     }
+
     if (!rows.length) {
       host.innerHTML = '<div class="empty" style="padding:12px;font-size:12px;">Rien à appliquer — l\'IA n\'a pas suggéré de valeur différente.</div>';
       return;
@@ -821,6 +1067,7 @@
     });
     host._rows = rows;
   }
+
   function applyScrap() {
     var m = getFPModal('scrap');
     if (!m) return;
@@ -836,31 +1083,61 @@
     });
     if (!selected.length) { toast('Aucun champ sélectionné', 'warning'); return; }
     if (apply) apply.disabled = true;
+
+    var ok = [];
+    var failed = [];
     var chain = Promise.resolve();
     selected.forEach(function (r) {
       chain = chain.then(function () {
         return FP.saveField(r.field, r.newVal).then(function () {
           if (FP.STATE.prospect) FP.STATE.prospect[r.field] = r.newVal;
+          ok.push(r);
+        }).catch(function (err) {
+          failed.push({ row: r, err: err });
         });
       });
     });
+
     chain.then(function () {
-      toast('Prospect enrichi', 'success');
-      // Mettre à jour l'UI
       if (window.ProspFPRender && FP.STATE.prospect) {
         R.header(FP.STATE.prospect);
         R.aside(FP.STATE.prospect);
       }
-      flashSaved();
-      closeFPModal(m);
-      var fields = selected.map(function (r) { return r.label || r.field; });
-      logIaRun('scrap', fields.length ? ('Champs appliqués : ' + fields.join(', ')) : '');
-    }).catch(function (err) {
-      toast('Erreur application : ' + (err.message || err), 'error');
+
+      if (ok.length && !failed.length) {
+        toast('Prospect enrichi (' + ok.length + ' champ' + (ok.length > 1 ? 's' : '') + ')', 'success');
+        flashSaved();
+      } else if (ok.length && failed.length) {
+        toast(ok.length + ' champ(s) appliqué(s), ' + failed.length + ' échec(s) : ' +
+          failed.map(function (f) { return f.row.label; }).join(', '), 'warning');
+        flashSaved();
+      } else {
+        toast('Échec sur tous les champs : ' + failed.map(function (f) { return f.row.label; }).join(', '), 'error');
+      }
+
+      if (ok.length) {
+        var fields = ok.map(function (r) { return r.label || r.field; });
+        // Badge picker IA
+        logIaRun('scrap', 'Champs appliqués : ' + fields.join(', '), {
+          field_count: ok.length, fields: fields
+        });
+        // Event timeline dédié à l'enrichissement
+        FP.fetchPostJSON('/api/ia-enrichment-log', {
+          type: 'prospect',
+          entity_id: FP.ID,
+          fields_updated: fields.join(', '),
+          field_count: ok.length
+        }).then(function () {
+          if (typeof FP.loadTimeline === 'function') FP.loadTimeline();
+        }).catch(function () { /* silencieux */ });
+      }
+
+      if (!failed.length) closeFPModal(m);
     }).then(function () {
       if (apply) apply.disabled = false;
     });
   }
+
   function copyScrap() {
     var txt = IA_CTX.scrapText || '';
     if (!txt) return;
@@ -1687,6 +1964,7 @@
       if (e.target.closest('[data-v30-fp-scrap-run]')) runScrap();
       if (e.target.closest('[data-v30-fp-scrap-apply]')) applyScrap();
       if (e.target.closest('[data-v30-fp-scrap-copy]')) copyScrap();
+      if (e.target.closest('[data-v30-fp-scrap-reset]')) resetScrapPrompt();
       if (e.target.closest('[data-v30-fp-before-run]')) runBefore();
       if (e.target.closest('[data-v30-fp-after-run]')) runAfter();
       if (e.target.closest('[data-v30-fp-after-save]')) saveAfterForm();
