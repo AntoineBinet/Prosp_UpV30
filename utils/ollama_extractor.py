@@ -12,24 +12,29 @@ import urllib.error
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 _PROMPT_COMPETENCES = """\
-Tu es un expert RH. À partir du texte de CV ci-dessous, extrais UNIQUEMENT les compétences techniques globales du candidat.
+Tu es un expert RH. À partir du texte de CV ci-dessous, extrais les informations du candidat.
 
-RÈGLES STRICTES :
-- "competences" = compétences techniques GLOBALES (langages, frameworks, outils, BDD, cloud, méthodes, secteurs)
-- NE PAS inclure de descriptions de missions ou de réalisations
-- NE PAS inventer de compétences absentes
-- Max 8 catégories
-- Chaque catégorie a SOIT "items" (liste plate, max 12 items), SOIT "groupes" (sous-catégories avec titre et items)
-- Utilise "groupes" si la catégorie regroupe plusieurs domaines distincts (ex: "Domaines de compétences")
-- Utilise "items" pour les listes simples (langages, outils, secteurs)
-- Les catégories DOIVENT être des labels génériques : "Langages", "Frameworks", "Outils", "Bases de données", "Méthodes", "Cloud", "Secteurs", "Domaines de compétences", "Technologies XML", "Web", "Conception", "Certifications"
-- INTERDIT d'utiliser comme catégorie un nom d'outil ("SQL", "DB2", "Java", "Oracle", "Eclipse") ou un nom de client ("HERTZ", "BNP", "EDF", "GMF", "AXA", "SANOFI", "EFS"…)
-- INTERDIT d'utiliser comme catégorie un fragment d'expérience ("Technologies et outils utilisés au quotidien", "Projet X", "Réalisations")
+RÈGLES POUR "competences" :
+- Compétences techniques GLOBALES : langages, frameworks, outils, BDD, cloud, méthodes, certifications
+- Max 8 catégories — labels GÉNÉRIQUES obligatoires : "Langages", "Frameworks", "Outils & DevOps", "Bases de données", "Cloud & Infrastructure", "Méthodes", "Secteurs", "Domaines de compétences", "Web", "Conception", "Certifications"
+- INTERDIT comme catégorie : un nom d'outil seul (SQL, Docker…), un nom de client, un fragment de mission
+- NE PAS inclure les réalisations ou descriptions de missions dans les compétences
+- Utilise "groupes" pour les catégories à sous-domaines, "items" pour les listes simples
+
+RÈGLES POUR "formations" :
+- Tous les diplômes, BTS, licences, masters, certifications académiques — ordre décroissant (le plus récent en premier)
+- Si l'année n'est pas précisée, laisser "annee" vide ("")
+- "label" = type de diplôme (ex: "Master", "BTS", "Licence", "Diplôme d'ingénieur")
+- "texte" = intitulé complet + établissement (ex: "Master Informatique – Université Paris VI")
+
+RÈGLES POUR "langues" :
+- Toutes les langues mentionnées avec leur niveau si précisé
+- Niveaux acceptés : Natif, Courant, Professionnel, Intermédiaire, Notions, A1/A2/B1/B2/C1/C2
 
 Retourne UNIQUEMENT ce JSON valide, sans markdown ni explication :
 {{
-  "nom": "NOM",
-  "prenom": "Prénom",
+  "nom": "DUPONT",
+  "prenom": "Jean",
   "titre_poste": "Chef de Projet / Expert DevOps",
   "annees_experience": "18 ans d'expérience",
   "competences": [
@@ -45,8 +50,14 @@ Retourne UNIQUEMENT ce JSON valide, sans markdown ni explication :
     {{"categorie": "Méthodes", "items": ["Agile/Scrum", "DevOps", "PRINCE2"]}},
     {{"categorie": "Secteurs", "items": ["Finance", "Assurance", "Énergie"]}}
   ],
-  "formations": [{{"label": "Formation", "texte": "Master Informatique – Paris VI", "annee": "2006"}}],
-  "langues": [{{"langue": "Anglais", "niveau": "Courant"}}],
+  "formations": [
+    {{"label": "Master", "texte": "Master Informatique – Université Paris VI", "annee": "2006"}},
+    {{"label": "BTS", "texte": "BTS Informatique de Gestion – Lycée X", "annee": "2004"}}
+  ],
+  "langues": [
+    {{"langue": "Français", "niveau": "Natif"}},
+    {{"langue": "Anglais", "niveau": "Courant"}}
+  ],
   "certifications": ["AWS Certified Solutions Architect", "PRINCE2"]
 }}
 
@@ -54,45 +65,44 @@ TEXTE DU CV :
 {cv_text}"""
 
 _PROMPT_EXPERIENCES = """\
-Tu es un expert RH. À partir du texte de CV ci-dessous, extrais la liste des expériences professionnelles.
+Tu es un expert RH. À partir du texte de CV ci-dessous, extrais TOUTES les expériences professionnelles.
 
 RÈGLES STRICTES :
-- Une entrée = une mission ou un projet chez un client/employeur distinct
-- "entreprise" OBLIGATOIRE : nom du client ou de l'employeur (ex: "HERTZ", "BNP Paribas", "EFS"). JAMAIS vide.
-- "dates" OBLIGATOIRE : période de la mission (ex: "01/2012 au 07/2012", "Depuis 09/2020")
-- "titre_projet" = nom du projet ou de la mission (ex: "Refonte espace client GMF")
-  Si pas de nom explicite → "{rôle} chez {entreprise}" (ex: "Chef de Projet chez EFS")
-- "poste" = rôle/fonction du candidat dans la mission (du champ "Rôle :" ou "Fonction :" du CV)
-- "sous_missions" : réalisations structurées (lignes avec ❖ • ou ➢ o dans le CV)
-  • Liste simple → "bullets" : ["réalisation 1", "réalisation 2"]
-  • Réalisations avec sous-parties → "groupes" : [{{"titre": "Partie", "items": ["item 1"]}}]
-- "outils" = outils/technologies de CETTE mission uniquement (liste sous « Technologies et outils utilisés au quotidien »)
-- NE JAMAIS inclure les lignes « Technologies et outils utilisés au quotidien » dans les bullets — elles vont dans "outils"
-- Max 15 expériences
-- NE PAS inventer de données absentes
-- Si une expérience n'a PAS d'entreprise identifiable, NE PAS la créer
+- Une entrée = un poste ou une mission chez un employeur ou client
+- "entreprise" OBLIGATOIRE : nom de l'employeur ou du client final. JAMAIS vide.
+- "dates" OBLIGATOIRE : période (ex: "01/2022 – 07/2023", "Depuis 09/2020", "2018 – 2021")
+- "titre_projet" = nom du projet ou de la mission. Si absent → "{poste} chez {entreprise}"
+- "poste" = rôle ou fonction du candidat (ex: "Développeur Senior", "Chef de Projet", "Consultant")
+- "secteur" = secteur d'activité de l'entreprise (ex: "Banque", "Assurance", "Industrie", "Retail")
+- "duree" = durée calculée si possible (ex: "(18 mois)", "(2 ans)")
+- "sous_missions" = liste des activités, réalisations ou responsabilités décrites dans le CV
+  Format : liste de bullets simples
+- "outils" = technologies et outils utilisés dans CETTE mission, séparés par des virgules
+- Extraire TOUTES les expériences du CV sans limite de nombre
+- NE PAS inventer de données absentes du CV
+- Si une expérience n'a pas d'entreprise identifiable, NE PAS la créer
 
 Retourne UNIQUEMENT ce JSON valide, sans markdown ni explication :
 {{
   "experiences": [
     {{
-      "titre_projet": "Refonte espace client GMF",
-      "entreprise": "GMF Assurances",
-      "dates": "08/2012 à 08/2013",
-      "duree": "(12 mois)",
-      "secteur": "Assurance",
-      "poste": "Architecte, Référent technique",
+      "titre_projet": "Refonte portail client",
+      "entreprise": "BNP Paribas",
+      "dates": "03/2022 à 09/2023",
+      "duree": "(18 mois)",
+      "secteur": "Banque",
+      "poste": "Chef de Projet",
       "sous_missions": [
         {{
           "titre": "Réalisations",
           "bullets": [
-            "Refonte de l'espace sociétaire gmf.fr",
-            "Développement IHMs JSF 2.0",
-            "Correction d'anomalies"
+            "Pilotage d'une équipe de 8 développeurs",
+            "Rédaction des spécifications fonctionnelles",
+            "Suivi des livraisons et recette utilisateur"
           ]
         }}
       ],
-      "outils": "Java J2EE, JSF 2.0, Maven, Eclipse, Oracle"
+      "outils": "Java, Spring Boot, Oracle, Jira, Git"
     }}
   ]
 }}
@@ -105,16 +115,19 @@ TEXTE DU CV :
 _SECTION_PATTERNS = {
     'competences': [
         r'(?im)^[ \t]*(?:COMP[EÉ]TENCES?(?:\s+TECHNIQUES?)?|TECHNICAL\s+SKILLS?|SAVOIRS?\s*FAIRE?|EXPERTISE\s+TECHNIQUE)\s*:?\s*$',
-        r'(?im)^[ \t]*(?:COMP[EÉ]TENCES?|SKILLS?)\b[^\n]{0,30}$',
+        r'(?im)^[ \t]*(?:COMP[EÉ]TENCES?(?:\s+PRINCIPALES?)?|SKILLS?|HARD\s+SKILLS?)\b[^\n]{0,30}$',
+        r'(?im)^[ \t]*(?:TECHNOLOGIES?|OUTILS?\s+ET\s+TECHNOLOGIES?|TECHNICAL\s+EXPERTISE)\s*:?\s*$',
     ],
     'experiences': [
         r'(?im)^[ \t]*(?:EXP[EÉ]RIENCES?\s+PROFESSIONNELLES?|PARCOURS\s+PROFESSIONNEL|EXP[EÉ]RIENCES?\s+(?:DE\s+)?TRAVAIL)\s*:?\s*$',
         r'(?im)^[ \t]*(?:EXP[EÉ]RIENCES?|MISSIONS?\s+PROFESSIONNELLES?)\s*:?\s*$',
-        r'(?im)^[ \t]*(?:PROFESSIONAL\s+EXPERIENCE|WORK\s+EXPERIENCE)\s*:?\s*$',
+        r'(?im)^[ \t]*(?:PROFESSIONAL\s+EXPERIENCE|WORK\s+EXPERIENCE|CAREER\s+HISTORY)\s*:?\s*$',
+        r'(?im)^[ \t]*EXP[EÉ]RIENCE\s*$',
     ],
     'formations': [
         r'(?im)^[ \t]*(?:FORMATIONS?\s+(?:ET\s+)?DIPL[OÔ]MES?|FORMATIONS?\s+ACAD[EÉ]MIQUES?|PARCOURS\s+(?:ACAD[EÉ]MIQUE|SCOLAIRE)|EDUCATION)\s*:?\s*$',
-        r'(?im)^[ \t]*(?:FORMATIONS?|DIPL[OÔ]MES?|STUDIES?)\s*:?\s*$',
+        r'(?im)^[ \t]*(?:FORMATIONS?|DIPL[OÔ]MES?|STUDIES?|CURSUS)\s*:?\s*$',
+        r'(?im)^[ \t]*(?:EDUCATION\s+AND\s+TRAINING|ACADEMIC\s+BACKGROUND)\s*:?\s*$',
     ],
 }
 
@@ -144,31 +157,33 @@ def _split_cv(cv_text: str) -> dict:
     Retourne un dict avec les textes isolés pour chaque section.
     """
     bounds = _find_section_bounds(cv_text)
-
     result = {}
-
     total = len(cv_text)
+    # En-tête du CV (nom, titre, contact) = premiers 600 chars
+    header = cv_text[:600].strip()
 
     # Section compétences
     if 'competences' in bounds:
         s, e = bounds['competences']
-        # Inclure ce qui précède la section (nom, titre, années)
         pre_section = cv_text[:s].strip()
         comp_section = cv_text[s:e].strip()
         result['competences'] = (pre_section + '\n\n' + comp_section).strip() if pre_section else comp_section
     else:
-        # Heuristique : premier 40% du texte (au max 3500 chars)
-        cut = min(max(total // 2, 1500), 3500)
-        result['competences'] = cv_text[:cut].strip()
+        # Aucune section détectée : envoyer tout le CV (le modèle extrait lui-même)
+        # Limité à 5000 chars pour rester dans le contexte
+        result['competences'] = (header + '\n\n' + cv_text).strip()[:5000]
 
     # Section expériences
     if 'experiences' in bounds:
         s, e = bounds['experiences']
         result['experiences'] = cv_text[s:e].strip()
+    elif 'formations' in bounds:
+        # Tout ce qui précède les formations = probablement les expériences
+        s_form = bounds['formations'][0]
+        result['experiences'] = cv_text[:s_form].strip()
     else:
-        # Heuristique : 2e moitié du texte (ou tout si CV court)
-        cut = min(total // 3, 2500)
-        result['experiences'] = cv_text[cut:].strip() if total > 1000 else cv_text.strip()
+        # Aucune section détectée : envoyer tout le CV
+        result['experiences'] = cv_text.strip()
 
     return result
 
@@ -192,7 +207,7 @@ def _call_ollama(prompt: str, ollama_url: str, model: str, timeout: int) -> str 
         'stream':  False,
         'options': {
             'temperature': 0.05,
-            'num_predict': 3000,
+            'num_predict': 4096,
             'num_ctx':     8192,
         }
     }).encode('utf-8')
@@ -300,7 +315,7 @@ def extract(cv_text: str, ollama_url: str = 'http://127.0.0.1:11434',
     print(f'[OllamaExtractor] section expériences : {len(sections["experiences"])} chars')
 
     # ── Passe 1 : Compétences ─────────────────────────────────────────────────
-    comp_text = _smart_truncate(sections['competences'], 5000)
+    comp_text = _smart_truncate(sections['competences'], 6000)
     prompt1 = _PROMPT_COMPETENCES.format(cv_text=comp_text)
     raw1 = _call_ollama(prompt1, ollama_url, model, min(timeout, 120))
     comp_data = {}
@@ -308,14 +323,14 @@ def extract(cv_text: str, ollama_url: str = 'http://127.0.0.1:11434',
         comp_data = _parse_json_response(raw1) or {}
         if not _is_valid_competences(comp_data):
             print('[OllamaExtractor] compétences invalides (contenu d\'expériences détecté), retry...')
-            # Retry avec seulement le début du CV (header)
-            short_text = _smart_truncate(cv_text, 2000)
+            # Retry avec seulement le début du CV (header + 2000 chars)
+            short_text = _smart_truncate(cv_text, 2500)
             raw1b = _call_ollama(_PROMPT_COMPETENCES.format(cv_text=short_text),
                                  ollama_url, model, min(timeout, 90))
             comp_data = (_parse_json_response(raw1b) or {}) if raw1b else {}
 
     # ── Passe 2 : Expériences ─────────────────────────────────────────────────
-    exp_text = _smart_truncate(sections['experiences'], 8000)
+    exp_text = _smart_truncate(sections['experiences'], 10000)
     prompt2 = _PROMPT_EXPERIENCES.format(cv_text=exp_text)
     raw2 = _call_ollama(prompt2, ollama_url, model, timeout)
     exp_data = {}
@@ -347,7 +362,27 @@ def extract(cv_text: str, ollama_url: str = 'http://127.0.0.1:11434',
     combined = {**comp_data}  # nom, prenom, titre_poste, annees_experience, competences, formations, langues, certifications
     combined['experiences'] = clean_exps
 
-    return _normalize(combined) if (combined.get('nom') or combined.get('competences') or combined.get('experiences')) else None
+    if not (combined.get('nom') or combined.get('competences') or combined.get('experiences')):
+        return None
+
+    result = _normalize(combined)
+
+    # Signaler les champs manquants pour le feedback frontend
+    missing = []
+    if not result.get('nom') and not result.get('prenom'):
+        missing.append('identité')
+    if not result.get('competences'):
+        missing.append('compétences')
+    if not result.get('experiences'):
+        missing.append('expériences')
+    if not result.get('formations'):
+        missing.append('formations')
+    if not result.get('langues'):
+        missing.append('langues')
+    if missing:
+        result['_missing'] = missing
+
+    return result
 
 
 # ── Parsing JSON ──────────────────────────────────────────────────────────────
@@ -375,15 +410,48 @@ def _parse_json_response(text: str) -> dict | None:
             if depth == 0: end = i + 1; break
 
     json_str = text[start:end] if end != -1 else text[start:]
-    try:
-        return json.loads(json_str)
-    except json.JSONDecodeError:
-        json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+
+    def _try_parse(s: str) -> dict | None:
         try:
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            print(f'[OllamaExtractor] JSON invalide : {e}')
+            return json.loads(s)
+        except json.JSONDecodeError:
             return None
+
+    result = _try_parse(json_str)
+    if result is not None:
+        return result
+
+    # Tentatives de réparation successives
+    fixed = json_str
+    # 1. Virgules traînantes avant } ou ]
+    fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
+    result = _try_parse(fixed)
+    if result is not None:
+        return result
+
+    # 2. Sauts de ligne littéraux dans les chaînes → \n
+    fixed = re.sub(r'(?<="[^"]{0,500})\n(?=[^"]{0,500}")', r'\\n', fixed)
+    result = _try_parse(fixed)
+    if result is not None:
+        return result
+
+    # 3. Clore un JSON tronqué (num_predict atteint) en fermant les accolades manquantes
+    depth2 = 0
+    for ch in fixed:
+        if ch == '{': depth2 += 1
+        elif ch == '}': depth2 -= 1
+    if depth2 > 0:
+        # Supprimer la dernière entrée incomplète (peut-être tronquée)
+        last_comma = fixed.rfind(',')
+        if last_comma > 0:
+            truncated = fixed[:last_comma] + ('}' * depth2)
+            result = _try_parse(re.sub(r',\s*([}\]])', r'\1', truncated))
+            if result is not None:
+                print('[OllamaExtractor] JSON réparé (tronqué)')
+                return result
+
+    print(f'[OllamaExtractor] JSON invalide après réparation')
+    return None
 
 
 # ── Normalisation ─────────────────────────────────────────────────────────────

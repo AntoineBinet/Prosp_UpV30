@@ -726,34 +726,59 @@
     if (!host) return;
     var dc = STATE.dc || {};
     var files = dc.files || [];
-    if (!dc.has_dc || !files.length) {
+    var generated = dc.generated || [];
+
+    if (!dc.has_dc) {
       host.innerHTML =
         '<div style="display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:12.5px;">' +
           '<span class="v30-fc-dc-dot v30-fc-dc-dot--off"></span>' +
-          'Aucun DC chargé pour ce candidat.' +
+          'Aucun DC pour ce candidat.' +
         '</div>' +
         '<div style="margin-top:8px;font-size:11.5px;color:var(--text-3);">' +
-          'Cliquez sur <strong>Charger</strong> pour téléverser un PDF, ou sur <strong>Générer</strong> pour le créer avec l\'éditeur.' +
+          'Cliquez sur <strong>Charger</strong> pour téléverser un PDF, ou sur <strong>Générer</strong> pour le créer.' +
         '</div>';
       return;
     }
-    var fname = files[0];
-    var pdfUrl = '/api/candidates/' + CID + '/dossier-competence';
-    var updatedAt = STATE.candidate && STATE.candidate.updatedAt;
-    host.innerHTML =
-      '<div class="v30-fc-dc-row">' +
-        '<span class="v30-fc-dc-dot v30-fc-dc-dot--on" aria-hidden="true"></span>' +
-        '<div class="v30-fc-dc-name" data-v30-fc-dc-name title="' + esc(fname) + '">' + esc(fname) + '</div>' +
-        '<div class="v30-fc-dc-actions">' +
-          '<a class="btn btn-ghost btn-sm" href="' + pdfUrl + '" target="_blank" rel="noopener" title="Ouvrir le PDF">Voir</a>' +
-          '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-rename title="Renommer le fichier">Renommer</button>' +
-          '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-replace title="Remplacer par un autre PDF">Remplacer</button>' +
-          '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-delete title="Supprimer le DC" style="color:var(--danger);">Supprimer</button>' +
-        '</div>' +
-      '</div>' +
-      (updatedAt
-        ? '<div style="margin-top:6px;font-size:11px;color:var(--text-3);">Mis à jour le ' + esc(fmtDate(updatedAt)) + '</div>'
-        : '');
+
+    var html = '';
+
+    // DC uploadé manuellement (PDF)
+    if (files.length) {
+      var fname = files[0];
+      var pdfUrl = '/api/candidates/' + CID + '/dossier-competence';
+      html +=
+        '<div class="v30-fc-dc-row">' +
+          '<span class="v30-fc-dc-dot v30-fc-dc-dot--on" aria-hidden="true"></span>' +
+          '<div class="v30-fc-dc-name" data-v30-fc-dc-name title="' + esc(fname) + '">' + esc(fname) + '</div>' +
+          '<div class="v30-fc-dc-actions">' +
+            '<a class="btn btn-ghost btn-sm" href="' + esc(pdfUrl) + '" target="_blank" rel="noopener">Voir</a>' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-rename>Renommer</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-replace>Remplacer</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-delete style="color:var(--danger);">Supprimer</button>' +
+          '</div>' +
+        '</div>';
+    }
+
+    // DC générés via le générateur
+    if (generated.length) {
+      var latest = generated[0];
+      html +=
+        '<div class="v30-fc-dc-row" style="margin-top:' + (files.length ? '8px' : '0') + ';padding-top:' + (files.length ? '8px' : '0') + ';' + (files.length ? 'border-top:1px solid var(--border-1);' : '') + '">' +
+          '<span class="v30-fc-dc-dot v30-fc-dc-dot--on" aria-hidden="true" style="background:var(--accent-blue,#3b82f6);"></span>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div class="v30-fc-dc-name" title="' + esc(latest.filename) + '">' + esc(latest.filename) + '</div>' +
+            '<div style="font-size:11px;color:var(--text-3);margin-top:2px;">Généré le ' + esc(latest.generated_at) + (latest.used_ollama ? ' · IA' : '') + '</div>' +
+          '</div>' +
+          '<div class="v30-fc-dc-actions">' +
+            '<a class="btn btn-ghost btn-sm" href="' + esc(latest.download_url) + '" download="' + esc(latest.filename) + '">Télécharger</a>' +
+          '</div>' +
+        '</div>';
+      if (generated.length > 1) {
+        html += '<div style="margin-top:4px;font-size:11px;color:var(--text-3);">' + (generated.length - 1) + ' autre(s) version(s) dans <a href="/v30/dc/' + CID + '" style="color:var(--accent);">l\'historique</a>.</div>';
+      }
+    }
+
+    host.innerHTML = html;
   }
 
   function loadDc() {

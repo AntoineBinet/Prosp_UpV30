@@ -26,6 +26,8 @@ from docx.oxml.ns import qn
 _HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(_HERE, '..', 'sample', 'template_dc.docx')
 
+_TO_COMPLETE = '[À COMPLÉTER]'
+
 
 # ── Utilitaires ───────────────────────────────────────────────────────────────
 
@@ -278,7 +280,7 @@ def _expand_cell_content(doc: Document, placeholder: str, lines: list):
                     para_idx  = list(cell_tc).index(para_elem)
 
                     if not lines:
-                        _replace_in_para_elem(para_elem, {placeholder: ''})
+                        _replace_in_para_elem(para_elem, {placeholder: _TO_COMPLETE})
                         return
 
                     # Ligne 0 → modifier le paragraphe existant
@@ -304,14 +306,14 @@ def _replace_in_all_paras(doc: Document, replacements: dict):
 
 def _cleanup_placeholders(doc: Document):
     """
-    Catch-all : supprime tout {{...}} résiduel dans l'ensemble du document.
+    Catch-all : remplace tout {{...}} résiduel par _TO_COMPLETE dans l'ensemble du document.
     Gère à la fois les w:t atomiques et les runs fragmentés.
     """
     pattern = re.compile(r'\{\{[^}]*\}\}')
     for para in doc.element.body.iter(qn('w:p')):
         full = _get_para_text(para)
         if '{{' in full:
-            new_text = pattern.sub('', full)
+            new_text = pattern.sub(_TO_COMPLETE, full)
             _set_para_text(para, new_text)
 
 
@@ -416,9 +418,9 @@ class DossierGenerator:
 
         # Phase 3 : Remplacements simples (nom, titre, années)
         _replace_in_all_paras(doc, {
-            '{{PRENOM_NOM}}':        _fmt_prenom_nom(data),
-            '{{TITRE_POSTE}}':       _s(data.get('titre_poste')),
-            '{{ANNEES_EXPERIENCE}}': _fmt_annees(data),
+            '{{PRENOM_NOM}}':        _fmt_prenom_nom(data) or _TO_COMPLETE,
+            '{{TITRE_POSTE}}':       _s(data.get('titre_poste')) or _TO_COMPLETE,
+            '{{ANNEES_EXPERIENCE}}': _fmt_annees(data) or _TO_COMPLETE,
         })
 
         # Phase 4 : Nettoyage de tous les {{...}} résiduels

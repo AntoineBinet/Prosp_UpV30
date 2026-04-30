@@ -155,14 +155,25 @@
     var dateEl = result.querySelector('[data-v30-dc-result-date]');
     var dlBtn  = result.querySelector('[data-v30-dc-download]');
     if (nameEl) nameEl.textContent = data.filename || 'DC généré';
-    if (dateEl) dateEl.textContent = 'Généré ' + (data.generated_at || '');
+    if (dateEl) {
+      var label = 'Généré ' + (data.generated_at || '');
+      if (data.used_ollama) label += ' · extraction IA';
+      dateEl.textContent = label;
+    }
     _downloadUrl = data.download_url;
     if (dlBtn) {
       dlBtn.href = _downloadUrl;
       dlBtn.setAttribute('download', data.filename || 'dossier.docx');
     }
     addToHistory({ filename: data.filename, date: data.generated_at, url: _downloadUrl });
-    if (window.showToast) window.showToast('DC généré avec succès', 'success', 3000);
+
+    var missing = data.missing_fields || [];
+    if (missing.length) {
+      var warn = 'DC généré · champs à compléter manuellement : ' + missing.join(', ');
+      if (window.showToast) window.showToast(warn, 'warning', 6000);
+    } else {
+      if (window.showToast) window.showToast('DC généré avec succès', 'success', 3000);
+    }
   }
 
   function showError(msg) {
