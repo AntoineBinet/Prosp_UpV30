@@ -13,10 +13,13 @@ import urllib.error
 
 _PROMPT_COMPETENCES = """\
 Tu es un expert RH. À partir du texte de CV ci-dessous, extrais les informations du candidat.
+IMPORTANT : les valeurs dans les exemples JSON ci-dessous sont FICTIVES — extraire UNIQUEMENT ce qui est écrit dans le CV.
 
 RÈGLES POUR "competences" :
 - Compétences techniques GLOBALES : langages, frameworks, outils, BDD, cloud, méthodes, certifications
 - Max 8 catégories — labels GÉNÉRIQUES obligatoires : "Langages", "Frameworks", "Outils & DevOps", "Bases de données", "Cloud & Infrastructure", "Méthodes", "Secteurs", "Domaines de compétences", "Web", "Conception", "Certifications"
+- "Outils & DevOps" = outils de dev, CI/CD, scripting, monitoring. "Cloud & Infrastructure" = services cloud, virtualisation, serveurs, OS. Ne PAS dupliquer les mêmes outils dans les deux catégories.
+- "Secteurs" = secteurs d'activité RÉELLEMENT mentionnés dans le CV (entreprises, missions). NE PAS inventer.
 - INTERDIT comme catégorie : un nom d'outil seul (SQL, Docker…), un nom de client, un fragment de mission
 - NE PAS inclure les réalisations ou descriptions de missions dans les compétences
 - Utilise "groupes" pour les catégories à sous-domaines, "items" pour les listes simples
@@ -33,10 +36,10 @@ RÈGLES POUR "langues" :
 
 Retourne UNIQUEMENT ce JSON valide, sans markdown ni explication :
 {{
-  "nom": "DUPONT",
-  "prenom": "Jean",
-  "titre_poste": "Chef de Projet / Expert DevOps",
-  "annees_experience": "18 ans d'expérience",
+  "nom": "MARTIN",
+  "prenom": "Sophie",
+  "titre_poste": "Architecte Cloud / Expert DevOps",
+  "annees_experience": "12 ans d'expérience",
   "competences": [
     {{
       "categorie": "Domaines de compétences",
@@ -46,9 +49,9 @@ Retourne UNIQUEMENT ce JSON valide, sans markdown ni explication :
       ]
     }},
     {{"categorie": "Outils & DevOps", "items": ["Jenkins", "Docker", "Kubernetes", "Git"]}},
-    {{"categorie": "Cloud & Infrastructure", "items": ["Azure", "AWS", "Linux"]}},
-    {{"categorie": "Méthodes", "items": ["Agile/Scrum", "DevOps", "PRINCE2"]}},
-    {{"categorie": "Secteurs", "items": ["Finance", "Assurance", "Énergie"]}}
+    {{"categorie": "Cloud & Infrastructure", "items": ["Azure", "VMware vSphere", "Linux", "Windows Server"]}},
+    {{"categorie": "Méthodes", "items": ["Agile/Scrum", "DevOps", "ITIL"]}},
+    {{"categorie": "Secteurs", "items": ["Nucléaire", "Luxe", "Pharmacie"]}}
   ],
   "formations": [
     {{"label": "Master", "texte": "Master Informatique – Université Paris VI", "annee": "2006"}},
@@ -58,7 +61,7 @@ Retourne UNIQUEMENT ce JSON valide, sans markdown ni explication :
     {{"langue": "Français", "niveau": "Natif"}},
     {{"langue": "Anglais", "niveau": "Courant"}}
   ],
-  "certifications": ["AWS Certified Solutions Architect", "PRINCE2"]
+  "certifications": ["AWS Certified Solutions Architect", "ITIL v4"]
 }}
 
 TEXTE DU CV :
@@ -66,18 +69,19 @@ TEXTE DU CV :
 
 _PROMPT_EXPERIENCES = """\
 Tu es un expert RH. À partir du texte de CV ci-dessous, extrais TOUTES les expériences professionnelles.
+Date du jour : {current_date}.
 
 RÈGLES STRICTES :
 - Une entrée = un poste ou une mission chez un employeur ou client
 - "entreprise" OBLIGATOIRE : nom de l'employeur ou du client final. JAMAIS vide.
 - "dates" OBLIGATOIRE : période (ex: "01/2022 – 07/2023", "Depuis 09/2020", "2018 – 2021")
-- "titre_projet" = nom du projet ou de la mission. Si absent → "{{poste}} chez {{entreprise}}"
+- "titre_projet" = nom du projet ou de la mission extraite du CV. Si le CV ne donne pas de nom de projet, CONSTRUIRE comme ceci : valeur_du_champ_poste + " chez " + valeur_du_champ_entreprise (ex: "Consultant cybersécurité chez Wavestone"). Ne JAMAIS écrire des accolades {{}} dans titre_projet.
 - "poste" = rôle ou fonction du candidat (ex: "Développeur Senior", "Chef de Projet", "Consultant")
-- "secteur" = secteur d'activité de l'entreprise (ex: "Banque", "Assurance", "Industrie", "Retail")
-- "duree" = durée calculée si possible (ex: "(18 mois)", "(2 ans)")
+- "secteur" = secteur d'activité RÉEL de l'entreprise tel que décrit dans le CV (ex: "Industrie", "Conseil", "Automobile"). NE PAS inventer.
+- "duree" = durée calculée depuis "dates". Pour "Présent", calculer depuis la date de début jusqu'au {current_date} (ex: "(13 mois)", "(2 ans)"). Laisser vide si non calculable.
 - "sous_missions" = liste des activités, réalisations ou responsabilités décrites dans le CV
   Format : liste de bullets simples
-- "outils" = technologies et outils utilisés dans CETTE mission, séparés par des virgules
+- "outils" = technologies et outils utilisés dans CETTE mission spécifique, séparés par des virgules
 - Extraire TOUTES les expériences du CV sans limite de nombre
 - NE PAS inventer de données absentes du CV
 - Si une expérience n'a pas d'entreprise identifiable, NE PAS la créer
@@ -310,6 +314,9 @@ def extract(cv_text: str, ollama_url: str = 'http://127.0.0.1:11434',
     2. Passe expériences : liste des missions sur la section dédiée
     Combine et normalise les résultats.
     """
+    import datetime as _dt
+    current_date = _dt.date.today().strftime('%d/%m/%Y')
+
     sections = _split_cv(cv_text)
     print(f'[OllamaExtractor] section compétences : {len(sections["competences"])} chars')
     print(f'[OllamaExtractor] section expériences : {len(sections["experiences"])} chars')
@@ -331,7 +338,7 @@ def extract(cv_text: str, ollama_url: str = 'http://127.0.0.1:11434',
 
     # ── Passe 2 : Expériences ─────────────────────────────────────────────────
     exp_text = _smart_truncate(sections['experiences'], 10000)
-    prompt2 = _PROMPT_EXPERIENCES.format(cv_text=exp_text)
+    prompt2 = _PROMPT_EXPERIENCES.format(cv_text=exp_text, current_date=current_date)
     raw2 = _call_ollama(prompt2, ollama_url, model, timeout)
     exp_data = {}
     if raw2:
@@ -506,13 +513,25 @@ def _normalize(data: dict) -> dict:
                 sous.append(entry)
         if not sous:
             sous = [{'titre': 'Réalisations', 'bullets': []}]
+        # Si l'IA a généré des {placeholders} littéraux dans titre_projet → le construire
+        raw_titre = _str(exp.get('titre_projet'))
+        poste_val = _str(exp.get('poste'))
+        ent_val   = _str(exp.get('entreprise'))
+        if re.search(r'\{[^}]+\}', raw_titre) or not raw_titre:
+            if poste_val and ent_val:
+                raw_titre = f'{poste_val} chez {ent_val}'
+            elif ent_val:
+                raw_titre = ent_val
+            elif poste_val:
+                raw_titre = poste_val
+
         experiences.append({
-            'titre_projet': _str(exp.get('titre_projet')),
-            'entreprise':   _str(exp.get('entreprise')),
+            'titre_projet': raw_titre,
+            'entreprise':   ent_val,
             'dates':        _str(exp.get('dates')),
             'duree':        _str(exp.get('duree')),
             'secteur':      _str(exp.get('secteur')),
-            'poste':        _str(exp.get('poste')),
+            'poste':        poste_val,
             'sous_missions': sous,
             'outils':       _str(exp.get('outils')),
         })
