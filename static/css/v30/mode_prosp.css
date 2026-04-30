@@ -362,6 +362,7 @@
 .mp-quick-call:hover    { color: var(--success);  border-color: var(--success); }
 .mp-quick-email:hover   { color: var(--info);     border-color: var(--info); }
 .mp-quick-linkedin:hover{ color: var(--accent);   border-color: var(--accent); }
+.mp-quick-ia:hover      { color: var(--accent);   border-color: var(--accent); background: rgba(99,102,241,0.08); }
 
 /* Phone choice dropdown : consomme le pattern .popover (Phase 4).
    Spécificités mode-prosp : position:fixed (au lieu d'absolute) +

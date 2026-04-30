@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.15.1"
+APP_VERSION = "32.16"
 import os
 import uuid
 import subprocess
@@ -15092,8 +15092,9 @@ def api_prospects_bulk_edit():
     field = payload.get("field", "")
     value = payload.get("value")
     ALLOWED_FIELDS = {"fonction", "statut", "pertinence", "fixedMetier", "notes", "company_id",
-                      "telephone", "email", "linkedin", "rdvDate", "nextFollowUp", "priority", "nextAction"}
-    ALLOW_EMPTY = {"notes", "telephone", "email", "linkedin", "rdvDate", "nextFollowUp", "nextAction"}
+                      "telephone", "email", "linkedin", "rdvDate", "nextFollowUp", "priority", "nextAction",
+                      "tags"}
+    ALLOW_EMPTY = {"notes", "telephone", "email", "linkedin", "rdvDate", "nextFollowUp", "nextAction", "tags"}
     if not ids or not isinstance(ids, list):
         return jsonify(ok=False, error="ids (array) required"), 400
 
