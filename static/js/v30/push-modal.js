@@ -188,6 +188,12 @@
       if (tabBtn) { setActiveTab(tabBtn.dataset.v30pmTab); return; }
       // Générer accroche appel
       if (e.target.closest('[data-v30pm-callnote-gen]')) { generateCallNote(); return; }
+      // Lien optionnel "Enrichir le profil" (affiché après génération si peu de données)
+      if (e.target.closest('[data-v30pm-enrich-hint]')) {
+        e.preventDefault();
+        showEnrichmentDialog(function () { generateCallNote(); });
+        return;
+      }
       // Régénérer description IA du candidat
       var regen = e.target.closest('[data-v30pm-regen]');
       if (regen) {
@@ -882,11 +888,6 @@
     var p = STATE.prospect;
     if (!p) { toast('Prospect non chargé', 'warning'); return; }
 
-    if (!_hasEnoughProfileData(p)) {
-      showEnrichmentDialog(function () { generateCallNote(); });
-      return;
-    }
-
     var btn = $sel('data-v30pm-callnote-gen');
     var ta  = $sel('data-v30pm-callnote');
     var st  = $sel('data-v30pm-callnote-status');
@@ -895,8 +896,22 @@
     if (ta)  ta.value = '';
     STATE.callNote = '';
 
-    // Utilise le helper unifié (provider-agnostic : Ollama, Groq, Anthropic…)
-    window.callOllama(_buildRichCallNotePrompt(p), { timeoutMs: 90000 })
+    // Garde-fou : callOllama peut être absent si la page ne charge pas ollama.js
+    var callFn = (typeof window.callOllama === 'function')
+      ? window.callOllama.bind(window)
+      : function (prompt) {
+          return fetch('/api/ollama/generate', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: prompt })
+          }).then(function (r) { return r.json(); })
+            .then(function (j) {
+              if (!j || j.ok === false) throw new Error(j && j.error || 'Erreur IA');
+              return j.text || j.response || '';
+            });
+        };
+
+    callFn(_buildRichCallNotePrompt(p))
       .then(function (text) {
         var raw = String(text || '').trim().replace(/^["«»""'']|["«»""'']$/g, '').trim();
         if (!raw.toLowerCase().startsWith('j\'ai') && !raw.toLowerCase().startsWith('je ')) {
@@ -905,14 +920,18 @@
         if (ta) ta.value = raw;
         STATE.callNote = raw;
         if (st) {
-          st.textContent = 'Phrase générée ✓';
+          // Si peu de données : propose d'enrichir après la génération (non-bloquant)
+          var hasData = _hasEnoughProfileData(p);
+          st.innerHTML = hasData
+            ? 'Phrase générée ✓'
+            : 'Phrase générée ✓ — <a href="#" class="v30pm-enrich-link" data-v30pm-enrich-hint>Enrichir le profil</a> pour cibler davantage';
           st.className = 'v30pm-callnote__status is-ok';
-          setTimeout(function () { if (st) st.textContent = ''; }, 2500);
+          if (hasData) setTimeout(function () { if (st) st.textContent = ''; }, 3000);
         }
-        toast('Accroche personnalisée générée', 'success', 2500);
+        toast('Accroche générée', 'success', 2000);
       }).catch(function (e) {
-        if (st) { st.textContent = 'Erreur : ' + (e.message || 'inconnue'); st.className = 'v30pm-callnote__status is-error'; }
-        toast('Erreur génération : ' + (e.message || 'inconnue'), 'error');
+        if (st) { st.textContent = 'Erreur IA : ' + (e.message || 'inconnue'); st.className = 'v30pm-callnote__status is-error'; }
+        toast('Génération IA échouée : ' + (e.message || 'inconnue'), 'error');
       }).then(function () {
         if (btn) btn.disabled = false;
       });
@@ -1084,8 +1103,8 @@
       '- tags : array de strings (secteurs/domaines : ex ["BTP", "Ingénierie", "Infrastructure"])\n\n' +
       'Texte LinkedIn :\n' + text.slice(0, 3000) + '\n\n' +
       'Réponds UNIQUEMENT avec le JSON brut, sans explications.';
-    // Utilise le helper unifié (provider-agnostic)
-    window.callOllama(prompt, { timeoutMs: 90000 })
+    // Utilise le helper unifié (provider-agnostic), timeout 180 s par défaut
+    window.callOllama(prompt)
       .then(function (raw) {
         var m = (raw || '').match(/\{[\s\S]*\}/);
         if (!m) { cb(null); return; }
