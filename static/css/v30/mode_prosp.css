@@ -208,8 +208,10 @@
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: var(--shadow-2);
-  will-change: transform, opacity;
   transition: box-shadow var(--dur-3);
+  /* will-change intentionnellement absent de la règle de base :
+     il créerait un containing block pour position:fixed (dropdown tel).
+     Ajouté uniquement sur les classes d'animation ci-dessous. */
 }
 
 /* ─── Animations de navigation (sobres, légères) ─── */
@@ -225,9 +227,9 @@
   0%   { opacity: 0; transform: translateY(6px); }
   100% { opacity: 1; transform: translateY(0); }
 }
-.mp-card.mp-entering-next { animation: mp-enter-next var(--dur-3) var(--ease) both; }
-.mp-card.mp-entering-prev { animation: mp-enter-prev var(--dur-3) var(--ease) both; }
-.mp-card.mp-entering-init { animation: mp-enter-initial var(--dur-2) var(--ease) both; }
+.mp-card.mp-entering-next { animation: mp-enter-next var(--dur-3) var(--ease) both; will-change: transform, opacity; }
+.mp-card.mp-entering-prev { animation: mp-enter-prev var(--dur-3) var(--ease) both; will-change: transform, opacity; }
+.mp-card.mp-entering-init { animation: mp-enter-initial var(--dur-2) var(--ease) both; will-change: transform, opacity; }
 
 /* ─── LEFT COLUMN ─── */
 .mp-card-main {
@@ -420,7 +422,16 @@
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
 }
 textarea.mp-input { height: auto; min-height: 64px; padding: 8px 10px; resize: vertical; }
-select.mp-input { cursor: pointer; }
+select.mp-input {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b9db6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 12px 12px;
+}
 .mp-status-select { font-weight: 500; border-left-width: 3px; }
 
 .mp-phone-links {
