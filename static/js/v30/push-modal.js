@@ -854,26 +854,28 @@
     var company  = (STATE.company && STATE.company.groupe) || safeStr(p.company_groupe).trim();
     var site     = (STATE.company && STATE.company.site)   || safeStr(p.company_site).trim();
 
-    var ctx = '';
-    if (company)  ctx += '- Entreprise : ' + company + (site ? ' (' + site + ')' : '') + '\n';
-    if (fonction) ctx += '- Fonction du destinataire : ' + fonction + '\n';
-    if (notes)    ctx += '- Notes sur le prospect : ' + (notes.length > 300 ? notes.slice(0, 300) + '…' : notes) + '\n';
+    // Construire les contraintes de personnalisation obligatoires
+    var mustMention = [];
+    if (fonction) mustMention.push('"' + fonction + '"');
+    if (company)  mustMention.push('"' + company + '"');
 
-    return 'Tu es un assistant de prospection B2B pour un cabinet de conseil en recrutement.\n\n' +
-      'Génère UNE courte phrase personnalisée (15-25 mots max) pour un email de suivi après un appel manqué.\n' +
-      'La phrase doit montrer que tu t\'es intéressé au profil du destinataire et/ou à son entreprise.\n' +
-      'Elle commence soit par "J\'ai essayé de vous joindre" soit par "Je souhaitais".\n\n' +
-      'Informations disponibles sur le destinataire :\n' + (ctx || '(aucune information supplémentaire)\n') + '\n' +
-      'Exemples selon le profil :\n' +
-      '• Directeur Technique BTP : "J\'ai essayé de vous joindre — en tant que Directeur Technique dans le BTP, votre profil correspond exactement aux missions de nos consultants en ingénierie."\n' +
-      '• DRH industrie : "Je souhaitais vous présenter des consultants en management et transformation RH qui pourraient soutenir vos équipes chez ' + (company || '[Entreprise]') + '."\n' +
-      '• Sans fonction connue mais avec entreprise : "J\'ai essayé de vous joindre et souhaitais vous présenter quelques profils de consultants spécialisés susceptibles d\'intéresser ' + (company || 'votre entreprise') + '."\n\n' +
-      'RÈGLES ABSOLUES :\n' +
-      '- UNE seule phrase, 15-25 mots maximum\n' +
-      '- Professionnelle et sobre, pas de flatterie excessive\n' +
-      '- Utilise la fonction ET/OU l\'entreprise si disponibles\n' +
-      '- Ne pas inventer d\'éléments non fournis dans le contexte\n' +
-      '- Pas de guillemets, pas d\'explication, juste la phrase.';
+    var ctx = '';
+    if (company)  ctx += 'Entreprise : ' + company + (site ? ' (' + site + ')' : '') + '\n';
+    if (fonction) ctx += 'Poste : ' + fonction + '\n';
+    if (notes)    ctx += 'Notes : ' + (notes.length > 300 ? notes.slice(0, 300) + '…' : notes) + '\n';
+
+    return 'Rédige UNE phrase d\'accroche email (15-22 mots) pour un cabinet de conseil, après un appel manqué.\n\n' +
+      'PROFIL DU DESTINATAIRE :\n' + ctx + '\n' +
+      (mustMention.length
+        ? 'OBLIGATION ABSOLUE : la phrase DOIT inclure ' + mustMention.join(' et ') + '. Pas de phrase générique sans ces mots.\n\n'
+        : '') +
+      'La phrase commence par "Je souhaitais" ou "J\'ai essayé de vous joindre".\n' +
+      'Elle montre que tu connais le poste du destinataire ou son secteur.\n\n' +
+      'INTERDIT :\n' +
+      '- Phrases vagues du type "quelques profils qui pourraient vous intéresser" sans mention du profil\n' +
+      '- Inventions ou suppositions non fondées sur le profil fourni\n' +
+      '- Formules creuses ou flatterie\n\n' +
+      'Réponds UNIQUEMENT avec la phrase. Rien d\'autre.';
   }
 
   function generateCallNote() {
@@ -893,36 +895,27 @@
     if (ta)  ta.value = '';
     STATE.callNote = '';
 
-    fetch('/api/ollama/generate', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: _buildRichCallNotePrompt(p) })
-    }).then(function (r) {
-      return r.json().then(function (j) { return { ok: r.ok, data: j }; });
-    }).then(function (res) {
-      if (!res.ok || !(res.data && res.data.text)) {
-        throw new Error((res.data && res.data.error) || 'Réponse vide');
-      }
-      var raw = String(res.data.text || '').trim().replace(/^["«»""'']|["«»""'']$/g, '').trim();
-      // Fallback si la phrase ne démarre pas comme attendu
-      if (!raw.toLowerCase().startsWith('j\'ai') && !raw.toLowerCase().startsWith('je ')) {
-        raw = 'Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser.';
-      }
-      if (ta) ta.value = raw;
-      STATE.callNote = raw;
-      if (st) {
-        st.textContent = 'Phrase générée ✓';
-        st.className = 'v30pm-callnote__status is-ok';
-        setTimeout(function () { if (st) st.textContent = ''; }, 2500);
-      }
-      toast('Accroche personnalisée générée', 'success', 2500);
-    }).catch(function (e) {
-      if (st) { st.textContent = 'Erreur : ' + (e.message || 'inconnue'); st.className = 'v30pm-callnote__status is-error'; }
-      toast('Erreur génération : ' + (e.message || 'inconnue'), 'error');
-    }).then(function () {
-      if (btn) btn.disabled = false;
-    });
+    // Utilise le helper unifié (provider-agnostic : Ollama, Groq, Anthropic…)
+    window.callOllama(_buildRichCallNotePrompt(p), { timeoutMs: 90000 })
+      .then(function (text) {
+        var raw = String(text || '').trim().replace(/^["«»""'']|["«»""'']$/g, '').trim();
+        if (!raw.toLowerCase().startsWith('j\'ai') && !raw.toLowerCase().startsWith('je ')) {
+          raw = 'Je souhaitais vous présenter quelques profils de consultants qui pourraient vous intéresser.';
+        }
+        if (ta) ta.value = raw;
+        STATE.callNote = raw;
+        if (st) {
+          st.textContent = 'Phrase générée ✓';
+          st.className = 'v30pm-callnote__status is-ok';
+          setTimeout(function () { if (st) st.textContent = ''; }, 2500);
+        }
+        toast('Accroche personnalisée générée', 'success', 2500);
+      }).catch(function (e) {
+        if (st) { st.textContent = 'Erreur : ' + (e.message || 'inconnue'); st.className = 'v30pm-callnote__status is-error'; }
+        toast('Erreur génération : ' + (e.message || 'inconnue'), 'error');
+      }).then(function () {
+        if (btn) btn.disabled = false;
+      });
   }
 
   // ─── Popup d'enrichissement prospect (depuis push modal) ────
@@ -1091,15 +1084,10 @@
       '- tags : array de strings (secteurs/domaines : ex ["BTP", "Ingénierie", "Infrastructure"])\n\n' +
       'Texte LinkedIn :\n' + text.slice(0, 3000) + '\n\n' +
       'Réponds UNIQUEMENT avec le JSON brut, sans explications.';
-    fetch('/api/ollama/generate', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt, timeout: 90 })
-    }).then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j || !j.text) { cb(null); return; }
-        var m = j.text.match(/\{[\s\S]*\}/);
+    // Utilise le helper unifié (provider-agnostic)
+    window.callOllama(prompt, { timeoutMs: 90000 })
+      .then(function (raw) {
+        var m = (raw || '').match(/\{[\s\S]*\}/);
         if (!m) { cb(null); return; }
         try { cb(JSON.parse(m[0])); }
         catch (_) { cb(null); }
