@@ -613,3 +613,93 @@
   0%, 100% { opacity: 1; }
   50% { opacity: .45; }
 }
+
+/* ─── Modèles recommandés ─── */
+.v30-params__rec-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.v30-params__rec-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (max-width: 720px) {
+  .v30-params__rec-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .v30-params__rec-grid { grid-template-columns: 1fr; }
+}
+.v30-params__rec-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  cursor: default;
+  transition: border-color .15s;
+}
+.v30-params__rec-card.is-installed {
+  border-color: var(--success);
+  background: color-mix(in oklch, var(--success) 6%, var(--surface-2));
+}
+.v30-params__rec-name {
+  font-family: var(--font-mono, monospace);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.v30-params__rec-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.v30-params__rec-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10.5px;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+.v30-params__rec-tag.is-top {
+  background: color-mix(in oklch, var(--warn) 18%, transparent);
+  color: color-mix(in oklch, var(--warn) 70%, var(--text-1));
+}
+.v30-params__rec-tag.is-tx {
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+.v30-params__rec-desc {
+  font-size: 11.5px;
+  color: var(--text-2);
+  line-height: 1.45;
+  flex: 1;
+}
+.v30-params__rec-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 4px;
+}
+.v30-params__rec-installed {
+  font-size: 11.5px;
+  color: var(--success);
+  font-weight: 500;
+}
+.v30-params__rec-custom {
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+.v30-params__rec-custom summary {
+  list-style: none;
+  outline: none;
+}
+.v30-params__rec-custom summary::-webkit-details-marker { display: none; }

@@ -455,7 +455,7 @@ def api_ollama_pull():
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    user = _get_current_user(uid)
+    user = _get_current_user()
     if not user or user.get("role") != "admin":
         return jsonify(ok=False, error="Réservé aux administrateurs"), 403
     payload = request.get_json(force=True, silent=True) or {}
@@ -497,7 +497,7 @@ def api_ollama_delete_model():
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    user = _get_current_user(uid)
+    user = _get_current_user()
     if not user or user.get("role") != "admin":
         return jsonify(ok=False, error="Réservé aux administrateurs"), 403
     payload = request.get_json(force=True, silent=True) or {}
@@ -524,3 +524,57 @@ def api_ollama_delete_model():
         return jsonify(ok=False, error="Ollama injoignable"), 200
     except Exception as e:
         return jsonify(ok=False, error=str(e)), 200
+
+
+_RECOMMENDED_MODELS = [
+    {
+        "name": "qwen2.5:7b",
+        "size_hint": "~5 GB",
+        "vram_gb": 6,
+        "tags": ["⭐ Recommandé", "JSON"],
+        "desc": "Meilleur suivi d'instructions JSON. Idéal pour scrapping IA et enrichissement de fiches. Rapide et précis.",
+    },
+    {
+        "name": "mistral:7b",
+        "size_hint": "~5 GB",
+        "vram_gb": 6,
+        "tags": ["Généraliste"],
+        "desc": "Excellent généraliste, très rapide. Bon pour emails, comptes-rendus, résumés. Le plus polyvalent.",
+    },
+    {
+        "name": "llama3.1:8b",
+        "size_hint": "~5 GB",
+        "vram_gb": 6,
+        "tags": ["Généraliste"],
+        "desc": "Solide généraliste de Meta. Bonne compréhension du contexte métier et du français.",
+    },
+    {
+        "name": "gemma3:12b",
+        "size_hint": "~8 GB",
+        "vram_gb": 9,
+        "tags": ["Qualité+"],
+        "desc": "Dernière génération Google (2025). Qualité supérieure aux 7B pour l'analyse et la rédaction.",
+    },
+    {
+        "name": "qwen2.5:14b",
+        "size_hint": "~9 GB",
+        "vram_gb": 10,
+        "tags": ["Qualité+", "JSON"],
+        "desc": "Version améliorée de qwen2.5, encore meilleur sur JSON et instructions complexes. Nécessite 10 GB VRAM.",
+    },
+    {
+        "name": "qwen2.5:32b",
+        "size_hint": "~20 GB",
+        "vram_gb": 22,
+        "tags": ["Transcription", "Max local"],
+        "desc": "Pour le fallback transcription et les tâches les plus exigeantes. Nécessite une GPU haut de gamme.",
+    },
+]
+
+
+@ai_bp.get("/api/ollama/recommended")
+def api_ollama_recommended():
+    """Retourne la liste des modèles recommandés."""
+    if not _uid():
+        return jsonify(ok=False, error="Non authentifié"), 401
+    return jsonify(ok=True, models=_RECOMMENDED_MODELS)

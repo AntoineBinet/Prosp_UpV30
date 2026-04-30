@@ -259,6 +259,7 @@
   // ══════════════════════════════════════════════════════════════
 
   var _ollamaModelsCache = null;
+  var _ollamaRecsCache = null;
 
   function ollamaFmtSize(bytes) {
     if (!bytes) return '';
@@ -320,8 +321,59 @@
         return;
       }
       ollamaModelsRender(j.models || []);
+      ollamaRecommendedRender();
     } catch (e) {
       listEl.innerHTML = '<span class="muted" style="font-size:13px;">Erreur : ' + e.message + '</span>';
+    }
+  }
+
+  function ollamaRecommendedRender() {
+    var grid = $('[data-v30-ollama-rec-grid]');
+    if (!grid) return;
+    var recs = _ollamaRecsCache || [];
+    if (!recs.length) {
+      grid.innerHTML = '<span class="muted" style="font-size:13px;">Aucune recommandation disponible.</span>';
+      return;
+    }
+    var installed = (_ollamaModelsCache || []).map(function (m) { return m.name; });
+    grid.innerHTML = '';
+    recs.forEach(function (rec) {
+      var isInstalled = installed.indexOf(rec.name) !== -1;
+      var card = document.createElement('div');
+      card.className = 'v30-params__rec-card' + (isInstalled ? ' is-installed' : '');
+      var tagsHtml = (rec.tags || []).map(function (t) {
+        var cls = t.indexOf('⭐') !== -1 ? ' is-top' : (t === 'Transcription' || t === 'Max local' ? ' is-tx' : '');
+        return '<span class="v30-params__rec-tag' + cls + '">' + t + '</span>';
+      }).join('');
+      card.innerHTML =
+        '<div class="v30-params__rec-name">' + rec.name + '</div>' +
+        '<div class="v30-params__rec-tags">' + tagsHtml + '</div>' +
+        '<div class="v30-params__rec-desc">' + (rec.desc || '') + '</div>' +
+        '<div class="v30-params__rec-footer">' +
+          '<span class="muted" style="font-size:11px;">' + (rec.size_hint || '') +
+            (rec.vram_gb ? ' · ' + rec.vram_gb + ' GB VRAM' : '') + '</span>' +
+          (isInstalled
+            ? '<span class="v30-params__rec-installed">✓ Installé</span>'
+            : '<button type="button" class="btn btn-sm" data-rec-install="' + rec.name + '">Installer</button>') +
+        '</div>';
+      grid.appendChild(card);
+    });
+    grid.querySelectorAll('[data-rec-install]').forEach(function (btn) {
+      btn.addEventListener('click', function () { ollamaPull(btn.getAttribute('data-rec-install')); });
+    });
+  }
+
+  async function ollamaRecommendedLoad() {
+    var grid = $('[data-v30-ollama-rec-grid]');
+    if (!grid) return;
+    if (_ollamaRecsCache) { ollamaRecommendedRender(); return; }
+    try {
+      var res = await fetch('/api/ollama/recommended', { credentials: 'same-origin' });
+      var j = await res.json();
+      _ollamaRecsCache = (j && j.ok) ? (j.models || []) : [];
+      ollamaRecommendedRender();
+    } catch (e) {
+      if (grid) grid.innerHTML = '<span class="muted" style="font-size:13px;">Erreur chargement recommandations.</span>';
     }
   }
 
@@ -346,9 +398,9 @@
     }
   }
 
-  async function ollamaPull() {
+  async function ollamaPull(overrideName) {
     var nameEl = $('[data-v30-ollama-pull-name]');
-    var modelName = nameEl && nameEl.value.trim();
+    var modelName = overrideName || (nameEl && nameEl.value.trim());
     if (!modelName) { toast('Saisir un nom de modèle', 'warning'); return; }
     var logBox = $('[data-v30-ollama-pull-log]');
     var statusEl = $('[data-v30-ollama-pull-status]');
@@ -359,7 +411,7 @@
     if (bodyEl) bodyEl.textContent = '';
     if (statusEl) statusEl.textContent = 'Démarrage…';
     if (pctEl) pctEl.textContent = '';
-    if (btn) { btn.disabled = true; btn.textContent = 'Téléchargement…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Installation…'; }
     try {
       var res = await fetch('/api/ollama/pull', {
         method: 'POST',
@@ -367,6 +419,15 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: modelName }),
       });
+      if (!res.ok) {
+        var errJ = null;
+        try { errJ = await res.json(); } catch (_) {}
+        var errMsg = (errJ && errJ.error) || ('HTTP ' + res.status);
+        if (statusEl) statusEl.textContent = '✗ ' + errMsg;
+        toast('Pull échoué : ' + errMsg, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'Installer'; }
+        return;
+      }
       var reader = res.body.getReader();
       var decoder = new TextDecoder();
       var buf = '';
@@ -414,7 +475,7 @@
       if (statusEl) statusEl.textContent = '✗ Erreur réseau';
       toast('Erreur réseau : ' + e.message, 'error');
     }
-    if (btn) { btn.disabled = false; btn.textContent = 'Télécharger'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Installer'; }
   }
 
   async function aiLoad() {
@@ -468,6 +529,7 @@
       console.warn('AI config load:', e);
     }
     ollamaModelsLoad();
+    ollamaRecommendedLoad();
   }
 
   async function aiSave() {
@@ -611,8 +673,13 @@
     });
     var refreshBtn = $('[data-v30-ollama-refresh]');
     if (refreshBtn) refreshBtn.addEventListener('click', ollamaModelsLoad);
+    var recRefreshBtn = $('[data-v30-ollama-rec-refresh]');
+    if (recRefreshBtn) recRefreshBtn.addEventListener('click', function () {
+      _ollamaRecsCache = null;
+      ollamaRecommendedLoad();
+    });
     var pullBtn = $('[data-v30-ollama-pull-btn]');
-    if (pullBtn) pullBtn.addEventListener('click', ollamaPull);
+    if (pullBtn) pullBtn.addEventListener('click', function () { ollamaPull(); });
     aiLoad();
     bindCuda();
   }
