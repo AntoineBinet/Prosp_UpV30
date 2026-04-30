@@ -215,6 +215,8 @@
     }
     dom.error.hidden = false;
     dom.error.innerHTML = msg;
+    var retryBtn = dom.error.querySelector('[data-v30-rec-retry]');
+    if (retryBtn) retryBtn.addEventListener('click', startRecording);
   }
 
   function setPhase(phase) {
@@ -301,7 +303,8 @@
     } catch (e) {
       var msg = '<strong>Permission micro refusée</strong>';
       if (e && (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError')) {
-        msg += 'Autorise le micro dans la barre d\'URL puis réessaie.';
+        msg += 'Clique sur l\'icône cadenas (🔒) dans la barre d\'URL → <em>Microphone</em> → <em>Autoriser</em>, puis ';
+        msg += '<button type="button" class="btn btn-sm btn-primary" data-v30-rec-retry style="margin-top:6px;display:inline-block">Réessayer</button>';
       } else if (e && e.name === 'NotFoundError') {
         msg = '<strong>Aucun micro détecté</strong>Branche un micro et réessaie.';
       } else {
@@ -519,6 +522,28 @@
     if (dom.btnSubmit) dom.btnSubmit.disabled = !ok || state.phase === 'submitting';
   }
 
+  // ─── Permissions pre-check ──────────────────────────────────────────
+  function checkMicPermission() {
+    if (!navigator.permissions) return;
+    navigator.permissions.query({ name: 'microphone' }).then(function (result) {
+      if (result.state === 'denied') {
+        setError(
+          '<strong>Micro bloqué par le navigateur</strong>'
+          + 'Clique sur l\'icône cadenas (🔒) dans la barre d\'URL → <em>Microphone</em> → <em>Autoriser</em>, puis recharge la page.'
+        );
+      }
+      result.onchange = function () {
+        if (result.state === 'granted') setError('');
+        else if (result.state === 'denied') {
+          setError(
+            '<strong>Micro bloqué par le navigateur</strong>'
+            + 'Clique sur l\'icône cadenas (🔒) dans la barre d\'URL → <em>Microphone</em> → <em>Autoriser</em>, puis recharge la page.'
+          );
+        }
+      };
+    }).catch(function () {});
+  }
+
   // ─── Modal open/close ───────────────────────────────────────────────
   function openModal() {
     if (!dom.modal) return;
@@ -528,6 +553,7 @@
     buildBars();
     resetToIdle();
     setError('');
+    checkMicPermission();
     if (!state.speechSupported && dom.live) {
       dom.live.dataset.unsupported = '1';
     }
