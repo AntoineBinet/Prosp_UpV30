@@ -2,6 +2,74 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.15] — 2026-04-30 · Refonte enrichissement IA des fiches prospect
+
+Suite à un audit complet du flux **Scraping enrichissement** (onglet IA d'une
+fiche prospect), refonte de bout en bout pour corriger les bugs identifiés et
+améliorer la qualité des suggestions.
+
+### Bugs corrigés
+
+- **Double-row `notes` + `accroches` qui s'écrasaient mutuellement**
+  ([static/js/v30/prospect_detail_ui.js](static/js/v30/prospect_detail_ui.js))
+  Quand l'IA renvoyait à la fois `notes` (remplacement) ET `accroches` (append),
+  deux lignes du diff visaient le champ `notes` ; appliquées séquentiellement,
+  la seconde écrasait la première en repartant de la valeur d'origine. Désormais
+  un **seul row `notes`** est généré, fusionnant le complément et les accroches.
+- **Accroches dupliquées en cas de relance** : nouveau marqueur `Accroches IA :`
+  + regex `ACCROCHES_RE` qui supprime tout bloc existant avant ré-injection.
+- **Tavily recevait le prompt complet** (instructions JSON incluses) → résultats
+  bruités. Nouveau paramètre `search_query` séparé : query courte focalisée
+  (`"Prénom NOM Entreprise Site LinkedIn contact"`) côté frontend, propagée par
+  `_call_ai_web` / `_stream_tavily_ollama_sse` ([app.py:195](app.py),
+  [routes/ai.py:40](routes/ai.py)).
+
+### Améliorations qualité
+
+- **Prompt contextualisé** : `buildScrapPrompt` injecte désormais les valeurs
+  actuelles de la fiche (nom, entreprise, site, fonction, email, tel, LinkedIn,
+  notes tronquées, tags). L'IA est explicitement priée de ne proposer un
+  changement que sur les champs vides ou clairement obsolètes — limite le bruit.
+- **Schéma JSON refondu** : `entreprise` retiré (FK non éditable directement),
+  `notes` renommé en `notes_complement` avec sémantique d'**ajout**, jamais de
+  remplacement. Compat ascendante : `notes` accepté en fallback dans
+  `validateScrapJson`.
+- **Streaming SSE** : la modale bascule sur `/api/ollama/generate-stream` avec
+  affichage progressif des tokens dans une zone dédiée (`v30-fp-scrap-stream`).
+  Fallback automatique sur `/api/ollama/generate` si SSE indisponible.
+
+### Nouvelle fonctionnalité
+
+- **Textarea « Contexte collé »** dans la modale Scraping enrichissement
+  ([templates/v30/prospect_detail.html:325](templates/v30/prospect_detail.html))
+  permet de coller du contenu externe (extrait de profil LinkedIn, email reçu,
+  article…) que Tavily ne peut pas atteindre pour des raisons RGPD. Le contenu
+  collé est injecté dans le prompt comme **source prioritaire**. Limité à 8000
+  caractères pour rester dans la fenêtre de contexte.
+
+### Robustesse & traçabilité
+
+- **Reporting per-field** dans `applyScrap` : succès / échecs comptabilisés
+  séparément, toast détaillé indiquant quels champs ont été appliqués vs
+  échoués — plus de partial-update silencieux.
+- **`/api/ia-enrichment-log` désormais appelé** depuis `applyScrap`, créant un
+  event `ia_enrichment` dans la timeline avec la liste des champs modifiés.
+  La timeline est rechargée automatiquement.
+- **Validation de schéma** : `validateScrapJson` détecte les clés inconnues,
+  vérifie que `accroches` est bien un tableau, et restitue un warning utilisateur
+  via toast. Les clés inconnues sont ignorées sans bloquer l'enrichissement.
+- **Persistance du prompt utilisateur** : si l'utilisateur édite le prompt
+  par défaut, sa version personnalisée est sauvegardée en `sessionStorage`
+  (`prospup_scrap_prompt_template_v1`) et restaurée à la prochaine ouverture.
+  Bouton « Réinitialiser » pour revenir au prompt généré.
+
+### Notes implémentation
+
+- LinkedIn auto-fetch non implémenté (impossible : `window.open()` ouvre l'URL
+  mais same-origin policy empêche de lire le DOM ; un scraping serveur déclenche
+  la détection anti-bot LinkedIn et viole les ToS). La textarea de paste est
+  l'approche standard des CRM B2B sérieux.
+
 ## [32.13.1] — 2026-04-29 · Audit étendu (participants/actions) + badge liste + focus prospect robuste
 
 Suite à un audit visuel complet (preview navigateur sur les 2 transcriptions

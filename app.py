@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.14"
+APP_VERSION = "32.15"
 import os
 import uuid
 import subprocess
@@ -192,13 +192,19 @@ def _call_ai(prompt: str, timeout: int = 120) -> str:
     config = _load_ai_config()
     return _call_ollama_direct(prompt, config, timeout)
 
-def _call_ai_web(prompt: str, timeout: int = 120) -> str:
-    """Appel IA avec recherche web. Tavily + Ollama si configuré, sinon Ollama seul."""
+def _call_ai_web(prompt: str, timeout: int = 120, search_query: str | None = None) -> str:
+    """Appel IA avec recherche web. Tavily + Ollama si configuré, sinon Ollama seul.
+
+    `search_query` (optionnel) : requête dédiée envoyée à Tavily, distincte du
+    prompt complet. Utile quand le prompt contient des instructions JSON
+    techniques qui pollueraient la query (ex: enrichissement prospect).
+    """
     config = _load_ai_config()
     if config.get("tavily_api_key"):
         try:
             logger.info("IA web: recherche Tavily + génération Ollama")
-            search_results = _call_tavily_search(prompt, config, timeout=30)
+            tavily_query = (search_query or "").strip() or prompt
+            search_results = _call_tavily_search(tavily_query, config, timeout=30)
             enriched_prompt = _build_web_enriched_prompt(prompt, search_results)
             result = _call_ollama_direct(enriched_prompt, config, timeout)
             sources = search_results.get("sources", [])
@@ -420,12 +426,15 @@ En utilisant ces informations web comme contexte, réponds à la demande suivant
 
 {original_prompt}"""
 
-def _stream_ai_web_sse(prompt: str, model_override: str | None, timeout: int, temperature: float | None = None):
-    """Stream SSE pour recherche web (Tavily + Ollama si configuré, sinon Ollama seul)."""
+def _stream_ai_web_sse(prompt: str, model_override: str | None, timeout: int, temperature: float | None = None, search_query: str | None = None):
+    """Stream SSE pour recherche web (Tavily + Ollama si configuré, sinon Ollama seul).
+
+    `search_query` (optionnel) : query Tavily dédiée si distincte du prompt.
+    """
     config = _load_ai_config()
     if config.get("tavily_api_key"):
         try:
-            yield from _stream_tavily_ollama_sse(prompt, model_override, config, timeout, temperature=temperature)
+            yield from _stream_tavily_ollama_sse(prompt, model_override, config, timeout, temperature=temperature, search_query=search_query)
             return
         except Exception as e:
             logger.warning("Tavily+Ollama stream failed, falling back to Ollama seul: %s", e)
@@ -477,10 +486,14 @@ def _stream_ollama_sse(prompt: str, model_override: str | None, config: dict, ti
                     continue
     yield f"data: {json.dumps({'type': 'end', 'message': 'Génération terminée'}, ensure_ascii=False)}\n\n"
 
-def _stream_tavily_ollama_sse(prompt: str, model_override: str | None, config: dict, timeout: int, temperature: float | None = None):
-    """Stream SSE : recherche web Tavily puis génération streaming via Ollama."""
+def _stream_tavily_ollama_sse(prompt: str, model_override: str | None, config: dict, timeout: int, temperature: float | None = None, search_query: str | None = None):
+    """Stream SSE : recherche web Tavily puis génération streaming via Ollama.
+
+    `search_query` (optionnel) : query Tavily dédiée si distincte du prompt.
+    """
     yield f"data: {json.dumps({'type': 'start', 'message': 'Recherche web Tavily en cours…'}, ensure_ascii=False)}\n\n"
-    search_results = _call_tavily_search(prompt, config, timeout=30)
+    tavily_query = (search_query or "").strip() or prompt
+    search_results = _call_tavily_search(tavily_query, config, timeout=30)
     nb_sources = len(search_results.get("sources", []))
     yield f"data: {json.dumps({'type': 'status', 'message': f'Tavily : {nb_sources} source(s) trouvée(s)', 'provider': 'tavily'}, ensure_ascii=False)}\n\n"
     enriched_prompt = _build_web_enriched_prompt(prompt, search_results)
