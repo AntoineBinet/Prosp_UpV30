@@ -241,6 +241,25 @@
   text-align: center;
 }
 
+/* ─── Live log ─── */
+.v30-dc__log {
+  margin-top: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+.v30-dc__log-line { color: var(--text-2); }
+.v30-dc__log-line.is-warn  { color: var(--warning, #c8930a); }
+.v30-dc__log-line.is-error { color: var(--danger, #d1363b); }
+.v30-dc__log-line.is-ok    { color: var(--success, #1c8c4e); }
+
 /* ─── Result ─── */
 .v30-dc__result {
   margin-top: 14px;

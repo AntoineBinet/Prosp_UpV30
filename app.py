@@ -21971,6 +21971,250 @@ def dc_generator_generate():
                 pass
 
 
+@app.route('/dc-generator/generate-stream', methods=['POST'])
+@login_required
+def dc_generator_generate_stream():
+    """Génère le DC en streamant les étapes via SSE pour un retour en direct."""
+    import queue as _queue
+    import threading as _threading
+    import json as _json
+
+    uid = _uid()
+
+    # Lire le fichier AVANT de déléguer au thread (le contexte request ne sera plus dispo)
+    candidate_id = request.form.get('candidate_id')
+    use_ollama   = request.form.get('use_ollama', 'auto')
+
+    tmp_cv = None
+    cv_filename = ''
+    cv_ext = ''
+    cv_size = 0
+    if 'cv_file' in request.files and request.files['cv_file'].filename:
+        cv_file = request.files['cv_file']
+        cv_filename = cv_file.filename
+        cv_ext = os.path.splitext(cv_filename)[1].lower()
+        import tempfile as _tempfile
+        fd, tmp_cv = _tempfile.mkstemp(suffix=cv_ext, prefix='cv_upload_')
+        os.close(fd)
+        cv_file.save(tmp_cv)
+        cv_size = os.path.getsize(tmp_cv)
+
+    q = _queue.Queue()
+    _app_ctx = app.app_context()
+
+    def do_work():
+        _app_ctx.push()
+        try:
+            from utils.dossier_generator import DossierGenerator
+
+            def log(msg, level='info'):
+                q.put({'type': 'log', 'msg': msg, 'level': level})
+
+            base_data = {}
+            if candidate_id:
+                with _conn() as conn:
+                    row = conn.execute(
+                        "SELECT * FROM candidates WHERE id=? AND owner_id=?", (candidate_id, uid)
+                    ).fetchone()
+                if row:
+                    base_data = _safe_row_to_dict(row) or {}
+                    _cname = base_data.get('name') or (
+                        (base_data.get('prenom','') + ' ' + base_data.get('nom','')).strip()
+                    ) or f'#{candidate_id}'
+                    log(f"Candidat chargé : {_cname}")
+
+            cv_data = {}
+            cv_text = ''
+            ollama_ok = False
+            ollama_available = True
+
+            if tmp_cv:
+                size_ko = max(1, cv_size // 1024)
+                log(f"Fichier reçu : {cv_filename} ({size_ko} ko)")
+
+                if cv_ext == '.pdf':
+                    log("Extraction texte PDF (PyMuPDF)…")
+                    try:
+                        import fitz as _fitz
+                        _doc = _fitz.open(tmp_cv)
+                        cv_text = '\n'.join(page.get_text() for page in _doc)
+                        _doc.close()
+                        log(f"✓ PDF extrait via PyMuPDF : {len(cv_text)} caractères")
+                    except Exception as _e1:
+                        log(f"⚠ PyMuPDF échoué : {_e1}", 'warn')
+
+                    if not cv_text.strip():
+                        log("Tentative extraction via pypdf…")
+                        try:
+                            from pypdf import PdfReader as _PdfReader
+                            _reader = _PdfReader(tmp_cv)
+                            cv_text = '\n'.join(page.extract_text() or '' for page in _reader.pages)
+                            log(f"✓ PDF extrait via pypdf : {len(cv_text)} caractères")
+                        except Exception as _e2:
+                            log(f"✗ pypdf échoué : {_e2}", 'error')
+
+                    if not cv_text.strip():
+                        log("✗ Impossible d'extraire le texte du PDF", 'error')
+                        q.put({'type': 'error', 'msg': "Impossible de lire le contenu du PDF. Essayez de convertir en DOCX."})
+                        return
+
+                elif cv_ext in ('.docx', '.doc'):
+                    log("Extraction texte DOCX…")
+                    try:
+                        from docx import Document as _Docx
+                        _doc = _Docx(tmp_cv)
+                        cv_text = '\n'.join(p.text for p in _doc.paragraphs if p.text.strip())
+                        log(f"✓ DOCX extrait : {len(cv_text)} caractères")
+                    except Exception as _e:
+                        log(f"✗ Extraction DOCX échouée : {_e}", 'error')
+
+                if cv_text.strip() and use_ollama != 'no':
+                    ai_cfg   = _load_ai_config()
+                    ol_url   = ai_cfg.get('ollama_url', OLLAMA_URL)
+                    ol_model = ai_cfg.get('ollama_model', OLLAMA_MODEL)
+                    ol_timeout = int(ai_cfg.get('ollama_timeout') or OLLAMA_TIMEOUT)
+                    log(f"Envoi à l'IA locale ({ol_model}, timeout={ol_timeout}s)… peut prendre 1-2 min")
+
+                    try:
+                        from utils.ollama_extractor import extract as _ollama_extract
+                        extracted = _ollama_extract(cv_text, ol_url, ol_model, ol_timeout)
+                        if extracted and (extracted.get('competences') or extracted.get('nom') or extracted.get('experiences')):
+                            cv_data  = extracted
+                            ollama_ok = True
+                            missing  = extracted.get('_missing', [])
+                            nc = len(extracted.get('competences') or [])
+                            ne = len(extracted.get('experiences') or [])
+                            log(f"✓ Extraction IA OK : {nc} compétences, {ne} expériences" +
+                                (f" — champs manquants : {', '.join(missing)}" if missing else ""))
+                        else:
+                            log("⚠ L'IA a retourné une réponse vide ou illisible", 'warn')
+                    except Exception as _oe:
+                        log(f"✗ IA échouée : {_oe}", 'error')
+                        ollama_available = False
+                elif not cv_text.strip():
+                    log("⚠ Pas de texte extrait — génération sans IA", 'warn')
+
+                if not ollama_ok and cv_text.strip():
+                    log("Extraction basique (nom/titre depuis premières lignes)…", 'warn')
+                    import re as _re2
+                    _lines = [l.strip() for l in cv_text.split('\n') if l.strip()][:20]
+                    _nom = _prenom = _titre = _annees = ''
+                    _caps = _re2.compile(r'^[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ][A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ\s\-/–]{7,}$')
+                    for _l in _lines[:8]:
+                        if _caps.match(_l) and len(_l.split()) >= 2:
+                            _titre = _l; break
+                    _name_re = _re2.compile(
+                        r'^([A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ][a-zàâäéèêëîïôùûüç]+(?:-[A-Za-zÀ-ÿ]+)*)'
+                        r'\s+([A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ][A-Za-zÀ-ÿ\-]+)$')
+                    for _l in _lines[:12]:
+                        _m = _name_re.match(_l)
+                        if _m:
+                            _prenom, _nom = _m.group(1), _m.group(2).upper(); break
+                    _ym = _re2.search(r"(\d+)\s*ans?\s+d['']expérience", cv_text[:2000], _re2.IGNORECASE)
+                    if _ym:
+                        _annees = _ym.group(1) + " ans d'expérience"
+                    cv_data = {
+                        'nom': _nom, 'prenom': _prenom,
+                        'titre_poste': _titre, 'annees_experience': _annees,
+                        'competences': [], 'experiences': [], 'formations': [],
+                        'langues': [], 'certifications': [],
+                    }
+            else:
+                log("Pas de CV fourni — données candidat uniquement")
+                cv_data = {
+                    'nom':               base_data.get('nom', base_data.get('name', '')),
+                    'prenom':            base_data.get('prenom', ''),
+                    'titre_poste':       base_data.get('titre', base_data.get('role', '')),
+                    'annees_experience': '',
+                    'competences': [], 'experiences': [],
+                    'formations': [], 'langues': [], 'certifications': []
+                }
+
+            if base_data:
+                for _k in ('nom', 'prenom', 'titre_poste', 'email', 'telephone'):
+                    _v = base_data.get(_k, '')
+                    if _v and str(_v).strip() and not cv_data.get(_k):
+                        cv_data[_k] = str(_v).strip()
+                if not cv_data.get('annees_experience'):
+                    _yrs = base_data.get('annees_experience') or base_data.get('years_experience')
+                    if _yrs:
+                        cv_data['annees_experience'] = f"{_yrs} ans d'expérience"
+
+            log("Génération du fichier DOCX…")
+            timestamp   = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            cid_str     = str(candidate_id) if candidate_id else 'standalone'
+            nom_raw     = f"{cv_data.get('nom','candidat')} {cv_data.get('prenom','')}".strip()
+            nom_clean   = re.sub(r'[^\w\-]', '_', nom_raw)
+            output_path = os.path.join(
+                str(APP_DIR), 'outputs', 'dossiers',
+                f'{cid_str}_{nom_clean}_{timestamp}.docx'
+            )
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            gen = DossierGenerator()
+            gen.generate(cv_data, output_path)
+            log("✓ DOCX généré")
+
+            nom_dl  = f"Dossier_Up_{cv_data.get('nom','')}_{cv_data.get('prenom','')}.docx"
+            gen_iso = datetime.datetime.now().isoformat()
+            gen_id  = None
+            with _conn() as conn:
+                if candidate_id:
+                    conn.execute(
+                        "UPDATE candidates SET dossier_path=?, dossier_generated_at=? WHERE id=? AND owner_id=?",
+                        (output_path, gen_iso, candidate_id, uid)
+                    )
+                try:
+                    cur = conn.execute(
+                        "INSERT INTO dc_generations (candidate_id, filename, file_path, used_ollama, generated_at, owner_id) "
+                        "VALUES (?, ?, ?, ?, ?, ?);",
+                        (int(candidate_id) if candidate_id else None,
+                         nom_dl, output_path, 1 if ollama_ok else 0, gen_iso, uid)
+                    )
+                    gen_id = cur.lastrowid
+                except Exception as _e:
+                    logger.warning("DC stream: insert dc_generations failed: %s", _e)
+                conn.commit()
+
+            import urllib.parse as _urlparse
+            missing_fields = cv_data.pop('_missing', []) if isinstance(cv_data, dict) else []
+            q.put({
+                'type':             'result',
+                'success':          True,
+                'id':               gen_id,
+                'download_url':     '/dc-generator/download?path=' + _urlparse.quote(output_path, safe=''),
+                'filename':         nom_dl,
+                'generated_at':     datetime.datetime.now().strftime('%d/%m/%Y à %H:%M'),
+                'used_ollama':      bool(ollama_ok),
+                'ollama_available': bool(ollama_available),
+                'missing_fields':   missing_fields,
+            })
+
+        except Exception as _ex:
+            logger.error("DC stream error: %s", _ex, exc_info=True)
+            q.put({'type': 'error', 'msg': str(_ex)})
+        finally:
+            if tmp_cv:
+                try: os.remove(tmp_cv)
+                except Exception: pass
+            _app_ctx.pop()
+            q.put(None)  # sentinelle fin de stream
+
+    _threading.Thread(target=do_work, daemon=True).start()
+
+    def _sse_generator():
+        while True:
+            item = q.get()
+            if item is None:
+                break
+            yield f"data: {_json.dumps(item, ensure_ascii=False)}\n\n"
+
+    return Response(
+        stream_with_context(_sse_generator()),
+        content_type='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
+
+
 @app.route('/api/dc/history', methods=['GET'])
 @login_required
 def api_dc_history():

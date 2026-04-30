@@ -143,6 +143,28 @@
     if (progress) progress.hidden = !on;
     if (result) result.hidden = true;
     if (errEl) errEl.hidden = true;
+    if (!on) clearLog();
+  }
+
+  function clearLog() {
+    var logEl = $('[data-v30-dc-log]');
+    if (logEl) { logEl.innerHTML = ''; logEl.hidden = true; }
+  }
+
+  function appendLog(msg, level) {
+    var logEl = $('[data-v30-dc-log]');
+    if (!logEl) return;
+    logEl.hidden = false;
+    var line = document.createElement('div');
+    var cls = 'v30-dc__log-line';
+    if (level === 'error') cls += ' is-error';
+    else if (level === 'warn') cls += ' is-warn';
+    else if (msg.charAt(0) === '✓') cls += ' is-ok';
+    line.className = cls;
+    var ts = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    line.textContent = '[' + ts + '] ' + msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
   }
 
   function showResult(data) {
@@ -216,16 +238,45 @@
       fd.append('cv_file', fileInput._selectedFile);
     }
 
-    fetch('/dc-generator/generate', {
+    fetch('/dc-generator/generate-stream', {
       method: 'POST',
       credentials: 'same-origin',
       body: fd
-    }).then(function (r) {
-      if (!r.ok) return r.json().then(function (j) { throw new Error((j && j.error) || 'HTTP ' + r.status); });
-      return r.json();
-    }).then(function (data) {
-      if (!data.success) throw new Error(data.error || 'Échec');
-      showResult(data);
+    }).then(function (response) {
+      if (!response.ok) {
+        return response.json().then(function (j) {
+          throw new Error((j && j.error) || 'HTTP ' + response.status);
+        });
+      }
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = '';
+
+      function readChunk() {
+        return reader.read().then(function (result) {
+          if (result.done) return;
+          buffer += decoder.decode(result.value, { stream: true });
+          var lines = buffer.split('\n');
+          buffer = lines.pop();
+          lines.forEach(function (line) {
+            if (line.indexOf('data: ') === 0) {
+              try {
+                var ev = JSON.parse(line.slice(6));
+                if (ev.type === 'log') {
+                  appendLog(ev.msg, ev.level || 'info');
+                } else if (ev.type === 'result') {
+                  if (ev.success) showResult(ev);
+                  else showError(ev.error || 'Échec');
+                } else if (ev.type === 'error') {
+                  showError(ev.msg || 'Erreur inconnue');
+                }
+              } catch (_) {}
+            }
+          });
+          return readChunk();
+        });
+      }
+      return readChunk();
     }).catch(function (err) {
       showError(err.message || 'Erreur inconnue');
     });
