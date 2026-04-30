@@ -21,9 +21,14 @@
       <button type="button" class="btn btn-ghost btn-icon" data-v30-tx-refresh aria-label="Actualiser">
         {{ ui.icon('sync', 13) }}
       </button>
-      <button type="button" class="btn btn-primary btn-sm" data-v30-tx-new>
-        {{ ui.icon('upload', 13) }} Nouveau fichier audio
-      </button>
+      <div class="v30-tx-actions-split">
+        <button type="button" class="btn btn-primary btn-sm" data-v30-rec-new>
+          {{ ui.icon('mic', 13) }} Enregistrer
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" data-v30-tx-new>
+          {{ ui.icon('upload', 13) }} Importer un fichier
+        </button>
+      </div>
     </div>
   </div>
 
@@ -106,5 +111,140 @@
   </div>
 </div>
 
+{# ─── Modal Enregistrement audio (v32.14) ─── #}
+<div class="v30-modal-bd" data-v30-rec-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-rec-title" style="max-width:560px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-rec-title">
+        {{ ui.icon('mic', 14) }}
+        <span data-v30-rec-modal-title>Enregistrer une réunion</span>
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-rec-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body">
+
+      {# ─── Phase 1 — Capture ─── #}
+      <div class="v30-rec" data-v30-rec data-v30-rec-state="idle">
+
+        <div class="v30-rec__mic" data-v30-rec-mic-wrap>
+          <span class="v30-rec__ring v30-rec__ring--1" aria-hidden="true"></span>
+          <span class="v30-rec__ring v30-rec__ring--2" aria-hidden="true"></span>
+          <span class="v30-rec__ring v30-rec__ring--3" aria-hidden="true"></span>
+          <button type="button" class="v30-rec__mic-btn" data-v30-rec-toggle
+                  aria-label="Démarrer l'enregistrement">
+            <svg class="v30-rec__icon-mic" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="3" width="6" height="11" rx="3"/>
+              <path d="M5 11a7 7 0 0 0 14 0"/>
+              <path d="M12 18v3"/>
+              <path d="M9 21h6"/>
+            </svg>
+            <svg class="v30-rec__icon-stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="7" y="7" width="10" height="10" rx="2"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="v30-rec__timer" data-v30-rec-timer>
+          <span class="v30-rec__timer-dot" aria-hidden="true"></span>
+          <span data-v30-rec-time>00:00</span>
+        </div>
+
+        <div class="v30-rec__viz" data-v30-rec-viz aria-hidden="true">
+          {# 32 bars injectées par JS au mount #}
+        </div>
+
+        <p class="v30-rec__hint" data-v30-rec-hint>
+          Appuie sur le micro pour démarrer. L'audio est traité 100&nbsp;% en local.
+        </p>
+
+        <div class="v30-rec__live-wrap">
+          <div class="v30-rec__live" data-v30-rec-live aria-live="polite"></div>
+        </div>
+
+        <div class="v30-rec__opts">
+          <label>
+            <input type="checkbox" data-v30-rec-live-stt checked>
+            <span>Aperçu vocal en direct (navigateur — indicatif uniquement)</span>
+          </label>
+        </div>
+
+        <div class="v30-rec__controls">
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-rec-pause hidden>
+            {{ ui.icon('pause', 13) }} Pause
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-rec-resume hidden>
+            {{ ui.icon('play', 13) }} Reprendre
+          </button>
+          <button type="button" class="btn btn-sm" data-v30-rec-finish hidden>
+            {{ ui.icon('check', 13) }} Terminer
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-rec-discard hidden>
+            {{ ui.icon('x', 13) }} Annuler
+          </button>
+        </div>
+
+        <div class="v30-rec__error" data-v30-rec-error hidden></div>
+      </div>
+
+      {# ─── Phase 2 — Review (titre, participants, options) ─── #}
+      <div class="v30-rec-review" data-v30-rec-review hidden>
+
+        <div class="v30-rec__playback">
+          <audio controls preload="metadata" data-v30-rec-playback></audio>
+          <span class="v30-rec__playback-info" data-v30-rec-playback-info>—</span>
+        </div>
+
+        <div class="v30-rec__field">
+          <label for="v30-rec-title-input">
+            Titre <span style="color:var(--danger);">*</span>
+          </label>
+          <input type="text" id="v30-rec-title-input" class="input"
+                 placeholder="Ex. RDV Acme — démo produit" maxlength="200" required>
+        </div>
+
+        <div class="v30-rec__field">
+          <label>
+            Participants
+            <span class="muted">— optionnel, aide l'IA à attribuer les noms aux orateurs</span>
+          </label>
+          <div class="v30-rec__participants" data-v30-rec-participants></div>
+          <button type="button" class="btn btn-ghost btn-sm v30-rec__participant-add"
+                  data-v30-rec-add-participant>
+            {{ ui.icon('plus', 13) }} Ajouter un participant
+          </button>
+        </div>
+
+        <div class="v30-rec__opts">
+          <label>
+            <input type="checkbox" data-v30-rec-auto-analyze checked>
+            <span>Lancer Whisper + analyse Claude après envoi (recommandé)</span>
+          </label>
+        </div>
+
+        <div class="v30-tx-progress" data-v30-rec-progress hidden>
+          <div class="v30-tx-progress__bar">
+            <div class="v30-tx-progress__fill" data-v30-rec-progress-fill style="width:0%"></div>
+          </div>
+          <span class="muted" data-v30-rec-progress-label>Envoi…</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="v30-modal__foot">
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-rec-restart hidden>
+        {{ ui.icon('sync', 13) }} Refaire
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-rec-close>Fermer</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-rec-submit hidden disabled>
+        {{ ui.icon('check', 13) }} Enregistrer
+      </button>
+    </div>
+  </div>
+</div>
+
 <script defer src="/static/js/v30/transcription.js?v={{ static_hash('js/v30/transcription.js') }}"></script>
+<script defer src="/static/js/v30/transcription_recorder.js?v={{ static_hash('js/v30/transcription_recorder.js') }}"></script>
 {% endblock %}

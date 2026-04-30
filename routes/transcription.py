@@ -344,11 +344,43 @@ def api_upload():
 
     title = (request.form.get("title") or Path(raw_name).stem or "Réunion").strip()[:200]
 
+    # v32.14 — participants pré-fournis (depuis le recorder ou un upload guidé)
+    # JSON list[{name, role}] qui sert d'indice à l'analyse Claude pour
+    # attribuer les bons noms aux SPEAKER_xx de pyannote.
+    participants_hint: list[dict] = []
+    raw_part = (request.form.get("participants") or "").strip()
+    if raw_part:
+        try:
+            parsed = json.loads(raw_part)
+            if isinstance(parsed, list):
+                for p in parsed[:12]:
+                    if not isinstance(p, dict):
+                        continue
+                    name = (p.get("name") or "").strip()[:80]
+                    role = (p.get("role") or "").strip()[:80]
+                    if name:
+                        participants_hint.append({"name": name, "role": role})
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("participants payload invalide pour user %s — ignoré", uid)
+
+    source = (request.form.get("source") or "upload").strip()[:30] or "upload"
+    auto_analyze = (request.form.get("auto_analyze") or "true").strip().lower() not in ("false", "0", "no", "off")
+
     # Stockage : data/audio_uploads/user_<uid>/<timestamp>_<slug><ext>
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_stem = _slugify(Path(raw_name).stem)
     dest = _audio_dir(uid) / f"{ts}_{safe_stem}{ext}"
     file.save(str(dest))
+
+    initial_analysis: dict | None = None
+    if participants_hint:
+        initial_analysis = {
+            "_user_participants_hint": participants_hint,
+            "participants": [
+                {"label": None, "guessed_name": p["name"], "guessed_role": p.get("role") or None}
+                for p in participants_hint
+            ],
+        }
 
     now = datetime.now().isoformat(timespec="seconds")
     config = _load_ai_config()
@@ -356,13 +388,14 @@ def api_upload():
         cur = conn.execute(
             "INSERT INTO transcriptions "
             "(title, audio_filename, audio_path, audio_size, status, progress, stage, "
-            " whisper_model, analysis_model, owner_id, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, 'pending', 0, 'En attente', ?, ?, ?, ?, ?);",
+            " analysis_json, whisper_model, analysis_model, owner_id, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, 'pending', 0, 'En attente', ?, ?, ?, ?, ?, ?);",
             (
                 title,
                 raw_name,
                 str(dest),
                 size,
+                json.dumps(initial_analysis, ensure_ascii=False) if initial_analysis else None,
                 config.get("whisper_model", "large-v3"),
                 config.get("anthropic_model", "claude-haiku-4-5"),
                 uid,
@@ -373,9 +406,18 @@ def api_upload():
         tid = cur.lastrowid
         conn.commit()
 
-    # Démarrage job async
-    start_job_async(tid, str(dest), str(DB_PATH), config)
-    logger.info("Transcription %s démarrée par user %s (file=%s, %d bytes)", tid, uid, raw_name, size)
+    start_job_async(
+        tid,
+        str(dest),
+        str(DB_PATH),
+        config,
+        participants_hint=participants_hint,
+        auto_analyze=auto_analyze,
+    )
+    logger.info(
+        "Transcription %s démarrée par user %s (file=%s, %d bytes, source=%s, participants=%d, auto_analyze=%s)",
+        tid, uid, raw_name, size, source, len(participants_hint), auto_analyze,
+    )
     return jsonify(ok=True, id=tid)
 
 

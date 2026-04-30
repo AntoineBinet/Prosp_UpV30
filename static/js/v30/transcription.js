@@ -71,7 +71,7 @@
       c.innerHTML =
         '<div class="v30-tx-empty">' +
           '<p>Aucune transcription pour le moment.</p>' +
-          '<p class="muted">Clique sur « Nouveau fichier audio » pour démarrer.</p>' +
+          '<p class="muted">Clique sur « Enregistrer » pour démarrer une réunion en direct, ou « Importer un fichier » si tu as déjà un audio.</p>' +
         '</div>';
       return;
     }

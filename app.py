@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.13"
+APP_VERSION = "32.14"
 import os
 import uuid
 import subprocess
@@ -2667,6 +2667,10 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             try:
                 cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({tbl});").fetchall()]
             except Exception:
+                continue
+            # PRAGMA renvoie [] si la table n'existe pas (DB user vide) — skip
+            # pour éviter un ALTER TABLE qui échoue.
+            if not cols:
                 continue
             if "deleted_at" not in cols:
                 conn.execute(f"ALTER TABLE {tbl} ADD COLUMN deleted_at TEXT;")

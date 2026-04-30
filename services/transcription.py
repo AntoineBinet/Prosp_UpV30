@@ -981,12 +981,41 @@ def _wrap_ollama_markdown(md: str) -> dict:
     }
 
 
-def _call_anthropic(api_key: str, model: str, transcript: str, timeout: int = 240) -> dict:
-    """Appelle l'API Messages d'Anthropic. Retourne le JSON parsé de l'analyse."""
+def _call_anthropic(
+    api_key: str,
+    model: str,
+    transcript: str,
+    timeout: int = 240,
+    participants_hint: list[dict] | None = None,
+) -> dict:
+    """Appelle l'API Messages d'Anthropic. Retourne le JSON parsé de l'analyse.
+
+    `participants_hint` (v32.14) : si fourni, on injecte un préambule listant
+    les participants connus pour aider Claude à attribuer les bons noms aux
+    SPEAKER_xx de pyannote.
+    """
     if not api_key:
         raise RuntimeError("Clé API Anthropic non configurée (Paramètres > IA).")
+    hint_block = ""
+    if participants_hint:
+        lines: list[str] = []
+        for p in participants_hint:
+            nm = (p.get("name") or "").strip()
+            rl = (p.get("role") or "").strip()
+            if not nm:
+                continue
+            lines.append(f"- {nm}" + (f" ({rl})" if rl else ""))
+        if lines:
+            hint_block = (
+                "PARTICIPANTS DÉCLARÉS (fournis par l'utilisateur — utilise ces noms exacts "
+                "pour `participants[].guessed_name` et toute mention dans le CR ; "
+                "associe-les aux SPEAKER_xx en t'appuyant sur le contenu) :\n"
+                + "\n".join(lines)
+                + "\n\n---\n\n"
+            )
     user_msg = (
-        "Voici le transcript d'une réunion (avec timestamps et orateurs). "
+        hint_block
+        + "Voici le transcript d'une réunion (avec timestamps et orateurs). "
         "Analyse-le et retourne le JSON demandé. "
         "N'oublie pas le champ narrative_markdown qui doit contenir le CR complet "
         "structuré en sections H2 narratives.\n\n---\n"
@@ -1055,19 +1084,19 @@ def _call_anthropic(api_key: str, model: str, transcript: str, timeout: int = 24
 # ─── Helper analyse avec fallback Ollama ──────────────────────────────
 
 
-def run_analysis_with_fallback(transcript_text: str, config: dict) -> tuple[dict | None, str | None]:
+def run_analysis_with_fallback(
+    transcript_text: str,
+    config: dict,
+    participants_hint: list[dict] | None = None,
+) -> tuple[dict | None, str | None]:
     """Tente Claude. Fallback Ollama UNIQUEMENT si activé explicitement
     (`transcription_fallback_ollama=True`).
 
     Pure function — aucune écriture DB.
     Retourne (analysis_dict_or_None, error_message_or_None).
-    L'analysis dict inclut `_provider` ('anthropic' ou 'ollama') et
-    éventuellement `_fallback_reason`.
 
-    Note v32.8 : le fallback Ollama est désactivé par défaut car
-    llama3.2:3B (modèle par défaut) produit des CR truffés
-    d'hallucinations sur les longs transcripts. Mieux vaut une erreur
-    claire qu'un faux CR.
+    `participants_hint` (v32.14) : list[{name, role}] pré-fournie par
+    l'utilisateur via le recorder pour aider à mapper SPEAKER_xx → nom réel.
     """
     if not (transcript_text or "").strip():
         return None, "Transcript vide — analyse impossible."
@@ -1078,9 +1107,14 @@ def run_analysis_with_fallback(transcript_text: str, config: dict) -> tuple[dict
     # 1. Tentative Claude
     if anth_key:
         try:
-            analysis = _call_anthropic(anth_key, anth_model, transcript_text)
+            analysis = _call_anthropic(
+                anth_key, anth_model, transcript_text,
+                participants_hint=participants_hint,
+            )
             analysis["_provider"] = "anthropic"
             analysis["_model_used"] = anth_model
+            if participants_hint:
+                analysis["_user_participants_hint"] = participants_hint
             return analysis, None
         except Exception as exc:
             claude_msg = str(exc)
@@ -1133,10 +1167,21 @@ def _run_analysis_with_fallback(
     anth_model: str,
     config: dict,
     update_fn,
+    participants_hint: list[dict] | None = None,
+    preserve_keys: dict | None = None,
 ) -> tuple[dict | None, str | None]:
     """Wrapper qui appelle run_analysis_with_fallback() et persiste le
-    résultat via update_fn(analysis_json=..., analysis_model=...)."""
-    analysis, err_msg = run_analysis_with_fallback(transcript_text, config)
+    résultat via update_fn(analysis_json=..., analysis_model=...).
+
+    `participants_hint` (v32.14) : passé au prompt pour le mapping noms ↔ SPEAKER_xx.
+    `preserve_keys` : clés à conserver coûte que coûte dans l'analyse finale.
+    """
+    analysis, err_msg = run_analysis_with_fallback(
+        transcript_text, config, participants_hint=participants_hint,
+    )
+    if analysis is not None and preserve_keys:
+        for k, v in preserve_keys.items():
+            analysis.setdefault(k, v)
     if analysis is not None:
         update_fn(
             analysis_json=json.dumps(analysis, ensure_ascii=False),
@@ -1153,6 +1198,8 @@ def process_transcription(
     audio_path: str,
     db_path: str,
     config: dict,
+    participants_hint: list[dict] | None = None,
+    auto_analyze: bool = True,
 ) -> None:
     """Pipeline complet : transcription → diarisation → analyse. Met à jour la DB en continu.
 
@@ -1160,16 +1207,26 @@ def process_transcription(
     Toutes les exceptions sont attrapées et stockées dans la colonne error_message.
     """
     if not _PROCESSING_LOCK.acquire(blocking=False):
-        # Quelqu'un d'autre tourne déjà → on attend (file d'attente naturelle)
         logger.info("Job %s en file d'attente (autre transcription en cours)", transcription_id)
         _PROCESSING_LOCK.acquire()
     try:
-        _process_locked(transcription_id, audio_path, db_path, config)
+        _process_locked(
+            transcription_id, audio_path, db_path, config,
+            participants_hint=participants_hint,
+            auto_analyze=auto_analyze,
+        )
     finally:
         _PROCESSING_LOCK.release()
 
 
-def _process_locked(transcription_id: int, audio_path: str, db_path: str, config: dict) -> None:
+def _process_locked(
+    transcription_id: int,
+    audio_path: str,
+    db_path: str,
+    config: dict,
+    participants_hint: list[dict] | None = None,
+    auto_analyze: bool = True,
+) -> None:
     def _update(**fields: Any) -> None:
         fields["updated_at"] = datetime.now().isoformat(timespec="seconds")
         cols = ", ".join(f"{k}=?" for k in fields)
@@ -1262,14 +1319,20 @@ def _process_locked(transcription_id: int, audio_path: str, db_path: str, config
             speakers_json=json.dumps(list(speakers_set), ensure_ascii=False),
             transcript_text=transcript_text,
         )
-        _progress(85, "Analyse Claude en cours…")
+        # 4. Analyse — Anthropic en priorité, Ollama en fallback (sauf si désactivée).
+        analysis_error: str | None = None
+        if auto_analyze:
+            _progress(85, "Analyse Claude en cours…")
+            preserve = {"_user_participants_hint": participants_hint} if participants_hint else None
+            analysis, analysis_error = _run_analysis_with_fallback(
+                transcript_text, anth_key, anth_model, config, _update,
+                participants_hint=participants_hint,
+                preserve_keys=preserve,
+            )
+        else:
+            _progress(95, "Transcription brute (analyse différée)")
+            logger.info("Transcription %s : analyse Claude désactivée par l'utilisateur", transcription_id)
 
-        # 4. Analyse — Anthropic en priorité, Ollama en fallback
-        analysis, analysis_error = _run_analysis_with_fallback(
-            transcript_text, anth_key, anth_model, config, _update,
-        )
-
-        # Concaténer les warnings dans error_message (séparés par \n\n)
         warnings_msg = "\n\n".join([w for w in (diarization_warning, analysis_error) if w])
         if warnings_msg:
             _update(error_message=warnings_msg)
@@ -1299,11 +1362,23 @@ def start_job_async(
     audio_path: str,
     db_path: str,
     config: dict,
+    participants_hint: list[dict] | None = None,
+    auto_analyze: bool = True,
 ) -> threading.Thread:
-    """Démarre le pipeline dans un thread daemon. Retourne le thread (pour tests)."""
+    """Démarre le pipeline dans un thread daemon. Retourne le thread (pour tests).
+
+    `participants_hint` (v32.14) : transmis à `_call_anthropic` pour mapper
+    SPEAKER_xx aux noms réels.
+    `auto_analyze` (v32.14) : si False, le pipeline s'arrête après Whisper +
+    diarisation (status `done`, sans appel Claude).
+    """
     t = threading.Thread(
         target=process_transcription,
         args=(transcription_id, audio_path, db_path, config),
+        kwargs={
+            "participants_hint": participants_hint,
+            "auto_analyze": auto_analyze,
+        },
         name=f"transcription-{transcription_id}",
         daemon=True,
     )
