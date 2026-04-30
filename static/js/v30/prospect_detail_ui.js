@@ -1177,6 +1177,27 @@
       else if (r.type === 'tags') pillTxt = r.before.length + ' → ' + r.after.length + ' tags';
       else if (r.type === 'notes') pillTxt = (r._complement ? 'compl.' : '') + (r._complement && r._accroches.length ? ' + ' : '') + (r._accroches.length ? r._accroches.length + ' accr.' : '');
 
+      // Valeur de pré-remplissage de l'input "saisie manuelle" :
+      // - tags : la fusion (ou les tags après si pas de fusion possible)
+      // - notes : la fusion (ou la valeur après pure)
+      // - text : la valeur après si non vide, sinon la valeur avant
+      var manualPrefill;
+      if (r.type === 'tags') {
+        var fillArr = canMerge ? unionTags(r.before, r.after) : (r.after.length ? r.after : r.before);
+        manualPrefill = fillArr.join(', ');
+      } else if (r.type === 'notes') {
+        manualPrefill = r.merged || r.after || r.before;
+      } else {
+        manualPrefill = r.after || r.before;
+      }
+      var manualInputHtml;
+      if (r.type === 'notes') {
+        manualInputHtml = '<textarea class="v30-fp-ai-cmp__manual-input" rows="3" data-manual-input="' + idx + '" placeholder="Saisie libre — remplacera la valeur">' + FP.esc(manualPrefill) + '</textarea>';
+      } else {
+        var ph = r.type === 'tags' ? 'tag1, tag2, tag3' : 'Saisie libre — remplacera la valeur';
+        manualInputHtml = '<input type="text" class="v30-fp-ai-cmp__manual-input" data-manual-input="' + idx + '" placeholder="' + ph + '" value="' + FP.esc(manualPrefill) + '">';
+      }
+
       var actionsHtml =
         '<label class="v30-fp-ai-cmp__action"><input type="radio" name="' + name + '" value="before"' +
           (r.defaultAction === 'before' ? ' checked' : '') + '> Garder avant</label>' +
@@ -1189,7 +1210,9 @@
             (r.defaultAction === 'merge' ? ' checked' : '') +
             (r.identical ? ' disabled' : '') +
           '> Fusionner</label>'
-        ) : '');
+        ) : '') +
+        '<label class="v30-fp-ai-cmp__action"><input type="radio" name="' + name + '" value="manual"> Saisie manuelle</label>' +
+        '<div class="v30-fp-ai-cmp__manual-wrap">' + manualInputHtml + '</div>';
 
       rowEl.innerHTML =
         '<div class="v30-fp-ai-cmp__col v30-fp-ai-cmp__col--field">' +
@@ -1211,8 +1234,24 @@
 
   // Calcule la valeur finale à sauvegarder pour un row donné selon l'action choisie.
   // Retourne { changed, value } — value est null si action=before (pas de changement).
-  function computeRowFinal(row, action) {
+  // `manualValue` : valeur saisie par l'utilisateur dans l'input "Saisie manuelle"
+  // (string brute ; pour tags, parsée en CSV).
+  function computeRowFinal(row, action, manualValue) {
     if (action === 'before') return { changed: false, value: null };
+    if (action === 'manual') {
+      var raw = (manualValue == null ? '' : String(manualValue)).trim();
+      if (row.type === 'tags') {
+        var arr = raw ? raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+        // Dédup case-insensitive en préservant l'ordre saisi
+        var seen = {}, out = [];
+        arr.forEach(function (t) { var k = t.toLowerCase(); if (!seen[k]) { seen[k] = true; out.push(t); } });
+        if (tagsEqual(out, row.before)) return { changed: false, value: null };
+        return { changed: true, value: JSON.stringify(out) };
+      }
+      // text + notes : raw string
+      if (raw === row.before) return { changed: false, value: null };
+      return { changed: true, value: raw };
+    }
     if (row.type === 'text') {
       if (action === 'after') {
         if (row.after === row.before) return { changed: false, value: null };
@@ -1252,7 +1291,9 @@
       if (!rowEl) return;
       var checked = rowEl.querySelector('input[type="radio"]:checked');
       var action = checked ? checked.value : r.defaultAction;
-      var res = computeRowFinal(r, action);
+      var manualEl = rowEl.querySelector('[data-manual-input]');
+      var manualValue = manualEl ? manualEl.value : '';
+      var res = computeRowFinal(r, action, manualValue);
       if (res.changed) changes.push({ row: r, action: action, value: res.value });
     });
 
@@ -1292,7 +1333,10 @@
 
       if (ok.length) {
         var fields = ok.map(function (c) {
-          return c.row.label + (c.action === 'merge' ? ' (fusion)' : (c.action === 'after' ? ' (remplacé)' : ''));
+          if (c.action === 'merge')  return c.row.label + ' (fusion)';
+          if (c.action === 'after')  return c.row.label + ' (remplacé)';
+          if (c.action === 'manual') return c.row.label + ' (saisie manuelle)';
+          return c.row.label;
         });
         logIaRun('scrap', 'Champs appliqués : ' + fields.join(', '), {
           field_count: ok.length, fields: fields
@@ -2132,6 +2176,17 @@
       document.querySelectorAll('.v30-modal-bd.is-open[data-v30-fp-modal]').forEach(function (m) {
         closeFPModal(m);
       });
+    });
+
+    // Quand l'utilisateur tape dans un input "saisie manuelle", auto-sélectionner
+    // le radio "manual" de la même ligne. Évite l'oubli de cocher la bonne option.
+    document.addEventListener('input', function (e) {
+      var target = e.target;
+      if (!target || !target.matches || !target.matches('[data-manual-input]')) return;
+      var rowEl = target.closest('[data-row-idx]');
+      if (!rowEl) return;
+      var manualRadio = rowEl.querySelector('input[type="radio"][value="manual"]');
+      if (manualRadio && !manualRadio.checked) manualRadio.checked = true;
     });
 
     // Scrap + IA handlers

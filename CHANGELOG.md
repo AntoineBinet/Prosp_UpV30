@@ -2,6 +2,45 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.16.1] — 2026-04-30 · 4ᵉ option « Saisie manuelle » dans la table comparative IA
+
+Ajout d'une 4ᵉ ligne d'action **« Saisie manuelle »** sur chaque champ du
+tableau comparatif d'enrichissement IA. L'utilisateur peut désormais saisir
+sa propre valeur si ni le « avant », ni le « après », ni la fusion ne
+conviennent — utile pour corriger une suggestion IA partielle ou ajouter
+manuellement une donnée que l'IA n'a pas trouvée.
+
+### Comportement
+
+- **Input pré-rempli** intelligemment :
+  - **text** (fonction, email, tel, linkedin) : valeur après si non-vide,
+    sinon valeur avant
+  - **tags** : la fusion (union avant + après), en CSV
+  - **notes** : la fusion (notes existantes + complément + accroches)
+- **Auto-sélection du radio** : dès que l'utilisateur tape dans l'input, le
+  radio « Saisie manuelle » est coché automatiquement (handler global sur
+  `input` event ciblant `[data-manual-input]`).
+- **Parsing CSV pour les tags** avec dédup case-insensitive en préservant
+  l'ordre saisi (`"A, a, B" → ["A", "B"]`).
+- **Apply** : `computeRowFinal(row, "manual", manualValue)` traite la valeur
+  selon le type de champ. Pour un texte multiligne (notes), c'est un
+  remplacement complet ; pour les tags, le CSV devient un tableau
+  `JSON.stringify`-é.
+
+### CSS
+
+- `.v30-fp-ai-cmp__manual-wrap` : marge top + indentation 22px pour aligner
+  l'input sous les radios.
+- `.v30-fp-ai-cmp__manual-input` : input/textarea full-width dans la colonne
+  actions, focus accent. `textarea` minimum 60px de haut, redimensionnable
+  verticalement.
+
+### Tests
+
+- 8 tests unitaires `computeRowFinal(action="manual")` couvrant les 3 types
+  de champs (text, tags, notes) avec valeurs identiques au before, valeurs
+  vides, dédup case-insensitive sur tags.
+
 ## [32.16] — 2026-04-30 · Table comparative avant/après pour l'enrichissement IA + bouton Mode Prosp
 
 Suite immédiate à v32.15 : remplace le diff binaire (« coche pour appliquer »)
