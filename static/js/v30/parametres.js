@@ -317,7 +317,7 @@
       var j = await res.json();
       if (!j || !j.ok) {
         listEl.innerHTML = '<span class="muted" style="font-size:13px;">' +
-          (j && j.error ? j.error : 'Ollama injoignable') + '</span>';
+          (j && j.error ? j.error : 'IA locale injoignable') + '</span>';
         return;
       }
       ollamaModelsRender(j.models || []);
@@ -586,7 +586,7 @@
     var label = ({
       tavily: 'Tavily',
       anthropic: 'Claude',
-      ollama: 'Ollama',
+      ollama: 'IA locale',
       huggingface: 'HuggingFace',
     })[target] || target;
     inlineStatus(st, 'Test ' + label + '…', 'var(--text-2)');

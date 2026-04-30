@@ -1210,7 +1210,7 @@
           var json = extractJsonMaybe(text);
           if (!json) {
             if (statusEl) statusEl.textContent = 'Réponse non JSON — réessayez';
-            toast('Réponse IA non JSON. Vérifiez le modèle Ollama.', 'warning', 6000);
+            toast('Réponse IA non JSON. Vérifiez le modèle IA locale.', 'warning', 6000);
             if (progressWrap) progressWrap.hidden = true;
             if (inputWrap) inputWrap.hidden = false;
             return;

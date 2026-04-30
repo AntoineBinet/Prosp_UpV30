@@ -229,7 +229,7 @@
       <button type="button" class="v30-bulk__btn" data-action="push">{{ ui.icon('send', 13) }} Pousser</button>
       <span class="v30-bulk__sep"></span>
       <button type="button" class="v30-bulk__btn" data-action="vcf" title="Télécharger une vCard (.vcf) des prospects sélectionnés">{{ ui.icon('arrowD', 13) }} Export VCF</button>
-      <button type="button" class="v30-bulk__btn" data-action="enrich-ai" title="Enrichir via IA (Ollama + recherche web) les prospects sélectionnés, séquentiellement">{{ ui.icon('sparkles', 13) }} Enrichir IA</button>
+      <button type="button" class="v30-bulk__btn" data-action="enrich-ai" title="Enrichir via IA locale (+ recherche web) les prospects sélectionnés, séquentiellement">{{ ui.icon('sparkles', 13) }} Enrichir IA</button>
       <span class="v30-bulk__sep"></span>
       <button type="button" class="v30-bulk__btn" data-action="archive" title="Archiver les prospects sélectionnés">{{ ui.icon('inbox', 13) }} Archiver</button>
       <button type="button" class="v30-bulk__btn v30-bulk__btn--danger" data-action="delete">{{ ui.icon('x', 13) }} Supprimer</button>
@@ -468,7 +468,7 @@
     </div>
     <div class="v30-modal__body">
       <p class="muted" style="font-size: 12.5px; margin: 0 0 10px;" data-v30-enrich-intro>
-        Lancer l'enrichissement IA (Ollama + recherche web Tavily) sur <strong data-v30-enrich-count>0</strong> prospect(s).
+        Lancer l'enrichissement IA locale (+ recherche web Tavily) sur <strong data-v30-enrich-count>0</strong> prospect(s).
         L'IA complète uniquement les champs vides (fonction, email, téléphone, linkedin, tags).
       </p>
       <label class="v30-chip" style="width: fit-content; margin-bottom: 10px;">

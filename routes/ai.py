@@ -416,7 +416,7 @@ def api_ai_test():
             logger.warning("AI test Ollama HTTP %s: %s", e.code, msg)
             return jsonify(ok=False, error=msg), 200
         except urllib.error.URLError as e:
-            return jsonify(ok=False, error="Ollama injoignable. Vérifiez que le service tourne."), 200
+            return jsonify(ok=False, error="IA locale injoignable. Vérifiez que le service tourne."), 200
         except Exception as e:
             return jsonify(ok=False, error=str(e)), 200
 
@@ -444,7 +444,7 @@ def api_ollama_models():
         ]
         return jsonify(ok=True, models=models)
     except urllib.error.URLError:
-        return jsonify(ok=False, error="Ollama injoignable"), 200
+        return jsonify(ok=False, error="IA locale injoignable"), 200
     except Exception as e:
         return jsonify(ok=False, error=str(e)), 200
 
@@ -480,7 +480,7 @@ def api_ollama_pull():
                     if line:
                         yield f"data: {line}\n\n"
         except urllib.error.URLError as e:
-            yield "data: " + json.dumps({"error": "Ollama injoignable : " + str(e)}) + "\n\n"
+            yield "data: " + json.dumps({"error": "IA locale injoignable : " + str(e)}) + "\n\n"
         except Exception as e:
             yield "data: " + json.dumps({"error": str(e)}) + "\n\n"
         yield "data: [DONE]\n\n"
@@ -521,7 +521,7 @@ def api_ollama_delete_model():
     except urllib.error.HTTPError as e:
         return jsonify(ok=False, error=f"HTTP {e.code}"), 200
     except urllib.error.URLError:
-        return jsonify(ok=False, error="Ollama injoignable"), 200
+        return jsonify(ok=False, error="IA locale injoignable"), 200
     except Exception as e:
         return jsonify(ok=False, error=str(e)), 200
 

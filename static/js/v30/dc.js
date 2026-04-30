@@ -244,7 +244,7 @@
       ? '<div class="v30-dc__hist-cand muted" style="font-size:11px;">' + esc(h.candidate_name) + (h.candidate_role ? ' · ' + esc(h.candidate_role) : '') + '</div>'
       : '';
     var ollamaBadge = h.used_ollama
-      ? ' <span class="badge badge-dot" title="Extraction Ollama">IA</span>'
+      ? ' <span class="badge badge-dot" title="Extraction IA locale">IA</span>'
       : '';
     return '<div class="v30-dc__hist-item" data-hist-id="' + esc(h.id) + '">' +
       '<div class="v30-dc__hist-name">' + esc(h.filename || '—') + ollamaBadge + '</div>' +
