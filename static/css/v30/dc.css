@@ -187,6 +187,13 @@
   content: '📄';
 }
 
+/* display:flex sur result/error écrase le UA [hidden]{display:none} */
+.v30-dc__progress[hidden],
+.v30-dc__result[hidden],
+.v30-dc__error[hidden] {
+  display: none;
+}
+
 /* ─── Generate button (full-width CTA) ─── */
 .v30-dc__generate-btn {
   width: 100%;
