@@ -71,7 +71,7 @@ RÈGLES STRICTES :
 - Une entrée = un poste ou une mission chez un employeur ou client
 - "entreprise" OBLIGATOIRE : nom de l'employeur ou du client final. JAMAIS vide.
 - "dates" OBLIGATOIRE : période (ex: "01/2022 – 07/2023", "Depuis 09/2020", "2018 – 2021")
-- "titre_projet" = nom du projet ou de la mission. Si absent → "{poste} chez {entreprise}"
+- "titre_projet" = nom du projet ou de la mission. Si absent → "{{poste}} chez {{entreprise}}"
 - "poste" = rôle ou fonction du candidat (ex: "Développeur Senior", "Chef de Projet", "Consultant")
 - "secteur" = secteur d'activité de l'entreprise (ex: "Banque", "Assurance", "Industrie", "Retail")
 - "duree" = durée calculée si possible (ex: "(18 mois)", "(2 ans)")
