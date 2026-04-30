@@ -73,7 +73,7 @@ archives/v29/           # Code v29 archivé (templates legacy + page-*.js + app.
 - Pas de bundler/build — fichiers servis directement par Flask.
 - Scripts HTML avec `defer` partout (sauf Chart.js CDN dans stats.html).
 - Toast : `window.showToast(msg, type, duration)` — défini dans `static/js/v30/toast.js`, chargé globalement par `templates/v30/base.html`.
-- IA : `window.callOllama(prompt, { stream, timeoutMs, model, webSearch })` — helper non-streaming dans `static/js/v30/ollama.js` (proxy vers `POST /api/ollama/generate`). Streaming SSE → fetch direct sur `/api/ollama/generate-stream`.
+- IA : `window.callOllama(prompt, { stream, timeoutMs, model, webSearch })` — helper non-streaming dans `static/js/v30/ollama.js` (proxy vers `POST /api/ollama/generate`). Streaming SSE → fetch direct sur `/api/ollama/generate-stream`. **Note** : la fonction s'appelle `callOllama` pour des raisons historiques — elle pilote n'importe quel modèle configuré (qwen2.5, mistral, llama3.x…).
 - Haptic : `window.haptic(ms)` dans `static/js/v8-features.js` (mobile uniquement).
 - **Pas de `cache: 'no-store'`** sur les fetch — le SW et les headers Cache-Control gèrent déjà.
 
@@ -106,12 +106,38 @@ archives/v29/           # Code v29 archivé (templates legacy + page-*.js + app.
 - DB isolée : si `data/user_<id>/prospects.db` existe → utilisée, sinon fallback DB principale avec filtre `owner_id`.
 - Migration au démarrage : `_migrate_all_user_dbs()` ajoute `deleted_at` aux DB user + nettoie les dossiers orphelins.
 
-## IA — Ollama + Tavily
-- **Ollama** (local, gratuit, `http://127.0.0.1:11434`) : génération de texte.
+## IA locale + Tavily
+
+### Moteur IA locale (Ollama)
+- **Service** : [Ollama](https://ollama.com) tourne en local sur `http://127.0.0.1:11434`. Toutes les données restent sur le PC — aucun envoi cloud.
+- **Modèle actif** : configurable depuis Paramètres > Configuration IA > Modèle actif. Le modèle par défaut est `llama3.2` mais **`qwen2.5:7b` est recommandé** (meilleur suivi JSON, enrichissement de fiches).
+- **Gestion des modèles depuis l'UI** : Paramètres > Configuration IA affiche une grille de modèles recommandés (install/suppression à distance), la liste des modèles installés, et un champ pour les modèles personnalisés.
+- **Modèles recommandés** (v32+) :
+  | Modèle | Taille | Usage |
+  |--------|--------|-------|
+  | `qwen2.5:7b` ⭐ | ~5 GB / 6 GB VRAM | JSON, enrichissement — **recommandé** |
+  | `mistral:7b` | ~5 GB / 6 GB VRAM | Généraliste, emails, comptes-rendus |
+  | `llama3.1:8b` | ~5 GB / 6 GB VRAM | Généraliste Meta, bon français |
+  | `gemma3:12b` | ~8 GB / 9 GB VRAM | Qualité supérieure (Google 2025) |
+  | `qwen2.5:14b` | ~9 GB / 10 GB VRAM | Instructions complexes, JSON avancé |
+  | `qwen2.5:32b` | ~20 GB / 22 GB VRAM | Fallback transcription, tâches max |
 - **Tavily** (cloud, optionnel) : recherche web pour enrichir prompts. Config dans Paramètres > Configuration IA (persisté `data/ai_config.json`, gitignored).
-- **Flux web_search** : Tavily → injecte résultats dans le prompt → Ollama génère → citations Tavily.
-- **Routes** : `POST /api/ollama/generate`, `POST /api/ollama/generate-stream`, `GET|POST /api/ai/config`, `POST /api/ai/test`.
-- **Front** : `window.callOllama(prompt, { webSearch: true })` (`static/js/v30/ollama.js`) active le routing web.
+- **Flux web_search** : Tavily → injecte résultats dans le prompt → IA locale génère → citations Tavily.
+
+### Routes API IA (noms techniques stables — ne pas renommer)
+- `POST /api/ollama/generate` — génération non-streaming
+- `POST /api/ollama/generate-stream` — génération SSE streaming
+- `GET /api/ollama/models` — liste des modèles installés
+- `POST /api/ollama/pull` — télécharger un modèle (SSE progress)
+- `DELETE /api/ollama/model` — supprimer un modèle
+- `GET /api/ollama/recommended` — liste curatée des modèles recommandés
+- `GET|POST /api/ai/config` — lire/écrire la configuration IA
+- `POST /api/ai/test` — tester la connexion (timeout 60 s — les gros modèles mettent jusqu'à 60 s au premier appel)
+
+### Conventions IA — IMPORTANT
+- **Ne jamais hardcoder le nom du modèle** dans le code. Toujours lire depuis `config.get("ollama_model")` (backend) ou laisser le helper `callOllama` utiliser le modèle configuré.
+- **`window.callOllama`** est le seul point d'entrée frontend — ne pas faire de fetch direct sur `/api/ollama/generate` sauf pour le streaming SSE.
+- Les routes `/api/ollama/*` gardent leur nom pour compatibilité — l'UI affiche "IA locale" mais les identifiants techniques restent `ollama`.
 - **Variables env** (override par UI) : `OLLAMA_URL`, `OLLAMA_MODEL` (défaut `llama3.2`), `OLLAMA_TIMEOUT` (120 s), `TAVILY_API_KEY`.
 
 ### Entrées IA
