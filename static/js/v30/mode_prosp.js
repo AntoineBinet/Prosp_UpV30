@@ -890,16 +890,33 @@ window.mpClose = function () {
     };
 
     // ── Keyboard ──
+    // Sélectionne directement un statut par son index dans STATUS_OPTIONS
+    function mpSetStatusByIndex(idx) {
+        var statusSel = viewport.querySelector('.mp-status-select');
+        if (!statusSel) return;
+        var opts = statusSel.querySelectorAll('.mp-select-option');
+        if (opts[idx]) opts[idx].click();
+    }
+
     function setupKeyboard() {
         document.addEventListener('keydown', function (e) {
             if (e.target.matches('input, select, textarea, .mp-select-trigger, .mp-select-option')) return;
-            if (document.querySelector('.mp-select-dropdown:not([hidden])')) return;
+            // Ignorer les combinaisons avec modificateurs (Ctrl/Cmd/Alt)
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            // Touches 1-7 : statut direct (fonctionnent même si un select est ouvert)
+            var numKey = parseInt(e.key, 10);
+            if (numKey >= 1 && numKey <= 7) {
+                e.preventDefault();
+                _closeAllSelects();
+                mpSetStatusByIndex(numKey - 1);
+                return;
+            }
             // Navigation
             if (e.key === 'ArrowLeft')  { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex - 1); return; }
             if (e.key === 'ArrowRight') { e.preventDefault(); _captureCurrentCard(); goTo(currentIndex + 1); return; }
             if (e.key === 'Escape')     { e.preventDefault(); window.mpClose(); return; }
-            // Ignorer les combinaisons avec modificateurs (Ctrl/Cmd/Alt)
-            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            // Bloqué si un select est ouvert (pour ne pas interférer avec la nav clavier du select)
+            if (document.querySelector('.mp-select-dropdown:not([hidden])')) return;
             // Raccourcis actions
             if (e.key === 'c' || e.key === 'C') {
                 e.preventDefault();

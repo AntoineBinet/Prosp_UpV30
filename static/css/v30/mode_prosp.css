@@ -1045,6 +1045,48 @@ select.mp-input { cursor: pointer; } /* fallback pour selects natifs résiduels 
   .mp-title { display: none; }
 }
 
+/* ─── Shortcut summary bar (footer) ─── */
+.mp-shortcuts-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 2px;
+}
+.mp-sc-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.mp-sc-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.mp-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 15px;
+  padding: 0 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-2);
+  line-height: 1;
+  box-shadow: 0 1px 0 var(--border);
+}
+@media (max-width: 768px) { .mp-shortcuts-bar { display: none; } }
+
 /* ─── Keyboard shortcut tooltip ─── */
 .mp-kbd-tip {
   position: fixed;
