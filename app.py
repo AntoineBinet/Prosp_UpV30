@@ -21816,29 +21816,32 @@ def dc_generator_generate():
                 except Exception:
                     pass
 
-            # ── Essayer Ollama si texte disponible ────────────────────────────
+            # ── Essayer l'IA locale si texte disponible ───────────────────────
+            # Utilise _load_ai_config() — source unique de config (UI Paramètres > IA).
             ollama_ok = False
             ollama_available = False
             if cv_text.strip() and use_ollama != 'no':
                 try:
-                    ai_cfg = {}
-                    ai_cfg_path = os.path.join(str(APP_DIR), 'data', 'ai_config.json')
-                    if os.path.exists(ai_cfg_path):
-                        import json as _json
-                        with open(ai_cfg_path) as _f:
-                            ai_cfg = _json.load(_f)
-                    ollama_url = ai_cfg.get('ollama_url', 'http://127.0.0.1:11434')
-                    ollama_model = ai_cfg.get('ollama_model', 'llama3.2')
-                    ollama_timeout = int(ai_cfg.get('ollama_timeout', 120))
+                    ai_cfg = _load_ai_config()
+                    ollama_url     = ai_cfg.get('ollama_url', OLLAMA_URL)
+                    ollama_model   = ai_cfg.get('ollama_model', OLLAMA_MODEL)
+                    ollama_timeout = int(ai_cfg.get('ollama_timeout') or OLLAMA_TIMEOUT)
 
-                    # Test rapide de connectivité avant de lancer l'extraction
+                    # Test de connectivité : essaie /api/tags (Ollama + LM Studio)
+                    # puis /v1/models (OpenAI-compatible) — timeout court
                     import urllib.request as _ur
-                    try:
-                        _ping = _ur.Request(ollama_url.rstrip('/') + '/api/version')
-                        with _ur.urlopen(_ping, timeout=4):
-                            ollama_available = True
-                    except Exception as _pe:
-                        logger.warning("DC Generator: Ollama non disponible (%s)", _pe)
+                    _ping_ok = False
+                    for _ping_path in ('/api/tags', '/v1/models'):
+                        try:
+                            _pr = _ur.Request(ollama_url.rstrip('/') + _ping_path)
+                            with _ur.urlopen(_pr, timeout=4):
+                                _ping_ok = True
+                            break
+                        except Exception:
+                            pass
+                    if not _ping_ok:
+                        logger.warning("DC Generator: IA locale non disponible à %s", ollama_url)
+                    ollama_available = _ping_ok
 
                     if ollama_available:
                         from utils.ollama_extractor import extract as _ollama_extract
@@ -21846,12 +21849,12 @@ def dc_generator_generate():
                         if extracted and (extracted.get('competences') or extracted.get('nom') or extracted.get('experiences')):
                             cv_data = extracted
                             ollama_ok = True
-                            logger.info("DC Generator: Ollama extraction OK (missing=%s)",
+                            logger.info("DC Generator: extraction IA OK (missing=%s)",
                                         extracted.get('_missing', []))
                         else:
-                            logger.warning("DC Generator: Ollama extraction retournée vide")
+                            logger.warning("DC Generator: extraction IA retournée vide")
                 except Exception as _oe:
-                    logger.warning("DC Generator: Ollama extraction failed: %s", _oe)
+                    logger.warning("DC Generator: extraction IA échouée: %s", _oe)
 
             # ── Fallback : extraction basique si Ollama indisponible ──────────
             # N'utilise PAS CVParser (calibré pour tableaux Up Tech uniquement).
