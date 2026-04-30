@@ -104,28 +104,10 @@
         </div>
       </div>
 
-      {# Step 3 — Options #}
+      {# Step 3 — Entretien #}
       <div class="card v30-dc__card">
         <div class="v30-dc__card-head">
           <span class="v30-dc__step-num">03</span>
-          <div class="card-title">{{ ui.icon('cog', 14) }} Options</div>
-        </div>
-        <div class="v30-dc__fields">
-          <div>
-            <label class="label" for="v30-dc-titre">Titre du poste (override)</label>
-            <input type="text" id="v30-dc-titre" class="input" placeholder="Ex: Développeur Full-Stack Senior">
-          </div>
-          <div>
-            <label class="label" for="v30-dc-exp">Années d'expérience (override)</label>
-            <input type="text" id="v30-dc-exp" class="input" placeholder="Ex: 8 ans">
-          </div>
-        </div>
-      </div>
-
-      {# Step 4 — Entretien #}
-      <div class="card v30-dc__card">
-        <div class="v30-dc__card-head">
-          <span class="v30-dc__step-num">04</span>
           <div style="flex:1;min-width:0;">
             <div class="card-title">{{ ui.icon('file', 14) }} Données entretien</div>
             <p class="card-sub" style="margin-top:2px;">Pré-remplit le DC avec les infos d'entretien.</p>
@@ -137,10 +119,10 @@
         <div class="v30-dc__interview-preview" data-v30-dc-interview-preview hidden></div>
       </div>
 
-      {# Step 5 — Générer #}
+      {# Step 4 — Générer #}
       <div class="card v30-dc__card v30-dc__card--cta">
         <div class="v30-dc__card-head">
-          <span class="v30-dc__step-num v30-dc__step-num--accent">05</span>
+          <span class="v30-dc__step-num v30-dc__step-num--accent">04</span>
           <div class="card-title">{{ ui.icon('report', 14) }} Générer le dossier</div>
         </div>
 
@@ -152,7 +134,8 @@
 
         <div class="v30-dc__progress" data-v30-dc-progress hidden>
           <div class="v30-dc__progress-bar" data-v30-dc-progress-bar></div>
-          <div class="v30-dc__progress-label" data-v30-dc-progress-label>Génération en cours…</div>
+          <div class="v30-dc__progress-label" data-v30-dc-progress-label>Extraction IA en cours… (1-2 min)</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:4px;">L'IA analyse le CV et remplit le dossier automatiquement.</div>
         </div>
 
         <div class="v30-dc__result" data-v30-dc-result hidden>
