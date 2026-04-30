@@ -2,6 +2,47 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.17.0] — 2026-04-30 · Import résumé PDF (Summary AI) sur la page Transcription
+
+Nouveau bouton **« Importer résumé PDF »** dans le header de
+`/v30/transcription`, à côté de « Enregistrer » et « Importer un fichier ».
+Permet d'importer un PDF de compte-rendu déjà mis au propre par un service
+externe (Summary AI, Otter, Notion AI…) et d'en déduire automatiquement les
+champs CRM candidat OU prospect.
+
+### Flux
+
+1. L'utilisateur uploade un PDF + titre dans la nouvelle modale.
+2. Backend extrait le texte (`pdfminer` puis fallback `pypdf`).
+3. Le texte est utilisé à la fois comme `transcript_text` et comme
+   `narrative_markdown` — pas de Whisper ni de diarisation, on saute
+   directement à la 3ᵉ passe d'extraction CRM (`_extract_crm_from_markdown`).
+4. La transcription est insérée avec `status='done'`, marquée
+   `analysis._source = 'pdf_summary'` pour distinction UI.
+5. L'utilisateur arrive sur la page détail standard, où les boutons
+   « Créer fiche candidat » et « Créer fiche prospect » apparaissent
+   selon que `candidate_info` ou `prospect_info` est rempli — flux
+   parfaitement identique à celui d'un upload audio classique.
+
+### Fichiers touchés
+
+- `routes/transcription.py` : nouveau endpoint
+  `POST /api/transcription/upload-summary-pdf` (~120 lignes).
+- `templates/v30/transcription.html` : bouton header + modale upload PDF.
+- `static/js/v30/transcription.js` : handlers modale +
+  badge « 📄 Résumé PDF » dans la liste.
+- `static/js/v30/transcription_detail.js` : masque le widget audio
+  pour les imports PDF (pas d'audio source).
+- `static/css/v30/transcription.css` : style du badge `is-source-pdf`.
+
+### Vérification du flux candidat / prospect existant
+
+Les boutons **« + Créer fiche candidat »** et **« + Créer fiche prospect »**
+de la page `/v30/transcription/<id>` (déjà en place depuis v32.11)
+fonctionnent sans modification : ils lisent `analysis.candidate_info` /
+`analysis.prospect_info` qui sont désormais remplis aussi pour les imports
+PDF.
+
 ## [32.16.2] — 2026-04-30 · Unification du bouton IA (liste + focus split panel) sur le flux table comparative
 
 Avant cette version, le bouton « Enrichir via IA » (icône diamant dans la

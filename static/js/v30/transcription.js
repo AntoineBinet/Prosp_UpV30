@@ -78,6 +78,7 @@
     var html = items.map(function (it) {
       var hasErr = it.status === 'error';
       var url = '/v30/transcription/' + it.id;
+      var fromPdf = !!(it.analysis && it.analysis._source === 'pdf_summary');
       var subBits = [];
       if (it.duration_sec) subBits.push(fmtDuration(it.duration_sec));
       if (it.audio_size)   subBits.push(fmtBytes(it.audio_size));
@@ -93,6 +94,9 @@
           consBadge = '<span class="v30-tx-pill is-cons-warn" title="' + esc(tip) + '">⚠ ' + n + ' à vérifier</span>';
         }
       }
+      var sourceBadge = fromPdf
+        ? '<span class="v30-tx-pill is-source-pdf" title="Importé depuis un résumé PDF">📄 Résumé PDF</span>'
+        : '';
       return (
         '<a class="v30-tx-card" href="' + url + '">' +
           '<div class="v30-tx-card__top">' +
@@ -105,6 +109,7 @@
           '</div>' +
           '<div class="v30-tx-card__bottom muted">' +
             '<span>' + esc(fmtDate(it.created_at)) + '</span>' +
+            sourceBadge +
             consBadge +
             (hasErr ? '<span class="v30-tx-card__err">⚠ ' + esc(it.error_message || '') + '</span>' : '') +
           '</div>' +
@@ -454,9 +459,207 @@
     xhr.send(fd);
   }
 
+  // ─── Modal Import résumé PDF (Summary AI) ───────────────────────────
+  // Variante simplifiée du flow audio : pas de preflight Claude/HF/GPU
+  // (on ne tourne pas Whisper), juste une extraction de texte PDF côté
+  // serveur puis la passe d'extraction CRM. Le PDF doit déjà contenir
+  // un compte-rendu mis au propre (Summary AI, Otter, Notion AI…).
+  var summaryFile = null;
+
+  function openSummaryModal() {
+    var m = $('[data-v30-tx-summary-modal]');
+    if (!m) return;
+    m.hidden = false;
+    void m.offsetWidth;
+    m.classList.add('is-open');
+    setTimeout(function () {
+      var t = $('#v30-tx-summary-title-input');
+      if (t) t.focus();
+    }, 30);
+  }
+  function closeSummaryModal() {
+    var m = $('[data-v30-tx-summary-modal]');
+    if (m) {
+      m.classList.remove('is-open');
+      setTimeout(function () { m.hidden = true; }, 180);
+    }
+    resetSummaryForm();
+  }
+  function resetSummaryForm() {
+    var t = $('#v30-tx-summary-title-input'); if (t) t.value = '';
+    var f = $('#v30-tx-summary-file');        if (f) f.value = '';
+    summaryFile = null;
+    showSummaryFile(null);
+    showSummaryProgress(false);
+    var sb = $('[data-v30-tx-summary-submit]');
+    if (sb) { sb.disabled = true; sb.textContent = 'Importer'; }
+  }
+  function showSummaryFile(file) {
+    var inner = $('[data-v30-tx-summary-drop-inner]');
+    var box = $('[data-v30-tx-summary-drop-file]');
+    var name = $('[data-v30-tx-summary-file-name]');
+    var size = $('[data-v30-tx-summary-file-size]');
+    var sb = $('[data-v30-tx-summary-submit]');
+    summaryFile = file || null;
+    if (!file) {
+      if (inner) inner.hidden = false;
+      if (box)   box.hidden = true;
+      if (sb)    sb.disabled = true;
+      return;
+    }
+    if (inner) inner.hidden = true;
+    if (box)   box.hidden = false;
+    if (name)  name.textContent = file.name;
+    if (size)  size.textContent = '· ' + fmtBytes(file.size);
+    var titleEl = $('#v30-tx-summary-title-input');
+    if (titleEl && !titleEl.value) titleEl.value = file.name.replace(/\.[^.]+$/, '');
+    if (sb && titleEl && titleEl.value.trim()) sb.disabled = false;
+  }
+  function showSummaryProgress(on, pct, label) {
+    var box = $('[data-v30-tx-summary-progress]');
+    var fill = $('[data-v30-tx-summary-progress-fill]');
+    var lab = $('[data-v30-tx-summary-progress-label]');
+    if (!box) return;
+    box.hidden = !on;
+    if (on) {
+      if (fill) fill.style.width = (pct || 0) + '%';
+      if (lab) lab.textContent = label || 'Upload…';
+    }
+  }
+
+  function bindSummaryUpload() {
+    var btn = $('[data-v30-tx-summary-new]');
+    if (btn) btn.addEventListener('click', openSummaryModal);
+
+    $$('[data-v30-tx-summary-close]').forEach(function (b) {
+      b.addEventListener('click', closeSummaryModal);
+    });
+    var modal = $('[data-v30-tx-summary-modal]');
+    if (modal) {
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) closeSummaryModal();
+      });
+    }
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal && !modal.hidden) closeSummaryModal();
+    });
+
+    var browse = $('[data-v30-tx-summary-browse]');
+    if (browse) browse.addEventListener('click', function () {
+      var f = $('#v30-tx-summary-file');
+      if (f) f.click();
+    });
+
+    var fileInput = $('#v30-tx-summary-file');
+    if (fileInput) fileInput.addEventListener('change', function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (f) showSummaryFile(f);
+    });
+
+    var clear = $('[data-v30-tx-summary-file-clear]');
+    if (clear) clear.addEventListener('click', function (e) {
+      e.preventDefault();
+      var f = $('#v30-tx-summary-file'); if (f) f.value = '';
+      summaryFile = null;
+      showSummaryFile(null);
+    });
+
+    var titleEl = $('#v30-tx-summary-title-input');
+    if (titleEl) titleEl.addEventListener('input', function () {
+      var sb = $('[data-v30-tx-summary-submit]');
+      if (sb) sb.disabled = !(titleEl.value.trim() && summaryFile);
+    });
+
+    var drop = $('[data-v30-tx-summary-drop]');
+    if (drop) {
+      ['dragenter','dragover'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('is-dragover'); });
+      });
+      ['dragleave','drop'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('is-dragover'); });
+      });
+      drop.addEventListener('drop', function (e) {
+        var dt = e.dataTransfer;
+        if (!dt || !dt.files || !dt.files[0]) return;
+        var f = dt.files[0];
+        if (!/\.pdf$/i.test(f.name)) {
+          if (window.showToast) window.showToast('Format non supporté — PDF requis', 'warning');
+          return;
+        }
+        var inp = $('#v30-tx-summary-file');
+        if (inp) {
+          try {
+            var dt2 = new DataTransfer();
+            dt2.items.add(f);
+            inp.files = dt2.files;
+          } catch (_err) { /* navigateur restrictif — currentFile fait foi */ }
+        }
+        showSummaryFile(f);
+      });
+    }
+
+    var submit = $('[data-v30-tx-summary-submit]');
+    if (submit) submit.addEventListener('click', onSummarySubmitClick);
+  }
+
+  function onSummarySubmitClick() {
+    var titleEl = $('#v30-tx-summary-title-input');
+    var title = titleEl ? titleEl.value.trim() : '';
+    if (!title) {
+      if (window.showToast) window.showToast('Donne un titre au résumé', 'warning');
+      return;
+    }
+    if (!summaryFile) {
+      if (window.showToast) window.showToast('Sélectionne un PDF', 'warning');
+      return;
+    }
+    var sb = $('[data-v30-tx-summary-submit]');
+    if (sb) { sb.disabled = true; sb.textContent = 'Import…'; }
+
+    var fd = new FormData();
+    fd.append('title', title);
+    fd.append('pdf', summaryFile);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/transcription/upload-summary-pdf', true);
+    xhr.withCredentials = true;
+    xhr.upload.onprogress = function (e) {
+      if (e.lengthComputable) {
+        var pct = Math.round(e.loaded / e.total * 100);
+        showSummaryProgress(true, pct, 'Upload ' + pct + '%…');
+      }
+    };
+    xhr.onload = function () {
+      var ok = xhr.status >= 200 && xhr.status < 300;
+      var data = {};
+      try { data = JSON.parse(xhr.responseText || '{}'); } catch (_) {}
+      if (!ok || !data.ok) {
+        showSummaryProgress(false);
+        if (sb) { sb.disabled = false; sb.textContent = 'Importer'; }
+        var msg = (data && data.error) || ('HTTP ' + xhr.status);
+        if (window.showToast) window.showToast('Import échoué : ' + msg, 'error');
+        else alert('Import échoué : ' + msg);
+        return;
+      }
+      // Note : l'extraction CRM est faite côté serveur avant la réponse,
+      // donc le détail est immédiatement consultable.
+      if (window.showToast) window.showToast('Résumé importé — extraction CRM terminée', 'success');
+      closeSummaryModal();
+      window.location.href = '/v30/transcription/' + data.id;
+    };
+    xhr.onerror = function () {
+      showSummaryProgress(false);
+      if (sb) { sb.disabled = false; sb.textContent = 'Importer'; }
+      if (window.showToast) window.showToast('Erreur réseau', 'error');
+    };
+    showSummaryProgress(true, 0, 'Upload + extraction…');
+    xhr.send(fd);
+  }
+
   // ─── Init ───────────────────────────────────────────────────────────
   function init() {
     bindUpload();
+    bindSummaryUpload();
     var refresh = $('[data-v30-tx-refresh]');
     if (refresh) refresh.addEventListener('click', loadList);
     loadList().then(startPolling);

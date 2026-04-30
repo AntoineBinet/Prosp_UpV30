@@ -510,6 +510,8 @@
 /* v32.13 — badge de cohérence CRM */
 .v30-tx-pill.is-cons-ok        { color: oklch(0.65 0.16 145); border-color: oklch(0.50 0.15 145 / 0.5); background: oklch(0.50 0.15 145 / 0.08); }
 .v30-tx-pill.is-cons-warn      { color: oklch(0.70 0.18 70);  border-color: oklch(0.55 0.18 70 / 0.6);  background: oklch(0.55 0.18 70 / 0.10); }
+/* v32.15 — badge "import depuis résumé PDF" */
+.v30-tx-pill.is-source-pdf     { color: oklch(0.70 0.16 280); border-color: oklch(0.55 0.18 280 / 0.5); background: oklch(0.55 0.18 280 / 0.08); }
 
 /* v32.13 — bandeau d'audit cohérence (warnings IA → user) */
 .v30-tx-crm__audit {
