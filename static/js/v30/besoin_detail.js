@@ -286,11 +286,91 @@
     }
   }
 
+  // ─── Recherche candidat ──────────────────────────────────
+  function openCandModal() {
+    const md = document.querySelector('[data-v30-cand-modal]');
+    if (!md) return;
+    md.hidden = false;
+    md.classList.add('is-open');
+    const inp = document.getElementById('v30-cand-search-input');
+    if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
+    renderCandResults([]);
+  }
+
+  function closeCandModal() {
+    const md = document.querySelector('[data-v30-cand-modal]');
+    if (!md) return;
+    md.classList.remove('is-open');
+    setTimeout(() => { md.hidden = true; }, 160);
+  }
+
+  function renderCandResults(items) {
+    const host = document.querySelector('[data-v30-cand-results]');
+    if (!host) return;
+    if (!items || !items.length) {
+      host.innerHTML = '<p class="muted" style="margin:8px 0;font-size:12px;">Aucun résultat.</p>';
+      return;
+    }
+    host.innerHTML = items.map(c => {
+      const sub = [c.role, c.location].filter(Boolean).join(' · ');
+      return `<button type="button" class="v30-besoin-link__row" data-cid="${c.id}" data-cname="${escapeHtml(c.name || '')}">
+        <strong>${escapeHtml(c.name || '')}</strong>
+        ${sub ? '<span class="muted">' + escapeHtml(sub) + '</span>' : ''}
+      </button>`;
+    }).join('');
+  }
+
+  let _candTimer = null;
+  function bindCandModal() {
+    const inp = document.getElementById('v30-cand-search-input');
+    if (inp) {
+      inp.addEventListener('input', () => {
+        const q = inp.value.trim();
+        if (_candTimer) clearTimeout(_candTimer);
+        if (q.length < 2) { renderCandResults([]); return; }
+        _candTimer = setTimeout(async () => {
+          try {
+            const data = await fetchJSON('/api/search?' + new URLSearchParams({ q, limit: '20' }));
+            renderCandResults((data && data.candidates) || []);
+          } catch (_e) { renderCandResults([]); }
+        }, 200);
+      });
+    }
+    const host = document.querySelector('[data-v30-cand-results]');
+    if (host) {
+      host.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-cid]');
+        if (!btn) return;
+        const name = btn.dataset.cname || '';
+        if (!Array.isArray(state.besoin.candidats)) state.besoin.candidats = [];
+        state.besoin.candidats.push({ candidat: name });
+        renderCands();
+        markDirty();
+        closeCandModal();
+        const tbody = root.querySelector('[data-v30-besoin-cand-body]');
+        if (tbody) {
+          const last = tbody.querySelector('tr:last-child input');
+          if (last) last.focus();
+        }
+        if (typeof window.showToast === 'function') window.showToast('Candidat ajouté', 'success', 1800);
+      });
+    }
+    document.querySelectorAll('[data-v30-cand-close]').forEach(b => b.addEventListener('click', closeCandModal));
+    const md = document.querySelector('[data-v30-cand-modal]');
+    if (md) {
+      md.addEventListener('click', (e) => { if (e.target === md) closeCandModal(); });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !md.hidden) closeCandModal();
+      });
+    }
+  }
+
   // ─── Liaison prospect ────────────────────────────────────
   function openLinkModal() {
     const md = document.querySelector('[data-v30-link-modal]');
     if (!md) return;
     md.hidden = false;
+    md.classList.add('is-open');
     const search = document.getElementById('v30-link-search');
     if (search) {
       search.value = '';
@@ -300,7 +380,9 @@
   }
   function closeLinkModal() {
     const md = document.querySelector('[data-v30-link-modal]');
-    if (md) md.hidden = true;
+    if (!md) return;
+    md.classList.remove('is-open');
+    setTimeout(() => { md.hidden = true; }, 160);
   }
 
   function renderLinkResults(items) {
@@ -414,6 +496,8 @@
     if (save) save.addEventListener('click', () => { state.dirty = true; saveAuto(); });
     const addBtn = document.querySelector('[data-v30-besoin-cand-add]');
     if (addBtn) addBtn.addEventListener('click', addCand);
+    const candSearchBtn = document.querySelector('[data-v30-besoin-cand-search]');
+    if (candSearchBtn) candSearchBtn.addEventListener('click', openCandModal);
 
     // Link delegation (boutons regenerés via innerHTML)
     document.addEventListener('click', (e) => {
@@ -426,6 +510,7 @@
     bindFields();
     bindActions();
     bindLinkModal();
+    bindCandModal();
     load();
 
     // Ctrl+S = save
