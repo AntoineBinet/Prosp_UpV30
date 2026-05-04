@@ -1997,6 +1997,21 @@
     cells.push(cur.trim());
     return cells;
   }
+  function looksLikeHeader(cell) {
+    // Vrai si la cellule ressemble \u00e0 un en-t\u00eate de colonne connu (cf. guessField).
+    var h = String(cell || '').toLowerCase().trim();
+    if (!h) return false;
+    return /^(nom|name|nom complet|pr[e\u00e9]nom|first(name)?|last(name)?|entreprise|company|soci[e\u00e9]t[e\u00e9]|groupe|raison sociale|site|ville|city|fonction|poste|titre|job|t[e\u00e9]l|t[e\u00e9]l[e\u00e9]phone|mobile|phone|gsm|e[- ]?mail|mail|linkedin|linked.in|li[- ]?url|url|note|notes|commentaire|tags?|mots[- ]?cl[e\u00e9]s?|pertinence|score|priorit[e\u00e9]?|statut|status|[e\u00e9]tat)$/i.test(h);
+  }
+  function looksLikeData(cell) {
+    // Vrai si la cellule ressemble plut\u00f4t \u00e0 de la donn\u00e9e (URL, email, t\u00e9l\u00e9phone).
+    var v = String(cell || '').trim();
+    if (!v) return false;
+    if (/^https?:\/\//i.test(v)) return true;
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return true;
+    if (/^[\d\s+\-().]{7,}$/.test(v) && !/[a-zA-Z]/.test(v)) return true;
+    return false;
+  }
   function parseDelimitedText(text, opts) {
     opts = opts || {};
     // Normaliser les fins de ligne, retirer BOM
@@ -2004,13 +2019,30 @@
     var lines = clean.split(/\r?\n/).filter(function (l) { return l.trim().length > 0; });
     if (lines.length === 0) return null;
     var sep = opts.separator || detectDelimiter(lines[0]);
-    var headers = parseCsvLine(lines[0], sep).map(function (h) { return String(h || '').trim(); });
+    var firstCells = parseCsvLine(lines[0], sep).map(function (c) { return String(c || '').trim(); });
+
+    // D\u00e9tection : la premi\u00e8re ligne contient-elle de vrais en-t\u00eates ?
+    // Sinon on g\u00e9n\u00e8re des en-t\u00eates synth\u00e9tiques pour ne perdre aucune donn\u00e9e
+    // (auto-mapping bas\u00e9 sur les valeurs via guessField).
+    var hasHeaderCell = firstCells.some(looksLikeHeader);
+    var hasDataLikeCell = firstCells.some(looksLikeData);
+    var noHeader = !hasHeaderCell && hasDataLikeCell;
+
+    var headers, dataLines;
+    if (noHeader) {
+      headers = firstCells.map(function (_, i) { return 'Colonne ' + (i + 1); });
+      dataLines = lines;
+    } else {
+      headers = firstCells;
+      dataLines = lines.slice(1);
+    }
+
     var rows = [];
-    for (var i = 1; i < lines.length; i++) {
-      var cells = parseCsvLine(lines[i], sep);
+    for (var i = 0; i < dataLines.length; i++) {
+      var cells = parseCsvLine(dataLines[i], sep);
       if (cells.some(function (c) { return String(c || '').trim().length > 0; })) rows.push(cells);
     }
-    return { headers: headers, rows: rows, separator: sep };
+    return { headers: headers, rows: rows, separator: sep, synthHeaders: noHeader };
   }
   function readFileAsText(file) {
     // Tente UTF-8, puis fallback CP1252 (Windows) si caractères de remplacement détectés
@@ -2286,7 +2318,9 @@
         return;
       }
       var sepLabel = raw.separator === '\t' ? 'tabulation' : (raw.separator === '|' ? 'pipe' : raw.separator);
-      if (hint) hint.textContent = raw.rows.length + ' ligne(s) — séparateur « ' + sepLabel + ' »';
+      var hintMsg = raw.rows.length + ' ligne(s) — séparateur « ' + sepLabel + ' »';
+      if (raw.synthHeaders) hintMsg += ' — pas d\'en-têtes détectés, mapping basé sur le contenu';
+      if (hint) hint.textContent = hintMsg;
       IMP.headers = raw.headers;
       IMP.rows = raw.rows;
       IMP.mapping = {};

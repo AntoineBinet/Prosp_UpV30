@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.17.0"
+APP_VERSION = "32.17.1"
 import os
 import uuid
 import subprocess
@@ -12697,7 +12697,8 @@ def api_prospect_create():
     company_groupe = (payload.get("company_groupe") or "").strip()
     company_site = (payload.get("company_site") or "").strip()
 
-    with _conn() as conn:
+    conn = _conn()
+    try:
         # Résoudre ou créer l'entreprise si fournie
         if payload.get("company_id"):
             try:
@@ -12723,6 +12724,17 @@ def api_prospect_create():
                     (new_co_id, company_groupe, company_site or "", uid)
                 )
                 company_id = new_co_id
+
+        # Pas d'entreprise fournie : tolérer company_id=0 (sentinelle « sans entreprise »
+        # historiquement utilisée par l'app — la contrainte FK ne reconnaît pas id=0).
+        # On désactive temporairement les FK pour permettre l'INSERT, comme le fait
+        # déjà replace_all() pour les imports en masse.
+        no_company = (company_id == 0)
+        if no_company:
+            try:
+                conn.execute("PRAGMA foreign_keys = OFF;")
+            except Exception:
+                pass
 
         # Générer l'ID côté serveur
         max_p = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM prospects WHERE owner_id=?;", (uid,)).fetchone()["m"]
@@ -12752,6 +12764,19 @@ def api_prospect_create():
                 uid,
             )
         )
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        try:
+            conn.execute("PRAGMA foreign_keys = ON;")
+        except Exception:
+            pass
+        conn.close()
 
     return jsonify({"ok": True, "id": new_id, "company_id": company_id})
 
