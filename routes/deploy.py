@@ -12,14 +12,20 @@ Inclut :
   POST /api/deploy/confirm-validation (sans auth)
   POST /api/deploy/install-torch-cuda          (admin) — réinstalle torch+cu121 en background
   GET  /api/deploy/install-torch-cuda/status   (admin) — log + état du job
+  GET  /api/deploy/portfolio/health  (admin) — santé du Portfolio (:8001)
+  POST /api/deploy/portfolio/pull    (SSE, admin) — MAJ + redémarrage Portfolio
+  POST /api/deploy/portfolio/restart (admin) — redémarrage Portfolio sans pull
 """
 
 import datetime
 import json
+import os
 import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 
 from flask import Blueprint, Response, jsonify
 
@@ -217,7 +223,7 @@ def api_deploy_rollback():
         return jsonify(ok=False, error=str(e)), 500
 
 
-# ── Routes admin (auth requise) ────────────────────────────────────
+# ── Routes admin (auth requise) ───────────────────────────────────
 
 @deploy_bp.post("/api/deploy/pull")
 @login_required
@@ -603,7 +609,7 @@ def api_deploy_restart():
         return jsonify(ok=False, error=str(e)), 500
 
 
-# ── Santé et validation (sans auth) ───────────────────────────────
+# ── Santé et validation (sans auth) ─────────────────────────────────
 
 @deploy_bp.get("/api/deploy/check-deps")
 @login_required
@@ -822,40 +828,30 @@ def api_deploy_confirm_validation():
     return jsonify(ok=True, message="Mise à jour validée")
 
 
-# ─── Réinstall torch CUDA en arrière-plan (v32.2) ────────────────────────
-# Quand `pip install -r requirements.txt` a installé `torch+cpu` au lieu de
-# `torch+cu121`, on a besoin de forcer la réinstallation depuis l'index CUDA
-# explicite. L'opération prend ~10-15 min (~3 GB), donc on la détache du
-# request HTTP : background thread + état persistant en mémoire process,
-# le front poll régulièrement /status pour voir le log.
-
+# ─── Réinstall torch CUDA en arrière-plan (v32.2) ────────────────────────────────────────────────
 _TORCH_CUDA_LOCK = threading.Lock()
 _TORCH_CUDA_STATE: dict = {
     "running":   False,
     "started_at": None,
     "ended_at":  None,
     "returncode": None,
-    "log":       [],   # liste de lignes (capée à 2000)
-    "phase":     "idle",  # idle | downloading | installing | done | error
+    "log":       [],
+    "phase":     "idle",
     "error":     None,
 }
 _TORCH_CUDA_LOG_MAX = 2000
 
 
 def _torch_cuda_log(line: str) -> None:
-    """Append une ligne au log avec capping."""
     line = (line or "").rstrip()
     if not line:
         return
     _TORCH_CUDA_STATE["log"].append(line)
     if len(_TORCH_CUDA_STATE["log"]) > _TORCH_CUDA_LOG_MAX:
-        # garde les 1500 dernières
         _TORCH_CUDA_STATE["log"] = _TORCH_CUDA_STATE["log"][-1500:]
 
 
 def _torch_cuda_install_thread(cuda_tag: str = "cu121") -> None:
-    """Lancé dans un thread daemon : exécute pip install avec --index-url
-    sur l'index PyTorch CUDA pour forcer la version GPU."""
     try:
         _TORCH_CUDA_STATE["running"] = True
         _TORCH_CUDA_STATE["started_at"] = datetime.datetime.now().isoformat(timespec="seconds")
@@ -996,3 +992,108 @@ def api_deploy_install_torch_cuda_status():
         state["torch_cuda_built"] = False
         state["torch_cuda_available"] = False
     return jsonify(ok=True, **state)
+
+
+# ── Portfolio update proxy (admin) ───────────────────────────────────────────
+# ProspUp (:8000) proxifie les appels vers l'API interne du Portfolio (:8001).
+# Les deux apps tournent sur la même machine Windows.
+
+_PORTFOLIO_URL = os.environ.get("PORTFOLIO_URL", "http://127.0.0.1:8001")
+
+
+@deploy_bp.get("/api/deploy/portfolio/health")
+@login_required
+@role_required('admin')
+def api_deploy_portfolio_health():
+    """Santé du Portfolio — proxie vers :8001/api/deploy/health (admin)."""
+    try:
+        req = urllib.request.Request(f"{_PORTFOLIO_URL}/api/deploy/health", method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            return jsonify(ok=True, portfolio=data)
+    except urllib.error.URLError as e:
+        return jsonify(ok=False, error=f"Portfolio inaccessible : {getattr(e, 'reason', str(e))}"), 503
+    except Exception as e:
+        logger.exception("portfolio health proxy error")
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@deploy_bp.post("/api/deploy/portfolio/pull")
+@login_required
+@role_required('admin')
+def api_deploy_portfolio_pull():
+    """MAJ Git + redémarrage Portfolio via SSE (admin).
+
+    Proxifie POST :8001/api/deploy/pull-from-404 (sans auth côté Portfolio)
+    et wrappe la réponse JSON en événements SSE pour réutiliser le même
+    composant UI que la MAJ ProspUp.
+    """
+    chk = _require_same_origin()
+    if chk:
+        return chk
+
+    def gen():
+        try:
+            yield f"data: {json.dumps({'step': 'log', 'line': f'Connexion au Portfolio ({_PORTFOLIO_URL})…'}, ensure_ascii=False)}\n\n"
+
+            # Health check préalable
+            try:
+                hreq = urllib.request.Request(f"{_PORTFOLIO_URL}/api/deploy/health", method="GET")
+                with urllib.request.urlopen(hreq, timeout=5) as hresp:
+                    health = json.loads(hresp.read().decode())
+                    cur = health.get("current_hash", "?")
+                    yield f"data: {json.dumps({'step': 'log', 'line': f'Portfolio actif — commit actuel : {cur}'}, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'step': 'error', 'error': f'Portfolio inaccessible sur {_PORTFOLIO_URL} : {e}'}, ensure_ascii=False)}\n\n"
+                return
+
+            yield f"data: {json.dumps({'step': 'fetch', 'message': 'Lancement pull + redémarrage Portfolio…'}, ensure_ascii=False)}\n\n"
+
+            pull_req = urllib.request.Request(
+                f"{_PORTFOLIO_URL}/api/deploy/pull-from-404",
+                method="POST",
+                headers={"Content-Type": "application/json"},
+                data=b"{}",
+            )
+            with urllib.request.urlopen(pull_req, timeout=90) as presp:
+                data = json.loads(presp.read().decode())
+
+            if data.get("ok"):
+                msg = data.get("message", "Portfolio mis à jour, redémarrage en cours…")
+                yield f"data: {json.dumps({'step': 'done', 'updated': True, 'restarting': True, 'message': msg}, ensure_ascii=False)}\n\n"
+            else:
+                yield f"data: {json.dumps({'step': 'error', 'error': data.get('error', 'Erreur inconnue du Portfolio')}, ensure_ascii=False)}\n\n"
+
+        except urllib.error.URLError as e:
+            yield f"data: {json.dumps({'step': 'error', 'error': f'Erreur réseau Portfolio : {getattr(e, \"reason\", str(e))}'}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("portfolio pull proxy error")
+            yield f"data: {json.dumps({'step': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return Response(
+        gen(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@deploy_bp.post("/api/deploy/portfolio/restart")
+@login_required
+@role_required('admin')
+def api_deploy_portfolio_restart():
+    """Redémarre le Portfolio sans pull via :8001/api/deploy/restart-internal (admin)."""
+    try:
+        req = urllib.request.Request(
+            f"{_PORTFOLIO_URL}/api/deploy/restart-internal",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            data=b"{}",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+            return jsonify(**data)
+    except urllib.error.URLError as e:
+        return jsonify(ok=False, error=f"Portfolio inaccessible : {getattr(e, 'reason', str(e))}"), 503
+    except Exception as e:
+        logger.exception("portfolio restart proxy error")
+        return jsonify(ok=False, error=str(e)), 500
