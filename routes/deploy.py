@@ -1065,7 +1065,8 @@ def api_deploy_portfolio_pull():
                 yield f"data: {json.dumps({'step': 'error', 'error': data.get('error', 'Erreur inconnue du Portfolio')}, ensure_ascii=False)}\n\n"
 
         except urllib.error.URLError as e:
-            yield f"data: {json.dumps({'step': 'error', 'error': f'Erreur réseau Portfolio : {getattr(e, \"reason\", str(e))}'}, ensure_ascii=False)}\n\n"
+            _err = getattr(e, 'reason', str(e))
+            yield f"data: {json.dumps({'step': 'error', 'error': f'Erreur réseau Portfolio : {_err}'}, ensure_ascii=False)}\n\n"
         except Exception as e:
             logger.exception("portfolio pull proxy error")
             yield f"data: {json.dumps({'step': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
