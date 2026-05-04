@@ -14,6 +14,9 @@
     abandonne:  { label: 'Abandonné',  cls: 'v30-besoin-pill--cancel' },
   };
 
+  // Picker entreprise pour la modale de création
+  let _newBesoinPicker = null;
+
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -35,6 +38,179 @@
     return r.json();
   }
 
+  // ─── SheetJS ────────────────────────────────────────────────
+  function ensureXLSX() {
+    if (typeof window.XLSX !== 'undefined') return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = '/static/js/xlsx.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Impossible de charger xlsx.min.js'));
+      document.head.appendChild(s);
+    });
+  }
+
+  // ─── Parsing Excel traitement besoin ────────────────────────
+  // Supporte le format recto (B4 = texte combiné) et verso (B4-B8 = champs séparés)
+  function parseXlsxBesoin(file) {
+    return new Promise((resolve, reject) => {
+      ensureXLSX().then(() => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const wb = window.XLSX.read(new Uint8Array(e.target.result), {
+              type: 'array',
+              dateNF: 'yyyy-mm-dd',
+            });
+
+            // Priorité : "recto verso" → verso ; "recto" ou première feuille → recto
+            let sheetName = wb.SheetNames[0];
+            if (wb.SheetNames.indexOf('recto verso') >= 0) sheetName = 'recto verso';
+            else if (wb.SheetNames.indexOf('recto') >= 0) sheetName = 'recto';
+            const ws = wb.Sheets[sheetName];
+            if (!ws) { reject(new Error('Feuille introuvable')); return; }
+
+            function cellText(ref) {
+              const c = ws[ref];
+              if (!c) return '';
+              const v = c.w !== undefined ? c.w : (c.v !== undefined ? String(c.v) : '');
+              return String(v).trim();
+            }
+
+            // Détection format : verso si A5 contient "Comp" (Compétences requises)
+            const a5 = cellText('A5').toLowerCase();
+            const isVerso = a5.indexOf('comp') >= 0;
+
+            const besoin = {
+              client:        cellText('B1'),
+              localisation:  cellText('H1'),
+              contact:       cellText('B2'),
+              date_appel:    cellText('I2'),
+              intitule:      cellText('B3'),
+              date_besoin:   cellText('D3'),
+              duree_mission: cellText('H3'),
+              candidats: [],
+            };
+
+            const COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+            const CAND_KEYS = ['candidat', 'commentaires', 'dispo', 'appel', 'dt', 'rdv1', 'rdv2', 'note', 'envoi_dt', 'rt'];
+
+            if (isVerso) {
+              besoin.descriptif    = cellText('B4');
+              besoin.competences   = cellText('B5');
+              besoin.connaissances = cellText('B6');
+              besoin.experience    = cellText('B7');
+              besoin.profil_type   = cellText('I7');
+              besoin.commentaires  = cellText('B8');
+
+              // Tableau 1 : lignes 10-30 ; Tableau 2 : lignes 32-62
+              const ranges = [[10, 30], [32, 62]];
+              for (const [start, end] of ranges) {
+                for (let r = start; r <= end; r++) {
+                  const cand = {};
+                  let hasData = false;
+                  for (let ci = 0; ci < 10; ci++) {
+                    const v = cellText(COLS[ci] + r);
+                    cand[CAND_KEYS[ci]] = v;
+                    if (v) hasData = true;
+                  }
+                  if (hasData) besoin.candidats.push(cand);
+                }
+              }
+            } else {
+              // Format recto : B4 = texte combiné avec préfixes
+              const combined = cellText('B4');
+              const lines = combined.split('\n');
+              const descriptifLines = [];
+              besoin.competences = '';
+              besoin.connaissances = '';
+              besoin.experience = '';
+              besoin.profil_type = '';
+              besoin.commentaires = '';
+
+              for (const line of lines) {
+                if (line.startsWith('Compétences requises : ')) {
+                  besoin.competences = line.slice('Compétences requises : '.length);
+                } else if (line.startsWith('Connaissances attendues : ')) {
+                  besoin.connaissances = line.slice('Connaissances attendues : '.length);
+                } else if (line.startsWith('Expérience : ')) {
+                  besoin.experience = line.slice('Expérience : '.length);
+                } else if (line.startsWith('Profil : ')) {
+                  besoin.profil_type = line.slice('Profil : '.length);
+                } else if (line.startsWith('Commentaires : ')) {
+                  besoin.commentaires = line.slice('Commentaires : '.length);
+                } else {
+                  descriptifLines.push(line);
+                }
+              }
+              besoin.descriptif = descriptifLines.join('\n').trim();
+
+              // Candidats : lignes 6-58
+              for (let r = 6; r <= 58; r++) {
+                const cand = {};
+                let hasData = false;
+                for (let ci = 0; ci < 10; ci++) {
+                  const v = cellText(COLS[ci] + r);
+                  cand[CAND_KEYS[ci]] = v;
+                  if (v) hasData = true;
+                }
+                if (hasData) besoin.candidats.push(cand);
+              }
+            }
+
+            resolve(besoin);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = () => reject(new Error('Lecture du fichier impossible'));
+        reader.readAsArrayBuffer(file);
+      }).catch(reject);
+    });
+  }
+
+  // ─── Remplissage modale depuis données Excel ─────────────────
+  async function fillModalFromXlsx(besoin) {
+    const setVal = (id, val) => {
+      const el = document.getElementById('v30-besoin-' + id);
+      if (el && val !== undefined) el.value = val || '';
+    };
+
+    setVal('intitule',   besoin.intitule);
+    setVal('contact',    besoin.contact);
+    setVal('localisation', besoin.localisation);
+    setVal('duree',      besoin.duree_mission);
+    setVal('date-besoin', besoin.date_besoin);
+    setVal('date-appel', besoin.date_appel);
+    setVal('descriptif', besoin.descriptif || '');
+
+    // Client : chercher l'entreprise dans la liste, puis l'injecter dans le picker
+    if (besoin.client && _newBesoinPicker) {
+      try {
+        const data = await fetchJSON('/api/companies/list');
+        const companies = data.companies || [];
+        const normalize = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const q = normalize(besoin.client);
+        const match = companies.find(c => normalize(c.groupe) === q || normalize(c.groupe).startsWith(q));
+        if (match) {
+          _newBesoinPicker.setSelection({ id: match.id, groupe: match.groupe, site: match.site || '' });
+        } else {
+          // Non trouvé : afficher le nom et informer l'utilisateur
+          _newBesoinPicker.input.value = besoin.client;
+          if (typeof window.showToast === 'function') {
+            window.showToast(
+              `Entreprise « ${besoin.client} » non trouvée dans vos entreprises — sélectionnez-en une ou créez-la.`,
+              'info', 4500
+            );
+          }
+        }
+      } catch (_e) {
+        setVal('client', besoin.client);
+      }
+    }
+  }
+
+  // ─── Liste ─────────────────────────────────────────────────
   async function loadList() {
     const list = document.querySelector('[data-v30-besoins-list]');
     if (!list) return;
@@ -126,7 +302,6 @@
     const list = document.querySelector('[data-v30-besoins-list]');
     if (!list) return;
     list.addEventListener('click', (e) => {
-      // ignore clicks on links / buttons
       if (e.target.closest('a, button')) return;
       const row = e.target.closest('[data-v30-besoin-row]');
       if (!row) return;
@@ -135,17 +310,25 @@
     });
   }
 
-  // ─── Modale création ──────────────────────────────────────────
+  // ─── Modale création ─────────────────────────────────────────
   function openModal() {
     const md = document.querySelector('[data-v30-besoin-modal]');
     if (!md) return;
-    // Reset
-    ['intitule', 'client', 'contact', 'localisation', 'duree', 'date-besoin', 'date-appel'].forEach(k => {
+    // Reset champs
+    ['intitule', 'contact', 'localisation', 'duree', 'date-besoin', 'date-appel'].forEach(k => {
       const el = document.getElementById('v30-besoin-' + k);
       if (el) el.value = '';
     });
     const ta = document.getElementById('v30-besoin-descriptif');
     if (ta) ta.value = '';
+
+    // Reset picker entreprise
+    if (_newBesoinPicker) _newBesoinPicker.clear();
+
+    // Reset file input xlsx
+    const xlsxInput = document.querySelector('[data-v30-besoin-xlsx-file]');
+    if (xlsxInput) xlsxInput.value = '';
+
     md.hidden = false;
     md.classList.add('is-open');
     setTimeout(() => {
@@ -174,6 +357,37 @@
       if (e.key === 'Escape' && md && !md.hidden) closeModal();
     });
 
+    // Attacher CompanyPicker au champ client de la modale
+    const clientInput = document.getElementById('v30-besoin-client');
+    if (clientInput && window.CompanyPicker) {
+      _newBesoinPicker = window.CompanyPicker.attachToInput(clientInput, {});
+    }
+
+    // Import Excel
+    const xlsxInput = document.querySelector('[data-v30-besoin-xlsx-file]');
+    if (xlsxInput) {
+      xlsxInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+          const besoin = await parseXlsxBesoin(file);
+          await fillModalFromXlsx(besoin);
+          // Si un intitulé a été trouvé, mettre le focus sur le premier champ vide
+          const intituleEl = document.getElementById('v30-besoin-intitule');
+          if (intituleEl && !intituleEl.value) intituleEl.focus();
+          if (typeof window.showToast === 'function') {
+            window.showToast('Données importées depuis Excel', 'success', 2500);
+          }
+        } catch (err) {
+          if (typeof window.showToast === 'function') {
+            window.showToast('Erreur import Excel : ' + err.message, 'error', 3500);
+          }
+        }
+        // Reset pour permettre un nouvel import du même fichier
+        xlsxInput.value = '';
+      });
+    }
+
     const create = document.querySelector('[data-v30-besoin-create]');
     if (create) create.addEventListener('click', async () => {
       const get = (k) => (document.getElementById('v30-besoin-' + k) || {}).value || '';
@@ -184,6 +398,10 @@
         } else { alert('Intitulé obligatoire'); }
         return;
       }
+
+      // Récupérer la sélection entreprise depuis le picker
+      const pick = _newBesoinPicker ? _newBesoinPicker.getSelection() : null;
+
       create.disabled = true;
       try {
         const data = await fetchJSON('/api/besoins', {
@@ -191,13 +409,14 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             intitule,
-            client: get('client').trim(),
-            contact: get('contact').trim(),
+            client:       pick ? pick.groupe : get('client').trim(),
+            company_id:   pick ? pick.id : null,
+            contact:      get('contact').trim(),
             localisation: get('localisation').trim(),
             duree_mission: get('duree').trim(),
-            date_besoin: get('date-besoin'),
-            date_appel: get('date-appel'),
-            descriptif: (document.getElementById('v30-besoin-descriptif') || {}).value || '',
+            date_besoin:  get('date-besoin'),
+            date_appel:   get('date-appel'),
+            descriptif:   (document.getElementById('v30-besoin-descriptif') || {}).value || '',
           }),
         });
         if (data && data.ok && data.besoin) {
