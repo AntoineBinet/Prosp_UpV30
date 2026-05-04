@@ -16,6 +16,8 @@
 
   // Picker entreprise pour la modale de création
   let _newBesoinPicker = null;
+  // Données complètes issues du dernier import Excel (modale création)
+  let _xlsxImportData = null;
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
@@ -171,6 +173,8 @@
 
   // ─── Remplissage modale depuis données Excel ─────────────────
   async function fillModalFromXlsx(besoin) {
+    // Stocker toutes les données pour les passer à l'API à la création
+    _xlsxImportData = besoin;
     const setVal = (id, val) => {
       const el = document.getElementById('v30-besoin-' + id);
       if (el && val !== undefined) el.value = val || '';
@@ -322,6 +326,9 @@
     const ta = document.getElementById('v30-besoin-descriptif');
     if (ta) ta.value = '';
 
+    // Reset données Excel importées
+    _xlsxImportData = null;
+
     // Reset picker entreprise
     if (_newBesoinPicker) _newBesoinPicker.clear();
 
@@ -404,19 +411,27 @@
 
       create.disabled = true;
       try {
+        const xl = _xlsxImportData || {};
         const data = await fetchJSON('/api/besoins', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             intitule,
-            client:       pick ? pick.groupe : get('client').trim(),
-            company_id:   pick ? pick.id : null,
-            contact:      get('contact').trim(),
-            localisation: get('localisation').trim(),
-            duree_mission: get('duree').trim(),
-            date_besoin:  get('date-besoin'),
-            date_appel:   get('date-appel'),
-            descriptif:   (document.getElementById('v30-besoin-descriptif') || {}).value || '',
+            client:        pick ? pick.groupe : get('client').trim(),
+            company_id:    pick ? pick.id : null,
+            contact:       get('contact').trim() || xl.contact || '',
+            localisation:  get('localisation').trim() || xl.localisation || '',
+            duree_mission: get('duree').trim() || xl.duree_mission || '',
+            date_besoin:   get('date-besoin') || xl.date_besoin || '',
+            date_appel:    get('date-appel') || xl.date_appel || '',
+            descriptif:    (document.getElementById('v30-besoin-descriptif') || {}).value || xl.descriptif || '',
+            // Champs complets issus de l'import Excel
+            competences:   xl.competences  || '',
+            connaissances: xl.connaissances || '',
+            experience:    xl.experience   || '',
+            profil_type:   xl.profil_type  || '',
+            commentaires:  xl.commentaires || '',
+            candidats:     xl.candidats    || [],
           }),
         });
         if (data && data.ok && data.besoin) {
