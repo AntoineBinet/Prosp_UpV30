@@ -38,6 +38,10 @@
               title="Export Excel complet (les 2 onglets)">
         {{ ui.icon('download', 13) }} Export complet
       </button>
+      <label class="btn btn-ghost btn-sm" for="v30-besoin-import-xlsx" title="Importer depuis un Excel traitement besoin" style="cursor:pointer;">
+        {{ ui.icon('upload', 13) }} Import Excel
+      </label>
+      <input type="file" id="v30-besoin-import-xlsx" accept=".xlsx" style="display:none" data-v30-besoin-import-xlsx>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-delete style="color:var(--red);">
         {{ ui.icon('x', 13) }} Supprimer
       </button>
@@ -72,7 +76,7 @@
           </label>
           <label>
             <span>Client</span>
-            <input type="text" class="input" data-v30-besoin-field="client" maxlength="200">
+            <input type="text" class="input" data-v30-besoin-field="client" maxlength="200" autocomplete="off">
           </label>
           <label>
             <span>Contact</span>

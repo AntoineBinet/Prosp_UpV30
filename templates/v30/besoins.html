@@ -63,7 +63,7 @@
         <div class="v30-besoin-form__grid">
           <div class="v30-field">
             <label for="v30-besoin-client">Client</label>
-            <input type="text" id="v30-besoin-client" class="input" placeholder="Ex. Acme SAS" maxlength="200">
+            <input type="text" id="v30-besoin-client" class="input" placeholder="Ex. Acme SAS" maxlength="200" autocomplete="off">
           </div>
           <div class="v30-field">
             <label for="v30-besoin-contact">Contact</label>
@@ -97,6 +97,10 @@
       </div>
     </div>
     <div class="v30-modal__foot">
+      <label class="btn btn-ghost btn-sm" for="v30-besoin-xlsx-file" title="Pré-remplir depuis un fichier Excel traitement besoin" style="cursor:pointer;">
+        ↑ Import Excel
+      </label>
+      <input type="file" id="v30-besoin-xlsx-file" accept=".xlsx" style="display:none" data-v30-besoin-xlsx-file>
       <div class="v30-spacer"></div>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-close>Annuler</button>
       <button type="button" class="btn btn-primary btn-sm" data-v30-besoin-create>Créer</button>

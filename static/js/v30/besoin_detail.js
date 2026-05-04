@@ -22,6 +22,9 @@
     saveTimer: null,
   };
 
+  // Picker entreprise pour le champ Client
+  let _detailPicker = null;
+
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -43,6 +46,193 @@
     return r.json();
   }
 
+  // ─── SheetJS ────────────────────────────────────────────────
+  function ensureXLSX() {
+    if (typeof window.XLSX !== 'undefined') return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = '/static/js/xlsx.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Impossible de charger xlsx.min.js'));
+      document.head.appendChild(s);
+    });
+  }
+
+  // ─── Parsing Excel traitement besoin ────────────────────────
+  function parseXlsxBesoin(file) {
+    return new Promise((resolve, reject) => {
+      ensureXLSX().then(() => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const wb = window.XLSX.read(new Uint8Array(e.target.result), {
+              type: 'array',
+              dateNF: 'yyyy-mm-dd',
+            });
+
+            let sheetName = wb.SheetNames[0];
+            if (wb.SheetNames.indexOf('recto verso') >= 0) sheetName = 'recto verso';
+            else if (wb.SheetNames.indexOf('recto') >= 0) sheetName = 'recto';
+            const ws = wb.Sheets[sheetName];
+            if (!ws) { reject(new Error('Feuille introuvable')); return; }
+
+            function cellText(ref) {
+              const c = ws[ref];
+              if (!c) return '';
+              const v = c.w !== undefined ? c.w : (c.v !== undefined ? String(c.v) : '');
+              return String(v).trim();
+            }
+
+            const a5 = cellText('A5').toLowerCase();
+            const isVerso = a5.indexOf('comp') >= 0;
+
+            const besoin = {
+              client:        cellText('B1'),
+              localisation:  cellText('H1'),
+              contact:       cellText('B2'),
+              date_appel:    cellText('I2'),
+              intitule:      cellText('B3'),
+              date_besoin:   cellText('D3'),
+              duree_mission: cellText('H3'),
+              candidats: [],
+            };
+
+            const COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
+            if (isVerso) {
+              besoin.descriptif    = cellText('B4');
+              besoin.competences   = cellText('B5');
+              besoin.connaissances = cellText('B6');
+              besoin.experience    = cellText('B7');
+              besoin.profil_type   = cellText('I7');
+              besoin.commentaires  = cellText('B8');
+
+              for (const [start, end] of [[10, 30], [32, 62]]) {
+                for (let r = start; r <= end; r++) {
+                  const cand = {};
+                  let hasData = false;
+                  for (let ci = 0; ci < 10; ci++) {
+                    const v = cellText(COLS[ci] + r);
+                    cand[CAND_KEYS[ci]] = v;
+                    if (v) hasData = true;
+                  }
+                  if (hasData) besoin.candidats.push(cand);
+                }
+              }
+            } else {
+              const combined = cellText('B4');
+              const lines = combined.split('\n');
+              const descriptifLines = [];
+              besoin.competences = '';
+              besoin.connaissances = '';
+              besoin.experience = '';
+              besoin.profil_type = '';
+              besoin.commentaires = '';
+
+              for (const line of lines) {
+                if (line.startsWith('Compétences requises : ')) {
+                  besoin.competences = line.slice('Compétences requises : '.length);
+                } else if (line.startsWith('Connaissances attendues : ')) {
+                  besoin.connaissances = line.slice('Connaissances attendues : '.length);
+                } else if (line.startsWith('Expérience : ')) {
+                  besoin.experience = line.slice('Expérience : '.length);
+                } else if (line.startsWith('Profil : ')) {
+                  besoin.profil_type = line.slice('Profil : '.length);
+                } else if (line.startsWith('Commentaires : ')) {
+                  besoin.commentaires = line.slice('Commentaires : '.length);
+                } else {
+                  descriptifLines.push(line);
+                }
+              }
+              besoin.descriptif = descriptifLines.join('\n').trim();
+
+              for (let r = 6; r <= 58; r++) {
+                const cand = {};
+                let hasData = false;
+                for (let ci = 0; ci < 10; ci++) {
+                  const v = cellText(COLS[ci] + r);
+                  cand[CAND_KEYS[ci]] = v;
+                  if (v) hasData = true;
+                }
+                if (hasData) besoin.candidats.push(cand);
+              }
+            }
+
+            resolve(besoin);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = () => reject(new Error('Lecture du fichier impossible'));
+        reader.readAsArrayBuffer(file);
+      }).catch(reject);
+    });
+  }
+
+  // ─── Application des données Excel à la fiche ────────────────
+  async function importFromXlsx(file) {
+    const besoin = await parseXlsxBesoin(file);
+
+    // Champs texte simples (hors client géré par le picker)
+    const fieldMap = {
+      intitule: 'intitule', contact: 'contact', localisation: 'localisation',
+      date_appel: 'date_appel', date_besoin: 'date_besoin',
+      duree_mission: 'duree_mission', profil_type: 'profil_type',
+      descriptif: 'descriptif', competences: 'competences',
+      connaissances: 'connaissances', experience: 'experience',
+      commentaires: 'commentaires',
+    };
+    for (const [srcKey, fieldKey] of Object.entries(fieldMap)) {
+      if (besoin[srcKey] === undefined) continue;
+      const el = root.querySelector('[data-v30-besoin-field="' + fieldKey + '"]');
+      if (el) el.value = besoin[srcKey] || '';
+    }
+
+    // Client : via CompanyPicker si possible
+    if (besoin.client) {
+      if (_detailPicker) {
+        try {
+          const data = await fetchJSON('/api/companies/list');
+          const companies = data.companies || [];
+          const normalize = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+          const q = normalize(besoin.client);
+          const match = companies.find(c => normalize(c.groupe) === q || normalize(c.groupe).startsWith(q));
+          if (match) {
+            _detailPicker.setSelection({ id: match.id, groupe: match.groupe, site: match.site || '' });
+            state.besoin.company_id = match.id;
+            state.besoin.client = match.groupe;
+          } else {
+            _detailPicker.input.value = besoin.client;
+            state.besoin.company_id = null;
+            state.besoin.client = besoin.client;
+            if (typeof window.showToast === 'function') {
+              window.showToast(
+                `Entreprise « ${besoin.client} » non trouvée — sélectionnez-en une ou créez-la.`,
+                'info', 4500
+              );
+            }
+          }
+        } catch (_e) {
+          const el = root.querySelector('[data-v30-besoin-field="client"]');
+          if (el) el.value = besoin.client;
+          state.besoin.client = besoin.client;
+        }
+      } else {
+        const el = root.querySelector('[data-v30-besoin-field="client"]');
+        if (el) el.value = besoin.client;
+        state.besoin.client = besoin.client;
+      }
+    }
+
+    // Candidats : remplacer (ou étendre) la liste
+    if (besoin.candidats && besoin.candidats.length) {
+      state.besoin.candidats = besoin.candidats;
+      renderCands();
+    }
+
+    markDirty();
+  }
+
   // ─── Chargement / rendu ────────────────────────────────────────
   async function load() {
     try {
@@ -57,9 +247,10 @@
 
   function hydrate() {
     const b = state.besoin || {};
-    // Champs simples
+
+    // Champs simples (hors 'client' — géré séparément via CompanyPicker)
     [
-      'intitule', 'client', 'contact', 'localisation',
+      'intitule', 'contact', 'localisation',
       'date_appel', 'date_besoin', 'duree_mission',
       'profil_type', 'descriptif', 'competences',
       'connaissances', 'experience', 'commentaires',
@@ -68,6 +259,37 @@
       const el = root.querySelector('[data-v30-besoin-field="' + k + '"]');
       if (el) el.value = b[k] || '';
     });
+
+    // Champ client via CompanyPicker
+    const clientInput = root.querySelector('[data-v30-besoin-field="client"]');
+    if (clientInput && window.CompanyPicker) {
+      if (!_detailPicker) {
+        // Première initialisation
+        _detailPicker = window.CompanyPicker.attachToInput(clientInput, {
+          currentId:     b.company_id || null,
+          currentGroupe: b.client || '',
+          onSelect: (co) => {
+            state.besoin.company_id = co.id;
+            state.besoin.client = co.groupe;
+            markDirty();
+          },
+          onClear: () => {
+            state.besoin.company_id = null;
+          },
+        });
+      } else {
+        // Mise à jour de la sélection sans recréer le picker
+        if (b.company_id && b.client) {
+          _detailPicker.setSelection({ id: b.company_id, groupe: b.client, site: '' });
+        } else {
+          _detailPicker.clear();
+          if (b.client) clientInput.value = b.client;
+        }
+      }
+    } else if (clientInput) {
+      // CompanyPicker non disponible : champ libre
+      clientInput.value = b.client || '';
+    }
 
     // Display title
     const titleEl = root.querySelector('[data-field="intitule-display"]');
@@ -97,10 +319,7 @@
     const ua = root.querySelector('[data-field="updated-at"]');
     if (ua) ua.textContent = fmtDate(b.updated_at);
 
-    // Lien prospect (banner + aside)
     renderLink();
-
-    // Candidats
     renderCands();
   }
 
@@ -213,7 +432,7 @@
     const b = state.besoin || {};
     const payload = {};
     [
-      'intitule', 'client', 'contact', 'localisation',
+      'intitule', 'contact', 'localisation',
       'date_appel', 'date_besoin', 'duree_mission',
       'profil_type', 'descriptif', 'competences',
       'connaissances', 'experience', 'commentaires',
@@ -222,6 +441,18 @@
       const el = root.querySelector('[data-v30-besoin-field="' + k + '"]');
       payload[k] = el ? el.value : (b[k] || '');
     });
+
+    // Champ client : depuis le picker ou directement depuis l'input
+    if (_detailPicker) {
+      const sel = _detailPicker.getSelection();
+      payload.client = sel ? sel.groupe : (b.client || '');
+      payload.company_id = sel ? sel.id : (b.company_id || null);
+    } else {
+      const clientEl = root.querySelector('[data-v30-besoin-field="client"]');
+      payload.client = clientEl ? clientEl.value : (b.client || '');
+      payload.company_id = b.company_id || null;
+    }
+
     payload.candidats = b.candidats || [];
     return payload;
   }
@@ -240,7 +471,6 @@
       if (data && data.ok) {
         state.besoin = data.besoin || state.besoin;
         state.dirty = false;
-        // Met à jour l'affichage du titre / pill / meta sans réinjecter les inputs
         const titleEl = root.querySelector('[data-field="intitule-display"]');
         if (titleEl) titleEl.textContent = (state.besoin.intitule || '').trim() || '(sans intitulé)';
         const pill = root.querySelector('[data-field="statut-pill"]');
@@ -262,7 +492,6 @@
   // ─── Export Excel ────────────────────────────────────────
   function exportXlsx(format) {
     const url = '/api/besoins/' + ID + '/export.xlsx?format=' + encodeURIComponent(format || 'both');
-    // Save first if dirty
     if (state.dirty) {
       saveAuto().then(() => { window.location.href = url; });
     } else {
@@ -413,7 +642,6 @@
             const params = new URLSearchParams({ q: q, limit: '20' });
             const data = await fetchJSON('/api/search?' + params.toString());
             const items = (data && data.items) ? data.items : (data && data.prospects) || [];
-            // Normalisation : on attend [{id, name, company_name}]
             const norm = items.map(p => ({
               id: p.id,
               name: p.name || p.full_name || '',
@@ -435,8 +663,6 @@
         const pid = parseInt(btn.dataset.pid, 10);
         if (!pid) return;
         try {
-          // Le serveur pré-remplit client / contact / localisation
-          // depuis le prospect lié si ces champs sont vides.
           const data = await fetchJSON('/api/besoins/' + ID, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -470,6 +696,7 @@
       });
       if (data && data.ok) {
         state.besoin = data.besoin;
+        if (_detailPicker) _detailPicker.clear();
         renderLink();
       }
     } catch (err) {
@@ -498,6 +725,26 @@
     if (addBtn) addBtn.addEventListener('click', addCand);
     const candSearchBtn = document.querySelector('[data-v30-besoin-cand-search]');
     if (candSearchBtn) candSearchBtn.addEventListener('click', openCandModal);
+
+    // Import Excel
+    const xlsxInput = document.querySelector('[data-v30-besoin-import-xlsx]');
+    if (xlsxInput) {
+      xlsxInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+          await importFromXlsx(file);
+          if (typeof window.showToast === 'function') {
+            window.showToast('Données importées depuis Excel', 'success', 2500);
+          }
+        } catch (err) {
+          if (typeof window.showToast === 'function') {
+            window.showToast('Erreur import Excel : ' + err.message, 'error', 3500);
+          }
+        }
+        xlsxInput.value = '';
+      });
+    }
 
     // Link delegation (boutons regenerés via innerHTML)
     document.addEventListener('click', (e) => {
