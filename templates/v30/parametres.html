@@ -39,7 +39,7 @@
 
   <div class="v30-params__grid">
 
-    {# ─── 1. Configuration IA (admin) ──────────────────────────── #}
+    {# ─── 1. Configuration IA (admin) ──────────────────────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
     <details class="v30-params__card v30-params__collapse" data-v30-ai data-tab="ia">
       <summary class="v30-params__card-summary">
@@ -263,7 +263,7 @@
               <option value="cu124" selected>cu124 (recommandé — Python 3.13, RTX 30/40)</option>
               <option value="cu126">cu126 (drivers récents, RTX 30/40/50)</option>
               <option value="cu128">cu128 (RTX 50, drivers très récents)</option>
-              <option value="cu121">cu121 (Python ≤3.12, anciens drivers)</option>
+              <option value="cu121">cu121 (Python &le;3.12, anciens drivers)</option>
               <option value="cu118">cu118 (très anciens GPU, drivers &lt; 525)</option>
             </select>
             <p class="muted v30-params__hint" style="margin-top:6px;">
@@ -290,7 +290,7 @@
     </details>
     {% endif %}
 
-    {# ─── 2. Objectifs & Gamification ─────────────────────────── #}
+    {# ─── 2. Objectifs & Gamification ────────────────────────────────────────────── #}
     <details class="v30-params__card v30-params__collapse" data-v30-goals data-tab="goals">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
@@ -373,7 +373,7 @@
       </div>
     </details>
 
-    {# ─── KPI manuels (manual_kpi) ───────────────────────────── #}
+    {# ─── KPI manuels (manual_kpi) ──────────────────────────────────────────────── #}
     <details class="v30-params__card v30-params__collapse" data-v30-kpi data-tab="kpi">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
@@ -402,7 +402,7 @@
       </div>
     </details>
 
-    {# ─── 3. Calendrier externe (Outlook / Google) ────────────── #}
+    {# ─── 3. Calendrier externe (Outlook / Google) ────────────────────────────────── #}
     <details class="v30-params__card v30-params__collapse" id="calsync" data-v30-calsync data-tab="notif">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
@@ -435,7 +435,7 @@
       </div>
     </details>
 
-    {# ─── 4. Sauvegardes & données ────────────────────────────── #}
+    {# ─── 4. Sauvegardes & données ──────────────────────────────────────────────── #}
     <details class="v30-params__card v30-params__collapse" data-v30-backup data-tab="snapshots">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
@@ -467,7 +467,7 @@
       </div>
     </details>
 
-    {# ─── 4. Notifications navigateur ─────────────────────────── #}
+    {# ─── 4. Notifications navigateur ─────────────────────────────────────────────── #}
     <details class="v30-params__card v30-params__collapse" data-v30-notif data-tab="notif">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
@@ -502,7 +502,7 @@
       </div>
     </details>
 
-    {# ─── 5. Mon compte ───────────────────────────────────────── #}
+    {# ─── 5. Mon compte ───────────────────────────────────────────────────────────── #}
     <details class="v30-params__card v30-params__collapse" data-v30-account data-tab="account">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
@@ -544,7 +544,7 @@
       </div>
     </details>
 
-    {# ─── 6. À propos ─────────────────────────────────────────── #}
+    {# ─── 6. À propos ─────────────────────────────────────────────────────────────── #}
     <details class="v30-params__card v30-params__collapse" data-v30-about data-tab="about">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
@@ -585,7 +585,7 @@
       </div>
     </details>
 
-    {# ─── Mise à jour serveur (admin) ─────────────────────────── #}
+    {# ─── Mise à jour serveur (admin) ─────────────────────────────────────────────── #}
     {% if current_user and current_user.role == 'admin' %}
     <details class="v30-params__card v30-params__collapse v30-deploy" data-v30-deploy data-tab="deploy">
       <summary class="v30-params__card-summary">
@@ -627,6 +627,45 @@
         <div class="v30-deploy__results" data-v30-deploy-results hidden>
           <pre class="v30-deploy__log" data-v30-deploy-log></pre>
           <div data-v30-deploy-summary></div>
+        </div>
+      </div>
+    </details>
+    {% endif %}
+
+    {# ─── Mise à jour Portfolio (admin) ──────────────────────────────────────────── #}
+    {% if current_user and current_user.role == 'admin' %}
+    <details class="v30-params__card v30-params__collapse v30-deploy" data-v30-portfolio-deploy data-tab="deploy">
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('arrowU', 16) }}
+          <h3>Mise à jour du Portfolio</h3>
+          <span class="v30-params__admin-badge" style="margin-left:auto;">Admin</span>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Mise à jour <code class="mono">marienour.work</code> (port 8001) — Pull Git + redémarrage automatique.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-deploy__path muted">
+          Portfolio : <code class="mono">http://127.0.0.1:8001</code><br>
+          Commit actuel : <code class="mono" data-portfolio-deploy-hash>chargement…</code>
+          <span class="v30-params__version-dot" data-portfolio-deploy-dot title="État Portfolio"></span>
+        </div>
+        <div class="v30-deploy__actions">
+          <button type="button" class="btn btn-primary btn-sm" data-portfolio-deploy-pull>
+            {{ ui.icon('arrowU', 13) }} Mettre à jour et redémarrer
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm" data-portfolio-deploy-restart title="Redémarrer le Portfolio sans pull">
+            {{ ui.icon('clock', 13) }} Redémarrer
+          </button>
+          <div class="v30-spacer"></div>
+          <span class="muted" style="font-size:11.5px;" data-portfolio-deploy-status></span>
+        </div>
+        <div class="v30-deploy__results" data-portfolio-deploy-results hidden>
+          <pre class="v30-deploy__log" data-portfolio-deploy-log></pre>
+          <div data-portfolio-deploy-summary></div>
         </div>
       </div>
     </details>
@@ -699,4 +738,119 @@
 
 <script defer src="/static/js/notifications.js?v={{ static_hash('js/notifications.js') }}"></script>
 <script defer src="/static/js/v30/parametres.js?v={{ static_hash('js/v30/parametres.js') }}"></script>
+
+{# ─── Portfolio deploy — script inline (ne dépend pas de parametres.js) ─── #}
+<script>
+(function () {
+  'use strict';
+  const card = document.querySelector('[data-v30-portfolio-deploy]');
+  if (!card) return;
+
+  const hashEl     = card.querySelector('[data-portfolio-deploy-hash]');
+  const dotEl      = card.querySelector('[data-portfolio-deploy-dot]');
+  const statusEl   = card.querySelector('[data-portfolio-deploy-status]');
+  const resultsEl  = card.querySelector('[data-portfolio-deploy-results]');
+  const logEl      = card.querySelector('[data-portfolio-deploy-log]');
+  const summaryEl  = card.querySelector('[data-portfolio-deploy-summary]');
+  const pullBtn    = card.querySelector('[data-portfolio-deploy-pull]');
+  const restartBtn = card.querySelector('[data-portfolio-deploy-restart]');
+
+  function setButtons(disabled) {
+    pullBtn.disabled    = disabled;
+    restartBtn.disabled = disabled;
+  }
+
+  function appendLog(line) {
+    logEl.textContent += line + '\n';
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  async function loadHealth() {
+    try {
+      const r = await fetch('/api/deploy/portfolio/health');
+      const d = await r.json();
+      if (d.ok && d.portfolio) {
+        hashEl.textContent        = d.portfolio.current_hash || '?';
+        dotEl.style.background    = 'var(--c-ok, #22c55e)';
+        dotEl.title               = 'Portfolio actif';
+        statusEl.textContent      = '';
+      } else {
+        hashEl.textContent     = 'inaccessible';
+        dotEl.style.background = 'var(--c-danger, #ef4444)';
+        dotEl.title            = d.error || 'Portfolio hors ligne';
+        statusEl.textContent   = d.error || 'Portfolio inaccessible';
+      }
+    } catch {
+      hashEl.textContent     = 'erreur';
+      dotEl.style.background = 'var(--c-danger, #ef4444)';
+    }
+  }
+
+  pullBtn.addEventListener('click', async () => {
+    if (!confirm('Mettre à jour le Portfolio depuis origin/main et redémarrer ?')) return;
+    setButtons(true);
+    resultsEl.hidden     = false;
+    logEl.textContent    = '';
+    summaryEl.textContent = '';
+    statusEl.textContent = 'Mise à jour en cours…';
+
+    try {
+      const resp   = await fetch('/api/deploy/portfolio/pull', { method: 'POST' });
+      const reader = resp.body.getReader();
+      const dec    = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split('\n\n');
+        buf = parts.pop();
+        for (const part of parts) {
+          const line = part.replace(/^data:\s?/, '').trim();
+          if (!line || line.startsWith(':')) continue;
+          try {
+            const ev = JSON.parse(line);
+            if (ev.step === 'log')  appendLog(ev.line || '');
+            else if (ev.step === 'fetch' || ev.step === 'pull') appendLog('▶ ' + (ev.message || ev.step));
+            else if (ev.step === 'done') {
+              appendLog('✓ ' + (ev.message || 'Terminé'));
+              statusEl.textContent  = ev.message || 'Portfolio mis à jour';
+              summaryEl.innerHTML   = '<span style="color:var(--c-ok,#22c55e)">✓ ' + (ev.message || 'Succès') + '</span>';
+            } else if (ev.step === 'error') {
+              appendLog('✗ ' + (ev.error || 'Erreur'));
+              statusEl.textContent  = 'Erreur';
+              summaryEl.innerHTML   = '<span style="color:var(--c-danger,#ef4444)">✗ ' + (ev.error || 'Erreur') + '</span>';
+            }
+          } catch { /* ligne SSE non-JSON ignorée */ }
+        }
+      }
+    } catch (e) {
+      appendLog('Erreur réseau : ' + e.message);
+      statusEl.textContent = 'Erreur';
+    } finally {
+      setButtons(false);
+      setTimeout(loadHealth, 15000);
+    }
+  });
+
+  restartBtn.addEventListener('click', async () => {
+    if (!confirm('Redémarrer le Portfolio sans mise à jour ?')) return;
+    setButtons(true);
+    statusEl.textContent = 'Redémarrage en cours…';
+    try {
+      const r = await fetch('/api/deploy/portfolio/restart', { method: 'POST' });
+      const d = await r.json();
+      statusEl.textContent = d.message || (d.ok ? 'Redémarrage demandé' : (d.error || 'Erreur'));
+    } catch (e) {
+      statusEl.textContent = 'Erreur : ' + e.message;
+    } finally {
+      setTimeout(() => setButtons(false), 8000);
+      setTimeout(loadHealth, 12000);
+    }
+  });
+
+  loadHealth();
+})();
+</script>
 {% endblock %}
