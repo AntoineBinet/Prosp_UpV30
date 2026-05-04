@@ -2,6 +2,59 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.18.0] — 2026-05-04 · Section Traitement Besoin (CRUD + export Excel)
+
+Nouvelle section **« Besoins »** dans la sidebar (sous Outils, après Transcription).
+Permet de gérer des fiches « traitement besoin » client : header (client,
+contact, localisation, dates, durée), description (descriptif, compétences,
+connaissances, expérience, profil), suivi candidats, et **export Excel**
+strictement au format du modèle `sample/03 traitement besoin.xlsx`
+(2 feuilles « recto » paysage et « recto verso » portrait, fusions/bordures/
+largeurs/hauteurs identiques, print area, marges).
+
+### Pages
+
+- `GET /v30/besoins` — liste filtrable par statut
+- `GET /v30/besoins/<id>` — fiche détail éditable
+
+### API
+
+- `POST /api/besoins` — créer (préfill auto si `prospect_id` fourni)
+- `GET  /api/besoins?statut=&prospect_id=` — lister
+- `GET  /api/besoins/<id>` — détail
+- `PUT  /api/besoins/<id>` — mettre à jour
+- `DELETE /api/besoins/<id>` — soft delete
+- `GET  /api/besoins/<id>/export.xlsx?format=recto|verso|both` — export Excel
+
+### Création depuis une fiche prospect
+
+Nouveau bouton **« Nouveau besoin »** dans le header de la fiche prospect
+(`/v30/prospect/<id>`) à côté de « Résumer ». Crée immédiatement un besoin
+pré-rempli (client = entreprise, contact = nom prospect, localisation = ville/pays
+de l'entreprise) et redirige vers la fiche détail. Liaison `prospect_id`
+nullable, pas bloquante.
+
+### Schéma DB
+
+Nouvelle table `besoins` (multi-tenant via `owner_id`, soft delete via `deleted_at`).
+Migration ajoutée à `_v30_schema_sql` : propagée aux DB principales et aux
+DB user-spécifiques au prochain démarrage.
+
+### Fichiers ajoutés
+
+- `routes/besoins.py` (~500 lignes : blueprint + export Excel)
+- `templates/v30/besoins.html`, `templates/v30/besoin_detail.html`
+- `static/js/v30/besoins.js`, `static/js/v30/besoin_detail.js`
+- `static/css/v30/besoins.css`
+
+### Fichiers modifiés
+
+- `app.py` : table `besoins` dans `init_db` + `_v30_schema_sql`,
+  enregistrement du blueprint, `APP_VERSION = "32.18.0"`
+- `templates/_partials/v30/sidebar.html` : entrée Besoins sous Outils
+- `templates/v30/prospect_detail.html` : bouton « Nouveau besoin »
+- `static/js/v30/prospect_detail_ui.js` : binding du bouton
+
 ## [32.17.0] — 2026-04-30 · Import résumé PDF (Summary AI) sur la page Transcription
 
 Nouveau bouton **« Importer résumé PDF »** dans le header de
