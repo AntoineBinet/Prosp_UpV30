@@ -1,0 +1,241 @@
+/* ProspUp v30 — Traitement Besoin (liste + détail) */
+
+/* ============= Liste ============= */
+
+.v30-besoins { display: flex; flex-direction: column; gap: 16px; }
+
+.v30-besoins__filters {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+}
+.v30-besoins__filters .btn.active {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.v30-besoins__count { font-size: 12px; color: var(--text-3); }
+
+.v30-besoins__skel { padding: 24px; }
+.v30-besoins__empty {
+  padding: 40px 20px; text-align: center;
+  font-size: 13px; color: var(--text-2);
+  background: var(--surface); border: 1px dashed var(--border);
+  border-radius: var(--r-xl); line-height: 1.6;
+}
+
+.v30-besoins-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  font-size: 13px;
+}
+.v30-besoins-table thead th {
+  text-align: left; padding: 10px 12px;
+  font-weight: 500; font-size: 11.5px;
+  color: var(--text-3); letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--surface-2, var(--surface));
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.v30-besoins-table tbody tr {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.v30-besoins-table tbody tr:hover { background: var(--surface-hover); }
+.v30-besoins-table tbody tr:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+.v30-besoins-table tbody td {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+}
+.v30-besoin-cell-strong { color: var(--text); font-weight: 500; }
+.v30-besoin-actions { white-space: nowrap; text-align: right; }
+.v30-besoin-actions .btn { margin-left: 4px; }
+
+/* ============= Pills statut ============= */
+.v30-besoin-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11.5px; font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.v30-besoin-pill--open       { background: rgba(59, 130, 246, .12); border-color: rgba(59, 130, 246, .35); color: #60a5fa; }
+.v30-besoin-pill--inprogress { background: rgba(245, 158, 11, .12); border-color: rgba(245, 158, 11, .35); color: #fbbf24; }
+.v30-besoin-pill--done       { background: rgba(34, 197, 94, .12);  border-color: rgba(34, 197, 94, .35);  color: #4ade80; }
+.v30-besoin-pill--cancel     { background: rgba(148, 163, 184, .12); border-color: rgba(148, 163, 184, .35); color: #94a3b8; }
+
+/* ============= Modale création rapide ============= */
+.v30-besoin-form .v30-besoin-form__grid {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 540px) {
+  .v30-besoin-form .v30-besoin-form__grid { grid-template-columns: 1fr; }
+}
+
+/* ============= Détail ============= */
+.v30-besoin-detail { display: flex; flex-direction: column; gap: 14px; }
+.v30-besoin-detail__head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap;
+  padding: 6px 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+.v30-besoin-detail__eyebrow {
+  font-size: 11.5px; color: var(--text-3); margin-bottom: 4px;
+}
+.v30-besoin-detail__eyebrow a { color: var(--text-2); text-decoration: none; }
+.v30-besoin-detail__eyebrow a:hover { color: var(--text); }
+.v30-besoin-detail__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -.01em;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.v30-besoin-detail__title .serif {
+  font-family: var(--font-serif, 'Instrument Serif', serif);
+  font-style: italic;
+}
+.v30-besoin-detail__statut-pill { font-size: 12px; }
+.v30-besoin-detail__meta {
+  margin-top: 4px;
+  font-size: 12.5px; color: var(--text-2);
+}
+.v30-besoin-detail__actions {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap;
+}
+.v30-besoin-link {
+  background: var(--surface-2, var(--surface));
+  padding: 12px 14px;
+  border-radius: var(--r-xl);
+}
+.v30-besoin-link__pname { font-size: 14px; font-weight: 500; color: var(--text); text-decoration: none; }
+.v30-besoin-link__pname:hover { text-decoration: underline; }
+
+.v30-besoin-detail__body {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 280px;
+}
+@media (max-width: 980px) {
+  .v30-besoin-detail__body { grid-template-columns: 1fr; }
+}
+.v30-besoin-detail__main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.v30-besoin-detail__aside { display: flex; flex-direction: column; gap: 12px; }
+
+.v30-besoin-section { padding: 14px 16px; }
+.v30-besoin-section .card-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+.v30-besoin-section .card-title + .row-sb { margin-bottom: 10px; }
+
+.v30-besoin-grid {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.v30-besoin-grid label,
+.v30-besoin-stack label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 11.5px; color: var(--text-3);
+}
+.v30-besoin-grid input,
+.v30-besoin-stack input,
+.v30-besoin-stack textarea,
+.v30-besoin-section select {
+  font-size: 13px; color: var(--text);
+}
+.v30-besoin-stack { display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 720px) {
+  .v30-besoin-grid { grid-template-columns: 1fr; }
+}
+
+.v30-besoin-aside-actions {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+
+/* ─── Tableau candidats ─── */
+.v30-besoin-cand-table-wrap {
+  overflow-x: auto;
+  margin: 0 -16px; padding: 0 16px;
+}
+.v30-besoin-cand-table {
+  width: 100%; min-width: 920px;
+  border-collapse: separate; border-spacing: 0;
+  font-size: 12.5px;
+}
+.v30-besoin-cand-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  text-align: left; padding: 8px 10px;
+  font-weight: 500; font-size: 11px;
+  color: var(--text-3); letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--surface-2, var(--surface));
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.v30-besoin-cand-table tbody td {
+  padding: 4px 6px;
+  border-top: 1px solid var(--border);
+}
+.v30-besoin-cand-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-md, 6px);
+  color: var(--text);
+  font-family: inherit;
+}
+.v30-besoin-cand-input:focus,
+.v30-besoin-cand-input:hover {
+  background: var(--surface);
+  border-color: var(--border);
+  outline: none;
+}
+.v30-besoin-cand-input:focus {
+  border-color: var(--accent);
+}
+.v30-besoin-cand-actions { width: 32px; text-align: center; }
+
+/* ─── Métadonnées ─── */
+.v30-besoin-meta-list {
+  margin: 0; display: grid; grid-template-columns: 80px 1fr;
+  gap: 4px 8px; font-size: 11.5px;
+}
+.v30-besoin-meta-list dt { color: var(--text-3); }
+.v30-besoin-meta-list dd { margin: 0; color: var(--text-2); }
+
+/* ─── Modale liaison prospect ─── */
+.v30-besoin-link__results {
+  max-height: 320px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.v30-besoin-link__row {
+  display: flex; flex-direction: column; gap: 2px;
+  text-align: left; padding: 10px 12px;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--r-md, 8px);
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+}
+.v30-besoin-link__row:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.v30-besoin-link__row strong { font-size: 13px; font-weight: 500; }
+.v30-besoin-link__row .muted { font-size: 11.5px; color: var(--text-3); }

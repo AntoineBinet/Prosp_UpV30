@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.17.2"
+APP_VERSION = "32.18.1"
 import os
 import uuid
 import subprocess
@@ -2413,6 +2413,37 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             );
             CREATE INDEX IF NOT EXISTS idx_transcriptions_owner ON transcriptions(owner_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_transcriptions_status ON transcriptions(status);
+
+            -- v32.x : Traitement Besoin (fiches besoin client + suivi candidats)
+            CREATE TABLE IF NOT EXISTS besoins (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                client          TEXT,
+                localisation    TEXT,
+                contact         TEXT,
+                date_appel      TEXT,
+                intitule        TEXT,
+                date_besoin     TEXT,
+                duree_mission   TEXT,
+                descriptif      TEXT,
+                competences     TEXT,
+                connaissances   TEXT,
+                experience      TEXT,
+                profil_type     TEXT,
+                commentaires    TEXT,
+                statut          TEXT NOT NULL DEFAULT 'ouvert',
+                priority        INTEGER,
+                candidats_json  TEXT,
+                prospect_id     INTEGER,
+                company_id      INTEGER,
+                owner_id        INTEGER NOT NULL,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT,
+                deleted_at      TEXT,
+                FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_besoins_owner ON besoins(owner_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_besoins_status ON besoins(statut);
+            CREATE INDEX IF NOT EXISTS idx_besoins_prospect ON besoins(prospect_id);
         ''')
 
         # Seed default admin if no users exist
@@ -3244,6 +3275,36 @@ def _v30_schema_sql() -> str:
         UNIQUE(candidate_id, week_iso)
     );
     CREATE INDEX IF NOT EXISTS idx_cand_avail_cid ON candidate_availability(candidate_id);
+
+    -- Traitement Besoin : fiches besoin client + suivi candidats
+    CREATE TABLE IF NOT EXISTS besoins (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        client          TEXT,
+        localisation    TEXT,
+        contact         TEXT,
+        date_appel      TEXT,
+        intitule        TEXT,
+        date_besoin     TEXT,
+        duree_mission   TEXT,
+        descriptif      TEXT,
+        competences     TEXT,
+        connaissances   TEXT,
+        experience      TEXT,
+        profil_type     TEXT,
+        commentaires    TEXT,
+        statut          TEXT NOT NULL DEFAULT 'ouvert',
+        priority        INTEGER,
+        candidats_json  TEXT,
+        prospect_id     INTEGER,
+        company_id      INTEGER,
+        owner_id        INTEGER NOT NULL,
+        created_at      TEXT NOT NULL,
+        updated_at      TEXT,
+        deleted_at      TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_besoins_owner ON besoins(owner_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_besoins_status ON besoins(statut);
+    CREATE INDEX IF NOT EXISTS idx_besoins_prospect ON besoins(prospect_id);
     '''
 
 
@@ -3255,7 +3316,7 @@ def _v30_apply_migrations(conn) -> list[str]:
     existing = {r[0] for r in cur.execute(
         "SELECT name FROM sqlite_master WHERE type='table'"
     ).fetchall()}
-    for t in ("push_campaigns", "candidate_skills", "candidate_availability"):
+    for t in ("push_campaigns", "candidate_skills", "candidate_availability", "besoins"):
         if t not in existing:
             done.append(f"create:{t}")
     conn.executescript(_v30_schema_sql())
@@ -3324,9 +3385,9 @@ def _v30_needs_migration() -> bool:
         with _conn() as conn:
             rows = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name IN ('push_campaigns','candidate_skills','candidate_availability');"
+                "AND name IN ('push_campaigns','candidate_skills','candidate_availability','besoins');"
             ).fetchall()
-            return len(rows) < 3
+            return len(rows) < 4
     except Exception:
         return True
 
@@ -22415,10 +22476,12 @@ from routes.auth import auth_bp    # noqa: E402
 from routes.deploy import deploy_bp  # noqa: E402
 from routes.ai import ai_bp          # noqa: E402
 from routes.transcription import transcription_bp, init_resume as _transcription_init_resume  # noqa: E402
+from routes.besoins import besoins_bp  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(transcription_bp)
+app.register_blueprint(besoins_bp)
 
 
 if __name__ == "__main__":
