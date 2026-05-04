@@ -22462,6 +22462,55 @@ def candidate_dossier_download(candidate_id):
     return send_file(abs_path, as_attachment=True, download_name=nom_dl, mimetype=mime)
 
 
+
+
+# ── Update-check state (rempli par APScheduler toutes les 10 min) ─
+_update_check_state: dict = {
+    'update_available': False,
+    'local_commit': '',
+    'remote_commit': '',
+    'checked_at': None,
+    'error': None,
+}
+_update_check_lock = threading.Lock()
+
+
+def _do_git_update_check():
+    """Fetch origin/main et compare HEAD vs origin/main. Appelé par APScheduler."""
+    global _update_check_state
+    import subprocess as _sp
+    try:
+        _sp.run(
+            ['git', 'fetch', 'origin', 'main'],
+            cwd=str(APP_DIR), capture_output=True, timeout=20,
+        )
+        local = _sp.run(
+            ['git', 'rev-parse', 'HEAD'],
+            cwd=str(APP_DIR), capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+        remote = _sp.run(
+            ['git', 'rev-parse', 'origin/main'],
+            cwd=str(APP_DIR), capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+        available = bool(local and remote and local != remote)
+        with _update_check_lock:
+            _update_check_state = {
+                'update_available': available,
+                'local_commit': local[:8] if local else '',
+                'remote_commit': remote[:8] if remote else '',
+                'checked_at': datetime.datetime.now().isoformat(timespec='seconds'),
+                'error': None,
+            }
+        if available:
+            logger.info("Update check: nouvelle version disponible (local=%s remote=%s)",
+                        local[:8], remote[:8])
+    except Exception as exc:
+        with _update_check_lock:
+            _update_check_state['error'] = str(exc)
+            _update_check_state['checked_at'] = datetime.datetime.now().isoformat(timespec='seconds')
+        logger.warning("Update check échoué : %s", exc)
+
+
 # ── Blueprints ────────────────────────────────────────────────────
 # Importés en bas de fichier pour que tous les helpers soient déjà
 # définis. Quand app.py est lancé comme script (__name__ == '__main__'),
@@ -22551,9 +22600,18 @@ if __name__ == "__main__":
                 id='weekly_purge_soft_deleted',
                 replace_existing=True,
             )
+            _scheduler.add_job(
+                func=_do_git_update_check,
+                trigger='interval',
+                minutes=10,
+                id='git_update_check',
+                replace_existing=True,
+            )
             _scheduler.start()
             atexit.register(lambda: _scheduler.shutdown())
-            logger.info("Scheduler démarré — backup 3h00, purge soft-deleted dim. 4h00")
+            logger.info("Scheduler démarré — backup 3h00, purge soft-deleted dim. 4h00, update-check toutes les 10 min")
+            # Premier check immédiat au démarrage (en thread pour ne pas bloquer)
+            threading.Thread(target=_do_git_update_check, daemon=True, name='update_check_startup').start()
         except ImportError:
             logger.warning("apscheduler non installé — backup/purge automatique désactivés. Installer : pip install apscheduler")
 

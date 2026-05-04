@@ -32,10 +32,14 @@ from flask import Blueprint, Response, jsonify
 from app import (
     APP_DIR,
     _cancel_validation_timer,
+    _do_git_update_check,
     _require_same_origin,
     _schedule_restart,
     _start_validation_timer,
     _VALIDATION_TIMEOUT_SECONDS,
+    _uid,
+    _update_check_lock,
+    _update_check_state,
     _write_pending_validation,
     create_snapshot,
     logger,
@@ -991,6 +995,20 @@ def api_deploy_install_torch_cuda_status():
         state["torch_version"] = None
         state["torch_cuda_built"] = False
         state["torch_cuda_available"] = False
+    return jsonify(ok=True, **state)
+
+
+# ── Update check ──────────────────────────────────────────────────
+
+
+@deploy_bp.get("/api/deploy/update-check")
+def api_deploy_update_check():
+    """Retourne l'état du dernier git fetch (mis en cache par APScheduler)."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _update_check_lock:
+        state = dict(_update_check_state)
     return jsonify(ok=True, **state)
 
 
