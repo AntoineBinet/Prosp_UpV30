@@ -118,6 +118,11 @@
       if (!notifBody) return;
       var items = [];
 
+      // Items injectés par d'autres modules (ex. update-checker.js)
+      (window._v30NotifExtra || []).forEach(function (ex) {
+        if (ex && ex.html) items.push(ex.html);
+      });
+
       if (overdue > 0) {
         items.push(
           '<div class="v30-notif-item">' +
@@ -151,20 +156,30 @@
       }
     }
 
+    var _lastOverdue = 0, _lastDueToday = 0;
+
     function loadNotifications() {
       fetch('/api/dashboard', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
         .then(function (r) { return r.json(); })
         .then(function (res) {
           var pipeline = (res && res.data && res.data.pipeline) || {};
-          var overdue  = parseInt(pipeline.overdue, 10)   || 0;
-          var dueToday = parseInt(pipeline.due_today, 10) || 0;
-          updateBadge(overdue + dueToday);
-          renderNotifItems(overdue, dueToday);
+          _lastOverdue  = parseInt(pipeline.overdue, 10)   || 0;
+          _lastDueToday = parseInt(pipeline.due_today, 10) || 0;
+          var extrasCount = (window._v30NotifExtra || []).length;
+          updateBadge(_lastOverdue + _lastDueToday + extrasCount);
+          renderNotifItems(_lastOverdue, _lastDueToday);
         })
         .catch(function () {
           if (notifBody) notifBody.innerHTML = '<div class="v30-notif-empty">Impossible de charger les notifications</div>';
         });
     }
+
+    // Modules externes peuvent déclencher un re-rendu du panel
+    document.addEventListener('v30:notif:refresh', function () {
+      var extrasCount = (window._v30NotifExtra || []).length;
+      updateBadge(_lastOverdue + _lastDueToday + extrasCount);
+      renderNotifItems(_lastOverdue, _lastDueToday);
+    });
 
     loadNotifications();
   }

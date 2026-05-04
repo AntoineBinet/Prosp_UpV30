@@ -1,7 +1,7 @@
 /* ProspUp v30 — Update checker
    Vérifie toutes les 10 min si un nouveau commit est disponible sur origin/main.
-   Affiche une notification flottante (admin uniquement) avec un bouton
-   "Mettre à jour" qui ouvre le popup de déploiement existant. */
+   Injecte une notification dans la cloche topbar (admin uniquement) via
+   window._v30NotifExtra + événement 'v30:notif:refresh'. */
 (function () {
   'use strict';
 
@@ -9,12 +9,11 @@
   var INITIAL_DELAY_MS  = 30 * 1000;      // premier check 30 s après le chargement
   var DISMISS_KEY = 'prospup_upd_dismissed_commit';
 
-  var _notifEl = null;
   var _currentRemoteCommit = null;
 
+  var ICON_UPDATE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
+
   // ─── Admin guard ─────────────────────────────────────────────
-  // Le popup de mise à jour n'est rendu que pour les admins.
-  // S'il n'existe pas dans le DOM, on n'affiche pas la notif.
   function _isAdmin() {
     return !!document.querySelector('[data-v30-upd]');
   }
@@ -25,104 +24,85 @@
     if (trg) trg.click();
   }
 
-  // ─── Badge "mise à jour" sur le bouton version de la sidebar ─
+  // ─── Badge dot sur le bouton version de la sidebar ───────────
   function _setBadge(on) {
     var btn = document.querySelector('[data-v30-upd-open]');
     if (!btn) return;
     btn.classList.toggle('has-update', on);
+    if (on && !document.getElementById('v30-uc-badge-css')) {
+      var s = document.createElement('style');
+      s.id = 'v30-uc-badge-css';
+      s.textContent =
+        '[data-v30-upd-open].has-update{position:relative;}' +
+        '[data-v30-upd-open].has-update::after{content:"";position:absolute;' +
+          'top:2px;right:2px;width:7px;height:7px;border-radius:50%;' +
+          'background:var(--accent);box-shadow:0 0 0 2px var(--sidebar-bg,var(--surface));}';
+      document.head.appendChild(s);
+    }
   }
 
-  // ─── Notification flottante ───────────────────────────────────
-  function _injectStyles() {
-    if (document.getElementById('v30-uc-css')) return;
-    var s = document.createElement('style');
-    s.id = 'v30-uc-css';
-    s.textContent =
-      '@keyframes v30ucIn{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}' +
-      '#v30-update-notif{position:fixed;bottom:24px;right:24px;z-index:9998;' +
-        'background:var(--surface);border:1px solid var(--border);' +
-        'border-left:3px solid var(--accent);border-radius:var(--r-xl,10px);' +
-        'padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,.28);' +
-        'display:flex;align-items:center;gap:14px;max-width:340px;' +
-        'font-size:13px;color:var(--text);animation:v30ucIn .3s ease;}' +
-      '#v30-update-notif .v30uc-body{flex:1;min-width:0;}' +
-      '#v30-update-notif .v30uc-title{font-weight:600;margin-bottom:3px;}' +
-      '#v30-update-notif .v30uc-sub{font-size:11.5px;color:var(--text-3);}' +
-      '#v30-update-notif .v30uc-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0;}' +
-      '#v30-update-notif .v30uc-btn-install{white-space:nowrap;font-size:12px;font-weight:500;' +
-        'padding:7px 13px;background:var(--accent);color:var(--accent-fg,#fff);' +
-        'border:none;border-radius:var(--r-md,6px);cursor:pointer;transition:filter .15s;}' +
-      '#v30-update-notif .v30uc-btn-install:hover{filter:brightness(1.12);}' +
-      '#v30-update-notif .v30uc-btn-later{white-space:nowrap;font-size:11px;' +
-        'padding:4px 8px;background:transparent;color:var(--text-3);' +
-        'border:1px solid var(--border);border-radius:var(--r-md,6px);cursor:pointer;}' +
-      // Badge dot sur le bouton version de la sidebar
-      '[data-v30-upd-open].has-update{position:relative;}' +
-      '[data-v30-upd-open].has-update::after{content:"";position:absolute;' +
-        'top:2px;right:2px;width:7px;height:7px;border-radius:50%;' +
-        'background:var(--accent);box-shadow:0 0 0 2px var(--sidebar-bg,var(--surface));}';
-    document.head.appendChild(s);
+  // ─── Inject / remove dans window._v30NotifExtra ──────────────
+  function _injectNotif(remoteCommit) {
+    window._v30NotifExtra = window._v30NotifExtra || [];
+    // Éviter les doublons
+    if (window._v30NotifExtra.some(function (e) { return e.id === 'update'; })) return;
+
+    var html =
+      '<div class="v30-notif-item">' +
+        '<div class="v30-notif-item__icon v30-notif-item__icon--update">' + ICON_UPDATE + '</div>' +
+        '<div class="v30-notif-item__body">' +
+          '<div class="v30-notif-item__label">Mise à jour disponible</div>' +
+          '<div class="v30-notif-item__sub">Nouveau commit prêt sur <code>origin/main</code>.</div>' +
+          '<div class="v30-notif-item__cta" style="display:flex;gap:6px;">' +
+            '<button type="button" class="btn btn-sm" data-v30uc-install>Mettre à jour</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-v30uc-dismiss>Plus tard</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    window._v30NotifExtra = [{ id: 'update', html: html, remoteCommit: remoteCommit }];
+    document.dispatchEvent(new CustomEvent('v30:notif:refresh'));
   }
 
+  function _removeNotif() {
+    window._v30NotifExtra = (window._v30NotifExtra || []).filter(function (e) { return e.id !== 'update'; });
+    document.dispatchEvent(new CustomEvent('v30:notif:refresh'));
+  }
+
+  // ─── Show / dismiss ──────────────────────────────────────────
   function _showNotif(remoteCommit) {
-    // Ne pas ré-afficher si déjà visible ou si le commit a déjà été ignoré
-    if (_notifEl) return;
     try {
       if (localStorage.getItem(DISMISS_KEY) === remoteCommit) return;
     } catch (_e) {}
-
-    _injectStyles();
-
-    var el = document.createElement('div');
-    el.id = 'v30-update-notif';
-    el.setAttribute('role', 'status');
-    el.setAttribute('aria-live', 'polite');
-    el.innerHTML =
-      '<div class="v30uc-body">' +
-        '<div class="v30uc-title">Mise à jour disponible</div>' +
-        '<div class="v30uc-sub">Nouveau commit sur <code>origin/main</code>.</div>' +
-      '</div>' +
-      '<div class="v30uc-actions">' +
-        '<button class="v30uc-btn-install" type="button">Mettre à jour</button>' +
-        '<button class="v30uc-btn-later" type="button">Plus tard</button>' +
-      '</div>';
-
-    el.querySelector('.v30uc-btn-install').addEventListener('click', function () {
-      _openUpdatePopup();
-      _dismiss(remoteCommit);
-    });
-    el.querySelector('.v30uc-btn-later').addEventListener('click', function () {
-      _dismiss(remoteCommit);
-    });
-
-    document.body.appendChild(el);
-    _notifEl = el;
+    _injectNotif(remoteCommit);
     _setBadge(true);
   }
 
   function _dismiss(remoteCommit) {
-    if (_notifEl) {
-      _notifEl.style.transition = 'opacity .2s,transform .2s';
-      _notifEl.style.opacity = '0';
-      _notifEl.style.transform = 'translateY(8px)';
-      var el = _notifEl;
-      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
-      _notifEl = null;
-    }
+    _removeNotif();
     try {
       if (remoteCommit) localStorage.setItem(DISMISS_KEY, remoteCommit);
     } catch (_e) {}
-    // Ne pas retirer le badge sidebar — il reste jusqu'à la mise à jour effective
+    // Le badge reste tant que la mise à jour n'est pas installée
   }
 
-  function _hideNotif() {
-    if (_notifEl && _notifEl.parentNode) _notifEl.parentNode.removeChild(_notifEl);
-    _notifEl = null;
+  function _hideAll() {
+    _removeNotif();
     _setBadge(false);
     try { localStorage.removeItem(DISMISS_KEY); } catch (_e) {}
   }
 
-  // ─── Check ────────────────────────────────────────────────────
+  // ─── Délégation de clics (boutons injectés dans innerHTML) ───
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-v30uc-install]')) {
+      _openUpdatePopup();
+      _dismiss(_currentRemoteCommit);
+    } else if (e.target.closest('[data-v30uc-dismiss]')) {
+      _dismiss(_currentRemoteCommit);
+    }
+  });
+
+  // ─── Check API ───────────────────────────────────────────────
   async function _check() {
     if (!_isAdmin()) return;
     try {
@@ -137,14 +117,13 @@
         _showNotif(_currentRemoteCommit);
       } else {
         _currentRemoteCommit = null;
-        _hideNotif();
+        _hideAll();
       }
     } catch (_e) { /* réseau indisponible — silencieux */ }
   }
 
-  // ─── Init ─────────────────────────────────────────────────────
+  // ─── Init ────────────────────────────────────────────────────
   function init() {
-    // Attente courte au démarrage pour ne pas ralentir le chargement
     setTimeout(function () {
       _check();
       setInterval(_check, CHECK_INTERVAL_MS);

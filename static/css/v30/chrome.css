@@ -611,6 +611,10 @@
   background: var(--info-soft);
   color: var(--info);
 }
+.v30-notif-item__icon--update {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
 
 .v30-notif-item__body { flex: 1; min-width: 0; }
 
