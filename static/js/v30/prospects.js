@@ -1927,7 +1927,7 @@
     { value: 'pertinence', label: 'Pertinence' },
     { value: 'statut', label: 'Statut' }
   ];
-  function guessField(header) {
+  function guessField(header, sampleValues) {
     var h = String(header || '').toLowerCase().trim();
     if (/^(nom|name|nom complet)$/.test(h) || /nom complet/.test(h)) return 'name';
     if (/(pr[eé]nom|first)/.test(h)) return 'prenom';
@@ -1941,6 +1941,16 @@
     if (/(tags?|mots[- ]?cl[eé]s?)/.test(h)) return 'tags';
     if (/(pertinence|score|priorit)/.test(h)) return 'pertinence';
     if (/(statut|status|[eé]tat)/.test(h)) return 'statut';
+    // Fallback: detect from actual column values when no header label matched
+    // (handles paste without headers, where the first data row becomes the "header")
+    if (!sampleValues || !sampleValues.length) return '';
+    var samples = sampleValues.slice(0, 5).map(function(v) { return String(v || '').trim(); }).filter(Boolean);
+    if (!samples.length) return '';
+    var total = samples.length;
+    if (samples.filter(function(v) { return /linkedin\.com/i.test(v); }).length >= total * 0.4) return 'linkedin';
+    if (samples.filter(function(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }).length >= total * 0.4) return 'email';
+    if (samples.filter(function(v) { return /^[\d\s+\-().]{7,}$/.test(v) && !/[a-zA-Z]/.test(v); }).length >= total * 0.4) return 'telephone';
+    if (samples.filter(function(v) { return v.length > 2 && !/^https?:\/\//.test(v) && !/@/.test(v) && !/^\d+$/.test(v) && /[a-zA-ZÀ-ÿ]/.test(v); }).length >= total * 0.6) return 'name';
     return '';
   }
   function ensureXLSX() {
@@ -2234,7 +2244,7 @@
           IMP.headers = raw.headers;
           IMP.rows = raw.rows;
           IMP.mapping = {};
-          IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h); });
+          IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h, IMP.rows.map(function(r) { return r[i]; })); });
           showMappingStep();
         }).catch(function (err) { toast('Lecture CSV impossible : ' + err.message, 'error'); });
         return;
@@ -2252,7 +2262,7 @@
             IMP.headers = (rows[0] || []).map(function (h) { return String(h || '').trim(); });
             IMP.rows = rows.slice(1).filter(function (r) { return r.some(function (v) { return String(v || '').trim(); }); });
             IMP.mapping = {};
-            IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h); });
+            IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h, IMP.rows.map(function(r) { return r[i]; })); });
             showMappingStep();
           } catch (err) {
             toast('Lecture impossible : ' + err.message, 'error');
@@ -2280,7 +2290,7 @@
       IMP.headers = raw.headers;
       IMP.rows = raw.rows;
       IMP.mapping = {};
-      IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h); });
+      IMP.headers.forEach(function (h, i) { IMP.mapping[i] = guessField(h, IMP.rows.map(function(r) { return r[i]; })); });
       showMappingStep();
     });
 
