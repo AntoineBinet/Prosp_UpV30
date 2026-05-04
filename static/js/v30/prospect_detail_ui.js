@@ -2802,6 +2802,38 @@
     });
   }
 
+  // ─── Nouveau besoin (création + redirect) ───────────────────
+  function bindNewBesoin() {
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-v30-besoin-new]');
+      if (!btn) return;
+      if (btn.disabled) return;
+      btn.disabled = true;
+      var p = (FP && FP.STATE && FP.STATE.prospect) || {};
+      var payload = {
+        prospect_id: FP.ID,
+        contact: p.name || '',
+        client: p.company_name || (p.company && p.company.groupe) || '',
+      };
+      FP.fetchPostJSON('/api/besoins', payload)
+        .then(function (res) {
+          if (res && res.ok && res.besoin && res.besoin.id) {
+            window.location.href = '/v30/besoins/' + res.besoin.id;
+          } else {
+            throw new Error((res && res.error) || 'Création impossible');
+          }
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          if (typeof window.showToast === 'function') {
+            window.showToast('Erreur : ' + err.message, 'error', 3000);
+          } else {
+            alert('Erreur : ' + err.message);
+          }
+        });
+    });
+  }
+
   // ─── Picker pièces jointes dans la modale CR ────────────────
   // Hook : injecte une section "Pièces jointes" dans le formulaire CR après son rendu.
   // Le formulaire est rendu dynamiquement dans un effet du modal CR.
@@ -2914,6 +2946,7 @@
     bindGlobalDragDrop();
     bindTimelineSearch();
     bindSummarize();
+    bindNewBesoin();
     bindCRAttachInjector();
     FP.loadTimeline();
     // Rappel RDV dans 48h (best effort, sans bloquer)

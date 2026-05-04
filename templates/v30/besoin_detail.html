@@ -1,0 +1,234 @@
+{% extends "v30/base.html" %}
+{% block title %}{{ besoin_title or 'Besoin' }} — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-besoin-detail{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/besoins.css?v={{ static_hash('css/v30/besoins.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-besoin-detail" data-v30-besoin-detail data-besoin-id="{{ besoin_id }}">
+
+  {# Header #}
+  <div class="v30-besoin-detail__head">
+    <div>
+      <div class="v30-besoin-detail__eyebrow">
+        <a href="/v30/besoins" class="muted">← Tous les besoins</a>
+      </div>
+      <h1 class="v30-besoin-detail__title">
+        <span class="serif" data-field="intitule-display">{{ besoin_title }}</span>
+        <span class="v30-besoin-detail__statut-pill" data-field="statut-pill">—</span>
+      </h1>
+      <div class="v30-besoin-detail__meta" data-field="meta">
+        <span class="skel" style="width:280px;height:12px;display:inline-block;"></span>
+      </div>
+    </div>
+    <div class="v30-besoin-detail__actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-export="recto"
+              title="Export Excel format recto (1 page paysage)">
+        {{ ui.icon('download', 13) }} Export recto
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-export="verso"
+              title="Export Excel format recto/verso (2 pages portrait)">
+        {{ ui.icon('download', 13) }} Export recto/verso
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-export="both"
+              title="Export Excel complet (les 2 onglets)">
+        {{ ui.icon('download', 13) }} Export complet
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-delete style="color:var(--red);">
+        {{ ui.icon('x', 13) }} Supprimer
+      </button>
+    </div>
+  </div>
+
+  {# Liaison prospect #}
+  <div class="card v30-besoin-link" data-v30-besoin-link hidden style="margin-top:12px;">
+    <div class="row-sb">
+      <div>
+        <div class="muted" style="font-size:11.5px;">Lié à</div>
+        <a class="v30-besoin-link__pname" href="#" data-field="link-prospect-href" target="_self">—</a>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-unlink>
+        {{ ui.icon('x', 13) }} Délier
+      </button>
+    </div>
+  </div>
+
+  {# Body 2 cols : main + aside #}
+  <div class="v30-besoin-detail__body">
+
+    {# Main #}
+    <div class="v30-besoin-detail__main">
+
+      <div class="card v30-besoin-section">
+        <div class="row-sb"><div class="card-title">En-tête fiche</div></div>
+        <div class="v30-besoin-grid">
+          <label>
+            <span>Intitulé besoin</span>
+            <input type="text" class="input" data-v30-besoin-field="intitule" maxlength="200">
+          </label>
+          <label>
+            <span>Client</span>
+            <input type="text" class="input" data-v30-besoin-field="client" maxlength="200">
+          </label>
+          <label>
+            <span>Contact</span>
+            <input type="text" class="input" data-v30-besoin-field="contact" maxlength="200">
+          </label>
+          <label>
+            <span>Localisation</span>
+            <input type="text" class="input" data-v30-besoin-field="localisation" maxlength="200">
+          </label>
+          <label>
+            <span>Date appel</span>
+            <input type="date" class="input" data-v30-besoin-field="date_appel">
+          </label>
+          <label>
+            <span>Date besoin</span>
+            <input type="date" class="input" data-v30-besoin-field="date_besoin">
+          </label>
+          <label>
+            <span>Durée mission</span>
+            <input type="text" class="input" data-v30-besoin-field="duree_mission" maxlength="100">
+          </label>
+          <label>
+            <span>Profil (Ingénieur / Technicien)</span>
+            <input type="text" class="input" data-v30-besoin-field="profil_type" maxlength="100">
+          </label>
+        </div>
+      </div>
+
+      <div class="card v30-besoin-section">
+        <div class="row-sb"><div class="card-title">Mission</div></div>
+        <div class="v30-besoin-stack">
+          <label>
+            <span>Descriptif</span>
+            <textarea class="input" rows="3" data-v30-besoin-field="descriptif" maxlength="4000"></textarea>
+          </label>
+          <label>
+            <span>Compétences requises</span>
+            <textarea class="input" rows="3" data-v30-besoin-field="competences" maxlength="4000"></textarea>
+          </label>
+          <label>
+            <span>Connaissances attendues</span>
+            <textarea class="input" rows="3" data-v30-besoin-field="connaissances" maxlength="4000"></textarea>
+          </label>
+          <label>
+            <span>Expérience</span>
+            <textarea class="input" rows="2" data-v30-besoin-field="experience" maxlength="2000"></textarea>
+          </label>
+          <label>
+            <span>Commentaires</span>
+            <textarea class="input" rows="2" data-v30-besoin-field="commentaires" maxlength="4000"></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="card v30-besoin-section">
+        <div class="row-sb">
+          <div class="card-title">Candidats positionnés</div>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-cand-add>
+            {{ ui.icon('plus', 13) }} Ajouter une ligne
+          </button>
+        </div>
+        <div class="v30-besoin-cand-table-wrap">
+          <table class="v30-besoin-cand-table" data-v30-besoin-cand-table>
+            <thead>
+              <tr>
+                <th>Candidat</th>
+                <th>Origine / Commentaires</th>
+                <th>Dispo</th>
+                <th>Appel</th>
+                <th>DT</th>
+                <th>RDV1</th>
+                <th>RDV2</th>
+                <th>Note</th>
+                <th>Envoi DT</th>
+                <th>RT</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody data-v30-besoin-cand-body>
+              {# Lignes injectées par JS #}
+            </tbody>
+          </table>
+        </div>
+        <p class="muted v30-params__hint">
+          Chaque ligne sera reportée dans le tableau de l'export Excel (recto · 53 lignes max ; recto/verso · 52 lignes max).
+        </p>
+      </div>
+
+    </div>
+
+    {# Aside #}
+    <aside class="v30-besoin-detail__aside">
+      <div class="card v30-besoin-section">
+        <div class="card-title">Statut</div>
+        <select class="input" data-v30-besoin-field="statut">
+          <option value="ouvert">Ouvert</option>
+          <option value="en_cours">En cours</option>
+          <option value="pourvu">Pourvu</option>
+          <option value="abandonne">Abandonné</option>
+        </select>
+      </div>
+      <div class="card v30-besoin-section">
+        <div class="card-title">Lien prospect</div>
+        <div data-v30-besoin-link-aside>
+          <p class="muted" style="font-size:12px;">Aucun prospect lié.</p>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-link-pick>
+            {{ ui.icon('link', 13) }} Lier un prospect
+          </button>
+        </div>
+      </div>
+      <div class="card v30-besoin-section">
+        <div class="card-title">Actions rapides</div>
+        <div class="v30-besoin-aside-actions">
+          <button type="button" class="btn btn-primary btn-sm" data-v30-besoin-save>
+            {{ ui.icon('check', 13) }} Enregistrer
+          </button>
+          <span class="muted" data-v30-besoin-saved aria-live="polite" style="font-size:11.5px;"></span>
+        </div>
+      </div>
+      <div class="card v30-besoin-section">
+        <div class="card-title">Métadonnées</div>
+        <dl class="v30-besoin-meta-list">
+          <dt>Créé</dt><dd data-field="created-at">—</dd>
+          <dt>Modifié</dt><dd data-field="updated-at">—</dd>
+        </dl>
+      </div>
+    </aside>
+
+  </div>
+
+</div>
+
+{# ─── Modale liaison prospect ─── #}
+<div class="v30-modal-bd" data-v30-link-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-link-modal-title" style="max-width:520px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-link-modal-title">
+        {{ ui.icon('link', 14) }} <span>Lier un prospect</span>
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-link-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-field">
+        <label for="v30-link-search">Rechercher un prospect</label>
+        <input type="text" id="v30-link-search" class="input" placeholder="Nom, entreprise, email…" autocomplete="off">
+      </div>
+      <div class="v30-besoin-link__results" data-v30-link-results>
+        <p class="muted" style="margin:8px 0;font-size:12px;">Tape au moins 2 caractères pour chercher.</p>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-link-close>Fermer</button>
+    </div>
+  </div>
+</div>
+
+<script defer src="/static/js/v30/besoin_detail.js?v={{ static_hash('js/v30/besoin_detail.js') }}"></script>
+{% endblock %}

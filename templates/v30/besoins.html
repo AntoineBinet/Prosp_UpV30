@@ -1,0 +1,108 @@
+{% extends "v30/base.html" %}
+{% block title %}Traitement Besoin — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-besoins{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/v30/besoins.css?v={{ static_hash('css/v30/besoins.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-besoins" data-v30-besoins>
+
+  <div class="page-header">
+    <div class="page-header__group">
+      <h1 class="page-title">Traitement Besoin</h1>
+      <span class="muted">Fiches besoin client · suivi candidats · export Excel</span>
+    </div>
+    <div class="page-header__actions">
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-besoins-refresh aria-label="Actualiser">
+        {{ ui.icon('sync', 13) }}
+      </button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-besoins-new>
+        {{ ui.icon('plus', 13) }} Nouveau besoin
+      </button>
+    </div>
+  </div>
+
+  <div class="v30-besoins__filters">
+    <button type="button" class="btn btn-ghost btn-sm active" data-statut="">Tous</button>
+    <button type="button" class="btn btn-ghost btn-sm" data-statut="ouvert">Ouvert</button>
+    <button type="button" class="btn btn-ghost btn-sm" data-statut="en_cours">En cours</button>
+    <button type="button" class="btn btn-ghost btn-sm" data-statut="pourvu">Pourvu</button>
+    <button type="button" class="btn btn-ghost btn-sm" data-statut="abandonne">Abandonné</button>
+    <span class="v30-spacer"></span>
+    <span class="muted v30-besoins__count" data-v30-besoins-count>—</span>
+  </div>
+
+  <div class="v30-besoins__list" data-v30-besoins-list>
+    <div class="v30-besoins__skel">
+      <span class="skel" style="width:200px;height:16px;display:inline-block;"></span>
+      <span class="skel" style="width:140px;height:12px;display:inline-block;margin-top:8px;"></span>
+    </div>
+  </div>
+
+</div>
+
+{# ─── Modale création rapide ─── #}
+<div class="v30-modal-bd" data-v30-besoin-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-besoin-modal-title" style="max-width:620px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-besoin-modal-title">
+        {{ ui.icon('plus', 14) }} <span>Nouveau besoin</span>
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-besoin-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-besoin-form">
+        <div class="v30-field">
+          <label for="v30-besoin-intitule">Intitulé du besoin <span style="color:var(--danger);">*</span></label>
+          <input type="text" id="v30-besoin-intitule" class="input" placeholder="Ex. Ingénieur électronique embarquée" maxlength="200" required>
+        </div>
+        <div class="v30-besoin-form__grid">
+          <div class="v30-field">
+            <label for="v30-besoin-client">Client</label>
+            <input type="text" id="v30-besoin-client" class="input" placeholder="Ex. Acme SAS" maxlength="200">
+          </div>
+          <div class="v30-field">
+            <label for="v30-besoin-contact">Contact</label>
+            <input type="text" id="v30-besoin-contact" class="input" placeholder="Nom du prospect" maxlength="200">
+          </div>
+          <div class="v30-field">
+            <label for="v30-besoin-localisation">Localisation</label>
+            <input type="text" id="v30-besoin-localisation" class="input" placeholder="Ex. Paris" maxlength="200">
+          </div>
+          <div class="v30-field">
+            <label for="v30-besoin-duree">Durée mission</label>
+            <input type="text" id="v30-besoin-duree" class="input" placeholder="Ex. 6 mois" maxlength="100">
+          </div>
+          <div class="v30-field">
+            <label for="v30-besoin-date-besoin">Date besoin</label>
+            <input type="date" id="v30-besoin-date-besoin" class="input">
+          </div>
+          <div class="v30-field">
+            <label for="v30-besoin-date-appel">Date appel</label>
+            <input type="date" id="v30-besoin-date-appel" class="input">
+          </div>
+        </div>
+        <div class="v30-field" style="margin-top:8px;">
+          <label for="v30-besoin-descriptif">Descriptif court</label>
+          <textarea id="v30-besoin-descriptif" class="input" rows="3" maxlength="2000"
+            placeholder="Mission, contexte, technologies clés…"></textarea>
+        </div>
+        <p class="muted v30-params__hint" style="margin-top:8px;">
+          Tu pourras compléter compétences, expérience et candidats sur la fiche détaillée.
+        </p>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-besoin-create>Créer</button>
+    </div>
+  </div>
+</div>
+
+<script defer src="/static/js/v30/besoins.js?v={{ static_hash('js/v30/besoins.js') }}"></script>
+{% endblock %}
