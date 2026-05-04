@@ -24,6 +24,8 @@
 
   // Picker entreprise pour le champ Client
   let _detailPicker = null;
+  // Index du candidat en cours de liaison (-1 = mode ajout)
+  let _linkCandIdx = null;
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
@@ -245,6 +247,23 @@
     }
   }
 
+  function autoResize(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.max(el.scrollHeight, 56) + 'px';
+  }
+
+  function updateMeta() {
+    const b = state.besoin || {};
+    const meta = root.querySelector('[data-field="meta"]');
+    if (!meta) return;
+    const parts = [];
+    if (b.client) parts.push(escapeHtml(b.client));
+    if (b.contact) parts.push(escapeHtml(b.contact));
+    if (b.localisation) parts.push(escapeHtml(b.localisation));
+    meta.innerHTML = parts.length ? parts.join(' · ') : '<span class="muted">Pas encore de méta</span>';
+  }
+
   function hydrate() {
     const b = state.besoin || {};
 
@@ -261,34 +280,37 @@
     });
 
     // Champ client via CompanyPicker
+    // Nom autoritaire : company_name (JOIN) si company_id positionné, sinon client libre
+    const clientGroupe = (b.company_id && b.company_name) ? b.company_name : (b.client || '');
+    if (clientGroupe !== b.client) state.besoin.client = clientGroupe; // sync silencieux
     const clientInput = root.querySelector('[data-v30-besoin-field="client"]');
     if (clientInput && window.CompanyPicker) {
       if (!_detailPicker) {
-        // Première initialisation
         _detailPicker = window.CompanyPicker.attachToInput(clientInput, {
           currentId:     b.company_id || null,
-          currentGroupe: b.client || '',
+          currentGroupe: clientGroupe,
           onSelect: (co) => {
             state.besoin.company_id = co.id;
             state.besoin.client = co.groupe;
+            updateMeta();
             markDirty();
           },
           onClear: () => {
             state.besoin.company_id = null;
+            state.besoin.client = '';
+            updateMeta();
           },
         });
       } else {
-        // Mise à jour de la sélection sans recréer le picker
-        if (b.company_id && b.client) {
-          _detailPicker.setSelection({ id: b.company_id, groupe: b.client, site: '' });
+        if (b.company_id) {
+          _detailPicker.setSelection({ id: b.company_id, groupe: clientGroupe, site: '' });
         } else {
           _detailPicker.clear();
-          if (b.client) clientInput.value = b.client;
+          if (clientGroupe) clientInput.value = clientGroupe;
         }
       }
     } else if (clientInput) {
-      // CompanyPicker non disponible : champ libre
-      clientInput.value = b.client || '';
+      clientInput.value = clientGroupe;
     }
 
     // Display title
@@ -303,21 +325,18 @@
       pill.textContent = stat.label;
     }
 
-    // Meta
-    const meta = root.querySelector('[data-field="meta"]');
-    if (meta) {
-      const parts = [];
-      if (b.client) parts.push(escapeHtml(b.client));
-      if (b.contact) parts.push(escapeHtml(b.contact));
-      if (b.localisation) parts.push(escapeHtml(b.localisation));
-      meta.innerHTML = parts.length ? parts.join(' · ') : '<span class="muted">Pas encore de méta</span>';
-    }
+    updateMeta();
 
     // Created / updated
     const ca = root.querySelector('[data-field="created-at"]');
     if (ca) ca.textContent = fmtDate(b.created_at);
     const ua = root.querySelector('[data-field="updated-at"]');
     if (ua) ua.textContent = fmtDate(b.updated_at);
+
+    // Auto-resize textareas
+    root.querySelectorAll('[data-v30-besoin-field]').forEach(el => {
+      if (el.tagName === 'TEXTAREA') autoResize(el);
+    });
 
     renderLink();
     renderCands();
@@ -372,6 +391,30 @@
     });
     const tdAct = document.createElement('td');
     tdAct.className = 'v30-besoin-cand-actions';
+
+    // Bouton fiche candidat : lien si cand_id connu, sinon bouton "lier"
+    if (c && c.cand_id) {
+      const link = document.createElement('a');
+      link.href = '/v30/candidat/' + c.cand_id;
+      link.target = '_blank';
+      link.className = 'btn btn-ghost btn-sm btn-icon';
+      link.title = 'Ouvrir la fiche candidat';
+      link.textContent = '↗';
+      tdAct.appendChild(link);
+    } else {
+      const linkBtn = document.createElement('button');
+      linkBtn.type = 'button';
+      linkBtn.className = 'btn btn-ghost btn-sm btn-icon';
+      linkBtn.title = 'Lier à une fiche candidat';
+      linkBtn.textContent = '⟳';
+      linkBtn.style.opacity = '0.45';
+      linkBtn.addEventListener('click', () => {
+        _linkCandIdx = parseInt(tr.dataset.candIdx, 10);
+        openCandModal();
+      });
+      tdAct.appendChild(linkBtn);
+    }
+
     const rm = document.createElement('button');
     rm.type = 'button';
     rm.className = 'btn btn-ghost btn-sm btn-icon';
@@ -481,6 +524,7 @@
         }
         const ua = root.querySelector('[data-field="updated-at"]');
         if (ua) ua.textContent = fmtDate(state.besoin.updated_at);
+        updateMeta();
         if (savedEl) savedEl.textContent = '✓ Enregistré';
         setTimeout(() => { if (savedEl && !state.dirty) savedEl.textContent = ''; }, 1800);
       }
@@ -527,6 +571,7 @@
   }
 
   function closeCandModal() {
+    _linkCandIdx = null;
     const md = document.querySelector('[data-v30-cand-modal]');
     if (!md) return;
     md.classList.remove('is-open');
@@ -571,8 +616,20 @@
         const btn = e.target.closest('[data-cid]');
         if (!btn) return;
         const name = btn.dataset.cname || '';
+        const cid  = parseInt(btn.dataset.cid, 10) || null;
         if (!Array.isArray(state.besoin.candidats)) state.besoin.candidats = [];
-        state.besoin.candidats.push({ candidat: name });
+
+        if (_linkCandIdx !== null) {
+          // Mode liaison : mettre à jour la ligne existante
+          const cand = state.besoin.candidats[_linkCandIdx];
+          if (cand) { cand.candidat = name; cand.cand_id = cid; }
+          if (typeof window.showToast === 'function') window.showToast('Fiche liée', 'success', 1800);
+        } else {
+          // Mode ajout
+          state.besoin.candidats.push({ candidat: name, cand_id: cid });
+          if (typeof window.showToast === 'function') window.showToast('Candidat ajouté', 'success', 1800);
+        }
+
         renderCands();
         markDirty();
         closeCandModal();
@@ -581,7 +638,6 @@
           const last = tbody.querySelector('tr:last-child input');
           if (last) last.focus();
         }
-        if (typeof window.showToast === 'function') window.showToast('Candidat ajouté', 'success', 1800);
       });
     }
     document.querySelectorAll('[data-v30-cand-close]').forEach(b => b.addEventListener('click', closeCandModal));
@@ -710,6 +766,9 @@
     inputs.forEach(el => {
       el.addEventListener('input', markDirty);
       el.addEventListener('change', markDirty);
+      if (el.tagName === 'TEXTAREA') {
+        el.addEventListener('input', () => autoResize(el));
+      }
     });
   }
 
