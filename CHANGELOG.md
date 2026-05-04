@@ -2,6 +2,42 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.17.1] — 2026-05-04 · Fix import en masse de prospects (sans entreprise / sans en-têtes)
+
+L'import en masse de prospects depuis l'onglet **« Collage texte »** échouait
+avec « 0 ajouté(s), N erreur(s) » quand la liste collée ne contenait que des
+noms + URLs LinkedIn (cas d'usage le plus fréquent : copier-coller depuis
+LinkedIn Sales Navigator ou un export sans en-têtes).
+
+### Causes
+
+1. **Backend** : `POST /api/prospects/create` laissait `company_id=0` quand
+   aucune entreprise n'était fournie, ce qui violait la contrainte
+   `FOREIGN KEY(company_id) REFERENCES companies(id)` (FK enforcée par
+   `PRAGMA foreign_keys = ON` dans `_conn()`). Toutes les insertions sans
+   entreprise échouaient avec `IntegrityError: FOREIGN KEY constraint failed`.
+2. **Frontend** : `parseDelimitedText()` consommait systématiquement la
+   première ligne collée comme en-têtes. Quand l'utilisateur collait
+   directement des données (sans ligne d'en-têtes), le premier prospect
+   était perdu.
+
+### Correctifs
+
+- **Backend** ([app.py:12700-12780](app.py)) : `api_prospect_create` désactive
+  temporairement les FK (`PRAGMA foreign_keys = OFF`) quand `company_id=0`,
+  comme le fait déjà `replace_all()` pour les imports en masse. Transaction
+  manuelle (`conn.commit()` / `conn.rollback()`) avec `try/finally` qui
+  réactive les FK et ferme la connexion proprement.
+- **Frontend** ([static/js/v30/prospects.js:2000](static/js/v30/prospects.js)) :
+  `parseDelimitedText()` détecte les collages sans en-têtes (aucune cellule
+  ne matche un nom de champ connu ET au moins une cellule ressemble à de la
+  donnée — URL, email, téléphone). Dans ce cas, des en-têtes synthétiques
+  (`Colonne 1`, `Colonne 2`, …) sont générés et toutes les lignes sont
+  conservées comme données. Le mapping est ensuite deviné par `guessField()`
+  via les valeurs réelles de chaque colonne (fallback déjà présent).
+- **UI** : message d'instruction de la modale d'import mis à jour pour
+  préciser que les en-têtes sont optionnels.
+
 ## [32.17.0] — 2026-04-30 · Import résumé PDF (Summary AI) sur la page Transcription
 
 Nouveau bouton **« Importer résumé PDF »** dans le header de
