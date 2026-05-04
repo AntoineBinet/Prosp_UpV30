@@ -130,9 +130,14 @@
       <div class="card v30-besoin-section">
         <div class="row-sb">
           <div class="card-title">Candidats positionnés</div>
-          <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-cand-add>
-            {{ ui.icon('plus', 13) }} Ajouter une ligne
-          </button>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-cand-search>
+              {{ ui.icon('search', 13) }} Chercher un candidat
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-cand-add>
+              {{ ui.icon('plus', 13) }} Ajouter une ligne
+            </button>
+          </div>
         </div>
         <div class="v30-besoin-cand-table-wrap">
           <table class="v30-besoin-cand-table" data-v30-besoin-cand-table>
@@ -226,6 +231,31 @@
     <div class="v30-modal__foot">
       <div class="v30-spacer"></div>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-link-close>Fermer</button>
+    </div>
+  </div>
+</div>
+
+{# ─── Modale recherche candidat ─── #}
+<div class="v30-modal-bd" data-v30-cand-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-cand-modal-title" style="max-width:520px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-cand-modal-title">
+        {{ ui.icon('search', 14) }} <span>Chercher un candidat</span>
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-cand-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body">
+      <div class="v30-field">
+        <label for="v30-cand-search-input">Rechercher</label>
+        <input type="text" id="v30-cand-search-input" class="input" placeholder="Nom, fonction, lieu…" autocomplete="off">
+      </div>
+      <div class="v30-besoin-link__results" data-v30-cand-results>
+        <p class="muted" style="margin:8px 0;font-size:12px;">Tape au moins 2 caractères pour chercher.</p>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-cand-close>Fermer</button>
     </div>
   </div>
 </div>

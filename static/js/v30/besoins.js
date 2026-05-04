@@ -147,6 +147,7 @@
     const ta = document.getElementById('v30-besoin-descriptif');
     if (ta) ta.value = '';
     md.hidden = false;
+    md.classList.add('is-open');
     setTimeout(() => {
       const f = document.getElementById('v30-besoin-intitule');
       if (f) f.focus();
@@ -155,7 +156,9 @@
 
   function closeModal() {
     const md = document.querySelector('[data-v30-besoin-modal]');
-    if (md) md.hidden = true;
+    if (!md) return;
+    md.classList.remove('is-open');
+    setTimeout(() => { md.hidden = true; }, 160);
   }
 
   function bindModal() {
