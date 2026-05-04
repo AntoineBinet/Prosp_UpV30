@@ -2,6 +2,51 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.17.2] — 2026-05-04 · Bulk edit étendu + valeurs par défaut à l'import
+
+### « Modifier en masse » : 6 nouveaux champs
+
+La modale **Prospects > sélection > Modifier** ne permettait que de changer
+`Statut`, `Pertinence` ou `Fonction`. Ajout de :
+
+- **Entreprise** — autocomplete avec `CompanyPicker` (recherche dans la
+  liste existante + création à la volée via la modale standard).
+- **Téléphone**, **Email**, **LinkedIn** — input texte (vide autorisé pour
+  effacer le champ).
+- **Notes** — textarea multilignes.
+- **Date de relance** — input `type="date"`.
+
+Le backend `/api/prospects/bulk-edit` acceptait déjà ces champs depuis
+v31.3+ (whitelist `ALLOWED_FIELDS`), seule l'UI manquait. Pour l'entreprise,
+la sélection envoie `company_id` (entier validé côté backend contre les
+entreprises de l'utilisateur).
+
+### Import : « Compléter les champs manquants pour tous les prospects »
+
+Nouvelle section dépliable dans l'étape de mapping de l'import (Excel /
+CSV / Collage texte / Collage IA). Permet de saisir une fois des
+**valeurs par défaut** appliquées à tous les prospects importés :
+
+- Entreprise (autocomplete CompanyPicker)
+- Fonction
+- Statut (liste `STATUS_OPTIONS`)
+- Pertinence (1-5)
+- Tags (séparés par virgules — fusionnés sans doublon avec les tags de la ligne)
+
+Les défauts **n'écrasent jamais** une valeur déjà présente dans la ligne
+importée. Cas d'usage typique : copier-coller une liste LinkedIn (noms +
+URLs) et appliquer la même entreprise / le même statut / les mêmes tags
+à tout le batch.
+
+### Fichiers touchés
+
+- `templates/v30/prospects.html` : 6 nouvelles options dans le `<select>`
+  bulk edit, nouvelle section `<details>` « Compléter les champs manquants ».
+- `static/js/v30/prospects.js` : `renderBulkEditValueInput` gère
+  `company_id`/`notes`/`nextFollowUp` ; `applyBulkEdit` lit la sélection
+  picker ; nouvelles fonctions `setupImportDefaults` / `readImportDefaults` /
+  `applyImportDefaults` ; reset des défauts dans `resetImportModal`.
+
 ## [32.17.1] — 2026-05-04 · Fix import en masse de prospects (sans entreprise / sans en-têtes)
 
 L'import en masse de prospects depuis l'onglet **« Collage texte »** échouait

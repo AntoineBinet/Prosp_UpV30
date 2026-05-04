@@ -1242,10 +1242,11 @@
   }
 
   // ─── Bulk Edit (champ + valeur) ───────────────────────────
-  var BULK_EDIT_CTX = { ids: [] };
+  var BULK_EDIT_CTX = { ids: [], companyPicker: null };
   function renderBulkEditValueInput(field) {
     var wrap = document.querySelector('[data-v30-bulk-edit-value-wrap]');
     if (!wrap) return;
+    BULK_EDIT_CTX.companyPicker = null;
     if (!field) { wrap.innerHTML = ''; return; }
     var html = '<label for="v30-pp-bulk-edit-value">Nouvelle valeur <span class="required" style="color:var(--danger);">*</span></label>';
     if (field === 'statut') {
@@ -1258,10 +1259,22 @@
         '<option value="">— Choisir —</option>' +
         ['5','4','3','2','1'].map(function (v) { return '<option value="' + v + '">' + v + '/5</option>'; }).join('') +
         '</select>';
+    } else if (field === 'company_id') {
+      html += '<input id="v30-pp-bulk-edit-value" class="input" type="text" data-v30-bulk-edit-value placeholder="Rechercher une entreprise ou en créer une…" autocomplete="off">' +
+        '<p class="muted" style="font-size:11.5px;margin:6px 0 0;">Sélectionne une entreprise existante ou utilise le bouton « Ajouter une entreprise » dans la liste pour en créer une.</p>';
+    } else if (field === 'notes') {
+      html += '<textarea id="v30-pp-bulk-edit-value" class="textarea" rows="4" data-v30-bulk-edit-value placeholder="Note à appliquer aux prospects sélectionnés…"></textarea>';
+    } else if (field === 'nextFollowUp') {
+      html += '<input id="v30-pp-bulk-edit-value" class="input" type="date" data-v30-bulk-edit-value>';
     } else {
       html += '<input id="v30-pp-bulk-edit-value" class="input" type="text" data-v30-bulk-edit-value placeholder="Nouvelle valeur…">';
     }
     wrap.innerHTML = html;
+    // Attach autocomplete entreprise
+    if (field === 'company_id' && window.CompanyPicker && typeof window.CompanyPicker.attachToInput === 'function') {
+      var input = wrap.querySelector('[data-v30-bulk-edit-value]');
+      if (input) BULK_EDIT_CTX.companyPicker = window.CompanyPicker.attachToInput(input, {});
+    }
   }
   function openBulkEditModal(ids) {
     BULK_EDIT_CTX = { ids: ids || [] };
@@ -1281,9 +1294,17 @@
     var fieldSel = document.querySelector('[data-v30-bulk-edit-field]');
     var field = fieldSel ? fieldSel.value : '';
     if (!field) { toast('Choisis un champ', 'warning'); return; }
-    var valEl = document.querySelector('[data-v30-bulk-edit-value]');
-    var value = valEl ? String(valEl.value || '').trim() : '';
-    if (!value) { toast('Saisis une valeur', 'warning'); return; }
+    var value;
+    if (field === 'company_id') {
+      var sel = BULK_EDIT_CTX.companyPicker && BULK_EDIT_CTX.companyPicker.getSelection();
+      if (!sel || !sel.id) { toast('Choisis une entreprise dans la liste (ou crées-en une)', 'warning'); return; }
+      value = sel.id;
+    } else {
+      var valEl = document.querySelector('[data-v30-bulk-edit-value]');
+      value = valEl ? String(valEl.value || '').trim() : '';
+      var ALLOW_EMPTY = { notes: 1, telephone: 1, email: 1, linkedin: 1, nextFollowUp: 1 };
+      if (!value && !ALLOW_EMPTY[field]) { toast('Saisis une valeur', 'warning'); return; }
+    }
     var btn = document.querySelector('[data-v30-bulk-edit-apply]');
     if (btn) btn.disabled = true;
     fetchPostJSON('/api/prospects/bulk-edit', { ids: ids, field: field, value: value })
@@ -1911,7 +1932,7 @@
   }
 
   // ─── Import (Excel / CSV / Collage / IA) ──────────────────
-  var IMP = { rows: [], headers: [], mapping: {}, activeTab: 'file', aiItems: null };
+  var IMP = { rows: [], headers: [], mapping: {}, activeTab: 'file', aiItems: null, defaultsCompanyPicker: null };
   var IMP_FIELDS = [
     { value: '', label: '— Ignorer' },
     { value: 'name', label: 'Nom complet' },
@@ -2096,11 +2117,83 @@
     var c = document.querySelector('[data-v30-imp-count]');
     if (c) c.textContent = IMP.rows.length;
     renderImportMapping();
+    setupImportDefaults();
     var run = document.querySelector('[data-v30-imp-run]');
     if (run) run.hidden = false;
   }
+  function setupImportDefaults() {
+    // Peuple le select statut à partir de STATUS_OPTIONS et branche le picker entreprise.
+    var statutSel = document.querySelector('[data-v30-imp-def-statut]');
+    if (statutSel && statutSel.options.length <= 1) {
+      STATUS_OPTIONS.forEach(function (s) {
+        var o = document.createElement('option');
+        o.value = s; o.textContent = s;
+        statutSel.appendChild(o);
+      });
+    }
+    var companyInput = document.querySelector('[data-v30-imp-def-company]');
+    if (companyInput && window.CompanyPicker && typeof window.CompanyPicker.attachToInput === 'function') {
+      // Évite double attach lors d'un nouvel import
+      if (!companyInput._cpAttached) {
+        IMP.defaultsCompanyPicker = window.CompanyPicker.attachToInput(companyInput, {});
+      } else {
+        IMP.defaultsCompanyPicker = companyInput._cpAttached;
+        IMP.defaultsCompanyPicker.clear();
+      }
+    }
+  }
+  function readImportDefaults() {
+    // Lit les valeurs par défaut renseignées dans l'étape mapping (toutes optionnelles).
+    var def = {};
+    if (IMP.defaultsCompanyPicker) {
+      var sel = IMP.defaultsCompanyPicker.getSelection();
+      if (sel && sel.id) {
+        def.company_id = sel.id;
+        if (sel.groupe) def.company_groupe = sel.groupe;
+        if (sel.site) def.company_site = sel.site;
+      }
+    }
+    var fonctionEl = document.querySelector('[data-v30-imp-def-fonction]');
+    if (fonctionEl && fonctionEl.value.trim()) def.fonction = fonctionEl.value.trim();
+    var statutEl = document.querySelector('[data-v30-imp-def-statut]');
+    if (statutEl && statutEl.value.trim()) def.statut = statutEl.value.trim();
+    var pertEl = document.querySelector('[data-v30-imp-def-pertinence]');
+    if (pertEl && pertEl.value.trim()) def.pertinence = pertEl.value.trim();
+    var tagsEl = document.querySelector('[data-v30-imp-def-tags]');
+    if (tagsEl && tagsEl.value.trim()) {
+      def.tags = tagsEl.value.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+    }
+    return def;
+  }
+  function applyImportDefaults(payload, defaults) {
+    // Merge : defaults n'écrase jamais une valeur déjà présente dans le payload (sauf tags qu'on cumule).
+    if (!payload || !defaults) return payload;
+    Object.keys(defaults).forEach(function (k) {
+      if (k === 'tags') {
+        var existing = Array.isArray(payload.tags) ? payload.tags : [];
+        var merged = existing.slice();
+        defaults.tags.forEach(function (t) { if (merged.indexOf(t) < 0) merged.push(t); });
+        payload.tags = merged;
+      } else if (payload[k] == null || payload[k] === '') {
+        payload[k] = defaults[k];
+      }
+    });
+    return payload;
+  }
   function resetImportModal() {
-    IMP = { rows: [], headers: [], mapping: {}, activeTab: 'file', aiItems: null };
+    IMP = { rows: [], headers: [], mapping: {}, activeTab: 'file', aiItems: null, defaultsCompanyPicker: null };
+    // Reset des valeurs par défaut (entreprise/fonction/statut/pertinence/tags)
+    ['fonction','statut','pertinence','tags'].forEach(function (k) {
+      var el = document.querySelector('[data-v30-imp-def-' + k + ']');
+      if (el) el.value = '';
+    });
+    var defCo = document.querySelector('[data-v30-imp-def-company]');
+    if (defCo) {
+      if (defCo._cpAttached && typeof defCo._cpAttached.clear === 'function') defCo._cpAttached.clear();
+      else defCo.value = '';
+    }
+    var defWrap = document.querySelector('[data-v30-imp-defaults-wrap]');
+    if (defWrap) defWrap.open = false;
     ['map','progress'].forEach(function (s) {
       var el = document.querySelector('[data-v30-imp-step="' + s + '"]');
       if (el) el.hidden = true;
@@ -2377,14 +2470,15 @@
     // Bouton "Importer" : route selon contexte (mapping ou aiItems)
     var run = document.querySelector('[data-v30-imp-run]');
     if (run) run.addEventListener('click', function () {
+      var defaults = readImportDefaults();
       // Collage IA : payloads déjà construits
       if (IMP.activeTab === 'ai' && Array.isArray(IMP.aiItems) && IMP.aiItems.length) {
-        runImportPayloads(IMP.aiItems);
+        runImportPayloads(IMP.aiItems.map(function (p) { return applyImportDefaults(p, defaults); }));
         return;
       }
       // Excel / CSV / Collage texte : build depuis mapping
       var rows = IMP.rows || [];
-      var payloads = rows.map(buildRowPayload);
+      var payloads = rows.map(buildRowPayload).map(function (p) { return applyImportDefaults(p, defaults); });
       runImportPayloads(payloads);
     });
   }

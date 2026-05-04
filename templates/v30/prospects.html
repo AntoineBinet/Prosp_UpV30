@@ -443,6 +443,42 @@
       <div data-v30-imp-step="map" hidden>
         <p class="muted" style="font-size: 12.5px; margin: 0 0 10px;"><strong data-v30-imp-count>0</strong> lignes détectées. Associe les colonnes :</p>
         <div data-v30-imp-mapping class="v30-imp-mapping"></div>
+
+        <details data-v30-imp-defaults-wrap style="margin-top: 16px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;">
+          <summary style="cursor: pointer; font-size: 13px; font-weight: 500;">{{ ui.icon('plus', 12) }} Compléter les champs manquants pour tous les prospects (optionnel)</summary>
+          <p class="muted" style="font-size: 11.5px; margin: 8px 0 12px;">Ces valeurs seront appliquées à <strong>tous les prospects importés</strong> qui n'ont pas déjà cette information dans leur ligne. Pratique quand tu importes une liste sans entreprise ou sans statut commun.</p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="v30-field">
+              <label for="v30-pp-imp-def-company">Entreprise</label>
+              <input id="v30-pp-imp-def-company" class="input" type="text" data-v30-imp-def-company placeholder="Choisir ou créer…" autocomplete="off">
+            </div>
+            <div class="v30-field">
+              <label for="v30-pp-imp-def-fonction">Fonction</label>
+              <input id="v30-pp-imp-def-fonction" class="input" type="text" data-v30-imp-def-fonction placeholder="Ex. Directeur Technique">
+            </div>
+            <div class="v30-field">
+              <label for="v30-pp-imp-def-statut">Statut</label>
+              <select id="v30-pp-imp-def-statut" class="select" data-v30-imp-def-statut>
+                <option value="">— Inchangé —</option>
+              </select>
+            </div>
+            <div class="v30-field">
+              <label for="v30-pp-imp-def-pertinence">Pertinence</label>
+              <select id="v30-pp-imp-def-pertinence" class="select" data-v30-imp-def-pertinence>
+                <option value="">— Inchangé —</option>
+                <option value="5">5/5</option>
+                <option value="4">4/5</option>
+                <option value="3">3/5</option>
+                <option value="2">2/5</option>
+                <option value="1">1/5</option>
+              </select>
+            </div>
+            <div class="v30-field" style="grid-column: 1 / -1;">
+              <label for="v30-pp-imp-def-tags">Tags <span class="muted" style="font-weight: normal;">(séparés par des virgules)</span></label>
+              <input id="v30-pp-imp-def-tags" class="input" type="text" data-v30-imp-def-tags placeholder="Ex. tech, lead chaud, salon">
+            </div>
+          </div>
+        </details>
       </div>
 
       {# Étape progression (partagée) #}
@@ -505,9 +541,15 @@
         <label for="v30-pp-bulk-edit-field">Champ à modifier <span class="required" style="color:var(--danger);">*</span></label>
         <select id="v30-pp-bulk-edit-field" class="select" data-v30-bulk-edit-field>
           <option value="">— Choisir un champ —</option>
+          <option value="company_id">Entreprise</option>
           <option value="statut">Statut</option>
           <option value="pertinence">Pertinence</option>
           <option value="fonction">Fonction</option>
+          <option value="telephone">Téléphone</option>
+          <option value="email">Email</option>
+          <option value="linkedin">LinkedIn</option>
+          <option value="notes">Notes</option>
+          <option value="nextFollowUp">Date de relance</option>
         </select>
       </div>
       <div class="v30-field" data-v30-bulk-edit-value-wrap>
