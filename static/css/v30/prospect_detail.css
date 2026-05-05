@@ -1189,6 +1189,16 @@ a.btn[aria-disabled="true"] {
 .v30-fp-ev:hover { background: var(--surface-2); }
 .v30-fp-ev.is-expanded { background: var(--surface-2); }
 
+/* Push row dans l'onglet Push — surbrillance temporaire à la navigation */
+.v30-fp-push-row {
+  border-radius: var(--r-sm);
+  transition: background var(--dur-2), box-shadow var(--dur-2);
+}
+.v30-fp-push-row.is-highlighted {
+  background: color-mix(in oklab, var(--accent) 14%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 40%, transparent);
+}
+
 /* Panel d'expansion inline */
 .v30-fp-ev__expand {
   grid-column: 3;

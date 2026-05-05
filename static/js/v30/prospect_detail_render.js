@@ -513,7 +513,7 @@
           consultants.map(function(n){ return FP.esc(n); }).join(', ') +
         '</div>';
       }
-      return '<div style="display:grid;grid-template-columns:80px 1fr auto;gap:10px;padding:8px 0;border-top:1px solid var(--border);align-items:start;">' +
+      return '<div class="v30-fp-push-row" data-push-id="' + FP.esc(p.id || '') + '" style="display:grid;grid-template-columns:80px 1fr auto;gap:10px;padding:8px 0;border-top:1px solid var(--border);align-items:start;">' +
         '<span class="mono" style="font-size:11px;color:var(--text-3);padding-top:2px;">' + FP.esc(FP.relativeTime(p.date)) + '</span>' +
         '<div>' +
           '<div style="font-size:12.5px;font-weight:500;">' + FP.esc(p.title || '—') + '</div>' +
