@@ -504,8 +504,12 @@
         var form = document.querySelector('[data-v30-note-form]');
         if (!form) return;
         form.style.display = 'block';
-        var ta = form.querySelector('[data-v30-note-text]');
-        if (ta) ta.focus();
+        var titleInput = form.querySelector('[data-v30-note-title]');
+        if (titleInput) titleInput.focus();
+        else {
+          var ta = form.querySelector('[data-v30-note-text]');
+          if (ta) ta.focus();
+        }
         return;
       }
       if (e.target.closest('[data-v30-note-cancel]')) {
@@ -514,6 +518,8 @@
           form.style.display = 'none';
           var ta = form.querySelector('[data-v30-note-text]');
           if (ta) ta.value = '';
+          var titleInput = form.querySelector('[data-v30-note-title]');
+          if (titleInput) titleInput.value = '';
         }
         return;
       }
@@ -523,16 +529,19 @@
         var ta = form.querySelector('[data-v30-note-text]');
         var text = ta ? ta.value.trim() : '';
         if (!text) { if (ta) ta.focus(); return; }
+        var titleInput = form.querySelector('[data-v30-note-title]');
+        var title = titleInput ? titleInput.value.trim() : '';
         var saveBtn = form.querySelector('[data-v30-note-save]');
         if (saveBtn) saveBtn.disabled = true;
         FP.fetchPostJSON('/api/prospect/events/add', {
           prospect_id: FP.ID,
-          title: 'Note',
+          title: title || 'Note',
           content: text
         }).then(function (res) {
           if (!res || !res.ok) throw new Error('Échec');
           form.style.display = 'none';
           if (ta) ta.value = '';
+          if (titleInput) titleInput.value = '';
           return FP.loadTimeline();
         }).then(function () {
           flashSaved();
@@ -2404,6 +2413,8 @@
         var evId = saveNoteBtn.dataset.evId;
         var evType = saveNoteBtn.dataset.evType;
         var noteIdx = saveNoteBtn.dataset.noteIndex;
+        var titleInput = form.querySelector('[data-v30-ev-edit-title]');
+        var newTitle = titleInput ? titleInput.value.trim() : null;
         var payload = { prospect_id: FP.ID, content: val };
         if (evType === 'call_note' && noteIdx !== '') {
           payload.source = 'note';
@@ -2411,6 +2422,7 @@
         } else if (evId) {
           payload.source = 'event';
           payload.id = Number(evId);
+          if (titleInput) payload.title = newTitle || 'Note';
         } else {
           toast('Édition impossible', 'warning'); return;
         }
@@ -2657,6 +2669,27 @@
       })
         .then(function () { ev.content = desc; })
         .catch(function (err) { toast('Erreur description : ' + err.message, 'error'); });
+    }, true);
+    document.addEventListener('blur', function (e) {
+      var titleInput = e.target.closest && e.target.closest('[data-v30-att-title]');
+      if (!titleInput) return;
+      var aId = Number(titleInput.dataset.attId);
+      var newTitle = (titleInput.value || '').trim();
+      var ev = (FP.STATE.events || []).find(function (x) { return x.type === 'attachment' && Number(x.id) === aId; });
+      if (!ev) return;
+      var current = (ev.meta && ev.meta.custom_title) || '';
+      if (current === newTitle) return;
+      FP.fetchJSON('/api/prospect/attachments/' + aId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle })
+      })
+        .then(function () {
+          if (ev.meta) ev.meta.custom_title = newTitle;
+          ev.title = newTitle || (ev.meta && ev.meta.original_name) || 'Fichier';
+          FP.loadTimeline();
+        })
+        .catch(function (err) { toast('Erreur titre : ' + err.message, 'error'); });
     }, true);
   }
 

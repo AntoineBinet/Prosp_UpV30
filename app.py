@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.19"
+APP_VERSION = "32.20"
 import os
 import uuid
 import subprocess
@@ -1736,6 +1736,7 @@ CREATE TABLE IF NOT EXISTS prospect_attachments (
     tags          TEXT,
     thumbnail     TEXT,
     extracted_text TEXT,
+    title         TEXT,
     createdAt     TEXT NOT NULL,
     FOREIGN KEY(prospect_id) REFERENCES prospects(id) ON DELETE CASCADE
 );
@@ -2574,6 +2575,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             pass
 
         # prospect_attachments (v32.0) — colonnes tags / thumbnail / extracted_text
+        # prospect_attachments (v32.2) — colonne title (titre éditable affiché en timeline)
         try:
             acols = [r["name"] for r in conn.execute("PRAGMA table_info(prospect_attachments);").fetchall()]
             if "tags" not in acols:
@@ -2582,6 +2584,8 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
                 _add_col("prospect_attachments", "thumbnail", "TEXT")
             if "extracted_text" not in acols:
                 _add_col("prospect_attachments", "extracted_text", "TEXT")
+            if "title" not in acols:
+                _add_col("prospect_attachments", "title", "TEXT")
         except Exception:
             pass
 
@@ -10148,7 +10152,7 @@ def api_prospect_timeline():
                     dict(r)
                     for r in conn2.execute(
                         """SELECT id, original_name, size, mime_type, description, tags,
-                                  thumbnail, meeting_id, createdAt
+                                  thumbnail, meeting_id, title, createdAt
                            FROM prospect_attachments
                            WHERE prospect_id = ? AND owner_id = ?
                            ORDER BY createdAt DESC
@@ -10270,16 +10274,18 @@ def api_prospect_timeline():
             a_tags = json.loads(a.get("tags") or "[]") or []
         except Exception:
             pass
+        custom_title = (a.get("title") or "").strip()
         events.append(
             {
                 "type": "attachment",
                 "date": a.get("createdAt") or "",
-                "title": a.get("original_name") or "Fichier",
+                "title": custom_title or a.get("original_name") or "Fichier",
                 "content": a.get("description") or "",
                 "source": "attachment",
                 "id": a.get("id"),
                 "meta": {
                     "original_name": a.get("original_name") or "",
+                    "custom_title": custom_title,
                     "size": a.get("size") or 0,
                     "mime_type": a.get("mime_type") or "",
                     "has_thumbnail": bool(a.get("thumbnail")),
@@ -10425,6 +10431,8 @@ def api_prospect_timeline_update():
     pid = payload.get("prospect_id")
     source = (payload.get("source") or "").strip()
     new_content = (payload.get("content") or "").strip()
+    has_title = "title" in payload
+    new_title = (payload.get("title") or "").strip()[:120] if has_title else None
     if not pid:
         return jsonify(ok=False, error="prospect_id requis"), 400
     try:
@@ -10449,10 +10457,16 @@ def api_prospect_timeline_update():
             ).fetchone()
             if not row:
                 return jsonify(ok=False, error="Événement introuvable"), 404
-            conn.execute(
-                "UPDATE prospect_events SET content=? WHERE id=? AND prospect_id=?;",
-                (new_content, ev_id_i, pid_i),
-            )
+            if has_title:
+                conn.execute(
+                    "UPDATE prospect_events SET content=?, title=? WHERE id=? AND prospect_id=?;",
+                    (new_content, new_title or "Note", ev_id_i, pid_i),
+                )
+            else:
+                conn.execute(
+                    "UPDATE prospect_events SET content=? WHERE id=? AND prospect_id=?;",
+                    (new_content, ev_id_i, pid_i),
+                )
             return jsonify(ok=True)
 
         # source == "note" : mise à jour dans le JSON callNotes du prospect
@@ -19549,6 +19563,10 @@ def api_prospect_attachment_update(att_id):
         desc = (body.get("description") or "").strip()[:500] or None
         sets.append("description = ?")
         vals.append(desc)
+    if "title" in body:
+        new_title = (body.get("title") or "").strip()[:120] or None
+        sets.append("title = ?")
+        vals.append(new_title)
     if "meeting_id" in body:
         mid = body.get("meeting_id")
         if mid is not None and mid != "":
