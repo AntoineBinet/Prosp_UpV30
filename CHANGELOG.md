@@ -2,6 +2,22 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.22] — 2026-05-05 · Lignes d'activité cliquables (fiche prospect)
+
+Sur la fiche prospect, les lignes de l'aperçu **Activité** (et de la timeline
+complète) deviennent des raccourcis directs vers le détail correspondant :
+
+- **Compte-rendu IA / CR** → ouvre directement le modal d'édition du CR (plus
+  besoin de déplier la ligne puis cliquer sur « Ouvrir le CR »).
+- **Push / Push email / Push LinkedIn** → bascule sur l'onglet **Push** et met
+  en surbrillance la ligne correspondante (scroll auto + halo accent 2 s).
+- **Notes**, **changements de statut**, **fichiers**, **événements IA**, etc.
+  conservent le comportement *expand/collapse* existant.
+
+Implémentation : interception du click dans `bindEventClicks()` avant la
+bascule expand. Les pushs sont identifiés par leur `id` via le nouvel attribut
+`data-push-id` ajouté dans `renderPushList()`.
+
 ## [32.21] — 2026-05-05 · Refonte UX candidats positionnés (Traitement Besoin)
 
 ### Cartes dépliables au lieu d'un tableau plat

@@ -2314,6 +2314,17 @@
     return events[idx];
   }
 
+  // Met en surbrillance la ligne push correspondante dans l'onglet Push.
+  function highlightPushRow(id) {
+    var host = document.querySelector('[data-v30-fp-push-list]');
+    if (!host) return;
+    var row = host.querySelector('[data-push-id="' + id + '"]');
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('is-highlighted');
+    setTimeout(function () { row.classList.remove('is-highlighted'); }, 2000);
+  }
+
   function bindEventClicks() {
     document.addEventListener('click', function (e) {
       // Boutons d'action à l'intérieur d'un expand : ne pas toggle
@@ -2322,11 +2333,27 @@
       } else {
         var evEl = e.target.closest('.v30-fp-ev');
         if (evEl && evEl.dataset.v30EvIdx != null) {
-          // Toggle expand
           var idx = Number(evEl.dataset.v30EvIdx);
           var filter = evEl.dataset.v30EvFilter || 'all';
           var ev = findEvent(filter, idx);
           if (!ev) return;
+
+          // Navigation directe pour CR : ouvre le modal du compte-rendu
+          if ((ev.type || '') === 'cr' && ev.id) {
+            if (typeof openAfterModal === 'function') openAfterModal({ meetingId: Number(ev.id) });
+            return;
+          }
+          // Navigation directe pour Push : bascule sur l'onglet Push et met en surbrillance
+          if ((ev.type || '').indexOf('push') === 0) {
+            var pushTabBtn = document.querySelector('[data-v30-fp-tabs] button[data-tab="push"]');
+            if (pushTabBtn) pushTabBtn.click();
+            if (ev.id) {
+              setTimeout(function () { highlightPushRow(Number(ev.id)); }, 80);
+            }
+            return;
+          }
+
+          // Sinon : toggle expand (comportement par défaut)
           var isExpanded = evEl.classList.contains('is-expanded');
           if (isExpanded) {
             evEl.classList.remove('is-expanded');
