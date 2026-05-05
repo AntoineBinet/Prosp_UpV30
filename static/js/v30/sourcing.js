@@ -25,6 +25,9 @@
     if (!parts.length) return '??';
     return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
   }
+  function colForStatus(statut) { return COLS[findColForStatus(statut)]; }
+  function statusLabel(statut) { return colForStatus(statut).title; }
+  function statusKey(statut) { return colForStatus(statut).key; }
   function parseSkills(raw) {
     if (!raw) return [];
     if (Array.isArray(raw)) return raw.filter(Boolean);
@@ -111,6 +114,32 @@
   }
 
   // ─── Render ──────────────────────────────────────────────
+  var KEBAB_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg>';
+  var MAIL_SVG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+  var PHONE_SVG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+  var LINKEDIN_SVG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 0h-14C2.24 0 0 2.24 0 5v14c0 2.76 2.24 5 5 5h14c2.76 0 5-2.24 5-5V5c0-2.76-2.24-5-5-5zM8 19H5V8h3v11zM6.5 6.7c-1 0-1.7-.7-1.7-1.6s.7-1.6 1.8-1.6 1.7.7 1.7 1.6-.7 1.6-1.8 1.6zM20 19h-3v-5.6c0-1.5-.6-2.4-1.8-2.4-1 0-1.5.7-1.8 1.4-.1.2-.1.6-.1.9V19h-3V8h3v1.3c.4-.6 1.1-1.5 2.6-1.5 1.9 0 3.1 1.2 3.1 3.7V19z"/></svg>';
+
+  function renderStatusPill(c) {
+    var col = colForStatus(c.status);
+    return '<button type="button" class="v30-sc-pill" data-action="status" data-id="' + c.id + '" '
+      + 'style="--pill-color:' + col.color + ';" title="Changer de statut">'
+      + '<span class="v30-sc-pill__dot"></span>'
+      + esc(col.title)
+      + '</button>';
+  }
+
+  function renderContactRow(c) {
+    var parts = [];
+    if (c.email) parts.push('<a class="v30-sc-card__link" href="mailto:' + esc(c.email) + '" title="' + esc(c.email) + '" onclick="event.stopPropagation();">' + MAIL_SVG + '</a>');
+    if (c.phone || c.telephone) {
+      var phone = c.phone || c.telephone;
+      parts.push('<a class="v30-sc-card__link" href="tel:' + esc(phone) + '" title="' + esc(phone) + '" onclick="event.stopPropagation();">' + PHONE_SVG + '</a>');
+    }
+    if (c.linkedin) parts.push('<a class="v30-sc-card__link" href="' + esc(c.linkedin) + '" target="_blank" rel="noopener" title="LinkedIn" onclick="event.stopPropagation();">' + LINKEDIN_SVG + '</a>');
+    if (!parts.length) return '';
+    return '<div class="v30-sc-card__contacts">' + parts.join('') + '</div>';
+  }
+
   function renderCard(c) {
     var skills = parseSkills(c.skills || c.tech);
     var shown = skills.slice(0, 3);
@@ -118,16 +147,18 @@
     var role = c.titre || c.role || c.seniority || c.domaine_principal || '—';
     var location = c.location || '';
     var sel = STATE.selected.has(c.id);
-    return '<div class="v30-sc-card' + (sel ? ' is-selected' : '') + '" data-id="' + c.id + '" data-kcard-id="' + c.id + '" data-kcard-status="' + esc(c.status || '') + '" draggable="true">' +
+    var key = statusKey(c.status);
+    return '<div class="v30-sc-card v30-sc-card--' + esc(key) + (sel ? ' is-selected' : '') + '" data-id="' + c.id + '" data-kcard-id="' + c.id + '" data-kcard-status="' + esc(c.status || '') + '" draggable="true">' +
       '<div class="v30-sc-card__head">' +
-        '<input type="checkbox" data-v30-sc-select' + (sel ? ' checked' : '') + ' style="margin-right:4px;" aria-label="Sélectionner">' +
-        '<a href="/v30/candidat/' + c.id + '" class="avatar" title="Voir fiche" style="text-decoration:none;color:inherit;" draggable="false">' + esc(initials(c.name)) + '</a>' +
-        '<div style="flex:1;min-width:0;">' +
-          '<a href="/v30/candidat/' + c.id + '" style="text-decoration:none;color:inherit;" draggable="false">' +
+        '<input type="checkbox" data-v30-sc-select' + (sel ? ' checked' : '') + ' aria-label="Sélectionner">' +
+        '<a href="/v30/candidat/' + c.id + '" class="avatar" title="Voir fiche" draggable="false">' + esc(initials(c.name)) + '</a>' +
+        '<div class="v30-sc-card__title">' +
+          '<a href="/v30/candidat/' + c.id + '" draggable="false">' +
             '<div class="v30-sc-card__name truncate">' + esc(c.name || '—') + '</div>' +
             '<div class="v30-sc-card__role truncate">' + esc(role) + '</div>' +
           '</a>' +
         '</div>' +
+        '<button type="button" class="v30-sc-card__kebab" data-action="menu" data-id="' + c.id + '" aria-label="Actions" title="Actions">' + KEBAB_SVG + '</button>' +
       '</div>' +
       (shown.length
         ? '<div class="v30-sc-card__skills">' +
@@ -135,12 +166,16 @@
             (extra > 0 ? '<span class="badge muted">+' + extra + '</span>' : '') +
           '</div>'
         : '') +
-      (location
-        ? '<div class="v30-sc-card__meta">' +
-            '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>' +
-            esc(location) +
-          '</div>'
-        : '') +
+      '<div class="v30-sc-card__foot">' +
+        renderStatusPill(c) +
+        (location
+          ? '<span class="v30-sc-card__meta">' +
+              '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 21s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z"/></svg>' +
+              esc(location) +
+            '</span>'
+          : '') +
+        renderContactRow(c) +
+      '</div>' +
     '</div>';
   }
 
@@ -152,14 +187,20 @@
     host.innerHTML = COLS.map(function (col, i) {
       var items = buckets[i];
       var body = items.length === 0
-        ? '<div class="v30-pp-empty" style="padding:16px 8px;font-size:12px;">—</div>'
+        ? '<button type="button" class="v30-sc-col__empty" data-action="add-here" data-status="' + col.primary + '" data-status-label="' + esc(col.title) + '">'
+            + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+            + '<span>Ajouter dans ' + esc(col.title) + '</span>'
+          + '</button>'
         : items.map(renderCard).join('');
-      return '<div class="v30-sc-col" data-kcol-idx="' + i + '" data-kcol-status="' + col.key + '">' +
+      return '<div class="v30-sc-col" data-kcol-idx="' + i + '" data-kcol-status="' + col.key + '" style="--col-color:' + col.color + ';">' +
         '<div class="v30-sc-col__head">' +
-          '<span class="v30-sc-col__dot" style="background:' + col.color + ';"></span>' +
+          '<span class="v30-sc-col__dot"></span>' +
           '<span class="v30-sc-col__title">' + esc(col.title) + '</span>' +
           '<span class="v30-sc-col__count num">' + items.length + '</span>' +
           '<div class="v30-spacer"></div>' +
+          '<button type="button" class="v30-sc-col__add" data-action="add-here" data-status="' + col.primary + '" data-status-label="' + esc(col.title) + '" aria-label="Ajouter un candidat dans ' + esc(col.title) + '" title="Ajouter dans ' + esc(col.title) + '">'
+            + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+          + '</button>' +
         '</div>' + body +
       '</div>';
     }).join('');
@@ -170,30 +211,43 @@
     var host = $('[data-v30-sc-grid]');
     if (!host) return;
     if (STATE.filtered.length === 0) {
-      host.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:20px;">Aucun candidat pour ce filtre.</div>';
+      host.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:20px;">Aucun candidat pour ces filtres.</div>';
       return;
     }
     host.innerHTML = STATE.filtered.map(function (c) {
-      var skills = parseSkills(c.skills || c.tech).slice(0, 4);
+      var skills = parseSkills(c.skills || c.tech);
+      var shown = skills.slice(0, 4);
+      var extra = skills.length - 4;
       var sel = STATE.selected.has(c.id);
-      return '<div class="card v30-sc-card' + (sel ? ' is-selected' : '') + '" style="padding:12px;" data-id="' + c.id + '">' +
+      var key = statusKey(c.status);
+      var role = c.titre || c.role || c.seniority || c.domaine_principal || '—';
+      return '<div class="v30-sc-card v30-sc-card--grid v30-sc-card--' + esc(key) + (sel ? ' is-selected' : '') + '" data-id="' + c.id + '">' +
         '<div class="v30-sc-card__head">' +
-          '<input type="checkbox" data-v30-sc-select' + (sel ? ' checked' : '') + ' style="margin-right:4px;" aria-label="Sélectionner">' +
-          '<span class="avatar avatar-md">' + esc(initials(c.name)) + '</span>' +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="font-size:13px;font-weight:500;" class="truncate">' + esc(c.name || '—') + '</div>' +
-            '<div style="font-size:11.5px;color:var(--text-3);" class="truncate">' + esc(c.role || c.seniority || '—') + '</div>' +
+          '<input type="checkbox" data-v30-sc-select' + (sel ? ' checked' : '') + ' aria-label="Sélectionner">' +
+          '<a href="/v30/candidat/' + c.id + '" class="avatar avatar-md" title="Voir fiche">' + esc(initials(c.name)) + '</a>' +
+          '<div class="v30-sc-card__title">' +
+            '<a href="/v30/candidat/' + c.id + '">' +
+              '<div class="v30-sc-card__name truncate">' + esc(c.name || '—') + '</div>' +
+              '<div class="v30-sc-card__role truncate">' + esc(role) + '</div>' +
+            '</a>' +
           '</div>' +
+          '<button type="button" class="v30-sc-card__kebab" data-action="menu" data-id="' + c.id + '" aria-label="Actions" title="Actions">' + KEBAB_SVG + '</button>' +
         '</div>' +
-        (skills.length
-          ? '<div class="v30-sc-card__skills" style="margin-top:10px;">' +
-              skills.map(function (s) { return '<span class="badge">' + esc(s) + '</span>'; }).join('') +
+        (shown.length
+          ? '<div class="v30-sc-card__skills">' +
+              shown.map(function (s) { return '<span class="badge">' + esc(s) + '</span>'; }).join('') +
+              (extra > 0 ? '<span class="badge muted">+' + extra + '</span>' : '') +
             '</div>'
           : '') +
-        (c.location ? '<div class="v30-sc-card__meta" style="margin-top:8px;">' + esc(c.location) + '</div>' : '') +
-        '<div style="display:flex;gap:6px;margin-top:10px;">' +
-          '<a class="btn btn-sm" href="/v30/candidat/' + c.id + '">Voir fiche</a>' +
-          '<span class="muted" style="font-size:11px;align-self:center;">' + esc(c.status || '—') + '</span>' +
+        '<div class="v30-sc-card__foot">' +
+          renderStatusPill(c) +
+          (c.location
+            ? '<span class="v30-sc-card__meta">' +
+                '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 21s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z"/></svg>' +
+                esc(c.location) +
+              '</span>'
+            : '') +
+          renderContactRow(c) +
         '</div>' +
       '</div>';
     }).join('');
@@ -225,9 +279,184 @@
       card.classList.toggle('is-selected', cb.checked);
       renderBulk();
     });
+  }
+
+  // ─── Quick status change + card menu popover ────────────
+  var POP = null;
+  function closePop() {
+    if (POP && POP.parentNode) POP.parentNode.removeChild(POP);
+    POP = null;
+    document.removeEventListener('click', onDocClickClosePop, true);
+    document.removeEventListener('keydown', onKeyClosePop, true);
+    window.removeEventListener('scroll', closePop, true);
+    window.removeEventListener('resize', closePop, true);
+  }
+  function onDocClickClosePop(e) {
+    if (POP && POP.contains(e.target)) return;
+    closePop();
+  }
+  function onKeyClosePop(e) { if (e.key === 'Escape') closePop(); }
+
+  function openPop(anchor, html) {
+    closePop();
+    var pop = document.createElement('div');
+    pop.className = 'v30-sc-pop';
+    pop.innerHTML = html;
+    document.body.appendChild(pop);
+    var r = anchor.getBoundingClientRect();
+    var pw = pop.offsetWidth;
+    var ph = pop.offsetHeight;
+    var left = Math.max(8, Math.min(r.left, window.innerWidth - pw - 8));
+    var top = r.bottom + 6;
+    if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+    POP = pop;
+    setTimeout(function () {
+      document.addEventListener('click', onDocClickClosePop, true);
+      document.addEventListener('keydown', onKeyClosePop, true);
+      window.addEventListener('scroll', closePop, true);
+      window.addEventListener('resize', closePop, true);
+    }, 0);
+  }
+
+  function quickStatusChange(id, newStatus) {
+    var cand = STATE.candidates.find(function (c) { return c.id === id; });
+    if (!cand) return;
+    if (cand.status === newStatus) return;
+    var oldStatus = cand.status;
+    cand.status = newStatus;
+    applyFilter();
+    fetchPost('/api/candidates/bulk-update', { ids: [id], field: 'status', value: newStatus })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+        toast('Statut mis à jour', 'success');
+      })
+      .catch(function (err) {
+        cand.status = oldStatus;
+        applyFilter();
+        toast('Erreur : ' + err.message, 'error');
+      });
+  }
+
+  function openStatusPop(anchor, id) {
+    var cand = STATE.candidates.find(function (c) { return c.id === id; });
+    var current = cand ? statusKey(cand.status) : '';
+    var html = '<div class="v30-sc-pop__title">Changer de statut</div>'
+      + '<div class="v30-sc-pop__list">'
+      + COLS.map(function (col) {
+          var active = col.key === current;
+          return '<button type="button" class="v30-sc-pop__item' + (active ? ' is-active' : '') + '" '
+            + 'data-pop-status="' + esc(col.primary) + '" style="--pill-color:' + col.color + ';">'
+            + '<span class="v30-sc-pop__dot"></span>'
+            + esc(col.title)
+            + (active ? '<span class="v30-sc-pop__check">✓</span>' : '')
+            + '</button>';
+        }).join('')
+      + '</div>';
+    openPop(anchor, html);
+    if (POP) POP.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-pop-status]');
+      if (!b) return;
+      quickStatusChange(id, b.dataset.popStatus);
+      closePop();
+    });
+  }
+
+  function openCardMenu(anchor, id) {
+    var html = '<div class="v30-sc-pop__list">'
+      + '<a class="v30-sc-pop__item" href="/v30/candidat/' + id + '">'
+      +   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>'
+      +   ' Ouvrir la fiche'
+      + '</a>'
+      + '<button type="button" class="v30-sc-pop__item" data-menu-action="status">'
+      +   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
+      +   ' Changer de statut'
+      + '</button>'
+      + '<button type="button" class="v30-sc-pop__item" data-menu-action="select">'
+      +   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+      +   ' Ajouter à la sélection'
+      + '</button>'
+      + '<div class="v30-sc-pop__sep"></div>'
+      + '<button type="button" class="v30-sc-pop__item v30-sc-pop__item--danger" data-menu-action="delete">'
+      +   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
+      +   ' Supprimer'
+      + '</button>'
+      + '</div>';
+    openPop(anchor, html);
+    if (POP) POP.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-menu-action]');
+      if (!btn) return;
+      var action = btn.dataset.menuAction;
+      var anchorEl = anchor;
+      closePop();
+      if (action === 'status') {
+        openStatusPop(anchorEl, id);
+      } else if (action === 'select') {
+        STATE.selected.add(id);
+        var cb = document.querySelector('[data-id="' + id + '"] [data-v30-sc-select]');
+        if (cb) cb.checked = true;
+        var card = document.querySelector('[data-id="' + id + '"]');
+        if (card) card.classList.add('is-selected');
+        renderBulk();
+      } else if (action === 'delete') {
+        if (!confirm('Supprimer ce candidat ?')) return;
+        fetchPost('/api/candidates/delete', { id: id })
+          .then(function (res) {
+            if (!res || !res.ok) throw new Error((res && res.error) || 'Erreur');
+            toast('Candidat supprimé', 'success');
+            reload();
+          })
+          .catch(function (err) { toast('Erreur : ' + err.message, 'error'); });
+      }
+    });
+  }
+
+  function openAddInColumn(statusKey, statusLabel) {
+    var m = getModal('sc-add');
+    if (!m) return;
+    var sel = document.getElementById('v30-sc-add-status');
+    if (sel) {
+      var found = false;
+      for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === statusKey) { sel.selectedIndex = i; found = true; break; }
+      }
+      if (!found && statusKey) {
+        var opt = document.createElement('option');
+        opt.value = statusKey;
+        opt.textContent = statusLabel || statusKey;
+        sel.appendChild(opt);
+        sel.value = statusKey;
+      }
+    }
+    openModal(m);
+  }
+
+  function bindCardActions() {
     document.addEventListener('click', function (e) {
-      if (e.target.closest('[data-v30-sc-select]') || e.target.closest('a') || e.target.closest('button')) return;
-      // Désactivé : pas de toggle au clic du card, uniquement checkbox (évite conflit avec lien avatar/nom)
+      // Status pill (inside card foot)
+      var pill = e.target.closest('[data-action="status"]');
+      if (pill && pill.classList.contains('v30-sc-pill')) {
+        e.preventDefault();
+        e.stopPropagation();
+        openStatusPop(pill, Number(pill.dataset.id));
+        return;
+      }
+      // Kebab menu
+      var kebab = e.target.closest('[data-action="menu"]');
+      if (kebab) {
+        e.preventDefault();
+        e.stopPropagation();
+        openCardMenu(kebab, Number(kebab.dataset.id));
+        return;
+      }
+      // Empty-column "Add here" / column "+" header
+      var addHere = e.target.closest('[data-action="add-here"]');
+      if (addHere) {
+        e.preventDefault();
+        openAddInColumn(addHere.dataset.status, addHere.dataset.statusLabel);
+        return;
+      }
     });
   }
 
@@ -1001,6 +1230,39 @@
     });
   }
 
+  // ─── Keyboard shortcuts ──────────────────────────────────
+  function bindShortcuts() {
+    document.addEventListener('keydown', function (e) {
+      var tag = (e.target && e.target.tagName) || '';
+      var inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable);
+      if (inField) return;
+      // "/" focuses search
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+        var input = $('[data-v30-sc-search]');
+        if (input) { e.preventDefault(); input.focus(); input.select(); }
+        return;
+      }
+      // Escape clears the selection
+      if (e.key === 'Escape' && STATE.selected.size > 0) {
+        STATE.selected.clear();
+        applyFilter();
+        renderBulk();
+      }
+    });
+  }
+
+  function bindSelectAll() {
+    var bar = $('[data-v30-sc-bulk]');
+    if (!bar) return;
+    bar.addEventListener('click', function (e) {
+      var sa = e.target.closest('[data-action="select-all"]');
+      if (!sa) return;
+      STATE.filtered.forEach(function (c) { STATE.selected.add(c.id); });
+      applyFilter();
+      renderBulk();
+    });
+  }
+
   function init() {
     bindModalDismiss();
     bindViewSwitch();
@@ -1009,9 +1271,12 @@
     bindFilters();
     bindBulk();
     bindSelection();
+    bindCardActions();
     bindMatchClose();
     bindInmails();
     bindImport();
+    bindShortcuts();
+    bindSelectAll();
     reload().then(function () {
       if (window.location.hash === '#inmails') {
         switchToView('inmails');
