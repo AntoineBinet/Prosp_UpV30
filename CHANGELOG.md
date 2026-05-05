@@ -2,6 +2,45 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.24] — 2026-05-05 · Page Candidats : fix HTTP 500 + refonte UX
+
+### Fix critique — bulk-update statut
+
+- `POST /api/candidates/bulk-update` retournait systématiquement **HTTP 500**
+  (Internal Server Error) à chaque modification de statut depuis la page
+  Candidats — drag & drop kanban et action bulk inclus. Cause : un appel à
+  une fonction inexistante `_get_user_db()` (renommée `_user_db_path()` lors
+  d'une refonte antérieure). L'erreur cassait le changement de statut sur la
+  page Candidats.
+- L'endpoint utilise maintenant le helper standard `_conn()` (per-user DB
+  automatique) et synchronise `is_archived` avec le nouveau statut, comme le
+  fait déjà `/api/candidates/status`. Les goal events sont également loggés
+  pour chaque candidat impacté.
+
+### Page Candidats — refonte UX
+
+- **Pastille de statut cliquable** sur chaque carte (Pipeline et Grille). Un
+  clic ouvre un popover avec la liste des 5 statuts (EC1, OKSI, Top Profils,
+  RT, En mission) — utile sur mobile et en vue Grille où le drag & drop
+  n'existe pas.
+- **Menu kebab (⋯)** sur chaque carte : ouvrir la fiche, changer de statut,
+  ajouter à la sélection, supprimer.
+- **Empty state actionnable** : les colonnes vides du kanban affichent un
+  bouton « Ajouter dans <statut> » qui pré-remplit le statut dans la modale
+  d'ajout. Bouton « + » discret sur l'en-tête de chaque colonne pour ajouter
+  un candidat directement dans cette colonne.
+- **Accent couleur par statut** : barre verticale colorée à gauche de chaque
+  carte selon son statut, hover et focus harmonisés sur la même couleur.
+- **Icônes de contact** (mail / téléphone / LinkedIn) en bas de carte —
+  cliquables sans ouvrir la fiche, parfait pour passer un appel ou écrire un
+  mail rapide.
+- **Tout sélectionner** ajouté à la barre bulk — sélectionne tous les
+  candidats actuellement filtrés.
+- **Raccourcis clavier** : `/` focus la recherche, `Échap` efface la
+  sélection.
+- Vue Grille refondue : même apparence que les cartes Pipeline (cohérence
+  visuelle), avec pastille de statut et icônes de contact.
+
 ## [32.23] — 2026-05-05 · Lignes d'activité cliquables (fiche prospect)
 
 Sur la fiche prospect, les lignes de l'aperçu **Activité** (et de la timeline

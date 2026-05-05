@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.23"
+APP_VERSION = "32.24"
 import os
 import uuid
 import subprocess
@@ -7844,7 +7844,11 @@ def api_candidates_set_status():
 
 @app.post("/api/candidates/bulk-update")
 def api_candidates_bulk_update():
-    """Bulk update a whitelisted field for selected candidates (owner only)."""
+    """Bulk update a whitelisted field for selected candidates (owner only).
+
+    Currently supports field='status'. Keeps `is_archived` in sync with the new
+    status (mirrors /api/candidates/status) and logs goal events per candidate.
+    """
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
@@ -7856,26 +7860,67 @@ def api_candidates_bulk_update():
     if field not in ALLOWED_FIELDS or not ids:
         return jsonify(ok=False, error="Requête invalide"), 400
     try:
-        ids = [int(i) for i in ids]
+        ids = [int(i) for i in ids if i is not None]
     except (TypeError, ValueError):
         return jsonify(ok=False, error="IDs invalides"), 400
+    if not ids:
+        return jsonify(ok=False, error="IDs invalides"), 400
+
     col = ALLOWED_FIELDS[field]
+    value = (value or "").strip() if isinstance(value, str) else value
     now = datetime.datetime.now().isoformat(timespec="seconds")
-    db_path = _get_user_db(uid)
-    conn = sqlite3.connect(db_path)
+    event_date = now[:10]
+
+    # Sync is_archived when the bulk update targets the status column
+    is_archived = None
+    if col == "status":
+        st = (value or "").lower()
+        _ARCHIVE_STATUSES = {"nok_prequal", "nok", "plus_disponible", "refus_contrat", "hors_aura", "archive"}
+        _ACTIVE_STATUSES = {
+            "nouveau", "proposition", "entretien", "a_faire", "oksi", "top_profil",
+            "reunion_tech", "valide_contrat", "freelance", "freelance_mission",
+            # legacy
+            "a_sourcer", "a_contacter", "en_cours", "ec1", "ec2", "ed",
+            "interesse", "mission", "embauche", "refuse",
+        }
+        if st in _ARCHIVE_STATUSES:
+            is_archived = 1
+        elif st in _ACTIVE_STATUSES:
+            is_archived = 0
+
     try:
-        placeholders = ",".join("?" * len(ids))
-        conn.execute(
-            f"UPDATE candidates SET {col}=?, updatedAt=? WHERE id IN ({placeholders}) AND owner_id=? AND deleted_at IS NULL",
-            [value, now] + ids + [uid],
-        )
-        conn.commit()
-        updated = conn.execute("SELECT changes()").fetchone()[0]
-        return jsonify(ok=True, updated=updated)
+        with _conn() as conn:
+            placeholders = ",".join("?" * len(ids))
+            old_rows = conn.execute(
+                f"SELECT id, status FROM candidates WHERE id IN ({placeholders}) AND owner_id=? AND deleted_at IS NULL;",
+                ids + [uid],
+            ).fetchall()
+            old_status_by_id = {r["id"]: r["status"] for r in old_rows}
+
+            if col == "status" and is_archived is not None:
+                cur = conn.execute(
+                    f"UPDATE candidates SET status=?, is_archived=?, updatedAt=? "
+                    f"WHERE id IN ({placeholders}) AND owner_id=? AND deleted_at IS NULL;",
+                    [value, is_archived, now] + ids + [uid],
+                )
+            else:
+                cur = conn.execute(
+                    f"UPDATE candidates SET {col}=?, updatedAt=? "
+                    f"WHERE id IN ({placeholders}) AND owner_id=? AND deleted_at IS NULL;",
+                    [value, now] + ids + [uid],
+                )
+            updated = cur.rowcount
+
+            if col == "status":
+                for cid, old_status in old_status_by_id.items():
+                    try:
+                        _maybe_log_candidate_events(conn, int(cid), old_status, value, event_date)
+                    except Exception:
+                        pass
+        return jsonify(ok=True, updated=updated, updatedAt=now)
     except Exception as exc:
+        logger.exception("api_candidates_bulk_update failed")
         return jsonify(ok=False, error=str(exc)), 500
-    finally:
-        conn.close()
 
 
 @app.post("/api/candidate-push")
