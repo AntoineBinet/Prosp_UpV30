@@ -2,13 +2,13 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.22] — 2026-05-05 · Lignes d'activité cliquables (fiche prospect)
+## [32.23] — 2026-05-05 · Lignes d'activité cliquables (fiche prospect)
 
 Sur la fiche prospect, les lignes de l'aperçu **Activité** (et de la timeline
 complète) deviennent des raccourcis directs vers le détail correspondant :
 
-- **Compte-rendu IA / CR** → ouvre directement le modal d'édition du CR (plus
-  besoin de déplier la ligne puis cliquer sur « Ouvrir le CR »).
+- **Compte-rendu IA / CR** → ouvre directement la **vue présentation** du CR
+  (modale lecture seule introduite en 32.22), plus besoin de déplier la ligne.
 - **Push / Push email / Push LinkedIn** → bascule sur l'onglet **Push** et met
   en surbrillance la ligne correspondante (scroll auto + halo accent 2 s).
 - **Notes**, **changements de statut**, **fichiers**, **événements IA**, etc.
@@ -17,6 +17,30 @@ complète) deviennent des raccourcis directs vers le détail correspondant :
 Implémentation : interception du click dans `bindEventClicks()` avant la
 bascule expand. Les pushs sont identifiés par leur `id` via le nouvel attribut
 `data-push-id` ajouté dans `renderPushList()`.
+
+## [32.22] — 2026-05-05 · Vue présentation lecture seule pour les comptes-rendus
+
+### Fiche prospect — onglet CR
+
+- Cliquer sur un compte-rendu ouvre désormais une **vue présentation** en
+  lecture seule, mise en forme avec sections distinctes (Synthèse, Prochaine
+  action, Infos clés, Tâches, Documents, Notes brutes repliables, Grille de
+  qualification). Plus de saisie directe par mégarde.
+- Bouton **Modifier** dans le footer de la vue présentation pour ouvrir la
+  modale d'édition existante (le flux d'édition n'est pas modifié).
+- Les sections vides ne s'affichent pas — la vue est compacte si le CR est
+  léger, riche s'il est rempli.
+- Tâches : statut visuel (cochée / à faire), priorité colorée, échéance.
+
+### Fichiers modifiés
+
+- [templates/v30/prospect_detail.html](templates/v30/prospect_detail.html) —
+  nouvelle modale `data-v30-fp-modal="cr-view"`.
+- [static/js/v30/prospect_detail_ui.js](static/js/v30/prospect_detail_ui.js) —
+  `openCRViewModal()` + `renderCRView()`, redirection du clic carte CR vers la
+  vue, handler du bouton Modifier.
+- [static/css/v30/prospect_detail.css](static/css/v30/prospect_detail.css) —
+  bloc `.v30-cr-view__*`.
 
 ## [32.21] — 2026-05-05 · Refonte UX candidats positionnés (Traitement Besoin)
 
