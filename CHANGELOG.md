@@ -2,6 +2,27 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.20] — 2026-05-05 · Titres éditables sur notes manuelles et fichiers (fiche prospect)
+
+### Notes manuelles
+
+- Le formulaire **+ Note** (Activité) accueille un champ **Titre (optionnel)**
+  avant le contenu. Vide → titre par défaut « Note ».
+- Le titre s'affiche dans la timeline et reste éditable depuis la modale
+  d'édition d'une note (clic sur la note → édition inline).
+- Backend `/api/prospect/timeline/update` accepte désormais `title` en plus
+  de `content` pour les events DB (`source = "event"`).
+
+### Fichiers / pièces jointes
+
+- Nouvelle colonne `prospect_attachments.title` (migration auto). Si vide,
+  fallback sur `original_name` comme avant.
+- Le panneau d'expansion d'une pièce jointe affiche un input **Titre**
+  (placeholder = nom de fichier original). Le nom de fichier réel reste
+  visible juste en dessous, en grisé.
+- Sauvegarde sur blur via `PATCH /api/prospect/attachments/<id>` (clé
+  `title`).
+
 ## [32.18.1] — 2026-05-04 · Bulk edit étendu + valeurs par défaut à l'import
 
 ### « Modifier en masse » : 6 nouveaux champs

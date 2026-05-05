@@ -274,7 +274,19 @@
         '<button type="button" class="btn btn-ghost btn-sm" data-v30-ev-open-cr data-cr-id="' + FP.esc(e.id) + '">Ouvrir le CR</button>' +
         '</div>';
     } else if (type === 'attachment') {
+      var customTitle = (meta && meta.custom_title) || '';
+      var origName = (meta && meta.original_name) || '';
       html += '<div class="v30-fp-ev__expand-row">' +
+        '<span class="v30-fp-ev__expand-label">Titre</span>' +
+        '<span class="v30-fp-ev__expand-val">' +
+          '<input type="text" class="v30-fp-tag-input" data-v30-att-title data-att-id="' + FP.esc(e.id) + '" value="' + FP.esc(customTitle) + '" placeholder="' + FP.esc(origName) + '" maxlength="120" style="width:100%;border-radius:var(--r-sm);">' +
+        '</span>' +
+        '</div>' +
+        '<div class="v30-fp-ev__expand-row">' +
+        '<span class="v30-fp-ev__expand-label">Fichier</span>' +
+        '<span class="v30-fp-ev__expand-val" style="font-size:11.5px;color:var(--text-3);">' + FP.esc(origName || '—') + '</span>' +
+        '</div>' +
+        '<div class="v30-fp-ev__expand-row">' +
         '<span class="v30-fp-ev__expand-label">Type</span>' +
         '<span class="v30-fp-ev__expand-val">' + FP.esc(meta.mime_type || '—') + '</span>' +
         '</div>' +
@@ -307,8 +319,16 @@
         '<button type="button" class="btn btn-ghost btn-sm" data-v30-ev-delete-file data-att-id="' + FP.esc(e.id) + '" style="color:var(--red,oklch(0.55 0.20 15));">Supprimer</button>' +
         '</div>';
     } else if (type === 'call_note' || type === 'note') {
-      // Note éditable
+      // Note éditable — titre uniquement pour les events DB (call_note JSON n'a pas de titre)
+      var titleField = '';
+      if (type === 'note') {
+        titleField =
+          '<input type="text" data-v30-ev-edit-title maxlength="120" value="' + FP.esc(e.title || '') + '" ' +
+          'placeholder="Titre (optionnel)" ' +
+          'style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-1);font-family:inherit;margin-bottom:6px;">';
+      }
       html += '<div class="v30-fp-ev__edit-form" data-v30-ev-edit-form>' +
+        titleField +
         '<textarea data-v30-ev-edit-text>' + FP.esc(e.content || '') + '</textarea>' +
         '<div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">' +
           '<button type="button" class="btn btn-ghost btn-sm" data-v30-ev-cancel>Annuler</button>' +
