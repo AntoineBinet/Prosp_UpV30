@@ -478,6 +478,30 @@
   </div>
 </div>
 
+{# ─── Modale : Compte-rendu de réunion (vue présentation lecture seule) ─── #}
+<div class="v30-modal-bd" data-v30-fp-modal="cr-view" hidden>
+  <div class="v30-modal v30-modal--wide v30-modal--tall v30-cr-view" role="dialog" aria-modal="true" aria-labelledby="v30-cr-view-title" data-v30-cr-view-meeting-id="">
+    <div class="v30-modal__head v30-cr-view__head">
+      <div class="v30-cr-view__head-text">
+        <span class="v30-cr-view__eyebrow" data-v30-cr-view-eyebrow>{{ ui.icon('report', 13) }} Compte-rendu</span>
+        <h2 class="v30-modal__title v30-cr-view__title" id="v30-cr-view-title" data-v30-cr-view-title>—</h2>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-fp-modal-close aria-label="Fermer">{{ ui.icon('x', 13) }}</button>
+    </div>
+    <div class="v30-modal__body v30-cr-view__body" data-v30-cr-view-body>
+      <div class="empty" style="padding:16px;">Chargement…</div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-fp-modal-close>Fermer</button>
+      <div class="v30-spacer" style="flex:1;"></div>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-cr-view-edit>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+        Modifier
+      </button>
+    </div>
+  </div>
+</div>
+
 {# ─── Drag-drop overlay (page entière) ─── #}
 <div class="v30-fp-drag-overlay" data-v30-drag-overlay aria-hidden="true">
   <div class="v30-fp-drag-overlay__card">

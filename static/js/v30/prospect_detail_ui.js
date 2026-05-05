@@ -1504,6 +1504,196 @@
     });
   }
 
+  // ── c-bis) Compte-rendu de réunion — vue présentation (lecture seule) ──
+  // Affiche un CR existant en lecture seule avec une mise en forme soignée.
+  // Le bouton « Modifier » du footer ouvre la vraie modale d'édition (openAfterModal).
+  function openCRViewModal(meetingId) {
+    if (!meetingId) return;
+    var m = openFPModal('cr-view');
+    if (!m) return;
+    var inner = m.querySelector('.v30-modal');
+    if (inner) inner.dataset.v30CrViewMeetingId = String(meetingId);
+
+    var titleEl = m.querySelector('[data-v30-cr-view-title]');
+    var body = m.querySelector('[data-v30-cr-view-body]');
+    if (titleEl) titleEl.textContent = 'Chargement…';
+    if (body) body.innerHTML = '<div class="empty" style="padding:16px;">Chargement…</div>';
+
+    Promise.all([
+      FP.fetchJSON('/api/meetings/' + meetingId),
+      fetch('/api/rdv-checklist/themes', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { themes: [] }; })
+    ]).then(function (results) {
+      var res = results[0];
+      var themes = (results[1] && results[1].themes) ? results[1].themes : [];
+      if (!res || !res.ok || !res.meeting) throw new Error('CR introuvable');
+      renderCRView(m, res.meeting, themes);
+    }).catch(function (err) {
+      if (titleEl) titleEl.textContent = 'Erreur';
+      if (body) body.innerHTML = '<div class="empty" style="color:var(--red);padding:16px;">Erreur : ' + FP.esc(err.message || err) + '</div>';
+    });
+  }
+
+  function renderCRView(m, meeting, themes) {
+    var titleEl = m.querySelector('[data-v30-cr-view-title]');
+    var eyebrowEl = m.querySelector('[data-v30-cr-view-eyebrow]');
+    var body = m.querySelector('[data-v30-cr-view-body]');
+    if (!body) return;
+
+    var title = meeting.title || ('CR du ' + shortDateFR(meeting.date));
+    if (titleEl) titleEl.textContent = title;
+
+    var dateTxt = meeting.date ? shortDateFR(meeting.date) : '—';
+    if (eyebrowEl) {
+      eyebrowEl.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' +
+        '<span>Compte-rendu</span>' +
+        '<span class="v30-cr-view__date-chip">' + FP.esc(dateTxt) + '</span>';
+    }
+
+    var html = '';
+    var summary = (meeting.summary || '').trim();
+    var nextAction = (meeting.next_action || '').trim();
+    var notes = (meeting.notes || '').trim();
+    var rawTranscript = (meeting.raw_transcript || '').trim();
+    var documents = (meeting.documents || '').trim();
+    var tags = Array.isArray(meeting.tags) ? meeting.tags.filter(Boolean) : [];
+    var actionItems = Array.isArray(meeting.action_items) ? meeting.action_items : [];
+    var checklistData = (meeting.checklist_data && typeof meeting.checklist_data === 'object') ? meeting.checklist_data : {};
+
+    // ── Header secondaire : tags (si présents) ──
+    if (tags.length) {
+      html += '<div class="v30-cr-view__tags">';
+      tags.forEach(function (t) {
+        html += '<span class="v30-cr-view__tag">' + FP.esc(t) + '</span>';
+      });
+      html += '</div>';
+    }
+
+    // ── Bloc principal : Synthèse + Prochaine action ──
+    if (summary || nextAction) {
+      if (summary) {
+        html += '<section class="v30-cr-view__section v30-cr-view__section--hero">' +
+          '<h3 class="v30-cr-view__section-title">' +
+            '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.39 7.36H22l-6.18 4.49 2.36 7.27L12 16.77l-6.18 4.35 2.36-7.27L2 9.36h7.61z"/></svg>' +
+            '<span>Synthèse</span>' +
+          '</h3>' +
+          '<p class="v30-cr-view__prose">' + FP.esc(summary).replace(/\n/g, '<br>') + '</p>' +
+        '</section>';
+      }
+      if (nextAction) {
+        html += '<section class="v30-cr-view__section v30-cr-view__section--accent">' +
+          '<h3 class="v30-cr-view__section-title">' +
+            '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>' +
+            '<span>Prochaine action</span>' +
+          '</h3>' +
+          '<p class="v30-cr-view__prose">' + FP.esc(nextAction).replace(/\n/g, '<br>') + '</p>' +
+        '</section>';
+      }
+    }
+
+    // ── Infos clés ──
+    if (notes) {
+      html += '<section class="v30-cr-view__section">' +
+        '<h3 class="v30-cr-view__section-title">' +
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>' +
+          '<span>Infos clés à mémoriser</span>' +
+        '</h3>' +
+        '<p class="v30-cr-view__prose">' + FP.esc(notes).replace(/\n/g, '<br>') + '</p>' +
+      '</section>';
+    }
+
+    // ── Tâches à faire ──
+    var realTasks = actionItems.filter(function (ai) { return ai && (ai.task || '').trim(); });
+    if (realTasks.length) {
+      html += '<section class="v30-cr-view__section">' +
+        '<h3 class="v30-cr-view__section-title">' +
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>' +
+          '<span>Tâches à faire</span>' +
+          '<span class="v30-cr-view__count">' + realTasks.length + '</span>' +
+        '</h3>' +
+        '<ul class="v30-cr-view__tasks">';
+      realTasks.forEach(function (ai) {
+        var done = ai.status === 'done';
+        var prio = (ai.priority || '').toLowerCase();
+        var due = ai.due_date ? shortDateFR(ai.due_date) : '';
+        var prioCls = prio ? ' v30-cr-view__task-prio--' + FP.esc(prio) : '';
+        html += '<li class="v30-cr-view__task' + (done ? ' v30-cr-view__task--done' : '') + '">' +
+          '<span class="v30-cr-view__task-check" aria-hidden="true">' + (done ? '✓' : '') + '</span>' +
+          '<span class="v30-cr-view__task-text">' + FP.esc(ai.task || '') + '</span>' +
+          (due ? '<span class="v30-cr-view__task-due">' + FP.esc(due) + '</span>' : '') +
+          (prio ? '<span class="v30-cr-view__task-prio' + prioCls + '">' + FP.esc(prio) + '</span>' : '') +
+        '</li>';
+      });
+      html += '</ul></section>';
+    }
+
+    // ── Documents ──
+    if (documents) {
+      var lines = documents.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+      if (lines.length) {
+        html += '<section class="v30-cr-view__section">' +
+          '<h3 class="v30-cr-view__section-title">' +
+            '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/><path d="M10 9l5 5"/></svg>' +
+            '<span>Documents</span>' +
+          '</h3>' +
+          '<ul class="v30-cr-view__docs">';
+        lines.forEach(function (line) {
+          var isUrl = /^https?:\/\//i.test(line);
+          if (isUrl) {
+            html += '<li><a href="' + FP.esc(line) + '" target="_blank" rel="noopener noreferrer">' + FP.esc(line) + '</a></li>';
+          } else {
+            html += '<li>' + FP.esc(line) + '</li>';
+          }
+        });
+        html += '</ul></section>';
+      }
+    }
+
+    // ── Notes brutes (transcription) ──
+    if (rawTranscript) {
+      html += '<details class="v30-cr-view__section v30-cr-view__details">' +
+        '<summary class="v30-cr-view__section-title">' +
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>' +
+          '<span>Notes brutes / transcription</span>' +
+        '</summary>' +
+        '<pre class="v30-cr-view__raw">' + FP.esc(rawTranscript) + '</pre>' +
+      '</details>';
+    }
+
+    // ── Grille de qualification ──
+    var grilleEntries = [];
+    themes.forEach(function (t) {
+      var v = checklistData[t.key];
+      var reponse = '';
+      if (v && typeof v === 'object') reponse = (v.reponse || '').trim();
+      else if (typeof v === 'string') reponse = v.trim();
+      if (reponse) grilleEntries.push({ question: t.question, reponse: reponse });
+    });
+    if (grilleEntries.length) {
+      html += '<section class="v30-cr-view__section">' +
+        '<h3 class="v30-cr-view__section-title">' +
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>' +
+          '<span>Grille de qualification</span>' +
+          '<span class="v30-cr-view__count">' + grilleEntries.length + '</span>' +
+        '</h3>' +
+        '<dl class="v30-cr-view__grille">';
+      grilleEntries.forEach(function (g) {
+        html += '<div class="v30-cr-view__grille-item">' +
+          '<dt>' + FP.esc(g.question) + '</dt>' +
+          '<dd>' + FP.esc(g.reponse).replace(/\n/g, '<br>') + '</dd>' +
+        '</div>';
+      });
+      html += '</dl></section>';
+    }
+
+    // ── Vide global ──
+    if (!html.trim()) {
+      html = '<div class="empty" style="padding:24px;text-align:center;">Ce compte-rendu ne contient pas encore de contenu. Cliquez « Modifier » pour le remplir.</div>';
+    }
+
+    body.innerHTML = html;
+    body.scrollTop = 0;
+  }
+
   // ── c) Compte-rendu de réunion (création + édition) ─────────
   // opts: { meetingId: int|null }  → si meetingId, mode édition (charge le CR existant)
   function openAfterModal(opts) {
@@ -2228,7 +2418,16 @@
       var crCard = e.target.closest('[data-v30-cr-card]');
       if (crCard) {
         var mid = Number(crCard.dataset.v30CrCard || 0);
-        if (mid) openAfterModal({ meetingId: mid });
+        if (mid) openCRViewModal(mid);
+      }
+      // Bouton « Modifier » dans la vue présentation → ouvre la modale d'édition
+      if (e.target.closest('[data-v30-cr-view-edit]')) {
+        var viewModal = getFPModal('cr-view');
+        var viewInner = viewModal && viewModal.querySelector('.v30-modal');
+        var viewMid = viewInner && viewInner.dataset.v30CrViewMeetingId
+          ? Number(viewInner.dataset.v30CrViewMeetingId) : 0;
+        if (viewModal) closeFPModal(viewModal);
+        if (viewMid) openAfterModal({ meetingId: viewMid });
       }
       if (e.target.closest('[data-v30-cr-delete]')) {
         var mInner = getFPModal('after');
