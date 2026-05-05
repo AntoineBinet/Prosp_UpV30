@@ -182,6 +182,9 @@
   align-items: center;
   justify-content: center;
 }
+.stats-range-modal[hidden] {
+  display: none;
+}
 
 .stats-range-modal__bd {
   position: absolute;

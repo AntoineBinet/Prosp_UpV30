@@ -2,6 +2,28 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.25] — 2026-05-06 · Multi-user : fix HTTP 500 sur création prospect/entreprise + fix modale stats
+
+### Fix critique — création entité avec DB partagée
+
+- `POST /api/companies/create` et `POST /api/prospects/create` retournaient
+  **HTTP 500 (UNIQUE constraint failed: companies.id / prospects.id)** dès
+  qu'un nouvel utilisateur (sans per-user DB peuplée) créait sa première
+  entité. Cause : la requête `SELECT MAX(id) WHERE owner_id=?` calcule le
+  prochain ID dans le scope de l'utilisateur uniquement, mais `id` est un
+  PRIMARY KEY global de la table — sur la DB principale partagée, l'INSERT
+  collisionnait avec les IDs d'autres utilisateurs.
+- 3 occurrences corrigées : la requête utilise maintenant `MAX(id)` global
+  (sans filtre `owner_id`), ce qui garantit l'unicité dans tous les modes
+  (per-user DB ou DB partagée).
+
+### Fix UI — modale Stats range visible au chargement
+
+- `static/css/v30/stats.css` : la classe `.stats-range-modal` forçait
+  `display: flex` sans condition, masquant le `hidden` HTML attribute. La
+  modale "Plage personnalisée" apparaissait donc au chargement de la page
+  Stats. Ajout d'une règle `.stats-range-modal[hidden] { display: none; }`.
+
 ## [32.24] — 2026-05-05 · Page Candidats : fix HTTP 500 + refonte UX
 
 ### Fix critique — bulk-update statut

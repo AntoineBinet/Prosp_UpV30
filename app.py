@@ -35,7 +35,7 @@ import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.24"
+APP_VERSION = "32.25"
 import os
 import uuid
 import subprocess
@@ -7755,7 +7755,10 @@ def api_companies_create():
         ).fetchone()
         if row:
             return jsonify(ok=True, id=int(row["id"]), deduped=True)
-        max_id = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM companies WHERE owner_id=?;", (uid,)).fetchone()["m"]
+        # MAX global (id est PRIMARY KEY) — un filtre owner_id provoquerait des
+        # collisions UNIQUE quand plusieurs users partagent la DB principale
+        # (cas d'un user nouveau dont la per-user DB est encore vide).
+        max_id = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM companies;").fetchone()["m"]
         new_id = int(max_id) + 1
         conn.execute(
             """INSERT INTO companies (id, groupe, site, phone, notes, tags, website, linkedin, industry, owner_id)
@@ -12821,7 +12824,7 @@ def api_prospect_create():
             if row:
                 company_id = int(row["id"])
             else:
-                max_co = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM companies WHERE owner_id=?;", (uid,)).fetchone()["m"]
+                max_co = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM companies;").fetchone()["m"]
                 new_co_id = int(max_co) + 1
                 conn.execute(
                     "INSERT INTO companies (id, groupe, site, owner_id) VALUES (?,?,?,?);",
@@ -12840,8 +12843,8 @@ def api_prospect_create():
             except Exception:
                 pass
 
-        # Générer l'ID côté serveur
-        max_p = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM prospects WHERE owner_id=?;", (uid,)).fetchone()["m"]
+        # Générer l'ID côté serveur — MAX global (id est PRIMARY KEY)
+        max_p = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM prospects;").fetchone()["m"]
         new_id = int(max_p) + 1
         now = _now_iso()
 
