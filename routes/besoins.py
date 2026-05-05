@@ -39,7 +39,65 @@ STATUTS = ("ouvert", "en_cours", "pourvu", "abandonne")
 # ─── Helpers ──────────────────────────────────────────────────────────
 
 
-def _row_to_dict(row) -> dict:
+def _enrich_candidats(uid: int, candidats: list) -> list:
+    """Enrichit chaque entrée candidate avec les infos de la fiche (vsa_url,
+    role, location, linkedin, seniority) si `cand_id` est défini.
+    Le résultat est exposé sous la clé `_ref` côté front (lecture seule)."""
+    if not candidats or not uid:
+        return candidats
+    cand_ids: list[int] = []
+    for c in candidats:
+        cid = c.get("cand_id") if isinstance(c, dict) else None
+        if cid:
+            try:
+                cand_ids.append(int(cid))
+            except Exception:
+                pass
+    if not cand_ids:
+        return candidats
+    placeholders = ",".join("?" * len(cand_ids))
+    by_id: dict = {}
+    try:
+        with _conn() as conn:
+            rows = conn.execute(
+                f"SELECT id, name, role, location, vsa_url, linkedin, tech, "
+                f"seniority, email, phone "
+                f"FROM candidates WHERE owner_id=? AND id IN ({placeholders}) "
+                f"AND deleted_at IS NULL;",
+                (uid, *cand_ids),
+            ).fetchall()
+            for r in rows:
+                by_id[int(r["id"])] = {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "role": r["role"],
+                    "location": r["location"],
+                    "vsa_url": r["vsa_url"],
+                    "linkedin": r["linkedin"],
+                    "tech": r["tech"],
+                    "seniority": r["seniority"],
+                    "email": r["email"],
+                    "phone": r["phone"],
+                }
+    except Exception as e:
+        logger.warning("besoins: enrichment failed (%s)", e)
+        return candidats
+    for c in candidats:
+        if not isinstance(c, dict):
+            continue
+        cid = c.get("cand_id")
+        if not cid:
+            continue
+        try:
+            ref = by_id.get(int(cid))
+        except Exception:
+            ref = None
+        if ref:
+            c["_ref"] = ref
+    return candidats
+
+
+def _row_to_dict(row, uid: int | None = None) -> dict:
     if row is None:
         return {}
     d = dict(row)
@@ -53,6 +111,8 @@ def _row_to_dict(row) -> dict:
                 candidats = data
         except Exception:
             candidats = []
+    if uid is not None:
+        candidats = _enrich_candidats(uid, candidats)
     d["candidats"] = candidats
     return d
 
@@ -248,7 +308,7 @@ def api_create_besoin():
         cur = conn.execute(sql, values)
         bid = cur.lastrowid
         row = conn.execute("SELECT * FROM besoins WHERE id=?", (bid,)).fetchone()
-    return jsonify(ok=True, besoin=_row_to_dict(row))
+    return jsonify(ok=True, besoin=_row_to_dict(row, uid=uid))
 
 
 @besoins_bp.get("/api/besoins")
@@ -283,7 +343,7 @@ def api_list_besoins():
         rows = conn.execute(sql, params).fetchall()
     items = []
     for r in rows:
-        d = _row_to_dict(r)
+        d = _row_to_dict(r, uid=uid)
         # Stats candidats
         cands = d.get("candidats") or []
         d["candidats_count"] = len(cands)
@@ -307,7 +367,7 @@ def api_get_besoin(bid: int):
         ).fetchone()
     if not row:
         return jsonify(ok=False, error="Introuvable"), 404
-    return jsonify(ok=True, besoin=_row_to_dict(row))
+    return jsonify(ok=True, besoin=_row_to_dict(row, uid=uid))
 
 
 @besoins_bp.put("/api/besoins/<int:bid>")
@@ -351,6 +411,16 @@ def api_update_besoin(bid: int):
 
         if "candidats" in payload:
             cands = payload.get("candidats")
+            # Nettoie les clés enrichies côté front (lecture seule) avant
+            # persistance — `_ref` est rebuilé à chaque GET via JOIN.
+            if isinstance(cands, list):
+                cleaned = []
+                for c in cands:
+                    if isinstance(c, dict):
+                        cleaned.append({k: v for k, v in c.items() if not k.startswith("_")})
+                    else:
+                        cleaned.append(c)
+                cands = cleaned
             sets.append("candidats_json=?")
             values.append(json.dumps(cands, ensure_ascii=False) if isinstance(cands, list) else None)
 
@@ -369,7 +439,7 @@ def api_update_besoin(bid: int):
             "WHERE b.id=?;",
             (bid,),
         ).fetchone()
-    return jsonify(ok=True, besoin=_row_to_dict(row))
+    return jsonify(ok=True, besoin=_row_to_dict(row, uid=uid))
 
 
 @besoins_bp.delete("/api/besoins/<int:bid>")

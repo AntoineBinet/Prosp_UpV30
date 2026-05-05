@@ -2,6 +2,50 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.21] — 2026-05-05 · Refonte UX candidats positionnés (Traitement Besoin)
+
+### Cartes dépliables au lieu d'un tableau plat
+
+L'ancienne table 11 colonnes (`candidat`, `commentaires`, `dispo`, `appel`,
+`dt`, `rdv1`, `rdv2`, `note`, `envoi_dt`, `rt`, fiche) avait des cellules
+trop étroites pour prendre des notes utiles. Chaque candidat est maintenant
+une **carte dépliable** (`v30-cand-card`) avec :
+
+- **Header compact toujours visible** : pastille de statut, nom du candidat,
+  preview (Dispo / RDV / Rôle), boutons VSA + fiche + lier + supprimer.
+- **Body déroulant** au clic (ou via bouton chevron) : 2 textareas larges
+  pour `Origine / Commentaires` et `Note interne`, plus une grille de
+  tracking 4 colonnes (Dispo, Appel, DT, RDV1, RDV2, Envoi DT, RT) et
+  un bandeau d'infos issues de la fiche liée (rôle, lieu, séniorité, tech).
+
+### Code couleur de disponibilité
+
+Nouveau champ libre `cand_status` par ligne (3 valeurs cycliques au clic
+sur la pastille) :
+
+- `''` (par défaut) → **Pas contacté** · gris ;
+- `dispo` → **Disponible** · vert ;
+- `nope` → **Non disponible** · rouge.
+
+Le bandeau coloré gauche de la carte reflète le statut. Légende affichée
+en haut de la section.
+
+### Lien VSA
+
+Backend (`routes/besoins.py`) : nouvelle helper `_enrich_candidats(uid,
+candidats)` qui JOIN la table `candidates` pour ramener `vsa_url`, `role`,
+`location`, `linkedin`, `tech`, `seniority`, `email`, `phone` sous la clé
+`_ref` (lecture seule, strippée avant persistance). Si la fiche liée a un
+`vsa_url`, le bouton **VSA** apparaît dans la carte (header + body).
+
+### Compatibilité
+
+- Le JSON candidats sur disque reste compatible : seules les clés
+  `cand_status` (nouveau) et `_ref` (transient, strippé serveur côté PUT)
+  sont ajoutées. L'export Excel ignore les nouveautés et reste identique.
+- Aucune migration SQL nécessaire — `cand_status` vit dans le JSON, pas
+  dans une colonne dédiée.
+
 ## [32.20] — 2026-05-05 · Titres éditables sur notes manuelles et fichiers (fiche prospect)
 
 ### Notes manuelles

@@ -134,7 +134,12 @@
       <div class="card v30-besoin-section">
         <div class="row-sb">
           <div class="card-title">Candidats positionnés</div>
-          <div style="display:flex;gap:6px;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <div class="v30-cand-legend" aria-label="Légende des statuts">
+              <span class="v30-cand-legend__chip v30-cand-legend__chip--dispo">Dispo</span>
+              <span class="v30-cand-legend__chip v30-cand-legend__chip--pending">Pas contacté</span>
+              <span class="v30-cand-legend__chip v30-cand-legend__chip--nope">Non dispo</span>
+            </div>
             <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-cand-search>
               {{ ui.icon('search', 13) }} Chercher un candidat
             </button>
@@ -143,30 +148,11 @@
             </button>
           </div>
         </div>
-        <div class="v30-besoin-cand-table-wrap">
-          <table class="v30-besoin-cand-table" data-v30-besoin-cand-table>
-            <thead>
-              <tr>
-                <th>Candidat</th>
-                <th>Origine / Commentaires</th>
-                <th>Dispo</th>
-                <th>Appel</th>
-                <th>DT</th>
-                <th>RDV1</th>
-                <th>RDV2</th>
-                <th>Note</th>
-                <th>Envoi DT</th>
-                <th>RT</th>
-                <th title="Fiche candidat / Lier">Fiche</th>
-              </tr>
-            </thead>
-            <tbody data-v30-besoin-cand-body>
-              {# Lignes injectées par JS #}
-            </tbody>
-          </table>
+        <div class="v30-cand-list" data-v30-besoin-cand-body role="list">
+          {# Cartes injectées par JS #}
         </div>
-        <p class="muted v30-params__hint">
-          Chaque ligne sera reportée dans le tableau de l'export Excel (recto · 53 lignes max ; recto/verso · 52 lignes max).
+        <p class="muted v30-params__hint" style="margin-top:10px;">
+          Cliquez sur une carte pour déplier ses détails. Cliquez sur la pastille de statut pour cycler entre <em>Pas contacté</em> · <em>Dispo</em> · <em>Non dispo</em>. L'export Excel reste compatible (recto · 53 lignes max ; recto/verso · 52 lignes max).
         </p>
       </div>
 

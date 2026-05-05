@@ -16,10 +16,20 @@
 
   const CAND_KEYS = ['candidat', 'commentaires', 'dispo', 'appel', 'dt', 'rdv1', 'rdv2', 'note', 'envoi_dt', 'rt'];
 
+  // Statut "couleur" libre par ligne — non utilisé par l'export Excel mais
+  // affiché dans l'UI : '' (pas contacté) | 'dispo' (vert) | 'nope' (rouge).
+  const STATUS_ORDER = ['', 'dispo', 'nope'];
+  const STATUS_LABELS = {
+    '':      'Pas contacté',
+    'dispo': 'Disponible',
+    'nope':  'Non disponible',
+  };
+
   const state = {
     besoin: null,
     dirty: false,
     saveTimer: null,
+    expanded: new Set(),
   };
 
   // Picker entreprise pour le champ Client
@@ -372,92 +382,358 @@
     }
   }
 
-  function buildCandRow(c, idx) {
-    const tr = document.createElement('tr');
-    tr.dataset.candIdx = String(idx);
-    CAND_KEYS.forEach(k => {
-      const td = document.createElement('td');
-      const inp = document.createElement('input');
-      inp.type = 'text';
-      inp.className = 'v30-besoin-cand-input';
-      inp.value = (c && c[k]) || '';
-      inp.dataset.candField = k;
-      inp.addEventListener('input', () => {
-        c[k] = inp.value;
-        markDirty();
-      });
-      td.appendChild(inp);
-      tr.appendChild(td);
-    });
-    const tdAct = document.createElement('td');
-    tdAct.className = 'v30-besoin-cand-actions';
+  // ─── Rendu carte candidat ──────────────────────────────────
+  function autoResizeTextarea(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.max(el.scrollHeight + 2, 78) + 'px';
+  }
 
-    // Bouton fiche candidat : lien si cand_id connu, sinon bouton "lier"
-    if (c && c.cand_id) {
-      const link = document.createElement('a');
-      link.href = '/v30/candidat/' + c.cand_id;
-      link.target = '_blank';
-      link.className = 'btn btn-ghost btn-sm btn-icon';
-      link.title = 'Ouvrir la fiche candidat';
-      link.textContent = '↗';
-      tdAct.appendChild(link);
+  function normalizeStatus(c) {
+    const s = (c && c.cand_status) ? String(c.cand_status).toLowerCase() : '';
+    return STATUS_ORDER.includes(s) ? s : '';
+  }
+
+  function getRefBadges(ref) {
+    if (!ref) return '';
+    const items = [];
+    if (ref.role)     items.push({ k: 'Rôle',       v: ref.role });
+    if (ref.location) items.push({ k: 'Lieu',       v: ref.location });
+    if (ref.seniority)items.push({ k: 'Séniorité',  v: ref.seniority });
+    if (ref.tech)     items.push({ k: 'Tech',       v: ref.tech });
+    if (!items.length) return '<span class="v30-cand-card__ref-empty">Pas d\'info supplémentaire.</span>';
+    return items.map(it =>
+      `<span class="v30-cand-card__ref-tag"><span>${escapeHtml(it.k)}</span> ${escapeHtml(it.v)}</span>`
+    ).join('');
+  }
+
+  function buildCandCard(c, idx) {
+    const card = document.createElement('article');
+    card.className = 'v30-cand-card';
+    card.setAttribute('role', 'listitem');
+    card.dataset.candIdx = String(idx);
+    const status = normalizeStatus(c);
+    card.dataset.status = status;
+    if (state.expanded.has(idx)) card.classList.add('is-open');
+
+    const ref = (c && c._ref) || null;
+    const vsaUrl = ref && ref.vsa_url ? String(ref.vsa_url).trim() : '';
+    const ficheUrl = c && c.cand_id ? '/v30/candidat/' + c.cand_id : '';
+
+    // ── Header (toujours visible) ─────────────────────────────
+    const head = document.createElement('div');
+    head.className = 'v30-cand-card__head';
+
+    // Toggle
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'v30-cand-card__toggle';
+    toggle.setAttribute('aria-expanded', state.expanded.has(idx) ? 'true' : 'false');
+    toggle.title = 'Déplier les détails';
+    toggle.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const i = parseInt(card.dataset.candIdx, 10);
+      if (state.expanded.has(i)) state.expanded.delete(i);
+      else state.expanded.add(i);
+      card.classList.toggle('is-open');
+      toggle.setAttribute('aria-expanded', card.classList.contains('is-open') ? 'true' : 'false');
+      // Auto-resize textareas après ouverture
+      if (card.classList.contains('is-open')) {
+        card.querySelectorAll('textarea').forEach(autoResizeTextarea);
+      }
+    });
+    head.appendChild(toggle);
+
+    // Status pill (cycle au clic)
+    const statusBtn = document.createElement('button');
+    statusBtn.type = 'button';
+    statusBtn.className = 'v30-cand-card__status';
+    statusBtn.title = 'Statut — clic pour cycler (Pas contacté → Dispo → Non dispo)';
+    statusBtn.textContent = STATUS_LABELS[status];
+    statusBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cur = normalizeStatus(c);
+      const next = STATUS_ORDER[(STATUS_ORDER.indexOf(cur) + 1) % STATUS_ORDER.length];
+      c.cand_status = next;
+      card.dataset.status = next;
+      statusBtn.textContent = STATUS_LABELS[next];
+      markDirty();
+    });
+    head.appendChild(statusBtn);
+
+    // Nom (input)
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'v30-cand-card__name';
+    const nameInp = document.createElement('input');
+    nameInp.type = 'text';
+    nameInp.placeholder = 'Nom du candidat';
+    nameInp.value = (c && c.candidat) || '';
+    nameInp.dataset.candField = 'candidat';
+    nameInp.addEventListener('input', () => { c.candidat = nameInp.value; markDirty(); });
+    nameInp.addEventListener('click', (e) => e.stopPropagation());
+    nameWrap.appendChild(nameInp);
+    head.appendChild(nameWrap);
+
+    // Preview (dispo + dernier RDV) — synthèse
+    const preview = document.createElement('div');
+    preview.className = 'v30-cand-card__preview';
+    const dispoVal = (c && c.dispo) || '';
+    const rdv = (c && (c.rdv1 || c.rdv2)) || '';
+    if (dispoVal) {
+      preview.innerHTML += `<span class="v30-cand-card__preview-item"><span>Dispo</span><strong>${escapeHtml(dispoVal)}</strong></span>`;
+    }
+    if (rdv) {
+      preview.innerHTML += `<span class="v30-cand-card__preview-item"><span>RDV</span><strong>${escapeHtml(rdv)}</strong></span>`;
+    }
+    if (ref && ref.role) {
+      preview.innerHTML += `<span class="v30-cand-card__preview-item"><span>Rôle</span><strong>${escapeHtml(ref.role)}</strong></span>`;
+    }
+    head.appendChild(preview);
+
+    // Actions
+    const actions = document.createElement('div');
+    actions.className = 'v30-cand-card__actions';
+
+    if (vsaUrl) {
+      const vsa = document.createElement('a');
+      vsa.href = vsaUrl;
+      vsa.target = '_blank';
+      vsa.rel = 'noopener noreferrer';
+      vsa.className = 'btn btn-ghost btn-sm v30-cand-card__btn-vsa';
+      vsa.title = 'Ouvrir la page VSA';
+      vsa.textContent = 'VSA';
+      vsa.addEventListener('click', (e) => e.stopPropagation());
+      actions.appendChild(vsa);
+    }
+
+    if (ficheUrl) {
+      const fiche = document.createElement('a');
+      fiche.href = ficheUrl;
+      fiche.target = '_blank';
+      fiche.rel = 'noopener noreferrer';
+      fiche.className = 'btn btn-ghost btn-sm btn-icon';
+      fiche.title = 'Ouvrir la fiche candidat';
+      fiche.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>';
+      fiche.addEventListener('click', (e) => e.stopPropagation());
+      actions.appendChild(fiche);
     } else {
       const linkBtn = document.createElement('button');
       linkBtn.type = 'button';
       linkBtn.className = 'btn btn-ghost btn-sm btn-icon';
       linkBtn.title = 'Lier à une fiche candidat';
-      linkBtn.textContent = '⟳';
-      linkBtn.style.opacity = '0.45';
-      linkBtn.addEventListener('click', () => {
-        _linkCandIdx = parseInt(tr.dataset.candIdx, 10);
+      linkBtn.style.opacity = '0.55';
+      linkBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 1 0-7l3-3a5 5 0 0 1 7 7l-2 2"/><path d="M14 10a5 5 0 0 1 0 7l-3 3a5 5 0 0 1-7-7l2-2"/></svg>';
+      linkBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _linkCandIdx = parseInt(card.dataset.candIdx, 10);
         openCandModal();
       });
-      tdAct.appendChild(linkBtn);
+      actions.appendChild(linkBtn);
     }
 
     const rm = document.createElement('button');
     rm.type = 'button';
     rm.className = 'btn btn-ghost btn-sm btn-icon';
     rm.title = 'Supprimer la ligne';
-    rm.textContent = '×';
-    rm.addEventListener('click', () => {
+    rm.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+    rm.addEventListener('click', (e) => {
+      e.stopPropagation();
       const cands = (state.besoin.candidats || []);
-      const i = parseInt(tr.dataset.candIdx, 10);
+      const i = parseInt(card.dataset.candIdx, 10);
       if (i >= 0 && i < cands.length) {
         cands.splice(i, 1);
+        // Réindexe les lignes ouvertes
+        const newExpanded = new Set();
+        state.expanded.forEach(j => {
+          if (j < i) newExpanded.add(j);
+          else if (j > i) newExpanded.add(j - 1);
+        });
+        state.expanded = newExpanded;
         renderCands();
         markDirty();
       }
     });
-    tdAct.appendChild(rm);
-    tr.appendChild(tdAct);
-    return tr;
+    actions.appendChild(rm);
+    head.appendChild(actions);
+
+    // Click sur le header (hors input/bouton) déplie la carte
+    head.addEventListener('click', (e) => {
+      if (e.target.closest('input, button, a, textarea, select')) return;
+      toggle.click();
+    });
+
+    card.appendChild(head);
+
+    // ── Body (déroulant) ─────────────────────────────────────
+    const body = document.createElement('div');
+    body.className = 'v30-cand-card__body';
+
+    const bodyInner = document.createElement('div');
+    bodyInner.className = 'v30-cand-card__body-inner';
+
+    const grid = document.createElement('div');
+    grid.className = 'v30-cand-card__grid';
+
+    // Origine / commentaires (large textarea)
+    const fldComm = document.createElement('label');
+    fldComm.className = 'v30-cand-card__field';
+    fldComm.innerHTML = '<span>Origine / Commentaires</span>';
+    const taComm = document.createElement('textarea');
+    taComm.rows = 3;
+    taComm.dataset.candField = 'commentaires';
+    taComm.placeholder = 'Origine du candidat, contexte, premières impressions…';
+    taComm.value = (c && c.commentaires) || '';
+    taComm.addEventListener('input', () => {
+      c.commentaires = taComm.value;
+      autoResizeTextarea(taComm);
+      markDirty();
+    });
+    fldComm.appendChild(taComm);
+    grid.appendChild(fldComm);
+
+    // Note (large textarea)
+    const fldNote = document.createElement('label');
+    fldNote.className = 'v30-cand-card__field';
+    fldNote.innerHTML = '<span>Note interne</span>';
+    const taNote = document.createElement('textarea');
+    taNote.rows = 3;
+    taNote.dataset.candField = 'note';
+    taNote.placeholder = 'Notes d\'entretien, retour client, points d\'attention…';
+    taNote.value = (c && c.note) || '';
+    taNote.addEventListener('input', () => {
+      c.note = taNote.value;
+      autoResizeTextarea(taNote);
+      markDirty();
+    });
+    fldNote.appendChild(taNote);
+    grid.appendChild(fldNote);
+
+    // Tracking dates (4 colonnes : Dispo, Appel, DT, RDV1, RDV2, Envoi DT, RT)
+    const tracking = document.createElement('div');
+    tracking.className = 'v30-cand-card__tracking';
+    const TRACK = [
+      { k: 'dispo',    label: 'Dispo',     placeholder: 'ASAP, 15j, 31/07…' },
+      { k: 'appel',    label: 'Appel',     placeholder: 'OK, à rappeler…'    },
+      { k: 'dt',       label: 'DT',        placeholder: 'Demande technique'   },
+      { k: 'rdv1',     label: 'RDV 1',     placeholder: 'Date / état'         },
+      { k: 'rdv2',     label: 'RDV 2',     placeholder: 'Date / état'         },
+      { k: 'envoi_dt', label: 'Envoi DT',  placeholder: 'Date envoi'          },
+      { k: 'rt',       label: 'RT',        placeholder: 'Retour client'       },
+    ];
+    TRACK.forEach(t => {
+      const lab = document.createElement('label');
+      lab.className = 'v30-cand-card__field';
+      const sp = document.createElement('span'); sp.textContent = t.label; lab.appendChild(sp);
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.dataset.candField = t.k;
+      inp.placeholder = t.placeholder;
+      inp.value = (c && c[t.k]) || '';
+      inp.addEventListener('input', () => { c[t.k] = inp.value; markDirty(); });
+      lab.appendChild(inp);
+      tracking.appendChild(lab);
+    });
+    grid.appendChild(tracking);
+
+    // Ref info (depuis fiche candidat liée)
+    if (ref) {
+      const refBox = document.createElement('div');
+      refBox.className = 'v30-cand-card__ref';
+      refBox.innerHTML = getRefBadges(ref);
+      grid.appendChild(refBox);
+    }
+
+    // Actions du body : VSA, fiche, lier, délier
+    const bodyActions = document.createElement('div');
+    bodyActions.className = 'v30-cand-card__body-actions';
+
+    if (vsaUrl) {
+      const vsaBtn = document.createElement('a');
+      vsaBtn.href = vsaUrl;
+      vsaBtn.target = '_blank';
+      vsaBtn.rel = 'noopener noreferrer';
+      vsaBtn.className = 'btn btn-ghost btn-sm';
+      vsaBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>Page VSA';
+      bodyActions.appendChild(vsaBtn);
+    }
+    if (ficheUrl) {
+      const ficheBtn = document.createElement('a');
+      ficheBtn.href = ficheUrl;
+      ficheBtn.target = '_blank';
+      ficheBtn.rel = 'noopener noreferrer';
+      ficheBtn.className = 'btn btn-ghost btn-sm';
+      ficheBtn.textContent = 'Fiche candidat ↗';
+      bodyActions.appendChild(ficheBtn);
+
+      const unlinkBtn = document.createElement('button');
+      unlinkBtn.type = 'button';
+      unlinkBtn.className = 'btn btn-ghost btn-sm';
+      unlinkBtn.textContent = 'Délier la fiche';
+      unlinkBtn.addEventListener('click', () => {
+        delete c.cand_id;
+        delete c._ref;
+        renderCards();
+        markDirty();
+      });
+      bodyActions.appendChild(unlinkBtn);
+    } else {
+      const linkBtn2 = document.createElement('button');
+      linkBtn2.type = 'button';
+      linkBtn2.className = 'btn btn-ghost btn-sm';
+      linkBtn2.textContent = 'Lier à une fiche candidat…';
+      linkBtn2.addEventListener('click', () => {
+        _linkCandIdx = parseInt(card.dataset.candIdx, 10);
+        openCandModal();
+      });
+      bodyActions.appendChild(linkBtn2);
+    }
+    grid.appendChild(bodyActions);
+
+    bodyInner.appendChild(grid);
+    body.appendChild(bodyInner);
+    card.appendChild(body);
+
+    // Auto-resize si déjà ouvert au render
+    if (state.expanded.has(idx)) {
+      requestAnimationFrame(() => {
+        card.querySelectorAll('textarea').forEach(autoResizeTextarea);
+      });
+    }
+
+    return card;
   }
 
+  // Alias pour la lisibilité (renderCands est appelé depuis l'ancien code)
+  function renderCards() { renderCands(); }
+
   function renderCands() {
-    const tbody = root.querySelector('[data-v30-besoin-cand-body]');
-    if (!tbody) return;
+    const host = root.querySelector('[data-v30-besoin-cand-body]');
+    if (!host) return;
     if (!Array.isArray(state.besoin.candidats)) state.besoin.candidats = [];
-    tbody.innerHTML = '';
-    state.besoin.candidats.forEach((c, idx) => {
-      tbody.appendChild(buildCandRow(c, idx));
-    });
+    host.innerHTML = '';
     if (!state.besoin.candidats.length) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="11" class="muted" style="padding:16px;text-align:center;">' +
-        'Aucun candidat. Clique sur « Ajouter une ligne ».</td>';
-      tbody.appendChild(tr);
+      const empty = document.createElement('div');
+      empty.className = 'v30-cand-list__empty';
+      empty.textContent = 'Aucun candidat. Cliquez sur « Ajouter une ligne » ou « Chercher un candidat ».';
+      host.appendChild(empty);
+      return;
     }
+    state.besoin.candidats.forEach((c, idx) => {
+      host.appendChild(buildCandCard(c, idx));
+    });
   }
 
   function addCand() {
     if (!Array.isArray(state.besoin.candidats)) state.besoin.candidats = [];
     state.besoin.candidats.push({});
+    const newIdx = state.besoin.candidats.length - 1;
+    state.expanded.add(newIdx);
     renderCands();
     markDirty();
-    const tbody = root.querySelector('[data-v30-besoin-cand-body]');
-    if (tbody) {
-      const last = tbody.querySelector('tr:last-child input');
+    const host = root.querySelector('[data-v30-besoin-cand-body]');
+    if (host) {
+      const last = host.querySelector('.v30-cand-card:last-child input[data-cand-field="candidat"]');
       if (last) last.focus();
     }
   }
@@ -500,11 +776,21 @@
     return payload;
   }
 
+  function _serializeCandRefs(cands) {
+    if (!Array.isArray(cands)) return '';
+    return cands.map(c => {
+      const r = c && c._ref;
+      if (!r) return (c && c.cand_id ? String(c.cand_id) : '') + '|';
+      return [r.id, r.vsa_url || '', r.role || '', r.location || ''].join('§');
+    }).join('||');
+  }
+
   async function saveAuto() {
     if (!state.dirty) return;
     const savedEl = root.querySelector('[data-v30-besoin-saved]');
     try {
       if (savedEl) savedEl.textContent = 'Enregistrement…';
+      const prevRefSig = _serializeCandRefs(state.besoin && state.besoin.candidats);
       const payload = collectPayload();
       const data = await fetchJSON('/api/besoins/' + ID, {
         method: 'PUT',
@@ -525,6 +811,9 @@
         const ua = root.querySelector('[data-field="updated-at"]');
         if (ua) ua.textContent = fmtDate(state.besoin.updated_at);
         updateMeta();
+        // Si l'enrichissement (VSA, role, …) a changé après save, on rerend les cartes
+        const newRefSig = _serializeCandRefs(state.besoin && state.besoin.candidats);
+        if (newRefSig !== prevRefSig) renderCands();
         if (savedEl) savedEl.textContent = '✓ Enregistré';
         setTimeout(() => { if (savedEl && !state.dirty) savedEl.textContent = ''; }, 1800);
       }
@@ -623,19 +912,21 @@
           // Mode liaison : mettre à jour la ligne existante
           const cand = state.besoin.candidats[_linkCandIdx];
           if (cand) { cand.candidat = name; cand.cand_id = cid; }
-          if (typeof window.showToast === 'function') window.showToast('Fiche liée', 'success', 1800);
+          if (typeof window.showToast === 'function') window.showToast('Fiche liée — VSA & infos disponibles après sauvegarde', 'success', 2200);
         } else {
           // Mode ajout
           state.besoin.candidats.push({ candidat: name, cand_id: cid });
+          const newIdx = state.besoin.candidats.length - 1;
+          state.expanded.add(newIdx);
           if (typeof window.showToast === 'function') window.showToast('Candidat ajouté', 'success', 1800);
         }
 
         renderCands();
         markDirty();
         closeCandModal();
-        const tbody = root.querySelector('[data-v30-besoin-cand-body]');
-        if (tbody) {
-          const last = tbody.querySelector('tr:last-child input');
+        const host = root.querySelector('[data-v30-besoin-cand-body]');
+        if (host) {
+          const last = host.querySelector('.v30-cand-card:last-child input[data-cand-field="candidat"]');
           if (last) last.focus();
         }
       });
