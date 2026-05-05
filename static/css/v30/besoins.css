@@ -165,30 +165,302 @@
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 
-/* ─── Tableau candidats ─── */
-.v30-besoin-cand-table-wrap {
-  overflow-x: auto;
-  margin: 0 -16px; padding: 0 16px;
-}
-.v30-besoin-cand-table {
-  width: 100%; min-width: 920px;
-  border-collapse: separate; border-spacing: 0;
-  font-size: 12.5px;
-}
-.v30-besoin-cand-table thead th {
-  position: sticky; top: 0; z-index: 1;
-  text-align: left; padding: 8px 10px;
-  font-weight: 500; font-size: 11px;
-  color: var(--text-3); letter-spacing: 0.04em;
-  text-transform: uppercase;
+/* ─── Légende statuts candidats ─── */
+.v30-cand-legend {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px;
   background: var(--surface-2, var(--surface));
-  border-bottom: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10.5px;
+}
+.v30-cand-legend__chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 1px 8px 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+  background: transparent;
   white-space: nowrap;
 }
-.v30-besoin-cand-table tbody td {
-  padding: 4px 6px;
+.v30-cand-legend__chip::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ink-300, #cbd5e1);
+}
+.v30-cand-legend__chip--dispo::before   { background: var(--success, #22c55e); }
+.v30-cand-legend__chip--pending::before { background: var(--ink-300, #cbd5e1); }
+.v30-cand-legend__chip--nope::before    { background: var(--danger, #ef4444); }
+
+/* ─── Liste de cartes candidats (remplace l'ancien tableau plat) ─── */
+.v30-cand-list {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 4px;
+}
+.v30-cand-list__empty {
+  padding: 24px 12px; text-align: center;
+  font-size: 12.5px; color: var(--text-2);
+  background: var(--surface-2, var(--surface));
+  border: 1px dashed var(--border);
+  border-radius: var(--r-lg, 10px);
+}
+
+.v30-cand-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 10px);
+  overflow: hidden;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.v30-cand-card:hover { border-color: var(--border-strong); }
+.v30-cand-card.is-open {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-2, 0 2px 6px rgba(0,0,0,.05));
+}
+
+/* Bandeau coloré à gauche selon le statut */
+.v30-cand-card::before {
+  content: ''; position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--ink-200, #e5e7eb);
+  transition: background .12s ease, width .12s ease;
+}
+.v30-cand-card[data-status="dispo"]::before { background: var(--success, #22c55e); width: 4px; }
+.v30-cand-card[data-status="nope"]::before  { background: var(--danger, #ef4444); width: 4px; }
+
+/* Header de carte (compact, toujours visible) */
+.v30-cand-card__head {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1.6fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 14px;
+}
+.v30-cand-card__toggle {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--surface-2, var(--surface));
+  border-radius: var(--r-sm, 6px);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: transform .15s ease, background .12s ease, color .12s ease;
+  padding: 0;
+}
+.v30-cand-card__toggle:hover { background: var(--surface-3, var(--surface)); color: var(--text); }
+.v30-cand-card.is-open .v30-cand-card__toggle { transform: rotate(90deg); }
+
+.v30-cand-card__status {
+  display: inline-flex; align-items: center;
+  height: 22px; padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 10.5px; font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .12s ease;
+  font-family: inherit;
+}
+.v30-cand-card__status:hover { border-color: var(--border-strong); color: var(--text-2); }
+.v30-cand-card__status::before {
+  content: ''; display: inline-block;
+  width: 6px; height: 6px; border-radius: 50%;
+  margin-right: 6px;
+  background: var(--ink-300, #cbd5e1);
+}
+.v30-cand-card[data-status="dispo"] .v30-cand-card__status {
+  background: color-mix(in oklch, var(--success) 12%, transparent);
+  border-color: color-mix(in oklch, var(--success) 40%, var(--border));
+  color: var(--success);
+}
+.v30-cand-card[data-status="dispo"] .v30-cand-card__status::before { background: var(--success); }
+.v30-cand-card[data-status="nope"] .v30-cand-card__status {
+  background: color-mix(in oklch, var(--danger) 10%, transparent);
+  border-color: color-mix(in oklch, var(--danger) 40%, var(--border));
+  color: var(--danger);
+}
+.v30-cand-card[data-status="nope"] .v30-cand-card__status::before { background: var(--danger); }
+
+.v30-cand-card__name {
+  display: flex; align-items: center; gap: 6px;
+  min-width: 0;
+}
+.v30-cand-card__name input {
+  width: 100%;
+  padding: 5px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm, 6px);
+  font-size: 13px; font-weight: 500;
+  color: var(--text);
+  font-family: inherit;
+}
+.v30-cand-card__name input:hover,
+.v30-cand-card__name input:focus {
+  background: var(--surface-2, var(--surface));
+  border-color: var(--border);
+  outline: none;
+}
+.v30-cand-card__name input:focus { border-color: var(--accent); }
+
+.v30-cand-card__preview {
+  display: flex; align-items: center; gap: 8px;
+  min-width: 0;
+  font-size: 11.5px; color: var(--text-3);
+}
+.v30-cand-card__preview-item {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.v30-cand-card__preview-item span:first-child {
+  text-transform: uppercase; letter-spacing: 0.04em;
+  font-size: 10px; color: var(--text-muted, var(--text-3));
+}
+.v30-cand-card__preview-item strong {
+  color: var(--text-2); font-weight: 500;
+  font-size: 12px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+.v30-cand-card__actions {
+  display: inline-flex; align-items: center; gap: 4px;
+  flex-shrink: 0;
+}
+.v30-cand-card__actions .btn-icon {
+  width: 26px; height: 26px;
+  padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.v30-cand-card__actions .v30-cand-card__btn-vsa {
+  height: 26px; padding: 0 9px;
+  font-size: 11px; font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.v30-cand-card__actions .v30-cand-card__btn-vsa[hidden] { display: none; }
+
+/* Body (déroulant) */
+.v30-cand-card__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .22s var(--ease, ease);
+  border-top: 0 solid transparent;
+}
+.v30-cand-card.is-open .v30-cand-card__body {
+  grid-template-rows: 1fr;
   border-top: 1px solid var(--border);
 }
+.v30-cand-card__body-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+.v30-cand-card.is-open .v30-cand-card__body-inner { padding: 12px 14px 14px 14px; }
+
+/* Disposition interne du body */
+.v30-cand-card__grid {
+  display: grid;
+  gap: 10px 14px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+}
+@media (max-width: 720px) {
+  .v30-cand-card__grid { grid-template-columns: 1fr; }
+}
+.v30-cand-card__field {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.v30-cand-card__field > span {
+  font-size: 10.5px; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.v30-cand-card__field textarea,
+.v30-cand-card__field input {
+  width: 100%; box-sizing: border-box;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 6px);
+  font-family: inherit;
+  resize: vertical;
+  line-height: 1.45;
+}
+.v30-cand-card__field textarea:focus,
+.v30-cand-card__field input:focus {
+  border-color: var(--accent);
+  outline: none;
+  background: var(--surface);
+}
+.v30-cand-card__field textarea { min-height: 78px; }
+
+/* Tracking dates : grille compacte 4 colonnes */
+.v30-cand-card__tracking {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (max-width: 720px) {
+  .v30-cand-card__tracking { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.v30-cand-card__tracking .v30-cand-card__field input { padding: 6px 8px; font-size: 12.5px; }
+
+/* Ref info (depuis fiche candidat liée) */
+.v30-cand-card__ref {
+  grid-column: 1 / -1;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 8px 10px;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 6px);
+  font-size: 11.5px;
+}
+.v30-cand-card__ref-tag {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  padding: 2px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-2);
+}
+.v30-cand-card__ref-tag span { color: var(--text-3); font-size: 10.5px; }
+.v30-cand-card__ref-empty {
+  font-size: 11.5px; color: var(--text-3); font-style: italic;
+}
+
+/* Footer du body : actions spécifiques */
+.v30-cand-card__body-actions {
+  grid-column: 1 / -1;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+}
+
+/* Mobile : header passe en flex column */
+@media (max-width: 600px) {
+  .v30-cand-card__head {
+    grid-template-columns: auto auto 1fr auto;
+    grid-template-rows: auto auto;
+    row-gap: 6px;
+  }
+  .v30-cand-card__name { grid-column: 3 / -2; }
+  .v30-cand-card__actions { grid-column: -2 / -1; grid-row: 1; }
+  .v30-cand-card__preview {
+    grid-column: 1 / -1;
+    padding-left: 32px;
+    flex-wrap: wrap;
+  }
+}
+
+/* Compat : conservé pour anciens écrans utilisant l'ancienne classe */
+.v30-besoin-cand-table-wrap { display: none; }
+.v30-besoin-cand-table { display: none; }
 .v30-besoin-cand-input {
   width: 100%;
   padding: 6px 8px;
@@ -199,16 +471,6 @@
   color: var(--text);
   font-family: inherit;
 }
-.v30-besoin-cand-input:focus,
-.v30-besoin-cand-input:hover {
-  background: var(--surface);
-  border-color: var(--border);
-  outline: none;
-}
-.v30-besoin-cand-input:focus {
-  border-color: var(--accent);
-}
-.v30-besoin-cand-actions { width: 32px; text-align: center; }
 
 /* ─── Métadonnées ─── */
 .v30-besoin-meta-list {
