@@ -1,9 +1,9 @@
 {% extends "v30/base.html" %}
-{% block title %}Stats & Rapport — Prosp'Up v30{% endblock %}
+{% block title %}Stats — Prosp'Up v30{% endblock %}
 {% block page_id %}v30-stats{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="/static/css/v30/rapport_doc.css?v={{ static_hash('css/v30/rapport_doc.css') }}">
+<link rel="stylesheet" href="/static/css/v30/rapport.css?v={{ static_hash('css/v30/rapport.css') }}">
 <link rel="stylesheet" href="/static/css/v30/stats.css?v={{ static_hash('css/v30/stats.css') }}">
 <style>
 .v30-stats-controls{display:flex;align-items:center;gap:8px;}
@@ -27,7 +27,7 @@
   {# ─── Page header (Phase 2 — pattern unifié) ─── #}
   <div class="page-header">
     <div class="page-header__group">
-      <h1 class="page-title">Stats &amp; Rapport</h1>
+      <h1 class="page-title">Stats</h1>
     </div>
     <div class="page-header__actions">
       <div class="v30-stats-controls">
@@ -227,106 +227,169 @@
 
   </div>
 
-  {# ─── Panel : Rapport WYSIWYG ─── #}
+  {# ─── Panel : Rapport ─── #}
   <div data-v30-stats-panel="rapport" hidden>
+    <div class="v30-rapport" data-v30-rapport>
 
-    <div class="v30-rep-toolbar">
-      <div class="segmented" role="tablist" data-v30-rep-weeks>
-        <button type="button" class="active" data-week="current" role="tab"
-                aria-selected="true">En cours</button>
-        <button type="button" data-week="prev" role="tab" aria-selected="false">
-          Précédente
-        </button>
+      {# ─── Sélecteur semaine ─── #}
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+        <div class="segmented" role="tablist" data-v30-rapport-weeks>
+          <button type="button" class="active" data-week="current" role="tab" aria-selected="true">En cours</button>
+          <button type="button" data-week="prev" role="tab" aria-selected="false">Précédente</button>
+        </div>
+        <input type="week" class="input" data-v30-rapport-week-picker
+               aria-label="Choisir une semaine ISO" style="max-width:170px;">
+        <span class="muted" data-field="week-range" style="font-size:12px;">—</span>
       </div>
-      <input type="week" class="input" data-v30-rep-week-picker
-             aria-label="Choisir une semaine ISO" style="max-width:180px;">
-      <span class="muted mono" data-v30-rep-range>—</span>
-      <div class="v30-spacer"></div>
-      <button type="button" class="btn btn-ghost btn-sm" data-v30-rep-refresh>
-        {{ ui.icon('zap', 13) }} Rafraîchir
-      </button>
-      <button type="button" class="btn btn-ghost btn-sm" data-v30-rep-copy>
-        {{ ui.icon('bookmark', 13) }} Copier Markdown
-      </button>
-      <button type="button" class="btn btn-ghost btn-sm" data-v30-rep-xlsx>
-        {{ ui.icon('arrowD', 13) }} Exporter Excel
-      </button>
-      <button type="button" class="btn btn-accent" data-v30-rep-pdf>
-        {{ ui.icon('arrowD', 13) }} Exporter PDF
-      </button>
-    </div>
 
-    <article class="v30-rep-doc" data-v30-rep-doc>
-
-      <header class="v30-rep-doc__header">
-        <div class="v30-rep-doc__eyebrow">Rapport hebdomadaire</div>
-        <h1 class="v30-rep-doc__title" contenteditable="true" data-v30-rep-ce="title"
-            data-placeholder="Titre du rapport">Rapport hebdomadaire</h1>
-        <div class="v30-rep-doc__author" contenteditable="true" data-v30-rep-ce="author"
-             data-placeholder="Auteur · équipe · client">—</div>
-      </header>
-
-      <section class="v30-rep-sec">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <h2 style="margin:0;">Résumé</h2>
-          <button type="button" class="btn btn-ghost btn-sm" data-v30-rep-gen-summary
-                  style="font-size:11px;padding:3px 8px;" title="Générer un résumé avec l'IA">
-            {{ ui.icon('zap', 11) }} Générer IA
+      {# ─── Templates pré-faits ─── #}
+      <section class="v30-rapport__templates" aria-label="Templates de rapport">
+        <h2 class="v30-rapport__section-title">Templates</h2>
+        <div class="v30-rapport__template-grid" data-v30-templates>
+          <button type="button" class="template-card is-active" data-template="weekly">
+            <div class="template-card__icon">{{ ui.icon('chart', 16) }}</div>
+            <div class="template-card__name">Weekly Summary</div>
+            <div class="template-card__desc">Synthèse hebdo : KPI, activité, pipeline, notes.</div>
+          </button>
+          <button type="button" class="template-card" data-template="monthly">
+            <div class="template-card__icon">{{ ui.icon('calendar', 16) }}</div>
+            <div class="template-card__name">Monthly Digest</div>
+            <div class="template-card__desc">Vue mensuelle (4 semaines glissantes).</div>
+          </button>
+          <button type="button" class="template-card" data-template="custom">
+            <div class="template-card__icon">{{ ui.icon('bookmark', 16) }}</div>
+            <div class="template-card__name">Custom</div>
+            <div class="template-card__desc">Choisir une période et des filtres libres.</div>
           </button>
         </div>
-        <div class="v30-rep-sec__ce" contenteditable="true" data-v30-rep-ce="summary"
-             data-placeholder="Résumé éditorial de la semaine (wins, blockers, focus)"></div>
       </section>
 
-      <section class="v30-rep-sec">
-        <h2>KPI de la semaine</h2>
-        <div class="v30-rep-kpis" data-v30-rep-kpis>
-          {% for _ in range(4) %}
-          <div class="v30-rep-kpi">
-            <div class="skel" style="width:60%;height:11px;"></div>
-            <div class="skel" style="width:40%;height:22px;margin-top:6px;"></div>
+      {# ─── Filtres + actions d'export ─── #}
+      <section class="v30-rapport__filters" aria-label="Filtres">
+        <div class="filter-bar">
+          <span class="filter-bar__label">Inclure :</span>
+          <label class="filter-chip">
+            <input type="checkbox" data-v30-filter="kpi" checked>
+            <span>KPI</span>
+          </label>
+          <label class="filter-chip">
+            <input type="checkbox" data-v30-filter="activity" checked>
+            <span>Activité</span>
+          </label>
+          <label class="filter-chip">
+            <input type="checkbox" data-v30-filter="pipeline" checked>
+            <span>Pipeline</span>
+          </label>
+          <label class="filter-chip">
+            <input type="checkbox" data-v30-filter="notes" checked>
+            <span>Notes</span>
+          </label>
+        </div>
+        <div class="v30-rapport__actions">
+          <button type="button" class="btn" data-v30-rapport-preview>
+            {{ ui.icon('search', 13) }} Aperçu
+          </button>
+          <button type="button" class="btn" data-v30-rapport-copy>
+            {{ ui.icon('bookmark', 13) }} Copier Markdown
+          </button>
+          <button type="button" class="btn btn-accent" data-v30-rapport-pdf>
+            {{ ui.icon('arrowD', 13) }} Export PDF
+          </button>
+          <button type="button" class="btn" data-v30-rapport-xlsx>
+            {{ ui.icon('arrowD', 13) }} Export Excel
+          </button>
+        </div>
+      </section>
+
+      {# ─── Grille KPI / Activité / Pipeline / Notes ─── #}
+      <div class="v30-rapport__grid">
+
+        <section class="card">
+          <div class="card-title">KPI semaine</div>
+          <div class="kpi-grid" data-v30-rapport-kpis>
+            {% for _ in range(4) %}
+            <div class="kpi">
+              <div class="skel" style="width:60%;height:11px;"></div>
+              <div class="skel" style="width:40%;height:22px;margin-top:6px;"></div>
+            </div>
+            {% endfor %}
           </div>
-          {% endfor %}
+        </section>
+
+        <section class="card card-flush">
+          <div class="card-header">
+            <div class="card-title">Activité</div>
+          </div>
+          <div class="v30-rapport__list" data-v30-rapport-activity>
+            <div class="empty" style="padding:20px;">Chargement…</div>
+          </div>
+        </section>
+
+        <section class="card card-flush">
+          <div class="card-header">
+            <div class="card-title">Pipeline</div>
+          </div>
+          <div class="v30-rapport__list" data-v30-rapport-pipeline>
+            <div class="empty" style="padding:20px;">Chargement…</div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="row-sb">
+            <div class="card-title">Notes libres</div>
+            <span class="muted" style="font-size:11px;">Autosave local</span>
+          </div>
+          <div contenteditable="true" class="v30-rapport__notes" data-v30-rapport-notes
+               aria-label="Notes libres du rapport"
+               data-placeholder="Ajoute tes commentaires, wins, blockers…"></div>
+        </section>
+
+      </div>
+
+      {# ─── Historique local ─── #}
+      <section class="v30-rapport__history">
+        <h2 class="v30-rapport__section-title">Rapports générés</h2>
+        <div class="card card-flush">
+          <table class="history-table" data-v30-rapport-history>
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Template</th>
+                <th scope="col">Période</th>
+                <th scope="col">Format</th>
+              </tr>
+            </thead>
+            <tbody data-v30-rapport-history-tbody>
+              <tr><td colspan="4" class="empty" style="padding:20px;">Aucun rapport généré (historique local).</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
-      <section class="v30-rep-sec">
-        <h2>Top entreprises</h2>
-        <div class="v30-rep-table" data-v30-rep-top-companies>
-          <div class="empty" style="padding:12px;">Chargement…</div>
-        </div>
-      </section>
-
-      <section class="v30-rep-sec">
-        <h2>Top pushés (destinataires)</h2>
-        <div class="v30-rep-table" data-v30-rep-top-pushed>
-          <div class="empty" style="padding:12px;">Chargement…</div>
-        </div>
-      </section>
-
-      <section class="v30-rep-sec">
-        <h2>Évolution push</h2>
-        <div class="v30-rep-sparkline" data-v30-rep-push-trend>
-          <div class="empty" style="padding:12px;">Chargement…</div>
-        </div>
-      </section>
-
-      <section class="v30-rep-sec">
-        <h2>Notes &amp; commentaires</h2>
-        <div class="v30-rep-sec__ce" contenteditable="true" data-v30-rep-ce="notes"
-             data-placeholder="Notes libres — autosave local, inclus dans l'export."></div>
-      </section>
-
-      <footer class="v30-rep-doc__footer">
-        <span class="muted" style="font-size:11px;">
-          Généré depuis ProspUp · <span data-v30-rep-savehint>Autosave local</span>
-        </span>
-      </footer>
-
-    </article>
+    </div>
   </div>
 
 </div>
 
+{# ─── Modale Aperçu Rapport ─── #}
+<div class="v30-modal-bd" data-v30-rapport-preview-bd hidden>
+  <div class="v30-modal v30-modal--xl" role="dialog" aria-modal="true" aria-label="Aperçu rapport">
+    <header class="v30-modal__head">
+      <h2 class="v30-modal__title">{{ ui.icon('search', 14) }} Aperçu du rapport</h2>
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-rapport-preview-close aria-label="Fermer">{{ ui.icon('x') }}</button>
+    </header>
+    <div class="v30-modal__body">
+      <div class="v30-rapport__preview" data-v30-rapport-preview-body>
+        <div class="empty" style="padding:24px;">Chargement…</div>
+      </div>
+    </div>
+    <footer class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost" data-v30-rapport-preview-close>Fermer</button>
+      <button type="button" class="btn btn-accent" data-v30-rapport-preview-pdf>Export PDF</button>
+    </footer>
+  </div>
+</div>
+
 <script defer src="/static/js/v30/stats.js?v={{ static_hash('js/v30/stats.js') }}"></script>
+<script defer src="/static/js/v30/rapport.js?v={{ static_hash('js/v30/rapport.js') }}"></script>
 {% endblock %}
