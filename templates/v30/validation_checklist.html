@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>Validation post-merge — ProspUp v{{ app_version }}</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/css/v30/tokens.css?v={{ static_hash('css/v30/tokens.css') }}">
+  <link rel="stylesheet" href="/static/css/v30/components.css?v={{ static_hash('css/v30/components.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+    }
+    .vc-shell { max-width: 920px; margin: 0 auto; padding: 32px 24px 120px; }
+    .vc-header { margin-bottom: 24px; }
+    .vc-header h1 { font-size: 24px; font-weight: 600; margin: 0 0 8px; }
+    .vc-header .vc-meta { font-size: 13px; color: var(--text-3); display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+    .vc-header .vc-meta code { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .vc-progress {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      margin-bottom: 20px;
+      position: sticky; top: 12px; z-index: 10;
+      backdrop-filter: blur(8px);
+    }
+    .vc-progress__bar {
+      flex: 1; height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden;
+    }
+    .vc-progress__fill {
+      height: 100%;
+      background: linear-gradient(90deg, #FF6B35, #FF8C42);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .vc-progress__count { font-size: 13px; font-weight: 500; }
+    .vc-progress__count strong { color: #FF6B35; }
+    .vc-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .vc-section__head {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+    }
+    .vc-section__head:hover { background: var(--surface-2); }
+    .vc-section__priority {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+    .vc-section__priority--high { background: #ef4444; }
+    .vc-section__priority--med { background: #f59e0b; }
+    .vc-section__priority--low { background: #10b981; }
+    .vc-section__title { font-weight: 600; font-size: 15px; flex: 1; }
+    .vc-section__progress { font-size: 12px; color: var(--text-3); }
+    .vc-section__chevron { transition: transform 0.2s; color: var(--text-3); }
+    .vc-section.is-collapsed .vc-section__chevron { transform: rotate(-90deg); }
+    .vc-section.is-collapsed .vc-section__body { display: none; }
+    .vc-section__body { padding: 8px 18px 16px; }
+    .vc-item {
+      display: flex; gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .vc-item:last-child { border-bottom: none; }
+    .vc-item__check {
+      flex-shrink: 0;
+      margin-top: 2px;
+      width: 20px; height: 20px;
+      cursor: pointer;
+    }
+    .vc-item__label {
+      flex: 1; font-size: 14px; line-height: 1.5;
+      cursor: pointer;
+    }
+    .vc-item__label code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 1px 5px;
+      background: var(--surface-2);
+      border-radius: 3px;
+    }
+    .vc-item.is-failed .vc-item__label { color: #ef4444; }
+    .vc-item.is-passed .vc-item__label { color: var(--text-2); text-decoration: line-through; opacity: 0.7; }
+    .vc-item__actions {
+      display: flex; gap: 6px;
+      flex-shrink: 0;
+    }
+    .vc-status-btn {
+      width: 28px; height: 28px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-3);
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .vc-status-btn:hover { background: var(--surface-2); }
+    .vc-status-btn.is-active--ok { border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.1); }
+    .vc-status-btn.is-active--ko { border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+    .vc-status-btn.is-active--skip { border-color: var(--text-3); color: var(--text); background: var(--surface-2); }
+    .vc-comment {
+      width: 100%;
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      resize: vertical;
+      min-height: 60px;
+      display: none;
+    }
+    .vc-comment.is-visible { display: block; }
+    .vc-toolbar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      padding: 14px 24px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      backdrop-filter: blur(12px);
+      z-index: 20;
+    }
+    .vc-toolbar__inner { max-width: 920px; margin: 0 auto; width: 100%; display: flex; gap: 10px; align-items: center; }
+    .vc-toolbar__count { flex: 1; font-size: 13px; }
+    .vc-toolbar__count strong.ok { color: #10b981; }
+    .vc-toolbar__count strong.ko { color: #ef4444; }
+    .btn-export {
+      padding: 9px 16px;
+      background: linear-gradient(135deg, #FF6B35, #FF8C42);
+      color: white;
+      border: none;
+      border-radius: var(--r-md);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .btn-export:hover { filter: brightness(1.1); }
+    .btn-secondary {
+      padding: 8px 14px;
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-secondary:hover { background: var(--surface); }
+    @media (max-width: 600px) {
+      .vc-shell { padding: 16px 12px 140px; }
+      .vc-toolbar { padding: 10px 12px; }
+      .vc-section__head { padding: 12px 14px; }
+      .vc-section__body { padding: 6px 14px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="vc-shell">
+    <div class="vc-header">
+      <h1>Checklist de validation post-merge</h1>
+      <div class="vc-meta">
+        <span>App version : <code>{{ app_version }}</code></span>
+        <span>Date du test : <code id="vc-test-date">—</code></span>
+        <span>Branche testée : <code id="vc-branch">claude/prospup-audit-cleanup-W1i91</code></span>
+      </div>
+    </div>
+
+    <div class="vc-progress">
+      <div class="vc-progress__bar"><div class="vc-progress__fill" id="vc-progress-fill"></div></div>
+      <div class="vc-progress__count">
+        <strong id="vc-done">0</strong> / <span id="vc-total">0</span> traités
+      </div>
+    </div>
+
+    <div id="vc-sections-root"></div>
+
+  </div>
+
+  <div class="vc-toolbar">
+    <div class="vc-toolbar__inner">
+      <div class="vc-toolbar__count">
+        <strong class="ok" id="vc-ok-count">0</strong> OK ·
+        <strong class="ko" id="vc-ko-count">0</strong> KO ·
+        <span id="vc-skip-count">0</span> skip ·
+        <span id="vc-pending-count">0</span> à faire
+      </div>
+      <button type="button" class="btn-secondary" id="vc-reset">Reset</button>
+      <button type="button" class="btn-export" id="vc-export">↓ Exporter (.md)</button>
+    </div>
+  </div>
+
+  <script src="/static/js/v30/validation_checklist.js?v={{ static_hash('js/v30/validation_checklist.js') }}"></script>
+</body>
+</html>

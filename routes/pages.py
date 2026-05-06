@@ -836,3 +836,17 @@ def page_v30_dashboard():
         display_name=display_name,
         app_version=APP_VERSION,
     )
+
+
+@pages_bp.get("/v30/validation-checklist")
+@login_required
+@role_required('admin')
+def page_v30_validation_checklist():
+    """Checklist interactive de validation post-merge (admin uniquement).
+
+    Page autonome (sans chrome v30) ouverte dans un nouvel onglet depuis la
+    popup de mise à jour. Persiste l'état en localStorage et exporte un
+    fichier markdown avec un prompt prêt à coller dans une nouvelle session
+    Claude pour corriger les échecs.
+    """
+    return render_template("v30/validation_checklist.html", app_version=APP_VERSION)
