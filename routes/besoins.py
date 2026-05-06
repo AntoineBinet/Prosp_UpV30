@@ -469,135 +469,8 @@ def _safe_filename(s: str) -> str:
     return s[:80]
 
 
-def _build_recto_sheet(ws, b: dict, cands: list):
-    """Construit la feuille 'recto' (paysage, 1 tableau candidats).
-
-    Réplique exactement le template `sample/03 traitement besoin.xlsx`.
-    """
-    from openpyxl.styles import Alignment, Border, Font, Side
-
-    THIN = Side(border_style="thin", color="000000")
-    MED = Side(border_style="medium", color="000000")
-    BOLD = Font(name="Calibri", size=11, bold=True)
-    REG = Font(name="Calibri", size=11, bold=False)
-    CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    LEFT = Alignment(horizontal="left", vertical="center", wrap_text=True)
-    WRAP = Alignment(vertical="center", wrap_text=True)
-
-    # Page setup paysage A4
-    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
-    ws.page_setup.paperSize = 9
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 1
-    ws.sheet_properties.pageSetUpPr.fitToPage = True
-    ws.page_margins.left = 0.236
-    ws.page_margins.right = 0.236
-    ws.page_margins.top = 0.354
-    ws.page_margins.bottom = 0.354
-
-    # Largeurs colonnes
-    widths = {"A": 33.0, "B": 25.07, "C": 8.73, "D": 12.0, "E": 12.0,
-              "F": 18.0, "G": 18.0, "H": 52.27, "I": 8.73, "J": 12.0}
-    for col, w in widths.items():
-        ws.column_dimensions[col].width = w
-
-    # Hauteurs
-    for r in (1, 2, 3):
-        ws.row_dimensions[r].height = 28.5
-    ws.row_dimensions[4].height = 112.9
-    ws.row_dimensions[5].height = 14.65
-    for r in range(6, 59):
-        ws.row_dimensions[r].height = 31.5
-
-    # Fusions
-    ws.merge_cells("B1:E1")
-    ws.merge_cells("F1:G1")
-    ws.merge_cells("H1:J1")
-    ws.merge_cells("B2:G2")
-    ws.merge_cells("I2:J2")
-    ws.merge_cells("D3:E3")
-    ws.merge_cells("F3:G3")
-    ws.merge_cells("H3:J3")
-    ws.merge_cells("B4:J4")
-
-    # Headers
-    ws["A1"] = "Client";        ws["B1"] = b.get("client") or ""
-    ws["F1"] = "Localisation";  ws["H1"] = b.get("localisation") or ""
-    ws["A2"] = "Contact";       ws["B2"] = b.get("contact") or ""
-    ws["H2"] = "Date appel";    ws["I2"] = b.get("date_appel") or ""
-    ws["A3"] = "Besoin";        ws["B3"] = b.get("intitule") or ""
-    ws["C3"] = "Date besoin";   ws["D3"] = b.get("date_besoin") or ""
-    ws["F3"] = "Durée mission"; ws["H3"] = b.get("duree_mission") or ""
-
-    # Descriptif / compétences / connaissances / expérience tout combiné en une cellule
-    ws["A4"] = "Descriptif, compétences requises, connaissance attendues, expérience"
-    descriptif_combine = "\n".join(p for p in [
-        b.get("descriptif"),
-        ("Compétences requises : " + b.get("competences")) if b.get("competences") else None,
-        ("Connaissances attendues : " + b.get("connaissances")) if b.get("connaissances") else None,
-        ("Expérience : " + b.get("experience")) if b.get("experience") else None,
-        ("Profil : " + b.get("profil_type")) if b.get("profil_type") else None,
-        ("Commentaires : " + b.get("commentaires")) if b.get("commentaires") else None,
-    ] if p)
-    ws["B4"] = descriptif_combine
-
-    # Header tableau candidats
-    headers = ["Candidat", "Origine", "Dispo", "Appel", "DT",
-               "RDV1", "RDV2/ proposition", "Note", "Envoi DT", "RT"]
-    for i, h in enumerate(headers, start=1):
-        cell = ws.cell(row=5, column=i, value=h)
-        cell.font = BOLD
-        cell.alignment = CENTER
-
-    # Lignes candidats : mapper chaque entrée du JSON sur les 10 colonnes
-    # NB : la colonne 2 est libellée "Origine" dans le recto et
-    # "Commentaires" dans le recto/verso. Côté UI on utilise "commentaires"
-    # comme champ générique, on tombe en fallback sur "origine" si présent.
-    keys = ["candidat", None, "dispo", "appel", "dt",
-            "rdv1", "rdv2", "note", "envoi_dt", "rt"]
-    max_rows = 53  # rows 6..58
-    for ri in range(max_rows):
-        r = 6 + ri
-        c = cands[ri] if ri < len(cands) else {}
-        for ci, k in enumerate(keys, start=1):
-            if k is None:
-                # colonne 2 (Origine) : fallback commentaires → origine
-                val = c.get("commentaires") or c.get("origine") or ""
-            else:
-                val = c.get(k) or ""
-            ws.cell(row=r, column=ci, value=val)
-
-    # Bordures : tout le tableau A1:J58
-    for r in range(1, 59):
-        for ci in range(1, 11):
-            cell = ws.cell(row=r, column=ci)
-            top = MED if r in (1, 5) else THIN
-            bottom = MED if r in (5,) else THIN
-            left = MED if ci == 1 else THIN
-            right = MED if ci == 10 else THIN
-            # Header row
-            if r == 4:
-                top = THIN
-                bottom = MED
-            cell.border = Border(top=top, bottom=bottom, left=left, right=right)
-            if r == 4 and ci == 1:
-                cell.font = BOLD
-                cell.alignment = WRAP
-            elif r <= 3 or r == 5:
-                cell.font = BOLD
-                if ci == 1 or ci in (3, 6, 8) and r == 3:
-                    cell.alignment = WRAP
-                else:
-                    cell.alignment = CENTER if r == 5 else LEFT
-            else:
-                cell.font = REG
-                cell.alignment = LEFT
-
-    ws.print_area = "A1:J58"
-
-
-def _build_verso_sheet(ws, b: dict, cands: list):
-    """Construit la feuille 'recto verso' (portrait, 2 tableaux candidats)."""
+def _build_sheet(ws, b: dict, cands: list):
+    """Construit la feuille unique 'recto verso' selon le template Scintil (13 colonnes A-M)."""
     from openpyxl.styles import Alignment, Border, Font, Side
 
     THIN = Side(border_style="thin", color="000000")
@@ -618,17 +491,22 @@ def _build_verso_sheet(ws, b: dict, cands: list):
     ws.page_margins.top = 0.354
     ws.page_margins.bottom = 0.354
 
-    widths = {"A": 18.60, "B": 33.27, "C": 8.73, "D": 9.0, "E": 9.0,
-              "F": 12.0, "G": 12.0, "H": 8.60, "I": 8.73, "J": 9.0}
+    widths = {
+        "A": 33.1, "B": 33.2, "C": 8.8, "D": 8.4, "E": 8.4,
+        "F": 12.2, "G": 16.3, "H": 8.6, "I": 8.8, "J": 27.8,
+        "K": 39.9, "L": 31.7, "M": 28.6, "N": 11.4,
+    }
     for col, w in widths.items():
         ws.column_dimensions[col].width = w
 
     for r in (1, 2, 3):
         ws.row_dimensions[r].height = 28.5
-    ws.row_dimensions[4].height = 42.0
-    for r in (5, 6, 7, 8):
-        ws.row_dimensions[r].height = 43.5
-    ws.row_dimensions[9].height = 14.65
+    ws.row_dimensions[4].height = 105.6
+    ws.row_dimensions[5].height = 63.0
+    ws.row_dimensions[6].height = 43.5
+    ws.row_dimensions[7].height = 76.8
+    ws.row_dimensions[8].height = 43.2
+    ws.row_dimensions[9].height = 15.0
     for r in range(10, 63):
         ws.row_dimensions[r].height = 31.5
 
@@ -636,91 +514,76 @@ def _build_verso_sheet(ws, b: dict, cands: list):
     ws.merge_cells("B1:E1")
     ws.merge_cells("F1:G1")
     ws.merge_cells("H1:J1")
+    ws.merge_cells("K1:L1")
     ws.merge_cells("B2:G2")
     ws.merge_cells("I2:J2")
-    ws.merge_cells("D3:E3")
-    ws.merge_cells("F3:G3")
-    ws.merge_cells("H3:J3")
-    ws.merge_cells("B4:J4")
-    ws.merge_cells("B5:J5")
-    ws.merge_cells("B6:J6")
+    ws.merge_cells("L2:M2")
+    ws.merge_cells("B3:M3")
+    ws.merge_cells("B4:M4")
+    ws.merge_cells("B5:M5")
+    ws.merge_cells("B6:M6")
     ws.merge_cells("B7:F7")
     ws.merge_cells("G7:H7")
-    ws.merge_cells("I7:J7")
-    ws.merge_cells("B8:J8")
+    ws.merge_cells("I7:M7")
+    ws.merge_cells("B8:M8")
 
-    # Cellules
-    ws["A1"] = "Client";        ws["B1"] = b.get("client") or ""
-    ws["F1"] = "Localisation";  ws["H1"] = b.get("localisation") or ""
-    ws["A2"] = "Contact";       ws["B2"] = b.get("contact") or ""
-    ws["H2"] = "Date appel";    ws["I2"] = b.get("date_appel") or ""
-    ws["A3"] = "Besoin";        ws["B3"] = b.get("intitule") or ""
-    ws["C3"] = "Date besoin";   ws["D3"] = b.get("date_besoin") or ""
-    ws["F3"] = "Durée mission"; ws["H3"] = b.get("duree_mission") or ""
-
+    # Cellules header
+    ws["A1"] = "Client";          ws["B1"] = b.get("client") or ""
+    ws["F1"] = "Localisation";    ws["H1"] = b.get("localisation") or ""
+    ws["K1"] = "Durée mission";   ws["M1"] = b.get("duree_mission") or ""
+    ws["A2"] = "Contact";         ws["B2"] = b.get("contact") or ""
+    ws["H2"] = "Date appel";      ws["I2"] = b.get("date_appel") or ""
+    ws["K2"] = "Date besoin";     ws["L2"] = b.get("date_besoin") or ""
+    ws["A3"] = "Besoin";          ws["B3"] = b.get("intitule") or ""
     ws["A4"] = "Descriptif";              ws["B4"] = b.get("descriptif") or ""
     ws["A5"] = "Compétences requises";    ws["B5"] = b.get("competences") or ""
     ws["A6"] = "Connaissances attendues"; ws["B6"] = b.get("connaissances") or ""
-    ws["A7"] = "Expérience";              ws["B7"] = b.get("experience") or ""
-    ws["G7"] = "Ingénieur et / ou Technicien ?"
-    ws["I7"] = b.get("profil_type") or ""
-    ws["A8"] = "Commentaires";            ws["B8"] = b.get("commentaires") or ""
+    ws["A7"] = "Expérience";      ws["B7"] = b.get("experience") or ""
+    ws["G7"] = "Ingénieur et / ou Technicien ?"; ws["I7"] = b.get("profil_type") or ""
+    ws["A8"] = "Commentaires";    ws["B8"] = b.get("commentaires") or ""
 
-    # Tableaux candidats : 2 tableaux (rows 9-30 et 31-62)
+    # Header candidats (row 9, colonnes A-M)
     headers = ["Candidat", "Commentaires", "Dispo", "Appel", "DT",
-               "RDV1", "RDV2", "Note", "Envoi DT", "RT"]
-    keys = ["candidat", "commentaires", "dispo", "appel", "dt",
-            "rdv1", "rdv2", "note", "envoi_dt", "rt"]
-
-    # Tableau 1 : header row 9, data rows 10-30 (21 lignes)
+               "RDV1", "RDV2", "RT", "Envoi DT", "Propal", "RT",
+               "Lieux Habitation", "Diplome"]
     for i, h in enumerate(headers, start=1):
         cell = ws.cell(row=9, column=i, value=h)
         cell.font = BOLD
         cell.alignment = CENTER
 
-    for ri in range(21):
+    # Données candidats (rows 10-62, 53 lignes, 13 colonnes)
+    keys = ["candidat", "commentaires", "dispo", "appel", "dt",
+            "rdv1", "rdv2", "rt", "envoi_dt", "propal", "rt_client",
+            "lieu_habitation", "diplome"]
+    for ri in range(53):
         r = 10 + ri
         c = cands[ri] if ri < len(cands) else {}
         for ci, k in enumerate(keys, start=1):
             ws.cell(row=r, column=ci, value=c.get(k) or "")
 
-    # Tableau 2 : header row 31, data rows 32-62
-    for i, h in enumerate(headers, start=1):
-        cell = ws.cell(row=31, column=i, value=h)
-        cell.font = BOLD
-        cell.alignment = CENTER
-
-    for ri in range(31):
-        r = 32 + ri
-        c = cands[21 + ri] if (21 + ri) < len(cands) else {}
-        for ci, k in enumerate(keys, start=1):
-            ws.cell(row=r, column=ci, value=c.get(k) or "")
-
-    # Bordures
+    # Bordures (A1:M62)
     for r in range(1, 63):
-        for ci in range(1, 11):
+        for ci in range(1, 14):
             cell = ws.cell(row=r, column=ci)
-            top = MED if r in (1, 9, 31) else THIN
-            bottom = MED if r in (9, 31) else THIN
+            top = MED if r == 1 or r == 9 else THIN
+            bottom = MED if r == 8 or r == 9 else THIN
             left = MED if ci == 1 else THIN
-            right = MED if ci == 10 else THIN
-            if r == 8:
-                bottom = MED
+            right = MED if ci == 13 else THIN
             cell.border = Border(top=top, bottom=bottom, left=left, right=right)
             if r <= 8 and ci == 1:
                 cell.font = BOLD
                 cell.alignment = WRAP
-            elif r in (9, 31):
+            elif r == 9:
                 cell.font = BOLD
                 cell.alignment = CENTER
-            elif r in (1, 2, 3) and ci > 1:
+            elif r <= 8 and ci > 1:
                 cell.font = BOLD
                 cell.alignment = LEFT
             else:
                 cell.font = REG
                 cell.alignment = LEFT
 
-    ws.print_area = "A1:J59"
+    ws.print_area = "A1:M62"
 
 
 @besoins_bp.get("/api/besoins/<int:bid>/export.xlsx")
@@ -728,7 +591,6 @@ def api_export_besoin_xlsx(bid: int):
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    fmt = (request.args.get("format") or "both").strip().lower()
     with _conn() as conn:
         row = conn.execute(
             "SELECT b.*, p.name AS prospect_name, c.groupe AS company_name "
@@ -744,7 +606,6 @@ def api_export_besoin_xlsx(bid: int):
     b = _row_to_dict(row)
     cands = b.get("candidats") or []
 
-    # Si client vide, fallback sur company_name (lien entreprise)
     if not b.get("client") and b.get("company_name"):
         b["client"] = b["company_name"]
     if not b.get("contact") and b.get("prospect_name"):
@@ -752,21 +613,11 @@ def api_export_besoin_xlsx(bid: int):
 
     from openpyxl import Workbook
     wb = Workbook()
-    # Première feuille par défaut → on la renomme / on la supprime
     default_ws = wb.active
     wb.remove(default_ws)
 
-    if fmt in ("recto", "both"):
-        ws_recto = wb.create_sheet(title="recto")
-        _build_recto_sheet(ws_recto, b, cands)
-    if fmt in ("verso", "both", "recto_verso"):
-        ws_verso = wb.create_sheet(title="recto verso")
-        _build_verso_sheet(ws_verso, b, cands)
-
-    if not wb.sheetnames:
-        # Sécurité : au moins une feuille
-        ws_recto = wb.create_sheet(title="recto")
-        _build_recto_sheet(ws_recto, b, cands)
+    ws = wb.create_sheet(title="recto verso")
+    _build_sheet(ws, b, cands)
 
     bio = BytesIO()
     wb.save(bio)

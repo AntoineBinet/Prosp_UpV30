@@ -26,17 +26,9 @@
       </div>
     </div>
     <div class="v30-besoin-detail__actions">
-      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-export="recto"
-              title="Export Excel format recto (1 page paysage)">
-        {{ ui.icon('download', 13) }} Export recto
-      </button>
-      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-export="verso"
-              title="Export Excel format recto/verso (2 pages portrait)">
-        {{ ui.icon('download', 13) }} Export recto/verso
-      </button>
-      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-export="both"
-              title="Export Excel complet (les 2 onglets)">
-        {{ ui.icon('download', 13) }} Export complet
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-besoin-export
+              title="Export Excel traitement besoin">
+        {{ ui.icon('download', 13) }} Export Excel
       </button>
       <label class="btn btn-ghost btn-sm" for="v30-besoin-import-xlsx" title="Importer depuis un Excel traitement besoin" style="cursor:pointer;">
         {{ ui.icon('upload', 13) }} Import Excel
@@ -152,7 +144,7 @@
           {# Cartes injectées par JS #}
         </div>
         <p class="muted v30-params__hint" style="margin-top:10px;">
-          Cliquez sur une carte pour déplier ses détails. Cliquez sur la pastille de statut pour cycler entre <em>Pas contacté</em> · <em>Dispo</em> · <em>Non dispo</em>. L'export Excel reste compatible (recto · 53 lignes max ; recto/verso · 52 lignes max).
+          Cliquez sur une carte pour déplier ses détails. Cliquez sur la pastille de statut pour cycler entre <em>Pas contacté</em> · <em>Dispo</em> · <em>Non dispo</em>. L'export Excel reprend les 13 colonnes du template (53 lignes max).
         </p>
       </div>
 
