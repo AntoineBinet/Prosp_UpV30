@@ -14,7 +14,7 @@
     abandonne:  { label: 'Abandonné',  cls: 'v30-besoin-pill--cancel' },
   };
 
-  const CAND_KEYS = ['candidat', 'commentaires', 'dispo', 'appel', 'dt', 'rdv1', 'rdv2', 'note', 'envoi_dt', 'rt'];
+  const CAND_KEYS = ['candidat', 'commentaires', 'dispo', 'appel', 'dt', 'rdv1', 'rdv2', 'rt', 'envoi_dt', 'propal', 'rt_client', 'lieu_habitation', 'diplome'];
 
   // Statut "couleur" libre par ligne — non utilisé par l'export Excel mais
   // affiché dans l'UI : '' (pas contacté) | 'dispo' (vert) | 'nope' (rouge).
@@ -71,6 +71,11 @@
   }
 
   // ─── Parsing Excel traitement besoin ────────────────────────
+  // Format : feuille "recto verso", 13 colonnes A-M, données candidats rows 10-62.
+  // Layout header : B1=client, H1=localisation, M1=duree_mission,
+  //   B2=contact, I2=date_appel, L2=date_besoin, B3=intitule,
+  //   B4=descriptif, B5=competences, B6=connaissances, B7=experience,
+  //   I7=profil_type, B8=commentaires.
   function parseXlsxBesoin(file) {
     return new Promise((resolve, reject) => {
       ensureXLSX().then(() => {
@@ -84,7 +89,6 @@
 
             let sheetName = wb.SheetNames[0];
             if (wb.SheetNames.indexOf('recto verso') >= 0) sheetName = 'recto verso';
-            else if (wb.SheetNames.indexOf('recto') >= 0) sheetName = 'recto';
             const ws = wb.Sheets[sheetName];
             if (!ws) { reject(new Error('Feuille introuvable')); return; }
 
@@ -95,79 +99,33 @@
               return String(v).trim();
             }
 
-            const a5 = cellText('A5').toLowerCase();
-            const isVerso = a5.indexOf('comp') >= 0;
-
             const besoin = {
               client:        cellText('B1'),
               localisation:  cellText('H1'),
+              duree_mission: cellText('M1'),
               contact:       cellText('B2'),
               date_appel:    cellText('I2'),
+              date_besoin:   cellText('L2'),
               intitule:      cellText('B3'),
-              date_besoin:   cellText('D3'),
-              duree_mission: cellText('H3'),
+              descriptif:    cellText('B4'),
+              competences:   cellText('B5'),
+              connaissances: cellText('B6'),
+              experience:    cellText('B7'),
+              profil_type:   cellText('I7'),
+              commentaires:  cellText('B8'),
               candidats: [],
             };
 
-            const COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-
-            if (isVerso) {
-              besoin.descriptif    = cellText('B4');
-              besoin.competences   = cellText('B5');
-              besoin.connaissances = cellText('B6');
-              besoin.experience    = cellText('B7');
-              besoin.profil_type   = cellText('I7');
-              besoin.commentaires  = cellText('B8');
-
-              for (const [start, end] of [[10, 30], [32, 62]]) {
-                for (let r = start; r <= end; r++) {
-                  const cand = {};
-                  let hasData = false;
-                  for (let ci = 0; ci < 10; ci++) {
-                    const v = cellText(COLS[ci] + r);
-                    cand[CAND_KEYS[ci]] = v;
-                    if (v) hasData = true;
-                  }
-                  if (hasData) besoin.candidats.push(cand);
-                }
+            const COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'];
+            for (let r = 10; r <= 62; r++) {
+              const cand = {};
+              let hasData = false;
+              for (let ci = 0; ci < CAND_KEYS.length; ci++) {
+                const v = cellText(COLS[ci] + r);
+                cand[CAND_KEYS[ci]] = v;
+                if (v) hasData = true;
               }
-            } else {
-              const combined = cellText('B4');
-              const lines = combined.split('\n');
-              const descriptifLines = [];
-              besoin.competences = '';
-              besoin.connaissances = '';
-              besoin.experience = '';
-              besoin.profil_type = '';
-              besoin.commentaires = '';
-
-              for (const line of lines) {
-                if (line.startsWith('Compétences requises : ')) {
-                  besoin.competences = line.slice('Compétences requises : '.length);
-                } else if (line.startsWith('Connaissances attendues : ')) {
-                  besoin.connaissances = line.slice('Connaissances attendues : '.length);
-                } else if (line.startsWith('Expérience : ')) {
-                  besoin.experience = line.slice('Expérience : '.length);
-                } else if (line.startsWith('Profil : ')) {
-                  besoin.profil_type = line.slice('Profil : '.length);
-                } else if (line.startsWith('Commentaires : ')) {
-                  besoin.commentaires = line.slice('Commentaires : '.length);
-                } else {
-                  descriptifLines.push(line);
-                }
-              }
-              besoin.descriptif = descriptifLines.join('\n').trim();
-
-              for (let r = 6; r <= 58; r++) {
-                const cand = {};
-                let hasData = false;
-                for (let ci = 0; ci < 10; ci++) {
-                  const v = cellText(COLS[ci] + r);
-                  cand[CAND_KEYS[ci]] = v;
-                  if (v) hasData = true;
-                }
-                if (hasData) besoin.candidats.push(cand);
-              }
+              if (hasData) besoin.candidats.push(cand);
             }
 
             resolve(besoin);
@@ -575,10 +533,10 @@
     const grid = document.createElement('div');
     grid.className = 'v30-cand-card__grid';
 
-    // Origine / commentaires (large textarea)
+    // Commentaires (large textarea)
     const fldComm = document.createElement('label');
     fldComm.className = 'v30-cand-card__field';
-    fldComm.innerHTML = '<span>Origine / Commentaires</span>';
+    fldComm.innerHTML = '<span>Commentaires</span>';
     const taComm = document.createElement('textarea');
     taComm.rows = 3;
     taComm.dataset.candField = 'commentaires';
@@ -592,34 +550,21 @@
     fldComm.appendChild(taComm);
     grid.appendChild(fldComm);
 
-    // Note (large textarea)
-    const fldNote = document.createElement('label');
-    fldNote.className = 'v30-cand-card__field';
-    fldNote.innerHTML = '<span>Note interne</span>';
-    const taNote = document.createElement('textarea');
-    taNote.rows = 3;
-    taNote.dataset.candField = 'note';
-    taNote.placeholder = 'Notes d\'entretien, retour client, points d\'attention…';
-    taNote.value = (c && c.note) || '';
-    taNote.addEventListener('input', () => {
-      c.note = taNote.value;
-      autoResizeTextarea(taNote);
-      markDirty();
-    });
-    fldNote.appendChild(taNote);
-    grid.appendChild(fldNote);
-
-    // Tracking dates (4 colonnes : Dispo, Appel, DT, RDV1, RDV2, Envoi DT, RT)
+    // Tracking : Dispo, Appel, DT, RDV1, RDV2, RT, Envoi DT, Propal, RT client, Lieu habitation, Diplôme
     const tracking = document.createElement('div');
     tracking.className = 'v30-cand-card__tracking';
     const TRACK = [
-      { k: 'dispo',    label: 'Dispo',     placeholder: 'ASAP, 15j, 31/07…' },
-      { k: 'appel',    label: 'Appel',     placeholder: 'OK, à rappeler…'    },
-      { k: 'dt',       label: 'DT',        placeholder: 'Demande technique'   },
-      { k: 'rdv1',     label: 'RDV 1',     placeholder: 'Date / état'         },
-      { k: 'rdv2',     label: 'RDV 2',     placeholder: 'Date / état'         },
-      { k: 'envoi_dt', label: 'Envoi DT',  placeholder: 'Date envoi'          },
-      { k: 'rt',       label: 'RT',        placeholder: 'Retour client'       },
+      { k: 'dispo',          label: 'Dispo',           placeholder: 'ASAP, 15j, 31/07…'   },
+      { k: 'appel',          label: 'Appel',           placeholder: 'OK, à rappeler…'      },
+      { k: 'dt',             label: 'DT',              placeholder: 'Demande technique'    },
+      { k: 'rdv1',           label: 'RDV 1',           placeholder: 'Date / état'          },
+      { k: 'rdv2',           label: 'RDV 2',           placeholder: 'Date / état'          },
+      { k: 'rt',             label: 'RT',              placeholder: 'Retour…'              },
+      { k: 'envoi_dt',       label: 'Envoi DT',        placeholder: 'Date envoi'           },
+      { k: 'propal',         label: 'Propal',          placeholder: 'Proposition…'         },
+      { k: 'rt_client',      label: 'RT client',       placeholder: 'Retour client'        },
+      { k: 'lieu_habitation',label: 'Lieu habitation', placeholder: 'Ville, département…' },
+      { k: 'diplome',        label: 'Diplôme',         placeholder: 'Bac+5, Ingénieur…'   },
     ];
     TRACK.forEach(t => {
       const lab = document.createElement('label');
@@ -823,8 +768,8 @@
   }
 
   // ─── Export Excel ────────────────────────────────────────
-  function exportXlsx(format) {
-    const url = '/api/besoins/' + ID + '/export.xlsx?format=' + encodeURIComponent(format || 'both');
+  function exportXlsx() {
+    const url = '/api/besoins/' + ID + '/export.xlsx';
     if (state.dirty) {
       saveAuto().then(() => { window.location.href = url; });
     } else {
@@ -1065,7 +1010,7 @@
 
   function bindActions() {
     document.querySelectorAll('[data-v30-besoin-export]').forEach(b => {
-      b.addEventListener('click', () => exportXlsx(b.dataset.v30BesoinExport));
+      b.addEventListener('click', () => exportXlsx());
     });
     const del = document.querySelector('[data-v30-besoin-delete]');
     if (del) del.addEventListener('click', doDelete);
