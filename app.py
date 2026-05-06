@@ -9185,6 +9185,7 @@ from routes.push_logs import push_logs_bp  # noqa: E402
 from routes.meetings import meetings_bp  # noqa: E402
 from routes.bulk import bulk_bp  # noqa: E402
 from routes.admin import admin_bp  # noqa: E402
+from routes.dc import dc_bp  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
 app.register_blueprint(ai_bp)
@@ -9205,6 +9206,7 @@ app.register_blueprint(meetings_bp)
 app.register_blueprint(bulk_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(misc_bp)
+app.register_blueprint(dc_bp)
 
 
 if __name__ == "__main__":
