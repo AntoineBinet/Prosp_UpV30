@@ -34,8 +34,6 @@ import hmac
 import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 
-APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "32.25"
 import os
 import uuid
 import subprocess
@@ -45,6 +43,34 @@ import urllib.error
 import urllib.request
 import logging
 from logging.handlers import RotatingFileHandler
+
+# Configuration centrale (Phase A1 modularisation — voir config.py).
+from config import (
+    APP_DIR,
+    APP_VERSION,
+    DATA_DIR,
+    DB_PATH,
+    INITIAL_JSON,
+    OLLAMA_MODEL,
+    OLLAMA_TIMEOUT,
+    OLLAMA_URL,
+    OUTLOOK_AVAILABLE,
+    SNAPSHOT_DIR,
+    TAVILY_API_KEY,
+    TAVILY_URL,
+    TEMPLATE_PATH,
+)
+# Helpers DB / common / validation (Phase A1 — voir utils/).
+from utils.common import _now_iso, _row_to_dict, _today_iso
+from utils.db import _auth_conn, _conn, _conn_for_user, _user_db_path
+from utils.validation import (
+    _check_table_exists,
+    _safe_execute_insert,
+    _safe_execute_update,
+    _safe_row_to_dict,
+    _validate_optional_positive_int,
+    _validate_positive_int,
+)
 
 # ═══════════════════════════════════════════════════════════════════
 # v24.1: Structured logging with file rotation (24/7 production)
@@ -62,61 +88,6 @@ logging.getLogger().addHandler(_log_handler)
 logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger("prospup")
 
-def _resolve_db_path() -> Path:
-    """
-    Resolve database path in this order:
-      1) PROSPECTION_DB env var
-      2) db_path.txt file at project root
-      3) local ./prospects.db
-    """
-    env = os.environ.get("PROSPECTION_DB")
-    if env:
-        p = env.strip().strip('"')
-        return Path(p)
-
-    cfg = APP_DIR / "db_path.txt"
-    if cfg.exists():
-        try:
-            p = cfg.read_text(encoding="utf-8").strip().strip('"')
-        except Exception:
-            p = cfg.read_text().strip().strip('"')
-        if p:
-            return Path(p)
-
-    return APP_DIR / "prospects.db"
-
-DB_PATH = _resolve_db_path()
-DATA_DIR = APP_DIR / "data"
-INITIAL_JSON = APP_DIR / "initial_data.json"
-TEMPLATE_PATH = APP_DIR / "excel_template.xlsx"
-SNAPSHOT_DIR = APP_DIR / "snapshots"
-
-# Ollama (IA locale) — proxy backend vers 127.0.0.1:11434
-OLLAMA_URL = (os.environ.get("OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("/")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL") or "llama3.2"
-OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT") or "120")
-
-# Tavily (recherche web cloud) — enrichit Ollama avec des données web
-TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY") or ""
-TAVILY_URL = "https://api.tavily.com/search"
-
-# ═══════════════════════════════════════════════════════════════════
-# v27.x PARTIE 2: Détection Outlook (win32com) au démarrage
-# Méthode principale: win32com.client.Dispatch pour générer .msg
-# Méthode fallback: génération .eml (RFC 2822) si Outlook absent
-# ═══════════════════════════════════════════════════════════════════
-def _detect_outlook() -> bool:
-    """Tente d'importer win32com.client pour détecter la présence d'Outlook."""
-    try:
-        import win32com.client  # type: ignore
-        # Vérification supplémentaire: essayer d'accéder à l'objet Outlook
-        app = win32com.client.Dispatch("Outlook.Application")
-        del app
-        return True
-    except Exception:
-        return False
-
-OUTLOOK_AVAILABLE: bool = _detect_outlook()
 logger.info("Outlook disponible (win32com): %s", OUTLOOK_AVAILABLE)
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1478,87 +1449,6 @@ def api_admin_reassign_ownership():
         from_user={"id": int(src["id"]), "username": src["username"], "display_name": src["display_name"]},
         to_user={"id": int(dst["id"]), "username": dst["username"], "display_name": dst["display_name"]},
     )
-
-
-def _auth_conn() -> sqlite3.Connection:
-    """Connexion à la DB centrale (users, auth). Toujours DB_PATH."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA busy_timeout = 20000;")  # 20 s retry on lock (multi-device)
-    conn.execute("PRAGMA journal_mode = WAL;")
-    return conn
-
-
-def _user_db_path(user_id: int) -> Path:
-    """Chemin de la DB d'un utilisateur. Retourne la per-user DB UNIQUEMENT
-    si elle contient déjà des données métier (prospects ou companies).
-
-    v32.14 — Avant on se contentait d'un `st_size > 0`, mais une DB SQLite
-    « vide » peut peser plusieurs centaines de Ko si init_db y a tourné
-    sans qu'aucune ligne ne soit insérée. Ça pouvait masquer la DB
-    principale (où sont vraiment les données) et faire disparaître
-    prospects/companies/candidates côté UI. Désormais on vérifie
-    explicitement qu'au moins une table métier a au moins une ligne ;
-    sinon on fallback sur DB_PATH.
-    """
-    user_db = DATA_DIR / f"user_{user_id}" / "prospects.db"
-    if not user_db.exists():
-        return DB_PATH
-    try:
-        if user_db.stat().st_size <= 0:
-            return DB_PATH
-    except OSError:
-        return DB_PATH
-    # Sanity check : la DB user doit contenir au moins quelques lignes
-    # dans une des tables principales. Sinon → fallback DB_PATH.
-    try:
-        probe = sqlite3.connect(user_db)
-        try:
-            for tbl in ("prospects", "companies", "candidates"):
-                try:
-                    n = probe.execute(f"SELECT COUNT(*) FROM {tbl};").fetchone()[0]
-                    if n and n > 0:
-                        return user_db
-                except sqlite3.OperationalError:
-                    # Table absente → on continue avec la suivante
-                    continue
-        finally:
-            probe.close()
-    except Exception as exc:
-        logger.warning("Probe per-user DB %s a échoué : %s — fallback DB_PATH", user_db, exc)
-        return DB_PATH
-    # Aucune table métier ne contient de données → DB user vide → DB_PATH
-    return DB_PATH
-
-
-def _conn_for_user(user_id: int) -> sqlite3.Connection:
-    """Connexion à la DB d'un utilisateur spécifique (pour admin viewing another user's data)."""
-    db_path = _user_db_path(user_id)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA busy_timeout = 20000;")
-    conn.execute("PRAGMA journal_mode = WAL;")
-    return conn
-
-
-def _conn() -> sqlite3.Connection:
-    """Connexion à la DB de l'utilisateur courant (per-user si elle existe, sinon DB_PATH)."""
-    try:
-        uid = session.get("user_id")
-        if uid:
-            db_path = _user_db_path(uid)
-        else:
-            db_path = DB_PATH
-    except RuntimeError:
-        db_path = DB_PATH
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA busy_timeout = 20000;")
-    conn.execute("PRAGMA journal_mode = WAL;")
-    return conn
 
 
 def init_db() -> None:
@@ -4747,10 +4637,6 @@ def seed_from_initial() -> dict:
 
 
 
-def _now_iso() -> str:
-    return datetime.datetime.now().isoformat(timespec="seconds")
-
-
 def _audit_log(action: str, entity: str, entity_id: int | None = None,
                old_value: str | None = None, new_value: str | None = None):
     """v23.5: Write an entry to the audit trail."""
@@ -4786,10 +4672,6 @@ def log_activity(action: str, entity_type: str = None, entity_id: int = None,
             )
     except Exception as e:
         logger.warning("log_activity failed: %s", e)
-
-
-def _today_iso() -> str:
-    return datetime.date.today().isoformat()
 
 
 def _create_auto_task(trigger_type: str, context: Dict[str, Any]) -> None:
@@ -6391,22 +6273,6 @@ def _keywords_from_fixed_metier(fixed_metier: str | None) -> List[str]:
     raw = str(fixed_metier).strip()
     parts = re.split(r"\s*>\s*|\s*/\s*", raw)
     return [p.strip() for p in parts if len(p.strip()) >= 2]
-
-
-# ====== Utils: SQLite Row conversion ======
-def _row_to_dict(row) -> Dict[str, Any] | None:
-    """Convert sqlite3.Row to dict safely. Returns None if row is None."""
-    if row is None:
-        return None
-    if isinstance(row, sqlite3.Row):
-        return dict(row)
-    if isinstance(row, dict):
-        return row
-    # Fallback: try to convert to dict
-    try:
-        return dict(row)
-    except Exception:
-        return None
 
 
 # ====== Utils: JSON lists for candidates (skills, company_ids) ======
@@ -11455,82 +11321,6 @@ if _old_photos_dir.exists():
         _old_photos_dir.rmdir()
     except OSError:
         pass
-
-# ====== Utilitaires validation et sécurité pour routes push ======
-def _validate_positive_int(value: Any, param_name: str = "id") -> int:
-    """Valide qu'une valeur est un entier positif. Lève ValueError si invalide."""
-    if value is None:
-        raise ValueError(f"{param_name} est requis")
-    try:
-        int_val = int(value)
-        if int_val <= 0:
-            raise ValueError(f"{param_name} doit être un entier positif")
-        return int_val
-    except (ValueError, TypeError) as e:
-        if isinstance(e, ValueError) and "doit être" in str(e):
-            raise
-        raise ValueError(f"{param_name} doit être un entier valide") from e
-
-def _validate_optional_positive_int(value: Any, param_name: str = "id") -> int | None:
-    """Valide qu'une valeur est None ou un entier positif. Retourne None ou l'entier."""
-    if value is None or value == "" or value == "null":
-        return None
-    try:
-        int_val = int(value)
-        if int_val <= 0:
-            return None
-        return int_val
-    except (ValueError, TypeError):
-        return None
-
-def _safe_row_to_dict(row: sqlite3.Row | None) -> Dict[str, Any] | None:
-    """Convertit un sqlite3.Row en dict de manière sécurisée. Retourne None si row est None."""
-    if row is None:
-        return None
-    try:
-        return dict(row)
-    except Exception:
-        return None
-
-def _safe_execute_insert(conn: sqlite3.Connection, query: str, params: tuple) -> int:
-    """Exécute une insertion de manière sécurisée. Retourne lastrowid. Lève Exception en cas d'erreur."""
-    try:
-        cur = conn.cursor()
-        cur.execute(query, params)
-        return cur.lastrowid
-    except sqlite3.OperationalError as e:
-        logger.error("Erreur insertion DB: %s", e)
-        raise
-    except Exception as e:
-        logger.error("Erreur inattendue insertion DB: %s", e)
-        raise
-
-def _safe_execute_update(conn: sqlite3.Connection, query: str, params: tuple) -> None:
-    """Exécute une mise à jour de manière sécurisée. Lève Exception en cas d'erreur."""
-    try:
-        conn.execute(query, params)
-    except sqlite3.OperationalError as e:
-        logger.error("Erreur mise à jour DB: %s", e)
-        raise
-    except Exception as e:
-        logger.error("Erreur inattendue mise à jour DB: %s", e)
-        raise
-
-def _check_table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
-    """Vérifie si une table existe dans la base de données. Sécurisé contre injection SQL."""
-    # Validation stricte : nom de table doit contenir uniquement lettres, chiffres, underscores
-    if not table_name or not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table_name):
-        logger.warning("Nom de table invalide pour _check_table_exists: %s", table_name)
-        return False
-    try:
-        # Utilisation de quote_identifier serait idéale mais sqlite3 ne le supporte pas nativement
-        # On valide donc le nom et on l'utilise directement (sécurisé car validé)
-        conn.execute(f"SELECT 1 FROM {table_name} LIMIT 1").fetchone()
-        return True
-    except sqlite3.OperationalError as e:
-        if "no such table" in str(e).lower():
-            return False
-        raise
 
 @app.post("/api/prospect/photo")
 def api_prospect_photo():
