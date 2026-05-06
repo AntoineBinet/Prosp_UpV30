@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#0f172a">
   <meta name="description" content="Prosp'Up — CRM Prospection B2B par Up Technologies.">
+  {# iOS PWA standalone — laisse l'app passer sous la Dynamic Island (compense via safe-area-inset-top en CSS) #}
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Prosp'Up">
   <title>{% block title %}Prosp'Up v30{% endblock %}</title>
 
   {# Theme init inline (avant tout rendu) pour éviter le flash clair/sombre #}
