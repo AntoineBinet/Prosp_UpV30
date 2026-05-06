@@ -382,6 +382,41 @@
     });
   }
 
+  // ─── VCF export ─────────────────────────────────────────────
+  function buildVcf(p) {
+    var lines = ['BEGIN:VCARD', 'VERSION:3.0'];
+    var fn = String(p.name || '').trim();
+    lines.push('FN:' + fn);
+    var parts = fn.split(/\s+/);
+    if (parts.length >= 2) lines.push('N:' + parts.slice(1).join(' ') + ';' + parts[0] + ';;;');
+    else if (fn) lines.push('N:' + fn + ';;;;');
+    if (p.email)     lines.push('EMAIL:' + p.email);
+    if (p.telephone) lines.push('TEL:' + p.telephone);
+    if (p.fonction)  lines.push('TITLE:' + p.fonction);
+    var org = p.company_groupe || '';
+    if (org)         lines.push('ORG:' + org);
+    if (p.linkedin)  lines.push('URL:' + p.linkedin);
+    if (p.notes)     lines.push('NOTE:' + String(p.notes).replace(/\r?\n/g, '\\n'));
+    var tags = [];
+    try { tags = FP.parseTags(p.tags) || []; } catch (_) {}
+    if (tags.length) lines.push('CATEGORIES:' + tags.join(','));
+    lines.push('END:VCARD');
+    return lines.join('\r\n');
+  }
+
+  function downloadVcf() {
+    var p = FP.STATE.prospect || {};
+    var vcf = buildVcf(p);
+    var blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var safeName = (p.name || 'prospect').replace(/[^a-z0-9_\- ]/gi, '').replace(/\s+/g, '_') || 'prospect';
+    a.href = url; a.download = safeName + '.vcf';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    if (window.showToast) window.showToast('Fiche VCF téléchargée', 'success');
+  }
+
   // ─── More menu ───────────────────────────────────────────────
   function openMoreMenu(anchorEl) {
     if (_activePicker) { closePicker(); return; }
@@ -408,6 +443,10 @@
         action: function () { window.location.href = '/v30/entreprises#' + p.company_id; }
       });
     }
+    items.push({
+      label: 'Exporter VCF',
+      action: downloadVcf
+    });
     if (items.length) items.push({ sep: true });
 
     items.push({
