@@ -61,7 +61,7 @@ from config import (
     TEMPLATE_PATH,
 )
 # Helpers DB / common / validation / auth (Phase A1 + A2 — voir utils/).
-from utils.common import _now_iso, _row_to_dict, _today_iso
+from utils.common import _now_iso, _parse_linkedin_name, _row_to_dict, _today_iso
 from utils.db import _auth_conn, _conn, _conn_for_user, _user_db_path
 from utils.validation import (
     _check_table_exists,
@@ -175,28 +175,7 @@ logger = logging.getLogger("prospup")
 logger.info("Outlook disponible (win32com): %s", OUTLOOK_AVAILABLE)
 
 # IA (Ollama + Tavily + embeddings + streaming SSE) — voir utils/ai_helpers.py
-
-
-def _parse_linkedin_name(url: str) -> str | None:
-    """Extrait nom/prénom depuis une URL LinkedIn /in/slug. Retourne None pour les autres formats."""
-    try:
-        from urllib.parse import urlparse
-        path = urlparse(url).path
-        m = re.search(r'/in/([^/?#]+)', path)
-        if not m:
-            return None
-        parts = [p for p in m.group(1).strip('/').split('-') if p]
-        # Supprime le suffixe ID numérique LinkedIn (ex. "12345678")
-        if parts and re.fullmatch(r'\d{4,}', parts[-1]):
-            parts.pop()
-        if not parts:
-            return None
-        return ' '.join(p.capitalize() for p in parts)
-    except Exception:
-        return None
-
-
-# Streaming SSE (Ollama + Tavily) + _build_web_enriched_prompt — voir utils/ai_helpers.py
+# _parse_linkedin_name — voir utils/common.py
 
 # Cache temporaire en mémoire pour les analyses RDV (clé: "{uid}_{prospect_id}")
 # Utilisé à la place de session[] car la session n'est pas persistée dans les réponses SSE streaming
@@ -6713,94 +6692,7 @@ def api_prospects_delete():
     return jsonify(ok=True)
 
 
-@app.get("/api/companies/list")
-def api_companies_list():
-    """v30.2: Liste allégée des entreprises de l'utilisateur pour alimenter
-    l'autocomplete « entreprise » (picker) sur toutes les pages."""
-    uid = _uid()
-    if not uid:
-        return jsonify(ok=False, error="Non authentifié"), 401
-    with _conn() as conn:
-        rows = conn.execute(
-            "SELECT id, groupe, site FROM companies "
-            "WHERE owner_id=? AND deleted_at IS NULL "
-            "ORDER BY LOWER(groupe), LOWER(COALESCE(site,''));",
-            (uid,)
-        ).fetchall()
-    companies = [
-        {"id": int(r["id"]), "groupe": r["groupe"] or "", "site": r["site"] or ""}
-        for r in rows
-    ]
-    return jsonify(ok=True, companies=companies)
-
-
-@app.post("/api/companies/create")
-@role_required('editor')
-def api_companies_create():
-    """v30.4 : créer une entreprise (sans prospect attaché). Retourne l'ID assigné."""
-    uid = _uid()
-    if not uid:
-        return jsonify(ok=False, error="Non authentifié"), 401
-    payload = request.get_json(force=True, silent=True) or {}
-    groupe = (payload.get("groupe") or "").strip()
-    if not groupe:
-        return jsonify(ok=False, error="groupe est requis"), 400
-    site = (payload.get("site") or "").strip()
-    phone = (payload.get("phone") or "").strip()
-    notes = (payload.get("notes") or "").strip()
-    website = (payload.get("website") or "").strip()
-    linkedin = (payload.get("linkedin") or "").strip()
-    industry = (payload.get("industry") or "").strip()
-    tags_raw = payload.get("tags")
-    if isinstance(tags_raw, list):
-        tags_json = json.dumps([str(t).strip() for t in tags_raw if str(t).strip()], ensure_ascii=False)
-    elif isinstance(tags_raw, str) and tags_raw.strip():
-        s = tags_raw.strip()
-        if s.startswith("["):
-            tags_json = s
-        else:
-            tags_json = json.dumps([t.strip() for t in s.split(",") if t.strip()], ensure_ascii=False)
-    else:
-        tags_json = "[]"
-    with _conn() as conn:
-        # Dedupe strict : même groupe + site + owner → on renvoie l'existant
-        row = conn.execute(
-            "SELECT id FROM companies WHERE owner_id=? AND LOWER(groupe)=LOWER(?) AND LOWER(COALESCE(site,''))=LOWER(?) AND deleted_at IS NULL;",
-            (uid, groupe, site)
-        ).fetchone()
-        if row:
-            return jsonify(ok=True, id=int(row["id"]), deduped=True)
-        # MAX global (id est PRIMARY KEY) — un filtre owner_id provoquerait des
-        # collisions UNIQUE quand plusieurs users partagent la DB principale
-        # (cas d'un user nouveau dont la per-user DB est encore vide).
-        max_id = conn.execute("SELECT COALESCE(MAX(id),0) as m FROM companies;").fetchone()["m"]
-        new_id = int(max_id) + 1
-        conn.execute(
-            """INSERT INTO companies (id, groupe, site, phone, notes, tags, website, linkedin, industry, owner_id)
-               VALUES (?,?,?,?,?,?,?,?,?,?);""",
-            (new_id, groupe, site, phone, notes, tags_json, website, linkedin, industry, uid)
-        )
-    return jsonify(ok=True, id=new_id)
-
-
-@app.post("/api/companies/delete")
-def api_companies_delete():
-    """v27.10: Soft delete a company (fenêtre d'annulation 10s via /api/soft-deleted/restore)."""
-    uid = _uid()
-    if not uid:
-        return jsonify(ok=False, error="Non authentifié"), 401
-    payload = request.get_json(force=True, silent=True) or {}
-    cid = payload.get("id")
-    if not cid:
-        return jsonify(ok=False, error="id is required"), 400
-    _name = None
-    with _conn() as conn:
-        _row = conn.execute("SELECT groupe FROM companies WHERE id=? AND owner_id=?;", (int(cid), uid)).fetchone()
-        _name = _row["groupe"] if _row else None
-        conn.execute("UPDATE companies SET deleted_at=? WHERE id=? AND owner_id=?;", (_now_iso(), int(cid), uid))
-    _audit_log("soft_delete", "company", int(cid))
-    log_activity('delete', 'entreprise', int(cid), _name)
-    return jsonify(ok=True)
+# Routes /api/companies/{list,create,delete} — déplacées dans routes/companies.py
 
 
 @app.post("/api/candidates/status")
@@ -20940,11 +20832,13 @@ from routes.deploy import deploy_bp  # noqa: E402
 from routes.ai import ai_bp          # noqa: E402
 from routes.transcription import transcription_bp, init_resume as _transcription_init_resume  # noqa: E402
 from routes.besoins import besoins_bp  # noqa: E402
+from routes.companies import companies_bp  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(transcription_bp)
 app.register_blueprint(besoins_bp)
+app.register_blueprint(companies_bp)
 
 
 if __name__ == "__main__":
