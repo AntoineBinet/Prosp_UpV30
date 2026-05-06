@@ -158,10 +158,9 @@
     return '<span class="status ' + cls + '"' + style + '>' + label + '</span>';
   }
 
-  // Phase 1.2 : on supprime les pills génériques (-contact, -proposal,
-  // -won, -lost) qui ne correspondent à aucun statut métier ProspUp.
-  // Les libellés sans équivalent strict (Proposition, Gagné, Perdu) tombent
-  // sur le statut neutre `.status` — TODO design review pour un mapping dédié.
+  // Pills génériques retirées (-contact, -proposal, -won, -lost) car
+  // hors modèle métier ProspUp. Les libellés non mappés retombent sur le
+  // statut neutre `.status`.
   function statusClass(statut) {
     var map = {
       "Pas d'actions": 'status-idle',

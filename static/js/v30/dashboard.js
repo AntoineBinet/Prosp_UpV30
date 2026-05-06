@@ -117,9 +117,7 @@
 
   // ─── Action center ────────────────────────────────────────────────
   // Mapping aligné sur prospects.js (statuts ProspUp réels).
-  // Phase 1.2 : on supprime les pills génériques (status-new, -contact,
-  // -meeting, -proposal, -won, -lost). Les libellés sans équivalent strict
-  // tombent sur le statut neutre `.status` — TODO design review.
+  // Les libellés hors mapping retombent sur le statut neutre `.status`.
   function statusPill(statut) {
     var map = {
       'Rendez-vous':  { cls: 'status-rdv',      label: statut },

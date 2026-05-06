@@ -344,8 +344,7 @@
     width: 100%;
     height: 100%;
     padding: 4px;
-    /* TODO design review : 28px hors palette (bottom nav glassmorphism mobile).
-       Conservé tel quel — proche d'un pill mais pas tout à fait. */
+    /* 28px volontairement hors palette : pill custom du bottom nav glass mobile. */
     border-radius: 28px;
     display: flex;
     pointer-events: auto;

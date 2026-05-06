@@ -25,8 +25,7 @@
   }
 
   // Mapping aligné sur prospects.js (statuts ProspUp réels) — Phase 1.2.
-  // Les libellés sans équivalent direct (Proposition, Gagné) tombent sur
-  // un statut neutre — TODO design review pour décider d'une couleur dédiée.
+  // Les libellés sans équivalent direct retombent sur le statut neutre.
   function statusClass(statut) {
     var map = {
       'Rendez-vous':    'status-rdv',
