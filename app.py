@@ -9820,6 +9820,16 @@ import sys as _sys  # noqa: E402
 _sys.modules.setdefault('app', _sys.modules[__name__])
 
 from routes.auth import auth_bp    # noqa: E402
+# misc importé en premier car contient des helpers (deploy validation timer)
+# utilisés par routes/deploy.py qui les ré-importe via `from app import ...`.
+from routes.misc import (  # noqa: E402,F401
+    _VALIDATION_TIMEOUT_SECONDS,
+    _cancel_validation_timer,
+    _schedule_restart,
+    _start_validation_timer,
+    _write_pending_validation,
+    misc_bp,
+)
 from routes.deploy import deploy_bp  # noqa: E402
 from routes.ai import ai_bp          # noqa: E402
 from routes.transcription import transcription_bp, init_resume as _transcription_init_resume  # noqa: E402
@@ -9838,7 +9848,6 @@ from routes.push_logs import push_logs_bp  # noqa: E402
 from routes.meetings import meetings_bp  # noqa: E402
 from routes.bulk import bulk_bp  # noqa: E402
 from routes.admin import admin_bp  # noqa: E402
-from routes.misc import misc_bp  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
 app.register_blueprint(ai_bp)
