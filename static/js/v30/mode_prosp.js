@@ -34,6 +34,11 @@ window.mpClose = function () {
     else { window.location.href = '/'; }
 };
 
+window.mpToggleDarkMode = function () {
+    var isDark = document.body.classList.toggle('mp-dark');
+    try { localStorage.setItem('mp-dark', isDark ? '1' : '0'); } catch (_) {}
+};
+
 (function () {
     'use strict';
 
@@ -492,8 +497,9 @@ window.mpClose = function () {
                 // FORM BODY
                 '<div class="mp-card-body" data-pid="' + p.id + '">' +
 
-                  // 2-col: Statut, Entreprise, Fonction, Téléphone, Email, LinkedIn
-                  '<div class="mp-form-grid-2">' +
+                  // 3-col row 1: Statut, Entreprise, Fonction
+                  // 3-col row 2: Téléphone, Email, LinkedIn
+                  '<div class="mp-form-grid-3">' +
                     mpField('Statut', mpBuildSelect('statut', statusOptions, p.statut, 'mp-status-select', statusColorVar)) +
                     mpField('Entreprise', mpBuildSelect('company_id', companyOptions, p.company_id)) +
                     mpField('Fonction', '<input type="text" class="mp-input" data-field="fonction" value="' + escapeHtml(p.fonction || '') + '">') +
@@ -520,13 +526,13 @@ window.mpClose = function () {
 
                   '<div class="mp-form-divider"></div>' +
 
-                  // 2-col bottom: Pertinence, Priorité + Notes
+                  // 2-col: Pertinence, Priorité + Notes inline
                   '<div class="mp-form-grid-2">' +
                     mpField('Pertinence', mpBuildSelect('pertinence', pertOptions, pert)) +
                     mpField('Priorité', mpBuildSelect('priority', priorityOptions, String(p.priority || '2'))) +
                   '</div>' +
-                  '<div style="margin-top:18px;">' +
-                    mpField('Notes', '<textarea class="mp-input" data-field="notes" rows="3">' + escapeHtml(p.notes || '') + '</textarea>') +
+                  '<div style="margin-top:10px;">' +
+                    mpField('Notes', '<textarea class="mp-input" data-field="notes" rows="2">' + escapeHtml(p.notes || '') + '</textarea>') +
                   '</div>' +
 
                   // Footer

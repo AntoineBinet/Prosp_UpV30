@@ -22,6 +22,7 @@
 <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body class="mode-prosp-body" data-page="v30-mode-prosp">
+<script>(function(){try{if(localStorage.getItem('mp-dark')==='1')document.body.classList.add('mp-dark');}catch(e){}})();</script>
 
 <div class="mp-shell">
 
@@ -52,6 +53,10 @@
       <button class="mp-cmd-pill">
         <kbd>⌘K</kbd>
         <span class="mp-cmd-hint">Commande…</span>
+      </button>
+      <button class="mp-theme-btn" id="mpThemeToggle" onclick="mpToggleDarkMode()" title="Mode sombre" aria-label="Basculer le thème">
+        <svg class="mp-theme-icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="mp-theme-icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
       </button>
       <button class="mp-close-btn" onclick="mpClose()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
