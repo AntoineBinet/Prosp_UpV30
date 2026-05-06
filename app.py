@@ -60,7 +60,7 @@ from config import (
     TAVILY_URL,
     TEMPLATE_PATH,
 )
-# Helpers DB / common / validation (Phase A1 — voir utils/).
+# Helpers DB / common / validation / auth (Phase A1 + A2 — voir utils/).
 from utils.common import _now_iso, _row_to_dict, _today_iso
 from utils.db import _auth_conn, _conn, _conn_for_user, _user_db_path
 from utils.validation import (
@@ -70,6 +70,36 @@ from utils.validation import (
     _safe_row_to_dict,
     _validate_optional_positive_int,
     _validate_positive_int,
+)
+from utils.auth import (
+    ROLE_LEVELS,
+    _ALLOWED_ORIGINS,
+    _b64url_decode,
+    _b64url_encode,
+    _candidate_owned,
+    _check_login_rate_limit,
+    _company_owned,
+    _generate_access_token,
+    _generate_refresh_token,
+    _get_current_user,
+    _get_user_prefix,
+    _JWT_ACCESS_EXPIRY,
+    _JWT_REFRESH_EXPIRY,
+    _jwt_decode,
+    _jwt_encode,
+    _LOGIN_MAX_ATTEMPTS,
+    _LOGIN_WINDOW_SECONDS,
+    _login_attempts,
+    _login_lock,
+    _prospect_owned,
+    _record_login_attempt,
+    _require_same_origin,
+    _uid,
+    _verify_access_token,
+    _verify_refresh_token,
+    login_required,
+    role_required,
+    validate_payload,
 )
 
 # ═══════════════════════════════════════════════════════════════════
@@ -784,149 +814,6 @@ def _after_request(response):
     return response
 
 
-# Roles: admin > editor (reader supprimé)
-ROLE_LEVELS = {'admin': 3, 'editor': 2}
-
-def _get_current_user():
-    """Get current user from session, returns dict or None."""
-    uid = session.get('user_id')
-    if not uid:
-        return None
-    try:
-        with _auth_conn() as conn:
-            row = conn.execute("SELECT * FROM users WHERE id=?;", (uid,)).fetchone()
-            return dict(row) if row else None
-    except Exception:
-        return None
-
-
-def _uid():
-    """ID de l'utilisateur connecté (pour isolation prospects/candidates). None si non authentifié."""
-    return session.get("user_id")
-
-
-def _prospect_owned(prospect_id: int) -> bool:
-    """True si le prospect appartient à l'utilisateur connecté."""
-    uid = _uid()
-    if not uid:
-        return False
-    with _conn() as conn:
-        row = conn.execute(
-            "SELECT id FROM prospects WHERE id=? AND owner_id=?;",
-            (prospect_id, uid),
-        ).fetchone()
-    return row is not None
-
-
-def _candidate_owned(candidate_id: int) -> bool:
-    """True si le candidat appartient à l'utilisateur connecté."""
-    uid = _uid()
-    if not uid:
-        return False
-    with _conn() as conn:
-        row = conn.execute(
-            "SELECT id FROM candidates WHERE id=? AND owner_id=?;",
-            (candidate_id, uid),
-        ).fetchone()
-    return row is not None
-
-
-def _company_owned(company_id: int) -> bool:
-    """True si l'entreprise appartient à l'utilisateur connecté."""
-    uid = _uid()
-    if not uid:
-        return False
-    with _conn() as conn:
-        row = conn.execute(
-            "SELECT id FROM companies WHERE id=? AND owner_id=?;",
-            (company_id, uid),
-        ).fetchone()
-    return row is not None
-
-def login_required(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if not session.get('user_id'):
-            if request.path.startswith('/api/'):
-                return jsonify(ok=False, error="Non authentifié"), 401
-            return redirect('/login')
-        g.user = _get_current_user()
-        if not g.user:
-            session.clear()
-            return redirect('/login')
-        return f(*args, **kwargs)
-    return wrapper
-
-def role_required(min_role):
-    """Decorator: require minimum role level."""
-    def decorator(f):
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            user = getattr(g, 'user', None) or _get_current_user()
-            if not user:
-                return jsonify(ok=False, error="Non authentifié"), 401
-            user_level = ROLE_LEVELS.get(user.get('role', ''), 0)
-            min_level = ROLE_LEVELS.get(min_role, 99)
-            if user_level < min_level:
-                return jsonify(ok=False, error="Permissions insuffisantes"), 403
-            return f(*args, **kwargs)
-        return wrapper
-    return decorator
-
-# Origines autorisées quand l'app est derrière le tunnel (request.host = localhost, Origin = prospup.work)
-# Variable d'environnement PROSPUP_ALLOWED_ORIGINS = URLs séparées par des virgules (ex. https://mon-domaine.fr)
-_origins_list = [
-    "https://prospup.work", "https://www.prospup.work", "https://crm.prospup.work",
-    "http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8000/", "http://127.0.0.1:8000/",
-]
-_env_origins = os.environ.get("PROSPUP_ALLOWED_ORIGINS", "").strip()
-if _env_origins:
-    for o in _env_origins.split(","):
-        o = o.strip().rstrip("/")
-        if o:
-            _origins_list.append(o)
-            _origins_list.append(o + "/")
-_ALLOWED_ORIGINS = frozenset(_origins_list)
-
-def _require_same_origin():
-    """Anti-CSRF léger : si l'en-tête Origin est présent, exiger une origine autorisée."""
-    origin = (request.headers.get("Origin") or "").strip().rstrip("/")
-    if not origin:
-        return None
-    try:
-        host = (request.host_url or "").rstrip("/")
-        if origin == host:
-            return None
-        if origin in _ALLOWED_ORIGINS or origin.rstrip("/") in _ALLOWED_ORIGINS:
-            return None
-        return jsonify(ok=False, error="Origine non autorisée"), 403
-    except Exception:
-        return jsonify(ok=False, error="Origine non autorisée"), 403
-
-def validate_payload(required_fields: dict):
-    """Helper de validation légère des payloads JSON (v27.8).
-
-    required_fields = {'nom': str, 'email': str} — type peut être un tuple ex. (str, int).
-    Retourne (data, None) si valide, (None, response_erreur) sinon.
-    """
-    data = request.get_json(silent=True)
-    if data is None:
-        return None, (jsonify({'error': 'Payload JSON manquant ou invalide'}), 400)
-    errors = []
-    for field, ftype in required_fields.items():
-        if field not in data:
-            errors.append(f"Champ requis manquant : '{field}'")
-        elif data[field] is not None and not isinstance(data[field], ftype):
-            if isinstance(ftype, tuple):
-                type_name = '/'.join(t.__name__ for t in ftype)
-            else:
-                type_name = ftype.__name__ if hasattr(ftype, '__name__') else str(ftype)
-            errors.append(f"'{field}' doit être de type {type_name}")
-    if errors:
-        return None, (jsonify({'error': 'Validation échouée', 'details': errors}), 422)
-    return data, None
-
-
 @app.before_request
 def _require_auth():
     """Protect all routes except login, static, and favicon.
@@ -1036,126 +923,7 @@ def page_login():
         return redirect('/v30/dashboard')
     return send_from_directory(APP_DIR, "login.html")
 
-# v23.4: Simple in-memory rate limiter for login (IP-based)
-_login_attempts: Dict[str, List[float]] = {}
-_login_lock = threading.Lock()
-_LOGIN_MAX_ATTEMPTS = 5
-_LOGIN_WINDOW_SECONDS = 300  # 5 minutes
-
-def _check_login_rate_limit() -> bool:
-    """Returns True if rate limited (thread-safe)."""
-    ip = request.remote_addr or "unknown"
-    now = time.time()
-    with _login_lock:
-        # Periodic cleanup: purge expired IPs when dict grows large
-        if len(_login_attempts) > 500:
-            expired = [k for k, ts in _login_attempts.items()
-                       if all(now - t >= _LOGIN_WINDOW_SECONDS for t in ts)]
-            for k in expired:
-                del _login_attempts[k]
-        attempts = _login_attempts.get(ip, [])
-        attempts = [t for t in attempts if now - t < _LOGIN_WINDOW_SECONDS]
-        _login_attempts[ip] = attempts
-        return len(attempts) >= _LOGIN_MAX_ATTEMPTS
-
-def _record_login_attempt():
-    ip = request.remote_addr or "unknown"
-    with _login_lock:
-        _login_attempts.setdefault(ip, []).append(time.time())
-
-# ── JWT auth helpers (v24.0 — mobile app support) ──────────────────
-# Minimal HS256 JWT implementation (no PyJWT dependency needed)
-_JWT_ACCESS_EXPIRY = 900        # 15 minutes
-_JWT_REFRESH_EXPIRY = 2592000   # 30 days
-
-
-def _b64url_encode(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-
-def _b64url_decode(s: str) -> bytes:
-    s += "=" * (4 - len(s) % 4)
-    return base64.urlsafe_b64decode(s)
-
-
-def _jwt_encode(payload: dict, secret: str) -> str:
-    """Encode a JWT with HS256."""
-    header = _b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
-    body = _b64url_encode(json.dumps(payload).encode())
-    msg = f"{header}.{body}"
-    sig = hmac.new(secret.encode(), msg.encode(), "sha256").digest()
-    return f"{msg}.{_b64url_encode(sig)}"
-
-
-def _jwt_decode(token: str, secret: str) -> dict | str | None:
-    """Decode and verify a JWT. Returns payload dict, 'expired', or None."""
-    try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            return None
-        msg = f"{parts[0]}.{parts[1]}"
-        sig = hmac.new(secret.encode(), msg.encode(), "sha256").digest()
-        expected_sig = _b64url_decode(parts[2])
-        if not hmac.compare_digest(sig, expected_sig):
-            return None
-        payload = json.loads(_b64url_decode(parts[1]))
-        if payload.get("exp") and payload["exp"] < int(time.time()):
-            return "expired"
-        return payload
-    except Exception:
-        return None
-
-
-def _generate_access_token(user):
-    """Generate a short-lived JWT access token."""
-    payload = {
-        "user_id": user["id"],
-        "user_role": user["role"],
-        "user_name": user.get("display_name") or user.get("username") or "",
-        "type": "access",
-        "iat": int(time.time()),
-        "exp": int(time.time()) + _JWT_ACCESS_EXPIRY,
-    }
-    return _jwt_encode(payload, app.secret_key)
-
-
-def _generate_refresh_token(user, device=None):
-    """Generate a long-lived refresh token, store its hash in DB."""
-    raw = secrets.token_urlsafe(48)
-    token_hash = hashlib.sha256(raw.encode()).hexdigest()
-    expires_at = (datetime.datetime.now() + datetime.timedelta(seconds=_JWT_REFRESH_EXPIRY)).isoformat(timespec="seconds")
-    with _auth_conn() as conn:
-        conn.execute(
-            "INSERT INTO refresh_tokens (user_id, token_hash, expires_at, device, createdAt) VALUES (?, ?, ?, ?, ?);",
-            (user["id"], token_hash, expires_at, device, datetime.datetime.now().isoformat(timespec="seconds"))
-        )
-    return raw
-
-
-def _verify_access_token(token):
-    """Decode and verify an access token. Returns payload dict, 'expired', or None."""
-    result = _jwt_decode(token, app.secret_key)
-    if isinstance(result, dict) and result.get("type") != "access":
-        return None
-    return result
-
-
-def _verify_refresh_token(raw_token):
-    """Verify a refresh token. Returns user_id or None."""
-    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    now_iso = datetime.datetime.now().isoformat(timespec="seconds")
-    with _auth_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM refresh_tokens WHERE token_hash=? AND revoked=0;",
-            (token_hash,)
-        ).fetchone()
-    if not row:
-        return None
-    if row["expires_at"] < now_iso:
-        return None
-    return row["user_id"]
-
-
+# Auth helpers (rate limit + JWT) — voir utils/auth.py
 # /api/auth/* — déplacé dans routes/auth.py (Blueprint enregistré en bas de ce fichier)
 
 # ═══════════════════════════════════════════════════════════════════
@@ -20300,11 +20068,6 @@ def _compute_initials(display_name):
     elif len(parts) == 1:
         return parts[0][:3].upper()
     return "???"
-
-def _get_user_prefix(user_id):
-    """Teams prefix désactivé (section retirée). Retourne chaîne vide."""
-    return ""
-
 
 def _build_adaptive_card(title: str, facts: list, actions: list = None, accent_color: str = "accent") -> dict:
     """Build an Adaptive Card v1.4 payload for Teams webhook.
