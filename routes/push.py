@@ -10,15 +10,15 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
-from app import _audit_log, _parse_json_str_list, log_activity, logger
+from app import _audit_log, _init_user_db, _parse_json_str_list, log_activity, logger
 from config import APP_DIR, APP_VERSION, DATA_DIR, OUTLOOK_AVAILABLE
-from utils.auth import _uid, login_required, role_required
+from utils.auth import _uid, login_required, role_required, validate_payload
 from utils.candidates import _generate_candidate_description_ai, _resolve_dc_pdf_path
-from utils.common import _now_iso
+from utils.common import _now_iso, _row_to_dict
 from utils.db import _conn
 from utils.files import _validate_upload
 from utils.push import _generate_eml_file, _resolve_dc_path, _save_to_outlook_drafts
-from utils.validation import _safe_row_to_dict, _validate_positive_int
+from utils.validation import _safe_row_to_dict, _validate_optional_positive_int, _validate_positive_int
 
 push_bp = Blueprint("push", __name__)
 

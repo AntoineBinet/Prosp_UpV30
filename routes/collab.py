@@ -21,7 +21,7 @@ from config import APP_DIR, DATA_DIR
 from utils.ai_helpers import _call_ai, _call_ai_web, _load_ai_config, _stream_ai_sse, _stream_ai_web_sse
 from utils.auth import _company_owned, _prospect_owned, _uid, login_required, role_required
 from utils.common import _now_iso, _today_iso
-from utils.db import _conn, _conn_for_user
+from utils.db import _auth_conn, _conn, _conn_for_user
 
 collab_bp = Blueprint("collab", __name__)
 

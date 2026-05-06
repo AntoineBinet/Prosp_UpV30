@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 from flask import Blueprint, jsonify, request
 
 from app import _audit_log, log_activity, logger
+from routes.dashboard import _norm_phone, _normalize, _split_name_for_dup  # cross-blueprint dep
 from utils.auth import _company_owned, _prospect_owned, _uid, role_required
 from utils.common import _now_iso
 from utils.db import _conn

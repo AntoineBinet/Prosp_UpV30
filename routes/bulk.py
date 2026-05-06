@@ -4,8 +4,8 @@ from __future__ import annotations
 import json
 from flask import Blueprint, jsonify, request
 
-from app import _audit_log, log_activity, logger
-from utils.auth import _prospect_owned, _uid
+from app import _audit_log, _build_adaptive_card, _get_user_prefix, _send_teams_webhook, log_activity, logger
+from utils.auth import _prospect_owned, _require_same_origin, _uid
 from utils.common import _now_iso
 from utils.db import _conn
 

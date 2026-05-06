@@ -15,11 +15,12 @@ from pathlib import Path
 
 from flask import Blueprint, Response, jsonify, request, send_file
 
-from app import _audit_log, _create_auto_task, log_activity, logger
+from app import _audit_log, _build_adaptive_card, _create_auto_task, _get_user_prefix, _optimize_task_schedule, _send_teams_webhook, init_db, log_activity, logger, seed_from_initial
 from config import APP_DIR, DATA_DIR
-from utils.auth import _company_owned, _prospect_owned, _uid, login_required, role_required
+from utils.auth import _company_owned, _prospect_owned, _require_same_origin, _uid, login_required, role_required, validate_payload
 from utils.common import _now_iso, _today_iso
 from utils.db import _conn
+from utils.snapshots import _snapshot_path, create_snapshot, list_snapshots, restore_snapshot
 
 admin_bp = Blueprint("admin", __name__)
 

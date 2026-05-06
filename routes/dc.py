@@ -18,6 +18,7 @@ from utils.auth import _uid, login_required, role_required
 from utils.common import _now_iso
 from utils.db import _conn
 from utils.files import _validate_upload
+from utils.validation import _safe_row_to_dict
 
 dc_bp = Blueprint("dc", __name__)
 

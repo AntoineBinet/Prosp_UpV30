@@ -33,12 +33,14 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 from werkzeug.utils import secure_filename
 
-from app import _audit_log, _create_auto_task, log_activity, logger
+from app import _audit_log, _auto_snapshot_if_needed, _create_auto_task, _current_user_db_path, log_activity, logger, read_all, upsert_all
+from routes.collab import _sync_shared_company_to_collaborator  # cross-blueprint dep
 from config import APP_DIR, APP_VERSION, DATA_DIR
 from utils.ai_helpers import _call_ai, _call_ai_web, _load_ai_config, _stream_ai_sse, _stream_ai_web_sse
-from utils.auth import _company_owned, _prospect_owned, _uid, login_required, role_required
+from utils.auth import _candidate_owned, _company_owned, _get_current_user, _prospect_owned, _require_same_origin, _uid, login_required, role_required, validate_payload
 from utils.common import _now_iso, _today_iso
-from utils.db import _conn
+from utils.db import _auth_conn, _conn
+from utils.files import _validate_upload
 
 misc_bp = Blueprint("misc", __name__)
 

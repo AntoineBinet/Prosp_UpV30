@@ -19,9 +19,9 @@ from openpyxl.styles import Font, Alignment
 
 from app import _audit_log, log_activity, logger
 from utils.auth import _prospect_owned, _require_same_origin, _uid
-from utils.common import _now_iso
-from utils.db import _conn
-from utils.validation import _validate_positive_int
+from utils.common import _now_iso, _today_iso
+from utils.db import _auth_conn, _conn
+from utils.validation import _check_table_exists, _safe_execute_insert, _safe_execute_update, _validate_positive_int
 
 push_logs_bp = Blueprint("push_logs", __name__)
 

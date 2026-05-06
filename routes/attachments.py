@@ -18,7 +18,7 @@ from werkzeug.utils import secure_filename
 from app import _audit_log, log_activity, logger
 from utils.auth import _prospect_owned, _uid
 from utils.db import _conn
-from utils.files import _attachment_dir, _generate_thumbnail, _sniff_mime, _thumb_dir, _validate_upload
+from utils.files import _attachment_dir, _extract_pdf_text, _generate_thumbnail, _sniff_mime, _thumb_dir, _validate_upload
 
 attachments_bp = Blueprint("attachments", __name__)
 

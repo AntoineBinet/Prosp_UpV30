@@ -12,10 +12,10 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
-from app import _audit_log, _parse_json_str_list, log_activity, logger
+from app import _audit_log, _dump_json_list, _maybe_log_candidate_events, _parse_json_int_list, _parse_json_str_list, log_activity, logger
 from config import APP_DIR, DATA_DIR, APP_VERSION
-from utils.ai_helpers import _call_ai, _load_ai_config
-from utils.auth import _uid, login_required, role_required
+from utils.ai_helpers import _call_ai, _call_ollama_direct, _load_ai_config
+from utils.auth import _candidate_owned, _require_same_origin, _uid, login_required, role_required, validate_payload
 from utils.common import _now_iso, _today_iso
 from utils.db import _conn
 from utils.files import _validate_upload

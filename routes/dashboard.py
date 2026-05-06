@@ -25,7 +25,7 @@ from app import _audit_log, log_activity, logger
 from config import APP_DIR, DATA_DIR
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
 from utils.ai_helpers import _call_ai, _load_ai_config
-from utils.auth import _prospect_owned, _uid, login_required, role_required
+from utils.auth import _get_current_user, _prospect_owned, _uid, login_required, role_required
 from utils.common import _now_iso, _today_iso
 from utils.db import _conn
 from utils.files import _validate_upload

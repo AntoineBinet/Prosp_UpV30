@@ -14,7 +14,7 @@ from flask import Blueprint, jsonify, request
 from app import _audit_log, log_activity, logger
 from utils.auth import _prospect_owned, _uid
 from utils.common import _now_iso
-from utils.db import _conn
+from utils.db import _auth_conn, _conn
 
 prospects_bp = Blueprint("prospects", __name__)
 

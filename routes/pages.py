@@ -11,7 +11,7 @@ from __future__ import annotations
 from flask import Blueprint, redirect, render_template, request, session
 
 from app import _audit_log, _static_hashes, log_activity
-from config import APP_VERSION
+from config import APP_DIR, APP_VERSION
 from utils.auth import _get_current_user, _uid, login_required, role_required
 from utils.db import _conn
 
