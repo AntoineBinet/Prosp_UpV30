@@ -42,6 +42,8 @@ DATA_DIR = APP_DIR / "data"
 INITIAL_JSON = APP_DIR / "initial_data.json"
 TEMPLATE_PATH = APP_DIR / "excel_template.xlsx"
 SNAPSHOT_DIR = APP_DIR / "snapshots"
+PHOTOS_DIR = DATA_DIR / "photos"
+AVATARS_DIR = DATA_DIR / "avatars"
 
 # Ollama (IA locale) — proxy backend vers 127.0.0.1:11434
 OLLAMA_URL = (os.environ.get("OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("/")
