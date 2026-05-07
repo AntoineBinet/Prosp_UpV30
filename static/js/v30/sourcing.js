@@ -7,7 +7,9 @@
     { key: 'oksi',              title: 'OKSI',        primary: 'oksi',              color: 'var(--accent)',        statuses: ['oksi', 'OKSI', 'Solide', 'interesse'] },
     { key: 'top_profil',        title: 'Top Profils', primary: 'top_profil',        color: 'oklch(0.50 0.15 280)', statuses: ['top_profil', 'top profil', 'Top Profils'] },
     { key: 'reunion_tech',      title: 'RT',          primary: 'reunion_tech',      color: 'oklch(0.50 0.14 75)',  statuses: ['reunion_tech', 'RT', 'reunion tech', 'valide_contrat', 'embauche'] },
-    { key: 'freelance_mission', title: 'En mission',  primary: 'freelance_mission', color: 'var(--success)',       statuses: ['freelance_mission', 'en mission', 'mission', 'freelance', 'Placé', 'place', 'Placed'] }
+    { key: 'freelance_mission', title: 'En mission',  primary: 'freelance_mission', color: 'var(--success)',       statuses: ['freelance_mission', 'en mission', 'mission', 'freelance', 'Placé', 'place', 'Placed'] },
+    { key: 'nok',               title: 'Nok',         primary: 'nok',               color: 'var(--danger)',        statuses: ['nok', 'NOK', 'nok_prequal', 'refuse', 'refus_contrat'] },
+    { key: 'plus_disponible',   title: 'Plus dispo',  primary: 'plus_disponible',   color: 'oklch(0.50 0.00 0)',   statuses: ['plus_disponible', 'plus_dispo', 'hors_aura', 'archive'] }
   ];
 
   var STATE = {
@@ -1219,7 +1221,8 @@
   function reload() {
     return fetchJSON('/api/candidates').then(function (res) {
       var list = Array.isArray(res) ? res : ((res && (res.candidates || res.items)) || []);
-      STATE.candidates = list.filter(function (c) { return !c.is_archived && !c.deleted_at; });
+      var _nok_statuses = ['nok', 'NOK', 'nok_prequal', 'refuse', 'refus_contrat', 'plus_disponible', 'plus_dispo', 'hors_aura', 'archive'];
+      STATE.candidates = list.filter(function (c) { return (!c.is_archived || _nok_statuses.indexOf(c.status) >= 0) && !c.deleted_at; });
       STATE.selected.clear();
       applyFilter();
       renderBulk();
