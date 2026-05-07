@@ -28,6 +28,7 @@
   const state = {
     besoin: null,
     dirty: false,
+    saving: false,
     saveTimer: null,
     expanded: new Set(),
   };
@@ -267,6 +268,7 @@
             state.besoin.company_id = null;
             state.besoin.client = '';
             updateMeta();
+            markDirty();
           },
         });
       } else {
@@ -684,8 +686,18 @@
   }
 
   // ─── Save ────────────────────────────────────────────────
+  function updateSaveButton() {
+    const btn = root.querySelector('[data-v30-besoin-save]');
+    if (!btn) return;
+    const clean = !state.dirty && !state.saving;
+    btn.disabled = clean;
+    btn.style.opacity = clean ? '0.45' : '';
+    btn.style.cursor = clean ? 'default' : '';
+  }
+
   function markDirty() {
     state.dirty = true;
+    updateSaveButton();
     if (state.saveTimer) clearTimeout(state.saveTimer);
     const savedEl = root.querySelector('[data-v30-besoin-saved]');
     if (savedEl) savedEl.textContent = 'Modifié…';
@@ -732,6 +744,17 @@
 
   async function saveAuto() {
     if (!state.dirty) return;
+    // Un save est déjà en cours : on replanifie après sa fin
+    if (state.saving) {
+      if (state.saveTimer) clearTimeout(state.saveTimer);
+      state.saveTimer = setTimeout(saveAuto, 400);
+      return;
+    }
+    state.saving = true;
+    // Marquer propre de façon optimiste : si un markDirty() arrive pendant le save,
+    // dirty repassera à true et un re-save sera déclenché après.
+    state.dirty = false;
+    updateSaveButton();
     const savedEl = root.querySelector('[data-v30-besoin-saved]');
     try {
       if (savedEl) savedEl.textContent = 'Enregistrement…';
@@ -743,8 +766,22 @@
         body: JSON.stringify(payload),
       });
       if (data && data.ok) {
-        state.besoin = data.besoin || state.besoin;
-        state.dirty = false;
+        // Conserver le tableau candidats en mémoire pour que les closures des cartes
+        // DOM restent valides — sinon les changements de statut suivants écriraient
+        // dans des objets orphelins non capturés par collectPayload().
+        const freshBesoin = data.besoin || state.besoin;
+        const currentCands = state.besoin.candidats || [];
+        if (Array.isArray(freshBesoin.candidats)) {
+          freshBesoin.candidats.forEach((sc, i) => {
+            if (currentCands[i]) {
+              if (sc._ref !== undefined) currentCands[i]._ref = sc._ref;
+              if (sc.cand_id !== undefined) currentCands[i].cand_id = sc.cand_id;
+            }
+          });
+        }
+        freshBesoin.candidats = currentCands;
+        state.besoin = freshBesoin;
+
         const titleEl = root.querySelector('[data-field="intitule-display"]');
         if (titleEl) titleEl.textContent = (state.besoin.intitule || '').trim() || '(sans intitulé)';
         const pill = root.querySelector('[data-field="statut-pill"]');
@@ -756,13 +793,18 @@
         const ua = root.querySelector('[data-field="updated-at"]');
         if (ua) ua.textContent = fmtDate(state.besoin.updated_at);
         updateMeta();
-        // Si l'enrichissement (VSA, role, …) a changé après save, on rerend les cartes
+        // Re-render les cartes uniquement si l'enrichissement (_ref/VSA) a changé
         const newRefSig = _serializeCandRefs(state.besoin && state.besoin.candidats);
         if (newRefSig !== prevRefSig) renderCands();
+        state.saving = false;
+        updateSaveButton();
         if (savedEl) savedEl.textContent = '✓ Enregistré';
         setTimeout(() => { if (savedEl && !state.dirty) savedEl.textContent = ''; }, 1800);
       }
     } catch (err) {
+      state.saving = false;
+      state.dirty = true; // restaurer dirty pour permettre un re-save
+      updateSaveButton();
       if (savedEl) savedEl.textContent = '⚠ ' + err.message;
     }
   }
@@ -1016,6 +1058,7 @@
     if (del) del.addEventListener('click', doDelete);
     const save = document.querySelector('[data-v30-besoin-save]');
     if (save) save.addEventListener('click', () => { state.dirty = true; saveAuto(); });
+    updateSaveButton();
     const addBtn = document.querySelector('[data-v30-besoin-cand-add]');
     if (addBtn) addBtn.addEventListener('click', addCand);
     const candSearchBtn = document.querySelector('[data-v30-besoin-cand-search]');
@@ -1061,6 +1104,14 @@
         e.preventDefault();
         state.dirty = true;
         saveAuto();
+      }
+    });
+
+    // Avertir si l'utilisateur quitte avec des modifications non sauvegardées
+    window.addEventListener('beforeunload', (e) => {
+      if (state.dirty || state.saving) {
+        e.preventDefault();
+        e.returnValue = '';
       }
     });
   }
