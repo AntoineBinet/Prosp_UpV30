@@ -34,6 +34,15 @@ window.mpClose = function () {
     else { window.location.href = '/'; }
 };
 
+window.mpOpenCandidats = function () {
+    if (window.opener && !window.opener.closed) {
+        window.opener.location.href = '/v30/sourcing';
+        window.opener.focus();
+    } else {
+        window.open('/v30/sourcing', '_blank');
+    }
+};
+
 window.mpToggleDarkMode = function () {
     var isDark = document.body.classList.toggle('mp-dark');
     try { localStorage.setItem('mp-dark', isDark ? '1' : '0'); } catch (_) {}
