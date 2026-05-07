@@ -1350,12 +1350,80 @@
     bindImport();
     bindShortcuts();
     bindSelectAll();
+    bindArchived();
     reload().then(function () {
       if (window.location.hash === '#inmails') {
         switchToView('inmails');
       }
     });
   }
+
+  // ─── Archivés ────────────────────────────────────────────
+  function bindArchived() {
+    var btn = $('[data-v30-sc-archived]');
+    var panel = $('[data-v30-sc-archived-panel]');
+    var closeBtn = $('[data-v30-sc-archived-close]');
+    if (!btn || !panel) return;
+
+    btn.addEventListener('click', function () {
+      var isOpen = !panel.hidden;
+      if (isOpen) {
+        panel.hidden = true;
+      } else {
+        panel.hidden = false;
+        renderArchived();
+      }
+    });
+    if (closeBtn) closeBtn.addEventListener('click', function () { panel.hidden = true; });
+  }
+
+  function renderArchived() {
+    fetchJSON('/api/candidates').then(function (res) {
+      var all = Array.isArray(res) ? res : ((res && (res.candidates || res.items)) || []);
+      var archived = all.filter(function (c) { return c.is_archived && !c.deleted_at; });
+
+      var countBadges = document.querySelectorAll('[data-field="archived-count"], [data-field="archived-count-panel"]');
+      countBadges.forEach(function (el) {
+        el.textContent = archived.length;
+        el.hidden = archived.length === 0;
+      });
+
+      var list = $('[data-v30-sc-archived-list]');
+      if (!list) return;
+      if (!archived.length) {
+        list.innerHTML = '<p style="color:var(--text-3);font-size:13px;">Aucun candidat archivé.</p>';
+        return;
+      }
+      list.innerHTML = archived.map(function (c) {
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-2);border-radius:8px;">'
+          + '<a href="/v30/candidat/' + c.id + '" style="font-weight:500;font-size:13px;flex:1;color:var(--text-1);">' + esc(c.name || '—') + '</a>'
+          + '<span style="font-size:12px;color:var(--text-3);">' + esc(c.role || '') + '</span>'
+          + '<button type="button" class="btn btn-sm btn-ghost" data-unarchive-id="' + c.id + '" data-unarchive-status="' + esc(c.status || 'ec1') + '">'
+          + 'Désarchiver</button>'
+          + '</div>';
+      }).join('');
+
+      list.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-unarchive-id]');
+        if (!btn) return;
+        var id = parseInt(btn.dataset.unarchiveId, 10);
+        var status = btn.dataset.unarchiveStatus || 'ec1';
+        fetchPost('/api/candidates/status', { id: id, status: status, is_archived: 0 })
+          .then(function (r) {
+            if (!r || !r.ok) throw new Error(r && r.error || 'Erreur');
+            window.showToast && window.showToast('Candidat désarchivé', 'success');
+            reload();
+            renderArchived();
+          }).catch(function (err) {
+            window.showToast && window.showToast('Erreur : ' + err.message, 'error');
+          });
+      });
+    }).catch(function () {
+      var list = $('[data-v30-sc-archived-list]');
+      if (list) list.innerHTML = '<p style="color:var(--text-3);">Erreur de chargement.</p>';
+    });
+  }
+
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

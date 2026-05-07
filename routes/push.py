@@ -302,7 +302,10 @@ def api_push_categories_match(cat_id: int):
         if not keywords:
             keywords = [cat_row["name"].lower()]
 
-        candidates = conn.execute("SELECT * FROM candidates WHERE owner_id=?;", (uid,)).fetchall()
+        candidates = conn.execute(
+            "SELECT * FROM candidates WHERE owner_id=? AND deleted_at IS NULL AND (is_archived IS NULL OR is_archived = 0);",
+            (uid,)
+        ).fetchall()
 
     # Score each candidate
     scored = []
