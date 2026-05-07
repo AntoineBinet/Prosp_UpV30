@@ -241,7 +241,7 @@ def _after_request(response):
     if request.is_secure or request.headers.get('X-Forwarded-Proto') == 'https':
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     # CSP: restrictive but allows inline styles/scripts (needed for current architecture)
-    # v32.26: jsdelivr ajouté à style-src (Leaflet CSS), tuiles OSM autorisées en img-src
+    # v32.29: jsdelivr ajouté à style-src (Leaflet CSS), tuiles OSM autorisées en img-src
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
@@ -2523,7 +2523,7 @@ def _v30_apply_migrations(conn) -> list[str]:
     except Exception as e:
         print(f"[v30_migrate] WARN linkedin_inmails ({e})")
 
-    # 5. v32.26 — Carte géographique : lat/long sur companies + prospects
+    # 5. v32.29 — Carte géographique : lat/long sur companies + prospects
     try:
         co_cols = {r[1] for r in cur.execute("PRAGMA table_info(companies);").fetchall()}
         if co_cols:

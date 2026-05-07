@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.26] — 2026-05-07 · Carte géographique des prospects et entreprises
+## [32.29] — 2026-05-07 · Carte géographique des prospects et entreprises
 
 ### Nouvelle page `/v30/carte`
 
@@ -78,9 +78,108 @@ déjà ouvert. Aucune dépendance Python ajoutée — seulement la stdlib
 
 - `app.py` : `_v30_apply_migrations` (colonnes geo), import + register
   `map_bp`, CSP étendue
-- `config.py` : `APP_VERSION = "32.26"`
+- `config.py` : `APP_VERSION = "32.29"`
 - `templates/_partials/v30/sidebar.html` : entrée Carte sous Outils
 - `templates/_partials/v30/icon.html` : icône `map`
+
+## [32.28] — 2026-05-07 · Stats / Tableau de bord : refonte UX v30
+
+### Refonte page Stats — alignement design system v30
+
+La page `/v30/stats` (panel **Tableau de bord**) est refondue pour s'aligner
+sur le design system v30 (page-header, kpi--hero serif, bento, performance
+card avec sparklines, chips colorés). Le panel **Rapport** reste inchangé.
+
+#### Nouveau layout
+- **Page header v30** : eyebrow « Performance » · titre serif italique
+  « Stats » · sous-titre dynamique (« X RDV · Y appels · taux Z% · période »).
+- **Toolbar unifiée** : navigation mensuelle + Aujourd'hui + Plage… +
+  segmented 7j/30j/90j/Tout + boutons Export JSON/CSV (déplacés de la barre
+  séparée vers la toolbar).
+- **Hero** : 4 grosses tuiles `kpi--hero` serif italique avec accent
+  coloré à gauche (RDV vert · Conversion accent · Appels orange · Push
+  bleu) et **sparkline** intégrée en bas-droite de chaque tuile.
+- **Performance card** (12 dernières semaines) : 4 chips KPI avec
+  sparklines miniatures, chart Chart.js stacked (Appels + Notes + Push),
+  3 insights (Meilleure semaine, Semaines actives, Conversion), breakdown
+  bars horizontales par type d'action.
+- **8 KPI secondaires** : Prospects total, Entreprises, À rappeler,
+  Relances en retard (alert), Notes d'appel, Dûs aujourd'hui, **Activité
+  ⌀/jour (NEW)**, **Pertinence ⌀ (NEW)**.
+- **Bento Pipeline + Urgence** :
+  - **Pipeline · Statuts** : barres horizontales colorées par statut
+    (palette RDV vert / Appelé bleu / À rappeler orange / etc.).
+  - **Urgence · Prochaines actions (NEW)** : 4 buckets (En retard /
+    Aujourd'hui / Cette semaine / Plus tard) avec dot couleur + barre
+    de progression.
+- **Bento Top entreprises + Top consultants pushés (NEW)** :
+  - Table « Entreprises chaudes » conservée, restylée (header bg, hover row).
+  - Liste « Top consultants pushés » : rang serif + nom + barre + count.
+- **Charts secondaires** : RDV / 6 derniers mois (line) + Pertinence
+  (doughnut). Les anciens 10 charts redondants sont supprimés.
+
+#### Données nouvelles consommées
+- `topPushedConsultants` (déjà exposé par `/api/stats/charts`, jusqu'ici
+  inutilisé côté front).
+- `urgencyDistribution` (idem — exposé mais non rendu auparavant).
+- Calcul **Activité ⌀ / jour** = (calls + push + notes) / nb jours période.
+- Calcul **Pertinence ⌀** = moyenne pondérée de `pertinenceDistribution`.
+- Calcul **Taux conversion** = RDV / Prospects total (avec sparkline mensuelle).
+
+#### Fichiers modifiés
+- `templates/v30/stats.html` : refonte complète du panel **Tableau de
+  bord**. Le panel **Rapport** est intact.
+- `static/css/v30/stats.css` : refonte complète (hero serif italique,
+  bento bento-2, pipeline/urgency rows, toplist, kpi-alert, modal v30).
+- `static/js/v30/stats.js` : refonte complète. Fetch parallèle de
+  `/api/stats` + `/api/stats/charts` + `/api/stats/data`. Render synchrone
+  sans Chart.js (KPI, pipeline, urgence, toplist) puis Chart.js asynchrone
+  (perf chart, RDV chart, pertinence chart). Fonctions legacy `repLoad*`
+  supprimées (le panel Rapport est piloté par `rapport.js`).
+
+## [32.27] — 2026-05-07 · Page Candidats : badge "DC disponible" dans toutes les vues
+
+### Visibilité du Dossier de Compétences
+
+- Page Candidats : un badge **DC** apparaît désormais sur chaque candidat dans
+  les trois vues (Pipeline kanban, Grille cartes, Liste tableau). Vert plein
+  avec libellé "DC" quand un dossier de compétences existe ; gris pointillé
+  quand aucun DC n'est encore rattaché. Le badge est cliquable et ouvre la
+  fiche candidat sur l'ancre `#dc`.
+- Vue Liste : nouvelle colonne **DC** (64 px desktop, 48 px sous 600 px) entre
+  *Compétences* et *Contact*.
+- Backend `/api/candidates` : le flag `has_dc` prend maintenant en compte
+  trois sources : champ legacy `dossier_competence_pdf`, fichiers PDF dans
+  `data/dossiers_candidats/{uid}/{cid}/` **et** entrées dans la table
+  `dc_generations` (DC produits via le générateur). Les DC générés via le
+  générateur sont désormais détectés correctement.
+
+### Fichiers modifiés
+
+- `routes/candidates.py` : helper `_candidate_has_dc()` + une seule requête
+  batch sur `dc_generations` par appel API (pas de N+1).
+- `static/js/v30/sourcing.js` : helper `renderDcBadge()` + insertion dans
+  `renderCard`, `renderGrid`, `renderList` (header + ligne).
+- `static/css/v30/sourcing.css` : classes `.v30-sc-dc`, `.v30-sc-dc--ok`,
+  `.v30-sc-dc--no` et largeur de la colonne `--dc`.
+
+## [32.26] — 2026-05-07 · Fiche candidat : fix bouton Éditer (toutes sections)
+
+### Fix — modales d'édition invisibles sur la fiche candidat
+
+- Les boutons « Éditer » des sections **Informations / Entretien / Évaluation /
+  Références / Avis perso** ainsi que la modale « Enrichir via DC » ouvraient
+  bien la modale (`hidden` retiré), mais celle-ci restait invisible et non
+  cliquable. Cause : le composant `.v30-modal-bd` a `opacity: 0;
+  pointer-events: none` par défaut et requiert la classe `.is-open` pour
+  passer à `opacity: 1; pointer-events: auto`. Le code ne basculait que
+  l'attribut `hidden`, comme le faisait déjà la quasi-totalité des autres
+  modales v30 — bug introduit en 32.x avec l'ajout de l'édition de fiche.
+- `static/js/v30/candidate_detail.js` : `openSectionModal` /
+  `openDcEnrichModal` ajoutent désormais `is-open` (via
+  `requestAnimationFrame` pour préserver la transition CSS) ;
+  `closeSectionModal` / `closeDcEnrichModal` retirent la classe puis
+  rebasculent `hidden` après 160 ms (durée de la transition).
 
 ## [32.25] — 2026-05-06 · Multi-user : fix HTTP 500 sur création prospect/entreprise + fix modale stats
 

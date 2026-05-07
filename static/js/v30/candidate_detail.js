@@ -664,6 +664,7 @@
         esc(f.label) + '</label>' + input + '</div>';
     }).join('');
     modal.hidden = false;
+    requestAnimationFrame(function () { modal.classList.add('is-open'); });
     var first = body.querySelector('input,textarea');
     if (first) first.focus();
   }
@@ -703,7 +704,10 @@
 
   function closeSectionModal() {
     var modal = document.querySelector('[data-v30-fc-edit-modal]');
-    if (modal) modal.hidden = true;
+    if (modal) {
+      modal.classList.remove('is-open');
+      setTimeout(function () { modal.hidden = true; }, 160);
+    }
     _editSection = null;
   }
 
@@ -1098,6 +1102,7 @@
         '<div class="skel" style="width:72%;height:12px;margin:6px auto;"></div>' +
       '</div>';
     modal.hidden = false;
+    requestAnimationFrame(function () { modal.classList.add('is-open'); });
     var applyBtn = modal.querySelector('[data-v30-dc-enrich-apply]');
     if (applyBtn) applyBtn.disabled = true;
     fetch('/api/candidates/' + CID + '/dc-enrich', {
@@ -1198,7 +1203,10 @@
 
   function closeDcEnrichModal() {
     var modal = document.querySelector('[data-v30-fc-dc-enrich-modal]');
-    if (modal) modal.hidden = true;
+    if (modal) {
+      modal.classList.remove('is-open');
+      setTimeout(function () { modal.hidden = true; }, 160);
+    }
   }
 
   function bindDcEnrichModal() {
