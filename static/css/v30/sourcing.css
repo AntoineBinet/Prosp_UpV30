@@ -633,3 +633,102 @@
 @media (max-width: 600px) {
   .v30-src-pdf-result__fields { grid-template-columns: 1fr; }
 }
+
+/* ─── Vue Liste ─── */
+.v30-sc-list {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.v30-sc-list__head {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  height: 34px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.v30-sc-list__row {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  min-height: 46px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  transition: background var(--dur-1);
+}
+.v30-sc-list__row:last-child { border-bottom: none; }
+.v30-sc-list__row:hover { background: var(--surface-2); }
+.v30-sc-list__row.is-selected {
+  background: color-mix(in oklch, var(--accent) 5%, var(--surface));
+  outline: 1px solid color-mix(in oklch, var(--accent) 25%, transparent);
+  outline-offset: -1px;
+}
+.v30-sc-list__cell {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+}
+.v30-sc-list__cell--cb       { width: 34px; justify-content: center; }
+.v30-sc-list__cell--name     { flex: 1; min-width: 0; gap: 8px; overflow: hidden; }
+.v30-sc-list__cell--status   { width: 110px; }
+.v30-sc-list__cell--loc      { width: 150px; overflow: hidden; }
+.v30-sc-list__cell--skills   { width: 190px; flex-wrap: wrap; overflow: hidden; }
+.v30-sc-list__cell--contacts { width: 76px; }
+.v30-sc-list__cell--actions  { width: 34px; justify-content: center; }
+
+.v30-sc-list__cell--cb input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px; height: 14px;
+  cursor: pointer;
+}
+
+.v30-sc-list__namebox {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+.v30-sc-list__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v30-sc-list__name:hover { color: var(--accent); text-decoration: underline; }
+.v30-sc-list__role {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v30-sc-list__empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .v30-sc-list__cell--skills { width: 140px; }
+}
+@media (max-width: 900px) {
+  .v30-sc-list__cell--skills,
+  .v30-sc-list__cell--loc { display: none; }
+}
+@media (max-width: 600px) {
+  .v30-sc-list__cell--contacts { display: none; }
+  .v30-sc-list__cell--status { width: 80px; }
+}
