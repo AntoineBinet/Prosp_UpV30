@@ -238,27 +238,11 @@ def page_v30_stats():
         if dn:
             parts = [p for p in dn.split() if p]
             user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
-    counts = {}
-    try:
-        with _conn() as conn:
-            counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                "AND (deleted_at IS NULL OR deleted_at='') "
-                "AND (is_archived IS NULL OR is_archived=0);", (uid,)
-            ).fetchone()[0]
-            counts["entreprises"] = conn.execute(
-                "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
-            ).fetchone()[0]
-            counts["candidats"] = conn.execute(
-                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
-            ).fetchone()[0]
-    except Exception:
-        counts = {}
     return render_template(
         "v30/stats.html",
         active="stats",
         crumbs=["Prosp'Up", "Stats & Rapport"],
-        counts=counts,
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -468,27 +452,11 @@ def page_v30_sourcing():
         if dn:
             parts = [p for p in dn.split() if p]
             user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
-    counts = {}
-    try:
-        with _conn() as conn:
-            counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                "AND (deleted_at IS NULL OR deleted_at='') "
-                "AND (is_archived IS NULL OR is_archived=0);", (uid,)
-            ).fetchone()[0]
-            counts["entreprises"] = conn.execute(
-                "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
-            ).fetchone()[0]
-            counts["candidats"] = conn.execute(
-                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
-            ).fetchone()[0]
-    except Exception:
-        counts = {}
     return render_template(
         "v30/sourcing.html",
         active="candidats",
         crumbs=["Prosp'Up", "Candidats"],
-        counts=counts,
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -512,27 +480,11 @@ def page_v30_push():
         if dn:
             parts = [p for p in dn.split() if p]
             user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
-    counts = {}
-    try:
-        with _conn() as conn:
-            counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                "AND (deleted_at IS NULL OR deleted_at='') "
-                "AND (is_archived IS NULL OR is_archived=0);", (uid,)
-            ).fetchone()[0]
-            counts["entreprises"] = conn.execute(
-                "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
-            ).fetchone()[0]
-            counts["candidats"] = conn.execute(
-                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
-            ).fetchone()[0]
-    except Exception:
-        counts = {}
     return render_template(
         "v30/push.html",
         active="push",
         crumbs=["Prosp'Up", "Push"],
-        counts=counts,
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -553,27 +505,11 @@ def page_v30_entreprises():
         if dn:
             parts = [p for p in dn.split() if p]
             user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
-    counts = {}
-    try:
-        with _conn() as conn:
-            counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                "AND (deleted_at IS NULL OR deleted_at='') "
-                "AND (is_archived IS NULL OR is_archived=0);", (uid,)
-            ).fetchone()[0]
-            counts["entreprises"] = conn.execute(
-                "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
-            ).fetchone()[0]
-            counts["candidats"] = conn.execute(
-                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
-            ).fetchone()[0]
-    except Exception:
-        counts = {}
     return render_template(
         "v30/entreprises.html",
         active="entreprises",
         crumbs=["Prosp'Up", "Entreprises"],
-        counts=counts,
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -639,30 +575,11 @@ def page_v30_prospects():
             parts = [p for p in dn.split() if p]
             user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
 
-    counts = {}
-    try:
-        with _conn() as conn:
-            counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                "AND (deleted_at IS NULL OR deleted_at='') "
-                "AND (is_archived IS NULL OR is_archived=0);",
-                (uid,),
-            ).fetchone()[0]
-            counts["entreprises"] = conn.execute(
-                "SELECT COUNT(*) FROM companies WHERE owner_id=?;", (uid,)
-            ).fetchone()[0]
-            counts["candidats"] = conn.execute(
-                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
-                (uid,),
-            ).fetchone()[0]
-    except Exception:
-        counts = {}
-
     return render_template(
         "v30/prospects.html",
         active="prospects",
         crumbs=["Prosp'Up", "Prospects"],
-        counts=counts,
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -725,32 +642,11 @@ def page_v30_dashboard():
             parts = [p for p in dn.split() if p]
             user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
 
-    # Compteurs sidebar — lightweight; pas fatal si indispo
-    counts = {}
-    try:
-        with _conn() as conn:
-            counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                "AND (deleted_at IS NULL OR deleted_at='') "
-                "AND (is_archived IS NULL OR is_archived=0);",
-                (uid,),
-            ).fetchone()[0]
-            counts["entreprises"] = conn.execute(
-                "SELECT COUNT(*) FROM companies WHERE owner_id=?;",
-                (uid,),
-            ).fetchone()[0]
-            counts["candidats"] = conn.execute(
-                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');",
-                (uid,),
-            ).fetchone()[0]
-    except Exception:
-        counts = {}
-
     return render_template(
         "v30/dashboard.html",
         active="dashboard",
         crumbs=["Prosp'Up", "Dashboard"],
-        counts=counts,
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         display_name=display_name,
