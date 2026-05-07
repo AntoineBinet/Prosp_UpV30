@@ -1283,6 +1283,13 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
             if "deleted_at" not in tbl_cols:
                 _add_col(tbl, "deleted_at", "TEXT")
 
+        # Migration: prospect_events.meta — colonne absente dans certaines DBs créées avant l'ajout
+        # du champ meta. Sans cette colonne, les INSERT rdv_taken échouent silencieusement
+        # (try/except) et les stats/gamification ne comptent pas les changements de date RDV.
+        ev_cols = [r["name"] for r in conn.execute("PRAGMA table_info(prospect_events);").fetchall()]
+        if ev_cols and "meta" not in ev_cols:
+            _add_col("prospect_events", "meta", "TEXT")
+
         # v23.3+: indexes on owner_id (created after migration adds the column)
         conn.executescript('''
             CREATE INDEX IF NOT EXISTS idx_prospects_owner ON prospects(owner_id);
@@ -1988,6 +1995,15 @@ def _migrate_user_db_schema(db_path: Path) -> None:
             conn.commit()
         except Exception as e:
             print(f"[WARN] Migration push_logs columns ({db_path}): {e}")
+
+        # Migration: prospect_events.meta (colonnes absentes dans les vieilles per-user DBs)
+        try:
+            ev_cols = [r["name"] for r in conn.execute("PRAGMA table_info(prospect_events);").fetchall()]
+            if ev_cols and "meta" not in ev_cols:
+                conn.execute("ALTER TABLE prospect_events ADD COLUMN meta TEXT;")
+                conn.commit()
+        except Exception as e:
+            print(f"[WARN] Migration prospect_events.meta ({db_path}): {e}")
 
         # Migration v27.3: push_categories default candidate slots
         # Migration v32.2: no_candidates flag (push categorie "sans consultant")

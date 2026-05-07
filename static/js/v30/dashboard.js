@@ -537,9 +537,9 @@
         weekVal: w.push_total || 0, prevVal: pw.push_total || 0,
         sub: (w.push_email || 0) + ' emails + ' + (w.push_linkedin || 0) + ' linkedin' },
       { key: 'rdv', color: PERF_COLORS.rdv, label: 'RDV',
-        value: isPast ? (w.rdv_total || 0) : (pipeline.rdv || 0),
-        weekVal: isPast ? (w.rdv_total || 0) : (pipeline.rdv || 0), prevVal: 0,
-        sub: isPast ? 'RDV pris cette semaine' : ('sur ' + (pipeline.total || 0) + ' prospects') }
+        value: w.rdv_total || 0,
+        weekVal: w.rdv_total || 0, prevVal: 0,
+        sub: isPast ? 'RDV pris cette semaine' : ((w.rdv_total || 0) + ' pris · ' + (pipeline.rdv || 0) + ' en pipeline') }
     ];
     if (!isPast && (pipeline.overdue || 0) > 0) {
       chips.push({
