@@ -76,6 +76,53 @@
     if (s === 'other')    return ic('send', 13) + ' Autre';
     return ic('mail', 13) + ' Email';
   }
+  function pushChannelPill(ch) {
+    var s = (ch || '').trim().toLowerCase();
+    if (s === 'linkedin') return '<span class="push-channel-pill push-channel-pill--linkedin">' + ic('linkedin', 11) + ' LinkedIn</span>';
+    if (s === 'other')    return '<span class="push-channel-pill push-channel-pill--other">' + ic('send', 11) + ' Autre</span>';
+    return '<span class="push-channel-pill push-channel-pill--email">' + ic('mail', 11) + ' Email</span>';
+  }
+  function channelRowClass(ch) {
+    var s = (ch || '').trim().toLowerCase();
+    if (s === 'linkedin') return 'push-hist-row push-hist-row--linkedin';
+    if (s === 'other')    return 'push-hist-row push-hist-row--other';
+    return 'push-hist-row push-hist-row--email';
+  }
+  function renderDateCell(iso) {
+    if (!iso) return '<span class="muted">—</span>';
+    try {
+      var d = new Date(iso);
+      var now = new Date();
+      var day = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+      var year = d.getFullYear() !== now.getFullYear() ? ' ' + d.getFullYear() : '';
+      var time = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      return '<div class="push-hist-date">' +
+        '<div class="push-hist-date__day">' + esc(day + year) + '</div>' +
+        '<div class="push-hist-date__time">' + esc(time) + '</div>' +
+      '</div>';
+    } catch (_) { return esc(iso); }
+  }
+  function updatePushStats() {
+    var stats = document.querySelector('[data-v30-push-stats]');
+    if (!stats) return;
+    var total = STATE.pushFiltered.length;
+    var allTotal = STATE.pushLogs.length;
+    var today = new Date().toDateString();
+    var todayCount = STATE.pushLogs.filter(function (l) {
+      try { return new Date(l.sentAt || l.createdAt).toDateString() === today; } catch (_) { return false; }
+    }).length;
+    if (!allTotal) { stats.innerHTML = ''; return; }
+    var parts = [];
+    if (total < allTotal) {
+      parts.push('<strong>' + total + '</strong> résultat' + (total > 1 ? 's' : '') + ' sur ' + allTotal);
+    } else {
+      parts.push('<strong>' + total + '</strong> push' + (total > 1 ? 's' : ''));
+    }
+    if (todayCount > 0) {
+      parts.push('<span class="push-hist-today-badge">' + todayCount + ' aujourd\'hui</span>');
+    }
+    stats.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+  }
 
   // ─── Modal helpers ────────────────────────────────────────
   function modalByKey(key) {
@@ -738,7 +785,6 @@
     if (q)  q.addEventListener('input', applyPushFilters);
     if (ch) ch.addEventListener('change', applyPushFilters);
     if (rb) rb.addEventListener('click', function () { reloadPushLogs(); });
-    // Delegate actions dans la table
     var tbody = document.querySelector('[data-v30-push-table]');
     if (tbody) {
       tbody.addEventListener('click', function (e) {
@@ -746,6 +792,9 @@
         if (eye) { openPushDetail(Number(eye.dataset.v30PushView)); return; }
         var del = e.target.closest('[data-v30-push-delete]');
         if (del) { deletePushLog(Number(del.dataset.v30PushDelete)); return; }
+        if (e.target.closest('a') || e.target.closest('button')) return;
+        var row = e.target.closest('[data-push-row-id]');
+        if (row) openPushDetail(Number(row.dataset.pushRowId));
       });
     }
   }
@@ -780,6 +829,7 @@
     var tbody = document.querySelector('[data-v30-push-table]');
     var empty = document.querySelector('[data-v30-push-empty]');
     if (!tbody) return;
+    updatePushStats();
     if (!STATE.pushLogs.length) {
       tbody.innerHTML = '<tr><td colspan="8" class="empty" style="padding:30px;">Aucun push enregistré pour le moment.</td></tr>';
       if (empty) empty.hidden = true;
@@ -793,18 +843,30 @@
     if (empty) empty.hidden = true;
     tbody.innerHTML = STATE.pushFiltered.map(function (l) {
       var company = fmtCompany(l.company_groupe, l.company_site);
-      var consultants = [l.consultant1_name, l.consultant2_name].filter(Boolean).join(', ') || '—';
+      var consultants = [l.consultant1_name, l.consultant2_name].filter(Boolean);
+      var consultantsHtml = consultants.length
+        ? consultants.map(function (c) {
+            var label = c.split(' ')[0];
+            return '<span class="push-consultant-chip" title="' + esc(c) + '">' + esc(label) + '</span>';
+          }).join('')
+        : '<span class="muted">—</span>';
       var mailAddr = l.to_email || l.prospect_email || '';
-      return '<tr>' +
-        '<td>' + esc(fmtDate(l.sentAt || l.createdAt)) + '</td>' +
-        '<td><span class="table-cell-clamp" title="' + esc(l.prospect_name || '') + '">' + esc(l.prospect_name || '—') + '</span></td>' +
+      var prospectHtml = l.prospect_id
+        ? '<a href="/v30/prospect/' + l.prospect_id + '" class="push-prospect-link" title="' + esc(l.prospect_name || '') + '">' + esc(l.prospect_name || '—') + '</a>'
+        : '<span class="table-cell-clamp" title="' + esc(l.prospect_name || '') + '">' + esc(l.prospect_name || '—') + '</span>';
+      var emailHtml = mailAddr
+        ? '<a href="mailto:' + esc(mailAddr) + '" class="push-email-link table-cell-clamp" title="' + esc(mailAddr) + '">' + esc(mailAddr) + '</a>'
+        : '<span class="muted">—</span>';
+      return '<tr class="' + channelRowClass(l.channel) + '" data-push-row-id="' + l.id + '">' +
+        '<td>' + renderDateCell(l.sentAt || l.createdAt) + '</td>' +
+        '<td>' + prospectHtml + '</td>' +
         '<td><span class="table-cell-clamp" title="' + esc(company) + '">' + esc(company) + '</span></td>' +
-        '<td><span class="table-cell-clamp" title="' + esc(mailAddr) + '">' + esc(mailAddr) + '</span></td>' +
+        '<td>' + emailHtml + '</td>' +
         '<td><span class="table-cell-clamp" title="' + esc(l.subject || '') + '">' + esc(l.subject || '—') + '</span></td>' +
-        '<td><span class="table-cell-clamp" title="' + esc(consultants) + '">' + esc(consultants) + '</span></td>' +
-        '<td>' + pushChannelLabel(l.channel) + '</td>' +
+        '<td>' + consultantsHtml + '</td>' +
+        '<td>' + pushChannelPill(l.channel) + '</td>' +
         '<td>' +
-          '<button type="button" class="mini-action" data-v30-push-view="' + l.id + '" title="Voir" aria-label="Voir le détail">' + ic('eye', 13) + '</button>' +
+          '<button type="button" class="mini-action" data-v30-push-view="' + l.id + '" title="Voir le détail" aria-label="Voir le détail">' + ic('eye', 13) + '</button>' +
           '<button type="button" class="mini-action danger" data-v30-push-delete="' + l.id + '" title="Supprimer" aria-label="Supprimer">' + ic('trash', 13) + '</button>' +
         '</td>' +
       '</tr>';
