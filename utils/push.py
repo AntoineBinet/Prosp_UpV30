@@ -148,16 +148,51 @@ def _apply_call_note(html_body: str, call_note: str) -> str:
 # Lecture du template .msg (HTML direct + RTF compressé LZFu)
 # ─────────────────────────────────────────────────────────────────
 def _read_msg_body(template_path: Path) -> tuple:
-    """Lit le corps HTML et le sujet d'un fichier .msg via extract-msg + RTFDE.
+    """Lit le corps HTML et le sujet d'un fichier .msg, .html, .htm ou .eml.
 
-    Utilise des librairies robustes pour le décodage (plus de parsing RTF
-    manuel). Retourne (html_body: str, subject: str).
+    Pour les fichiers HTML/EML : lecture directe du corps.
+    Pour les fichiers .msg/.oft : parsing OLE2 via olefile + RTFDE.
+    Retourne (html_body: str, subject: str).
     """
+    subject = "Candidats disponibles"
+    ext = template_path.suffix.lower()
+
+    # Fichiers HTML et EML : lecture directe sans olefile
+    if ext in ('.html', '.htm'):
+        html_body = template_path.read_text(encoding='utf-8', errors='replace')
+        return html_body, subject
+
+    if ext == '.eml':
+        import email as _email_lib
+        raw = template_path.read_bytes()
+        msg_eml = _email_lib.message_from_bytes(raw)
+        subject = msg_eml.get('Subject', subject) or subject
+        html_body = ""
+        for part in msg_eml.walk():
+            ct = part.get_content_type()
+            if ct == 'text/html':
+                cs = part.get_content_charset() or 'utf-8'
+                html_body = part.get_payload(decode=True).decode(cs, errors='replace')
+                break
+        if not html_body:
+            for part in msg_eml.walk():
+                if part.get_content_type() == 'text/plain':
+                    cs = part.get_content_charset() or 'utf-8'
+                    txt = part.get_payload(decode=True).decode(cs, errors='replace')
+                    html_body = "<html><body>" + txt.replace("\n", "<br>") + "</body></html>"
+                    break
+        return html_body, subject
+
     import struct
-    import olefile  # type: ignore
+    try:
+        import olefile  # type: ignore
+    except ImportError:
+        raise ValueError(
+            "La librairie 'olefile' est requise pour lire les fichiers .msg. "
+            "Installez-la via : pip install olefile"
+        )
 
     html_body = ""
-    subject = "Candidats disponibles"
 
     # 1. Sujet — via extract-msg (gère parfaitement l'encodage)
     try:
