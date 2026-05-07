@@ -5,6 +5,8 @@ import datetime
 import json
 import os
 import re
+import shutil
+import unicodedata
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
@@ -494,19 +496,34 @@ def api_push_category_files(cat_id: int):
     user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
     user_push_dir.mkdir(parents=True, exist_ok=True)
 
+    from urllib.parse import quote
+    TEMPLATE_EXTS = ('.msg', '.eml', '.oft', '.htm', '.html')
     files = []
+
     if user_push_dir.is_dir():
         for f in sorted(user_push_dir.iterdir()):
-            if f.is_file() and f.suffix.lower() in ('.msg', '.eml', '.oft', '.htm', '.html'):
-                # Encoder correctement le nom de fichier dans l'URL pour éviter les problèmes d'encodage
-                from urllib.parse import quote
-                safe_name = f.name
-                safe_url = f"/api/pushs/user/{uid}/{cat_id}/{quote(safe_name, safe='')}"
-                files.append({
-                    "name": safe_name,
-                    "size": f.stat().st_size,
-                    "url": safe_url
-                })
+            if f.is_file() and f.suffix.lower() in TEMPLATE_EXTS:
+                safe_url = f"/api/pushs/user/{uid}/{cat_id}/{quote(f.name, safe='')}"
+                files.append({"name": f.name, "size": f.stat().st_size, "url": safe_url})
+
+    # Fallback legacy : cherche dans pushs/<cat_name>/ si aucun fichier trouvé dans le dossier user
+    if not files:
+        pushs_root = Path(APP_DIR) / "pushs"
+        legacy_dir = pushs_root / cat_name
+        if not legacy_dir.is_dir() and pushs_root.is_dir():
+            cat_norm = unicodedata.normalize("NFC", cat_name.lower().replace(" ", "_").replace("-", "_"))
+            for sub in pushs_root.iterdir():
+                if sub.is_dir():
+                    sub_norm = unicodedata.normalize("NFC", sub.name.lower().replace(" ", "_").replace("-", "_"))
+                    if sub_norm == cat_norm or cat_norm in sub_norm or sub_norm in cat_norm:
+                        legacy_dir = sub
+                        break
+        if legacy_dir.is_dir():
+            for f in sorted(legacy_dir.iterdir()):
+                if f.is_file() and f.suffix.lower() in TEMPLATE_EXTS:
+                    safe_url = f"/api/pushs/{quote(cat_name, safe='')}/{quote(f.name, safe='')}"
+                    files.append({"name": f.name, "size": f.stat().st_size, "url": safe_url})
+
     return jsonify(ok=True, category=cat_name, files=files)
 
 
@@ -828,13 +845,27 @@ def api_push_generate():
     if not prospect_dict or not cat_dict:
         return jsonify(ok=False, error="Erreur lors de la récupération des données"), 500
     
-    # Chemin du template
+    # Chemin du template — cherche d'abord dans le dossier user, puis dans pushs/ (legacy)
     cat_name = cat_dict["name"]
     user_push_dir = DATA_DIR / f"user_{uid}" / "push_templates" / cat_name
     template_path = user_push_dir / template_filename
-    
+
     if not template_path.is_file():
-        return jsonify(ok=False, error="Template introuvable"), 404
+        # Fallback legacy : pushs/<cat_name>/<filename>
+        pushs_root = Path(APP_DIR) / "pushs"
+        legacy_path = pushs_root / cat_name / template_filename
+        if not legacy_path.is_file() and pushs_root.is_dir():
+            cat_norm = unicodedata.normalize("NFC", cat_name.lower().replace(" ", "_").replace("-", "_"))
+            for sub in pushs_root.iterdir():
+                if sub.is_dir():
+                    sub_norm = unicodedata.normalize("NFC", sub.name.lower().replace(" ", "_").replace("-", "_"))
+                    if sub_norm == cat_norm or cat_norm in sub_norm or sub_norm in cat_norm:
+                        legacy_path = sub / template_filename
+                        break
+        if legacy_path.is_file():
+            template_path = legacy_path
+        else:
+            return jsonify(ok=False, error="Template introuvable"), 404
     
     # v27.4: Descriptions IA des candidats (Ollama analyse le DC PDF)
     ai_descriptions = payload.get("ai_descriptions", False)
