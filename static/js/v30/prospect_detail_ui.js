@@ -109,6 +109,17 @@
           flashSaved();
           R.header(FP.STATE.prospect);
           R.aside(FP.STATE.prospect);
+          if (window.pushUndo) {
+            var _field = field, _prev = original.trim(), _new = newVal, _el = el;
+            window.pushUndo((_field === 'name' ? 'Nom' : _field) + ' modifié', function () {
+              FP.saveField(_field, _prev).then(function () {
+                if (FP.STATE.prospect) FP.STATE.prospect[_field] = _prev;
+                _el.textContent = _prev;
+                R.header(FP.STATE.prospect);
+                R.aside(FP.STATE.prospect);
+              }).catch(function () {});
+            }, { silent: true });
+          }
         }).catch(function (err) {
           el.textContent = original;
           alert('Échec de sauvegarde : ' + err.message);
@@ -310,6 +321,7 @@
 
   function applyStatutChange(newStatut) {
     var p = FP.STATE.prospect || {};
+    var prevStatut = p.statut || '';
     var promise;
     if (newStatut === 'Rendez-vous') {
       promise = promptForDate({
@@ -344,6 +356,16 @@
       R.header(FP.STATE.prospect);
       R.aside(FP.STATE.prospect);
       if (typeof FP.loadTimeline === 'function') FP.loadTimeline();
+      if (window.pushUndo && prevStatut && prevStatut !== newStatut) {
+        var _prev = prevStatut, _new = newStatut;
+        window.pushUndo('Statut → ' + _new, function () {
+          applyFields({ statut: _prev }).then(function () {
+            if (FP.STATE.prospect) FP.STATE.prospect.statut = _prev;
+            R.header(FP.STATE.prospect);
+            R.aside(FP.STATE.prospect);
+          }).catch(function () {});
+        }, { silent: true });
+      }
     }).catch(function (err) {
       alert('Échec : ' + (err && err.message ? err.message : err));
     });
