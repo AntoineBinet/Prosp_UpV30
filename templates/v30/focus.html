@@ -122,6 +122,20 @@
     </div>
   </section>
 
+  {# ─── Bloc Relances Push (pushs envoyés il y a 7+ jours) ─── #}
+  <section class="card card-flush" data-v30-push-relances id="push-relances" style="margin-top:16px;">
+    <div class="card-header">
+      <div class="card-title" style="display:flex;align-items:center;gap:6px;">
+        {{ ui.icon('mail', 13) }}
+        Relances push <span class="tab-count" data-field="pr-count">—</span>
+      </div>
+      <div class="muted" style="font-size:11px;">Pushs envoyés il y a 7+ jours sans suivi</div>
+    </div>
+    <div data-v30-push-relances-list>
+      <div class="empty" style="padding:20px;font-size:12px;">Chargement…</div>
+    </div>
+  </section>
+
   {# ─── Bloc Tâches (parité v29 : CRUD manuel complet) ─── #}
   <section class="card card-flush" data-v30-focus-tasks style="margin-top:16px;">
     <div class="card-header">
@@ -198,5 +212,6 @@
 <link rel="stylesheet" href="/static/css/v30/focus.css?v={{ static_hash('css/v30/focus.css') }}">
 
 <script defer src="/static/js/v30/phone-picker.js?v={{ static_hash('js/v30/phone-picker.js') }}"></script>
+<script defer src="/static/js/v30/push-modal.js?v={{ static_hash('js/v30/push-modal.js') }}"></script>
 <script defer src="/static/js/v30/focus.js?v={{ static_hash('js/v30/focus.js') }}"></script>
 {% endblock %}

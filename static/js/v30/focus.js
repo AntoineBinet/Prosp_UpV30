@@ -436,6 +436,64 @@
     });
   }
 
+  // ─── Bloc Relances Push (pushs envoyés 7+ jours sans suivi) ────
+  var PUSH_RELANCES = { items: [] };
+
+  function renderPushRelances() {
+    var host = document.querySelector('[data-v30-push-relances-list]');
+    var countEl = document.querySelector('[data-v30-push-relances] [data-field="pr-count"]');
+    if (!host) return;
+    var items = PUSH_RELANCES.items;
+    if (countEl) countEl.textContent = items.length;
+    if (items.length === 0) {
+      host.innerHTML = '<div class="empty" style="padding:20px;font-size:12px;">Aucune relance push en attente.</div>';
+      return;
+    }
+    host.innerHTML = items.map(function (p) {
+      var company = p.company_groupe || p.company_site || '';
+      var lastDate = p.last_push_at ? p.last_push_at.slice(0, 10) : '—';
+      var sub = (company ? company + ' · ' : '') + 'Dernier push : ' + lastDate;
+      return '<div class="v30-ac__row" data-v30-push-relance-row data-pid="' + p.id + '">' +
+        '<a href="/v30/prospect/' + p.id + '" style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;text-decoration:none;color:inherit;">' +
+          '<span class="avatar">' + esc(initials(p.name)) + '</span>' +
+          '<div style="min-width:0;">' +
+            '<div class="v30-ac__name truncate">' + esc(p.name || '—') + '</div>' +
+            '<div class="v30-ac__sub truncate">' + esc(sub) + '</div>' +
+          '</div>' +
+        '</a>' +
+        (p.statut ? '<span class="status ' + statusClass(p.statut) + '">' + esc(p.statut) + '</span>' : '<span></span>') +
+        '<button type="button" class="btn btn-sm" data-v30-push-relance="' + p.id + '" title="Envoyer un push de relance">' +
+          '✉ Relancer' +
+        '</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  function loadPushRelances() {
+    return fetchJSON('/api/push-logs/relance-reminders').then(function (res) {
+      PUSH_RELANCES.items = (res && res.ok && res.items) || [];
+      renderPushRelances();
+    }).catch(function (err) {
+      console.error('[v30 focus push-relances] /api/push-logs/relance-reminders failed:', err);
+      var host = document.querySelector('[data-v30-push-relances-list]');
+      if (host) host.innerHTML = '<div class="empty" style="padding:20px;font-size:12px;">Erreur de chargement.</div>';
+    });
+  }
+
+  function bindPushRelances() {
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-v30-push-relance]');
+      if (!btn) return;
+      var pid = Number(btn.dataset.v30PushRelance);
+      if (!pid) return;
+      if (typeof window.V30PushModal === 'object' && typeof window.V30PushModal.open === 'function') {
+        window.V30PushModal.open(pid, 'email');
+      } else {
+        window.location.href = '/v30/prospect/' + pid;
+      }
+    });
+  }
+
   function load() {
     return fetchJSON('/api/dashboard').then(function (res) {
       var d = (res && res.data) || {};
@@ -480,7 +538,9 @@
     loadPeopleForTasks();
     bindFocusRowActions();
     bindRelancesFilter();
+    bindPushRelances();
     loadRelances();
+    loadPushRelances();
     load();
     // Auto-refresh quand l'onglet redevient actif
     var lastRefresh = Date.now();
@@ -492,6 +552,7 @@
       load();
       loadTasks();
       loadRelances();
+      loadPushRelances();
     }
     document.addEventListener('visibilitychange', maybeRefresh);
     window.addEventListener('focus', maybeRefresh);
