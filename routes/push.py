@@ -763,6 +763,38 @@ def api_push_category_delete_template(cat_id: int):
         return jsonify(ok=False, error=str(e)), 500
 
 
+@push_bp.get("/api/push-logs/relance-reminders")
+def api_push_relance_reminders():
+    """Prospects dont le dernier push date de 7+ jours — rappels de relance."""
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+
+    seven_days_ago = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
+
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT p.id, p.name, p.email, p.fonction, p.statut,
+                   c.groupe AS company_groupe, c.site AS company_site,
+                   MAX(pl.sentAt) AS last_push_at
+            FROM push_logs pl
+            JOIN prospects p ON p.id = pl.prospect_id
+                             AND p.owner_id = ?
+                             AND (p.deleted_at IS NULL OR p.deleted_at = '')
+                             AND (p.is_archived IS NULL OR p.is_archived = 0)
+            LEFT JOIN companies c ON c.id = p.company_id AND c.owner_id = ?
+            GROUP BY p.id
+            HAVING MAX(pl.sentAt) <= ?
+            ORDER BY MAX(pl.sentAt) ASC
+            LIMIT 50;
+            """,
+            (uid, uid, seven_days_ago),
+        ).fetchall()
+
+    return jsonify(ok=True, items=[dict(r) for r in rows])
+
+
 @push_bp.post("/api/push/generate")
 def api_push_generate():
     """Génère un email personnalisé (.msg/.eml) avec PJ intégrées (DC candidats).

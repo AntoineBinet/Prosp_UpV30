@@ -182,6 +182,34 @@
     });
 
     loadNotifications();
+
+    // ─── Rappels relance push (7+ jours sans push) ───
+    var ICON_MAIL = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>';
+    function loadPushRelanceNotif() {
+      fetch('/api/push-logs/relance-reminders', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          var items = (res && res.ok && res.items) || [];
+          window._v30NotifExtra = (window._v30NotifExtra || []).filter(function (x) { return !x._pushRelance; });
+          if (items.length > 0) {
+            var label = items.length + ' relance' + (items.length > 1 ? 's' : '') + ' push à envoyer';
+            window._v30NotifExtra.push({
+              _pushRelance: true,
+              html: '<div class="v30-notif-item">' +
+                '<div class="v30-notif-item__icon v30-notif-item__icon--info">' + ICON_MAIL + '</div>' +
+                '<div class="v30-notif-item__body">' +
+                  '<div class="v30-notif-item__label">' + label + '</div>' +
+                  '<div class="v30-notif-item__sub">Pushé́s il y a 7+ jours — pensez à relancer</div>' +
+                  '<div class="v30-notif-item__cta"><a class="btn btn-sm" href="/v30/focus#push-relances">Voir Focus →</a></div>' +
+                '</div>' +
+              '</div>'
+            });
+          }
+          document.dispatchEvent(new CustomEvent('v30:notif:refresh'));
+        })
+        .catch(function () {});
+    }
+    loadPushRelanceNotif();
   }
 
   var menu = document.querySelector('[data-v30-avatar-menu]');
