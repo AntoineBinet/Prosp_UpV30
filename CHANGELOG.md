@@ -2,6 +2,61 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.28] — 2026-05-07 · Stats / Tableau de bord : refonte UX v30
+
+### Refonte page Stats — alignement design system v30
+
+La page `/v30/stats` (panel **Tableau de bord**) est refondue pour s'aligner
+sur le design system v30 (page-header, kpi--hero serif, bento, performance
+card avec sparklines, chips colorés). Le panel **Rapport** reste inchangé.
+
+#### Nouveau layout
+- **Page header v30** : eyebrow « Performance » · titre serif italique
+  « Stats » · sous-titre dynamique (« X RDV · Y appels · taux Z% · période »).
+- **Toolbar unifiée** : navigation mensuelle + Aujourd'hui + Plage… +
+  segmented 7j/30j/90j/Tout + boutons Export JSON/CSV (déplacés de la barre
+  séparée vers la toolbar).
+- **Hero** : 4 grosses tuiles `kpi--hero` serif italique avec accent
+  coloré à gauche (RDV vert · Conversion accent · Appels orange · Push
+  bleu) et **sparkline** intégrée en bas-droite de chaque tuile.
+- **Performance card** (12 dernières semaines) : 4 chips KPI avec
+  sparklines miniatures, chart Chart.js stacked (Appels + Notes + Push),
+  3 insights (Meilleure semaine, Semaines actives, Conversion), breakdown
+  bars horizontales par type d'action.
+- **8 KPI secondaires** : Prospects total, Entreprises, À rappeler,
+  Relances en retard (alert), Notes d'appel, Dûs aujourd'hui, **Activité
+  ⌀/jour (NEW)**, **Pertinence ⌀ (NEW)**.
+- **Bento Pipeline + Urgence** :
+  - **Pipeline · Statuts** : barres horizontales colorées par statut
+    (palette RDV vert / Appelé bleu / À rappeler orange / etc.).
+  - **Urgence · Prochaines actions (NEW)** : 4 buckets (En retard /
+    Aujourd'hui / Cette semaine / Plus tard) avec dot couleur + barre
+    de progression.
+- **Bento Top entreprises + Top consultants pushés (NEW)** :
+  - Table « Entreprises chaudes » conservée, restylée (header bg, hover row).
+  - Liste « Top consultants pushés » : rang serif + nom + barre + count.
+- **Charts secondaires** : RDV / 6 derniers mois (line) + Pertinence
+  (doughnut). Les anciens 10 charts redondants sont supprimés.
+
+#### Données nouvelles consommées
+- `topPushedConsultants` (déjà exposé par `/api/stats/charts`, jusqu'ici
+  inutilisé côté front).
+- `urgencyDistribution` (idem — exposé mais non rendu auparavant).
+- Calcul **Activité ⌀ / jour** = (calls + push + notes) / nb jours période.
+- Calcul **Pertinence ⌀** = moyenne pondérée de `pertinenceDistribution`.
+- Calcul **Taux conversion** = RDV / Prospects total (avec sparkline mensuelle).
+
+#### Fichiers modifiés
+- `templates/v30/stats.html` : refonte complète du panel **Tableau de
+  bord**. Le panel **Rapport** est intact.
+- `static/css/v30/stats.css` : refonte complète (hero serif italique,
+  bento bento-2, pipeline/urgency rows, toplist, kpi-alert, modal v30).
+- `static/js/v30/stats.js` : refonte complète. Fetch parallèle de
+  `/api/stats` + `/api/stats/charts` + `/api/stats/data`. Render synchrone
+  sans Chart.js (KPI, pipeline, urgence, toplist) puis Chart.js asynchrone
+  (perf chart, RDV chart, pertinence chart). Fonctions legacy `repLoad*`
+  supprimées (le panel Rapport est piloté par `rapport.js`).
+
 ## [32.27] — 2026-05-07 · Page Candidats : badge "DC disponible" dans toutes les vues
 
 ### Visibilité du Dossier de Compétences
