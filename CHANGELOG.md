@@ -2,6 +2,22 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.31] — 2026-05-07 · Besoins · Téléphone + lien profil VSA/LinkedIn
+
+Sur la fiche traitement d'un besoin, dans le bloc **Candidats positionnés**,
+les cartes de candidats **non liés à une fiche** affichent désormais :
+
+- **Téléphone** : nouveau champ avec bouton « Appeler » (lien `tel:`) qui
+  apparaît dès qu'un numéro est saisi. Pratique pour appeler directement
+  un candidat sourcé sans avoir à créer sa fiche.
+- **Lien profil** : le placeholder précise que l'on peut coller un lien
+  **VSA ou LinkedIn** (pas seulement LinkedIn). Le bouton « Ouvrir » reste
+  inchangé.
+
+Les deux champs sont persistés dans `candidats_json` (clés `phone` et
+`profile_url`) et masqués automatiquement quand la ligne est liée à une
+fiche candidat (les coordonnées sont alors disponibles via la fiche).
+
 ## [32.30] — 2026-05-07 · Fiche besoin : section « Préparation avant la RT »
 
 ### Ajout — bloc de notes libres en bas de la fiche besoin

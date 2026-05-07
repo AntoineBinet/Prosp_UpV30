@@ -597,8 +597,38 @@
     });
     grid.appendChild(tracking);
 
-    // Champ "Lien profil" — saisie libre, visible si pas de fiche candidat liée
+    // Champ "Téléphone" — saisie libre, visible si pas de fiche candidat liée
     if (!ficheUrl) {
+      const phoneFld = document.createElement('label');
+      phoneFld.className = 'v30-cand-card__field v30-cand-card__field--profile';
+      const phoneSp = document.createElement('span'); phoneSp.textContent = 'Téléphone'; phoneFld.appendChild(phoneSp);
+      const phoneRow = document.createElement('div');
+      phoneRow.className = 'v30-cand-card__profile-row';
+      const phoneInp = document.createElement('input');
+      phoneInp.type = 'tel';
+      phoneInp.dataset.candField = 'phone';
+      phoneInp.placeholder = '06 12 34 56 78';
+      phoneInp.value = (c && c.phone) || '';
+      const phoneCallBtn = document.createElement('a');
+      phoneCallBtn.className = 'btn btn-ghost btn-sm v30-cand-card__profile-open';
+      phoneCallBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Appeler';
+      const phoneInitial = (c && c.phone) ? String(c.phone).trim() : '';
+      phoneCallBtn.href = phoneInitial ? 'tel:' + phoneInitial.replace(/\s+/g, '') : '#';
+      phoneCallBtn.style.display = phoneInitial ? '' : 'none';
+      phoneInp.addEventListener('input', () => {
+        const v = phoneInp.value.trim();
+        c.phone = v;
+        phoneCallBtn.href = v ? 'tel:' + v.replace(/\s+/g, '') : '#';
+        phoneCallBtn.style.display = v ? '' : 'none';
+        markDirty();
+      });
+      phoneCallBtn.addEventListener('click', (e) => e.stopPropagation());
+      phoneRow.appendChild(phoneInp);
+      phoneRow.appendChild(phoneCallBtn);
+      phoneFld.appendChild(phoneRow);
+      grid.appendChild(phoneFld);
+
+      // Champ "Lien profil" — saisie libre, VSA ou LinkedIn
       const profileFld = document.createElement('label');
       profileFld.className = 'v30-cand-card__field v30-cand-card__field--profile';
       const profileSp = document.createElement('span'); profileSp.textContent = 'Lien profil'; profileFld.appendChild(profileSp);
@@ -607,7 +637,7 @@
       const profileInp = document.createElement('input');
       profileInp.type = 'url';
       profileInp.dataset.candField = 'profile_url';
-      profileInp.placeholder = 'https://linkedin.com/in/…';
+      profileInp.placeholder = 'https://… (VSA ou LinkedIn)';
       profileInp.value = profileUrl;
       const profileOpenBtn = document.createElement('a');
       profileOpenBtn.target = '_blank';
