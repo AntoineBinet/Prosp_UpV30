@@ -29,6 +29,7 @@ from app import (
     _uid,
     logger,
 )
+from utils.db import _sidebar_counts
 
 besoins_bp = Blueprint("besoins", __name__)
 
@@ -198,7 +199,7 @@ def page_besoins_list():
         "v30/besoins.html",
         active="besoins",
         crumbs=["Prosp'Up", "Traitement Besoin"],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -231,7 +232,7 @@ def page_besoins_detail(bid: int):
             {"label": "Besoins", "href": "/v30/besoins"},
             title,
         ],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         besoin_id=bid,

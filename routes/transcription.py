@@ -35,6 +35,7 @@ from app import (
     logger,
 )
 from services.transcription import resume_pending_jobs, start_job_async
+from utils.db import _sidebar_counts
 
 transcription_bp = Blueprint("transcription", __name__)
 
@@ -106,7 +107,7 @@ def page_transcription_list():
         "v30/transcription.html",
         active="transcription",
         crumbs=["Prosp'Up", "Transcription"],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -138,7 +139,7 @@ def page_transcription_detail(tid: int):
             {"label": "Transcription", "href": "/v30/transcription"},
             row["title"] or f"Transcription {tid}",
         ],
-        counts={},
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         transcription_id=tid,
