@@ -1263,7 +1263,7 @@
       });
     }
 
-    var sentAt = todayISO();
+    var sentAt = new Date().toISOString();
     chain = chain.then(function (linkedInText) {
       // Logger le push
       var body = {
