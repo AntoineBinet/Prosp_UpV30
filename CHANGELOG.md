@@ -2,6 +2,26 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.27] — 2026-05-07 · Fiche besoin : section « Préparation avant la RT »
+
+### Ajout — bloc de notes libres en bas de la fiche besoin
+
+- Nouvelle section **« Préparation avant la RT »** affichée tout en bas de
+  la fiche besoin (sous « Candidats positionnés ») : grande zone de texte
+  modifiable, persistée comme les autres champs (auto-save + Ctrl+S).
+  Pratique pour préparer la RT (revue technique) — points à aborder,
+  contexte client, questions à poser…
+- Schéma DB : nouvelle colonne `besoins.preparation_rt TEXT` (CREATE TABLE
+  + migration auto-appliquée au démarrage via `_v30_apply_migrations`, sur
+  la DB principale et chaque DB per-user).
+- `routes/besoins.py` : champ ajouté à `_payload_clean` (allowed) et
+  inséré dans le `INSERT` de `api_create_besoin`.
+- `templates/v30/besoin_detail.html` + `static/js/v30/besoin_detail.js` :
+  textarea `[data-v30-besoin-field="preparation_rt"]`, alimenté via
+  `hydrate()` et collecté dans `collectPayload()`.
+- `static/css/v30/besoins.css` : `.v30-besoin-prep-rt { min-height:220px;
+  resize:vertical }`.
+
 ## [32.26] — 2026-05-07 · Fiche candidat : fix bouton Éditer (toutes sections)
 
 ### Fix — modales d'édition invisibles sur la fiche candidat

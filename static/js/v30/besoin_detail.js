@@ -242,6 +242,7 @@
       'date_appel', 'date_besoin', 'duree_mission',
       'profil_type', 'descriptif', 'competences',
       'connaissances', 'experience', 'commentaires',
+      'preparation_rt',
       'statut',
     ].forEach(k => {
       const el = root.querySelector('[data-v30-besoin-field="' + k + '"]');
@@ -763,6 +764,7 @@
       'date_appel', 'date_besoin', 'duree_mission',
       'profil_type', 'descriptif', 'competences',
       'connaissances', 'experience', 'commentaires',
+      'preparation_rt',
       'statut',
     ].forEach(k => {
       const el = root.querySelector('[data-v30-besoin-field="' + k + '"]');
