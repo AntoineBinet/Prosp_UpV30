@@ -104,6 +104,10 @@
   border-radius: var(--r-xl);
   overflow: hidden;
   background: var(--surface);
+  /* Isole les z-index élevés de Leaflet (tiles 200, controls 1000+)
+     pour que la modale globale (.v30-modal-bd, z-index 80) repasse au-dessus. */
+  isolation: isolate;
+  z-index: 0;
 }
 .v30-carte__map {
   width: 100%;
