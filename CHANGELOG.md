@@ -2,6 +2,86 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.29] — 2026-05-07 · Carte géographique des prospects et entreprises
+
+### Nouvelle page `/v30/carte`
+
+Page Outils dédiée à la cartographie des entités commerciales :
+
+- **Carte Leaflet + tuiles OpenStreetMap** (gratuit, pas de clé API).
+- **Deux couches togglables** : Entreprises (pin bleu) et Prospects (pin coloré
+  selon pertinence P1→P5). Les deux clusters sont gérés séparément
+  (`Leaflet.markercluster`) pour éviter le mélange visuel.
+- **Heatmap densité** activable (`Leaflet.heat`) — gradient bleu/vert/orange/
+  rouge/violet selon la concentration. Chaque prospect pondéré par sa
+  pertinence.
+- **Filtres dynamiques** : recherche full-text (nom/ville/fonction/entreprise/
+  industrie/tags), statut prospect, pertinence min., tag contient. Tous
+  appliqués côté client pour réactivité instantanée.
+- **Popups riches** : type d'entité, nom, sous-titre (industrie/fonction +
+  ville), adresse, pills statut/pertinence, boutons Fiche/Email/Appel/OSM.
+- **Bouton « Ma position »** : géolocalisation navigateur, marqueur bleu +
+  cercle de précision.
+- **Auto-fit initial** sur l'ensemble des marqueurs visibles.
+
+### Geocoding via Nominatim (OSM)
+
+- Helper backend `_geocode()` avec User-Agent personnalisé et **throttle global
+  1 req/s** (lock + sleep) conforme à la fair-use policy OSM.
+- Les coordonnées sont **mises en cache en base** (`latitude`, `longitude`,
+  `geocoded_at`) — aucune requête Nominatim si l'entité est déjà géocodée.
+- **Géocodage en masse** : modale dédiée (`POST` non, **GET SSE** pour passer
+  à travers les buffers), barre de progression, log temps réel par entité,
+  résumé final (ok / ignorés / erreurs). Limite ajustable (50/100/200/500/1000),
+  cible (entreprises / prospects / les deux).
+
+### Schéma DB
+
+Nouvelles colonnes (migration auto via `_v30_apply_migrations`) :
+
+- `companies.latitude` (REAL), `companies.longitude` (REAL),
+  `companies.geocoded_at` (TEXT)
+- `prospects.address`, `prospects.city`, `prospects.country` (TEXT) — pour
+  les prospects ayant une adresse différente de leur entreprise rattachée
+- `prospects.latitude`, `prospects.longitude`, `prospects.geocoded_at`
+
+Lorsqu'un prospect n'a pas d'adresse propre, le geocoder utilise
+automatiquement celle de son entreprise (LEFT JOIN).
+
+### Routes API
+
+- `GET    /api/map/markers`        — JSON entreprises + prospects géocodés
+- `GET    /api/map/stats`          — compteurs (geocodés / avec adresse / total)
+- `POST   /api/map/geocode`        — géocode une entité unique (JSON)
+- `GET    /api/map/geocode/bulk`   — SSE stream de geocoding en masse
+
+### Sidebar
+
+Nouvelle entrée **Carte** sous Outils (entre Push et Transcription), nouvelle
+icône `map` dans le macro `_partials/v30/icon.html`.
+
+### CSP
+
+`style-src` et `img-src` étendus pour autoriser `cdn.jsdelivr.net` (Leaflet
+CSS) et `*.tile.openstreetmap.org` (tuiles OSM). `script-src` jsdelivr était
+déjà ouvert. Aucune dépendance Python ajoutée — seulement la stdlib
+(`urllib.request`).
+
+### Fichiers ajoutés
+
+- `routes/map.py` (~360 lignes : blueprint + helper Nominatim throttlé)
+- `templates/v30/carte.html`
+- `static/js/v30/carte.js` (~360 lignes)
+- `static/css/v30/carte.css`
+
+### Fichiers modifiés
+
+- `app.py` : `_v30_apply_migrations` (colonnes geo), import + register
+  `map_bp`, CSP étendue
+- `config.py` : `APP_VERSION = "32.29"`
+- `templates/_partials/v30/sidebar.html` : entrée Carte sous Outils
+- `templates/_partials/v30/icon.html` : icône `map`
+
 ## [32.28] — 2026-05-07 · Stats / Tableau de bord : refonte UX v30
 
 ### Refonte page Stats — alignement design system v30

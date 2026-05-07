@@ -1,0 +1,182 @@
+{% extends "v30/base.html" %}
+{% block title %}Carte — Prosp'Up v30{% endblock %}
+{% block page_id %}v30-carte{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<link rel="stylesheet" href="/static/css/v30/carte.css?v={{ static_hash('css/v30/carte.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "_partials/v30/icon.html" as ui %}
+
+<div class="v30-carte" data-v30-carte>
+
+  <div class="page-header">
+    <div class="page-header__group">
+      <h1 class="page-title">Carte</h1>
+      <span class="muted">Cartographie des entreprises et prospects · OpenStreetMap</span>
+    </div>
+    <div class="page-header__actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-carte-locate
+              title="Centrer sur ma position">
+        {{ ui.icon('target', 13) }} Ma position
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-carte-refresh
+              title="Recharger les marqueurs">
+        {{ ui.icon('sync', 13) }} Recharger
+      </button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-carte-bulk
+              title="Géocoder les entités sans coordonnées">
+        {{ ui.icon('zap', 13) }} Géocoder en masse
+      </button>
+    </div>
+  </div>
+
+  <div class="v30-carte__layout">
+
+    <aside class="v30-carte__panel" data-v30-carte-panel>
+      <div class="v30-carte__panel-section">
+        <div class="v30-carte__panel-title">Couches</div>
+        <label class="v30-carte__toggle">
+          <input type="checkbox" data-v30-layer="companies" checked>
+          <span class="v30-carte__toggle-dot v30-carte__toggle-dot--co"></span>
+          Entreprises
+          <span class="v30-carte__count" data-v30-count="companies">—</span>
+        </label>
+        <label class="v30-carte__toggle">
+          <input type="checkbox" data-v30-layer="prospects" checked>
+          <span class="v30-carte__toggle-dot v30-carte__toggle-dot--pr"></span>
+          Prospects
+          <span class="v30-carte__count" data-v30-count="prospects">—</span>
+        </label>
+        <label class="v30-carte__toggle">
+          <input type="checkbox" data-v30-layer="heatmap">
+          <span class="v30-carte__toggle-dot v30-carte__toggle-dot--ht"></span>
+          Heatmap densité
+        </label>
+      </div>
+
+      <div class="v30-carte__panel-section">
+        <div class="v30-carte__panel-title">Filtres</div>
+        <div class="v30-field">
+          <label for="v30-carte-search">Recherche</label>
+          <input type="search" id="v30-carte-search" class="input" placeholder="Nom, ville, fonction…">
+        </div>
+        <div class="v30-field">
+          <label for="v30-carte-status">Statut prospect</label>
+          <select id="v30-carte-status" class="input">
+            <option value="">— Tous —</option>
+          </select>
+        </div>
+        <div class="v30-field">
+          <label for="v30-carte-priority">Pertinence min.</label>
+          <select id="v30-carte-priority" class="input">
+            <option value="0">— Toutes —</option>
+            <option value="1">≥ 1</option>
+            <option value="2">≥ 2</option>
+            <option value="3">≥ 3</option>
+            <option value="4">≥ 4</option>
+            <option value="5">= 5</option>
+          </select>
+        </div>
+        <div class="v30-field">
+          <label for="v30-carte-tag">Tag contient</label>
+          <input type="text" id="v30-carte-tag" class="input" placeholder="ex. ESN, Lyon, prio">
+        </div>
+      </div>
+
+      <div class="v30-carte__panel-section v30-carte__panel-section--stats" data-v30-carte-stats>
+        <div class="v30-carte__panel-title">Statistiques</div>
+        <div class="v30-carte__stat-row">
+          <span>Entreprises géocodées</span>
+          <span data-v30-stat="companies">—</span>
+        </div>
+        <div class="v30-carte__stat-row">
+          <span>Prospects géocodés</span>
+          <span data-v30-stat="prospects">—</span>
+        </div>
+        <div class="v30-carte__hint muted">
+          Le geocoding utilise OpenStreetMap (Nominatim, gratuit, ~1 req/s).
+          Les coordonnées sont mises en cache en base.
+        </div>
+      </div>
+    </aside>
+
+    <div class="v30-carte__map-wrap">
+      <div id="v30-carte-map" class="v30-carte__map" role="application"
+           aria-label="Carte des prospects et entreprises"></div>
+      <div class="v30-carte__loader" data-v30-carte-loading hidden>
+        <span class="skel" style="width:160px;height:14px;display:inline-block;"></span>
+        <span class="skel" style="width:200px;height:12px;display:inline-block;margin-top:6px;"></span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# ─── Modale géocodage en masse (SSE) ─── #}
+<div class="v30-modal-bd" data-v30-bulk-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-carte-bulk-title" style="max-width:560px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-carte-bulk-title">
+        {{ ui.icon('zap', 14) }} <span>Géocoder en masse</span>
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-bulk-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="margin-top:0;">
+        Récupère les coordonnées GPS de toutes les entités qui ont une adresse
+        mais pas encore de position cartographique. Limite : 1 requête/seconde
+        (politique OpenStreetMap).
+      </p>
+      <div class="v30-field">
+        <label for="v30-carte-bulk-entity">Cible</label>
+        <select id="v30-carte-bulk-entity" class="input">
+          <option value="all">Tous (entreprises + prospects)</option>
+          <option value="companies">Entreprises seulement</option>
+          <option value="prospects">Prospects seulement</option>
+        </select>
+      </div>
+      <div class="v30-field">
+        <label for="v30-carte-bulk-limit">Limite</label>
+        <select id="v30-carte-bulk-limit" class="input">
+          <option value="50">50 entités</option>
+          <option value="100">100 entités</option>
+          <option value="200" selected>200 entités</option>
+          <option value="500">500 entités</option>
+          <option value="1000">1000 entités (~17 min)</option>
+        </select>
+      </div>
+
+      <div class="v30-carte__bulk-progress" data-v30-bulk-progress hidden>
+        <div class="v30-carte__bulk-bar">
+          <div class="v30-carte__bulk-bar-fill" data-v30-bulk-bar></div>
+        </div>
+        <div class="v30-carte__bulk-line">
+          <span data-v30-bulk-counter>0 / 0</span>
+          <span class="muted" data-v30-bulk-current>—</span>
+        </div>
+        <ul class="v30-carte__bulk-log" data-v30-bulk-log></ul>
+      </div>
+
+      <div class="v30-carte__bulk-summary" data-v30-bulk-summary hidden></div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-bulk-close>Fermer</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-bulk-start>
+        {{ ui.icon('play', 13) }} Démarrer
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script defer src="/static/js/v30/carte.js?v={{ static_hash('js/v30/carte.js') }}"></script>
+{% endblock %}
