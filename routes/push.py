@@ -765,12 +765,14 @@ def api_push_category_delete_template(cat_id: int):
 
 @push_bp.get("/api/push-logs/relance-reminders")
 def api_push_relance_reminders():
-    """Prospects dont le dernier push date de 7+ jours — rappels de relance."""
+    """Prospects dont le dernier push date de 7 à 30 jours — rappels de relance."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
 
-    seven_days_ago = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
+    today = datetime.date.today()
+    seven_days_ago  = (today - datetime.timedelta(days=7)).isoformat()
+    thirty_days_ago = (today - datetime.timedelta(days=30)).isoformat()
 
     with _conn() as conn:
         rows = conn.execute(
@@ -785,11 +787,11 @@ def api_push_relance_reminders():
                              AND (p.is_archived IS NULL OR p.is_archived = 0)
             LEFT JOIN companies c ON c.id = p.company_id AND c.owner_id = ?
             GROUP BY p.id
-            HAVING MAX(pl.sentAt) <= ?
+            HAVING MAX(pl.sentAt) <= ? AND MAX(pl.sentAt) >= ?
             ORDER BY MAX(pl.sentAt) ASC
             LIMIT 50;
             """,
-            (uid, uid, seven_days_ago),
+            (uid, uid, seven_days_ago, thirty_days_ago),
         ).fetchall()
 
     return jsonify(ok=True, items=[dict(r) for r in rows])
