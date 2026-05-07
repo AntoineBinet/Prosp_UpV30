@@ -879,7 +879,7 @@
     return { statut: 'Statut', pertinence: 'Pertinence', nextFollowUp: 'Relance', notes: 'Notes' }[f] || f;
   }
 
-  function saveSplitField(pid, field, value) {
+  function saveSplitField(pid, field, value, prevValue) {
     [STATE.prospects, STATE.filteredAll, STATE.allForKpis].forEach(function (arr) {
       if (!Array.isArray(arr)) return;
       var item = arr.find(function (x) { return x.id === pid; });
@@ -887,7 +887,24 @@
     });
     renderSplit();
     return fetchPostJSON('/api/prospects/bulk-edit', { ids: [pid], field: field, value: value })
-      .then(function () { toast(splitFieldLabel(field) + ' mis(e) à jour', 'success'); })
+      .then(function () {
+        if (window.pushUndo && prevValue !== undefined && prevValue !== value) {
+          var _pid = pid, _field = field, _prev = prevValue, _new = value;
+          window.pushUndo(splitFieldLabel(_field) + ' → ' + _new, function () {
+            [STATE.prospects, STATE.filteredAll, STATE.allForKpis].forEach(function (arr) {
+              if (!Array.isArray(arr)) return;
+              var item = arr.find(function (x) { return x.id === _pid; });
+              if (item) item[_field] = _prev;
+            });
+            renderSplit();
+            fetchPostJSON('/api/prospects/bulk-edit', { ids: [_pid], field: _field, value: _prev })
+              .then(function () { toast(splitFieldLabel(_field) + ' restauré(e)', 'info'); })
+              .catch(function () { toast('Erreur restauration', 'error'); });
+          });
+        } else {
+          toast(splitFieldLabel(field) + ' mis(e) à jour', 'success');
+        }
+      })
       .catch(function (err) { toast('Erreur : ' + (err && err.message || err), 'error'); });
   }
 
@@ -914,7 +931,13 @@
       var field = el.dataset.v30SplitField;
       var pid = Number(el.dataset.v30SplitPid);
       if (!field || !pid) return;
-      saveSplitField(pid, field, el.value);
+      var prevVal;
+      [STATE.prospects, STATE.filteredAll, STATE.allForKpis].forEach(function (arr) {
+        if (!Array.isArray(arr) || prevVal !== undefined) return;
+        var item = arr.find(function (x) { return x.id === pid; });
+        if (item && item[field] !== undefined) prevVal = item[field];
+      });
+      saveSplitField(pid, field, el.value, prevVal);
     });
 
     // Notes save button
@@ -925,7 +948,13 @@
       if (!pid) return;
       var ta = document.querySelector('[data-v30-split-notes-ta="' + pid + '"]');
       if (!ta) return;
-      saveSplitField(pid, 'notes', ta.value);
+      var prevNotes;
+      [STATE.prospects, STATE.filteredAll, STATE.allForKpis].forEach(function (arr) {
+        if (!Array.isArray(arr) || prevNotes !== undefined) return;
+        var item = arr.find(function (x) { return x.id === pid; });
+        if (item) prevNotes = item.notes || '';
+      });
+      saveSplitField(pid, 'notes', ta.value, prevNotes);
     });
 
     // Push button
@@ -1028,7 +1057,19 @@
       renderTable();
       fetchPostJSON('/api/prospects/bulk-edit', { ids: [id], field: 'statut', value: newStatut })
         .then(function () {
-          toast('Statut → ' + newStatut, 'success');
+          var _id = id, _p = p, _prev = prevStatut, _new = newStatut;
+          if (window.pushUndo) {
+            window.pushUndo('Statut → ' + _new, function () {
+              _p.statut = _prev;
+              renderKanban();
+              renderTable();
+              fetchPostJSON('/api/prospects/bulk-edit', { ids: [_id], field: 'statut', value: _prev })
+                .then(function () { toast('Statut restauré', 'info'); })
+                .catch(function () { toast('Erreur restauration', 'error'); });
+            });
+          } else {
+            toast('Statut → ' + _new, 'success');
+          }
         })
         .catch(function (err) {
           var target = STATE.prospects.find(function (x) { return Number(x.id) === Number(id); });
