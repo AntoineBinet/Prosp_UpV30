@@ -1566,6 +1566,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date   ON activity_logs(created_at)
                 experience      TEXT,
                 profil_type     TEXT,
                 commentaires    TEXT,
+                preparation_rt  TEXT,
                 statut          TEXT NOT NULL DEFAULT 'ouvert',
                 priority        INTEGER,
                 candidats_json  TEXT,
@@ -2440,6 +2441,7 @@ def _v30_schema_sql() -> str:
         experience      TEXT,
         profil_type     TEXT,
         commentaires    TEXT,
+        preparation_rt  TEXT,
         statut          TEXT NOT NULL DEFAULT 'ouvert',
         priority        INTEGER,
         candidats_json  TEXT,
@@ -2553,6 +2555,15 @@ def _v30_apply_migrations(conn) -> list[str]:
                     done.append(f"alter:prospects.{col}")
     except Exception as e:
         print(f"[v30_migrate] WARN prospects geo ({e})")
+
+    # 6. v32.30 — besoins : ajouter colonne preparation_rt (notes avant la RT)
+    try:
+        bs_cols = {r[1] for r in cur.execute("PRAGMA table_info(besoins);").fetchall()}
+        if bs_cols and "preparation_rt" not in bs_cols:
+            cur.execute("ALTER TABLE besoins ADD COLUMN preparation_rt TEXT;")
+            done.append("alter:besoins.preparation_rt")
+    except Exception as e:
+        print(f"[v30_migrate] WARN besoins.preparation_rt ({e})")
 
     conn.commit()
     return done
