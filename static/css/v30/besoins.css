@@ -203,6 +203,7 @@
 }
 .v30-cand-legend__chip--dispo::before   { background: var(--success, #22c55e); }
 .v30-cand-legend__chip--pending::before { background: var(--ink-300, #cbd5e1); }
+.v30-cand-legend__chip--msg::before     { background: var(--info, #3b82f6); }
 .v30-cand-legend__chip--nope::before    { background: var(--danger, #ef4444); }
 
 /* ─── Liste de cartes candidats (remplace l'ancien tableau plat) ─── */
@@ -241,6 +242,7 @@
   transition: background .12s ease, width .12s ease;
 }
 .v30-cand-card[data-status="dispo"]::before { background: var(--success, #22c55e); width: 4px; }
+.v30-cand-card[data-status="msg"]::before   { background: var(--info, #3b82f6); width: 4px; }
 .v30-cand-card[data-status="nope"]::before  { background: var(--danger, #ef4444); width: 4px; }
 
 /* Header de carte (compact, toujours visible) */
@@ -292,6 +294,12 @@
   color: var(--success);
 }
 .v30-cand-card[data-status="dispo"] .v30-cand-card__status::before { background: var(--success); }
+.v30-cand-card[data-status="msg"] .v30-cand-card__status {
+  background: color-mix(in oklch, var(--info) 12%, transparent);
+  border-color: color-mix(in oklch, var(--info) 40%, var(--border));
+  color: var(--info);
+}
+.v30-cand-card[data-status="msg"] .v30-cand-card__status::before { background: var(--info); }
 .v30-cand-card[data-status="nope"] .v30-cand-card__status {
   background: color-mix(in oklch, var(--danger) 10%, transparent);
   border-color: color-mix(in oklch, var(--danger) 40%, var(--border));
