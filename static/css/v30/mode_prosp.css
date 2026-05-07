@@ -220,6 +220,23 @@
 }
 .mp-close-btn:hover { background: var(--mp-surface-alt); border-color: var(--mp-border-s); }
 
+.mp-candidats-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--mp-surface);
+  border: 1px solid var(--mp-border);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--mp-ink-muted);
+  font-family: inherit;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.mp-candidats-btn:hover { background: var(--mp-surface-alt); border-color: var(--mp-border-s); color: var(--mp-ink); }
+
 .mp-theme-btn {
   width: 30px; height: 30px;
   display: inline-flex; align-items: center; justify-content: center;
