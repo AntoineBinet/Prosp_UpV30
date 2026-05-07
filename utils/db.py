@@ -93,3 +93,33 @@ def _conn() -> sqlite3.Connection:
     conn.execute("PRAGMA busy_timeout = 20000;")
     conn.execute("PRAGMA journal_mode = WAL;")
     return conn
+
+
+def _sidebar_counts(uid=None) -> dict:
+    """Retourne {prospects, entreprises, candidats} pour la sidebar v30."""
+    if uid is None:
+        try:
+            uid = session.get("user_id")
+        except RuntimeError:
+            return {}
+    if not uid:
+        return {}
+    try:
+        with _conn() as conn:
+            return {
+                "prospects": conn.execute(
+                    "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
+                    "AND (deleted_at IS NULL OR deleted_at='') "
+                    "AND (is_archived IS NULL OR is_archived=0);", (uid,)
+                ).fetchone()[0],
+                "entreprises": conn.execute(
+                    "SELECT COUNT(*) FROM companies WHERE owner_id=? "
+                    "AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                ).fetchone()[0],
+                "candidats": conn.execute(
+                    "SELECT COUNT(*) FROM candidates WHERE owner_id=? "
+                    "AND (deleted_at IS NULL OR deleted_at='');", (uid,)
+                ).fetchone()[0],
+            }
+    except Exception:
+        return {}

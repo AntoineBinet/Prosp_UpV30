@@ -13,38 +13,9 @@ from flask import Blueprint, redirect, render_template, request, session
 from app import _audit_log, _static_hashes, log_activity
 from config import APP_DIR, APP_VERSION
 from utils.auth import _get_current_user, _uid, login_required, role_required
-from utils.db import _conn
+from utils.db import _conn, _sidebar_counts
 
 pages_bp = Blueprint("pages", __name__)
-
-
-def _sidebar_counts(uid=None):
-    """Retourne le dict counts {prospects, entreprises, candidats} pour la sidebar v30.
-
-    Exclut les prospects supprimés ET archivés (cohérent avec /v30/prospects côté client).
-    """
-    if not uid:
-        uid = _uid()
-    if not uid:
-        return {}
-    try:
-        with _conn() as conn:
-            return {
-                "prospects":  conn.execute(
-                    "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                    "AND (deleted_at IS NULL OR deleted_at='') "
-                    "AND (is_archived IS NULL OR is_archived=0);", (uid,)
-                ).fetchone()[0],
-                "entreprises": conn.execute(
-                    "SELECT COUNT(*) FROM companies WHERE owner_id=? "
-                    "AND (deleted_at IS NULL OR deleted_at='');", (uid,)
-                ).fetchone()[0],
-                "candidats":  conn.execute(
-                    "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
-                ).fetchone()[0],
-            }
-    except Exception:
-        return {}
 
 
 @pages_bp.get("/")
@@ -167,26 +138,6 @@ def page_v30_login():
     return render_template("v30/login.html", app_version=APP_VERSION)
 
 
-    try:
-        with _conn() as conn:
-            return {
-                "prospects":  conn.execute(
-                    "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                    "AND (deleted_at IS NULL OR deleted_at='') "
-                    "AND (is_archived IS NULL OR is_archived=0);", (uid,)
-                ).fetchone()[0],
-                "entreprises": conn.execute(
-                    "SELECT COUNT(*) FROM companies WHERE owner_id=? "
-                    "AND (deleted_at IS NULL OR deleted_at='');", (uid,)
-                ).fetchone()[0],
-                "candidats":  conn.execute(
-                    "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
-                ).fetchone()[0],
-            }
-    except Exception:
-        return {}
-
-
 @pages_bp.get("/v30/calendrier")
 def page_v30_calendar():
     """Calendrier v30 — grille mois avec RDV / relances / EC1 candidats.
@@ -222,21 +173,11 @@ def page_v30_focus():
         if dn:
             parts = [p for p in dn.split() if p]
             user_initials = "".join(p[0].upper() for p in parts[:2]) or dn[:2].upper()
-    counts = {}
-    try:
-        with _conn() as conn:
-            counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                "AND (deleted_at IS NULL OR deleted_at='') "
-                "AND (is_archived IS NULL OR is_archived=0);", (uid,)
-            ).fetchone()[0]
-    except Exception:
-        pass
     return render_template(
         "v30/focus.html",
         active="focus",
         crumbs=["Prosp'Up", "Focus"],
-        counts=counts,
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         app_version=APP_VERSION,
@@ -267,15 +208,6 @@ def page_v30_candidate_detail(cid):
     parts = [p for p in dn.split() if p]
     user_initials = "".join(p[0].upper() for p in parts[:2]) or "AB"
 
-    counts = {}
-    try:
-        with _conn() as conn:
-            counts["candidats"] = conn.execute(
-                "SELECT COUNT(*) FROM candidates WHERE owner_id=? AND (deleted_at IS NULL OR deleted_at='');", (uid,)
-            ).fetchone()[0]
-    except Exception:
-        counts = {}
-
     return render_template(
         "v30/candidate_detail.html",
         active="candidats",
@@ -284,7 +216,7 @@ def page_v30_candidate_detail(cid):
             {"label": "Candidats", "href": "/v30/sourcing"},
             row["name"] or "Fiche",
         ],
-        counts=counts,
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         candidate_id=cid,
@@ -675,18 +607,6 @@ def page_v30_prospect_detail(pid):
     parts = [p for p in dn.split() if p]
     user_initials = "".join(p[0].upper() for p in parts[:2]) or "AB"
 
-    counts = {}
-    try:
-        with _conn() as conn:
-            counts["prospects"] = conn.execute(
-                "SELECT COUNT(*) FROM prospects WHERE owner_id=? "
-                "AND (deleted_at IS NULL OR deleted_at='') "
-                "AND (is_archived IS NULL OR is_archived=0);",
-                (uid,),
-            ).fetchone()[0]
-    except Exception:
-        counts = {}
-
     return render_template(
         "v30/prospect_detail.html",
         active="prospects",
@@ -695,7 +615,7 @@ def page_v30_prospect_detail(pid):
             {"label": "Prospects", "href": "/v30/prospects"},
             row["name"] or "Fiche",
         ],
-        counts=counts,
+        counts=_sidebar_counts(),
         pinned=[],
         user_initials=user_initials,
         prospect_id=pid,
