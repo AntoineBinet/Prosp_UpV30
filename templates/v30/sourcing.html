@@ -168,6 +168,8 @@
             <option value="top_profil">Top Profils</option>
             <option value="reunion_tech">RT</option>
             <option value="freelance_mission">En mission</option>
+            <option value="nok">Nok</option>
+            <option value="plus_disponible">Plus dispo</option>
           </select>
         </div>
         <div class="v30-field" style="grid-column: 1 / -1;"><label for="v30-sc-add-skills">Compétences (virgules)</label><input id="v30-sc-add-skills" class="input" placeholder="Ex. React, Node, AWS"></div>
@@ -194,7 +196,7 @@
       <div class="v30-field">
         <label>Statut</label>
         <div class="v30-chiprow" data-v30-sc-flt-status>
-          {% for s, label in [("ec1","EC1"), ("oksi","OKSI"), ("top_profil","Top Profils"), ("reunion_tech","RT"), ("freelance_mission","En mission")] %}
+          {% for s, label in [("ec1","EC1"), ("oksi","OKSI"), ("top_profil","Top Profils"), ("reunion_tech","RT"), ("freelance_mission","En mission"), ("nok","Nok"), ("plus_disponible","Plus dispo")] %}
           <label class="v30-chip"><input type="checkbox" value="{{ s }}"> <span>{{ label }}</span></label>
           {% endfor %}
         </div>
@@ -312,6 +314,8 @@ ou
           <option value="top_profil">Top Profils</option>
           <option value="reunion_tech">RT</option>
           <option value="freelance_mission">En mission</option>
+          <option value="nok">Nok</option>
+          <option value="plus_disponible">Plus dispo</option>
         </select>
       </div>
     </div>
