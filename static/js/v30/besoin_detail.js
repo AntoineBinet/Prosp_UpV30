@@ -17,10 +17,11 @@
   const CAND_KEYS = ['candidat', 'commentaires', 'dispo', 'appel', 'dt', 'rdv1', 'rdv2', 'rt', 'envoi_dt', 'propal', 'rt_client', 'lieu_habitation', 'diplome'];
 
   // Statut "couleur" libre par ligne — non utilisé par l'export Excel mais
-  // affiché dans l'UI : '' (pas contacté) | 'dispo' (vert) | 'nope' (rouge).
-  const STATUS_ORDER = ['', 'dispo', 'nope'];
+  // affiché dans l'UI : '' (pas contacté) | 'msg' (bleu) | 'dispo' (vert) | 'nope' (rouge).
+  const STATUS_ORDER = ['', 'msg', 'dispo', 'nope'];
   const STATUS_LABELS = {
     '':      'Pas contacté',
+    'msg':   'Messagerie',
     'dispo': 'Disponible',
     'nope':  'Non disponible',
   };
@@ -411,7 +412,7 @@
     const statusBtn = document.createElement('button');
     statusBtn.type = 'button';
     statusBtn.className = 'v30-cand-card__status';
-    statusBtn.title = 'Statut — clic pour cycler (Pas contacté → Dispo → Non dispo)';
+    statusBtn.title = 'Statut — clic pour cycler (Pas contacté → Messagerie → Dispo → Non dispo)';
     statusBtn.textContent = STATUS_LABELS[status];
     statusBtn.addEventListener('click', (e) => {
       e.stopPropagation();

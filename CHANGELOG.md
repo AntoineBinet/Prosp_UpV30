@@ -2,6 +2,22 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.32] — 2026-05-07 · Besoins · Statut « Messagerie » sur les candidats positionnés
+
+Sur la fiche traitement d'un besoin, dans le bloc **Candidats positionnés**,
+les cartes de candidats peuvent désormais cycler sur 4 statuts au lieu de 3 :
+
+- **Pas contacté** (gris, défaut)
+- **Messagerie** (bleu) — nouveau : le candidat a été contacté mais n'a pas
+  encore répondu (message vocal, email sans réponse, LinkedIn DM en attente…).
+- **Disponible** (vert)
+- **Non disponible** (rouge)
+
+Le statut se persiste comme avant dans `candidats_json` (clé `cand_status`,
+valeur `'msg'` pour le nouveau statut), ne modifie pas l'export Excel et est
+purement informatif. Légende et CSS (`besoins.css`) mis à jour pour la
+nouvelle couleur (`--info`).
+
 ## [32.31] — 2026-05-07 · Besoins · Téléphone + lien profil VSA/LinkedIn
 
 Sur la fiche traitement d'un besoin, dans le bloc **Candidats positionnés**,
