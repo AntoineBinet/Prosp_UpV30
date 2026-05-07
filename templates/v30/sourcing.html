@@ -37,6 +37,10 @@
         {{ ui.icon('send', 13) }} InMails
       </button>
     </div>
+    <button type="button" class="btn btn-ghost btn-sm" data-v30-sc-archived title="Voir les candidats archivés">
+      {{ ui.icon('archive', 13) }} Archivés
+      <span class="badge badge--warning" data-field="archived-count" hidden>0</span>
+    </button>
     <button type="button" class="btn btn-ghost btn-sm" data-v30-sc-filters>
       {{ ui.icon('filter', 13) }} Filtres
       <span class="badge" data-field="active" hidden>0</span>
@@ -129,6 +133,16 @@
         <div class="empty" style="padding:24px 0;text-align:center;color:var(--text-3);">Chargement…</div>
       </div>
     </div>
+  </div>
+
+  {# ─── Archivés ─── #}
+  <div data-v30-sc-archived-panel hidden style="margin-top:24px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <h3 style="margin:0;font-size:14px;font-weight:600;color:var(--text-2);">{{ ui.icon('archive', 14) }} Candidats archivés</h3>
+      <span class="badge badge--warning" data-field="archived-count-panel">0</span>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-sc-archived-close aria-label="Fermer">{{ ui.icon('x', 12) }}</button>
+    </div>
+    <div data-v30-sc-archived-list style="display:flex;flex-direction:column;gap:6px;"></div>
   </div>
 
   {# ─── Bulk bar ─── #}
