@@ -415,6 +415,20 @@
 }
 .v30-cand-card__tracking .v30-cand-card__field input { padding: 6px 8px; font-size: 12.5px; }
 
+/* Champ lien profil libre */
+.v30-cand-card__field--profile {
+  grid-column: 1 / -1;
+}
+.v30-cand-card__profile-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.v30-cand-card__profile-row input {
+  flex: 1;
+}
+.v30-cand-card__profile-open {
+  white-space: nowrap; flex-shrink: 0;
+}
+
 /* Ref info (depuis fiche candidat liée) */
 .v30-cand-card__ref {
   grid-column: 1 / -1;

@@ -379,6 +379,7 @@
     const ref = (c && c._ref) || null;
     const vsaUrl = ref && ref.vsa_url ? String(ref.vsa_url).trim() : '';
     const ficheUrl = c && c.cand_id ? '/v30/candidat/' + c.cand_id : '';
+    const profileUrl = (c && c.profile_url) ? String(c.profile_url).trim() : '';
 
     // ── Header (toujours visible) ─────────────────────────────
     const head = document.createElement('div');
@@ -478,6 +479,18 @@
       fiche.addEventListener('click', (e) => e.stopPropagation());
       actions.appendChild(fiche);
     } else {
+      const headProfileBtn = document.createElement('a');
+      headProfileBtn.target = '_blank';
+      headProfileBtn.rel = 'noopener noreferrer';
+      headProfileBtn.className = 'btn btn-ghost btn-sm btn-icon v30-cand-card__btn-profile';
+      headProfileBtn.title = 'Ouvrir le profil';
+      headProfileBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>';
+      headProfileBtn.href = profileUrl || '#';
+      headProfileBtn.style.opacity = profileUrl ? '1' : '0.35';
+      headProfileBtn.style.pointerEvents = profileUrl ? '' : 'none';
+      headProfileBtn.addEventListener('click', (e) => e.stopPropagation());
+      actions.appendChild(headProfileBtn);
+
       const linkBtn = document.createElement('button');
       linkBtn.type = 'button';
       linkBtn.className = 'btn btn-ghost btn-sm btn-icon';
@@ -582,6 +595,44 @@
       tracking.appendChild(lab);
     });
     grid.appendChild(tracking);
+
+    // Champ "Lien profil" — saisie libre, visible si pas de fiche candidat liée
+    if (!ficheUrl) {
+      const profileFld = document.createElement('label');
+      profileFld.className = 'v30-cand-card__field v30-cand-card__field--profile';
+      const profileSp = document.createElement('span'); profileSp.textContent = 'Lien profil'; profileFld.appendChild(profileSp);
+      const profileRow = document.createElement('div');
+      profileRow.className = 'v30-cand-card__profile-row';
+      const profileInp = document.createElement('input');
+      profileInp.type = 'url';
+      profileInp.dataset.candField = 'profile_url';
+      profileInp.placeholder = 'https://linkedin.com/in/…';
+      profileInp.value = profileUrl;
+      const profileOpenBtn = document.createElement('a');
+      profileOpenBtn.target = '_blank';
+      profileOpenBtn.rel = 'noopener noreferrer';
+      profileOpenBtn.className = 'btn btn-ghost btn-sm v30-cand-card__profile-open';
+      profileOpenBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>Ouvrir';
+      profileOpenBtn.href = profileUrl || '#';
+      profileOpenBtn.style.display = profileUrl ? '' : 'none';
+      profileInp.addEventListener('input', () => {
+        const url = profileInp.value.trim();
+        c.profile_url = url;
+        profileOpenBtn.href = url || '#';
+        profileOpenBtn.style.display = url ? '' : 'none';
+        const hBtn = head.querySelector('.v30-cand-card__btn-profile');
+        if (hBtn) {
+          hBtn.href = url || '#';
+          hBtn.style.opacity = url ? '1' : '0.35';
+          hBtn.style.pointerEvents = url ? '' : 'none';
+        }
+        markDirty();
+      });
+      profileRow.appendChild(profileInp);
+      profileRow.appendChild(profileOpenBtn);
+      profileFld.appendChild(profileRow);
+      grid.appendChild(profileFld);
+    }
 
     // Ref info (depuis fiche candidat liée)
     if (ref) {
