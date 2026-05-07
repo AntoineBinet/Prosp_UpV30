@@ -93,6 +93,8 @@
           || skills.indexOf(q) >= 0;
     });
     renderPipeline();
+    var listPanel = $('[data-v30-sc-panel="list"]');
+    if (listPanel && !listPanel.hidden) renderList();
     var gridPanel = $('[data-v30-sc-panel="grid"]');
     if (gridPanel && !gridPanel.hidden) renderGrid();
     renderCount();
@@ -251,6 +253,75 @@
         '</div>' +
       '</div>';
     }).join('');
+  }
+
+  function renderList() {
+    var host = $('[data-v30-sc-list]');
+    if (!host) return;
+    if (STATE.filtered.length === 0) {
+      host.innerHTML = '<div class="v30-sc-list__empty">Aucun candidat pour ces filtres.</div>';
+      return;
+    }
+    host.innerHTML =
+      '<div class="v30-sc-list__head">' +
+        '<span class="v30-sc-list__cell v30-sc-list__cell--cb"><input type="checkbox" data-v30-sc-list-selall aria-label="Tout sélectionner"></span>' +
+        '<span class="v30-sc-list__cell v30-sc-list__cell--name">Candidat</span>' +
+        '<span class="v30-sc-list__cell v30-sc-list__cell--status">Statut</span>' +
+        '<span class="v30-sc-list__cell v30-sc-list__cell--loc">Lieu</span>' +
+        '<span class="v30-sc-list__cell v30-sc-list__cell--skills">Compétences</span>' +
+        '<span class="v30-sc-list__cell v30-sc-list__cell--contacts">Contact</span>' +
+        '<span class="v30-sc-list__cell v30-sc-list__cell--actions"></span>' +
+      '</div>' +
+      STATE.filtered.map(function (c) {
+        var skills = parseSkills(c.skills || c.tech);
+        var shown = skills.slice(0, 3);
+        var extra = skills.length - 3;
+        var sel = STATE.selected.has(c.id);
+        var role = c.titre || c.role || c.seniority || c.domaine_principal || '—';
+        return '<div class="v30-sc-list__row' + (sel ? ' is-selected' : '') + '" data-id="' + c.id + '">' +
+          '<span class="v30-sc-list__cell v30-sc-list__cell--cb">' +
+            '<input type="checkbox" data-v30-sc-select' + (sel ? ' checked' : '') + ' aria-label="Sélectionner">' +
+          '</span>' +
+          '<span class="v30-sc-list__cell v30-sc-list__cell--name">' +
+            '<a href="/v30/candidat/' + c.id + '" class="avatar avatar-sm" title="Voir fiche" draggable="false">' + esc(initials(c.name)) + '</a>' +
+            '<div class="v30-sc-list__namebox">' +
+              '<a href="/v30/candidat/' + c.id + '" class="v30-sc-list__name truncate" draggable="false">' + esc(c.name || '—') + '</a>' +
+              '<span class="v30-sc-list__role truncate">' + esc(role) + '</span>' +
+            '</div>' +
+          '</span>' +
+          '<span class="v30-sc-list__cell v30-sc-list__cell--status">' + renderStatusPill(c) + '</span>' +
+          '<span class="v30-sc-list__cell v30-sc-list__cell--loc">' +
+            (c.location
+              ? '<span class="v30-sc-card__meta">' +
+                  '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 21s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z"/></svg>' +
+                  esc(c.location) + '</span>'
+              : '<span class="muted" style="font-size:11px;">—</span>') +
+          '</span>' +
+          '<span class="v30-sc-list__cell v30-sc-list__cell--skills">' +
+            (shown.length
+              ? shown.map(function (s) { return '<span class="badge">' + esc(s) + '</span>'; }).join('') +
+                (extra > 0 ? '<span class="badge muted">+' + extra + '</span>' : '')
+              : '<span class="muted" style="font-size:11px;">—</span>') +
+          '</span>' +
+          '<span class="v30-sc-list__cell v30-sc-list__cell--contacts">' + renderContactRow(c) + '</span>' +
+          '<span class="v30-sc-list__cell v30-sc-list__cell--actions">' +
+            '<button type="button" class="v30-sc-card__kebab" style="opacity:1;" data-action="menu" data-id="' + c.id + '" aria-label="Actions" title="Actions">' + KEBAB_SVG + '</button>' +
+          '</span>' +
+        '</div>';
+      }).join('');
+
+    var saEl = host.querySelector('[data-v30-sc-list-selall]');
+    if (saEl) {
+      saEl.checked = STATE.filtered.length > 0 && STATE.filtered.every(function (c) { return STATE.selected.has(c.id); });
+      saEl.addEventListener('change', function () {
+        STATE.filtered.forEach(function (c) {
+          if (saEl.checked) STATE.selected.add(c.id);
+          else STATE.selected.delete(c.id);
+        });
+        renderList();
+        renderBulk();
+      });
+    }
   }
 
   function renderCount() {
@@ -476,6 +547,7 @@
       document.querySelectorAll('[data-v30-sc-panel]').forEach(function (p) {
         p.hidden = (p.dataset.v30ScPanel !== v);
       });
+      if (v === 'list') renderList();
       if (v === 'grid') renderGrid();
       if (v === 'inmails') loadInmails();
     });
@@ -1211,6 +1283,7 @@
     document.querySelectorAll('[data-v30-sc-panel]').forEach(function (p) {
       p.hidden = (p.dataset.v30ScPanel !== v);
     });
+    if (v === 'list') renderList();
     if (v === 'grid') renderGrid();
     if (v === 'inmails') loadInmails();
   }
