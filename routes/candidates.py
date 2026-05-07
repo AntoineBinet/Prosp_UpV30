@@ -43,17 +43,18 @@ def api_candidates_list():
                 "SELECT * FROM candidates WHERE owner_id=? AND deleted_at IS NULL ORDER BY COALESCE(updatedAt, createdAt) DESC, id DESC LIMIT ? OFFSET ?;",
                 (uid, limit, offset),
             ).fetchall()
+            gen_ids = {
+                int(r[0]) for r in conn.execute(
+                    "SELECT DISTINCT candidate_id FROM dc_generations WHERE owner_id=? AND deleted_at IS NULL AND candidate_id IS NOT NULL;",
+                    (uid,),
+                ).fetchall()
+            }
         out = []
         for r in rows:
             d = dict(r)
             d["skills"] = _parse_json_str_list(d.get("skills"))
             d["company_ids"] = _parse_json_int_list(d.get("company_ids"))
-            # v27.26: flag has_dc
-            if not d.get("dossier_competence_pdf"):
-                dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(d["id"])
-                d["has_dc"] = dc_dir.is_dir() and any(dc_dir.glob("*.pdf"))
-            else:
-                d["has_dc"] = True
+            d["has_dc"] = _candidate_has_dc(uid, d, gen_ids)
             out.append(d)
         from math import ceil
         return jsonify(ok=True, candidates=out, pagination={"page": page, "limit": limit, "total": total, "pages": ceil(total / limit) if limit else 1})
@@ -63,19 +64,32 @@ def api_candidates_list():
             "SELECT * FROM candidates WHERE owner_id=? AND deleted_at IS NULL ORDER BY COALESCE(updatedAt, createdAt) DESC, id DESC;",
             (uid,),
         ).fetchall()
+        gen_ids = {
+            int(r[0]) for r in conn.execute(
+                "SELECT DISTINCT candidate_id FROM dc_generations WHERE owner_id=? AND deleted_at IS NULL AND candidate_id IS NOT NULL;",
+                (uid,),
+            ).fetchall()
+        }
     out: List[Dict[str, Any]] = []
     for r in rows:
         d = dict(r)
         d["skills"] = _parse_json_str_list(d.get("skills"))
         d["company_ids"] = _parse_json_int_list(d.get("company_ids"))
-        # v27.26: flag has_dc pour savoir si un DC existe (DB ou dossier)
-        if not d.get("dossier_competence_pdf"):
-            dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(d["id"])
-            d["has_dc"] = dc_dir.is_dir() and any(dc_dir.glob("*.pdf"))
-        else:
-            d["has_dc"] = True
+        d["has_dc"] = _candidate_has_dc(uid, d, gen_ids)
         out.append(d)
     return jsonify(out)
+
+
+def _candidate_has_dc(uid: int, cand: dict, gen_ids: set) -> bool:
+    """Vrai si le candidat a un DC: PDF uploadé (champ ou fichier sur disque)
+    OU un DC généré via le générateur (table dc_generations)."""
+    if cand.get("dossier_competence_pdf"):
+        return True
+    cid = cand.get("id")
+    if cid in gen_ids:
+        return True
+    dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cid)
+    return dc_dir.is_dir() and any(dc_dir.glob("*.pdf"))
 
 
 @candidates_bp.get("/api/candidates/<int:candidate_id>")

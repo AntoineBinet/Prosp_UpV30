@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.26] — 2026-05-07 · Stats / Tableau de bord : refonte UX v30
+## [32.28] — 2026-05-07 · Stats / Tableau de bord : refonte UX v30
 
 ### Refonte page Stats — alignement design system v30
 
@@ -56,6 +56,50 @@ card avec sparklines, chips colorés). Le panel **Rapport** reste inchangé.
   sans Chart.js (KPI, pipeline, urgence, toplist) puis Chart.js asynchrone
   (perf chart, RDV chart, pertinence chart). Fonctions legacy `repLoad*`
   supprimées (le panel Rapport est piloté par `rapport.js`).
+
+## [32.27] — 2026-05-07 · Page Candidats : badge "DC disponible" dans toutes les vues
+
+### Visibilité du Dossier de Compétences
+
+- Page Candidats : un badge **DC** apparaît désormais sur chaque candidat dans
+  les trois vues (Pipeline kanban, Grille cartes, Liste tableau). Vert plein
+  avec libellé "DC" quand un dossier de compétences existe ; gris pointillé
+  quand aucun DC n'est encore rattaché. Le badge est cliquable et ouvre la
+  fiche candidat sur l'ancre `#dc`.
+- Vue Liste : nouvelle colonne **DC** (64 px desktop, 48 px sous 600 px) entre
+  *Compétences* et *Contact*.
+- Backend `/api/candidates` : le flag `has_dc` prend maintenant en compte
+  trois sources : champ legacy `dossier_competence_pdf`, fichiers PDF dans
+  `data/dossiers_candidats/{uid}/{cid}/` **et** entrées dans la table
+  `dc_generations` (DC produits via le générateur). Les DC générés via le
+  générateur sont désormais détectés correctement.
+
+### Fichiers modifiés
+
+- `routes/candidates.py` : helper `_candidate_has_dc()` + une seule requête
+  batch sur `dc_generations` par appel API (pas de N+1).
+- `static/js/v30/sourcing.js` : helper `renderDcBadge()` + insertion dans
+  `renderCard`, `renderGrid`, `renderList` (header + ligne).
+- `static/css/v30/sourcing.css` : classes `.v30-sc-dc`, `.v30-sc-dc--ok`,
+  `.v30-sc-dc--no` et largeur de la colonne `--dc`.
+
+## [32.26] — 2026-05-07 · Fiche candidat : fix bouton Éditer (toutes sections)
+
+### Fix — modales d'édition invisibles sur la fiche candidat
+
+- Les boutons « Éditer » des sections **Informations / Entretien / Évaluation /
+  Références / Avis perso** ainsi que la modale « Enrichir via DC » ouvraient
+  bien la modale (`hidden` retiré), mais celle-ci restait invisible et non
+  cliquable. Cause : le composant `.v30-modal-bd` a `opacity: 0;
+  pointer-events: none` par défaut et requiert la classe `.is-open` pour
+  passer à `opacity: 1; pointer-events: auto`. Le code ne basculait que
+  l'attribut `hidden`, comme le faisait déjà la quasi-totalité des autres
+  modales v30 — bug introduit en 32.x avec l'ajout de l'édition de fiche.
+- `static/js/v30/candidate_detail.js` : `openSectionModal` /
+  `openDcEnrichModal` ajoutent désormais `is-open` (via
+  `requestAnimationFrame` pour préserver la transition CSS) ;
+  `closeSectionModal` / `closeDcEnrichModal` retirent la classe puis
+  rebasculent `hidden` après 160 ms (durée de la transition).
 
 ## [32.25] — 2026-05-06 · Multi-user : fix HTTP 500 sur création prospect/entreprise + fix modale stats
 
