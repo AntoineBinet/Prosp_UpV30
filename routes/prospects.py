@@ -74,6 +74,34 @@ def api_prospect_timeline():
             except Exception as e:
                 logger.warning("[timeline] prospect_events query failed pid=%s: %s", pid_int, e)
 
+            # call_logs historiques : appels non couverts par prospect_events (type="call")
+            # Déduplique par seconde : called_at[:19] vs prospect_events.date[:19]
+            _call_event_ts: set = set()
+            for _e in extra:
+                if (_e.get("type") or "") == "call":
+                    _d = str(_e.get("date") or "")[:19]
+                    if _d:
+                        _call_event_ts.add(_d)
+            try:
+                _cl_rows = conn.execute(
+                    "SELECT date, called_at FROM call_logs WHERE prospect_id=? ORDER BY called_at DESC LIMIT 50;",
+                    (pid_int,),
+                ).fetchall()
+                for _cl in _cl_rows:
+                    _ts = str(_cl["called_at"] or _cl["date"] or "")[:19]
+                    if _ts not in _call_event_ts:
+                        extra.append({
+                            "id": None,
+                            "date": _cl["called_at"] or _cl["date"] or "",
+                            "type": "call",
+                            "title": "Appel sortant",
+                            "content": "",
+                            "meta": None,
+                            "createdAt": _cl["called_at"] or "",
+                        })
+            except Exception as _e:
+                logger.warning("[timeline] call_logs fallback query failed pid=%s: %s", pid_int, _e)
+
             _cand_ids: set = set()
             _user_ids: set = set()
             for _l in logs:

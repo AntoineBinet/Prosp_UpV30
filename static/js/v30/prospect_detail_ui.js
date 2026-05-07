@@ -2557,7 +2557,7 @@
   function findEvent(filter, idx) {
     var events = (FP.STATE.events || []).slice();
     if (filter === 'push') events = events.filter(function (e) { return (e.type || '').startsWith('push'); });
-    else if (filter === 'note') events = events.filter(function (e) { return (e.type || '') === 'call_note' || (e.type || '') === 'note'; });
+    else if (filter === 'note') events = events.filter(function (e) { var t = e.type || ''; return t === 'call_note' || t === 'note' || t === 'call'; });
     else if (filter === 'cr') events = events.filter(function (e) { return (e.type || '') === 'cr'; });
     else if (filter === 'attachment') events = events.filter(function (e) { return (e.type || '') === 'attachment'; });
     var q = (FP.STATE.searchQuery || '').trim();

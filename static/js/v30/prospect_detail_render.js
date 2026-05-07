@@ -223,7 +223,7 @@
   };
 
   function evIsPush(e)  { return (e.type || '').startsWith('push'); }
-  function evIsNote(e)  { return (e.type || '') === 'call_note' || (e.type || '') === 'note'; }
+  function evIsNote(e)  { var t = e.type || ''; return t === 'call_note' || t === 'note' || t === 'call'; }
   function evIsCR(e)    { return (e.type || '') === 'cr'; }
   function evIsAttach(e){ return (e.type || '') === 'attachment'; }
 
