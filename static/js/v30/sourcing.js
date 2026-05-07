@@ -142,6 +142,17 @@
     return '<div class="v30-sc-card__contacts">' + parts.join('') + '</div>';
   }
 
+  var DC_DOC_SVG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>';
+
+  function renderDcBadge(c) {
+    var ok = !!c.has_dc;
+    var cls = 'v30-sc-dc' + (ok ? ' v30-sc-dc--ok' : ' v30-sc-dc--no');
+    var label = ok ? 'DC disponible' : 'Pas de DC';
+    return '<a class="' + cls + '" href="/v30/candidat/' + c.id + '#dc" title="' + label + '" aria-label="' + label + '" draggable="false" onclick="event.stopPropagation();">'
+      + DC_DOC_SVG + '<span>DC</span>'
+    + '</a>';
+  }
+
   function renderCard(c) {
     var skills = parseSkills(c.skills || c.tech);
     var shown = skills.slice(0, 3);
@@ -176,6 +187,7 @@
               esc(location) +
             '</span>'
           : '') +
+        renderDcBadge(c) +
         renderContactRow(c) +
       '</div>' +
     '</div>';
@@ -249,6 +261,7 @@
                 esc(c.location) +
               '</span>'
             : '') +
+          renderDcBadge(c) +
           renderContactRow(c) +
         '</div>' +
       '</div>';
@@ -269,6 +282,7 @@
         '<span class="v30-sc-list__cell v30-sc-list__cell--status">Statut</span>' +
         '<span class="v30-sc-list__cell v30-sc-list__cell--loc">Lieu</span>' +
         '<span class="v30-sc-list__cell v30-sc-list__cell--skills">Compétences</span>' +
+        '<span class="v30-sc-list__cell v30-sc-list__cell--dc">DC</span>' +
         '<span class="v30-sc-list__cell v30-sc-list__cell--contacts">Contact</span>' +
         '<span class="v30-sc-list__cell v30-sc-list__cell--actions"></span>' +
       '</div>' +
@@ -303,6 +317,7 @@
                 (extra > 0 ? '<span class="badge muted">+' + extra + '</span>' : '')
               : '<span class="muted" style="font-size:11px;">—</span>') +
           '</span>' +
+          '<span class="v30-sc-list__cell v30-sc-list__cell--dc">' + renderDcBadge(c) + '</span>' +
           '<span class="v30-sc-list__cell v30-sc-list__cell--contacts">' + renderContactRow(c) + '</span>' +
           '<span class="v30-sc-list__cell v30-sc-list__cell--actions">' +
             '<button type="button" class="v30-sc-card__kebab" style="opacity:1;" data-action="menu" data-id="' + c.id + '" aria-label="Actions" title="Actions">' + KEBAB_SVG + '</button>' +
