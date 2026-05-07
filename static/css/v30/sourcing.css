@@ -227,6 +227,42 @@
   gap: 2px;
   margin-left: auto;
 }
+
+/* ─── Badge "DC disponible / Pas de DC" ─── */
+.v30-sc-dc {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  border: 1px solid;
+  white-space: nowrap;
+  height: 18px;
+  line-height: 1;
+  text-decoration: none;
+  transition: background var(--dur-1), color var(--dur-1), border-color var(--dur-1);
+}
+.v30-sc-dc--ok {
+  color: var(--success);
+  background: color-mix(in oklch, var(--success) 12%, transparent);
+  border-color: color-mix(in oklch, var(--success) 30%, transparent);
+}
+.v30-sc-dc--ok:hover {
+  background: color-mix(in oklch, var(--success) 20%, transparent);
+}
+.v30-sc-dc--no {
+  color: var(--text-3);
+  background: transparent;
+  border-color: var(--border);
+  border-style: dashed;
+}
+.v30-sc-dc--no:hover {
+  color: var(--text-2);
+  background: var(--surface-2);
+}
 .v30-sc-card__link {
   width: 22px; height: 22px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -680,6 +716,7 @@
 .v30-sc-list__cell--status   { width: 110px; }
 .v30-sc-list__cell--loc      { width: 150px; overflow: hidden; }
 .v30-sc-list__cell--skills   { width: 190px; flex-wrap: wrap; overflow: hidden; }
+.v30-sc-list__cell--dc       { width: 64px; justify-content: flex-start; }
 .v30-sc-list__cell--contacts { width: 76px; }
 .v30-sc-list__cell--actions  { width: 34px; justify-content: center; }
 
@@ -731,4 +768,5 @@
 @media (max-width: 600px) {
   .v30-sc-list__cell--contacts { display: none; }
   .v30-sc-list__cell--status { width: 80px; }
+  .v30-sc-list__cell--dc { width: 48px; }
 }

@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.27] — 2026-05-07 · Fiche besoin : section « Préparation avant la RT »
+## [32.30] — 2026-05-07 · Fiche besoin : section « Préparation avant la RT »
 
 ### Ajout — bloc de notes libres en bas de la fiche besoin
 
@@ -21,6 +21,167 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
   `hydrate()` et collecté dans `collectPayload()`.
 - `static/css/v30/besoins.css` : `.v30-besoin-prep-rt { min-height:220px;
   resize:vertical }`.
+
+## [32.29] — 2026-05-07 · Carte géographique des prospects et entreprises
+
+### Nouvelle page `/v30/carte`
+
+Page Outils dédiée à la cartographie des entités commerciales :
+
+- **Carte Leaflet + tuiles OpenStreetMap** (gratuit, pas de clé API).
+- **Deux couches togglables** : Entreprises (pin bleu) et Prospects (pin coloré
+  selon pertinence P1→P5). Les deux clusters sont gérés séparément
+  (`Leaflet.markercluster`) pour éviter le mélange visuel.
+- **Heatmap densité** activable (`Leaflet.heat`) — gradient bleu/vert/orange/
+  rouge/violet selon la concentration. Chaque prospect pondéré par sa
+  pertinence.
+- **Filtres dynamiques** : recherche full-text (nom/ville/fonction/entreprise/
+  industrie/tags), statut prospect, pertinence min., tag contient. Tous
+  appliqués côté client pour réactivité instantanée.
+- **Popups riches** : type d'entité, nom, sous-titre (industrie/fonction +
+  ville), adresse, pills statut/pertinence, boutons Fiche/Email/Appel/OSM.
+- **Bouton « Ma position »** : géolocalisation navigateur, marqueur bleu +
+  cercle de précision.
+- **Auto-fit initial** sur l'ensemble des marqueurs visibles.
+
+### Geocoding via Nominatim (OSM)
+
+- Helper backend `_geocode()` avec User-Agent personnalisé et **throttle global
+  1 req/s** (lock + sleep) conforme à la fair-use policy OSM.
+- Les coordonnées sont **mises en cache en base** (`latitude`, `longitude`,
+  `geocoded_at`) — aucune requête Nominatim si l'entité est déjà géocodée.
+- **Géocodage en masse** : modale dédiée (`POST` non, **GET SSE** pour passer
+  à travers les buffers), barre de progression, log temps réel par entité,
+  résumé final (ok / ignorés / erreurs). Limite ajustable (50/100/200/500/1000),
+  cible (entreprises / prospects / les deux).
+
+### Schéma DB
+
+Nouvelles colonnes (migration auto via `_v30_apply_migrations`) :
+
+- `companies.latitude` (REAL), `companies.longitude` (REAL),
+  `companies.geocoded_at` (TEXT)
+- `prospects.address`, `prospects.city`, `prospects.country` (TEXT) — pour
+  les prospects ayant une adresse différente de leur entreprise rattachée
+- `prospects.latitude`, `prospects.longitude`, `prospects.geocoded_at`
+
+Lorsqu'un prospect n'a pas d'adresse propre, le geocoder utilise
+automatiquement celle de son entreprise (LEFT JOIN).
+
+### Routes API
+
+- `GET    /api/map/markers`        — JSON entreprises + prospects géocodés
+- `GET    /api/map/stats`          — compteurs (geocodés / avec adresse / total)
+- `POST   /api/map/geocode`        — géocode une entité unique (JSON)
+- `GET    /api/map/geocode/bulk`   — SSE stream de geocoding en masse
+
+### Sidebar
+
+Nouvelle entrée **Carte** sous Outils (entre Push et Transcription), nouvelle
+icône `map` dans le macro `_partials/v30/icon.html`.
+
+### CSP
+
+`style-src` et `img-src` étendus pour autoriser `cdn.jsdelivr.net` (Leaflet
+CSS) et `*.tile.openstreetmap.org` (tuiles OSM). `script-src` jsdelivr était
+déjà ouvert. Aucune dépendance Python ajoutée — seulement la stdlib
+(`urllib.request`).
+
+### Fichiers ajoutés
+
+- `routes/map.py` (~360 lignes : blueprint + helper Nominatim throttlé)
+- `templates/v30/carte.html`
+- `static/js/v30/carte.js` (~360 lignes)
+- `static/css/v30/carte.css`
+
+### Fichiers modifiés
+
+- `app.py` : `_v30_apply_migrations` (colonnes geo), import + register
+  `map_bp`, CSP étendue
+- `config.py` : `APP_VERSION = "32.29"`
+- `templates/_partials/v30/sidebar.html` : entrée Carte sous Outils
+- `templates/_partials/v30/icon.html` : icône `map`
+
+## [32.28] — 2026-05-07 · Stats / Tableau de bord : refonte UX v30
+
+### Refonte page Stats — alignement design system v30
+
+La page `/v30/stats` (panel **Tableau de bord**) est refondue pour s'aligner
+sur le design system v30 (page-header, kpi--hero serif, bento, performance
+card avec sparklines, chips colorés). Le panel **Rapport** reste inchangé.
+
+#### Nouveau layout
+- **Page header v30** : eyebrow « Performance » · titre serif italique
+  « Stats » · sous-titre dynamique (« X RDV · Y appels · taux Z% · période »).
+- **Toolbar unifiée** : navigation mensuelle + Aujourd'hui + Plage… +
+  segmented 7j/30j/90j/Tout + boutons Export JSON/CSV (déplacés de la barre
+  séparée vers la toolbar).
+- **Hero** : 4 grosses tuiles `kpi--hero` serif italique avec accent
+  coloré à gauche (RDV vert · Conversion accent · Appels orange · Push
+  bleu) et **sparkline** intégrée en bas-droite de chaque tuile.
+- **Performance card** (12 dernières semaines) : 4 chips KPI avec
+  sparklines miniatures, chart Chart.js stacked (Appels + Notes + Push),
+  3 insights (Meilleure semaine, Semaines actives, Conversion), breakdown
+  bars horizontales par type d'action.
+- **8 KPI secondaires** : Prospects total, Entreprises, À rappeler,
+  Relances en retard (alert), Notes d'appel, Dûs aujourd'hui, **Activité
+  ⌀/jour (NEW)**, **Pertinence ⌀ (NEW)**.
+- **Bento Pipeline + Urgence** :
+  - **Pipeline · Statuts** : barres horizontales colorées par statut
+    (palette RDV vert / Appelé bleu / À rappeler orange / etc.).
+  - **Urgence · Prochaines actions (NEW)** : 4 buckets (En retard /
+    Aujourd'hui / Cette semaine / Plus tard) avec dot couleur + barre
+    de progression.
+- **Bento Top entreprises + Top consultants pushés (NEW)** :
+  - Table « Entreprises chaudes » conservée, restylée (header bg, hover row).
+  - Liste « Top consultants pushés » : rang serif + nom + barre + count.
+- **Charts secondaires** : RDV / 6 derniers mois (line) + Pertinence
+  (doughnut). Les anciens 10 charts redondants sont supprimés.
+
+#### Données nouvelles consommées
+- `topPushedConsultants` (déjà exposé par `/api/stats/charts`, jusqu'ici
+  inutilisé côté front).
+- `urgencyDistribution` (idem — exposé mais non rendu auparavant).
+- Calcul **Activité ⌀ / jour** = (calls + push + notes) / nb jours période.
+- Calcul **Pertinence ⌀** = moyenne pondérée de `pertinenceDistribution`.
+- Calcul **Taux conversion** = RDV / Prospects total (avec sparkline mensuelle).
+
+#### Fichiers modifiés
+- `templates/v30/stats.html` : refonte complète du panel **Tableau de
+  bord**. Le panel **Rapport** est intact.
+- `static/css/v30/stats.css` : refonte complète (hero serif italique,
+  bento bento-2, pipeline/urgency rows, toplist, kpi-alert, modal v30).
+- `static/js/v30/stats.js` : refonte complète. Fetch parallèle de
+  `/api/stats` + `/api/stats/charts` + `/api/stats/data`. Render synchrone
+  sans Chart.js (KPI, pipeline, urgence, toplist) puis Chart.js asynchrone
+  (perf chart, RDV chart, pertinence chart). Fonctions legacy `repLoad*`
+  supprimées (le panel Rapport est piloté par `rapport.js`).
+
+## [32.27] — 2026-05-07 · Page Candidats : badge "DC disponible" dans toutes les vues
+
+### Visibilité du Dossier de Compétences
+
+- Page Candidats : un badge **DC** apparaît désormais sur chaque candidat dans
+  les trois vues (Pipeline kanban, Grille cartes, Liste tableau). Vert plein
+  avec libellé "DC" quand un dossier de compétences existe ; gris pointillé
+  quand aucun DC n'est encore rattaché. Le badge est cliquable et ouvre la
+  fiche candidat sur l'ancre `#dc`.
+- Vue Liste : nouvelle colonne **DC** (64 px desktop, 48 px sous 600 px) entre
+  *Compétences* et *Contact*.
+- Backend `/api/candidates` : le flag `has_dc` prend maintenant en compte
+  trois sources : champ legacy `dossier_competence_pdf`, fichiers PDF dans
+  `data/dossiers_candidats/{uid}/{cid}/` **et** entrées dans la table
+  `dc_generations` (DC produits via le générateur). Les DC générés via le
+  générateur sont désormais détectés correctement.
+
+### Fichiers modifiés
+
+- `routes/candidates.py` : helper `_candidate_has_dc()` + une seule requête
+  batch sur `dc_generations` par appel API (pas de N+1).
+- `static/js/v30/sourcing.js` : helper `renderDcBadge()` + insertion dans
+  `renderCard`, `renderGrid`, `renderList` (header + ligne).
+- `static/css/v30/sourcing.css` : classes `.v30-sc-dc`, `.v30-sc-dc--ok`,
+  `.v30-sc-dc--no` et largeur de la colonne `--dc`.
 
 ## [32.26] — 2026-05-07 · Fiche candidat : fix bouton Éditer (toutes sections)
 

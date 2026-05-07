@@ -241,11 +241,12 @@ def _after_request(response):
     if request.is_secure or request.headers.get('X-Forwarded-Proto') == 'https':
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     # CSP: restrictive but allows inline styles/scripts (needed for current architecture)
+    # v32.29: jsdelivr ajouté à style-src (Leaflet CSS), tuiles OSM autorisées en img-src
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+        "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://cdn.jsdelivr.net; "
         "connect-src 'self' https://api.tavily.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "frame-ancestors 'self'"
@@ -2524,7 +2525,38 @@ def _v30_apply_migrations(conn) -> list[str]:
     except Exception as e:
         print(f"[v30_migrate] WARN linkedin_inmails ({e})")
 
-    # 5. besoins : ajouter colonne preparation_rt (notes avant la RT)
+    # 5. v32.29 — Carte géographique : lat/long sur companies + prospects
+    try:
+        co_cols = {r[1] for r in cur.execute("PRAGMA table_info(companies);").fetchall()}
+        if co_cols:
+            for col, ddl in (
+                ("latitude", "REAL"),
+                ("longitude", "REAL"),
+                ("geocoded_at", "TEXT"),
+            ):
+                if col not in co_cols:
+                    cur.execute(f"ALTER TABLE companies ADD COLUMN {col} {ddl};")
+                    done.append(f"alter:companies.{col}")
+    except Exception as e:
+        print(f"[v30_migrate] WARN companies geo ({e})")
+    try:
+        pr_cols = {r[1] for r in cur.execute("PRAGMA table_info(prospects);").fetchall()}
+        if pr_cols:
+            for col, ddl in (
+                ("address", "TEXT"),
+                ("city", "TEXT"),
+                ("country", "TEXT"),
+                ("latitude", "REAL"),
+                ("longitude", "REAL"),
+                ("geocoded_at", "TEXT"),
+            ):
+                if col not in pr_cols:
+                    cur.execute(f"ALTER TABLE prospects ADD COLUMN {col} {ddl};")
+                    done.append(f"alter:prospects.{col}")
+    except Exception as e:
+        print(f"[v30_migrate] WARN prospects geo ({e})")
+
+    # 6. v32.30 — besoins : ajouter colonne preparation_rt (notes avant la RT)
     try:
         bs_cols = {r[1] for r in cur.execute("PRAGMA table_info(besoins);").fetchall()}
         if bs_cols and "preparation_rt" not in bs_cols:
@@ -8207,6 +8239,7 @@ from routes.deploy import deploy_bp  # noqa: E402
 from routes.ai import ai_bp          # noqa: E402
 from routes.transcription import transcription_bp, init_resume as _transcription_init_resume  # noqa: E402
 from routes.besoins import besoins_bp  # noqa: E402
+from routes.map import map_bp  # noqa: E402
 from routes.companies import companies_bp  # noqa: E402
 from routes.pages import pages_bp  # noqa: E402
 from routes.settings import settings_bp  # noqa: E402
@@ -8228,6 +8261,7 @@ app.register_blueprint(deploy_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(transcription_bp)
 app.register_blueprint(besoins_bp)
+app.register_blueprint(map_bp)
 app.register_blueprint(companies_bp)
 app.register_blueprint(pages_bp)
 app.register_blueprint(settings_bp)
