@@ -236,8 +236,68 @@
       </div>
     </div>
     <div class="v30-modal__foot">
+      <button type="button" class="btn btn-primary btn-sm" data-v30-create-cand-open>
+        {{ ui.icon('plus', 13) }} Créer fiche candidat
+      </button>
       <div class="v30-spacer"></div>
       <button type="button" class="btn btn-ghost btn-sm" data-v30-cand-close>Fermer</button>
+    </div>
+  </div>
+</div>
+
+{# ─── Modale création fiche candidat ─── #}
+<div class="v30-modal-bd" data-v30-create-cand-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-create-cand-title" style="max-width:560px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-create-cand-title">
+        {{ ui.icon('user', 14) }} <span>Créer une fiche candidat</span>
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-create-cand-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body">
+      <div style="display:grid;gap:12px;">
+        <div class="v30-field">
+          <label for="v30-cc-name">Nom complet <span style="color:var(--red)">*</span></label>
+          <input type="text" id="v30-cc-name" class="input" placeholder="Prénom NOM" autocomplete="off">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="v30-field">
+            <label for="v30-cc-role">Fonction / rôle</label>
+            <input type="text" id="v30-cc-role" class="input" placeholder="ex. Ingénieur packaging">
+          </div>
+          <div class="v30-field">
+            <label for="v30-cc-status">Statut</label>
+            <select id="v30-cc-status" class="input">
+              <option value="">— Non renseigné —</option>
+              <option value="available">Disponible</option>
+              <option value="open">Ouvert aux opportunités</option>
+              <option value="not_available">Non disponible</option>
+              <option value="in_process">En cours de processus</option>
+            </select>
+          </div>
+        </div>
+        <div class="v30-field">
+          <label for="v30-cc-skills">Compétences</label>
+          <textarea id="v30-cc-skills" class="input" rows="3" placeholder="Compétences clés, logiciels, certifications…"></textarea>
+        </div>
+        <div class="v30-field">
+          <label for="v30-cc-notes">Notes / commentaires</label>
+          <textarea id="v30-cc-notes" class="input" rows="2" placeholder="Remarques, disponibilité, contexte…"></textarea>
+        </div>
+        <div class="v30-field">
+          <label for="v30-cc-dc">Dossier de compétences (PDF)</label>
+          <input type="file" id="v30-cc-dc" accept=".pdf" class="input" style="padding:6px;">
+          <p class="muted" style="font-size:11.5px;margin-top:3px;">Fichier PDF uniquement. Sera attaché à la fiche après création.</p>
+        </div>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <p class="muted" id="v30-cc-error" style="font-size:12px;color:var(--red);display:none;"></p>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-create-cand-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" id="v30-cc-submit">
+        {{ ui.icon('check', 13) }} Créer et lier
+      </button>
     </div>
   </div>
 </div>

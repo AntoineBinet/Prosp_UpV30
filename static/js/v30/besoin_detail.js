@@ -485,7 +485,7 @@
       linkBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         _linkCandIdx = parseInt(card.dataset.candIdx, 10);
-        openCandModal();
+        openCandModal(c.candidat || '');
       });
       actions.appendChild(linkBtn);
     }
@@ -794,14 +794,22 @@
   }
 
   // ─── Recherche candidat ──────────────────────────────────
-  function openCandModal() {
+  function openCandModal(prefillName) {
     const md = document.querySelector('[data-v30-cand-modal]');
     if (!md) return;
     md.hidden = false;
     md.classList.add('is-open');
     const inp = document.getElementById('v30-cand-search-input');
-    if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
-    renderCandResults([]);
+    if (inp) {
+      inp.value = prefillName || '';
+      setTimeout(() => {
+        inp.focus();
+        if (prefillName && prefillName.trim().length >= 2) {
+          inp.dispatchEvent(new Event('input'));
+        }
+      }, 50);
+    }
+    if (!prefillName) renderCandResults([]);
   }
 
   function closeCandModal() {
@@ -884,6 +892,134 @@
         if (e.key === 'Escape' && !md.hidden) closeCandModal();
       });
     }
+  }
+
+  // ─── Création fiche candidat ─────────────────────────────
+  function openCreateCandModal() {
+    const md = document.querySelector('[data-v30-create-cand-modal]');
+    if (!md) return;
+
+    // Pré-remplir depuis le champ de recherche ou la ligne en cours
+    const searchInp = document.getElementById('v30-cand-search-input');
+    const nameInp   = document.getElementById('v30-cc-name');
+    const roleInp   = document.getElementById('v30-cc-role');
+    const skillsInp = document.getElementById('v30-cc-skills');
+    const notesInp  = document.getElementById('v30-cc-notes');
+    const dcInp     = document.getElementById('v30-cc-dc');
+    const statusSel = document.getElementById('v30-cc-status');
+    const errEl     = document.getElementById('v30-cc-error');
+
+    if (nameInp) nameInp.value = (searchInp && searchInp.value.trim()) || '';
+    if (roleInp) roleInp.value = (state.besoin && state.besoin.intitule) || '';
+    if (skillsInp) skillsInp.value = (state.besoin && state.besoin.competences) || '';
+    if (notesInp) notesInp.value = '';
+    if (dcInp) dcInp.value = '';
+    if (statusSel) statusSel.value = '';
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+
+    md.hidden = false;
+    md.classList.add('is-open');
+    setTimeout(() => { if (nameInp) nameInp.focus(); }, 50);
+  }
+
+  function closeCreateCandModal() {
+    const md = document.querySelector('[data-v30-create-cand-modal]');
+    if (!md) return;
+    md.classList.remove('is-open');
+    setTimeout(() => { md.hidden = true; }, 160);
+  }
+
+  function _linkNewCandidate(name, cid) {
+    if (!Array.isArray(state.besoin.candidats)) state.besoin.candidats = [];
+    if (_linkCandIdx !== null) {
+      const cand = state.besoin.candidats[_linkCandIdx];
+      if (cand) { cand.candidat = name; cand.cand_id = cid; }
+    } else {
+      state.besoin.candidats.push({ candidat: name, cand_id: cid });
+      state.expanded.add(state.besoin.candidats.length - 1);
+    }
+    renderCands();
+    markDirty();
+    closeCandModal();
+    closeCreateCandModal();
+    if (typeof window.showToast === 'function') window.showToast('Fiche créée et liée', 'success', 2500);
+  }
+
+  function bindCreateCandModal() {
+    const openBtn = document.querySelector('[data-v30-create-cand-open]');
+    if (openBtn) openBtn.addEventListener('click', openCreateCandModal);
+
+    document.querySelectorAll('[data-v30-create-cand-close]').forEach(b => b.addEventListener('click', closeCreateCandModal));
+
+    const md = document.querySelector('[data-v30-create-cand-modal]');
+    if (md) {
+      md.addEventListener('click', (e) => { if (e.target === md) closeCreateCandModal(); });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !md.hidden) closeCreateCandModal();
+      });
+    }
+
+    const submitBtn = document.getElementById('v30-cc-submit');
+    if (!submitBtn) return;
+
+    submitBtn.addEventListener('click', async () => {
+      const nameVal   = (document.getElementById('v30-cc-name')   || {}).value || '';
+      const roleVal   = (document.getElementById('v30-cc-role')   || {}).value || '';
+      const statusVal = (document.getElementById('v30-cc-status') || {}).value || '';
+      const skillsVal = (document.getElementById('v30-cc-skills') || {}).value || '';
+      const notesVal  = (document.getElementById('v30-cc-notes')  || {}).value || '';
+      const dcFile    = document.getElementById('v30-cc-dc');
+      const errEl     = document.getElementById('v30-cc-error');
+
+      if (!nameVal.trim()) {
+        if (errEl) { errEl.textContent = 'Le nom est obligatoire.'; errEl.style.display = 'block'; }
+        document.getElementById('v30-cc-name').focus();
+        return;
+      }
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Création…';
+      try {
+        const payload = { name: nameVal.trim() };
+        if (roleVal.trim())   payload.role   = roleVal.trim();
+        if (statusVal)        payload.status = statusVal;
+        if (skillsVal.trim()) payload.tech   = skillsVal.trim();
+        if (notesVal.trim())  payload.notes  = notesVal.trim();
+
+        const res = await fetchJSON('/api/candidates/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res || !res.ok) {
+          throw new Error(res && res.error ? res.error : 'Erreur serveur');
+        }
+
+        const newId = res.id || res.candidate_id || (res.candidate && res.candidate.id);
+        if (!newId) throw new Error('ID candidat non retourné');
+
+        // Upload DC si présent
+        if (dcFile && dcFile.files && dcFile.files.length > 0) {
+          const fd = new FormData();
+          fd.append('dc', dcFile.files[0]);
+          fd.append('candidate_id', String(newId));
+          try {
+            await fetch('/api/candidates/upload-dc', { method: 'POST', body: fd });
+          } catch (_e) {
+            if (typeof window.showToast === 'function') window.showToast('Fiche créée mais échec upload DC', 'warning', 3000);
+          }
+        }
+
+        _linkNewCandidate(nameVal.trim(), newId);
+      } catch (err) {
+        if (errEl) { errEl.textContent = 'Erreur : ' + err.message; errEl.style.display = 'block'; }
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Créer et lier';
+      }
+    });
   }
 
   // ─── Liaison prospect ────────────────────────────────────
@@ -1053,6 +1189,7 @@
     bindActions();
     bindLinkModal();
     bindCandModal();
+    bindCreateCandModal();
     load();
 
     // Ctrl+S = save
