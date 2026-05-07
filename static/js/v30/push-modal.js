@@ -735,7 +735,7 @@
   function loadAllCandidates() {
     return fetchJSON('/api/candidates').then(function (resp) {
       var arr = Array.isArray(resp) ? resp : (resp && resp.candidates) || [];
-      STATE.allCandidates = arr.sort(function (a, b) {
+      STATE.allCandidates = arr.filter(function (c) { return !c.is_archived; }).sort(function (a, b) {
         return (a.name || '').localeCompare(b.name || '');
       });
       STATE.candidates = STATE.allCandidates; // compat avec buildAIPrompt
