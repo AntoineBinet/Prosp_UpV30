@@ -730,12 +730,18 @@
 
     if (!dc.has_dc) {
       host.innerHTML =
-        '<div style="display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:12.5px;">' +
-          '<span class="v30-fc-dc-dot v30-fc-dc-dot--off"></span>' +
-          'Aucun DC pour ce candidat.' +
-        '</div>' +
-        '<div style="margin-top:8px;font-size:11.5px;color:var(--text-3);">' +
-          'Cliquez sur <strong>Charger</strong> pour téléverser un PDF, ou sur <strong>Générer</strong> pour le créer.' +
+        '<div class="v30-fc-dc-dropzone" data-v30-fc-dc-dropzone>' +
+          '<div class="v30-fc-dc-dropzone__icon">' +
+            '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+              '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +
+              '<polyline points="17 8 12 3 7 8"/>' +
+              '<line x1="12" y1="3" x2="12" y2="15"/>' +
+            '</svg>' +
+          '</div>' +
+          '<div class="v30-fc-dc-dropzone__body">' +
+            '<div class="v30-fc-dc-dropzone__label">Glisser un PDF ici</div>' +
+            '<div class="v30-fc-dc-dropzone__sub">ou cliquer sur <strong>Charger</strong> — PDF uniquement</div>' +
+          '</div>' +
         '</div>';
       return;
     }
@@ -864,12 +870,33 @@
         window.location.href = '/v30/dc/' + CID;
         return;
       }
-      if (e.target.closest('[data-v30-fc-dc-upload-btn]') || e.target.closest('[data-v30-fc-dc-replace]')) {
+      if (e.target.closest('[data-v30-fc-dc-upload-btn]') || e.target.closest('[data-v30-fc-dc-replace]') || e.target.closest('[data-v30-fc-dc-dropzone]')) {
         if (fileInput) fileInput.click();
         return;
       }
       if (e.target.closest('[data-v30-fc-dc-rename]')) { renameDc(); return; }
       if (e.target.closest('[data-v30-fc-dc-delete]')) { deleteDc(); return; }
+    });
+
+    card.addEventListener('dragover', function (e) {
+      if (!card.querySelector('[data-v30-fc-dc-dropzone]')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      var dz = card.querySelector('[data-v30-fc-dc-dropzone]');
+      if (dz) dz.classList.add('is-over');
+    });
+    card.addEventListener('dragleave', function (e) {
+      if (card.contains(e.relatedTarget)) return;
+      var dz = card.querySelector('[data-v30-fc-dc-dropzone]');
+      if (dz) dz.classList.remove('is-over');
+    });
+    card.addEventListener('drop', function (e) {
+      var dz = card.querySelector('[data-v30-fc-dc-dropzone]');
+      if (!dz) return;
+      e.preventDefault();
+      dz.classList.remove('is-over');
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) uploadDc(f);
     });
 
     if (fileInput) {
