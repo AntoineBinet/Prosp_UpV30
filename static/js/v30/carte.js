@@ -256,7 +256,11 @@
   // ─── Bulk geocode (SSE) ─────────────────────────────────────────────
   function openBulkModal() {
     const $m = document.querySelector('[data-v30-bulk-modal]');
-    if ($m) $m.hidden = false;
+    if ($m) {
+      $m.hidden = false;
+      void $m.offsetWidth; // force reflow pour activer la transition
+      $m.classList.add('is-open');
+    }
     const $log = document.querySelector('[data-v30-bulk-log]');
     if ($log) $log.innerHTML = '';
     const $bar = document.querySelector('[data-v30-bulk-bar]');
@@ -268,7 +272,9 @@
   }
   function closeBulkModal() {
     const $m = document.querySelector('[data-v30-bulk-modal]');
-    if ($m) $m.hidden = true;
+    if (!$m) return;
+    $m.classList.remove('is-open');
+    setTimeout(() => { $m.hidden = true; }, 160);
   }
 
   let _bulkController = null;

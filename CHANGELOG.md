@@ -2,6 +2,19 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.33] — 2026-05-07 · Carte · Fix bouton « Géocoder en masse »
+
+Sur la page **Carte** (`/v30/carte`), le bouton **Géocoder en masse** ouvrait
+bien la modale dans le DOM (`hidden=false`), mais celle-ci restait invisible
+et non interactive : la CSS de `.v30-modal-bd` impose `opacity: 0;
+pointer-events: none` jusqu'à ce que la classe `.is-open` soit ajoutée.
+
+`openBulkModal()` / `closeBulkModal()` dans `static/js/v30/carte.js`
+appliquent désormais le pattern standard v30 (cf. `entreprises.js`,
+`dashboard.js`, `push.js`) : `hidden=false` → reflow → `add('is-open')`
+à l'ouverture, et `remove('is-open')` → `setTimeout 160 ms` → `hidden=true`
+à la fermeture pour respecter la transition.
+
 ## [32.32] — 2026-05-07 · Besoins · Statut « Messagerie » sur les candidats positionnés
 
 Sur la fiche traitement d'un besoin, dans le bloc **Candidats positionnés**,
