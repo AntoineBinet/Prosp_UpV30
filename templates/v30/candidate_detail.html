@@ -51,7 +51,12 @@
     {# Main : Informations + Entretien + Évaluation + Compétences + Disponibilités #}
     <div>
       <div class="card" style="margin-bottom:12px;">
-        <div class="card-title" style="margin-bottom:10px;">Informations</div>
+        <div class="row-sb" style="margin-bottom:10px;">
+          <div class="card-title">Informations</div>
+          <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-edit-section="informations" aria-label="Éditer informations">
+            {{ ui.icon('edit', 13) }} Éditer
+          </button>
+        </div>
         <div class="v30-fc-info-grid" data-v30-fc-info>
           <div class="skel" style="width:80%;height:14px;"></div>
           <div class="skel" style="width:70%;height:14px;"></div>
@@ -65,6 +70,10 @@
         <div class="row-sb" style="margin-bottom:10px;">
           <div class="card-title">{{ ui.icon('report', 14) }} Dossier de compétences</div>
           <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-enrich
+                    title="Analyser le DC via IA pour enrichir la fiche" style="display:none;">
+              {{ ui.icon('sparkles', 12) }} Enrichir via DC
+            </button>
             <button type="button" class="btn btn-ghost btn-sm" data-v30-fc-dc-generate
                     title="Ouvrir le générateur DC">
               {{ ui.icon('sparkles', 12) }} Générer
@@ -287,6 +296,22 @@
     <div class="v30-modal__foot">
       <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
       <button type="button" class="btn btn-primary btn-sm" data-v30-fc-edit-modal-save>Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+{# ─── Modal Enrichissement depuis DC ─── #}
+<div class="v30-modal-bd" data-v30-fc-dc-enrich-modal hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-labelledby="v30-fc-dc-enrich-title" style="max-width:660px;">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-fc-dc-enrich-title">{{ ui.icon('sparkles', 14) }} Enrichir la fiche depuis le DC</h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-dc-enrich-close aria-label="Fermer">×</button>
+    </div>
+    <div class="v30-modal__body" style="max-height:60vh;overflow-y:auto;padding-bottom:4px;" data-v30-fc-dc-enrich-body>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-dc-enrich-close>Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-v30-dc-enrich-apply>Appliquer la sélection</button>
     </div>
   </div>
 </div>

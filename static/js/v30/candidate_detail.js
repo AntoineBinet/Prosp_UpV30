@@ -72,6 +72,7 @@
     if (chips) {
       var cc = '';
       if (c.linkedin) cc += '<a class="badge" href="' + esc(c.linkedin) + '" target="_blank" rel="noopener">LinkedIn</a> ';
+      if (c.vsa_url)  cc += '<a class="badge" href="' + esc(c.vsa_url) + '" target="_blank" rel="noopener">VSA</a> ';
       if (c.source)   cc += '<span class="badge">Source : ' + esc(c.source) + '</span>';
       chips.innerHTML = cc;
     }
@@ -92,6 +93,9 @@
       ? '<a href="' + esc(c.linkedin) + '" target="_blank" rel="noopener">' +
         esc(c.linkedin.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')) + '</a>'
       : '—';
+    var vsaLnk = c.vsa_url
+      ? '<a href="' + esc(c.vsa_url) + '" target="_blank" rel="noopener">Ouvrir ↗</a>'
+      : '—';
     var tech = c.tech || (Array.isArray(c.skills) && c.skills.length
       ? c.skills.slice(0, 6).join(', ') : '') || '—';
     var rows = [
@@ -104,7 +108,8 @@
       ['Tech',         tech],
       ['Téléphone',    telto,   true],
       ['Email',        mailto,  true],
-      ['LinkedIn',     lnk,     true]
+      ['LinkedIn',     lnk,     true],
+      ['Page VSA',     vsaLnk,  true]
     ];
     host.innerHTML = rows.map(function (r) {
       return '<div class="v30-fc-info-item">' +
@@ -576,6 +581,24 @@
   var _editSection = null;
 
   var SECTION_DEFS = {
+    informations: {
+      title: 'Informations',
+      fields: [
+        { key: 'status',           label: 'Statut',              type: 'select',
+          options: ['Nouveau', 'Vivier', 'Libre', 'En entretien', 'Placé', 'Archivé'] },
+        { key: 'role',             label: 'Rôle / Poste',        type: 'text',  placeholder: 'Ex: Consultant Automatisme' },
+        { key: 'location',         label: 'Localisation',         type: 'text',  placeholder: 'Ex: Lyon, Mobile France' },
+        { key: 'years_experience', label: 'Expérience',           type: 'text',  placeholder: 'Ex: 5 ans, Senior',
+          getValue: function(c) { return c.years_experience || c.annees_experience || c.seniority || ''; } },
+        { key: 'sector',           label: 'Secteur',              type: 'text',  placeholder: 'Ex: Industrie, IT' },
+        { key: 'source',           label: 'Source',               type: 'text',  placeholder: 'Ex: LinkedIn, Cooptation' },
+        { key: 'tech',             label: 'Compétences tech',     type: 'text',  placeholder: 'Ex: Python, Java, AUTOSAR' },
+        { key: 'phone',            label: 'Téléphone',            type: 'tel',   placeholder: '+33 6 XX XX XX XX' },
+        { key: 'email',            label: 'Email',                type: 'email', placeholder: 'prenom.nom@example.com' },
+        { key: 'linkedin',         label: 'LinkedIn',             type: 'url',   placeholder: 'https://linkedin.com/in/...' },
+        { key: 'vsa_url',          label: 'Page VSA',             type: 'url',   placeholder: 'Lien vers la page VSA / OneNote du candidat' },
+      ]
+    },
     entretien: {
       title: 'Entretien',
       fields: [
@@ -618,12 +641,20 @@
     if (!body) return;
     var c = STATE.candidate || {};
     body.innerHTML = def.fields.map(function (f) {
-      var val = c[f.key] || '';
+      var val = f.getValue ? f.getValue(c) : (c[f.key] || '');
       var input = '';
       if (f.type === 'textarea') {
         input = '<textarea class="input" id="fc-edit-' + f.key + '" name="' + f.key +
           '" placeholder="' + esc(f.placeholder || '') + '" rows="3" style="width:100%;resize:vertical;">' +
           esc(val) + '</textarea>';
+      } else if (f.type === 'select') {
+        var opts = (f.options || []).slice();
+        if (val && opts.indexOf(val) === -1) opts.unshift(val);
+        input = '<select class="input" id="fc-edit-' + f.key + '" name="' + f.key + '" style="width:100%;">' +
+          opts.map(function(opt) {
+            return '<option value="' + esc(opt) + '"' + (val === opt ? ' selected' : '') + '>' + esc(opt) + '</option>';
+          }).join('') +
+        '</select>';
       } else {
         input = '<input class="input" type="' + f.type + '" id="fc-edit-' + f.key + '" name="' + f.key +
           '" value="' + esc(val) + '" placeholder="' + esc(f.placeholder || '') + '" style="width:100%;">';
@@ -658,6 +689,10 @@
     }).then(function () {
       Object.assign(STATE.candidate, payload);
       renderSectionFields(STATE.candidate);
+      if (_editSection === 'informations') {
+        renderHeader(STATE.candidate);
+        renderInfo(STATE.candidate);
+      }
       closeSectionModal();
       flashSaved();
       if (window.showToast) window.showToast('Modifications enregistrées', 'success', 2000);
@@ -739,6 +774,10 @@
         '</div>';
       return;
     }
+
+    // Bouton "Enrichir via DC" — visible uniquement quand un PDF uploadé existe
+    var enrichBtn = document.querySelector('[data-v30-fc-dc-enrich]');
+    if (enrichBtn) enrichBtn.style.display = files.length ? '' : 'none';
 
     var html = '';
 
@@ -860,6 +899,7 @@
     var fileInput = card.querySelector('[data-v30-fc-dc-input]');
 
     card.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-fc-dc-enrich]')) { openDcEnrichModal(); return; }
       if (e.target.closest('[data-v30-fc-dc-generate]')) {
         window.location.href = '/v30/dc/' + CID;
         return;
@@ -1004,12 +1044,158 @@
     });
   }
 
+  // ─── Enrichissement fiche depuis DC (IA) ─────────────────
+  var ENRICH_FIELDS = [
+    { key: 'name',             label: 'Nom complet' },
+    { key: 'role',             label: 'Rôle / Poste' },
+    { key: 'location',         label: 'Localisation' },
+    { key: 'years_experience', label: 'Expérience',
+      getValue: function(c) { return c.years_experience || c.annees_experience || c.seniority || ''; } },
+    { key: 'sector',           label: 'Secteur' },
+    { key: 'tech',             label: 'Compétences tech' },
+    { key: 'phone',            label: 'Téléphone' },
+    { key: 'email',            label: 'Email' },
+    { key: 'linkedin',         label: 'LinkedIn' },
+    { key: 'domaine_principal',label: 'Domaine principal' },
+  ];
+
+  function openDcEnrichModal() {
+    var modal = document.querySelector('[data-v30-fc-dc-enrich-modal]');
+    if (!modal) return;
+    var body = modal.querySelector('[data-v30-fc-dc-enrich-body]');
+    if (body) body.innerHTML =
+      '<div style="padding:28px 0;text-align:center;color:var(--text-3);font-size:13px;">' +
+        'Analyse du DC en cours via IA…<br><br>' +
+        '<div class="skel" style="width:80%;height:12px;margin:6px auto;"></div>' +
+        '<div class="skel" style="width:65%;height:12px;margin:6px auto;"></div>' +
+        '<div class="skel" style="width:72%;height:12px;margin:6px auto;"></div>' +
+      '</div>';
+    modal.hidden = false;
+    var applyBtn = modal.querySelector('[data-v30-dc-enrich-apply]');
+    if (applyBtn) applyBtn.disabled = true;
+    fetch('/api/candidates/' + CID + '/dc-enrich', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || 'Erreur IA');
+      renderDcEnrichFields(res.fields);
+      if (applyBtn) applyBtn.disabled = false;
+    }).catch(function (err) {
+      if (body) body.innerHTML =
+        '<div style="padding:28px;text-align:center;color:var(--danger);font-size:13px;">' +
+          'Erreur : ' + esc(String(err.message)) + '</div>';
+    });
+  }
+
+  function renderDcEnrichFields(fields) {
+    var c = STATE.candidate || {};
+    var body = document.querySelector('[data-v30-fc-dc-enrich-body]');
+    if (!body) return;
+    var visibleFields = ENRICH_FIELDS.filter(function (f) {
+      var extracted = fields[f.key];
+      return extracted != null && String(extracted).trim() !== '';
+    });
+    if (!visibleFields.length) {
+      body.innerHTML =
+        '<div style="padding:28px;text-align:center;color:var(--text-3);font-size:13px;">' +
+          'L\'IA n\'a pas pu extraire d\'informations exploitables de ce DC.</div>';
+      return;
+    }
+    var html =
+      '<div style="font-size:12px;color:var(--text-3);padding:10px 0 10px;">' +
+        'Vérifiez les champs extraits et cochez ceux à appliquer sur la fiche candidat :' +
+      '</div>' +
+      '<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;">';
+    visibleFields.forEach(function (f, i) {
+      var currentRaw = f.getValue ? f.getValue(c) : (c[f.key] || '');
+      var current = String(currentRaw || '').trim();
+      var extracted = String(fields[f.key] || '').trim();
+      var same = current === extracted;
+      var checked = (!same && extracted) ? ' checked' : '';
+      html +=
+        '<div style="display:grid;grid-template-columns:24px 1fr 1fr;gap:10px;align-items:start;padding:10px 12px;' +
+          (i > 0 ? 'border-top:1px solid var(--border);' : '') + '">' +
+          '<input type="checkbox" name="enrich-' + f.key + '" data-enrich-key="' + f.key +
+            '" value="' + esc(extracted) + '"' + checked + ' style="margin-top:3px;">' +
+          '<div>' +
+            '<div style="font-size:10.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">' + esc(f.label) + ' · actuel</div>' +
+            '<div style="font-size:12.5px;color:var(--text-2);">' +
+              (current ? esc(current) : '<span style="color:var(--text-3);font-style:italic;">—</span>') +
+            '</div>' +
+          '</div>' +
+          '<div style="background:var(--surface-2);border-radius:4px;padding:7px 8px;">' +
+            '<div style="font-size:10.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Extrait du DC</div>' +
+            '<div style="font-size:12.5px;font-weight:500;">' + esc(extracted) + '</div>' +
+          '</div>' +
+        '</div>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  }
+
+  function applyDcEnrich() {
+    var modal = document.querySelector('[data-v30-fc-dc-enrich-modal]');
+    if (!modal) return;
+    var payload = {};
+    modal.querySelectorAll('[data-enrich-key]:checked').forEach(function (cb) {
+      payload[cb.dataset.enrichKey] = cb.value;
+    });
+    if (!Object.keys(payload).length) { closeDcEnrichModal(); return; }
+    var applyBtn = modal.querySelector('[data-v30-dc-enrich-apply]');
+    if (applyBtn) applyBtn.disabled = true;
+    fetch('/api/candidates/' + CID, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function () {
+      Object.assign(STATE.candidate, payload);
+      renderHeader(STATE.candidate);
+      renderInfo(STATE.candidate);
+      closeDcEnrichModal();
+      flashSaved();
+      var n = Object.keys(payload).length;
+      if (window.showToast) window.showToast('Fiche enrichie (' + n + ' champ' + (n > 1 ? 's' : '') + ')', 'success', 2500);
+    }).catch(function (err) {
+      if (window.showToast) window.showToast('Erreur : ' + err.message, 'error', 3000);
+      if (applyBtn) applyBtn.disabled = false;
+    });
+  }
+
+  function closeDcEnrichModal() {
+    var modal = document.querySelector('[data-v30-fc-dc-enrich-modal]');
+    if (modal) modal.hidden = true;
+  }
+
+  function bindDcEnrichModal() {
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-v30-dc-enrich-close]')) { closeDcEnrichModal(); return; }
+      if (e.target.closest('[data-v30-dc-enrich-apply]')) { applyDcEnrich(); return; }
+      var modal = document.querySelector('[data-v30-fc-dc-enrich-modal]');
+      if (modal && !modal.hidden && e.target === modal) closeDcEnrichModal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        var modal = document.querySelector('[data-v30-fc-dc-enrich-modal]');
+        if (modal && !modal.hidden) { closeDcEnrichModal(); e.stopPropagation(); }
+      }
+    });
+  }
+
   // ─── Init ────────────────────────────────────────────────
   function init() {
     bindInlineEdit();
     bindActions();
     bindSectionEdit();
     bindDcActions();
+    bindDcEnrichModal();
     bindNoteForm();
 
     Promise.all([

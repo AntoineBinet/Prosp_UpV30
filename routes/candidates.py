@@ -125,6 +125,7 @@ def api_candidate_put(candidate_id: int):
         "eval_technique", "eval_personnalite", "eval_communication",
         "references_candidat", "avis_perso",
         "entretien_date", "entretien_lieu", "entretien_notes",
+        "vsa_url", "onenote_url",
     }
     updates = {k: v for k, v in body.items() if k in ALLOWED}
     if not updates:
@@ -929,6 +930,97 @@ Réponds uniquement avec le JSON, sans aucun texte autour."""
     except Exception as e:
         logger.warning("DC extraction error: %s", e)
         return jsonify(ok=False, error=f"IA indisponible: {e}"), 503
+
+
+@candidates_bp.post("/api/candidates/<int:cid>/dc-enrich")
+def api_candidate_dc_enrich(cid):
+    """Lit le DC existant sur disque et l'analyse via IA pour pré-remplir la fiche candidat.
+    Retourne: { ok, fields: { name, prenom, role, location, years_experience, sector, tech, phone, email, linkedin, domaine_principal } }
+    """
+    uid = _uid()
+    if not uid:
+        return jsonify(ok=False, error="Non authentifié"), 401
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT name FROM candidates WHERE id=? AND owner_id=? AND deleted_at IS NULL;",
+            (cid, uid)
+        ).fetchone()
+    if not row:
+        return jsonify(ok=False, error="Candidat introuvable"), 404
+
+    dc_dir = DATA_DIR / "dossiers_candidats" / str(uid) / str(cid)
+    pdf_files = sorted(dc_dir.glob("*.pdf")) if dc_dir.is_dir() else []
+    if not pdf_files:
+        return jsonify(ok=False, error="Aucun DC trouvé pour ce candidat. Chargez un PDF d'abord."), 404
+
+    pdf_path = pdf_files[0]
+    pdf_text = ""
+    try:
+        import io as _io
+        with open(str(pdf_path), "rb") as f:
+            pdf_bytes = f.read()
+        try:
+            from pdfminer.high_level import extract_text as _extract_pdf  # type: ignore
+            pdf_text = _extract_pdf(_io.BytesIO(pdf_bytes), maxpages=10) or ""
+        except ImportError:
+            pass
+        if not pdf_text:
+            try:
+                import pypdf  # type: ignore
+                reader = pypdf.PdfReader(_io.BytesIO(pdf_bytes))
+                for page in reader.pages[:10]:
+                    pdf_text += page.extract_text() or ""
+            except ImportError:
+                pass
+        if not pdf_text.strip():
+            return jsonify(ok=False, error="Impossible d'extraire le texte du PDF (bibliothèque PDF manquante ou PDF scanné)."), 422
+    except Exception as e:
+        return jsonify(ok=False, error=f"Erreur lecture PDF : {e}"), 500
+
+    pdf_text_short = pdf_text[:6000]
+    prompt = f"""Tu es un assistant RH expert. Voici le contenu d'un dossier de compétences (DC) d'un candidat :
+
+---
+{pdf_text_short}
+---
+
+Extrais les informations suivantes et retourne UNIQUEMENT un objet JSON valide, sans texte avant ni après, sans balises markdown :
+{{
+  "name": "Prénom NOM du candidat",
+  "prenom": "Prénom seul",
+  "role": "Poste ou titre principal (ex: Consultant Automatisme, Ingénieur Systèmes Embarqués)",
+  "location": "Ville ou région (ex: Lyon, Paris, Mobile France)",
+  "years_experience": <nombre entier d'années d'expérience professionnelle, ou null>,
+  "sector": "Secteur d'activité principal (ex: Industrie, Défense, Automotive, IT)",
+  "tech": "Compétences techniques principales, séparées par des virgules (ex: Python, Java, AUTOSAR)",
+  "phone": "Numéro de téléphone (null si absent)",
+  "email": "Adresse email (null si absente)",
+  "linkedin": "URL LinkedIn complète (null si absente)",
+  "domaine_principal": "Domaine principal détaillé (ex: Systèmes embarqués, Automatisme industriel)"
+}}
+
+Si une information est absente, mets null."""
+
+    try:
+        result_text = _call_ai(prompt, timeout=90)
+        clean = result_text.strip()
+        if clean.startswith("```"):
+            clean = re.sub(r'^```[^\n]*\n?', '', clean)
+            clean = re.sub(r'\n?```$', '', clean)
+        json_match = re.search(r'\{[\s\S]*\}', clean)
+        if not json_match:
+            return jsonify(ok=False, error="L'IA n'a pas retourné de JSON valide"), 422
+        fields = json.loads(json_match.group(0))
+        # Convertir years_experience en string pour l'affichage
+        if fields.get("years_experience") is not None:
+            fields["years_experience"] = str(fields["years_experience"])
+        return jsonify(ok=True, fields=fields)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning("DC enrich JSON parse error: %s", e)
+        return jsonify(ok=False, error="L'IA n'a pas retourné un JSON valide"), 422
+    except Exception as e:
+        logger.warning("DC enrich error: %s", e)
+        return jsonify(ok=False, error=f"IA indisponible : {e}"), 503
 
 
 @candidates_bp.post("/api/candidates/upload-dc")
