@@ -4,19 +4,8 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="/static/css/v30/rapport.css?v={{ static_hash('css/v30/rapport.css') }}">
+<link rel="stylesheet" href="/static/css/v30/dashboard.css?v={{ static_hash('css/v30/dashboard.css') }}">
 <link rel="stylesheet" href="/static/css/v30/stats.css?v={{ static_hash('css/v30/stats.css') }}">
-<style>
-.v30-stats-controls{display:flex;align-items:center;gap:8px;}
-[data-v30-stats] .page-header{margin-bottom:28px;}
-@media(max-width:600px){.v30-stats-controls{flex-wrap:wrap;}}
-.v30-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.v30-chart-full{grid-column:1/-1;}
-.v30-chart-card .card-title{font-size:13px;font-weight:600;margin-bottom:12px;}
-.v30-chart-card canvas{max-height:280px;}
-/* .v30-stats-kpis : grille gérée par .kpi-grid (Phase 3 — patterns.css) */
-.v30-stats-kpis{margin-bottom:16px;}
-@media(max-width:700px){.v30-charts-grid{grid-template-columns:1fr;}.v30-chart-full{grid-column:1;}}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -27,20 +16,16 @@
   {# ─── Page header (Phase 2 — pattern unifié) ─── #}
   <div class="page-header">
     <div class="page-header__group">
+      <p class="page-eyebrow">Performance</p>
       <h1 class="page-title">Stats</h1>
+      <p class="page-sub" data-stats-headline>
+        <span class="skel" style="display:inline-block;width:280px;height:13px;"></span>
+      </p>
     </div>
     <div class="page-header__actions">
-      <div class="v30-stats-controls">
-        <div class="segmented" role="tablist" data-v30-stats-tabs>
-          <button type="button" class="active" data-tab="dashboard" role="tab" aria-selected="true">Tableau de bord</button>
-          <button type="button" data-tab="rapport" role="tab" aria-selected="false">Rapport</button>
-        </div>
-        <div class="segmented" data-v30-stats-period>
-          <button type="button" data-period="7">7j</button>
-          <button type="button" class="active" data-period="30">30j</button>
-          <button type="button" data-period="90">90j</button>
-          <button type="button" data-period="all">Tout</button>
-        </div>
+      <div class="segmented" role="tablist" data-v30-stats-tabs>
+        <button type="button" class="active" data-tab="dashboard" role="tab" aria-selected="true">Tableau de bord</button>
+        <button type="button" data-tab="rapport" role="tab" aria-selected="false">Rapport</button>
       </div>
     </div>
   </div>
@@ -48,43 +33,42 @@
   {# ─── Panel : Tableau de bord ─── #}
   <div data-v30-stats-panel="dashboard">
 
-    {# ─── Period picker mois + filtres ─── #}
-    <div class="stats-header">
-      <div class="period-picker">
-        {# Navigation mois glissant #}
-        <div class="period-month-nav" role="group" aria-label="Navigation par mois">
-          <button type="button" class="btn btn-ghost btn-icon btn-sm" data-stats-month-prev aria-label="Mois précédent">
-            {{ ui.icon('chevL', 12) }}
-          </button>
-          <span class="month-label" data-stats-month-label>—</span>
-          <button type="button" class="btn btn-ghost btn-icon btn-sm" data-stats-month-next aria-label="Mois suivant">
-            {{ ui.icon('chevR', 12) }}
-          </button>
-        </div>
-        <button type="button" class="btn btn-ghost btn-sm" data-stats-month-today>Aujourd'hui</button>
-        <button type="button" class="btn btn-ghost btn-sm" data-stats-range-open>
-          {{ ui.icon('calendar', 12) }} Plage…
+    {# ─── Toolbar : période + range + export ─── #}
+    <div class="v30-stats-toolbar">
+      <div class="period-month-nav" role="group" aria-label="Navigation par mois">
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-stats-month-prev aria-label="Mois précédent">
+          {{ ui.icon('chevL', 12) }}
         </button>
+        <span class="month-label" data-stats-month-label>—</span>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-stats-month-next aria-label="Mois suivant">
+          {{ ui.icon('chevR', 12) }}
+        </button>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" data-stats-month-today>Aujourd'hui</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-stats-range-open>
+        {{ ui.icon('calendar', 12) }} Plage…
+      </button>
+      <span class="v30-stats-toolbar__sep" aria-hidden="true"></span>
+      <div class="segmented" data-v30-stats-period aria-label="Période rapide">
+        <button type="button" data-period="7">7j</button>
+        <button type="button" class="active" data-period="30">30j</button>
+        <button type="button" data-period="90">90j</button>
+        <button type="button" data-period="all">Tout</button>
       </div>
       <div style="flex:1;"></div>
-      <div class="stats-export-bar">
-        <span class="export-label">Exporter :</span>
-        <button type="button" class="btn-secondary" data-stats-export="json">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          JSON
-        </button>
-        <button type="button" class="btn-secondary" data-stats-export="csv">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          CSV
-        </button>
-      </div>
+      <button type="button" class="btn btn-ghost btn-sm" data-stats-export="json" title="Exporter en JSON">
+        {{ ui.icon('arrowD', 12) }} JSON
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-stats-export="csv" title="Exporter en CSV">
+        {{ ui.icon('arrowD', 12) }} CSV
+      </button>
     </div>
 
-    {# ─── Filter bar (chips) ─── #}
-    <div class="filter-bar" data-stats-filter-bar>
-      <span class="filter-bar__label">Filtres</span>
+    {# ─── Filter bar (chips de statut + tags dynamiques) ─── #}
+    <div class="filter-bar v30-stats-filterbar" data-stats-filter-bar>
+      <span class="filter-bar__label">Statut</span>
       <div class="filter-bar__group" data-stats-filter-statut>
-        <span class="v30-chip is-active" data-chip-statut="">Tous statuts</span>
+        <span class="v30-chip is-active" data-chip-statut="">Tous</span>
         {% for st in ["Pas d'actions","Appelé","À rappeler","Messagerie","Rendez-vous","Prospecté","Pas intéressé"] %}
         <span class="v30-chip" data-chip-statut="{{ st }}">{{ st }}</span>
         {% endfor %}
@@ -95,26 +79,204 @@
       </div>
     </div>
 
-    {# ─── 4 Charts interactifs (v30 stats/data) ─── #}
-    <div class="charts-grid" id="v30StatsChartsGrid">
-      <div class="chart-container chart-col-full">
-        <div class="chart-title">RDV obtenus / mois</div>
-        <canvas id="chartStatsRdv"></canvas>
+    {# ─── HERO : 4 KPI principaux (kpi--hero serif italique) ─── #}
+    <section class="v30-stats-hero" aria-label="Indicateurs principaux">
+      {% for k in [
+        {'key':'rdv',   'label':'RDV obtenus',     'tone':'success'},
+        {'key':'conv',  'label':'Taux conversion', 'tone':'accent'},
+        {'key':'calls', 'label':'Appels passés',   'tone':'warn'},
+        {'key':'push',  'label':'Push envoyés',    'tone':'info'}
+      ] %}
+      <div class="kpi kpi--hero v30-stats-hero__kpi" data-kpi-card="{{ k.key }}" data-tone="{{ k.tone }}">
+        <div class="kpi__label">{{ k.label }}</div>
+        <div class="kpi__value num" data-kpi="{{ k.key }}">
+          <span class="skel" style="width:80px;height:36px;display:inline-block;"></span>
+        </div>
+        <div class="kpi__delta" data-kpi-delta="{{ k.key }}">&nbsp;</div>
+        <span class="v30-stats-hero__spark" data-kpi-spark="{{ k.key }}" aria-hidden="true"></span>
       </div>
-      <div class="chart-container">
-        <div class="chart-title">Appels passés / mois</div>
-        <canvas id="chartStatsCalls"></canvas>
+      {% endfor %}
+    </section>
+
+    {# ─── Performance card : sparklines hebdo + chart + insights + breakdown ─── #}
+    <section class="card card-flush v30-perf v30-perf--merged v30-stats-perf" data-v30-stats-perf>
+      <div class="v30-perf__body">
+        <div class="v30-perf__topbar">
+          <div class="card-title">Performance — 12 dernières semaines</div>
+          <span class="v30-perf__badge" data-field="badge">—</span>
+        </div>
+        <div class="v30-perf__chips" data-field="chips">
+          {% for _ in range(4) %}
+          <div class="v30-perf__chip">
+            <div class="v30-perf__chip-val"><span class="skel" style="width:36px;height:22px;display:inline-block;"></span></div>
+            <div class="v30-perf__chip-label"><span class="skel" style="width:60px;height:12px;display:inline-block;"></span></div>
+            <div class="v30-perf__chip-sub"><span class="skel" style="width:90px;height:10px;display:inline-block;"></span></div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="v30-perf__chart" data-field="chart">
+          <canvas id="chartStatsActivity"></canvas>
+        </div>
+        <div class="v30-perf__insights" data-field="insights">
+          {% for _ in range(3) %}
+          <div class="v30-perf__insight">
+            <div class="v30-perf__insight-label"><span class="skel" style="width:70px;height:10px;display:inline-block;"></span></div>
+            <div class="v30-perf__insight-value"><span class="skel" style="width:40px;height:20px;display:inline-block;"></span></div>
+            <div class="v30-perf__insight-sub"><span class="skel" style="width:60px;height:10px;display:inline-block;"></span></div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="v30-perf__breakdown" data-field="breakdown">
+          <div class="v30-perf__breakdown-head">
+            <span>Activité — total période</span>
+            <span class="v30-perf__breakdown-total" data-field="breakdown-total">— actions</span>
+          </div>
+          <div class="v30-perf__breakdown-rows" data-field="breakdown-rows">
+            {% for _ in range(4) %}
+            <div class="v30-perf__breakdown-row">
+              <span class="skel" style="width:50px;height:11px;display:inline-block;"></span>
+              <div class="skel" style="height:6px;border-radius:3px;"></div>
+              <span class="skel" style="width:20px;height:11px;display:inline-block;"></span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
       </div>
-      <div class="chart-container">
-        <div class="chart-title">Funnel de conversion</div>
-        <canvas id="chartStatsFunnel"></canvas>
+    </section>
+
+    {# ─── KPI secondaires (8 mini cards — anciens KPI préservés) ─── #}
+    <section class="kpi-grid v30-stats-kpis" aria-label="Détail KPI">
+      {% for k in [
+        {'key':'total',     'label':'Prospects total'},
+        {'key':'companies', 'label':'Entreprises'},
+        {'key':'callback',  'label':'À rappeler'},
+        {'key':'overdue',   'label':'Relances en retard', 'alert': true},
+        {'key':'notes',     'label':"Notes d'appel"},
+        {'key':'duetoday',  'label':"Dûs aujourd'hui"},
+        {'key':'avg',       'label':'Activité ⌀ / jour'},
+        {'key':'pertavg',   'label':'Pertinence ⌀'}
+      ] %}
+      <div class="kpi kpi--sm{% if k.alert %} v30-kpi--alert{% endif %}" data-kpi-card="{{ k.key }}">
+        <div class="kpi__label">{{ k.label }}</div>
+        <div class="kpi__value num" data-kpi="{{ k.key }}">
+          <span class="skel" style="width:60px;height:22px;display:inline-block;"></span>
+        </div>
+        <div class="kpi__delta" data-kpi-delta="{{ k.key }}">&nbsp;</div>
       </div>
-      <div class="chart-container chart-col-full">
-        <div class="chart-title">Top entreprises</div>
-        <canvas id="chartStatsCompanies"></canvas>
-      </div>
+      {% endfor %}
+    </section>
+
+    {# ─── Bento : Pipeline funnel + Urgence répartie ─── #}
+    <div class="v30-stats-bento-2">
+
+      <section class="card v30-stats-card" data-v30-stats-pipeline>
+        <div class="row-sb v30-stats-card__head">
+          <div>
+            <div class="card-title">Pipeline · Statuts</div>
+            <div class="card-sub">Répartition des prospects actifs</div>
+          </div>
+          <span class="muted num" style="font-size:12px;" data-field="total">—</span>
+        </div>
+        <div class="v30-stats-pipeline" data-field="rows">
+          {% for _ in range(6) %}
+          <div class="v30-stats-pipeline__row">
+            <span class="skel" style="width:90px;height:11px;"></span>
+            <div class="skel" style="height:18px;border-radius:4px;"></div>
+            <span class="skel" style="width:34px;height:11px;"></span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="card v30-stats-card" data-v30-stats-urgency>
+        <div class="row-sb v30-stats-card__head">
+          <div>
+            <div class="card-title">Urgence · Prochaines actions</div>
+            <div class="card-sub">Répartition par échéance</div>
+          </div>
+          <span class="muted num" style="font-size:12px;" data-field="total">—</span>
+        </div>
+        <div class="v30-stats-urgency" data-field="rows">
+          {% for _ in range(4) %}
+          <div class="v30-stats-urgency__row">
+            <span class="v30-stats-urgency__dot"></span>
+            <div class="v30-stats-urgency__body">
+              <div class="skel" style="width:55%;height:11px;margin-bottom:6px;"></div>
+              <div class="skel" style="height:4px;border-radius:2px;"></div>
+            </div>
+            <span class="skel" style="width:30px;height:11px;"></span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
     </div>
-    <div id="v30StatsChartsLoader" style="text-align:center;padding:20px;font-size:13px;color:var(--text-3);display:none;">Chargement…</div>
+
+    {# ─── Bento : Top entreprises chaudes + Top consultants pushés ─── #}
+    <div class="v30-stats-bento-2">
+
+      <section class="card card-flush v30-stats-card" data-v30-stats-hot-section>
+        <div class="card-header">
+          <div>
+            <div class="card-title">Entreprises chaudes</div>
+            <div class="card-sub">Triées par score d'activité sur la période</div>
+          </div>
+          <a href="/v30/entreprises" class="btn btn-ghost btn-sm">Tout voir</a>
+        </div>
+        <div class="v30-stats-hot" data-v30-stats-hot>
+          {% for _ in range(5) %}
+          <div class="v30-stats-hot__row">
+            <span class="skel" style="width:120px;height:13px;"></span>
+            <span class="skel" style="width:40px;height:13px;"></span>
+            <span class="skel" style="width:40px;height:13px;"></span>
+            <span class="skel" style="width:40px;height:13px;"></span>
+            <span class="skel" style="width:40px;height:13px;"></span>
+            <span></span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="card v30-stats-card" data-v30-stats-pushed-section>
+        <div class="row-sb v30-stats-card__head">
+          <div>
+            <div class="card-title">Consultants les plus pushés</div>
+            <div class="card-sub">Tous historiques confondus</div>
+          </div>
+          <a href="/v30/push" class="btn btn-ghost btn-sm">Tout voir</a>
+        </div>
+        <div class="v30-stats-toplist" data-v30-stats-pushed>
+          {% for _ in range(5) %}
+          <div class="v30-stats-toplist__row">
+            <span class="v30-stats-toplist__rank">—</span>
+            <span class="skel" style="height:12px;"></span>
+            <div class="skel" style="height:6px;border-radius:3px;"></div>
+            <span class="skel" style="width:22px;height:12px;"></span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+    </div>
+
+    {# ─── Bento : Charts secondaires (RDV/mois · Pertinence) ─── #}
+    <div class="v30-stats-bento-2">
+
+      <section class="card v30-stats-card v30-chart-card">
+        <div class="card-title">RDV obtenus — 6 derniers mois</div>
+        <div class="v30-chart-card__canvas">
+          <canvas id="chartStatsRdv"></canvas>
+        </div>
+      </section>
+
+      <section class="card v30-stats-card v30-chart-card">
+        <div class="card-title">Pertinence — distribution</div>
+        <div class="v30-chart-card__canvas">
+          <canvas id="chartStatsPert"></canvas>
+        </div>
+      </section>
+
+    </div>
 
     {# ─── Custom range modal ─── #}
     <div class="stats-range-modal" id="statsRangeModal" hidden aria-modal="true" role="dialog" aria-label="Sélectionner une plage de dates">
@@ -136,94 +298,9 @@
       </div>
     </div>
 
-    {# KPI grid (Phase 3 — pattern unifié) #}
-    <div class="kpi-grid v30-stats-kpis">
-      {% for k in [
-        {'key':'total',  'label':'Prospects total'},
-        {'key':'companies','label':'Entreprises'},
-        {'key':'calls',  'label':'Appels passés'},
-        {'key':'push',   'label':'Push envoyés'},
-        {'key':'rdv',    'label':'RDV obtenus'},
-        {'key':'callback','label':'À rappeler'},
-        {'key':'overdue','label':'Relances en retard'},
-        {'key':'notes',  'label':"Notes d'appel"}
-      ] %}
-      <div class="kpi">
-        <div class="kpi__label">{{ k.label }}</div>
-        <div class="kpi__value num" data-kpi="{{ k.key }}">
-          <span class="skel" style="width:60px;height:26px;display:inline-block;"></span>
-        </div>
-        <div class="kpi__delta" data-kpi-delta="{{ k.key }}">&nbsp;</div>
-      </div>
-      {% endfor %}
-    </div>
-
-    {# Entreprises chaudes (parite v29 : table SCORE + PROSPECTS + RDV + RELANCES EN RETARD) #}
-    <div class="card card-flush">
-      <div style="padding:14px 16px;border-bottom:1px solid var(--border);">
-        <div class="card-title">Entreprises « chaudes »</div>
-        <div class="muted" style="font-size:12px;margin-top:2px;">Triées par score d'activité sur la période.</div>
-      </div>
-      <div class="v30-stats-hot" data-v30-stats-hot>
-        {% for _ in range(5) %}
-        <div class="v30-stats-hot__row">
-          <span class="skel" style="width:120px;height:13px;"></span>
-          <span class="skel" style="width:40px;height:13px;"></span>
-          <span class="skel" style="width:40px;height:13px;"></span>
-          <span class="skel" style="width:40px;height:13px;"></span>
-          <span class="skel" style="width:40px;height:13px;"></span>
-          <span></span>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-
-    {# ─── Graphiques Chart.js ─── #}
-    <div style="margin-top:16px;">
-      <div id="v30ChartsLoader" style="text-align:center;padding:30px;font-size:13px;color:var(--text-3);">Chargement des graphiques…</div>
-      <div class="v30-charts-grid" id="v30ChartsGrid" style="display:none;">
-        <div class="card v30-chart-card">
-          <div class="card-title">Répartition par statut</div>
-          <canvas id="chartStatus"></canvas>
-        </div>
-        <div class="card v30-chart-card">
-          <div class="card-title">Distribution pertinence</div>
-          <canvas id="chartPertinence"></canvas>
-        </div>
-        <div class="card v30-chart-card v30-chart-full">
-          <div class="card-title">Push envoyés par semaine (12 dernières)</div>
-          <canvas id="chartPush"></canvas>
-        </div>
-        <div class="card v30-chart-card">
-          <div class="card-title">RDV obtenus par mois</div>
-          <canvas id="chartRdv"></canvas>
-        </div>
-        <div class="card v30-chart-card">
-          <div class="card-title">Top entreprises</div>
-          <canvas id="chartCompanies"></canvas>
-        </div>
-        <div class="card v30-chart-card">
-          <div class="card-title">Taux de conversion par étape</div>
-          <canvas id="chartFunnel"></canvas>
-        </div>
-        <div class="card v30-chart-card">
-          <div class="card-title">Évolution du portefeuille (12 semaines)</div>
-          <canvas id="chartPortfolio"></canvas>
-        </div>
-        <div class="card v30-chart-card v30-chart-full">
-          <div class="card-title">Top compétences demandées</div>
-          <canvas id="chartTags"></canvas>
-        </div>
-        <div class="card v30-chart-card v30-chart-full">
-          <div class="card-title">Appels passés par semaine (12 dernières)</div>
-          <canvas id="chartCalls"></canvas>
-        </div>
-        <div class="card v30-chart-card v30-chart-full">
-          <div class="card-title">Activité hebdomadaire (appels + notes + push)</div>
-          <canvas id="chartActivityWeek"></canvas>
-        </div>
-      </div>
-    </div>
+    {# Loaders cachés (chargement Chart.js) #}
+    <div id="v30StatsChartsLoader" hidden></div>
+    <div id="v30ChartsLoader" hidden></div>
 
   </div>
 
