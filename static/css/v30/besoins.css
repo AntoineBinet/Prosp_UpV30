@@ -164,6 +164,10 @@
 .v30-besoin-aside-actions {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
+.v30-besoin-aside-actions [data-v30-besoin-save]:disabled {
+  pointer-events: none;
+  transition: opacity .2s;
+}
 
 /* ─── Légende statuts candidats ─── */
 .v30-cand-legend {
