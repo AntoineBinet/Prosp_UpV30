@@ -1,0 +1,321 @@
+/* ProspUp v30 — Carte géographique (Leaflet + OSM) */
+
+.v30-carte { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+
+.v30-carte__layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  min-height: 0;
+  height: calc(100vh - 180px);
+  min-height: 520px;
+}
+
+@media (max-width: 900px) {
+  .v30-carte__layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+}
+
+/* ============= Panel filtres ============= */
+.v30-carte__panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.v30-carte__panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.v30-carte__panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.v30-carte__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+  user-select: none;
+}
+.v30-carte__toggle:hover { background: var(--surface-hover); }
+.v30-carte__toggle input { accent-color: var(--accent); }
+
+.v30-carte__toggle-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.v30-carte__toggle-dot--co { background: #3b82f6; }
+.v30-carte__toggle-dot--pr { background: #22c55e; }
+.v30-carte__toggle-dot--ht { background: linear-gradient(135deg, #ef4444, #f59e0b); }
+
+.v30-carte__count {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.v30-carte__panel-section--stats {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.v30-carte__stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.v30-carte__stat-row span:last-child {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 500;
+}
+.v30-carte__hint {
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+/* ============= Map wrapper ============= */
+.v30-carte__map-wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: var(--surface);
+}
+.v30-carte__map {
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+}
+@media (max-width: 900px) {
+  .v30-carte__map { height: 60vh; }
+}
+
+.v30-carte__loader {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1001;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+/* ============= Custom Leaflet pins ============= */
+.v30-carte-pin {
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+.v30-carte-pin svg { display: block; }
+
+.v30-carte-pin--co { color: #3b82f6; }
+.v30-carte-pin--pr { color: #22c55e; }
+
+/* Dégradés selon priorité prospect */
+.v30-carte-pin--p0 { color: #94a3b8; }
+.v30-carte-pin--p1 { color: #64748b; }
+.v30-carte-pin--p2 { color: #22c55e; }
+.v30-carte-pin--p3 { color: #f59e0b; }
+.v30-carte-pin--p4 { color: #f97316; }
+.v30-carte-pin--p5 { color: #ef4444; }
+
+/* Cluster markers (override Leaflet default) */
+.v30-carte-cluster {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: 12px;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+.v30-carte-cluster--co {
+  background: rgba(59, 130, 246, 0.9);
+  border: 2px solid rgba(59, 130, 246, 0.4);
+}
+.v30-carte-cluster--pr {
+  background: rgba(34, 197, 94, 0.9);
+  border: 2px solid rgba(34, 197, 94, 0.4);
+}
+
+/* ============= Popups Leaflet ============= */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.18) !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+}
+.leaflet-popup-content { margin: 0 !important; padding: 0 !important; }
+.leaflet-popup-tip { background: var(--surface) !important; }
+
+.v30-carte-popup {
+  padding: 12px 14px;
+  min-width: 220px;
+  font-size: 13px;
+}
+.v30-carte-popup__kind {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.v30-carte-popup__kind--co { color: #3b82f6; }
+.v30-carte-popup__kind--pr { color: #22c55e; }
+.v30-carte-popup__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+.v30-carte-popup__sub {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+.v30-carte-popup__addr {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+.v30-carte-popup__pills {
+  margin-top: 8px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.v30-carte-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+.v30-carte-pill--p1, .v30-carte-pill--p2 { background: rgba(34, 197, 94, .14); border-color: rgba(34, 197, 94, .35); color: #4ade80; }
+.v30-carte-pill--p3 { background: rgba(245, 158, 11, .14); border-color: rgba(245, 158, 11, .35); color: #fbbf24; }
+.v30-carte-pill--p4 { background: rgba(249, 115, 22, .14); border-color: rgba(249, 115, 22, .35); color: #fb923c; }
+.v30-carte-pill--p5 { background: rgba(239, 68, 68, .14);  border-color: rgba(239, 68, 68, .35);  color: #f87171; }
+
+.v30-carte-popup__actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.v30-carte-popup__actions .btn { font-size: 11.5px; padding: 4px 10px; }
+
+/* ============= Modale bulk geocoding ============= */
+.v30-carte__bulk-progress {
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.v30-carte__bulk-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.v30-carte__bulk-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--info));
+  width: 0%;
+  transition: width 0.2s ease;
+}
+.v30-carte__bulk-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.v30-carte__bulk-log {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+.v30-carte__bulk-log-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--text-2);
+}
+.v30-carte__bulk-log-item--ok { color: var(--success); }
+.v30-carte__bulk-log-item--error { color: var(--danger); }
+.v30-carte__bulk-log-item--skip { color: var(--text-3); }
+.v30-carte__bulk-log-dot {
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
+  font-weight: 600;
+}
+.v30-carte__bulk-summary {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+.v30-carte__bulk-summary-row {
+  display: block;
+  padding: 2px 0;
+}
+
+/* Dark theme tweaks for Leaflet attribution + zoom controls */
+[data-theme="dark"] .leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.85) !important;
+  color: var(--text-2) !important;
+}
+[data-theme="dark"] .leaflet-control-attribution a {
+  color: var(--accent) !important;
+}
+[data-theme="dark"] .leaflet-bar a {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-bottom-color: var(--border) !important;
+}
+[data-theme="dark"] .leaflet-bar a:hover {
+  background: var(--surface-hover) !important;
+}

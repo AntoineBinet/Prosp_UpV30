@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.29] — 2026-05-07 · Besoins · Téléphone + lien profil VSA/LinkedIn
+## [32.31] — 2026-05-07 · Besoins · Téléphone + lien profil VSA/LinkedIn
 
 Sur la fiche traitement d'un besoin, dans le bloc **Candidats positionnés**,
 les cartes de candidats **non liés à une fiche** affichent désormais :
@@ -17,6 +17,106 @@ les cartes de candidats **non liés à une fiche** affichent désormais :
 Les deux champs sont persistés dans `candidats_json` (clés `phone` et
 `profile_url`) et masqués automatiquement quand la ligne est liée à une
 fiche candidat (les coordonnées sont alors disponibles via la fiche).
+
+## [32.30] — 2026-05-07 · Fiche besoin : section « Préparation avant la RT »
+
+### Ajout — bloc de notes libres en bas de la fiche besoin
+
+- Nouvelle section **« Préparation avant la RT »** affichée tout en bas de
+  la fiche besoin (sous « Candidats positionnés ») : grande zone de texte
+  modifiable, persistée comme les autres champs (auto-save + Ctrl+S).
+  Pratique pour préparer la RT (revue technique) — points à aborder,
+  contexte client, questions à poser…
+- Schéma DB : nouvelle colonne `besoins.preparation_rt TEXT` (CREATE TABLE
+  + migration auto-appliquée au démarrage via `_v30_apply_migrations`, sur
+  la DB principale et chaque DB per-user).
+- `routes/besoins.py` : champ ajouté à `_payload_clean` (allowed) et
+  inséré dans le `INSERT` de `api_create_besoin`.
+- `templates/v30/besoin_detail.html` + `static/js/v30/besoin_detail.js` :
+  textarea `[data-v30-besoin-field="preparation_rt"]`, alimenté via
+  `hydrate()` et collecté dans `collectPayload()`.
+- `static/css/v30/besoins.css` : `.v30-besoin-prep-rt { min-height:220px;
+  resize:vertical }`.
+
+## [32.29] — 2026-05-07 · Carte géographique des prospects et entreprises
+
+### Nouvelle page `/v30/carte`
+
+Page Outils dédiée à la cartographie des entités commerciales :
+
+- **Carte Leaflet + tuiles OpenStreetMap** (gratuit, pas de clé API).
+- **Deux couches togglables** : Entreprises (pin bleu) et Prospects (pin coloré
+  selon pertinence P1→P5). Les deux clusters sont gérés séparément
+  (`Leaflet.markercluster`) pour éviter le mélange visuel.
+- **Heatmap densité** activable (`Leaflet.heat`) — gradient bleu/vert/orange/
+  rouge/violet selon la concentration. Chaque prospect pondéré par sa
+  pertinence.
+- **Filtres dynamiques** : recherche full-text (nom/ville/fonction/entreprise/
+  industrie/tags), statut prospect, pertinence min., tag contient. Tous
+  appliqués côté client pour réactivité instantanée.
+- **Popups riches** : type d'entité, nom, sous-titre (industrie/fonction +
+  ville), adresse, pills statut/pertinence, boutons Fiche/Email/Appel/OSM.
+- **Bouton « Ma position »** : géolocalisation navigateur, marqueur bleu +
+  cercle de précision.
+- **Auto-fit initial** sur l'ensemble des marqueurs visibles.
+
+### Geocoding via Nominatim (OSM)
+
+- Helper backend `_geocode()` avec User-Agent personnalisé et **throttle global
+  1 req/s** (lock + sleep) conforme à la fair-use policy OSM.
+- Les coordonnées sont **mises en cache en base** (`latitude`, `longitude`,
+  `geocoded_at`) — aucune requête Nominatim si l'entité est déjà géocodée.
+- **Géocodage en masse** : modale dédiée (`POST` non, **GET SSE** pour passer
+  à travers les buffers), barre de progression, log temps réel par entité,
+  résumé final (ok / ignorés / erreurs). Limite ajustable (50/100/200/500/1000),
+  cible (entreprises / prospects / les deux).
+
+### Schéma DB
+
+Nouvelles colonnes (migration auto via `_v30_apply_migrations`) :
+
+- `companies.latitude` (REAL), `companies.longitude` (REAL),
+  `companies.geocoded_at` (TEXT)
+- `prospects.address`, `prospects.city`, `prospects.country` (TEXT) — pour
+  les prospects ayant une adresse différente de leur entreprise rattachée
+- `prospects.latitude`, `prospects.longitude`, `prospects.geocoded_at`
+
+Lorsqu'un prospect n'a pas d'adresse propre, le geocoder utilise
+automatiquement celle de son entreprise (LEFT JOIN).
+
+### Routes API
+
+- `GET    /api/map/markers`        — JSON entreprises + prospects géocodés
+- `GET    /api/map/stats`          — compteurs (geocodés / avec adresse / total)
+- `POST   /api/map/geocode`        — géocode une entité unique (JSON)
+- `GET    /api/map/geocode/bulk`   — SSE stream de geocoding en masse
+
+### Sidebar
+
+Nouvelle entrée **Carte** sous Outils (entre Push et Transcription), nouvelle
+icône `map` dans le macro `_partials/v30/icon.html`.
+
+### CSP
+
+`style-src` et `img-src` étendus pour autoriser `cdn.jsdelivr.net` (Leaflet
+CSS) et `*.tile.openstreetmap.org` (tuiles OSM). `script-src` jsdelivr était
+déjà ouvert. Aucune dépendance Python ajoutée — seulement la stdlib
+(`urllib.request`).
+
+### Fichiers ajoutés
+
+- `routes/map.py` (~360 lignes : blueprint + helper Nominatim throttlé)
+- `templates/v30/carte.html`
+- `static/js/v30/carte.js` (~360 lignes)
+- `static/css/v30/carte.css`
+
+### Fichiers modifiés
+
+- `app.py` : `_v30_apply_migrations` (colonnes geo), import + register
+  `map_bp`, CSP étendue
+- `config.py` : `APP_VERSION = "32.29"`
+- `templates/_partials/v30/sidebar.html` : entrée Carte sous Outils
+- `templates/_partials/v30/icon.html` : icône `map`
 
 ## [32.28] — 2026-05-07 · Stats / Tableau de bord : refonte UX v30
 

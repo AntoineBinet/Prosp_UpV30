@@ -169,6 +169,15 @@
   transition: opacity .2s;
 }
 
+/* ─── Préparation avant la RT (grande zone de texte) ─── */
+.v30-besoin-prep-rt {
+  width: 100%;
+  min-height: 220px;
+  font-size: 13px;
+  color: var(--text);
+  resize: vertical;
+}
+
 /* ─── Légende statuts candidats ─── */
 .v30-cand-legend {
   display: inline-flex; align-items: center; gap: 6px;

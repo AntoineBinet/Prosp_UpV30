@@ -125,6 +125,7 @@ def _payload_clean(payload: dict) -> dict:
         "intitule", "date_besoin", "duree_mission",
         "descriptif", "competences", "connaissances",
         "experience", "profil_type", "commentaires",
+        "preparation_rt",
         "statut", "priority",
         "prospect_id", "company_id",
     }
@@ -275,6 +276,7 @@ def api_create_besoin():
         "intitule", "date_besoin", "duree_mission",
         "descriptif", "competences", "connaissances",
         "experience", "profil_type", "commentaires",
+        "preparation_rt",
         "statut", "priority",
         "candidats_json",
         "prospect_id", "company_id",
@@ -294,6 +296,7 @@ def api_create_besoin():
         data.get("experience") or "",
         data.get("profil_type") or "",
         data.get("commentaires") or "",
+        data.get("preparation_rt") or "",
         statut,
         data.get("priority"),
         candidats_json,
