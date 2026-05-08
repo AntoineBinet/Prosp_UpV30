@@ -278,6 +278,91 @@
 
     </div>
 
+    {# ─── Bento : Funnel de conversion + Top compétences ─── #}
+    <div class="v30-stats-bento-2">
+
+      <section class="card v30-stats-card" data-v30-stats-funnel>
+        <div class="row-sb v30-stats-card__head">
+          <div>
+            <div class="card-title">Funnel · Conversion</div>
+            <div class="card-sub">Du premier contact jusqu'au RDV</div>
+          </div>
+          <span class="muted num" style="font-size:12px;" data-field="rate">—</span>
+        </div>
+        <div class="v30-stats-funnel" data-field="rows">
+          {% for _ in range(5) %}
+          <div class="v30-stats-funnel__row">
+            <span class="skel" style="width:90px;height:11px;"></span>
+            <div class="skel" style="height:30px;border-radius:6px;"></div>
+            <span class="skel" style="width:48px;height:11px;"></span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="card v30-stats-card" data-v30-stats-tags>
+        <div class="row-sb v30-stats-card__head">
+          <div>
+            <div class="card-title">Compétences demandées</div>
+            <div class="card-sub">Tags les plus présents sur tes prospects</div>
+          </div>
+          <span class="muted num" style="font-size:12px;" data-field="total">—</span>
+        </div>
+        <div class="v30-stats-tags" data-field="rows">
+          {% for _ in range(6) %}
+          <div class="v30-stats-tags__row">
+            <span class="skel" style="width:90px;height:12px;"></span>
+            <div class="skel" style="height:6px;border-radius:3px;"></div>
+            <span class="skel" style="width:24px;height:12px;"></span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+    </div>
+
+    {# ─── Bento : Évolution portefeuille + Heatmap activité ─── #}
+    <div class="v30-stats-bento-2">
+
+      <section class="card v30-stats-card v30-chart-card">
+        <div class="row-sb v30-stats-card__head">
+          <div>
+            <div class="card-title">Portefeuille — 12 dernières semaines</div>
+            <div class="card-sub">Évolution du nombre total de prospects</div>
+          </div>
+          <span class="muted num" style="font-size:12px;" data-v30-stats-portfolio-trend>—</span>
+        </div>
+        <div class="v30-chart-card__canvas">
+          <canvas id="chartStatsPortfolio"></canvas>
+        </div>
+      </section>
+
+      <section class="card v30-stats-card v30-stats-heatmap-card" data-v30-stats-heatmap>
+        <div class="row-sb v30-stats-card__head">
+          <div>
+            <div class="card-title">Heatmap · Activité 8 semaines</div>
+            <div class="card-sub">Intensité par jour (appels + notes + push)</div>
+          </div>
+          <span class="muted num" style="font-size:12px;" data-field="total">—</span>
+        </div>
+        <div class="v30-stats-heatmap" data-field="grid">
+          <div class="v30-stats-heatmap__skel"></div>
+        </div>
+        <div class="v30-stats-heatmap__legend">
+          <span>Calme</span>
+          <span class="v30-stats-heatmap__scale">
+            <span class="v30-stats-heatmap__cell" data-level="0"></span>
+            <span class="v30-stats-heatmap__cell" data-level="1"></span>
+            <span class="v30-stats-heatmap__cell" data-level="2"></span>
+            <span class="v30-stats-heatmap__cell" data-level="3"></span>
+            <span class="v30-stats-heatmap__cell" data-level="4"></span>
+          </span>
+          <span>Intense</span>
+        </div>
+      </section>
+
+    </div>
+
     {# ─── Custom range modal ─── #}
     <div class="stats-range-modal" id="statsRangeModal" hidden aria-modal="true" role="dialog" aria-label="Sélectionner une plage de dates">
       <div class="stats-range-modal__bd" data-stats-range-close></div>

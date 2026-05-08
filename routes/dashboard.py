@@ -948,6 +948,82 @@ def api_stats_charts():
             {"label": "Plus tard", "count": urgent_later},
         ]
 
+        # 8) Top tags / compétences (12 plus fréquents)
+        tag_counts: dict[str, int] = {}
+        for r in conn.execute(
+            "SELECT tags FROM prospects WHERE owner_id=? AND tags IS NOT NULL AND tags!='' AND (deleted_at IS NULL OR deleted_at='');",
+            (uid,),
+        ).fetchall():
+            raw = r["tags"] or ""
+            parsed: list[str] = []
+            try:
+                j = json.loads(raw)
+                if isinstance(j, list):
+                    parsed = [str(x).strip() for x in j if str(x).strip()]
+            except Exception:
+                parsed = [t.strip() for t in raw.split(",") if t.strip()]
+            for t in parsed:
+                tag_counts[t] = tag_counts.get(t, 0) + 1
+        top_tags = [
+            {"name": k, "count": v}
+            for k, v in sorted(tag_counts.items(), key=lambda kv: kv[1], reverse=True)[:12]
+        ]
+
+        # 9) Daily activity (56 derniers jours = 8 semaines × 7) pour heatmap
+        # On agrège push_logs + call_logs + callNotes par jour.
+        start_56 = today - datetime.timedelta(days=55)
+        start_56_iso = start_56.isoformat()
+        daily_counts: dict[str, int] = {}
+        # init avec 0 sur la fenêtre
+        for i in range(56):
+            d = (start_56 + datetime.timedelta(days=i)).isoformat()
+            daily_counts[d] = 0
+        # push_logs
+        for r in conn.execute(
+            """SELECT substr(l.sentAt,1,10) AS d, COUNT(*) AS n
+               FROM push_logs l JOIN prospects p ON p.id=l.prospect_id AND p.owner_id=?
+               WHERE substr(l.sentAt,1,10)>=?
+               GROUP BY substr(l.sentAt,1,10);""",
+            (uid, start_56_iso),
+        ).fetchall():
+            d = r["d"] or ""
+            if d in daily_counts:
+                daily_counts[d] += r["n"] or 0
+        # call_logs
+        try:
+            for r in conn.execute(
+                "SELECT substr(date,1,10) AS d, COUNT(*) AS n FROM call_logs WHERE owner_id=? AND date>=? GROUP BY substr(date,1,10);",
+                (uid, start_56_iso),
+            ).fetchall():
+                d = r["d"] or ""
+                if d in daily_counts:
+                    daily_counts[d] += r["n"] or 0
+        except Exception:
+            pass
+        # callNotes (réutilise _cn_dates déjà collecté)
+        for ds in _cn_dates:
+            if ds in daily_counts:
+                daily_counts[ds] += 1
+        daily_activity = [{"date": d, "count": daily_counts[d]} for d in sorted(daily_counts.keys())]
+
+        # 10) Portfolio per week — taille du portefeuille en fin de chaque semaine (12 sem.)
+        # Fallback : prospects créés à `lastContact` (champ disponible). Cumul croissant.
+        portfolio_per_week: list[dict] = []
+        for i in range(11, -1, -1):
+            d = today - datetime.timedelta(weeks=i)
+            sun = d - datetime.timedelta(days=d.weekday()) + datetime.timedelta(days=6)
+            sun_iso = sun.isoformat()
+            label = f"S{(sun - datetime.timedelta(days=6)).isocalendar()[1]}"
+            n = conn.execute(
+                """SELECT COUNT(*) AS n FROM prospects p
+                   WHERE p.owner_id=? AND (p.deleted_at IS NULL OR p.deleted_at='')
+                     AND (
+                       (p.lastContact IS NOT NULL AND p.lastContact!='' AND p.lastContact<=?)
+                       OR p.lastContact IS NULL OR p.lastContact='' )""",
+                (uid, sun_iso),
+            ).fetchone()["n"]
+            portfolio_per_week.append({"label": label, "count": n})
+
     return jsonify({
         "ok": True,
         "statusDistribution": status_dist,
@@ -958,6 +1034,9 @@ def api_stats_charts():
         "pertinenceDistribution": pert_dist,
         "topPushedConsultants": top_pushed,
         "urgencyDistribution": urgency_dist,
+        "topTags": top_tags,
+        "dailyActivity": daily_activity,
+        "portfolioPerWeek": portfolio_per_week,
     })
 
 

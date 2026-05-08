@@ -2,6 +2,26 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.34] — 2026-05-09 · Stats · 4 nouveaux graphiques alignés design system
+
+La page **Stats** (`/v30/stats`) gagne 4 nouvelles visualisations qui complètent
+la migration depuis l'UI legacy en utilisant le design system v30 (tokens
+OKLCH, gradients accentués, typographie serif/mono) au lieu des charts
+Chart.js bruts hérités de la v29 :
+
+- **Funnel · Conversion** : barres horizontales par étape (À contacter →
+  Appelé → À rappeler → Messagerie → Rendez-vous), badges de drop‑off entre
+  paliers et taux de conversion global dans le head de carte.
+- **Compétences demandées** : top 10 tags / compétences extraits des
+  prospects, barres dégradées en accent.
+- **Portefeuille — 12 dernières semaines** : courbe Chart.js ton accent avec
+  badge tendance (delta absolu + %) dans le head de carte.
+- **Heatmap · Activité 8 semaines** : grille 7 jours × 8 semaines, intensité
+  en quartiles sur appels + notes + push (style GitHub, légende calme→intense).
+
+Backend (`/api/stats/charts`) étendu avec `topTags`, `dailyActivity` (56 j) et
+`portfolioPerWeek` (12 semaines).
+
 ## [32.33] — 2026-05-07 · Carte · Fix bouton « Géocoder en masse »
 
 Sur la page **Carte** (`/v30/carte`), le bouton **Géocoder en masse** ouvrait
