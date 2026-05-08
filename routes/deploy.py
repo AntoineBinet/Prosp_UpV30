@@ -627,6 +627,7 @@ def api_deploy_check_deps():
       missing  — non installé / non importable
     """
     import importlib
+    import importlib.metadata as _imd
     import re
 
     req_path = APP_DIR / "requirements.txt"
@@ -652,6 +653,32 @@ def api_deploy_check_deps():
         "torch": "torch",
         "torchaudio": "torchaudio",
     }
+
+    def _installed_version(pip_name: str, module_name: str):
+        """Récupère la version installée SANS importer le module (rapide).
+
+        Importer torch/pyannote/whisper est très lent (cuDNN init, etc.).
+        On lit la métadonnée du wheel via importlib.metadata. Fallback :
+        on tente l'import léger, sinon on renvoie (None, error).
+        """
+        for name in (pip_name, module_name, pip_name.replace("_", "-"), pip_name.replace("-", "_")):
+            try:
+                return (_imd.version(name), None)
+            except _imd.PackageNotFoundError:
+                continue
+            except Exception as exc:
+                return (None, str(exc)[:120])
+        # Fallback léger : juste un import (bon pour stdlib-style modules)
+        try:
+            mod = importlib.import_module(module_name)
+            v = (getattr(mod, "__version__", None)
+                 or getattr(mod, "VERSION", None)
+                 or getattr(mod, "version", None))
+            if isinstance(v, tuple):
+                v = ".".join(str(x) for x in v)
+            return (str(v) if v else "?", None)
+        except Exception as exc:
+            return (None, str(exc)[:120])
 
     def _parse_version(s: str):
         """Convertit '1.2.3' ou '1.2.3.dev1' en tuple comparable."""
@@ -680,26 +707,13 @@ def api_deploy_check_deps():
 
         module_name = PIP_TO_MODULE.get(pip_name, pip_name.lower().replace("-", "_"))
 
-        installed_ver = None
-        status = "missing"
-        error_msg = None
-
-        try:
-            mod = importlib.import_module(module_name)
-            installed_ver = (
-                getattr(mod, "__version__", None)
-                or getattr(mod, "VERSION", None)
-                or getattr(mod, "version", None)
-            )
-            if isinstance(installed_ver, tuple):
-                installed_ver = ".".join(str(x) for x in installed_ver)
-            installed_ver = str(installed_ver) if installed_ver else "?"
+        installed_ver, error_msg = _installed_version(pip_name, module_name)
+        if installed_ver:
             status = "ok"
-            if req_ver and op in (">=", "=="):
-                if _parse_version(installed_ver) < _parse_version(req_ver):
-                    status = "outdated"
-        except Exception as e:
-            error_msg = str(e)[:120]
+            if req_ver and op in (">=", "==") and _parse_version(installed_ver) < _parse_version(req_ver):
+                status = "outdated"
+        else:
+            status = "missing"
 
         deps.append({
             "name": pip_name,

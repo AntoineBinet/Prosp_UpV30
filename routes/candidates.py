@@ -752,14 +752,84 @@ def api_candidates_save():
 
 @candidates_bp.get("/api/candidates/fiche-entretien-template")
 def api_candidates_fiche_entretien_template():
-    """Télécharge le modèle de fiche entretien Excel."""
+    """Télécharge le modèle de fiche entretien Excel.
+
+    Si un fichier modèle existe dans docs/sample/, on le sert. Sinon on
+    génère un modèle minimal à la volée pour que l'endpoint réponde toujours."""
     uid = _uid()
     if not uid:
         return jsonify(ok=False, error="Non authentifié"), 401
-    template_path = APP_DIR / "docs" / "Fiche entretien NEW Prenom NOM - EC1 XXX  JJMMAAAA.xlsx"
-    if not template_path.exists():
-        return jsonify(ok=False, error="Modèle non trouvé"), 404
-    return send_file(str(template_path), as_attachment=True, download_name="fiche_entretien_Up.xlsx")
+
+    # Cherche un fichier modèle existant (peut être nommé différemment)
+    candidates_paths = [
+        APP_DIR / "docs" / "Fiche entretien NEW Prenom NOM - EC1 XXX  JJMMAAAA.xlsx",
+        APP_DIR / "sample" / "fiche_entretien.xlsx",
+    ]
+    for p in candidates_paths:
+        if p.exists():
+            return send_file(str(p), as_attachment=True, download_name="fiche_entretien_Up.xlsx")
+
+    # Fallback : génération à la volée d'un template minimal
+    from io import BytesIO
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, PatternFill
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Fiche entretien"
+
+    header_fill = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    section_fill = PatternFill(start_color="EFF2F8", end_color="EFF2F8", fill_type="solid")
+    section_font = Font(bold=True, size=11)
+
+    ws["A1"] = "Fiche entretien candidat — Up Technologies"
+    ws["A1"].font = Font(bold=True, size=14, color="2563EB")
+    ws.merge_cells("A1:B1")
+
+    rows = [
+        ("", ""),
+        ("IDENTITÉ", ""),
+        ("Prénom", ""),
+        ("Nom", ""),
+        ("Email", ""),
+        ("Téléphone", ""),
+        ("LinkedIn", ""),
+        ("Localisation", ""),
+        ("", ""),
+        ("PROFIL PROFESSIONNEL", ""),
+        ("Métier / Poste recherché", ""),
+        ("Expérience (années)", ""),
+        ("Compétences techniques principales", ""),
+        ("Langues", ""),
+        ("", ""),
+        ("DISPONIBILITÉ & MOBILITÉ", ""),
+        ("Disponibilité", ""),
+        ("TJM / Salaire visé", ""),
+        ("Mobilité géographique", ""),
+        ("Type de contrat souhaité", ""),
+        ("", ""),
+        ("ENTRETIEN EC1", ""),
+        ("Date d'entretien", ""),
+        ("Recruteur", ""),
+        ("Notes EC1", ""),
+        ("Décision", ""),
+    ]
+    for i, (label, value) in enumerate(rows, start=2):
+        ws.cell(row=i, column=1, value=label)
+        ws.cell(row=i, column=2, value=value)
+        if label and not value and label.isupper():
+            ws.cell(row=i, column=1).fill = section_fill
+            ws.cell(row=i, column=1).font = section_font
+
+    ws.column_dimensions["A"].width = 36
+    ws.column_dimensions["B"].width = 60
+
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return send_file(bio, as_attachment=True, download_name="fiche_entretien_Up.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 @candidates_bp.post("/api/candidates/parse-fiche-entretien")

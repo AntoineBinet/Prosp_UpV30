@@ -605,7 +605,31 @@ def api_stats_predictions():
             "SELECT COUNT(*) AS n FROM prospects WHERE owner_id=? AND nextFollowUp IS NOT NULL AND nextFollowUp != '' AND nextFollowUp < ? AND deleted_at IS NULL;",
             (uid, today_iso),
         ).fetchone()["n"]
-    
+
+    # Early return : sans données, l'IA ne peut rien prédire d'utile et l'appel
+    # prend 60-120 s pour rien. On répond directement avec un état "no_data".
+    has_activity = total_prospects > 0 or any(
+        w.get("pushes", 0) + w.get("call_notes", 0) + w.get("rdv", 0) > 0 for w in weeks_data
+    )
+    if not has_activity:
+        return jsonify({
+            "ok": True,
+            "predictions": {
+                "trends": {"pushes": "stabilité", "call_notes": "stabilité", "rdv": "stabilité"},
+                "conversion_rate": {
+                    "current": 0,
+                    "predicted": 0,
+                    "explanation": "Pas encore d'historique — ajoutez des prospects et des actions pour générer des prédictions.",
+                },
+                "recommendations": [
+                    "Importez ou ajoutez vos premiers prospects.",
+                    "Loggez vos premiers appels et envois push pour alimenter le modèle.",
+                ],
+                "forecast": {f"week_{i}": {"pushes": 0, "call_notes": 0, "rdv": 0} for i in range(1, 5)},
+            },
+            "no_data": True,
+        })
+
     # Construire le prompt pour les prédictions
     prompt = f"""Tu es un assistant pour un CRM de prospection B2B. Analyse les données historiques et génère des prédictions pour les 4 prochaines semaines.
 

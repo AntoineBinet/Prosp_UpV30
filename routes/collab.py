@@ -860,12 +860,23 @@ def api_assistant_suggestions():
         overdue_count = conn.execute("SELECT COUNT(*) as c FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND nextFollowUp < ?;", (uid, today)).fetchone()["c"]
         rdv_count = conn.execute("SELECT COUNT(*) as c FROM prospects WHERE owner_id=? AND deleted_at IS NULL AND statut='Rendez-vous';", (uid,)).fetchone()["c"]
     
+    # Suggestions par défaut, retournées immédiatement si l'IA n'est pas dispo.
+    default_suggestions = [
+        "Quels sont mes prospects à relancer ?",
+        "Combien de RDV cette semaine ?",
+        "Quelles sont mes priorités du jour ?",
+        "Montre-moi les prospects du secteur automobile",
+        "Quels candidats ont des compétences en C++ ?",
+    ]
+
     prompt = f"""Génère 5 suggestions de questions pertinentes pour un assistant CRM B2B.
 Contexte: {page_description}. {overdue_count} relances en retard, {rdv_count} RDV.
 Retourne UNIQUEMENT un JSON array de strings: ["question 1", "question 2", ...]"""
-    
+
+    suggestions = default_suggestions
     try:
-        ai_response = _call_ai(prompt, timeout=30)
+        # Timeout court (5 s) : Ollama indispo ou modèle chaud → fallback rapide
+        ai_response = _call_ai(prompt, timeout=5)
         ai_response = ai_response.strip()
         if ai_response.startswith("```json"):
             ai_response = ai_response[7:]
@@ -873,20 +884,12 @@ Retourne UNIQUEMENT un JSON array de strings: ["question 1", "question 2", ...]"
             ai_response = ai_response[3:]
         if ai_response.endswith("```"):
             ai_response = ai_response[:-3]
-        suggestions = json.loads(ai_response)
-        if not isinstance(suggestions, list):
-            suggestions = []
+        parsed = json.loads(ai_response)
+        if isinstance(parsed, list) and parsed:
+            suggestions = parsed
     except Exception as e:
-        logger.warning("Erreur suggestions IA: %s", e)
-        # Suggestions par défaut
-        suggestions = [
-            "Quels sont mes prospects à relancer ?",
-            "Combien de RDV cette semaine ?",
-            "Quelles sont mes priorités du jour ?",
-            "Montre-moi les prospects du secteur automobile",
-            "Quels candidats ont des compétences en C++ ?"
-        ]
-    
+        logger.warning("Erreur suggestions IA (fallback défaut): %s", e)
+
     return jsonify(ok=True, suggestions=suggestions[:5])
 
 
