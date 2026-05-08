@@ -8,6 +8,8 @@ Phase B — extraction du gros bloc lignes 4273-5068 d'app.py.
 """
 from __future__ import annotations
 
+import json
+
 from flask import Blueprint, redirect, render_template, request, session
 
 from app import _audit_log, _static_hashes, log_activity
@@ -666,3 +668,329 @@ def page_v30_validation_checklist():
     Claude pour corriger les échecs.
     """
     return render_template("v30/validation_checklist.html", app_version=APP_VERSION)
+
+
+def _build_sitemap_data(is_admin: bool) -> dict:
+    """Construit la structure de données pour la toile d'araignée.
+
+    Renvoie un dict avec :
+      - root : nœud Connexion (point d'entrée)
+      - categories : 5 catégories (navigate, records, outils, admin, autres)
+      - pages : 21 pages avec leurs actions (filtré selon le rôle)
+
+    Garder synchro avec templates/_partials/v30/sidebar.html et la cartographie
+    des features (voir /docs/AUDIT_UI_NAVIGATION.md).
+    """
+    pages: list[dict] = [
+        # ─── NAVIGATE ──────────────────────────────────────────
+        {
+            "id": "dashboard", "label": "Dashboard", "cat": "navigate",
+            "icon": "🏠", "href": "/v30/dashboard", "isHub": True,
+            "summary": "KPI du jour, pipeline, priorités IA, action center.",
+            "actions": [
+                {"label": "Ajouter un KPI manuel", "href": "/v30/parametres#kpi"},
+                {"label": "Action center", "href": "/v30/dashboard#actions"},
+                {"label": "Priorités IA", "href": "/v30/dashboard#priorities"},
+                {"label": "Pipeline visuel", "href": "/v30/dashboard#pipeline"},
+                {"label": "Tâches du jour", "href": "/v30/focus"},
+                {"label": "Performance hebdo", "href": "/v30/stats"},
+            ],
+        },
+        {
+            "id": "focus", "label": "Focus", "cat": "navigate",
+            "icon": "🎯", "href": "/v30/focus",
+            "summary": "Tâches prioritaires et relances classées par urgence.",
+            "actions": [
+                {"label": "Ajouter une tâche", "href": "/v30/focus"},
+                {"label": "Relances en retard", "href": "/v30/focus#late"},
+                {"label": "Marquer fait", "href": "/v30/focus"},
+                {"label": "Reporter +1j / +7j", "href": "/v30/focus"},
+                {"label": "Filtrer période", "href": "/v30/focus"},
+            ],
+        },
+        {
+            "id": "calendar", "label": "Calendrier", "cat": "navigate",
+            "icon": "📅", "href": "/v30/calendrier",
+            "summary": "RDV, événements et agenda externe (Outlook/Google).",
+            "actions": [
+                {"label": "Créer un RDV", "href": "/v30/calendrier"},
+                {"label": "Vue mois / semaine / jour", "href": "/v30/calendrier"},
+                {"label": "Statut RDV", "href": "/v30/calendrier"},
+                {"label": "Sync ICS externe", "href": "/v30/parametres#calsync"},
+            ],
+        },
+        {
+            "id": "stats", "label": "Stats", "cat": "navigate",
+            "icon": "📈", "href": "/v30/stats",
+            "summary": "Performance, conversion pipeline, rapports.",
+            "actions": [
+                {"label": "Plage de dates", "href": "/v30/stats"},
+                {"label": "Filtrer statuts/tags", "href": "/v30/stats"},
+                {"label": "Export JSON / CSV", "href": "/v30/stats"},
+                {"label": "Rapport hebdo / mensuel", "href": "/v30/stats"},
+                {"label": "Conversion pipeline", "href": "/v30/stats"},
+            ],
+        },
+
+        # ─── RECORDS ───────────────────────────────────────────
+        {
+            "id": "prospects", "label": "Prospects", "cat": "records",
+            "icon": "👥", "href": "/v30/prospects",
+            "summary": "Base de prospects — 3 vues, filtres, bulk actions.",
+            "actions": [
+                {"label": "Importer Excel", "href": "/v30/prospects#import"},
+                {"label": "Ajouter (manuel)", "href": "/v30/prospects#add"},
+                {"label": "Ajouter (IA)", "href": "/v30/prospects#add-ai"},
+                {"label": "Scrapping IA", "href": "/v30/prospects#ia"},
+                {"label": "Email IA / Tel IA", "href": "/v30/prospects#bulk-ia"},
+                {"label": "Avant/Après réunion IA", "href": "/v30/prospects#meeting"},
+                {"label": "Modifier en masse", "href": "/v30/prospects#bulk"},
+                {"label": "Géocoder en masse", "href": "/v30/carte"},
+                {"label": "Archiver", "href": "/v30/prospects/archives"},
+                {"label": "Supprimer", "href": "/v30/prospects"},
+                {"label": "Exporter VCF", "href": "/v30/prospects"},
+                {"label": "Mode Prosp (deck)", "href": "/v30/mode-prosp"},
+            ],
+        },
+        {
+            "id": "entreprises", "label": "Entreprises", "cat": "records",
+            "icon": "🏢", "href": "/v30/entreprises",
+            "summary": "Portefeuille client, fiches détaillées, fusion.",
+            "actions": [
+                {"label": "Ajouter une entreprise", "href": "/v30/entreprises"},
+                {"label": "Éditer fiche", "href": "/v30/entreprises"},
+                {"label": "Fusionner deux entreprises", "href": "/v30/duplicates"},
+                {"label": "Filtrer", "href": "/v30/entreprises"},
+                {"label": "Exporter la liste", "href": "/v30/entreprises"},
+                {"label": "Vue liste / cartes", "href": "/v30/entreprises"},
+            ],
+        },
+        {
+            "id": "candidats", "label": "Candidats", "cat": "records",
+            "icon": "👤", "href": "/v30/sourcing",
+            "summary": "Sourcing — pipeline 5 colonnes, statuts, skills.",
+            "actions": [
+                {"label": "Ajouter un candidat", "href": "/v30/sourcing"},
+                {"label": "Importer CV (PDF)", "href": "/v30/sourcing"},
+                {"label": "Importer JSON IA", "href": "/v30/sourcing"},
+                {"label": "Filtrer (statut/skills)", "href": "/v30/sourcing"},
+                {"label": "Enregistrer InMail", "href": "/v30/sourcing"},
+                {"label": "Vue Pipeline / Liste / Grille", "href": "/v30/sourcing"},
+                {"label": "Archiver", "href": "/v30/sourcing"},
+            ],
+        },
+
+        # ─── OUTILS ────────────────────────────────────────────
+        {
+            "id": "push", "label": "Push", "cat": "outils",
+            "icon": "📨", "href": "/v30/push",
+            "summary": "Campagnes email/LinkedIn, templates, historique.",
+            "actions": [
+                {"label": "Créer une catégorie", "href": "/v30/push"},
+                {"label": "Templates email", "href": "/v30/push"},
+                {"label": "Suggestions de prospects", "href": "/v30/push"},
+                {"label": "Historique des envois", "href": "/v30/push"},
+                {"label": "Filtrer par canal", "href": "/v30/push"},
+            ],
+        },
+        {
+            "id": "carte", "label": "Carte", "cat": "outils",
+            "icon": "🗺️", "href": "/v30/carte",
+            "summary": "Cartographie géographique, géocoding bulk, heatmap.",
+            "actions": [
+                {"label": "Géocoder en masse", "href": "/v30/carte"},
+                {"label": "Couches (entreprises, prospects, heatmap)", "href": "/v30/carte"},
+                {"label": "Filtrer par statut/pertinence/tag", "href": "/v30/carte"},
+                {"label": "Localiser ma position", "href": "/v30/carte"},
+                {"label": "Recharger les marqueurs", "href": "/v30/carte"},
+            ],
+        },
+        {
+            "id": "transcription", "label": "Transcription", "cat": "outils",
+            "icon": "🎙️", "href": "/v30/transcription",
+            "summary": "Transcription locale (Whisper) + analyse Claude des réunions.",
+            "actions": [
+                {"label": "Enregistrer en direct", "href": "/v30/transcription"},
+                {"label": "Importer audio (mp3, wav, m4a…)", "href": "/v30/transcription"},
+                {"label": "Importer résumé PDF", "href": "/v30/transcription"},
+                {"label": "Analyser (Claude API)", "href": "/v30/transcription"},
+                {"label": "Identifier les participants", "href": "/v30/transcription"},
+            ],
+        },
+        {
+            "id": "besoins", "label": "Besoins", "cat": "outils",
+            "icon": "📋", "href": "/v30/besoins",
+            "summary": "Fiches de besoin client, suivi des candidats matchés.",
+            "actions": [
+                {"label": "Créer un besoin", "href": "/v30/besoins"},
+                {"label": "Importer Excel besoins", "href": "/v30/besoins"},
+                {"label": "Filtrer par statut", "href": "/v30/besoins"},
+                {"label": "Éditer fiche besoin", "href": "/v30/besoins"},
+            ],
+        },
+        {
+            "id": "collab", "label": "Collaboration", "cat": "outils",
+            "icon": "🤝", "href": "/v30/collab",
+            "summary": "Partage d'entreprises et de prospects entre coéquipiers.",
+            "actions": [
+                {"label": "Partager une entreprise", "href": "/v30/collab"},
+                {"label": "Mes partages (envoyés)", "href": "/v30/collab"},
+                {"label": "Reçus (collaborateurs → moi)", "href": "/v30/collab"},
+                {"label": "Éditer un prospect partagé", "href": "/v30/collab"},
+            ],
+        },
+        {
+            "id": "duplicates", "label": "Doublons", "cat": "outils",
+            "icon": "🧹", "href": "/v30/duplicates",
+            "summary": "Détection et fusion des doublons (similarité configurable).",
+            "actions": [
+                {"label": "Scanner les doublons", "href": "/v30/duplicates"},
+                {"label": "Régler le seuil de similarité", "href": "/v30/duplicates"},
+                {"label": "Fusionner prospects", "href": "/v30/duplicates"},
+                {"label": "Fusionner entreprises", "href": "/v30/duplicates"},
+            ],
+        },
+        {
+            "id": "dc", "label": "DC Generator", "cat": "outils",
+            "icon": "📑", "href": "/v30/dc",
+            "summary": "Dossier de compétence — DOCX structuré à partir d'un CV.",
+            "actions": [
+                {"label": "Sélectionner un candidat", "href": "/v30/dc"},
+                {"label": "Uploader le CV (PDF/DOCX)", "href": "/v30/dc"},
+                {"label": "Données entretien", "href": "/v30/dc"},
+                {"label": "Générer le DC (IA)", "href": "/v30/dc"},
+                {"label": "Télécharger DOCX", "href": "/v30/dc"},
+            ],
+        },
+
+        # ─── ADMIN ─────────────────────────────────────────────
+        {
+            "id": "users", "label": "Utilisateurs", "cat": "admin",
+            "icon": "👥", "href": "/v30/users", "adminOnly": True,
+            "summary": "Gestion comptes, rôles, derniers logins.",
+            "actions": [
+                {"label": "Créer un utilisateur", "href": "/v30/users"},
+                {"label": "Éditer rôle (éditeur/admin)", "href": "/v30/users"},
+                {"label": "Réinitialiser mot de passe", "href": "/v30/users"},
+                {"label": "Supprimer utilisateur", "href": "/v30/users"},
+                {"label": "Historique des logins", "href": "/v30/users"},
+            ],
+        },
+        {
+            "id": "snapshots", "label": "Snapshots", "cat": "admin",
+            "icon": "💾", "href": "/v30/snapshots",
+            "summary": "Sauvegardes de la base SQLite (auto 3h00 + manuels).",
+            "actions": [
+                {"label": "Créer un snapshot", "href": "/v30/snapshots"},
+                {"label": "Lister les snapshots", "href": "/v30/snapshots"},
+                {"label": "Restaurer une sauvegarde", "href": "/v30/snapshots"},
+            ],
+        },
+        {
+            "id": "activity", "label": "Journal", "cat": "admin",
+            "icon": "📜", "href": "/v30/activity", "adminOnly": True,
+            "summary": "Audit — login, modifications, push, suppressions.",
+            "actions": [
+                {"label": "Filtrer par utilisateur", "href": "/v30/activity"},
+                {"label": "Filtrer par action", "href": "/v30/activity"},
+                {"label": "Pagination", "href": "/v30/activity"},
+            ],
+        },
+        {
+            "id": "metiers", "label": "Métiers IA", "cat": "admin",
+            "icon": "🧠", "href": "/v30/metiers",
+            "summary": "Référentiel métiers — spécialités, certifs, salaires.",
+            "actions": [
+                {"label": "Rechercher un métier", "href": "/v30/metiers"},
+                {"label": "Filtrer par domaine", "href": "/v30/metiers"},
+                {"label": "Voir le détail (skills, salaire)", "href": "/v30/metiers"},
+                {"label": "Ajouter un métier (admin)", "href": "/v30/metiers"},
+                {"label": "Exporter JSON", "href": "/v30/metiers"},
+            ],
+        },
+
+        # ─── AUTRES ────────────────────────────────────────────
+        {
+            "id": "help", "label": "Aide", "cat": "autres",
+            "icon": "💡", "href": "/v30/help",
+            "summary": "Centre d'aide — démarrage, workflows, raccourcis clavier.",
+            "actions": [
+                {"label": "Raccourcis clavier", "href": "/v30/help#shortcuts"},
+                {"label": "Démarrage rapide", "href": "/v30/help#start"},
+                {"label": "Workflows métier", "href": "/v30/help"},
+            ],
+        },
+        {
+            "id": "mode-prosp", "label": "Mode Prosp", "cat": "autres",
+            "icon": "⚡", "href": "/v30/mode-prosp",
+            "summary": "Deck plein écran — navigation rapide entre prospects.",
+            "actions": [
+                {"label": "Précédent / Suivant (← →)", "href": "/v30/mode-prosp"},
+                {"label": "Appeler (C)", "href": "/v30/mode-prosp"},
+                {"label": "Email (M)", "href": "/v30/mode-prosp"},
+                {"label": "LinkedIn (L)", "href": "/v30/mode-prosp"},
+                {"label": "Demander à l'IA (I)", "href": "/v30/mode-prosp"},
+                {"label": "Note (N)", "href": "/v30/mode-prosp"},
+                {"label": "Changer statut (S)", "href": "/v30/mode-prosp"},
+            ],
+        },
+        {
+            "id": "parametres", "label": "Paramètres", "cat": "autres",
+            "icon": "⚙️", "href": "/v30/parametres",
+            "summary": "IA, objectifs, KPI, notifs, sauvegardes, déploiement.",
+            "actions": [
+                {"label": "Configuration IA (admin)", "href": "/v30/parametres#ia"},
+                {"label": "Objectifs & gamification", "href": "/v30/parametres#goals"},
+                {"label": "KPI manuels", "href": "/v30/parametres#kpi"},
+                {"label": "Calendrier externe (ICS)", "href": "/v30/parametres#calsync"},
+                {"label": "Notifications", "href": "/v30/parametres#notif"},
+                {"label": "Snapshots auto", "href": "/v30/parametres#snapshots"},
+                {"label": "Mot de passe", "href": "/v30/parametres#account"},
+                {"label": "Mise à jour serveur (admin)", "href": "/v30/parametres#deploy"},
+                {"label": "Toile d'araignée", "href": "/v30/sitemap"},
+            ],
+        },
+    ]
+
+    # Filtre admin-only si l'utilisateur n'est pas admin
+    if not is_admin:
+        pages = [p for p in pages if not p.get("adminOnly")]
+
+    return {
+        "root": {
+            "id": "login",
+            "label": "Connexion",
+            "icon": "🔐",
+            "sub": "Point d'entrée — login@prospup.work",
+            "href": "/login",
+        },
+        "hub": "dashboard",
+        "categories": {
+            "navigate": {"label": "Navigate", "color": "#2563eb"},
+            "records":  {"label": "Records",  "color": "#7c3aed"},
+            "outils":   {"label": "Outils",   "color": "#ea580c"},
+            "admin":    {"label": "Admin",    "color": "#0891b2"},
+            "autres":   {"label": "Autres",   "color": "#475569"},
+        },
+        "pages": pages,
+    }
+
+
+@pages_bp.get("/v30/sitemap")
+@login_required
+def page_v30_sitemap():
+    """Toile d'araignée des fonctionnalités — page autonome plein écran.
+
+    Vue radiale interactive : Connexion → Dashboard (hub) → 21 pages → ~100
+    actions. Ouverte dans un nouvel onglet depuis la card « Toile d'araignée »
+    de Paramètres. SVG vectoriel + pan/zoom + tooltip + recherche.
+    """
+    current_user = _get_current_user() or {}
+    is_admin = current_user.get("role") == "admin"
+    data = _build_sitemap_data(is_admin=is_admin)
+    return render_template(
+        "v30/sitemap.html",
+        app_version=APP_VERSION,
+        sitemap_json=json.dumps(data, ensure_ascii=False),
+        is_admin=is_admin,
+    )
