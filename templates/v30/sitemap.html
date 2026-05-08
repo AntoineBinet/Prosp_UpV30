@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>Toile d'araignée — ProspUp v{{ app_version }}</title>
+
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="icon" href="/static/favicon.ico">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/css/v30/tokens.css?v={{ static_hash('css/v30/tokens.css') }}">
+  <link rel="stylesheet" href="/static/css/v30/components.css?v={{ static_hash('css/v30/components.css') }}">
+  <link rel="stylesheet" href="/static/css/v30/sitemap.css?v={{ static_hash('css/v30/sitemap.css') }}">
+</head>
+<body class="v30-sitemap-body">
+
+  <header class="v30-sitemap-topbar">
+    <div class="v30-sitemap-topbar__left">
+      <span class="v30-sitemap-logo">ProspUp</span>
+      <span class="v30-sitemap-sep">·</span>
+      <span class="v30-sitemap-title">Toile d'araignée</span>
+      <span class="v30-sitemap-version mono">v{{ app_version }}</span>
+    </div>
+    <div class="v30-sitemap-topbar__right">
+      <div class="v30-sitemap-legend" aria-label="Légende des catégories">
+        <span class="v30-sitemap-legend__item" data-cat="navigate"><span class="dot"></span>Navigate</span>
+        <span class="v30-sitemap-legend__item" data-cat="records"><span class="dot"></span>Records</span>
+        <span class="v30-sitemap-legend__item" data-cat="outils"><span class="dot"></span>Outils</span>
+        <span class="v30-sitemap-legend__item" data-cat="admin"><span class="dot"></span>Admin</span>
+        <span class="v30-sitemap-legend__item" data-cat="autres"><span class="dot"></span>Autres</span>
+      </div>
+      <div class="v30-sitemap-legend v30-sitemap-legend--status" aria-label="Légende des statuts">
+        <span class="v30-sitemap-legend__item" data-status="ok" title="Fonctionne"><span class="dot dot--ok"></span>OK</span>
+        <span class="v30-sitemap-legend__item" data-status="warn" title="Améliorable"><span class="dot dot--warn"></span>Améliorable</span>
+        <span class="v30-sitemap-legend__item" data-status="ko" title="En erreur"><span class="dot dot--ko"></span>KO</span>
+        <span class="v30-sitemap-legend__item" data-status="unknown" title="Non testé automatiquement"><span class="dot dot--unknown"></span>?</span>
+      </div>
+      <div class="v30-sitemap-controls">
+        <button type="button" class="v30-sitemap-btn" data-zoom-in title="Zoomer (+)" aria-label="Zoomer">+</button>
+        <button type="button" class="v30-sitemap-btn" data-zoom-out title="Dézoomer (-)" aria-label="Dézoomer">−</button>
+        <button type="button" class="v30-sitemap-btn" data-zoom-reset title="Recentrer (R)" aria-label="Recentrer">⌂</button>
+        <button type="button" class="v30-sitemap-btn v30-sitemap-btn--primary" data-toggle-help title="Aide (H)" aria-label="Aide">?</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="v30-sitemap-stage" id="v30-sitemap-stage">
+    <svg id="v30-sitemap-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-label="Toile d'araignée des fonctionnalités ProspUp">
+      <defs>
+        <radialGradient id="v30-sitemap-bg-grad" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stop-color="var(--v30-sitemap-bg-inner)" stop-opacity="1"/>
+          <stop offset="100%" stop-color="var(--v30-sitemap-bg-outer)" stop-opacity="1"/>
+        </radialGradient>
+        <filter id="v30-sitemap-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="v30-sitemap-soft" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+          </feMerge>
+        </filter>
+      </defs>
+
+      <g id="v30-sitemap-canvas">
+        <g id="v30-sitemap-edges"></g>
+        <g id="v30-sitemap-nodes"></g>
+      </g>
+    </svg>
+
+    <div class="v30-sitemap-tooltip" id="v30-sitemap-tooltip" hidden>
+      <div class="v30-sitemap-tooltip__head">
+        <span class="v30-sitemap-tooltip__status" data-tooltip-status hidden></span>
+        <div class="v30-sitemap-tooltip__title" data-tooltip-title></div>
+      </div>
+      <div class="v30-sitemap-tooltip__sub" data-tooltip-sub></div>
+      <div class="v30-sitemap-tooltip__note" data-tooltip-note hidden></div>
+      <div class="v30-sitemap-tooltip__tools" data-tooltip-tools hidden></div>
+      <div class="v30-sitemap-tooltip__hint">Clic = ouvrir · Survol = détail · F = recherche</div>
+    </div>
+
+    <div class="v30-sitemap-help" id="v30-sitemap-help" hidden>
+      <div class="v30-sitemap-help__inner">
+        <div class="v30-sitemap-help__head">
+          <h2>Comment lire la toile</h2>
+          <button type="button" class="v30-sitemap-btn" data-toggle-help aria-label="Fermer">✕</button>
+        </div>
+        <ul>
+          <li><strong>🔐 Connexion</strong> — point d'entrée de l'app. Une fois connecté, on tombe sur le Dashboard.</li>
+          <li><strong>🏠 Dashboard</strong> — hub central, relié à toutes les pages.</li>
+          <li><strong>Pages</strong> — bulles colorées par catégorie (Navigate, Records, Outils, Admin, Autres).</li>
+          <li><strong>Actions</strong> — petites bulles autour de chaque page (boutons, modales, fonctions clés).</li>
+        </ul>
+        <h3>Interactions</h3>
+        <ul>
+          <li><kbd>Clic</kbd> sur une page ou une action → ouvre la page correspondante.</li>
+          <li><kbd>Survol</kbd> d'un nœud → met en avant la branche reliée.</li>
+          <li><kbd>Glisser</kbd> le fond → déplacer la vue.</li>
+          <li><kbd>Molette</kbd> ou <kbd>+</kbd> / <kbd>−</kbd> → zoomer/dézoomer.</li>
+          <li><kbd>R</kbd> ou bouton <kbd>⌂</kbd> → recentrer la vue.</li>
+          <li><kbd>F</kbd> → recherche rapide d'un nœud.</li>
+          <li><kbd>Échap</kbd> → fermer cette aide.</li>
+        </ul>
+        <p class="muted">Astuce : sur mobile, pince pour zoomer, deux doigts pour faire glisser.</p>
+      </div>
+    </div>
+
+    <div class="v30-sitemap-search" id="v30-sitemap-search" hidden>
+      <input type="text" id="v30-sitemap-search-input" placeholder="Rechercher (page, action…)" autocomplete="off" spellcheck="false">
+      <ul id="v30-sitemap-search-results"></ul>
+    </div>
+
+    <div class="v30-sitemap-stats" id="v30-sitemap-stats" aria-hidden="true">
+      <span data-stats-pages>0</span> pages · <span data-stats-actions>0</span> actions
+    </div>
+  </main>
+
+  <script>
+    window.SITEMAP_DATA = {{ sitemap_json | safe }};
+    window.IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+  </script>
+  <script defer src="/static/js/v30/sitemap.js?v={{ static_hash('js/v30/sitemap.js') }}"></script>
+</body>
+</html>

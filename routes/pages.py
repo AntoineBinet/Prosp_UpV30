@@ -8,6 +8,8 @@ Phase B — extraction du gros bloc lignes 4273-5068 d'app.py.
 """
 from __future__ import annotations
 
+import json
+
 from flask import Blueprint, redirect, render_template, request, session
 
 from app import _audit_log, _static_hashes, log_activity
@@ -666,3 +668,692 @@ def page_v30_validation_checklist():
     Claude pour corriger les échecs.
     """
     return render_template("v30/validation_checklist.html", app_version=APP_VERSION)
+
+
+_STATUS_FILE = APP_DIR / "data" / "sitemap_status.json"
+
+
+def _load_status_data() -> dict:
+    """Lit data/sitemap_status.json (résultat de scripts/test_sitemap_status.py).
+
+    Format attendu :
+        {
+          "ts": "2026-05-09T01:15:00",
+          "pages": {"<id>": {"status": int, "label": "ok|warn|ko", ...}},
+          "endpoints": {"/api/foo": {"status": int, "label": "ok|warn|ko", ...}}
+        }
+
+    Retourne un dict vide si le fichier n'existe pas (statuts inconnus).
+    """
+    try:
+        if _STATUS_FILE.exists():
+            return json.loads(_STATUS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def _normalize_endpoint(ep: str) -> str:
+    """Normalise un endpoint type 'GET /api/foo?bar=1' → '/api/foo'.
+
+    Permet de matcher les endpoints du JSON de tests (qui ne contiennent
+    pas la méthode HTTP) avec ceux déclarés dans la toile."""
+    s = ep.strip()
+    if " " in s:
+        s = s.split(" ", 1)[1]  # enlève "GET ", "POST ", etc.
+    if "?" in s:
+        s = s.split("?", 1)[0]
+    if "<" in s:
+        s = s.split("<", 1)[0].rstrip("/")
+    return s
+
+
+def _compute_action_status(endpoints: list[str], status_data: dict) -> tuple[str, str]:
+    """Calcule un statut (ok/warn/ko/unknown) + une note d'explication
+    pour une action, à partir des endpoints qu'elle appelle.
+
+    Règle d'agrégation :
+      - aucun endpoint testable → unknown (gris)
+      - tous les endpoints OK → ok (vert)
+      - au moins un endpoint KO → ko (rouge)
+      - sinon (au moins un warn) → warn (orange)
+    """
+    ep_map = (status_data or {}).get("endpoints", {}) or {}
+    if not endpoints:
+        return ("unknown", "Aucun endpoint testable (action UI/frontend uniquement).")
+
+    matched = []
+    for ep in endpoints:
+        norm = _normalize_endpoint(ep)
+        # Cherche par préfixe car la table peut contenir l'URL avec query string
+        for key, val in ep_map.items():
+            if _normalize_endpoint(key) == norm:
+                matched.append((ep, val))
+                break
+
+    if not matched:
+        return ("unknown", "Endpoints non couverts par le test automatique.")
+
+    has_ko = any(v.get("label") == "ko" for _, v in matched)
+    has_warn = any(v.get("label") == "warn" for _, v in matched)
+    if has_ko:
+        bad = [ep for ep, v in matched if v.get("label") == "ko"]
+        return ("ko", f"Endpoint(s) en erreur : {', '.join(bad)}")
+    if has_warn:
+        warns = [f"{ep} ({v.get('status')})" for ep, v in matched if v.get("label") == "warn"]
+        return ("warn", f"Réponse partielle ou paramètres requis : {', '.join(warns)}")
+    return ("ok", f"{len(matched)} endpoint(s) testé(s), tous OK.")
+
+
+def _compute_page_status(page_id: str, actions: list[dict], status_data: dict) -> tuple[str, str]:
+    """Statut au niveau page : combine la route HTML + l'agrégat des actions."""
+    page_info = (status_data or {}).get("pages", {}).get(page_id)
+    page_label = (page_info or {}).get("label")
+
+    # Agrège les statuts des actions
+    labels = [a.get("status", "unknown") for a in actions]
+    has_ko = "ko" in labels or page_label == "ko"
+    has_warn = "warn" in labels or page_label == "warn"
+
+    if page_label == "ko":
+        return ("ko", f"Route page indisponible (HTTP {(page_info or {}).get('status')}).")
+    if has_ko:
+        return ("ko", "Au moins une action de la page est en erreur.")
+    if has_warn:
+        return ("warn", "Page OK mais certaines actions nécessitent une vérification.")
+    if page_label == "ok":
+        return ("ok", "Page et actions principales fonctionnelles.")
+    return ("unknown", "Statut indéterminé (test non exécuté).")
+
+
+def _build_sitemap_data(is_admin: bool) -> dict:
+    """Construit la structure de données pour la toile d'araignée.
+
+    Renvoie un dict avec :
+      - root : nœud Connexion (point d'entrée)
+      - categories : 5 catégories (navigate, records, outils, admin, autres)
+      - pages : 21 pages avec leurs actions (filtré selon le rôle)
+      - chaque action porte `tools` (handlers JS, endpoints API, backend Python)
+        et un `status` ∈ {ok, warn, ko, unknown} calculé depuis
+        data/sitemap_status.json (généré par scripts/test_sitemap_status.py).
+
+    Garder synchro avec templates/_partials/v30/sidebar.html et la cartographie
+    des features (voir /docs/AUDIT_UI_NAVIGATION.md).
+
+    REGLE D'AUTO-MAJ — voir CLAUDE.md : à chaque modif d'un bouton/route, mettre
+    à jour la liste `pages` ci-dessous (handlers/endpoints/backend) puis relancer
+    `python scripts/test_sitemap_status.py` pour rafraîchir les statuts.
+    """
+    status_data = _load_status_data()
+
+    pages: list[dict] = [
+        # ─── NAVIGATE ──────────────────────────────────────────
+        {
+            "id": "dashboard", "label": "Dashboard", "cat": "navigate",
+            "icon": "🏠", "href": "/v30/dashboard", "isHub": True,
+            "summary": "KPI du jour, pipeline, priorités IA, action center.",
+            "actions": [
+                {"label": "Ajouter un KPI manuel", "href": "/v30/parametres#kpi",
+                 "tools": {"handlers": ["saveKpi"], "endpoints": ["POST /api/manual-kpi"], "backend": ["app.py:api_manual_kpi"]}},
+                {"label": "Action center", "href": "/v30/dashboard#actions",
+                 "tools": {"handlers": ["hydrateActionCenter", "hydrate"], "endpoints": ["GET /api/dashboard"], "backend": ["app.py:api_dashboard"]}},
+                {"label": "Priorités IA", "href": "/v30/dashboard#priorities",
+                 "tools": {"handlers": ["hydratePriorities", "bindObjItemClicks"], "endpoints": ["GET /api/dashboard", "GET /api/dashboard/adaptive"], "backend": ["app.py:api_dashboard", "routes/collab.py:api_dashboard_adaptive"]}},
+                {"label": "Pipeline visuel", "href": "/v30/dashboard#pipeline",
+                 "tools": {"handlers": ["hydratePipeline"], "endpoints": ["GET /api/dashboard/pipeline-stages"], "backend": ["app.py:api_dashboard_pipeline_stages"]}},
+                {"label": "Tâches du jour", "href": "/v30/focus",
+                 "tools": {"handlers": ["hydrateTasks"], "endpoints": ["GET /api/tasks"], "backend": ["routes/admin.py:api_tasks_list"]}},
+                {"label": "Performance hebdo", "href": "/v30/stats",
+                 "tools": {"handlers": ["bindPerfNav"], "endpoints": ["GET /api/dashboard/stats"], "backend": ["app.py:api_dashboard_stats"]}},
+                {"label": "Exporter la journée", "href": "/v30/dashboard",
+                 "tools": {"handlers": ["exportDay"], "endpoints": ["GET /api/export/day"], "backend": ["routes/misc.py:api_export_day"]}},
+                {"label": "Assistant IA (chat)", "href": "/v30/dashboard#assistant",
+                 "tools": {"handlers": ["openAssistantPanel"], "endpoints": ["GET /api/dashboard/assistant/history", "POST /api/dashboard/assistant", "POST /api/dashboard/assistant-stream"], "backend": ["routes/collab.py:api_dashboard_assistant"]}},
+            ],
+        },
+        {
+            "id": "focus", "label": "Focus", "cat": "navigate",
+            "icon": "🎯", "href": "/v30/focus",
+            "summary": "Tâches prioritaires et relances classées par urgence.",
+            "actions": [
+                {"label": "Ajouter une tâche", "href": "/v30/focus",
+                 "tools": {"handlers": ["_openTaskModal", "_saveTask"], "endpoints": ["POST /api/tasks/save"], "backend": ["routes/admin.py:api_tasks_save"]}},
+                {"label": "Relances en retard", "href": "/v30/focus#late",
+                 "tools": {"handlers": ["bindRelancesFilter", "loadFocusQueue"], "endpoints": ["GET /api/focus_queue"], "backend": ["routes/admin.py:api_focus_queue"]}},
+                {"label": "Marquer fait (tâche)", "href": "/v30/focus",
+                 "tools": {"handlers": ["onTaskCheckbox"], "endpoints": ["POST /api/tasks/done"], "backend": ["routes/admin.py:api_tasks_done"]}},
+                {"label": "Marquer fait (relance)", "href": "/v30/focus",
+                 "tools": {"handlers": ["bindFocusRowActions"], "endpoints": ["POST /api/prospect/mark_done"], "backend": ["routes/bulk.py:api_prospect_mark_done"]}},
+                {"label": "Reporter +1j / +7j", "href": "/v30/focus",
+                 "tools": {"handlers": ["bindFocusRowActions"], "endpoints": ["POST /api/prospects/bulk-update"], "backend": ["routes/bulk.py:api_prospects_bulk_update"]}},
+                {"label": "Filtrer période", "href": "/v30/focus",
+                 "tools": {"handlers": ["bindRelancesFilter"], "endpoints": ["GET /api/focus_queue"], "backend": ["routes/admin.py:api_focus_queue"]}},
+                {"label": "Rappel relance push (J+7→J+30)", "href": "/v30/focus",
+                 "tools": {"handlers": ["bindPushRelances"], "endpoints": ["GET /api/push-logs/relance-reminders"], "backend": ["routes/push.py:api_push_logs_relance_reminders"]}},
+                {"label": "Supprimer tâche", "href": "/v30/focus",
+                 "tools": {"handlers": ["onTaskDelete"], "endpoints": ["POST /api/tasks/delete"], "backend": ["routes/admin.py:api_tasks_delete"]}},
+            ],
+        },
+        {
+            "id": "calendar", "label": "Calendrier", "cat": "navigate",
+            "icon": "📅", "href": "/v30/calendrier",
+            "summary": "RDV, événements et agenda externe (Outlook/Google).",
+            "actions": [
+                {"label": "Créer un RDV", "href": "/v30/calendrier",
+                 "tools": {"handlers": ["openEventModal", "saveEventModal"], "endpoints": ["POST /api/calendar_events"], "backend": ["routes/calendar.py:api_calendar_events_create"]}},
+                {"label": "Vue mois / semaine / jour", "href": "/v30/calendrier",
+                 "tools": {"handlers": ["render", "navPrev", "navNext", "navToday"], "endpoints": ["GET /api/calendar_events"], "backend": ["routes/calendar.py:api_calendar_events_list"]}},
+                {"label": "Modifier un RDV", "href": "/v30/calendrier",
+                 "tools": {"handlers": ["saveEventModal", "openEventPopup"], "endpoints": ["PUT /api/calendar_events/<id>"], "backend": ["routes/calendar.py:api_calendar_events_update"]}},
+                {"label": "Supprimer un RDV", "href": "/v30/calendrier",
+                 "tools": {"handlers": ["deleteEventModal"], "endpoints": ["DELETE /api/calendar_events/<id>"], "backend": ["routes/calendar.py:api_calendar_events_delete"]}},
+                {"label": "Sync ICS externe", "href": "/v30/parametres#calsync",
+                 "tools": {"handlers": ["loadAll"], "endpoints": ["GET /api/calendar_events_external", "GET /api/settings"], "backend": ["routes/calendar.py:api_calendar_events_external", "routes/settings.py:api_settings_get"]}},
+                {"label": "Rechercher un prospect (RDV)", "href": "/v30/calendrier",
+                 "tools": {"handlers": ["bindProspectSearch"], "endpoints": ["GET /api/search"], "backend": ["app.py:api_search"]}},
+            ],
+        },
+        {
+            "id": "stats", "label": "Stats", "cat": "navigate",
+            "icon": "📈", "href": "/v30/stats",
+            "summary": "Performance, conversion pipeline, rapports.",
+            "actions": [
+                {"label": "Plage de dates / période", "href": "/v30/stats",
+                 "tools": {"handlers": ["bindPeriod", "bindMonthNav", "bindRangeModal"], "endpoints": ["GET /api/stats", "GET /api/stats/charts", "GET /api/stats/data"], "backend": ["routes/dashboard.py:api_stats", "routes/dashboard.py:api_stats_charts", "routes/dashboard.py:api_stats_data"]}},
+                {"label": "Filtrer statuts/tags", "href": "/v30/stats",
+                 "tools": {"handlers": ["bindFilters"], "endpoints": ["GET /api/stats", "GET /api/stats/charts"], "backend": ["routes/dashboard.py:api_stats"]}},
+                {"label": "Export JSON / CSV / XLSX", "href": "/v30/stats",
+                 "tools": {"handlers": ["bindExport"], "endpoints": ["GET /api/stats/export", "GET /api/stats/export_weekly_xlsx"], "backend": ["routes/dashboard.py:api_stats_export", "routes/dashboard.py:api_stats_export_weekly_xlsx"]}},
+                {"label": "Rapport hebdo / mensuel", "href": "/v30/stats",
+                 "tools": {"handlers": ["loadRapportHebdo"], "endpoints": ["GET /api/rapport-hebdo"], "backend": ["routes/misc.py:api_rapport_hebdo"]}},
+                {"label": "Conversion pipeline", "href": "/v30/stats",
+                 "tools": {"handlers": ["renderPipelineChart"], "endpoints": ["GET /api/dashboard/pipeline-stages", "GET /api/stats/charts"], "backend": ["app.py:api_dashboard_pipeline_stages"]}},
+                {"label": "Prédictions IA", "href": "/v30/stats#predictions",
+                 "tools": {"handlers": ["loadPredictions"], "endpoints": ["GET /api/stats/predictions"], "backend": ["routes/dashboard.py:api_stats_predictions"]}},
+                {"label": "Insights IA", "href": "/v30/stats#insights",
+                 "tools": {"handlers": ["loadInsights"], "endpoints": ["POST /api/stats/insights"], "backend": ["routes/dashboard.py:api_stats_insights"]}},
+            ],
+        },
+
+        # ─── RECORDS ───────────────────────────────────────────
+        {
+            "id": "prospects", "label": "Prospects", "cat": "records",
+            "icon": "👥", "href": "/v30/prospects",
+            "summary": "Base de prospects — 3 vues, filtres, bulk actions.",
+            "actions": [
+                {"label": "Importer Excel", "href": "/v30/prospects#import",
+                 "tools": {"handlers": ["openImportModal", "importXlsx"], "endpoints": ["POST /api/prospects/create", "POST /api/prospects/check-duplicates"], "backend": ["routes/duplicates.py:api_prospects_create"]}},
+                {"label": "Ajouter (manuel)", "href": "/v30/prospects#add",
+                 "tools": {"handlers": ["openAddModal", "submitAdd"], "endpoints": ["POST /api/prospects/create"], "backend": ["routes/duplicates.py:api_prospects_create"]}},
+                {"label": "Ajouter (IA, doc)", "href": "/v30/prospects#add-ai",
+                 "tools": {"handlers": ["openQuickAddAi", "parseDocStream"], "endpoints": ["POST /api/quickadd/parse-document", "POST /api/quickadd/parse-document-stream"], "backend": ["routes/misc.py:api_quickadd_parse_document"]}},
+                {"label": "Scrapping IA (fiche)", "href": "/v30/prospects#ia",
+                 "tools": {"handlers": ["openScrappingIA"], "endpoints": ["POST /api/ollama/generate", "POST /api/ia-enrichment-log"], "backend": ["routes/ai.py:api_ollama_generate"]}},
+                {"label": "Email IA / Tel IA (bulk)", "href": "/v30/prospects#bulk-ia",
+                 "tools": {"handlers": ["bulkEmailAI", "bulkPhoneAI"], "endpoints": ["POST /api/ollama/generate", "POST /api/prospects/update-contacts"], "backend": ["routes/bulk.py:api_prospects_update_contacts"]}},
+                {"label": "Avant réunion IA", "href": "/v30/prospects#meeting",
+                 "tools": {"handlers": ["openBeforeMeeting"], "endpoints": ["GET /api/prospect/<id>/infos-rdv-stream", "GET /api/prospect/<id>/download-rdv-pdf"], "backend": ["app.py:api_infos_rdv_stream"]}},
+                {"label": "Après réunion IA (CR)", "href": "/v30/prospects#meeting",
+                 "tools": {"handlers": ["openAfterMeeting"], "endpoints": ["POST /api/prospect/<id>/summarize", "POST /api/prospect/<id>/ia-log"], "backend": ["app.py:api_prospect_summarize"]}},
+                {"label": "Modifier en masse", "href": "/v30/prospects#bulk",
+                 "tools": {"handlers": ["openBulkEdit"], "endpoints": ["POST /api/prospects/bulk-edit", "POST /api/prospects/bulk-status-tags", "POST /api/prospects/bulk-field-update"], "backend": ["routes/bulk.py:api_prospects_bulk_edit"]}},
+                {"label": "Géocoder en masse", "href": "/v30/carte",
+                 "tools": {"handlers": ["openGeocodeBulk"], "endpoints": ["POST /api/map/geocode", "GET /api/map/geocode/bulk"], "backend": ["routes/map.py:api_map_geocode_bulk"]}},
+                {"label": "Archiver", "href": "/v30/prospects/archives",
+                 "tools": {"handlers": ["bulkArchive"], "endpoints": ["POST /api/prospects/bulk-archive"], "backend": ["routes/bulk.py:api_prospects_bulk_archive"]}},
+                {"label": "Supprimer (soft)", "href": "/v30/prospects",
+                 "tools": {"handlers": ["bulkDelete"], "endpoints": ["POST /api/prospects/delete"], "backend": ["app.py:api_prospects_delete"]}},
+                {"label": "Désarchiver / restaurer", "href": "/v30/prospects/archives",
+                 "tools": {"handlers": ["unarchive"], "endpoints": ["POST /api/soft-deleted/restore"], "backend": ["routes/misc.py:api_soft_deleted_restore"]}},
+                {"label": "Exporter VCF / XLSX", "href": "/v30/prospects",
+                 "tools": {"handlers": ["exportSelection"], "endpoints": ["GET /api/export/xlsx"], "backend": ["routes/misc.py:api_export_xlsx"]}},
+                {"label": "Mode Prosp (deck)", "href": "/v30/mode-prosp",
+                 "tools": {"handlers": ["startModeProsp"], "endpoints": ["POST /api/mode-prosp/start", "GET /api/mode-prosp/data"], "backend": ["app.py:api_mode_prosp_start"]}},
+                {"label": "Voir fiche / timeline", "href": "/v30/prospect/<id>",
+                 "tools": {"handlers": ["openProspectDetail"], "endpoints": ["GET /api/prospect/timeline", "POST /api/prospect/log-call", "POST /api/prospect/log-stage"], "backend": ["routes/prospects.py:api_prospect_timeline"]}},
+                {"label": "Pièces jointes (upload)", "href": "/v30/prospect/<id>",
+                 "tools": {"handlers": ["uploadAttachment"], "endpoints": ["POST /api/prospect/attachments", "GET /api/prospect/attachments"], "backend": ["routes/attachments.py:api_attachment_upload"]}},
+                {"label": "Photo prospect", "href": "/v30/prospect/<id>",
+                 "tools": {"handlers": ["uploadPhoto"], "endpoints": ["POST /api/prospect/photo", "GET /api/photos/prospect/<id>"], "backend": ["routes/dashboard.py:api_prospect_photo"]}},
+            ],
+        },
+        {
+            "id": "entreprises", "label": "Entreprises", "cat": "records",
+            "icon": "🏢", "href": "/v30/entreprises",
+            "summary": "Portefeuille client, fiches détaillées, fusion, opportunités.",
+            "actions": [
+                {"label": "Charger la liste", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["loadEntreprises"], "endpoints": ["GET /api/data", "GET /api/companies/list"], "backend": ["routes/misc.py:api_data", "routes/companies.py:api_companies_list"]}},
+                {"label": "Ajouter une entreprise", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["openCreateCompany"], "endpoints": ["POST /api/companies/create"], "backend": ["routes/companies.py:api_companies_create"]}},
+                {"label": "Éditer fiche entreprise", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["openCompanyDetail", "saveCompany"], "endpoints": ["GET /api/company/full", "POST /api/company/update"], "backend": ["routes/misc.py:api_company_full", "routes/misc.py:api_company_update"]}},
+                {"label": "Fusionner deux entreprises", "href": "/v30/duplicates",
+                 "tools": {"handlers": ["mergeCompanies"], "endpoints": ["POST /api/companies/merge"], "backend": ["app.py:api_companies_merge"]}},
+                {"label": "Supprimer une entreprise", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["deleteCompany"], "endpoints": ["POST /api/companies/delete"], "backend": ["routes/companies.py:api_companies_delete"]}},
+                {"label": "Filtrer / rechercher", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["filterEntreprises"], "endpoints": ["GET /api/search"], "backend": ["app.py:api_search"]}},
+                {"label": "Exporter la liste", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["exportXlsx"], "endpoints": ["GET /api/export/xlsx"], "backend": ["routes/misc.py:api_export_xlsx"]}},
+                {"label": "Vue liste / cartes / carte géo", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["switchView"], "endpoints": ["GET /api/map/markers"], "backend": ["routes/map.py:api_map_markers"]}},
+                {"label": "Opportunités (créer/éditer)", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["saveOpportunity"], "endpoints": ["POST /api/opportunities/save", "POST /api/opportunities/delete"], "backend": ["routes/misc.py:api_opportunities_save"]}},
+                {"label": "Événements entreprise", "href": "/v30/entreprises",
+                 "tools": {"handlers": ["addCompanyEvent"], "endpoints": ["POST /api/company/events/add"], "backend": ["routes/misc.py:api_company_events_add"]}},
+            ],
+        },
+        {
+            "id": "candidats", "label": "Candidats", "cat": "records",
+            "icon": "👤", "href": "/v30/sourcing",
+            "summary": "Sourcing — pipeline 5 colonnes, statuts, skills, DC.",
+            "actions": [
+                {"label": "Charger pipeline", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["loadCandidates"], "endpoints": ["GET /api/candidates"], "backend": ["routes/candidates.py:api_candidates_list"]}},
+                {"label": "Ajouter un candidat", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["openCandidateModal", "saveCandidate"], "endpoints": ["POST /api/candidates/save"], "backend": ["routes/candidates.py:api_candidates_save"]}},
+                {"label": "Importer CV (PDF/DOCX)", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["uploadCV"], "endpoints": ["POST /api/candidates/extract-dc", "POST /api/candidates/upload-dc"], "backend": ["routes/candidates.py:api_candidates_extract_dc"]}},
+                {"label": "Importer JSON IA (fiche)", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["importJsonIA"], "endpoints": ["POST /api/candidates/parse-fiche-entretien"], "backend": ["routes/candidates.py:api_candidates_parse_fiche"]}},
+                {"label": "Filtrer (statut/skills)", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["filterCandidates"], "endpoints": ["GET /api/candidates"], "backend": ["routes/candidates.py:api_candidates_list"]}},
+                {"label": "Enregistrer un InMail LinkedIn", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["saveInMail"], "endpoints": ["GET /api/linkedin-inmails", "POST /api/linkedin-inmails", "PATCH /api/linkedin-inmails/<id>"], "backend": ["app.py:api_linkedin_inmails"]}},
+                {"label": "Vue Pipeline / Liste / Grille", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["switchCandidateView"], "endpoints": [], "backend": []}},
+                {"label": "Changer statut (kanban)", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["onCandidateDrop"], "endpoints": ["POST /api/candidates/status", "POST /api/candidates/bulk-update"], "backend": ["app.py:api_candidates_status"]}},
+                {"label": "Archiver / restaurer", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["archiveCandidate"], "endpoints": ["POST /api/candidates/bulk-update"], "backend": ["app.py:api_candidates_bulk_update"]}},
+                {"label": "Supprimer un candidat", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["deleteCandidate"], "endpoints": ["POST /api/candidates/delete"], "backend": ["routes/candidates.py:api_candidates_delete"]}},
+                {"label": "Fiche candidat (timeline + EC1)", "href": "/v30/candidat/<id>",
+                 "tools": {"handlers": ["openCandidateDetail"], "endpoints": ["GET /api/candidates/<id>", "GET /api/candidate/timeline", "GET /api/ec1-checklist"], "backend": ["routes/candidates.py:api_candidates_get", "app.py:api_candidate_timeline"]}},
+                {"label": "Expériences / formations / skills", "href": "/v30/candidat/<id>",
+                 "tools": {"handlers": ["addExperience"], "endpoints": ["POST /api/candidates/<id>/experiences", "POST /api/candidates/<id>/educations", "POST /api/candidates/<id>/skills"], "backend": ["routes/candidates.py:api_candidates_experiences"]}},
+                {"label": "Disponibilité", "href": "/v30/candidat/<id>",
+                 "tools": {"handlers": ["editAvailability"], "endpoints": ["GET /api/candidates/<id>/availability", "POST /api/candidates/<id>/availability"], "backend": ["routes/candidates.py:api_candidates_availability"]}},
+                {"label": "Onglets candidat (custom)", "href": "/v30/candidat/<id>",
+                 "tools": {"handlers": ["loadCandidateTabs"], "endpoints": ["GET /api/candidate-tabs", "POST /api/candidate-tabs", "PUT /api/candidate-tabs/<id>"], "backend": ["app.py:api_candidate_tabs"]}},
+                {"label": "Push depuis candidat", "href": "/v30/candidat/<id>",
+                 "tools": {"handlers": ["sendCandidatePush"], "endpoints": ["POST /api/candidate-push", "GET /api/candidate-push"], "backend": ["app.py:api_candidate_push"]}},
+                {"label": "Meilleurs candidats par prospect", "href": "/v30/sourcing",
+                 "tools": {"handlers": ["loadBestCandidates"], "endpoints": ["GET /api/prospect/<id>/best-candidates"], "backend": ["app.py:api_best_candidates"]}},
+                {"label": "Description IA candidat", "href": "/v30/candidat/<id>",
+                 "tools": {"handlers": ["generateDescription"], "endpoints": ["POST /api/candidates/<id>/generate-description", "POST /api/candidates/<id>/save-description"], "backend": ["routes/push.py:api_candidate_description"]}},
+            ],
+        },
+
+        # ─── OUTILS ────────────────────────────────────────────
+        {
+            "id": "push", "label": "Push", "cat": "outils",
+            "icon": "📨", "href": "/v30/push",
+            "summary": "Campagnes email/LinkedIn, templates, historique, analytics.",
+            "actions": [
+                {"label": "Charger les catégories", "href": "/v30/push",
+                 "tools": {"handlers": ["loadCategories"], "endpoints": ["GET /api/push-categories"], "backend": ["routes/push.py:api_push_categories"]}},
+                {"label": "Créer / éditer une catégorie", "href": "/v30/push",
+                 "tools": {"handlers": ["saveCategory"], "endpoints": ["POST /api/push-categories/save", "POST /api/push-categories/delete", "POST /api/push-categories/scan"], "backend": ["routes/push.py:api_push_categories_save"]}},
+                {"label": "Templates email", "href": "/v30/push",
+                 "tools": {"handlers": ["loadTemplates", "saveTemplate"], "endpoints": ["GET /api/templates", "POST /api/templates/save", "POST /api/templates/delete"], "backend": ["routes/push.py:api_templates"]}},
+                {"label": "Suggestions de prospects/candidats", "href": "/v30/push",
+                 "tools": {"handlers": ["loadMatch"], "endpoints": ["GET /api/push-categories/<id>/match-prospects", "GET /api/push-categories/<id>/match-candidates"], "backend": ["routes/push.py:api_push_categories_match"]}},
+                {"label": "Historique des envois", "href": "/v30/push",
+                 "tools": {"handlers": ["loadHistory"], "endpoints": ["GET /api/push-logs"], "backend": ["routes/push_logs.py:api_push_logs_list"]}},
+                {"label": "Annuler le dernier push", "href": "/v30/push",
+                 "tools": {"handlers": ["undoLastPush"], "endpoints": ["POST /api/push-logs/undo_last"], "backend": ["routes/push_logs.py:api_push_logs_undo"]}},
+                {"label": "Export historique XLSX", "href": "/v30/push",
+                 "tools": {"handlers": ["exportPushXlsx"], "endpoints": ["GET /api/push-logs/export.xlsx"], "backend": ["routes/push_logs.py:api_push_logs_export"]}},
+                {"label": "Campagnes (créer/envoyer)", "href": "/v30/push",
+                 "tools": {"handlers": ["createCampaign", "sendCampaign"], "endpoints": ["GET /api/push-campaigns", "POST /api/push-campaigns", "POST /api/push-campaigns/<id>/send"], "backend": ["routes/push_logs.py:api_push_campaigns"]}},
+                {"label": "Analytics push (open/click)", "href": "/v30/push",
+                 "tools": {"handlers": ["loadAnalytics"], "endpoints": ["GET /api/push/analytics", "GET /api/push/optimal-time"], "backend": ["routes/push_logs.py:api_push_analytics"]}},
+                {"label": "Générer email IA", "href": "/v30/push",
+                 "tools": {"handlers": ["generatePushAI"], "endpoints": ["POST /api/push/generate"], "backend": ["routes/push.py:api_push_generate"]}},
+                {"label": "Upload template fichier", "href": "/v30/push",
+                 "tools": {"handlers": ["uploadTemplateFile"], "endpoints": ["POST /api/push-categories/<id>/upload-template", "POST /api/push/templates/upload"], "backend": ["routes/push.py:api_push_upload_template"]}},
+            ],
+        },
+        {
+            "id": "carte", "label": "Carte", "cat": "outils",
+            "icon": "🗺️", "href": "/v30/carte",
+            "summary": "Cartographie géographique (Leaflet), géocoding bulk, heatmap.",
+            "actions": [
+                {"label": "Charger les marqueurs", "href": "/v30/carte",
+                 "tools": {"handlers": ["loadMarkers"], "endpoints": ["GET /api/map/markers", "GET /api/map/stats"], "backend": ["routes/map.py:api_map_markers"]}},
+                {"label": "Géocoder en masse", "href": "/v30/carte",
+                 "tools": {"handlers": ["openGeocodeBulkModal", "runBulkGeocode"], "endpoints": ["GET /api/map/geocode/bulk", "POST /api/map/geocode"], "backend": ["routes/map.py:api_map_geocode_bulk"]}},
+                {"label": "Couches (entreprises, prospects, heatmap)", "href": "/v30/carte",
+                 "tools": {"handlers": ["toggleLayer"], "endpoints": ["GET /api/map/markers"], "backend": ["routes/map.py:api_map_markers"]}},
+                {"label": "Filtrer par statut/pertinence/tag", "href": "/v30/carte",
+                 "tools": {"handlers": ["applyFilters"], "endpoints": ["GET /api/map/markers"], "backend": []}},
+                {"label": "Localiser ma position", "href": "/v30/carte",
+                 "tools": {"handlers": ["locateMe"], "endpoints": [], "backend": []}},
+                {"label": "Recharger les marqueurs", "href": "/v30/carte",
+                 "tools": {"handlers": ["refreshMarkers"], "endpoints": ["GET /api/map/markers"], "backend": ["routes/map.py:api_map_markers"]}},
+            ],
+        },
+        {
+            "id": "transcription", "label": "Transcription", "cat": "outils",
+            "icon": "🎙️", "href": "/v30/transcription",
+            "summary": "Transcription locale (Whisper) + analyse Claude des réunions.",
+            "actions": [
+                {"label": "Vérifier l'environnement (préflight)", "href": "/v30/transcription",
+                 "tools": {"handlers": ["preflight"], "endpoints": ["GET /api/transcription/preflight"], "backend": ["routes/transcription.py:api_transcription_preflight"]}},
+                {"label": "Lister les transcriptions", "href": "/v30/transcription",
+                 "tools": {"handlers": ["loadTranscriptions"], "endpoints": ["GET /api/transcription"], "backend": ["routes/transcription.py:api_transcription_list"]}},
+                {"label": "Enregistrer en direct + upload", "href": "/v30/transcription",
+                 "tools": {"handlers": ["startRecord", "uploadAudio"], "endpoints": ["POST /api/transcription/upload"], "backend": ["routes/transcription.py:api_transcription_upload"]}},
+                {"label": "Importer audio (mp3, wav, m4a…)", "href": "/v30/transcription",
+                 "tools": {"handlers": ["uploadAudio"], "endpoints": ["POST /api/transcription/upload"], "backend": ["routes/transcription.py:api_transcription_upload"]}},
+                {"label": "Importer résumé PDF", "href": "/v30/transcription",
+                 "tools": {"handlers": ["uploadSummaryPdf"], "endpoints": ["POST /api/transcription/upload-summary-pdf"], "backend": ["routes/transcription.py:api_transcription_upload_summary"]}},
+                {"label": "Réanalyser (Claude API)", "href": "/v30/transcription",
+                 "tools": {"handlers": ["reanalyze"], "endpoints": ["POST /api/transcription/<id>/reanalyze", "POST /api/transcription/<id>/retry"], "backend": ["routes/transcription.py:api_transcription_reanalyze"]}},
+                {"label": "Identifier participants / champs", "href": "/v30/transcription",
+                 "tools": {"handlers": ["editStructured"], "endpoints": ["PUT /api/transcription/<id>/structured-fields"], "backend": ["routes/transcription.py:api_transcription_structured"]}},
+                {"label": "Extraire vers CRM", "href": "/v30/transcription",
+                 "tools": {"handlers": ["extractCrm"], "endpoints": ["POST /api/transcription/<id>/extract-crm", "POST /api/transcription/<id>/create-prospect", "POST /api/transcription/<id>/create-candidate"], "backend": ["routes/transcription.py:api_transcription_extract_crm"]}},
+                {"label": "Analyse externe (prompt à coller)", "href": "/v30/transcription",
+                 "tools": {"handlers": ["copyExternalPrompt"], "endpoints": ["GET /api/transcription/<id>/external-prompt", "POST /api/transcription/<id>/external-analysis"], "backend": ["routes/transcription.py:api_transcription_external_prompt"]}},
+                {"label": "Supprimer une transcription", "href": "/v30/transcription",
+                 "tools": {"handlers": ["deleteTranscription"], "endpoints": ["DELETE /api/transcription/<id>"], "backend": ["routes/transcription.py:api_transcription_delete"]}},
+            ],
+        },
+        {
+            "id": "besoins", "label": "Besoins", "cat": "outils",
+            "icon": "📋", "href": "/v30/besoins",
+            "summary": "Fiches de besoin client, suivi des candidats matchés.",
+            "actions": [
+                {"label": "Lister les besoins", "href": "/v30/besoins",
+                 "tools": {"handlers": ["loadBesoins"], "endpoints": ["GET /api/besoins"], "backend": ["routes/besoins.py:api_besoins_list"]}},
+                {"label": "Créer un besoin", "href": "/v30/besoins",
+                 "tools": {"handlers": ["openBesoinModal", "saveBesoin"], "endpoints": ["POST /api/besoins"], "backend": ["routes/besoins.py:api_besoins_create"]}},
+                {"label": "Importer Excel besoins", "href": "/v30/besoins",
+                 "tools": {"handlers": ["importBesoinsXlsx"], "endpoints": ["POST /api/besoins"], "backend": ["routes/besoins.py:api_besoins_create"]}},
+                {"label": "Filtrer par statut", "href": "/v30/besoins",
+                 "tools": {"handlers": ["filterBesoins"], "endpoints": ["GET /api/besoins"], "backend": []}},
+                {"label": "Éditer fiche besoin", "href": "/v30/besoins",
+                 "tools": {"handlers": ["openBesoinDetail", "saveBesoin"], "endpoints": ["GET /api/besoins/<id>", "PUT /api/besoins/<id>"], "backend": ["routes/besoins.py:api_besoins_update"]}},
+                {"label": "Supprimer un besoin", "href": "/v30/besoins",
+                 "tools": {"handlers": ["deleteBesoin"], "endpoints": ["DELETE /api/besoins/<id>"], "backend": ["routes/besoins.py:api_besoins_delete"]}},
+                {"label": "Export besoin XLSX", "href": "/v30/besoins",
+                 "tools": {"handlers": ["exportBesoinXlsx"], "endpoints": ["GET /api/besoins/<id>/export.xlsx"], "backend": ["routes/besoins.py:api_besoins_export"]}},
+            ],
+        },
+        {
+            "id": "collab", "label": "Collaboration", "cat": "outils",
+            "icon": "🤝", "href": "/v30/collab",
+            "summary": "Partage d'entreprises et de prospects entre coéquipiers.",
+            "actions": [
+                {"label": "Lister les collaborateurs", "href": "/v30/collab",
+                 "tools": {"handlers": ["loadCollaborators"], "endpoints": ["GET /api/collab/collaborators"], "backend": ["routes/collab.py:api_collab_collaborators"]}},
+                {"label": "Partager une entreprise", "href": "/v30/collab",
+                 "tools": {"handlers": ["openShareCompany", "shareCompany"], "endpoints": ["POST /api/collab/share-company"], "backend": ["routes/collab.py:api_collab_share_company"]}},
+                {"label": "Mes partages (envoyés)", "href": "/v30/collab",
+                 "tools": {"handlers": ["loadSharedCompanies"], "endpoints": ["GET /api/collab/shared-companies"], "backend": ["routes/collab.py:api_collab_shared_companies"]}},
+                {"label": "Reçus (collaborateurs → moi)", "href": "/v30/collab",
+                 "tools": {"handlers": ["loadReceived"], "endpoints": ["GET /api/collab/shared-companies", "GET /api/collab/shared-prospects"], "backend": ["routes/collab.py:api_collab_shared_companies"]}},
+                {"label": "Voir prospects partagés (entreprise)", "href": "/v30/collab",
+                 "tools": {"handlers": ["loadSharedProspects"], "endpoints": ["GET /api/collab/shared-company/<id>/prospects"], "backend": ["routes/collab.py:api_collab_shared_company_prospects"]}},
+                {"label": "Éditer un prospect partagé", "href": "/v30/collab",
+                 "tools": {"handlers": ["editSharedProspect"], "endpoints": ["PUT /api/collab/shared-company/<cid>/prospect/<pid>", "PATCH /api/collab/shared-company/<cid>/prospect/<pid>"], "backend": ["routes/collab.py:api_collab_shared_prospect_edit"]}},
+                {"label": "Cesser le partage", "href": "/v30/collab",
+                 "tools": {"handlers": ["unshareCompany"], "endpoints": ["POST /api/collab/unshare-company"], "backend": ["routes/collab.py:api_collab_unshare_company"]}},
+            ],
+        },
+        {
+            "id": "duplicates", "label": "Doublons", "cat": "outils",
+            "icon": "🧹", "href": "/v30/duplicates",
+            "summary": "Détection et fusion des doublons (similarité configurable).",
+            "actions": [
+                {"label": "Scanner les doublons", "href": "/v30/duplicates",
+                 "tools": {"handlers": ["scanDuplicates"], "endpoints": ["GET /api/duplicates"], "backend": ["routes/duplicates.py:api_duplicates_list"]}},
+                {"label": "Régler le seuil de similarité", "href": "/v30/duplicates",
+                 "tools": {"handlers": ["onThresholdChange"], "endpoints": ["GET /api/duplicates"], "backend": []}},
+                {"label": "Aperçu fusion (preview)", "href": "/v30/duplicates",
+                 "tools": {"handlers": ["openMergePreview"], "endpoints": ["GET /api/duplicates/merge-preview"], "backend": ["routes/duplicates.py:api_duplicates_merge_preview"]}},
+                {"label": "Fusionner prospects", "href": "/v30/duplicates",
+                 "tools": {"handlers": ["mergeProspects"], "endpoints": ["POST /api/duplicates/merge"], "backend": ["routes/duplicates.py:api_duplicates_merge"]}},
+                {"label": "Fusionner entreprises", "href": "/v30/duplicates",
+                 "tools": {"handlers": ["mergeCompanies"], "endpoints": ["POST /api/companies/merge"], "backend": ["app.py:api_companies_merge"]}},
+                {"label": "Ignorer un doublon", "href": "/v30/duplicates",
+                 "tools": {"handlers": ["ignoreDuplicate"], "endpoints": ["POST /api/duplicates/ignore"], "backend": ["routes/duplicates.py:api_duplicates_ignore"]}},
+                {"label": "Vérifier doublons (à la création)", "href": "/v30/prospects#add",
+                 "tools": {"handlers": ["checkDuplicates"], "endpoints": ["POST /api/prospects/check-duplicates"], "backend": ["routes/duplicates.py:api_prospects_check_duplicates"]}},
+            ],
+        },
+        {
+            "id": "dc", "label": "DC Generator", "cat": "outils",
+            "icon": "📑", "href": "/v30/dc",
+            "summary": "Dossier de compétence — DOCX structuré à partir d'un CV.",
+            "actions": [
+                {"label": "Sélectionner un candidat", "href": "/v30/dc",
+                 "tools": {"handlers": ["pickCandidate"], "endpoints": ["GET /api/candidates", "GET /api/candidates/<id>"], "backend": ["routes/candidates.py:api_candidates_list"]}},
+                {"label": "Uploader le CV (PDF/DOCX)", "href": "/v30/dc",
+                 "tools": {"handlers": ["uploadCV"], "endpoints": ["POST /api/candidates/upload-dc", "POST /api/candidates/extract-dc"], "backend": ["routes/candidates.py:api_candidates_extract_dc"]}},
+                {"label": "Données entretien (fiche)", "href": "/v30/dc",
+                 "tools": {"handlers": ["fillEntretien"], "endpoints": ["GET /api/candidates/fiche-entretien-template", "POST /api/candidates/parse-fiche-entretien"], "backend": ["routes/candidates.py:api_fiche_entretien_template"]}},
+                {"label": "Enrichir DC (IA)", "href": "/v30/dc",
+                 "tools": {"handlers": ["enrichDC"], "endpoints": ["POST /api/candidates/<id>/dc-enrich"], "backend": ["routes/candidates.py:api_candidates_dc_enrich"]}},
+                {"label": "Statut DC", "href": "/v30/dc",
+                 "tools": {"handlers": ["loadDcStatus"], "endpoints": ["GET /api/candidates/<id>/dc-status"], "backend": ["routes/candidates.py:api_candidates_dc_status"]}},
+                {"label": "Renommer / supprimer DC", "href": "/v30/dc",
+                 "tools": {"handlers": ["renameDC", "deleteDC"], "endpoints": ["POST /api/candidates/<id>/dc-rename", "POST /api/candidates/<id>/dc-delete"], "backend": ["routes/candidates.py:api_candidates_dc_rename"]}},
+                {"label": "Historique DC", "href": "/v30/dc",
+                 "tools": {"handlers": ["loadDcHistory"], "endpoints": ["GET /api/dc/history"], "backend": ["routes/dc.py:api_dc_history"]}},
+                {"label": "Télécharger DOCX", "href": "/v30/dc",
+                 "tools": {"handlers": ["downloadDC"], "endpoints": ["GET /api/dc/<id>/download"], "backend": ["routes/dc.py:api_dc_download"]}},
+            ],
+        },
+
+        # ─── ADMIN ─────────────────────────────────────────────
+        {
+            "id": "users", "label": "Utilisateurs", "cat": "admin",
+            "icon": "👥", "href": "/v30/users", "adminOnly": True,
+            "summary": "Gestion comptes, rôles, derniers logins.",
+            "actions": [
+                {"label": "Lister les utilisateurs", "href": "/v30/users",
+                 "tools": {"handlers": ["loadUsers"], "endpoints": ["GET /api/users"], "backend": ["app.py:api_users_list"]}},
+                {"label": "Créer un utilisateur", "href": "/v30/users",
+                 "tools": {"handlers": ["openUserModal", "saveUser"], "endpoints": ["POST /api/users/save"], "backend": ["app.py:api_users_save"]}},
+                {"label": "Éditer rôle (éditeur/admin)", "href": "/v30/users",
+                 "tools": {"handlers": ["editRole"], "endpoints": ["POST /api/users/save"], "backend": ["app.py:api_users_save"]}},
+                {"label": "Réinitialiser mot de passe", "href": "/v30/users",
+                 "tools": {"handlers": ["resetPassword"], "endpoints": ["POST /api/users/save"], "backend": ["app.py:api_users_save"]}},
+                {"label": "Supprimer utilisateur", "href": "/v30/users",
+                 "tools": {"handlers": ["inlineDelete"], "endpoints": ["POST /api/users/delete"], "backend": ["app.py:api_users_delete"]}},
+                {"label": "Voir données d'un user", "href": "/v30/users",
+                 "tools": {"handlers": ["openUserData"], "endpoints": ["GET /api/users/<id>/data"], "backend": ["app.py:api_user_data"]}},
+                {"label": "Réassigner ownership (admin)", "href": "/v30/users",
+                 "tools": {"handlers": ["reassignOwnership"], "endpoints": ["POST /api/admin/reassign-ownership"], "backend": ["app.py:api_admin_reassign_ownership"]}},
+            ],
+        },
+        {
+            "id": "snapshots", "label": "Snapshots", "cat": "admin",
+            "icon": "💾", "href": "/v30/snapshots",
+            "summary": "Sauvegardes de la base SQLite (auto 3h00 + manuels).",
+            "actions": [
+                {"label": "Lister les snapshots", "href": "/v30/snapshots",
+                 "tools": {"handlers": ["loadSnapshots"], "endpoints": ["GET /api/snapshots", "GET /api/admin/backups"], "backend": ["routes/admin.py:api_snapshots_list"]}},
+                {"label": "Créer un snapshot", "href": "/v30/snapshots",
+                 "tools": {"handlers": ["createSnapshot"], "endpoints": ["POST /api/snapshots/create", "POST /api/admin/backup/trigger"], "backend": ["routes/admin.py:api_snapshots_create"]}},
+                {"label": "Restaurer une sauvegarde", "href": "/v30/snapshots",
+                 "tools": {"handlers": ["restoreSnapshot"], "endpoints": ["POST /api/snapshots/restore"], "backend": ["routes/admin.py:api_snapshots_restore"]}},
+                {"label": "Supprimer un snapshot", "href": "/v30/snapshots",
+                 "tools": {"handlers": ["deleteSnapshot"], "endpoints": ["POST /api/snapshots/delete"], "backend": ["routes/admin.py:api_snapshots_delete"]}},
+            ],
+        },
+        {
+            "id": "activity", "label": "Journal", "cat": "admin",
+            "icon": "📜", "href": "/v30/activity", "adminOnly": True,
+            "summary": "Audit — login, modifications, push, suppressions.",
+            "actions": [
+                {"label": "Charger le journal", "href": "/v30/activity",
+                 "tools": {"handlers": ["loadActivity"], "endpoints": ["GET /api/activity", "GET /api/audit-log"], "backend": ["routes/misc.py:api_activity"]}},
+                {"label": "Filtrer par utilisateur", "href": "/v30/activity",
+                 "tools": {"handlers": ["filterByUser"], "endpoints": ["GET /api/activity"], "backend": []}},
+                {"label": "Filtrer par action", "href": "/v30/activity",
+                 "tools": {"handlers": ["filterByAction"], "endpoints": ["GET /api/activity"], "backend": []}},
+                {"label": "Pagination", "href": "/v30/activity",
+                 "tools": {"handlers": ["nextPage"], "endpoints": ["GET /api/activity"], "backend": []}},
+            ],
+        },
+        {
+            "id": "metiers", "label": "Métiers IA", "cat": "admin",
+            "icon": "🧠", "href": "/v30/metiers",
+            "summary": "Référentiel métiers — spécialités, certifs, salaires, classification IA des tags.",
+            "actions": [
+                {"label": "Rechercher un métier", "href": "/v30/metiers",
+                 "tools": {"handlers": ["searchMetier"], "endpoints": [], "backend": []}},
+                {"label": "Filtrer par domaine", "href": "/v30/metiers",
+                 "tools": {"handlers": ["filterByDomain"], "endpoints": [], "backend": []}},
+                {"label": "Voir le détail (skills, salaire)", "href": "/v30/metiers",
+                 "tools": {"handlers": ["openMetierModal"], "endpoints": [], "backend": []}},
+                {"label": "Ajouter un métier custom (admin)", "href": "/v30/metiers",
+                 "tools": {"handlers": ["addCustomMetier"], "endpoints": ["GET /api/custom_metiers", "POST /api/custom_metiers", "DELETE /api/custom_metiers/<id>"], "backend": ["app.py:api_custom_metiers"]}},
+                {"label": "Classifier les tags par IA", "href": "/v30/metiers",
+                 "tools": {"handlers": ["classifyTags"], "endpoints": ["GET /api/prospects/tags-count", "POST /api/metiers/classify-tags-batch", "POST /api/metiers/batch-confirm-tags"], "backend": ["app.py:api_metiers_classify_tags"]}},
+                {"label": "Intégrer les tags classifiés", "href": "/v30/metiers",
+                 "tools": {"handlers": ["integrateTags"], "endpoints": ["POST /api/metiers/integrate-tags", "GET /api/metiers/integrations-cache"], "backend": ["routes/misc.py:api_metiers_integrate_tags"]}},
+                {"label": "Exporter JSON métiers", "href": "/v30/metiers",
+                 "tools": {"handlers": ["exportJson"], "endpoints": [], "backend": []}},
+            ],
+        },
+
+        # ─── AUTRES ────────────────────────────────────────────
+        {
+            "id": "help", "label": "Aide", "cat": "autres",
+            "icon": "💡", "href": "/v30/help",
+            "summary": "Centre d'aide — démarrage, workflows, raccourcis clavier.",
+            "actions": [
+                {"label": "Raccourcis clavier", "href": "/v30/help#shortcuts",
+                 "tools": {"handlers": ["openShortcutsModal"], "endpoints": [], "backend": []}},
+                {"label": "Démarrage rapide", "href": "/v30/help#start",
+                 "tools": {"handlers": ["scrollToSection"], "endpoints": [], "backend": []}},
+                {"label": "Workflows métier", "href": "/v30/help",
+                 "tools": {"handlers": ["scrollToSection"], "endpoints": [], "backend": []}},
+                {"label": "Mode emploi (docs)", "href": "/v30/help",
+                 "tools": {"handlers": ["openExternalDoc"], "endpoints": [], "backend": []}},
+            ],
+        },
+        {
+            "id": "mode-prosp", "label": "Mode Prosp", "cat": "autres",
+            "icon": "⚡", "href": "/v30/mode-prosp",
+            "summary": "Deck plein écran — navigation rapide entre prospects.",
+            "actions": [
+                {"label": "Démarrer la session", "href": "/v30/mode-prosp",
+                 "tools": {"handlers": ["startSession"], "endpoints": ["POST /api/mode-prosp/start", "GET /api/mode-prosp/data"], "backend": ["app.py:api_mode_prosp_start"]}},
+                {"label": "Précédent / Suivant (← →)", "href": "/v30/mode-prosp",
+                 "tools": {"handlers": ["nextSlide", "prevSlide"], "endpoints": [], "backend": []}},
+                {"label": "Appeler (C, tel:)", "href": "/v30/mode-prosp",
+                 "tools": {"handlers": ["callProspect"], "endpoints": ["POST /api/prospect/log-call"], "backend": ["routes/prospects.py:api_prospect_log_call"]}},
+                {"label": "Email (M, mailto:)", "href": "/v30/mode-prosp",
+                 "tools": {"handlers": ["mailProspect"], "endpoints": [], "backend": []}},
+                {"label": "LinkedIn (L, window.open)", "href": "/v30/mode-prosp",
+                 "tools": {"handlers": ["openLinkedIn"], "endpoints": [], "backend": []}},
+                {"label": "Demander à l'IA (I)", "href": "/v30/mode-prosp",
+                 "tools": {"handlers": ["askAI"], "endpoints": ["POST /api/ollama/generate", "POST /api/ollama/generate-stream"], "backend": ["routes/ai.py:api_ollama_generate"]}},
+                {"label": "Note (N)", "href": "/v30/mode-prosp",
+                 "tools": {"handlers": ["saveNote"], "endpoints": ["POST /api/mode-prosp/save"], "backend": ["app.py:api_mode_prosp_save"]}},
+                {"label": "Changer statut (S)", "href": "/v30/mode-prosp",
+                 "tools": {"handlers": ["setStatus"], "endpoints": ["POST /api/mode-prosp/save", "POST /api/prospects/bulk-update"], "backend": ["app.py:api_mode_prosp_save"]}},
+            ],
+        },
+        {
+            "id": "parametres", "label": "Paramètres", "cat": "autres",
+            "icon": "⚙️", "href": "/v30/parametres",
+            "summary": "IA, objectifs, KPI, notifs, sauvegardes, déploiement.",
+            "actions": [
+                {"label": "Configuration IA (admin)", "href": "/v30/parametres#ia",
+                 "tools": {"handlers": ["loadAiConfig", "saveAiConfig"], "endpoints": ["GET /api/ai/config", "POST /api/ai/config", "POST /api/ai/test"], "backend": ["routes/ai.py:api_ai_config"]}},
+                {"label": "Modèles IA (Ollama)", "href": "/v30/parametres#ia",
+                 "tools": {"handlers": ["loadOllamaModels", "pullModel", "deleteModel"], "endpoints": ["GET /api/ollama/models", "POST /api/ollama/pull", "DELETE /api/ollama/model", "GET /api/ollama/recommended"], "backend": ["routes/ai.py:api_ollama_models"]}},
+                {"label": "Objectifs & gamification", "href": "/v30/parametres#goals",
+                 "tools": {"handlers": ["saveGoals"], "endpoints": ["GET /api/settings", "POST /api/settings"], "backend": ["routes/settings.py:api_settings"]}},
+                {"label": "KPI manuels", "href": "/v30/parametres#kpi",
+                 "tools": {"handlers": ["loadKpi", "saveKpi"], "endpoints": ["GET /api/manual-kpi", "POST /api/manual-kpi", "POST /api/kpi/export/xlsx"], "backend": ["app.py:api_manual_kpi"]}},
+                {"label": "Calendrier externe (ICS)", "href": "/v30/parametres#calsync",
+                 "tools": {"handlers": ["saveCalSync"], "endpoints": ["GET /api/settings", "POST /api/settings"], "backend": ["routes/settings.py:api_settings"]}},
+                {"label": "Notifications", "href": "/v30/parametres#notif",
+                 "tools": {"handlers": ["saveNotif"], "endpoints": ["POST /api/settings"], "backend": ["routes/settings.py:api_settings"]}},
+                {"label": "Snapshots auto", "href": "/v30/parametres#snapshots",
+                 "tools": {"handlers": ["openSnapshots"], "endpoints": ["GET /api/snapshots"], "backend": ["routes/admin.py:api_snapshots_list"]}},
+                {"label": "Mot de passe (changer)", "href": "/v30/parametres#account",
+                 "tools": {"handlers": ["changePassword"], "endpoints": ["POST /api/auth/change-password"], "backend": ["routes/auth.py:api_change_password"]}},
+                {"label": "Profil (avatar, nom, email)", "href": "/v30/parametres#account",
+                 "tools": {"handlers": ["updateProfile", "uploadAvatar"], "endpoints": ["PATCH /api/auth/profile", "POST /api/auth/avatar"], "backend": ["routes/auth.py:api_auth_profile_update"]}},
+                {"label": "Mise à jour serveur (admin)", "href": "/v30/parametres#deploy",
+                 "tools": {"handlers": ["deployPull"], "endpoints": ["POST /api/deploy/pull", "GET /api/deploy/health", "GET /api/deploy/check-deps", "GET /api/deploy/update-check"], "backend": ["routes/deploy.py:api_deploy_pull"]}},
+                {"label": "Vérifier dépendances", "href": "/v30/parametres#deploy",
+                 "tools": {"handlers": ["checkDeps"], "endpoints": ["GET /api/deploy/check-deps", "POST /api/deploy/install-deps"], "backend": ["routes/deploy.py:api_deploy_check_deps"]}},
+                {"label": "Rollback du serveur (admin)", "href": "/v30/parametres#deploy",
+                 "tools": {"handlers": ["deployRollback"], "endpoints": ["POST /api/deploy/rollback"], "backend": ["routes/deploy.py:api_deploy_rollback"]}},
+                {"label": "Toile d'araignée", "href": "/v30/sitemap",
+                 "tools": {"handlers": ["openSitemap"], "endpoints": [], "backend": ["routes/pages.py:page_v30_sitemap"]}},
+                {"label": "Exporter mes données", "href": "/v30/parametres#export",
+                 "tools": {"handlers": ["fullExport"], "endpoints": ["GET /api/export/xlsx"], "backend": ["routes/misc.py:api_export_xlsx"]}},
+            ],
+        },
+    ]
+
+    # Filtre admin-only si l'utilisateur n'est pas admin
+    if not is_admin:
+        pages = [p for p in pages if not p.get("adminOnly")]
+
+    # Calcule statut de chaque action et de chaque page
+    for page in pages:
+        for action in page.get("actions", []):
+            tools = action.get("tools") or {}
+            endpoints = tools.get("endpoints") or []
+            label, note = _compute_action_status(endpoints, status_data)
+            action["status"] = label
+            action["status_note"] = note
+        page_label, page_note = _compute_page_status(page["id"], page.get("actions", []), status_data)
+        page["status"] = page_label
+        page["status_note"] = page_note
+
+    return {
+        "root": {
+            "id": "login",
+            "label": "Connexion",
+            "icon": "🔐",
+            "sub": "Point d'entrée — login@prospup.work",
+            "href": "/login",
+        },
+        "hub": "dashboard",
+        "categories": {
+            "navigate": {"label": "Navigate", "color": "#2563eb"},
+            "records":  {"label": "Records",  "color": "#7c3aed"},
+            "outils":   {"label": "Outils",   "color": "#ea580c"},
+            "admin":    {"label": "Admin",    "color": "#0891b2"},
+            "autres":   {"label": "Autres",   "color": "#475569"},
+        },
+        "status_meta": {
+            "ts": status_data.get("ts") if status_data else None,
+            "summary": status_data.get("summary") if status_data else None,
+        },
+        "pages": pages,
+    }
+
+
+@pages_bp.get("/v30/sitemap")
+@login_required
+def page_v30_sitemap():
+    """Toile d'araignée des fonctionnalités — page autonome plein écran.
+
+    Vue radiale interactive : Connexion → Dashboard (hub) → 21 pages → ~100
+    actions. Ouverte dans un nouvel onglet depuis la card « Toile d'araignée »
+    de Paramètres. SVG vectoriel + pan/zoom + tooltip + recherche.
+    """
+    current_user = _get_current_user() or {}
+    is_admin = current_user.get("role") == "admin"
+    data = _build_sitemap_data(is_admin=is_admin)
+    return render_template(
+        "v30/sitemap.html",
+        app_version=APP_VERSION,
+        sitemap_json=json.dumps(data, ensure_ascii=False),
+        is_admin=is_admin,
+    )

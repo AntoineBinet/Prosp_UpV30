@@ -34,6 +34,7 @@
     <button type="button" class="tab-btn" data-tab="deploy" role="tab" aria-selected="false">Déploiement</button>
     {% endif %}
     <button type="button" class="tab-btn" data-tab="account" role="tab" aria-selected="false">Mot de passe</button>
+    <button type="button" class="tab-btn" data-tab="explore" role="tab" aria-selected="false">Exploration</button>
     <button type="button" class="tab-btn" data-tab="about" role="tab" aria-selected="false">À propos</button>
   </div>
 
@@ -541,6 +542,66 @@
           Gérer les autres utilisateurs : <a href="/v30/users">Utilisateurs &amp; équipe</a>.
         </p>
         {% endif %}
+      </div>
+    </details>
+
+    {# ─── 5b. Toile d'araignée — sitemap visuel ─────────────────────────────────── #}
+    <details class="v30-params__card v30-params__collapse v30-params__sitemap-card" data-v30-sitemap data-tab="explore">
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('kanban', 16) }}
+          <h3>Toile d'araignée</h3>
+          <span class="v30-params__chip" style="margin-left:auto;">Nouvelle vue</span>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Vue radiale interactive de toutes les pages et actions de l'app — ouvre un nouvel onglet.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <p class="muted v30-params__hint" style="margin-top:-2px;">
+          Pars de la bulle <strong>Connexion</strong> au centre, le Dashboard est le hub principal,
+          puis chaque branche colorée (Navigate, Records, Outils, Admin, Autres) déroule
+          ses pages et leurs actions clés. Idéal pour onboarder un nouveau collègue ou
+          (re)découvrir une feature oubliée.
+        </p>
+        <div class="v30-params__sitemap-preview" aria-hidden="true">
+          <svg viewBox="-100 -60 200 120" xmlns="http://www.w3.org/2000/svg" class="v30-params__sitemap-svg">
+            {# Mini-aperçu : un nœud central + 5 branches colorées #}
+            <g class="v30-params__sitemap-mini">
+              <line x1="-50" y1="0" x2="0" y2="0" stroke="#16a34a" stroke-width="1" stroke-dasharray="2 2"/>
+              <line x1="0" y1="0" x2="40" y2="-32" stroke="#2563eb" stroke-width="0.8" opacity="0.6"/>
+              <line x1="0" y1="0" x2="50" y2="0" stroke="#7c3aed" stroke-width="0.8" opacity="0.6"/>
+              <line x1="0" y1="0" x2="40" y2="32" stroke="#ea580c" stroke-width="0.8" opacity="0.6"/>
+              <line x1="0" y1="0" x2="-30" y2="32" stroke="#0891b2" stroke-width="0.8" opacity="0.6"/>
+              <line x1="0" y1="0" x2="-30" y2="-32" stroke="#475569" stroke-width="0.8" opacity="0.6"/>
+              <circle cx="-50" cy="0" r="6" fill="#16a34a" opacity="0.85"/>
+              <circle cx="0"   cy="0" r="9" fill="currentColor" opacity="0.9"/>
+              <circle cx="40"  cy="-32" r="4" fill="#2563eb"/>
+              <circle cx="50"  cy="0"   r="4" fill="#7c3aed"/>
+              <circle cx="40"  cy="32"  r="4" fill="#ea580c"/>
+              <circle cx="-30" cy="32"  r="4" fill="#0891b2"/>
+              <circle cx="-30" cy="-32" r="4" fill="#475569"/>
+            </g>
+          </svg>
+        </div>
+
+        <div class="v30-params__actions" style="margin-top:8px;">
+          <a class="btn btn-primary btn-sm" href="/v30/sitemap" target="_blank" rel="noopener">
+            {{ ui.icon('link', 13) }} Ouvrir la toile d'araignée
+          </a>
+          <span class="muted" style="font-size:11.5px;">
+            S'ouvre dans un nouvel onglet · Pan/zoom · recherche (F) · aide (H)
+          </span>
+        </div>
+
+        <ul class="v30-params__about-list muted" style="margin-top:14px;">
+          <li><strong>Connexion</strong> — bulle verte centrale, point d'entrée de l'app.</li>
+          <li><strong>Dashboard</strong> — hub depuis lequel partent toutes les pages.</li>
+          <li><strong>Pages</strong> — bulles colorées par catégorie (21 au total selon ton rôle).</li>
+          <li><strong>Actions</strong> — petites bulles autour de chaque page (~100 au total).</li>
+        </ul>
       </div>
     </details>
 
