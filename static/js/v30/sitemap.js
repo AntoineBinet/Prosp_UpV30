@@ -203,11 +203,15 @@
     edgesG.appendChild(e0);
 
     // Edges : Dashboard → pages
+    // Si la page contient au moins une action KO, on marque l'edge comme branche-KO
     pages.forEach(function (p) {
       if (p._isHub) return;
+      const hasKo = (p.actions || []).some(function (a) { return a.status === 'ko'; }) || p.status === 'ko';
+      const cls = ['v30-sm-edge', 'v30-sm-edge--cat-' + p.cat, 'is-edge-page'];
+      if (hasKo) cls.push('is-status-ko');
       const e = el('path', {
         d: curvePath(dashboard, p, 0.12),
-        class: 'v30-sm-edge v30-sm-edge--cat-' + p.cat + ' is-edge-page',
+        class: cls.join(' '),
         'data-edge-page': p.id,
         'data-cat': p.cat,
       });
@@ -215,12 +219,15 @@
     });
 
     // Edges : pages → actions
+    // Edge spécifiquement marquée si l'action est en KO
     pages.forEach(function (p) {
       const acts = p.actions || [];
       acts.forEach(function (act, idx) {
+        const cls = ['v30-sm-edge', 'v30-sm-edge--cat-' + p.cat, 'is-edge-action'];
+        if (act.status === 'ko') cls.push('is-status-ko');
         const e = el('path', {
           d: curvePath(p, act, 0.06),
-          class: 'v30-sm-edge v30-sm-edge--cat-' + p.cat + ' is-edge-action',
+          class: cls.join(' '),
           'data-edge-page': p.id,
           'data-edge-action-id': p.id + '__act_' + idx,
           'data-cat': p.cat,
@@ -313,17 +320,32 @@
       transform: 'translate(' + spec.x + ',' + spec.y + ')',
     });
 
+    // Wrapper "floater" : reçoit l'animation de flottement 3D sans
+    // casser le translate du <g> parent (CSS transform écraserait l'attribut).
+    const floater = el('g', { class: 'v30-sm-node__floater' });
+    g.appendChild(floater);
+
+    // Glow halo (cercle légèrement plus grand, blurré) — derrière le cercle principal
+    if (spec.kind !== 'action') {
+      const halo = el('circle', {
+        class: 'v30-sm-node__halo',
+        r: spec.r + 6,
+        cx: 0,
+        cy: 0,
+      });
+      floater.appendChild(halo);
+    }
+
     const c = el('circle', {
       class: 'v30-sm-node__circle',
       r: spec.r,
       cx: 0,
       cy: 0,
     });
-    g.appendChild(c);
+    floater.appendChild(c);
 
     // Pastille de statut (vert/orange/rouge) — coin haut-droit
-    if (spec.kind !== 'root' && status !== 'unknown') {
-      // Pour root on garde sobre. Action : pastille plus petite.
+    if (spec.kind !== 'root') {
       const dotR = spec.kind === 'action' ? 4 : 7;
       const dotOffset = spec.r * 0.74;
       const dot = el('circle', {
@@ -332,17 +354,7 @@
         cx: dotOffset,
         cy: -dotOffset,
       });
-      g.appendChild(dot);
-    } else if (status === 'unknown' && spec.kind !== 'root') {
-      const dotR = spec.kind === 'action' ? 4 : 7;
-      const dotOffset = spec.r * 0.74;
-      const dot = el('circle', {
-        class: 'v30-sm-node__status v30-sm-node__status--unknown',
-        r: dotR,
-        cx: dotOffset,
-        cy: -dotOffset,
-      });
-      g.appendChild(dot);
+      floater.appendChild(dot);
     }
 
     // Icône (si présente, au-dessus du label)
@@ -353,7 +365,7 @@
         y: spec.kind === 'root' || spec.kind === 'hub' ? -10 : -8,
         text: spec.icon,
       });
-      g.appendChild(i);
+      floater.appendChild(i);
     }
 
     // Label (multi-line si > 14 chars pour les pages, troncature pour les actions)
@@ -370,7 +382,7 @@
         y: spec.r + 11,
         text: lbl,
       });
-      g.appendChild(t);
+      floater.appendChild(t);
     } else {
       const yLbl = spec.icon ? 12 : 0;
       const t = el('text', {
@@ -379,8 +391,15 @@
         y: yLbl,
         text: lbl,
       });
-      g.appendChild(t);
+      floater.appendChild(t);
     }
+
+    // Flottement aléatoire — chaque bulle son propre rythme.
+    // Amplitude variable, durée 7-12s, délai 0-6s.
+    const dur = (7 + Math.random() * 5).toFixed(2);
+    const delay = (Math.random() * 6).toFixed(2);
+    floater.style.setProperty('--float-dur', dur + 's');
+    floater.style.setProperty('--float-delay', '-' + delay + 's');
 
     return g;
   }
