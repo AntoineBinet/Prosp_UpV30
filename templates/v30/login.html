@@ -1,303 +1,439 @@
 <!DOCTYPE html>
-<html lang="fr" data-theme="dark">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#f4f0e6">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Prosp'Up">
   <title>Prosp'Up — Connexion (v30 preview)</title>
-  <script>
-    (function () {
-      try {
-        var t = localStorage.getItem('theme');
-        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-      } catch (e) {}
-    })();
-  </script>
   <link rel="manifest" href="/static/manifest.json">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
   <link rel="icon" href="/static/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/v30/tokens.css?v={{ static_hash('css/v30/tokens.css') }}">
-  <link rel="stylesheet" href="/static/css/v30/components.css?v={{ static_hash('css/v30/components.css') }}">
-  <link rel="stylesheet" href="/static/css/v30/patterns.css?v={{ static_hash('css/v30/patterns.css') }}">
   <style>
-    html, body { height: 100%; }
-    body { overflow: hidden; }
+    /* ============================================================
+       /v30/login — « Marquise » : ticker pipeline en direct
+       Light only · cream parchment · serif italic editorial
+       ============================================================ */
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
 
-    .v30-login {
-      height: 100vh;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      background: var(--bg);
-      color: var(--text);
-    }
+    :root {
+      --mq-bg:        #f4f0e6;
+      --mq-text:      #161821;
+      --mq-text-2:    #3b3e49;
+      --mq-text-3:    #6f7382;
+      --mq-text-4:    #98a;
+      --mq-line:      rgba(20,22,30,0.10);
+      --mq-line-soft: rgba(20,22,30,0.06);
+      --mq-accent:    #1d4ed8;
+      --mq-green:     #1f7a44;
+      --mq-purple:    #5b3aa6;
+      --mq-orange:    #b9531f;
+      --mq-card-bg:   #faf6ec;
 
-    .v30-login__form-col {
-      padding: 48px 56px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
+      --mq-serif: "Instrument Serif", Georgia, serif;
+      --mq-sans:  "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --mq-mono:  "JetBrains Mono", ui-monospace, "SF Mono", monospace;
 
-    .v30-login__brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .v30-login__logo {
-      width: 28px; height: 28px; border-radius: 8px;
-      background: var(--text); color: var(--bg);
-      display: inline-flex; align-items: center; justify-content: center;
-      font-family: var(--font-serif); font-size: 18px; font-weight: 500;
-    }
-    .v30-login__brand-name {
-      font-size: 15px; font-weight: 600; letter-spacing: -0.2px;
+      --mq-pad-x:   clamp(20px, 4vw, 56px);
     }
 
-    .v30-login__form {
-      max-width: 360px;
+    body {
+      background: var(--mq-bg);
+      color: var(--mq-text);
+      font-family: var(--mq-sans);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
-    .v30-login__title {
-      font-family: var(--font-serif);
-      font-size: 44px; font-weight: 400; margin: 0;
-      letter-spacing: -0.5px; line-height: 1.1;
-    }
-    .v30-login__subtitle {
-      font-size: 13.5px; color: var(--text-3);
-      margin: 8px 0 28px;
-    }
-    .v30-login__fields {
-      display: flex; flex-direction: column; gap: 14px;
-    }
-    .v30-login__fields .input {
-      height: 38px;
-    }
-    .v30-login__label-row {
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .v30-login__forgot {
-      font-size: 11.5px; color: var(--text-3);
-      text-decoration: none;
-    }
-    .v30-login__forgot:hover {
-      color: var(--text-2);
-    }
-    .v30-login__submit {
-      height: 40px;
-      margin-top: 6px;
-    }
-
-    .v30-login__error {
-      display: none;
-      margin: 0 0 12px;
-      padding: 8px 12px;
-      background: var(--danger-soft);
-      color: var(--danger);
-      border-radius: var(--r-md);
-      font-size: 12.5px;
-    }
-    .v30-login__error.is-visible { display: block; }
-
-    .v30-login__version {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-    }
-
-    /* ─── Colonne droite éditoriale ─── */
-    .v30-login__aside {
-      background: var(--ink-950);
-      color: #fff;
-      padding: 56px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      position: relative;
-      overflow: hidden;
-    }
-    .v30-login__aside::before {
+    body::before {
       content: "";
-      position: absolute; inset: 0;
-      background-image: repeating-linear-gradient(45deg, transparent 0 8px, rgba(255,255,255,0.02) 8px 9px);
+      position: fixed; inset: 0;
       pointer-events: none;
+      background-image: radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px);
+      background-size: 3px 3px;
+      opacity: 0.6;
+      mix-blend-mode: multiply;
+      z-index: 0;
     }
-    .v30-login__aside-inner {
-      position: relative;
-    }
-    .v30-login__tag {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.15);
-      font-size: 11px;
-      color: rgba(255,255,255,0.7);
-    }
-    .v30-login__quote {
-      font-family: var(--font-serif);
-      font-size: 36px;
-      line-height: 1.15;
-      letter-spacing: -0.3px;
-      font-style: italic;
-      color: rgba(255,255,255,0.95);
-      margin: 0;
-    }
-    .v30-login__quote-author {
-      margin-top: 16px;
-      display: flex; align-items: center; gap: 10px;
-      color: rgba(255,255,255,0.6); font-size: 12px;
-    }
-    .v30-login__quote-avatar {
-      width: 32px; height: 32px; border-radius: 50%;
-      background: rgba(255,255,255,0.1);
-      display: inline-flex; align-items: center; justify-content: center;
-      font-weight: 600;
-    }
-    .v30-login__stats {
-      position: relative;
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    input { font: inherit; color: inherit; }
+
+    .mq {
+      position: relative; z-index: 1;
+      min-height: 100vh;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      padding-top: 24px;
-      border-top: 1px solid rgba(255,255,255,0.1);
-    }
-    .v30-login__stat-value {
-      font-family: var(--font-serif);
-      font-size: 28px;
-      color: #fff;
-    }
-    .v30-login__stat-label {
-      font-size: 11px;
-      color: rgba(255,255,255,0.5);
+      grid-template-rows: auto auto auto 1fr auto;
     }
 
+    /* ─ Top ─ */
+    .mq-top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; padding: 18px var(--mq-pad-x);
+      border-bottom: 1px solid var(--mq-line-soft);
+    }
+    .mq-top__l, .mq-top__r { display: flex; align-items: center; gap: 16px; min-width: 0; }
+    .mq-brand { display: inline-flex; align-items: baseline; gap: 8px; }
+    .mq-brand__mark {
+      font-family: var(--mq-serif); font-style: italic; font-size: 22px;
+      letter-spacing: -0.02em; line-height: 1; color: var(--mq-text); position: relative; top: 1px;
+    }
+    .mq-brand__name {
+      font-family: var(--mq-sans); font-size: 14px; font-weight: 600;
+      letter-spacing: -0.01em; color: var(--mq-text);
+    }
+    .mq-divider { width: 1px; height: 16px; background: var(--mq-line); }
+    .mq-live, .mq-flag {
+      font-family: var(--mq-sans); font-size: 11px; font-weight: 500;
+      letter-spacing: 0.10em; text-transform: uppercase; color: var(--mq-text-3);
+      white-space: nowrap;
+    }
+    .mq-flag { display: inline-flex; align-items: center; gap: 8px; }
+    .mq-flag__dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--mq-accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--mq-accent) 18%, transparent);
+    }
+
+    /* ─ Hero ─ */
+    .mq-hero {
+      padding: clamp(36px, 7vw, 84px) var(--mq-pad-x) clamp(36px, 6vw, 72px);
+      border-bottom: 1px solid var(--mq-line-soft);
+    }
+    .mq-eyebrow {
+      display: inline-flex; align-items: center; gap: 14px;
+      font-family: var(--mq-sans); font-size: 11px; font-weight: 500;
+      letter-spacing: 0.14em; text-transform: uppercase; color: var(--mq-text-3);
+      margin: 0 0 22px;
+    }
+    .mq-eyebrow::before {
+      content: ""; display: inline-block; width: 28px; height: 1px;
+      background: currentColor; opacity: 0.6;
+    }
+    .mq-title {
+      font-family: var(--mq-serif); font-style: italic; font-weight: 400;
+      font-size: clamp(40px, 7vw, 96px); line-height: 1.02; letter-spacing: -0.02em;
+      color: var(--mq-text); margin: 0; max-width: 18ch;
+    }
+    .mq-title__hl { position: relative; white-space: nowrap; }
+    .mq-title__hl::after {
+      content: ""; position: absolute; left: -2%; right: -2%; bottom: -0.18em; height: 0.22em;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 18' preserveAspectRatio='none'><path d='M2 13 C 60 4, 130 16, 200 8 C 270 1, 340 14, 398 6' fill='none' stroke='%231d4ed8' stroke-width='2.2' stroke-linecap='round'/></svg>");
+      background-repeat: no-repeat; background-size: 100% 100%; pointer-events: none;
+    }
+
+    /* ─ Ticker ─ */
+    .mq-ticker {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-bottom: 1px solid var(--mq-line-soft);
+    }
+    .mq-ticker__cell {
+      display: flex; align-items: center; gap: 14px;
+      padding: 18px var(--mq-pad-x);
+      border-right: 1px solid var(--mq-line-soft); min-width: 0;
+    }
+    .mq-ticker__cell:last-child { border-right: 0; }
+    .mq-time {
+      font-family: var(--mq-mono); font-size: 12px; letter-spacing: 0.04em;
+      color: var(--mq-text-4); white-space: nowrap;
+    }
+    .mq-time .sep { opacity: 0.6; padding: 0 1px; }
+    .mq-evt {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--mq-sans); font-size: 12px; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+    }
+    .mq-evt__dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .mq-evt--green   { color: var(--mq-green); }
+    .mq-evt--purple  { color: var(--mq-purple); }
+    .mq-evt--orange  { color: var(--mq-orange); }
+    .mq-evt__meta {
+      font-family: var(--mq-serif); font-style: italic; font-size: 14px;
+      color: var(--mq-text-3); white-space: nowrap;
+    }
+
+    /* ─ Login card ─ */
+    .mq-stage {
+      display: flex; align-items: center; justify-content: center;
+      padding: clamp(40px, 6vw, 72px) var(--mq-pad-x);
+    }
+    .mq-card {
+      position: relative; width: 100%; max-width: 540px;
+      padding: 28px clamp(28px, 4vw, 44px) 32px;
+      border: 1px solid var(--mq-line);
+      background: var(--mq-card-bg);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.02), 0 24px 60px -32px rgba(20,22,30,0.18);
+    }
+    .mq-card__legend {
+      position: absolute; top: -8px; left: 28px;
+      padding: 0 10px; background: var(--mq-bg);
+      font-family: var(--mq-sans); font-size: 10.5px; font-weight: 500;
+      letter-spacing: 0.16em; text-transform: uppercase; color: var(--mq-text-3);
+    }
+
+    .mq-error {
+      display: none; align-items: flex-start; gap: 8px;
+      margin-bottom: 16px; padding: 10px 12px;
+      border: 1px solid rgba(176, 32, 32, 0.30);
+      background: rgba(176, 32, 32, 0.05);
+      color: #9a1a1a; font-size: 12.5px; line-height: 1.45;
+    }
+    .mq-error.show { display: flex; }
+
+    .mq-field { margin-top: 18px; }
+    .mq-field:first-child { margin-top: 0; }
+    .mq-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .mq-label {
+      display: block; font-family: var(--mq-sans); font-size: 10.5px; font-weight: 500;
+      letter-spacing: 0.16em; text-transform: uppercase; color: var(--mq-text-2);
+      margin: 0 0 6px;
+    }
+    .mq-forgot {
+      font-family: var(--mq-serif); font-style: italic; font-size: 14px;
+      color: var(--mq-text-3); transition: color .18s ease;
+    }
+    .mq-forgot:hover { color: var(--mq-accent); }
+    .mq-input {
+      width: 100%; padding: 6px 0 8px; border: 0; border-bottom: 1px solid var(--mq-line);
+      background: transparent; font-family: var(--mq-serif); font-size: 18px;
+      color: var(--mq-text); outline: none; transition: border-color .18s ease;
+    }
+    .mq-input::placeholder {
+      font-family: var(--mq-serif); font-style: italic; color: var(--mq-text-4);
+    }
+    .mq-input:focus {
+      border-bottom-color: var(--mq-accent); border-bottom-width: 2px; padding-bottom: 7px;
+    }
+    input[type="password"].mq-input { font-family: var(--mq-sans); letter-spacing: 0.18em; }
+    input[type="password"].mq-input::placeholder {
+      font-family: var(--mq-sans); letter-spacing: 0.32em; font-style: normal;
+    }
+
+    .mq-submit {
+      margin-top: 26px; width: 100%; height: 56px;
+      display: flex; align-items: center; justify-content: center; position: relative;
+      background: #0d0f15; color: #f4f0e6; border: 0;
+      font-family: var(--mq-sans); font-size: 13px; font-weight: 600;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      transition: background .18s ease, transform .18s ease;
+    }
+    .mq-submit:hover { background: #1a1d29; }
+    .mq-submit:active { transform: translateY(1px); }
+    .mq-submit[disabled] { opacity: 0.7; cursor: progress; }
+    .mq-submit__hint {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px;
+      border: 1px solid rgba(255,255,255,0.22);
+      font-family: var(--mq-mono); font-size: 11px; color: rgba(255,255,255,0.6);
+    }
+    .mq-submit .spinner {
+      display: none; width: 14px; height: 14px;
+      border: 2px solid currentColor; border-top-color: transparent;
+      border-radius: 50%; animation: mq-spin 0.6s linear infinite; margin-right: 10px;
+    }
+    body.is-loading .mq-submit .spinner { display: inline-block; }
+    @keyframes mq-spin { to { transform: rotate(360deg); } }
+
+    .mq-card__foot {
+      margin-top: 22px; display: flex; align-items: baseline;
+      justify-content: space-between; gap: 14px;
+      font-family: var(--mq-sans); font-size: 12.5px; color: var(--mq-text-3);
+    }
+    .mq-card__foot a {
+      font-family: var(--mq-serif); font-style: italic; font-size: 14px;
+      color: var(--mq-text-2); border-bottom: 1px solid var(--mq-line);
+      transition: color .18s ease, border-color .18s ease;
+    }
+    .mq-card__foot a:hover { color: var(--mq-accent); border-bottom-color: var(--mq-accent); }
+
+    /* ─ Footer ─ */
+    .mq-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; padding: 18px var(--mq-pad-x);
+      border-top: 1px solid var(--mq-line-soft);
+      font-family: var(--mq-mono); font-size: 11px;
+      letter-spacing: 0.04em; color: var(--mq-text-3);
+    }
+
+    /* ─ Mobile ─ */
     @media (max-width: 900px) {
-      .v30-login { grid-template-columns: 1fr; }
-      .v30-login__aside { display: none; }
-      .v30-login__form-col { padding: 32px 24px; }
+      .mq-top { flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px var(--mq-pad-x); }
+      .mq-top__l { flex-wrap: wrap; gap: 10px; }
+      .mq-top__r { flex-wrap: wrap; }
+      .mq-divider { display: none; }
+      .mq-hero { padding: 36px var(--mq-pad-x); }
+      .mq-title { max-width: none; }
+      .mq-ticker { grid-template-columns: 1fr 1fr; }
+      .mq-ticker__cell:nth-child(2n) { border-right: 0; }
+      .mq-ticker__cell:nth-child(-n+2) { border-bottom: 1px solid var(--mq-line-soft); }
+      .mq-stage { padding: 32px var(--mq-pad-x); }
+      .mq-card { padding: 24px 22px 28px; }
+      .mq-card__legend { left: 20px; }
+      .mq-foot { flex-direction: column; gap: 6px; align-items: flex-start; }
+    }
+    @media (max-width: 540px) {
+      .mq-ticker { grid-template-columns: 1fr; }
+      .mq-ticker__cell { border-right: 0; border-bottom: 1px solid var(--mq-line-soft); }
+      .mq-ticker__cell:last-child { border-bottom: 0; }
+      .mq-evt__meta { display: none; }
     }
   </style>
 </head>
-<body data-v30="1" data-page="v30-login">
-  <div class="v30-login">
+<body data-page="v30-login">
 
-    {# ─── Colonne gauche : formulaire ─── #}
-    <section class="v30-login__form-col">
-      <div class="v30-login__brand">
-        <span class="v30-login__logo" aria-hidden="true">P</span>
-        <span class="v30-login__brand-name">Prosp'Up</span>
-      </div>
+<div class="mq">
+  <header class="mq-top">
+    <div class="mq-top__l">
+      <a class="mq-brand" href="/v30/login">
+        <span class="mq-brand__mark" aria-hidden="true">𝒫</span>
+        <span class="mq-brand__name">Prosp&rsquo;Up</span>
+      </a>
+      <span class="mq-divider" aria-hidden="true"></span>
+      <span class="mq-live" id="mqLive">EN DIRECT · ——— · ——:——</span>
+    </div>
+    <div class="mq-top__r">
+      <span class="mq-flag">
+        <span class="mq-flag__dot" aria-hidden="true"></span>
+        Flux agrégé · Anonymisé · RGPD
+      </span>
+    </div>
+  </header>
 
-      <div class="v30-login__form">
-        <h1 class="v30-login__title">Bon retour.</h1>
-        <p class="v30-login__subtitle">
-          Connectez-vous pour retrouver votre pipeline, vos campagnes et vos candidats.
-        </p>
+  <section class="mq-hero">
+    <p class="mq-eyebrow">La marche du jour</p>
+    <h1 class="mq-title">
+      Le pipeline d&rsquo;une journée d&rsquo;équipe, en <span class="mq-title__hl">mouvement</span>.
+    </h1>
+  </section>
 
-        <div id="v30LoginError" class="v30-login__error" role="alert"></div>
-
-        <form id="v30LoginForm" class="v30-login__fields" novalidate>
-          <div>
-            <label class="label" for="v30-login-username">Identifiant</label>
-            <input id="v30-login-username" class="input" type="text"
-                   name="username" autocomplete="username"
-                   placeholder="prenom.nom" required autofocus>
-          </div>
-          <div>
-            <div class="v30-login__label-row">
-              <label class="label" for="v30-login-password">Mot de passe</label>
-              <a class="v30-login__forgot" href="#" tabindex="-1">Oublié ?</a>
-            </div>
-            <input id="v30-login-password" class="input" type="password"
-                   name="password" autocomplete="current-password"
-                   placeholder="••••••••••" required>
-          </div>
-          <button type="submit" class="btn btn-accent btn-lg v30-login__submit" id="v30LoginSubmit">
-            Se connecter
-          </button>
-        </form>
-      </div>
-
-      <div class="v30-login__version">v{{ app_version or '30.0' }} · MAJ auto</div>
-    </section>
-
-    {# ─── Colonne droite : éditoriale ─── #}
-    <aside class="v30-login__aside" aria-hidden="true">
-      <div class="v30-login__aside-inner">
-        <span class="v30-login__tag">Refonte v30</span>
-      </div>
-      <div class="v30-login__aside-inner">
-        <blockquote class="v30-login__quote">
-          « Trois fois moins de clics pour envoyer un push, trois fois plus de RDV. »
-        </blockquote>
-        <div class="v30-login__quote-author">
-          <span class="v30-login__quote-avatar">JM</span>
-          Julien M. · Consultant sourcing · depuis 2024
-        </div>
-      </div>
-      <div class="v30-login__stats">
-        <div>
-          <div class="v30-login__stat-value">+38%</div>
-          <div class="v30-login__stat-label">RDV obtenus</div>
-        </div>
-        <div>
-          <div class="v30-login__stat-value">−42%</div>
-          <div class="v30-login__stat-label">Clics par push</div>
-        </div>
-        <div>
-          <div class="v30-login__stat-value">7j</div>
-          <div class="v30-login__stat-label">Série moyenne</div>
-        </div>
-      </div>
-    </aside>
+  <div class="mq-ticker" aria-hidden="true">
+    <div class="mq-ticker__cell">
+      <span class="mq-time">09<span class="sep">·</span>31</span>
+      <span class="mq-evt mq-evt--green"><span class="mq-evt__dot"></span>+1 appel passé</span>
+      <span class="mq-evt__meta">session +1</span>
+    </div>
+    <div class="mq-ticker__cell">
+      <span class="mq-time">09<span class="sep">·</span>28</span>
+      <span class="mq-evt mq-evt--purple"><span class="mq-evt__dot"></span>+1 RDV pris</span>
+      <span class="mq-evt__meta">pipeline +1.0&nbsp;%</span>
+    </div>
+    <div class="mq-ticker__cell">
+      <span class="mq-time">09<span class="sep">·</span>24</span>
+      <span class="mq-evt mq-evt--orange"><span class="mq-evt__dot"></span>+1 relance programmée</span>
+      <span class="mq-evt__meta">file 18</span>
+    </div>
+    <div class="mq-ticker__cell">
+      <span class="mq-time">09<span class="sep">·</span>47</span>
+      <span class="mq-evt mq-evt--purple"><span class="mq-evt__dot"></span>+1 RDV pris</span>
+      <span class="mq-evt__meta">pipeline +1.2&nbsp;%</span>
+    </div>
   </div>
 
-  <script>
-    (function () {
-      var form = document.getElementById('v30LoginForm');
-      var err  = document.getElementById('v30LoginError');
-      var btn  = document.getElementById('v30LoginSubmit');
-      if (!form) return;
+  <main class="mq-stage">
+    <section class="mq-card" aria-labelledby="mqLegend">
+      <span class="mq-card__legend" id="mqLegend">Prendre la barre</span>
 
-      form.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        err.classList.remove('is-visible');
-        err.textContent = '';
-        btn.disabled = true;
-        var original = btn.textContent;
-        btn.textContent = 'Connexion…';
+      <div class="mq-error" id="v30LoginError" role="alert" aria-live="polite"></div>
 
-        try {
-          var resp = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              username: document.getElementById('v30-login-username').value.trim(),
-              password: document.getElementById('v30-login-password').value
-            })
-          });
-          var data = await resp.json();
-          if (data.ok) {
-            window.location.href = data.must_change_password
-              ? '/parametres?change_password=1'
-              : '/dashboard';
-          } else {
-            err.textContent = (data.error || 'Erreur de connexion');
-            err.classList.add('is-visible');
-          }
-        } catch (_) {
-          err.textContent = 'Erreur réseau';
-          err.classList.add('is-visible');
-        } finally {
-          btn.disabled = false;
-          btn.textContent = original;
-        }
+      <form id="v30LoginForm" class="mq-form" novalidate>
+        <div class="mq-field">
+          <label class="mq-label" for="v30-login-username">Identifiant</label>
+          <input id="v30-login-username" class="mq-input" type="text"
+                 name="username" autocomplete="username"
+                 placeholder="prenom.nom" required autofocus>
+        </div>
+
+        <div class="mq-field">
+          <div class="mq-row">
+            <label class="mq-label" for="v30-login-password">Mot de passe</label>
+            <a class="mq-forgot" href="#" tabindex="-1">Oublié&nbsp;?</a>
+          </div>
+          <input id="v30-login-password" class="mq-input" type="password"
+                 name="password" autocomplete="current-password"
+                 placeholder="••••••••" required>
+        </div>
+
+        <button type="submit" class="mq-submit" id="v30LoginSubmit">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="label">Se connecter</span>
+          <span class="mq-submit__hint" aria-hidden="true">↵</span>
+        </button>
+      </form>
+
+      <div class="mq-card__foot">
+        <span>SSO Up Technologies</span>
+        <a href="mailto:contact@up-technologies.fr?subject=Demande%20d%27acc%C3%A8s%20Prosp%27Up">Demander un accès</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="mq-foot">
+    <span>prospup.work · v{{ app_version or '30.0' }}</span>
+    <span>© <span id="mqYear">2026</span> Up Technologies · OVHcloud · Roubaix</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var jours = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  var mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  var live = document.getElementById('mqLive');
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function tick() {
+    var d = new Date();
+    if (live) live.textContent = 'EN DIRECT · ' + jours[d.getDay()].toUpperCase() + ' ' + d.getDate() + ' ' + mois[d.getMonth()].toUpperCase() + ' · ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  tick(); setInterval(tick, 30000);
+  var y = document.getElementById('mqYear'); if (y) y.textContent = new Date().getFullYear();
+})();
+
+(function () {
+  var form = document.getElementById('v30LoginForm');
+  var err  = document.getElementById('v30LoginError');
+  var btn  = document.getElementById('v30LoginSubmit');
+  if (!form) return;
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    err.classList.remove('show');
+    err.textContent = '';
+    btn.disabled = true;
+    document.body.classList.add('is-loading');
+
+    try {
+      var resp = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('v30-login-username').value.trim(),
+          password: document.getElementById('v30-login-password').value
+        })
       });
-    })();
-  </script>
+      var data = await resp.json();
+      if (data.ok) {
+        window.location.href = data.must_change_password
+          ? '/parametres?change_password=1'
+          : '/v30/dashboard';
+      } else {
+        err.textContent = (data.error || 'Erreur de connexion');
+        err.classList.add('show');
+      }
+    } catch (_) {
+      err.textContent = 'Erreur réseau';
+      err.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      document.body.classList.remove('is-loading');
+    }
+  });
+})();
+</script>
 </body>
 </html>
