@@ -1,9 +1,9 @@
 /* ============================================================
-   ProspUp v30 — Toile d'araignée (split mini-graphe + index)
-   Architecture 3 colonnes :
-     1. Mini-graphe : SVG radial centré sur le nœud sélectionné
-     2. Index complet : liste catégorisée de tous les nœuds
-     3. Détail : titre, description, JS handlers, voisins, action Ouvrir
+   ProspUp v30 — Toile d'araignée (toile complète + détail)
+   2 colonnes :
+     - Toile interactive : SVG radial pannable/zoomable, 3 modes
+       (Tout / 2° / Voisins), filtres catégorie + statut
+     - Détail : titre, description, JS handlers, voisins, action Ouvrir
    ============================================================ */
 (function () {
   'use strict';
@@ -11,16 +11,25 @@
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const data = window.SITEMAP_DATA || { pages: [], categories: {}, root: {} };
 
-  // ─── Modélisation des nœuds ────────────────────────────
-  // On construit une structure unifiée : tous les nœuds (root, hub, pages, actions)
-  // partagent le même schéma. id, label, kind, cat, tier, neighbors, ...
-  //   - root  : Connexion (T0)
-  //   - hub   : Dashboard (T0, hub central)
-  //   - page  : pages principales (T1)
-  //   - action: actions/boutons sur une page (T2)
+  // ─── Layout constantes ────────────────────────────────
+  const HUB_RADIUS = 38;
+  const PAGE_RADIUS = 30;
+  const ACTION_RADIUS = 9;
+  const ROOT_RADIUS = 32;
+  const RING_PAGES = 540;
+  const RING_ACTIONS_INNER = 130;
+  const RING_ACTIONS_OUTER = 220;
+  const MAX_PER_RING = 4;
+  const ACTION_ARC_DEG = 50;
+  const HUB_ACTION_ARC = 290;
+  const HUB_ACTION_START = -180 + 35;
+  const LOGIN_OFFSET = 220;
+  const START_ANGLE = -90;
 
-  const allNodes = new Map(); // id → node
-  const adjacency = new Map(); // id → Set<id>
+  // ─── Modélisation ─────────────────────────────────────
+  const allNodes = new Map();        // id → node {id, label, kind, cat, tier, href, x, y, status, tools, parentId}
+  const adjacency = new Map();       // id → Set<id>
+  const edgesList = [];              // {a, b, cat, status, kind:'root'|'page'|'action'}
 
   function addAdj(a, b) {
     if (!adjacency.has(a)) adjacency.set(a, new Set());
@@ -32,9 +41,11 @@
   function buildModel() {
     allNodes.clear();
     adjacency.clear();
+    edgesList.length = 0;
 
     const root = data.root || {};
     const hubId = data.hub || 'dashboard';
+    const pages = data.pages || [];
 
     // root
     if (root && root.id) {
@@ -54,7 +65,7 @@
       });
     }
 
-    (data.pages || []).forEach(function (p) {
+    pages.forEach(function (p) {
       const isHub = p.id === hubId;
       const node = {
         id: p.id,
@@ -72,8 +83,15 @@
         parentId: null,
       };
       allNodes.set(p.id, node);
-      if (root && root.id) addAdj(root.id, hubId);
-      if (!isHub) addAdj(hubId, p.id);
+
+      if (root && root.id && isHub) {
+        addAdj(root.id, hubId);
+        edgesList.push({ a: root.id, b: hubId, cat: 'hub', status: null, kind: 'root' });
+      }
+      if (!isHub) {
+        addAdj(hubId, p.id);
+        edgesList.push({ a: hubId, b: p.id, cat: p.cat, status: p.status, kind: 'page' });
+      }
 
       (p.actions || []).forEach(function (act, idx) {
         const aid = p.id + '__act_' + idx;
@@ -95,28 +113,31 @@
         };
         allNodes.set(aid, aNode);
         addAdj(p.id, aid);
+        edgesList.push({ a: p.id, b: aid, cat: p.cat, status: act.status, kind: 'action' });
       });
     });
-  }
-
-  // Compte de liens unique
-  function countEdges() {
-    const seen = new Set();
-    adjacency.forEach(function (set, k) {
-      set.forEach(function (v) {
-        const key = k < v ? k + '|' + v : v + '|' + k;
-        seen.add(key);
-      });
-    });
-    return seen.size;
   }
 
   // ─── État UI ──────────────────────────────────────────
   const state = {
     selectedId: null,
-    depth: 1,            // 'all' | 1 | 2
+    depth: 'all',            // 'all' | 1 | 2
+    catFilter: 'all',        // 'all' | 'navigate' | …
+    statusFilter: null,      // null | 'ko' | 'warn'
     searchOpen: false,
     helpOpen: false,
+    // pan/zoom
+    scale: 1,
+    minScale: 0.2,
+    maxScale: 4,
+    tx: 0,
+    ty: 0,
+    panning: false,
+    panStart: { x: 0, y: 0 },
+    panInitial: { tx: 0, ty: 0 },
+    pinching: false,
+    pinchStart: 0,
+    pinchScale: 1,
   };
 
   // ─── DOM refs ─────────────────────────────────────────
@@ -133,12 +154,17 @@
     graphEdges: document.getElementById('v30-sm-graph-edges'),
     graphNodes: document.getElementById('v30-sm-graph-nodes'),
     graphContainer: document.getElementById('v30-sm-graph'),
-    index: document.getElementById('v30-sm-index'),
     toggleBtns: document.querySelectorAll('[data-depth]'),
+    catBtns: document.querySelectorAll('[data-cat-filter]'),
+    statusBtns: document.querySelectorAll('[data-status-filter]'),
     detail: {
       kicker: document.querySelector('[data-detail-kicker]'),
       title: document.querySelector('[data-detail-title]'),
       desc: document.querySelector('[data-detail-desc]'),
+      meta: document.querySelector('[data-detail-meta]'),
+      cat: document.querySelector('[data-detail-cat]'),
+      tier: document.querySelector('[data-detail-tier]'),
+      kind: document.querySelector('[data-detail-kind]'),
       handlers: document.querySelector('[data-detail-handlers]'),
       handlersWrap: document.querySelector('[data-detail-handlers-wrap]'),
       endpoints: document.querySelector('[data-detail-endpoints]'),
@@ -168,6 +194,18 @@
 
   function deg2rad(d) { return d * Math.PI / 180; }
 
+  function curvePath(p1, p2, curvature) {
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const c = (curvature == null ? 0.18 : curvature) * dist;
+    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    const nx = -dy / dist;
+    const ny = dx / dist;
+    const ctrl = { x: mid.x + nx * c, y: mid.y + ny * c };
+    return 'M' + p1.x + ',' + p1.y + ' Q' + ctrl.x + ',' + ctrl.y + ' ' + p2.x + ',' + p2.y;
+  }
+
   function normalize(s) {
     return (s || '').toString().toLowerCase()
       .normalize('NFD').replace(/\p{Diacritic}/gu, '');
@@ -180,16 +218,10 @@
 
   function kindLabel(node) {
     if (!node) return '';
-    if (node.kind === 'root') return 'Route';
+    if (node.kind === 'root') return 'Entry';
     if (node.kind === 'hub') return 'Hub';
     if (node.kind === 'page') return 'Route';
-    if (node.kind === 'action') {
-      const tools = node.tools || {};
-      const hasEndpoints = (tools.endpoints || []).length > 0;
-      const hasBackend = (tools.backend || []).length > 0;
-      if (!hasEndpoints && !hasBackend) return 'Action';
-      return 'Action';
-    }
+    if (node.kind === 'action') return 'Action';
     return '';
   }
 
@@ -199,230 +231,89 @@
     return cat ? cat.label : (catKey || '').toString();
   }
 
-  // ─── Rendu : Index complet ────────────────────────────
-  function renderIndex() {
-    const idx = refs.index;
-    if (!idx) return;
-    idx.innerHTML = '';
-
+  // ─── Layout : positionne TOUS les nœuds en mode "Tout" ─
+  function computeFullLayout() {
+    const pages = data.pages || [];
     const root = data.root;
     const hubId = data.hub || 'dashboard';
-    const pages = data.pages || [];
+    const dashboard = pages.find(function (p) { return p.id === hubId; }) || pages[0];
+    if (!dashboard) return;
 
-    // Section HUB : root + hub page
-    const hubSection = makeCatSection('hub', 'HUB');
-    if (root && root.id) hubSection.list.appendChild(makeRow(allNodes.get(root.id)));
+    // Hub au centre
     const hubNode = allNodes.get(hubId);
-    if (hubNode) hubSection.list.appendChild(makeRow(hubNode));
-    hubSection.count.textContent = hubSection.list.children.length;
-    idx.appendChild(hubSection.frag);
+    if (hubNode) { hubNode.x = 0; hubNode.y = 0; hubNode._angle = 0; }
 
-    // Une section par catégorie (ordre: navigate, records, outils, admin, autres)
-    const catOrder = ['navigate', 'records', 'outils', 'admin', 'autres'];
-    catOrder.forEach(function (catKey) {
-      const catPages = pages.filter(function (p) { return p.cat === catKey && p.id !== hubId; });
-      if (catPages.length === 0) return;
-      const cat = (data.categories || {})[catKey] || { label: catKey };
-      const sec = makeCatSection(catKey, cat.label.toUpperCase());
-
-      catPages.forEach(function (p) {
-        const pageNode = allNodes.get(p.id);
-        if (pageNode) sec.list.appendChild(makeRow(pageNode));
-        // Actions de la page directement après (T2, indentées)
-        (p.actions || []).forEach(function (a) {
-          const aNode = allNodes.get(a._uid);
-          if (aNode) sec.list.appendChild(makeRow(aNode));
-        });
-      });
-
-      const itemsCount = catPages.length + catPages.reduce(function (s, p) { return s + (p.actions || []).length; }, 0);
-      sec.count.textContent = itemsCount;
-      idx.appendChild(sec.frag);
-    });
-  }
-
-  function makeCatSection(catKey, label) {
-    const frag = document.createDocumentFragment();
-    const wrap = document.createElement('div');
-    wrap.className = 'v30-sm-cat';
-    wrap.dataset.cat = catKey;
-
-    const head = document.createElement('div');
-    head.className = 'v30-sm-cat__head';
-    const title = document.createElement('div');
-    title.className = 'v30-sm-cat__title';
-    title.innerHTML = '<span class="v30-sm-cat__dot" data-cat="' + catKey + '"></span>' + label;
-    const count = document.createElement('div');
-    count.className = 'v30-sm-cat__count';
-    count.textContent = '0';
-    head.appendChild(title);
-    head.appendChild(count);
-
-    const list = document.createElement('div');
-    list.className = 'v30-sm-cat__list';
-
-    wrap.appendChild(head);
-    wrap.appendChild(list);
-    frag.appendChild(wrap);
-
-    return { frag, list, count };
-  }
-
-  function makeRow(node) {
-    const row = document.createElement('div');
-    row.className = 'v30-sm-row';
-    if (node.kind === 'action') row.classList.add('is-action');
-    row.dataset.id = node.id;
-    row.setAttribute('role', 'option');
-    row.setAttribute('tabindex', '0');
-
-    const lbl = document.createElement('div');
-    lbl.className = 'v30-sm-row__label';
-    lbl.textContent = node.label;
-
-    const kind = document.createElement('span');
-    kind.className = 'v30-sm-row__kind';
-    kind.textContent = kindLabel(node);
-
-    const tier = document.createElement('span');
-    tier.className = 'v30-sm-row__tier';
-    tier.textContent = node.tier;
-
-    row.appendChild(lbl);
-    row.appendChild(kind);
-    row.appendChild(tier);
-
-    row.addEventListener('click', function () { selectNode(node.id); });
-    row.addEventListener('dblclick', function () {
-      selectNode(node.id);
-      openSelected();
-    });
-    row.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (e.metaKey || e.ctrlKey) openSelected();
-        else selectNode(node.id);
-      }
-    });
-
-    return row;
-  }
-
-  // ─── Rendu : Mini-graphe ──────────────────────────────
-  function renderMiniGraph() {
-    const svg = refs.graphSvg;
-    const edgesG = refs.graphEdges;
-    const nodesG = refs.graphNodes;
-    edgesG.innerHTML = '';
-    nodesG.innerHTML = '';
-
-    // Empty state
-    const existingEmpty = refs.graphContainer.querySelector('.v30-sm-graph__empty');
-    if (existingEmpty) existingEmpty.remove();
-
-    if (!state.selectedId) {
-      const empty = document.createElement('div');
-      empty.className = 'v30-sm-graph__empty';
-      empty.textContent = 'Sélectionnez un nœud dans l\'index pour visualiser ses voisins.';
-      refs.graphContainer.appendChild(empty);
-      return;
+    // Connexion à gauche du hub
+    if (root && root.id) {
+      const r = allNodes.get(root.id);
+      if (r) { r.x = -LOGIN_OFFSET; r.y = 0; }
     }
 
-    const node = allNodes.get(state.selectedId);
-    if (!node) return;
-
-    const visible = computeVisible(state.selectedId, state.depth);
-
-    // Layout : nœud sélectionné au centre, voisins immédiats sur ring 1, ring 2 plus loin
-    const positions = layoutVisible(state.selectedId, visible);
-
-    // ViewBox dynamique
-    const stage = refs.graphContainer;
-    const rect = stage.getBoundingClientRect();
-    const w = Math.max(280, rect.width);
-    const h = Math.max(220, rect.height);
-    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
-    refs.graphCanvas.setAttribute('transform', 'translate(' + (w / 2) + ',' + (h / 2) + ')');
-
-    // Edges (uniquement entre nœuds visibles)
-    const edgeSeen = new Set();
-    visible.forEach(function (id) {
-      const adj = adjacency.get(id);
-      if (!adj) return;
-      adj.forEach(function (other) {
-        if (!visible.has(other)) return;
-        const key = id < other ? id + '|' + other : other + '|' + id;
-        if (edgeSeen.has(key)) return;
-        edgeSeen.add(key);
-        const p1 = positions.get(id);
-        const p2 = positions.get(other);
-        if (!p1 || !p2) return;
-        const isActive = (id === state.selectedId || other === state.selectedId);
-        const e = el('path', {
-          d: 'M' + p1.x + ',' + p1.y + ' L' + p2.x + ',' + p2.y,
-          class: 'v30-sm-edge' + (isActive ? ' is-active' : ' is-dim'),
-        });
-        edgesG.appendChild(e);
-      });
+    // Pages réparties autour du hub
+    const otherPages = pages.filter(function (p) { return p.id !== hubId; });
+    const n = otherPages.length;
+    otherPages.forEach(function (p, i) {
+      const angle = START_ANGLE + (360 / n) * i;
+      const a = deg2rad(angle);
+      const node = allNodes.get(p.id);
+      if (!node) return;
+      node.x = RING_PAGES * Math.cos(a);
+      node.y = RING_PAGES * Math.sin(a);
+      node._angle = angle;
     });
 
-    // Nodes
-    visible.forEach(function (id) {
-      const n = allNodes.get(id);
-      const pos = positions.get(id);
-      if (!n || !pos) return;
-      nodesG.appendChild(makeGraphNode(n, pos));
+    // Actions de chaque page disposées en éventail vers l'extérieur
+    pages.forEach(function (p) {
+      const acts = p.actions || [];
+      const an = acts.length;
+      if (an === 0) return;
+
+      const isHub = p.id === hubId;
+      const pageNode = allNodes.get(p.id);
+      const baseAngle = isHub ? HUB_ACTION_START : (pageNode._angle || 0);
+      const arcDeg = isHub ? HUB_ACTION_ARC : ACTION_ARC_DEG;
+
+      const useTwoRings = !isHub && an > MAX_PER_RING;
+      const ring1Count = useTwoRings ? Math.ceil(an / 2) : an;
+
+      acts.forEach(function (act, j) {
+        const onRing2 = useTwoRings && j >= ring1Count;
+        const idxInRing = onRing2 ? (j - ring1Count) : j;
+        const ringTotal = onRing2 ? (an - ring1Count) : ring1Count;
+        const r = isHub
+          ? RING_ACTIONS_INNER
+          : (onRing2 ? RING_ACTIONS_OUTER : RING_ACTIONS_INNER);
+
+        let angle;
+        if (isHub) {
+          angle = baseAngle + (arcDeg / Math.max(1, an - 1)) * j;
+        } else if (ringTotal === 1) {
+          angle = baseAngle;
+        } else {
+          const t = (idxInRing / (ringTotal - 1)) - 0.5;
+          const localArc = onRing2 ? arcDeg * 1.15 : arcDeg;
+          angle = baseAngle + t * localArc;
+        }
+
+        const a = deg2rad(angle);
+        const node = allNodes.get(act._uid);
+        if (!node) return;
+        node.x = pageNode.x + r * Math.cos(a);
+        node.y = pageNode.y + r * Math.sin(a);
+        node._angle = angle;
+      });
     });
   }
 
-  function computeVisible(centerId, depth) {
-    // BFS jusqu'à profondeur donnée
-    const visible = new Set([centerId]);
-    if (depth === 'all') {
-      allNodes.forEach(function (_, id) { visible.add(id); });
-      return visible;
-    }
-    const maxDepth = depth || 1;
-    let frontier = [centerId];
-    for (let d = 0; d < maxDepth; d++) {
-      const next = [];
-      frontier.forEach(function (id) {
-        const adj = adjacency.get(id);
-        if (!adj) return;
-        adj.forEach(function (n) {
-          if (!visible.has(n)) {
-            visible.add(n);
-            next.push(n);
-          }
-        });
-      });
-      frontier = next;
-    }
-    return visible;
-  }
-
-  function layoutVisible(centerId, visible) {
+  // ─── Layout focal pour Voisins / 2° ───────────────────
+  function computeFocalLayout(centerId, depth) {
+    // Toujours mettre à jour le full layout d'abord (assure que hubNode etc. ont x,y)
+    // puis on REPLACE les positions pour le sous-graphe centré.
+    const visible = computeVisible(centerId, depth);
     const positions = new Map();
     positions.set(centerId, { x: 0, y: 0 });
 
-    if (state.depth === 'all') {
-      // Layout simplifié : nœud central + voisins en ring + reste plus loin
-      // On limite l'affichage à un sous-ensemble lisible
-      const center = allNodes.get(centerId);
-      const adj = Array.from(adjacency.get(centerId) || []);
-
-      // Ring 1 : voisins directs
-      const ring1Radius = 110;
-      adj.forEach(function (id, i) {
-        const angle = -90 + (360 / Math.max(1, adj.length)) * i;
-        const a = deg2rad(angle);
-        positions.set(id, { x: ring1Radius * Math.cos(a), y: ring1Radius * Math.sin(a) });
-      });
-      return positions;
-    }
-
-    // Profondeur 1 ou 2 : layout en anneaux successifs
-    // Détermine la profondeur de chaque nœud
+    // Profondeur de chaque nœud
     const depthOf = new Map();
     depthOf.set(centerId, 0);
     let frontier = [centerId];
@@ -450,14 +341,12 @@
       byDepth[d].push(id);
     });
 
-    // Plage de rayons selon viewBox approximatif
-    const radii = { 0: 0, 1: 105, 2: 195, 3: 280 };
-
+    const radii = { 0: 0, 1: 200, 2: 380, 3: 540 };
     Object.keys(byDepth).forEach(function (dKey) {
       const d = parseInt(dKey, 10);
+      if (d === 0) return;
       const ids = byDepth[d];
-      const r = radii[d] || (60 + d * 80);
-      if (d === 0) return; // centre déjà placé
+      const r = radii[d] || (160 + d * 140);
       ids.forEach(function (id, i) {
         const angle = -90 + (360 / ids.length) * i;
         const a = deg2rad(angle);
@@ -465,63 +354,378 @@
       });
     });
 
-    return positions;
+    // Applique les positions au modèle
+    allNodes.forEach(function (node, id) {
+      if (positions.has(id)) {
+        const p = positions.get(id);
+        node.x = p.x;
+        node.y = p.y;
+      } else {
+        // Hors du sous-graphe : on les éloigne pour qu'ils soient hors viewport
+        node.x = 99999;
+        node.y = 99999;
+      }
+    });
+
+    return visible;
   }
 
-  function makeGraphNode(node, pos) {
+  function computeVisible(centerId, depth) {
+    const visible = new Set([centerId]);
+    if (depth === 'all') {
+      allNodes.forEach(function (_, id) { visible.add(id); });
+      return visible;
+    }
+    const maxDepth = depth || 1;
+    let frontier = [centerId];
+    for (let d = 0; d < maxDepth; d++) {
+      const next = [];
+      frontier.forEach(function (id) {
+        const adj = adjacency.get(id);
+        if (!adj) return;
+        adj.forEach(function (n) {
+          if (!visible.has(n)) {
+            visible.add(n);
+            next.push(n);
+          }
+        });
+      });
+      frontier = next;
+    }
+    return visible;
+  }
+
+  // ─── Rendu graph ──────────────────────────────────────
+  function render() {
+    const visible = (state.depth === 'all')
+      ? new Set(Array.from(allNodes.keys()))
+      : computeFocalLayout(state.selectedId || (data.hub || 'dashboard'), state.depth);
+
+    if (state.depth === 'all') computeFullLayout();
+
+    refs.graphEdges.innerHTML = '';
+    refs.graphNodes.innerHTML = '';
+
+    // Edges
+    edgesList.forEach(function (e) {
+      if (!visible.has(e.a) || !visible.has(e.b)) return;
+      const na = allNodes.get(e.a);
+      const nb = allNodes.get(e.b);
+      if (!na || !nb) return;
+      const isRoot = e.kind === 'root';
+      const cls = ['v30-sm-edge'];
+      if (isRoot) cls.push('v30-sm-edge--root');
+      else cls.push('v30-sm-edge--cat-' + e.cat);
+      if (e.status === 'ko') cls.push('is-status-ko');
+
+      const path = el('path', {
+        d: curvePath({ x: na.x, y: na.y }, { x: nb.x, y: nb.y }, e.kind === 'page' ? 0.1 : 0.05),
+        class: cls.join(' '),
+        'data-cat': e.cat,
+        'data-edge-a': e.a,
+        'data-edge-b': e.b,
+      });
+      if (e.status) path.setAttribute('data-status', e.status);
+      refs.graphEdges.appendChild(path);
+    });
+
+    // Nodes
+    visible.forEach(function (id) {
+      const n = allNodes.get(id);
+      if (!n) return;
+      refs.graphNodes.appendChild(makeNode(n));
+    });
+
+    // Cascade
+    Array.prototype.forEach.call(refs.graphNodes.querySelectorAll('.v30-sm-gnode'), function (node, i) {
+      node.style.animationDelay = Math.min(i * 8, 600) + 'ms';
+    });
+
+    // Apply highlight + filters
+    applyHighlight();
+    applyCategoryFilter();
+    applyStatusFilter();
+
+    // Fit screen
+    if (state.depth === 'all') {
+      fitToScreen(false);
+    } else {
+      fitFocal();
+    }
+  }
+
+  function makeNode(node) {
     const isCurrent = node.id === state.selectedId;
     const isRoot = node.kind === 'root';
     const isHub = node.kind === 'hub';
     const isAction = node.kind === 'action';
 
+    let r = PAGE_RADIUS;
+    if (isAction) r = ACTION_RADIUS;
+    else if (isRoot) r = ROOT_RADIUS;
+    else if (isHub) r = HUB_RADIUS;
+
+    const status = node.status || 'unknown';
     const g = el('g', {
       class: 'v30-sm-gnode'
-        + (isCurrent ? ' v30-sm-gnode--current' : '')
-        + (isRoot ? ' v30-sm-gnode--root' : '')
-        + (isHub ? ' v30-sm-gnode--hub' : ''),
+        + ' v30-sm-gnode--' + node.kind
+        + ' v30-sm-gnode--status-' + status
+        + (isCurrent ? ' v30-sm-gnode--current is-active' : ''),
       'data-id': node.id,
       'data-cat': node.cat,
-      transform: 'translate(' + pos.x + ',' + pos.y + ')',
+      'data-kind': node.kind,
+      'data-status': status,
+      transform: 'translate(' + node.x + ',' + node.y + ')',
     });
 
-    let r = 22;
-    if (isAction) r = 8;
-    else if (isCurrent) r = 14;
-    else if (isHub) r = 22;
-    else r = 14;
+    // Halo
+    if (!isAction) {
+      const halo = el('circle', {
+        class: 'v30-sm-gnode__halo',
+        r: r + 8,
+        cx: 0, cy: 0,
+      });
+      g.appendChild(halo);
+    }
 
+    // Cercle principal
     const c = el('circle', {
       class: 'v30-sm-gnode__circle',
       cx: 0, cy: 0, r: r,
-      'data-cat': node.cat,
     });
     g.appendChild(c);
 
-    // Label
-    if (isCurrent || isHub || node.kind === 'page' || node.kind === 'root') {
-      const labelText = truncate(node.label, 22);
-      const lbl = el('text', {
-        class: 'v30-sm-gnode__label' + (!isCurrent && !isRoot ? ' v30-sm-gnode__label--ext' : ''),
-        x: 0,
-        y: isCurrent || isRoot ? -r - 8 : -r - 6,
-        text: labelText,
+    // Status pastille (sauf root)
+    if (!isRoot) {
+      const dotR = isAction ? 3.2 : 5.5;
+      const dotOffset = r * 0.74;
+      const sd = el('circle', {
+        class: 'v30-sm-gnode__status v30-sm-gnode__status--' + status,
+        r: dotR,
+        cx: dotOffset,
+        cy: -dotOffset,
       });
-      g.appendChild(lbl);
-    } else {
-      // Petite étiquette pour les actions (au-dessus de la bulle)
-      const lbl = el('text', {
-        class: 'v30-sm-gnode__label v30-sm-gnode__label--ext',
-        x: 0,
-        y: -r - 5,
-        text: truncate(node.label, 18),
-      });
-      g.appendChild(lbl);
+      g.appendChild(sd);
     }
 
-    g.addEventListener('click', function () { selectNode(node.id); });
-    g.addEventListener('dblclick', function () { openSelected(); });
+    // Label
+    let lbl = node.label || '';
+    if (isAction && lbl.length > 24) lbl = lbl.slice(0, 22) + '…';
+    if ((isRoot || isHub || node.kind === 'page') && lbl.length > 18) lbl = lbl.slice(0, 16) + '…';
+
+    if (isAction) {
+      // Label sous la bulle
+      const t = el('text', {
+        class: 'v30-sm-gnode__label',
+        x: 0,
+        y: r + 12,
+        text: lbl,
+      });
+      g.appendChild(t);
+    } else {
+      // Label centré dans la bulle
+      const t = el('text', {
+        class: 'v30-sm-gnode__label',
+        x: 0,
+        y: 0,
+        text: lbl,
+      });
+      g.appendChild(t);
+    }
 
     return g;
+  }
+
+  // ─── Highlight branche du sélectionné ────────────────
+  function applyHighlight() {
+    const id = state.selectedId;
+    if (!id || state.depth !== 'all') {
+      refs.graphNodes.classList.remove('is-dimmed');
+      refs.graphEdges.classList.remove('is-dimmed');
+      Array.prototype.forEach.call(refs.graphNodes.querySelectorAll('.is-active'), function (n) {
+        if (!n.classList.contains('v30-sm-gnode--current')) n.classList.remove('is-active');
+      });
+      Array.prototype.forEach.call(refs.graphEdges.querySelectorAll('.is-active'), function (e) {
+        e.classList.remove('is-active');
+      });
+      return;
+    }
+
+    refs.graphNodes.classList.add('is-dimmed');
+    refs.graphEdges.classList.add('is-dimmed');
+
+    const n = allNodes.get(id);
+    if (!n) return;
+
+    const activeIds = new Set([id]);
+    if (n.kind === 'action' && n.parentId) activeIds.add(n.parentId);
+    if (n.kind !== 'root' && (data.hub || 'dashboard')) activeIds.add(data.hub || 'dashboard');
+    if (data.root && data.root.id) activeIds.add(data.root.id);
+
+    // Pour une page : aussi ses actions
+    if (n.kind === 'page' || n.kind === 'hub') {
+      const adj = adjacency.get(n.id) || new Set();
+      adj.forEach(function (a) {
+        const ax = allNodes.get(a);
+        if (ax && ax.kind === 'action') activeIds.add(a);
+      });
+    }
+
+    Array.prototype.forEach.call(refs.graphNodes.querySelectorAll('.v30-sm-gnode'), function (node) {
+      node.classList.toggle('is-active', activeIds.has(node.dataset.id));
+    });
+
+    Array.prototype.forEach.call(refs.graphEdges.querySelectorAll('.v30-sm-edge'), function (edge) {
+      const a = edge.dataset.edgeA;
+      const b = edge.dataset.edgeB;
+      const active = activeIds.has(a) && activeIds.has(b);
+      edge.classList.toggle('is-active', active);
+    });
+  }
+
+  // ─── Filtre catégorie ─────────────────────────────────
+  function applyCategoryFilter() {
+    const cat = state.catFilter;
+    refs.catBtns.forEach(function (b) {
+      b.classList.toggle('is-active', b.dataset.catFilter === cat);
+    });
+    if (cat === 'all') {
+      refs.graphNodes.classList.remove('has-cat-filter');
+      refs.graphEdges.classList.remove('has-cat-filter');
+      Array.prototype.forEach.call(document.querySelectorAll('.v30-sm-gnode, .v30-sm-edge'), function (n) {
+        n.classList.remove('is-cat-match');
+      });
+      return;
+    }
+    refs.graphNodes.classList.add('has-cat-filter');
+    refs.graphEdges.classList.add('has-cat-filter');
+    Array.prototype.forEach.call(refs.graphNodes.querySelectorAll('.v30-sm-gnode'), function (node) {
+      node.classList.toggle('is-cat-match', node.dataset.cat === cat);
+    });
+    Array.prototype.forEach.call(refs.graphEdges.querySelectorAll('.v30-sm-edge'), function (edge) {
+      edge.classList.toggle('is-cat-match', edge.dataset.cat === cat);
+    });
+  }
+
+  // ─── Filtre statut ────────────────────────────────────
+  function applyStatusFilter() {
+    const status = state.statusFilter;
+    refs.statusBtns.forEach(function (b) {
+      b.classList.toggle('is-active', b.dataset.statusFilter === status);
+    });
+    if (!status) {
+      refs.graphNodes.classList.remove('has-status-filter');
+      refs.graphEdges.classList.remove('has-status-filter');
+      Array.prototype.forEach.call(document.querySelectorAll('.v30-sm-gnode, .v30-sm-edge'), function (n) {
+        n.classList.remove('is-status-match');
+      });
+      return;
+    }
+    refs.graphNodes.classList.add('has-status-filter');
+    refs.graphEdges.classList.add('has-status-filter');
+    Array.prototype.forEach.call(refs.graphNodes.querySelectorAll('.v30-sm-gnode'), function (node) {
+      node.classList.toggle('is-status-match', node.dataset.status === status);
+    });
+    Array.prototype.forEach.call(refs.graphEdges.querySelectorAll('.v30-sm-edge'), function (edge) {
+      edge.classList.toggle('is-status-match', edge.dataset.status === status);
+    });
+  }
+
+  // ─── Pan / Zoom ───────────────────────────────────────
+  function applyTransform() {
+    refs.graphCanvas.setAttribute('transform',
+      'translate(' + state.tx + ',' + state.ty + ') scale(' + state.scale + ')'
+    );
+  }
+
+  function fitToScreen(animate) {
+    const rect = refs.graphContainer.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    refs.graphSvg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    const halfBox = RING_PAGES + RING_ACTIONS_OUTER + 80;
+    const padding = 40;
+    const sx = (w - 2 * padding) / (2 * halfBox);
+    const sy = (h - 2 * padding) / (2 * halfBox);
+    state.scale = Math.max(state.minScale, Math.min(state.maxScale, Math.min(sx, sy)));
+    state.tx = w / 2;
+    state.ty = h / 2;
+    if (!animate) refs.graphCanvas.classList.add('is-panning');
+    applyTransform();
+    if (!animate) {
+      requestAnimationFrame(function () { refs.graphCanvas.classList.remove('is-panning'); });
+    }
+  }
+
+  function fitFocal() {
+    const rect = refs.graphContainer.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    refs.graphSvg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    // Taille basée sur la profondeur active : 1 → ~250, 2 → ~430
+    const halfBox = state.depth === 1 ? 280 : 460;
+    const padding = 40;
+    const sx = (w - 2 * padding) / (2 * halfBox);
+    const sy = (h - 2 * padding) / (2 * halfBox);
+    state.scale = Math.max(state.minScale, Math.min(state.maxScale, Math.min(sx, sy)));
+    state.tx = w / 2;
+    state.ty = h / 2;
+    applyTransform();
+  }
+
+  function zoomBy(factor, cx, cy) {
+    const newScale = Math.max(state.minScale, Math.min(state.maxScale, state.scale * factor));
+    if (newScale === state.scale) return;
+    if (cx == null || cy == null) {
+      const r = refs.graphContainer.getBoundingClientRect();
+      cx = r.width / 2;
+      cy = r.height / 2;
+    }
+    const wx = (cx - state.tx) / state.scale;
+    const wy = (cy - state.ty) / state.scale;
+    state.scale = newScale;
+    state.tx = cx - wx * newScale;
+    state.ty = cy - wy * newScale;
+    applyTransform();
+  }
+
+  // ─── Sélection ────────────────────────────────────────
+  function selectNode(id, opts) {
+    if (!allNodes.has(id)) return;
+    state.selectedId = id;
+    opts = opts || {};
+
+    // Mise à jour visuelle des nodes (sans re-render si en mode all)
+    if (state.depth === 'all') {
+      Array.prototype.forEach.call(refs.graphNodes.querySelectorAll('.v30-sm-gnode'), function (g) {
+        const isCur = g.dataset.id === id;
+        g.classList.toggle('v30-sm-gnode--current', isCur);
+        g.classList.toggle('is-active', isCur);
+      });
+      applyHighlight();
+    } else {
+      // En mode focal : on re-layout autour du nouveau nœud
+      render();
+    }
+
+    renderDetail();
+
+    // Scroll into view en mode all : centre la vue sur le nœud
+    if (opts.center && state.depth === 'all') {
+      const n = allNodes.get(id);
+      if (n) {
+        const rect = refs.graphContainer.getBoundingClientRect();
+        state.tx = rect.width / 2 - n.x * state.scale;
+        state.ty = rect.height / 2 - n.y * state.scale;
+        applyTransform();
+      }
+    }
+  }
+
+  function openSelected() {
+    const n = state.selectedId ? allNodes.get(state.selectedId) : null;
+    if (!n || !n.href || n.href === '#') return;
+    window.location.href = n.href;
   }
 
   // ─── Détail ───────────────────────────────────────────
@@ -530,7 +734,8 @@
     if (!state.selectedId) {
       d.kicker.textContent = 'Détail · Sélectionnez un nœud';
       d.title.textContent = '—';
-      d.desc.textContent = 'Cliquez sur un élément à gauche ou dans l\'index pour voir son détail.';
+      d.desc.textContent = 'Cliquez sur un nœud de la toile pour voir son détail, ou utilisez F pour rechercher.';
+      d.meta.hidden = true;
       d.handlersWrap.hidden = true;
       d.endpointsWrap.hidden = true;
       d.backendWrap.hidden = true;
@@ -545,11 +750,10 @@
     if (!n) return;
 
     const kind = (n.kind || '').toUpperCase();
-    const kicker = 'Détail · ' + (kind === 'ROOT' ? 'ENTRY' : kind);
-    d.kicker.textContent = kicker;
+    d.kicker.textContent = 'Détail · ' + (kind === 'ROOT' ? 'ENTRY' : kind);
     d.title.textContent = n.label;
 
-    // Description (sub ou message contextuel)
+    // Description
     let desc = n.sub || '';
     if (!desc && n.kind === 'action') {
       const tools = n.tools || {};
@@ -558,7 +762,8 @@
       if (!hasEndpoints && !hasBackend) {
         desc = 'Aucun endpoint testable (action UI/frontend uniquement).';
       } else {
-        desc = 'Action de la page « ' + (allNodes.get(n.parentId) || {}).label + ' ».';
+        const parent = allNodes.get(n.parentId);
+        desc = 'Action de la page « ' + (parent ? parent.label : '?') + ' ».';
       }
     }
     if (!desc && n.kind === 'page') desc = 'Page ProspUp.';
@@ -566,7 +771,14 @@
     if (!desc && n.kind === 'root') desc = 'Point d\'entrée de l\'application.';
     d.desc.textContent = desc;
 
-    // Tools : handlers, endpoints, backend
+    // Meta : catégorie + tier + kind
+    d.meta.hidden = false;
+    d.cat.textContent = categoryLabel(n.cat);
+    d.cat.dataset.cat = n.cat;
+    d.tier.textContent = n.tier;
+    d.kind.textContent = kindLabel(n);
+
+    // Tools
     const tools = n.tools || {};
     setCodeList(d.handlersWrap, d.handlers, tools.handlers, function (h) { return h + '()'; });
     setCodeList(d.endpointsWrap, d.endpoints, tools.endpoints, null);
@@ -616,26 +828,21 @@
         card.appendChild(dot);
         card.appendChild(lbl);
         card.appendChild(arr);
-        card.addEventListener('click', function () { selectNode(nid); });
+        card.addEventListener('click', function () { selectNode(nid, { center: true }); });
         d.neighbors.appendChild(card);
       });
     } else {
       d.neighborsWrap.hidden = true;
     }
 
-    // Actions
-    const canOpen = !!n.href && n.href !== '#' && n.kind !== 'root';
-    d.actions.hidden = !canOpen && n.kind !== 'root';
-    if (n.kind === 'root' && n.href) d.actions.hidden = false;
+    const canOpen = !!n.href && n.href !== '#';
+    d.actions.hidden = !canOpen;
 
     updateBreadcrumb(n);
   }
 
   function setCodeList(wrap, codeEl, list, fmt) {
-    if (!list || list.length === 0) {
-      wrap.hidden = true;
-      return;
-    }
+    if (!list || list.length === 0) { wrap.hidden = true; return; }
     wrap.hidden = false;
     codeEl.innerHTML = '';
     list.forEach(function (item) {
@@ -648,42 +855,13 @@
 
   function updateBreadcrumb(n) {
     if (!refs.crumbCurrent) return;
-    if (!n) {
-      refs.crumbCurrent.textContent = '—';
-      return;
-    }
+    if (!n) { refs.crumbCurrent.textContent = '—'; return; }
     let txt = n.label;
     if (n.kind === 'action' && n.parentId) {
       const parent = allNodes.get(n.parentId);
       if (parent) txt = parent.label + ' › ' + n.label;
     }
     refs.crumbCurrent.textContent = txt;
-  }
-
-  // ─── Sélection ────────────────────────────────────────
-  function selectNode(id) {
-    if (!allNodes.has(id)) return;
-    state.selectedId = id;
-
-    // Met à jour les rows
-    Array.prototype.forEach.call(refs.index.querySelectorAll('.v30-sm-row'), function (r) {
-      r.classList.toggle('is-active', r.dataset.id === id);
-    });
-
-    // Scroll into view
-    const activeRow = refs.index.querySelector('.v30-sm-row.is-active');
-    if (activeRow && typeof activeRow.scrollIntoView === 'function') {
-      activeRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
-
-    renderMiniGraph();
-    renderDetail();
-  }
-
-  function openSelected() {
-    const n = state.selectedId ? allNodes.get(state.selectedId) : null;
-    if (!n || !n.href || n.href === '#') return;
-    window.location.href = n.href;
   }
 
   // ─── Recherche ────────────────────────────────────────
@@ -694,7 +872,6 @@
     refs.searchInput.select();
     buildSearchResults('');
   }
-
   function closeSearch() {
     state.searchOpen = false;
     refs.searchPop.hidden = true;
@@ -703,16 +880,12 @@
   function buildSearchResults(q) {
     refs.searchResults.innerHTML = '';
     const query = normalize((q || '').trim());
-
     const matches = [];
     allNodes.forEach(function (n) {
       const lbl = normalize(n.label);
       const sub = normalize(n.sub);
-      if (!query || lbl.indexOf(query) !== -1 || sub.indexOf(query) !== -1) {
-        matches.push(n);
-      }
+      if (!query || lbl.indexOf(query) !== -1 || sub.indexOf(query) !== -1) matches.push(n);
     });
-
     if (matches.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'v30-sm-searchpop__empty';
@@ -720,17 +893,14 @@
       refs.searchResults.appendChild(empty);
       return;
     }
-
     matches.slice(0, 50).forEach(function (n, idx) {
       const li = document.createElement('li');
       li.dataset.id = n.id;
       if (idx === 0) li.classList.add('is-active');
-
       const dot = document.createElement('span');
       dot.className = 'v30-sm-searchpop__dot';
       const cat = (data.categories || {})[n.cat];
       dot.style.background = cat ? cat.color : (n.cat === 'hub' ? 'var(--v30-sm-cat-hub)' : 'var(--v30-sm-text-3)');
-
       const span = document.createElement('span');
       let label = n.label;
       if (n.kind === 'action' && n.parentId) {
@@ -738,20 +908,17 @@
         if (parent) label = parent.label + ' › ' + n.label;
       }
       span.textContent = label;
-
       const tag = document.createElement('span');
       tag.className = 'v30-sm-searchpop__type';
       tag.textContent = n.tier;
-
       li.appendChild(dot);
       li.appendChild(span);
       li.appendChild(tag);
-
       li.addEventListener('click', function () {
-        selectNode(n.id);
+        selectNode(n.id, { center: true });
         closeSearch();
+        refs.searchInput.blur();
       });
-
       refs.searchResults.appendChild(li);
     });
   }
@@ -773,14 +940,41 @@
           b.classList.toggle('is-active', b === btn);
           b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
         });
-        renderMiniGraph();
+        // En mode focal, on a besoin d'un nœud sélectionné
+        if (state.depth !== 'all' && !state.selectedId) {
+          state.selectedId = data.hub || 'dashboard';
+        }
+        render();
       });
     });
 
-    // Recherche
-    refs.searchInput.addEventListener('focus', function () {
-      if (!state.searchOpen) openSearch();
+    // Filtres catégorie
+    refs.catBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.catFilter = btn.dataset.catFilter;
+        applyCategoryFilter();
+      });
     });
+
+    // Filtres statut (toggle)
+    refs.statusBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const s = btn.dataset.statusFilter;
+        state.statusFilter = (state.statusFilter === s) ? null : s;
+        applyStatusFilter();
+      });
+    });
+
+    // Zoom buttons
+    document.querySelector('[data-zoom-in]').addEventListener('click', function () { zoomBy(1.25); });
+    document.querySelector('[data-zoom-out]').addEventListener('click', function () { zoomBy(0.8); });
+    document.querySelector('[data-zoom-reset]').addEventListener('click', function () {
+      if (state.depth === 'all') fitToScreen(true);
+      else fitFocal();
+    });
+
+    // Recherche
+    refs.searchInput.addEventListener('focus', function () { if (!state.searchOpen) openSearch(); });
     refs.searchInput.addEventListener('input', function () {
       if (!state.searchOpen) openSearch();
       buildSearchResults(refs.searchInput.value);
@@ -788,17 +982,12 @@
     refs.searchInput.addEventListener('keydown', function (e) {
       const items = Array.from(refs.searchResults.querySelectorAll('li'));
       let idx = items.findIndex(function (li) { return li.classList.contains('is-active'); });
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        idx = Math.min(items.length - 1, idx + 1);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        idx = Math.max(0, idx - 1);
-      } else if (e.key === 'Enter') {
+      if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min(items.length - 1, idx + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(0, idx - 1); }
+      else if (e.key === 'Enter') {
         e.preventDefault();
         if (items[idx]) {
-          const id = items[idx].dataset.id;
-          selectNode(id);
+          selectNode(items[idx].dataset.id, { center: true });
           closeSearch();
           refs.searchInput.blur();
         }
@@ -817,10 +1006,85 @@
       closeSearch();
     });
 
-    // Ouvrir
-    if (refs.detail.open) {
-      refs.detail.open.addEventListener('click', openSelected);
+    // Click sur node graphe
+    refs.graphNodes.addEventListener('click', function (e) {
+      const node = e.target.closest('.v30-sm-gnode');
+      if (!node) return;
+      e.stopPropagation();
+      selectNode(node.dataset.id);
+    });
+    refs.graphNodes.addEventListener('dblclick', function (e) {
+      const node = e.target.closest('.v30-sm-gnode');
+      if (!node) return;
+      selectNode(node.dataset.id);
+      openSelected();
+    });
+
+    // Pan
+    refs.graphContainer.addEventListener('pointerdown', function (e) {
+      if (e.target.closest('.v30-sm-gnode')) return;
+      state.panning = true;
+      state.panStart = { x: e.clientX, y: e.clientY };
+      state.panInitial = { tx: state.tx, ty: state.ty };
+      refs.graphContainer.classList.add('is-panning');
+      refs.graphCanvas.classList.add('is-panning');
+      try { refs.graphContainer.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    refs.graphContainer.addEventListener('pointermove', function (e) {
+      if (!state.panning) return;
+      state.tx = state.panInitial.tx + (e.clientX - state.panStart.x);
+      state.ty = state.panInitial.ty + (e.clientY - state.panStart.y);
+      applyTransform();
+    });
+    function endPan(e) {
+      if (!state.panning) return;
+      state.panning = false;
+      refs.graphContainer.classList.remove('is-panning');
+      refs.graphCanvas.classList.remove('is-panning');
+      try { if (e && e.pointerId != null) refs.graphContainer.releasePointerCapture(e.pointerId); } catch (_) {}
     }
+    refs.graphContainer.addEventListener('pointerup', endPan);
+    refs.graphContainer.addEventListener('pointercancel', endPan);
+    refs.graphContainer.addEventListener('pointerleave', endPan);
+
+    // Wheel zoom
+    refs.graphContainer.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      const r = refs.graphContainer.getBoundingClientRect();
+      zoomBy(factor, e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
+
+    // Pinch to zoom
+    let pointers = new Map();
+    refs.graphContainer.addEventListener('pointerdown', function (e) { pointers.set(e.pointerId, e); });
+    refs.graphContainer.addEventListener('pointermove', function (e) {
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, e);
+      if (pointers.size === 2) {
+        const arr = Array.from(pointers.values());
+        const dx = arr[0].clientX - arr[1].clientX;
+        const dy = arr[0].clientY - arr[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        if (!state.pinching) {
+          state.pinching = true;
+          state.pinchStart = dist;
+          state.pinchScale = state.scale;
+        } else {
+          const r = refs.graphContainer.getBoundingClientRect();
+          const cx = (arr[0].clientX + arr[1].clientX) / 2 - r.left;
+          const cy = (arr[0].clientY + arr[1].clientY) / 2 - r.top;
+          const targetScale = Math.max(state.minScale, Math.min(state.maxScale, state.pinchScale * (dist / state.pinchStart)));
+          const factor = targetScale / state.scale;
+          zoomBy(factor, cx, cy);
+        }
+      }
+    });
+    function clearPointer(e) { pointers.delete(e.pointerId); if (pointers.size < 2) state.pinching = false; }
+    refs.graphContainer.addEventListener('pointerup', clearPointer);
+    refs.graphContainer.addEventListener('pointercancel', clearPointer);
+
+    // Bouton ouvrir
+    if (refs.detail.open) refs.detail.open.addEventListener('click', openSelected);
 
     // Help
     document.querySelectorAll('[data-toggle-help]').forEach(function (b) {
@@ -833,57 +1097,40 @@
     // Raccourcis clavier
     document.addEventListener('keydown', function (e) {
       const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
-      // F (recherche) : toujours actif sauf quand on tape déjà
-      if ((e.key === 'f' || e.key === 'F') && !inField) {
-        e.preventDefault();
-        openSearch();
+      if ((e.key === 'f' || e.key === 'F') && !inField) { e.preventDefault(); openSearch(); return; }
+      if (e.key === '/' && !inField) { e.preventDefault(); openSearch(); return; }
+      if ((e.key === 'h' || e.key === 'H' || e.key === '?') && !inField) { toggleHelp(); return; }
+      if ((e.key === 'r' || e.key === 'R') && !inField) {
+        if (state.depth === 'all') fitToScreen(true);
+        else fitFocal();
         return;
       }
-      // / (recherche)
-      if (e.key === '/' && !inField) {
-        e.preventDefault();
-        openSearch();
-        return;
-      }
-      // H (aide)
-      if ((e.key === 'h' || e.key === 'H' || e.key === '?') && !inField) {
-        toggleHelp();
-        return;
-      }
-      // Cmd/Ctrl+O : ouvrir le nœud sélectionné
-      if ((e.key === 'o' || e.key === 'O') && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        openSelected();
-        return;
-      }
-      // Esc : ferme search/help
+      if ((e.key === '+' || e.key === '=') && !inField) { zoomBy(1.25); return; }
+      if ((e.key === '-' || e.key === '_') && !inField) { zoomBy(0.8); return; }
+      if ((e.key === 'o' || e.key === 'O') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); openSelected(); return; }
       if (e.key === 'Escape') {
         if (state.searchOpen) { closeSearch(); refs.searchInput.blur(); return; }
         if (state.helpOpen) toggleHelp();
         return;
       }
-      // Flèches haut/bas dans l'index
-      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !inField && !state.searchOpen) {
-        e.preventDefault();
-        const rows = Array.prototype.slice.call(refs.index.querySelectorAll('.v30-sm-row'));
-        if (rows.length === 0) return;
-        let curIdx = rows.findIndex(function (r) { return r.classList.contains('is-active'); });
-        if (curIdx === -1) curIdx = 0;
-        else curIdx = e.key === 'ArrowDown' ? Math.min(rows.length - 1, curIdx + 1) : Math.max(0, curIdx - 1);
-        const row = rows[curIdx];
-        if (row) selectNode(row.dataset.id);
-      }
     });
 
-    // Resize : re-render mini-graph (viewBox dépend de la taille)
+    // Resize
     let resizeTO;
     window.addEventListener('resize', function () {
       clearTimeout(resizeTO);
-      resizeTO = setTimeout(function () { renderMiniGraph(); }, 120);
+      resizeTO = setTimeout(function () {
+        if (state.depth === 'all') fitToScreen(true);
+        else fitFocal();
+      }, 120);
     });
   }
 
   // ─── Init ─────────────────────────────────────────────
+  function countEdges() {
+    return edgesList.length;
+  }
+
   function init() {
     if (!data.pages || data.pages.length === 0) {
       console.warn('[sitemap] aucune donnée');
@@ -891,16 +1138,14 @@
     }
     buildModel();
 
-    // Stats
     if (refs.statsNodes) refs.statsNodes.textContent = allNodes.size;
     if (refs.statsEdges) refs.statsEdges.textContent = countEdges();
 
-    renderIndex();
+    // Sélection initiale = hub (mais en mode "Tout" : pas de focus, juste highlight)
+    state.selectedId = data.hub || (data.pages[0] && data.pages[0].id);
     bindEvents();
-
-    // Sélection initiale = hub
-    const initialId = data.hub || (data.pages[0] && data.pages[0].id);
-    if (initialId) selectNode(initialId);
+    render();
+    renderDetail();
   }
 
   init();
