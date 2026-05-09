@@ -68,10 +68,18 @@ archives/v29/           # Code v29 archivé (templates legacy + page-*.js + app.
 - **En cas de divergence** : le flux de pull fait un `git pull --ff-only`, et en cas d'échec fait un `git reset --hard origin/main` + snapshot DB préalable.
 
 ## Toile d'araignée — règle d'auto-mise à jour (OBLIGATOIRE)
-La page **`/v30/sitemap`** est une vue radiale qui cartographie la totalité de l'app :
-21 pages (filtrées selon le rôle), ~140 actions, chaque bulle portant ses **outils**
-(handlers JS, endpoints API, fonctions backend) et un **statut 🟢/🟠/🔴** calculé
-automatiquement à partir d'un test HTTP réel.
+La page **`/v30/sitemap`** (depuis v32.36) est un **split 2 colonnes** :
+toile interactive à gauche (graphe minimaliste avec 3 modes — Tout / 2° /
+Voisins, pan + zoom) et panneau détail à droite (titre serif italique,
+chips Catégorie/Tier/Kind, JS Handler / Endpoints / Backend, statut,
+voisins cliquables, bouton Ouvrir). Cartographie : 21 pages (filtrées
+selon le rôle), ~140 actions, chaque bulle portant ses **outils**
+(handlers JS, endpoints API, fonctions backend) et un **statut 🟢/🟠/🔴**
+calculé automatiquement à partir d'un test HTTP réel.
+
+Style minimaliste calqué sur un design HTML de référence : cercles
+white-fill avec contour catégorie, lignes droites fines (stroke 0.8/1.4),
+labels uniquement sur la branche active.
 
 À chaque fois que Claude (ou un humain) modifie un bouton, une fonction métier,
 une route Flask ou un endpoint API, **la toile doit refléter le changement**. Procédure
