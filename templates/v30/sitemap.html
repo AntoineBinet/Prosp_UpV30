@@ -29,110 +29,140 @@
 </head>
 <body class="v30-sitemap-body">
 
-  <header class="v30-sitemap-topbar">
-    <div class="v30-sitemap-topbar__left">
-      <span class="v30-sitemap-logo">ProspUp</span>
-      <span class="v30-sitemap-sep">·</span>
-      <span class="v30-sitemap-title">Toile d'araignée</span>
-      <span class="v30-sitemap-version mono">v{{ app_version }}</span>
+  <header class="v30-sm-topbar">
+    <div class="v30-sm-topbar__left">
+      <a class="v30-sm-back" href="/v30/parametres" title="Retour aux paramètres" aria-label="Retour">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </a>
+      <span class="v30-sm-crumb"><span class="v30-sm-crumb__dot v30-sm-crumb__dot--root"></span>Toile</span>
+      <span class="v30-sm-crumb__sep">·</span>
+      <span class="v30-sm-crumb v30-sm-crumb--muted">ProspUp</span>
+      <span class="v30-sm-crumb__slash">/</span>
+      <span class="v30-sm-crumb v30-sm-crumb--current" data-crumb-current>—</span>
     </div>
-    <div class="v30-sitemap-topbar__right">
-      <div class="v30-sitemap-legend" aria-label="Légende des catégories">
-        <span class="v30-sitemap-legend__item" data-cat="navigate"><span class="dot"></span>Navigate</span>
-        <span class="v30-sitemap-legend__item" data-cat="records"><span class="dot"></span>Records</span>
-        <span class="v30-sitemap-legend__item" data-cat="outils"><span class="dot"></span>Outils</span>
-        <span class="v30-sitemap-legend__item" data-cat="admin"><span class="dot"></span>Admin</span>
-        <span class="v30-sitemap-legend__item" data-cat="autres"><span class="dot"></span>Autres</span>
+
+    <div class="v30-sm-topbar__center">
+      <div class="v30-sm-search">
+        <svg class="v30-sm-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="v30-sm-search-input" placeholder="Rechercher un nœud (F)" autocomplete="off" spellcheck="false">
+        <kbd class="v30-sm-search__kbd">F</kbd>
       </div>
-      <div class="v30-sitemap-legend v30-sitemap-legend--status" aria-label="Légende des statuts">
-        <span class="v30-sitemap-legend__item" data-status="ok" title="Fonctionne"><span class="dot dot--ok"></span>OK</span>
-        <span class="v30-sitemap-legend__item" data-status="warn" title="Améliorable"><span class="dot dot--warn"></span>Améliorable</span>
-        <span class="v30-sitemap-legend__item" data-status="ko" title="En erreur"><span class="dot dot--ko"></span>KO</span>
-        <span class="v30-sitemap-legend__item" data-status="unknown" title="Non testé automatiquement"><span class="dot dot--unknown"></span>?</span>
-      </div>
-      <div class="v30-sitemap-controls">
-        <button type="button" class="v30-sitemap-btn" data-zoom-in title="Zoomer (+)" aria-label="Zoomer">+</button>
-        <button type="button" class="v30-sitemap-btn" data-zoom-out title="Dézoomer (-)" aria-label="Dézoomer">−</button>
-        <button type="button" class="v30-sitemap-btn" data-zoom-reset title="Recentrer (R)" aria-label="Recentrer">⌂</button>
-        <button type="button" class="v30-sitemap-btn v30-sitemap-btn--primary" data-toggle-help title="Aide (H)" aria-label="Aide">?</button>
-      </div>
+    </div>
+
+    <div class="v30-sm-topbar__right">
+      <span class="v30-sm-stats" data-stats><span data-stats-nodes>0</span> nœuds <span class="v30-sm-stats__sep">·</span> <span data-stats-edges>0</span> liens</span>
+      <button type="button" class="v30-sm-iconbtn" data-toggle-help title="Aide (H)" aria-label="Aide">?</button>
     </div>
   </header>
 
-  <main class="v30-sitemap-stage" id="v30-sitemap-stage">
-    <svg id="v30-sitemap-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-label="Toile d'araignée des fonctionnalités ProspUp">
-      <defs>
-        <radialGradient id="v30-sitemap-bg-grad" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stop-color="var(--v30-sitemap-bg-inner)" stop-opacity="1"/>
-          <stop offset="100%" stop-color="var(--v30-sitemap-bg-outer)" stop-opacity="1"/>
-        </radialGradient>
-        <filter id="v30-sitemap-glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="3" result="blur"/>
-          <feMerge>
-            <feMergeNode in="blur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-        <filter id="v30-sitemap-soft" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="6" result="blur"/>
-          <feMerge>
-            <feMergeNode in="blur"/>
-          </feMerge>
-        </filter>
-      </defs>
+  <main class="v30-sm-main">
 
-      <g id="v30-sitemap-canvas">
-        <g id="v30-sitemap-edges"></g>
-        <g id="v30-sitemap-nodes"></g>
-      </g>
-    </svg>
-
-    <div class="v30-sitemap-tooltip" id="v30-sitemap-tooltip" hidden>
-      <div class="v30-sitemap-tooltip__head">
-        <span class="v30-sitemap-tooltip__status" data-tooltip-status hidden></span>
-        <div class="v30-sitemap-tooltip__title" data-tooltip-title></div>
-      </div>
-      <div class="v30-sitemap-tooltip__sub" data-tooltip-sub></div>
-      <div class="v30-sitemap-tooltip__note" data-tooltip-note hidden></div>
-      <div class="v30-sitemap-tooltip__tools" data-tooltip-tools hidden></div>
-      <div class="v30-sitemap-tooltip__hint">Clic = ouvrir · Survol = détail · F = recherche</div>
-    </div>
-
-    <div class="v30-sitemap-help" id="v30-sitemap-help" hidden>
-      <div class="v30-sitemap-help__inner">
-        <div class="v30-sitemap-help__head">
-          <h2>Comment lire la toile</h2>
-          <button type="button" class="v30-sitemap-btn" data-toggle-help aria-label="Fermer">✕</button>
+    <!-- ─── Colonne gauche : Mini-graphe ─── -->
+    <section class="v30-sm-panel v30-sm-panel--graph" aria-label="Mini-graphe du nœud sélectionné">
+      <div class="v30-sm-panel__head">
+        <h2 class="v30-sm-panel__title">Mini-graphe</h2>
+        <div class="v30-sm-toggle" role="tablist" aria-label="Profondeur du voisinage">
+          <button type="button" class="v30-sm-toggle__btn" data-depth="all" role="tab" aria-selected="false">Tout</button>
+          <button type="button" class="v30-sm-toggle__btn is-active" data-depth="1" role="tab" aria-selected="true">Voisins</button>
+          <button type="button" class="v30-sm-toggle__btn" data-depth="2" role="tab" aria-selected="false">2°</button>
         </div>
-        <ul>
-          <li><strong>🔐 Connexion</strong> — point d'entrée de l'app. Une fois connecté, on tombe sur le Dashboard.</li>
-          <li><strong>🏠 Dashboard</strong> — hub central, relié à toutes les pages.</li>
-          <li><strong>Pages</strong> — bulles colorées par catégorie (Navigate, Records, Outils, Admin, Autres).</li>
-          <li><strong>Actions</strong> — petites bulles autour de chaque page (boutons, modales, fonctions clés).</li>
-        </ul>
-        <h3>Interactions</h3>
-        <ul>
-          <li><kbd>Clic</kbd> sur une page ou une action → ouvre la page correspondante.</li>
-          <li><kbd>Survol</kbd> d'un nœud → met en avant la branche reliée.</li>
-          <li><kbd>Glisser</kbd> le fond → déplacer la vue.</li>
-          <li><kbd>Molette</kbd> ou <kbd>+</kbd> / <kbd>−</kbd> → zoomer/dézoomer.</li>
-          <li><kbd>R</kbd> ou bouton <kbd>⌂</kbd> → recentrer la vue.</li>
-          <li><kbd>F</kbd> → recherche rapide d'un nœud.</li>
-          <li><kbd>Échap</kbd> → fermer cette aide.</li>
-        </ul>
-        <p class="muted">Astuce : sur mobile, pince pour zoomer, deux doigts pour faire glisser.</p>
       </div>
-    </div>
+      <div class="v30-sm-graph" id="v30-sm-graph">
+        <svg id="v30-sm-graph-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-label="Mini-graphe">
+          <defs>
+            <filter id="v30-sm-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <g id="v30-sm-graph-canvas">
+            <g id="v30-sm-graph-edges"></g>
+            <g id="v30-sm-graph-nodes"></g>
+          </g>
+        </svg>
+      </div>
+    </section>
 
-    <div class="v30-sitemap-search" id="v30-sitemap-search" hidden>
-      <input type="text" id="v30-sitemap-search-input" placeholder="Rechercher (page, action…)" autocomplete="off" spellcheck="false">
-      <ul id="v30-sitemap-search-results"></ul>
-    </div>
+    <!-- ─── Colonne centrale : Index complet ─── -->
+    <section class="v30-sm-panel v30-sm-panel--index" aria-label="Index complet des nœuds">
+      <div class="v30-sm-panel__head v30-sm-panel__head--index">
+        <h2 class="v30-sm-panel__title">Index complet</h2>
+      </div>
+      <div class="v30-sm-index" id="v30-sm-index" role="listbox" aria-label="Liste des nœuds">
+        <!-- Rempli par JS -->
+      </div>
+    </section>
 
-    <div class="v30-sitemap-stats" id="v30-sitemap-stats" aria-hidden="true">
-      <span data-stats-pages>0</span> pages · <span data-stats-actions>0</span> actions
-    </div>
+    <!-- ─── Colonne droite : Détail ─── -->
+    <aside class="v30-sm-panel v30-sm-panel--detail" id="v30-sm-detail" aria-label="Détail du nœud sélectionné">
+      <div class="v30-sm-detail">
+        <div class="v30-sm-detail__kicker" data-detail-kicker>Détail · Sélectionnez un nœud</div>
+        <h1 class="v30-sm-detail__title" data-detail-title>—</h1>
+        <p class="v30-sm-detail__desc" data-detail-desc>Cliquez sur un élément à gauche ou dans l'index pour voir son détail.</p>
+
+        <div class="v30-sm-detail__section" data-detail-handlers-wrap hidden>
+          <div class="v30-sm-detail__label">JS Handler</div>
+          <div class="v30-sm-detail__code" data-detail-handlers></div>
+        </div>
+
+        <div class="v30-sm-detail__section" data-detail-endpoints-wrap hidden>
+          <div class="v30-sm-detail__label">Endpoints</div>
+          <div class="v30-sm-detail__code" data-detail-endpoints></div>
+        </div>
+
+        <div class="v30-sm-detail__section" data-detail-backend-wrap hidden>
+          <div class="v30-sm-detail__label">Backend</div>
+          <div class="v30-sm-detail__code" data-detail-backend></div>
+        </div>
+
+        <div class="v30-sm-detail__section" data-detail-status-wrap hidden>
+          <div class="v30-sm-detail__label">Statut</div>
+          <div class="v30-sm-detail__status" data-detail-status></div>
+        </div>
+
+        <div class="v30-sm-detail__section" data-detail-neighbors-wrap hidden>
+          <div class="v30-sm-detail__label">Voisins (<span data-detail-neighbors-count>0</span>)</div>
+          <div class="v30-sm-detail__neighbors" data-detail-neighbors></div>
+        </div>
+
+        <div class="v30-sm-detail__actions" data-detail-actions hidden>
+          <button type="button" class="v30-sm-btn v30-sm-btn--primary" data-detail-open>Ouvrir</button>
+          <kbd class="v30-sm-detail__shortcut" title="Raccourci">⌘O</kbd>
+        </div>
+
+        <div class="v30-sm-detail__hint">Clic = ouvrir · Survol = détail · F = recherche</div>
+      </div>
+    </aside>
   </main>
+
+  <!-- ─── Help overlay ─── -->
+  <div class="v30-sm-help" id="v30-sm-help" hidden>
+    <div class="v30-sm-help__inner">
+      <div class="v30-sm-help__head">
+        <h2>Comment lire la toile</h2>
+        <button type="button" class="v30-sm-iconbtn" data-toggle-help aria-label="Fermer">✕</button>
+      </div>
+      <ul>
+        <li><strong>🔐 Connexion</strong> — point d'entrée de l'app.</li>
+        <li><strong>🏠 Dashboard</strong> — hub central, relié à toutes les pages.</li>
+        <li><strong>Pages</strong> — bulles colorées par catégorie (Navigate, Records, Outils, Admin, Autres).</li>
+        <li><strong>Actions</strong> — sous-éléments de chaque page (boutons, modales, fonctions clés).</li>
+      </ul>
+      <h3>Interactions</h3>
+      <ul>
+        <li><kbd>Clic</kbd> sur un élément → sélection + détail.</li>
+        <li><kbd>Double-clic</kbd> ou bouton <kbd>Ouvrir</kbd> → ouvre la page correspondante.</li>
+        <li><kbd>F</kbd> ou <kbd>/</kbd> → recherche rapide.</li>
+        <li><kbd>↑</kbd> / <kbd>↓</kbd> → navigue dans l'index.</li>
+        <li><kbd>Échap</kbd> → ferme l'aide ou la recherche.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ─── Search popover ─── -->
+  <div class="v30-sm-searchpop" id="v30-sm-searchpop" hidden>
+    <ul id="v30-sm-search-results"></ul>
+  </div>
 
   <script>
     window.SITEMAP_DATA = {{ sitemap_json | safe }};

@@ -1,889 +1,907 @@
 /* ============================================================
-   ProspUp v30 — Toile d'araignée
-   Rendu SVG radial : Connexion → Dashboard (hub) → pages → actions.
-   Pan/zoom souris + tactile, tooltip, recherche, isolation de branche.
+   ProspUp v30 — Toile d'araignée (split mini-graphe + index)
+   Architecture 3 colonnes :
+     1. Mini-graphe : SVG radial centré sur le nœud sélectionné
+     2. Index complet : liste catégorisée de tous les nœuds
+     3. Détail : titre, description, JS handlers, voisins, action Ouvrir
    ============================================================ */
 (function () {
   'use strict';
 
-  // ─── Constantes layout ────────────────────────────────────
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const HUB_RADIUS = 44;          // Rayon du nœud central (Connexion + Dashboard)
-  const PAGE_RADIUS = 36;         // Rayon des nœuds page
-  const ACTION_RADIUS = 11;       // Rayon des nœuds action
-  const RING_PAGES = 640;         // Distance Dashboard → pages
-  const RING_ACTIONS_INNER = 145; // Distance page → action ring 1
-  const RING_ACTIONS_OUTER = 245; // Distance page → action ring 2 (si > MAX_PER_RING)
-  const MAX_PER_RING = 4;         // Au-delà : on passe sur 2 anneaux
-  const ACTION_ARC_DEG = 50;      // Ouverture de l'éventail d'actions (en degrés)
-  const HUB_ACTION_ARC = 290;     // Hub Dashboard : arc < 360 pour laisser de la place à Connexion
-  const HUB_ACTION_START = -180 + 35; // Démarre après la zone Connexion (à 180° = gauche)
-  const LOGIN_OFFSET = 240;       // Distance Connexion → Dashboard (hors action ring)
-
-  // Angles : on commence en haut (12h) et tourne sens horaire
-  const START_ANGLE = -90; // -90° = top
-
-  // ─── État ────────────────────────────────────────────────
-  const state = {
-    scale: 1,
-    minScale: 0.25,
-    maxScale: 4,
-    tx: 0,
-    ty: 0,
-    panning: false,
-    pinching: false,
-    panStart: { x: 0, y: 0 },
-    panInitial: { tx: 0, ty: 0 },
-    pinchStart: 0,
-    pinchScale: 1,
-    activeId: null,
-    helpOpen: false,
-    searchOpen: false,
-    catFilter: null,
-  };
-
   const data = window.SITEMAP_DATA || { pages: [], categories: {}, root: {} };
 
-  // Map id → nœud calculé (page ou action)
-  const nodeIndex = new Map();
-  // Map id → liste de descendants (pour highlight)
-  const branchIndex = new Map();
+  // ─── Modélisation des nœuds ────────────────────────────
+  // On construit une structure unifiée : tous les nœuds (root, hub, pages, actions)
+  // partagent le même schéma. id, label, kind, cat, tier, neighbors, ...
+  //   - root  : Connexion (T0)
+  //   - hub   : Dashboard (T0, hub central)
+  //   - page  : pages principales (T1)
+  //   - action: actions/boutons sur une page (T2)
 
-  // ─── DOM refs ────────────────────────────────────────────
-  const stage = document.getElementById('v30-sitemap-stage');
-  const svg = document.getElementById('v30-sitemap-svg');
-  const canvas = document.getElementById('v30-sitemap-canvas');
-  const edgesG = document.getElementById('v30-sitemap-edges');
-  const nodesG = document.getElementById('v30-sitemap-nodes');
-  const tooltip = document.getElementById('v30-sitemap-tooltip');
-  const tooltipTitle = tooltip.querySelector('[data-tooltip-title]');
-  const tooltipSub = tooltip.querySelector('[data-tooltip-sub]');
-  const tooltipStatus = tooltip.querySelector('[data-tooltip-status]');
-  const tooltipNote = tooltip.querySelector('[data-tooltip-note]');
-  const tooltipTools = tooltip.querySelector('[data-tooltip-tools]');
+  const allNodes = new Map(); // id → node
+  const adjacency = new Map(); // id → Set<id>
 
-  const STATUS_LABELS = { ok: 'OK', warn: 'Améliorable', ko: 'KO', unknown: '?' };
-  const helpPanel = document.getElementById('v30-sitemap-help');
-  const searchPanel = document.getElementById('v30-sitemap-search');
-  const searchInput = document.getElementById('v30-sitemap-search-input');
-  const searchResults = document.getElementById('v30-sitemap-search-results');
-  const statsPagesEl = document.querySelector('[data-stats-pages]');
-  const statsActionsEl = document.querySelector('[data-stats-actions]');
+  function addAdj(a, b) {
+    if (!adjacency.has(a)) adjacency.set(a, new Set());
+    if (!adjacency.has(b)) adjacency.set(b, new Set());
+    adjacency.get(a).add(b);
+    adjacency.get(b).add(a);
+  }
 
-  // ─── Utilitaires ─────────────────────────────────────────
-  function deg2rad(d) { return d * Math.PI / 180; }
+  function buildModel() {
+    allNodes.clear();
+    adjacency.clear();
 
-  function el(tag, attrs, children) {
-    const e = document.createElementNS(SVG_NS, tag);
-    if (attrs) {
-      Object.keys(attrs).forEach(function (k) {
-        if (k === 'text') {
-          e.textContent = attrs[k];
-        } else {
-          e.setAttribute(k, attrs[k]);
-        }
+    const root = data.root || {};
+    const hubId = data.hub || 'dashboard';
+
+    // root
+    if (root && root.id) {
+      allNodes.set(root.id, {
+        id: root.id,
+        label: root.label || 'Connexion',
+        kind: 'root',
+        cat: 'hub',
+        tier: 'T0',
+        href: root.href || '/login',
+        sub: root.sub || '',
+        icon: root.icon || '🔐',
+        tools: null,
+        status: null,
+        status_note: null,
+        parentId: null,
       });
     }
-    if (children) {
-      children.forEach(function (c) { if (c) e.appendChild(c); });
-    }
+
+    (data.pages || []).forEach(function (p) {
+      const isHub = p.id === hubId;
+      const node = {
+        id: p.id,
+        label: p.label,
+        kind: isHub ? 'hub' : 'page',
+        cat: p.cat,
+        tier: isHub ? 'T0' : 'T1',
+        href: p.href,
+        sub: p.summary || '',
+        icon: p.icon || '',
+        tools: null,
+        status: p.status || 'unknown',
+        status_note: p.status_note || '',
+        bugs: p.bugs || null,
+        parentId: null,
+      };
+      allNodes.set(p.id, node);
+      if (root && root.id) addAdj(root.id, hubId);
+      if (!isHub) addAdj(hubId, p.id);
+
+      (p.actions || []).forEach(function (act, idx) {
+        const aid = p.id + '__act_' + idx;
+        act._uid = aid;
+        const aNode = {
+          id: aid,
+          label: act.label,
+          kind: 'action',
+          cat: p.cat,
+          tier: 'T2',
+          href: act.href,
+          sub: '',
+          icon: '',
+          tools: act.tools || null,
+          status: act.status || 'unknown',
+          status_note: act.status_note || '',
+          bugs: act.bugs || null,
+          parentId: p.id,
+        };
+        allNodes.set(aid, aNode);
+        addAdj(p.id, aid);
+      });
+    });
+  }
+
+  // Compte de liens unique
+  function countEdges() {
+    const seen = new Set();
+    adjacency.forEach(function (set, k) {
+      set.forEach(function (v) {
+        const key = k < v ? k + '|' + v : v + '|' + k;
+        seen.add(key);
+      });
+    });
+    return seen.size;
+  }
+
+  // ─── État UI ──────────────────────────────────────────
+  const state = {
+    selectedId: null,
+    depth: 1,            // 'all' | 1 | 2
+    searchOpen: false,
+    helpOpen: false,
+  };
+
+  // ─── DOM refs ─────────────────────────────────────────
+  const refs = {
+    crumbCurrent: document.querySelector('[data-crumb-current]'),
+    statsNodes: document.querySelector('[data-stats-nodes]'),
+    statsEdges: document.querySelector('[data-stats-edges]'),
+    searchInput: document.getElementById('v30-sm-search-input'),
+    searchPop: document.getElementById('v30-sm-searchpop'),
+    searchResults: document.getElementById('v30-sm-search-results'),
+    helpPanel: document.getElementById('v30-sm-help'),
+    graphSvg: document.getElementById('v30-sm-graph-svg'),
+    graphCanvas: document.getElementById('v30-sm-graph-canvas'),
+    graphEdges: document.getElementById('v30-sm-graph-edges'),
+    graphNodes: document.getElementById('v30-sm-graph-nodes'),
+    graphContainer: document.getElementById('v30-sm-graph'),
+    index: document.getElementById('v30-sm-index'),
+    toggleBtns: document.querySelectorAll('[data-depth]'),
+    detail: {
+      kicker: document.querySelector('[data-detail-kicker]'),
+      title: document.querySelector('[data-detail-title]'),
+      desc: document.querySelector('[data-detail-desc]'),
+      handlers: document.querySelector('[data-detail-handlers]'),
+      handlersWrap: document.querySelector('[data-detail-handlers-wrap]'),
+      endpoints: document.querySelector('[data-detail-endpoints]'),
+      endpointsWrap: document.querySelector('[data-detail-endpoints-wrap]'),
+      backend: document.querySelector('[data-detail-backend]'),
+      backendWrap: document.querySelector('[data-detail-backend-wrap]'),
+      status: document.querySelector('[data-detail-status]'),
+      statusWrap: document.querySelector('[data-detail-status-wrap]'),
+      neighbors: document.querySelector('[data-detail-neighbors]'),
+      neighborsWrap: document.querySelector('[data-detail-neighbors-wrap]'),
+      neighborsCount: document.querySelector('[data-detail-neighbors-count]'),
+      actions: document.querySelector('[data-detail-actions]'),
+      open: document.querySelector('[data-detail-open]'),
+    },
+  };
+
+  // ─── Utils ────────────────────────────────────────────
+  function el(tag, attrs, children) {
+    const e = document.createElementNS(SVG_NS, tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (k === 'text') e.textContent = attrs[k];
+      else e.setAttribute(k, attrs[k]);
+    });
+    if (children) children.forEach(function (c) { if (c) e.appendChild(c); });
     return e;
   }
 
-  // Trace un Bezier courbe entre deux points
-  function curvePath(p1, p2, curvature) {
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
-    const dist = Math.hypot(dx, dy);
-    const c = (curvature == null ? 0.18 : curvature) * dist;
-    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-    // Normale perpendiculaire (rotation 90°)
-    const nx = -dy / dist;
-    const ny = dx / dist;
-    const ctrl = { x: mid.x + nx * c, y: mid.y + ny * c };
-    return 'M' + p1.x + ',' + p1.y + ' Q' + ctrl.x + ',' + ctrl.y + ' ' + p2.x + ',' + p2.y;
+  function deg2rad(d) { return d * Math.PI / 180; }
+
+  function normalize(s) {
+    return (s || '').toString().toLowerCase()
+      .normalize('NFD').replace(/\p{Diacritic}/gu, '');
   }
 
-  // ─── Layout calcul ────────────────────────────────────────
-  function computeLayout() {
-    const pages = data.pages || [];
-    const total = pages.length;
-    if (total === 0) return;
+  function truncate(s, n) {
+    s = (s || '').toString();
+    return s.length > n ? s.slice(0, n - 1) + '…' : s;
+  }
 
-    // Connexion à gauche du Dashboard
+  function kindLabel(node) {
+    if (!node) return '';
+    if (node.kind === 'root') return 'Route';
+    if (node.kind === 'hub') return 'Hub';
+    if (node.kind === 'page') return 'Route';
+    if (node.kind === 'action') {
+      const tools = node.tools || {};
+      const hasEndpoints = (tools.endpoints || []).length > 0;
+      const hasBackend = (tools.backend || []).length > 0;
+      if (!hasEndpoints && !hasBackend) return 'Action';
+      return 'Action';
+    }
+    return '';
+  }
+
+  function categoryLabel(catKey) {
+    if (catKey === 'hub') return 'Hub';
+    const cat = (data.categories || {})[catKey];
+    return cat ? cat.label : (catKey || '').toString();
+  }
+
+  // ─── Rendu : Index complet ────────────────────────────
+  function renderIndex() {
+    const idx = refs.index;
+    if (!idx) return;
+    idx.innerHTML = '';
+
     const root = data.root;
-    const dashboard = pages.find(function (p) { return p.id === (data.hub || 'dashboard'); }) || pages[0];
+    const hubId = data.hub || 'dashboard';
+    const pages = data.pages || [];
 
-    // Dashboard placé au centre (0, 0)
-    dashboard.x = 0;
-    dashboard.y = 0;
-    dashboard._angle = 0;
-    dashboard._isHub = true;
+    // Section HUB : root + hub page
+    const hubSection = makeCatSection('hub', 'HUB');
+    if (root && root.id) hubSection.list.appendChild(makeRow(allNodes.get(root.id)));
+    const hubNode = allNodes.get(hubId);
+    if (hubNode) hubSection.list.appendChild(makeRow(hubNode));
+    hubSection.count.textContent = hubSection.list.children.length;
+    idx.appendChild(hubSection.frag);
 
-    // Connexion placée à gauche du Dashboard
-    root.x = -LOGIN_OFFSET;
-    root.y = 0;
+    // Une section par catégorie (ordre: navigate, records, outils, admin, autres)
+    const catOrder = ['navigate', 'records', 'outils', 'admin', 'autres'];
+    catOrder.forEach(function (catKey) {
+      const catPages = pages.filter(function (p) { return p.cat === catKey && p.id !== hubId; });
+      if (catPages.length === 0) return;
+      const cat = (data.categories || {})[catKey] || { label: catKey };
+      const sec = makeCatSection(catKey, cat.label.toUpperCase());
 
-    // Pages réparties autour du Dashboard
-    const otherPages = pages.filter(function (p) { return p !== dashboard; });
-    const n = otherPages.length;
-    otherPages.forEach(function (p, i) {
-      const angle = START_ANGLE + (360 / n) * i;
-      const a = deg2rad(angle);
-      p.x = dashboard.x + RING_PAGES * Math.cos(a);
-      p.y = dashboard.y + RING_PAGES * Math.sin(a);
-      p._angle = angle;
-    });
-
-    // Actions de chaque page disposées en éventail vers l'extérieur
-    // Pour les pages avec beaucoup d'actions, on étale sur deux anneaux
-    pages.forEach(function (p) {
-      const acts = p.actions || [];
-      const an = acts.length;
-      if (an === 0) return;
-
-      const isHub = !!p._isHub;
-      const baseAngle = isHub ? HUB_ACTION_START : p._angle;
-      const arcDeg = isHub ? HUB_ACTION_ARC : ACTION_ARC_DEG;
-
-      // Découpe en 1 ou 2 anneaux selon le nombre d'actions
-      const useTwoRings = !isHub && an > MAX_PER_RING;
-      const ring1Count = useTwoRings ? Math.ceil(an / 2) : an;
-
-      acts.forEach(function (act, j) {
-        const onRing2 = useTwoRings && j >= ring1Count;
-        const idxInRing = onRing2 ? (j - ring1Count) : j;
-        const ringTotal = onRing2 ? (an - ring1Count) : ring1Count;
-        const r = isHub
-          ? RING_ACTIONS_INNER
-          : (onRing2 ? RING_ACTIONS_OUTER : RING_ACTIONS_INNER);
-
-        let angle;
-        if (isHub) {
-          // Arc < 360 démarrant à HUB_ACTION_START : répartition uniforme
-          angle = baseAngle + (arcDeg / Math.max(1, an - 1)) * j;
-        } else if (ringTotal === 1) {
-          angle = baseAngle;
-        } else {
-          // Éventail centré sur baseAngle
-          // t va de -0.5 à +0.5
-          const t = (idxInRing / (ringTotal - 1)) - 0.5;
-          // Anneau extérieur : arc plus large pour respecter l'espacement
-          const localArc = onRing2 ? arcDeg * 1.15 : arcDeg;
-          angle = baseAngle + t * localArc;
-        }
-
-        const a = deg2rad(angle);
-        act.x = p.x + r * Math.cos(a);
-        act.y = p.y + r * Math.sin(a);
-        act._angle = angle;
-        act._ring = onRing2 ? 2 : 1;
-        act._parentId = p.id;
-        act._cat = p.cat;
+      catPages.forEach(function (p) {
+        const pageNode = allNodes.get(p.id);
+        if (pageNode) sec.list.appendChild(makeRow(pageNode));
+        // Actions de la page directement après (T2, indentées)
+        (p.actions || []).forEach(function (a) {
+          const aNode = allNodes.get(a._uid);
+          if (aNode) sec.list.appendChild(makeRow(aNode));
+        });
       });
+
+      const itemsCount = catPages.length + catPages.reduce(function (s, p) { return s + (p.actions || []).length; }, 0);
+      sec.count.textContent = itemsCount;
+      idx.appendChild(sec.frag);
     });
   }
 
-  // ─── Rendu SVG ────────────────────────────────────────────
-  function render() {
+  function makeCatSection(catKey, label) {
+    const frag = document.createDocumentFragment();
+    const wrap = document.createElement('div');
+    wrap.className = 'v30-sm-cat';
+    wrap.dataset.cat = catKey;
+
+    const head = document.createElement('div');
+    head.className = 'v30-sm-cat__head';
+    const title = document.createElement('div');
+    title.className = 'v30-sm-cat__title';
+    title.innerHTML = '<span class="v30-sm-cat__dot" data-cat="' + catKey + '"></span>' + label;
+    const count = document.createElement('div');
+    count.className = 'v30-sm-cat__count';
+    count.textContent = '0';
+    head.appendChild(title);
+    head.appendChild(count);
+
+    const list = document.createElement('div');
+    list.className = 'v30-sm-cat__list';
+
+    wrap.appendChild(head);
+    wrap.appendChild(list);
+    frag.appendChild(wrap);
+
+    return { frag, list, count };
+  }
+
+  function makeRow(node) {
+    const row = document.createElement('div');
+    row.className = 'v30-sm-row';
+    if (node.kind === 'action') row.classList.add('is-action');
+    row.dataset.id = node.id;
+    row.setAttribute('role', 'option');
+    row.setAttribute('tabindex', '0');
+
+    const lbl = document.createElement('div');
+    lbl.className = 'v30-sm-row__label';
+    lbl.textContent = node.label;
+
+    const kind = document.createElement('span');
+    kind.className = 'v30-sm-row__kind';
+    kind.textContent = kindLabel(node);
+
+    const tier = document.createElement('span');
+    tier.className = 'v30-sm-row__tier';
+    tier.textContent = node.tier;
+
+    row.appendChild(lbl);
+    row.appendChild(kind);
+    row.appendChild(tier);
+
+    row.addEventListener('click', function () { selectNode(node.id); });
+    row.addEventListener('dblclick', function () {
+      selectNode(node.id);
+      openSelected();
+    });
+    row.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.metaKey || e.ctrlKey) openSelected();
+        else selectNode(node.id);
+      }
+    });
+
+    return row;
+  }
+
+  // ─── Rendu : Mini-graphe ──────────────────────────────
+  function renderMiniGraph() {
+    const svg = refs.graphSvg;
+    const edgesG = refs.graphEdges;
+    const nodesG = refs.graphNodes;
     edgesG.innerHTML = '';
     nodesG.innerHTML = '';
-    nodeIndex.clear();
-    branchIndex.clear();
 
-    const root = data.root;
-    const pages = data.pages || [];
-    const dashboard = pages.find(function (p) { return p._isHub; });
+    // Empty state
+    const existingEmpty = refs.graphContainer.querySelector('.v30-sm-graph__empty');
+    if (existingEmpty) existingEmpty.remove();
 
-    // Edges : Connexion → Dashboard
-    const e0 = el('path', {
-      d: curvePath(root, dashboard, 0),
-      class: 'v30-sm-edge v30-sm-edge--root',
-    });
-    edgesG.appendChild(e0);
+    if (!state.selectedId) {
+      const empty = document.createElement('div');
+      empty.className = 'v30-sm-graph__empty';
+      empty.textContent = 'Sélectionnez un nœud dans l\'index pour visualiser ses voisins.';
+      refs.graphContainer.appendChild(empty);
+      return;
+    }
 
-    // Edges : Dashboard → pages
-    // Si la page contient au moins une action KO, on marque l'edge comme branche-KO
-    pages.forEach(function (p) {
-      if (p._isHub) return;
-      const hasKo = (p.actions || []).some(function (a) { return a.status === 'ko'; }) || p.status === 'ko';
-      const cls = ['v30-sm-edge', 'v30-sm-edge--cat-' + p.cat, 'is-edge-page'];
-      if (hasKo) cls.push('is-status-ko');
-      const e = el('path', {
-        d: curvePath(dashboard, p, 0.12),
-        class: cls.join(' '),
-        'data-edge-page': p.id,
-        'data-cat': p.cat,
-      });
-      edgesG.appendChild(e);
-    });
+    const node = allNodes.get(state.selectedId);
+    if (!node) return;
 
-    // Edges : pages → actions
-    // Edge spécifiquement marquée si l'action est en KO
-    pages.forEach(function (p) {
-      const acts = p.actions || [];
-      acts.forEach(function (act, idx) {
-        const cls = ['v30-sm-edge', 'v30-sm-edge--cat-' + p.cat, 'is-edge-action'];
-        if (act.status === 'ko') cls.push('is-status-ko');
+    const visible = computeVisible(state.selectedId, state.depth);
+
+    // Layout : nœud sélectionné au centre, voisins immédiats sur ring 1, ring 2 plus loin
+    const positions = layoutVisible(state.selectedId, visible);
+
+    // ViewBox dynamique
+    const stage = refs.graphContainer;
+    const rect = stage.getBoundingClientRect();
+    const w = Math.max(280, rect.width);
+    const h = Math.max(220, rect.height);
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    refs.graphCanvas.setAttribute('transform', 'translate(' + (w / 2) + ',' + (h / 2) + ')');
+
+    // Edges (uniquement entre nœuds visibles)
+    const edgeSeen = new Set();
+    visible.forEach(function (id) {
+      const adj = adjacency.get(id);
+      if (!adj) return;
+      adj.forEach(function (other) {
+        if (!visible.has(other)) return;
+        const key = id < other ? id + '|' + other : other + '|' + id;
+        if (edgeSeen.has(key)) return;
+        edgeSeen.add(key);
+        const p1 = positions.get(id);
+        const p2 = positions.get(other);
+        if (!p1 || !p2) return;
+        const isActive = (id === state.selectedId || other === state.selectedId);
         const e = el('path', {
-          d: curvePath(p, act, 0.06),
-          class: cls.join(' '),
-          'data-edge-page': p.id,
-          'data-edge-action-id': p.id + '__act_' + idx,
-          'data-cat': p.cat,
+          d: 'M' + p1.x + ',' + p1.y + ' L' + p2.x + ',' + p2.y,
+          class: 'v30-sm-edge' + (isActive ? ' is-active' : ' is-dim'),
         });
         edgesG.appendChild(e);
       });
     });
 
     // Nodes
-    let totalActions = 0;
-
-    // Connexion
-    nodesG.appendChild(makeNode({
-      id: 'login',
-      label: root.label || 'Connexion',
-      icon: root.icon || '🔐',
-      sub: root.sub || '',
-      href: root.href || '/login',
-      x: root.x,
-      y: root.y,
-      kind: 'root',
-      cat: 'autres',
-      r: HUB_RADIUS,
-    }));
-    nodeIndex.set('login', { kind: 'root', node: root });
-
-    // Pages
-    pages.forEach(function (p) {
-      const isHub = p._isHub;
-      nodesG.appendChild(makeNode({
-        id: p.id,
-        label: p.label,
-        icon: p.icon || '',
-        sub: p.summary || '',
-        href: p.href,
-        x: p.x,
-        y: p.y,
-        kind: isHub ? 'hub' : 'page',
-        cat: p.cat,
-        r: isHub ? HUB_RADIUS : PAGE_RADIUS,
-        status: p.status || 'unknown',
-      }));
-      nodeIndex.set(p.id, { kind: isHub ? 'hub' : 'page', node: p });
-
-      const acts = p.actions || [];
-      acts.forEach(function (act, idx) {
-        const aid = p.id + '__act_' + idx;
-        act._uid = aid;
-        nodesG.appendChild(makeNode({
-          id: aid,
-          label: act.label,
-          icon: '',
-          sub: act.label,
-          href: act.href,
-          x: act.x,
-          y: act.y,
-          kind: 'action',
-          cat: p.cat,
-          r: ACTION_RADIUS,
-          status: act.status || 'unknown',
-        }));
-        nodeIndex.set(aid, { kind: 'action', node: act, parentId: p.id });
-        totalActions++;
-      });
-
-      // Index branche : page + ses actions
-      branchIndex.set(p.id, [p.id].concat(acts.map(function (a) { return a._uid; })));
-    });
-
-    // Stats
-    if (statsPagesEl) statsPagesEl.textContent = pages.length;
-    if (statsActionsEl) statsActionsEl.textContent = totalActions;
-
-    // Cascade animée
-    Array.prototype.forEach.call(nodesG.querySelectorAll('.v30-sm-node'), function (n, i) {
-      n.style.animationDelay = Math.min(i * 12, 700) + 'ms';
+    visible.forEach(function (id) {
+      const n = allNodes.get(id);
+      const pos = positions.get(id);
+      if (!n || !pos) return;
+      nodesG.appendChild(makeGraphNode(n, pos));
     });
   }
 
-  function makeNode(spec) {
-    const status = spec.status || 'unknown';
-    const g = el('g', {
-      class: 'v30-sm-node v30-sm-node--' + spec.kind + ' v30-sm-node--status-' + status,
-      'data-id': spec.id,
-      'data-href': spec.href || '',
-      'data-cat': spec.cat,
-      'data-kind': spec.kind,
-      'data-label': spec.label,
-      'data-status': status,
-      transform: 'translate(' + spec.x + ',' + spec.y + ')',
+  function computeVisible(centerId, depth) {
+    // BFS jusqu'à profondeur donnée
+    const visible = new Set([centerId]);
+    if (depth === 'all') {
+      allNodes.forEach(function (_, id) { visible.add(id); });
+      return visible;
+    }
+    const maxDepth = depth || 1;
+    let frontier = [centerId];
+    for (let d = 0; d < maxDepth; d++) {
+      const next = [];
+      frontier.forEach(function (id) {
+        const adj = adjacency.get(id);
+        if (!adj) return;
+        adj.forEach(function (n) {
+          if (!visible.has(n)) {
+            visible.add(n);
+            next.push(n);
+          }
+        });
+      });
+      frontier = next;
+    }
+    return visible;
+  }
+
+  function layoutVisible(centerId, visible) {
+    const positions = new Map();
+    positions.set(centerId, { x: 0, y: 0 });
+
+    if (state.depth === 'all') {
+      // Layout simplifié : nœud central + voisins en ring + reste plus loin
+      // On limite l'affichage à un sous-ensemble lisible
+      const center = allNodes.get(centerId);
+      const adj = Array.from(adjacency.get(centerId) || []);
+
+      // Ring 1 : voisins directs
+      const ring1Radius = 110;
+      adj.forEach(function (id, i) {
+        const angle = -90 + (360 / Math.max(1, adj.length)) * i;
+        const a = deg2rad(angle);
+        positions.set(id, { x: ring1Radius * Math.cos(a), y: ring1Radius * Math.sin(a) });
+      });
+      return positions;
+    }
+
+    // Profondeur 1 ou 2 : layout en anneaux successifs
+    // Détermine la profondeur de chaque nœud
+    const depthOf = new Map();
+    depthOf.set(centerId, 0);
+    let frontier = [centerId];
+    let curDepth = 0;
+    while (frontier.length > 0 && curDepth < 4) {
+      const next = [];
+      frontier.forEach(function (id) {
+        const adj = adjacency.get(id) || new Set();
+        adj.forEach(function (n) {
+          if (!visible.has(n)) return;
+          if (!depthOf.has(n)) {
+            depthOf.set(n, curDepth + 1);
+            next.push(n);
+          }
+        });
+      });
+      frontier = next;
+      curDepth++;
+    }
+
+    // Groupes par profondeur
+    const byDepth = {};
+    depthOf.forEach(function (d, id) {
+      if (!byDepth[d]) byDepth[d] = [];
+      byDepth[d].push(id);
     });
 
-    // Wrapper "floater" : reçoit l'animation de flottement 3D sans
-    // casser le translate du <g> parent (CSS transform écraserait l'attribut).
-    const floater = el('g', { class: 'v30-sm-node__floater' });
-    g.appendChild(floater);
+    // Plage de rayons selon viewBox approximatif
+    const radii = { 0: 0, 1: 105, 2: 195, 3: 280 };
 
-    // Glow halo (cercle légèrement plus grand, blurré) — derrière le cercle principal
-    if (spec.kind !== 'action') {
-      const halo = el('circle', {
-        class: 'v30-sm-node__halo',
-        r: spec.r + 6,
-        cx: 0,
-        cy: 0,
+    Object.keys(byDepth).forEach(function (dKey) {
+      const d = parseInt(dKey, 10);
+      const ids = byDepth[d];
+      const r = radii[d] || (60 + d * 80);
+      if (d === 0) return; // centre déjà placé
+      ids.forEach(function (id, i) {
+        const angle = -90 + (360 / ids.length) * i;
+        const a = deg2rad(angle);
+        positions.set(id, { x: r * Math.cos(a), y: r * Math.sin(a) });
       });
-      floater.appendChild(halo);
-    }
+    });
+
+    return positions;
+  }
+
+  function makeGraphNode(node, pos) {
+    const isCurrent = node.id === state.selectedId;
+    const isRoot = node.kind === 'root';
+    const isHub = node.kind === 'hub';
+    const isAction = node.kind === 'action';
+
+    const g = el('g', {
+      class: 'v30-sm-gnode'
+        + (isCurrent ? ' v30-sm-gnode--current' : '')
+        + (isRoot ? ' v30-sm-gnode--root' : '')
+        + (isHub ? ' v30-sm-gnode--hub' : ''),
+      'data-id': node.id,
+      'data-cat': node.cat,
+      transform: 'translate(' + pos.x + ',' + pos.y + ')',
+    });
+
+    let r = 22;
+    if (isAction) r = 8;
+    else if (isCurrent) r = 14;
+    else if (isHub) r = 22;
+    else r = 14;
 
     const c = el('circle', {
-      class: 'v30-sm-node__circle',
-      r: spec.r,
-      cx: 0,
-      cy: 0,
+      class: 'v30-sm-gnode__circle',
+      cx: 0, cy: 0, r: r,
+      'data-cat': node.cat,
     });
-    floater.appendChild(c);
+    g.appendChild(c);
 
-    // Pastille de statut (vert/orange/rouge) — coin haut-droit
-    if (spec.kind !== 'root') {
-      const dotR = spec.kind === 'action' ? 4 : 7;
-      const dotOffset = spec.r * 0.74;
-      const dot = el('circle', {
-        class: 'v30-sm-node__status v30-sm-node__status--' + status,
-        r: dotR,
-        cx: dotOffset,
-        cy: -dotOffset,
-      });
-      floater.appendChild(dot);
-    }
-
-    // Icône (si présente, au-dessus du label)
-    if (spec.icon) {
-      const i = el('text', {
-        class: 'v30-sm-node__icon',
+    // Label
+    if (isCurrent || isHub || node.kind === 'page' || node.kind === 'root') {
+      const labelText = truncate(node.label, 22);
+      const lbl = el('text', {
+        class: 'v30-sm-gnode__label' + (!isCurrent && !isRoot ? ' v30-sm-gnode__label--ext' : ''),
         x: 0,
-        y: spec.kind === 'root' || spec.kind === 'hub' ? -10 : -8,
-        text: spec.icon,
+        y: isCurrent || isRoot ? -r - 8 : -r - 6,
+        text: labelText,
       });
-      floater.appendChild(i);
-    }
-
-    // Label (multi-line si > 14 chars pour les pages, troncature pour les actions)
-    let lbl = spec.label || '';
-    if (spec.kind === 'action' && lbl.length > 28) {
-      lbl = lbl.slice(0, 26) + '…';
-    }
-
-    if (spec.kind === 'action') {
-      // Action : label en dehors du cercle (à droite du cercle, dans la direction radiale)
-      const t = el('text', {
-        class: 'v30-sm-node__label v30-sm-node__label--ext',
-        x: 0,
-        y: spec.r + 11,
-        text: lbl,
-      });
-      floater.appendChild(t);
+      g.appendChild(lbl);
     } else {
-      const yLbl = spec.icon ? 12 : 0;
-      const t = el('text', {
-        class: 'v30-sm-node__label',
+      // Petite étiquette pour les actions (au-dessus de la bulle)
+      const lbl = el('text', {
+        class: 'v30-sm-gnode__label v30-sm-gnode__label--ext',
         x: 0,
-        y: yLbl,
-        text: lbl,
+        y: -r - 5,
+        text: truncate(node.label, 18),
       });
-      floater.appendChild(t);
+      g.appendChild(lbl);
     }
 
-    // Flottement aléatoire — chaque bulle son propre rythme.
-    // Amplitude variable, durée 7-12s, délai 0-6s.
-    const dur = (7 + Math.random() * 5).toFixed(2);
-    const delay = (Math.random() * 6).toFixed(2);
-    floater.style.setProperty('--float-dur', dur + 's');
-    floater.style.setProperty('--float-delay', '-' + delay + 's');
+    g.addEventListener('click', function () { selectNode(node.id); });
+    g.addEventListener('dblclick', function () { openSelected(); });
 
     return g;
   }
 
-  // ─── Pan / Zoom ──────────────────────────────────────────
-  function applyTransform() {
-    canvas.setAttribute('transform',
-      'translate(' + state.tx + ',' + state.ty + ') scale(' + state.scale + ')'
-    );
-  }
-
-  function fitToScreen(animate) {
-    const stageRect = stage.getBoundingClientRect();
-    const w = stageRect.width;
-    const h = stageRect.height;
-    // Boîte englobante approximative : RING_PAGES + RING_ACTIONS_OUTER + label
-    const halfBox = RING_PAGES + RING_ACTIONS_OUTER + 110;
-    const padding = 40;
-    const sx = (w - 2 * padding) / (2 * halfBox);
-    const sy = (h - 2 * padding) / (2 * halfBox);
-    state.scale = Math.max(state.minScale, Math.min(state.maxScale, Math.min(sx, sy)));
-    state.tx = w / 2;
-    state.ty = h / 2;
-    canvas.classList.toggle('is-panning', !animate);
-    applyTransform();
-    if (!animate) {
-      // Force layout puis remet la transition
-      requestAnimationFrame(function () { canvas.classList.remove('is-panning'); });
+  // ─── Détail ───────────────────────────────────────────
+  function renderDetail() {
+    const d = refs.detail;
+    if (!state.selectedId) {
+      d.kicker.textContent = 'Détail · Sélectionnez un nœud';
+      d.title.textContent = '—';
+      d.desc.textContent = 'Cliquez sur un élément à gauche ou dans l\'index pour voir son détail.';
+      d.handlersWrap.hidden = true;
+      d.endpointsWrap.hidden = true;
+      d.backendWrap.hidden = true;
+      d.statusWrap.hidden = true;
+      d.neighborsWrap.hidden = true;
+      d.actions.hidden = true;
+      updateBreadcrumb(null);
+      return;
     }
-  }
 
-  function zoomBy(factor, cx, cy) {
-    const newScale = Math.max(state.minScale, Math.min(state.maxScale, state.scale * factor));
-    if (newScale === state.scale) return;
-    if (cx == null || cy == null) {
-      const r = stage.getBoundingClientRect();
-      cx = r.width / 2;
-      cy = r.height / 2;
-    }
-    // Conserver le point sous le curseur
-    const wx = (cx - state.tx) / state.scale;
-    const wy = (cy - state.ty) / state.scale;
-    state.scale = newScale;
-    state.tx = cx - wx * newScale;
-    state.ty = cy - wy * newScale;
-    applyTransform();
-  }
+    const n = allNodes.get(state.selectedId);
+    if (!n) return;
 
-  // Souris : drag
-  stage.addEventListener('pointerdown', function (e) {
-    if (e.target.closest('.v30-sitemap-help, .v30-sitemap-search, .v30-sitemap-tooltip')) return;
-    if (e.target.closest('.v30-sm-node')) return; // click géré ailleurs
-    state.panning = true;
-    state.panStart = { x: e.clientX, y: e.clientY };
-    state.panInitial = { tx: state.tx, ty: state.ty };
-    stage.classList.add('is-panning');
-    canvas.classList.add('is-panning');
-    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
-  });
+    const kind = (n.kind || '').toUpperCase();
+    const kicker = 'Détail · ' + (kind === 'ROOT' ? 'ENTRY' : kind);
+    d.kicker.textContent = kicker;
+    d.title.textContent = n.label;
 
-  stage.addEventListener('pointermove', function (e) {
-    if (!state.panning) return;
-    state.tx = state.panInitial.tx + (e.clientX - state.panStart.x);
-    state.ty = state.panInitial.ty + (e.clientY - state.panStart.y);
-    applyTransform();
-  });
-
-  function endPan(e) {
-    if (!state.panning) return;
-    state.panning = false;
-    stage.classList.remove('is-panning');
-    canvas.classList.remove('is-panning');
-    try { if (e && e.pointerId != null) stage.releasePointerCapture(e.pointerId); } catch (_) {}
-  }
-  stage.addEventListener('pointerup', endPan);
-  stage.addEventListener('pointercancel', endPan);
-  stage.addEventListener('pointerleave', endPan);
-
-  // Wheel zoom
-  stage.addEventListener('wheel', function (e) {
-    e.preventDefault();
-    const factor = e.deltaY > 0 ? 0.9 : 1.1;
-    const r = stage.getBoundingClientRect();
-    zoomBy(factor, e.clientX - r.left, e.clientY - r.top);
-  }, { passive: false });
-
-  // Pinch to zoom (mobile)
-  let pointers = new Map();
-  stage.addEventListener('pointerdown', function (e) { pointers.set(e.pointerId, e); });
-  stage.addEventListener('pointermove', function (e) {
-    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, e);
-    if (pointers.size === 2) {
-      const arr = Array.from(pointers.values());
-      const dx = arr[0].clientX - arr[1].clientX;
-      const dy = arr[0].clientY - arr[1].clientY;
-      const dist = Math.hypot(dx, dy);
-      if (!state.pinching) {
-        state.pinching = true;
-        state.pinchStart = dist;
-        state.pinchScale = state.scale;
+    // Description (sub ou message contextuel)
+    let desc = n.sub || '';
+    if (!desc && n.kind === 'action') {
+      const tools = n.tools || {};
+      const hasEndpoints = (tools.endpoints || []).length > 0;
+      const hasBackend = (tools.backend || []).length > 0;
+      if (!hasEndpoints && !hasBackend) {
+        desc = 'Aucun endpoint testable (action UI/frontend uniquement).';
       } else {
-        const r = stage.getBoundingClientRect();
-        const cx = (arr[0].clientX + arr[1].clientX) / 2 - r.left;
-        const cy = (arr[0].clientY + arr[1].clientY) / 2 - r.top;
-        const targetScale = Math.max(state.minScale, Math.min(state.maxScale, state.pinchScale * (dist / state.pinchStart)));
-        const factor = targetScale / state.scale;
-        zoomBy(factor, cx, cy);
+        desc = 'Action de la page « ' + (allNodes.get(n.parentId) || {}).label + ' ».';
       }
     }
-  });
-  function clearPointer(e) { pointers.delete(e.pointerId); if (pointers.size < 2) state.pinching = false; }
-  stage.addEventListener('pointerup', clearPointer);
-  stage.addEventListener('pointercancel', clearPointer);
+    if (!desc && n.kind === 'page') desc = 'Page ProspUp.';
+    if (!desc && n.kind === 'hub') desc = 'Hub central de l\'application.';
+    if (!desc && n.kind === 'root') desc = 'Point d\'entrée de l\'application.';
+    d.desc.textContent = desc;
 
-  // ─── Boutons zoom ────────────────────────────────────────
-  document.querySelector('[data-zoom-in]').addEventListener('click', function () { zoomBy(1.25); });
-  document.querySelector('[data-zoom-out]').addEventListener('click', function () { zoomBy(0.8); });
-  document.querySelector('[data-zoom-reset]').addEventListener('click', function () { fitToScreen(true); });
-  document.querySelectorAll('[data-toggle-help]').forEach(function (b) {
-    b.addEventListener('click', toggleHelp);
-  });
+    // Tools : handlers, endpoints, backend
+    const tools = n.tools || {};
+    setCodeList(d.handlersWrap, d.handlers, tools.handlers, function (h) { return h + '()'; });
+    setCodeList(d.endpointsWrap, d.endpoints, tools.endpoints, null);
+    setCodeList(d.backendWrap, d.backend, tools.backend, null);
 
-  // ─── Hover & Click sur nodes ─────────────────────────────
-  function highlightBranch(id) {
-    if (!id) {
-      nodesG.classList.remove('is-dimmed');
-      edgesG.classList.remove('is-dimmed');
-      Array.prototype.forEach.call(document.querySelectorAll('.is-active'), function (n) {
-        n.classList.remove('is-active');
-      });
-      return;
-    }
-
-    const idx = nodeIndex.get(id);
-    if (!idx) return;
-
-    let activeIds = new Set([id]);
-    const activeEdges = new Set();
-
-    if (idx.kind === 'action') {
-      // Action : remonte au parent (page) puis Dashboard puis Connexion
-      activeIds.add(idx.parentId);
-      activeIds.add(data.hub || 'dashboard');
-      activeIds.add('login');
-      activeEdges.add(idx.parentId + '|' + id);
-      activeEdges.add('hub|' + idx.parentId);
-      activeEdges.add('root');
-    } else if (idx.kind === 'page' || idx.kind === 'hub') {
-      // Page : descend vers ses actions et remonte au Dashboard + Connexion
-      const branch = branchIndex.get(id) || [id];
-      branch.forEach(function (b) { activeIds.add(b); });
-      if (idx.kind !== 'hub') {
-        activeIds.add(data.hub || 'dashboard');
-        activeEdges.add('hub|' + id);
-      }
-      activeIds.add('login');
-      activeEdges.add('root');
-      // Edges page → actions
-      (idx.node.actions || []).forEach(function (a) {
-        if (a._uid) activeEdges.add(id + '|' + a._uid);
-      });
-    } else if (idx.kind === 'root') {
-      activeIds.add(data.hub || 'dashboard');
-      activeEdges.add('root');
-    }
-
-    nodesG.classList.add('is-dimmed');
-    edgesG.classList.add('is-dimmed');
-
-    Array.prototype.forEach.call(document.querySelectorAll('.v30-sm-node'), function (n) {
-      n.classList.toggle('is-active', activeIds.has(n.getAttribute('data-id')));
-    });
-
-    Array.prototype.forEach.call(edgesG.querySelectorAll('.v30-sm-edge'), function (eEl) {
-      const isRootEdge = eEl.classList.contains('v30-sm-edge--root');
-      const pid = eEl.getAttribute('data-edge-page');
-      const aid = eEl.getAttribute('data-edge-action-id');
-      let active = false;
-      if (isRootEdge && activeEdges.has('root')) active = true;
-      if (pid && !aid && activeEdges.has('hub|' + pid)) active = true;
-      if (pid && aid && activeEdges.has(pid + '|' + aid)) active = true;
-      eEl.classList.toggle('is-active', active);
-    });
-  }
-
-  function showTooltip(node, evt) {
-    const id = node.getAttribute('data-id');
-    const idx = nodeIndex.get(id);
-    if (!idx) return;
-    const n = idx.node;
-    tooltipTitle.textContent = n.label;
-    tooltipSub.textContent = n.summary || (idx.kind === 'action' ? 'Action' : '');
-
-    // Status badge
-    const status = n.status || (idx.kind === 'root' ? null : 'unknown');
-    if (status) {
-      tooltipStatus.hidden = false;
-      tooltipStatus.className = 'v30-sitemap-tooltip__status v30-sitemap-tooltip__status--' + status;
-      tooltipStatus.textContent = STATUS_LABELS[status] || '?';
-    } else {
-      tooltipStatus.hidden = true;
-    }
-
-    // Status note
-    const note = n.status_note || '';
-    if (note) {
-      tooltipNote.hidden = false;
-      tooltipNote.textContent = note;
-    } else {
-      tooltipNote.hidden = true;
-    }
-
-    // Tools (handlers, endpoints, backend) — uniquement pour les actions / pages
-    tooltipTools.innerHTML = '';
-    const tools = n.tools;
-    if (tools && (tools.handlers || tools.endpoints || tools.backend)) {
-      const sections = [
-        { key: 'handlers', label: 'JS handler' },
-        { key: 'endpoints', label: 'Endpoints' },
-        { key: 'backend', label: 'Backend' },
-      ];
-      sections.forEach(function (s) {
-        const list = tools[s.key] || [];
-        if (!list.length) return;
-        const row = document.createElement('div');
-        row.className = 'v30-sitemap-tooltip__tool-row';
-        const lab = document.createElement('span');
-        lab.className = 'v30-sitemap-tooltip__tool-label';
-        lab.textContent = s.label;
-        row.appendChild(lab);
-        const val = document.createElement('span');
-        val.className = 'v30-sitemap-tooltip__tool-val';
-        val.textContent = list.join(' · ');
-        row.appendChild(val);
-        tooltipTools.appendChild(row);
-      });
-      tooltipTools.hidden = (tooltipTools.children.length === 0);
-    } else {
-      tooltipTools.hidden = true;
-    }
-
-    tooltip.hidden = false;
-    moveTooltip(evt);
-  }
-
-  function moveTooltip(evt) {
-    if (tooltip.hidden) return;
-    const r = stage.getBoundingClientRect();
-    let x = evt.clientX - r.left + 14;
-    let y = evt.clientY - r.top + 14;
-    // Garde le tooltip dans la stage
-    const tw = tooltip.offsetWidth;
-    const th = tooltip.offsetHeight;
-    if (x + tw > r.width - 8) x = evt.clientX - r.left - tw - 14;
-    if (y + th > r.height - 8) y = evt.clientY - r.top - th - 14;
-    tooltip.style.left = x + 'px';
-    tooltip.style.top = y + 'px';
-  }
-
-  function hideTooltip() {
-    tooltip.hidden = true;
-  }
-
-  nodesG.addEventListener('mouseover', function (e) {
-    const node = e.target.closest('.v30-sm-node');
-    if (!node) return;
-    highlightBranch(node.getAttribute('data-id'));
-    showTooltip(node, e);
-  });
-
-  nodesG.addEventListener('mousemove', function (e) {
-    if (e.target.closest('.v30-sm-node')) moveTooltip(e);
-  });
-
-  nodesG.addEventListener('mouseout', function (e) {
-    const node = e.target.closest('.v30-sm-node');
-    const related = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.v30-sm-node');
-    if (!node || related === node) return;
-    if (!state.activeId) {
-      highlightBranch(null);
-      hideTooltip();
-    }
-  });
-
-  // Click → ouvre la page (nouvel onglet pour le centre de la stage : on garde l'onglet sitemap)
-  nodesG.addEventListener('click', function (e) {
-    const node = e.target.closest('.v30-sm-node');
-    if (!node) return;
-    const href = node.getAttribute('data-href');
-    if (!href || href === '#') return;
-    // Modifier+click → nouvel onglet, sinon même onglet (l'utilisateur peut revenir avec back)
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) {
-      window.open(href, '_blank', 'noopener');
-    } else {
-      window.location.href = href;
-    }
-  });
-
-  // ─── Légende cliquable (filtre par catégorie) ────────────
-  document.querySelectorAll('.v30-sitemap-legend__item').forEach(function (item) {
-    item.addEventListener('click', function () {
-      const cat = item.getAttribute('data-cat');
-      if (state.catFilter === cat) {
-        state.catFilter = null;
-      } else {
-        state.catFilter = cat;
-      }
-      applyCategoryFilter();
-    });
-  });
-
-  function applyCategoryFilter() {
-    const cat = state.catFilter;
-    document.querySelectorAll('.v30-sitemap-legend__item').forEach(function (i) {
-      const c = i.getAttribute('data-cat');
-      i.classList.toggle('is-muted', !!cat && c !== cat);
-    });
-    if (!cat) {
-      nodesG.classList.remove('has-filter');
-      edgesG.classList.remove('has-filter');
-      Array.prototype.forEach.call(document.querySelectorAll('.v30-sm-node, .v30-sm-edge'), function (n) {
-        n.classList.remove('is-cat-match');
-      });
-      return;
-    }
-    nodesG.classList.add('has-filter');
-    edgesG.classList.add('has-filter');
-    Array.prototype.forEach.call(document.querySelectorAll('.v30-sm-node'), function (n) {
-      n.classList.toggle('is-cat-match', n.getAttribute('data-cat') === cat);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll('.v30-sm-edge'), function (eEl) {
-      eEl.classList.toggle('is-cat-match', eEl.getAttribute('data-cat') === cat);
-    });
-  }
-
-  // ─── Recherche ───────────────────────────────────────────
-  function toggleSearch(open) {
-    const willOpen = open == null ? !state.searchOpen : open;
-    state.searchOpen = willOpen;
-    searchPanel.hidden = !willOpen;
-    if (willOpen) {
-      searchInput.value = '';
-      buildSearchResults('');
-      searchInput.focus();
-    }
-  }
-
-  function normalize(s) {
-    // Lowercase + retire les diacritiques (é → e, à → a, ç → c…)
-    return (s || '').toString().toLowerCase()
-      .normalize('NFD').replace(/\p{Diacritic}/gu, '');
-  }
-
-  function buildSearchResults(query) {
-    searchResults.innerHTML = '';
-    const q = normalize((query || '').trim());
-    const results = [];
-    (data.pages || []).forEach(function (p) {
-      const pLabel = normalize(p.label);
-      const pSummary = normalize(p.summary);
-      const matchPage = !q || pLabel.indexOf(q) !== -1 || pSummary.indexOf(q) !== -1;
-      if (matchPage) {
-        results.push({ id: p.id, label: p.label, cat: p.cat, kind: 'page' });
-      }
-      (p.actions || []).forEach(function (a) {
-        const aLabel = normalize(a.label);
-        if (!q || aLabel.indexOf(q) !== -1) {
-          results.push({ id: a._uid, label: a.label, cat: p.cat, kind: 'action', parentLabel: p.label });
-        }
-      });
-    });
-
-    if (results.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'v30-sitemap-search__empty';
-      empty.textContent = 'Aucun résultat';
-      searchResults.appendChild(empty);
-      return;
-    }
-
-    results.slice(0, 50).forEach(function (r, idx) {
-      const li = document.createElement('li');
-      li.setAttribute('data-id', r.id);
-      if (idx === 0) li.classList.add('is-active');
+    // Statut
+    if (n.status && n.kind !== 'root') {
+      d.statusWrap.hidden = false;
+      const labels = { ok: 'OK', warn: 'Améliorable', ko: 'En erreur', unknown: 'Non testé' };
+      d.status.innerHTML = '';
       const dot = document.createElement('span');
-      dot.className = 'v30-sitemap-search__dot';
-      const cat = data.categories[r.cat];
-      dot.style.background = cat ? cat.color : 'var(--text-3)';
-      li.appendChild(dot);
-      const text = document.createElement('span');
-      text.textContent = r.kind === 'action' ? r.parentLabel + ' › ' + r.label : r.label;
-      li.appendChild(text);
-      const tag = document.createElement('span');
-      tag.className = 'v30-sitemap-search__cat';
-      tag.textContent = r.kind;
-      li.appendChild(tag);
-      li.addEventListener('click', function () { focusNode(r.id); toggleSearch(false); });
-      searchResults.appendChild(li);
+      dot.className = 'dot dot--' + n.status;
+      const txt = document.createTextNode(' ' + (labels[n.status] || '?'));
+      d.status.appendChild(dot);
+      d.status.appendChild(txt);
+      if (n.status_note) {
+        const note = document.createElement('span');
+        note.className = 'note';
+        note.textContent = n.status_note;
+        d.status.appendChild(note);
+      }
+    } else {
+      d.statusWrap.hidden = true;
+    }
+
+    // Voisins
+    const adj = Array.from(adjacency.get(n.id) || []);
+    if (adj.length > 0) {
+      d.neighborsWrap.hidden = false;
+      d.neighborsCount.textContent = adj.length;
+      d.neighbors.innerHTML = '';
+      adj.forEach(function (nid) {
+        const nb = allNodes.get(nid);
+        if (!nb) return;
+        const card = document.createElement('div');
+        card.className = 'v30-sm-neighbor';
+        card.dataset.id = nid;
+        const dot = document.createElement('span');
+        dot.className = 'v30-sm-neighbor__dot';
+        dot.dataset.cat = nb.cat;
+        const lbl = document.createElement('span');
+        lbl.className = 'v30-sm-neighbor__label';
+        lbl.textContent = nb.label;
+        const arr = document.createElement('span');
+        arr.className = 'v30-sm-neighbor__arrow';
+        arr.textContent = '→';
+        card.appendChild(dot);
+        card.appendChild(lbl);
+        card.appendChild(arr);
+        card.addEventListener('click', function () { selectNode(nid); });
+        d.neighbors.appendChild(card);
+      });
+    } else {
+      d.neighborsWrap.hidden = true;
+    }
+
+    // Actions
+    const canOpen = !!n.href && n.href !== '#' && n.kind !== 'root';
+    d.actions.hidden = !canOpen && n.kind !== 'root';
+    if (n.kind === 'root' && n.href) d.actions.hidden = false;
+
+    updateBreadcrumb(n);
+  }
+
+  function setCodeList(wrap, codeEl, list, fmt) {
+    if (!list || list.length === 0) {
+      wrap.hidden = true;
+      return;
+    }
+    wrap.hidden = false;
+    codeEl.innerHTML = '';
+    list.forEach(function (item) {
+      const span = document.createElement('span');
+      span.className = 'item';
+      span.textContent = fmt ? fmt(item) : item;
+      codeEl.appendChild(span);
     });
   }
 
-  function focusNode(id) {
-    const idx = nodeIndex.get(id);
-    if (!idx) return;
-    const n = idx.node;
-    // Centre la vue sur le nœud
-    const stageRect = stage.getBoundingClientRect();
-    state.tx = stageRect.width / 2 - n.x * state.scale;
-    state.ty = stageRect.height / 2 - n.y * state.scale;
-    applyTransform();
-    state.activeId = id;
-    highlightBranch(id);
-    setTimeout(function () { state.activeId = null; }, 2400);
-  }
-
-  searchInput.addEventListener('input', function () {
-    buildSearchResults(searchInput.value);
-  });
-
-  searchInput.addEventListener('keydown', function (e) {
-    const items = Array.from(searchResults.querySelectorAll('li'));
-    let idx = items.findIndex(function (li) { return li.classList.contains('is-active'); });
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      idx = Math.min(items.length - 1, idx + 1);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      idx = Math.max(0, idx - 1);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (items[idx]) {
-        const id = items[idx].getAttribute('data-id');
-        focusNode(id);
-        toggleSearch(false);
-      }
-      return;
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      toggleSearch(false);
+  function updateBreadcrumb(n) {
+    if (!refs.crumbCurrent) return;
+    if (!n) {
+      refs.crumbCurrent.textContent = '—';
       return;
     }
-    items.forEach(function (li, i) { li.classList.toggle('is-active', i === idx); });
-  });
+    let txt = n.label;
+    if (n.kind === 'action' && n.parentId) {
+      const parent = allNodes.get(n.parentId);
+      if (parent) txt = parent.label + ' › ' + n.label;
+    }
+    refs.crumbCurrent.textContent = txt;
+  }
 
-  // ─── Help panel ──────────────────────────────────────────
+  // ─── Sélection ────────────────────────────────────────
+  function selectNode(id) {
+    if (!allNodes.has(id)) return;
+    state.selectedId = id;
+
+    // Met à jour les rows
+    Array.prototype.forEach.call(refs.index.querySelectorAll('.v30-sm-row'), function (r) {
+      r.classList.toggle('is-active', r.dataset.id === id);
+    });
+
+    // Scroll into view
+    const activeRow = refs.index.querySelector('.v30-sm-row.is-active');
+    if (activeRow && typeof activeRow.scrollIntoView === 'function') {
+      activeRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    renderMiniGraph();
+    renderDetail();
+  }
+
+  function openSelected() {
+    const n = state.selectedId ? allNodes.get(state.selectedId) : null;
+    if (!n || !n.href || n.href === '#') return;
+    window.location.href = n.href;
+  }
+
+  // ─── Recherche ────────────────────────────────────────
+  function openSearch() {
+    state.searchOpen = true;
+    refs.searchPop.hidden = false;
+    refs.searchInput.focus();
+    refs.searchInput.select();
+    buildSearchResults('');
+  }
+
+  function closeSearch() {
+    state.searchOpen = false;
+    refs.searchPop.hidden = true;
+  }
+
+  function buildSearchResults(q) {
+    refs.searchResults.innerHTML = '';
+    const query = normalize((q || '').trim());
+
+    const matches = [];
+    allNodes.forEach(function (n) {
+      const lbl = normalize(n.label);
+      const sub = normalize(n.sub);
+      if (!query || lbl.indexOf(query) !== -1 || sub.indexOf(query) !== -1) {
+        matches.push(n);
+      }
+    });
+
+    if (matches.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'v30-sm-searchpop__empty';
+      empty.textContent = 'Aucun résultat';
+      refs.searchResults.appendChild(empty);
+      return;
+    }
+
+    matches.slice(0, 50).forEach(function (n, idx) {
+      const li = document.createElement('li');
+      li.dataset.id = n.id;
+      if (idx === 0) li.classList.add('is-active');
+
+      const dot = document.createElement('span');
+      dot.className = 'v30-sm-searchpop__dot';
+      const cat = (data.categories || {})[n.cat];
+      dot.style.background = cat ? cat.color : (n.cat === 'hub' ? 'var(--v30-sm-cat-hub)' : 'var(--v30-sm-text-3)');
+
+      const span = document.createElement('span');
+      let label = n.label;
+      if (n.kind === 'action' && n.parentId) {
+        const parent = allNodes.get(n.parentId);
+        if (parent) label = parent.label + ' › ' + n.label;
+      }
+      span.textContent = label;
+
+      const tag = document.createElement('span');
+      tag.className = 'v30-sm-searchpop__type';
+      tag.textContent = n.tier;
+
+      li.appendChild(dot);
+      li.appendChild(span);
+      li.appendChild(tag);
+
+      li.addEventListener('click', function () {
+        selectNode(n.id);
+        closeSearch();
+      });
+
+      refs.searchResults.appendChild(li);
+    });
+  }
+
+  // ─── Help ─────────────────────────────────────────────
   function toggleHelp() {
     state.helpOpen = !state.helpOpen;
-    helpPanel.hidden = !state.helpOpen;
+    refs.helpPanel.hidden = !state.helpOpen;
   }
 
-  // ─── Raccourcis clavier ──────────────────────────────────
-  document.addEventListener('keydown', function (e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.key === '+' || e.key === '=') { zoomBy(1.25); }
-    else if (e.key === '-' || e.key === '_') { zoomBy(0.8); }
-    else if (e.key === 'r' || e.key === 'R') { fitToScreen(true); }
-    else if (e.key === 'h' || e.key === 'H' || e.key === '?') { toggleHelp(); }
-    else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleSearch(true); }
-    else if (e.key === 'Escape') {
-      if (state.searchOpen) toggleSearch(false);
-      else if (state.helpOpen) toggleHelp();
-    }
-  });
+  // ─── Bindings ─────────────────────────────────────────
+  function bindEvents() {
+    // Toggle profondeur
+    refs.toggleBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const depth = btn.dataset.depth;
+        state.depth = depth === 'all' ? 'all' : parseInt(depth, 10);
+        refs.toggleBtns.forEach(function (b) {
+          b.classList.toggle('is-active', b === btn);
+          b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+        });
+        renderMiniGraph();
+      });
+    });
 
-  // ─── Init ────────────────────────────────────────────────
+    // Recherche
+    refs.searchInput.addEventListener('focus', function () {
+      if (!state.searchOpen) openSearch();
+    });
+    refs.searchInput.addEventListener('input', function () {
+      if (!state.searchOpen) openSearch();
+      buildSearchResults(refs.searchInput.value);
+    });
+    refs.searchInput.addEventListener('keydown', function (e) {
+      const items = Array.from(refs.searchResults.querySelectorAll('li'));
+      let idx = items.findIndex(function (li) { return li.classList.contains('is-active'); });
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        idx = Math.min(items.length - 1, idx + 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        idx = Math.max(0, idx - 1);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (items[idx]) {
+          const id = items[idx].dataset.id;
+          selectNode(id);
+          closeSearch();
+          refs.searchInput.blur();
+        }
+        return;
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSearch();
+        refs.searchInput.blur();
+        return;
+      }
+      items.forEach(function (li, i) { li.classList.toggle('is-active', i === idx); });
+    });
+    document.addEventListener('click', function (e) {
+      if (!state.searchOpen) return;
+      if (e.target.closest('.v30-sm-search') || e.target.closest('.v30-sm-searchpop')) return;
+      closeSearch();
+    });
+
+    // Ouvrir
+    if (refs.detail.open) {
+      refs.detail.open.addEventListener('click', openSelected);
+    }
+
+    // Help
+    document.querySelectorAll('[data-toggle-help]').forEach(function (b) {
+      b.addEventListener('click', toggleHelp);
+    });
+    refs.helpPanel.addEventListener('click', function (e) {
+      if (e.target === refs.helpPanel) toggleHelp();
+    });
+
+    // Raccourcis clavier
+    document.addEventListener('keydown', function (e) {
+      const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+      // F (recherche) : toujours actif sauf quand on tape déjà
+      if ((e.key === 'f' || e.key === 'F') && !inField) {
+        e.preventDefault();
+        openSearch();
+        return;
+      }
+      // / (recherche)
+      if (e.key === '/' && !inField) {
+        e.preventDefault();
+        openSearch();
+        return;
+      }
+      // H (aide)
+      if ((e.key === 'h' || e.key === 'H' || e.key === '?') && !inField) {
+        toggleHelp();
+        return;
+      }
+      // Cmd/Ctrl+O : ouvrir le nœud sélectionné
+      if ((e.key === 'o' || e.key === 'O') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        openSelected();
+        return;
+      }
+      // Esc : ferme search/help
+      if (e.key === 'Escape') {
+        if (state.searchOpen) { closeSearch(); refs.searchInput.blur(); return; }
+        if (state.helpOpen) toggleHelp();
+        return;
+      }
+      // Flèches haut/bas dans l'index
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !inField && !state.searchOpen) {
+        e.preventDefault();
+        const rows = Array.prototype.slice.call(refs.index.querySelectorAll('.v30-sm-row'));
+        if (rows.length === 0) return;
+        let curIdx = rows.findIndex(function (r) { return r.classList.contains('is-active'); });
+        if (curIdx === -1) curIdx = 0;
+        else curIdx = e.key === 'ArrowDown' ? Math.min(rows.length - 1, curIdx + 1) : Math.max(0, curIdx - 1);
+        const row = rows[curIdx];
+        if (row) selectNode(row.dataset.id);
+      }
+    });
+
+    // Resize : re-render mini-graph (viewBox dépend de la taille)
+    let resizeTO;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTO);
+      resizeTO = setTimeout(function () { renderMiniGraph(); }, 120);
+    });
+  }
+
+  // ─── Init ─────────────────────────────────────────────
   function init() {
     if (!data.pages || data.pages.length === 0) {
       console.warn('[sitemap] aucune donnée');
       return;
     }
-    computeLayout();
-    render();
-    // Premier paint puis fit
-    requestAnimationFrame(function () {
-      fitToScreen(false);
-    });
-  }
+    buildModel();
 
-  // Resize
-  let resizeTO;
-  window.addEventListener('resize', function () {
-    clearTimeout(resizeTO);
-    resizeTO = setTimeout(function () { fitToScreen(true); }, 150);
-  });
+    // Stats
+    if (refs.statsNodes) refs.statsNodes.textContent = allNodes.size;
+    if (refs.statsEdges) refs.statsEdges.textContent = countEdges();
+
+    renderIndex();
+    bindEvents();
+
+    // Sélection initiale = hub
+    const initialId = data.hub || (data.pages[0] && data.pages[0].id);
+    if (initialId) selectNode(initialId);
+  }
 
   init();
 })();
