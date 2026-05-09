@@ -802,6 +802,225 @@
     });
   }
 
+  // ─── Funnel de conversion (custom SVG, design Prosp_Up) ──
+  function renderFunnel() {
+    var host = $('[data-v30-stats-funnel] [data-field="rows"]');
+    if (!host) return;
+    var c = STATE.statsCharts || {};
+    var dist = c.statusDistribution || {};
+
+    // Ordre logique du funnel (du plus large au plus engagé)
+    var STAGES = [
+      { key: "Pas d'actions", label: 'À contacter',  color: '#94a3b8' },
+      { key: 'Appelé',        label: 'Appelé',       color: '#3b82f6' },
+      { key: 'À rappeler',    label: 'À rappeler',   color: '#f59e0b' },
+      { key: 'Messagerie',    label: 'Messagerie',   color: '#8b5cf6' },
+      { key: 'Rendez-vous',   label: 'Rendez-vous',  color: '#22c55e' }
+    ];
+    // 'Prospecté' est l'étape post-RDV, on la cumule pour le calcul de conversion.
+    var prospecte = dist['Prospecté'] || 0;
+    var rows = STAGES.map(function (s) { return { label: s.label, value: dist[s.key] || 0, color: s.color }; });
+
+    var maxValue = Math.max(1, Math.max.apply(null, rows.map(function (r) { return r.value; })));
+    var totalProspects = rows.reduce(function (s, r) { return s + r.value; }, 0) + prospecte;
+    var rdv = dist['Rendez-vous'] || 0;
+    var convPct = totalProspects > 0 ? Math.round(((rdv + prospecte) / totalProspects) * 1000) / 10 : 0;
+
+    var rateEl = $('[data-v30-stats-funnel] [data-field="rate"]');
+    if (rateEl) rateEl.textContent = convPct.toFixed(1).replace('.', ',') + '% conversion';
+
+    if (totalProspects === 0) {
+      host.innerHTML = '<div class="empty" style="padding:18px 0;text-align:center;color:var(--text-3);font-size:12.5px;">Aucun prospect.</div>';
+      return;
+    }
+
+    host.innerHTML = rows.map(function (r, i) {
+      var pct = totalProspects > 0 ? Math.round((r.value / totalProspects) * 1000) / 10 : 0;
+      var fillW = Math.round((r.value / maxValue) * 100);
+      var prev = i > 0 ? rows[i - 1].value : null;
+      var dropTxt = '';
+      if (prev != null && prev > 0 && r.value < prev) {
+        var drop = Math.round(((prev - r.value) / prev) * 100);
+        dropTxt = '<span class="v30-stats-funnel__drop" title="Perte vs étape précédente">−' + drop + '%</span>';
+      }
+      return '<div class="v30-stats-funnel__row" style="--stage-color:' + r.color + ';">' +
+        '<span class="v30-stats-funnel__label">' + esc(r.label) + dropTxt + '</span>' +
+        '<div class="v30-stats-funnel__bar">' +
+          '<div class="v30-stats-funnel__fill" style="width:' + fillW + '%;"></div>' +
+          '<span class="v30-stats-funnel__value num">' + fmt(r.value) + '</span>' +
+        '</div>' +
+        '<span class="v30-stats-funnel__pct num">' + pct.toFixed(1).replace('.', ',') + '%</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  // ─── Top compétences / tags (SVG bars) ────────────────
+  function renderTopTags() {
+    var host = $('[data-v30-stats-tags] [data-field="rows"]');
+    if (!host) return;
+    var c = STATE.statsCharts || {};
+    var rows = c.topTags || [];
+    var totEl = $('[data-v30-stats-tags] [data-field="total"]');
+
+    if (!rows.length) {
+      host.innerHTML = '<div class="empty" style="padding:18px 0;text-align:center;color:var(--text-3);font-size:12.5px;">Aucun tag renseigné sur tes prospects.</div>';
+      if (totEl) totEl.textContent = '0';
+      return;
+    }
+    var max = Math.max.apply(null, rows.map(function (r) { return r.count || 0; }));
+    var total = rows.reduce(function (s, r) { return s + (r.count || 0); }, 0);
+    if (totEl) totEl.textContent = fmt(total) + ' occurrences';
+
+    host.innerHTML = rows.slice(0, 10).map(function (r, i) {
+      var pct = max > 0 ? Math.round(((r.count || 0) / max) * 100) : 0;
+      return '<div class="v30-stats-tags__row" data-rank="' + (i + 1) + '">' +
+        '<span class="v30-stats-tags__name" title="' + esc(r.name) + '">' + esc(r.name) + '</span>' +
+        '<div class="v30-stats-tags__bar">' +
+          '<div class="v30-stats-tags__fill" style="width:' + pct + '%;"></div>' +
+        '</div>' +
+        '<span class="v30-stats-tags__count num">' + fmt(r.count) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  // ─── Heatmap activité 8 sem × 7 jours (SVG-CSS) ───────
+  function renderHeatmap() {
+    var host = $('[data-v30-stats-heatmap] [data-field="grid"]');
+    if (!host) return;
+    var c = STATE.statsCharts || {};
+    var days = (c.dailyActivity || []).slice();
+    var totEl = $('[data-v30-stats-heatmap] [data-field="total"]');
+
+    if (!days.length) {
+      host.innerHTML = '<div class="empty" style="padding:18px 0;text-align:center;color:var(--text-3);font-size:12.5px;">Pas de données d\'activité.</div>';
+      if (totEl) totEl.textContent = '0';
+      return;
+    }
+    // Compute thresholds (quartiles) for level mapping 1..4
+    var counts = days.map(function (d) { return d.count || 0; }).filter(function (n) { return n > 0; });
+    counts.sort(function (a, b) { return a - b; });
+    function quartile(arr, q) {
+      if (!arr.length) return 0;
+      var pos = (arr.length - 1) * q;
+      var lo = Math.floor(pos), hi = Math.ceil(pos);
+      if (lo === hi) return arr[lo];
+      return arr[lo] + (arr[hi] - arr[lo]) * (pos - lo);
+    }
+    var q1 = quartile(counts, 0.25),
+        q2 = quartile(counts, 0.5),
+        q3 = quartile(counts, 0.75);
+    function level(n) {
+      if (!n) return 0;
+      if (n <= q1) return 1;
+      if (n <= q2) return 2;
+      if (n <= q3) return 3;
+      return 4;
+    }
+    var total = days.reduce(function (s, d) { return s + (d.count || 0); }, 0);
+    if (totEl) totEl.textContent = fmt(total) + ' actions sur 56 j.';
+
+    // Build a 7-rows × 8-cols grid (rows=jours sem, cols=semaines)
+    var DAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    // days est trié par date asc (56 entries). On les groupe par semaine ISO (lundi).
+    var weeks = [];      // array of arrays of {date, count, level} indexed by weekday 0..6
+    var currentWeek = null;
+    days.forEach(function (d) {
+      var dt = new Date(d.date + 'T00:00:00');
+      var wd = (dt.getDay() + 6) % 7; // Lundi=0..Dimanche=6
+      if (wd === 0 || !currentWeek) {
+        currentWeek = new Array(7);
+        weeks.push(currentWeek);
+      }
+      currentWeek[wd] = { date: d.date, count: d.count || 0, level: level(d.count || 0) };
+    });
+    // tronquer/garantir 8 dernières semaines
+    if (weeks.length > 8) weeks = weeks.slice(weeks.length - 8);
+
+    // Collect month labels (top axis): one tick when month changes between week starts
+    var monthHeaders = weeks.map(function (w) {
+      var first = (w || []).find(function (c) { return c; });
+      if (!first) return '';
+      var dt = new Date(first.date + 'T00:00:00');
+      return dt.toLocaleDateString('fr-FR', { month: 'short' });
+    });
+    var headerHTML = '<div class="v30-stats-heatmap__col-label"></div>' +
+      monthHeaders.map(function (m, i) {
+        var show = (i === 0) || (m !== monthHeaders[i - 1]);
+        return '<div class="v30-stats-heatmap__col-label">' + (show ? esc(m) : '') + '</div>';
+      }).join('');
+
+    var rowsHTML = DAYS_FR.map(function (lbl, r) {
+      var label = (r % 2 === 0) ? esc(lbl) : '';
+      var cells = weeks.map(function (w, ci) {
+        var cell = w && w[r];
+        if (!cell) return '<div class="v30-stats-heatmap__cell" data-level="0" aria-hidden="true"></div>';
+        var dt = new Date(cell.date + 'T00:00:00');
+        var dispDate = dt.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'short' });
+        var title = dispDate + ' · ' + cell.count + ' action' + (cell.count > 1 ? 's' : '');
+        return '<div class="v30-stats-heatmap__cell" data-level="' + cell.level + '" title="' + esc(title) + '"></div>';
+      }).join('');
+      return '<div class="v30-stats-heatmap__row-label">' + label + '</div>' + cells;
+    }).join('');
+
+    host.innerHTML = '<div class="v30-stats-heatmap__grid" style="--cols:' + weeks.length + ';">' +
+      headerHTML +
+      rowsHTML +
+    '</div>';
+  }
+
+  // ─── Évolution portefeuille (Chart.js line) ───────────
+  function renderPortfolioChart() {
+    if (typeof Chart === 'undefined') return;
+    destroyChart('chartStatsPortfolio');
+    var ctx = document.getElementById('chartStatsPortfolio');
+    if (!ctx) return;
+    var c = STATE.statsCharts || {};
+    var weeks = c.portfolioPerWeek || [];
+    if (!weeks.length) return;
+    var colors = chartColors();
+
+    // Trend chip
+    var first = weeks[0].count || 0;
+    var last = weeks[weeks.length - 1].count || 0;
+    var diff = last - first;
+    var trendEl = $('[data-v30-stats-portfolio-trend]');
+    if (trendEl) {
+      var pct = first > 0 ? Math.round((diff / first) * 100) : 0;
+      var sign = diff > 0 ? '+' : '';
+      var cls = diff > 0 ? 'is-pos' : (diff < 0 ? 'is-neg' : '');
+      trendEl.className = 'muted num';
+      if (cls) trendEl.classList.add(cls);
+      trendEl.innerHTML = sign + fmt(diff) + ' prospects · ' + sign + pct + '%';
+    }
+
+    STATE.chartInstances['chartStatsPortfolio'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: weeks.map(function (w) { return w.label; }),
+        datasets: [{
+          label: 'Portefeuille',
+          data: weeks.map(function (w) { return w.count || 0; }),
+          borderColor: COLORS.accent,
+          backgroundColor: 'rgba(90,124,255,0.13)',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBackgroundColor: COLORS.accent,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+          y: { beginAtZero: false, ticks: { font: { size: 10 } }, grid: { color: colors.grid } }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+  }
+
   // ─── Chart.js loader (CDN avec fallback) ──────────────
   var CHART_CDNS = [
     'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js',
@@ -847,6 +1066,9 @@
       renderHot();
       renderPushed();
       renderTagChips();
+      renderFunnel();
+      renderTopTags();
+      renderHeatmap();
 
       // Render avec Chart.js (async)
       loadChartJS().then(function (ok) {
@@ -857,6 +1079,7 @@
         renderPerf();      // chips + insights + breakdown + chartStatsActivity
         renderRdvChart();
         renderPertChart();
+        renderPortfolioChart();
       });
     });
   }
