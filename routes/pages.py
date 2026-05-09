@@ -868,6 +868,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["hydrateTasks"], "endpoints": ["GET /api/tasks"], "backend": ["routes/admin.py:api_tasks_list"]}},
                 {"label": "Performance hebdo", "href": "/v30/stats",
                  "tools": {"handlers": ["bindPerfNav"], "endpoints": ["GET /api/dashboard/stats"], "backend": ["app.py:api_dashboard_stats"]}},
+                {"label": "Streak / meilleur jour (jours ouvrés)", "href": "/v30/dashboard#performance",
+                 "tools": {"handlers": ["renderHero", "renderPerfInsights"], "endpoints": ["GET /api/dashboard"], "backend": ["app.py:api_dashboard", "services/working_days.py:is_working_day"]}},
                 {"label": "Exporter la journée", "href": "/v30/dashboard",
                  "tools": {"handlers": ["exportDay"], "endpoints": ["GET /api/export/day"], "backend": ["routes/misc.py:api_export_day"]}},
                 {"label": "Assistant IA (chat)", "href": "/v30/dashboard#assistant",
@@ -914,6 +916,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["loadAll"], "endpoints": ["GET /api/calendar_events_external", "GET /api/settings"], "backend": ["routes/calendar.py:api_calendar_events_external", "routes/settings.py:api_settings_get"]}},
                 {"label": "Rechercher un prospect (RDV)", "href": "/v30/calendrier",
                  "tools": {"handlers": ["bindProspectSearch"], "endpoints": ["GET /api/search"], "backend": ["app.py:api_search"]}},
+                {"label": "Sam/dim/JF grisés (jours non travaillés)", "href": "/v30/calendrier",
+                 "tools": {"handlers": ["loadHolidays", "dayMods"], "endpoints": ["GET /api/holidays"], "backend": ["routes/calendar.py:api_holidays", "services/working_days.py:get_holidays"]}},
             ],
         },
         {

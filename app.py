@@ -33,6 +33,11 @@ import secrets
 import hmac
 import base64
 from services.dashboard_goals import build_goals_payload as _build_goals_payload, get_goals_config as _get_goals_config
+from services.working_days import (
+    count_working_days as _count_working_days,
+    holiday_name as _holiday_name,
+    is_working_day as _is_working_day,
+)
 
 import os
 import uuid
@@ -6391,11 +6396,14 @@ def api_dashboard():
         statuts[s] = statuts.get(s, 0) + 1
 
     # Week daily breakdown for sparkline
+    # is_working_day permet au front de calculer streaks/moyennes en
+    # ignorant sam/dim/JF (cf. services/working_days.py).
     week_days = []
     for i in range(7):
         d = (datetime.date.fromisoformat(monday) + datetime.timedelta(days=i)).isoformat()
         if d > today:
             break
+        is_wd = _is_working_day(d)
         week_days.append({
             "date": d,
             "relances": count_relances(d),
@@ -6403,6 +6411,8 @@ def api_dashboard():
             "push": count_push(d),
             "calls": calls_by_date.get(d, 0),
             "rdv": rdv_by_date.get(d, 0),
+            "is_working_day": is_wd,
+            "holiday_name": _holiday_name(d) if not is_wd else "",
         })
 
     # Goals / gamification payload (daily + weekly)
@@ -6424,6 +6434,10 @@ def api_dashboard():
         weekly_counts=goals_weekly_counts,
     )
 
+    today_is_wd = _is_working_day(today)
+    week_wd_total = _count_working_days(monday, (datetime.date.fromisoformat(monday) + datetime.timedelta(days=6)).isoformat())
+    week_wd_elapsed = _count_working_days(monday, today)
+
     return jsonify(ok=True, data={
         "is_past_week": is_past_week,
         "today": {
@@ -6434,6 +6448,12 @@ def api_dashboard():
             "push_total": count_push(today),
             "push_email": count_push_channel(today, today, "email"),
             "push_linkedin": count_push_channel(today, today, "linkedin"),
+        },
+        "working_days": {
+            "today_is_working_day": today_is_wd,
+            "today_holiday_name": _holiday_name(today) if not today_is_wd else "",
+            "week_total": week_wd_total,
+            "week_elapsed": week_wd_elapsed,
         },
         "goals": goals_payload,
         "week": {

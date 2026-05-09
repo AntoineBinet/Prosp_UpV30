@@ -81,6 +81,7 @@ API_GETS: list[str] = [
     "/api/manual-kpi",
     "/api/calendar_events?from=2026-01-01&to=2026-12-31",
     "/api/calendar_events_external",
+    "/api/holidays?from=2026-01-01&to=2026-12-31",
     "/api/stats",
     "/api/stats/charts",
     "/api/stats/data",

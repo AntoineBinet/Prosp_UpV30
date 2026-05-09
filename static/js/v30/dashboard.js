@@ -104,10 +104,11 @@
 
     var streak = $('[data-v30-dash="streak"]');
     if (streak) {
-      // Pas de table streak/xp en DB — on affiche le total de la série si dispo,
-      // sinon fallback sur nb de jours actifs cette semaine via data.week.days
+      // Streak = nb de jours OUVRÉS actifs cette semaine (sam/dim/JF ignorés).
+      // Le backend pose `is_working_day` sur chaque entrée week.days.
       var days = (data.week && data.week.days) || [];
       var active = days.filter(function (d) {
+        if (d.is_working_day === false) return false;
         return (d.push || 0) + (d.rdv || 0) + (d.notes || 0) + (d.calls || 0) > 0;
       }).length;
       streak.innerHTML = active + ' jour' + (active > 1 ? 's' : '') +
@@ -619,9 +620,11 @@
     var w = data.week || {};
     var esc = function (s) { var e = document.createElement('span'); e.textContent = s == null ? '' : String(s); return e.innerHTML; };
 
-    // 1. Meilleur jour : day with max (contacts + push)
+    // 1. Meilleur jour : day with max (contacts + push), parmi les jours OUVRÉS
+    //    (sam/dim/JF exclus — sinon on récompense un push fait par hasard le dimanche).
+    var workingDays = (days || []).filter(function (d) { return d.is_working_day !== false; });
     var bestDay = null, bestScore = -1;
-    (days || []).forEach(function (d) {
+    workingDays.forEach(function (d) {
       var c = (d.calls || 0) > 0 ? d.calls : Math.max(d.relances || 0, d.notes || 0);
       var p = d.push || 0;
       var score = c + p;
@@ -630,20 +633,22 @@
     var bestDayLabel = bestDay && bestScore > 0 ? dayShort(bestDay.date) : '—';
     var bestDaySub = bestScore > 0 ? (bestScore + ' action' + (bestScore > 1 ? 's' : '')) : 'Pas d\'activité';
 
-    // 2. Série active : nb de jours consécutifs depuis aujourd'hui avec activité > 0
+    // 2. Série active : nb de jours OUVRÉS consécutifs avec activité > 0,
+    //    en remontant depuis aujourd'hui. Sam/dim/JF sont sautés (ne cassent pas le streak).
     var streak = 0;
     for (var i = (days || []).length - 1; i >= 0; i--) {
       var dd = days[i];
+      if (dd.is_working_day === false) continue;
       var hasActivity = (dd.calls || 0) + (dd.notes || 0) + (dd.push || 0) + (dd.rdv || 0) > 0;
       if (hasActivity) streak++;
       else break;
     }
-    var streakSub = (days || []).length > 0 ? (days.length + ' jour' + (days.length > 1 ? 's' : '') + ' actif' + (days.length > 1 ? 's' : '') + ' sem.') : '';
-    // Recount total active days in week for sub
-    var activeDays = (days || []).filter(function (d) {
+    // Recount jours OUVRÉS actifs sur la semaine pour le sous-titre
+    var activeDays = workingDays.filter(function (d) {
       return (d.calls || 0) + (d.notes || 0) + (d.push || 0) + (d.rdv || 0) > 0;
     }).length;
-    streakSub = activeDays + ' jour' + (activeDays > 1 ? 's' : '') + ' actif' + (activeDays > 1 ? 's' : '') + ' sem.';
+    var wdTotal = (data.working_days && data.working_days.week_total) || workingDays.length;
+    var streakSub = activeDays + '/' + wdTotal + ' jours ouvrés actifs';
 
     // 3. Conversion RDV : part de prospects en statut Rendez-vous sur le pipeline actif
     var total = pipeline.total || 0;

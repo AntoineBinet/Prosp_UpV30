@@ -10,10 +10,41 @@ from typing import Any, Dict, List
 
 from flask import Blueprint, jsonify, request
 
+from services.working_days import get_holidays as _get_holidays, has_holidays_package
 from utils.auth import _uid
 from utils.db import _conn
 
 calendar_bp = Blueprint("calendar", __name__)
+
+
+@calendar_bp.get("/api/holidays")
+def api_holidays():
+    """Retourne les jours fériés FR métropole sur une plage [from, to] inclusive.
+
+    Utilisé par le calendrier v30 pour griser et tooltiper les cases JF.
+    Si la plage n'est pas fournie, retourne l'année courante + l'année suivante
+    (utile pour pré-charger ce que le user va parcourir au calendrier).
+    """
+    today = datetime.date.today()
+    from_p = (request.args.get("from") or "").strip()
+    to_p = (request.args.get("to") or "").strip()
+    try:
+        start = datetime.date.fromisoformat(from_p) if from_p else datetime.date(today.year, 1, 1)
+    except Exception:
+        start = datetime.date(today.year, 1, 1)
+    try:
+        end = datetime.date.fromisoformat(to_p) if to_p else datetime.date(today.year + 1, 12, 31)
+    except Exception:
+        end = datetime.date(today.year + 1, 12, 31)
+
+    if (end - start).days > 1100:
+        return jsonify(ok=False, error="Plage trop large (max ~3 ans)"), 400
+
+    return jsonify(
+        ok=True,
+        holidays=_get_holidays(start, end),
+        package_available=has_holidays_package(),
+    )
 
 
 @calendar_bp.get("/api/calendar_events")

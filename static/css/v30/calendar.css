@@ -112,6 +112,31 @@
 }
 .v30-cal__cell.is-other-month .v30-cal__num { color: var(--text-muted); }
 
+/* Sam/dim/JF — grisé sans masquer les events. Voir CLAUDE.md "User working schedule". */
+.v30-cal__head-cell.is-weekend { color: var(--text-muted); }
+.v30-cal__cell.is-weekend,
+.v30-cal__cell.is-holiday {
+  background: color-mix(in oklch, var(--surface-2) 70%, transparent);
+}
+.v30-cal__cell.is-weekend .v30-cal__num,
+.v30-cal__cell.is-holiday .v30-cal__num { color: var(--text-muted); }
+.v30-cal__cell.is-today.is-weekend,
+.v30-cal__cell.is-today.is-holiday {
+  background: color-mix(in oklch, var(--accent) 6%, var(--surface-2));
+}
+.v30-cal__holiday {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--text-3);
+  text-transform: uppercase;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Pill événement (partagé mois + semaine/jour allday) */
 .v30-cal__ev {
   display: block;
@@ -219,6 +244,26 @@
   min-width: 0;
 }
 .v30-cal-wk__head-cell.is-today { background: color-mix(in oklch, var(--accent) 8%, var(--surface-2)); }
+.v30-cal-wk__head-cell.is-weekend,
+.v30-cal-wk__head-cell.is-holiday {
+  color: var(--text-muted);
+  background: color-mix(in oklch, var(--surface-2) 60%, transparent);
+}
+.v30-cal-wk__holiday {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v30-cal-wk__day-col.is-weekend,
+.v30-cal-wk__day-col.is-holiday {
+  background: color-mix(in oklch, var(--surface-2) 40%, transparent);
+}
 .v30-cal-wk__dname {
   display: block;
   font-size: 10px;

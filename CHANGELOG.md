@@ -2,6 +2,31 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.35] — 2026-05-09 · Calendrier & Stats · Sam/dim/JF non travaillés
+
+L'utilisateur ne travaille pas le weekend ni les jours fériés. ProspUp en
+tient compte sans masquer les éventuels RDV exceptionnels :
+
+- **Calendrier** (`/v30/calendrier`, vues mois/semaine/jour) : les cases
+  samedi, dimanche et JF sont **grisées** (background atténué, libellé en
+  `text-muted`) avec le **nom du jour férié** affiché en badge dans la
+  cellule + tooltip natif. Les RDV restent cliquables comme les autres
+  jours — la grille n'est pas amputée.
+- **Dashboard** (`/v30/dashboard`) : la **série active** (streak), le
+  compteur "jours actifs cette semaine" et le **meilleur jour** ignorent
+  désormais sam/dim/JF. Un dimanche sans activité ne casse plus le streak.
+- **Source des JF** : package Python `holidays` (offline, métropole France),
+  ajouté à `requirements.txt`. Cache process par année.
+- **Nouvelle route** : `GET /api/holidays?from=YYYY-MM-DD&to=YYYY-MM-DD`
+  (cf. [routes/calendar.py](routes/calendar.py)).
+- **Helper unique** : [services/working_days.py](services/working_days.py)
+  expose `is_working_day(date)`, `count_working_days(start, end)`,
+  `get_holidays(start, end)`, `holiday_name(date)`.
+- **API `/api/dashboard`** : ajoute `is_working_day` et `holiday_name` à
+  chaque entrée `week.days[]`, plus un bloc `working_days` racine
+  (`today_is_working_day`, `today_holiday_name`, `week_total`,
+  `week_elapsed`).
+
 ## [32.34] — 2026-05-09 · Stats · 4 nouveaux graphiques alignés design system
 
 La page **Stats** (`/v30/stats`) gagne 4 nouvelles visualisations qui complètent

@@ -10,6 +10,8 @@
   var STATE = {
     cursor: new Date(),
     events: {},       // { 'YYYY-MM-DD': [{ type, label, href, time, duration, teams_url }] }
+    holidays: {},     // { 'YYYY-MM-DD': 'Nom du JF' } — sam/dim/JF grisés au rendu
+    holidaysLoadedYear: null,
     extStatus: { count: 0, error: null },
     view: 'month',    // 'month' | 'week' | 'day'
   };
@@ -157,7 +159,41 @@
     }).catch(function () { STATE.extStatus = { count: 0, error: null }; });
   }
 
-  function loadAll() { return Promise.all([loadEvents(), loadExternalEvents()]); }
+  // ─── Chargement jours fériés FR ──────────────────────────────────
+  // Pré-charge l'année du curseur ± 1 pour couvrir les vues mois/semaine
+  // qui chevauchent décembre/janvier. Cache process : on ne re-fetch que
+  // si l'utilisateur navigue vers une nouvelle année.
+  function loadHolidays() {
+    var y = STATE.cursor.getFullYear();
+    if (STATE.holidaysLoadedYear === y) return Promise.resolve();
+    var from = (y - 1) + '-12-01';
+    var to   = (y + 1) + '-01-31';
+    return fetchJSON('/api/holidays?from=' + from + '&to=' + to)
+      .then(function (res) {
+        STATE.holidays = (res && res.holidays) || {};
+        STATE.holidaysLoadedYear = y;
+      })
+      .catch(function (err) {
+        console.warn('[v30 calendar] holidays failed:', err);
+        STATE.holidays = {};
+      });
+  }
+
+  function dayMods(d) {
+    // Retourne { cls: 'is-weekend is-holiday', name: 'Fête du travail' }
+    var wd = d.getDay(); // 0=dim, 6=sam
+    var isWeekend = (wd === 0 || wd === 6);
+    var iso = isoDate(d);
+    var hName = STATE.holidays[iso] || '';
+    var isHoliday = !!hName;
+    var cls = '';
+    if (isWeekend) cls += ' is-weekend';
+    if (isHoliday) cls += ' is-holiday';
+    if (!isWeekend && !isHoliday) return { cls: '', name: '', isOff: false };
+    return { cls: cls, name: hName, isOff: true };
+  }
+
+  function loadAll() { return Promise.all([loadEvents(), loadExternalEvents(), loadHolidays()]); }
 
   // ─── Badge externe ────────────────────────────────────────────────
   function updateExtBadge() {
@@ -193,8 +229,9 @@
     var todayISO = isoDate(new Date());
     var cells = [];
     var JOURS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-    var head = JOURS.map(function (j) {
-      return '<div class="v30-cal__head-cell">' + j + '</div>';
+    var head = JOURS.map(function (j, ix) {
+      var c = (ix >= 5) ? ' is-weekend' : '';
+      return '<div class="v30-cal__head-cell' + c + '">' + j + '</div>';
     }).join('');
 
     for (var i = 0; i < 42; i++) {
@@ -202,6 +239,8 @@
       var iso     = isoDate(d);
       var isOther = d.getMonth() !== month;
       var isToday = iso === todayISO;
+      var mods = dayMods(d);
+      var titleAttr = mods.name ? ' title="' + esc(mods.name) + '"' : '';
       var evs = STATE.events[iso] || [];
       var evHtml = evs.slice(0, 3).map(function (ev, idx) {
         return '<button type="button" class="v30-cal__ev is-' + ev.type +
@@ -211,9 +250,12 @@
       var more = evs.length > 3
         ? '<button type="button" class="v30-cal__more" data-v30-cal-more="' + iso + '">+' + (evs.length - 3) + ' autres</button>'
         : '';
+      var holidayBadge = mods.name
+        ? '<span class="v30-cal__holiday" title="' + esc(mods.name) + '">' + esc(mods.name) + '</span>'
+        : '';
       cells.push('<div class="v30-cal__cell' + (isOther ? ' is-other-month' : '') +
-        (isToday ? ' is-today' : '') + '" data-iso="' + iso + '">' +
-        '<span class="v30-cal__num">' + d.getDate() + '</span>' + evHtml + more + '</div>');
+        (isToday ? ' is-today' : '') + mods.cls + '" data-iso="' + iso + '"' + titleAttr + '>' +
+        '<span class="v30-cal__num">' + d.getDate() + '</span>' + holidayBadge + evHtml + more + '</div>');
     }
 
     body.innerHTML = '<div class="v30-cal">' +
@@ -247,9 +289,15 @@
     var headCells = days.map(function (d) {
       var iso = isoDate(d);
       var isT = iso === todayISO;
-      return '<div class="v30-cal-wk__head-cell' + (isT ? ' is-today' : '') + '">' +
+      var mods = dayMods(d);
+      var titleAttr = mods.name ? ' title="' + esc(mods.name) + '"' : '';
+      var sub = mods.name
+        ? '<span class="v30-cal-wk__holiday">' + esc(mods.name) + '</span>'
+        : '';
+      return '<div class="v30-cal-wk__head-cell' + (isT ? ' is-today' : '') + mods.cls + '"' + titleAttr + '>' +
         '<span class="v30-cal-wk__dname">' + JOURS[d.getDay()] + '</span>' +
         '<span class="v30-cal-wk__dnum' + (isT ? ' is-today' : '') + '">' + d.getDate() + '</span>' +
+        sub +
         '</div>';
     }).join('');
 
@@ -287,6 +335,7 @@
     var dayCols = days.map(function (d) {
       var iso = isoDate(d);
       var isT = iso === todayISO;
+      var mods = dayMods(d);
 
       // Lignes d'heures
       var hlines = '';
@@ -331,7 +380,7 @@
         nowLine = '<div class="v30-cal-wk__now-line" style="top:' + nowTop + 'px;"></div>';
       }
 
-      return '<div class="v30-cal-wk__day-col' + (isT ? ' is-today' : '') +
+      return '<div class="v30-cal-wk__day-col' + (isT ? ' is-today' : '') + mods.cls +
         '" style="height:' + TOTAL_H + 'px;">' + hlines + evHtml + nowLine + '</div>';
     }).join('');
 
@@ -388,24 +437,31 @@
     } catch (_) {}
   }
 
+  function afterNav() {
+    saveCursorToLS();
+    // Si on franchit une année, recharger les JF puis re-render
+    var prevY = STATE.holidaysLoadedYear;
+    if (prevY === STATE.cursor.getFullYear()) {
+      render();
+    } else {
+      loadHolidays().then(render);
+    }
+  }
   function navPrev() {
     if (STATE.view === 'day')        STATE.cursor.setDate(STATE.cursor.getDate() - 1);
     else if (STATE.view === 'week')  STATE.cursor.setDate(STATE.cursor.getDate() - 7);
     else STATE.cursor = new Date(STATE.cursor.getFullYear(), STATE.cursor.getMonth() - 1, 1);
-    saveCursorToLS();
-    render();
+    afterNav();
   }
   function navNext() {
     if (STATE.view === 'day')        STATE.cursor.setDate(STATE.cursor.getDate() + 1);
     else if (STATE.view === 'week')  STATE.cursor.setDate(STATE.cursor.getDate() + 7);
     else STATE.cursor = new Date(STATE.cursor.getFullYear(), STATE.cursor.getMonth() + 1, 1);
-    saveCursorToLS();
-    render();
+    afterNav();
   }
   function navToday() {
     STATE.cursor = new Date();
-    saveCursorToLS();
-    render();
+    afterNav();
   }
 
   // ─── Popups ───────────────────────────────────────────────────────
