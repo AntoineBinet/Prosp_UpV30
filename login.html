@@ -4,576 +4,638 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Prosp'Up">
-<meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0e1015" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f0e6">
 <title>Prosp'Up — Connexion</title>
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="icon" href="/static/favicon.ico">
 
-<!-- Theme init inline (avant tout rendu) — calque base.html v30 -->
-<script>
-(function () {
-  try {
-    var t = localStorage.getItem('theme');
-    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-  } catch (e) {}
-})();
-</script>
-
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-<!-- Design system v30 — tokens + composants partagés -->
-<link rel="stylesheet" href="/static/css/v30/tokens.css?v=XXXX">
-<link rel="stylesheet" href="/static/css/v30/components.css?v=XXXX">
-
 <style>
 /* ============================================================
-   /login — page d'authentification v30
-   Split 60/40 desktop · single-column mobile
+   /login — « Marquise » : ticker pipeline en direct
+   Light only · cream parchment · serif italic editorial
    ============================================================ */
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+:root {
+  --mq-bg:        #f4f0e6;
+  --mq-bg-2:      #efeadc;
+  --mq-text:      #161821;
+  --mq-text-2:    #3b3e49;
+  --mq-text-3:    #6f7382;
+  --mq-text-4:    #98a;
+  --mq-line:      rgba(20,22,30,0.10);
+  --mq-line-soft: rgba(20,22,30,0.06);
+  --mq-accent:    #1d4ed8;
+  --mq-accent-2:  #2563eb;
+  --mq-green:     #1f7a44;
+  --mq-purple:    #5b3aa6;
+  --mq-orange:    #b9531f;
+  --mq-card-bg:   #faf6ec;
+
+  --mq-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --mq-sans:  "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mq-mono:  "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  --mq-pad-x:   clamp(20px, 4vw, 56px);
+  --mq-content: 1280px;
+}
+
 html, body { height: 100%; }
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-sans);
+  background: var(--mq-bg);
+  color: var(--mq-text);
+  font-family: var(--mq-sans);
   font-size: 13px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01";
 }
 
-.login {
+/* fond papier ultra-discret (grain) */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px);
+  background-size: 3px 3px;
+  opacity: 0.6;
+  mix-blend-mode: multiply;
+  z-index: 0;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+input, select, textarea { font: inherit; color: inherit; }
+
+.mq {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-rows: auto auto auto 1fr auto;
 }
 
-/* ─────── Colonne gauche : formulaire ─────── */
-.login__pane-form {
-  position: relative;
+/* ─────── Top bar ─────── */
+.mq-top {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 40px clamp(28px, 6vw, 80px);
-  background: var(--bg);
-  min-height: 100vh;
-  overflow-y: auto;
-}
-
-.login__brand {
-  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  color: inherit;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px var(--mq-pad-x);
+  border-bottom: 1px solid var(--mq-line-soft);
 }
-.login__brand-mark {
-  width: 32px; height: 32px;
-  border-radius: var(--r-md);
-  background: var(--text);
-  color: var(--bg);
-  display: inline-flex; align-items: center; justify-content: center;
-  font-family: var(--font-serif);
-  font-size: 19px;
+.mq-top__l, .mq-top__r {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.mq-brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.mq-brand__mark {
+  font-family: var(--mq-serif);
   font-style: italic;
   font-weight: 400;
+  font-size: 22px;
+  line-height: 1;
   letter-spacing: -0.02em;
+  color: var(--mq-text);
+  position: relative;
+  top: 1px;
 }
-.login__brand-name {
-  font-size: 14.5px;
+.mq-brand__name {
+  font-family: var(--mq-sans);
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  color: var(--mq-text);
 }
-
-.login__form-wrap {
-  width: 100%;
-  max-width: 380px;
-  margin: 0 auto;
-  padding: 24px 0;
+.mq-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--mq-line);
 }
-
-.login__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.mq-live, .mq-flag {
+  font-family: var(--mq-sans);
   font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: var(--text-3);
-  margin: 0 0 14px;
+  color: var(--mq-text-3);
+  white-space: nowrap;
 }
-.login__eyebrow::before {
-  content: "";
-  width: 6px; height: 6px;
+.mq-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.mq-flag__dot {
+  width: 8px; height: 8px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 22%, transparent);
+  background: var(--mq-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mq-accent) 18%, transparent);
 }
 
-.login__title {
-  font-family: var(--font-serif);
+/* ─────── Hero ─────── */
+.mq-hero {
+  padding: clamp(36px, 7vw, 84px) var(--mq-pad-x) clamp(36px, 6vw, 72px);
+  border-bottom: 1px solid var(--mq-line-soft);
+}
+.mq-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--mq-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mq-text-3);
+  margin: 0 0 22px;
+}
+.mq-eyebrow::before {
+  content: "";
+  display: inline-block;
+  width: 28px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.6;
+}
+.mq-title {
+  font-family: var(--mq-serif);
   font-style: italic;
   font-weight: 400;
-  font-size: clamp(38px, 4.6vw, 52px);
+  font-size: clamp(40px, 7vw, 96px);
   line-height: 1.02;
-  letter-spacing: -0.015em;
-  color: var(--text);
+  letter-spacing: -0.02em;
+  color: var(--mq-text);
   margin: 0;
+  max-width: 18ch;
 }
-.login__subtitle {
-  margin: 12px 0 28px;
-  font-size: 13.5px;
-  line-height: 1.55;
-  color: var(--text-3);
-  max-width: 34ch;
+.mq-title__hl {
+  position: relative;
+  white-space: nowrap;
+}
+.mq-title__hl::after {
+  content: "";
+  position: absolute;
+  left: -2%; right: -2%;
+  bottom: -0.18em;
+  height: 0.22em;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 18' preserveAspectRatio='none'><path d='M2 13 C 60 4, 130 16, 200 8 C 270 1, 340 14, 398 6' fill='none' stroke='%231d4ed8' stroke-width='2.2' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  pointer-events: none;
 }
 
-/* Bandeau erreur — style v30 toast/danger inline */
-.login__error {
+/* ─────── Ticker ─────── */
+.mq-ticker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--mq-line-soft);
+}
+.mq-ticker__cell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px var(--mq-pad-x);
+  border-right: 1px solid var(--mq-line-soft);
+  min-width: 0;
+}
+.mq-ticker__cell:last-child { border-right: 0; }
+
+.mq-time {
+  font-family: var(--mq-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--mq-text-4);
+  white-space: nowrap;
+}
+.mq-time .sep { opacity: 0.6; padding: 0 1px; }
+
+.mq-evt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mq-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.mq-evt__dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.mq-evt--green   { color: var(--mq-green); }
+.mq-evt--purple  { color: var(--mq-purple); }
+.mq-evt--orange  { color: var(--mq-orange); }
+
+.mq-evt__meta {
+  font-family: var(--mq-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--mq-text-3);
+  white-space: nowrap;
+}
+
+/* ─────── Login card ─────── */
+.mq-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(40px, 6vw, 72px) var(--mq-pad-x);
+}
+
+.mq-card {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  padding: 28px clamp(28px, 4vw, 44px) 32px;
+  border: 1px solid var(--mq-line);
+  background: var(--mq-card-bg);
+  box-shadow:
+    0 1px 0 rgba(0,0,0,0.02),
+    0 24px 60px -32px rgba(20,22,30,0.18);
+}
+.mq-card__legend {
+  position: absolute;
+  top: -8px;
+  left: 28px;
+  padding: 0 10px;
+  background: var(--mq-bg);
+  font-family: var(--mq-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mq-text-3);
+}
+
+.mq-error {
   display: none;
   align-items: flex-start;
   gap: 8px;
-  margin-bottom: 14px;
-  padding: 9px 12px;
-  background: var(--danger-soft);
-  color: var(--danger);
-  border: 1px solid color-mix(in oklch, var(--danger) 25%, transparent);
-  border-radius: var(--r-md);
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid rgba(176, 32, 32, 0.30);
+  background: rgba(176, 32, 32, 0.05);
+  color: #9a1a1a;
   font-size: 12.5px;
   line-height: 1.45;
-  letter-spacing: -0.005em;
 }
-.login__error.show { display: flex; }
-.login__error svg {
+.mq-error.show { display: flex; }
+.mq-error svg {
   flex-shrink: 0;
   width: 14px; height: 14px;
   margin-top: 1px;
   stroke-width: 1.8;
 }
 
-/* Champs */
-.login__fields {
+.mq-form { display: block; }
+
+.mq-field { margin-top: 18px; }
+.mq-field:first-child { margin-top: 0; }
+
+.mq-row {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
-.login__field-row {
+.mq-label {
+  display: block;
+  font-family: var(--mq-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mq-text-2);
+  margin: 0 0 6px;
+}
+.mq-forgot {
+  font-family: var(--mq-serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--mq-text-3);
+  transition: color .18s ease;
+}
+.mq-forgot:hover { color: var(--mq-accent); }
+
+.mq-input {
+  width: 100%;
+  padding: 6px 0 8px;
+  border: 0;
+  border-bottom: 1px solid var(--mq-line);
+  background: transparent;
+  font-family: var(--mq-serif);
+  font-size: 18px;
+  letter-spacing: 0.005em;
+  color: var(--mq-text);
+  outline: none;
+  transition: border-color .18s ease;
+}
+.mq-input::placeholder {
+  font-family: var(--mq-serif);
+  font-style: italic;
+  color: var(--mq-text-4);
+}
+.mq-input:focus {
+  border-bottom-color: var(--mq-accent);
+  border-bottom-width: 2px;
+  padding-bottom: 7px; /* compense le 2px */
+}
+input[type="password"].mq-input {
+  font-family: var(--mq-sans);
+  letter-spacing: 0.18em;
+}
+input[type="password"].mq-input::placeholder {
+  font-family: var(--mq-sans);
+  letter-spacing: 0.32em;
+  font-style: normal;
+}
+
+.mq-submit {
+  margin-top: 26px;
+  width: 100%;
+  height: 56px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-.login__forgot {
-  font-size: 11.5px;
-  color: var(--text-3);
-  text-decoration: none;
-  transition: color var(--dur-1) var(--ease);
-}
-.login__forgot:hover { color: var(--text-2); }
-
-/* On utilise .input du design system + une variante locale pour la hauteur lg
-   et l'oeil "afficher mot de passe". */
-.login__input-wrap {
+  justify-content: center;
   position: relative;
-}
-.login__input-wrap .input {
-  height: var(--input-h-lg);
-  padding-right: 42px;
-  border-radius: var(--input-radius-lg);
-  font-size: 14px;
-  letter-spacing: -0.005em;
-}
-.login__pw-toggle {
-  position: absolute;
-  top: 50%; right: 8px;
-  transform: translateY(-50%);
-  width: 28px; height: 28px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent;
+  background: #0d0f15;
+  color: #f4f0e6;
   border: 0;
-  border-radius: var(--r-sm);
-  color: var(--text-3);
-  cursor: pointer;
-  transition: color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
-}
-.login__pw-toggle:hover { color: var(--text); background: var(--surface-2); }
-.login__pw-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.login__pw-toggle svg { width: 15px; height: 15px; stroke-width: 1.6; }
-
-/* CTA submit — héritier du .btn-accent .btn-lg */
-.btn-login {
-  width: 100%;
-  height: 44px;
-  margin-top: 6px;
-  border-radius: var(--input-radius-lg);
-  font-size: 13.5px;
+  font-family: var(--mq-sans);
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: -0.005em;
-  position: relative;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  transition: background .18s ease, transform .18s ease;
 }
-.btn-login[disabled] { opacity: 0.7; cursor: progress; }
-.btn-login .spinner {
+.mq-submit:hover { background: #1a1d29; }
+.mq-submit:active { transform: translateY(1px); }
+.mq-submit[disabled] { opacity: 0.7; cursor: progress; }
+.mq-submit__hint {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  border: 1px solid rgba(255,255,255,0.22);
+  font-family: var(--mq-mono);
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+}
+.mq-submit .spinner {
   display: none;
   width: 14px; height: 14px;
   border: 2px solid currentColor;
   border-top-color: transparent;
   border-radius: 50%;
-  animation: login-spin 0.6s linear infinite;
-  margin-right: 8px;
-  vertical-align: -2px;
+  animation: mq-spin 0.6s linear infinite;
+  margin-right: 10px;
 }
-body.is-loading .btn-login .spinner { display: inline-block; }
-body.is-loading .btn-login .label { opacity: 0.85; }
-@keyframes login-spin { to { transform: rotate(360deg); } }
+body.is-loading .mq-submit .spinner { display: inline-block; }
+body.is-loading .mq-submit .label { opacity: 0.85; }
+@keyframes mq-spin { to { transform: rotate(360deg); } }
 
-/* Footer pane gauche */
-.login__foot {
+.mq-card__foot {
+  margin-top: 22px;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 14px;
-  font-size: 11px;
-  color: var(--text-muted);
+  font-family: var(--mq-sans);
+  font-size: 12.5px;
+  color: var(--mq-text-3);
 }
-.login__foot kbd { font-family: var(--font-mono); }
-.login__build {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.02em;
-  color: var(--text-muted);
+.mq-card__foot a {
+  font-family: var(--mq-serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--mq-text-2);
+  border-bottom: 1px solid var(--mq-line);
+  transition: color .18s ease, border-color .18s ease;
+}
+.mq-card__foot a:hover {
+  color: var(--mq-accent);
+  border-bottom-color: var(--mq-accent);
 }
 
-/* Toggle thème (haut-droit pane gauche) */
-.login__theme-btn {
-  position: absolute;
-  top: 28px;
-  right: 28px;
-  width: 32px; height: 32px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  color: var(--text-2);
-  display: inline-flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
-}
-.login__theme-btn:hover {
-  background: var(--surface-2);
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-.login__theme-btn svg { width: 15px; height: 15px; stroke-width: 1.6; }
-.login__theme-btn .icon-sun  { display: none; }
-.login__theme-btn .icon-moon { display: block; }
-:root[data-theme="dark"] .login__theme-btn .icon-sun  { display: block; }
-:root[data-theme="dark"] .login__theme-btn .icon-moon { display: none; }
-
-/* ─────── Colonne droite : éditoriale (toujours sombre) ─────── */
-.login__pane-aside {
-  position: relative;
-  background: var(--ink-1000);
-  color: oklch(0.97 0.003 258);
-  padding: 48px clamp(32px, 4vw, 72px);
+/* ─────── Footer ─────── */
+.mq-foot {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: space-between;
-  overflow: hidden;
-  isolation: isolate;
-}
-/* Halo accent diffus, très subtil */
-.login__pane-aside::before {
-  content: "";
-  position: absolute;
-  top: -10%; right: -20%;
-  width: 70%; aspect-ratio: 1;
-  background: radial-gradient(closest-side, color-mix(in oklch, var(--accent) 38%, transparent) 0%, transparent 70%);
-  filter: blur(40px);
-  opacity: 0.55;
-  pointer-events: none;
-  z-index: 0;
-}
-/* Trame fine de lignes — détail v30 (cf. login v30 preview) */
-.login__pane-aside::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: repeating-linear-gradient(45deg, transparent 0 8px, rgba(255,255,255,0.018) 8px 9px);
-  pointer-events: none;
-  z-index: 0;
-}
-.login__pane-aside > * { position: relative; z-index: 1; }
-
-.login__tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 11px 5px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.14);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: rgba(255,255,255,0.78);
-  width: fit-content;
-}
-.login__tag-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 22%, transparent);
-}
-.login__tag-mono {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: rgba(255,255,255,0.55);
-  letter-spacing: 0;
-}
-
-.login__quote {
-  margin: 0;
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 400;
-  font-size: clamp(28px, 2.6vw, 38px);
-  line-height: 1.18;
-  letter-spacing: -0.01em;
-  color: rgba(255,255,255,0.96);
-  max-width: 22ch;
-}
-.login__quote-author {
-  margin-top: 18px;
-  display: flex;
-  align-items: center;
   gap: 12px;
-  color: rgba(255,255,255,0.6);
-  font-size: 12.5px;
-}
-.login__quote-avatar {
-  width: 34px; height: 34px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.92);
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.login__quote-meta strong {
-  display: block;
-  color: rgba(255,255,255,0.92);
-  font-weight: 500;
-  font-size: 13px;
-  letter-spacing: -0.005em;
-}
-.login__quote-meta span {
-  font-size: 11.5px;
-  color: rgba(255,255,255,0.5);
-}
-
-.login__stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-  padding-top: 22px;
-  border-top: 1px solid rgba(255,255,255,0.1);
-}
-.login__stat-value {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 400;
-  font-size: 30px;
-  line-height: 1;
-  color: rgba(255,255,255,0.96);
-  letter-spacing: -0.01em;
-  margin-bottom: 6px;
-}
-.login__stat-label {
+  padding: 18px var(--mq-pad-x);
+  border-top: 1px solid var(--mq-line-soft);
+  font-family: var(--mq-mono);
   font-size: 11px;
-  color: rgba(255,255,255,0.5);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  color: var(--mq-text-3);
 }
+.mq-foot__r { color: var(--mq-text-3); }
 
-/* ─────── Mobile : single-column, pane droit caché ─────── */
+/* ─────── Mobile ─────── */
 @media (max-width: 900px) {
-  body { overflow: auto; }
-  .login {
-    grid-template-columns: 1fr;
-    min-height: auto;
+  .mq-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 14px var(--mq-pad-x);
   }
-  .login__pane-form {
-    min-height: 100vh;
-    padding: 32px 22px 28px;
+  .mq-top__l { flex-wrap: wrap; gap: 10px; }
+  .mq-top__r { flex-wrap: wrap; }
+  .mq-divider { display: none; }
+  .mq-hero { padding: 36px var(--mq-pad-x); }
+  .mq-title { max-width: none; }
+  .mq-ticker {
+    grid-template-columns: 1fr 1fr;
   }
-  .login__pane-aside { display: none; }
-  .login__theme-btn { top: 18px; right: 18px; }
-  .login__title { font-size: 38px; }
+  .mq-ticker__cell:nth-child(2n) { border-right: 0; }
+  .mq-ticker__cell:nth-child(-n+2) { border-bottom: 1px solid var(--mq-line-soft); }
+  .mq-stage { padding: 32px var(--mq-pad-x); }
+  .mq-card { padding: 24px 22px 28px; }
+  .mq-card__legend { left: 20px; }
+  .mq-foot {
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+  }
+}
+@media (max-width: 540px) {
+  .mq-ticker { grid-template-columns: 1fr; }
+  .mq-ticker__cell { border-right: 0; border-bottom: 1px solid var(--mq-line-soft); }
+  .mq-ticker__cell:last-child { border-bottom: 0; }
+  .mq-evt__meta { display: none; }
 }
 
-/* Animation discrète d'entrée */
-.login__form-wrap > * {
-  animation: login-fade-in 0.32s var(--ease) both;
-}
-.login__form-wrap > *:nth-child(1) { animation-delay: 0.02s; }
-.login__form-wrap > *:nth-child(2) { animation-delay: 0.06s; }
-.login__form-wrap > *:nth-child(3) { animation-delay: 0.10s; }
-.login__form-wrap > *:nth-child(4) { animation-delay: 0.14s; }
-.login__form-wrap > *:nth-child(5) { animation-delay: 0.18s; }
-@keyframes login-fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+/* Reduced-motion */
 @media (prefers-reduced-motion: reduce) {
-  .login__form-wrap > * { animation: none; }
+  .mq-submit .spinner { animation: none; }
 }
+
+/* Force light : on ignore localStorage 'theme'='dark' sur cette page */
+:root[data-theme="dark"] body { background: var(--mq-bg); color: var(--mq-text); }
 </style>
 </head>
-<body data-v30="1" data-page="login">
+<body data-page="login">
 
-<div class="login">
+<div class="mq">
 
-  <!-- ─────── Pane gauche : formulaire ─────── -->
-  <section class="login__pane-form">
-    <button type="button" class="login__theme-btn" id="themeToggle" aria-label="Basculer thème clair/sombre" title="Thème">
-      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      <svg class="icon-sun"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-    </button>
+  <!-- ────── Top bar ────── -->
+  <header class="mq-top">
+    <div class="mq-top__l">
+      <a class="mq-brand" href="/login">
+        <span class="mq-brand__mark" aria-hidden="true">𝒫</span>
+        <span class="mq-brand__name">Prosp&rsquo;Up</span>
+      </a>
+      <span class="mq-divider" aria-hidden="true"></span>
+      <span class="mq-live" id="mqLive">EN DIRECT · ——— · ——:——</span>
+    </div>
+    <div class="mq-top__r">
+      <span class="mq-flag">
+        <span class="mq-flag__dot" aria-hidden="true"></span>
+        Flux agrégé · Anonymisé · RGPD
+      </span>
+    </div>
+  </header>
 
-    <a class="login__brand" href="/login">
-      <span class="login__brand-mark" aria-hidden="true">P</span>
-      <span class="login__brand-name">Prosp&rsquo;Up</span>
-    </a>
+  <!-- ────── Hero ────── -->
+  <section class="mq-hero">
+    <p class="mq-eyebrow">La marche du jour</p>
+    <h1 class="mq-title">
+      Le pipeline d&rsquo;une journée d&rsquo;équipe, en <span class="mq-title__hl">mouvement</span>.
+    </h1>
+  </section>
 
-    <div class="login__form-wrap">
-      <p class="login__eyebrow">CRM Up Technologies</p>
-      <h1 class="login__title">Bon retour.</h1>
-      <p class="login__subtitle">
-        Connectez-vous pour retrouver votre pipeline, vos campagnes&nbsp;push et votre Mode&nbsp;Prosp&nbsp;— là où vous l'avez laissé.
-      </p>
+  <!-- ────── Ticker ────── -->
+  <div class="mq-ticker" aria-hidden="true">
+    <div class="mq-ticker__cell">
+      <span class="mq-time">09<span class="sep">·</span>31</span>
+      <span class="mq-evt mq-evt--green"><span class="mq-evt__dot"></span>+1 appel passé</span>
+      <span class="mq-evt__meta">session +1</span>
+    </div>
+    <div class="mq-ticker__cell">
+      <span class="mq-time">09<span class="sep">·</span>28</span>
+      <span class="mq-evt mq-evt--purple"><span class="mq-evt__dot"></span>+1 RDV pris</span>
+      <span class="mq-evt__meta">pipeline +1.0&nbsp;%</span>
+    </div>
+    <div class="mq-ticker__cell">
+      <span class="mq-time">09<span class="sep">·</span>24</span>
+      <span class="mq-evt mq-evt--orange"><span class="mq-evt__dot"></span>+1 relance programmée</span>
+      <span class="mq-evt__meta">file 18</span>
+    </div>
+    <div class="mq-ticker__cell">
+      <span class="mq-time" id="mqTickTime">09<span class="sep">·</span>47</span>
+      <span class="mq-evt mq-evt--purple"><span class="mq-evt__dot"></span>+1 RDV pris</span>
+      <span class="mq-evt__meta">pipeline +1.2&nbsp;%</span>
+    </div>
+  </div>
 
-      <div class="login__error" id="errorMsg" role="alert" aria-live="polite">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+  <!-- ────── Login card ────── -->
+  <main class="mq-stage">
+    <section class="mq-card" aria-labelledby="mqLegend">
+      <span class="mq-card__legend" id="mqLegend">Prendre la barre</span>
+
+      <div class="mq-error" id="errorMsg" role="alert" aria-live="polite">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+        </svg>
         <span id="errorMsgText"></span>
       </div>
 
-      <form id="loginForm" class="login__fields" novalidate>
-        <div>
-          <label class="label" for="username">Identifiant</label>
-          <div class="login__input-wrap">
-            <input class="input" type="text" id="username" name="username"
-                   placeholder="prenom.nom" autocomplete="username"
-                   required autofocus spellcheck="false" autocapitalize="off">
-          </div>
+      <form id="loginForm" class="mq-form" novalidate>
+        <div class="mq-field">
+          <label class="mq-label" for="username">Identifiant</label>
+          <input class="mq-input" type="text" id="username" name="username"
+                 placeholder="prenom.nom" autocomplete="username"
+                 required autofocus spellcheck="false" autocapitalize="off">
         </div>
 
-        <div>
-          <div class="login__field-row">
-            <label class="label" for="password" style="margin:0;">Mot de passe</label>
-            <a class="login__forgot" href="#" tabindex="-1">Oublié&nbsp;?</a>
+        <div class="mq-field">
+          <div class="mq-row">
+            <label class="mq-label" for="password">Mot de passe</label>
+            <a class="mq-forgot" href="#" tabindex="-1">Oublié&nbsp;?</a>
           </div>
-          <div class="login__input-wrap">
-            <input class="input" type="password" id="password" name="password"
-                   placeholder="••••••••" autocomplete="current-password" required>
-            <button type="button" class="login__pw-toggle" id="pwToggle"
-                    aria-label="Afficher le mot de passe" title="Afficher / masquer">
-              <svg id="pwIconShow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-              <svg id="pwIconHide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a19.79 19.79 0 0 1 4.22-5.5"/><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a19.78 19.78 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>
-            </button>
-          </div>
+          <input class="mq-input" type="password" id="password" name="password"
+                 placeholder="••••••••" autocomplete="current-password" required>
         </div>
 
-        <button type="submit" class="btn btn-accent btn-lg btn-login" id="btnLogin">
+        <button type="submit" class="mq-submit" id="btnLogin">
           <span class="spinner" aria-hidden="true"></span>
           <span class="label">Se connecter</span>
+          <span class="mq-submit__hint" aria-hidden="true">↵</span>
         </button>
       </form>
-    </div>
 
-    <div class="login__foot">
-      <span>prospup.work</span>
-      <span class="login__build">v30 · CRM B2B</span>
-    </div>
-  </section>
+      <div class="mq-card__foot">
+        <span>SSO Up Technologies</span>
+        <a href="mailto:contact@up-technologies.fr?subject=Demande%20d%27acc%C3%A8s%20Prosp%27Up">Demander un accès</a>
+      </div>
+    </section>
+  </main>
 
-  <!-- ─────── Pane droit : éditorial (caché en mobile) ─────── -->
-  <aside class="login__pane-aside" aria-hidden="true">
-    <div>
-      <span class="login__tag">
-        <span class="login__tag-dot"></span>
-        Refonte v30
-        <span class="login__tag-mono">/ 2026</span>
-      </span>
-    </div>
+  <!-- ────── Footer ────── -->
+  <footer class="mq-foot">
+    <span class="mq-foot__l">prospup.work · v<span id="mqVersion">30</span></span>
+    <span class="mq-foot__r">© <span id="mqYear">2026</span> Up Technologies · OVHcloud · Roubaix</span>
+  </footer>
 
-    <div>
-      <blockquote class="login__quote">
-        Trois fois moins de clics pour envoyer un push, trois fois plus de RDV.
-      </blockquote>
-      <div class="login__quote-author">
-        <span class="login__quote-avatar" aria-hidden="true">JM</span>
-        <div class="login__quote-meta">
-          <strong>Julien M.</strong>
-          <span>Consultant sourcing · client depuis 2024</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="login__stats">
-      <div>
-        <div class="login__stat-value">+38%</div>
-        <div class="login__stat-label">RDV obtenus</div>
-      </div>
-      <div>
-        <div class="login__stat-value">−42%</div>
-        <div class="login__stat-label">Clics par push</div>
-      </div>
-      <div>
-        <div class="login__stat-value">7j</div>
-        <div class="login__stat-label">Série moyenne</div>
-      </div>
-    </div>
-  </aside>
 </div>
 
 <script>
-/* Toggle thème — persistance localStorage (calque base.html v30) */
+/* ─── Live clock + date FR (top bar) ─── */
 (function () {
-  var btn = document.getElementById('themeToggle');
-  if (!btn) return;
-  btn.addEventListener('click', function () {
-    var cur = document.documentElement.dataset.theme;
-    if (!cur) {
-      // Pas encore défini : on lit le système et on bascule à l'opposé
-      cur = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    var next = cur === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem('theme', next); } catch (e) {}
-  });
+  var jours = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  var mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  var live = document.getElementById('mqLive');
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function tick() {
+    var d = new Date();
+    var jour = jours[d.getDay()];
+    var label = 'EN DIRECT · ' + jour.toUpperCase() + ' ' + d.getDate() + ' ' + mois[d.getMonth()].toUpperCase() + ' · ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    if (live) live.textContent = label;
+  }
+  tick();
+  setInterval(tick, 1000 * 30);
+
+  // year
+  var y = document.getElementById('mqYear');
+  if (y) y.textContent = new Date().getFullYear();
+
+  // version live (route publique)
+  fetch('/api/app-version').then(function (r) { return r.json(); }).then(function (d) {
+    var v = document.getElementById('mqVersion');
+    if (v && d && d.version) v.textContent = d.version;
+  }).catch(function () {});
 })();
 
-/* Toggle œil — afficher / masquer mot de passe */
-function togglePw() {
-  var inp  = document.getElementById('password');
-  var show = document.getElementById('pwIconShow');
-  var hide = document.getElementById('pwIconHide');
-  var btn  = document.getElementById('pwToggle');
-  var isPw = inp.type === 'password';
-  inp.type = isPw ? 'text' : 'password';
-  show.style.display = isPw ? 'none' : '';
-  hide.style.display = isPw ? '' : 'none';
-  btn.setAttribute('aria-label', isPw ? 'Masquer le mot de passe' : 'Afficher le mot de passe');
-}
-document.getElementById('pwToggle').addEventListener('click', togglePw);
-
-/* Validation légère + soumission */
+/* ─── Validation légère + soumission ─── */
 document.addEventListener('DOMContentLoaded', function () {
   var form = document.getElementById('loginForm');
   if (form && typeof window.initFormValidation === 'function') {
@@ -608,8 +670,6 @@ async function doLogin(e) {
     });
     var data = await resp.json();
     if (data.ok) {
-      // v30 est l'interface par défaut ; opt-out client via
-      // localStorage.prospup_ui_mode === 'v29'.
       var optOut = false;
       try { optOut = localStorage.getItem('prospup_ui_mode') === 'v29'; } catch (_) {}
       var target = optOut ? '/dashboard' : '/v30/dashboard';
