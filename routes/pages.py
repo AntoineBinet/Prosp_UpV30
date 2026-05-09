@@ -673,6 +673,38 @@ def page_v30_validation_checklist():
 _STATUS_FILE = APP_DIR / "data" / "sitemap_status.json"
 
 
+def _load_open_bugs() -> dict:
+    """Renvoie un dict {action_id: [bugs ouverts]} pour intégrer les
+    signalements utilisateurs dans le statut de la toile.
+
+    Les bugs sans action_id (label trop éloigné des actions de la toile)
+    sont regroupés sous la clé spéciale `__page_<page_id>__` pour qu'on
+    puisse au moins marquer la page concernée."""
+    bugs_by_action: dict[str, list[dict]] = {}
+    try:
+        with _conn() as conn:
+            try:
+                rows = conn.execute(
+                    "SELECT id, page_id, action_id, label, description, url, created_at "
+                    "FROM bug_reports WHERE status='open' ORDER BY created_at DESC LIMIT 500;"
+                ).fetchall()
+            except Exception:
+                # Table pas encore créée
+                return {}
+            for r in rows:
+                key = r["action_id"] or (f"__page_{r['page_id']}__" if r["page_id"] else "__orphan__")
+                bugs_by_action.setdefault(key, []).append({
+                    "id": r["id"],
+                    "label": r["label"],
+                    "description": r["description"],
+                    "url": r["url"],
+                    "created_at": r["created_at"],
+                })
+    except Exception:
+        return {}
+    return bugs_by_action
+
+
 def _load_status_data() -> dict:
     """Lit data/sitemap_status.json (résultat de scripts/test_sitemap_status.py).
 
@@ -815,6 +847,7 @@ def _build_sitemap_data(is_admin: bool) -> dict:
     """
     status_data = _load_status_data()
     ui_action_status = (status_data or {}).get("ui_actions", {})
+    open_bugs = _load_open_bugs()
 
     pages: list[dict] = [
         # ─── NAVIGATE ──────────────────────────────────────────
@@ -1335,6 +1368,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
 
     # Calcule statut de chaque action et de chaque page
     for page in pages:
+        # Bugs ouverts qui ciblent la page mais sans action_id précis
+        page_level_bugs = open_bugs.get(f"__page_{page['id']}__", [])
         for idx, action in enumerate(page.get("actions", [])):
             tools = action.get("tools") or {}
             endpoints = tools.get("endpoints") or []
@@ -1343,9 +1378,28 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                 endpoints, status_data,
                 ui_action_status=ui_action_status, action_id=action_id,
             )
+            # Override : un bug ouvert force le statut KO sur l'action
+            action_bugs = open_bugs.get(action_id, [])
+            if action_bugs:
+                first_bug = action_bugs[0]
+                bug_summary = f"#{first_bug['id']} : {first_bug.get('label') or '?'}"
+                if first_bug.get('description'):
+                    bug_summary += f" — {first_bug['description'][:80]}"
+                if len(action_bugs) > 1:
+                    bug_summary += f" (+{len(action_bugs) - 1} autre(s))"
+                label = "ko"
+                note = f"⚠️ Bug signalé : {bug_summary}"
             action["status"] = label
             action["status_note"] = note
+            if action_bugs:
+                action["bugs"] = action_bugs
+
         page_label, page_note = _compute_page_status(page["id"], page.get("actions", []), status_data)
+        # Si bug page-level → force KO sur la page elle-même
+        if page_level_bugs:
+            page_label = "ko"
+            page_note = f"⚠️ {len(page_level_bugs)} bug(s) signalé(s) sur cette page (action non identifiée)."
+            page["bugs"] = page_level_bugs
         page["status"] = page_label
         page["status_note"] = page_note
 
@@ -1368,6 +1422,7 @@ def _build_sitemap_data(is_admin: bool) -> dict:
         "status_meta": {
             "ts": status_data.get("ts") if status_data else None,
             "summary": status_data.get("summary") if status_data else None,
+            "open_bugs": sum(len(v) for v in open_bugs.values()),
         },
         "pages": pages,
     }
