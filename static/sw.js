@@ -1,5 +1,5 @@
 // Prosp'Up Service Worker v30 — liquid glass shell + v30 UX refresh
-const CACHE = 'prospup-v32.25-shell-1';
+const CACHE = 'prospup-v32.36-shell-1';
 const API_CACHE = 'prospup-api-v23.4';
 const API_TTL = 5 * 60 * 1000; // 5 minutes
 
