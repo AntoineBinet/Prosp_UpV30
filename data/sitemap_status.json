@@ -963,5 +963,220 @@
     "ok": 98,
     "warn": 8,
     "ko": 0
+  },
+  "ui_actions": {
+    "candidats__act_6": {
+      "label": "ok",
+      "note": "Toggle de vues (Pipeline/Liste/Grille) : élément DOM avec data-view trouvé."
+    },
+    "carte__act_1": {
+      "label": "ok",
+      "note": "Bouton « Géocoder en masse » trouvé via mots-clés (geocoder)."
+    },
+    "carte__act_4": {
+      "label": "ok",
+      "note": "Bouton « Localiser ma position » trouvé."
+    },
+    "collab__act_1": {
+      "label": "ok",
+      "note": "Bouton « Partager une entreprise » trouvé."
+    },
+    "collab__act_4": {
+      "label": "ok",
+      "note": "« Voir prospects partagés » présent dans la page Collab."
+    },
+    "collab__act_5": {
+      "label": "ok",
+      "note": "Édition d'un prospect partagé : éléments interactifs détectés."
+    },
+    "collab__act_6": {
+      "label": "ok",
+      "note": "Bouton « Cesser le partage » trouvé."
+    },
+    "duplicates__act_4": {
+      "label": "ok",
+      "note": "Action « Fusionner entreprises » présente sur la page Doublons."
+    },
+    "duplicates__act_6": {
+      "label": "ok",
+      "note": "Vérification de doublons à la création : déclenchée via /api/prospects/check-duplicates."
+    },
+    "entreprises__act_1": {
+      "label": "ok",
+      "note": "Bouton « Ajouter une entreprise » trouvé."
+    },
+    "entreprises__act_2": {
+      "label": "ok",
+      "note": "Édition fiche entreprise présente."
+    },
+    "entreprises__act_3": {
+      "label": "ok",
+      "note": "Action « Fusionner deux entreprises » via /v30/duplicates."
+    },
+    "entreprises__act_4": {
+      "label": "ok",
+      "note": "Bouton de suppression entreprise présent."
+    },
+    "entreprises__act_8": {
+      "label": "ok",
+      "note": "Section Opportunités (créer/éditer) présente sur la fiche entreprise."
+    },
+    "entreprises__act_9": {
+      "label": "ok",
+      "note": "Section Événements entreprise présente."
+    },
+    "focus__act_3": {
+      "label": "ok",
+      "note": "Action « Marquer fait (relance) » sur les focus rows."
+    },
+    "focus__act_4": {
+      "label": "ok",
+      "note": "Boutons « +1j / +7j » vérifiés en post-hydration (7 occurrences sur /v30/focus)."
+    },
+    "help__act_0": {
+      "label": "ok",
+      "note": "Modal raccourcis clavier détectée."
+    },
+    "help__act_1": {
+      "label": "ok",
+      "note": "Ancre #start présente."
+    },
+    "help__act_2": {
+      "label": "ok",
+      "note": "Section Workflows présente."
+    },
+    "help__act_3": {
+      "label": "ok",
+      "note": "Lien vers docs externes présent."
+    },
+    "metiers__act_0": {
+      "label": "ok",
+      "note": "Champ de recherche métier présent."
+    },
+    "metiers__act_1": {
+      "label": "ok",
+      "note": "Filtres par domaine vérifiés en post-hydration (5 éléments sur /v30/metiers)."
+    },
+    "metiers__act_2": {
+      "label": "ok",
+      "note": "26 cartes métiers cliquables + modal détail vérifiés en post-hydration."
+    },
+    "metiers__act_6": {
+      "label": "ok",
+      "note": "Action « Exporter JSON » présente sur la page métiers."
+    },
+    "mode-prosp__act_1": {
+      "label": "ok",
+      "note": "Navigation Précédent / Suivant via touches ← →."
+    },
+    "mode-prosp__act_2": {
+      "label": "ok",
+      "note": "Action « Appeler » via touche C (tel:)."
+    },
+    "mode-prosp__act_3": {
+      "label": "ok",
+      "note": "Action « Email » via touche M (mailto:)."
+    },
+    "mode-prosp__act_4": {
+      "label": "ok",
+      "note": "Ouverture LinkedIn via touche L (window.open)."
+    },
+    "mode-prosp__act_5": {
+      "label": "ok",
+      "note": "Demande IA via touche I."
+    },
+    "mode-prosp__act_6": {
+      "label": "ok",
+      "note": "Sauvegarde de note via touche N."
+    },
+    "mode-prosp__act_7": {
+      "label": "ok",
+      "note": "Changement de statut via touche S."
+    },
+    "parametres__act_7": {
+      "label": "ok",
+      "note": "Champ mot de passe (changement) présent dans Paramètres > Compte."
+    },
+    "parametres__act_8": {
+      "label": "ok",
+      "note": "Édition profil (display_name, avatar) présent."
+    },
+    "parametres__act_11": {
+      "label": "ok",
+      "note": "Bouton « Rollback du serveur » présent dans Paramètres > Déploiement."
+    },
+    "parametres__act_12": {
+      "label": "ok",
+      "note": "Lien vers /v30/sitemap présent."
+    },
+    "prospects__act_0": {
+      "label": "ok",
+      "note": "Modal d'import Excel présent."
+    },
+    "prospects__act_1": {
+      "label": "ok",
+      "note": "Bouton « Ajouter (manuel) » présent."
+    },
+    "prospects__act_2": {
+      "label": "ok",
+      "note": "Bouton « Ajouter (IA, doc) » présent."
+    },
+    "prospects__act_3": {
+      "label": "ok",
+      "note": "Action « Scrapping IA » présente sur la fiche prospect."
+    },
+    "prospects__act_4": {
+      "label": "ok",
+      "note": "Actions bulk « Email IA / Tel IA » présentes."
+    },
+    "prospects__act_7": {
+      "label": "ok",
+      "note": "Modal « Modifier en masse » présent."
+    },
+    "prospects__act_8": {
+      "label": "ok",
+      "note": "Action « Géocoder en masse » via /v30/carte."
+    },
+    "prospects__act_9": {
+      "label": "ok",
+      "note": "Action « Archiver » présente."
+    },
+    "prospects__act_10": {
+      "label": "ok",
+      "note": "Action « Supprimer (soft) » présente."
+    },
+    "prospects__act_11": {
+      "label": "ok",
+      "note": "Bouton « Désarchiver » vérifié sur /v30/prospects/archives."
+    },
+    "prospects__act_14": {
+      "label": "ok",
+      "note": "Lien vers fiche prospect (timeline) présent dans la liste."
+    },
+    "prospects__act_15": {
+      "label": "ok",
+      "note": "Upload de pièces jointes : input file présent sur la fiche."
+    },
+    "prospects__act_16": {
+      "label": "ok",
+      "note": "Photo prospect : upload présent sur la fiche."
+    },
+    "push__act_9": {
+      "label": "ok",
+      "note": "Bouton « Générer email IA » présent dans la page Push."
+    },
+    "users__act_6": {
+      "label": "ok",
+      "note": "Action « Réassigner ownership » présente (admin)."
+    }
+  },
+  "ui_actions_meta": {
+    "ts": "2026-05-09T01:55:00",
+    "method": "DOM audit (fetch + DOMParser) + post-hydration manual verification",
+    "tested_by": "admin (compte test seedé avec 12 prospects, 4 entreprises, 6 candidats, 2 besoins, 3 push logs)",
+    "count": 51,
+    "ok": 51,
+    "warn": 0,
+    "ko": 0
   }
 }

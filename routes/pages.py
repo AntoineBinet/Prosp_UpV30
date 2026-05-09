@@ -708,40 +708,69 @@ def _normalize_endpoint(ep: str) -> str:
     return s
 
 
-def _compute_action_status(endpoints: list[str], status_data: dict) -> tuple[str, str]:
+def _compute_action_status(
+    endpoints: list[str],
+    status_data: dict,
+    ui_action_status: dict | None = None,
+    action_id: str | None = None,
+) -> tuple[str, str]:
     """Calcule un statut (ok/warn/ko/unknown) + une note d'explication
     pour une action, à partir des endpoints qu'elle appelle.
 
-    Règle d'agrégation :
-      - aucun endpoint testable → unknown (gris)
-      - tous les endpoints OK → ok (vert)
-      - au moins un endpoint KO → ko (rouge)
-      - sinon (au moins un warn) → warn (orange)
+    Règles d'agrégation :
+      - override UI manuel (data/sitemap_status.json → ui_actions[<id>]) prioritaire
+      - aucun endpoint et pas d'override → unknown
+      - match exact d'un endpoint → status de l'endpoint
+      - match "fraternal" : endpoint POST/PUT/DELETE non testé directement, mais
+        un GET de la même famille (même base path) est OK → on considère l'action
+        OK par association (le backend de la famille répond bien)
+      - au moins un KO → ko
+      - sinon au moins un warn → warn
     """
+    # 1. Override manuel UI si fourni
+    if ui_action_status and action_id and action_id in ui_action_status:
+        ov = ui_action_status[action_id]
+        return (ov.get("label", "unknown"), ov.get("note", "Test UI manuel."))
+
     ep_map = (status_data or {}).get("endpoints", {}) or {}
     if not endpoints:
         return ("unknown", "Aucun endpoint testable (action UI/frontend uniquement).")
 
+    # 2. Match exact d'abord
     matched = []
     for ep in endpoints:
         norm = _normalize_endpoint(ep)
-        # Cherche par préfixe car la table peut contenir l'URL avec query string
         for key, val in ep_map.items():
             if _normalize_endpoint(key) == norm:
-                matched.append((ep, val))
+                matched.append((ep, val, "exact"))
                 break
+
+    # 3. Match fraternal pour les endpoints non couverts (POST/PUT/DELETE
+    #    héritent du status d'un GET frère sur le même path)
+    if not matched:
+        for ep in endpoints:
+            norm_ep = _normalize_endpoint(ep)
+            for key, val in ep_map.items():
+                norm_key = _normalize_endpoint(key)
+                # Frère = même base path (l'un préfixe de l'autre, ou identique)
+                if norm_ep == norm_key or norm_key.startswith(norm_ep + "/") or norm_ep.startswith(norm_key + "/"):
+                    matched.append((ep, val, "frère"))
+                    break
 
     if not matched:
         return ("unknown", "Endpoints non couverts par le test automatique.")
 
-    has_ko = any(v.get("label") == "ko" for _, v in matched)
-    has_warn = any(v.get("label") == "warn" for _, v in matched)
+    has_ko = any(v.get("label") == "ko" for _, v, _ in matched)
+    has_warn = any(v.get("label") == "warn" for _, v, _ in matched)
     if has_ko:
-        bad = [ep for ep, v in matched if v.get("label") == "ko"]
+        bad = [ep for ep, v, _ in matched if v.get("label") == "ko"]
         return ("ko", f"Endpoint(s) en erreur : {', '.join(bad)}")
     if has_warn:
-        warns = [f"{ep} ({v.get('status')})" for ep, v in matched if v.get("label") == "warn"]
+        warns = [f"{ep} ({v.get('status')})" for ep, v, _ in matched if v.get("label") == "warn"]
         return ("warn", f"Réponse partielle ou paramètres requis : {', '.join(warns)}")
+    fraternal = [ep for ep, _, kind in matched if kind == "frère"]
+    if fraternal:
+        return ("ok", f"{len(matched)} endpoint(s) couvert(s) (dont {len(fraternal)} via famille testée).")
     return ("ok", f"{len(matched)} endpoint(s) testé(s), tous OK.")
 
 
@@ -785,6 +814,7 @@ def _build_sitemap_data(is_admin: bool) -> dict:
     `python scripts/test_sitemap_status.py` pour rafraîchir les statuts.
     """
     status_data = _load_status_data()
+    ui_action_status = (status_data or {}).get("ui_actions", {})
 
     pages: list[dict] = [
         # ─── NAVIGATE ──────────────────────────────────────────
@@ -1305,10 +1335,14 @@ def _build_sitemap_data(is_admin: bool) -> dict:
 
     # Calcule statut de chaque action et de chaque page
     for page in pages:
-        for action in page.get("actions", []):
+        for idx, action in enumerate(page.get("actions", [])):
             tools = action.get("tools") or {}
             endpoints = tools.get("endpoints") or []
-            label, note = _compute_action_status(endpoints, status_data)
+            action_id = f"{page['id']}__act_{idx}"
+            label, note = _compute_action_status(
+                endpoints, status_data,
+                ui_action_status=ui_action_status, action_id=action_id,
+            )
             action["status"] = label
             action["status_note"] = note
         page_label, page_note = _compute_page_status(page["id"], page.get("actions", []), status_data)
