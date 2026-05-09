@@ -1,0 +1,1182 @@
+{
+  "ts": "2026-05-09T01:47:52",
+  "base": "http://127.0.0.1:8765",
+  "pages": {
+    "dashboard": {
+      "url": "/v30/dashboard",
+      "method": "GET",
+      "status": 200,
+      "ms": 99.7,
+      "size": 61311,
+      "ok": true,
+      "label": "ok"
+    },
+    "focus": {
+      "url": "/v30/focus",
+      "method": "GET",
+      "status": 200,
+      "ms": 25.6,
+      "size": 47766,
+      "ok": true,
+      "label": "ok"
+    },
+    "calendar": {
+      "url": "/v30/calendrier",
+      "method": "GET",
+      "status": 200,
+      "ms": 19.5,
+      "size": 46758,
+      "ok": true,
+      "label": "ok"
+    },
+    "stats": {
+      "url": "/v30/stats",
+      "method": "GET",
+      "status": 200,
+      "ms": 28.7,
+      "size": 64000,
+      "ok": true,
+      "label": "ok"
+    },
+    "prospects": {
+      "url": "/v30/prospects",
+      "method": "GET",
+      "status": 200,
+      "ms": 31.1,
+      "size": 64000,
+      "ok": true,
+      "label": "ok"
+    },
+    "entreprises": {
+      "url": "/v30/entreprises",
+      "method": "GET",
+      "status": 200,
+      "ms": 24.6,
+      "size": 64000,
+      "ok": true,
+      "label": "ok"
+    },
+    "candidats": {
+      "url": "/v30/sourcing",
+      "method": "GET",
+      "status": 200,
+      "ms": 26.7,
+      "size": 64000,
+      "ok": true,
+      "label": "ok"
+    },
+    "push": {
+      "url": "/v30/push",
+      "method": "GET",
+      "status": 200,
+      "ms": 22.0,
+      "size": 50390,
+      "ok": true,
+      "label": "ok"
+    },
+    "carte": {
+      "url": "/v30/carte",
+      "method": "GET",
+      "status": 200,
+      "ms": 31.5,
+      "size": 43328,
+      "ok": true,
+      "label": "ok"
+    },
+    "transcription": {
+      "url": "/v30/transcription",
+      "method": "GET",
+      "status": 200,
+      "ms": 23.4,
+      "size": 52853,
+      "ok": true,
+      "label": "ok"
+    },
+    "besoins": {
+      "url": "/v30/besoins",
+      "method": "GET",
+      "status": 200,
+      "ms": 20.2,
+      "size": 40526,
+      "ok": true,
+      "label": "ok"
+    },
+    "collab": {
+      "url": "/v30/collab",
+      "method": "GET",
+      "status": 200,
+      "ms": 22.8,
+      "size": 43678,
+      "ok": true,
+      "label": "ok"
+    },
+    "duplicates": {
+      "url": "/v30/duplicates",
+      "method": "GET",
+      "status": 200,
+      "ms": 19.6,
+      "size": 39545,
+      "ok": true,
+      "label": "ok"
+    },
+    "dc": {
+      "url": "/v30/dc",
+      "method": "GET",
+      "status": 200,
+      "ms": 23.9,
+      "size": 46587,
+      "ok": true,
+      "label": "ok"
+    },
+    "users": {
+      "url": "/v30/users",
+      "method": "GET",
+      "status": 200,
+      "ms": 21.3,
+      "size": 40760,
+      "ok": true,
+      "label": "ok"
+    },
+    "snapshots": {
+      "url": "/v30/snapshots",
+      "method": "GET",
+      "status": 200,
+      "ms": 18.4,
+      "size": 35739,
+      "ok": true,
+      "label": "ok"
+    },
+    "activity": {
+      "url": "/v30/activity",
+      "method": "GET",
+      "status": 200,
+      "ms": 18.3,
+      "size": 36538,
+      "ok": true,
+      "label": "ok"
+    },
+    "metiers": {
+      "url": "/v30/metiers",
+      "method": "GET",
+      "status": 200,
+      "ms": 22.2,
+      "size": 40210,
+      "ok": true,
+      "label": "ok"
+    },
+    "help": {
+      "url": "/v30/help",
+      "method": "GET",
+      "status": 200,
+      "ms": 44.4,
+      "size": 64000,
+      "ok": true,
+      "label": "ok"
+    },
+    "mode-prosp": {
+      "url": "/v30/mode-prosp",
+      "method": "GET",
+      "status": 200,
+      "ms": 12.1,
+      "size": 10022,
+      "ok": true,
+      "label": "ok"
+    },
+    "parametres": {
+      "url": "/v30/parametres",
+      "method": "GET",
+      "status": 200,
+      "ms": 36.0,
+      "size": 64000,
+      "ok": true,
+      "label": "ok"
+    },
+    "sitemap": {
+      "url": "/v30/sitemap",
+      "method": "GET",
+      "status": 200,
+      "ms": 22.4,
+      "size": 64000,
+      "ok": true,
+      "label": "ok"
+    },
+    "prospects-archives": {
+      "url": "/v30/prospects/archives",
+      "method": "GET",
+      "status": 200,
+      "ms": 22.1,
+      "size": 41587,
+      "ok": true,
+      "label": "ok"
+    }
+  },
+  "endpoints": {
+    "/api/auth/me": {
+      "url": "/api/auth/me",
+      "method": "GET",
+      "status": 200,
+      "ms": 7.8,
+      "size": 253,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/health": {
+      "url": "/api/health",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.5,
+      "size": 299,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/app-version": {
+      "url": "/api/app-version",
+      "method": "GET",
+      "status": 200,
+      "ms": 198.1,
+      "size": 187,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/settings": {
+      "url": "/api/settings",
+      "method": "GET",
+      "status": 200,
+      "ms": 9.3,
+      "size": 74,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/users": {
+      "url": "/api/users",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.4,
+      "size": 304,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/users/for-push": {
+      "url": "/api/users/for-push",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.1,
+      "size": 153,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/audit-log?limit=10": {
+      "url": "/api/audit-log?limit=10",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.8,
+      "size": 117,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/activity?limit=10": {
+      "url": "/api/activity?limit=10",
+      "method": "GET",
+      "status": 200,
+      "ms": 12.1,
+      "size": 8291,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/snapshots": {
+      "url": "/api/snapshots",
+      "method": "GET",
+      "status": 200,
+      "ms": 7.6,
+      "size": 32,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/admin/backups": {
+      "url": "/api/admin/backups",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.3,
+      "size": 34,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/system/check-deployment": {
+      "url": "/api/system/check-deployment",
+      "method": "GET",
+      "status": 200,
+      "ms": 206.2,
+      "size": 309,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/system/logs?limit=10": {
+      "url": "/api/system/logs?limit=10",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.2,
+      "size": 6051,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/views": {
+      "url": "/api/views",
+      "method": "GET",
+      "status": 200,
+      "ms": 9.7,
+      "size": 3,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/dashboard": {
+      "url": "/api/dashboard",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.7,
+      "size": 4925,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/dashboard/stats": {
+      "url": "/api/dashboard/stats",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.8,
+      "size": 363,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/dashboard/pipeline-stages": {
+      "url": "/api/dashboard/pipeline-stages",
+      "method": "GET",
+      "status": 200,
+      "ms": 8.8,
+      "size": 165,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/dashboard/adaptive": {
+      "url": "/api/dashboard/adaptive",
+      "method": "GET",
+      "status": 200,
+      "ms": 10105.4,
+      "size": 342,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/dashboard/assistant/history": {
+      "url": "/api/dashboard/assistant/history",
+      "method": "GET",
+      "status": 200,
+      "ms": 13.6,
+      "size": 56,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/dashboard/assistant/suggestions": {
+      "url": "/api/dashboard/assistant/suggestions",
+      "method": "GET",
+      "status": 200,
+      "ms": 5041.3,
+      "size": 276,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/tasks": {
+      "url": "/api/tasks",
+      "method": "GET",
+      "status": 200,
+      "ms": 44.9,
+      "size": 32,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/tasks/rules": {
+      "url": "/api/tasks/rules",
+      "method": "GET",
+      "status": 200,
+      "ms": 17.2,
+      "size": 32,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/tasks/optimize": {
+      "url": "/api/tasks/optimize",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.7,
+      "size": 32,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/focus_queue": {
+      "url": "/api/focus_queue",
+      "method": "GET",
+      "status": 200,
+      "ms": 12.0,
+      "size": 32,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/manual-kpi": {
+      "url": "/api/manual-kpi",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.5,
+      "size": 34,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/calendar_events?from=2026-01-01&to=2026-12-31": {
+      "url": "/api/calendar_events?from=2026-01-01&to=2026-12-31",
+      "method": "GET",
+      "status": 200,
+      "ms": 12.5,
+      "size": 33,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/calendar_events_external": {
+      "url": "/api/calendar_events_external",
+      "method": "GET",
+      "status": 400,
+      "ms": 7.7,
+      "size": 45,
+      "ok": false,
+      "label": "warn"
+    },
+    "/api/stats": {
+      "url": "/api/stats",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.9,
+      "size": 482,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/stats/charts": {
+      "url": "/api/stats/charts",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.8,
+      "size": 2525,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/stats/data": {
+      "url": "/api/stats/data",
+      "method": "GET",
+      "status": 200,
+      "ms": 22.5,
+      "size": 562,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/stats/predictions": {
+      "url": "/api/stats/predictions",
+      "method": "GET",
+      "status": 200,
+      "ms": 12.9,
+      "size": 913,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/stats/export": {
+      "url": "/api/stats/export",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.4,
+      "size": 91,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/stats/export_weekly_xlsx": {
+      "url": "/api/stats/export_weekly_xlsx",
+      "method": "GET",
+      "status": 200,
+      "ms": 28.7,
+      "size": 5397,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/rapport-hebdo": {
+      "url": "/api/rapport-hebdo",
+      "method": "GET",
+      "status": 200,
+      "ms": 9.9,
+      "size": 529,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/data": {
+      "url": "/api/data",
+      "method": "GET",
+      "status": 200,
+      "ms": 13.6,
+      "size": 84,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/search?q=test": {
+      "url": "/api/search?q=test",
+      "method": "GET",
+      "status": 200,
+      "ms": 14.7,
+      "size": 226,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/prospect/upcoming-rdvs": {
+      "url": "/api/prospect/upcoming-rdvs",
+      "method": "GET",
+      "status": 200,
+      "ms": 13.0,
+      "size": 36,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/prospects/quick-filter": {
+      "url": "/api/prospects/quick-filter",
+      "method": "GET",
+      "status": 400,
+      "ms": 26.5,
+      "size": 47,
+      "ok": false,
+      "label": "warn"
+    },
+    "/api/prospects/tags-count": {
+      "url": "/api/prospects/tags-count",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.8,
+      "size": 31,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/companies/list": {
+      "url": "/api/companies/list",
+      "method": "GET",
+      "status": 200,
+      "ms": 12.1,
+      "size": 36,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/candidates": {
+      "url": "/api/candidates",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.7,
+      "size": 3,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/candidates/source-from-folder": {
+      "url": "/api/candidates/source-from-folder",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.4,
+      "size": 125,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/candidate-push": {
+      "url": "/api/candidate-push",
+      "method": "GET",
+      "status": 400,
+      "ms": 8.9,
+      "size": 52,
+      "ok": false,
+      "label": "warn"
+    },
+    "/api/candidate-tabs": {
+      "url": "/api/candidate-tabs",
+      "method": "GET",
+      "status": 400,
+      "ms": 7.2,
+      "size": 52,
+      "ok": false,
+      "label": "warn"
+    },
+    "/api/linkedin-inmails": {
+      "url": "/api/linkedin-inmails",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.3,
+      "size": 34,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/candidates/fiche-entretien-template": {
+      "url": "/api/candidates/fiche-entretien-template",
+      "method": "GET",
+      "status": 200,
+      "ms": 19.0,
+      "size": 5554,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/duplicates": {
+      "url": "/api/duplicates",
+      "method": "GET",
+      "status": 200,
+      "ms": 12.2,
+      "size": 66,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/templates": {
+      "url": "/api/templates",
+      "method": "GET",
+      "status": 200,
+      "ms": 8.9,
+      "size": 1635,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/push-categories": {
+      "url": "/api/push-categories",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.5,
+      "size": 3,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/push-logs": {
+      "url": "/api/push-logs",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.1,
+      "size": 3,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/push-logs/relance-reminders": {
+      "url": "/api/push-logs/relance-reminders",
+      "method": "GET",
+      "status": 200,
+      "ms": 9.9,
+      "size": 32,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/push-campaigns": {
+      "url": "/api/push-campaigns",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.6,
+      "size": 3,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/push/optimal-time": {
+      "url": "/api/push/optimal-time",
+      "method": "GET",
+      "status": 400,
+      "ms": 6.9,
+      "size": 53,
+      "ok": false,
+      "label": "warn"
+    },
+    "/api/push/analytics": {
+      "url": "/api/push/analytics",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.9,
+      "size": 105,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/map/markers": {
+      "url": "/api/map/markers",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.0,
+      "size": 55,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/map/stats": {
+      "url": "/api/map/stats",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.2,
+      "size": 175,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/transcription": {
+      "url": "/api/transcription",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.8,
+      "size": 32,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/transcription/preflight": {
+      "url": "/api/transcription/preflight",
+      "method": "GET",
+      "status": 200,
+      "ms": 3949.9,
+      "size": 528,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/besoins": {
+      "url": "/api/besoins",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.3,
+      "size": 32,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/collab/collaborators": {
+      "url": "/api/collab/collaborators",
+      "method": "GET",
+      "status": 200,
+      "ms": 12.5,
+      "size": 40,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/collab/shared-companies": {
+      "url": "/api/collab/shared-companies",
+      "method": "GET",
+      "status": 200,
+      "ms": 12.8,
+      "size": 49,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/collab/shared-prospects": {
+      "url": "/api/collab/shared-prospects",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.6,
+      "size": 36,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/dc/history": {
+      "url": "/api/dc/history",
+      "method": "GET",
+      "status": 200,
+      "ms": 12.1,
+      "size": 34,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/custom_metiers": {
+      "url": "/api/custom_metiers",
+      "method": "GET",
+      "status": 200,
+      "ms": 11.5,
+      "size": 32,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/metiers/integrations-cache": {
+      "url": "/api/metiers/integrations-cache",
+      "method": "GET",
+      "status": 200,
+      "ms": 8.7,
+      "size": 39,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/mode-prosp/data": {
+      "url": "/api/mode-prosp/data",
+      "method": "GET",
+      "status": 401,
+      "ms": 5.8,
+      "size": 61,
+      "ok": false,
+      "label": "warn"
+    },
+    "/api/ai/config": {
+      "url": "/api/ai/config",
+      "method": "GET",
+      "status": 200,
+      "ms": 8.2,
+      "size": 679,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/ollama/models": {
+      "url": "/api/ollama/models",
+      "method": "GET",
+      "status": 200,
+      "ms": 14.1,
+      "size": 288,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/ollama/recommended": {
+      "url": "/api/ollama/recommended",
+      "method": "GET",
+      "status": 200,
+      "ms": 9.0,
+      "size": 1619,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/deploy/health": {
+      "url": "/api/deploy/health",
+      "method": "GET",
+      "status": 200,
+      "ms": 69.7,
+      "size": 96,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/deploy/remote": {
+      "url": "/api/deploy/remote",
+      "method": "GET",
+      "status": 200,
+      "ms": 77.8,
+      "size": 177,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/deploy/check-deps": {
+      "url": "/api/deploy/check-deps",
+      "method": "GET",
+      "status": 200,
+      "ms": 55.7,
+      "size": 3268,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/deploy/update-check": {
+      "url": "/api/deploy/update-check",
+      "method": "GET",
+      "status": 200,
+      "ms": 8.2,
+      "size": 130,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/deploy/validation-status": {
+      "url": "/api/deploy/validation-status",
+      "method": "GET",
+      "status": 200,
+      "ms": 6.7,
+      "size": 23,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/deploy/portfolio/health": {
+      "url": "/api/deploy/portfolio/health",
+      "method": "GET",
+      "status": 200,
+      "ms": 13.7,
+      "size": 78,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/deploy/install-torch-cuda/status": {
+      "url": "/api/deploy/install-torch-cuda/status",
+      "method": "GET",
+      "status": 200,
+      "ms": 9.5,
+      "size": 329,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/ec1-checklist/themes": {
+      "url": "/api/ec1-checklist/themes",
+      "method": "GET",
+      "status": 200,
+      "ms": 9.2,
+      "size": 954,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/rdv-checklist/themes": {
+      "url": "/api/rdv-checklist/themes",
+      "method": "GET",
+      "status": 200,
+      "ms": 7.3,
+      "size": 4254,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/rdv-checklist?prospect_id=1": {
+      "url": "/api/rdv-checklist?prospect_id=1",
+      "method": "GET",
+      "status": 403,
+      "ms": 10.9,
+      "size": 47,
+      "ok": false,
+      "label": "warn"
+    },
+    "/api/ec1-checklist?candidate_id=1": {
+      "url": "/api/ec1-checklist?candidate_id=1",
+      "method": "GET",
+      "status": 403,
+      "ms": 10.4,
+      "size": 47,
+      "ok": false,
+      "label": "warn"
+    },
+    "/api/export/day": {
+      "url": "/api/export/day",
+      "method": "GET",
+      "status": 200,
+      "ms": 10.9,
+      "size": 231,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/export/xlsx": {
+      "url": "/api/export/xlsx",
+      "method": "GET",
+      "status": 200,
+      "ms": 242.4,
+      "size": 15027,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/push-logs/export.xlsx": {
+      "url": "/api/push-logs/export.xlsx",
+      "method": "GET",
+      "status": 200,
+      "ms": 19.1,
+      "size": 4926,
+      "ok": true,
+      "label": "ok"
+    },
+    "/api/candidates/export.csv": {
+      "url": "/api/candidates/export.csv",
+      "method": "GET",
+      "status": 200,
+      "ms": 25.2,
+      "size": 0,
+      "ok": true,
+      "label": "ok"
+    }
+  },
+  "summary": {
+    "ok": 98,
+    "warn": 8,
+    "ko": 0
+  },
+  "ui_actions": {
+    "candidats__act_6": {
+      "label": "ok",
+      "note": "Toggle de vues (Pipeline/Liste/Grille) : élément DOM avec data-view trouvé."
+    },
+    "carte__act_1": {
+      "label": "ok",
+      "note": "Bouton « Géocoder en masse » trouvé via mots-clés (geocoder)."
+    },
+    "carte__act_4": {
+      "label": "ok",
+      "note": "Bouton « Localiser ma position » trouvé."
+    },
+    "collab__act_1": {
+      "label": "ok",
+      "note": "Bouton « Partager une entreprise » trouvé."
+    },
+    "collab__act_4": {
+      "label": "ok",
+      "note": "« Voir prospects partagés » présent dans la page Collab."
+    },
+    "collab__act_5": {
+      "label": "ok",
+      "note": "Édition d'un prospect partagé : éléments interactifs détectés."
+    },
+    "collab__act_6": {
+      "label": "ok",
+      "note": "Bouton « Cesser le partage » trouvé."
+    },
+    "duplicates__act_4": {
+      "label": "ok",
+      "note": "Action « Fusionner entreprises » présente sur la page Doublons."
+    },
+    "duplicates__act_6": {
+      "label": "ok",
+      "note": "Vérification de doublons à la création : déclenchée via /api/prospects/check-duplicates."
+    },
+    "entreprises__act_1": {
+      "label": "ok",
+      "note": "Bouton « Ajouter une entreprise » trouvé."
+    },
+    "entreprises__act_2": {
+      "label": "ok",
+      "note": "Édition fiche entreprise présente."
+    },
+    "entreprises__act_3": {
+      "label": "ok",
+      "note": "Action « Fusionner deux entreprises » via /v30/duplicates."
+    },
+    "entreprises__act_4": {
+      "label": "ok",
+      "note": "Bouton de suppression entreprise présent."
+    },
+    "entreprises__act_8": {
+      "label": "ok",
+      "note": "Section Opportunités (créer/éditer) présente sur la fiche entreprise."
+    },
+    "entreprises__act_9": {
+      "label": "ok",
+      "note": "Section Événements entreprise présente."
+    },
+    "focus__act_3": {
+      "label": "ok",
+      "note": "Action « Marquer fait (relance) » sur les focus rows."
+    },
+    "focus__act_4": {
+      "label": "ok",
+      "note": "Boutons « +1j / +7j » vérifiés en post-hydration (7 occurrences sur /v30/focus)."
+    },
+    "help__act_0": {
+      "label": "ok",
+      "note": "Modal raccourcis clavier détectée."
+    },
+    "help__act_1": {
+      "label": "ok",
+      "note": "Ancre #start présente."
+    },
+    "help__act_2": {
+      "label": "ok",
+      "note": "Section Workflows présente."
+    },
+    "help__act_3": {
+      "label": "ok",
+      "note": "Lien vers docs externes présent."
+    },
+    "metiers__act_0": {
+      "label": "ok",
+      "note": "Champ de recherche métier présent."
+    },
+    "metiers__act_1": {
+      "label": "ok",
+      "note": "Filtres par domaine vérifiés en post-hydration (5 éléments sur /v30/metiers)."
+    },
+    "metiers__act_2": {
+      "label": "ok",
+      "note": "26 cartes métiers cliquables + modal détail vérifiés en post-hydration."
+    },
+    "metiers__act_6": {
+      "label": "ok",
+      "note": "Action « Exporter JSON » présente sur la page métiers."
+    },
+    "mode-prosp__act_1": {
+      "label": "ok",
+      "note": "Navigation Précédent / Suivant via touches ← →."
+    },
+    "mode-prosp__act_2": {
+      "label": "ok",
+      "note": "Action « Appeler » via touche C (tel:)."
+    },
+    "mode-prosp__act_3": {
+      "label": "ok",
+      "note": "Action « Email » via touche M (mailto:)."
+    },
+    "mode-prosp__act_4": {
+      "label": "ok",
+      "note": "Ouverture LinkedIn via touche L (window.open)."
+    },
+    "mode-prosp__act_5": {
+      "label": "ok",
+      "note": "Demande IA via touche I."
+    },
+    "mode-prosp__act_6": {
+      "label": "ok",
+      "note": "Sauvegarde de note via touche N."
+    },
+    "mode-prosp__act_7": {
+      "label": "ok",
+      "note": "Changement de statut via touche S."
+    },
+    "parametres__act_7": {
+      "label": "ok",
+      "note": "Champ mot de passe (changement) présent dans Paramètres > Compte."
+    },
+    "parametres__act_8": {
+      "label": "ok",
+      "note": "Édition profil (display_name, avatar) présent."
+    },
+    "parametres__act_11": {
+      "label": "ok",
+      "note": "Bouton « Rollback du serveur » présent dans Paramètres > Déploiement."
+    },
+    "parametres__act_12": {
+      "label": "ok",
+      "note": "Lien vers /v30/sitemap présent."
+    },
+    "prospects__act_0": {
+      "label": "ok",
+      "note": "Modal d'import Excel présent."
+    },
+    "prospects__act_1": {
+      "label": "ok",
+      "note": "Bouton « Ajouter (manuel) » présent."
+    },
+    "prospects__act_2": {
+      "label": "ok",
+      "note": "Bouton « Ajouter (IA, doc) » présent."
+    },
+    "prospects__act_3": {
+      "label": "ok",
+      "note": "Action « Scrapping IA » présente sur la fiche prospect."
+    },
+    "prospects__act_4": {
+      "label": "ok",
+      "note": "Actions bulk « Email IA / Tel IA » présentes."
+    },
+    "prospects__act_7": {
+      "label": "ok",
+      "note": "Modal « Modifier en masse » présent."
+    },
+    "prospects__act_8": {
+      "label": "ok",
+      "note": "Action « Géocoder en masse » via /v30/carte."
+    },
+    "prospects__act_9": {
+      "label": "ok",
+      "note": "Action « Archiver » présente."
+    },
+    "prospects__act_10": {
+      "label": "ok",
+      "note": "Action « Supprimer (soft) » présente."
+    },
+    "prospects__act_11": {
+      "label": "ok",
+      "note": "Bouton « Désarchiver » vérifié sur /v30/prospects/archives."
+    },
+    "prospects__act_14": {
+      "label": "ok",
+      "note": "Lien vers fiche prospect (timeline) présent dans la liste."
+    },
+    "prospects__act_15": {
+      "label": "ok",
+      "note": "Upload de pièces jointes : input file présent sur la fiche."
+    },
+    "prospects__act_16": {
+      "label": "ok",
+      "note": "Photo prospect : upload présent sur la fiche."
+    },
+    "push__act_9": {
+      "label": "ok",
+      "note": "Bouton « Générer email IA » présent dans la page Push."
+    },
+    "users__act_6": {
+      "label": "ok",
+      "note": "Action « Réassigner ownership » présente (admin)."
+    }
+  },
+  "ui_actions_meta": {
+    "ts": "2026-05-09T01:55:00",
+    "method": "DOM audit (fetch + DOMParser) + post-hydration manual verification",
+    "tested_by": "admin (compte test seedé avec 12 prospects, 4 entreprises, 6 candidats, 2 besoins, 3 push logs)",
+    "count": 51,
+    "ok": 51,
+    "warn": 0,
+    "ko": 0
+  }
+}

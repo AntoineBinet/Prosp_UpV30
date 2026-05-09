@@ -16,7 +16,10 @@ playwright-report/
 scripts/.agent-secret
 scripts/.cursor-api-key
 # User runtime data (avatars, photos, user DBs, AI config)
-data/
+data/*
+# Exception : la toile d'araignée a besoin des résultats de test pour
+# afficher les pastilles 🟢🟠🔴 en prod aussi.
+!data/sitemap_status.json
 
 # Databases
 *.db

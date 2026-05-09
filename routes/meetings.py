@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import Blueprint, Response, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
-from app import _audit_log, _create_auto_task, log_activity, logger
+from app import RDV_CHECKLIST_THEMES, _audit_log, _create_auto_task, log_activity, logger
 from config import APP_VERSION
 from utils.auth import _prospect_owned, _uid, validate_payload
 from utils.common import _now_iso

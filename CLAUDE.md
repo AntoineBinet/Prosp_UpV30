@@ -67,6 +67,45 @@ archives/v29/           # Code v29 archivé (templates legacy + page-*.js + app.
 - **Rollback** : bouton dans Paramètres ou depuis la page 404 (restart intégré).
 - **En cas de divergence** : le flux de pull fait un `git pull --ff-only`, et en cas d'échec fait un `git reset --hard origin/main` + snapshot DB préalable.
 
+## Toile d'araignée — règle d'auto-mise à jour (OBLIGATOIRE)
+La page **`/v30/sitemap`** est une vue radiale qui cartographie la totalité de l'app :
+21 pages (filtrées selon le rôle), ~140 actions, chaque bulle portant ses **outils**
+(handlers JS, endpoints API, fonctions backend) et un **statut 🟢/🟠/🔴** calculé
+automatiquement à partir d'un test HTTP réel.
+
+À chaque fois que Claude (ou un humain) modifie un bouton, une fonction métier,
+une route Flask ou un endpoint API, **la toile doit refléter le changement**. Procédure
+non négociable :
+
+1. **Mettre à jour [routes/pages.py](routes/pages.py) → `_build_sitemap_data()`** :
+   - Si le changement ajoute une nouvelle action : créer son entrée dans la
+     liste `actions` de la page concernée, avec `label`, `href`, et surtout `tools`
+     (`handlers` = noms des fonctions JS, `endpoints` = `"METHOD /api/..."`,
+     `backend` = `"<fichier>:<fonction>"`).
+   - Si le changement renomme/supprime une action : renommer/supprimer l'entrée.
+   - Si le changement ajoute une nouvelle page entière : ajouter l'objet page
+     complet (id, label, cat, icon, href, summary, actions[]).
+
+2. **Rejouer le test HTTP** pour rafraîchir les statuts :
+   ```powershell
+   $env:PORT="8765"
+   python app.py            # lance Flask en dev (background)
+   python scripts/test_sitemap_status.py
+   ```
+   Le script écrit `data/sitemap_status.json` ; la fonction
+   `_load_status_data()` le lit au runtime pour injecter le statut.
+
+3. **Vérifier visuellement** en ouvrant `/v30/sitemap` (admin → Paramètres →
+   carte « Toile d'araignée »).
+
+Si une action déclenche un comportement purement frontend (pas d'API, pas de
+backend), laisser `endpoints: []` et `backend: []` — la toile la marquera 🟠
+« non testable automatiquement », ce qui est le bon signal.
+
+⚠️ **Ne jamais merger un changement de feature sans la mise à jour
+correspondante de la toile** — c'est la source unique de vérité de
+l'inventaire fonctionnel.
+
 ## Conventions
 - `APP_VERSION` dans [app.py:38](app.py) — incrémenter à chaque release.
 - Cache-busters auto : app.py hash MD5 des statiques au démarrage et remplace `?v=XXXX` dans le HTML.

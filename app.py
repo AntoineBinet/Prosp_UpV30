@@ -8256,6 +8256,7 @@ from routes.bulk import bulk_bp  # noqa: E402
 from routes.admin import admin_bp  # noqa: E402
 from routes.dc import dc_bp  # noqa: E402
 from routes.collab import collab_bp  # noqa: E402
+from routes.bug_reports import bug_reports_bp  # noqa: E402
 app.register_blueprint(auth_bp)
 app.register_blueprint(deploy_bp)
 app.register_blueprint(ai_bp)
@@ -8279,6 +8280,7 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(misc_bp)
 app.register_blueprint(dc_bp)
 app.register_blueprint(collab_bp)
+app.register_blueprint(bug_reports_bp)
 
 
 if __name__ == "__main__":
