@@ -2,6 +2,34 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.36] — 2026-05-09 · Toile d'araignée · Refonte split + style minimaliste
+
+La toile (`/v30/sitemap`) abandonne la vue radiale plein écran pour un
+layout 2 colonnes calqué sur un design de référence minimaliste fourni :
+
+- **Layout 2 colonnes** : toile interactive (~70%) à gauche + panneau
+  détail (~30%) à droite. L'index central a été testé puis retiré.
+- **Style minimaliste** : cercles à fill blanc avec contour catégorie,
+  lignes droites fines (stroke 0.8 / opacity 0.45 inactif, 1.4 / 0.9
+  actif), labels uniquement sur la branche active. Plus aucun halo,
+  drop-shadow, pulse ou flottement — exactement le rendu de la réf.
+- **Hub** : grand cercle blanc à contour foncé, label « Dashboard »
+  centré dedans (font 11px, weight 600).
+- **3 modes** : « Tout » (toile entière, pannable/zoomable),
+  « 2° » (sélectionné + voisins jusqu'à 2 sauts, défaut),
+  « Voisins » (sélectionné + voisins directs).
+- **Détail enrichi** : titre en serif italique (Instrument Serif), chips
+  Catégorie / Tier T0-T2 / Kind, JS Handler, Endpoints, Backend, Statut,
+  Voisins cliquables, bouton Ouvrir + raccourci ⌘O.
+- **Topbar simplifiée** : breadcrumb « Toile · ProspUp / [nœud] »,
+  recherche centrale (F), compteur nœuds/liens, bouton aide.
+- **Raccourcis** : F/`/` (recherche), R (recentrer), +/− (zoom),
+  ⌘O (ouvrir), Échap (ferme search/help).
+
+Aucune modification de la structure de données (`_build_sitemap_data`
+inchangée, 199 nœuds + 198 liens, statuts injectés depuis
+`data/sitemap_status.json`). Pas d'impact backend.
+
 ## [32.35] — 2026-05-09 · Calendrier & Stats · Sam/dim/JF non travaillés
 
 L'utilisateur ne travaille pas le weekend ni les jours fériés. ProspUp en
