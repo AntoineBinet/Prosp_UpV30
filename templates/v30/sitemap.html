@@ -57,14 +57,14 @@
 
   <main class="v30-sm-main">
 
-    <!-- ─── Colonne gauche : Toile complète ─── -->
-    <section class="v30-sm-panel v30-sm-panel--graph" aria-label="Toile complète des fonctionnalités">
+    <!-- ─── Colonne gauche : Toile ─── -->
+    <section class="v30-sm-panel v30-sm-panel--graph" aria-label="Toile des fonctionnalités">
       <div class="v30-sm-panel__head">
         <h2 class="v30-sm-panel__title">Toile</h2>
         <div class="v30-sm-panel__actions">
           <div class="v30-sm-toggle" role="tablist" aria-label="Profondeur du voisinage">
-            <button type="button" class="v30-sm-toggle__btn is-active" data-depth="all" role="tab" aria-selected="true">Tout</button>
-            <button type="button" class="v30-sm-toggle__btn" data-depth="2" role="tab" aria-selected="false">2°</button>
+            <button type="button" class="v30-sm-toggle__btn" data-depth="all" role="tab" aria-selected="false">Tout</button>
+            <button type="button" class="v30-sm-toggle__btn is-active" data-depth="2" role="tab" aria-selected="true">2°</button>
             <button type="button" class="v30-sm-toggle__btn" data-depth="1" role="tab" aria-selected="false">Voisins</button>
           </div>
           <div class="v30-sm-zoom">
@@ -75,54 +75,14 @@
         </div>
       </div>
 
-      <!-- Filtres catégories -->
-      <div class="v30-sm-filters" role="toolbar" aria-label="Filtrer par catégorie">
-        <button type="button" class="v30-sm-chip is-active" data-cat-filter="all">
-          <span class="v30-sm-chip__dot v30-sm-chip__dot--all"></span>Tout
-        </button>
-        <button type="button" class="v30-sm-chip" data-cat-filter="navigate">
-          <span class="v30-sm-chip__dot" data-cat="navigate"></span>Navigate
-        </button>
-        <button type="button" class="v30-sm-chip" data-cat-filter="records">
-          <span class="v30-sm-chip__dot" data-cat="records"></span>Records
-        </button>
-        <button type="button" class="v30-sm-chip" data-cat-filter="outils">
-          <span class="v30-sm-chip__dot" data-cat="outils"></span>Outils
-        </button>
-        <button type="button" class="v30-sm-chip" data-cat-filter="admin">
-          <span class="v30-sm-chip__dot" data-cat="admin"></span>Admin
-        </button>
-        <button type="button" class="v30-sm-chip" data-cat-filter="autres">
-          <span class="v30-sm-chip__dot" data-cat="autres"></span>Autres
-        </button>
-        <span class="v30-sm-filters__sep" aria-hidden="true"></span>
-        <span class="v30-sm-filters__label">Statut</span>
-        <button type="button" class="v30-sm-chip" data-status-filter="ko" title="Afficher uniquement les nœuds en erreur">
-          <span class="v30-sm-chip__dot v30-sm-chip__dot--ko"></span>KO
-        </button>
-        <button type="button" class="v30-sm-chip" data-status-filter="warn" title="Afficher uniquement les nœuds à vérifier">
-          <span class="v30-sm-chip__dot v30-sm-chip__dot--warn"></span>Warn
-        </button>
-      </div>
-
       <div class="v30-sm-graph" id="v30-sm-graph">
         <svg id="v30-sm-graph-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-label="Toile des fonctionnalités">
-          <defs>
-            <radialGradient id="v30-sm-bg-grad" cx="50%" cy="50%" r="60%">
-              <stop offset="0%" stop-color="var(--v30-sm-graph-bg-inner)" stop-opacity="1"/>
-              <stop offset="100%" stop-color="var(--v30-sm-graph-bg-outer)" stop-opacity="1"/>
-            </radialGradient>
-            <filter id="v30-sm-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2.5" result="blur"/>
-              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-          </defs>
           <g id="v30-sm-graph-canvas">
             <g id="v30-sm-graph-edges"></g>
             <g id="v30-sm-graph-nodes"></g>
           </g>
         </svg>
-        <div class="v30-sm-graph__hint">Glisser pour déplacer · Molette pour zoomer · Clic sur un nœud pour le sélectionner</div>
+        <div class="v30-sm-graph__hint">Glisser pour déplacer · Molette pour zoomer · Clic = sélection · Double-clic = ouvrir</div>
       </div>
     </section>
 
@@ -169,7 +129,7 @@
           <kbd class="v30-sm-detail__shortcut" title="Raccourci">⌘O</kbd>
         </div>
 
-        <div class="v30-sm-detail__hint">Clic = sélection · Double-clic = ouvrir · F = recherche</div>
+        <div class="v30-sm-detail__hint">Clic = ouvrir · Survol = détail · F = recherche</div>
       </div>
     </aside>
   </main>
@@ -182,22 +142,21 @@
         <button type="button" class="v30-sm-iconbtn" data-toggle-help aria-label="Fermer">✕</button>
       </div>
       <ul>
-        <li><strong>🔐 Connexion</strong> — point d'entrée de l'app.</li>
-        <li><strong>🏠 Dashboard</strong> — hub central, relié à toutes les pages.</li>
-        <li><strong>Pages</strong> — bulles colorées par catégorie (Navigate, Records, Outils, Admin, Autres).</li>
-        <li><strong>Actions</strong> — petites bulles autour de chaque page (boutons, modales, fonctions clés).</li>
-        <li><strong>Statut</strong> — pastille verte/orange/rouge sur chaque nœud (testé en HTTP réel).</li>
+        <li><strong>Hub</strong> — point central de l'app (Dashboard).</li>
+        <li><strong>Pages</strong> — bulles colorées par catégorie reliées au Hub.</li>
+        <li><strong>Actions</strong> — sous-éléments d'une page (boutons, modales, fonctions).</li>
+        <li><strong>Branche active</strong> — le nœud sélectionné, ses voisins et la chaîne jusqu'au Hub apparaissent en couleur. Le reste est dimmé.</li>
       </ul>
       <h3>Modes d'affichage</h3>
       <ul>
         <li><strong>Tout</strong> — la toile entière, pannable et zoomable.</li>
-        <li><strong>2°</strong> — uniquement le nœud sélectionné et ses voisins jusqu'à 2 sauts.</li>
-        <li><strong>Voisins</strong> — nœud sélectionné + ses voisins directs (1 saut).</li>
+        <li><strong>2°</strong> — le nœud sélectionné, ses voisins (1°) et leurs voisins (2°).</li>
+        <li><strong>Voisins</strong> — uniquement le nœud sélectionné et ses voisins directs.</li>
       </ul>
       <h3>Interactions</h3>
       <ul>
         <li><kbd>Clic</kbd> sur un nœud → sélection + détail.</li>
-        <li><kbd>Double-clic</kbd> ou bouton <kbd>Ouvrir</kbd> → ouvre la page correspondante.</li>
+        <li><kbd>Double-clic</kbd> ou bouton <kbd>Ouvrir</kbd> → ouvre la page.</li>
         <li><kbd>Glisser</kbd> le fond → déplacer la vue.</li>
         <li><kbd>Molette</kbd> ou <kbd>+</kbd> / <kbd>−</kbd> → zoomer / dézoomer.</li>
         <li><kbd>R</kbd> ou bouton <kbd>⌂</kbd> → recentrer.</li>
