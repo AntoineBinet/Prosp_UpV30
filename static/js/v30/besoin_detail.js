@@ -1127,6 +1127,16 @@
     }
   }
 
+  // ─── Export PDF ──────────────────────────────────────────
+  function exportPdf() {
+    const url = '/api/besoins/' + ID + '/export.pdf';
+    if (state.dirty) {
+      saveAuto().then(() => { window.location.href = url; });
+    } else {
+      window.location.href = url;
+    }
+  }
+
   // ─── Suppression ─────────────────────────────────────────
   async function doDelete() {
     if (!confirm('Supprimer définitivement ce besoin ?')) return;
@@ -1497,6 +1507,9 @@
   function bindActions() {
     document.querySelectorAll('[data-v30-besoin-export]').forEach(b => {
       b.addEventListener('click', () => exportXlsx());
+    });
+    document.querySelectorAll('[data-v30-besoin-export-pdf]').forEach(b => {
+      b.addEventListener('click', () => exportPdf());
     });
     const del = document.querySelector('[data-v30-besoin-delete]');
     if (del) del.addEventListener('click', doDelete);

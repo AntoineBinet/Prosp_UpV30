@@ -1152,6 +1152,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
                  "tools": {"handlers": ["deleteBesoin"], "endpoints": ["DELETE /api/besoins/<id>"], "backend": ["routes/besoins.py:api_besoins_delete"]}},
                 {"label": "Export besoin XLSX", "href": "/v30/besoins",
                  "tools": {"handlers": ["exportBesoinXlsx"], "endpoints": ["GET /api/besoins/<id>/export.xlsx"], "backend": ["routes/besoins.py:api_besoins_export"]}},
+                {"label": "Export besoin PDF", "href": "/v30/besoins",
+                 "tools": {"handlers": ["exportPdf"], "endpoints": ["GET /api/besoins/<id>/export.pdf"], "backend": ["routes/besoins.py:api_export_besoin_pdf", "routes/besoins.py:_build_besoin_pdf"]}},
             ],
         },
         {

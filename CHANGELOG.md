@@ -2,6 +2,33 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.38] — 2026-05-11 · Besoin · Export PDF complet (fiche + candidats)
+
+Nouvel export PDF de la fiche besoin (A4, mise en page ProspUp v30) :
+
+- **Bouton « Export PDF »** dans le header de la fiche besoin, à côté
+  des exports/imports Excel existants.
+- **En-tête** : eyebrow, intitulé en gros (Helvetica-Bold 20pt), méta
+  (client · contact · localisation), chip statut coloré à droite,
+  trait horizontal accent.
+- **Bloc infos générales** : grille 2 colonnes label/valeur (Client,
+  Contact, Localisation, Profil recherché, Date appel, Date besoin,
+  Durée mission, Lié au prospect).
+- **Bloc Mission** : Descriptif, Compétences requises, Connaissances
+  attendues, Expérience, Commentaires (sections affichées seulement si
+  renseignées).
+- **Bloc Candidats positionnés** : pour chaque candidat,
+  numéro `#NN`, nom en gras, méta (rôle / séniorité / lieu / diplôme),
+  contact (Tél., Email, Profil), chip statut coloré (Disponible vert,
+  Messagerie bleu, Pas contacté gris, Non disponible rouge), bande
+  verticale colorée à gauche selon le statut, grille 3×3 des champs
+  de tracking (Dispo, Appel, DT, RDV1, RDV2, RT, Envoi DT, Propal,
+  RT client), bloc Commentaires sur fond bleu clair si rempli.
+- **Bloc Préparation RT** en fin de document si renseigné.
+- **Header / footer** sur chaque page : bandeau accent en haut, eyebrow
+  « PROSP'UP · TRAITEMENT BESOIN », date de génération + numéro de page.
+- Route : `GET /api/besoins/<id>/export.pdf` → `fiche_besoin_<intitule>.pdf`.
+
 ## [32.37] — 2026-05-11 · Besoin · Réordonnancement des candidats positionnés
 
 Sur la fiche besoin (`/v30/besoins/<id>`), la liste des candidats
