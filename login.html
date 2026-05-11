@@ -223,18 +223,24 @@ input, select, textarea { font: inherit; color: inherit; }
 
 /* Constellation derrière le titre — canvas absolu, plein cadre comme
    marienour.work (.hero-cloud { inset: 0 }). Pas de masque radial : les
-   nœuds restent nets et le spotlight orange visible jusqu'aux bords. */
+   nœuds restent nets et le spotlight orange visible jusqu'aux bords.
+   .mq-editorial crée un stacking context (z-index: 1) pour confiner le
+   canvas ; .mq-card est promu z-index: 2 pour rester au-dessus. */
 .mq-editorial {
   position: relative;
+  z-index: 1;
   min-width: 0;
   align-self: stretch;
   display: flex; flex-direction: column; justify-content: center;
 }
-.mq-editorial > * { position: relative; z-index: 2; }
+.mq-editorial > * { position: relative; z-index: 1; }
 .mq-constellation {
   position: absolute;
-  inset: -24px;
-  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
   pointer-events: none;
   opacity: 1;
 }
@@ -283,9 +289,11 @@ input, select, textarea { font: inherit; color: inherit; }
   color: var(--ink-700);
 }
 
-/* Formulaire (colonne droite) */
+/* Formulaire (colonne droite) — z-index: 2 pour rester au-dessus du
+   stacking context de .mq-editorial (qui contient le canvas). */
 .mq-card {
   position: relative;
+  z-index: 2;
   padding: 28px 32px;
   background: var(--cream);
   border: 1px solid var(--hair-warm);
