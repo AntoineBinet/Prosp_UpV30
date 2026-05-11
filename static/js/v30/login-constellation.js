@@ -1,9 +1,13 @@
 /* =============================================================
    /login & /v30/login — Constellation behind editorial text
-   Light, autonomous canvas animation : drifting nodes + links,
-   orange highlight when the cursor approaches. Inspired by the
-   Up Technologies refonte 2026 hero background, but masked to a
-   soft circular halo so it sits delicately behind the title.
+   Port direct du PointCloud de marienour.work (SiteEntreprise) :
+   - densité moyenne via density factor
+   - 3 classes de points (small/medium/large) → variété visuelle
+   - liens limités aux 4 plus proches voisins par point
+   - épaisseur de ligne variable selon la distance (proche = épais)
+   - opacité plus marquée au repos, spotlight orange au hover
+   - halo orange doux autour des hubs (sizeClass 2)
+   - rendu en deux passes (liens encre puis spotlight orange)
    ============================================================= */
 (function () {
   'use strict';
@@ -17,22 +21,20 @@
 
   var DPR = Math.min(window.devicePixelRatio || 1, 2);
   var W = 0, H = 0;
-  var particles = [];
-  var mouse = { x: 0, y: 0, active: false };
+  var points = [];
+  var mouse = { x: -9999, y: -9999, active: false };
   var raf = 0;
-  var t0 = performance.now();
 
-  var INK = 'rgba(17, 32, 42, ';
-  var ACCENT = 'rgba(239, 136, 39, ';
-  var MAX_DIST = 130;
-  var MAX_DIST2 = MAX_DIST * MAX_DIST;
-  var MAX_LINKS = 3;
-  var HOVER = 140;
+  var DENSITY = 2.2;
+  var LINK_D = 185;
+  var LINK_D2 = LINK_D * LINK_D;
+  var NEIGHBORS = 4;
+  var MOUSE_R = 180;
+  var BASE_ALPHA = 0.28;
+  var INK = 'rgba(17,32,42,';
+  var ACCENT = 'rgba(239,136,39,';
 
   function sizeFromParent() {
-    // Mesurer la taille d'affichage réelle du canvas (après application du
-    // clamp CSS), pas celle du parent — sinon le backing-store ne matche
-    // pas la dimension rendue et les nœuds apparaissent flous.
     var rect = canvas.getBoundingClientRect();
     W = Math.max(1, Math.round(rect.width));
     H = Math.max(1, Math.round(rect.height));
@@ -42,19 +44,36 @@
   }
 
   function rebuild() {
-    var area = W * H;
-    var count = Math.max(26, Math.min(72, Math.round(area / 13000)));
-    particles = new Array(count);
+    var count = Math.floor((W * H) / 18000 * DENSITY);
+    if (count < 18) count = 18;
+    if (count > 110) count = 110;
+    points = new Array(count);
     for (var i = 0; i < count; i++) {
-      var big = Math.random() < 0.18 ? 2 : 1;
-      particles[i] = {
+      var roll = Math.random();
+      var r, sizeClass;
+      if (roll < 0.60) {
+        r = 1.3 + Math.random() * 0.7;
+        sizeClass = 0;
+      } else if (roll < 0.90) {
+        r = 2.0 + Math.random() * 1.0;
+        sizeClass = 1;
+      } else {
+        r = 3.0 + Math.random() * 1.6;
+        sizeClass = 2;
+      }
+      points[i] = {
         x: Math.random() * W,
         y: Math.random() * H,
-        vx: (Math.random() - 0.5) * 0.22,
-        vy: (Math.random() - 0.5) * 0.22,
-        r: big === 2 ? 1.9 + Math.random() * 0.7 : 0.9 + Math.random() * 0.8,
-        sz: big,
-        ph: Math.random() * Math.PI * 2,
+        vx: (Math.random() - 0.5) * 0.20,
+        vy: (Math.random() - 0.5) * 0.20,
+        r: r,
+        sizeClass: sizeClass,
+        phaseX: Math.random() * Math.PI * 2,
+        phaseY: Math.random() * Math.PI * 2,
+        ampX: 2 + Math.random() * 4,
+        ampY: 2 + Math.random() * 4,
+        freqX: 0.0003 + Math.random() * 0.0005,
+        freqY: 0.0003 + Math.random() * 0.0005,
         ox: 0,
         oy: 0
       };
@@ -66,91 +85,138 @@
     rebuild();
   }
 
-  function frame(now) {
+  function frame() {
     raf = requestAnimationFrame(frame);
-    var t = (now - t0) / 1000;
+    var now = performance.now();
     ctx.clearRect(0, 0, W, H);
 
-    var i, j, p, q;
+    var i, j, p, b;
 
-    // 1. drift + micro wobble
-    for (i = 0; i < particles.length; i++) {
-      p = particles[i];
+    // 1) drift + micro-wobble + reflet sur les bords
+    for (i = 0; i < points.length; i++) {
+      p = points[i];
       p.x += p.vx;
       p.y += p.vy;
-      if (p.x < -12) p.x = W + 12;
-      else if (p.x > W + 12) p.x = -12;
-      if (p.y < -12) p.y = H + 12;
-      else if (p.y > H + 12) p.y = -12;
-      p.ox = Math.cos(t * 0.45 + p.ph) * 3.5;
-      p.oy = Math.sin(t * 0.55 + p.ph) * 3.5;
+      if (p.x < 0 || p.x > W) p.vx *= -1;
+      if (p.y < 0 || p.y > H) p.vy *= -1;
+      if (p.x < 0) p.x = 0; else if (p.x > W) p.x = W;
+      if (p.y < 0) p.y = 0; else if (p.y > H) p.y = H;
+
+      var fx = Math.sin(now * p.freqX + p.phaseX) * p.ampX;
+      var fy = Math.cos(now * p.freqY + p.phaseY) * p.ampY;
+
+      var targetOx = fx;
+      var targetOy = fy;
+
+      if (mouse.active) {
+        var px = p.x + fx, py = p.y + fy;
+        var dx = px - mouse.x, dy = py - mouse.y;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d < MOUSE_R && d > 0.001) {
+          var rf = (1 - d / MOUSE_R) * 0.7;
+          targetOx = fx + (dx / d) * rf * 22;
+          targetOy = fy + (dy / d) * rf * 22;
+        }
+      }
+
+      p.ox = p.ox * 0.86 + targetOx * 0.14;
+      p.oy = p.oy * 0.86 + targetOy * 0.14;
     }
 
-    // 2. links to K nearest neighbours
-    for (i = 0; i < particles.length; i++) {
-      p = particles[i];
+    // 2) Liens : pour chaque point, on garde les N plus proches voisins en deçà de LINK_D
+    var drawn = {};
+    for (i = 0; i < points.length; i++) {
+      p = points[i];
       var ax = p.x + p.ox, ay = p.y + p.oy;
       var cands = [];
-      for (j = 0; j < particles.length; j++) {
+      for (j = 0; j < points.length; j++) {
         if (j === i) continue;
-        q = particles[j];
-        var bx = q.x + q.ox, by = q.y + q.oy;
-        var dx = ax - bx, dy = ay - by;
-        var d2 = dx * dx + dy * dy;
-        if (d2 < MAX_DIST2) cands.push({ d2: d2, bx: bx, by: by });
+        b = points[j];
+        var bx = b.x + b.ox, by = b.y + b.oy;
+        var ddx = ax - bx, ddy = ay - by;
+        var d2 = ddx * ddx + ddy * ddy;
+        if (d2 < LINK_D2) cands.push({ j: j, d2: d2 });
       }
-      cands.sort(function (a, b) { return a.d2 - b.d2; });
-      var limit = Math.min(MAX_LINKS, cands.length);
-      for (var k = 0; k < limit; k++) {
+      cands.sort(function (u, v) { return u.d2 - v.d2; });
+      var take = cands.length < NEIGHBORS ? cands.length : NEIGHBORS;
+      for (var k = 0; k < take; k++) {
         var c = cands[k];
-        var f = 1 - Math.sqrt(c.d2) / MAX_DIST;
-        var color = INK, alpha = f * 0.22;
-        if (mouse.active) {
-          var mx = (ax + c.bx) * 0.5 - mouse.x;
-          var my = (ay + c.by) * 0.5 - mouse.y;
-          var md = Math.sqrt(mx * mx + my * my);
-          var h = Math.max(0, 1 - md / HOVER);
-          if (h > 0.05) {
-            color = ACCENT;
-            alpha = f * 0.78 * h;
-          }
-        }
-        ctx.strokeStyle = color + alpha.toFixed(3) + ')';
-        ctx.lineWidth = 0.55 + f * 0.7;
+        var key = i < c.j ? i + '-' + c.j : c.j + '-' + i;
+        if (drawn[key]) continue;
+        drawn[key] = 1;
+        b = points[c.j];
+        var lbx = b.x + b.ox, lby = b.y + b.oy;
+        var ld = Math.sqrt(c.d2);
+        var t = 1 - ld / LINK_D;
+        var sizeBoost = (p.sizeClass + b.sizeClass) * 0.18;
+        ctx.strokeStyle = INK + (t * BASE_ALPHA).toFixed(3) + ')';
+        ctx.lineWidth = 0.6 + t * 1.2 + sizeBoost;
         ctx.beginPath();
         ctx.moveTo(ax, ay);
-        ctx.lineTo(c.bx, c.by);
+        ctx.lineTo(lbx, lby);
         ctx.stroke();
       }
     }
 
-    // 3. nodes (with optional halo on size-class 2)
-    for (i = 0; i < particles.length; i++) {
-      p = particles[i];
-      var x = p.x + p.ox, y = p.y + p.oy;
-      var nodeColor = INK + '0.46)';
-      var haloColor = null;
-      if (p.sz === 2) haloColor = ACCENT + '0.14)';
-      if (mouse.active) {
-        var ddx = x - mouse.x, ddy = y - mouse.y;
-        var dd = Math.sqrt(ddx * ddx + ddy * ddy);
-        var hh = Math.max(0, 1 - dd / HOVER);
-        if (hh > 0.05) {
-          nodeColor = ACCENT + (0.55 + hh * 0.4).toFixed(3) + ')';
-          haloColor = p.sz === 2
-            ? ACCENT + (0.18 + hh * 0.22).toFixed(3) + ')'
-            : ACCENT + (hh * 0.18).toFixed(3) + ')';
+    // 3) Spotlight orange autour de la souris
+    if (mouse.active) {
+      var mouseR2 = MOUSE_R * MOUSE_R * 1.4;
+      for (i = 0; i < points.length; i++) {
+        p = points[i];
+        var sax = p.x + p.ox, say = p.y + p.oy;
+        var mdx = sax - mouse.x, mdy = say - mouse.y;
+        if (mdx * mdx + mdy * mdy > mouseR2) continue;
+        for (j = i + 1; j < points.length; j++) {
+          b = points[j];
+          var sbx = b.x + b.ox, sby = b.y + b.oy;
+          var sdx = sax - sbx, sdy = say - sby;
+          var sd2 = sdx * sdx + sdy * sdy;
+          if (sd2 < LINK_D2) {
+            var sd = Math.sqrt(sd2);
+            var st = 1 - sd / LINK_D;
+            var md = Math.sqrt(mdx * mdx + mdy * mdy);
+            var mt = Math.max(0, 1 - md / MOUSE_R);
+            var sBoost = (p.sizeClass + b.sizeClass) * 0.25;
+            ctx.strokeStyle = ACCENT + (st * mt * 0.85).toFixed(3) + ')';
+            ctx.lineWidth = 1.0 + st * 1.4 + sBoost;
+            ctx.beginPath();
+            ctx.moveTo(sax, say);
+            ctx.lineTo(sbx, sby);
+            ctx.stroke();
+          }
         }
       }
-      if (haloColor) {
-        ctx.fillStyle = haloColor;
+    }
+
+    // 4) Points + halo doux pour les hubs (sizeClass 2)
+    for (i = 0; i < points.length; i++) {
+      p = points[i];
+      var nx = p.x + p.ox, ny = p.y + p.oy;
+      var fill, halo = null;
+      if (mouse.active) {
+        var ndx = nx - mouse.x, ndy = ny - mouse.y;
+        var nmd = Math.sqrt(ndx * ndx + ndy * ndy);
+        var nmt = Math.max(0, 1 - nmd / MOUSE_R);
+        if (nmt > 0.05) {
+          fill = ACCENT + (0.65 + nmt * 0.35).toFixed(3) + ')';
+          if (p.sizeClass === 2) halo = ACCENT + (0.18 + nmt * 0.2).toFixed(3) + ')';
+        } else {
+          fill = INK + '0.46)';
+          if (p.sizeClass === 2) halo = ACCENT + '0.14)';
+        }
+      } else {
+        fill = INK + '0.42)';
+        if (p.sizeClass === 2) halo = ACCENT + '0.12)';
+      }
+      if (halo) {
+        ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.arc(x, y, p.r * 2.6, 0, Math.PI * 2);
+        ctx.arc(nx, ny, p.r * 2.4, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = nodeColor;
+      ctx.fillStyle = fill;
       ctx.beginPath();
-      ctx.arc(x, y, p.r, 0, Math.PI * 2);
+      ctx.arc(nx, ny, p.r, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -161,7 +227,11 @@
     mouse.y = e.clientY - rect.top;
     mouse.active = true;
   }
-  function onLeave() { mouse.active = false; }
+  function onLeave() {
+    mouse.active = false;
+    mouse.x = -9999;
+    mouse.y = -9999;
+  }
   function onTouchMove(e) {
     if (!e.touches || !e.touches.length) return;
     var rect = canvas.getBoundingClientRect();
@@ -169,22 +239,20 @@
     mouse.y = e.touches[0].clientY - rect.top;
     mouse.active = true;
   }
-  function onTouchEnd() { mouse.active = false; }
+  function onTouchEnd() { onLeave(); }
 
   function start() {
     resize();
     if (reduce) {
-      // Static frame only — draw once and stop.
-      requestAnimationFrame(function (n) { frame(n); cancelAnimationFrame(raf); });
+      requestAnimationFrame(function () { frame(); cancelAnimationFrame(raf); });
       return;
     }
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(frame);
   }
 
-  var ro;
   if (window.ResizeObserver) {
-    ro = new ResizeObserver(function () { resize(); });
+    var ro = new ResizeObserver(function () { resize(); });
     ro.observe(canvas);
   } else {
     window.addEventListener('resize', resize);
@@ -199,7 +267,6 @@
     if (document.hidden) {
       cancelAnimationFrame(raf);
     } else if (!reduce) {
-      t0 = performance.now();
       raf = requestAnimationFrame(frame);
     }
   });

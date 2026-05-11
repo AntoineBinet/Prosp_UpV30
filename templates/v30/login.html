@@ -129,7 +129,7 @@
       position: relative;
       height: var(--marquise-h);
       border-bottom: 1px solid var(--hair-warm);
-      background: var(--cream-2);
+      background: var(--cream);
       overflow: hidden;
       display: flex; align-items: center;
     }
@@ -168,8 +168,8 @@
     .mq-marquise__fade {
       position: absolute; top: 0; bottom: 0; width: 120px; pointer-events: none;
     }
-    .mq-marquise__fade--l { left: 0;  background: linear-gradient(90deg,  var(--cream-2), transparent); }
-    .mq-marquise__fade--r { right: 0; background: linear-gradient(-90deg, var(--cream-2), transparent); }
+    .mq-marquise__fade--l { left: 0;  background: linear-gradient(90deg,  var(--cream), transparent); }
+    .mq-marquise__fade--r { right: 0; background: linear-gradient(-90deg, var(--cream), transparent); }
 
     .mq-body {
       display: grid;
@@ -332,7 +332,7 @@
     @keyframes mq-spin { to { transform: rotate(360deg); } }
 
     .mq-card__foot {
-      display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+      display: flex; align-items: baseline; justify-content: flex-end; gap: 14px;
       font-family: var(--font-sans); font-size: 11.5px; color: var(--ink-500);
     }
     .mq-card__foot a {
@@ -496,7 +496,6 @@
         </button>
 
         <div class="mq-card__foot">
-          <span>SSO Up Technologies</span>
           <a href="mailto:contact@up-technologies.fr?subject=Demande%20d%27acc%C3%A8s%20Prosp%27Up">Demander un accès</a>
         </div>
       </form>
@@ -505,7 +504,7 @@
 
   <footer class="mq-foot">
     <span>prospup.work · v{{ app_version or '30.0' }}</span>
-    <span class="mq-foot__long">© <span id="mqYear">2026</span> Up Technologies · OVHcloud · Roubaix</span>
+    <span class="mq-foot__long">© <span id="mqYear">2026</span> Antoine Binet · Up-Technologies · France</span>
   </footer>
 </div>
 
