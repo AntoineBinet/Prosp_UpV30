@@ -2,6 +2,36 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.42] — 2026-05-11 · Login · Constellation nette + page sans scroll
+
+Polissage de la refonte 32.41 :
+
+- **Constellation plus nette** : le canvas mesurait la bbox de son parent
+  (`.mq-editorial`) alors qu'il était re-dimensionné par un `clamp()` CSS,
+  d'où un backing-store qui ne matchait pas la taille rendue → nœuds flous
+  sur les viewports où parent < clamp. Bascule sur
+  `canvas.getBoundingClientRect()` (la taille réellement rendue) et
+  `ResizeObserver.observe(canvas)` au lieu du parent.
+- **Plus de scroll sur /login et /v30/login** (desktop ≥ 900 px) :
+  `html, body { overflow: hidden }`, `.mq { height: 100dvh; overflow: hidden }`.
+  Les valeurs typo et padding ont été réduites pour que tout le contenu
+  tienne dans 100 dvh sans clip :
+  - `--topbar-h` 48 → 44 px, `--marquise-h` 60 → 52 px, `--form-w` 560 → 520 px.
+  - `.mq-title` `clamp(40, 7vw, 78)` → `clamp(30, 5vw, 58)`, line-height
+    0.98 → 1.0.
+  - `.mq-sub` 20 → 16 px, margin-top 32 → 20 px, max-width 520 → 480.
+  - `.mq-eyebrow` 11 → 10.5 px, margin-bottom 18 → 12.
+  - `.mq-card` padding 40 44 → 28 32, `.mq-form gap` 26 → 18,
+    `.mq-submit` height 48 → 44.
+  - `.mq-body` padding `clamp(36, 6vw, 72)` → `clamp(16, 3vh, 36)` (vh pour
+    suivre la hauteur disponible).
+  - `.mq-foot` padding-bottom 20 → 10.
+- **Mobile (< 900 px) conserve le scroll naturel** : `html, body { overflow:
+  auto; height: auto }` + `.mq { height: auto; min-height: 100vh }` réactivé
+  dans la media query, pour garder la version 1-colonne empilée.
+- **Constellation re-dimensionnée** : `width/height` clamp 420-760 → 340-600,
+  recalée sur la nouvelle taille de la colonne éditorial.
+
 ## [32.41] — 2026-05-11 · Login · Constellation animée derrière l'éditorial
 
 Ajoute une animation discrète de **constellation** (canvas) derrière le titre

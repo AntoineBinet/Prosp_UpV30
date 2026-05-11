@@ -30,8 +30,10 @@
   var HOVER = 140;
 
   function sizeFromParent() {
-    var host = canvas.parentElement || canvas;
-    var rect = host.getBoundingClientRect();
+    // Mesurer la taille d'affichage réelle du canvas (après application du
+    // clamp CSS), pas celle du parent — sinon le backing-store ne matche
+    // pas la dimension rendue et les nœuds apparaissent flous.
+    var rect = canvas.getBoundingClientRect();
     W = Math.max(1, Math.round(rect.width));
     H = Math.max(1, Math.round(rect.height));
     canvas.width = Math.round(W * DPR);
@@ -183,7 +185,7 @@
   var ro;
   if (window.ResizeObserver) {
     ro = new ResizeObserver(function () { resize(); });
-    ro.observe(canvas.parentElement || canvas);
+    ro.observe(canvas);
   } else {
     window.addEventListener('resize', resize);
   }

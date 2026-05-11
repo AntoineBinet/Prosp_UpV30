@@ -26,7 +26,7 @@
    ============================================================ */
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; height: 100%; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 
 :root {
   /* Cream / papier (alignés sur tokens.css → --cream, --hair-warm, …) */
@@ -59,10 +59,10 @@ html, body { margin: 0; padding: 0; height: 100%; }
 
   --ease:         cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  --topbar-h:     48px;
-  --marquise-h:   60px;
+  --topbar-h:     44px;
+  --marquise-h:   52px;
   --pad-x:        clamp(20px, 4vw, 56px);
-  --form-w:       560px;
+  --form-w:       520px;
 }
 
 body {
@@ -100,9 +100,11 @@ input, select, textarea { font: inherit; color: inherit; }
 .mq {
   position: relative;
   z-index: 2;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-rows: var(--topbar-h) var(--marquise-h) 1fr auto;
+  overflow: hidden;
 }
 
 /* ─────────── Topbar ─────────── */
@@ -214,27 +216,29 @@ input, select, textarea { font: inherit; color: inherit; }
   display: grid;
   grid-template-columns: 1fr var(--form-w);
   align-items: center;
-  gap: 48px;
-  padding: clamp(36px, 6vw, 72px) var(--pad-x);
+  gap: 36px;
+  padding: clamp(16px, 3vh, 36px) var(--pad-x);
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Constellation derrière le titre — canvas absolu, masque radial fade */
-.mq-editorial { position: relative; }
+.mq-editorial { position: relative; min-width: 0; }
 .mq-editorial > * { position: relative; z-index: 2; }
 .mq-constellation {
   position: absolute;
   top: 50%; left: 50%;
-  width: clamp(420px, 60vw, 760px);
-  height: clamp(420px, 60vw, 760px);
+  width: clamp(340px, 46vw, 600px);
+  height: clamp(340px, 46vw, 600px);
   transform: translate(-50%, -50%);
   z-index: 1;
   pointer-events: none;
-  opacity: 0.65;
+  opacity: 0.62;
   -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 30%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0) 78%);
           mask-image: radial-gradient(circle at 50% 50%, #000 30%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0) 78%);
 }
 @media (max-width: 900px) {
-  .mq-constellation { opacity: 0.55; width: 92vw; height: 92vw; }
+  .mq-constellation { opacity: 0.55; width: 88vw; height: 88vw; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mq-constellation { opacity: 0.45; }
@@ -243,21 +247,21 @@ input, select, textarea { font: inherit; color: inherit; }
 /* Texte éditorial (colonne gauche) */
 .mq-eyebrow {
   display: inline-flex; align-items: center; gap: 10px;
-  font-family: var(--font-mono); font-size: 11px; font-weight: 400;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 400;
   letter-spacing: 0.16em; text-transform: uppercase;
   color: var(--ink-500);
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 .mq-eyebrow::before {
-  content: ""; display: inline-block; width: 32px; height: 1px;
+  content: ""; display: inline-block; width: 28px; height: 1px;
   background: var(--ink-950);
 }
 .mq-title {
   font-family: var(--font-serif); font-style: italic; font-weight: 400;
-  font-size: clamp(40px, 7vw, 78px);
-  line-height: 0.98; letter-spacing: -0.022em;
+  font-size: clamp(30px, 5vw, 58px);
+  line-height: 1.0; letter-spacing: -0.022em;
   color: var(--ink-950);
-  margin: 0; max-width: 720px;
+  margin: 0; max-width: 640px;
 }
 .mq-title__hl { position: relative; white-space: nowrap; }
 .mq-title__hl-svg {
@@ -275,16 +279,16 @@ input, select, textarea { font: inherit; color: inherit; }
 @keyframes mq-draw { to { stroke-dashoffset: 0; } }
 
 .mq-sub {
-  margin-top: 32px; max-width: 520px;
+  margin-top: 20px; max-width: 480px;
   font-family: var(--font-serif); font-style: italic; font-weight: 400;
-  font-size: 20px; line-height: 1.45;
+  font-size: 16px; line-height: 1.42;
   color: var(--ink-700);
 }
 
 /* Formulaire (colonne droite) */
 .mq-card {
   position: relative;
-  padding: 40px 44px;
+  padding: 28px 32px;
   background: var(--cream);
   border: 1px solid var(--hair-warm);
   box-shadow:
@@ -301,7 +305,7 @@ input, select, textarea { font: inherit; color: inherit; }
   color: var(--ink-500);
 }
 
-.mq-form { display: flex; flex-direction: column; gap: 26px; }
+.mq-form { display: flex; flex-direction: column; gap: 18px; }
 
 .mq-field { display: flex; flex-direction: column; gap: 6px; }
 .mq-field__head {
@@ -359,9 +363,9 @@ input[type="password"].mq-input::placeholder {
 }
 
 .mq-submit {
-  margin-top: 8px;
+  margin-top: 4px;
   display: inline-flex; align-items: center; justify-content: space-between;
-  width: 100%; height: 48px;
+  width: 100%; height: 44px;
   padding: 0 18px;
   background: var(--ink-950); color: var(--cream);
   border: 0; border-radius: 0;
@@ -417,7 +421,7 @@ body.is-loading .mq-submit .mq-submit__kbd { display: none; }
 /* ─────────── Footer ─────────── */
 .mq-foot {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 32px 20px;
+  padding: 0 32px 10px;
   font-family: var(--font-mono); font-size: 10.5px;
   letter-spacing: 0.06em;
   color: var(--ink-500);
@@ -425,28 +429,31 @@ body.is-loading .mq-submit .mq-submit__kbd { display: none; }
 
 /* ─────────── Responsive ─────────── */
 @media (max-width: 1100px) {
-  :root { --form-w: 480px; }
-  .mq-title { font-size: clamp(40px, 6vw, 64px); }
+  :root { --form-w: 460px; }
+  .mq-title { font-size: clamp(30px, 4.6vw, 50px); }
 }
 @media (max-width: 900px) {
   :root { --form-w: 100%; --pad-x: 24px; }
+  html, body { overflow: auto; height: auto; }
+  .mq { height: auto; min-height: 100vh; overflow: visible; }
   .mq-body {
     grid-template-columns: 1fr;
-    gap: 36px;
-    padding: 36px var(--pad-x);
+    gap: 32px;
+    padding: 28px var(--pad-x);
+    overflow: visible;
   }
-  .mq-card { padding: 32px 28px; }
-  .mq-title { font-size: clamp(36px, 6.5vw, 52px); }
-  .mq-sub { font-size: 17px; }
+  .mq-card { padding: 28px 24px; }
+  .mq-title { font-size: clamp(32px, 6vw, 48px); }
+  .mq-sub { font-size: 16px; }
   .mq-top { padding: 0 var(--pad-x); }
   .mq-divider { display: none; }
-  .mq-foot { padding: 0 var(--pad-x) 16px; flex-wrap: wrap; gap: 6px; }
+  .mq-foot { padding: 0 var(--pad-x) 14px; flex-wrap: wrap; gap: 6px; }
 }
 @media (max-width: 600px) {
-  :root { --marquise-h: 52px; --topbar-h: 44px; }
-  .mq-title { font-size: 36px; line-height: 1.0; }
-  .mq-sub { font-size: 16px; }
-  .mq-card { padding: 28px 22px; }
+  :root { --marquise-h: 48px; --topbar-h: 40px; }
+  .mq-title { font-size: 32px; line-height: 1.0; }
+  .mq-sub { font-size: 15px; }
+  .mq-card { padding: 24px 20px; }
   .mq-card__legend { left: 20px; }
   .mq-grain, .mq-paper-grid { display: none; } /* perfs */
   .mq-live { display: none; }
