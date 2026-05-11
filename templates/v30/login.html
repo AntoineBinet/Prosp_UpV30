@@ -202,6 +202,22 @@
     .mq-editorial {
       position: relative; z-index: 1; min-width: 0;
     }
+    .mq-editorial::before {
+      content: "";
+      position: absolute;
+      inset: -32px -72px;
+      background: radial-gradient(
+        ellipse 78% 82% at 38% 52%,
+        var(--cream) 0%,
+        color-mix(in srgb, var(--cream) 88%, transparent) 35%,
+        color-mix(in srgb, var(--cream) 55%, transparent) 65%,
+        transparent 100%
+      );
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      z-index: -1;
+      pointer-events: none;
+    }
 
     .mq-eyebrow {
       display: inline-flex; align-items: center; gap: 10px;
@@ -450,7 +466,18 @@
         d&rsquo;une journée<br>
         d&rsquo;équipe, en
         <span class="mq-title__hl">mouvement<svg class="mq-title__hl-svg" viewBox="0 0 290 14" aria-hidden="true">
-          <path class="mq-title__hl-path" d="M 4 8 Q 80 2, 145 6 T 286 5"></path>
+          <path class="mq-title__hl-path" d="M 4 8 Q 80 2, 145 6 T 286 5">
+            <animate attributeName="d"
+                     values="M 4 8 Q 80 2, 145 6 T 286 5;
+                             M 4 6 Q 80 10, 145 4 T 286 8;
+                             M 4 10 Q 80 4, 145 8 T 286 4;
+                             M 4 8 Q 80 2, 145 6 T 286 5"
+                     dur="9s"
+                     begin="1.8s"
+                     repeatCount="indefinite"
+                     calcMode="spline"
+                     keySplines="0.45 0 0.55 1; 0.45 0 0.55 1; 0.45 0 0.55 1"/>
+          </path>
         </svg></span>.
       </h1>
       <p class="mq-sub">
@@ -574,14 +601,20 @@
       return Object.keys(it).every(function (k) { return !forbidden.test(k); });
     });
   }
+  var lastHash = JSON.stringify(FALLBACK);
   render(FALLBACK);
   function poll() {
     fetch('/api/tick', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) { if (Array.isArray(data) && data.length && isClean(data)) render(data); })
+      .then(function (data) {
+        if (Array.isArray(data) && data.length && isClean(data)) {
+          var hash = JSON.stringify(data);
+          if (hash !== lastHash) { lastHash = hash; render(data); }
+        }
+      })
       .catch(function () {});
   }
-  poll(); setInterval(poll, 10 * 1000);
+  poll(); setInterval(poll, 60 * 1000);
 })();
 
 (function () {
