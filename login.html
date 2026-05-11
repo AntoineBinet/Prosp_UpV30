@@ -116,11 +116,6 @@ input, select, textarea { font: inherit; color: inherit; }
 .mq-brand {
   display: inline-flex; align-items: baseline; gap: 8px;
 }
-.mq-brand__mark {
-  font-family: var(--font-serif); font-style: italic; font-weight: 400;
-  font-size: 18px; line-height: 1; color: var(--ink-950);
-  letter-spacing: -0.02em;
-}
 .mq-brand__name {
   font-family: var(--font-sans); font-size: 12.5px; font-weight: 600;
   color: var(--ink-950); letter-spacing: -0.005em;
@@ -509,7 +504,6 @@ body.is-loading .mq-submit .mq-submit__kbd { display: none; }
   <!-- Topbar -->
   <header class="mq-top">
     <a class="mq-brand" href="/login" aria-label="Prosp'Up — Accueil">
-      <span class="mq-brand__mark" aria-hidden="true">P</span>
       <span class="mq-brand__name">Prosp&rsquo;Up</span>
     </a>
     <span class="mq-divider" aria-hidden="true"></span>
@@ -754,7 +748,6 @@ body.is-loading .mq-submit .mq-submit__kbd { display: none; }
         var optOut = false;
         try { optOut = localStorage.getItem('prospup_ui_mode') === 'v29'; } catch (_) {}
         var target = optOut ? '/dashboard' : '/v30/dashboard';
-        if (data.must_change_password) target = '/parametres?change_password=1';
         window.location.href = target;
       } else {
         errText.textContent = (data.error || 'Identifiant ou mot de passe incorrect.');
