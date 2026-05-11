@@ -160,12 +160,12 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .mq-marquise__track {
   display: inline-flex; align-items: stretch; height: 100%;
-  animation: mq-marquee 60s linear infinite;
+  /* Translation gérée par JS (requestAnimationFrame) — voir bloc script en
+     bas de page. transform: translate3d() force une couche GPU dédiée
+     pour un défilement linéaire sans saccade. */
+  transform: translate3d(0, 0, 0);
   will-change: transform;
-}
-@keyframes mq-marquee {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
+  backface-visibility: hidden;
 }
 .mq-tick {
   display: inline-flex; align-items: center; gap: 18px;
@@ -245,23 +245,29 @@ input, select, textarea { font: inherit; color: inherit; }
   align-self: stretch;
   display: flex; flex-direction: column; justify-content: center;
 }
-/* Halo crème flouté derrière le titre éditorial — protège la lisibilité
-   du texte serif italique en estompant les points du nuage qui passent
-   dans cette zone (backdrop-filter blur + dégradé radial pour des bords
-   doux, sans rectangle visible). */
+/* Halo crème flouté localisé en ellipse fondue autour du texte éditorial.
+   Le mask-image fait disparaître à la fois le tint crème ET le
+   backdrop-filter blur sur les bords — pas de rectangle visible, juste
+   une zone douce tout contre le titre. */
 .mq-editorial::before {
   content: "";
   position: absolute;
-  inset: -32px -72px;
-  background: radial-gradient(
-    ellipse 78% 82% at 38% 52%,
-    var(--cream) 0%,
-    color-mix(in srgb, var(--cream) 88%, transparent) 35%,
-    color-mix(in srgb, var(--cream) 55%, transparent) 65%,
-    transparent 100%
+  inset: -8px -16px;
+  background: color-mix(in srgb, var(--cream) 45%, transparent);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  -webkit-mask-image: radial-gradient(
+    ellipse 52% 68% at 32% 50%,
+    #000 18%,
+    rgba(0, 0, 0, 0.55) 50%,
+    transparent 92%
   );
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+          mask-image: radial-gradient(
+    ellipse 52% 68% at 32% 50%,
+    #000 18%,
+    rgba(0, 0, 0, 0.55) 50%,
+    transparent 92%
+  );
   z-index: -1;
   pointer-events: none;
 }
@@ -736,15 +742,50 @@ body.is-loading .mq-submit .mq-submit__kbd { display: none; }
     });
   }
 
-  /* Hash du dernier set rendu : évite de reconstruire le DOM (et donc de
-     RESET l'animation CSS) à chaque poll quand les données n'ont pas
-     bougé — c'était la cause du « saccade » toutes les 10 s. */
   var lastHash = JSON.stringify(FALLBACK);
   render(FALLBACK);
 
-  /* Tentative de récupération depuis /api/tick (anonymisé). En cas d'erreur,
-     le fallback reste affiché. Re-render UNIQUEMENT si la charge utile
-     a vraiment changé. */
+  /* ─── Défilement piloté par requestAnimationFrame ───
+     Précédemment géré par CSS animation linéaire 60s ; chaque re-render
+     ou changement de focus/onglet pouvait la reseter et créer une
+     impression de saccade. On contrôle ici la translation à la frame
+     près, en pixels/seconde, sur la base du delta de temps réel — c'est
+     parfaitement linéaire et résistant aux interruptions JS. */
+  var SPEED = 60; // pixels par seconde
+  var offset = 0;
+  var prev = 0;
+  var halfWidth = 0;
+  var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  function measure() {
+    halfWidth = (track.scrollWidth / 2) || 0;
+  }
+  measure();
+
+  function step(now) {
+    if (prev && halfWidth > 0) {
+      var dt = (now - prev) / 1000;
+      // Bornage du delta : si l'onglet a été en arrière-plan, on n'avale
+      // pas un grand saut d'un coup.
+      if (dt > 0.25) dt = 0.25;
+      offset -= SPEED * dt;
+      if (offset <= -halfWidth) offset += halfWidth;
+      track.style.transform = 'translate3d(' + offset.toFixed(2) + 'px, 0, 0)';
+    }
+    prev = now;
+    raf = requestAnimationFrame(step);
+  }
+  var raf = 0;
+  if (!reduced) raf = requestAnimationFrame(step);
+
+  window.addEventListener('resize', measure);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { prev = 0; }
+  });
+
+  /* Tentative de récupération depuis /api/tick (anonymisé). Re-render
+     UNIQUEMENT si la charge utile a vraiment changé (pour ne pas
+     reconstruire le DOM inutilement). */
   function poll() {
     fetch('/api/tick', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
@@ -754,6 +795,8 @@ body.is-loading .mq-submit .mq-submit__kbd { display: none; }
           if (hash !== lastHash) {
             lastHash = hash;
             render(data);
+            measure();
+            while (halfWidth > 0 && offset <= -halfWidth) offset += halfWidth;
           }
         }
       })
