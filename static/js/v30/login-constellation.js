@@ -251,11 +251,25 @@
     raf = requestAnimationFrame(frame);
   }
 
-  if (window.ResizeObserver) {
-    var ro = new ResizeObserver(function () { resize(); });
-    ro.observe(canvas);
-  } else {
-    window.addEventListener('resize', resize);
+  /* Pas de ResizeObserver sur le canvas : `canvas.width = …` change la
+     dimension intrinsèque et peut renvoyer un event de redimensionnement,
+     ce qui crée une boucle (la page « se mange » et le formulaire passe
+     sous le canvas). On reprend la technique du PointCloud de
+     SiteEntreprise/marienour.work : un simple écouteur `resize` sur la
+     fenêtre, suffisant car la taille du canvas est dictée par le CSS
+     (`inset: 0 ; width: 100% ; height: 100%`) du parent stretché. */
+  var resizeTimer = 0;
+  function onWindowResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resize, 80);
+  }
+  window.addEventListener('resize', onWindowResize);
+  if (window.ResizeObserver && canvas.parentElement) {
+    /* On observe le parent (mq-editorial) plutôt que le canvas, pour
+       attraper les recalages de layout (chargement de la police serif,
+       reflow après le ticker) sans risque de boucle. */
+    var ro = new ResizeObserver(onWindowResize);
+    ro.observe(canvas.parentElement);
   }
 
   window.addEventListener('mousemove', onMove, { passive: true });
