@@ -177,6 +177,27 @@
       padding: clamp(36px, 6vw, 72px) var(--pad-x);
     }
 
+    .mq-editorial { position: relative; }
+    .mq-editorial > * { position: relative; z-index: 2; }
+    .mq-constellation {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: clamp(420px, 60vw, 760px);
+      height: clamp(420px, 60vw, 760px);
+      transform: translate(-50%, -50%);
+      z-index: 1;
+      pointer-events: none;
+      opacity: 0.65;
+      -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 30%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0) 78%);
+              mask-image: radial-gradient(circle at 50% 50%, #000 30%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0) 78%);
+    }
+    @media (max-width: 900px) {
+      .mq-constellation { opacity: 0.55; width: 92vw; height: 92vw; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .mq-constellation { opacity: 0.45; }
+    }
+
     .mq-eyebrow {
       display: inline-flex; align-items: center; gap: 10px;
       font-family: var(--font-mono); font-size: 11px;
@@ -413,6 +434,7 @@
 
   <main class="mq-body">
     <section class="mq-editorial">
+      <canvas class="mq-constellation" aria-hidden="true"></canvas>
       <p class="mq-eyebrow">La marche du jour</p>
       <h1 class="mq-title">
         Le pipeline<br>
@@ -481,6 +503,7 @@
   </footer>
 </div>
 
+<script defer src="/static/js/v30/login-constellation.js"></script>
 <script>
 (function () {
   var jours = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];

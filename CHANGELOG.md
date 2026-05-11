@@ -2,6 +2,30 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.41] — 2026-05-11 · Login · Constellation animée derrière l'éditorial
+
+Ajoute une animation discrète de **constellation** (canvas) derrière le titre
+de `/login` et `/v30/login`, inspirée du fond hero du site
+[Up Technologies — Refonte 2026](https://marienour.work/site-entreprise/) :
+
+- **Canvas plein-rendu vanille** : `static/js/v30/login-constellation.js`.
+  Nœuds drift-and-wrap avec micro-wobble sinusoïdal, ~30 à 70 particules selon
+  la taille du conteneur. Chaque nœud est relié à ses 3 plus proches voisins
+  par des liens hairline (alpha proportionnel à la distance).
+- **Surbrillance accent** au passage du curseur : nœuds et liens proches de la
+  souris virent à l'orange `rgba(239,136,39,...)` — exactement la signature du
+  hero d'Up Technologies. Tracking via `mousemove` window + fallback tactile.
+- **Halo circulaire fade** : masque `radial-gradient` (`-webkit-mask-image` +
+  `mask-image`), 30 % opaque au centre, 0 % à 78 % du rayon. Ne déborde pas
+  sur la colonne formulaire — reste un fond design derrière le H1.
+- **Couleurs alignées** sur la palette login (encre `rgba(17,32,42,…)` pour
+  les nœuds inactifs, accent orange UP Technologies pour le hover).
+- **Sobre par défaut** : `pointer-events: none`, `aria-hidden`, `z-index: 1`
+  sous le texte (qui passe en `z-index: 2`). `prefers-reduced-motion: reduce`
+  → dessine une frame statique puis stoppe le RAF.
+- **Pause sur onglet caché** via `visibilitychange` ; `ResizeObserver` pour
+  re-build proprement les particules quand la fenêtre change.
+
 ## [32.40] — 2026-05-11 · Dashboard · Fix compteurs RDV + accès rapide besoins/EC
 
 Trois corrections sur `/v30/dashboard` :
