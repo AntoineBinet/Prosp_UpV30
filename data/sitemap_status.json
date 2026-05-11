@@ -1,13 +1,13 @@
 {
-  "ts": "2026-05-09T04:21:38",
+  "ts": "2026-05-11T15:03:14",
   "base": "http://127.0.0.1:8765",
   "pages": {
     "dashboard": {
       "url": "/v30/dashboard",
       "method": "GET",
       "status": 200,
-      "ms": 97.1,
-      "size": 61469,
+      "ms": 8.9,
+      "size": 64000,
       "ok": true,
       "label": "ok"
     },
@@ -15,8 +15,8 @@
       "url": "/v30/focus",
       "method": "GET",
       "status": 200,
-      "ms": 27.9,
-      "size": 47930,
+      "ms": 13.3,
+      "size": 46100,
       "ok": true,
       "label": "ok"
     },
@@ -24,8 +24,8 @@
       "url": "/v30/calendrier",
       "method": "GET",
       "status": 200,
-      "ms": 29.2,
-      "size": 46929,
+      "ms": 17.3,
+      "size": 45085,
       "ok": true,
       "label": "ok"
     },
@@ -33,7 +33,7 @@
       "url": "/v30/stats",
       "method": "GET",
       "status": 200,
-      "ms": 43.8,
+      "ms": 23.3,
       "size": 64000,
       "ok": true,
       "label": "ok"
@@ -42,7 +42,7 @@
       "url": "/v30/prospects",
       "method": "GET",
       "status": 200,
-      "ms": 37.4,
+      "ms": 9.0,
       "size": 64000,
       "ok": true,
       "label": "ok"
@@ -51,7 +51,7 @@
       "url": "/v30/entreprises",
       "method": "GET",
       "status": 200,
-      "ms": 26.2,
+      "ms": 22.8,
       "size": 64000,
       "ok": true,
       "label": "ok"
@@ -60,7 +60,7 @@
       "url": "/v30/sourcing",
       "method": "GET",
       "status": 200,
-      "ms": 37.0,
+      "ms": 21.3,
       "size": 64000,
       "ok": true,
       "label": "ok"
@@ -69,8 +69,8 @@
       "url": "/v30/push",
       "method": "GET",
       "status": 200,
-      "ms": 28.3,
-      "size": 50554,
+      "ms": 14.8,
+      "size": 48697,
       "ok": true,
       "label": "ok"
     },
@@ -78,8 +78,8 @@
       "url": "/v30/carte",
       "method": "GET",
       "status": 200,
-      "ms": 21.2,
-      "size": 43492,
+      "ms": 10.9,
+      "size": 41651,
       "ok": true,
       "label": "ok"
     },
@@ -87,8 +87,8 @@
       "url": "/v30/transcription",
       "method": "GET",
       "status": 200,
-      "ms": 34.9,
-      "size": 53017,
+      "ms": 14.9,
+      "size": 51171,
       "ok": true,
       "label": "ok"
     },
@@ -96,8 +96,8 @@
       "url": "/v30/besoins",
       "method": "GET",
       "status": 200,
-      "ms": 30.6,
-      "size": 40690,
+      "ms": 9.6,
+      "size": 38858,
       "ok": true,
       "label": "ok"
     },
@@ -105,8 +105,8 @@
       "url": "/v30/collab",
       "method": "GET",
       "status": 200,
-      "ms": 34.0,
-      "size": 43842,
+      "ms": 12.8,
+      "size": 41989,
       "ok": true,
       "label": "ok"
     },
@@ -114,8 +114,8 @@
       "url": "/v30/duplicates",
       "method": "GET",
       "status": 200,
-      "ms": 29.6,
-      "size": 39709,
+      "ms": 10.4,
+      "size": 37873,
       "ok": true,
       "label": "ok"
     },
@@ -123,8 +123,8 @@
       "url": "/v30/dc",
       "method": "GET",
       "status": 200,
-      "ms": 36.9,
-      "size": 46751,
+      "ms": 9.9,
+      "size": 44830,
       "ok": true,
       "label": "ok"
     },
@@ -132,8 +132,8 @@
       "url": "/v30/users",
       "method": "GET",
       "status": 200,
-      "ms": 26.9,
-      "size": 40924,
+      "ms": 7.0,
+      "size": 38992,
       "ok": true,
       "label": "ok"
     },
@@ -141,8 +141,8 @@
       "url": "/v30/snapshots",
       "method": "GET",
       "status": 200,
-      "ms": 24.9,
-      "size": 35903,
+      "ms": 9.3,
+      "size": 33977,
       "ok": true,
       "label": "ok"
     },
@@ -150,8 +150,8 @@
       "url": "/v30/activity",
       "method": "GET",
       "status": 200,
-      "ms": 23.0,
-      "size": 36702,
+      "ms": 7.0,
+      "size": 34779,
       "ok": true,
       "label": "ok"
     },
@@ -159,8 +159,8 @@
       "url": "/v30/metiers",
       "method": "GET",
       "status": 200,
-      "ms": 26.9,
-      "size": 40374,
+      "ms": 7.3,
+      "size": 38542,
       "ok": true,
       "label": "ok"
     },
@@ -168,7 +168,7 @@
       "url": "/v30/help",
       "method": "GET",
       "status": 200,
-      "ms": 47.5,
+      "ms": 27.2,
       "size": 64000,
       "ok": true,
       "label": "ok"
@@ -177,8 +177,8 @@
       "url": "/v30/mode-prosp",
       "method": "GET",
       "status": 200,
-      "ms": 16.6,
-      "size": 10022,
+      "ms": 8.1,
+      "size": 9993,
       "ok": true,
       "label": "ok"
     },
@@ -186,7 +186,7 @@
       "url": "/v30/parametres",
       "method": "GET",
       "status": 200,
-      "ms": 38.9,
+      "ms": 8.4,
       "size": 64000,
       "ok": true,
       "label": "ok"
@@ -195,7 +195,7 @@
       "url": "/v30/sitemap",
       "method": "GET",
       "status": 200,
-      "ms": 24.7,
+      "ms": 13.0,
       "size": 64000,
       "ok": true,
       "label": "ok"
@@ -204,8 +204,8 @@
       "url": "/v30/prospects/archives",
       "method": "GET",
       "status": 200,
-      "ms": 21.8,
-      "size": 41751,
+      "ms": 10.9,
+      "size": 39908,
       "ok": true,
       "label": "ok"
     }
@@ -215,7 +215,7 @@
       "url": "/api/auth/me",
       "method": "GET",
       "status": 200,
-      "ms": 9.8,
+      "ms": 4.0,
       "size": 253,
       "ok": true,
       "label": "ok"
@@ -224,8 +224,8 @@
       "url": "/api/health",
       "method": "GET",
       "status": 200,
-      "ms": 14.1,
-      "size": 298,
+      "ms": 5.0,
+      "size": 237,
       "ok": true,
       "label": "ok"
     },
@@ -233,8 +233,8 @@
       "url": "/api/app-version",
       "method": "GET",
       "status": 200,
-      "ms": 234.2,
-      "size": 186,
+      "ms": 9.4,
+      "size": 194,
       "ok": true,
       "label": "ok"
     },
@@ -242,7 +242,7 @@
       "url": "/api/settings",
       "method": "GET",
       "status": 200,
-      "ms": 10.8,
+      "ms": 4.7,
       "size": 74,
       "ok": true,
       "label": "ok"
@@ -251,7 +251,7 @@
       "url": "/api/users",
       "method": "GET",
       "status": 200,
-      "ms": 12.4,
+      "ms": 4.9,
       "size": 304,
       "ok": true,
       "label": "ok"
@@ -260,7 +260,7 @@
       "url": "/api/users/for-push",
       "method": "GET",
       "status": 200,
-      "ms": 11.8,
+      "ms": 6.5,
       "size": 153,
       "ok": true,
       "label": "ok"
@@ -269,7 +269,7 @@
       "url": "/api/audit-log?limit=10",
       "method": "GET",
       "status": 200,
-      "ms": 13.3,
+      "ms": 5.5,
       "size": 117,
       "ok": true,
       "label": "ok"
@@ -278,8 +278,8 @@
       "url": "/api/activity?limit=10",
       "method": "GET",
       "status": 200,
-      "ms": 10.9,
-      "size": 1632,
+      "ms": 5.3,
+      "size": 768,
       "ok": true,
       "label": "ok"
     },
@@ -287,7 +287,7 @@
       "url": "/api/snapshots",
       "method": "GET",
       "status": 200,
-      "ms": 9.2,
+      "ms": 4.0,
       "size": 32,
       "ok": true,
       "label": "ok"
@@ -296,7 +296,7 @@
       "url": "/api/admin/backups",
       "method": "GET",
       "status": 200,
-      "ms": 9.9,
+      "ms": 4.7,
       "size": 34,
       "ok": true,
       "label": "ok"
@@ -305,8 +305,8 @@
       "url": "/api/system/check-deployment",
       "method": "GET",
       "status": 200,
-      "ms": 204.3,
-      "size": 303,
+      "ms": 9.8,
+      "size": 311,
       "ok": true,
       "label": "ok"
     },
@@ -314,8 +314,8 @@
       "url": "/api/system/logs?limit=10",
       "method": "GET",
       "status": 200,
-      "ms": 8.5,
-      "size": 6061,
+      "ms": 4.1,
+      "size": 6030,
       "ok": true,
       "label": "ok"
     },
@@ -323,7 +323,7 @@
       "url": "/api/views",
       "method": "GET",
       "status": 200,
-      "ms": 10.1,
+      "ms": 4.5,
       "size": 3,
       "ok": true,
       "label": "ok"
@@ -332,8 +332,8 @@
       "url": "/api/dashboard",
       "method": "GET",
       "status": 200,
-      "ms": 508.7,
-      "size": 5476,
+      "ms": 8.1,
+      "size": 4764,
       "ok": true,
       "label": "ok"
     },
@@ -341,7 +341,7 @@
       "url": "/api/dashboard/stats",
       "method": "GET",
       "status": 200,
-      "ms": 10.2,
+      "ms": 4.5,
       "size": 363,
       "ok": true,
       "label": "ok"
@@ -350,7 +350,7 @@
       "url": "/api/dashboard/pipeline-stages",
       "method": "GET",
       "status": 200,
-      "ms": 10.0,
+      "ms": 4.2,
       "size": 165,
       "ok": true,
       "label": "ok"
@@ -359,8 +359,8 @@
       "url": "/api/dashboard/adaptive",
       "method": "GET",
       "status": 200,
-      "ms": 10514.3,
-      "size": 400,
+      "ms": 6.3,
+      "size": 287,
       "ok": true,
       "label": "ok"
     },
@@ -368,7 +368,7 @@
       "url": "/api/dashboard/assistant/history",
       "method": "GET",
       "status": 200,
-      "ms": 10.7,
+      "ms": 4.3,
       "size": 56,
       "ok": true,
       "label": "ok"
@@ -377,7 +377,7 @@
       "url": "/api/dashboard/assistant/suggestions",
       "method": "GET",
       "status": 200,
-      "ms": 5022.2,
+      "ms": 4.9,
       "size": 276,
       "ok": true,
       "label": "ok"
@@ -386,7 +386,7 @@
       "url": "/api/tasks",
       "method": "GET",
       "status": 200,
-      "ms": 12.2,
+      "ms": 6.6,
       "size": 32,
       "ok": true,
       "label": "ok"
@@ -395,7 +395,7 @@
       "url": "/api/tasks/rules",
       "method": "GET",
       "status": 200,
-      "ms": 12.6,
+      "ms": 5.1,
       "size": 32,
       "ok": true,
       "label": "ok"
@@ -404,7 +404,7 @@
       "url": "/api/tasks/optimize",
       "method": "GET",
       "status": 200,
-      "ms": 11.7,
+      "ms": 5.0,
       "size": 32,
       "ok": true,
       "label": "ok"
@@ -413,7 +413,7 @@
       "url": "/api/focus_queue",
       "method": "GET",
       "status": 200,
-      "ms": 10.2,
+      "ms": 4.5,
       "size": 32,
       "ok": true,
       "label": "ok"
@@ -422,7 +422,7 @@
       "url": "/api/manual-kpi",
       "method": "GET",
       "status": 200,
-      "ms": 11.1,
+      "ms": 4.5,
       "size": 34,
       "ok": true,
       "label": "ok"
@@ -431,7 +431,7 @@
       "url": "/api/calendar_events?from=2026-01-01&to=2026-12-31",
       "method": "GET",
       "status": 200,
-      "ms": 12.6,
+      "ms": 5.4,
       "size": 33,
       "ok": true,
       "label": "ok"
@@ -440,7 +440,7 @@
       "url": "/api/calendar_events_external",
       "method": "GET",
       "status": 400,
-      "ms": 8.7,
+      "ms": 3.9,
       "size": 45,
       "ok": false,
       "label": "warn"
@@ -449,8 +449,8 @@
       "url": "/api/holidays?from=2026-01-01&to=2026-12-31",
       "method": "GET",
       "status": 200,
-      "ms": 11.0,
-      "size": 448,
+      "ms": 3.9,
+      "size": 65,
       "ok": true,
       "label": "ok"
     },
@@ -458,7 +458,7 @@
       "url": "/api/stats",
       "method": "GET",
       "status": 200,
-      "ms": 12.6,
+      "ms": 6.6,
       "size": 482,
       "ok": true,
       "label": "ok"
@@ -467,8 +467,8 @@
       "url": "/api/stats/charts",
       "method": "GET",
       "status": 200,
-      "ms": 11.0,
-      "size": 6465,
+      "ms": 6.0,
+      "size": 6468,
       "ok": true,
       "label": "ok"
     },
@@ -476,7 +476,7 @@
       "url": "/api/stats/data",
       "method": "GET",
       "status": 200,
-      "ms": 28.3,
+      "ms": 9.2,
       "size": 562,
       "ok": true,
       "label": "ok"
@@ -485,7 +485,7 @@
       "url": "/api/stats/predictions",
       "method": "GET",
       "status": 200,
-      "ms": 16.0,
+      "ms": 6.0,
       "size": 913,
       "ok": true,
       "label": "ok"
@@ -494,7 +494,7 @@
       "url": "/api/stats/export",
       "method": "GET",
       "status": 200,
-      "ms": 13.2,
+      "ms": 4.6,
       "size": 91,
       "ok": true,
       "label": "ok"
@@ -503,7 +503,7 @@
       "url": "/api/stats/export_weekly_xlsx",
       "method": "GET",
       "status": 200,
-      "ms": 59.5,
+      "ms": 16.2,
       "size": 5397,
       "ok": true,
       "label": "ok"
@@ -512,7 +512,7 @@
       "url": "/api/rapport-hebdo",
       "method": "GET",
       "status": 200,
-      "ms": 10.0,
+      "ms": 5.1,
       "size": 529,
       "ok": true,
       "label": "ok"
@@ -521,7 +521,7 @@
       "url": "/api/data",
       "method": "GET",
       "status": 200,
-      "ms": 11.3,
+      "ms": 5.6,
       "size": 84,
       "ok": true,
       "label": "ok"
@@ -530,7 +530,7 @@
       "url": "/api/search?q=test",
       "method": "GET",
       "status": 200,
-      "ms": 9.3,
+      "ms": 6.1,
       "size": 226,
       "ok": true,
       "label": "ok"
@@ -539,7 +539,7 @@
       "url": "/api/prospect/upcoming-rdvs",
       "method": "GET",
       "status": 200,
-      "ms": 10.0,
+      "ms": 4.3,
       "size": 36,
       "ok": true,
       "label": "ok"
@@ -548,7 +548,7 @@
       "url": "/api/prospects/quick-filter",
       "method": "GET",
       "status": 400,
-      "ms": 8.9,
+      "ms": 4.2,
       "size": 47,
       "ok": false,
       "label": "warn"
@@ -557,7 +557,7 @@
       "url": "/api/prospects/tags-count",
       "method": "GET",
       "status": 200,
-      "ms": 10.3,
+      "ms": 4.1,
       "size": 31,
       "ok": true,
       "label": "ok"
@@ -566,7 +566,7 @@
       "url": "/api/companies/list",
       "method": "GET",
       "status": 200,
-      "ms": 9.7,
+      "ms": 5.1,
       "size": 36,
       "ok": true,
       "label": "ok"
@@ -575,7 +575,7 @@
       "url": "/api/candidates",
       "method": "GET",
       "status": 200,
-      "ms": 8.8,
+      "ms": 4.6,
       "size": 3,
       "ok": true,
       "label": "ok"
@@ -584,7 +584,7 @@
       "url": "/api/candidates/source-from-folder",
       "method": "GET",
       "status": 200,
-      "ms": 11.6,
+      "ms": 6.2,
       "size": 125,
       "ok": true,
       "label": "ok"
@@ -593,7 +593,7 @@
       "url": "/api/candidate-push",
       "method": "GET",
       "status": 400,
-      "ms": 6.4,
+      "ms": 3.8,
       "size": 52,
       "ok": false,
       "label": "warn"
@@ -602,7 +602,7 @@
       "url": "/api/candidate-tabs",
       "method": "GET",
       "status": 400,
-      "ms": 7.8,
+      "ms": 5.8,
       "size": 52,
       "ok": false,
       "label": "warn"
@@ -611,7 +611,7 @@
       "url": "/api/linkedin-inmails",
       "method": "GET",
       "status": 200,
-      "ms": 8.4,
+      "ms": 4.5,
       "size": 34,
       "ok": true,
       "label": "ok"
@@ -620,8 +620,8 @@
       "url": "/api/candidates/fiche-entretien-template",
       "method": "GET",
       "status": 200,
-      "ms": 17.1,
-      "size": 5554,
+      "ms": 10.9,
+      "size": 5553,
       "ok": true,
       "label": "ok"
     },
@@ -629,7 +629,7 @@
       "url": "/api/duplicates",
       "method": "GET",
       "status": 200,
-      "ms": 12.3,
+      "ms": 5.3,
       "size": 66,
       "ok": true,
       "label": "ok"
@@ -638,8 +638,8 @@
       "url": "/api/templates",
       "method": "GET",
       "status": 200,
-      "ms": 10.9,
-      "size": 1327,
+      "ms": 4.4,
+      "size": 1313,
       "ok": true,
       "label": "ok"
     },
@@ -647,7 +647,7 @@
       "url": "/api/push-categories",
       "method": "GET",
       "status": 200,
-      "ms": 8.4,
+      "ms": 4.2,
       "size": 3,
       "ok": true,
       "label": "ok"
@@ -656,7 +656,7 @@
       "url": "/api/push-logs",
       "method": "GET",
       "status": 200,
-      "ms": 9.8,
+      "ms": 4.2,
       "size": 3,
       "ok": true,
       "label": "ok"
@@ -665,7 +665,7 @@
       "url": "/api/push-logs/relance-reminders",
       "method": "GET",
       "status": 200,
-      "ms": 9.1,
+      "ms": 4.5,
       "size": 32,
       "ok": true,
       "label": "ok"
@@ -674,7 +674,7 @@
       "url": "/api/push-campaigns",
       "method": "GET",
       "status": 200,
-      "ms": 10.1,
+      "ms": 4.9,
       "size": 3,
       "ok": true,
       "label": "ok"
@@ -683,7 +683,7 @@
       "url": "/api/push/optimal-time",
       "method": "GET",
       "status": 400,
-      "ms": 6.5,
+      "ms": 3.7,
       "size": 53,
       "ok": false,
       "label": "warn"
@@ -692,7 +692,7 @@
       "url": "/api/push/analytics",
       "method": "GET",
       "status": 200,
-      "ms": 10.1,
+      "ms": 7.4,
       "size": 105,
       "ok": true,
       "label": "ok"
@@ -701,7 +701,7 @@
       "url": "/api/map/markers",
       "method": "GET",
       "status": 200,
-      "ms": 8.6,
+      "ms": 4.6,
       "size": 55,
       "ok": true,
       "label": "ok"
@@ -710,7 +710,7 @@
       "url": "/api/map/stats",
       "method": "GET",
       "status": 200,
-      "ms": 19.9,
+      "ms": 4.9,
       "size": 175,
       "ok": true,
       "label": "ok"
@@ -719,7 +719,7 @@
       "url": "/api/transcription",
       "method": "GET",
       "status": 200,
-      "ms": 8.9,
+      "ms": 4.4,
       "size": 32,
       "ok": true,
       "label": "ok"
@@ -728,8 +728,8 @@
       "url": "/api/transcription/preflight",
       "method": "GET",
       "status": 200,
-      "ms": 4096.9,
-      "size": 528,
+      "ms": 4.4,
+      "size": 542,
       "ok": true,
       "label": "ok"
     },
@@ -737,7 +737,7 @@
       "url": "/api/besoins",
       "method": "GET",
       "status": 200,
-      "ms": 13.3,
+      "ms": 4.4,
       "size": 32,
       "ok": true,
       "label": "ok"
@@ -746,7 +746,7 @@
       "url": "/api/collab/collaborators",
       "method": "GET",
       "status": 200,
-      "ms": 14.7,
+      "ms": 5.2,
       "size": 40,
       "ok": true,
       "label": "ok"
@@ -755,7 +755,7 @@
       "url": "/api/collab/shared-companies",
       "method": "GET",
       "status": 200,
-      "ms": 16.9,
+      "ms": 5.4,
       "size": 49,
       "ok": true,
       "label": "ok"
@@ -764,7 +764,7 @@
       "url": "/api/collab/shared-prospects",
       "method": "GET",
       "status": 200,
-      "ms": 13.5,
+      "ms": 8.8,
       "size": 36,
       "ok": true,
       "label": "ok"
@@ -773,7 +773,7 @@
       "url": "/api/dc/history",
       "method": "GET",
       "status": 200,
-      "ms": 12.8,
+      "ms": 5.1,
       "size": 34,
       "ok": true,
       "label": "ok"
@@ -782,7 +782,7 @@
       "url": "/api/custom_metiers",
       "method": "GET",
       "status": 200,
-      "ms": 10.7,
+      "ms": 4.6,
       "size": 32,
       "ok": true,
       "label": "ok"
@@ -791,7 +791,7 @@
       "url": "/api/metiers/integrations-cache",
       "method": "GET",
       "status": 200,
-      "ms": 9.3,
+      "ms": 3.4,
       "size": 39,
       "ok": true,
       "label": "ok"
@@ -800,7 +800,7 @@
       "url": "/api/mode-prosp/data",
       "method": "GET",
       "status": 401,
-      "ms": 6.0,
+      "ms": 2.7,
       "size": 61,
       "ok": false,
       "label": "warn"
@@ -809,7 +809,7 @@
       "url": "/api/ai/config",
       "method": "GET",
       "status": 200,
-      "ms": 12.3,
+      "ms": 3.4,
       "size": 679,
       "ok": true,
       "label": "ok"
@@ -818,8 +818,8 @@
       "url": "/api/ollama/models",
       "method": "GET",
       "status": 200,
-      "ms": 15.3,
-      "size": 288,
+      "ms": 3.6,
+      "size": 54,
       "ok": true,
       "label": "ok"
     },
@@ -827,7 +827,7 @@
       "url": "/api/ollama/recommended",
       "method": "GET",
       "status": 200,
-      "ms": 8.4,
+      "ms": 3.9,
       "size": 1619,
       "ok": true,
       "label": "ok"
@@ -836,7 +836,7 @@
       "url": "/api/deploy/health",
       "method": "GET",
       "status": 200,
-      "ms": 166.8,
+      "ms": 4.7,
       "size": 96,
       "ok": true,
       "label": "ok"
@@ -845,8 +845,8 @@
       "url": "/api/deploy/remote",
       "method": "GET",
       "status": 200,
-      "ms": 78.8,
-      "size": 176,
+      "ms": 8.3,
+      "size": 132,
       "ok": true,
       "label": "ok"
     },
@@ -854,8 +854,8 @@
       "url": "/api/deploy/check-deps",
       "method": "GET",
       "status": 200,
-      "ms": 92.7,
-      "size": 3431,
+      "ms": 10.6,
+      "size": 3642,
       "ok": true,
       "label": "ok"
     },
@@ -863,7 +863,7 @@
       "url": "/api/deploy/update-check",
       "method": "GET",
       "status": 200,
-      "ms": 10.9,
+      "ms": 4.4,
       "size": 130,
       "ok": true,
       "label": "ok"
@@ -872,7 +872,7 @@
       "url": "/api/deploy/validation-status",
       "method": "GET",
       "status": 200,
-      "ms": 8.3,
+      "ms": 3.0,
       "size": 23,
       "ok": true,
       "label": "ok"
@@ -880,18 +880,18 @@
     "/api/deploy/portfolio/health": {
       "url": "/api/deploy/portfolio/health",
       "method": "GET",
-      "status": 200,
-      "ms": 24.8,
-      "size": 78,
-      "ok": true,
-      "label": "ok"
+      "status": 503,
+      "ms": 5.1,
+      "size": 88,
+      "ok": false,
+      "label": "ko"
     },
     "/api/deploy/install-torch-cuda/status": {
       "url": "/api/deploy/install-torch-cuda/status",
       "method": "GET",
       "status": 200,
-      "ms": 14.2,
-      "size": 329,
+      "ms": 4.4,
+      "size": 260,
       "ok": true,
       "label": "ok"
     },
@@ -899,7 +899,7 @@
       "url": "/api/ec1-checklist/themes",
       "method": "GET",
       "status": 200,
-      "ms": 9.4,
+      "ms": 3.6,
       "size": 954,
       "ok": true,
       "label": "ok"
@@ -908,7 +908,7 @@
       "url": "/api/rdv-checklist/themes",
       "method": "GET",
       "status": 200,
-      "ms": 8.9,
+      "ms": 3.8,
       "size": 4254,
       "ok": true,
       "label": "ok"
@@ -917,7 +917,7 @@
       "url": "/api/rdv-checklist?prospect_id=1",
       "method": "GET",
       "status": 403,
-      "ms": 12.2,
+      "ms": 4.3,
       "size": 47,
       "ok": false,
       "label": "warn"
@@ -926,7 +926,7 @@
       "url": "/api/ec1-checklist?candidate_id=1",
       "method": "GET",
       "status": 403,
-      "ms": 10.3,
+      "ms": 4.3,
       "size": 47,
       "ok": false,
       "label": "warn"
@@ -935,7 +935,7 @@
       "url": "/api/export/day",
       "method": "GET",
       "status": 200,
-      "ms": 14.0,
+      "ms": 4.3,
       "size": 231,
       "ok": true,
       "label": "ok"
@@ -944,8 +944,8 @@
       "url": "/api/export/xlsx",
       "method": "GET",
       "status": 200,
-      "ms": 305.3,
-      "size": 15025,
+      "ms": 227.5,
+      "size": 15024,
       "ok": true,
       "label": "ok"
     },
@@ -953,7 +953,7 @@
       "url": "/api/push-logs/export.xlsx",
       "method": "GET",
       "status": 200,
-      "ms": 34.1,
+      "ms": 10.1,
       "size": 4925,
       "ok": true,
       "label": "ok"
@@ -962,15 +962,15 @@
       "url": "/api/candidates/export.csv",
       "method": "GET",
       "status": 200,
-      "ms": 35.4,
+      "ms": 15.6,
       "size": 0,
       "ok": true,
       "label": "ok"
     }
   },
   "summary": {
-    "ok": 99,
+    "ok": 98,
     "warn": 8,
-    "ko": 0
+    "ko": 1
   }
 }

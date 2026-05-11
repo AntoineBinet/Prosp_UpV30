@@ -1205,9 +1205,9 @@ def _build_sitemap_data(is_admin: bool) -> dict:
             ],
         },
         {
-            "id": "dc", "label": "DC Generator", "cat": "outils",
-            "icon": "📑", "href": "/v30/dc",
-            "summary": "Dossier de compétence — DOCX structuré à partir d'un CV.",
+            "id": "dc", "label": "DC Generator", "cat": "autres",
+            "icon": "📑", "href": "/v30/parametres?card=dc",
+            "summary": "Dossier de compétence — outil expérimental, accessible depuis Paramètres → Anciens outils / essais.",
             "actions": [
                 {"label": "Sélectionner un candidat", "href": "/v30/dc",
                  "tools": {"handlers": ["pickCandidate"], "endpoints": ["GET /api/candidates", "GET /api/candidates/<id>"], "backend": ["routes/candidates.py:api_candidates_list"]}},
@@ -1231,8 +1231,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
         # ─── ADMIN ─────────────────────────────────────────────
         {
             "id": "users", "label": "Utilisateurs", "cat": "admin",
-            "icon": "👥", "href": "/v30/users", "adminOnly": True,
-            "summary": "Gestion comptes, rôles, derniers logins.",
+            "icon": "👥", "href": "/v30/parametres?card=users", "adminOnly": True,
+            "summary": "Gestion comptes, rôles, derniers logins (déployable dans Paramètres → Admin).",
             "actions": [
                 {"label": "Lister les utilisateurs", "href": "/v30/users",
                  "tools": {"handlers": ["loadUsers"], "endpoints": ["GET /api/users"], "backend": ["app.py:api_users_list"]}},
@@ -1252,8 +1252,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
         },
         {
             "id": "snapshots", "label": "Snapshots", "cat": "admin",
-            "icon": "💾", "href": "/v30/snapshots",
-            "summary": "Sauvegardes de la base SQLite (auto 3h00 + manuels).",
+            "icon": "💾", "href": "/v30/parametres?card=backup",
+            "summary": "Sauvegardes de la base SQLite (déployable dans Paramètres → Sauvegardes).",
             "actions": [
                 {"label": "Lister les snapshots", "href": "/v30/snapshots",
                  "tools": {"handlers": ["loadSnapshots"], "endpoints": ["GET /api/snapshots", "GET /api/admin/backups"], "backend": ["routes/admin.py:api_snapshots_list"]}},
@@ -1267,8 +1267,8 @@ def _build_sitemap_data(is_admin: bool) -> dict:
         },
         {
             "id": "activity", "label": "Journal", "cat": "admin",
-            "icon": "📜", "href": "/v30/activity", "adminOnly": True,
-            "summary": "Audit — login, modifications, push, suppressions.",
+            "icon": "📜", "href": "/v30/parametres?card=activity", "adminOnly": True,
+            "summary": "Audit — login, modifications, push, suppressions (déployable dans Paramètres → Admin).",
             "actions": [
                 {"label": "Charger le journal", "href": "/v30/activity",
                  "tools": {"handlers": ["loadActivity"], "endpoints": ["GET /api/activity", "GET /api/audit-log"], "backend": ["routes/misc.py:api_activity"]}},
@@ -1281,7 +1281,7 @@ def _build_sitemap_data(is_admin: bool) -> dict:
             ],
         },
         {
-            "id": "metiers", "label": "Métiers IA", "cat": "admin",
+            "id": "metiers", "label": "Métiers IA", "cat": "outils",
             "icon": "🧠", "href": "/v30/metiers",
             "summary": "Référentiel métiers — spécialités, certifs, salaires, classification IA des tags.",
             "actions": [

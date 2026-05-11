@@ -4,6 +4,10 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="/static/css/v30/parametres.css?v={{ static_hash('css/v30/parametres.css') }}">
+{% if current_user and current_user.role == 'admin' %}
+<link rel="stylesheet" href="/static/css/v30/users.css?v={{ static_hash('css/v30/users.css') }}">
+<link rel="stylesheet" href="/static/css/v30/activity.css?v={{ static_hash('css/v30/activity.css') }}">
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -31,9 +35,11 @@
     <button type="button" class="tab-btn" data-tab="notif" role="tab" aria-selected="false">Notifications</button>
     <button type="button" class="tab-btn" data-tab="snapshots" role="tab" aria-selected="false">Snapshots</button>
     {% if current_user and current_user.role == 'admin' %}
+    <button type="button" class="tab-btn" data-tab="admin" role="tab" aria-selected="false">Admin</button>
     <button type="button" class="tab-btn" data-tab="deploy" role="tab" aria-selected="false">Déploiement</button>
     {% endif %}
     <button type="button" class="tab-btn" data-tab="account" role="tab" aria-selected="false">Mot de passe</button>
+    <button type="button" class="tab-btn" data-tab="legacy" role="tab" aria-selected="false">Anciens outils / essais</button>
     <button type="button" class="tab-btn" data-tab="explore" role="tab" aria-selected="false">Exploration</button>
     <button type="button" class="tab-btn" data-tab="about" role="tab" aria-selected="false">À propos</button>
   </div>
@@ -437,7 +443,7 @@
     </details>
 
     {# ─── 4. Sauvegardes & données ──────────────────────────────────────────────── #}
-    <details class="v30-params__card v30-params__collapse" data-v30-backup data-tab="snapshots">
+    <details class="v30-params__card v30-params__collapse" data-v30-backup data-tab="snapshots admin">
       <summary class="v30-params__card-summary">
         <div class="v30-params__card-head">
           {{ ui.icon('inbox', 16) }}
@@ -502,6 +508,135 @@
         </div>
       </div>
     </details>
+
+    {# ─── ADMIN — Utilisateurs ──────────────────────────────────────────────────── #}
+    {% if current_user and current_user.role == 'admin' %}
+    <details class="v30-params__card v30-params__collapse v30-params__embed v30-params__embed--users" data-v30-users data-tab="admin">
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('user', 16) }}
+          <h3>Utilisateurs</h3>
+          <span class="v30-params__admin-badge" style="margin-left:auto;">Admin</span>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Gestion des comptes, rôles (admin / éditeur), mots de passe, historique de connexion.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-params__actions">
+          <button type="button" class="btn btn-accent btn-sm" data-v30-users-new>
+            {{ ui.icon('plus', 13) }} Nouvel utilisateur
+          </button>
+          <a class="btn btn-ghost btn-sm" href="/v30/users" title="Ouvrir la page complète">
+            {{ ui.icon('link', 13) }} Page complète
+          </a>
+        </div>
+
+        <div class="tab-bar v30-users__tabs" role="tablist" aria-label="Sections utilisateurs" data-v30-users-tabs style="margin-top:12px;">
+          <button type="button" class="tab-btn is-active" data-tab="list" role="tab" aria-selected="true">
+            {{ ui.icon('user', 12) }} Utilisateurs
+          </button>
+          <button type="button" class="tab-btn" data-tab="history" role="tab" aria-selected="false">
+            {{ ui.icon('clock', 12) }} Derniers logins
+          </button>
+        </div>
+
+        <section class="v30-users__panel" data-panel="list">
+          <div class="v30-users__table-wrap card card-flush">
+            <table class="user-table" data-v30-users-table>
+              <thead>
+                <tr>
+                  <th scope="col">Utilisateur</th>
+                  <th scope="col">Email / Username</th>
+                  <th scope="col">Rôle</th>
+                  <th scope="col" class="u-hide-sm">Créé le</th>
+                  <th scope="col" class="u-hide-sm">Dernière connexion</th>
+                  <th scope="col" class="u-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody data-v30-users-tbody>
+                <tr><td colspan="6" class="empty" style="padding:24px;">Chargement…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="v30-users__panel" data-panel="history" hidden>
+          <div class="v30-users__panel-head">
+            <h2 class="v30-users__panel-title">Derniers logins</h2>
+            <p class="muted" style="font-size:12px; margin:0;">Basé sur le champ <code class="mono">lastLoginAt</code> par utilisateur.</p>
+          </div>
+          <div class="card card-flush">
+            <table class="history-table" data-v30-users-history>
+              <thead>
+                <tr>
+                  <th scope="col">Utilisateur</th>
+                  <th scope="col">Rôle</th>
+                  <th scope="col">Dernière connexion</th>
+                </tr>
+              </thead>
+              <tbody data-v30-users-history-tbody>
+                <tr><td colspan="3" class="empty" style="padding:24px;">Chargement…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </details>
+    {% endif %}
+
+    {# ─── ADMIN — Journal d'activité ────────────────────────────────────────────── #}
+    {% if current_user and current_user.role == 'admin' %}
+    <details class="v30-params__card v30-params__collapse v30-params__embed v30-params__embed--activity" data-v30-activity data-tab="admin">
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('clock', 16) }}
+          <h3>Journal d'activité</h3>
+          <span class="v30-params__admin-badge" style="margin-left:auto;">Admin</span>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Audit : login, créations/modifications, push, suppressions — filtrable par utilisateur ou action.
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-params__actions" style="flex-wrap:wrap;gap:8px;">
+          <select class="v30-input input" data-v30-activity-user>
+            <option value="">Tous les utilisateurs</option>
+          </select>
+          <select class="v30-input input" data-v30-activity-action>
+            <option value="">Toutes les actions</option>
+            <option value="login">Connexion</option>
+            <option value="logout">Déconnexion</option>
+            <option value="create_prospect">Création prospect</option>
+            <option value="update_prospect">Maj prospect</option>
+            <option value="delete_prospect">Suppression prospect</option>
+            <option value="create_company">Création entreprise</option>
+            <option value="update_company">Maj entreprise</option>
+            <option value="push_sent">Push envoyé</option>
+          </select>
+          <a class="btn btn-ghost btn-sm" href="/v30/activity" title="Ouvrir la page complète">
+            {{ ui.icon('link', 13) }} Page complète
+          </a>
+          <span class="muted" data-field="total" style="font-size:12px;">—</span>
+        </div>
+
+        <div class="card card-flush" style="margin-top:10px;">
+          <div class="v30-activity__table" data-v30-activity-list>
+            <div class="empty" style="padding:24px;">Chargement…</div>
+          </div>
+          <footer class="v30-activity__foot" data-v30-activity-pag>
+            <button type="button" class="btn btn-ghost btn-sm" data-pag-prev disabled>← Précédent</button>
+            <span class="muted mono" data-pag-range>—</span>
+            <button type="button" class="btn btn-ghost btn-sm" data-pag-next disabled>Suivant →</button>
+          </footer>
+        </div>
+      </div>
+    </details>
+    {% endif %}
 
     {# ─── 5. Mon compte ───────────────────────────────────────────────────────────── #}
     <details class="v30-params__card v30-params__collapse" data-v30-account data-tab="account">
@@ -602,6 +737,32 @@
           <li><strong>Pages</strong> — bulles colorées par catégorie (21 au total selon ton rôle).</li>
           <li><strong>Actions</strong> — petites bulles autour de chaque page (~100 au total).</li>
         </ul>
+      </div>
+    </details>
+
+    {# ─── ANCIENS OUTILS / ESSAIS — DC Generator ──────────────────────────────────── #}
+    <details class="v30-params__card v30-params__collapse v30-params__embed v30-params__embed--dc" data-v30-dc data-tab="legacy">
+      <summary class="v30-params__card-summary">
+        <div class="v30-params__card-head">
+          {{ ui.icon('report', 16) }}
+          <h3>DC Generator</h3>
+          <span class="v30-params__chip" style="margin-left:auto;">Anciens outils / essais</span>
+          <span class="v30-params__chev">{{ ui.icon('arrowD', 14) }}</span>
+        </div>
+        <p class="v30-params__card-desc">
+          Dossier de compétence — DOCX structuré à partir d'un CV et d'une fiche candidat (outil expérimental).
+        </p>
+      </summary>
+
+      <div class="v30-params__form">
+        <div class="v30-params__actions">
+          <a class="btn btn-primary btn-sm" href="/v30/dc">
+            {{ ui.icon('link', 13) }} Ouvrir le générateur de DC
+          </a>
+          <span class="muted" style="font-size:11.5px;">
+            Sélection candidat · upload CV · données entretien · enrichissement IA · export DOCX.
+          </span>
+        </div>
       </div>
     </details>
 
@@ -735,6 +896,58 @@
   </div>
 </div>
 
+{# ─── Modale création / édition utilisateur (admin) ─── #}
+{% if current_user and current_user.role == 'admin' %}
+<div class="v30-modal-bd" data-v30-user-bd hidden>
+  <div class="v30-modal" role="dialog" aria-modal="true" aria-label="Gestion utilisateur">
+    <header class="v30-modal__head">
+      <h2 class="v30-modal__title" data-v30-user-title>Nouvel utilisateur</h2>
+      <button type="button" class="btn btn-ghost btn-icon" data-v30-user-close aria-label="Fermer">{{ ui.icon('x') }}</button>
+    </header>
+    <div class="v30-modal__body">
+      <div class="v30-field">
+        <label class="v30-field__label" for="v30UserUsername">Nom d'utilisateur <span class="required-mark">*</span></label>
+        <input id="v30UserUsername" type="text" class="v30-input" data-v30-user-username autocomplete="off">
+      </div>
+      <div class="v30-field">
+        <label class="v30-field__label" for="v30UserDisplay">Nom d'affichage</label>
+        <input id="v30UserDisplay" type="text" class="v30-input" data-v30-user-display autocomplete="off">
+      </div>
+      <div class="v30-field">
+        <span class="v30-field__label">Rôle</span>
+        <div class="v30-users__role-radios">
+          <label class="role-radio">
+            <input type="radio" name="v30UserRole" value="editor" data-v30-user-role-r checked>
+            <span class="role-chip role-chip--editor">Éditeur</span>
+          </label>
+          <label class="role-radio">
+            <input type="radio" name="v30UserRole" value="admin" data-v30-user-role-r>
+            <span class="role-chip role-chip--admin">Administrateur</span>
+          </label>
+        </div>
+      </div>
+      <div class="v30-field">
+        <label class="v30-field__label" for="v30UserPassword">
+          Mot de passe
+          <span class="muted" style="font-size:11px;">(min 8 car., 1 chiffre, 1 lettre · vide = inchangé)</span>
+        </label>
+        <input id="v30UserPassword" type="password" class="v30-input" data-v30-user-password autocomplete="new-password">
+      </div>
+      <div class="v30-field" style="flex-direction:row;align-items:center;gap:8px;">
+        <input id="v30UserActive" type="checkbox" data-v30-user-active checked>
+        <label for="v30UserActive" class="v30-field__label" style="margin:0;cursor:pointer;">Compte actif</label>
+      </div>
+    </div>
+    <footer class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost" data-v30-user-close>Annuler</button>
+      <div class="v30-spacer"></div>
+      <button type="button" class="btn btn-danger" data-v30-user-delete hidden>Supprimer</button>
+      <button type="button" class="btn btn-accent" data-v30-user-save>Enregistrer</button>
+    </footer>
+  </div>
+</div>
+{% endif %}
+
 {# ─── Modale KPI manuel ─── #}
 <div class="v30-modal-bd" data-v30-kpi-modal-bd hidden>
   <div class="v30-modal" role="dialog" aria-modal="true" aria-label="Ajouter un KPI manuel">
@@ -799,6 +1012,10 @@
 
 <script defer src="/static/js/notifications.js?v={{ static_hash('js/notifications.js') }}"></script>
 <script defer src="/static/js/v30/parametres.js?v={{ static_hash('js/v30/parametres.js') }}"></script>
+{% if current_user and current_user.role == 'admin' %}
+<script defer src="/static/js/v30/users.js?v={{ static_hash('js/v30/users.js') }}"></script>
+<script defer src="/static/js/v30/activity.js?v={{ static_hash('js/v30/activity.js') }}"></script>
+{% endif %}
 
 {# ─── Portfolio deploy — script inline (ne dépend pas de parametres.js) ─── #}
 <script>

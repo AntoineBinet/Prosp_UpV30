@@ -21,12 +21,13 @@
     { label: 'Focus',       sub: 'Mode concentration',   icon: 'focus',    href: '/v30/focus' },
     { label: 'Calendrier',  sub: 'RDV & relances',       icon: 'calendar', href: '/v30/calendrier' },
     { label: 'Paramètres',  sub: 'Configuration & compte', icon: 'cog',    href: '/v30/parametres' },
-    { label: 'Utilisateurs',sub: 'Gestion des comptes (admin)', icon: 'users', href: '/v30/users' },
-    { label: 'Snapshots',   sub: 'Sauvegardes DB (admin)',icon: 'bookmark', href: '/v30/snapshots' },
-    { label: 'Activité',    sub: "Journal d'actions (admin)", icon: 'clock', href: '/v30/activity' },
+    { label: 'Utilisateurs',sub: 'Gestion des comptes (Paramètres)', icon: 'users', href: '/v30/parametres?card=users' },
+    { label: 'Snapshots',   sub: 'Sauvegardes DB (Paramètres)',icon: 'bookmark', href: '/v30/parametres?card=backup' },
+    { label: 'Activité',    sub: "Journal d'actions (Paramètres)", icon: 'clock', href: '/v30/parametres?card=activity' },
     { label: 'Collaboration', sub: 'Partage entreprises',  icon: 'users', href: '/v30/collab' },
     { label: 'Doublons',    sub: 'Détection & fusion',   icon: 'filter',   href: '/v30/duplicates' },
-    { label: 'Métiers IA',  sub: 'Référentiels IA (admin)', icon: 'tag',   href: '/v30/metiers' },
+    { label: 'Métiers IA',  sub: 'Référentiels IA',      icon: 'tag',      href: '/v30/metiers' },
+    { label: 'DC Generator',sub: 'Anciens outils (Paramètres)', icon: 'report', href: '/v30/parametres?card=dc' },
     { label: 'Aide',        sub: 'Guide utilisateur',    icon: 'bulb',     href: '/v30/help' }
   ];
 
