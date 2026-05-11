@@ -2,6 +2,22 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.37] — 2026-05-11 · Besoin · Réordonnancement des candidats positionnés
+
+Sur la fiche besoin (`/v30/besoins/<id>`), la liste des candidats
+positionnés peut maintenant être réordonnée :
+
+- **Tri automatique par dispo** : nouveau bouton « Trier par dispo »
+  dans le header de la section. Ordre obtenu : `Dispo` (vert) en haut →
+  `Messagerie` (bleu) → `Pas contacté` → `Non dispo` (rouge) en bas.
+  Toast de confirmation, tri stable au sein d'un même statut.
+- **Drag & drop manuel** : nouvelle poignée à six points à gauche de
+  chaque carte (`v30-cand-card__handle`). Indicateur d'insertion bleu
+  au survol (`is-drop-before` / `is-drop-after`). Fonctionne en desktop
+  (HTML5 drag) et mobile (touchstart + elementFromPoint).
+- L'ordre est persisté via le `PUT /api/besoins/<id>` existant
+  (auto-save 1,2 s après modification).
+
 ## [32.36] — 2026-05-09 · Toile d'araignée · Refonte split + style minimaliste
 
 La toile (`/v30/sitemap`) abandonne la vue radiale plein écran pour un
