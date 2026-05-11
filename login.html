@@ -220,19 +220,27 @@ input, select, textarea { font: inherit; color: inherit; }
   overflow: hidden;
 }
 
-/* Constellation derrière le titre — canvas absolu, plein cadre comme
-   marienour.work (.hero-cloud { inset: 0 }). Pas de masque radial : les
-   nœuds restent nets et le spotlight orange visible jusqu'aux bords.
-   .mq-editorial crée un stacking context (z-index: 1) pour confiner le
-   canvas ; .mq-card est promu z-index: 2 pour rester au-dessus. */
+/* Colonne éditoriale (gauche) — texte seul, sans canvas, pour
+   maximiser la lisibilité du titre. */
 .mq-editorial {
   position: relative;
-  z-index: 1;
   min-width: 0;
   align-self: stretch;
   display: flex; flex-direction: column; justify-content: center;
 }
-.mq-editorial > * { position: relative; z-index: 1; }
+
+/* Colonne formulaire (droite) — héberge la constellation (canvas absolu
+   en fond) + la carte (.mq-card) au premier plan. Le wrapper s'étire
+   verticalement pour que le nuage de points respire au-dessus et en
+   dessous de la carte. */
+.mq-form-side {
+  position: relative;
+  align-self: stretch;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .mq-constellation {
   position: absolute;
   inset: 0;
@@ -288,11 +296,12 @@ input, select, textarea { font: inherit; color: inherit; }
   color: var(--ink-700);
 }
 
-/* Formulaire (colonne droite) — z-index: 2 pour rester au-dessus du
-   stacking context de .mq-editorial (qui contient le canvas). */
+/* Formulaire — z-index: 1 pour rester au-dessus du canvas constellation
+   placé dans le même wrapper .mq-form-side (z-index: 0). */
 .mq-card {
   position: relative;
-  z-index: 2;
+  z-index: 1;
+  width: 100%;
   padding: 28px 32px;
   background: var(--cream);
   border: 1px solid var(--hair-warm);
@@ -557,7 +566,6 @@ body.is-loading .mq-submit .mq-submit__kbd { display: none; }
   <main class="mq-body">
 
     <section class="mq-editorial">
-      <canvas class="mq-constellation" aria-hidden="true"></canvas>
       <p class="mq-eyebrow">La marche du jour</p>
       <h1 class="mq-title">
         Le pipeline<br>
@@ -574,7 +582,9 @@ body.is-loading .mq-submit .mq-submit__kbd { display: none; }
       </p>
     </section>
 
-    <section class="mq-card" aria-labelledby="mqLegend">
+    <div class="mq-form-side">
+      <canvas class="mq-constellation" aria-hidden="true"></canvas>
+      <section class="mq-card" aria-labelledby="mqLegend">
       <span class="mq-card__legend" id="mqLegend">Prendre la barre</span>
 
       <form id="loginForm" class="mq-form" novalidate>
@@ -615,7 +625,8 @@ body.is-loading .mq-submit .mq-submit__kbd { display: none; }
           <a href="mailto:contact@up-technologies.fr?subject=Demande%20d%27acc%C3%A8s%20Prosp%27Up">Demander un accès</a>
         </div>
       </form>
-    </section>
+      </section>
+    </div>
   </main>
 
   <!-- Footer -->
