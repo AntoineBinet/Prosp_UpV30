@@ -2,7 +2,7 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
-## [32.44] — 2026-05-11 · Dashboard · Détail gamification + RDV aujourd'hui
+## [32.45] — 2026-05-11 · Dashboard · Détail gamification + RDV aujourd'hui
 
 - **« RDV aujourd'hui » corrigé** : l'onglet du centre d'action utilisait
   `data.feed.rdv` qui est event-based (transitions `rdv_taken` ce jour).
@@ -21,6 +21,24 @@ Historique des versions significatives. Incrément dans [app.py:38](app.py).
   (transition de statut involontaire, ajustement manuel oublié…).
 - **Backend** : `/api/dashboard` retourne désormais `goals.breakdown`
   (daily + weekly) avec les rows sources de chaque objectif.
+
+## [32.44] — 2026-05-11 · Login · Constellation pleine, hairlines retirées, PWA up
+
+- **Constellation pleine surface** : alignement final sur marienour.work
+  (`.hero-cloud { inset: 0 }`). Le canvas remplit désormais tout le bloc
+  éditorial (`inset: -24px` pour mordre légèrement au-delà), à `opacity: 1`,
+  sans `mask-image` radial. Les nœuds et le spotlight orange restent nets
+  jusqu'aux bords. La section éditoriale passe en `align-self: stretch` +
+  flex-column centré, pour que la cell de la grille soit pleine hauteur.
+- **Plus de fines barres grises empilées** : suppression du
+  `border-bottom: 1px solid var(--hair-warm)` sur `.mq-top` (la marquise
+  garde la sienne, qui sépare déjà l'en-tête du corps). Élimine la
+  « barre grise » perçue sous le bandeau défilant.
+- **Icônes PWA refaites** : `static/favicon.ico`, `static/icon-192.png`
+  et `static/icon-512.png` sont régénérés à partir de la même source
+  SVG que la marque Up Technologies (orange #EF8827, « up » blanc
+  italique). Plus de « P » violet hérité — la tab du navigateur et
+  l'icône installable matchent enfin la refonte 2026.
 
 ## [32.43] — 2026-05-11 · Login · Constellation refondue + nettoyage visuel
 

@@ -92,7 +92,6 @@
       display: flex; align-items: center; gap: 14px;
       height: var(--topbar-h);
       padding: 0 32px;
-      border-bottom: 1px solid var(--hair-warm);
     }
     .mq-brand { display: inline-flex; align-items: baseline; gap: 8px; }
     .mq-brand__mark {
@@ -181,25 +180,22 @@
       overflow: hidden;
     }
 
-    .mq-editorial { position: relative; min-width: 0; }
+    .mq-editorial {
+      position: relative;
+      min-width: 0;
+      align-self: stretch;
+      display: flex; flex-direction: column; justify-content: center;
+    }
     .mq-editorial > * { position: relative; z-index: 2; }
     .mq-constellation {
       position: absolute;
-      top: 50%; left: 50%;
-      width: clamp(340px, 46vw, 600px);
-      height: clamp(340px, 46vw, 600px);
-      transform: translate(-50%, -50%);
+      inset: -24px;
       z-index: 1;
       pointer-events: none;
-      opacity: 0.62;
-      -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 30%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0) 78%);
-              mask-image: radial-gradient(circle at 50% 50%, #000 30%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0) 78%);
-    }
-    @media (max-width: 900px) {
-      .mq-constellation { opacity: 0.55; width: 88vw; height: 88vw; }
+      opacity: 1;
     }
     @media (prefers-reduced-motion: reduce) {
-      .mq-constellation { opacity: 0.45; }
+      .mq-constellation { opacity: 0.7; }
     }
 
     .mq-eyebrow {
