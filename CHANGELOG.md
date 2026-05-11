@@ -2,6 +2,26 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.45] — 2026-05-11 · Dashboard · Détail gamification + RDV aujourd'hui
+
+- **« RDV aujourd'hui » corrigé** : l'onglet du centre d'action utilisait
+  `data.feed.rdv` qui est event-based (transitions `rdv_taken` ce jour).
+  Résultat : un prospect avec `rdvDate=today` mais déjà au statut
+  Rendez-vous n'apparaissait pas. Bascule sur `data.today_appointments`
+  (filtré par `rdvDate == today`) pour refléter ce que l'utilisateur
+  attend — *les meetings programmés aujourd'hui*.
+- **Détail gamification (info button discret)** : nouvelle icône (i) à côté
+  du titre « Objectifs ». Ouvre une modale qui liste les *sources
+  comptabilisées* pour chaque objectif (jour + semaine) :
+  event `rdv_taken` (avec nom du prospect + date du RDV), push log
+  (email / LinkedIn, sujet, destinataire), `candidate_contacted` /
+  `candidate_solid` / `linkedin_inmail`, et `manual_kpi` (correction
+  manuelle, valeur, description). Permet d'expliquer pourquoi un
+  compteur vaut 1 et de diagnostiquer les sur-comptages éventuels
+  (transition de statut involontaire, ajustement manuel oublié…).
+- **Backend** : `/api/dashboard` retourne désormais `goals.breakdown`
+  (daily + weekly) avec les rows sources de chaque objectif.
+
 ## [32.44] — 2026-05-11 · Login · Constellation pleine, hairlines retirées, PWA up
 
 - **Constellation pleine surface** : alignement final sur marienour.work

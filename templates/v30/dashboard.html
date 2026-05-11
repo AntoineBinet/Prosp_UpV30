@@ -198,9 +198,20 @@
     <div class="card v30-objs" data-v30-objs>
       <div class="row-sb v30-objs__head">
         <div class="card-title">Objectifs</div>
-        <a href="/v30/parametres#goals" class="btn btn-ghost btn-sm btn-icon" title="Paramètres objectifs" aria-label="Paramètres objectifs">
-          {{ ui.icon('cog', 13) }}
-        </a>
+        <div class="v30-objs__head-actions">
+          <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-objs-detail
+                  title="Voir le détail des sources" aria-label="Voir le détail des sources">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/>
+              <line x1="12" y1="11" x2="12" y2="16"/>
+              <circle cx="12" cy="8" r="0.6" fill="currentColor"/>
+            </svg>
+          </button>
+          <a href="/v30/parametres#goals" class="btn btn-ghost btn-sm btn-icon" title="Paramètres objectifs" aria-label="Paramètres objectifs">
+            {{ ui.icon('cog', 13) }}
+          </a>
+        </div>
       </div>
 
       <div class="v30-objs__top">
@@ -364,6 +375,40 @@
     <div class="v30-modal__foot">
       <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Annuler</button>
       <button type="button" class="btn btn-primary btn-sm" data-v30-dash-kpi-save>Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+{# ─── Modal : détail gamification (sources des compteurs) ─── #}
+<div class="v30-modal-bd" data-v30-dash-goals-modal hidden>
+  <div class="v30-modal v30-modal--wide" role="dialog" aria-modal="true" aria-labelledby="v30-dash-goals-title">
+    <div class="v30-modal__head">
+      <h2 class="v30-modal__title" id="v30-dash-goals-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <line x1="12" y1="11" x2="12" y2="16"/>
+          <circle cx="12" cy="8" r="0.6" fill="currentColor"/>
+        </svg>
+        Détail des objectifs
+      </h2>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" data-v30-modal-close aria-label="Fermer">
+        {{ ui.icon('x', 13) }}
+      </button>
+    </div>
+    <div class="v30-modal__body">
+      <p class="muted" style="font-size: 12.5px; margin: 0 0 14px;">
+        Sources comptabilisées pour chaque objectif aujourd'hui et cette semaine.
+        Utile pour comprendre pourquoi un compteur est à 1 (event créé, KPI manuel ajouté…).
+      </p>
+      <div class="v30-objs-detail" data-field="content">
+        <div class="empty" style="padding:18px 0;text-align:center;color:var(--text-3);font-size:12.5px;">
+          Chargement du détail…
+        </div>
+      </div>
+    </div>
+    <div class="v30-modal__foot">
+      <button type="button" class="btn btn-ghost btn-sm" data-v30-modal-close>Fermer</button>
     </div>
   </div>
 </div>
