@@ -72,10 +72,12 @@
     input, select, textarea { font: inherit; color: inherit; }
 
     .mq-paper-grid {
-      position: fixed; inset: 0; pointer-events: none; opacity: 0.4; z-index: 0;
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      pointer-events: none; opacity: 0.4; z-index: 0;
     }
     .mq-grain {
-      position: fixed; inset: 0; pointer-events: none;
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      pointer-events: none;
       mix-blend-mode: multiply; opacity: 0.40; z-index: 1;
     }
 
@@ -92,6 +94,7 @@
       display: flex; align-items: center; gap: 14px;
       height: var(--topbar-h);
       padding: 0 32px;
+      background: var(--cream);
     }
     .mq-brand { display: inline-flex; align-items: baseline; gap: 8px; }
     .mq-brand__mark {
@@ -127,7 +130,8 @@
     .mq-marquise {
       position: relative;
       height: var(--marquise-h);
-      border-bottom: 1px solid var(--hair-warm);
+      border-top: 1px solid var(--ink-950);
+      border-bottom: 1px solid var(--ink-950);
       background: var(--cream);
       overflow: hidden;
       display: flex; align-items: center;
@@ -400,7 +404,7 @@
 </head>
 <body data-page="v30-login">
 
-<svg class="mq-paper-grid" aria-hidden="true" preserveAspectRatio="none">
+<svg class="mq-paper-grid" aria-hidden="true" preserveAspectRatio="none" width="100%" height="100%">
   <defs>
     <pattern id="mq-vlines" width="80" height="80" patternUnits="userSpaceOnUse">
       <line x1="0" y1="0" x2="0" y2="80" stroke="oklch(0.918 0.008 80)" stroke-width="0.5"/>
@@ -408,8 +412,8 @@
   </defs>
   <rect width="100%" height="100%" fill="url(#mq-vlines)"/>
 </svg>
-<svg class="mq-grain" aria-hidden="true" preserveAspectRatio="none">
-  <filter id="mq-grain-filter">
+<svg class="mq-grain" aria-hidden="true" preserveAspectRatio="none" width="100%" height="100%">
+  <filter id="mq-grain-filter" x="0" y="0" width="100%" height="100%">
     <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/>
     <feColorMatrix values="0 0 0 0 0.45  0 0 0 0 0.42  0 0 0 0 0.36  0 0 0 0.55 0"/>
   </filter>
