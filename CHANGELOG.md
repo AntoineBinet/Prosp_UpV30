@@ -2,6 +2,27 @@
 
 Historique des versions significatives. Incrément dans [app.py:38](app.py).
 
+## [32.43] — 2026-05-11 · Login · Constellation refondue + nettoyage visuel
+
+- **Constellation alignée sur marienour.work** : port direct du `PointCloud`
+  React du portfolio Up Technologies vers le `login-constellation.js` vanilla.
+  Apporte 3 classes de points (60 % petits, 30 % moyens, 10 % hubs avec
+  halo orange), 4 plus proches voisins au lieu de 3, épaisseurs de ligne
+  proportionnelles à la distance + à la taille des nœuds, et un rendu en
+  deux passes (encre pour les liens de base, spotlight orange à la souris).
+  Les paramètres clés sont calqués sur l'original (`density=2.2`,
+  `LINK_D=185`, `MOUSE_R=180`, `baseAlpha=0.28`).
+- **Marquise sans « barre grise »** : le fond `--cream-2` du bandeau
+  défilant créait une bande grise qui paraissait déborder sous le contenu.
+  Le bandeau est maintenant `--cream` (même teinte que la topbar et le
+  corps), les fades latéraux suivent. Seules les fines hairlines
+  `--hair-warm` (1 px) séparent encore les zones.
+- **Footer recentré sur Antoine Binet** : suppression de la mention
+  « SSO Up Technologies » sous le formulaire (le pied de carte affiche
+  désormais uniquement le lien « Demander un accès » aligné à droite),
+  et bascule du copyright vers « © 2026 Antoine Binet · Up-Technologies
+  · France ».
+
 ## [32.42] — 2026-05-11 · Login · Constellation nette + page sans scroll
 
 Polissage de la refonte 32.41 :
